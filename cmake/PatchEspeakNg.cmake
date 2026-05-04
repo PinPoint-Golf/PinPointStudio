@@ -29,6 +29,13 @@ string(REPLACE
     "target_include_directories(espeak-include INTERFACE include include/compat)"
     "target_include_directories(espeak-include INTERFACE include)"
     _c1 "${_c1}")
+# On MSVC espeak-ng already adds compat/getopt.c as a source, but the binary
+# target has no path to include/compat (we stripped it from the interface
+# above), so <getopt.h> cannot be found.  Add it back as PRIVATE here.
+string(REPLACE
+    "if (MSVC)\n  target_sources(espeak-ng-bin PRIVATE compat/getopt.c)\nendif()"
+    "if (MSVC)\n  target_sources(espeak-ng-bin PRIVATE compat/getopt.c)\n  target_include_directories(espeak-ng-bin PRIVATE \${CMAKE_CURRENT_SOURCE_DIR}/include/compat)\nendif()"
+    _c1 "${_c1}")
 file(WRITE "${FILE1}" "${_c1}")
 
 # --- src/libespeak-ng/CMakeLists.txt ------------------------------------

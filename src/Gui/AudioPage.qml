@@ -165,10 +165,12 @@ Item {
                         Label {
                             id: sttBackendBadge
                             anchors.centerIn: parent
-                            text: controller.sttBackend
-                            color: controller.sttBackend === "CPU"   ? "#6c7086"
-                                 : controller.sttBackend === "Cloud" ? "#89b4fa"
-                                 : "#a6e3a1"
+                            text: controller.sttBackend !== "" ? controller.sttBackend
+                                                               : qsTr("CPU")
+                            color: controller.sttBackend === "Cloud" ? "#89b4fa"
+                                 : controller.sttBackend !== "" && controller.sttBackend !== "CPU"
+                                   ? "#a6e3a1"
+                                 : "#6c7086"
                             font.pixelSize: 10
                             font.bold: true
                         }

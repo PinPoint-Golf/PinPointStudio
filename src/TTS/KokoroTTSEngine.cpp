@@ -2,6 +2,7 @@
 
 #include <QDebug>
 #include <QFile>
+#include <QLibrary>
 
 #ifdef HAVE_ONNXRUNTIME
 #  include <onnxruntime_cxx_api.h>
@@ -43,14 +44,21 @@ KokoroTTSEngine::KokoroTTSEngine(QObject *parent)
 
 #ifdef WITH_CUDA
     if (m_gpuBackend.isEmpty()) {
-        // Probe for the NVIDIA kernel driver before asking ORT to load the CUDA
-        // provider — avoids verbose internal ORT errors on machines with no NVIDIA GPU.
+        // Probe for the NVIDIA driver before asking ORT to load the CUDA provider —
+        // avoids verbose internal ORT errors on machines with no NVIDIA GPU.
 #  ifdef Q_OS_LINUX
-        if (!QFile::exists(QStringLiteral("/proc/driver/nvidia/version"))) {
-            qDebug() << "KokoroTTS: No NVIDIA GPU detected — skipping CUDA EP";
-        } else
+        const bool hasNvidiaDriver = QFile::exists(QStringLiteral("/proc/driver/nvidia/version"));
+#  elif defined(Q_OS_WIN)
+        // nvcuda.dll is installed by the NVIDIA driver; absence means no NVIDIA GPU.
+        QLibrary nvcuda(QStringLiteral("nvcuda.dll"));
+        const bool hasNvidiaDriver = nvcuda.load();
+        if (hasNvidiaDriver) nvcuda.unload();
+#  else
+        const bool hasNvidiaDriver = true;
 #  endif
-        {
+        if (!hasNvidiaDriver) {
+            qDebug() << "KokoroTTS: No NVIDIA GPU detected — skipping CUDA EP";
+        } else {
             try {
                 OrtCUDAProviderOptions cuda{};
                 cuda.device_id = 0;

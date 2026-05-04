@@ -31,15 +31,31 @@ if(NOT APPLE)
         set(_whisper_gpu_backend "Vulkan")
         message(STATUS "Whisper: Vulkan GPU acceleration enabled")
     else()
-        include(CheckLanguage)
-        check_language(CUDA)
+        # check_language(CUDA) is verbose even on failure; guard with a silent
+        # find_program first so machines without nvcc don't get noisy output.
+        find_program(_nvcc_path nvcc QUIET)
+        if(_nvcc_path)
+            include(CheckLanguage)
+            check_language(CUDA)
+        endif()
         if(CMAKE_CUDA_COMPILER)
             enable_language(CUDA)
             set(GGML_CUDA ON CACHE BOOL "" FORCE)
+            # Target only the GPU(s) present; avoids compiling for old architectures
+            # (e.g. compute_52) that CUDA 12.x dropped support for.
+            set(CMAKE_CUDA_ARCHITECTURES native CACHE STRING "" FORCE)
+            if(MSVC)
+                # CUDA 13+ CCCL headers require the MSVC standard-conforming
+                # preprocessor; the traditional one triggers a hard #error.
+                string(APPEND CMAKE_CUDA_FLAGS " -Xcompiler /Zc:preprocessor")
+            endif()
+            # CUDA 13+ CUB/CCCL headers require C++17.
+            set(CMAKE_CUDA_STANDARD 17 CACHE STRING "" FORCE)
+            set(CMAKE_CUDA_STANDARD_REQUIRED ON CACHE BOOL "" FORCE)
             set(_whisper_gpu_backend "CUDA")
             message(STATUS "Whisper: CUDA GPU acceleration enabled")
         else()
-            message(STATUS "Whisper: CPU only (Vulkan and CUDA not found)")
+            message(STATUS "Whisper: CPU only (install Vulkan SDK or CUDA Toolkit for GPU acceleration)")
         endif()
     endif()
 endif()
@@ -180,11 +196,31 @@ option(WITH_COREML   "Enable CoreML execution provider (macOS ARM64)"    ON)
 
 set(ORT_VERSION "1.25.1")
 
-# Select prebuilt binary. GPU binary is required when CUDA or DirectML is enabled.
+# Select prebuilt binary.
+# Windows has two mutually exclusive GPU packages:
+#   gpu package  — CUDA + TensorRT (no DirectML header/runtime)
+#   std package  — CPU + DirectML  (no CUDA)
+# Therefore WITH_CUDA and WITH_DIRECTML are mutually exclusive on Windows.
+# CUDA wins when both are requested; DirectML is silently skipped.
 if(WIN32)
-    if(WITH_CUDA OR WITH_DIRECTML)
-        set(_ort_url "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-win-x64-gpu-${ORT_VERSION}.zip")
+    if(WITH_CUDA)
+        # The ORT CUDA provider DLL is compiled against a specific CUDA major version
+        # and imports e.g. cublasLt64_12.dll.  A different CUDA major on the host
+        # means that DLL is absent and ORT fails to load the provider at runtime.
+        # Detect the installed CUDA major version and fall back to the standard
+        # Windows package (DirectML) when the toolkit is a different major than ORT's.
+        find_package(CUDAToolkit QUIET)
+        set(_ort_cuda_major 12)  # ORT ${ORT_VERSION} CUDA EP was built against CUDA 12
+        if(CUDAToolkit_FOUND AND NOT CUDAToolkit_VERSION_MAJOR EQUAL _ort_cuda_major)
+            message(STATUS "ORT CUDA EP: installed CUDA ${CUDAToolkit_VERSION} != "
+                "ORT build CUDA ${_ort_cuda_major} — using standard package (DirectML)")
+            set(WITH_CUDA OFF CACHE BOOL "" FORCE)
+            set(_ort_url "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-win-x64-${ORT_VERSION}.zip")
+        else()
+            set(_ort_url "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-win-x64-gpu-${ORT_VERSION}.zip")
+        endif()
     else()
+        # Standard Windows package includes DirectML support.
         set(_ort_url "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-win-x64-${ORT_VERSION}.zip")
     endif()
 elseif(APPLE)
@@ -231,19 +267,31 @@ if(WITH_CUDA AND NOT APPLE)
     target_compile_definitions(PinPoint PRIVATE WITH_CUDA)
 endif()
 if(WITH_DIRECTML AND WIN32)
-    target_compile_definitions(PinPoint PRIVATE WITH_DIRECTML)
+    # dml_provider_factory.h ships only in the standard Windows package, not the
+    # CUDA GPU package.  Guard against a stale cached CUDA download.
+    if(EXISTS "${_ort_root}/include/dml_provider_factory.h")
+        target_compile_definitions(PinPoint PRIVATE WITH_DIRECTML)
+    else()
+        message(WARNING "WITH_DIRECTML: dml_provider_factory.h not found in the cached ORT package "
+            "(likely the CUDA GPU package is cached). "
+            "Delete _deps/onnxruntime-src and reconfigure to fetch the standard Windows package.")
+    endif()
 endif()
 
 if(WIN32)
     target_link_libraries(PinPoint PRIVATE "${_ort_root}/lib/onnxruntime.lib")
-    install(FILES "${_ort_root}/lib/onnxruntime.dll" DESTINATION bin)
-    if(WITH_CUDA OR WITH_DIRECTML)
-        # Provider shared libraries needed at runtime for CUDA / DirectML.
-        file(GLOB _ort_provider_dlls "${_ort_root}/lib/onnxruntime_providers*.dll")
-        foreach(_dll ${_ort_provider_dlls})
-            install(FILES "${_dll}" DESTINATION bin)
-        endforeach()
-    endif()
+    # Collect all ORT DLLs (main + any provider DLLs present in the package).
+    file(GLOB _ort_all_dlls "${_ort_root}/lib/onnxruntime*.dll")
+    # POST_BUILD: copy DLLs next to the executable so they are found at runtime
+    # during development builds (install() rules only run on cmake --install).
+    foreach(_dll ${_ort_all_dlls})
+        add_custom_command(TARGET PinPoint POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dll}" "$<TARGET_FILE_DIR:PinPoint>"
+        )
+    endforeach()
+    foreach(_dll ${_ort_all_dlls})
+        install(FILES "${_dll}" DESTINATION bin)
+    endforeach()
 elseif(APPLE)
     file(GLOB _ort_dylib "${_ort_root}/lib/libonnxruntime*.dylib")
     list(GET _ort_dylib 0 _ort_dylib_path)

@@ -86,6 +86,7 @@ void STTProcessor::start()
 {
     if (m_needsModelFile && m_modelPath.isEmpty()) {
         emit modelNotFound(m_searchedPaths);
+        emit backendLabelReady(QStringLiteral("CPU"));
     } else {
         QMetaObject::invokeMethod(m_worker, "loadModel",
                                   Qt::QueuedConnection,
