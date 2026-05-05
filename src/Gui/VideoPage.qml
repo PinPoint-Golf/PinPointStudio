@@ -31,6 +31,19 @@ Item {
                 anchors.margins: 2
                 fillMode: VideoOutput.PreserveAspectFit
                 Component.onCompleted: videoController.setVideoSink(videoOut.videoSink)
+                visible: !videoController.isAravis
+            }
+
+            Loader {
+                id: debayerLoader
+                anchors.fill: videoOut
+                active: videoController.isAravis
+                visible: active
+                sourceComponent: ShaderEffect {
+                    property variant source: videoOut
+                    vertexShader: "qrc:/shaders/src/Gui/debayer.vert.qsb"
+                    fragmentShader: "qrc:/shaders/src/Gui/debayer.frag.qsb"
+                }
             }
 
             Label {

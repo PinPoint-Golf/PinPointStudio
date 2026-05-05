@@ -4,7 +4,7 @@ project(PinPoint VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 SerialPort Bluetooth Multimedia Network WebSockets)
+find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 SerialPort Bluetooth Multimedia Network WebSockets Concurrent ShaderTools)
 
 qt_standard_project_setup(REQUIRES 6.10)
 
@@ -91,6 +91,8 @@ qt_add_executable(PinPoint
     src/Audio/audio_stream_saver.h   src/Audio/audio_stream_saver.cpp
     src/Video/video_input_base.h           src/Video/video_input_base.cpp
     src/Video/video_input.h                src/Video/video_input.cpp
+    src/Video/video_input_factory.h        src/Video/video_input_factory.cpp
+    src/Video/VideoInputAravis.h           src/Video/VideoInputAravis.cpp
     src/Gui/video_controller.h             src/Gui/video_controller.cpp
     src/STT/stt_processor.h          src/STT/stt_processor.cpp
     src/TTS/TTSEngine.h              src/TTS/TTSEngine.cpp
@@ -114,6 +116,15 @@ qt_add_qml_module(PinPoint
         src/Gui/VideoPage.qml
 )
 
+qt6_add_shaders(PinPoint "debayer_shaders"
+    BATCHABLE
+    PRECOMPILE
+    PREFIX "/shaders"
+    FILES
+        "src/Gui/debayer.vert"
+        "src/Gui/debayer.frag"
+)
+
 target_compile_definitions(PinPoint PRIVATE
     QT_APPLICATION_NAME="PinPoint"
 )
@@ -134,8 +145,9 @@ configure_file(
 
 
 target_link_libraries(PinPoint
-    PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::SerialPort Qt6::Bluetooth Qt6::Multimedia Qt6::Network Qt6::WebSockets
+    PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::SerialPort Qt6::Bluetooth Qt6::Multimedia Qt6::Network Qt6::WebSockets Qt6::Concurrent
 )
+
 
 target_sources(PinPoint PRIVATE
     src/Audio/AudioConverter.h
@@ -391,6 +403,60 @@ else()
     endif()
 
     message(STATUS "espeak-ng 1.52.0: built from source")
+endif()
+
+# ── Aravis (Industrial Camera Support) ──────────────────────────────────────
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+    pkg_check_modules(ARAVIS aravis-0.8)
+endif()
+
+if(NOT ARAVIS_FOUND)
+    if(APPLE)
+        # Probe Homebrew directly as a fallback
+        execute_process(
+            COMMAND brew --prefix aravis
+            OUTPUT_VARIABLE _brew_aravis
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+            RESULT_VARIABLE _brew_result
+        )
+        if(_brew_result EQUAL 0 AND EXISTS "${_brew_aravis}/lib/libaravis-0.8.dylib")
+            set(ARAVIS_FOUND        TRUE)
+            set(ARAVIS_INCLUDE_DIRS "${_brew_aravis}/include/aravis-0.8")
+            set(ARAVIS_LIBRARY_DIRS "${_brew_aravis}/lib")
+            set(ARAVIS_LIBRARIES    "aravis-0.8")
+            set(ARAVIS_VERSION      "Homebrew")
+        endif()
+    elseif(WIN32)
+        # Manual search fallback for Windows
+        find_path(ARAVIS_INCLUDE_DIRS NAMES arv.h PATH_SUFFIXES aravis-0.8 HINTS ${ARAVIS_ROOT} $ENV{ARAVIS_ROOT})
+        find_library(ARAVIS_LIBRARIES NAMES aravis-0.8 HINTS ${ARAVIS_ROOT} $ENV{ARAVIS_ROOT})
+        if(ARAVIS_INCLUDE_DIRS AND ARAVIS_LIBRARIES)
+            set(ARAVIS_FOUND TRUE)
+            set(ARAVIS_VERSION "Manual")
+        endif()
+    endif()
+endif()
+
+if(ARAVIS_FOUND)
+    message(STATUS "Aravis ${ARAVIS_VERSION}: found")
+    target_compile_definitions(PinPoint PRIVATE HAVE_ARAVIS)
+    target_include_directories(PinPoint PRIVATE ${ARAVIS_INCLUDE_DIRS})
+    target_link_libraries(PinPoint PRIVATE ${ARAVIS_LIBRARIES})
+    if(ARAVIS_LIBRARY_DIRS)
+        target_link_directories(PinPoint PRIVATE ${ARAVIS_LIBRARY_DIRS})
+    endif()
+    
+    # Aravis depends on GLib, GObject, and GIO. pkg-config usually handles this,
+    # but for manual/brew fallbacks we need to ensure they are available.
+    if(PkgConfig_FOUND)
+        pkg_check_modules(GLIB REQUIRED glib-2.0 gobject-2.0 gio-2.0)
+        target_include_directories(PinPoint PRIVATE ${GLIB_INCLUDE_DIRS})
+        target_link_libraries(PinPoint PRIVATE ${GLIB_LIBRARIES})
+    endif()
+else()
+    message(STATUS "Aravis 0.8: not found (industrial camera support disabled)")
 endif()
 
 if(APPLE)

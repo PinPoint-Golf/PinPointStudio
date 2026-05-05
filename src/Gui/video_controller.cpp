@@ -2,11 +2,7 @@
 
 #include "video_input_base.h"
 
-#ifdef Q_OS_MACOS
-#include "VideoInputApple.h"
-#else
-#include "video_input.h"
-#endif
+#include "video_input_factory.h"
 
 #include <QCoreApplication>
 #include <QDebug>
@@ -22,11 +18,7 @@
 VideoController::VideoController(QObject *parent)
     : QObject(parent)
     , m_captureThread(new QThread(this))
-#ifdef Q_OS_MACOS
-    , m_videoInput(new VideoInputApple)
-#else
-    , m_videoInput(new VideoInput)
-#endif
+    , m_videoInput(VideoInputFactory::create(VideoInputFactory::Backend::Auto))
 {
     m_captureThread->setObjectName(QStringLiteral("VideoCaptureThread"));
     m_videoInput->moveToThread(m_captureThread);
@@ -60,6 +52,11 @@ bool VideoController::isRecording() const
     return m_recording;
 }
 
+bool VideoController::isAravis() const
+{
+    return VideoInputFactory::backendType(m_videoInput) == VideoInputFactory::Backend::Aravis;
+}
+
 void VideoController::setVideoSink(QVideoSink *sink)
 {
     m_videoSink = sink;
@@ -85,15 +82,44 @@ void VideoController::startRecording()
             self->m_recording = true;
             emit self->isRecordingChanged();
         }, Qt::QueuedConnection);
-    });
-#else
+    Q_UNUSED(self);
+    #else
     QMetaObject::invokeMethod(m_videoInput, [this]() {
-        m_videoInput->start();
+        if (m_videoInput->start()) {
+            QMetaObject::invokeMethod(this, [this]() {
+                m_recording = true;
+                emit isRecordingChanged();
+            }, Qt::QueuedConnection);
+        } else {
+            qWarning() << "[VideoController] Failed to start primary video input. Attempting fallback...";
+            // If Aravis failed, try falling back to standard VideoInput (Qt Multimedia)
+            if (VideoInputFactory::backendType(m_videoInput) == VideoInputFactory::Backend::Aravis) {
+                QMetaObject::invokeMethod(this, [this]() {
+                    delete m_videoInput;
+                    m_videoInput = VideoInputFactory::create(VideoInputFactory::Backend::QtMultimedia);
+                    m_videoInput->moveToThread(m_captureThread);
+                    connect(m_videoInput, &VideoInputBase::videoFrameReady,
+                            this, &VideoController::onVideoFrame, Qt::QueuedConnection);
+                    connect(m_videoInput, &VideoInputBase::errorOccurred,
+                            this, &VideoController::onVideoError);
+
+                    emit isAravisChanged();
+
+                    QMetaObject::invokeMethod(m_videoInput, [this]() {
+                        if (m_videoInput->start()) {
+                            QMetaObject::invokeMethod(this, [this]() {
+                                m_recording = true;
+                                emit isRecordingChanged();
+                            }, Qt::QueuedConnection);
+                        }
+                    }, Qt::QueuedConnection);
+                }, Qt::QueuedConnection);
+            }
+        }
     }, Qt::QueuedConnection);
-    m_recording = true;
-    emit isRecordingChanged();
-#endif
-}
+    #endif
+    }
+
 
 void VideoController::stopRecording()
 {

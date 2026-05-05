@@ -12,12 +12,14 @@ class VideoController : public QObject
     Q_OBJECT
 
     Q_PROPERTY(bool isRecording READ isRecording NOTIFY isRecordingChanged)
+    Q_PROPERTY(bool isAravis READ isAravis NOTIFY isAravisChanged)
 
 public:
     explicit VideoController(QObject *parent = nullptr);
     ~VideoController() override;
 
     bool isRecording() const;
+    bool isAravis() const;
 
     // Called from QML: videoController.setVideoSink(videoOut.videoSink)
     Q_INVOKABLE void setVideoSink(QVideoSink *sink);
@@ -27,6 +29,7 @@ public:
 
 signals:
     void isRecordingChanged();
+    void isAravisChanged();
 
 private slots:
     void onVideoFrame(const QVideoFrame &frame);

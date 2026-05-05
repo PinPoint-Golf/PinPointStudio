@@ -44,6 +44,9 @@ build/
 Build/
 build-*/
 
+# Qt guff
+.qtcreator
+
 # Whisper GGML model files (large binaries — download separately, never commit)
 models/
 *.bin
