@@ -4,8 +4,16 @@ A golf swing analysis app that extracts kinematic metrics using IMUs and Compute
 ## Documentation
 - [Building Instructions](BUILDING.md) - How to resolve dependencies and build PinPoint.
 
-Initial prototyping will take place H2 of 2026 using 3x Witmotion WT9011DCL MPU9250 IMUs placed on the sacrum, upper thorax T3, and the T12 junction. This will be coupled with spatial data captured via a high speed camera, likely supported via the Pylon SDK..
+Initial prototyping is underway using Witmotion WT9011DCL IMUs (BLE/Serial) and high-speed industrial cameras. Support is currently implemented for:
+- **Aravis**: Generic GenICam support for industrial cameras (Linux/macOS/Windows).
+- **Spinnaker SDK**: Teledyne/FLIR industrial cameras (Windows only).
+- **Standard Cameras**: UVC-compliant webcams and OS-native camera backends.
 
-Built with Qt and C++ the initial dependencies will include OpenSim, OpenPose, OpenCV, Claude AI. STT/TTS via Whisper, MS Azure Speech and ONNX/Kokoro. It is anticipated that once a working prototype is available support for alternatives will be added.
+Built with Qt 6.10 and C++20, the project currently utilizes:
+- **Whisper (via whisper.cpp)**: Local high-performance speech-to-text.
+- **ONNX Runtime & Kokoro**: Local text-to-speech.
+- **Azure Speech Services**: Cloud fallback for STT and TTS.
+- **Espeak-ng & libsamplerate**: Phoneme tokenization and audio processing.
+- **Vulkan/CUDA**: GPU acceleration for AI models.
 
 It will be published as an open source desktop application (for use in golf studios) and will be developed as a smartphone app once the basic concepts have been proven (for use on the range).

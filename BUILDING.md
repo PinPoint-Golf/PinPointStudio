@@ -33,7 +33,7 @@ It is recommended to use the [Qt Online Installer](https://www.qt.io/download-qt
 
 ### 3. System Dependencies
 ```bash
-# Required for Aravis (Industrial Camera support)
+# Required for Aravis (Industrial Camera support) v0.8.x only
 sudo apt install libglib2.0-dev libaravis-0.8-dev
 
 # Optional: espeak-ng (if not found, CMake will build it from source)
@@ -85,8 +85,11 @@ Install Qt 6.10+ via the [Qt Online Installer](https://www.qt.io/download-qt-ins
 - **CUDA**: Install the [CUDA Toolkit 12.x](https://developer.nvidia.com/cuda-toolkit).
     - *Note: PinPoint is configured to use CUDA 12 for ONNX Runtime. If a different version is detected, it may fall back to DirectML.*
 
-### 4. Aravis (Optional)
-If you require industrial camera support on Windows, you will need to provide the Aravis library and headers. You can set the `ARAVIS_ROOT` environment variable to the directory containing Aravis.
+### 4. Spinnaker SDK (Optional)
+For Teledyne/FLIR industrial camera support on Windows, install the [Spinnaker SDK](https://www.teledyneabbott.com/products/spinnaker-sdk/). The build system expects it to be installed in the default location: `C:\Program Files\Teledyne\Spinnaker`.
+
+### 5. Aravis (Optional)
+If you require industrial camera support on Windows (via Generic GenICam), you will need to provide the Aravis library and headers. You can set the `ARAVIS_ROOT` environment variable to the directory containing Aravis.
 
 ---
 
@@ -105,4 +108,6 @@ cmake --build . --config Release
 You can toggle certain features at configure time:
 - `-DWITH_CUDA=ON/OFF`: Enable/disable CUDA support (Default: ON).
 - `-DWITH_DIRECTML=ON/OFF`: Enable/disable DirectML on Windows (Default: ON).
+    - *Note: On Windows, CUDA and DirectML are mutually exclusive due to ONNX Runtime packaging. If both are ON, CUDA takes priority.*
 - `-DWITH_COREML=ON/OFF`: Enable/disable CoreML on macOS ARM64 (Default: ON).
+- `-DASSEMBLYAI_API_KEY=<key>`: Seed the AssemblyAI API key into settings (Optional).
