@@ -1,5 +1,5 @@
 #include "audio_output.h"
-#include "../Video/device_enumerator.h"
+#include "../Core/device_enumerator.h"
 
 #include <QAudioSink>
 #include <QDebug>

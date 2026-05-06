@@ -1,5 +1,5 @@
 #include "video_input.h"
-#include "device_enumerator.h"
+#include "../Core/device_enumerator.h"
 
 #include <QCamera>
 #include <QMediaCaptureSession>

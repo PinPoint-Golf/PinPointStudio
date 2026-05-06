@@ -1,5 +1,5 @@
 #include "audio_input.h"
-#include "../Video/device_enumerator.h"
+#include "../Core/device_enumerator.h"
 
 #include <QAudioSource>
 #include <QMediaDevices>

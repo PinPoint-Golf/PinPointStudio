@@ -1,6 +1,6 @@
 #include "video_input_factory.h"
 #include "video_input.h"
-#include "device_enumerator.h"
+#include "../Core/device_enumerator.h"
 
 #ifdef Q_OS_MACOS
 #include "VideoInputApple.h"

@@ -3,7 +3,7 @@
 #include <QString>
 #include <QList>
 #include <QObject>
-#include "video_input_factory.h"
+#include "../Video/video_input_factory.h"
 
 enum class DeviceType {
     VideoInput,

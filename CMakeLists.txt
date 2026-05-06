@@ -92,7 +92,7 @@ qt_add_executable(PinPoint
     src/Video/video_input_base.h           src/Video/video_input_base.cpp
     src/Video/video_input.h                src/Video/video_input.cpp
     src/Video/video_input_factory.h        src/Video/video_input_factory.cpp
-    src/Video/device_enumerator.h          src/Video/device_enumerator.cpp
+    src/Core/device_enumerator.h           src/Core/device_enumerator.cpp
     src/Video/VideoInputAravis.h           src/Video/VideoInputAravis.cpp
     src/Gui/video_controller.h             src/Gui/video_controller.cpp
     src/STT/stt_processor.h          src/STT/stt_processor.cpp
@@ -105,7 +105,7 @@ qt_add_executable(PinPoint
     src/TTS/ModelDownloader.h        src/TTS/ModelDownloader.cpp
 )
 
-target_include_directories(PinPoint PRIVATE src/Gui src/IMU src/Audio src/Video src/STT src/TTS src/Secrets)
+target_include_directories(PinPoint PRIVATE src/Gui src/IMU src/Audio src/Video src/STT src/TTS src/Secrets src/Core)
 
 qt_add_qml_module(PinPoint
     URI PinPoint
