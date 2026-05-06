@@ -31,16 +31,24 @@ Item {
                 anchors.margins: 2
                 fillMode: VideoOutput.PreserveAspectFit
                 Component.onCompleted: videoController.setVideoSink(videoOut.videoSink)
-                visible: !videoController.isAravis
+                // Hide the raw VideoOutput when debayering is active
+                visible: !videoController.needsDebayer
+            }
+
+            ShaderEffectSource {
+                id: videoSource
+                sourceItem: videoOut
+                live: true
+                hideSource: false // We control visibility via videoOut.visible
             }
 
             Loader {
                 id: debayerLoader
-                anchors.fill: videoOut
-                active: videoController.isAravis
+                anchors.fill: parent
+                active: videoController.needsDebayer
                 visible: active
                 sourceComponent: ShaderEffect {
-                    property variant source: videoOut
+                    property variant source: videoSource
                     vertexShader: "qrc:/shaders/src/Gui/debayer.vert.qsb"
                     fragmentShader: "qrc:/shaders/src/Gui/debayer.frag.qsb"
                 }

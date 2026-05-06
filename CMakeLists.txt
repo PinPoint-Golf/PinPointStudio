@@ -92,6 +92,7 @@ qt_add_executable(PinPoint
     src/Video/video_input_base.h           src/Video/video_input_base.cpp
     src/Video/video_input.h                src/Video/video_input.cpp
     src/Video/video_input_factory.h        src/Video/video_input_factory.cpp
+    src/Video/device_enumerator.h          src/Video/device_enumerator.cpp
     src/Video/VideoInputAravis.h           src/Video/VideoInputAravis.cpp
     src/Gui/video_controller.h             src/Gui/video_controller.cpp
     src/STT/stt_processor.h          src/STT/stt_processor.cpp
@@ -457,6 +458,35 @@ if(ARAVIS_FOUND)
     endif()
 else()
     message(STATUS "Aravis 0.8: not found (industrial camera support disabled)")
+endif()
+
+# ── Spinnaker (High-Speed Camera Support, Windows Only) ──────────────────────
+if(WIN32)
+    set(SPINNAKER_ROOT "C:/Program Files/Teledyne/Spinnaker")
+    find_path(SPINNAKER_INCLUDE_DIRS NAMES Spinnaker.h HINTS ${SPINNAKER_ROOT}/include)
+    find_library(SPINNAKER_LIBRARIES NAMES Spinnaker_v140 HINTS ${SPINNAKER_ROOT}/lib64/vs2015)
+
+    if(SPINNAKER_INCLUDE_DIRS AND SPINNAKER_LIBRARIES)
+        message(STATUS "Spinnaker: found at ${SPINNAKER_ROOT}")
+        target_compile_definitions(PinPoint PRIVATE HAVE_SPINNAKER)
+        target_include_directories(PinPoint PRIVATE ${SPINNAKER_INCLUDE_DIRS})
+        target_link_libraries(PinPoint PRIVATE ${SPINNAKER_LIBRARIES})
+        
+        target_sources(PinPoint PRIVATE
+            src/Video/VideoInputSpinnaker.h
+            src/Video/VideoInputSpinnaker.cpp
+        )
+
+        # Copy Spinnaker DLLs to output directory for development
+        file(GLOB _spinnaker_dlls "${SPINNAKER_ROOT}/bin64/vs2015/*.dll")
+        foreach(_dll ${_spinnaker_dlls})
+            add_custom_command(TARGET PinPoint POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dll}" "$<TARGET_FILE_DIR:PinPoint>"
+            )
+        endforeach()
+    else()
+        message(STATUS "Spinnaker: not found (high-speed camera support disabled)")
+    endif()
 endif()
 
 if(APPLE)

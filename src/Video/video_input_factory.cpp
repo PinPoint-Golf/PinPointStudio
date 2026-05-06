@@ -1,8 +1,17 @@
 #include "video_input_factory.h"
 #include "video_input.h"
+#include "device_enumerator.h"
 
 #ifdef Q_OS_MACOS
 #include "VideoInputApple.h"
+#endif
+
+#ifdef HAVE_SPINNAKER
+#include "SpinnakerPlatform.h"
+#undef SPINNAKER_DEPRECATED_CLASS
+#define SPINNAKER_DEPRECATED_CLASS(msg) class SPINNAKER_API __declspec(deprecated(msg))
+#include <Spinnaker.h>
+#include "VideoInputSpinnaker.h"
 #endif
 
 #ifdef HAVE_ARAVIS
@@ -17,11 +26,62 @@
 
 VideoInputBase* VideoInputFactory::create(Backend backend, QObject *parent)
 {
-    if (backend == Backend::Auto) {
+    // Register Qt Multimedia devices
+    VideoInput::availableDevices();
+
+    // Register Aravis devices if present
 #ifdef HAVE_ARAVIS
-        // Quick check if any Aravis devices are present
-        arv_update_device_list();
-        if (arv_get_n_devices() > 0) {
+    arv_update_device_list();
+    unsigned int nAravis = arv_get_n_devices();
+    for (unsigned int i = 0; i < nAravis; ++i) {
+        DeviceEnumerator::instance()->registerDevice(
+            DeviceType::VideoInput, Backend::Aravis,
+            QString::fromLocal8Bit(arv_get_device_id(i)),
+            QString::fromLocal8Bit(arv_get_device_model(i))
+        );
+    }
+#endif
+
+    // Register Spinnaker devices if present
+#ifdef HAVE_SPINNAKER
+    try {
+        Spinnaker::SystemPtr system = Spinnaker::System::GetInstance();
+        Spinnaker::CameraList camList = system->GetCameras();
+        for (unsigned int i = 0; i < camList.GetSize(); ++i) {
+            Spinnaker::CameraPtr cam = camList.GetByIndex(i);
+            Spinnaker::GenApi::INodeMap& nodeMapTLDevice = cam->GetTLDeviceNodeMap();
+            Spinnaker::GenApi::CStringPtr ptrDeviceID = nodeMapTLDevice.GetNode("DeviceID");
+            Spinnaker::GenApi::CStringPtr ptrDeviceModel = nodeMapTLDevice.GetNode("DeviceModelName");
+            
+            QString id = "Unknown";
+            QString model = "Spinnaker Camera";
+            if (Spinnaker::GenApi::IsAvailable(ptrDeviceID) && Spinnaker::GenApi::IsReadable(ptrDeviceID))
+                id = QString::fromStdString(ptrDeviceID->GetValue().c_str());
+            if (Spinnaker::GenApi::IsAvailable(ptrDeviceModel) && Spinnaker::GenApi::IsReadable(ptrDeviceModel))
+                model = QString::fromStdString(ptrDeviceModel->GetValue().c_str());
+
+            DeviceEnumerator::instance()->registerDevice(
+                DeviceType::VideoInput, Backend::Spinnaker, id, model);
+        }
+        camList.Clear();
+        system->ReleaseInstance();
+    } catch (...) {}
+#endif
+
+    if (backend == Backend::Auto) {
+#ifdef HAVE_SPINNAKER
+        if (DeviceEnumerator::instance()->devices().count() > 0) {
+            for (const auto &dev : DeviceEnumerator::instance()->devices()) {
+                if (dev.backend == Backend::Spinnaker) {
+                    qDebug() << "[VideoInputFactory] Spinnaker camera detected; selecting Spinnaker backend.";
+                    return new VideoInputSpinnaker(parent);
+                }
+            }
+        }
+#endif
+
+#ifdef HAVE_ARAVIS
+        if (nAravis > 0) {
             qDebug() << "[VideoInputFactory] Industrial camera(s) detected; selecting Aravis backend.";
             return new VideoInputAravis(parent);
         }
@@ -47,6 +107,10 @@ VideoInputBase* VideoInputFactory::create(Backend backend, QObject *parent)
         case Backend::Aravis:
             return new VideoInputAravis(parent);
 #endif
+#ifdef HAVE_SPINNAKER
+        case Backend::Spinnaker:
+            return new VideoInputSpinnaker(parent);
+#endif
         default:
             qWarning() << "[VideoInputFactory] Requested backend not available on this platform; falling back to Qt Multimedia.";
             return new VideoInput(parent);
@@ -56,6 +120,9 @@ VideoInputBase* VideoInputFactory::create(Backend backend, QObject *parent)
 VideoInputFactory::Backend VideoInputFactory::backendType(VideoInputBase *input)
 {
     if (!input) return Backend::QtMultimedia;
+#ifdef HAVE_SPINNAKER
+    if (dynamic_cast<VideoInputSpinnaker*>(input)) return Backend::Spinnaker;
+#endif
 #ifdef HAVE_ARAVIS
     if (dynamic_cast<VideoInputAravis*>(input)) return Backend::Aravis;
 #endif
@@ -74,6 +141,9 @@ QList<VideoInputFactory::Backend> VideoInputFactory::availableBackends()
 #endif
 #ifdef HAVE_ARAVIS
     list << Backend::Aravis;
+#endif
+#ifdef HAVE_SPINNAKER
+    list << Backend::Spinnaker;
 #endif
     return list;
 }

@@ -1,4 +1,5 @@
 #include "audio_input.h"
+#include "../Video/device_enumerator.h"
 
 #include <QAudioSource>
 #include <QMediaDevices>
@@ -52,6 +53,9 @@ protected:
 AudioInput::AudioInput(QObject *parent)
     : AudioInputBase(parent)
 {
+    // Register devices the first time an instance is created
+    availableDevices();
+
     // Leave m_preferredFormat default (invalid) so start() uses the device's
     // own preferred format and the FFmpeg backend does no conversion.
     // Forced resampling (e.g. 44100 Float → 16000 Int16) in small chunks
@@ -65,7 +69,13 @@ AudioInput::~AudioInput()
 
 QList<QAudioDevice> AudioInput::availableDevices()
 {
-    return QMediaDevices::audioInputs();
+    const QList<QAudioDevice> devs = QMediaDevices::audioInputs();
+    for (const auto &dev : devs) {
+        DeviceEnumerator::instance()->registerDevice(
+            DeviceType::AudioInput, VideoInputFactory::Backend::QtMultimedia,
+            dev.id(), dev.description());
+    }
+    return devs;
 }
 
 bool AudioInput::start(const QString &deviceName)

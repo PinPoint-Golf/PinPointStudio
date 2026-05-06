@@ -14,7 +14,8 @@ public:
         Auto,
         QtMultimedia,
         AppleAVFoundation,
-        Aravis
+        Aravis,
+        Spinnaker
     };
     Q_ENUM(Backend)
 

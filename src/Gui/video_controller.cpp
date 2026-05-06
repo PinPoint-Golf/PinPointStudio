@@ -57,6 +57,16 @@ bool VideoController::isAravis() const
     return VideoInputFactory::backendType(m_videoInput) == VideoInputFactory::Backend::Aravis;
 }
 
+bool VideoController::isSpinnaker() const
+{
+    return VideoInputFactory::backendType(m_videoInput) == VideoInputFactory::Backend::Spinnaker;
+}
+
+bool VideoController::needsDebayer() const
+{
+    return isAravis() || isSpinnaker();
+}
+
 void VideoController::setVideoSink(QVideoSink *sink)
 {
     m_videoSink = sink;
@@ -82,8 +92,9 @@ void VideoController::startRecording()
             self->m_recording = true;
             emit self->isRecordingChanged();
         }, Qt::QueuedConnection);
+    });
     Q_UNUSED(self);
-    #else
+#else
     QMetaObject::invokeMethod(m_videoInput, [this]() {
         if (m_videoInput->start()) {
             QMetaObject::invokeMethod(this, [this]() {
@@ -92,8 +103,11 @@ void VideoController::startRecording()
             }, Qt::QueuedConnection);
         } else {
             qWarning() << "[VideoController] Failed to start primary video input. Attempting fallback...";
-            // If Aravis failed, try falling back to standard VideoInput (Qt Multimedia)
-            if (VideoInputFactory::backendType(m_videoInput) == VideoInputFactory::Backend::Aravis) {
+            // If an industrial camera backend failed, try falling back to standard VideoInput (Qt Multimedia)
+            VideoInputFactory::Backend currentBackend = VideoInputFactory::backendType(m_videoInput);
+            if (currentBackend == VideoInputFactory::Backend::Aravis || 
+                currentBackend == VideoInputFactory::Backend::Spinnaker) 
+            {
                 QMetaObject::invokeMethod(this, [this]() {
                     delete m_videoInput;
                     m_videoInput = VideoInputFactory::create(VideoInputFactory::Backend::QtMultimedia);
@@ -104,6 +118,8 @@ void VideoController::startRecording()
                             this, &VideoController::onVideoError);
 
                     emit isAravisChanged();
+                    emit isSpinnakerChanged();
+                    emit needsDebayerChanged();
 
                     QMetaObject::invokeMethod(m_videoInput, [this]() {
                         if (m_videoInput->start()) {
@@ -117,8 +133,8 @@ void VideoController::startRecording()
             }
         }
     }, Qt::QueuedConnection);
-    #endif
-    }
+#endif
+}
 
 
 void VideoController::stopRecording()

@@ -1,4 +1,5 @@
 #include "video_input.h"
+#include "device_enumerator.h"
 
 #include <QCamera>
 #include <QMediaCaptureSession>
@@ -17,7 +18,13 @@ VideoInput::~VideoInput()
 
 QList<QCameraDevice> VideoInput::availableDevices()
 {
-    return QMediaDevices::videoInputs();
+    const QList<QCameraDevice> devs = QMediaDevices::videoInputs();
+    for (const auto &dev : devs) {
+        DeviceEnumerator::instance()->registerDevice(
+            DeviceType::VideoInput, VideoInputFactory::Backend::QtMultimedia,
+            dev.id(), dev.description());
+    }
+    return devs;
 }
 
 bool VideoInput::start(const QString &deviceId)

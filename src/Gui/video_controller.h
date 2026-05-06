@@ -13,6 +13,8 @@ class VideoController : public QObject
 
     Q_PROPERTY(bool isRecording READ isRecording NOTIFY isRecordingChanged)
     Q_PROPERTY(bool isAravis READ isAravis NOTIFY isAravisChanged)
+    Q_PROPERTY(bool isSpinnaker READ isSpinnaker NOTIFY isSpinnakerChanged)
+    Q_PROPERTY(bool needsDebayer READ needsDebayer NOTIFY needsDebayerChanged)
 
 public:
     explicit VideoController(QObject *parent = nullptr);
@@ -20,6 +22,8 @@ public:
 
     bool isRecording() const;
     bool isAravis() const;
+    bool isSpinnaker() const;
+    bool needsDebayer() const;
 
     // Called from QML: videoController.setVideoSink(videoOut.videoSink)
     Q_INVOKABLE void setVideoSink(QVideoSink *sink);
@@ -30,6 +34,8 @@ public:
 signals:
     void isRecordingChanged();
     void isAravisChanged();
+    void isSpinnakerChanged();
+    void needsDebayerChanged();
 
 private slots:
     void onVideoFrame(const QVideoFrame &frame);

@@ -1,4 +1,5 @@
 #include "audio_output.h"
+#include "../Video/device_enumerator.h"
 
 #include <QAudioSink>
 #include <QDebug>
@@ -78,6 +79,8 @@ private:
 AudioOutput::AudioOutput(QObject *parent)
     : AudioOutputBase(parent)
 {
+    // Register devices the first time an instance is created
+    availableDevices();
 }
 
 AudioOutput::~AudioOutput()
@@ -87,7 +90,13 @@ AudioOutput::~AudioOutput()
 
 QList<QAudioDevice> AudioOutput::availableDevices()
 {
-    return QMediaDevices::audioOutputs();
+    const QList<QAudioDevice> devs = QMediaDevices::audioOutputs();
+    for (const auto &dev : devs) {
+        DeviceEnumerator::instance()->registerDevice(
+            DeviceType::AudioOutput, VideoInputFactory::Backend::QtMultimedia,
+            dev.id(), dev.description());
+    }
+    return devs;
 }
 
 bool AudioOutput::start(const QString &deviceName)
