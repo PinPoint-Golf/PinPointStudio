@@ -15,9 +15,13 @@ ImuController::ImuController(QObject *parent)
         const QString name = device.name().isEmpty()
                              ? QStringLiteral("(unnamed)")
                              : device.name();
+        // macOS CoreBluetooth hides MAC addresses; use the per-host UUID instead.
+        const QString id = device.address().isNull()
+                           ? device.deviceUuid().toString()
+                           : device.address().toString();
         appendLog(timestamp()
                   + QStringLiteral("  BLE: ") + name
-                  + QStringLiteral(" [") + device.address().toString()
+                  + QStringLiteral(" [") + id
                   + QStringLiteral("] RSSI=") + QString::number(device.rssi())
                   + QStringLiteral(" dBm"));
     });
@@ -29,8 +33,10 @@ ImuController::ImuController(QObject *parent)
         m_attemptingConn = true;
         const QString name = device.name().isEmpty() ? QStringLiteral("(unnamed)")
                                                      : device.name();
-        appendLog(timestamp() + "  >>> Attempting: " + name
-                  + " [" + device.address().toString() + "]");
+        const QString id = device.address().isNull()
+                           ? device.deviceUuid().toString()
+                           : device.address().toString();
+        appendLog(timestamp() + "  >>> Attempting: " + name + " [" + id + "]");
         m_imu->connectToDevice(device);
     });
 
@@ -40,7 +46,7 @@ ImuController::ImuController(QObject *parent)
     });
 
     connect(m_imu, &WT9011DCL_Base::connected, this, [this]() {
-        appendLog(timestamp() + "  BLE link up — discovering services…");
+        appendLog(timestamp() + "  BLE link up — notifications enabled");
     });
 
     connect(m_imu, &WT9011DCL_Base::errorOccurred, this, [this](const QString &msg) {
@@ -99,7 +105,7 @@ ImuController::ImuController(QObject *parent)
 
 void ImuController::connectImu()
 {
-    m_imu->scan();
+    m_imu->scan(30000);  // 30 seconds
 }
 
 void ImuController::disconnectImu()
@@ -145,6 +151,9 @@ void ImuController::onStateChanged(WT9011DCL_BLE::State s)
         emit imuConnectedChanged();
         emit busyChanged();
         appendLog(timestamp() + "  IMU ready — receiving data");
+        // Poke the device to start streaming: some WitMotion BLE firmware
+        // won't output data until it receives a valid write-characteristic command.
+        m_imu->setOutputRate(WT9011DCL_Base::OutputRate::Hz_10);
         break;
     case WT9011DCL_BLE::State::Error:
         setStateLabel(QStringLiteral("Error"));

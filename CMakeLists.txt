@@ -491,6 +491,11 @@ if(WIN32)
 endif()
 
 if(APPLE)
+    # The Bluetooth permission plugin is a static library that must be explicitly
+    # imported; without this, checkPermission(QBluetoothPermission{}) always
+    # returns Denied even when the OS has granted access.
+    qt_import_plugins(PinPoint INCLUDE Qt6::QDarwinBluetoothPermissionPlugin)
+
     target_sources(PinPoint PRIVATE
         src/Gui/macos_permissions.h
         src/Gui/macos_permissions.mm

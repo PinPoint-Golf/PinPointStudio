@@ -78,6 +78,21 @@ void WT9011DCL_Base::processBuffer()
         if (headerPos > 0)
             m_buffer.remove(0, headerPos);
 
+        if (m_buffer.size() < 2)
+            return;
+
+        // WT901BLE67 sends a single 20-byte combined frame per BLE notification:
+        //   0x55 0x61 [accel_x accel_y accel_z] [gyro_x gyro_y gyro_z] [angle_x angle_y angle_z]
+        // Each value is a signed int16 LE. No checksum.
+        if (static_cast<quint8>(m_buffer[1]) == CombinedFrameType) {
+            if (m_buffer.size() < CombinedFrameSize)
+                return;
+            dispatchCombinedPacket(m_buffer.left(CombinedFrameSize));
+            m_buffer.remove(0, CombinedFrameSize);
+            continue;
+        }
+
+        // Standard 11-byte type-specific packet (WT9011DCL and similar).
         if (m_buffer.size() < FrameSize)
             return;
 
@@ -86,6 +101,32 @@ void WT9011DCL_Base::processBuffer()
             dispatchPacket(frame);
 
         m_buffer.remove(0, 1);
+    }
+}
+
+void WT9011DCL_Base::dispatchCombinedPacket(const QByteArray &frame)
+{
+    // Bytes 2-7: accel xyz (int16 LE, /32768 * 16 g)
+    m_accel.x = le16(frame, 2) / 32768.0f * 16.0f;
+    m_accel.y = le16(frame, 4) / 32768.0f * 16.0f;
+    m_accel.z = le16(frame, 6) / 32768.0f * 16.0f;
+    emit accelUpdated(m_accel);
+
+    // Bytes 8-13: gyro xyz (int16 LE, /32768 * 2000 °/s)
+    m_gyro.x = le16(frame, 8)  / 32768.0f * 2000.0f;
+    m_gyro.y = le16(frame, 10) / 32768.0f * 2000.0f;
+    m_gyro.z = le16(frame, 12) / 32768.0f * 2000.0f;
+    emit gyroUpdated(m_gyro);
+
+    // Bytes 14-19: euler angles xyz (int16 LE, /32768 * 180 °)
+    const qint16 roll  = le16(frame, 14);
+    const qint16 pitch = le16(frame, 16);
+    const qint16 yaw   = le16(frame, 18);
+    if (roll || pitch || yaw) {
+        m_euler.roll  = roll  / 32768.0f * 180.0f;
+        m_euler.pitch = pitch / 32768.0f * 180.0f;
+        m_euler.yaw   = yaw   / 32768.0f * 180.0f;
+        emit eulerAnglesUpdated(m_euler);
     }
 }
 

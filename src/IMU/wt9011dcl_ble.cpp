@@ -88,17 +88,13 @@ void WT9011DCL_BLE::onDeviceDiscovered(const QBluetoothDeviceInfo &device)
 {
     emit rawDeviceFound(device);
 
-    // Service UUIDs and device names are rarely present in advertisement packets
-    // for embedded BLE UART bridge chips — they only appear after connection.
-    // Accept: known service UUID, known name prefix, or any unnamed BLE-only device.
+    // Only connect to devices whose name starts with "WT901" — unnamed devices
+    // and other BLE peripherals in range cause false connection attempts.
+    // Service UUID match is kept as a fallback for firmware that advertises it.
     const bool hasServiceUuid = device.serviceUuids().contains(ServiceUuid);
-    const bool hasKnownName   = device.name().contains(QStringLiteral("WT"),        Qt::CaseInsensitive)
-                             || device.name().contains(QStringLiteral("WITMOTION"), Qt::CaseInsensitive);
-    const bool unnamedBle     = device.name().isEmpty()
-                             && device.coreConfigurations().testFlag(
-                                    QBluetoothDeviceInfo::LowEnergyCoreConfiguration);
+    const bool hasKnownName   = device.name().startsWith(QStringLiteral("WT901"), Qt::CaseInsensitive);
 
-    if (hasServiceUuid || hasKnownName || unnamedBle)
+    if (hasServiceUuid || hasKnownName)
         emit deviceDiscovered(device);
 }
 
@@ -163,7 +159,6 @@ void WT9011DCL_BLE::disconnectFromDevice()
 
 void WT9011DCL_BLE::onControllerConnected()
 {
-    emit connected();   // physical BLE link is up
     setState(State::DiscoveringServices);
     m_controller->discoverServices();
 }
@@ -199,7 +194,18 @@ void WT9011DCL_BLE::onControllerError(QLowEnergyController::Error error)
 
 void WT9011DCL_BLE::setupService()
 {
-    if (!m_controller->services().contains(ServiceUuid)) {
+    // Search by the 16-bit service ID (FFE5) rather than an exact 128-bit match.
+    // Different WitMotion hardware revisions use different base UUID suffixes
+    // (00805f9b34fb on some, 00805f9a34fb on others).
+    QBluetoothUuid svcUuid;
+    for (const QBluetoothUuid &uuid : m_controller->services()) {
+        if (uuid.toString().contains(QStringLiteral("ffe5"), Qt::CaseInsensitive)) {
+            svcUuid = uuid;
+            break;
+        }
+    }
+
+    if (svcUuid.isNull()) {
         QString found;
         for (const QBluetoothUuid &uuid : m_controller->services())
             found += QStringLiteral("\n  ") + uuid.toString();
@@ -207,6 +213,18 @@ void WT9011DCL_BLE::setupService()
         emit errorOccurred(QStringLiteral("WITMOTION service not found. Device has:%1").arg(found));
         return;
     }
+
+    // Derive the characteristic UUIDs from the same base as the discovered service,
+    // then update the statics so enableNotifications() and onCharacteristicChanged()
+    // use the correct UUIDs for this device.
+    const QString base = svcUuid.toString().mid(1, 36); // strip Qt's surrounding braces
+    QString notifyStr = base;
+    notifyStr.replace(QStringLiteral("ffe5"), QStringLiteral("ffe4"), Qt::CaseInsensitive);
+    QString writeStr = base;
+    writeStr.replace(QStringLiteral("ffe5"), QStringLiteral("ffe9"), Qt::CaseInsensitive);
+    ServiceUuid    = svcUuid;
+    NotifyCharUuid = QBluetoothUuid(notifyStr);
+    WriteCharUuid  = QBluetoothUuid(writeStr);
 
     m_service = m_controller->createServiceObject(ServiceUuid, this);
     if (!m_service) {
@@ -238,6 +256,16 @@ void WT9011DCL_BLE::enableNotifications()
         return;
     }
 
+    const bool canNotify   = m_notifyChar.properties() & QLowEnergyCharacteristic::Notify;
+    const bool canIndicate = m_notifyChar.properties() & QLowEnergyCharacteristic::Indicate;
+
+    if (!canNotify && !canIndicate) {
+        setState(State::Error);
+        emit errorOccurred(QStringLiteral("Notify characteristic supports neither Notify nor Indicate (props=0x%1)")
+                           .arg(static_cast<int>(m_notifyChar.properties()), 0, 16));
+        return;
+    }
+
     const QLowEnergyDescriptor cccd = m_notifyChar.descriptor(
         QBluetoothUuid::DescriptorType::ClientCharacteristicConfiguration);
 
@@ -247,9 +275,22 @@ void WT9011DCL_BLE::enableNotifications()
         return;
     }
 
-    m_service->writeDescriptor(cccd, QByteArray::fromHex("0100"));
-    setState(State::Ready);
-    emit connected();
+    // On macOS, setNotifyValue:YES is asynchronous — data won't flow until
+    // peripheral:didUpdateNotificationStateForCharacteristic: fires. Defer
+    // Ready state until descriptorWritten confirms the subscription is live.
+    auto *svc = m_service;
+    connect(svc, &QLowEnergyService::descriptorWritten, this,
+            [this, svc](const QLowEnergyDescriptor &d, const QByteArray &) {
+        if (d.type() != QBluetoothUuid::DescriptorType::ClientCharacteristicConfiguration)
+            return;
+        disconnect(svc, &QLowEnergyService::descriptorWritten, this, nullptr);
+        setState(State::Ready);
+        emit connected();
+    });
+
+    const QByteArray cccdValue = canNotify ? QByteArray::fromHex("0100")
+                                           : QByteArray::fromHex("0200");
+    m_service->writeDescriptor(cccd, cccdValue);
 }
 
 // ---------------------------------------------------------------------------
@@ -265,8 +306,8 @@ void WT9011DCL_BLE::onServiceStateChanged(QLowEnergyService::ServiceState newSta
 void WT9011DCL_BLE::onCharacteristicChanged(const QLowEnergyCharacteristic &c,
                                              const QByteArray &value)
 {
-    if (c.uuid() == NotifyCharUuid)
-        receiveData(value);
+    Q_UNUSED(c)
+    receiveData(value);
 }
 
 void WT9011DCL_BLE::onServiceError(QLowEnergyService::ServiceError error)

@@ -196,6 +196,7 @@ private:
     void processBuffer();
     bool verifyChecksum(const QByteArray &packet) const;
     void dispatchPacket(const QByteArray &packet);
+    void dispatchCombinedPacket(const QByteArray &frame);
 
     void parseAccel(const QByteArray &d);
     void parseGyro(const QByteArray &d);
@@ -206,8 +207,11 @@ private:
     static qint16 le16(const QByteArray &d, int offset);
     static float  toTemperature(qint16 raw);
 
-    static constexpr quint8 FrameHeader = 0x55;
-    static constexpr int    FrameSize   = 11;
+    static constexpr quint8 FrameHeader       = 0x55;
+    static constexpr int    FrameSize         = 11;
+    // WT901BLE67 combined frame: 0x55 0x61 + accel(6) + gyro(6) + angle(6)
+    static constexpr quint8 CombinedFrameType = 0x61;
+    static constexpr int    CombinedFrameSize = 20;
 
     QByteArray     m_buffer;
     AccelData      m_accel;
