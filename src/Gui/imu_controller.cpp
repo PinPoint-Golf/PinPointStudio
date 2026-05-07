@@ -1,12 +1,22 @@
 #include "imu_controller.h"
 
 #include <QDateTime>
+#include <QDir>
+#include <QFile>
+#include <QStandardPaths>
+#include <QTextStream>
 #include <chrono>
 
 ImuController::ImuController(QObject *parent)
     : QObject(parent)
     , m_imu(new WT9011DCL_BLE(this))
 {
+    m_retryTimer.setSingleShot(true);
+    connect(&m_retryTimer, &QTimer::timeout, this, [this]() {
+        appendLog(timestamp() + QStringLiteral("  Auto-retrying connection…"));
+        connectImu();
+    });
+
     connect(m_imu, &WT9011DCL_BLE::stateChanged,
             this,  &ImuController::onStateChanged);
 
@@ -30,6 +40,16 @@ ImuController::ImuController(QObject *parent)
             this, [this](const QBluetoothDeviceInfo &device) {
         if (m_attemptingConn)
             return;
+        // RSSI=0 means BlueZ reported the device from its in-memory cache, not
+        // from a live HCI advertising event. Cache entries can have a stale
+        // AddressType, causing an immediate or 25s connection failure. Skip them
+        // and let the scan continue until a real advertisement arrives.
+        if (device.rssi() >= 0) {
+            appendLog(timestamp()
+                      + QStringLiteral("  [diag] %1 seen from BlueZ cache (RSSI=0) — waiting for real advertisement")
+                        .arg(device.name()));
+            return;
+        }
         m_attemptingConn = true;
         const QString name = device.name().isEmpty() ? QStringLiteral("(unnamed)")
                                                      : device.name();
@@ -51,6 +71,10 @@ ImuController::ImuController(QObject *parent)
 
     connect(m_imu, &WT9011DCL_Base::errorOccurred, this, [this](const QString &msg) {
         appendLog(timestamp() + "  ERROR: " + msg);
+    });
+
+    connect(m_imu, &WT9011DCL_Base::diagnosticInfo, this, [this](const QString &msg) {
+        appendLog(timestamp() + "  [diag] " + msg);
     });
 
     connect(m_imu, &WT9011DCL_Base::accelUpdated,
@@ -105,11 +129,15 @@ ImuController::ImuController(QObject *parent)
 
 void ImuController::connectImu()
 {
+    m_retryTimer.stop();
     m_imu->scan(30000);  // 30 seconds
 }
 
 void ImuController::disconnectImu()
 {
+    m_retryTimer.stop();
+    m_retryCount = 0;
+    m_inConnectPhase = false;
     m_imu->stopScan();
     m_imu->disconnectFromDevice();
 }
@@ -120,6 +148,8 @@ void ImuController::onStateChanged(WT9011DCL_BLE::State s)
     case WT9011DCL_BLE::State::Disconnected:
         setStateLabel(QStringLiteral("Disconnected"));
         m_attemptingConn = false;
+        m_inConnectPhase = false;
+        m_retryCount     = 0;
         if (m_connected || m_busy) {
             m_connected = false;
             m_busy = false;
@@ -136,6 +166,7 @@ void ImuController::onStateChanged(WT9011DCL_BLE::State s)
         appendLog(timestamp() + "  Scanning for IMU devices…");
         break;
     case WT9011DCL_BLE::State::Connecting:
+        m_inConnectPhase = true;
         setStateLabel(QStringLiteral("Connecting…"));
         appendLog(timestamp() + "  Connecting…");
         break;
@@ -146,6 +177,8 @@ void ImuController::onStateChanged(WT9011DCL_BLE::State s)
     case WT9011DCL_BLE::State::Ready:
         setStateLabel(QStringLiteral("Connected"));
         m_attemptingConn = false;
+        m_inConnectPhase = false;
+        m_retryCount     = 0;
         m_connected = true;
         m_busy = false;
         emit imuConnectedChanged();
@@ -156,11 +189,30 @@ void ImuController::onStateChanged(WT9011DCL_BLE::State s)
         m_imu->setOutputRate(WT9011DCL_Base::OutputRate::Hz_10);
         break;
     case WT9011DCL_BLE::State::Error:
-        setStateLabel(QStringLiteral("Error"));
         m_attemptingConn = false;
-        if (m_busy) {
-            m_busy = false;
-            emit busyChanged();
+        if (m_inConnectPhase && m_retryCount < kMaxRetries) {
+            // The first 1-2 attempts can fail because BlueZ's HCI advertising
+            // report gives the wrong address type for this device. After a
+            // failed attempt BlueZ corrects its stored type, so a retry
+            // succeeds. Allow up to kMaxRetries automatic retries with a delay
+            // that lets the kernel BLE controller recover from the timeout.
+            m_retryCount++;
+            m_inConnectPhase = false;
+            const int delaySec = kRetryDelayMs / 1000;
+            setStateLabel(QStringLiteral("Retrying…"));
+            appendLog(timestamp()
+                      + QStringLiteral("  Connection failed — auto-retry %1/%2 in %3 s")
+                        .arg(m_retryCount).arg(kMaxRetries).arg(delaySec));
+            m_retryTimer.start(kRetryDelayMs);
+            // Keep m_busy=true so Connect button stays disabled during wait.
+        } else {
+            m_inConnectPhase = false;
+            m_retryCount     = 0;
+            setStateLabel(QStringLiteral("Error"));
+            if (m_busy) {
+                m_busy = false;
+                emit busyChanged();
+            }
         }
         break;
     }
@@ -182,7 +234,27 @@ QString ImuController::timestamp()
 
 void ImuController::appendLog(const QString &text)
 {
+    m_logEntries.append(text);
     emit logEntryAdded(text);
+}
+
+QString ImuController::saveLog()
+{
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+    const QString fileName = QStringLiteral("imu_log_%1.txt")
+        .arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss")));
+    const QString path = dir + QDir::separator() + fileName;
+
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text))
+        return QStringLiteral("ERROR: could not write to %1").arg(path);
+
+    QTextStream out(&f);
+    for (const QString &line : std::as_const(m_logEntries))
+        out << line << '\n';
+
+    appendLog(timestamp() + QStringLiteral("  Log saved to ") + path);
+    return path;
 }
 
 void ImuController::setStateLabel(const QString &s)

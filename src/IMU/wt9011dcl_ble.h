@@ -2,6 +2,7 @@
 
 #include "wt9011dcl_base.h"
 #include <QBluetoothDeviceDiscoveryAgent>
+#include <QElapsedTimer>
 #include <QBluetoothDeviceInfo>
 #include <QBluetoothUuid>
 #include <QLowEnergyController>
@@ -98,4 +99,5 @@ private:
 
     QLowEnergyCharacteristic m_writeChar;
     QLowEnergyCharacteristic m_notifyChar;
+    QElapsedTimer            m_connectTimer;
 };

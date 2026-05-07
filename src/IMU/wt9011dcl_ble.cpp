@@ -124,11 +124,13 @@ void WT9011DCL_BLE::connectToDevice(const QBluetoothDeviceInfo &device)
     stopScan();
     teardownController();
 
-    // On Linux, BlueZ reads the BLE address type (public vs random) directly
-    // from HCI advertising events during scan and stores it in the
-    // org.bluez.Device1.AddressType D-Bus property.  Qt's BlueZ backend uses
-    // that property when connecting, so no manual override is needed.
     m_controller = QLowEnergyController::createCentral(device, this);
+
+    emit diagnosticInfo(QStringLiteral("Connecting to %1 (RSSI=%2 dBm)")
+                        .arg(device.address().toString())
+                        .arg(device.rssi()));
+
+    m_connectTimer.start();
 
     connect(m_controller, &QLowEnergyController::connected,
             this,         &WT9011DCL_BLE::onControllerConnected);
@@ -159,6 +161,9 @@ void WT9011DCL_BLE::disconnectFromDevice()
 
 void WT9011DCL_BLE::onControllerConnected()
 {
+    emit diagnosticInfo(
+        QStringLiteral("BLE link established in %1 ms — discovering services")
+        .arg(m_connectTimer.elapsed()));
     setState(State::DiscoveringServices);
     m_controller->discoverServices();
 }
@@ -183,9 +188,11 @@ void WT9011DCL_BLE::onServiceDiscoveryFinished()
 void WT9011DCL_BLE::onControllerError(QLowEnergyController::Error error)
 {
     setState(State::Error);
-    emit errorOccurred(QStringLiteral("Controller error %1: %2")
-                       .arg(static_cast<int>(error))
-                       .arg(m_controller->errorString()));
+    emit errorOccurred(
+        QStringLiteral("Controller error %1: %2 (after %3 ms)")
+        .arg(static_cast<int>(error))
+        .arg(m_controller->errorString())
+        .arg(m_connectTimer.elapsed()));
 }
 
 // ---------------------------------------------------------------------------

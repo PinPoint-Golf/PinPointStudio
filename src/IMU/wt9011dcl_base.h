@@ -144,6 +144,7 @@ signals:
     void connected();
     void disconnected();
     void errorOccurred(const QString &message);
+    void diagnosticInfo(const QString &message);
 
     void accelUpdated(const WT9011DCL_Base::AccelData &data);
     void gyroUpdated(const WT9011DCL_Base::GyroData &data);

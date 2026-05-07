@@ -81,6 +81,23 @@ Item {
             }
 
             Item { Layout.fillWidth: true }
+
+            Button {
+                id: saveLogBtn
+                text: qsTr("Save Log")
+                onClicked: imuController.saveLog()
+                contentItem: Text {
+                    text: saveLogBtn.text
+                    color: "#1e1e2e"
+                    font.pixelSize: 13
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle {
+                    color: saveLogBtn.pressed ? "#89b4fa" : "#585b70"
+                    radius: 6
+                }
+            }
         }
 
         Rectangle {
