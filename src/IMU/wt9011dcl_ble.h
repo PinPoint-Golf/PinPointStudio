@@ -62,6 +62,7 @@ public:
 signals:
     void stateChanged(WT9011DCL_BLE::State state);
     void deviceDiscovered(const QBluetoothDeviceInfo &device);
+    void rawDeviceFound(const QBluetoothDeviceInfo &device);   // every BLE device seen
     void scanFinished();
 
 protected:

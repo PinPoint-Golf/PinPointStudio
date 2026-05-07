@@ -86,11 +86,20 @@ void WT9011DCL_BLE::stopScan()
 
 void WT9011DCL_BLE::onDeviceDiscovered(const QBluetoothDeviceInfo &device)
 {
-    if (device.serviceUuids().contains(ServiceUuid) ||
-        device.name().contains(QStringLiteral("WT"), Qt::CaseInsensitive) ||
-        device.name().contains(QStringLiteral("WITMOTION"), Qt::CaseInsensitive)) {
+    emit rawDeviceFound(device);
+
+    // Service UUIDs and device names are rarely present in advertisement packets
+    // for embedded BLE UART bridge chips — they only appear after connection.
+    // Accept: known service UUID, known name prefix, or any unnamed BLE-only device.
+    const bool hasServiceUuid = device.serviceUuids().contains(ServiceUuid);
+    const bool hasKnownName   = device.name().contains(QStringLiteral("WT"),        Qt::CaseInsensitive)
+                             || device.name().contains(QStringLiteral("WITMOTION"), Qt::CaseInsensitive);
+    const bool unnamedBle     = device.name().isEmpty()
+                             && device.coreConfigurations().testFlag(
+                                    QBluetoothDeviceInfo::LowEnergyCoreConfiguration);
+
+    if (hasServiceUuid || hasKnownName || unnamedBle)
         emit deviceDiscovered(device);
-    }
 }
 
 void WT9011DCL_BLE::onScanFinished()
@@ -113,9 +122,16 @@ void WT9011DCL_BLE::onScanError(QBluetoothDeviceDiscoveryAgent::Error error)
 
 void WT9011DCL_BLE::connectToDevice(const QBluetoothDeviceInfo &device)
 {
+    // Set Connecting *before* stopScan so that onScanFinished does not
+    // transition back through Disconnected and clear the busy/connected state.
+    setState(State::Connecting);
     stopScan();
     teardownController();
 
+    // On Linux, BlueZ reads the BLE address type (public vs random) directly
+    // from HCI advertising events during scan and stores it in the
+    // org.bluez.Device1.AddressType D-Bus property.  Qt's BlueZ backend uses
+    // that property when connecting, so no manual override is needed.
     m_controller = QLowEnergyController::createCentral(device, this);
 
     connect(m_controller, &QLowEnergyController::connected,
@@ -131,7 +147,6 @@ void WT9011DCL_BLE::connectToDevice(const QBluetoothDeviceInfo &device)
                 &QLowEnergyController::errorOccurred),
             this, &WT9011DCL_BLE::onControllerError);
 
-    setState(State::Connecting);
     m_controller->connectToDevice();
 }
 
@@ -148,6 +163,7 @@ void WT9011DCL_BLE::disconnectFromDevice()
 
 void WT9011DCL_BLE::onControllerConnected()
 {
+    emit connected();   // physical BLE link is up
     setState(State::DiscoveringServices);
     m_controller->discoverServices();
 }
@@ -171,9 +187,10 @@ void WT9011DCL_BLE::onServiceDiscoveryFinished()
 
 void WT9011DCL_BLE::onControllerError(QLowEnergyController::Error error)
 {
-    Q_UNUSED(error)
     setState(State::Error);
-    emit errorOccurred(m_controller->errorString());
+    emit errorOccurred(QStringLiteral("Controller error %1: %2")
+                       .arg(static_cast<int>(error))
+                       .arg(m_controller->errorString()));
 }
 
 // ---------------------------------------------------------------------------
@@ -183,8 +200,11 @@ void WT9011DCL_BLE::onControllerError(QLowEnergyController::Error error)
 void WT9011DCL_BLE::setupService()
 {
     if (!m_controller->services().contains(ServiceUuid)) {
+        QString found;
+        for (const QBluetoothUuid &uuid : m_controller->services())
+            found += QStringLiteral("\n  ") + uuid.toString();
         setState(State::Error);
-        emit errorOccurred(QStringLiteral("WITMOTION BLE service not found on device"));
+        emit errorOccurred(QStringLiteral("WITMOTION service not found. Device has:%1").arg(found));
         return;
     }
 

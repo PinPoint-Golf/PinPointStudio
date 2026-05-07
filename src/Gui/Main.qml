@@ -21,7 +21,7 @@ ApplicationWindow {
             background: Rectangle { color: "#181825" }
 
             TabButton {
-                text: qsTr("Capture")
+                text: qsTr("IMU")
                 contentItem: Text {
                     text: parent.text
                     color: parent.checked ? "#cdd6f4" : "#6c7086"

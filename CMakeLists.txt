@@ -78,6 +78,7 @@ FetchContent_MakeAvailable(libsamplerate)
 
 qt_add_executable(PinPoint
     src/Gui/main.cpp
+    src/Gui/imu_controller.h           src/Gui/imu_controller.cpp
     src/Gui/transcription_controller.h src/Gui/transcription_controller.cpp
     src/Gui/tts_controller.h           src/Gui/tts_controller.cpp
     src/IMU/wt9011dcl_base.h src/IMU/wt9011dcl_base.cpp
@@ -516,6 +517,7 @@ endif()
 if(UNIX AND NOT APPLE)
     find_package(Threads REQUIRED)
     target_link_libraries(PinPoint PRIVATE Threads::Threads)
+
 endif()
 
 if(MSVC)
