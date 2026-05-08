@@ -4,7 +4,8 @@ A golf swing analysis app that extracts kinematic metrics using IMUs and Compute
 ## Documentation
 - [Building Instructions](BUILDING.md) - How to resolve dependencies and build PinPoint.
 
-Initial prototyping is underway using Witmotion WT9011DCL IMUs (BLE/Serial) and high-speed industrial cameras. Support is currently implemented for:
+Initial prototyping is underway using IMUs and high-speed industrial cameras. Support is currently implemented for:
+- **Witmotion IMUs** WT9011DCL IMUs (BLE/Serial)
 - **Aravis**: Generic GenICam support for industrial cameras (Linux/macOS/Windows).
 - **Spinnaker SDK**: Teledyne/FLIR industrial cameras (Windows only).
 - **Standard Cameras**: UVC-compliant webcams and OS-native camera backends.
