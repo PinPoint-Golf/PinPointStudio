@@ -6,13 +6,14 @@
 #include <opencv2/core.hpp>
 #include <array>
 
-// cv::Mat uses shared reference counting, so it is safe to pass through Qt's
-// queued signal/slot mechanism.  The metatype is registered in the constructor
-// so QueuedConnection delivery to the pose-estimator thread works without an
-// explicit qRegisterMetaType<cv::Mat>() call at the use site.
-Q_DECLARE_METATYPE(cv::Mat)
-
 // Concrete preprocessor that converts incoming QVideoFrames to BGR cv::Mat.
+//
+// cv::Mat is registered as a Qt metatype at runtime in the constructor via
+// qRegisterMetaType<cv::Mat>() — sufficient for function-pointer QueuedConnection
+// in Qt 6.  Q_DECLARE_METATYPE is intentionally omitted: MOC compiles all moc
+// files into one translation unit and any prior implicit instantiation of
+// QMetaTypeId<cv::Mat> (e.g. from PoseEstimatorBase's slot signature) would
+// cause a "explicit specialisation after instantiation" error.
 //
 // Wire the output signal to the pose estimator:
 //   connect(preprocessor, &VideoPreprocessorOpenCV::framePreprocessed,

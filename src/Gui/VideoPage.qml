@@ -128,9 +128,19 @@ Item {
 
             Item { Layout.fillWidth: true }
 
+            // ── Pipeline stats ────────────────────────────────────────────────
             Label {
                 visible: videoController.isRecording && videoController.preprocessAvgMs > 0
-                text: "Preprocess: " + videoController.preprocessAvgMs.toFixed(1) + " ms avg"
+                text: "Pre: " + videoController.preprocessAvgMs.toFixed(1) + " ms"
+                color: "#6c7086"
+                font.pixelSize: 12
+                font.family: "Courier New"
+            }
+
+            Label {
+                visible: videoController.isRecording && videoController.poseFps > 0
+                text: "Pose: " + videoController.poseAvgMs.toFixed(1) + " ms  "
+                    + videoController.poseFps.toFixed(1) + " fps"
                 color: "#6c7086"
                 font.pixelSize: 12
                 font.family: "Courier New"

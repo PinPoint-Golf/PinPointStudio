@@ -94,6 +94,7 @@ qt_add_executable(PinPoint
     src/Video/video_input.h                src/Video/video_input.cpp
     src/Video/video_input_factory.h        src/Video/video_input_factory.cpp
     src/Video/video_preprocessor_base.h   src/Video/video_preprocessor_base.cpp
+    src/Pose/pose_estimator_base.h        src/Pose/pose_estimator_base.cpp
     src/Core/device_enumerator.h           src/Core/device_enumerator.cpp
     src/Video/VideoInputAravis.h           src/Video/VideoInputAravis.cpp
     src/Gui/video_controller.h             src/Gui/video_controller.cpp
@@ -107,7 +108,7 @@ qt_add_executable(PinPoint
     src/TTS/ModelDownloader.h        src/TTS/ModelDownloader.cpp
 )
 
-target_include_directories(PinPoint PRIVATE src/Gui src/IMU src/Audio src/Video src/STT src/TTS src/Secrets src/Core)
+target_include_directories(PinPoint PRIVATE src/Gui src/IMU src/Audio src/Video src/Pose src/STT src/TTS src/Secrets src/Core)
 
 qt_add_qml_module(PinPoint
     URI PinPoint
@@ -328,6 +329,68 @@ endif()
 list(JOIN _ort_ep_list "+" _ort_ep_str)
 message(STATUS "ONNX Runtime ${ORT_VERSION}: ${_ort_root} [EP=${_ort_ep_str}]")
 
+# ── MoveNet (pose estimation via ONNX Runtime) ────────────────────────────────
+# Downloads the MoveNet Lightning SinglePose ONNX model from Hugging Face.
+# No additional inference library required — ONNX Runtime (above) handles it.
+# Cached in _deps/movenet/ and reused across reconfigures; only lost on a full
+# build-directory wipe.
+#
+# Model input:  [1, 192, 192, 3] float32 NHWC, normalised to [0, 1]
+# Model output: [1, 1, 17, 3]   float32, keypoints as (y, x, score)
+
+set(_movenet_model_dir  "${CMAKE_BINARY_DIR}/_deps/movenet")
+set(_movenet_model_file "movenet_singlepose_lightning.onnx")
+set(_movenet_model_path "${_movenet_model_dir}/${_movenet_model_file}")
+
+if(NOT EXISTS "${_movenet_model_path}")
+    message(STATUS "MoveNet: downloading model (~9 MB)...")
+    file(MAKE_DIRECTORY "${_movenet_model_dir}")
+    file(DOWNLOAD
+        "https://huggingface.co/Xenova/movenet-singlepose-lightning/resolve/main/onnx/model.onnx"
+        "${_movenet_model_path}"
+        SHOW_PROGRESS
+        TLS_VERIFY ON
+        STATUS _movenet_dl_status
+    )
+    list(GET _movenet_dl_status 0 _movenet_dl_code)
+    if(NOT _movenet_dl_code EQUAL 0)
+        list(GET _movenet_dl_status 1 _movenet_dl_msg)
+        message(WARNING "MoveNet: download failed (${_movenet_dl_msg}) -- pose estimation disabled")
+        file(REMOVE "${_movenet_model_path}")
+    endif()
+endif()
+
+if(EXISTS "${_movenet_model_path}")
+    message(STATUS "MoveNet: model ready (${_movenet_model_path})")
+    target_compile_definitions(PinPoint PRIVATE
+        HAVE_MOVENET
+        MOVENET_MODEL_FILE="${_movenet_model_file}"
+    )
+
+    # Copy model into the platform-appropriate location alongside the executable.
+    if(APPLE)
+        add_custom_command(TARGET PinPoint POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_BUNDLE_CONTENT_DIR:PinPoint>/Resources/models"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_movenet_model_path}"
+                "$<TARGET_BUNDLE_CONTENT_DIR:PinPoint>/Resources/models/${_movenet_model_file}"
+            COMMENT "Bundling MoveNet model into app"
+        )
+    else()
+        add_custom_command(TARGET PinPoint POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:PinPoint>/models"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_movenet_model_path}"
+                "$<TARGET_FILE_DIR:PinPoint>/models/${_movenet_model_file}"
+            COMMENT "Copying MoveNet model to output directory"
+        )
+    endif()
+else()
+    message(STATUS "MoveNet: model unavailable -- pose estimation disabled")
+endif()
+
 # ── espeak-ng ────────────────────────────────────────────────────────────────
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)
@@ -525,6 +588,13 @@ if(OpenCV_FOUND)
         src/Video/video_preprocessor_opencv.h
         src/Video/video_preprocessor_opencv.cpp
     )
+    if(EXISTS "${_movenet_model_path}")
+        target_sources(PinPoint PRIVATE
+            src/Pose/pose_estimator_movenet.h
+            src/Pose/pose_estimator_movenet.cpp
+        )
+        message(STATUS "MoveNet pose estimator: enabled")
+    endif()
 else()
     message(STATUS "OpenCV: not found (image processing features disabled)")
 endif()

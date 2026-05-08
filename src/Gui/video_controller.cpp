@@ -6,6 +6,11 @@
 
 #ifdef HAVE_OPENCV
 #include "video_preprocessor_opencv.h"
+#include "pose_estimator_base.h"
+#endif
+
+#if defined(HAVE_OPENCV) && defined(HAVE_MOVENET) && defined(HAVE_ONNXRUNTIME)
+#include "pose_estimator_movenet.h"
 #endif
 
 #include <QCoreApplication>
@@ -34,44 +39,66 @@ VideoController::VideoController(QObject *parent)
             this, &VideoController::onVideoError);
 
 #ifdef HAVE_OPENCV
+    // ── Preprocess thread ────────────────────────────────────────────────────
     m_preprocessThread = new QThread(this);
     m_preprocessThread->setObjectName(QStringLiteral("VideoPreprocessThread"));
     m_preprocessor = new VideoPreprocessorOpenCV();
     m_preprocessor->moveToThread(m_preprocessThread);
 
-    // Frames branch: capture thread → preprocess thread (parallel to display path).
     connect(m_videoInput, &VideoInputBase::videoFrameReady,
             m_preprocessor, &VideoPreprocessorBase::processFrame,
             Qt::QueuedConnection);
-
-    // Stats: preprocess thread → main thread.
     connect(m_preprocessor, &VideoPreprocessorBase::preprocessStatsUpdated,
             this, &VideoController::onPreprocessStats,
             Qt::QueuedConnection);
 
     m_preprocessThread->start();
-    // TODO: connect VideoPreprocessorOpenCV::framePreprocessed to pose estimator here.
-#endif
+
+#if defined(HAVE_MOVENET) && defined(HAVE_ONNXRUNTIME)
+    // ── Pose estimator thread ────────────────────────────────────────────────
+    m_poseThread    = new QThread(this);
+    m_poseThread->setObjectName(QStringLiteral("PoseEstimatorThread"));
+    auto *mn = new PoseEstimatorMoveNet();
+    m_poseEstimator = mn;
+    m_poseEstimator->moveToThread(m_poseThread);
+
+    // Load the model on the pose thread as soon as it starts.
+    // Use the concrete pointer — Qt's template deduction needs the exact type.
+    connect(m_poseThread, &QThread::started, mn, &PoseEstimatorMoveNet::load);
+
+    // preprocessor → pose estimator (preprocess thread → pose thread)
+    auto *cvPP = qobject_cast<VideoPreprocessorOpenCV *>(m_preprocessor);
+    connect(cvPP, &VideoPreprocessorOpenCV::framePreprocessed,
+            m_poseEstimator, &PoseEstimatorBase::estimatePose,
+            Qt::QueuedConnection);
+
+    // Stats: pose thread → main thread
+    connect(m_poseEstimator, &PoseEstimatorBase::poseStatsUpdated,
+            this, &VideoController::onPoseStats,
+            Qt::QueuedConnection);
+
+    m_poseThread->start();
+#endif // HAVE_MOVENET && HAVE_ONNXRUNTIME
+#endif // HAVE_OPENCV
 
     startCapture();
 }
 
 VideoController::~VideoController()
 {
-    // Stop capture first so no further videoFrameReady signals are emitted.
+    // 1. Stop capture — no further videoFrameReady signals after this.
     if (m_captureThread->isRunning()) {
         QMetaObject::invokeMethod(m_videoInput, [this]() {
             m_videoInput->stop();
             m_videoInput->moveToThread(QCoreApplication::instance()->thread());
         }, Qt::BlockingQueuedConnection);
-
         m_captureThread->quit();
         m_captureThread->wait();
     }
     delete m_videoInput;
     m_videoInput = nullptr;
 
-    // Drain any frames already queued in the preprocess thread, then stop it.
+    // 2. Stop preprocess — no further framePreprocessed signals after this.
     if (m_preprocessor && m_preprocessThread && m_preprocessThread->isRunning()) {
         QMetaObject::invokeMethod(m_preprocessor, [this]() {
             m_preprocessor->moveToThread(QCoreApplication::instance()->thread());
@@ -81,37 +108,37 @@ VideoController::~VideoController()
     }
     delete m_preprocessor;
     m_preprocessor = nullptr;
+
+#ifdef HAVE_OPENCV
+    // 3. Stop pose estimator — drain any queued estimatePose calls first.
+    if (m_poseEstimator && m_poseThread && m_poseThread->isRunning()) {
+        QMetaObject::invokeMethod(m_poseEstimator, [this]() {
+            m_poseEstimator->moveToThread(QCoreApplication::instance()->thread());
+        }, Qt::BlockingQueuedConnection);
+        m_poseThread->quit();
+        m_poseThread->wait();
+    }
+    delete m_poseEstimator;
+    m_poseEstimator = nullptr;
+#endif
 }
 
-bool VideoController::isRecording() const
-{
-    return m_recording;
-}
-
+bool VideoController::isRecording() const  { return m_recording; }
 bool VideoController::isAravis() const
 {
     return VideoInputFactory::backendType(m_videoInput) == VideoInputFactory::Backend::Aravis;
 }
-
 bool VideoController::isSpinnaker() const
 {
     return VideoInputFactory::backendType(m_videoInput) == VideoInputFactory::Backend::Spinnaker;
 }
+bool VideoController::needsDebayer() const { return isAravis() || isSpinnaker(); }
 
-bool VideoController::needsDebayer() const
-{
-    return isAravis() || isSpinnaker();
-}
+VideoPreprocessorBase *VideoController::preprocessor() const { return m_preprocessor; }
 
-VideoPreprocessorBase *VideoController::preprocessor() const
-{
-    return m_preprocessor;
-}
-
-double VideoController::preprocessAvgMs() const
-{
-    return m_preprocessAvgMs;
-}
+double VideoController::preprocessAvgMs() const { return m_preprocessAvgMs; }
+double VideoController::poseAvgMs() const        { return m_poseAvgMs; }
+double VideoController::poseFps() const          { return m_poseFps; }
 
 void VideoController::setVideoSink(QVideoSink *sink)
 {
@@ -149,10 +176,9 @@ void VideoController::startRecording()
             }, Qt::QueuedConnection);
         } else {
             qWarning() << "[VideoController] Failed to start primary video input. Attempting fallback...";
-            // If an industrial camera backend failed, try falling back to standard VideoInput (Qt Multimedia)
             VideoInputFactory::Backend currentBackend = VideoInputFactory::backendType(m_videoInput);
-            if (currentBackend == VideoInputFactory::Backend::Aravis || 
-                currentBackend == VideoInputFactory::Backend::Spinnaker) 
+            if (currentBackend == VideoInputFactory::Backend::Aravis ||
+                currentBackend == VideoInputFactory::Backend::Spinnaker)
             {
                 QMetaObject::invokeMethod(this, [this]() {
                     delete m_videoInput;
@@ -169,7 +195,6 @@ void VideoController::startRecording()
                                 Qt::QueuedConnection);
                     }
 #endif
-
                     emit isAravisChanged();
                     emit isSpinnakerChanged();
                     emit needsDebayerChanged();
@@ -188,7 +213,6 @@ void VideoController::startRecording()
     }, Qt::QueuedConnection);
 #endif
 }
-
 
 void VideoController::stopRecording()
 {
@@ -218,6 +242,14 @@ void VideoController::onPreprocessStats(double avgMs)
         return;
     m_preprocessAvgMs = avgMs;
     emit preprocessAvgMsChanged();
+}
+
+void VideoController::onPoseStats(double avgMs, double fps)
+{
+    bool changed = false;
+    if (!qFuzzyCompare(m_poseAvgMs, avgMs)) { m_poseAvgMs = avgMs; changed = true; emit poseAvgMsChanged(); }
+    if (!qFuzzyCompare(m_poseFps,   fps))   { m_poseFps   = fps;   changed = true; emit poseFpsChanged();   }
+    Q_UNUSED(changed);
 }
 
 void VideoController::startCapture()

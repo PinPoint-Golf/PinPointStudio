@@ -39,12 +39,12 @@ sudo apt install libglib2.0-dev libaravis-0.8-dev
 # Optional: espeak-ng (if not found, CMake will build it from source)
 sudo apt install libespeak-ng-dev
 
-# Optional: OpenCV (image processing)
+# Optional: OpenCV (image processing and pose pre-processing)
 sudo apt install libopencv-dev
 ```
 
 ### 4. GPU Acceleration (Optional)
-For hardware acceleration in Whisper (STT) and ONNX Runtime (TTS):
+For hardware acceleration in Whisper (STT) and ONNX Runtime (TTS/pose estimation):
 - **Vulkan (Recommended)**: Install the `vulkan-sdk` or `libvulkan-dev`.
 - **CUDA**: Install the [CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit) if you have an NVIDIA GPU and prefer CUDA over Vulkan.
 
@@ -72,6 +72,8 @@ export PATH="$(brew --prefix qt@6)/bin:$PATH"
 ### 3. Architecture Note
 - **Apple Silicon (M1/M2/M3)**: PinPoint uses CoreML for ONNX Runtime acceleration.
 - **Intel Macs**: ONNX Runtime will fall back to CPU for better compatibility and performance with certain models.
+
+> **Note:** OpenCV is detected automatically from the Homebrew prefix. It is required for video pre-processing and pose estimation. If not installed, those features are disabled at compile time but the rest of the app builds normally.
 
 ---
 
@@ -109,6 +111,19 @@ cd build
 cmake .. -DCMAKE_PREFIX_PATH=/path/to/qt/6.10.x/compiler_arch
 cmake --build . --config Release
 ```
+
+### Automatically Downloaded Dependencies
+
+The following are fetched automatically during `cmake ..` — no manual installation required:
+
+| Dependency | What | When |
+|---|---|---|
+| ONNX Runtime | Prebuilt shared library (platform-matched) | Always |
+| Whisper.cpp | Built from source | Always |
+| espeak-ng | Built from source | Only if not found on system |
+| MoveNet Lightning | ONNX model file (~9 MB, from Hugging Face) | When OpenCV is present |
+
+The MoveNet model is cached in `build/_deps/movenet/` and is not re-downloaded on subsequent `cmake` runs unless the build directory is wiped. If the download fails (e.g. no network), pose estimation is disabled but everything else builds normally.
 
 ### Build Options
 You can toggle certain features at configure time:
