@@ -18,6 +18,7 @@ class ImuController : public QObject
     Q_PROPERTY(float   imuRoll    READ imuRoll    NOTIFY eulerChanged)
     Q_PROPERTY(float   imuPitch   READ imuPitch   NOTIFY eulerChanged)
     Q_PROPERTY(float   imuYaw     READ imuYaw     NOTIFY eulerChanged)
+    Q_PROPERTY(int     outputRateHz READ outputRateHz NOTIFY outputRateHzChanged)
 
 public:
     explicit ImuController(QObject *parent = nullptr);
@@ -32,10 +33,12 @@ public:
     float   imuRoll()      const { return m_roll; }
     float   imuPitch()     const { return m_pitch; }
     float   imuYaw()       const { return m_yaw; }
+    int     outputRateHz() const { return m_outputRateHz; }
 
     Q_INVOKABLE void connectImu();
     Q_INVOKABLE void disconnectImu();
     Q_INVOKABLE QString saveLog();
+    Q_INVOKABLE void setOutputRateHz(int hz);
 
 signals:
     void stateLabelChanged();
@@ -43,6 +46,7 @@ signals:
     void busyChanged();
     void quatChanged();
     void eulerChanged();
+    void outputRateHzChanged();
     void logEntryAdded(const QString &entry);
 
 private:
@@ -62,6 +66,7 @@ private:
     bool    m_attemptingConn  = false;  // prevent multiple connect attempts per scan
     float   m_quatW = 1.0f, m_quatX = 0.0f, m_quatY = 0.0f, m_quatZ = 0.0f;
     float   m_roll = 0.0f, m_pitch = 0.0f, m_yaw = 0.0f;
+    int     m_outputRateHz = 100;
 
     static constexpr int kMaxRetries    = 1;
     static constexpr int kRetryDelayMs  = 45'000;

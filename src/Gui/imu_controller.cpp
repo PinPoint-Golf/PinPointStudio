@@ -190,7 +190,7 @@ void ImuController::onStateChanged(WT9011DCL_BLE::State s)
         appendLog(timestamp() + "  IMU ready — receiving data");
         // Poke the device to start streaming: some WitMotion BLE firmware
         // won't output data until it receives a valid write-characteristic command.
-        m_imu->setOutputRate(WT9011DCL_Base::OutputRate::Hz_10);
+        setOutputRateHz(m_outputRateHz);
         break;
     case WT9011DCL_BLE::State::Error:
         m_attemptingConn = false;
@@ -259,6 +259,23 @@ QString ImuController::saveLog()
 
     appendLog(timestamp() + QStringLiteral("  Log saved to ") + path);
     return path;
+}
+
+void ImuController::setOutputRateHz(int hz)
+{
+    using R = WT9011DCL_Base::OutputRate;
+    R rate;
+    switch (hz) {
+    case 10:  rate = R::Hz_10;  break;
+    case 20:  rate = R::Hz_20;  break;
+    case 50:  rate = R::Hz_50;  break;
+    case 200: rate = R::Hz_200; break;
+    default:  rate = R::Hz_100; hz = 100; break;
+    }
+    m_outputRateHz = hz;
+    emit outputRateHzChanged();
+    if (m_connected)
+        m_imu->setOutputRate(rate);
 }
 
 void ImuController::setStateLabel(const QString &s)

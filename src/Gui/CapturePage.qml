@@ -83,6 +83,64 @@ Item {
 
             Item { Layout.fillWidth: true }
 
+            Label {
+                text: "Rate:"
+                color: "#6c7086"
+                font.pixelSize: 13
+                verticalAlignment: Text.AlignVCenter
+            }
+
+            ComboBox {
+                id: rateCombo
+                enabled: imuController.imuConnected
+                model: [10, 50, 100, 200]
+                currentIndex: {
+                    var idx = model.indexOf(imuController.outputRateHz)
+                    return idx >= 0 ? idx : 2
+                }
+                onActivated: imuController.setOutputRateHz(model[currentIndex])
+                implicitWidth: 90
+                contentItem: Text {
+                    leftPadding: 8
+                    text: rateCombo.displayText + " Hz"
+                    color: rateCombo.enabled ? "#cdd6f4" : "#6c7086"
+                    font.pixelSize: 13
+                    verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle {
+                    color: rateCombo.enabled ? "#313244" : "#1e1e2e"
+                    border.color: rateCombo.enabled ? "#45475a" : "#313244"
+                    border.width: 1
+                    radius: 6
+                }
+                popup: Popup {
+                    y: rateCombo.height + 2
+                    width: rateCombo.width
+                    padding: 4
+                    background: Rectangle { color: "#313244"; radius: 6 }
+                    contentItem: ListView {
+                        implicitHeight: contentHeight
+                        model: rateCombo.delegateModel
+                        clip: true
+                    }
+                }
+                delegate: ItemDelegate {
+                    required property var modelData
+                    required property int index
+                    width: rateCombo.width
+                    contentItem: Text {
+                        text: modelData + " Hz"
+                        color: rateCombo.currentIndex === index ? "#cdd6f4" : "#6c7086"
+                        font.pixelSize: 13
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        color: hovered ? "#45475a" : "transparent"
+                        radius: 4
+                    }
+                }
+            }
+
             Button {
                 id: saveLogBtn
                 text: qsTr("Save Log")
@@ -179,8 +237,7 @@ Item {
                 }
 
                 PerspectiveCamera {
-                    position: Qt.vector3d(0, 120, 320)
-                    eulerRotation.x: -20
+                    position: Qt.vector3d(0, 0, 480)
                 }
 
                 DirectionalLight {
@@ -199,43 +256,49 @@ Item {
                     // Top face — red
                     Model {
                         source: "#Rectangle"
-                        position: Qt.vector3d(0, 50, 0)
+                        position: Qt.vector3d(0, 100, 0)
                         eulerRotation.x: -90
-                        materials: DefaultMaterial { diffuseColor: "#e64553" }
+                        scale: Qt.vector3d(2, 2, 1)
+                        materials: DefaultMaterial { diffuseColor: "#e64553"; cullMode: Material.NoCulling }
                     }
                     // Bottom face — red
                     Model {
                         source: "#Rectangle"
-                        position: Qt.vector3d(0, -50, 0)
+                        position: Qt.vector3d(0, -100, 0)
                         eulerRotation.x: 90
-                        materials: DefaultMaterial { diffuseColor: "#e64553" }
+                        scale: Qt.vector3d(2, 2, 1)
+                        materials: DefaultMaterial { diffuseColor: "#e64553"; cullMode: Material.NoCulling }
                     }
                     // Front face — orange
                     Model {
                         source: "#Rectangle"
-                        position: Qt.vector3d(0, 0, 50)
-                        materials: DefaultMaterial { diffuseColor: "#fe640b" }
+                        position: Qt.vector3d(0, 0, 100)
+                        scale: Qt.vector3d(2, 2, 1)
+                        materials: DefaultMaterial { diffuseColor: "#fe640b"; cullMode: Material.NoCulling }
                     }
                     // Back face — orange
                     Model {
                         source: "#Rectangle"
-                        position: Qt.vector3d(0, 0, -50)
+                        position: Qt.vector3d(0, 0, -100)
                         eulerRotation.y: 180
-                        materials: DefaultMaterial { diffuseColor: "#fe640b" }
+                        scale: Qt.vector3d(2, 2, 1)
+                        materials: DefaultMaterial { diffuseColor: "#fe640b"; cullMode: Material.NoCulling }
                     }
                     // Right face — orange
                     Model {
                         source: "#Rectangle"
-                        position: Qt.vector3d(50, 0, 0)
+                        position: Qt.vector3d(100, 0, 0)
                         eulerRotation.y: -90
-                        materials: DefaultMaterial { diffuseColor: "#fe640b" }
+                        scale: Qt.vector3d(2, 2, 1)
+                        materials: DefaultMaterial { diffuseColor: "#fe640b"; cullMode: Material.NoCulling }
                     }
                     // Left face — orange
                     Model {
                         source: "#Rectangle"
-                        position: Qt.vector3d(-50, 0, 0)
+                        position: Qt.vector3d(-100, 0, 0)
                         eulerRotation.y: 90
-                        materials: DefaultMaterial { diffuseColor: "#fe640b" }
+                        scale: Qt.vector3d(2, 2, 1)
+                        materials: DefaultMaterial { diffuseColor: "#fe640b"; cullMode: Material.NoCulling }
                     }
                 }
             }
