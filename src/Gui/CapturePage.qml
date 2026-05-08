@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Controls.Basic
+import QtQuick3D
 
 Item {
 
@@ -100,28 +101,142 @@ Item {
             }
         }
 
-        Rectangle {
+        TabBar {
+            id: imuTabBar
+            Layout.fillWidth: true
+
+            TabButton {
+                text: "Log"
+                contentItem: Text {
+                    text: parent.text
+                    color: imuTabBar.currentIndex === 0 ? "#cdd6f4" : "#6c7086"
+                    font.pixelSize: 13
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle {
+                    color: imuTabBar.currentIndex === 0 ? "#45475a" : "transparent"
+                    radius: 4
+                }
+            }
+
+            TabButton {
+                text: "Viz"
+                enabled: imuController.imuConnected
+                contentItem: Text {
+                    text: parent.text
+                    color: imuTabBar.currentIndex === 1 ? "#cdd6f4"
+                         : imuController.imuConnected   ? "#6c7086"
+                         :                               "#45475a"
+                    font.pixelSize: 13
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle {
+                    color: imuTabBar.currentIndex === 1 ? "#45475a" : "transparent"
+                    radius: 4
+                }
+            }
+
+            background: Rectangle { color: "#313244"; radius: 6 }
+        }
+
+        StackLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            color: "#313244"
-            radius: 6
+            currentIndex: imuTabBar.currentIndex
 
-            ListView {
-                id: logView
-                anchors.fill: parent
-                anchors.margins: 8
-                clip: true
-                model: ListModel { id: logModel }
-                spacing: 1
+            // Log tab
+            Rectangle {
+                color: "#313244"
+                radius: 6
 
-                delegate: Text {
-                    required property string entry
-                    width: logView.width
-                    text: entry
-                    color: "#cdd6f4"
-                    font.family: "Courier New"
-                    font.pixelSize: 11
-                    wrapMode: Text.NoWrap
+                ListView {
+                    id: logView
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    clip: true
+                    model: ListModel { id: logModel }
+                    spacing: 1
+
+                    delegate: Text {
+                        required property string entry
+                        width: logView.width
+                        text: entry
+                        color: "#cdd6f4"
+                        font.family: "Courier New"
+                        font.pixelSize: 11
+                        wrapMode: Text.NoWrap
+                    }
+                }
+            }
+
+            // Viz tab
+            View3D {
+                environment: SceneEnvironment {
+                    clearColor: "#1e1e2e"
+                    backgroundMode: SceneEnvironment.Color
+                }
+
+                PerspectiveCamera {
+                    position: Qt.vector3d(0, 120, 320)
+                    eulerRotation.x: -20
+                }
+
+                DirectionalLight {
+                    eulerRotation: Qt.vector3d(-45, -30, 0)
+                    brightness: 1.2
+                    ambientColor: Qt.rgba(0.3, 0.3, 0.3, 1)
+                }
+
+                Node {
+                    eulerRotation: Qt.vector3d(
+                        imuController.imuPitch,
+                        imuController.imuYaw,
+                        imuController.imuRoll
+                    )
+
+                    // Top face — red
+                    Model {
+                        source: "#Rectangle"
+                        position: Qt.vector3d(0, 50, 0)
+                        eulerRotation.x: -90
+                        materials: DefaultMaterial { diffuseColor: "#e64553" }
+                    }
+                    // Bottom face — red
+                    Model {
+                        source: "#Rectangle"
+                        position: Qt.vector3d(0, -50, 0)
+                        eulerRotation.x: 90
+                        materials: DefaultMaterial { diffuseColor: "#e64553" }
+                    }
+                    // Front face — orange
+                    Model {
+                        source: "#Rectangle"
+                        position: Qt.vector3d(0, 0, 50)
+                        materials: DefaultMaterial { diffuseColor: "#fe640b" }
+                    }
+                    // Back face — orange
+                    Model {
+                        source: "#Rectangle"
+                        position: Qt.vector3d(0, 0, -50)
+                        eulerRotation.y: 180
+                        materials: DefaultMaterial { diffuseColor: "#fe640b" }
+                    }
+                    // Right face — orange
+                    Model {
+                        source: "#Rectangle"
+                        position: Qt.vector3d(50, 0, 0)
+                        eulerRotation.y: -90
+                        materials: DefaultMaterial { diffuseColor: "#fe640b" }
+                    }
+                    // Left face — orange
+                    Model {
+                        source: "#Rectangle"
+                        position: Qt.vector3d(-50, 0, 0)
+                        eulerRotation.y: 90
+                        materials: DefaultMaterial { diffuseColor: "#fe640b" }
+                    }
                 }
             }
         }
@@ -132,6 +247,10 @@ Item {
         function onLogEntryAdded(entry) {
             logModel.append({ "entry": entry })
             logView.positionViewAtEnd()
+        }
+        function onImuConnectedChanged() {
+            if (!imuController.imuConnected && imuTabBar.currentIndex === 1)
+                imuTabBar.currentIndex = 0
         }
     }
 }

@@ -104,6 +104,8 @@ ImuController::ImuController(QObject *parent)
                 .arg(a.roll,  8, 'f', 3)
                 .arg(a.pitch, 8, 'f', 3)
                 .arg(a.yaw,   8, 'f', 3));
+        m_roll = a.roll; m_pitch = a.pitch; m_yaw = a.yaw;
+        emit eulerChanged();
     });
 
     connect(m_imu, &WT9011DCL_Base::magUpdated,
@@ -124,6 +126,8 @@ ImuController::ImuController(QObject *parent)
                 .arg(q.x, 8, 'f', 5)
                 .arg(q.y, 8, 'f', 5)
                 .arg(q.z, 8, 'f', 5));
+        m_quatW = q.w; m_quatX = q.x; m_quatY = q.y; m_quatZ = q.z;
+        emit quatChanged();
     });
 }
 
