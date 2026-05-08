@@ -125,6 +125,16 @@ Item {
                 color: "#f38ba8"
                 font.pixelSize: 13
             }
+
+            Item { Layout.fillWidth: true }
+
+            Label {
+                visible: videoController.isRecording && videoController.preprocessAvgMs > 0
+                text: "Preprocess: " + videoController.preprocessAvgMs.toFixed(1) + " ms avg"
+                color: "#6c7086"
+                font.pixelSize: 12
+                font.family: "Courier New"
+            }
         }
     }
 }

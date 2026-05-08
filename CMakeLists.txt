@@ -93,6 +93,7 @@ qt_add_executable(PinPoint
     src/Video/video_input_base.h           src/Video/video_input_base.cpp
     src/Video/video_input.h                src/Video/video_input.cpp
     src/Video/video_input_factory.h        src/Video/video_input_factory.cpp
+    src/Video/video_preprocessor_base.h   src/Video/video_preprocessor_base.cpp
     src/Core/device_enumerator.h           src/Core/device_enumerator.cpp
     src/Video/VideoInputAravis.h           src/Video/VideoInputAravis.cpp
     src/Gui/video_controller.h             src/Gui/video_controller.cpp
@@ -520,6 +521,10 @@ if(OpenCV_FOUND)
     target_compile_definitions(PinPoint PRIVATE HAVE_OPENCV)
     target_include_directories(PinPoint PRIVATE ${OpenCV_INCLUDE_DIRS})
     target_link_libraries(PinPoint PRIVATE ${OpenCV_LIBS})
+    target_sources(PinPoint PRIVATE
+        src/Video/video_preprocessor_opencv.h
+        src/Video/video_preprocessor_opencv.cpp
+    )
 else()
     message(STATUS "OpenCV: not found (image processing features disabled)")
 endif()
