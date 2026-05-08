@@ -38,6 +38,9 @@ sudo apt install libglib2.0-dev libaravis-0.8-dev
 
 # Optional: espeak-ng (if not found, CMake will build it from source)
 sudo apt install libespeak-ng-dev
+
+# Optional: OpenCV (image processing)
+sudo apt install libopencv-dev
 ```
 
 ### 4. GPU Acceleration (Optional)
@@ -57,7 +60,7 @@ On macOS, dependencies are best managed via [Homebrew](https://brew.sh/).
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 # Install build tools and libraries
-brew install cmake qt@6 espeak-ng aravis
+brew install cmake qt@6 espeak-ng aravis opencv
 ```
 
 ### 2. Qt Path
@@ -91,6 +94,9 @@ For Teledyne/FLIR industrial camera support on Windows, install the [Spinnaker S
 ### 5. Aravis (Optional)
 If you require industrial camera support on Windows (via Generic GenICam), you will need to provide the Aravis library and headers. You can set the `ARAVIS_ROOT` environment variable to the directory containing Aravis.
 
+### 6. OpenCV (Optional)
+Download and install OpenCV from [opencv.org](https://opencv.org/releases/). The build system probes `C:\opencv\build` and `C:\tools\opencv\build` automatically. For a custom location, pass `-DOpenCV_DIR=C:\path\to\opencv\build` at configure time.
+
 ---
 
 ## Build Instructions
@@ -111,3 +117,4 @@ You can toggle certain features at configure time:
     - *Note: On Windows, CUDA and DirectML are mutually exclusive due to ONNX Runtime packaging. If both are ON, CUDA takes priority.*
 - `-DWITH_COREML=ON/OFF`: Enable/disable CoreML on macOS ARM64 (Default: ON).
 - `-DASSEMBLYAI_API_KEY=<key>`: Seed the AssemblyAI API key into settings (Optional).
+- `-DOpenCV_DIR=<path>`: Path to the OpenCV CMake config directory (Windows, when not in a standard location).

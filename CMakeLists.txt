@@ -490,6 +490,40 @@ if(WIN32)
     endif()
 endif()
 
+# ── OpenCV ───────────────────────────────────────────────────────────────────
+# macOS: inject Homebrew prefix so CMake can locate OpenCVConfig.cmake
+if(APPLE)
+    execute_process(
+        COMMAND brew --prefix opencv
+        OUTPUT_VARIABLE _brew_opencv
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE _brew_result
+    )
+    if(_brew_result EQUAL 0 AND EXISTS "${_brew_opencv}")
+        list(APPEND CMAKE_PREFIX_PATH "${_brew_opencv}")
+    endif()
+endif()
+
+# Windows: probe common install locations; user can override with -DOpenCV_DIR=
+if(WIN32 AND NOT OpenCV_DIR)
+    file(GLOB _opencv_candidates LIST_DIRECTORIES true "C:/opencv/build" "C:/tools/opencv/build")
+    if(_opencv_candidates)
+        list(GET _opencv_candidates 0 OpenCV_DIR)
+    endif()
+endif()
+
+find_package(OpenCV QUIET)
+
+if(OpenCV_FOUND)
+    message(STATUS "OpenCV ${OpenCV_VERSION}: found")
+    target_compile_definitions(PinPoint PRIVATE HAVE_OPENCV)
+    target_include_directories(PinPoint PRIVATE ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(PinPoint PRIVATE ${OpenCV_LIBS})
+else()
+    message(STATUS "OpenCV: not found (image processing features disabled)")
+endif()
+
 if(APPLE)
     # The Bluetooth permission plugin is a static library that must be explicitly
     # imported; without this, checkPermission(QBluetoothPermission{}) always
