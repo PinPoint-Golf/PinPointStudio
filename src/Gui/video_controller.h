@@ -7,6 +7,7 @@ class QVideoFrame;
 class QVideoSink;
 class VideoInputBase;
 class VideoPreprocessorBase;
+class VideoOverlayBase;
 
 #ifdef HAVE_OPENCV
 class PoseEstimatorBase;
@@ -36,14 +37,10 @@ public:
     double poseAvgMs() const;
     double poseFps() const;
 
-    // Called from QML: videoController.setVideoSink(videoOut.videoSink)
     Q_INVOKABLE void setVideoSink(QVideoSink *sink);
-
     Q_INVOKABLE void startRecording();
     Q_INVOKABLE void stopRecording();
 
-    // Returns the active preprocessor (nullptr if OpenCV unavailable).
-    // Cast to VideoPreprocessorOpenCV* to connect its framePreprocessed() signal.
     VideoPreprocessorBase *preprocessor() const;
 
 signals:
@@ -57,12 +54,16 @@ signals:
 
 private slots:
     void onVideoFrame(const QVideoFrame &frame);
+    void onAnnotatedFrame(const QVideoFrame &frame);
     void onVideoError(const QString &message);
     void onPreprocessStats(double avgMs);
     void onPoseStats(double avgMs, double fps);
 
 private:
     void startCapture();
+    // Connects m_videoInput to the rest of the pipeline.  Called once on
+    // construction and again if the backend is swapped during a fallback.
+    void connectVideoInput();
 
     QThread               *m_captureThread   = nullptr;
     VideoInputBase        *m_videoInput       = nullptr;
@@ -72,6 +73,9 @@ private:
     QThread               *m_preprocessThread = nullptr;
     VideoPreprocessorBase *m_preprocessor     = nullptr;
     double                 m_preprocessAvgMs  = 0.0;
+
+    QThread          *m_overlayThread  = nullptr;
+    VideoOverlayBase *m_overlay        = nullptr;
 
 #ifdef HAVE_OPENCV
     QThread           *m_poseThread    = nullptr;
