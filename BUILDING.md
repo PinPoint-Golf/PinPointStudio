@@ -45,7 +45,10 @@ sudo apt install libopencv-dev
 
 ### 4. GPU Acceleration (Optional)
 For hardware acceleration in Whisper (STT) and ONNX Runtime (TTS/pose estimation):
-- **Vulkan (Recommended)**: Install the `vulkan-sdk` or `libvulkan-dev`.
+- **Vulkan (Recommended)**: Install the Vulkan headers and the `glslc` shader compiler (required by Qt ShaderTools):
+  ```bash
+  sudo apt install libvulkan-dev shaderc
+  ```
 - **CUDA**: Install the [CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit) if you have an NVIDIA GPU and prefer CUDA over Vulkan.
 
 ---

@@ -15,9 +15,6 @@
 #ifdef WITH_COREML
 #  include <coreml_provider_factory.h>
 #endif
-#ifdef WITH_CUDA
-#  include <cuda_provider_factory.h>
-#endif
 #ifdef WITH_DIRECTML
 #  include <dml_provider_factory.h>
 #endif
