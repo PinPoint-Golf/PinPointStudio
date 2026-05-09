@@ -25,6 +25,8 @@ class VideoController : public QObject
     Q_PROPERTY(double poseAvgMs READ poseAvgMs NOTIFY poseAvgMsChanged)
     Q_PROPERTY(double poseFps   READ poseFps   NOTIFY poseFpsChanged)
     Q_PROPERTY(QString poseBackendLabel READ poseBackendLabel NOTIFY poseBackendLabelChanged)
+    Q_PROPERTY(int moveNetModel READ moveNetModel NOTIFY moveNetModelChanged)
+    Q_PROPERTY(bool moveNetThunderAvailable READ moveNetThunderAvailable CONSTANT)
 
 public:
     explicit VideoController(QObject *parent = nullptr);
@@ -38,10 +40,13 @@ public:
     double  poseAvgMs() const;
     double  poseFps() const;
     QString poseBackendLabel() const;
+    int     moveNetModel() const;
+    bool    moveNetThunderAvailable() const;
 
     Q_INVOKABLE void setVideoSink(QVideoSink *sink);
     Q_INVOKABLE void startRecording();
     Q_INVOKABLE void stopRecording();
+    Q_INVOKABLE void selectMoveNetModel(int variant);
 
     VideoPreprocessorBase *preprocessor() const;
 
@@ -54,6 +59,7 @@ signals:
     void poseAvgMsChanged();
     void poseFpsChanged();
     void poseBackendLabelChanged();
+    void moveNetModelChanged();
 
 private slots:
     void onVideoFrame(const QVideoFrame &frame);
@@ -88,4 +94,5 @@ private:
     double             m_poseAvgMs          = 0.0;
     double             m_poseFps            = 0.0;
     QString            m_poseBackendLabel;
+    int                m_moveNetModel       = 0; // 0=Lightning, 1=Thunder
 };

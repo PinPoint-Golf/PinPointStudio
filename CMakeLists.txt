@@ -331,24 +331,28 @@ list(JOIN _ort_ep_list "+" _ort_ep_str)
 message(STATUS "ONNX Runtime ${ORT_VERSION}: ${_ort_root} [EP=${_ort_ep_str}]")
 
 # ── MoveNet (pose estimation via ONNX Runtime) ────────────────────────────────
-# Downloads the MoveNet Lightning SinglePose ONNX model from Hugging Face.
+# Downloads MoveNet Lightning (~9 MB, 192×192) and Thunder (~30 MB, 256×256)
+# SinglePose ONNX models from Hugging Face.
 # No additional inference library required — ONNX Runtime (above) handles it.
 # Cached in _deps/movenet/ and reused across reconfigures; only lost on a full
 # build-directory wipe.
 #
-# Model input:  [1, 192, 192, 3] float32 NHWC, normalised to [0, 1]
-# Model output: [1, 1, 17, 3]   float32, keypoints as (y, x, score)
+# Lightning input:  [1, 192, 192, 3] int32 NHWC, raw pixel values [0, 255]
+# Thunder  input:   [1, 256, 256, 3] int32 NHWC, raw pixel values [0, 255]
+# Both outputs:     [1, 1, 17, 3]    float32, keypoints as (y, x, score)
 
-set(_movenet_model_dir  "${CMAKE_BINARY_DIR}/_deps/movenet")
-set(_movenet_model_file "movenet_singlepose_lightning.onnx")
-set(_movenet_model_path "${_movenet_model_dir}/${_movenet_model_file}")
+set(_movenet_model_dir "${CMAKE_BINARY_DIR}/_deps/movenet")
+file(MAKE_DIRECTORY "${_movenet_model_dir}")
 
-if(NOT EXISTS "${_movenet_model_path}")
-    message(STATUS "MoveNet: downloading model (~9 MB)...")
-    file(MAKE_DIRECTORY "${_movenet_model_dir}")
+# ── Lightning ────────────────────────────────────────────────────────────────
+set(_movenet_lightning_file "movenet_singlepose_lightning.onnx")
+set(_movenet_lightning_path "${_movenet_model_dir}/${_movenet_lightning_file}")
+
+if(NOT EXISTS "${_movenet_lightning_path}")
+    message(STATUS "MoveNet: downloading Lightning model (~9 MB)...")
     file(DOWNLOAD
         "https://huggingface.co/Xenova/movenet-singlepose-lightning/resolve/main/onnx/model.onnx"
-        "${_movenet_model_path}"
+        "${_movenet_lightning_path}"
         SHOW_PROGRESS
         TLS_VERIFY ON
         STATUS _movenet_dl_status
@@ -356,40 +360,88 @@ if(NOT EXISTS "${_movenet_model_path}")
     list(GET _movenet_dl_status 0 _movenet_dl_code)
     if(NOT _movenet_dl_code EQUAL 0)
         list(GET _movenet_dl_status 1 _movenet_dl_msg)
-        message(WARNING "MoveNet: download failed (${_movenet_dl_msg}) -- pose estimation disabled")
-        file(REMOVE "${_movenet_model_path}")
+        message(WARNING "MoveNet: Lightning download failed (${_movenet_dl_msg}) -- pose estimation disabled")
+        file(REMOVE "${_movenet_lightning_path}")
     endif()
 endif()
 
-if(EXISTS "${_movenet_model_path}")
-    message(STATUS "MoveNet: model ready (${_movenet_model_path})")
+# ── Thunder ──────────────────────────────────────────────────────────────────
+set(_movenet_thunder_file "movenet_singlepose_thunder.onnx")
+set(_movenet_thunder_path "${_movenet_model_dir}/${_movenet_thunder_file}")
+
+if(NOT EXISTS "${_movenet_thunder_path}")
+    message(STATUS "MoveNet: downloading Thunder model (~30 MB)...")
+    file(DOWNLOAD
+        "https://huggingface.co/Xenova/movenet-singlepose-thunder/resolve/main/onnx/model.onnx"
+        "${_movenet_thunder_path}"
+        SHOW_PROGRESS
+        TLS_VERIFY ON
+        STATUS _movenet_dl_status
+    )
+    list(GET _movenet_dl_status 0 _movenet_dl_code)
+    if(NOT _movenet_dl_code EQUAL 0)
+        list(GET _movenet_dl_status 1 _movenet_dl_msg)
+        message(WARNING "MoveNet: Thunder download failed (${_movenet_dl_msg}) -- Thunder model unavailable")
+        file(REMOVE "${_movenet_thunder_path}")
+    endif()
+endif()
+
+# ── Enable pose estimation if Lightning is available ─────────────────────────
+if(EXISTS "${_movenet_lightning_path}")
+    message(STATUS "MoveNet Lightning: model ready (${_movenet_lightning_path})")
     target_compile_definitions(PinPoint PRIVATE
         HAVE_MOVENET
-        MOVENET_MODEL_FILE="${_movenet_model_file}"
+        MOVENET_LIGHTNING_FILE="${_movenet_lightning_file}"
     )
 
-    # Copy model into the platform-appropriate location alongside the executable.
+    if(EXISTS "${_movenet_thunder_path}")
+        message(STATUS "MoveNet Thunder:   model ready (${_movenet_thunder_path})")
+        target_compile_definitions(PinPoint PRIVATE
+            HAVE_MOVENET_THUNDER
+            MOVENET_THUNDER_FILE="${_movenet_thunder_file}"
+        )
+    else()
+        message(STATUS "MoveNet Thunder:   model unavailable -- selector will show Lightning only")
+    endif()
+
+    # Copy model(s) into the platform-appropriate location alongside the executable.
     if(APPLE)
         add_custom_command(TARGET PinPoint POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E make_directory
                 "$<TARGET_BUNDLE_CONTENT_DIR:PinPoint>/Resources/models"
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${_movenet_model_path}"
-                "$<TARGET_BUNDLE_CONTENT_DIR:PinPoint>/Resources/models/${_movenet_model_file}"
-            COMMENT "Bundling MoveNet model into app"
+                "${_movenet_lightning_path}"
+                "$<TARGET_BUNDLE_CONTENT_DIR:PinPoint>/Resources/models/${_movenet_lightning_file}"
+            COMMENT "Bundling MoveNet Lightning model into app"
         )
+        if(EXISTS "${_movenet_thunder_path}")
+            add_custom_command(TARGET PinPoint POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${_movenet_thunder_path}"
+                    "$<TARGET_BUNDLE_CONTENT_DIR:PinPoint>/Resources/models/${_movenet_thunder_file}"
+                COMMENT "Bundling MoveNet Thunder model into app"
+            )
+        endif()
     else()
         add_custom_command(TARGET PinPoint POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E make_directory
                 "$<TARGET_FILE_DIR:PinPoint>/models"
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${_movenet_model_path}"
-                "$<TARGET_FILE_DIR:PinPoint>/models/${_movenet_model_file}"
-            COMMENT "Copying MoveNet model to output directory"
+                "${_movenet_lightning_path}"
+                "$<TARGET_FILE_DIR:PinPoint>/models/${_movenet_lightning_file}"
+            COMMENT "Copying MoveNet Lightning model to output directory"
         )
+        if(EXISTS "${_movenet_thunder_path}")
+            add_custom_command(TARGET PinPoint POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${_movenet_thunder_path}"
+                    "$<TARGET_FILE_DIR:PinPoint>/models/${_movenet_thunder_file}"
+                COMMENT "Copying MoveNet Thunder model to output directory"
+            )
+        endif()
     endif()
 else()
-    message(STATUS "MoveNet: model unavailable -- pose estimation disabled")
+    message(STATUS "MoveNet: Lightning model unavailable -- pose estimation disabled")
 endif()
 
 # ── espeak-ng ────────────────────────────────────────────────────────────────
@@ -591,7 +643,7 @@ if(OpenCV_FOUND)
         src/Video/video_overlay_pose.h
         src/Video/video_overlay_pose.cpp
     )
-    if(EXISTS "${_movenet_model_path}")
+    if(EXISTS "${_movenet_lightning_path}")
         target_sources(PinPoint PRIVATE
             src/Pose/pose_estimator_movenet.h
             src/Pose/pose_estimator_movenet.cpp

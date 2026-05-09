@@ -146,6 +146,48 @@ Item {
                 font.family: "Courier New"
             }
 
+            // ── MoveNet model selector ────────────────────────────────────────
+            Row {
+                visible: videoController.moveNetThunderAvailable
+                spacing: 0
+
+                Rectangle {
+                    id: lightningBtn
+                    height: 20
+                    width: lightningLabel.implicitWidth + 10
+                    topLeftRadius: 4; bottomLeftRadius: 4
+                    color: videoController.moveNetModel === 0 ? "#cba6f7" : "#313244"
+                    Text {
+                        id: lightningLabel
+                        anchors.centerIn: parent
+                        text: qsTr("Lightning")
+                        color: videoController.moveNetModel === 0 ? "#1e1e2e" : "#cdd6f4"
+                        font.pixelSize: 11
+                        font.bold: videoController.moveNetModel === 0
+                    }
+                    TapHandler { onTapped: videoController.selectMoveNetModel(0) }
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                }
+
+                Rectangle {
+                    id: thunderBtn
+                    height: 20
+                    width: thunderLabel.implicitWidth + 10
+                    topRightRadius: 4; bottomRightRadius: 4
+                    color: videoController.moveNetModel === 1 ? "#cba6f7" : "#313244"
+                    Text {
+                        id: thunderLabel
+                        anchors.centerIn: parent
+                        text: qsTr("Thunder")
+                        color: videoController.moveNetModel === 1 ? "#1e1e2e" : "#cdd6f4"
+                        font.pixelSize: 11
+                        font.bold: videoController.moveNetModel === 1
+                    }
+                    TapHandler { onTapped: videoController.selectMoveNetModel(1) }
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                }
+            }
+
             // ── ORT backend badge ─────────────────────────────────────────────
             Rectangle {
                 visible: videoController.poseBackendLabel !== ""

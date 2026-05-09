@@ -174,16 +174,46 @@ bool   VideoController::isRecording()    const { return m_recording; }
 bool   VideoController::isAravis()       const { return VideoInputFactory::backendType(m_videoInput) == VideoInputFactory::Backend::Aravis; }
 bool   VideoController::isSpinnaker()    const { return VideoInputFactory::backendType(m_videoInput) == VideoInputFactory::Backend::Spinnaker; }
 bool   VideoController::needsDebayer()   const { return isAravis() || isSpinnaker(); }
-double  VideoController::preprocessAvgMs()   const { return m_preprocessAvgMs; }
-double  VideoController::poseAvgMs()         const { return m_poseAvgMs; }
-double  VideoController::poseFps()           const { return m_poseFps; }
-QString VideoController::poseBackendLabel()  const { return m_poseBackendLabel; }
+double  VideoController::preprocessAvgMs()        const { return m_preprocessAvgMs; }
+double  VideoController::poseAvgMs()              const { return m_poseAvgMs; }
+double  VideoController::poseFps()                const { return m_poseFps; }
+QString VideoController::poseBackendLabel()       const { return m_poseBackendLabel; }
+int     VideoController::moveNetModel()           const { return m_moveNetModel; }
+bool    VideoController::moveNetThunderAvailable() const
+{
+#if defined(HAVE_OPENCV) && defined(HAVE_MOVENET) && defined(HAVE_ONNXRUNTIME)
+    return PoseEstimatorMoveNet::isVariantAvailable(PoseEstimatorMoveNet::ModelVariant::Thunder);
+#else
+    return false;
+#endif
+}
 
 VideoPreprocessorBase *VideoController::preprocessor() const { return m_preprocessor; }
 
 void VideoController::setVideoSink(QVideoSink *sink)
 {
     m_videoSink = sink;
+}
+
+void VideoController::selectMoveNetModel(int variant)
+{
+#if defined(HAVE_OPENCV) && defined(HAVE_MOVENET) && defined(HAVE_ONNXRUNTIME)
+    if (variant == m_moveNetModel)
+        return;
+    m_moveNetModel = variant;
+    emit moveNetModelChanged();
+    // Reset stats so stale numbers from the old model don't persist.
+    m_poseAvgMs = 0.0; emit poseAvgMsChanged();
+    m_poseFps   = 0.0; emit poseFpsChanged();
+    m_poseBackendLabel = QString(); emit poseBackendLabelChanged();
+    if (m_poseEstimator) {
+        QMetaObject::invokeMethod(m_poseEstimator, "reloadModel",
+                                  Qt::QueuedConnection,
+                                  Q_ARG(int, variant));
+    }
+#else
+    Q_UNUSED(variant)
+#endif
 }
 
 // ---------------------------------------------------------------------------

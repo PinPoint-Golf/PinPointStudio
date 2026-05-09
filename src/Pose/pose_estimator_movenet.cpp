@@ -42,22 +42,46 @@ PoseEstimatorMoveNet::PoseEstimatorMoveNet(QObject *parent)
 
 PoseEstimatorMoveNet::~PoseEstimatorMoveNet() = default;
 
-QString PoseEstimatorMoveNet::modelPath()
+QString PoseEstimatorMoveNet::modelPath(ModelVariant v)
 {
+    const QString file = (v == ModelVariant::Thunder)
+#ifdef HAVE_MOVENET_THUNDER
+        ? QStringLiteral(MOVENET_THUNDER_FILE)
+#else
+        ? QStringLiteral("movenet_singlepose_thunder.onnx")
+#endif
+        : QStringLiteral(MOVENET_LIGHTNING_FILE);
+
 #ifdef Q_OS_MACOS
     return QCoreApplication::applicationDirPath()
-         + QStringLiteral("/../Resources/models/")
-         + QStringLiteral(MOVENET_MODEL_FILE);
+         + QStringLiteral("/../Resources/models/") + file;
 #else
     return QCoreApplication::applicationDirPath()
-         + QStringLiteral("/models/")
-         + QStringLiteral(MOVENET_MODEL_FILE);
+         + QStringLiteral("/models/") + file;
 #endif
+}
+
+int PoseEstimatorMoveNet::inputSize(ModelVariant v)
+{
+    return (v == ModelVariant::Thunder) ? 256 : 192;
+}
+
+bool PoseEstimatorMoveNet::isVariantAvailable(ModelVariant v)
+{
+    return QFile::exists(modelPath(v));
+}
+
+void PoseEstimatorMoveNet::reloadModel(int variant)
+{
+    m_variant = (variant == static_cast<int>(ModelVariant::Thunder))
+                ? ModelVariant::Thunder
+                : ModelVariant::Lightning;
+    load();
 }
 
 void PoseEstimatorMoveNet::load()
 {
-    const QString path = modelPath();
+    const QString path = modelPath(m_variant);
     if (!QFile::exists(path)) {
         qWarning() << "[MoveNet] Model not found:" << path;
         return;
@@ -144,8 +168,12 @@ void PoseEstimatorMoveNet::load()
     m_ort->inputName  = m_ort->session->GetInputNameAllocated(0, m_ort->allocator).get();
     m_ort->outputName = m_ort->session->GetOutputNameAllocated(0, m_ort->allocator).get();
 
-    qDebug() << "[MoveNet] Loaded — input:" << m_ort->inputName.c_str()
-             << "output:" << m_ort->outputName.c_str();
+    const char *variantName = (m_variant == ModelVariant::Thunder) ? "Thunder" : "Lightning";
+    const int   modelSz    = inputSize(m_variant);
+    qDebug() << "[MoveNet]" << variantName << "loaded —"
+             << "input:" << m_ort->inputName.c_str()
+             << "output:" << m_ort->outputName.c_str()
+             << "size:" << modelSz << "×" << modelSz;
 
     m_ort->wallTimer.start();
     m_lastCallNs = -1;
@@ -161,11 +189,13 @@ void PoseEstimatorMoveNet::estimatePose(const cv::Mat &frame)
     // Record arrival time for FPS (interval between successive calls).
     const qint64 nowNs = m_ort->wallTimer.nsecsElapsed();
 
+    const int sz = inputSize(m_variant);
+
     // Preprocess: resize → RGB → int32 [0, 255].
     // The Xenova/Transformers.js MoveNet ONNX export expects raw pixel values
     // as int32, not normalised float32.
     cv::Mat resized, rgb, rgb32;
-    cv::resize(frame, resized, cv::Size(192, 192));
+    cv::resize(frame, resized, cv::Size(sz, sz));
     cv::cvtColor(resized, rgb, cv::COLOR_BGR2RGB);
     rgb.convertTo(rgb32, CV_32SC3);  // uint8 [0,255] → int32 [0,255], no scale
 
@@ -177,10 +207,10 @@ void PoseEstimatorMoveNet::estimatePose(const cv::Mat &frame)
         Ort::MemoryInfo memInfo =
             Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 
-        std::array<int64_t, 4> inputShape{ 1, 192, 192, 3 };
+        std::array<int64_t, 4> inputShape{ 1, sz, sz, 3 };
         auto inputTensor = Ort::Value::CreateTensor<int32_t>(
             memInfo,
-            rgb32.ptr<int32_t>(), 192 * 192 * 3,
+            rgb32.ptr<int32_t>(), static_cast<size_t>(sz * sz * 3),
             inputShape.data(), inputShape.size());
 
         const char *inputNames[]  = { m_ort->inputName.c_str() };
