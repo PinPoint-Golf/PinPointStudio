@@ -145,6 +145,34 @@ Item {
                 font.pixelSize: 12
                 font.family: "Courier New"
             }
+
+            // ── ORT backend badge ─────────────────────────────────────────────
+            Rectangle {
+                visible: videoController.poseBackendLabel !== ""
+                         || videoController.poseFps > 0
+                width: poseBackendText.implicitWidth + 10
+                height: 20
+                radius: 4
+                color: videoController.poseBackendLabel !== "" ? "#a6e3a1" : "#6c7086"
+
+                HoverHandler { id: poseBackendHover }
+                ToolTip.visible: poseBackendHover.hovered
+                ToolTip.text: videoController.poseBackendLabel !== ""
+                              ? qsTr("MoveNet ORT: ") + videoController.poseBackendLabel
+                              : qsTr("MoveNet ORT: CPU")
+                ToolTip.delay: 500
+
+                Text {
+                    id: poseBackendText
+                    anchors.centerIn: parent
+                    text: videoController.poseBackendLabel !== ""
+                          ? videoController.poseBackendLabel
+                          : qsTr("CPU")
+                    color: "#1e1e2e"
+                    font.pixelSize: 11
+                    font.bold: true
+                }
+            }
         }
     }
 }

@@ -64,6 +64,10 @@ public slots:
 signals:
     void poseEstimated(const PoseResult &result);
 
+    // Emitted once after load() completes. Empty string = CPU only;
+    // otherwise "CoreML", "CUDA", or "DirectML".
+    void poseBackendReady(const QString &label);
+
     // Rolling average inference time and throughput FPS, emitted each frame
     // once the 30-sample measurement window is warm.
     void poseStatsUpdated(double avgMs, double fps);

@@ -69,18 +69,23 @@ void PoseEstimatorMoveNet::load()
     m_ort->opts.SetGraphOptimizationLevel(ORT_ENABLE_ALL);
 
     // Execution provider cascade — mirrors KokoroTTSEngine.
+    QString epLabel;
+
 #ifdef WITH_COREML
-    try {
-        Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CoreML(
-            m_ort->opts, COREML_FLAG_USE_NONE));
-        qDebug() << "[MoveNet] CoreML execution provider active";
-    } catch (const Ort::Exception &e) {
-        qDebug() << "[MoveNet] CoreML unavailable:" << e.what() << "— falling back";
+    if (epLabel.isEmpty()) {
+        try {
+            Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CoreML(
+                m_ort->opts, COREML_FLAG_USE_NONE));
+            epLabel = QStringLiteral("CoreML");
+            qDebug() << "[MoveNet] CoreML execution provider active";
+        } catch (const Ort::Exception &e) {
+            qDebug() << "[MoveNet] CoreML unavailable:" << e.what() << "— falling back";
+        }
     }
 #endif
 
 #ifdef WITH_CUDA
-    {
+    if (epLabel.isEmpty()) {
 #  ifdef Q_OS_LINUX
         const bool hasNv = QFile::exists(QStringLiteral("/proc/driver/nvidia/version"));
 #  elif defined(Q_OS_WIN)
@@ -95,6 +100,7 @@ void PoseEstimatorMoveNet::load()
                 OrtCUDAProviderOptions cuda{};
                 cuda.device_id = 0;
                 m_ort->opts.AppendExecutionProvider_CUDA(cuda);
+                epLabel = QStringLiteral("CUDA");
                 qDebug() << "[MoveNet] CUDA execution provider active";
             } catch (const Ort::Exception &e) {
                 qDebug() << "[MoveNet] CUDA unavailable:" << e.what() << "— falling back";
@@ -104,13 +110,21 @@ void PoseEstimatorMoveNet::load()
 #endif
 
 #ifdef WITH_DIRECTML
-    try {
-        Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_DML(m_ort->opts, 0));
-        qDebug() << "[MoveNet] DirectML execution provider active";
-    } catch (const Ort::Exception &e) {
-        qDebug() << "[MoveNet] DirectML unavailable:" << e.what() << "— falling back";
+    if (epLabel.isEmpty()) {
+        try {
+            Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_DML(m_ort->opts, 0));
+            epLabel = QStringLiteral("DirectML");
+            qDebug() << "[MoveNet] DirectML execution provider active";
+        } catch (const Ort::Exception &e) {
+            qDebug() << "[MoveNet] DirectML unavailable:" << e.what() << "— falling back";
+        }
     }
 #endif
+
+    if (epLabel.isEmpty())
+        qDebug() << "[MoveNet] No GPU EP available — using CPU";
+    else
+        qDebug() << "[MoveNet] Using" << epLabel << "execution provider";
 
     try {
 #ifdef Q_OS_WIN
@@ -136,6 +150,7 @@ void PoseEstimatorMoveNet::load()
     m_ort->wallTimer.start();
     m_lastCallNs = -1;
     m_ready      = true;
+    emit poseBackendReady(epLabel);
 }
 
 void PoseEstimatorMoveNet::estimatePose(const cv::Mat &frame)

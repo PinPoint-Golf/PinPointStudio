@@ -63,6 +63,8 @@ VideoController::VideoController(QObject *parent)
     connect(m_poseThread, &QThread::started, mn, &PoseEstimatorMoveNet::load);
     connect(m_poseEstimator, &PoseEstimatorBase::poseStatsUpdated,
             this, &VideoController::onPoseStats, Qt::QueuedConnection);
+    connect(m_poseEstimator, &PoseEstimatorBase::poseBackendReady,
+            this, &VideoController::onPoseBackendReady, Qt::QueuedConnection);
 
     // Preprocessor → pose estimator.
     auto *cvPP = qobject_cast<VideoPreprocessorOpenCV *>(m_preprocessor);
@@ -172,9 +174,10 @@ bool   VideoController::isRecording()    const { return m_recording; }
 bool   VideoController::isAravis()       const { return VideoInputFactory::backendType(m_videoInput) == VideoInputFactory::Backend::Aravis; }
 bool   VideoController::isSpinnaker()    const { return VideoInputFactory::backendType(m_videoInput) == VideoInputFactory::Backend::Spinnaker; }
 bool   VideoController::needsDebayer()   const { return isAravis() || isSpinnaker(); }
-double VideoController::preprocessAvgMs() const { return m_preprocessAvgMs; }
-double VideoController::poseAvgMs()       const { return m_poseAvgMs; }
-double VideoController::poseFps()         const { return m_poseFps; }
+double  VideoController::preprocessAvgMs()   const { return m_preprocessAvgMs; }
+double  VideoController::poseAvgMs()         const { return m_poseAvgMs; }
+double  VideoController::poseFps()           const { return m_poseFps; }
+QString VideoController::poseBackendLabel()  const { return m_poseBackendLabel; }
 
 VideoPreprocessorBase *VideoController::preprocessor() const { return m_preprocessor; }
 
@@ -291,6 +294,14 @@ void VideoController::onPoseStats(double avgMs, double fps)
 {
     if (!qFuzzyCompare(m_poseAvgMs, avgMs)) { m_poseAvgMs = avgMs; emit poseAvgMsChanged(); }
     if (!qFuzzyCompare(m_poseFps,   fps))   { m_poseFps   = fps;   emit poseFpsChanged();   }
+}
+
+void VideoController::onPoseBackendReady(const QString &label)
+{
+    if (m_poseBackendLabel == label)
+        return;
+    m_poseBackendLabel = label;
+    emit poseBackendLabelChanged();
 }
 
 void VideoController::startCapture()

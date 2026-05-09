@@ -24,6 +24,7 @@ class VideoController : public QObject
     Q_PROPERTY(double preprocessAvgMs READ preprocessAvgMs NOTIFY preprocessAvgMsChanged)
     Q_PROPERTY(double poseAvgMs READ poseAvgMs NOTIFY poseAvgMsChanged)
     Q_PROPERTY(double poseFps   READ poseFps   NOTIFY poseFpsChanged)
+    Q_PROPERTY(QString poseBackendLabel READ poseBackendLabel NOTIFY poseBackendLabelChanged)
 
 public:
     explicit VideoController(QObject *parent = nullptr);
@@ -33,9 +34,10 @@ public:
     bool   isAravis() const;
     bool   isSpinnaker() const;
     bool   needsDebayer() const;
-    double preprocessAvgMs() const;
-    double poseAvgMs() const;
-    double poseFps() const;
+    double  preprocessAvgMs() const;
+    double  poseAvgMs() const;
+    double  poseFps() const;
+    QString poseBackendLabel() const;
 
     Q_INVOKABLE void setVideoSink(QVideoSink *sink);
     Q_INVOKABLE void startRecording();
@@ -51,6 +53,7 @@ signals:
     void preprocessAvgMsChanged();
     void poseAvgMsChanged();
     void poseFpsChanged();
+    void poseBackendLabelChanged();
 
 private slots:
     void onVideoFrame(const QVideoFrame &frame);
@@ -58,6 +61,7 @@ private slots:
     void onVideoError(const QString &message);
     void onPreprocessStats(double avgMs);
     void onPoseStats(double avgMs, double fps);
+    void onPoseBackendReady(const QString &label);
 
 private:
     void startCapture();
@@ -81,6 +85,7 @@ private:
     QThread           *m_poseThread    = nullptr;
     PoseEstimatorBase *m_poseEstimator = nullptr;
 #endif
-    double             m_poseAvgMs     = 0.0;
-    double             m_poseFps       = 0.0;
+    double             m_poseAvgMs          = 0.0;
+    double             m_poseFps            = 0.0;
+    QString            m_poseBackendLabel;
 };
