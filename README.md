@@ -43,6 +43,56 @@ Built with **Qt 6.11** and **C++20**.
 | Image processing | OpenCV |
 | IMU | Witmotion WT901BLE67 via Qt Bluetooth LE |
 
+## Local Files
+
+PinPoint reads and writes files in several locations. Platform paths shown for Linux; macOS and Windows equivalents are noted in brackets.
+
+### Application data directory
+`~/.local/share/PinPoint/` (macOS: `~/Library/Application Support/PinPoint/`, Windows: `%APPDATA%\PinPoint\`)
+
+| Path | What | When |
+|---|---|---|
+| `models/whisper/<model>.bin` | Whisper STT model | Read at startup; must be placed here manually or by an installer |
+| `models/kokoro/` | Kokoro TTS ONNX model + voice data | Downloaded automatically from HuggingFace on first launch when a GPU is available |
+| `film-cache/<video_id>.mp4` | Downloaded YouTube videos | Written by yt-dlp on demand; never auto-deleted |
+
+### Application settings
+`~/.config/PinPoint/PinPoint.conf` (macOS: `~/Library/Preferences/PinPoint.plist`, Windows: Registry `HKCU\Software\PinPoint`)
+
+| Key | What | Written when |
+|---|---|---|
+| `secrets/assemblyaiApiKey` | AssemblyAI API key | First launch if `ASSEMBLYAI_API_KEY` env var is set |
+| `secrets/azureTtsApiKey` | Azure TTS key | First launch if `AZURE_TTS_API_KEY` env var is set |
+| `secrets/azureSttApiKey` | Azure STT key | First launch if `AZURE_STT_API_KEY` env var is set |
+| `stt/modelPath` | Override path to Whisper model | Only if set manually |
+
+> **Note:** API keys written to settings persist even after the env var is removed. To clear a key, delete the relevant entry from the settings file directly.
+
+### Next to the executable
+`<install dir>/models/`
+
+| File | What |
+|---|---|
+| `movenet_singlepose_lightning.onnx` | MoveNet Lightning pose model (~9 MB) |
+| `movenet_singlepose_thunder.onnx` | MoveNet Thunder pose model (~30 MB) |
+| `u2netp.onnx` | Person segmentation model (~4.7 MB) |
+| `yt-dlp` / `yt-dlp.exe` | Bundled yt-dlp binary for YouTube download |
+
+These are copied from the CMake build cache automatically — no manual placement needed.
+
+### User home directory (on demand)
+
+| File | What | Trigger |
+|---|---|---|
+| `~/pinpoint_audio_<timestamp>.wav` | Recorded audio session | Save Audio button |
+| `~/imu_log_<timestamp>.txt` | IMU session log | Save Log button in Capture tab |
+
+### External network activity
+The app only contacts external services when explicitly configured:
+- **Azure Speech** (STT/TTS) — if an Azure API key is present
+- **AssemblyAI** (STT) — if an AssemblyAI API key is present
+- **YouTube** (via yt-dlp) — when downloading a video in the Film tab, using your browser's stored cookies
+
 ## Roadmap
 
 - Two-camera 3D pose reconstruction (triangulate occluded joints from a second viewpoint)
