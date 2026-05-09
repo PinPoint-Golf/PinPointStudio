@@ -81,6 +81,7 @@ qt_add_executable(PinPoint
     src/Gui/imu_controller.h           src/Gui/imu_controller.cpp
     src/Gui/transcription_controller.h src/Gui/transcription_controller.cpp
     src/Gui/tts_controller.h           src/Gui/tts_controller.cpp
+    src/Gui/film_controller.h          src/Gui/film_controller.cpp
     src/IMU/wt9011dcl_base.h src/IMU/wt9011dcl_base.cpp
     src/IMU/wt9011dcl.h      src/IMU/wt9011dcl.cpp
     src/IMU/wt9011dcl_ble.h  src/IMU/wt9011dcl_ble.cpp
@@ -118,6 +119,7 @@ qt_add_qml_module(PinPoint
         src/Gui/Main.qml
         src/Gui/AudioPage.qml
         src/Gui/CapturePage.qml
+        src/Gui/FilmPage.qml
         src/Gui/VideoPage.qml
 )
 
@@ -442,6 +444,123 @@ if(EXISTS "${_movenet_lightning_path}")
     endif()
 else()
     message(STATUS "MoveNet: Lightning model unavailable -- pose estimation disabled")
+endif()
+
+# ── Person segmenter (background suppression before MoveNet) ─────────────────
+# Downloads the MediaPipe Selfie Segmentation ONNX model (~480 KB).
+# Runs before MoveNet in the Film tab to isolate the subject so background
+# people do not corrupt the pose estimate.
+#
+# Input:  [1, 3, 320, 320] float32 NCHW, ImageNet-normalised
+# Output: 7 side outputs; "d0" is the final salient-object mask [0,1]
+
+set(_seg_model_dir  "${CMAKE_BINARY_DIR}/_deps/segmenter")
+set(_seg_model_file "u2netp.onnx")
+set(_seg_model_path "${_seg_model_dir}/${_seg_model_file}")
+file(MAKE_DIRECTORY "${_seg_model_dir}")
+
+if(NOT EXISTS "${_seg_model_path}")
+    message(STATUS "Segmenter: downloading u2netp person segmentation model (~4.7 MB)...")
+    file(DOWNLOAD
+        "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx"
+        "${_seg_model_path}"
+        SHOW_PROGRESS TLS_VERIFY ON STATUS _seg_dl_status)
+    list(GET _seg_dl_status 0 _seg_dl_code)
+    if(NOT _seg_dl_code EQUAL 0)
+        list(GET _seg_dl_status 1 _seg_dl_msg)
+        message(WARNING "Segmenter: download failed (${_seg_dl_msg}) -- background suppression disabled")
+        file(REMOVE "${_seg_model_path}")
+    endif()
+endif()
+
+if(EXISTS "${_seg_model_path}")
+    message(STATUS "Segmenter: model ready (${_seg_model_path})")
+    target_compile_definitions(PinPoint PRIVATE
+        HAVE_SEGMENTER
+        SEGMENTER_MODEL_FILE="${_seg_model_file}"
+    )
+    if(APPLE)
+        add_custom_command(TARGET PinPoint POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_seg_model_path}"
+                "$<TARGET_BUNDLE_CONTENT_DIR:PinPoint>/Resources/models/${_seg_model_file}"
+            COMMENT "Bundling segmenter model into app"
+        )
+    else()
+        add_custom_command(TARGET PinPoint POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_seg_model_path}"
+                "$<TARGET_FILE_DIR:PinPoint>/models/${_seg_model_file}"
+            COMMENT "Copying segmenter model to output directory"
+        )
+    endif()
+    if(EXISTS "${_movenet_lightning_path}")
+        target_sources(PinPoint PRIVATE
+            src/Pose/person_segmenter.h
+            src/Pose/person_segmenter.cpp
+        )
+        message(STATUS "PersonSegmenter: enabled")
+    endif()
+else()
+    message(STATUS "Segmenter: model unavailable -- background suppression disabled")
+endif()
+
+# ── yt-dlp (bundled binary for YouTube download in Film tab) ──────────────────
+# Downloads the correct single-file yt-dlp binary for this platform at cmake
+# configure time.  Cached in _deps/ytdlp/ so it survives reconfigures.
+# The app locates it via YTDLP_BINARY_NAME next to the executable.
+
+set(_ytdlp_dir "${CMAKE_BINARY_DIR}/_deps/ytdlp")
+file(MAKE_DIRECTORY "${_ytdlp_dir}")
+
+if(APPLE)
+    set(_ytdlp_name "yt-dlp_macos")
+    set(_ytdlp_url  "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos")
+elseif(WIN32)
+    set(_ytdlp_name "yt-dlp.exe")
+    set(_ytdlp_url  "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe")
+else()
+    set(_ytdlp_name "yt-dlp")
+    set(_ytdlp_url  "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp")
+endif()
+set(_ytdlp_path "${_ytdlp_dir}/${_ytdlp_name}")
+
+if(NOT EXISTS "${_ytdlp_path}")
+    message(STATUS "yt-dlp: downloading binary...")
+    file(DOWNLOAD "${_ytdlp_url}" "${_ytdlp_path}"
+        SHOW_PROGRESS TLS_VERIFY ON STATUS _ytdlp_dl_status)
+    list(GET _ytdlp_dl_status 0 _ytdlp_dl_code)
+    if(NOT _ytdlp_dl_code EQUAL 0)
+        list(GET _ytdlp_dl_status 1 _ytdlp_dl_msg)
+        message(WARNING "yt-dlp: download failed (${_ytdlp_dl_msg}) -- Film tab download unavailable")
+        file(REMOVE "${_ytdlp_path}")
+    elseif(NOT WIN32)
+        file(CHMOD "${_ytdlp_path}"
+            PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                        GROUP_READ GROUP_EXECUTE
+                        WORLD_READ WORLD_EXECUTE)
+    endif()
+endif()
+
+if(EXISTS "${_ytdlp_path}")
+    message(STATUS "yt-dlp: ready (${_ytdlp_path})")
+    target_compile_definitions(PinPoint PRIVATE
+        HAVE_YTDLP
+        YTDLP_BINARY_NAME="${_ytdlp_name}"
+    )
+    add_custom_command(TARGET PinPoint POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${_ytdlp_path}" "$<TARGET_FILE_DIR:PinPoint>/${_ytdlp_name}"
+        COMMENT "Copying yt-dlp to output directory"
+    )
+    if(NOT WIN32)
+        add_custom_command(TARGET PinPoint POST_BUILD
+            COMMAND chmod +x "$<TARGET_FILE_DIR:PinPoint>/${_ytdlp_name}"
+            COMMENT "Setting yt-dlp executable bit"
+        )
+    endif()
+else()
+    message(STATUS "yt-dlp: unavailable -- Film tab download disabled")
 endif()
 
 # ── espeak-ng ────────────────────────────────────────────────────────────────

@@ -29,6 +29,7 @@ public:
 public slots:
     void overlayFrame(const QVideoFrame &frame) override;
     void updatePose(const PoseResult &result);
+    void clearPose();
 
 private:
     void drawSkeleton(QImage &img, const PoseResult &pose) const;

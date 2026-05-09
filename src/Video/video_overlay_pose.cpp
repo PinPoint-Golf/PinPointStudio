@@ -60,6 +60,11 @@ void VideoOverlayPose::updatePose(const PoseResult &result)
     m_havePose = true;
 }
 
+void VideoOverlayPose::clearPose()
+{
+    m_havePose = false;
+}
+
 void VideoOverlayPose::overlayFrame(const QVideoFrame &frame)
 {
     if (!frame.isValid()) {

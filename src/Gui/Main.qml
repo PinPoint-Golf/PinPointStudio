@@ -79,6 +79,26 @@ ApplicationWindow {
                     }
                 }
             }
+
+            TabButton {
+                text: qsTr("Film")
+                contentItem: Text {
+                    text: parent.text
+                    color: parent.checked ? "#cdd6f4" : "#6c7086"
+                    font.pixelSize: 13
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle {
+                    color: parent.checked ? "#1e1e2e" : "#181825"
+                    Rectangle {
+                        anchors.bottom: parent.bottom
+                        width: parent.width
+                        height: 2
+                        color: parent.parent.checked ? "#89b4fa" : "transparent"
+                    }
+                }
+            }
         }
 
         StackLayout {
@@ -89,6 +109,7 @@ ApplicationWindow {
             CapturePage {}
             AudioPage {}
             VideoPage {}
+            FilmPage {}
         }
     }
 }
