@@ -83,15 +83,25 @@ Item {
 
             Item { Layout.fillWidth: true }
 
-            Label {
+            Rectangle {
                 visible: imuController.imuConnected && imuController.batteryPercent >= 0
-                text: "BAT: " + imuController.batteryPercent + "%"
-                color: imuController.batteryPercent > 60 ? "#a6e3a1"
-                     : imuController.batteryPercent > 20 ? "#f9e2af"
-                     :                                     "#f38ba8"
-                font.pixelSize: 13
-                font.family: "Courier New"
-                verticalAlignment: Text.AlignVCenter
+                radius: 3
+                color: imuController.batteryPercent > 60 ? "#1a3a2a"
+                     : imuController.batteryPercent > 20 ? "#3a3a1a"
+                     :                                     "#3a1a1a"
+                implicitWidth:  batteryBadge.implicitWidth  + 10
+                implicitHeight: batteryBadge.implicitHeight + 4
+
+                Label {
+                    id: batteryBadge
+                    anchors.centerIn: parent
+                    text: "BAT: " + imuController.batteryPercent + "%"
+                    color: imuController.batteryPercent > 60 ? "#a6e3a1"
+                         : imuController.batteryPercent > 20 ? "#f9e2af"
+                         :                                     "#f38ba8"
+                    font.pixelSize: 10
+                    font.bold: true
+                }
             }
 
             Label {
