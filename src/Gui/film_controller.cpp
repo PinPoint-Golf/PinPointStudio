@@ -25,10 +25,15 @@
 #include <QDebug>
 #include <QDir>
 #include <QFile>
+#include <QImage>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QStandardPaths>
 #include <QThread>
+#include <QTimer>
+#include <QUrl>
 #include <QVideoFrame>
 #include <QVideoSink>
 
@@ -179,6 +184,8 @@ FilmController::FilmController(QObject *parent)
 #endif
 
 #endif // HAVE_OPENCV
+
+    scanCacheDir();
 }
 
 FilmController::~FilmController()
@@ -247,6 +254,157 @@ bool FilmController::moveNetThunderAvailable() const
 bool FilmController::ytdlpAvailable() const
 {
     return QFile::exists(ytdlpBinaryPath());
+}
+
+QVariantList FilmController::cacheEntries() const { return m_cacheEntries; }
+QString      FilmController::currentFilePath() const { return m_currentFilePath; }
+
+void FilmController::refreshCache() { scanCacheDir(); }
+
+void FilmController::openCacheFile(const QString &path)
+{
+    openLocalFile(path);
+}
+
+void FilmController::deleteCacheFile(const QString &path)
+{
+    QFileInfo fi(path);
+    const QString base = fi.dir().filePath(fi.completeBaseName());
+    QFile::remove(path);
+    for (const QString &ext : {QStringLiteral(".jpg"), QStringLiteral(".webp"),
+                                QStringLiteral(".png"), QStringLiteral(".info.json")})
+        QFile::remove(base + ext);
+    scanCacheDir();
+}
+
+void FilmController::scanCacheDir()
+{
+    const QDir dir(filmCacheDir());
+    if (!dir.exists()) {
+        if (!m_cacheEntries.isEmpty()) {
+            m_cacheEntries.clear();
+            emit cacheEntriesChanged();
+        }
+        return;
+    }
+
+    const QStringList files = dir.entryList({QStringLiteral("*.mp4")}, QDir::Files, QDir::Time);
+    QVariantList entries;
+    m_probeQueue.clear();
+
+    for (const QString &name : files) {
+        const QString path = dir.filePath(name);
+        const QString base = dir.filePath(QFileInfo(name).completeBaseName());
+
+        QVariantMap entry;
+        entry[QStringLiteral("path")]        = path;
+        entry[QStringLiteral("name")]        = QFileInfo(name).completeBaseName();
+        entry[QStringLiteral("title")]       = QString();
+        entry[QStringLiteral("durationMs")]  = qint64(0);
+        entry[QStringLiteral("thumbnailUrl")] = QString();
+
+        const QString jsonPath = base + QStringLiteral(".info.json");
+        if (QFile::exists(jsonPath)) {
+            QFile f(jsonPath);
+            if (f.open(QIODevice::ReadOnly)) {
+                const QJsonObject obj = QJsonDocument::fromJson(f.readAll()).object();
+                entry[QStringLiteral("title")]      = obj.value(QStringLiteral("title")).toString();
+                entry[QStringLiteral("durationMs")] = qint64(obj.value(QStringLiteral("duration")).toDouble() * 1000.0);
+            }
+        }
+
+        for (const QString &ext : {QStringLiteral("jpg"), QStringLiteral("webp"), QStringLiteral("png")}) {
+            const QString t = base + QLatin1Char('.') + ext;
+            if (QFile::exists(t)) {
+                entry[QStringLiteral("thumbnailUrl")] = QUrl::fromLocalFile(t).toString();
+                break;
+            }
+        }
+
+        const bool needsProbe = entry[QStringLiteral("thumbnailUrl")].toString().isEmpty()
+                             || entry[QStringLiteral("durationMs")].toLongLong() == 0;
+        if (needsProbe)
+            m_probeQueue << path;
+
+        entries << entry;
+    }
+
+    m_cacheEntries = entries;
+    emit cacheEntriesChanged();
+
+    if (!m_probeQueue.isEmpty())
+        startNextProbe();
+}
+
+void FilmController::updateCacheEntry(const QString &path, const QString &thumbUrl, qint64 durationMs)
+{
+    bool changed = false;
+    for (int i = 0; i < m_cacheEntries.size(); ++i) {
+        QVariantMap e = m_cacheEntries.at(i).toMap();
+        if (e.value(QStringLiteral("path")).toString() != path) continue;
+        if (!thumbUrl.isEmpty() && e.value(QStringLiteral("thumbnailUrl")).toString().isEmpty()) {
+            e[QStringLiteral("thumbnailUrl")] = thumbUrl;
+            changed = true;
+        }
+        if (durationMs > 0 && e.value(QStringLiteral("durationMs")).toLongLong() == 0) {
+            e[QStringLiteral("durationMs")] = durationMs;
+            changed = true;
+        }
+        if (changed) m_cacheEntries[i] = e;
+        break;
+    }
+    if (changed)
+        emit cacheEntriesChanged();
+}
+
+void FilmController::startNextProbe()
+{
+    if (m_probeQueue.isEmpty()) return;
+
+    m_probingPath = m_probeQueue.takeFirst();
+
+    if (!m_probePlayer) {
+        m_probePlayer = new QMediaPlayer(this);
+        m_probeSink   = new QVideoSink(this);
+        m_probePlayer->setVideoSink(m_probeSink);
+        // No audio output — silent probing only
+    }
+
+    if (m_probeDurConn)   disconnect(m_probeDurConn);
+    if (m_probeFrameConn) disconnect(m_probeFrameConn);
+
+    const QString probePath = m_probingPath;
+
+    m_probeDurConn = connect(m_probePlayer, &QMediaPlayer::durationChanged, this, [this](qint64 dur) {
+        if (dur <= 0) return;
+        disconnect(m_probeDurConn);
+        m_probePlayer->setPosition(dur / 2);
+    });
+
+    m_probeFrameConn = connect(m_probeSink, &QVideoSink::videoFrameChanged, this,
+                               [this, probePath](const QVideoFrame &frame) {
+        if (!frame.isValid()) return;
+        disconnect(m_probeFrameConn);
+
+        QString thumbUrl;
+        const QImage img = frame.toImage();
+        if (!img.isNull()) {
+            QFileInfo fi(probePath);
+            const QString thumbPath = fi.dir().filePath(fi.completeBaseName() + QStringLiteral(".jpg"));
+            if (img.scaled(320, 180, Qt::KeepAspectRatio, Qt::SmoothTransformation)
+                   .save(thumbPath, "JPEG", 85))
+                thumbUrl = QUrl::fromLocalFile(thumbPath).toString();
+        }
+
+        updateCacheEntry(probePath, thumbUrl, m_probePlayer->duration());
+
+        m_probePlayer->stop();
+        m_probePlayer->setSource(QUrl());
+        QTimer::singleShot(50, this, &FilmController::startNextProbe);
+    });
+
+    m_probePlayer->setSource(QUrl::fromLocalFile(probePath));
+    m_probePlayer->play();
 }
 
 // ---------------------------------------------------------------------------
@@ -319,6 +477,8 @@ void FilmController::downloadUrl(const QString &url, const QString &browser)
          << QStringLiteral("--merge-output-format") << QStringLiteral("mp4")
          << QStringLiteral("--newline")
          << QStringLiteral("--no-overwrites")
+         << QStringLiteral("--write-thumbnail")
+         << QStringLiteral("--write-info-json")
          << QStringLiteral("-o") << (filmCacheDir() + QStringLiteral("/%(id)s.%(ext)s"))
          << trimmed;
 
@@ -463,6 +623,11 @@ void FilmController::openLocalFile(const QString &path)
     m_downloadProgress = 1.0;
     emit downloadProgressChanged();
     m_player->play();
+    if (m_currentFilePath != path) {
+        m_currentFilePath = path;
+        emit currentFilePathChanged();
+    }
+    scanCacheDir();
 }
 
 // ---------------------------------------------------------------------------

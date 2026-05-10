@@ -125,6 +125,151 @@ Item {
             }
         }
 
+        // ── Film cache ────────────────────────────────────────────────────────
+        ColumnLayout {
+            visible: filmController.cacheEntries.length > 0
+            Layout.fillWidth: true
+            spacing: 4
+
+            RowLayout {
+                spacing: 6
+                Label {
+                    text: qsTr("CACHED")
+                    color: "#6c7086"
+                    font.pixelSize: 10
+                    font.bold: true
+                    font.letterSpacing: 1.2
+                }
+                Label {
+                    text: filmController.cacheEntries.length + " video" +
+                          (filmController.cacheEntries.length !== 1 ? "s" : "")
+                    color: "#45475a"
+                    font.pixelSize: 10
+                }
+            }
+
+            ListView {
+                id: cacheList
+                Layout.fillWidth: true
+                implicitHeight: 116
+                orientation: Qt.Horizontal
+                spacing: 8
+                clip: true
+                model: filmController.cacheEntries
+
+                delegate: Item {
+                    id: cacheCard
+                    width: 164
+                    height: 114
+
+                    HoverHandler { id: cardHover }
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: 6
+                        color: modelData.path === filmController.currentFilePath
+                               ? "#2a2a3e" : (cardHover.hovered ? "#252535" : "#181825")
+                        border.color: modelData.path === filmController.currentFilePath
+                                      ? "#89b4fa" : "transparent"
+                        border.width: 1
+
+                        // Thumbnail area
+                        Rectangle {
+                            id: thumbRect
+                            anchors.top: parent.top
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.margins: 1
+                            height: 92
+                            radius: 5
+                            color: "#0d0d1a"
+                            clip: true
+
+                            Image {
+                                anchors.fill: parent
+                                source: modelData.thumbnailUrl || ""
+                                fillMode: Image.PreserveAspectCrop
+                                visible: modelData.thumbnailUrl !== ""
+                                smooth: true
+                            }
+
+                            Label {
+                                anchors.centerIn: parent
+                                visible: !modelData.thumbnailUrl
+                                text: "▶"
+                                font.pixelSize: 22
+                                color: "#45475a"
+                            }
+
+                            // Duration badge
+                            Rectangle {
+                                visible: modelData.durationMs > 0
+                                anchors.bottom: parent.bottom
+                                anchors.right: parent.right
+                                anchors.margins: 4
+                                width: durLabel.implicitWidth + 8
+                                height: 16
+                                radius: 3
+                                color: "#cc000000"
+
+                                Label {
+                                    id: durLabel
+                                    anchors.centerIn: parent
+                                    text: formatTime(modelData.durationMs)
+                                    color: "#ffffff"
+                                    font.pixelSize: 10
+                                    font.family: "Courier New"
+                                }
+                            }
+
+                            // Delete button
+                            Rectangle {
+                                visible: cardHover.hovered
+                                anchors.top: parent.top
+                                anchors.right: parent.right
+                                anchors.margins: 4
+                                width: 18; height: 18; radius: 9
+                                color: "#e64553"
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "×"
+                                    color: "#ffffff"
+                                    font.pixelSize: 13
+                                    font.bold: true
+                                }
+
+                                TapHandler {
+                                    onTapped: filmController.deleteCacheFile(modelData.path)
+                                }
+                                HoverHandler { cursorShape: Qt.PointingHandCursor }
+                            }
+                        }
+
+                        // Title / filename
+                        Label {
+                            anchors.top: thumbRect.bottom
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.topMargin: 3
+                            anchors.leftMargin: 5
+                            anchors.rightMargin: 5
+                            text: modelData.title || modelData.name
+                            color: modelData.path === filmController.currentFilePath
+                                   ? "#cdd6f4" : "#9399b2"
+                            font.pixelSize: 10
+                            elide: Text.ElideRight
+                        }
+
+                        TapHandler {
+                            onTapped: filmController.openCacheFile(modelData.path)
+                        }
+                        HoverHandler { cursorShape: Qt.PointingHandCursor }
+                    }
+                }
+            }
+        }
+
         // ── Video area ────────────────────────────────────────────────────────
         Rectangle {
             Layout.fillWidth: true

@@ -2,7 +2,9 @@
 
 #include <QObject>
 #include <QMediaPlayer>
+#include <QMetaObject>
 #include <QProcess>
+#include <QVariant>
 #include <QVideoFrame>
 
 class QAudioOutput;
@@ -40,6 +42,8 @@ class FilmController : public QObject
     Q_PROPERTY(bool    poseAvailable      READ poseAvailable      CONSTANT)
     Q_PROPERTY(bool    moveNetThunderAvailable READ moveNetThunderAvailable CONSTANT)
     Q_PROPERTY(bool    ytdlpAvailable     READ ytdlpAvailable     CONSTANT)
+    Q_PROPERTY(QVariantList cacheEntries READ cacheEntries NOTIFY cacheEntriesChanged)
+    Q_PROPERTY(QString currentFilePath   READ currentFilePath    NOTIFY currentFilePathChanged)
 
 public:
     explicit FilmController(QObject *parent = nullptr);
@@ -58,13 +62,18 @@ public:
     QString poseBackendLabel()        const;
     int     moveNetModel()            const;
     bool    isAnnotating()            const;
-    bool    poseAvailable()           const;
-    bool    moveNetThunderAvailable() const;
-    bool    ytdlpAvailable()          const;
+    bool         poseAvailable()           const;
+    bool         moveNetThunderAvailable() const;
+    bool         ytdlpAvailable()          const;
+    QVariantList cacheEntries()            const;
+    QString      currentFilePath()         const;
 
     Q_INVOKABLE void setVideoSink(QVideoSink *sink);
     Q_INVOKABLE void downloadUrl(const QString &url, const QString &browser);
     Q_INVOKABLE void cancelDownload();
+    Q_INVOKABLE void refreshCache();
+    Q_INVOKABLE void openCacheFile(const QString &path);
+    Q_INVOKABLE void deleteCacheFile(const QString &path);
     Q_INVOKABLE void play();
     Q_INVOKABLE void pause();
     Q_INVOKABLE void stop();
@@ -90,6 +99,8 @@ signals:
     void poseBackendLabelChanged();
     void moveNetModelChanged();
     void isAnnotatingChanged();
+    void cacheEntriesChanged();
+    void currentFilePathChanged();
 
 private slots:
     void onCurrentFrame(const QVideoFrame &frame);
@@ -112,6 +123,19 @@ private:
     void setDownloadStatus(const QString &msg);
     void openLocalFile(const QString &path);
     void clearOverlayPose();
+    void scanCacheDir();
+    void startNextProbe();
+    void updateCacheEntry(const QString &path, const QString &thumbUrl, qint64 durationMs);
+
+    // Cache list
+    QVariantList  m_cacheEntries;
+    QString       m_currentFilePath;
+    QStringList   m_probeQueue;
+    QString       m_probingPath;
+    QMediaPlayer *m_probePlayer  = nullptr;
+    QVideoSink   *m_probeSink    = nullptr;
+    QMetaObject::Connection m_probeDurConn;
+    QMetaObject::Connection m_probeFrameConn;
 
     // Playback
     QMediaPlayer *m_player       = nullptr;
