@@ -68,6 +68,7 @@ signals:
 
 public:
     void reinitialize() override { initializeDevice(); }
+    void setOutputRate(OutputRate rate) override;
 
 protected:
     void writeToDevice(const QByteArray &data) override;
@@ -96,7 +97,8 @@ private:
     void enableNotifications();
     void initializeDevice();
 
-    State m_state = State::Disconnected;
+    State      m_state = State::Disconnected;
+    OutputRate m_rate  = OutputRate::Hz_100; // stored so initializeDevice re-applies it
 
     QBluetoothDeviceDiscoveryAgent *m_scanner    = nullptr;
     QLowEnergyController           *m_controller = nullptr;

@@ -12,6 +12,15 @@ ImuController::ImuController(QObject *parent)
     , m_imu(new WT9011DCL_BLE(this))
 {
     m_retryTimer.setSingleShot(true);
+    m_logTimer.setSingleShot(false);
+    connect(&m_logTimer, &QTimer::timeout, this, [this]() {
+        appendLog(timestamp()
+            + QString("  Data: %1 records total  (+%2 in last 10s)  %3 Hz avg")
+                .arg(m_totalRecords)
+                .arg(m_recordsSinceLog)
+                .arg(m_dataRateHz, 0, 'f', 1));
+        m_recordsSinceLog = 0;
+    });
     connect(&m_retryTimer, &QTimer::timeout, this, [this]() {
         appendLog(timestamp() + QStringLiteral("  Auto-retrying connection…"));
         connectImu();
@@ -78,36 +87,15 @@ ImuController::ImuController(QObject *parent)
     });
 
     connect(m_imu, &WT9011DCL_Base::accelUpdated,
-            this, [this](const WT9011DCL_Base::AccelData &d) {
-        appendLog(timestamp()
-            + QString("  Accel   x=%1g  y=%2g  z=%3g  T=%4°C")
-                .arg(d.x, 8, 'f', 4)
-                .arg(d.y, 8, 'f', 4)
-                .arg(d.z, 8, 'f', 4)
-                .arg(d.temperature, 5, 'f', 1));
+            this, [this](const WT9011DCL_Base::AccelData &) {
+        onDataRecord();
     });
 
-    connect(m_imu, &WT9011DCL_Base::gyroUpdated,
-            this, [this](const WT9011DCL_Base::GyroData &d) {
-        appendLog(timestamp()
-            + QString("  Gyro    x=%1°/s  y=%2°/s  z=%3°/s  T=%4°C")
-                .arg(d.x, 8, 'f', 3)
-                .arg(d.y, 8, 'f', 3)
-                .arg(d.z, 8, 'f', 3)
-                .arg(d.temperature, 5, 'f', 1));
-    });
 
     connect(m_imu, &WT9011DCL_Base::eulerAnglesUpdated,
             this, [this](const WT9011DCL_Base::EulerAngles &a) {
-        appendLog(timestamp()
-            + QString("  Euler   roll=%1°  pitch=%2°  yaw=%3°")
-                .arg(a.roll,  8, 'f', 3)
-                .arg(a.pitch, 8, 'f', 3)
-                .arg(a.yaw,   8, 'f', 3));
         m_roll = a.roll; m_pitch = a.pitch; m_yaw = a.yaw;
         emit eulerChanged();
-        // Quaternion is computed by the driver via eulerToQuat() and arrives
-        // via the quaternionUpdated signal below.
     });
 
     connect(m_imu, &WT9011DCL_Base::magUpdated,
@@ -122,12 +110,6 @@ ImuController::ImuController(QObject *parent)
 
     connect(m_imu, &WT9011DCL_Base::quaternionUpdated,
             this, [this](const WT9011DCL_Base::QuaternionData &q) {
-        appendLog(timestamp()
-            + QString("  Quat    w=%1  x=%2  y=%3  z=%4")
-                .arg(q.w, 8, 'f', 5)
-                .arg(q.x, 8, 'f', 5)
-                .arg(q.y, 8, 'f', 5)
-                .arg(q.z, 8, 'f', 5));
         m_quatW = q.w; m_quatX = q.x; m_quatY = q.y; m_quatZ = q.z;
         emit quatChanged();
     });
@@ -137,6 +119,32 @@ void ImuController::connectImu()
 {
     m_retryTimer.stop();
     m_imu->scan(30000);  // 30 seconds
+}
+
+void ImuController::onDataRecord()
+{
+    ++m_totalRecords;
+    ++m_recordsSinceLog;
+
+    // Rolling 30s window: push now, prune old entries.
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    m_packetTimes.append(nowMs);
+    const qint64 cutoff = nowMs - kRollingWindowMs;
+    while (!m_packetTimes.isEmpty() && m_packetTimes.first() < cutoff)
+        m_packetTimes.removeFirst();
+
+    // Compute Hz: count / window (capped at 30s).
+    const qint64 windowMs = m_packetTimes.size() > 1
+        ? (nowMs - m_packetTimes.first())
+        : 0;
+    const double hz = (windowMs > 0)
+        ? (m_packetTimes.size() * 1000.0 / windowMs)
+        : 0.0;
+
+    if (qAbs(hz - m_dataRateHz) > 0.1) {
+        m_dataRateHz = hz;
+        emit dataRateHzChanged();
+    }
 }
 
 void ImuController::zeroOrientation()
@@ -164,6 +172,9 @@ void ImuController::onStateChanged(WT9011DCL_BLE::State s)
         m_attemptingConn = false;
         m_inConnectPhase = false;
         m_retryCount     = 0;
+        m_logTimer.stop();
+        m_packetTimes.clear();
+        if (m_dataRateHz != 0.0) { m_dataRateHz = 0.0; emit dataRateHzChanged(); }
         if (m_connected || m_busy) {
             m_connected = false;
             m_busy = false;
@@ -197,6 +208,10 @@ void ImuController::onStateChanged(WT9011DCL_BLE::State s)
         m_busy = false;
         emit imuConnectedChanged();
         emit busyChanged();
+        m_totalRecords    = 0;
+        m_recordsSinceLog = 0;
+        m_packetTimes.clear();
+        m_logTimer.start(kLogIntervalMs);
         appendLog(timestamp() + "  IMU ready — receiving data");
         // Poke the device to start streaming: some WitMotion BLE firmware
         // won't output data until it receives a valid write-characteristic command.

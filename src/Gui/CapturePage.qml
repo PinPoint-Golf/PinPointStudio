@@ -84,6 +84,15 @@ Item {
             Item { Layout.fillWidth: true }
 
             Label {
+                visible: imuController.imuConnected && imuController.dataRateHz > 0
+                text: imuController.dataRateHz.toFixed(1) + " Hz"
+                color: "#a6e3a1"
+                font.pixelSize: 13
+                font.family: "Courier New"
+                verticalAlignment: Text.AlignVCenter
+            }
+
+            Label {
                 text: "Rate:"
                 color: "#6c7086"
                 font.pixelSize: 13

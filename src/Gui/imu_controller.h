@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QList>
 #include <QStringList>
 #include <QTimer>
 #include "wt9011dcl_ble.h"
@@ -8,22 +9,23 @@
 class ImuController : public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(QString stateLabel  READ stateLabel  NOTIFY stateLabelChanged)
+    Q_PROPERTY(QString stateLabel   READ stateLabel   NOTIFY stateLabelChanged)
     Q_PROPERTY(bool    imuConnected READ imuConnected NOTIFY imuConnectedChanged)
-    Q_PROPERTY(bool    busy        READ busy        NOTIFY busyChanged)
-    Q_PROPERTY(float   quatW       READ quatW       NOTIFY quatChanged)
-    Q_PROPERTY(float   quatX       READ quatX       NOTIFY quatChanged)
-    Q_PROPERTY(float   quatY       READ quatY       NOTIFY quatChanged)
-    Q_PROPERTY(float   quatZ       READ quatZ       NOTIFY quatChanged)
-    Q_PROPERTY(float   imuRoll    READ imuRoll    NOTIFY eulerChanged)
-    Q_PROPERTY(float   imuPitch   READ imuPitch   NOTIFY eulerChanged)
-    Q_PROPERTY(float   imuYaw     READ imuYaw     NOTIFY eulerChanged)
+    Q_PROPERTY(bool    busy         READ busy         NOTIFY busyChanged)
+    Q_PROPERTY(float   quatW        READ quatW        NOTIFY quatChanged)
+    Q_PROPERTY(float   quatX        READ quatX        NOTIFY quatChanged)
+    Q_PROPERTY(float   quatY        READ quatY        NOTIFY quatChanged)
+    Q_PROPERTY(float   quatZ        READ quatZ        NOTIFY quatChanged)
+    Q_PROPERTY(float   imuRoll      READ imuRoll      NOTIFY eulerChanged)
+    Q_PROPERTY(float   imuPitch     READ imuPitch     NOTIFY eulerChanged)
+    Q_PROPERTY(float   imuYaw       READ imuYaw       NOTIFY eulerChanged)
     Q_PROPERTY(int     outputRateHz READ outputRateHz NOTIFY outputRateHzChanged)
+    Q_PROPERTY(double  dataRateHz   READ dataRateHz   NOTIFY dataRateHzChanged)
 
 public:
     explicit ImuController(QObject *parent = nullptr);
 
-    QString stateLabel()  const { return m_stateLabel; }
+    QString stateLabel()   const { return m_stateLabel; }
     bool    imuConnected() const { return m_connected; }
     bool    busy()         const { return m_busy; }
     float   quatW()        const { return m_quatW; }
@@ -34,6 +36,7 @@ public:
     float   imuPitch()     const { return m_pitch; }
     float   imuYaw()       const { return m_yaw; }
     int     outputRateHz() const { return m_outputRateHz; }
+    double  dataRateHz()   const { return m_dataRateHz; }
 
     Q_INVOKABLE void connectImu();
     Q_INVOKABLE void disconnectImu();
@@ -48,6 +51,7 @@ signals:
     void quatChanged();
     void eulerChanged();
     void outputRateHzChanged();
+    void dataRateHzChanged();
     void logEntryAdded(const QString &entry);
 
 private:
@@ -55,20 +59,38 @@ private:
     void appendLog(const QString &text);
     void setStateLabel(const QString &s);
     void onStateChanged(WT9011DCL_BLE::State s);
+    void onDataRecord();  // call once per received combined frame
 
     WT9011DCL_BLE *m_imu;
-    QStringList m_logEntries;
-    QTimer      m_retryTimer;
-    int         m_retryCount      = 0;
-    bool        m_inConnectPhase  = false; // true from Connecting until Ready/Disconnected
-    QString m_stateLabel      = QStringLiteral("Disconnected");
-    bool    m_connected       = false;
-    bool    m_busy            = false;
-    bool    m_attemptingConn  = false;  // prevent multiple connect attempts per scan
-    float   m_quatW = 1.0f, m_quatX = 0.0f, m_quatY = 0.0f, m_quatZ = 0.0f;
-    float   m_roll = 0.0f, m_pitch = 0.0f, m_yaw = 0.0f;
-    int     m_outputRateHz = 100;
+    QStringList    m_logEntries;
 
-    static constexpr int kMaxRetries    = 1;
-    static constexpr int kRetryDelayMs  = 45'000;
+    // Retry logic
+    QTimer m_retryTimer;
+    int    m_retryCount     = 0;
+    bool   m_inConnectPhase = false;
+    bool   m_attemptingConn = false;
+
+    // State
+    QString m_stateLabel = QStringLiteral("Disconnected");
+    bool    m_connected  = false;
+    bool    m_busy       = false;
+
+    // IMU data
+    float m_quatW = 1.0f, m_quatX = 0.0f, m_quatY = 0.0f, m_quatZ = 0.0f;
+    float m_roll  = 0.0f, m_pitch = 0.0f, m_yaw   = 0.0f;
+    int   m_outputRateHz = 100;
+
+    // Data rate — 30s rolling window of packet arrival timestamps (ms)
+    QList<qint64> m_packetTimes;
+    double        m_dataRateHz    = 0.0;
+
+    // Log throttle — summary every 10s
+    QTimer m_logTimer;
+    int    m_totalRecords      = 0;
+    int    m_recordsSinceLog   = 0;
+
+    static constexpr int kMaxRetries   = 1;
+    static constexpr int kRetryDelayMs = 45'000;
+    static constexpr int kLogIntervalMs = 10'000;
+    static constexpr int kRollingWindowMs = 2'000;
 };

@@ -63,9 +63,10 @@ public:
         Hz_10   = 0x06,
         Hz_20   = 0x07,
         Hz_50   = 0x08,
-        Hz_100  = 0x09,
-        Hz_200  = 0x0A,
-        Off     = 0x0B,
+        Hz_100       = 0x09,
+        Hz_200       = 0x0B, // 0x0A is undocumented/reserved
+        SingleReturn = 0x0C,
+        Off          = 0x0D,
     };
 
     enum class BaudRate : quint8 {
@@ -107,7 +108,7 @@ public:
     // -----------------------------------------------------------------------
 
     void saveConfiguration();
-    void setOutputRate(OutputRate rate);
+    virtual void setOutputRate(OutputRate rate);
     void setDeviceBaudRate(BaudRate rate);
     void setOutputData(OutputFlags flags);
 

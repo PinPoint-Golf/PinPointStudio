@@ -14,21 +14,27 @@ QBluetoothUuid WT9011DCL_BLE::WriteCharUuid =
 // Device initialisation
 // ---------------------------------------------------------------------------
 
+void WT9011DCL_BLE::setOutputRate(OutputRate rate)
+{
+    m_rate = rate;
+    WT9011DCL_Base::setOutputRate(rate);
+}
+
 void WT9011DCL_BLE::initializeDevice()
 {
     // Vertical installation — device is mounted on a club shaft, not lying flat.
     sendCommand(RegOrient, 0x0001);
 
     // 6-axis algorithm (gyro integration only, no magnetometer).
-    // Better for fast dynamic motion like a golf swing; 9-axis is preferable
-    // for slow/static orientation but the magnetometer fights rapid rotation.
     sendCommand(RegAxis6, 0x0001);
 
-    // Zero roll and pitch to the current physical orientation so the resting
-    // position of the device in its mount reads 0°/0°.
+    // Set output rate — defaults to 100Hz, updated whenever setOutputRate() is called.
+    sendCommand(RegRRate, static_cast<quint16>(m_rate));
+
+    // Zero roll and pitch to the current physical orientation.
     sendCommand(RegCalSw, 0x0008);
 
-    // Zero the yaw heading so it starts at 0° relative to the setup position.
+    // Zero yaw heading.
     sendCommand(RegCalSw, 0x0004);
 
     // Return CALSW to normal working mode.
