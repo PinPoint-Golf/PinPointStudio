@@ -380,9 +380,9 @@ Item {
                                 scale: Qt.vector3d(0.15, 0.6, 0.15)
                                 materials: DefaultMaterial { diffuseColor: "#cdd6f4" }
                             }
-                            // Up arrow — head
+                            // Up arrow — head (base at cone origin = cylinder top at 160 + 100×0.6/2)
                             Model {
-                                source: "#Cone"; position: Qt.vector3d(0, 220, 0)
+                                source: "#Cone"; position: Qt.vector3d(0, 190, 0)
                                 scale: Qt.vector3d(0.4, 0.4, 0.4)
                                 materials: DefaultMaterial { diffuseColor: "#cdd6f4" }
                             }
