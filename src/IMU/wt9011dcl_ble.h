@@ -66,8 +66,12 @@ signals:
     void rawDeviceFound(const QBluetoothDeviceInfo &device);   // every BLE device seen
     void scanFinished();
 
+public:
+    void reinitialize() override { initializeDevice(); }
+
 protected:
     void writeToDevice(const QByteArray &data) override;
+    QuaternionData eulerToQuat(const EulerAngles &e) const override;
 
 private slots:
     void onDeviceDiscovered(const QBluetoothDeviceInfo &device);
@@ -90,6 +94,7 @@ private:
     void teardownController();
     void setupService();
     void enableNotifications();
+    void initializeDevice();
 
     State m_state = State::Disconnected;
 

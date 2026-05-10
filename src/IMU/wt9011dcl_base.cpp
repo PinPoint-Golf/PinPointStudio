@@ -1,8 +1,26 @@
 #include "wt9011dcl_base.h"
+#include <QtMath>
 
 WT9011DCL_Base::WT9011DCL_Base(QObject *parent)
     : QObject(parent)
 {}
+
+// Default Euler→quaternion: standard ZYX (RPY) convention.
+// Device subclasses override this to apply their mounting-specific mapping.
+WT9011DCL_Base::QuaternionData
+WT9011DCL_Base::eulerToQuat(const EulerAngles &e) const
+{
+    const float hx = qDegreesToRadians(e.roll)  * 0.5f;
+    const float hy = qDegreesToRadians(e.pitch) * 0.5f;
+    const float hz = qDegreesToRadians(e.yaw)   * 0.5f;
+    const float cx = qCos(hx), sx = qSin(hx);
+    const float cy = qCos(hy), sy = qSin(hy);
+    const float cz = qCos(hz), sz = qSin(hz);
+    return { cx*cy*cz + sx*sy*sz,
+             sx*cy*cz - cx*sy*sz,
+             cx*sy*cz + sx*cy*sz,
+             cx*cy*sz - sx*sy*cz };
+}
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -127,6 +145,8 @@ void WT9011DCL_Base::dispatchCombinedPacket(const QByteArray &frame)
         m_euler.pitch = pitch / 32768.0f * 180.0f;
         m_euler.yaw   = yaw   / 32768.0f * 180.0f;
         emit eulerAnglesUpdated(m_euler);
+        m_quat = eulerToQuat(m_euler);
+        emit quaternionUpdated(m_quat);
     }
 }
 
@@ -187,6 +207,8 @@ void WT9011DCL_Base::parseEuler(const QByteArray &d)
     m_euler.pitch = le16(d, 2) / 32768.0f * 180.0f;
     m_euler.yaw   = le16(d, 4) / 32768.0f * 180.0f;
     emit eulerAnglesUpdated(m_euler);
+    m_quat = eulerToQuat(m_euler);
+    emit quaternionUpdated(m_quat);
 }
 
 void WT9011DCL_Base::parseMag(const QByteArray &d)

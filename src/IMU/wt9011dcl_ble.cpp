@@ -1,4 +1,5 @@
 #include "wt9011dcl_ble.h"
+#include <QtMath>
 
 QBluetoothUuid WT9011DCL_BLE::ServiceUuid =
     QBluetoothUuid(QStringLiteral("0000ffe5-0000-1000-8000-00805f9b34fb"));
@@ -8,6 +9,52 @@ QBluetoothUuid WT9011DCL_BLE::NotifyCharUuid =
 
 QBluetoothUuid WT9011DCL_BLE::WriteCharUuid =
     QBluetoothUuid(QStringLiteral("0000ffe9-0000-1000-8000-00805f9b34fb"));
+
+// ---------------------------------------------------------------------------
+// Device initialisation
+// ---------------------------------------------------------------------------
+
+void WT9011DCL_BLE::initializeDevice()
+{
+    // Vertical installation — device is mounted on a club shaft, not lying flat.
+    sendCommand(RegOrient, 0x0001);
+
+    // 6-axis algorithm (gyro integration only, no magnetometer).
+    // Better for fast dynamic motion like a golf swing; 9-axis is preferable
+    // for slow/static orientation but the magnetometer fights rapid rotation.
+    sendCommand(RegAxis6, 0x0001);
+
+    // Zero roll and pitch to the current physical orientation so the resting
+    // position of the device in its mount reads 0°/0°.
+    sendCommand(RegCalSw, 0x0008);
+
+    // Zero the yaw heading so it starts at 0° relative to the setup position.
+    sendCommand(RegCalSw, 0x0004);
+
+    // Return CALSW to normal working mode.
+    sendCommand(RegCalSw, 0x0000);
+}
+
+// ---------------------------------------------------------------------------
+// Orientation correction
+// ---------------------------------------------------------------------------
+
+// WT901BLE67 confirmed axis mapping: Roll→X, Yaw→Y, Pitch→Z (RYP order),
+// with pitch negated.
+WT9011DCL_Base::QuaternionData
+WT9011DCL_BLE::eulerToQuat(const EulerAngles &e) const
+{
+    const float hx = qDegreesToRadians( e.roll)  * 0.5f;  // R → X
+    const float hy = qDegreesToRadians( e.yaw)   * 0.5f;  // Y → Y
+    const float hz = qDegreesToRadians(-e.pitch) * 0.5f;  // P → Z, negated
+    const float cx = qCos(hx), sx = qSin(hx);
+    const float cy = qCos(hy), sy = qSin(hy);
+    const float cz = qCos(hz), sz = qSin(hz);
+    return { cx*cy*cz + sx*sy*sz,
+             sx*cy*cz - cx*sy*sz,
+             cx*sy*cz + sx*cy*sz,
+             cx*cy*sz - sx*sy*cz };
+}
 
 // ---------------------------------------------------------------------------
 // Lifecycle
@@ -291,6 +338,7 @@ void WT9011DCL_BLE::enableNotifications()
         if (d.type() != QBluetoothUuid::DescriptorType::ClientCharacteristicConfiguration)
             return;
         disconnect(svc, &QLowEnergyService::descriptorWritten, this, nullptr);
+        initializeDevice();
         setState(State::Ready);
         emit connected();
     });

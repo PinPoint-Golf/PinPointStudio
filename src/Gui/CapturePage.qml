@@ -142,6 +142,26 @@ Item {
             }
 
             Button {
+                id: zeroBtn
+                text: qsTr("Zero")
+                enabled: imuController.imuConnected
+                onClicked: imuController.zeroOrientation()
+                contentItem: Text {
+                    text: zeroBtn.text
+                    color: zeroBtn.enabled ? "#1e1e2e" : "#6c7086"
+                    font.pixelSize: 13
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle {
+                    color: zeroBtn.enabled
+                           ? (zeroBtn.pressed ? "#7287fd" : "#89b4fa")
+                           : "#313244"
+                    radius: 6
+                }
+            }
+
+            Button {
                 id: saveLogBtn
                 text: qsTr("Save Log")
                 onClicked: imuController.saveLog()
@@ -230,81 +250,13 @@ Item {
             }
 
             // Viz tab
-            Item {
-                id: vizTab
-
-            // ── Orientation debug controls ────────────────────────────────────
-            // Axis order confirmed: Roll→X, Yaw→Y, Pitch→Z (RYP)
-            // Sign flips — toggle to find correct polarity for each axis
-            property bool negRoll:  false
-            property bool negPitch: false
-            property bool negYaw:   false
-
-            // Helpers ────────────────────────────────────────────────────────
-
-
-            // Build ZYX quaternion: q_Z(c) * q_Y(b) * q_X(a)
-            // a=X-axis angle, b=Y-axis angle, c=Z-axis angle (degrees)
-            function zyx(a, b, c) {
-                const ha = a * Math.PI / 360  // half angle in radians
-                const hb = b * Math.PI / 360
-                const hc = c * Math.PI / 360
-                const ca = Math.cos(ha), sa = Math.sin(ha)
-                const cb = Math.cos(hb), sb = Math.sin(hb)
-                const cc = Math.cos(hc), sc = Math.sin(hc)
-                return Qt.quaternion(
-                    ca*cb*cc + sa*sb*sc,
-                    sa*cb*cc - ca*sb*sc,
-                    ca*sb*cc + sa*cb*sc,
-                    ca*cb*sc - sa*sb*cc
-                )
-            }
-
-            // RYP + Y180 confirmed. Negate toggles still live for polarity tuning.
-            function deviceQuat() {
-                const r = imuController.imuRoll  * (vizTab.negRoll  ? -1 : 1)
-                const p = imuController.imuPitch * (vizTab.negPitch ? -1 : 1)
-                const y = imuController.imuYaw   * (vizTab.negYaw   ? -1 : 1)
-                const d = vizTab.zyx(r, y, p)
-                // Y180: [0,0,1,0] * d
-                return Qt.quaternion(-d.y, d.z, d.scalar, -d.x)
-            }
-
-            anchors.fill: parent
-
-            ColumnLayout {
-                anchors.fill: parent
-                spacing: 3
-
-                // ── Sign flips ────────────────────────────────────────────────
-                RowLayout {
-                    spacing: 4; Layout.leftMargin: 4
-                    Label { text: "Negate:"; color: "#6c7086"; font.pixelSize: 10; Layout.preferredWidth: 38 }
-                    Repeater {
-                        model: [["Roll", "negRoll"], ["Pitch", "negPitch"], ["Yaw", "negYaw"]]
-                        delegate: Rectangle {
-                            required property var modelData
-                            width: sLbl.implicitWidth+10; height: 20; radius: 3
-                            color: vizTab[modelData[1]] ? "#f9e2af" : "#313244"
-                            Text { id: sLbl; anchors.centerIn: parent; text: modelData[0]; font.pixelSize: 10
-                                   color: parent.color === "#f9e2af" ? "#1e1e2e" : "#cdd6f4" }
-                            TapHandler { onTapped: vizTab[modelData[1]] = !vizTab[modelData[1]] }
-                        }
-                    }
-                }
-
-
             View3D {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
                 environment: SceneEnvironment {
                     clearColor: "#1e1e2e"
                     backgroundMode: SceneEnvironment.Color
                 }
 
-                PerspectiveCamera {
-                    position: Qt.vector3d(0, 0, 480)
-                }
+                PerspectiveCamera { position: Qt.vector3d(0, 0, 480) }
 
                 DirectionalLight {
                     eulerRotation: Qt.vector3d(-45, -30, 0)
@@ -313,75 +265,99 @@ Item {
                 }
 
                 Node {
-                    rotation: vizTab.deviceQuat()
+                    rotation: Qt.quaternion(imuController.quatW, imuController.quatX,
+                                            imuController.quatY, imuController.quatZ)
 
-                    // Top face — red
-                    Model {
-                        source: "#Rectangle"
-                        position: Qt.vector3d(0, 100, 0)
-                        eulerRotation.x: -90
-                        scale: Qt.vector3d(2, 2, 1)
-                        materials: DefaultMaterial { diffuseColor: "#e64553"; cullMode: Material.NoCulling }
-                    }
-                    // Bottom face — red
-                    Model {
-                        source: "#Rectangle"
-                        position: Qt.vector3d(0, -100, 0)
-                        eulerRotation.x: 90
-                        scale: Qt.vector3d(2, 2, 1)
-                        materials: DefaultMaterial { diffuseColor: "#e64553"; cullMode: Material.NoCulling }
-                    }
-                    // Front face — orange
-                    Model {
-                        source: "#Rectangle"
-                        position: Qt.vector3d(0, 0, 100)
-                        scale: Qt.vector3d(2, 2, 1)
-                        materials: DefaultMaterial { diffuseColor: "#fe640b"; cullMode: Material.NoCulling }
-                    }
-                    // Back face — orange
-                    Model {
-                        source: "#Rectangle"
-                        position: Qt.vector3d(0, 0, -100)
-                        eulerRotation.y: 180
-                        scale: Qt.vector3d(2, 2, 1)
-                        materials: DefaultMaterial { diffuseColor: "#fe640b"; cullMode: Material.NoCulling }
-                    }
-                    // Right face — orange
-                    Model {
-                        source: "#Rectangle"
-                        position: Qt.vector3d(100, 0, 0)
-                        eulerRotation.y: -90
-                        scale: Qt.vector3d(2, 2, 1)
-                        materials: DefaultMaterial { diffuseColor: "#fe640b"; cullMode: Material.NoCulling }
-                    }
-                    // Left face — orange
-                    Model {
-                        source: "#Rectangle"
-                        position: Qt.vector3d(-100, 0, 0)
-                        eulerRotation.y: 90
-                        scale: Qt.vector3d(2, 2, 1)
-                        materials: DefaultMaterial { diffuseColor: "#fe640b"; cullMode: Material.NoCulling }
-                    }
+                            // Helper component — a labelled face texture
+                            component FaceTex: Texture {
+                                required property string label
+                                required property color faceColor
+                                property bool flip: false
+                                sourceItem: Item {
+                                    width: 256; height: 256
+                                    Rectangle { anchors.fill: parent; color: faceColor }
+                                    Item {
+                                        anchors.fill: parent
+                                        transform: Scale { xScale: flip ? -1 : 1; origin.x: 128 }
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: label
+                                            color: "white"
+                                            font.pixelSize: 52
+                                            font.bold: true
+                                        }
+                                    }
+                                }
+                            }
 
-                    // ── Up arrow ──────────────────────────────────────────────
-                    // Shaft — thin cylinder rising above the top face
-                    Model {
-                        source: "#Cylinder"
-                        position: Qt.vector3d(0, 160, 0)
-                        scale: Qt.vector3d(0.15, 0.6, 0.15)
-                        materials: DefaultMaterial { diffuseColor: "#cdd6f4" }
-                    }
-                    // Arrowhead — cone at the top of the shaft
-                    Model {
-                        source: "#Cone"
-                        position: Qt.vector3d(0, 220, 0)
-                        scale: Qt.vector3d(0.4, 0.4, 0.4)
-                        materials: DefaultMaterial { diffuseColor: "#cdd6f4" }
-                    }
+                            // Top face — red
+                            Model {
+                                source: "#Rectangle"; position: Qt.vector3d(0, 100, 0)
+                                eulerRotation.x: -90; scale: Qt.vector3d(2, 2, 1)
+                                materials: DefaultMaterial {
+                                    cullMode: Material.NoCulling
+                                    diffuseMap: FaceTex { label: "Top"; faceColor: "#e64553" }
+                                }
+                            }
+                            // Bottom face — red
+                            Model {
+                                source: "#Rectangle"; position: Qt.vector3d(0, -100, 0)
+                                eulerRotation.x: 90; scale: Qt.vector3d(2, 2, 1)
+                                materials: DefaultMaterial {
+                                    cullMode: Material.NoCulling
+                                    diffuseMap: FaceTex { label: "Bottom"; faceColor: "#e64553" }
+                                }
+                            }
+                            // Front face — orange
+                            Model {
+                                source: "#Rectangle"; position: Qt.vector3d(0, 0, 100)
+                                scale: Qt.vector3d(2, 2, 1)
+                                materials: DefaultMaterial {
+                                    cullMode: Material.NoCulling
+                                    diffuseMap: FaceTex { label: "Front"; faceColor: "#fe640b" }
+                                }
+                            }
+                            // Back face — orange
+                            Model {
+                                source: "#Rectangle"; position: Qt.vector3d(0, 0, -100)
+                                eulerRotation.y: 180; scale: Qt.vector3d(2, 2, 1)
+                                materials: DefaultMaterial {
+                                    cullMode: Material.NoCulling
+                                    diffuseMap: FaceTex { label: "Back"; faceColor: "#fe640b" }
+                                }
+                            }
+                            // Right face — orange
+                            Model {
+                                source: "#Rectangle"; position: Qt.vector3d(100, 0, 0)
+                                eulerRotation.y: -90; scale: Qt.vector3d(2, 2, 1)
+                                materials: DefaultMaterial {
+                                    cullMode: Material.NoCulling
+                                    diffuseMap: FaceTex { label: "Left"; faceColor: "#fe640b"; flip: true }
+                                }
+                            }
+                            // Left face — orange
+                            Model {
+                                source: "#Rectangle"; position: Qt.vector3d(-100, 0, 0)
+                                eulerRotation.y: 90; scale: Qt.vector3d(2, 2, 1)
+                                materials: DefaultMaterial {
+                                    cullMode: Material.NoCulling
+                                    diffuseMap: FaceTex { label: "Right"; faceColor: "#fe640b"; flip: true }
+                                }
+                            }
+                            // Up arrow — shaft
+                            Model {
+                                source: "#Cylinder"; position: Qt.vector3d(0, 160, 0)
+                                scale: Qt.vector3d(0.15, 0.6, 0.15)
+                                materials: DefaultMaterial { diffuseColor: "#cdd6f4" }
+                            }
+                            // Up arrow — head
+                            Model {
+                                source: "#Cone"; position: Qt.vector3d(0, 220, 0)
+                                scale: Qt.vector3d(0.4, 0.4, 0.4)
+                                materials: DefaultMaterial { diffuseColor: "#cdd6f4" }
+                            }
                 }
-            }           // View3D
-            }           // ColumnLayout
-        }               // Item (viz tab)
+            }
         }
     }
 

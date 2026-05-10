@@ -111,6 +111,11 @@ public:
     void setDeviceBaudRate(BaudRate rate);
     void setOutputData(OutputFlags flags);
 
+    // Re-sends the full device initialisation sequence (orientation, algorithm,
+    // angle zeroing). Call this whenever the device is repositioned.
+    // Subclasses override to apply their device-specific init commands.
+    virtual void reinitialize() {}
+
     // -----------------------------------------------------------------------
     // Calibration
     // -----------------------------------------------------------------------
@@ -153,8 +158,33 @@ signals:
     void quaternionUpdated(const WT9011DCL_Base::QuaternionData &quat);
 
 protected:
+    // Converts device Euler angles to a world-frame quaternion, applying any
+    // axis remapping and frame corrections specific to the physical hardware.
+    // Default: standard ZYX (RPY) with no correction.
+    // Override in device subclasses to match their mounting convention.
+    virtual QuaternionData eulerToQuat(const EulerAngles &e) const;
+
     // Subclasses call this whenever bytes arrive from the device.
     void receiveData(const QByteArray &data);
+
+    enum Register : quint8 {
+        RegSave     = 0x00,
+        RegCalSw    = 0x01,
+        RegRSW      = 0x02,
+        RegRRate    = 0x03,
+        RegBaud     = 0x04,
+        RegAxOffset = 0x05,
+        RegAyOffset = 0x06,
+        RegAzOffset = 0x07,
+        RegGxOffset = 0x08,
+        RegGyOffset = 0x09,
+        RegGzOffset = 0x0A,
+        RegHxOffset = 0x0B,
+        RegHyOffset = 0x0C,
+        RegHzOffset = 0x0D,
+        RegOrient   = 0x23, // Installation direction: 0x00=horizontal, 0x01=vertical
+        RegAxis6    = 0x24, // Fusion algorithm: 0x00=9-axis (mag), 0x01=6-axis (gyro only)
+    };
 
     // Subclasses implement this to write bytes to their transport.
     virtual void writeToDevice(const QByteArray &data) = 0;
@@ -177,22 +207,6 @@ private:
         PktGPSAccuracy = 0x5A,
     };
 
-    enum Register : quint8 {
-        RegSave     = 0x00,
-        RegCalSw    = 0x01,
-        RegRSW      = 0x02,
-        RegRRate    = 0x03,
-        RegBaud     = 0x04,
-        RegAxOffset = 0x05,
-        RegAyOffset = 0x06,
-        RegAzOffset = 0x07,
-        RegGxOffset = 0x08,
-        RegGyOffset = 0x09,
-        RegGzOffset = 0x0A,
-        RegHxOffset = 0x0B,
-        RegHyOffset = 0x0C,
-        RegHzOffset = 0x0D,
-    };
 
     void processBuffer();
     bool verifyChecksum(const QByteArray &packet) const;

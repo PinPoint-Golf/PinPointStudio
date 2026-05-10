@@ -37,6 +37,7 @@ public:
 
     Q_INVOKABLE void connectImu();
     Q_INVOKABLE void disconnectImu();
+    Q_INVOKABLE void zeroOrientation();
     Q_INVOKABLE QString saveLog();
     Q_INVOKABLE void setOutputRateHz(int hz);
 

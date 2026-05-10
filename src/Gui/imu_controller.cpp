@@ -5,7 +5,6 @@
 #include <QFile>
 #include <QStandardPaths>
 #include <QTextStream>
-#include <QtMath>
 #include <chrono>
 
 ImuController::ImuController(QObject *parent)
@@ -107,34 +106,8 @@ ImuController::ImuController(QObject *parent)
                 .arg(a.yaw,   8, 'f', 3));
         m_roll = a.roll; m_pitch = a.pitch; m_yaw = a.yaw;
         emit eulerChanged();
-
-        // Convert to quaternion using ZYX intrinsic convention (the order
-        // Witmotion's AHRS applies: yaw first, then pitch, then roll).
-        // This avoids the ZXY vs XYZ Euler order mismatch that made Qt3D's
-        // eulerRotation feel wrong, without needing quaternion packets from
-        // the device (which disrupt the combined 0x61 BLE frame).
-        // Device axis mapping confirmed: Roll→X, Yaw→Y, Pitch→Z (RYP order).
-        // ZYX formula: q_Z(pitch) * q_Y(yaw) * q_X(roll)
-        const float hx = qDegreesToRadians(a.roll)  * 0.5f;
-        const float hy = qDegreesToRadians(a.yaw)   * 0.5f;
-        const float hz = qDegreesToRadians(a.pitch) * 0.5f;
-
-        const float cx = qCos(hx), sx = qSin(hx);
-        const float cy = qCos(hy), sy = qSin(hy);
-        const float cz = qCos(hz), sz = qSin(hz);
-
-        // Raw ZYX quaternion.
-        const float dw = cx*cy*cz + sx*sy*sz;
-        const float dx = sx*cy*cz - cx*sy*sz;
-        const float dy = cx*sy*cz + sx*cy*sz;
-        const float dz = cx*cy*sz - sx*sy*cz;
-
-        // Y180 frame correction: q = [0,0,1,0] * device
-        m_quatW = -dy;
-        m_quatX =  dz;
-        m_quatY =  dw;
-        m_quatZ = -dx;
-        emit quatChanged();
+        // Quaternion is computed by the driver via eulerToQuat() and arrives
+        // via the quaternionUpdated signal below.
     });
 
     connect(m_imu, &WT9011DCL_Base::magUpdated,
@@ -164,6 +137,14 @@ void ImuController::connectImu()
 {
     m_retryTimer.stop();
     m_imu->scan(30000);  // 30 seconds
+}
+
+void ImuController::zeroOrientation()
+{
+    if (!m_connected)
+        return;
+    appendLog(timestamp() + "  Zeroing orientation…");
+    m_imu->reinitialize();
 }
 
 void ImuController::disconnectImu()
@@ -303,8 +284,10 @@ void ImuController::setOutputRateHz(int hz)
     }
     m_outputRateHz = hz;
     emit outputRateHzChanged();
-    if (m_connected)
+    if (m_connected) {
         m_imu->setOutputRate(rate);
+        m_imu->reinitialize();
+    }
 }
 
 void ImuController::setStateLabel(const QString &s)
