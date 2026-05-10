@@ -11,6 +11,10 @@ Initial prototyping is underway using IMUs and high-speed industrial cameras. Th
 
 ### IMU
 - **Witmotion WT901BLE67** — BLE 6-axis IMU capture (accelerometer, gyroscope, Euler angles)
+- **3D orientation visualiser** — labelled cube driven by corrected quaternion; matches physical device orientation
+- **Auto-initialisation on connect** — sets vertical mounting, 6-axis algorithm, 100 Hz output rate, and zeros orientation to current position
+- **Zero button** — re-zeroes orientation on demand for mid-session repositioning
+- **Live data rate** — 2-second rolling Hz average shown in the UI
 
 ### Audio
 - **Speech-to-text**: Whisper.cpp (local, GPU-accelerated) with Azure Speech fallback for CPU-only systems
