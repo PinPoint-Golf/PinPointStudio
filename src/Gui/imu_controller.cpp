@@ -14,16 +14,26 @@ ImuController::ImuController(QObject *parent)
     m_retryTimer.setSingleShot(true);
     m_logTimer.setSingleShot(false);
     connect(&m_logTimer, &QTimer::timeout, this, [this]() {
+        const QString bat = m_batteryPercent >= 0
+            ? QString("  BAT=%1%").arg(m_batteryPercent)
+            : QString();
         appendLog(timestamp()
-            + QString("  Data: %1 records total  (+%2 in last 10s)  %3 Hz avg")
+            + QString("  Data: %1 records total  (+%2 in last 10s)  %3 Hz avg%4")
                 .arg(m_totalRecords)
                 .arg(m_recordsSinceLog)
-                .arg(m_dataRateHz, 0, 'f', 1));
+                .arg(m_dataRateHz, 0, 'f', 1)
+                .arg(bat));
         m_recordsSinceLog = 0;
     });
     connect(&m_retryTimer, &QTimer::timeout, this, [this]() {
         appendLog(timestamp() + QStringLiteral("  Auto-retrying connection…"));
         connectImu();
+    });
+
+    m_batteryTimer.setInterval(60'000);
+    m_batteryTimer.setSingleShot(false);
+    connect(&m_batteryTimer, &QTimer::timeout, this, [this]() {
+        if (m_connected) m_imu->requestBattery();
     });
 
     connect(m_imu, &WT9011DCL_BLE::stateChanged,
@@ -89,6 +99,23 @@ ImuController::ImuController(QObject *parent)
     connect(m_imu, &WT9011DCL_Base::accelUpdated,
             this, [this](const WT9011DCL_Base::AccelData &) {
         onDataRecord();
+    });
+
+    connect(m_imu, &WT9011DCL_Base::batteryUpdated, this, [this](int percent) {
+        if (percent == m_batteryPercent)
+            return;
+        m_batteryPercent = percent;
+        emit batteryPercentChanged();
+        appendLog(timestamp() + QString("  Battery: %1%").arg(percent));
+    });
+
+    connect(m_imu, &WT9011DCL_Base::batteryReadRetry, this, [this]() {
+        if (m_batteryRetries >= kMaxBatteryRetries)
+            return;
+        ++m_batteryRetries;
+        QTimer::singleShot(5000, this, [this]() {
+            if (m_connected) m_imu->requestBattery();
+        });
     });
 
 
@@ -173,8 +200,10 @@ void ImuController::onStateChanged(WT9011DCL_BLE::State s)
         m_inConnectPhase = false;
         m_retryCount     = 0;
         m_logTimer.stop();
+        m_batteryTimer.stop();
         m_packetTimes.clear();
         if (m_dataRateHz != 0.0) { m_dataRateHz = 0.0; emit dataRateHzChanged(); }
+        if (m_batteryPercent != -1) { m_batteryPercent = -1; emit batteryPercentChanged(); }
         if (m_connected || m_busy) {
             m_connected = false;
             m_busy = false;
@@ -210,12 +239,21 @@ void ImuController::onStateChanged(WT9011DCL_BLE::State s)
         emit busyChanged();
         m_totalRecords    = 0;
         m_recordsSinceLog = 0;
+        m_batteryRetries  = 0;
         m_packetTimes.clear();
         m_logTimer.start(kLogIntervalMs);
         appendLog(timestamp() + "  IMU ready — receiving data");
         // Poke the device to start streaming: some WitMotion BLE firmware
         // won't output data until it receives a valid write-characteristic command.
         setOutputRateHz(m_outputRateHz);
+        // Request initial battery reading after the init sequence settles.
+        QTimer::singleShot(1500, this, [this]() {
+            if (m_connected) {
+                appendLog(timestamp() + "  Requesting battery level…");
+                m_imu->requestBattery();
+            }
+        });
+        m_batteryTimer.start();
         break;
     case WT9011DCL_BLE::State::Error:
         m_attemptingConn = false;

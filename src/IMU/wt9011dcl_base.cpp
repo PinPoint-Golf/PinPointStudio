@@ -55,6 +55,13 @@ void WT9011DCL_Base::readRegisters(quint8 regAddr, quint8 regCount)
     writeToDevice(cmd);
 }
 
+void WT9011DCL_Base::requestBattery()
+{
+    // FF AA 27 64 00 — write READADDR (register 0x27) with address 0x64 (battery voltage).
+    // Count byte is 0x00; the device always returns a fixed 20-byte 0x71 response regardless.
+    readRegisters(RegVBat, 0);
+}
+
 // ---------------------------------------------------------------------------
 // Command builder
 // ---------------------------------------------------------------------------
@@ -107,6 +114,17 @@ void WT9011DCL_Base::processBuffer()
                 return;
             dispatchCombinedPacket(m_buffer.left(CombinedFrameSize));
             m_buffer.remove(0, CombinedFrameSize);
+            continue;
+        }
+
+        // WT901BLE67 register-read response:
+        //   0x55 0x71 [startReg lo/hi] [8 register values × 2 bytes LE]
+        // No checksum. Triggered by writing register 0x27 (READADDR) with the target address.
+        if (static_cast<quint8>(m_buffer[1]) == ReadRespFrameType) {
+            if (m_buffer.size() < ReadRespFrameSize)
+                return;
+            dispatchReadResponse(m_buffer.left(ReadRespFrameSize));
+            m_buffer.remove(0, ReadRespFrameSize);
             continue;
         }
 
@@ -227,4 +245,47 @@ void WT9011DCL_Base::parseQuaternion(const QByteArray &d)
     m_quat.y = le16(d, 4) / 32768.0f;
     m_quat.z = le16(d, 6) / 32768.0f;
     emit quaternionUpdated(m_quat);
+}
+
+// 0x71 register-read response (WT901BLE67-specific):
+//   frame[0..1] = 0x55 0x71 (header)
+//   frame[2..3] = start register address (2-byte LE, echoed from request)
+//   frame[4..5] = first register value (BATVAL when startReg = 0x64), int16 LE
+//   frame[6..19]= next 7 register values
+//
+// Source: WitmotionSDK Bwt901bleProcessor.cs — reads register 0x64, parses at returnData[4].
+// Percentage lookup table also from SDK (Bwt901bleProcessor.cs lines 294-352).
+void WT9011DCL_Base::dispatchReadResponse(const QByteArray &frame)
+{
+    const quint8 startReg = static_cast<quint8>(frame[2]);
+    const qint16 raw      = le16(frame, 4);
+
+    emit diagnosticInfo(QStringLiteral("[batt] 0x71: startReg=0x%1 raw=%2")
+                        .arg(startReg, 2, 16, QLatin1Char('0'))
+                        .arg(raw));
+
+    if (startReg != RegVBat)
+        return;
+
+    if (raw == 0) {
+        emit batteryReadRetry();
+        return;
+    }
+
+    // Stepped lookup table from WitmotionSDK — units of 0.01 V.
+    int percent;
+    if      (raw >= 396) percent = 100;
+    else if (raw >= 393) percent = 90;
+    else if (raw >= 387) percent = 75;
+    else if (raw >= 382) percent = 60;
+    else if (raw >= 379) percent = 50;
+    else if (raw >= 377) percent = 40;
+    else if (raw >= 373) percent = 30;
+    else if (raw >= 370) percent = 20;
+    else if (raw >= 368) percent = 15;
+    else if (raw >= 350) percent = 10;
+    else if (raw >= 340) percent = 5;
+    else                 percent = 0;
+
+    emit batteryUpdated(percent);
 }

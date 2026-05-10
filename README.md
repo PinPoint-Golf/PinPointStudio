@@ -15,6 +15,7 @@ Initial prototyping is underway using IMUs and high-speed industrial cameras. Th
 - **Auto-initialisation on connect** — sets vertical mounting, 6-axis algorithm, 100 Hz output rate, and zeros orientation to current position
 - **Zero button** — re-zeroes orientation on demand for mid-session repositioning
 - **Live data rate** — 2-second rolling Hz average shown in the UI
+- **Battery indicator** — colour-coded BAT: N% badge in the toolbar, polled via register 0x64 every 60 s
 
 ### Audio
 - **Speech-to-text**: Whisper.cpp (local, GPU-accelerated) with Azure Speech fallback for CPU-only systems

@@ -12,8 +12,8 @@
 //   [10]    checksum = (sum of bytes [0..9]) & 0xFF
 //
 // Config/read commands sent to the device:
-//   FF AA [reg] [lo] [hi]          — write register
-//   FF AA 27   [reg] [count]       — read register(s)
+//   FF AA [reg] [lo] [hi]        — write register (value = lo | hi<<8)
+//   FF AA 27   [addr_lo] [0x00]  — request register block read (response: 0x71 frame)
 //
 // Subclasses implement writeToDevice() to send bytes over their transport,
 // and call receiveData() whenever bytes arrive from the device.
@@ -136,6 +136,10 @@ public:
 
     void readRegisters(quint8 regAddr, quint8 regCount = 1);
 
+    // Sends a read request for the battery voltage register (0x64).
+    // Result arrives asynchronously via batteryUpdated().
+    void requestBattery();
+
     // -----------------------------------------------------------------------
     // Latest cached values
     // -----------------------------------------------------------------------
@@ -157,6 +161,8 @@ signals:
     void eulerAnglesUpdated(const WT9011DCL_Base::EulerAngles &angles);
     void magUpdated(const WT9011DCL_Base::MagData &data);
     void quaternionUpdated(const WT9011DCL_Base::QuaternionData &quat);
+    void batteryUpdated(int percent);  // 0–100; emitted when a 0x71 response carries a valid reading
+    void batteryReadRetry();           // device returned 0 — caller should retry after a short delay
 
 protected:
     // Converts device Euler angles to a world-frame quaternion, applying any
@@ -185,6 +191,7 @@ protected:
         RegHzOffset = 0x0D,
         RegOrient   = 0x23, // Installation direction: 0x00=horizontal, 0x01=vertical
         RegAxis6    = 0x24, // Fusion algorithm: 0x00=9-axis (mag), 0x01=6-axis (gyro only)
+        RegVBat     = 0x64, // Battery voltage — confirmed from WitmotionSDK Bwt901bleProcessor.cs
     };
 
     // Subclasses implement this to write bytes to their transport.
@@ -219,15 +226,19 @@ private:
     void parseEuler(const QByteArray &d);
     void parseMag(const QByteArray &d);
     void parseQuaternion(const QByteArray &d);
+    void dispatchReadResponse(const QByteArray &frame);
 
     static qint16 le16(const QByteArray &d, int offset);
     static float  toTemperature(qint16 raw);
 
-    static constexpr quint8 FrameHeader       = 0x55;
-    static constexpr int    FrameSize         = 11;
-    // WT901BLE67 combined frame: 0x55 0x61 + accel(6) + gyro(6) + angle(6)
-    static constexpr quint8 CombinedFrameType = 0x61;
-    static constexpr int    CombinedFrameSize = 20;
+    static constexpr quint8 FrameHeader          = 0x55;
+    static constexpr int    FrameSize            = 11;
+    // WT901BLE67 combined frame:  0x55 0x61 + accel(6) + gyro(6) + angle(6), no checksum
+    static constexpr quint8 CombinedFrameType    = 0x61;
+    static constexpr int    CombinedFrameSize    = 20;
+    // WT901BLE67 register-read response: 0x55 0x71 + startReg(2) + 8 register values(16), no checksum
+    static constexpr quint8 ReadRespFrameType    = 0x71;
+    static constexpr int    ReadRespFrameSize    = 20;
 
     QByteArray     m_buffer;
     AccelData      m_accel;

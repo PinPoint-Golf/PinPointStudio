@@ -230,7 +230,7 @@ void WT9011DCL_BLE::onControllerDisconnected()
 
 void WT9011DCL_BLE::onServiceDiscovered(const QBluetoothUuid &uuid)
 {
-    Q_UNUSED(uuid)
+    emit diagnosticInfo(QStringLiteral("BLE service: %1").arg(uuid.toString()));
 }
 
 void WT9011DCL_BLE::onServiceDiscoveryFinished()

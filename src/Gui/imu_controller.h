@@ -19,8 +19,9 @@ class ImuController : public QObject
     Q_PROPERTY(float   imuRoll      READ imuRoll      NOTIFY eulerChanged)
     Q_PROPERTY(float   imuPitch     READ imuPitch     NOTIFY eulerChanged)
     Q_PROPERTY(float   imuYaw       READ imuYaw       NOTIFY eulerChanged)
-    Q_PROPERTY(int     outputRateHz READ outputRateHz NOTIFY outputRateHzChanged)
-    Q_PROPERTY(double  dataRateHz   READ dataRateHz   NOTIFY dataRateHzChanged)
+    Q_PROPERTY(int     outputRateHz  READ outputRateHz  NOTIFY outputRateHzChanged)
+    Q_PROPERTY(double  dataRateHz    READ dataRateHz    NOTIFY dataRateHzChanged)
+    Q_PROPERTY(int     batteryPercent READ batteryPercent NOTIFY batteryPercentChanged)
 
 public:
     explicit ImuController(QObject *parent = nullptr);
@@ -35,8 +36,9 @@ public:
     float   imuRoll()      const { return m_roll; }
     float   imuPitch()     const { return m_pitch; }
     float   imuYaw()       const { return m_yaw; }
-    int     outputRateHz() const { return m_outputRateHz; }
-    double  dataRateHz()   const { return m_dataRateHz; }
+    int     outputRateHz()   const { return m_outputRateHz; }
+    double  dataRateHz()     const { return m_dataRateHz; }
+    int     batteryPercent() const { return m_batteryPercent; }
 
     Q_INVOKABLE void connectImu();
     Q_INVOKABLE void disconnectImu();
@@ -52,6 +54,7 @@ signals:
     void eulerChanged();
     void outputRateHzChanged();
     void dataRateHzChanged();
+    void batteryPercentChanged();
     void logEntryAdded(const QString &entry);
 
 private:
@@ -70,6 +73,11 @@ private:
     bool   m_inConnectPhase = false;
     bool   m_attemptingConn = false;
 
+    // Battery polling
+    QTimer m_batteryTimer;
+    int    m_batteryRetries = 0;
+    static constexpr int kMaxBatteryRetries = 3;
+
     // State
     QString m_stateLabel = QStringLiteral("Disconnected");
     bool    m_connected  = false;
@@ -78,7 +86,8 @@ private:
     // IMU data
     float m_quatW = 1.0f, m_quatX = 0.0f, m_quatY = 0.0f, m_quatZ = 0.0f;
     float m_roll  = 0.0f, m_pitch = 0.0f, m_yaw   = 0.0f;
-    int   m_outputRateHz = 100;
+    int   m_outputRateHz  = 100;
+    int   m_batteryPercent = -1;  // -1 = no reading yet
 
     // Data rate — 30s rolling window of packet arrival timestamps (ms)
     QList<qint64> m_packetTimes;

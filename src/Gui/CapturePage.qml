@@ -84,6 +84,17 @@ Item {
             Item { Layout.fillWidth: true }
 
             Label {
+                visible: imuController.imuConnected && imuController.batteryPercent >= 0
+                text: "BAT: " + imuController.batteryPercent + "%"
+                color: imuController.batteryPercent > 60 ? "#a6e3a1"
+                     : imuController.batteryPercent > 20 ? "#f9e2af"
+                     :                                     "#f38ba8"
+                font.pixelSize: 13
+                font.family: "Courier New"
+                verticalAlignment: Text.AlignVCenter
+            }
+
+            Label {
                 visible: imuController.imuConnected && imuController.dataRateHz > 0
                 text: imuController.dataRateHz.toFixed(1) + " Hz"
                 color: "#a6e3a1"
