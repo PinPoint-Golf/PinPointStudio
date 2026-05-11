@@ -11,6 +11,7 @@ class VideoOverlayBase;
 
 #ifdef HAVE_OPENCV
 class PoseEstimatorBase;
+class FrameThrottle;
 #endif
 
 class VideoController : public QObject
@@ -22,6 +23,7 @@ class VideoController : public QObject
     Q_PROPERTY(bool isSpinnaker READ isSpinnaker NOTIFY isSpinnakerChanged)
     Q_PROPERTY(bool needsDebayer READ needsDebayer NOTIFY needsDebayerChanged)
     Q_PROPERTY(double preprocessAvgMs READ preprocessAvgMs NOTIFY preprocessAvgMsChanged)
+    Q_PROPERTY(double cameraFps READ cameraFps NOTIFY cameraFpsChanged)
     Q_PROPERTY(double poseAvgMs READ poseAvgMs NOTIFY poseAvgMsChanged)
     Q_PROPERTY(double poseFps   READ poseFps   NOTIFY poseFpsChanged)
     Q_PROPERTY(QString poseBackendLabel READ poseBackendLabel NOTIFY poseBackendLabelChanged)
@@ -37,6 +39,7 @@ public:
     bool   isSpinnaker() const;
     bool   needsDebayer() const;
     double  preprocessAvgMs() const;
+    double  cameraFps() const;
     double  poseAvgMs() const;
     double  poseFps() const;
     QString poseBackendLabel() const;
@@ -56,6 +59,7 @@ signals:
     void isSpinnakerChanged();
     void needsDebayerChanged();
     void preprocessAvgMsChanged();
+    void cameraFpsChanged();
     void poseAvgMsChanged();
     void poseFpsChanged();
     void poseBackendLabelChanged();
@@ -66,6 +70,7 @@ private slots:
     void onAnnotatedFrame(const QVideoFrame &frame);
     void onVideoError(const QString &message);
     void onPreprocessStats(double avgMs);
+    void onCameraFps(double fps);
     void onPoseStats(double avgMs, double fps);
     void onPoseBackendReady(const QString &label);
 
@@ -90,7 +95,9 @@ private:
 #ifdef HAVE_OPENCV
     QThread           *m_poseThread    = nullptr;
     PoseEstimatorBase *m_poseEstimator = nullptr;
+    FrameThrottle     *m_frameThrottle = nullptr;
 #endif
+    double             m_cameraFps          = 0.0;
     double             m_poseAvgMs          = 0.0;
     double             m_poseFps            = 0.0;
     QString            m_poseBackendLabel;

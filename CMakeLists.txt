@@ -813,6 +813,8 @@ if(OpenCV_FOUND)
         src/Video/video_preprocessor_opencv.cpp
         src/Video/video_overlay_pose.h
         src/Video/video_overlay_pose.cpp
+        src/Video/frame_throttle.h
+        src/Video/frame_throttle.cpp
     )
     if(EXISTS "${_movenet_lightning_path}")
         target_sources(PinPoint PRIVATE

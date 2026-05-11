@@ -2,7 +2,6 @@
 
 #include "video_preprocessor_opencv.h"
 
-#include <QElapsedTimer>
 #include <QImage>
 #include <opencv2/imgproc.hpp>
 
@@ -20,6 +19,23 @@ void VideoPreprocessorOpenCV::processFrame(const QVideoFrame &frame)
     QImage img = frame.toImage();
     if (img.isNull())
         return;
+
+    // Measure inter-frame interval for camera fps.
+    if (m_frameTimer.isValid()) {
+        const double intervalMs = m_frameTimer.nsecsElapsed() / 1e6;
+        m_intervalSum -= m_intervalSamples[m_intervalIndex];
+        m_intervalSamples[m_intervalIndex] = intervalMs;
+        m_intervalSum += intervalMs;
+        m_intervalIndex = (m_intervalIndex + 1) % kWindowSize;
+        if (m_intervalCount < kWindowSize)
+            ++m_intervalCount;
+        if (m_intervalCount == kWindowSize) {
+            const double avgInterval = m_intervalSum / kWindowSize;
+            if (avgInterval > 0.0)
+                emit cameraFpsUpdated(1000.0 / avgInterval);
+        }
+    }
+    m_frameTimer.restart();
 
     QElapsedTimer timer;
     timer.start();

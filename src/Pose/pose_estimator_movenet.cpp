@@ -236,6 +236,7 @@ void PoseEstimatorMoveNet::estimatePose(const cv::Mat &frame)
 
     } catch (const Ort::Exception &e) {
         qWarning() << "[MoveNet] Inference error:" << e.what();
+        emit estimationDone();
         return;
     }
 
@@ -262,6 +263,8 @@ void PoseEstimatorMoveNet::estimatePose(const cv::Mat &frame)
         const double fps = (avgInterval > 0.0) ? 1000.0 / avgInterval : 0.0;
         emit poseStatsUpdated(avgInferMs, fps);
     }
+
+    emit estimationDone();
 }
 
 #endif // HAVE_OPENCV && HAVE_MOVENET && HAVE_ONNXRUNTIME

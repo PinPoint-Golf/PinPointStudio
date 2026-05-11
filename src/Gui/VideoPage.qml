@@ -138,6 +138,14 @@ Item {
             }
 
             Label {
+                visible: videoController.isRecording && videoController.cameraFps > 0
+                text: "Cam: " + videoController.cameraFps.toFixed(1) + " fps"
+                color: "#6c7086"
+                font.pixelSize: 12
+                font.family: "Courier New"
+            }
+
+            Label {
                 visible: videoController.isRecording && videoController.poseFps > 0
                 text: "Pose: " + videoController.poseAvgMs.toFixed(1) + " ms  "
                     + videoController.poseFps.toFixed(1) + " fps"

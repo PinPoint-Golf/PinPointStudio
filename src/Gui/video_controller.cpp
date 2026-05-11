@@ -9,6 +9,7 @@
 #include "video_preprocessor_opencv.h"
 #include "video_overlay_pose.h"
 #include "pose_estimator_base.h"
+#include "frame_throttle.h"
 #endif
 
 #if defined(HAVE_OPENCV) && defined(HAVE_MOVENET) && defined(HAVE_ONNXRUNTIME)
@@ -42,6 +43,8 @@ VideoController::VideoController(QObject *parent)
     m_preprocessor->moveToThread(m_preprocessThread);
     connect(m_preprocessor, &VideoPreprocessorBase::preprocessStatsUpdated,
             this, &VideoController::onPreprocessStats, Qt::QueuedConnection);
+    connect(m_preprocessor, &VideoPreprocessorBase::cameraFpsUpdated,
+            this, &VideoController::onCameraFps, Qt::QueuedConnection);
     m_preprocessThread->start();
 
     // ── Overlay thread ───────────────────────────────────────────────────────
@@ -66,10 +69,22 @@ VideoController::VideoController(QObject *parent)
     connect(m_poseEstimator, &PoseEstimatorBase::poseBackendReady,
             this, &VideoController::onPoseBackendReady, Qt::QueuedConnection);
 
-    // Preprocessor → pose estimator.
+    // Throttle: preprocessor → throttle (direct, same thread) →
+    //           pose estimator (queued, cross-thread).
+    // clearBusy() fires via queued connection from the pose thread back to
+    // the preprocessor thread, keeping m_busy single-threaded.
+    m_frameThrottle = new FrameThrottle();
+    m_frameThrottle->moveToThread(m_preprocessThread);
+
     auto *cvPP = qobject_cast<VideoPreprocessorOpenCV *>(m_preprocessor);
     connect(cvPP, &VideoPreprocessorOpenCV::framePreprocessed,
+            m_frameThrottle, &FrameThrottle::offer,
+            Qt::DirectConnection);
+    connect(m_frameThrottle, &FrameThrottle::frameReady,
             m_poseEstimator, &PoseEstimatorBase::estimatePose,
+            Qt::QueuedConnection);
+    connect(m_poseEstimator, &PoseEstimatorBase::estimationDone,
+            m_frameThrottle, &FrameThrottle::clearBusy,
             Qt::QueuedConnection);
 
     // Pose result → overlay (so skeleton is drawn on the live feed).
@@ -106,12 +121,16 @@ VideoController::~VideoController()
     if (m_preprocessor && m_preprocessThread && m_preprocessThread->isRunning()) {
         QMetaObject::invokeMethod(m_preprocessor, [this]() {
             m_preprocessor->moveToThread(QCoreApplication::instance()->thread());
+            if (m_frameThrottle)
+                m_frameThrottle->moveToThread(QCoreApplication::instance()->thread());
         }, Qt::BlockingQueuedConnection);
         m_preprocessThread->quit();
         m_preprocessThread->wait();
     }
     delete m_preprocessor;
     m_preprocessor = nullptr;
+    delete m_frameThrottle;
+    m_frameThrottle = nullptr;
 
 #ifdef HAVE_OPENCV
     // 3. Stop pose estimator — drain queued estimatePose calls first.
@@ -175,6 +194,7 @@ bool   VideoController::isAravis()       const { return VideoInputFactory::backe
 bool   VideoController::isSpinnaker()    const { return VideoInputFactory::backendType(m_videoInput) == VideoInputFactory::Backend::Spinnaker; }
 bool   VideoController::needsDebayer()   const { return isAravis() || isSpinnaker(); }
 double  VideoController::preprocessAvgMs()        const { return m_preprocessAvgMs; }
+double  VideoController::cameraFps()              const { return m_cameraFps; }
 double  VideoController::poseAvgMs()              const { return m_poseAvgMs; }
 double  VideoController::poseFps()                const { return m_poseFps; }
 QString VideoController::poseBackendLabel()       const { return m_poseBackendLabel; }
@@ -318,6 +338,14 @@ void VideoController::onPreprocessStats(double avgMs)
         return;
     m_preprocessAvgMs = avgMs;
     emit preprocessAvgMsChanged();
+}
+
+void VideoController::onCameraFps(double fps)
+{
+    if (qFuzzyCompare(m_cameraFps, fps))
+        return;
+    m_cameraFps = fps;
+    emit cameraFpsChanged();
 }
 
 void VideoController::onPoseStats(double avgMs, double fps)

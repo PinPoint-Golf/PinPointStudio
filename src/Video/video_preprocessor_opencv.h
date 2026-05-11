@@ -3,6 +3,7 @@
 #ifdef HAVE_OPENCV
 
 #include "video_preprocessor_base.h"
+#include <QElapsedTimer>
 #include <opencv2/core.hpp>
 #include <array>
 
@@ -35,10 +36,19 @@ signals:
 
 private:
     static constexpr int kWindowSize = 30;
+
+    // Preprocessing duration samples.
     std::array<double, kWindowSize> m_timingSamples{};
     double m_timingSum   = 0.0;
     int    m_timingIndex = 0;
     int    m_timingCount = 0;
+
+    // Inter-frame interval samples for camera fps.
+    QElapsedTimer m_frameTimer;
+    std::array<double, kWindowSize> m_intervalSamples{};
+    double m_intervalSum   = 0.0;
+    int    m_intervalIndex = 0;
+    int    m_intervalCount = 0;
 };
 
 #endif // HAVE_OPENCV

@@ -64,6 +64,10 @@ public slots:
 signals:
     void poseEstimated(const PoseResult &result);
 
+    // Emitted when a single estimatePose() call finishes (success or error).
+    // FrameThrottle connects this to clearBusy() to release the next frame.
+    void estimationDone();
+
     // Emitted once after load() completes. Empty string = CPU only;
     // otherwise "CoreML", "CUDA", or "DirectML".
     void poseBackendReady(const QString &label);
