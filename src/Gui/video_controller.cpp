@@ -3,12 +3,8 @@
 #include "video_input_base.h"
 #include "video_input_factory.h"
 #include "video_preprocessor_base.h"
-#include "video_overlay_base.h"
-
 #ifdef HAVE_OPENCV
 #include "video_preprocessor_opencv.h"
-#include "video_overlay_pose.h"
-#include "pose_estimator_base.h"
 #include "frame_throttle.h"
 #endif
 
@@ -43,18 +39,7 @@ VideoController::VideoController(QObject *parent)
     m_preprocessor->moveToThread(m_preprocessThread);
     connect(m_preprocessor, &VideoPreprocessorBase::preprocessStatsUpdated,
             this, &VideoController::onPreprocessStats, Qt::QueuedConnection);
-    connect(m_preprocessor, &VideoPreprocessorBase::cameraFpsUpdated,
-            this, &VideoController::onCameraFps, Qt::QueuedConnection);
     m_preprocessThread->start();
-
-    // ── Overlay thread ───────────────────────────────────────────────────────
-    m_overlayThread = new QThread(this);
-    m_overlayThread->setObjectName(QStringLiteral("VideoOverlayThread"));
-    m_overlay = new VideoOverlayPose();
-    m_overlay->moveToThread(m_overlayThread);
-    connect(m_overlay, &VideoOverlayBase::frameReady,
-            this, &VideoController::onAnnotatedFrame, Qt::QueuedConnection);
-    m_overlayThread->start();
 
 #if defined(HAVE_MOVENET) && defined(HAVE_ONNXRUNTIME)
     // ── Pose estimator thread ────────────────────────────────────────────────
@@ -69,28 +54,24 @@ VideoController::VideoController(QObject *parent)
     connect(m_poseEstimator, &PoseEstimatorBase::poseBackendReady,
             this, &VideoController::onPoseBackendReady, Qt::QueuedConnection);
 
-    // Throttle: preprocessor → throttle (direct, same thread) →
-    //           pose estimator (queued, cross-thread).
-    // clearBusy() fires via queued connection from the pose thread back to
-    // the preprocessor thread, keeping m_busy single-threaded.
+    // Throttle sits before the preprocessor: the capture thread offers raw
+    // QVideoFrames; only the accepted frame reaches processFrame, so the
+    // preprocessor queue never builds a stale-frame backlog.
+    // clearBusy fires immediately on the pose thread (DirectConnection) and
+    // re-emits the latest frame captured during the previous inference cycle.
     m_frameThrottle = new FrameThrottle();
-    m_frameThrottle->moveToThread(m_preprocessThread);
 
     auto *cvPP = qobject_cast<VideoPreprocessorOpenCV *>(m_preprocessor);
     connect(cvPP, &VideoPreprocessorOpenCV::framePreprocessed,
-            m_frameThrottle, &FrameThrottle::offer,
-            Qt::DirectConnection);
-    connect(m_frameThrottle, &FrameThrottle::frameReady,
             m_poseEstimator, &PoseEstimatorBase::estimatePose,
             Qt::QueuedConnection);
     connect(m_poseEstimator, &PoseEstimatorBase::estimationDone,
             m_frameThrottle, &FrameThrottle::clearBusy,
-            Qt::QueuedConnection);
+            Qt::DirectConnection);
 
-    // Pose result → overlay (so skeleton is drawn on the live feed).
-    auto *poseOverlay = static_cast<VideoOverlayPose *>(m_overlay);
+    // Pose result → keypoints property (drawn by QML Canvas, independent of frame display).
     connect(m_poseEstimator, &PoseEstimatorBase::poseEstimated,
-            poseOverlay, &VideoOverlayPose::updatePose,
+            this, &VideoController::onPoseEstimated,
             Qt::QueuedConnection);
 
     m_poseThread->start();
@@ -121,8 +102,6 @@ VideoController::~VideoController()
     if (m_preprocessor && m_preprocessThread && m_preprocessThread->isRunning()) {
         QMetaObject::invokeMethod(m_preprocessor, [this]() {
             m_preprocessor->moveToThread(QCoreApplication::instance()->thread());
-            if (m_frameThrottle)
-                m_frameThrottle->moveToThread(QCoreApplication::instance()->thread());
         }, Qt::BlockingQueuedConnection);
         m_preprocessThread->quit();
         m_preprocessThread->wait();
@@ -144,17 +123,6 @@ VideoController::~VideoController()
     delete m_poseEstimator;
     m_poseEstimator = nullptr;
 #endif
-
-    // 4. Stop overlay — drain any queued overlayFrame calls first.
-    if (m_overlay && m_overlayThread && m_overlayThread->isRunning()) {
-        QMetaObject::invokeMethod(m_overlay, [this]() {
-            m_overlay->moveToThread(QCoreApplication::instance()->thread());
-        }, Qt::BlockingQueuedConnection);
-        m_overlayThread->quit();
-        m_overlayThread->wait();
-    }
-    delete m_overlay;
-    m_overlay = nullptr;
 }
 
 // ---------------------------------------------------------------------------
@@ -163,22 +131,18 @@ VideoController::~VideoController()
 
 void VideoController::connectVideoInput()
 {
-    // Route video frames through the overlay when available; otherwise direct.
-    if (m_overlay) {
-        connect(m_videoInput, &VideoInputBase::videoFrameReady,
-                m_overlay, &VideoOverlayBase::overlayFrame,
-                Qt::QueuedConnection);
-    } else {
-        connect(m_videoInput, &VideoInputBase::videoFrameReady,
-                this, &VideoController::onVideoFrame,
-                Qt::QueuedConnection);
-    }
+    connect(m_videoInput, &VideoInputBase::videoFrameReady,
+            this, &VideoController::onVideoFrame,
+            Qt::QueuedConnection);
     connect(m_videoInput, &VideoInputBase::errorOccurred,
             this, &VideoController::onVideoError);
 
 #ifdef HAVE_OPENCV
-    if (m_preprocessor) {
+    if (m_frameThrottle) {
         connect(m_videoInput, &VideoInputBase::videoFrameReady,
+                m_frameThrottle, &FrameThrottle::offer,
+                Qt::DirectConnection);
+        connect(m_frameThrottle, &FrameThrottle::frameReady,
                 m_preprocessor, &VideoPreprocessorBase::processFrame,
                 Qt::QueuedConnection);
     }
@@ -309,23 +273,59 @@ void VideoController::stopRecording()
     }, Qt::QueuedConnection);
     m_recording = false;
     emit isRecordingChanged();
+    m_poseKeypoints.clear();
+    emit poseKeypointsChanged();
 }
 
 // ---------------------------------------------------------------------------
 // Slots
 // ---------------------------------------------------------------------------
 
+QVariantList VideoController::poseKeypoints() const { return m_poseKeypoints; }
+
 void VideoController::onVideoFrame(const QVideoFrame &frame)
 {
     if (m_videoSink && frame.isValid())
         m_videoSink->setVideoFrame(frame);
+
+    if (m_camFpsTimer.isValid()) {
+        const double ms = m_camFpsTimer.nsecsElapsed() / 1e6;
+        m_camFpsSum -= m_camFpsIntervals[m_camFpsIndex];
+        m_camFpsIntervals[m_camFpsIndex] = ms;
+        m_camFpsSum += ms;
+        m_camFpsIndex = (m_camFpsIndex + 1) % kCamFpsWindow;
+        if (m_camFpsCount < kCamFpsWindow)
+            ++m_camFpsCount;
+        if (m_camFpsCount == kCamFpsWindow) {
+            const double avg = m_camFpsSum / kCamFpsWindow;
+            if (avg > 0.0) {
+                const double fps = 1000.0 / avg;
+                if (!qFuzzyCompare(m_cameraFps, fps)) {
+                    m_cameraFps = fps;
+                    emit cameraFpsChanged();
+                }
+            }
+        }
+    }
+    m_camFpsTimer.restart();
 }
 
-void VideoController::onAnnotatedFrame(const QVideoFrame &frame)
+#ifdef HAVE_OPENCV
+void VideoController::onPoseEstimated(const PoseResult &result)
 {
-    if (m_videoSink && frame.isValid())
-        m_videoSink->setVideoFrame(frame);
+    QVariantList kps;
+    kps.reserve(PoseResult::kNumKeypoints);
+    for (const auto &kp : result.keypoints) {
+        QVariantMap m;
+        m[QStringLiteral("x")]     = static_cast<double>(kp.x);
+        m[QStringLiteral("y")]     = static_cast<double>(kp.y);
+        m[QStringLiteral("score")] = static_cast<double>(kp.score);
+        kps.append(m);
+    }
+    m_poseKeypoints = kps;
+    emit poseKeypointsChanged();
 }
+#endif
 
 void VideoController::onVideoError(const QString &message)
 {
@@ -340,13 +340,6 @@ void VideoController::onPreprocessStats(double avgMs)
     emit preprocessAvgMsChanged();
 }
 
-void VideoController::onCameraFps(double fps)
-{
-    if (qFuzzyCompare(m_cameraFps, fps))
-        return;
-    m_cameraFps = fps;
-    emit cameraFpsChanged();
-}
 
 void VideoController::onPoseStats(double avgMs, double fps)
 {

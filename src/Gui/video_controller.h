@@ -1,16 +1,18 @@
 #pragma once
 
+#include <QElapsedTimer>
 #include <QObject>
+#include <QVariantList>
+#include <array>
 
 class QThread;
 class QVideoFrame;
 class QVideoSink;
 class VideoInputBase;
 class VideoPreprocessorBase;
-class VideoOverlayBase;
 
 #ifdef HAVE_OPENCV
-class PoseEstimatorBase;
+#include "pose_estimator_base.h"
 class FrameThrottle;
 #endif
 
@@ -29,6 +31,7 @@ class VideoController : public QObject
     Q_PROPERTY(QString poseBackendLabel READ poseBackendLabel NOTIFY poseBackendLabelChanged)
     Q_PROPERTY(int moveNetModel READ moveNetModel NOTIFY moveNetModelChanged)
     Q_PROPERTY(bool moveNetThunderAvailable READ moveNetThunderAvailable CONSTANT)
+    Q_PROPERTY(QVariantList poseKeypoints READ poseKeypoints NOTIFY poseKeypointsChanged)
 
 public:
     explicit VideoController(QObject *parent = nullptr);
@@ -45,6 +48,7 @@ public:
     QString poseBackendLabel() const;
     int     moveNetModel() const;
     bool    moveNetThunderAvailable() const;
+    QVariantList poseKeypoints() const;
 
     Q_INVOKABLE void setVideoSink(QVideoSink *sink);
     Q_INVOKABLE void startRecording();
@@ -64,20 +68,20 @@ signals:
     void poseFpsChanged();
     void poseBackendLabelChanged();
     void moveNetModelChanged();
+    void poseKeypointsChanged();
 
 private slots:
     void onVideoFrame(const QVideoFrame &frame);
-    void onAnnotatedFrame(const QVideoFrame &frame);
     void onVideoError(const QString &message);
     void onPreprocessStats(double avgMs);
-    void onCameraFps(double fps);
     void onPoseStats(double avgMs, double fps);
     void onPoseBackendReady(const QString &label);
+#ifdef HAVE_OPENCV
+    void onPoseEstimated(const PoseResult &result);
+#endif
 
 private:
     void startCapture();
-    // Connects m_videoInput to the rest of the pipeline.  Called once on
-    // construction and again if the backend is swapped during a fallback.
     void connectVideoInput();
 
     QThread               *m_captureThread   = nullptr;
@@ -89,17 +93,21 @@ private:
     VideoPreprocessorBase *m_preprocessor     = nullptr;
     double                 m_preprocessAvgMs  = 0.0;
 
-    QThread          *m_overlayThread  = nullptr;
-    VideoOverlayBase *m_overlay        = nullptr;
-
 #ifdef HAVE_OPENCV
     QThread           *m_poseThread    = nullptr;
     PoseEstimatorBase *m_poseEstimator = nullptr;
     FrameThrottle     *m_frameThrottle = nullptr;
 #endif
+    static constexpr int kCamFpsWindow = 30;
+    QElapsedTimer                        m_camFpsTimer;
+    std::array<double, kCamFpsWindow>    m_camFpsIntervals{};
+    double                               m_camFpsSum   = 0.0;
+    int                                  m_camFpsIndex = 0;
+    int                                  m_camFpsCount = 0;
     double             m_cameraFps          = 0.0;
     double             m_poseAvgMs          = 0.0;
     double             m_poseFps            = 0.0;
     QString            m_poseBackendLabel;
-    int                m_moveNetModel       = 0; // 0=Lightning, 1=Thunder
+    int                m_moveNetModel       = 0;
+    QVariantList       m_poseKeypoints;
 };

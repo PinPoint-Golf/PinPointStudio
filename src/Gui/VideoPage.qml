@@ -61,6 +61,78 @@ Item {
                 color: "#6c7086"
                 font.pixelSize: 14
             }
+
+            // ── Skeleton overlay (drawn independently of frame capture) ────────
+            Canvas {
+                id: skeletonCanvas
+                anchors.fill: parent
+                visible: videoController.isRecording
+
+                readonly property var kEdges: [
+                    {a:0,  b:1,  color:"#a6e3a1"}, {a:0,  b:2,  color:"#89b4fa"},
+                    {a:1,  b:3,  color:"#a6e3a1"}, {a:2,  b:4,  color:"#89b4fa"},
+                    {a:0,  b:5,  color:"#a6e3a1"}, {a:0,  b:6,  color:"#89b4fa"},
+                    {a:5,  b:6,  color:"#f9e2af"},
+                    {a:5,  b:7,  color:"#a6e3a1"}, {a:7,  b:9,  color:"#a6e3a1"},
+                    {a:6,  b:8,  color:"#89b4fa"}, {a:8,  b:10, color:"#89b4fa"},
+                    {a:5,  b:11, color:"#a6e3a1"}, {a:6,  b:12, color:"#89b4fa"},
+                    {a:11, b:12, color:"#f9e2af"},
+                    {a:11, b:13, color:"#a6e3a1"}, {a:13, b:15, color:"#a6e3a1"},
+                    {a:12, b:14, color:"#89b4fa"}, {a:14, b:16, color:"#89b4fa"}
+                ]
+
+                Connections {
+                    target: videoController
+                    function onPoseKeypointsChanged() { skeletonCanvas.requestPaint() }
+                }
+
+                onPaint: {
+                    var ctx = getContext("2d")
+                    ctx.clearRect(0, 0, width, height)
+
+                    var kps = videoController.poseKeypoints
+                    if (!kps || kps.length < 17)
+                        return
+
+                    // Map normalised [0,1] coords into the letterboxed video rect.
+                    var cr = videoOut.contentRect
+                    if (cr.width <= 0 || cr.height <= 0)
+                        return
+
+                    var kMinScore = 0.25
+
+                    // Draw bones.
+                    for (var i = 0; i < kEdges.length; ++i) {
+                        var e = kEdges[i]
+                        var ka = kps[e.a], kb = kps[e.b]
+                        if (ka.score < kMinScore || kb.score < kMinScore)
+                            continue
+                        ctx.globalAlpha = 0.4 + 0.6 * Math.min(ka.score, kb.score)
+                        ctx.strokeStyle = e.color
+                        ctx.lineWidth   = 2
+                        ctx.lineCap     = "round"
+                        ctx.beginPath()
+                        ctx.moveTo(ka.x * cr.width + cr.x, ka.y * cr.height + cr.y)
+                        ctx.lineTo(kb.x * cr.width + cr.x, kb.y * cr.height + cr.y)
+                        ctx.stroke()
+                    }
+
+                    // Draw joints on top.
+                    for (var j = 0; j < kps.length; ++j) {
+                        var kp = kps[j]
+                        if (kp.score < kMinScore)
+                            continue
+                        var s = kp.score
+                        ctx.fillStyle   = s >= 0.6 ? "#cdd6f4" : s >= 0.4 ? "#f9e2af" : "#f38ba8"
+                        ctx.globalAlpha = 0.5 + 0.5 * s
+                        ctx.beginPath()
+                        ctx.arc(kp.x * cr.width + cr.x, kp.y * cr.height + cr.y, 4, 0, Math.PI * 2)
+                        ctx.fill()
+                    }
+
+                    ctx.globalAlpha = 1.0
+                }
+            }
         }
 
         // ── Controls ─────────────────────────────────────────────────────────

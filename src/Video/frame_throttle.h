@@ -2,20 +2,28 @@
 
 #ifdef HAVE_OPENCV
 
+#include <QMutex>
 #include <QObject>
-#include <opencv2/core.hpp>
+#include <QVideoFrame>
+#include <atomic>
 
-// Sits between VideoPreprocessorOpenCV and PoseEstimatorBase.
-// Passes a frame only when the previous inference has completed, preventing
-// unbounded queue growth on the pose estimator thread.
+// Sits between the camera and VideoPreprocessorOpenCV.
+// Ensures the preprocessor (and therefore the pose estimator) only ever
+// works on the freshest available frame.
 //
-// Thread model: move to the preprocessor thread.
-//   - offer()     — connect with Qt::DirectConnection from framePreprocessed
-//                   (same thread; inline filter, no queue overhead)
-//   - clearBusy() — connect with Qt::QueuedConnection from estimationDone
-//                   (pose thread → event posted to preprocessor thread)
-//   - frameReady  — connect with Qt::QueuedConnection to estimatePose
-//                   (preprocessor thread → pose thread)
+// Thread model (all connections are DirectConnection):
+//   offer()     — capture thread  (videoFrameReady → offer)
+//   clearBusy() — pose thread     (estimationDone  → clearBusy)
+//   frameReady  — QueuedConnection → preprocessor.processFrame
+//
+// While inference is in flight every incoming QVideoFrame overwrites
+// m_latest, so only the most recent one is kept.  When clearBusy() fires
+// it immediately emits m_latest (if any), keeping m_busy=true and starting
+// the next inference without going idle.  This bounds skeleton lag to one
+// inference cycle regardless of camera frame rate.
+//
+// The preprocessor never sees stale frames and its event queue never builds
+// up a backlog.
 
 class FrameThrottle : public QObject
 {
@@ -25,14 +33,16 @@ public:
     explicit FrameThrottle(QObject *parent = nullptr);
 
 public slots:
-    void offer(const cv::Mat &frame);
+    void offer(const QVideoFrame &frame);
     void clearBusy();
 
 signals:
-    void frameReady(const cv::Mat &frame);
+    void frameReady(const QVideoFrame &frame);
 
 private:
-    bool m_busy = false;
+    std::atomic<bool> m_busy{false};
+    QVideoFrame       m_latest;
+    QMutex            m_mutex;
 };
 
 #endif // HAVE_OPENCV
