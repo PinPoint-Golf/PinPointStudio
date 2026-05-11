@@ -4,6 +4,8 @@
 
 #ifdef Q_OS_MACOS
 #include "VideoInputApple.h"
+#include <QCameraDevice>
+#include <QMediaDevices>
 #endif
 
 #ifdef HAVE_SPINNAKER
@@ -26,7 +28,21 @@
 
 void VideoInputFactory::enumerateDevices()
 {
+#ifdef Q_OS_MACOS
+    // On macOS the Qt Multimedia camera backend (VideoInput/QCamera) cannot
+    // obtain permission because QCameraPermission is only compiled into the
+    // AVFoundation multimedia plugin, not the FFmpeg one.  Enumerate cameras
+    // via QMediaDevices but register them as AppleAVFoundation so that
+    // CameraManager creates VideoInputApple instances (pure AVFoundation, no
+    // QCameraPermission) for every device.
+    for (const QCameraDevice &dev : QMediaDevices::videoInputs()) {
+        DeviceEnumerator::instance()->registerDevice(
+            DeviceType::VideoInput, Backend::AppleAVFoundation,
+            dev.id(), dev.description());
+    }
+#else
     VideoInput::availableDevices();
+#endif
 
 #ifdef HAVE_ARAVIS
     arv_update_device_list();
