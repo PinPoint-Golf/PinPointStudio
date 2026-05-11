@@ -48,41 +48,48 @@ VideoController::VideoController(const Device &device, QObject *parent)
 
 void VideoController::setupPipeline()
 {
+    // Set to false to disable the entire preprocessor/pose/throttle pipeline
+    // for capture-rate diagnostics.  Flip back to true to restore.
+    static constexpr bool kPoseEnabled = true;
+
     m_captureThread->setObjectName(QStringLiteral("VideoCaptureThread"));
     m_videoInput->moveToThread(m_captureThread);
 
 #ifdef HAVE_OPENCV
-    m_preprocessThread = new QThread(this);
-    m_preprocessThread->setObjectName(QStringLiteral("VideoPreprocessThread"));
-    m_preprocessor = new VideoPreprocessorOpenCV();
-    m_preprocessor->moveToThread(m_preprocessThread);
-    connect(m_preprocessor, &VideoPreprocessorBase::preprocessStatsUpdated,
-            this, &VideoController::onPreprocessStats, Qt::QueuedConnection);
-    m_preprocessThread->start();
+    if (kPoseEnabled) {
+        m_preprocessThread = new QThread(this);
+        m_preprocessThread->setObjectName(QStringLiteral("VideoPreprocessThread"));
+        m_preprocessor = new VideoPreprocessorOpenCV();
+        m_preprocessor->moveToThread(m_preprocessThread);
+        connect(m_preprocessor, &VideoPreprocessorBase::preprocessStatsUpdated,
+                this, &VideoController::onPreprocessStats, Qt::QueuedConnection);
+        m_preprocessThread->start();
 
 #if defined(HAVE_MOVENET) && defined(HAVE_ONNXRUNTIME)
-    m_poseThread = new QThread(this);
-    m_poseThread->setObjectName(QStringLiteral("PoseEstimatorThread"));
-    auto *mn = new PoseEstimatorMoveNet();
-    m_poseEstimator = mn;
-    m_poseEstimator->moveToThread(m_poseThread);
-    connect(m_poseThread, &QThread::started, mn, &PoseEstimatorMoveNet::load);
-    connect(m_poseEstimator, &PoseEstimatorBase::poseStatsUpdated,
-            this, &VideoController::onPoseStats, Qt::QueuedConnection);
-    connect(m_poseEstimator, &PoseEstimatorBase::poseBackendReady,
-            this, &VideoController::onPoseBackendReady, Qt::QueuedConnection);
+        m_poseThread = new QThread(this);
+        m_poseThread->setObjectName(QStringLiteral("PoseEstimatorThread"));
+        auto *mn = new PoseEstimatorMoveNet();
+        m_poseEstimator = mn;
+        m_poseEstimator->moveToThread(m_poseThread);
+        connect(m_poseThread, &QThread::started, mn, &PoseEstimatorMoveNet::load);
+        connect(m_poseEstimator, &PoseEstimatorBase::poseStatsUpdated,
+                this, &VideoController::onPoseStats, Qt::QueuedConnection);
+        connect(m_poseEstimator, &PoseEstimatorBase::poseBackendReady,
+                this, &VideoController::onPoseBackendReady, Qt::QueuedConnection);
 
-    m_frameThrottle = new FrameThrottle();
+        m_frameThrottle = new FrameThrottle();
+        m_frameThrottle->setSkipFactor(10);
 
-    auto *cvPP = qobject_cast<VideoPreprocessorOpenCV *>(m_preprocessor);
-    connect(cvPP, &VideoPreprocessorOpenCV::framePreprocessed,
-            m_poseEstimator, &PoseEstimatorBase::estimatePose, Qt::QueuedConnection);
-    connect(m_poseEstimator, &PoseEstimatorBase::estimationDone,
-            m_frameThrottle, &FrameThrottle::clearBusy, Qt::DirectConnection);
-    connect(m_poseEstimator, &PoseEstimatorBase::poseEstimated,
-            this, &VideoController::onPoseEstimated, Qt::QueuedConnection);
-    m_poseThread->start();
+        auto *cvPP = qobject_cast<VideoPreprocessorOpenCV *>(m_preprocessor);
+        connect(cvPP, &VideoPreprocessorOpenCV::framePreprocessed,
+                m_poseEstimator, &PoseEstimatorBase::estimatePose, Qt::QueuedConnection);
+        connect(m_poseEstimator, &PoseEstimatorBase::estimationDone,
+                m_frameThrottle, &FrameThrottle::clearBusy, Qt::DirectConnection);
+        connect(m_poseEstimator, &PoseEstimatorBase::poseEstimated,
+                this, &VideoController::onPoseEstimated, Qt::QueuedConnection);
+        m_poseThread->start();
 #endif // HAVE_MOVENET && HAVE_ONNXRUNTIME
+    } // kPoseEnabled
 #endif // HAVE_OPENCV
 
     connectVideoInput();
@@ -353,6 +360,16 @@ void VideoController::drainDisplayFrame()
         m_latestDisplayFrame = QVideoFrame();
     }
     m_displayFramePending.store(false, std::memory_order_release);
+
+    // Spinnaker emits BGR888 to avoid a full-image R/B swap on the capture thread
+    // for every frame.  Convert to RGB888 here, at display rate (~30 fps), not at
+    // capture rate (up to 100 fps per camera).
+    if (f.isValid()) {
+        const QImage img = f.toImage();
+        if (img.format() == QImage::Format_BGR888)
+            f = QVideoFrame(img.convertToFormat(QImage::Format_RGB888));
+    }
+
     onVideoFrame(f);
 }
 

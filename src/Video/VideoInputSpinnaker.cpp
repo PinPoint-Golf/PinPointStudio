@@ -7,6 +7,10 @@
 #include "SpinGenApi/SpinnakerGenApi.h"
 #endif
 
+#ifdef HAVE_OPENCV
+#include <opencv2/imgproc.hpp>
+#endif
+
 #include "VideoInputSpinnaker.h"
 #include <QDebug>
 #include <QVideoFrame>
@@ -183,9 +187,11 @@ QVideoFrameFormat VideoInputSpinnaker::frameFormat() const
 void VideoInputSpinnaker::captureLoop()
 {
 #ifdef HAVE_SPINNAKER
-    // Create once and reuse — ImageProcessor allocates internal state in its constructor.
+#ifndef HAVE_OPENCV
+    // ImageProcessor only needed when OpenCV is unavailable for Bayer conversion.
     ImageProcessor processor;
     processor.SetColorProcessing(SPINNAKER_COLOR_PROCESSING_ALGORITHM_NEAREST_NEIGHBOR);
+#endif
 
     while (!m_abort && m_camera) {
         CameraPtr *camera = (CameraPtr*)m_camera;
@@ -210,20 +216,42 @@ void VideoInputSpinnaker::captureLoop()
                                  static_cast<int>(width) * 3,
                                  QImage::Format_RGB888).copy();
                 } else if (isBGR) {
-                    // Wrap as BGR then convert to RGB888 so the shader always gets RGB.
+                    // Keep as BGR888; drainDisplayFrame converts to RGB888 at display rate.
                     img = QImage(static_cast<const uchar*>(pResultImage->GetData()),
                                  static_cast<int>(width), static_cast<int>(height),
                                  static_cast<int>(width) * 3,
-                                 QImage::Format_BGR888)
-                              .convertToFormat(QImage::Format_RGB888);
+                                 QImage::Format_BGR888).copy();
                 } else if (isBayer) {
-                    // Spinnaker supports BGR8 as a Bayer conversion target; convert then swap.
+#ifdef HAVE_OPENCV
+                    // OpenCV's SIMD-optimised Bayer→BGR demosaic.
+                    // Map Spinnaker pixel format to the matching OpenCV conversion code.
+                    int cvtCode;
+                    if      (fmt == PixelFormat_BayerRG8) cvtCode = cv::COLOR_BayerRGGB2BGR;
+                    else if (fmt == PixelFormat_BayerBG8) cvtCode = cv::COLOR_BayerBGGR2BGR;
+                    else if (fmt == PixelFormat_BayerGR8) cvtCode = cv::COLOR_BayerGRBG2BGR;
+                    else                                   cvtCode = cv::COLOR_BayerGBRG2BGR;
+
+                    // Wrap raw Bayer8 buffer without copying (read-only, valid until Release).
+                    cv::Mat bayer(static_cast<int>(height), static_cast<int>(width), CV_8UC1,
+                                  pResultImage->GetData(),
+                                  static_cast<size_t>(pResultImage->GetStride()));
+                    cv::Mat bgrMat;
+                    cv::cvtColor(bayer, bgrMat, cvtCode);
+                    // .copy() moves the result into Qt-managed heap memory so the D3D
+                    // video pipeline gets a standard allocation (avoids display lag from
+                    // the OpenCV allocator being handed directly to the upload path).
+                    img = QImage(bgrMat.data,
+                                 static_cast<int>(width), static_cast<int>(height),
+                                 static_cast<int>(bgrMat.step[0]),
+                                 QImage::Format_BGR888).copy();
+#else
+                    // Fallback: Spinnaker SDK conversion when OpenCV is unavailable.
                     ImagePtr converted = processor.Convert(pResultImage, PixelFormat_BGR8);
                     img = QImage(static_cast<const uchar*>(converted->GetData()),
                                  static_cast<int>(width), static_cast<int>(height),
                                  static_cast<int>(width) * 3,
-                                 QImage::Format_BGR888)
-                              .convertToFormat(QImage::Format_RGB888);
+                                 QImage::Format_BGR888).copy();
+#endif
                 } else {
                     img = QImage(static_cast<const uchar*>(pResultImage->GetData()),
                                  static_cast<int>(width), static_cast<int>(height),

@@ -32,6 +32,10 @@ class FrameThrottle : public QObject
 public:
     explicit FrameThrottle(QObject *parent = nullptr);
 
+    // Only forward every n-th offered frame to the preprocessor.
+    // Default is 1 (every frame).  Set to 2 to halve the pose rate, etc.
+    void setSkipFactor(int n);
+
 public slots:
     void offer(const QVideoFrame &frame);
     void clearBusy();
@@ -43,6 +47,8 @@ private:
     std::atomic<bool> m_busy{false};
     QVideoFrame       m_latest;
     QMutex            m_mutex;
+    int               m_skipFactor{1};
+    int               m_offerCount{0};
 };
 
 #endif // HAVE_OPENCV

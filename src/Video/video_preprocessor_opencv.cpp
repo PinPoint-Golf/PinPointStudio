@@ -40,16 +40,22 @@ void VideoPreprocessorOpenCV::processFrame(const QVideoFrame &frame)
     QElapsedTimer timer;
     timer.start();
 
-    // Normalise to packed RGB-triplet so the wrap below is always CV_8UC3.
-    img = img.convertToFormat(QImage::Format_RGB888);
-
-    // Wrap QImage pixels without copying, then cvtColor into a new BGR Mat
-    // that owns its own buffer — safe to emit across thread boundaries.
-    cv::Mat wrapped(img.height(), img.width(), CV_8UC3,
-                    const_cast<uchar *>(img.constBits()),
-                    static_cast<size_t>(img.bytesPerLine()));
+    // Build a BGR cv::Mat that owns its own buffer (safe to emit across threads).
+    // Spinnaker frames arrive as BGR888; other sources arrive as RGB888.
     cv::Mat bgr;
-    cv::cvtColor(wrapped, bgr, cv::COLOR_RGB2BGR);
+    if (img.format() == QImage::Format_BGR888) {
+        // Already BGR — clone directly, no channel-swap needed.
+        cv::Mat wrapped(img.height(), img.width(), CV_8UC3,
+                        const_cast<uchar *>(img.constBits()),
+                        static_cast<size_t>(img.bytesPerLine()));
+        bgr = wrapped.clone();
+    } else {
+        img = img.convertToFormat(QImage::Format_RGB888);
+        cv::Mat wrapped(img.height(), img.width(), CV_8UC3,
+                        const_cast<uchar *>(img.constBits()),
+                        static_cast<size_t>(img.bytesPerLine()));
+        cv::cvtColor(wrapped, bgr, cv::COLOR_RGB2BGR);
+    }
 
     emit framePreprocessed(bgr);
 
