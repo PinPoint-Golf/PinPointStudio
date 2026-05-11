@@ -9,9 +9,6 @@
 #  ifdef WITH_COREML
 #    include <coreml_provider_factory.h>
 #  endif
-#  ifdef WITH_DIRECTML
-#    include <dml_provider_factory.h>
-#  endif
 
 // All ONNX Runtime state is isolated in OrtState so its headers are only
 // pulled into this translation unit, not transitively via KokoroTTSEngine.h.
@@ -74,7 +71,7 @@ KokoroTTSEngine::KokoroTTSEngine(QObject *parent)
 #ifdef WITH_DIRECTML
     if (m_gpuBackend.isEmpty()) {
         try {
-            Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_DML(m_ort->opts, 0));
+            m_ort->opts.AppendExecutionProvider("DML");
             m_gpuBackend = QStringLiteral("DirectML");
         } catch (const Ort::Exception &e) {
             qDebug() << "KokoroTTS: DirectML unavailable:" << e.what() << "— falling back";

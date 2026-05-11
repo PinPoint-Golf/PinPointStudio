@@ -24,7 +24,7 @@ Initial prototyping is underway using IMUs and high-speed industrial cameras. Th
 ### Video
 - **Camera backends**: UVC webcams, Aravis (GenICam industrial cameras), Spinnaker (Teledyne/FLIR)
 - **Pose estimation**: MoveNet SinglePose Lightning and Thunder via ONNX Runtime — real-time skeleton overlay on the live feed
-- **GPU acceleration**: CoreML (Apple Silicon), CUDA (NVIDIA), DirectML (Windows)
+- **GPU acceleration**: CoreML (Apple Silicon), CUDA 12/13 (NVIDIA on Linux/Windows)
 
 ### Film
 - **YouTube download**: Bundled yt-dlp fetches videos from YouTube (Premium quality, browser cookie auth) to a local cache — no re-download on repeat analysis
@@ -44,7 +44,7 @@ Built with **Qt 6.11** and **C++20**.
 | Pose estimation | MoveNet Lightning/Thunder (ONNX Runtime) |
 | Person segmentation | u2netp (ONNX Runtime) |
 | Video download | yt-dlp (bundled binary) |
-| GPU acceleration | Vulkan, CUDA, CoreML, DirectML |
+| GPU acceleration | Vulkan, CUDA (12 + 13), CoreML |
 | Image processing | OpenCV |
 | IMU | Witmotion WT901BLE67 via Qt Bluetooth LE |
 
@@ -57,7 +57,7 @@ PinPoint reads and writes files in several locations. Platform paths shown for L
 
 | Path | What | When |
 |---|---|---|
-| `models/whisper/<model>.bin` | Whisper STT model | Read at startup; must be placed here manually or by an installer |
+| `models/whisper/<model>.bin` | Whisper STT model | Copied automatically from the CMake build cache at build time |
 | `models/kokoro/` | Kokoro TTS ONNX model + voice data | Downloaded automatically from HuggingFace on first launch when a GPU is available |
 | `film-cache/<video_id>.mp4` | Downloaded YouTube videos | Written by yt-dlp on demand; never auto-deleted |
 

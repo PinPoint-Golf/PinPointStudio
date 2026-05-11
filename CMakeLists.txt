@@ -210,36 +210,34 @@ target_include_directories(PinPoint PRIVATE
 # which ones are actually wired up and which GPU binary is downloaded.
 # CPU EP is always the implicit fallback at runtime regardless of these flags.
 option(WITH_CUDA     "Enable CUDA execution provider (Linux/Windows)"    ON)
-option(WITH_DIRECTML "Enable DirectML execution provider (Windows only)" ON)
 option(WITH_COREML   "Enable CoreML execution provider (macOS ARM64)"    ON)
 
-set(ORT_VERSION "1.25.1")
+set(ORT_VERSION "1.26.0")
 
 # Select prebuilt binary.
-# Windows has two mutually exclusive GPU packages:
-#   gpu package  — CUDA + TensorRT (no DirectML header/runtime)
-#   std package  — CPU + DirectML  (no CUDA)
-# Therefore WITH_CUDA and WITH_DIRECTML are mutually exclusive on Windows.
-# CUDA wins when both are requested; DirectML is silently skipped.
+# Windows GPU packages (ORT 1.26+):
+#   gpu package       — CUDA 12 + TensorRT
+#   gpu_cuda13 package— CUDA 13 + TensorRT  (new in 1.26)
+#   std package       — CPU only (DirectML NuGet discontinued after ORT 1.24)
+# The CUDA provider DLL imports versioned CUDA DLLs (e.g. cublasLt64_12.dll /
+# cublasLt64_13.dll) so the package must match the installed CUDA major version.
 if(WIN32)
     if(WITH_CUDA)
-        # The ORT CUDA provider DLL is compiled against a specific CUDA major version
-        # and imports e.g. cublasLt64_12.dll.  A different CUDA major on the host
-        # means that DLL is absent and ORT fails to load the provider at runtime.
-        # Detect the installed CUDA major version and fall back to the standard
-        # Windows package (DirectML) when the toolkit is a different major than ORT's.
         find_package(CUDAToolkit QUIET)
-        set(_ort_cuda_major 12)  # ORT ${ORT_VERSION} CUDA EP was built against CUDA 12
-        if(CUDAToolkit_FOUND AND NOT CUDAToolkit_VERSION_MAJOR EQUAL _ort_cuda_major)
-            message(STATUS "ORT CUDA EP: installed CUDA ${CUDAToolkit_VERSION} != "
-                "ORT build CUDA ${_ort_cuda_major} — using standard package (DirectML)")
+        if(CUDAToolkit_FOUND AND CUDAToolkit_VERSION_MAJOR EQUAL 12)
+            message(STATUS "ORT CUDA EP: CUDA 12 — using GPU package")
+            set(_ort_url "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-win-x64-gpu-${ORT_VERSION}.zip")
+        elseif(CUDAToolkit_FOUND AND CUDAToolkit_VERSION_MAJOR EQUAL 13)
+            message(STATUS "ORT CUDA EP: CUDA 13 — using CUDA 13 GPU package")
+            set(_ort_url "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-win-x64-gpu_cuda13-${ORT_VERSION}.zip")
+        else()
+            if(CUDAToolkit_FOUND)
+                message(STATUS "ORT CUDA EP: CUDA ${CUDAToolkit_VERSION} has no matching ORT package — falling back to CPU")
+            endif()
             set(WITH_CUDA OFF CACHE BOOL "" FORCE)
             set(_ort_url "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-win-x64-${ORT_VERSION}.zip")
-        else()
-            set(_ort_url "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-win-x64-gpu-${ORT_VERSION}.zip")
         endif()
     else()
-        # Standard Windows package includes DirectML support.
         set(_ort_url "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-win-x64-${ORT_VERSION}.zip")
     endif()
 elseif(APPLE)
@@ -285,17 +283,9 @@ endif()
 if(WITH_CUDA AND NOT APPLE)
     target_compile_definitions(PinPoint PRIVATE WITH_CUDA)
 endif()
-if(WITH_DIRECTML AND WIN32)
-    # dml_provider_factory.h ships only in the standard Windows package, not the
-    # CUDA GPU package.  Guard against a stale cached CUDA download.
-    if(EXISTS "${_ort_root}/include/dml_provider_factory.h")
-        target_compile_definitions(PinPoint PRIVATE WITH_DIRECTML)
-    else()
-        message(WARNING "WITH_DIRECTML: dml_provider_factory.h not found in the cached ORT package "
-            "(likely the CUDA GPU package is cached). "
-            "Delete _deps/onnxruntime-src and reconfigure to fetch the standard Windows package.")
-    endif()
-endif()
+
+# DirectML NuGet was discontinued after ORT 1.24; standard Windows zip is CPU-only
+# from ORT 1.20+. No WITH_DIRECTML define on Windows — CUDA EP covers GPU on this platform.
 
 if(WIN32)
     target_link_libraries(PinPoint PRIVATE "${_ort_root}/lib/onnxruntime.lib")
@@ -319,15 +309,34 @@ else()
     target_link_libraries(PinPoint PRIVATE "${_ort_root}/lib/libonnxruntime.so")
 endif()
 
+# cuDNN: the NVIDIA Windows installer places DLLs under a versioned subdirectory
+# that is not on PATH.  Glob by CUDA major version and copy next to the executable.
+if(WIN32 AND WITH_CUDA)
+    file(GLOB _cudnn_dlls
+        "C:/Program Files/NVIDIA/CUDNN/*/bin/${CUDAToolkit_VERSION_MAJOR}.*/x64/cudnn*.dll")
+    if(_cudnn_dlls)
+        foreach(_dll ${_cudnn_dlls})
+            add_custom_command(TARGET PinPoint POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dll}" "$<TARGET_FILE_DIR:PinPoint>"
+            )
+        endforeach()
+        foreach(_dll ${_cudnn_dlls})
+            install(FILES "${_dll}" DESTINATION bin)
+        endforeach()
+        message(STATUS "cuDNN DLLs: ${_cudnn_dlls}")
+    else()
+        message(WARNING "cuDNN DLLs not found under "
+            "C:/Program Files/NVIDIA/CUDNN/*/bin/${CUDAToolkit_VERSION_MAJOR}.*/x64/ — "
+            "CUDA EP will fail at runtime. Install cuDNN 9 and reconfigure.")
+    endif()
+endif()
+
 set(_ort_ep_list "CPU(fallback)")
 if(WITH_COREML AND APPLE AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
     list(PREPEND _ort_ep_list "CoreML")
 endif()
 if(WITH_CUDA AND NOT APPLE)
     list(PREPEND _ort_ep_list "CUDA")
-endif()
-if(WITH_DIRECTML AND WIN32)
-    list(PREPEND _ort_ep_list "DirectML")
 endif()
 list(JOIN _ort_ep_list "+" _ort_ep_str)
 message(STATUS "ONNX Runtime ${ORT_VERSION}: ${_ort_root} [EP=${_ort_ep_str}]")
@@ -503,6 +512,49 @@ if(EXISTS "${_seg_model_path}")
     endif()
 else()
     message(STATUS "Segmenter: model unavailable -- background suppression disabled")
+endif()
+
+# ── Whisper model (ggml-base.en.bin) ─────────────────────────────────────────
+# Downloaded at configure time, cached in _deps/whisper-models/ so it survives
+# reconfigures without re-downloading.  Copied to models/whisper/ next to the
+# executable so STTProcessor finds it without any user setup.
+
+set(_whisper_model_dir  "${CMAKE_BINARY_DIR}/_deps/whisper-models")
+set(_whisper_model_file "ggml-base.en.bin")
+set(_whisper_model_path "${_whisper_model_dir}/${_whisper_model_file}")
+file(MAKE_DIRECTORY "${_whisper_model_dir}")
+
+if(NOT EXISTS "${_whisper_model_path}")
+    message(STATUS "Whisper: downloading ggml-base.en model (~148 MB)...")
+    file(DOWNLOAD
+        "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
+        "${_whisper_model_path}"
+        SHOW_PROGRESS
+        TLS_VERIFY ON
+        STATUS _whisper_dl_status
+    )
+    list(GET _whisper_dl_status 0 _whisper_dl_code)
+    if(NOT _whisper_dl_code EQUAL 0)
+        list(GET _whisper_dl_status 1 _whisper_dl_msg)
+        message(WARNING "Whisper: model download failed (${_whisper_dl_msg}) — STT will use cloud fallback")
+        file(REMOVE "${_whisper_model_path}")
+    endif()
+endif()
+
+if(EXISTS "${_whisper_model_path}")
+    message(STATUS "Whisper: model ready (${_whisper_model_path})")
+    add_custom_command(TARGET PinPoint POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:PinPoint>/models/whisper"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${_whisper_model_path}"
+            "$<TARGET_FILE_DIR:PinPoint>/models/whisper/${_whisper_model_file}"
+        COMMENT "Copying Whisper model to output directory"
+    )
+    install(FILES "${_whisper_model_path}"
+            DESTINATION bin/models/whisper)
+else()
+    message(STATUS "Whisper: model unavailable — STT will use cloud fallback")
 endif()
 
 # ── yt-dlp (bundled binary for YouTube download in Film tab) ──────────────────

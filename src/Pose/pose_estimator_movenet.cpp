@@ -15,9 +15,6 @@
 #ifdef WITH_COREML
 #  include <coreml_provider_factory.h>
 #endif
-#ifdef WITH_DIRECTML
-#  include <dml_provider_factory.h>
-#endif
 
 // All ORT state lives here so onnxruntime_cxx_api.h is not pulled in via the header.
 struct PoseEstimatorMoveNet::OrtState {
@@ -136,7 +133,7 @@ void PoseEstimatorMoveNet::load()
 #ifdef WITH_DIRECTML
     if (epLabel.isEmpty()) {
         try {
-            Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_DML(m_ort->opts, 0));
+            m_ort->opts.AppendExecutionProvider("DML");
             epLabel = QStringLiteral("DirectML");
             qDebug() << "[MoveNet] DirectML execution provider active";
         } catch (const Ort::Exception &e) {
