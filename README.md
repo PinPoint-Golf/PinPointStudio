@@ -23,6 +23,7 @@ Initial prototyping is underway using IMUs and high-speed industrial cameras. Th
 
 ### Video
 - **Multi-camera support**: select any combination of discovered cameras; each gets its own side-by-side view with independent pose estimation, stats, and model selector — Start/Stop controls all cameras simultaneously
+- **Perspective labelling**: assign Down the Line, Face On, or Other to each camera view — each perspective can only be held by one camera at a time
 - **Camera backends**: UVC webcams, Aravis (GenICam industrial cameras), Spinnaker (Teledyne/FLIR)
 - **Pose estimation**: MoveNet SinglePose Lightning and Thunder via ONNX Runtime — real-time skeleton overlay on each live feed
 - **GPU acceleration**: CoreML (Apple Silicon), CUDA 12/13 (NVIDIA on Linux/Windows)

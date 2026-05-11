@@ -132,6 +132,26 @@ void CameraManager::stopAll()
     emit isRecordingChanged();
 }
 
+void CameraManager::setPerspective(QObject *rawController, int perspective)
+{
+    auto *target = qobject_cast<VideoController *>(rawController);
+    if (!target)
+        return;
+
+    // Clear this perspective from every other camera that currently holds it.
+    if (perspective > 0) {
+        for (auto &cam : m_cameras) {
+            if (cam.controller && cam.controller != target
+                && cam.controller->perspective() == perspective)
+            {
+                cam.controller->setPerspective(0);
+            }
+        }
+    }
+
+    target->setPerspective(perspective);
+}
+
 // ---------------------------------------------------------------------------
 // Private
 // ---------------------------------------------------------------------------

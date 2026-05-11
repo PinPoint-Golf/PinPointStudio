@@ -57,6 +57,29 @@ Item {
                 font.pixelSize: 14
             }
 
+            // ── Perspective badge (top-left overlay) ──────────────────────────
+            Rectangle {
+                visible: root.controller.perspective > 0
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.margins: 8
+                width: perspBadgeText.implicitWidth + 10
+                height: 20
+                radius: 4
+                color: "#89b4fa"
+
+                Text {
+                    id: perspBadgeText
+                    anchors.centerIn: parent
+                    text: root.controller.perspective === 1 ? "DTL"
+                        : root.controller.perspective === 2 ? "Face On"
+                        : "Other"
+                    color: "#1e1e2e"
+                    font.pixelSize: 11
+                    font.bold: true
+                }
+            }
+
             // ── Skeleton overlay ──────────────────────────────────────────────
             Canvas {
                 id: skeletonCanvas
@@ -138,7 +161,48 @@ Item {
                 color: "#6c7086"
                 font.pixelSize: 11
                 elide: Text.ElideRight
-                Layout.maximumWidth: 160
+                Layout.maximumWidth: 140
+            }
+
+            // ── Perspective selector ──────────────────────────────────────────
+            Row {
+                spacing: 0
+
+                Repeater {
+                    model: [
+                        { value: 1, label: "DTL",     leftR: true,  rightR: false },
+                        { value: 2, label: "Face On",  leftR: false, rightR: false },
+                        { value: 3, label: "Other",    leftR: false, rightR: true  }
+                    ]
+                    delegate: Rectangle {
+                        readonly property bool active: root.controller.perspective === modelData.value
+                        height: 20
+                        width: perspLabel.implicitWidth + 10
+                        topLeftRadius:     modelData.leftR  ? 4 : 0
+                        bottomLeftRadius:  modelData.leftR  ? 4 : 0
+                        topRightRadius:    modelData.rightR ? 4 : 0
+                        bottomRightRadius: modelData.rightR ? 4 : 0
+                        color: active ? "#89b4fa" : "#313244"
+                        Text {
+                            id: perspLabel
+                            anchors.centerIn: parent
+                            text: modelData.label
+                            color: active ? "#1e1e2e" : "#cdd6f4"
+                            font.pixelSize: 11
+                            font.bold: active
+                        }
+                        TapHandler {
+                            enabled: !cameraManager.isRecording
+                            onTapped: cameraManager.setPerspective(
+                                root.controller,
+                                active ? 0 : modelData.value)
+                        }
+                        HoverHandler {
+                            enabled: !cameraManager.isRecording
+                            cursorShape: Qt.PointingHandCursor
+                        }
+                    }
+                }
             }
 
             Item { Layout.fillWidth: true }

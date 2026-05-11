@@ -38,8 +38,12 @@ class VideoController : public QObject
     Q_PROPERTY(bool moveNetThunderAvailable READ moveNetThunderAvailable CONSTANT)
     Q_PROPERTY(QVariantList poseKeypoints READ poseKeypoints NOTIFY poseKeypointsChanged)
     Q_PROPERTY(QString deviceDescription READ deviceDescription CONSTANT)
+    Q_PROPERTY(int perspective READ perspective NOTIFY perspectiveChanged)
 
 public:
+    // Perspective values — matches the selector in CameraView.qml.
+    enum Perspective { None = 0, DownTheLine = 1, FaceOn = 2, Other = 3 };
+
     explicit VideoController(QObject *parent = nullptr);
     explicit VideoController(const Device &device, QObject *parent = nullptr);
     ~VideoController() override;
@@ -57,6 +61,11 @@ public:
     bool    moveNetThunderAvailable() const;
     QVariantList poseKeypoints() const;
     QString deviceDescription() const;
+    int     perspective() const;
+
+    // Called by CameraManager only — not Q_INVOKABLE so QML cannot bypass
+    // the uniqueness check enforced by CameraManager::setPerspective().
+    void setPerspective(int p);
 
     Q_INVOKABLE void setVideoSink(QVideoSink *sink);
     Q_INVOKABLE void startRecording();
@@ -77,6 +86,7 @@ signals:
     void poseBackendLabelChanged();
     void moveNetModelChanged();
     void poseKeypointsChanged();
+    void perspectiveChanged();
 
 private slots:
     void onVideoFrame(const QVideoFrame &frame);
@@ -127,4 +137,5 @@ private:
     QString            m_poseBackendLabel;
     int                m_moveNetModel       = 0;
     QVariantList       m_poseKeypoints;
+    int                m_perspective        = 0;
 };

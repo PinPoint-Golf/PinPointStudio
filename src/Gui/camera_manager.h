@@ -30,6 +30,10 @@ public:
     Q_INVOKABLE void startAll();
     Q_INVOKABLE void stopAll();
 
+    // Sets the perspective on one camera and clears it from any other camera
+    // that currently has the same non-zero perspective value.
+    Q_INVOKABLE void setPerspective(QObject *controller, int perspective);
+
 signals:
     void cameraListChanged();
     void instancesChanged();

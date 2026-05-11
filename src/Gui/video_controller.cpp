@@ -184,6 +184,15 @@ double  VideoController::poseFps()                const { return m_poseFps; }
 QString VideoController::poseBackendLabel()       const { return m_poseBackendLabel; }
 int     VideoController::moveNetModel()           const { return m_moveNetModel; }
 QString VideoController::deviceDescription()      const { return m_deviceDescription; }
+int     VideoController::perspective()            const { return m_perspective; }
+
+void VideoController::setPerspective(int p)
+{
+    if (m_perspective == p)
+        return;
+    m_perspective = p;
+    emit perspectiveChanged();
+}
 
 bool    VideoController::moveNetThunderAvailable() const
 {
