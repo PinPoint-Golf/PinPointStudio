@@ -3,6 +3,7 @@
 #include <QElapsedTimer>
 #include <QMutex>
 #include <QObject>
+#include <QTimer>
 #include <QVariantList>
 #include <QVideoFrame>
 #include <array>
@@ -125,13 +126,11 @@ private:
     PoseEstimatorBase *m_poseEstimator = nullptr;
     FrameThrottle     *m_frameThrottle = nullptr;
 #endif
-    static constexpr int kCamFpsWindow = 30;
-    QElapsedTimer                        m_camFpsTimer;
-    std::array<double, kCamFpsWindow>    m_camFpsIntervals{};
-    double                               m_camFpsSum   = 0.0;
-    int                                  m_camFpsIndex = 0;
-    int                                  m_camFpsCount = 0;
-    double             m_cameraFps          = 0.0;
+    // Capture-rate FPS: counted on the capture thread, sampled on a timer.
+    std::atomic<int>   m_frameCaptureCount{0};
+    QTimer            *m_fpsSampleTimer    = nullptr;
+    QElapsedTimer      m_fpsSampleElapsed;
+    double             m_cameraFps         = 0.0;
     double             m_poseAvgMs          = 0.0;
     double             m_poseFps            = 0.0;
     QString            m_poseBackendLabel;

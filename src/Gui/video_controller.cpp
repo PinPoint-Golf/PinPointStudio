@@ -16,6 +16,7 @@
 #include <QDebug>
 #include <QMetaObject>
 #include <QThread>
+#include <QTimer>
 #include <QVideoFrame>
 #include <QVideoSink>
 
@@ -86,6 +87,23 @@ void VideoController::setupPipeline()
 
     connectVideoInput();
     m_captureThread->start();
+
+    // Sample the capture-thread frame counter every 500 ms to compute actual fps.
+    m_fpsSampleTimer = new QTimer(this);
+    m_fpsSampleTimer->setInterval(500);
+    connect(m_fpsSampleTimer, &QTimer::timeout, this, [this]() {
+        const int count   = m_frameCaptureCount.exchange(0, std::memory_order_relaxed);
+        const double secs = m_fpsSampleElapsed.restart() / 1000.0;
+        if (secs > 0.0) {
+            const double fps = count / secs;
+            if (!qFuzzyCompare(m_cameraFps, fps)) {
+                m_cameraFps = fps;
+                emit cameraFpsChanged();
+            }
+        }
+    });
+    m_fpsSampleElapsed.start();
+    m_fpsSampleTimer->start();
 }
 
 VideoController::~VideoController()
@@ -145,6 +163,8 @@ void VideoController::connectVideoInput()
     // freshest frame and post at most one drain event at a time.
     connect(m_videoInput, &VideoInputBase::videoFrameReady,
             this, [this](const QVideoFrame &frame) {
+                // Capture-thread: count every frame for the fps stat.
+                m_frameCaptureCount.fetch_add(1, std::memory_order_relaxed);
                 {
                     QMutexLocker lk(&m_latestFrameMutex);
                     m_latestDisplayFrame = frame;
@@ -340,27 +360,6 @@ void VideoController::onVideoFrame(const QVideoFrame &frame)
 {
     if (m_videoSink && frame.isValid())
         m_videoSink->setVideoFrame(frame);
-
-    if (m_camFpsTimer.isValid()) {
-        const double ms = m_camFpsTimer.nsecsElapsed() / 1e6;
-        m_camFpsSum -= m_camFpsIntervals[m_camFpsIndex];
-        m_camFpsIntervals[m_camFpsIndex] = ms;
-        m_camFpsSum += ms;
-        m_camFpsIndex = (m_camFpsIndex + 1) % kCamFpsWindow;
-        if (m_camFpsCount < kCamFpsWindow)
-            ++m_camFpsCount;
-        if (m_camFpsCount == kCamFpsWindow) {
-            const double avg = m_camFpsSum / kCamFpsWindow;
-            if (avg > 0.0) {
-                const double fps = 1000.0 / avg;
-                if (!qFuzzyCompare(m_cameraFps, fps)) {
-                    m_cameraFps = fps;
-                    emit cameraFpsChanged();
-                }
-            }
-        }
-    }
-    m_camFpsTimer.restart();
 }
 
 #ifdef HAVE_OPENCV
