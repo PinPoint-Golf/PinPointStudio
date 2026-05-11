@@ -137,9 +137,23 @@ VideoController::~VideoController()
 
 void VideoController::connectVideoInput()
 {
+    // Gate the display path: the capture thread runs up to 100 fps per camera
+    // but the main thread can only drain at screen refresh rate (~60 Hz).
+    // A plain QueuedConnection would accumulate hundreds of QVideoFrame copies
+    // in the main-thread event queue, causing unbounded memory growth.
+    // Instead, use DirectConnection on the capture thread to store only the
+    // freshest frame and post at most one drain event at a time.
     connect(m_videoInput, &VideoInputBase::videoFrameReady,
-            this, &VideoController::onVideoFrame,
-            Qt::QueuedConnection);
+            this, [this](const QVideoFrame &frame) {
+                {
+                    QMutexLocker lk(&m_latestFrameMutex);
+                    m_latestDisplayFrame = frame;
+                }
+                if (!m_displayFramePending.exchange(true, std::memory_order_acq_rel)) {
+                    QMetaObject::invokeMethod(this, &VideoController::drainDisplayFrame,
+                                             Qt::QueuedConnection);
+                }
+            }, Qt::DirectConnection);
     connect(m_videoInput, &VideoInputBase::errorOccurred,
             this, &VideoController::onVideoError);
 
@@ -300,6 +314,18 @@ void VideoController::stopRecording()
 // ---------------------------------------------------------------------------
 // Slots
 // ---------------------------------------------------------------------------
+
+void VideoController::drainDisplayFrame()
+{
+    QVideoFrame f;
+    {
+        QMutexLocker lk(&m_latestFrameMutex);
+        f = m_latestDisplayFrame;
+        m_latestDisplayFrame = QVideoFrame();
+    }
+    m_displayFramePending.store(false, std::memory_order_release);
+    onVideoFrame(f);
+}
 
 void VideoController::onVideoFrame(const QVideoFrame &frame)
 {

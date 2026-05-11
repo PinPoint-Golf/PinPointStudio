@@ -1,9 +1,12 @@
 #pragma once
 
 #include <QElapsedTimer>
+#include <QMutex>
 #include <QObject>
 #include <QVariantList>
+#include <QVideoFrame>
 #include <array>
+#include <atomic>
 
 #include "device_enumerator.h"
 
@@ -77,6 +80,7 @@ signals:
 
 private slots:
     void onVideoFrame(const QVideoFrame &frame);
+    void drainDisplayFrame();
     void onVideoError(const QString &message);
     void onPreprocessStats(double avgMs);
     void onPoseStats(double avgMs, double fps);
@@ -95,6 +99,12 @@ private:
     bool                   m_recording        = false;
     QString                m_deviceId;
     QString                m_deviceDescription;
+
+    // Display-path throttle: at most one QVideoFrame is ever queued to the
+    // main thread at a time, preventing unbounded queue growth at high frame rates.
+    std::atomic<bool>      m_displayFramePending{false};
+    QMutex                 m_latestFrameMutex;
+    QVideoFrame            m_latestDisplayFrame;
 
     QThread               *m_preprocessThread = nullptr;
     VideoPreprocessorBase *m_preprocessor     = nullptr;
