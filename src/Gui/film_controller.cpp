@@ -716,7 +716,7 @@ void FilmController::onYtdlpOutput()
 
 void FilmController::onYtdlpFinished(int exitCode, QProcess::ExitStatus)
 {
-    const QString stderr = m_ytdlp
+    const QString errOutput = m_ytdlp
         ? QString::fromUtf8(m_ytdlp->readAllStandardError()).trimmed()
         : QString();
 
@@ -729,8 +729,8 @@ void FilmController::onYtdlpFinished(int exitCode, QProcess::ExitStatus)
     emit isDownloadingChanged();
 
     if (exitCode != 0) {
-        qWarning() << "[Film] yt-dlp exited" << exitCode << "—" << stderr.left(200);
-        setDownloadStatus(QStringLiteral("Download failed: ") + stderr.left(120));
+        qWarning() << "[Film] yt-dlp exited" << exitCode << "—" << errOutput.left(200);
+        setDownloadStatus(QStringLiteral("Download failed: ") + errOutput.left(120));
         return;
     }
 
