@@ -192,13 +192,11 @@ Item {
                             font.bold: active
                         }
                         TapHandler {
-                            enabled: !cameraManager.isRecording
                             onTapped: cameraManager.setPerspective(
                                 root.controller,
                                 active ? 0 : modelData.value)
                         }
                         HoverHandler {
-                            enabled: !cameraManager.isRecording
                             cursorShape: Qt.PointingHandCursor
                         }
                     }
