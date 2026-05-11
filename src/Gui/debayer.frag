@@ -11,8 +11,6 @@ layout(std140, binding = 0) uniform buf {
 layout(binding = 1) uniform sampler2D source;
 
 void main() {
-    // Basic Grayscale pass-through for Bayer data
-    // (Actual debayering logic can be expanded here)
     vec4 raw = texture(source, qt_TexCoord0);
-    fragColor = vec4(raw.rrr, 1.0) * qt_Opacity;
+    fragColor = vec4(raw.rgb, 1.0) * qt_Opacity;
 }

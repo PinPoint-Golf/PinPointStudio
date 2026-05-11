@@ -87,17 +87,15 @@ bool VideoInputSpinnaker::start(const QString &deviceId)
             }
         }
 
-        // Set Pixel Format to Mono8 (Bayer raw is often Mono8 in Spinnaker if not debayered)
+        // Prefer RGB8Packed (no conversion), then Bayer (SDK conversion), then Mono8.
         CEnumerationPtr ptrPixelFormat = nodeMap.GetNode("PixelFormat");
         if (IsAvailable(ptrPixelFormat) && IsWritable(ptrPixelFormat)) {
-            // Try to find a 8-bit mono/bayer format
-            const char* formats[] = {"Mono8", "BayerRG8", "BayerBG8", "BayerGR8", "BayerGB8"};
-            bool formatSet = false;
+            const char* formats[] = {"RGB8Packed", "BayerRG8", "BayerBG8", "BayerGR8", "BayerGB8", "Mono8"};
             for (const char* fmtName : formats) {
                 CEnumEntryPtr ptrEntry = ptrPixelFormat->GetEntryByName(fmtName);
                 if (IsAvailable(ptrEntry) && IsReadable(ptrEntry)) {
                     ptrPixelFormat->SetIntValue(ptrEntry->GetValue());
-                    formatSet = true;
+                    qDebug() << "[VideoInputSpinnaker] Pixel format set to" << fmtName;
                     break;
                 }
             }
@@ -185,6 +183,10 @@ QVideoFrameFormat VideoInputSpinnaker::frameFormat() const
 void VideoInputSpinnaker::captureLoop()
 {
 #ifdef HAVE_SPINNAKER
+    // Create once and reuse — ImageProcessor allocates internal state in its constructor.
+    ImageProcessor processor;
+    processor.SetColorProcessing(SPINNAKER_COLOR_PROCESSING_ALGORITHM_NEAREST_NEIGHBOR);
+
     while (!m_abort && m_camera) {
         CameraPtr *camera = (CameraPtr*)m_camera;
         try {
@@ -192,23 +194,50 @@ void VideoInputSpinnaker::captureLoop()
             if (pResultImage->IsIncomplete()) {
                 qDebug() << "[VideoInputSpinnaker] Image incomplete with status" << pResultImage->GetImageStatus();
             } else {
-                size_t width = pResultImage->GetWidth();
+                size_t width  = pResultImage->GetWidth();
                 size_t height = pResultImage->GetHeight();
-                void* data = pResultImage->GetData();
 
-                // Create a QVideoFrame from the buffer.
-                // We use Format_Grayscale8 for raw Bayer data.
-                QImage img((const uchar*)data, (int)width, (int)height, QImage::Format_Grayscale8);
-                QVideoFrame frame(img.copy()); // Copy data to ensure it stays valid
+                PixelFormatEnums fmt = pResultImage->GetPixelFormat();
+                bool isBayer = (fmt == PixelFormat_BayerRG8 || fmt == PixelFormat_BayerBG8 ||
+                                fmt == PixelFormat_BayerGR8 || fmt == PixelFormat_BayerGB8);
+                bool isRGB   = (fmt == PixelFormat_RGB8Packed);
+                bool isBGR   = (fmt == PixelFormat_BGR8);
 
+                QImage img;
+                if (isRGB) {
+                    img = QImage(static_cast<const uchar*>(pResultImage->GetData()),
+                                 static_cast<int>(width), static_cast<int>(height),
+                                 static_cast<int>(width) * 3,
+                                 QImage::Format_RGB888).copy();
+                } else if (isBGR) {
+                    // Wrap as BGR then convert to RGB888 so the shader always gets RGB.
+                    img = QImage(static_cast<const uchar*>(pResultImage->GetData()),
+                                 static_cast<int>(width), static_cast<int>(height),
+                                 static_cast<int>(width) * 3,
+                                 QImage::Format_BGR888)
+                              .convertToFormat(QImage::Format_RGB888);
+                } else if (isBayer) {
+                    // Spinnaker supports BGR8 as a Bayer conversion target; convert then swap.
+                    ImagePtr converted = processor.Convert(pResultImage, PixelFormat_BGR8);
+                    img = QImage(static_cast<const uchar*>(converted->GetData()),
+                                 static_cast<int>(width), static_cast<int>(height),
+                                 static_cast<int>(width) * 3,
+                                 QImage::Format_BGR888)
+                              .convertToFormat(QImage::Format_RGB888);
+                } else {
+                    img = QImage(static_cast<const uchar*>(pResultImage->GetData()),
+                                 static_cast<int>(width), static_cast<int>(height),
+                                 QImage::Format_Grayscale8).copy();
+                }
+
+                QVideoFrame frame(img);
                 QMetaObject::invokeMethod(this, [this, frame]() {
                     emit videoFrameReady(frame);
                 }, Qt::QueuedConnection);
             }
             pResultImage->Release();
         } catch (Spinnaker::Exception &e) {
-            // Timeout is common if camera is disconnected or not sending frames
-            // qDebug() << "[VideoInputSpinnaker] Capture error:" << e.what();
+            qDebug() << "[VideoInputSpinnaker] Capture error:" << e.what();
         }
     }
 #endif
