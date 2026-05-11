@@ -24,12 +24,10 @@
 
 #include <QDebug>
 
-VideoInputBase* VideoInputFactory::create(Backend backend, QObject *parent)
+void VideoInputFactory::enumerateDevices()
 {
-    // Register Qt Multimedia devices
     VideoInput::availableDevices();
 
-    // Register Aravis devices if present
 #ifdef HAVE_ARAVIS
     arv_update_device_list();
     unsigned int nAravis = arv_get_n_devices();
@@ -42,7 +40,6 @@ VideoInputBase* VideoInputFactory::create(Backend backend, QObject *parent)
     }
 #endif
 
-    // Register Spinnaker devices if present
 #ifdef HAVE_SPINNAKER
     try {
         Spinnaker::SystemPtr system = Spinnaker::System::GetInstance();
@@ -52,7 +49,7 @@ VideoInputBase* VideoInputFactory::create(Backend backend, QObject *parent)
             Spinnaker::GenApi::INodeMap& nodeMapTLDevice = cam->GetTLDeviceNodeMap();
             Spinnaker::GenApi::CStringPtr ptrDeviceID = nodeMapTLDevice.GetNode("DeviceID");
             Spinnaker::GenApi::CStringPtr ptrDeviceModel = nodeMapTLDevice.GetNode("DeviceModelName");
-            
+
             QString id = "Unknown";
             QString model = "Spinnaker Camera";
             if (Spinnaker::GenApi::IsAvailable(ptrDeviceID) && Spinnaker::GenApi::IsReadable(ptrDeviceID))
@@ -67,6 +64,11 @@ VideoInputBase* VideoInputFactory::create(Backend backend, QObject *parent)
         system->ReleaseInstance();
     } catch (...) {}
 #endif
+}
+
+VideoInputBase* VideoInputFactory::create(Backend backend, QObject *parent)
+{
+    enumerateDevices();
 
     if (backend == Backend::Auto) {
 #ifdef HAVE_SPINNAKER
@@ -81,9 +83,14 @@ VideoInputBase* VideoInputFactory::create(Backend backend, QObject *parent)
 #endif
 
 #ifdef HAVE_ARAVIS
-        if (nAravis > 0) {
-            qDebug() << "[VideoInputFactory] Industrial camera(s) detected; selecting Aravis backend.";
-            return new VideoInputAravis(parent);
+        {
+            bool hasAravis = false;
+            for (const auto &dev : DeviceEnumerator::instance()->devices())
+                if (dev.backend == Backend::Aravis) { hasAravis = true; break; }
+            if (hasAravis) {
+                qDebug() << "[VideoInputFactory] Industrial camera(s) detected; selecting Aravis backend.";
+                return new VideoInputAravis(parent);
+            }
         }
 #endif
 

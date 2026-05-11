@@ -100,6 +100,7 @@ qt_add_executable(PinPoint
     src/Core/device_enumerator.h           src/Core/device_enumerator.cpp
     src/Video/VideoInputAravis.h           src/Video/VideoInputAravis.cpp
     src/Gui/video_controller.h             src/Gui/video_controller.cpp
+    src/Gui/camera_manager.h               src/Gui/camera_manager.cpp
     src/STT/stt_processor.h          src/STT/stt_processor.cpp
     src/TTS/TTSEngine.h              src/TTS/TTSEngine.cpp
     src/TTS/TTSEngineFactory.h       src/TTS/TTSEngineFactory.cpp
@@ -121,6 +122,7 @@ qt_add_qml_module(PinPoint
         src/Gui/CapturePage.qml
         src/Gui/FilmPage.qml
         src/Gui/VideoPage.qml
+        src/Gui/CameraView.qml
 )
 
 qt6_add_shaders(PinPoint "debayer_shaders"

@@ -7,7 +7,7 @@
 #include "imu_controller.h"
 #include "transcription_controller.h"
 #include "tts_controller.h"
-#include "video_controller.h"
+#include "camera_manager.h"
 
 int main(int argc, char *argv[])
 {
@@ -17,14 +17,14 @@ int main(int argc, char *argv[])
     ImuController           imuController;
     TranscriptionController controller;
     TtsController           ttsController;
-    VideoController         videoController;
+    CameraManager           cameraManager;
     FilmController          filmController;
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("imuController"),    &imuController);
     engine.rootContext()->setContextProperty(QStringLiteral("controller"),       &controller);
     engine.rootContext()->setContextProperty(QStringLiteral("ttsController"),    &ttsController);
-    engine.rootContext()->setContextProperty(QStringLiteral("videoController"),  &videoController);
+    engine.rootContext()->setContextProperty(QStringLiteral("cameraManager"),    &cameraManager);
     engine.rootContext()->setContextProperty(QStringLiteral("filmController"),   &filmController);
 
     QObject::connect(

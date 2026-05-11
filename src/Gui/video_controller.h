@@ -5,6 +5,8 @@
 #include <QVariantList>
 #include <array>
 
+#include "device_enumerator.h"
+
 class QThread;
 class QVideoFrame;
 class QVideoSink;
@@ -32,9 +34,11 @@ class VideoController : public QObject
     Q_PROPERTY(int moveNetModel READ moveNetModel NOTIFY moveNetModelChanged)
     Q_PROPERTY(bool moveNetThunderAvailable READ moveNetThunderAvailable CONSTANT)
     Q_PROPERTY(QVariantList poseKeypoints READ poseKeypoints NOTIFY poseKeypointsChanged)
+    Q_PROPERTY(QString deviceDescription READ deviceDescription CONSTANT)
 
 public:
     explicit VideoController(QObject *parent = nullptr);
+    explicit VideoController(const Device &device, QObject *parent = nullptr);
     ~VideoController() override;
 
     bool   isRecording() const;
@@ -49,6 +53,7 @@ public:
     int     moveNetModel() const;
     bool    moveNetThunderAvailable() const;
     QVariantList poseKeypoints() const;
+    QString deviceDescription() const;
 
     Q_INVOKABLE void setVideoSink(QVideoSink *sink);
     Q_INVOKABLE void startRecording();
@@ -81,13 +86,15 @@ private slots:
 #endif
 
 private:
-    void startCapture();
+    void setupPipeline();
     void connectVideoInput();
 
     QThread               *m_captureThread   = nullptr;
     VideoInputBase        *m_videoInput       = nullptr;
     QVideoSink            *m_videoSink        = nullptr;
     bool                   m_recording        = false;
+    QString                m_deviceId;
+    QString                m_deviceDescription;
 
     QThread               *m_preprocessThread = nullptr;
     VideoPreprocessorBase *m_preprocessor     = nullptr;

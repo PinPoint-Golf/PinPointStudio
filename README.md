@@ -22,8 +22,9 @@ Initial prototyping is underway using IMUs and high-speed industrial cameras. Th
 - **Text-to-speech**: Kokoro TTS (local, ONNX Runtime) with Azure Neural Voice fallback for CPU-only systems
 
 ### Video
+- **Multi-camera support**: select any combination of discovered cameras; each gets its own side-by-side view with independent pose estimation, stats, and model selector — Start/Stop controls all cameras simultaneously
 - **Camera backends**: UVC webcams, Aravis (GenICam industrial cameras), Spinnaker (Teledyne/FLIR)
-- **Pose estimation**: MoveNet SinglePose Lightning and Thunder via ONNX Runtime — real-time skeleton overlay on the live feed
+- **Pose estimation**: MoveNet SinglePose Lightning and Thunder via ONNX Runtime — real-time skeleton overlay on each live feed
 - **GPU acceleration**: CoreML (Apple Silicon), CUDA 12/13 (NVIDIA on Linux/Windows)
 
 ### Film
@@ -100,7 +101,7 @@ The app only contacts external services when explicitly configured:
 
 ## Roadmap
 
-- Two-camera 3D pose reconstruction (triangulate occluded joints from a second viewpoint)
+- Two-camera 3D pose reconstruction (triangulate occluded joints from a second viewpoint) — multi-camera capture is already in place
 - Kinematic metric extraction from pose sequences
 - AI coach integration
 - Smartphone app (once core concepts proven on desktop)

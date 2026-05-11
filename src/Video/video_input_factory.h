@@ -31,4 +31,8 @@ public:
 
     // Returns a list of available backends on this system.
     static QList<Backend> availableBackends();
+
+    // Discovers all cameras across all backends and registers them with
+    // DeviceEnumerator. Safe to call multiple times (duplicates are suppressed).
+    static void enumerateDevices();
 };
