@@ -1,7 +1,9 @@
 #include "STTBackendWhisperCpp.h"
 #include "ggml-backend.h"
-#include <QDebug>
+#include "pp_debug.h"
 #include <cstring>
+#include <iostream>
+#include <sstream>
 
 STTBackendWhisperCpp::STTBackendWhisperCpp(QObject* parent)
   : STTBackend(parent) {}
@@ -19,9 +21,22 @@ bool STTBackendWhisperCpp::loadModel(const QString& modelPath) {
   // for typical (ASCII/Latin) paths. For non-ASCII Windows paths, a future
   // improvement would use a wide-string variant if whisper.cpp adds one.
   whisper_context_params cparams = whisper_context_default_params();
+
+  // ggml-vulkan's shader compilation prints directly to std::cerr, bypassing
+  // the ggml log callback. Redirect cerr for the duration of model load.
+#if PINPOINT_DEBUG_LEVEL < 3
+  std::ostringstream devNull;
+  std::streambuf *savedCerr = std::cerr.rdbuf(devNull.rdbuf());
+#endif
+
   m_ctx = whisper_init_from_file_with_params(modelPath.toLocal8Bit().constData(), cparams);
+
+#if PINPOINT_DEBUG_LEVEL < 3
+  std::cerr.rdbuf(savedCerr);
+#endif
+
   if (!m_ctx) {
-    qWarning() << "[STTBackendWhisperCpp] Failed to load model from" << modelPath;
+    ppWarn() << "[STTBackendWhisperCpp] Failed to load model from" << modelPath;
     return false;
   }
   return true;

@@ -3,7 +3,7 @@
 #if defined(Q_OS_MACOS)
 #  include "STTBackendApple.h"
 #endif
-#include <QDebug>
+#include "pp_debug.h"
 
 std::unique_ptr<STTBackend> STTBackendFactory::create(
     Backend backend, QObject* parent)
@@ -15,8 +15,7 @@ std::unique_ptr<STTBackend> STTBackendFactory::create(
 #if defined(Q_OS_MACOS)
       return std::make_unique<STTBackendApple>(parent);
 #else
-      qWarning("STTBackendFactory: Apple backend requested on non-macOS platform; "
-               "falling back to WhisperCpp");
+      ppWarn() << "STTBackendFactory: Apple backend requested on non-macOS platform; falling back to WhisperCpp";
       return std::make_unique<STTBackendWhisperCpp>(parent);
 #endif
   }

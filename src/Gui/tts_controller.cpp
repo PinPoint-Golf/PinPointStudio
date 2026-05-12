@@ -8,8 +8,8 @@
 #include "TtsWorker.h"
 
 #include <QCoreApplication>
-#include <QDebug>
 #include <QFile>
+#include "pp_debug.h"
 #include <QMetaObject>
 #include <QFileInfo>
 #include <QStandardPaths>
@@ -196,7 +196,7 @@ void TtsController::onModelReady()
 
 void TtsController::onModelFailed(const QString &error)
 {
-    qWarning() << "[TTS] Model load failed:" << error;
+    ppWarn() << "[TTS] Model load failed:" << error;
     m_ttsReady = false;
     emit ttsReadyChanged();
 }
@@ -254,7 +254,7 @@ void TtsController::onSynthesisFinished()
 
 void TtsController::onTtsError(const QString &message)
 {
-    qWarning() << "[TTS]" << message;
+    ppWarn() << "[TTS]" << message;
 }
 
 // ── Worker helpers ────────────────────────────────────────────────────────────
@@ -348,7 +348,7 @@ void TtsController::onDownloadFailed(const QString &error)
     m_downloading = false;
     emit downloadingChanged();
     setDownloadStatus(tr("Download failed: %1").arg(error));
-    qWarning() << "[TTS] Download failed:" << error;
+    ppWarn() << "[TTS] Download failed:" << error;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

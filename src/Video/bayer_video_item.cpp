@@ -3,6 +3,7 @@
 #include <QFile>
 #include <QMutexLocker>
 #include <rhi/qrhi.h>
+#include "pp_debug.h"
 
 // ---------------------------------------------------------------------------
 // UBO layout — must match bayer_demosaic.vert / .frag exactly (std140).
@@ -39,12 +40,12 @@ static QShader loadShader(const QString &path)
 {
     QFile f(path);
     if (!f.open(QIODevice::ReadOnly)) {
-        qWarning() << "[BayerVideoItem] cannot open shader:" << path;
+        ppWarn() << "[BayerVideoItem] cannot open shader:" << path;
         return {};
     }
     QShader s = QShader::fromSerialized(f.readAll());
     if (!s.isValid())
-        qWarning() << "[BayerVideoItem] invalid shader:" << path;
+        ppWarn() << "[BayerVideoItem] invalid shader:" << path;
     return s;
 }
 
@@ -121,7 +122,7 @@ void BayerVideoItemRenderer::buildPipeline()
     m_pipeline->setDepthWrite(false);
 
     if (!m_pipeline->create())
-        qWarning() << "[BayerVideoItem] pipeline create failed";
+        ppWarn() << "[BayerVideoItem] pipeline create failed";
 }
 
 void BayerVideoItemRenderer::initialize(QRhiCommandBuffer *cb)
@@ -151,23 +152,23 @@ void BayerVideoItemRenderer::initialize(QRhiCommandBuffer *cb)
     }
 
     m_rhi = rhi;
-    qDebug() << "[BayerVideoItem] full init — backend:" << rhi->backendName();
+    ppInfo() << "[BayerVideoItem] full init — backend:" << rhi->backendName();
 
     m_vbuf = rhi->newBuffer(QRhiBuffer::Immutable, QRhiBuffer::VertexBuffer, sizeof(kQuadVerts));
-    if (!m_vbuf->create()) { qWarning() << "[BayerVideoItem] vbuf create failed"; return; }
+    if (!m_vbuf->create()) { ppWarn() << "[BayerVideoItem] vbuf create failed"; return; }
     m_ibuf = rhi->newBuffer(QRhiBuffer::Immutable, QRhiBuffer::IndexBuffer, sizeof(kQuadIdx));
-    if (!m_ibuf->create()) { qWarning() << "[BayerVideoItem] ibuf create failed"; return; }
+    if (!m_ibuf->create()) { ppWarn() << "[BayerVideoItem] ibuf create failed"; return; }
 
     auto *u = rhi->nextResourceUpdateBatch();
     u->uploadStaticBuffer(m_vbuf, kQuadVerts);
     u->uploadStaticBuffer(m_ibuf, kQuadIdx);
 
     m_ubuf = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(BayerUBO));
-    if (!m_ubuf->create()) { qWarning() << "[BayerVideoItem] ubuf create failed"; return; }
+    if (!m_ubuf->create()) { ppWarn() << "[BayerVideoItem] ubuf create failed"; return; }
 
     // 1×1 R8 placeholder; actual camera-resolution texture created in rebuildTexture().
     m_tex = rhi->newTexture(QRhiTexture::R8, QSize(1, 1), 1, {});
-    if (!m_tex->create()) { qWarning() << "[BayerVideoItem] tex create failed"; return; }
+    if (!m_tex->create()) { ppWarn() << "[BayerVideoItem] tex create failed"; return; }
     const quint8 black = 0;
     u->uploadTexture(m_tex, QRhiTextureUploadEntry(0, 0,
         QRhiTextureSubresourceUploadDescription(&black, 1)));
@@ -175,7 +176,7 @@ void BayerVideoItemRenderer::initialize(QRhiCommandBuffer *cb)
     m_sampler = rhi->newSampler(QRhiSampler::Linear, QRhiSampler::Linear,
                                 QRhiSampler::None,
                                 QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
-    if (!m_sampler->create()) { qWarning() << "[BayerVideoItem] sampler create failed"; return; }
+    if (!m_sampler->create()) { ppWarn() << "[BayerVideoItem] sampler create failed"; return; }
 
     m_srb = rhi->newShaderResourceBindings();
     m_srb->setBindings({
@@ -186,7 +187,7 @@ void BayerVideoItemRenderer::initialize(QRhiCommandBuffer *cb)
             QRhiShaderResourceBinding::FragmentStage,
             m_tex, m_sampler),
     });
-    if (!m_srb->create()) { qWarning() << "[BayerVideoItem] srb create failed"; return; }
+    if (!m_srb->create()) { ppWarn() << "[BayerVideoItem] srb create failed"; return; }
 
     buildPipeline();
 

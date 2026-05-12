@@ -22,8 +22,8 @@
 #  include <opencv2/imgproc.hpp>
 #endif
 #include <QCoreApplication>
-#include <QDebug>
 #include <QDir>
+#include "pp_debug.h"
 #include <QFile>
 #include <QImage>
 #include <QJsonDocument>
@@ -178,9 +178,9 @@ FilmController::FilmController(QObject *parent)
 
 #if defined(HAVE_SEGMENTER)
     if (m_segmenter.load())
-        qDebug() << "[Film] Person segmenter ready";
+        ppInfo() << "[Film] Person segmenter ready";
     else
-        qDebug() << "[Film] Person segmenter unavailable — annotation runs without background suppression";
+        ppWarn() << "[Film] Person segmenter unavailable — annotation runs without background suppression";
 #endif
 
 #endif // HAVE_OPENCV
@@ -467,7 +467,9 @@ void FilmController::downloadUrl(const QString &url, const QString &browser)
 #endif
         args << QStringLiteral("--cookies-from-browser") << browserArg;
     }
-    args << QStringLiteral("-f")
+    args << QStringLiteral("-q")
+         << QStringLiteral("--no-warnings")
+         << QStringLiteral("-f")
          // Prefer H.264 video + AAC audio; explicitly exclude AV1 (av01) which
          // Qt Multimedia's FFmpeg backend cannot software-decode on all platforms.
          << QStringLiteral("bestvideo[height<=1080][vcodec^=avc1]+bestaudio[ext=m4a]"
@@ -482,7 +484,10 @@ void FilmController::downloadUrl(const QString &url, const QString &browser)
          << QStringLiteral("-o") << (filmCacheDir() + QStringLiteral("/%(id)s.%(ext)s"))
          << trimmed;
 
-    qDebug() << "[Film] Starting:" << bin << args;
+    ppDebug() << "[Film] Starting:" << bin << args;
+#if PINPOINT_DEBUG_LEVEL < 3
+    m_ytdlp->setStandardErrorFile(QProcess::nullDevice());
+#endif
     m_ytdlp->start(bin, args);
 }
 
@@ -615,7 +620,7 @@ void FilmController::setDownloadStatus(const QString &msg)
 
 void FilmController::openLocalFile(const QString &path)
 {
-    qDebug() << "[Film] Opening local file:" << path;
+    ppDebug() << "[Film] Opening local file:" << path;
     m_player->setSource(QUrl::fromLocalFile(path));
     m_hasMedia = true;
     emit hasMediaChanged();
@@ -667,7 +672,7 @@ void FilmController::onYtdlpOutput()
 
     while (m_ytdlp && m_ytdlp->canReadLine()) {
         const QString line = QString::fromUtf8(m_ytdlp->readLine()).trimmed();
-        qDebug() << "[yt-dlp]" << line;
+        ppDebug() << "[yt-dlp]" << line;
 
         auto dm = reDest.match(line);
         if (dm.hasMatch()) {
@@ -729,7 +734,7 @@ void FilmController::onYtdlpFinished(int exitCode, QProcess::ExitStatus)
     emit isDownloadingChanged();
 
     if (exitCode != 0) {
-        qWarning() << "[Film] yt-dlp exited" << exitCode << "—" << errOutput.left(200);
+        ppWarn() << "[Film] yt-dlp exited" << exitCode << "—" << errOutput.left(200);
         setDownloadStatus(QStringLiteral("Download failed: ") + errOutput.left(120));
         return;
     }
@@ -752,7 +757,7 @@ void FilmController::onPlayerStateChanged(QMediaPlayer::PlaybackState)
 
 void FilmController::onPlayerError(QMediaPlayer::Error, const QString &errorString)
 {
-    qWarning() << "[Film] Player error:" << errorString;
+    ppWarn() << "[Film] Player error:" << errorString;
     setDownloadStatus(QStringLiteral("Playback error: ") + errorString);
 }
 

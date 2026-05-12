@@ -3,9 +3,9 @@
 #include "person_segmenter.h"
 
 #include <QCoreApplication>
-#include <QDebug>
 #include <QFile>
 #include <QString>
+#include "pp_debug.h"
 
 #include <onnxruntime_cxx_api.h>
 #include <opencv2/imgproc.hpp>
@@ -52,7 +52,7 @@ bool PersonSegmenter::load()
 {
     const QString path = modelPath();
     if (!QFile::exists(path)) {
-        qWarning() << "[Segmenter] Model not found:" << path;
+        ppWarn() << "[Segmenter] Model not found:" << path;
         return false;
     }
 
@@ -70,7 +70,7 @@ bool PersonSegmenter::load()
             m_ort->env, path.toUtf8().constData(), m_ort->opts);
 #endif
     } catch (const Ort::Exception &e) {
-        qWarning() << "[Segmenter] Failed to load model:" << e.what();
+        ppWarn() << "[Segmenter] Failed to load model:" << e.what();
         m_ort.reset();
         return false;
     }
@@ -105,7 +105,7 @@ bool PersonSegmenter::load()
 
     if (m_inputH <= 0 || m_inputW <= 0) { m_inputH = 320; m_inputW = 320; }
 
-    qDebug() << "[Segmenter] Loaded — input:" << m_ort->inputName.c_str()
+    ppInfo() << "[Segmenter] Loaded — input:" << m_ort->inputName.c_str()
              << (m_isNHWC ? "NHWC" : "NCHW") << m_inputH << "×" << m_inputW
              << "output:" << m_ort->outputName.c_str();
 
@@ -209,7 +209,7 @@ cv::Mat PersonSegmenter::segment(const cv::Mat &bgr) const
         cv::resize(mask, mask, cv::Size(origW, origH));
 
     } catch (const Ort::Exception &e) {
-        qWarning() << "[Segmenter] Inference error:" << e.what();
+        ppWarn() << "[Segmenter] Inference error:" << e.what();
         return {};
     }
 

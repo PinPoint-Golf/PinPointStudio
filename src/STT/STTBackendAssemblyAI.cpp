@@ -1,4 +1,5 @@
 #include "STTBackendAssemblyAI.h"
+#include "pp_debug.h"
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkRequest>
@@ -41,7 +42,7 @@ bool STTBackendAssemblyAI::loadModel(const QString&)
     connect(m_socket, &QWebSocket::sslErrors,
             this, [this](const QList<QSslError> &errors) {
                 for (const QSslError &e : errors)
-                    qWarning() << "[AssemblyAI] SSL error:" << e.errorString();
+                    ppWarn() << "[AssemblyAI] SSL error:" << e.errorString();
             });
 
     m_abortTimer = new QTimer(this);
@@ -126,7 +127,7 @@ void STTBackendAssemblyAI::onDisconnected()
 
 void STTBackendAssemblyAI::onAbortTimeout()
 {
-    qWarning() << "[AssemblyAI] No Termination reply — force closing";
+    ppWarn() << "[AssemblyAI] No Termination reply — force closing";
     if (!m_pendingPartial.isEmpty()) {
         emit transcriptionReady(m_pendingPartial);
         m_pendingPartial.clear();
@@ -182,7 +183,7 @@ void STTBackendAssemblyAI::onTextMessageReceived(const QString& message)
     }
 
     if (type == QLatin1String("Error")) {
-        qWarning() << "[AssemblyAI] Server error:" << obj[QLatin1String("error")].toString();
+        ppWarn() << "[AssemblyAI] Server error:" << obj[QLatin1String("error")].toString();
         return;
     }
 
@@ -196,7 +197,7 @@ void STTBackendAssemblyAI::onTextMessageReceived(const QString& message)
 
 void STTBackendAssemblyAI::onSocketError(QAbstractSocket::SocketError errorCode)
 {
-    qWarning() << "[AssemblyAI] Socket error" << static_cast<int>(errorCode)
+    ppWarn() << "[AssemblyAI] Socket error" << static_cast<int>(errorCode)
                << "(" << m_socket->errorString() << ")";
     m_abortTimer->stop();
     m_pendingPartial.clear();

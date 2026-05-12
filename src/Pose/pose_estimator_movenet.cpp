@@ -4,8 +4,8 @@
 
 #include <QCoreApplication>
 #include <QDateTime>
-#include <QDebug>
 #include <QElapsedTimer>
+#include "pp_debug.h"
 #include <QFile>
 #include <QLibrary>
 
@@ -80,7 +80,7 @@ void PoseEstimatorMoveNet::load()
 {
     const QString path = modelPath(m_variant);
     if (!QFile::exists(path)) {
-        qWarning() << "[MoveNet] Model not found:" << path;
+        ppWarn() << "[MoveNet] Model not found:" << path;
         return;
     }
 
@@ -98,9 +98,9 @@ void PoseEstimatorMoveNet::load()
             Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CoreML(
                 m_ort->opts, COREML_FLAG_USE_NONE));
             epLabel = QStringLiteral("CoreML");
-            qDebug() << "[MoveNet] CoreML execution provider active";
+            ppInfo() << "[MoveNet] CoreML execution provider active";
         } catch (const Ort::Exception &e) {
-            qDebug() << "[MoveNet] CoreML unavailable:" << e.what() << "— falling back";
+            ppInfo() << "[MoveNet] CoreML unavailable:" << e.what() << "— falling back";
         }
     }
 #endif
@@ -122,9 +122,9 @@ void PoseEstimatorMoveNet::load()
                 cuda.device_id = 0;
                 m_ort->opts.AppendExecutionProvider_CUDA(cuda);
                 epLabel = QStringLiteral("CUDA");
-                qDebug() << "[MoveNet] CUDA execution provider active";
+                ppInfo() << "[MoveNet] CUDA execution provider active";
             } catch (const Ort::Exception &e) {
-                qDebug() << "[MoveNet] CUDA unavailable:" << e.what() << "— falling back";
+                ppInfo() << "[MoveNet] CUDA unavailable:" << e.what() << "— falling back";
             }
         }
     }
@@ -135,17 +135,17 @@ void PoseEstimatorMoveNet::load()
         try {
             m_ort->opts.AppendExecutionProvider("DML");
             epLabel = QStringLiteral("DirectML");
-            qDebug() << "[MoveNet] DirectML execution provider active";
+            ppInfo() << "[MoveNet] DirectML execution provider active";
         } catch (const Ort::Exception &e) {
-            qDebug() << "[MoveNet] DirectML unavailable:" << e.what() << "— falling back";
+            ppInfo() << "[MoveNet] DirectML unavailable:" << e.what() << "— falling back";
         }
     }
 #endif
 
     if (epLabel.isEmpty())
-        qDebug() << "[MoveNet] No GPU EP available — using CPU";
+        ppInfo() << "[MoveNet] No GPU EP available — using CPU";
     else
-        qDebug() << "[MoveNet] Using" << epLabel << "execution provider";
+        ppInfo() << "[MoveNet] Using" << epLabel << "execution provider";
 
     try {
 #ifdef Q_OS_WIN
@@ -156,7 +156,7 @@ void PoseEstimatorMoveNet::load()
             m_ort->env, path.toUtf8().constData(), m_ort->opts);
 #endif
     } catch (const Ort::Exception &e) {
-        qWarning() << "[MoveNet] Failed to load model:" << e.what();
+        ppWarn() << "[MoveNet] Failed to load model:" << e.what();
         m_ort.reset();
         return;
     }
@@ -167,7 +167,7 @@ void PoseEstimatorMoveNet::load()
 
     const char *variantName = (m_variant == ModelVariant::Thunder) ? "Thunder" : "Lightning";
     const int   modelSz    = inputSize(m_variant);
-    qDebug() << "[MoveNet]" << variantName << "loaded —"
+    ppInfo() << "[MoveNet]" << variantName << "loaded —"
              << "input:" << m_ort->inputName.c_str()
              << "output:" << m_ort->outputName.c_str()
              << "size:" << modelSz << "×" << modelSz;
@@ -235,7 +235,7 @@ void PoseEstimatorMoveNet::estimatePose(const cv::Mat &frame)
         emit poseEstimated(result);
 
     } catch (const Ort::Exception &e) {
-        qWarning() << "[MoveNet] Inference error:" << e.what();
+        ppWarn() << "[MoveNet] Inference error:" << e.what();
         emit estimationDone();
         return;
     }

@@ -1,8 +1,8 @@
 #include "PhonemeTokenizer.h"
 
 #include <QCoreApplication>
-#include <QDebug>
 #include <QFile>
+#include "pp_debug.h"
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMutex>
@@ -62,7 +62,7 @@ bool PhonemeTokenizer::initialise(const QString &tokensJsonPath)
     for (auto it = vocabObj.constBegin(); it != vocabObj.constEnd(); ++it)
         m_vocab.insert(it.key(), static_cast<int64_t>(it.value().toInt()));
 
-    qDebug() << "[Tokenizer] vocab loaded:" << m_vocab.size() << "entries";
+    ppInfo() << "[Tokenizer] vocab loaded:" << m_vocab.size() << "entries";
 
     // ---- Initialise espeak-ng -----------------------------------------------
 #ifdef HAVE_ESPEAK_NG
@@ -126,7 +126,7 @@ QString PhonemeTokenizer::textToPhonemes(const QString &text) const
     size_t bufSize = 0;
     FILE  *stream  = open_memstream(&buf, &bufSize);
     if (!stream) {
-        qWarning() << "[Tokenizer] open_memstream failed";
+        ppWarn() << "[Tokenizer] open_memstream failed";
         return {};
     }
 #  else
@@ -135,7 +135,7 @@ QString PhonemeTokenizer::textToPhonemes(const QString &text) const
     std::tmpnam(tmpPath);
     FILE *stream = std::fopen(tmpPath, "w+");
     if (!stream) {
-        qWarning() << "[Tokenizer] failed to open temp file for phoneme trace";
+        ppWarn() << "[Tokenizer] failed to open temp file for phoneme trace";
         return {};
     }
 #  endif
@@ -166,7 +166,7 @@ QString PhonemeTokenizer::textToPhonemes(const QString &text) const
     QString result = QString::fromUtf8(data).trimmed();
 #  endif
 
-    qDebug() << "[Tokenizer] raw phoneme trace:" << result;
+    ppDebug() << "[Tokenizer] raw phoneme trace:" << result;
     return result;
 #endif // HAVE_ESPEAK_NG
 }
@@ -197,6 +197,6 @@ QVector<int64_t> PhonemeTokenizer::phonemesToIds(const QString &phonemes) const
             ++pos;
     }
 
-    qDebug() << "[Tokenizer]" << ids.size() << "token IDs for:" << phonemes;
+    ppDebug() << "[Tokenizer]" << ids.size() << "token IDs for:" << phonemes;
     return ids;
 }

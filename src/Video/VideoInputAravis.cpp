@@ -6,8 +6,8 @@
 #endif
 
 #include "VideoInputAravis.h"
-#include <QDebug>
 #include <QVideoFrame>
+#include "pp_debug.h"
 #include <QtConcurrent>
 
 VideoInputAravis::VideoInputAravis(QObject *parent)

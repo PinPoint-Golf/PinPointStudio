@@ -2,6 +2,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 
+#include "pp_debug.h"
 #include "SecretsManager.h"
 #include "film_controller.h"
 #include "imu_controller.h"
@@ -11,6 +12,7 @@
 
 int main(int argc, char *argv[])
 {
+    PinPointDebug::install();
     QGuiApplication app(argc, argv);
     SecretsManager::initializeDefaults();
 

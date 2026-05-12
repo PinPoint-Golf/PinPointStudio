@@ -1,6 +1,6 @@
 #include "STTWorker.h"
 #include "STTBackend.h"
-#include <QDebug>
+#include "pp_debug.h"
 
 STTWorker::STTWorker(STTBackend* backend, QObject* parent)
   : QObject(parent), m_backend(backend)

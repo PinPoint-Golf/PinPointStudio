@@ -2,8 +2,8 @@
 #include "../Core/device_enumerator.h"
 
 #include <QAudioSink>
-#include <QDebug>
 #include <QMediaDevices>
+#include "pp_debug.h"
 #include <QMutex>
 #include <QMutexLocker>
 
@@ -124,13 +124,13 @@ bool AudioOutput::start(const QString &deviceName)
     QAudioFormat fmt;
     if (m_preferredFormat.isValid() && m_activeDevice.isFormatSupported(m_preferredFormat)) {
         fmt = m_preferredFormat;
-        qDebug() << "AudioOutput: using preferred format"
+        ppInfo() << "AudioOutput: using preferred format"
                  << fmt.sampleRate() << "Hz"
                  << fmt.channelCount() << "ch fmt="
                  << static_cast<int>(fmt.sampleFormat());
     } else {
         fmt = m_activeDevice.preferredFormat();
-        qWarning() << "AudioOutput: preferred format not supported, falling back to device format"
+        ppWarn() << "AudioOutput: preferred format not supported, falling back to device format"
                    << fmt.sampleRate() << "Hz"
                    << fmt.channelCount() << "ch fmt="
                    << static_cast<int>(fmt.sampleFormat())

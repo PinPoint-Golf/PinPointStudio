@@ -1,5 +1,5 @@
 #include "device_enumerator.h"
-#include <QDebug>
+#include "pp_debug.h"
 
 DeviceEnumerator* DeviceEnumerator::instance()
 {

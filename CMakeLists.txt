@@ -154,6 +154,22 @@ target_compile_definitions(PinPoint PRIVATE
     QT_APPLICATION_NAME="PinPoint"
 )
 
+# ── PinPoint debug level ──────────────────────────────────────────────────────
+# Controls pp_debug.h verbosity at compile time:
+#   0 = silent   1 = warnings+errors only (default for all builds)
+#   2 = startup info + warnings/errors    (pass -DPINPOINT_DEBUG_LEVEL=2)
+#   3 = verbose debug + all of the above
+if(NOT DEFINED PINPOINT_DEBUG_LEVEL)
+    set(PINPOINT_DEBUG_LEVEL 1)
+endif()
+message(STATUS "PinPoint debug level: ${PINPOINT_DEBUG_LEVEL}")
+target_compile_definitions(PinPoint PRIVATE PINPOINT_DEBUG_LEVEL=${PINPOINT_DEBUG_LEVEL})
+
+target_sources(PinPoint PRIVATE
+    src/Core/pp_debug.h
+    src/Core/pp_debug.cpp
+)
+
 set_target_properties(PinPoint PROPERTIES
     MACOSX_BUNDLE TRUE
     WIN32_EXECUTABLE TRUE
@@ -222,6 +238,16 @@ target_include_directories(PinPoint PRIVATE
     ${whisper_SOURCE_DIR}/ggml/include
     ${libsamplerate_SOURCE_DIR}/include
 )
+
+# FFmpeg log suppression — pp_debug.cpp uses dlsym() at runtime to call
+# av_log_set_level() on Qt's bundled libavutil (not the system package).
+# No link against system libavutil needed; dlsym resolves the symbol from
+# Qt Multimedia's transitive dependency, which is loaded before main() runs.
+if(UNIX)
+    target_link_libraries(PinPoint PRIVATE dl)
+    target_compile_definitions(PinPoint PRIVATE PP_HAS_DLSYM)
+    message(STATUS "FFmpeg log suppression: via dlsym (UNIX)")
+endif()
 
 # ── ONNX Runtime (auto-fetched prebuilt) ─────────────────────────────────────
 # Three independent EP flags — each defaults ON; platform guards below control

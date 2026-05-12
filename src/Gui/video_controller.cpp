@@ -14,8 +14,8 @@
 #endif
 
 #include <QCoreApplication>
-#include <QDebug>
 #include <QMetaObject>
+#include "pp_debug.h"
 #include <QThread>
 #include <QTimer>
 #include <QVideoFrame>
@@ -275,9 +275,9 @@ void VideoController::setBayerItem(QObject *item)
 {
     m_bayerItem = qobject_cast<BayerVideoItem *>(item);
     if (item && !m_bayerItem)
-        qWarning() << "[VideoController] setBayerItem: cast failed — item is" << item->metaObject()->className();
+        ppWarn() << "[VideoController] setBayerItem: cast failed — item is" << item->metaObject()->className();
     else
-        qDebug() << "[VideoController] setBayerItem:" << (m_bayerItem ? "ok" : "null");
+        ppDebug() << "[VideoController] setBayerItem:" << (m_bayerItem ? "ok" : "null");
 }
 
 void VideoController::selectMoveNetModel(int variant)
@@ -314,7 +314,7 @@ void VideoController::startRecording()
     requestCameraPermission([self](bool granted) {
         QMetaObject::invokeMethod(self, [self, granted]() {
             if (!granted) {
-                qWarning() << "[VideoController] Camera permission denied."
+                ppWarn() << "[VideoController] Camera permission denied."
                            << "Grant access in System Settings → Privacy & Security → Camera.";
                 return;
             }
@@ -336,7 +336,7 @@ void VideoController::startRecording()
 
         if (m_deviceId.isEmpty()) {
             // Auto-mode only: fall back from industrial camera to Qt Multimedia webcam.
-            qWarning() << "[VideoController] Failed to start primary video input. Attempting fallback...";
+            ppWarn() << "[VideoController] Failed to start primary video input. Attempting fallback...";
             VideoInputFactory::Backend currentBackend = VideoInputFactory::backendType(m_videoInput);
             if (currentBackend == VideoInputFactory::Backend::Aravis ||
                 currentBackend == VideoInputFactory::Backend::Spinnaker)
@@ -365,7 +365,7 @@ void VideoController::startRecording()
                 }, Qt::QueuedConnection);
             }
         } else {
-            qWarning() << "[VideoController] Failed to start camera:" << m_deviceDescription;
+            ppWarn() << "[VideoController] Failed to start camera:" << m_deviceDescription;
             QMetaObject::invokeMethod(this, [this]() {
                 m_recording = false;
                 emit isRecordingChanged();
@@ -425,7 +425,7 @@ void VideoController::drainRawFrame()
 
     static bool logged = false;
     if (!logged) {
-        qDebug() << "[VideoController] first raw Bayer frame:" << raw.width << "x" << raw.height
+        ppDebug() << "[VideoController] first raw Bayer frame:" << raw.width << "x" << raw.height
                  << "pattern" << static_cast<int>(raw.pattern)
                  << "bayerItem" << (m_bayerItem ? "set" : "NULL");
         logged = true;
@@ -460,7 +460,7 @@ void VideoController::onPoseEstimated(const PoseResult &result)
 
 void VideoController::onVideoError(const QString &message)
 {
-    qWarning() << "[Video]" << message;
+    ppWarn() << "[Video]" << message;
 }
 
 void VideoController::onPreprocessStats(double avgMs)

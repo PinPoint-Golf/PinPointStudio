@@ -9,8 +9,8 @@
 
 #include "VideoInputSpinnaker.h"
 #include "raw_video_frame.h"
-#include <QDebug>
 #include <QVideoFrame>
+#include "pp_debug.h"
 #include <QtConcurrent>
 
 #ifdef HAVE_SPINNAKER
@@ -108,7 +108,7 @@ bool VideoInputSpinnaker::start(const QString &deviceId)
                     ptrPixelFormat->SetIntValue(ptrEntry->GetValue());
                     m_bayerPattern = fmt.pattern;
                     m_emitRaw      = fmt.isBayer;
-                    qDebug() << "[VideoInputSpinnaker] Pixel format:" << fmt.name
+                    ppDebug() << "[VideoInputSpinnaker] Pixel format:" << fmt.name
                              << (fmt.isBayer ? "(raw Bayer, GPU demosaic)" : "(pre-decoded)");
                     break;
                 }
@@ -131,7 +131,7 @@ bool VideoInputSpinnaker::start(const QString &deviceId)
             const int64_t desired = 40;
             ptrBufferCount->SetValue(
                 qBound(ptrBufferCount->GetMin(), desired, ptrBufferCount->GetMax()));
-            qDebug() << "[VideoInputSpinnaker] Stream buffer count:"
+            ppDebug() << "[VideoInputSpinnaker] Stream buffer count:"
                      << ptrBufferCount->GetValue();
         }
 
@@ -221,7 +221,7 @@ void VideoInputSpinnaker::captureLoop()
         try {
             ImagePtr pResultImage = (*camera)->GetNextImage(1000);
             if (pResultImage->IsIncomplete()) {
-                qDebug() << "[VideoInputSpinnaker] Incomplete image, status"
+                ppDebug() << "[VideoInputSpinnaker] Incomplete image, status"
                          << pResultImage->GetImageStatus();
                 pResultImage->Release();
                 continue;
@@ -285,7 +285,7 @@ void VideoInputSpinnaker::captureLoop()
             // EndAcquisition() being called while GetNextImage() is waiting.
             // Only log it when the abort was unexpected (m_abort is still false).
             if (!m_abort)
-                qWarning() << "[VideoInputSpinnaker] Capture error:" << e.what();
+                ppWarn() << "[VideoInputSpinnaker] Capture error:" << e.what();
         }
     }
 #endif

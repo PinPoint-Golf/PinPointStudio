@@ -2,8 +2,8 @@
 
 #include <QDataStream>
 #include <QDateTime>
-#include <QDebug>
 #include <QDir>
+#include "pp_debug.h"
 #include <QStandardPaths>
 
 AudioStreamSaver::AudioStreamSaver(QObject *parent)
@@ -47,7 +47,7 @@ void AudioStreamSaver::openFile(const QAudioFormat &format)
 
     m_file.setFileName(path);
     if (!m_file.open(QIODevice::WriteOnly)) {
-        qWarning() << "[AudioStreamSaver] Cannot open file for writing:" << path;
+        ppWarn() << "[AudioStreamSaver] Cannot open file for writing:" << path;
         return;
     }
 

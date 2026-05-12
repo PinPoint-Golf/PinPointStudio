@@ -24,7 +24,7 @@
 #define signals public
 #endif
 
-#include <QDebug>
+#include "pp_debug.h"
 
 void VideoInputFactory::enumerateDevices()
 {
@@ -91,7 +91,7 @@ VideoInputBase* VideoInputFactory::create(Backend backend, QObject *parent)
         if (DeviceEnumerator::instance()->devices().count() > 0) {
             for (const auto &dev : DeviceEnumerator::instance()->devices()) {
                 if (dev.backend == Backend::Spinnaker) {
-                    qDebug() << "[VideoInputFactory] Spinnaker camera detected; selecting Spinnaker backend.";
+                    ppInfo() << "[VideoInputFactory] Spinnaker camera detected; selecting Spinnaker backend.";
                     return new VideoInputSpinnaker(parent);
                 }
             }
@@ -104,18 +104,18 @@ VideoInputBase* VideoInputFactory::create(Backend backend, QObject *parent)
             for (const auto &dev : DeviceEnumerator::instance()->devices())
                 if (dev.backend == Backend::Aravis) { hasAravis = true; break; }
             if (hasAravis) {
-                qDebug() << "[VideoInputFactory] Industrial camera(s) detected; selecting Aravis backend.";
+                ppInfo() << "[VideoInputFactory] Industrial camera(s) detected; selecting Aravis backend.";
                 return new VideoInputAravis(parent);
             }
         }
 #endif
 
 #ifdef Q_OS_MACOS
-        qDebug() << "[VideoInputFactory] Selecting native Apple AVFoundation backend.";
+        ppInfo() << "[VideoInputFactory] Selecting native Apple AVFoundation backend.";
         return new VideoInputApple(parent);
 #endif
 
-        qDebug() << "[VideoInputFactory] Selecting Qt Multimedia backend.";
+        ppInfo() << "[VideoInputFactory] Selecting Qt Multimedia backend.";
         return new VideoInput(parent);
     }
 
@@ -135,7 +135,7 @@ VideoInputBase* VideoInputFactory::create(Backend backend, QObject *parent)
             return new VideoInputSpinnaker(parent);
 #endif
         default:
-            qWarning() << "[VideoInputFactory] Requested backend not available on this platform; falling back to Qt Multimedia.";
+            ppWarn() << "[VideoInputFactory] Requested backend not available on this platform; falling back to Qt Multimedia.";
             return new VideoInput(parent);
     }
 }
