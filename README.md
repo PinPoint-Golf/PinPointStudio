@@ -48,7 +48,7 @@ Built with **Qt 6.11** and **C++20**.
 | Person segmentation | u2netp (ONNX Runtime) |
 | Video download | yt-dlp (bundled binary) |
 | GPU acceleration | Vulkan, CUDA (12 + 13), CoreML |
-| Image processing | OpenCV |
+| Image processing | OpenCV 3.0+ (required) |
 | IMU | Witmotion WT901BLE67 via Qt Bluetooth LE |
 
 ## Local Files

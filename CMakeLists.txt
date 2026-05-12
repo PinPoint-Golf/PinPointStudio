@@ -819,30 +819,28 @@ if(WIN32 AND NOT OpenCV_DIR)
     endif()
 endif()
 
-find_package(OpenCV QUIET)
-
-if(OpenCV_FOUND)
-    message(STATUS "OpenCV ${OpenCV_VERSION}: found")
-    target_compile_definitions(PinPoint PRIVATE HAVE_OPENCV)
-    target_include_directories(PinPoint PRIVATE ${OpenCV_INCLUDE_DIRS})
-    target_link_libraries(PinPoint PRIVATE ${OpenCV_LIBS})
+find_package(OpenCV REQUIRED)
+if(OpenCV_VERSION VERSION_LESS "3.0")
+    message(FATAL_ERROR "OpenCV 3.0 or higher is required (found ${OpenCV_VERSION})")
+endif()
+message(STATUS "OpenCV ${OpenCV_VERSION}: found")
+target_compile_definitions(PinPoint PRIVATE HAVE_OPENCV)
+target_include_directories(PinPoint PRIVATE ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(PinPoint PRIVATE ${OpenCV_LIBS})
+target_sources(PinPoint PRIVATE
+    src/Video/video_preprocessor_opencv.h
+    src/Video/video_preprocessor_opencv.cpp
+    src/Video/video_overlay_pose.h
+    src/Video/video_overlay_pose.cpp
+    src/Video/frame_throttle.h
+    src/Video/frame_throttle.cpp
+)
+if(EXISTS "${_movenet_lightning_path}")
     target_sources(PinPoint PRIVATE
-        src/Video/video_preprocessor_opencv.h
-        src/Video/video_preprocessor_opencv.cpp
-        src/Video/video_overlay_pose.h
-        src/Video/video_overlay_pose.cpp
-        src/Video/frame_throttle.h
-        src/Video/frame_throttle.cpp
+        src/Pose/pose_estimator_movenet.h
+        src/Pose/pose_estimator_movenet.cpp
     )
-    if(EXISTS "${_movenet_lightning_path}")
-        target_sources(PinPoint PRIVATE
-            src/Pose/pose_estimator_movenet.h
-            src/Pose/pose_estimator_movenet.cpp
-        )
-        message(STATUS "MoveNet pose estimator: enabled")
-    endif()
-else()
-    message(STATUS "OpenCV: not found (image processing features disabled)")
+    message(STATUS "MoveNet pose estimator: enabled")
 endif()
 
 if(APPLE)

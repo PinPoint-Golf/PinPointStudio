@@ -120,7 +120,7 @@ For Teledyne/FLIR industrial cameras, install the [Spinnaker SDK](https://www.te
 ### 5. Aravis (Optional)
 Set the `ARAVIS_ROOT` environment variable to your Aravis installation directory.
 
-### 6. OpenCV (Optional but recommended)
+### 6. OpenCV (Required, 3.0+)
 Download from [opencv.org](https://opencv.org/releases/). CMake probes `C:\opencv\build` and `C:\tools\opencv\build` automatically. For a custom location: `-DOpenCV_DIR=C:\path\to\opencv\build`.
 
 ---
@@ -148,9 +148,9 @@ The following are fetched at `cmake ..` time — no manual steps required:
 | espeak-ng 1.52.0 | Built from source | — | Only if not found on system |
 | libsamplerate 0.2.2 | Built from source | — | Always |
 | `ggml-base.en.bin` | Whisper STT model (Hugging Face) | ~148 MB | Always |
-| MoveNet Lightning | ONNX pose model (Hugging Face) | ~9 MB | When OpenCV present |
-| MoveNet Thunder | ONNX pose model (Hugging Face) | ~30 MB | When OpenCV present |
-| u2netp | ONNX person segmentation model | ~4.7 MB | When OpenCV present |
+| MoveNet Lightning | ONNX pose model (Hugging Face) | ~9 MB | Always |
+| MoveNet Thunder | ONNX pose model (Hugging Face) | ~30 MB | Always |
+| u2netp | ONNX person segmentation model | ~4.7 MB | Always |
 | yt-dlp | Platform binary for YouTube download | ~15 MB | Always |
 
 If a download fails, the affected feature is disabled but the rest of the build continues normally. Re-run CMake to retry failed downloads.
