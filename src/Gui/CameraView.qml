@@ -9,8 +9,14 @@ Item {
 
     property QtObject controller
 
-    Component.onCompleted: controller.setVideoSink(videoOut.videoSink)
-    onControllerChanged: if (controller) controller.setVideoSink(videoOut.videoSink)
+    Component.onCompleted: {
+        controller.setVideoSink(videoOut.videoSink)
+        controller.setBayerItem(bayerView)
+    }
+    onControllerChanged: if (controller) {
+        controller.setVideoSink(videoOut.videoSink)
+        controller.setBayerItem(bayerView)
+    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -23,6 +29,7 @@ Item {
             color: "#181825"
             radius: 6
 
+            // Standard Qt Multimedia path for webcams and pre-decoded streams.
             VideoOutput {
                 id: videoOut
                 anchors.fill: parent
@@ -31,22 +38,12 @@ Item {
                 visible: !root.controller.needsDebayer
             }
 
-            ShaderEffectSource {
-                id: videoSource
-                sourceItem: videoOut
-                live: true
-                hideSource: false
-            }
-
-            Loader {
+            // GPU Bayer demosaic path for industrial Bayer cameras (Spinnaker).
+            BayerVideoItem {
+                id: bayerView
                 anchors.fill: parent
-                active: root.controller.needsDebayer
-                visible: active
-                sourceComponent: ShaderEffect {
-                    property variant source: videoSource
-                    vertexShader: "qrc:/shaders/src/Gui/debayer.vert.qsb"
-                    fragmentShader: "qrc:/shaders/src/Gui/debayer.frag.qsb"
-                }
+                anchors.margins: 2
+                visible: root.controller.needsDebayer
             }
 
             Label {
@@ -112,7 +109,11 @@ Item {
                     if (!kps || kps.length < 17)
                         return
 
-                    var cr = videoOut.contentRect
+                    // For Spinnaker (BayerVideoItem), use the item's full bounds.
+                    // For standard VideoOutput, use the letterboxed contentRect.
+                    var cr = root.controller.needsDebayer
+                        ? Qt.rect(0, 0, bayerView.width, bayerView.height)
+                        : videoOut.contentRect
                     if (cr.width <= 0 || cr.height <= 0)
                         return
 

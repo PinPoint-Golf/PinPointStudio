@@ -2,9 +2,12 @@ cmake_minimum_required(VERSION 3.16)
 
 project(PinPoint VERSION 0.1 LANGUAGES CXX)
 
+# Qt GuiPrivate is used for QRhi (public API since Qt 6.6, accessed via GuiPrivate includes).
+set(QT_NO_PRIVATE_MODULE_WARNING ON)
+
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 Quick3D SerialPort Bluetooth Multimedia Network WebSockets Concurrent ShaderTools)
+find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 Quick3D SerialPort Bluetooth Multimedia Network WebSockets Concurrent ShaderTools GuiPrivate)
 
 qt_standard_project_setup(REQUIRES 6.10)
 
@@ -96,6 +99,7 @@ qt_add_executable(PinPoint
     src/Video/video_input_factory.h        src/Video/video_input_factory.cpp
     src/Video/video_preprocessor_base.h   src/Video/video_preprocessor_base.cpp
     src/Video/video_overlay_base.h        src/Video/video_overlay_base.cpp
+    src/Video/raw_video_frame.h            src/Video/raw_video_frame.cpp
     src/Pose/pose_estimator_base.h        src/Pose/pose_estimator_base.cpp
     src/Core/device_enumerator.h           src/Core/device_enumerator.cpp
     src/Video/VideoInputAravis.h           src/Video/VideoInputAravis.cpp
@@ -123,6 +127,9 @@ qt_add_qml_module(PinPoint
         src/Gui/FilmPage.qml
         src/Gui/VideoPage.qml
         src/Gui/CameraView.qml
+    SOURCES
+        src/Video/bayer_video_item.h
+        src/Video/bayer_video_item.cpp
 )
 
 qt6_add_shaders(PinPoint "debayer_shaders"
@@ -132,6 +139,15 @@ qt6_add_shaders(PinPoint "debayer_shaders"
     FILES
         "src/Gui/debayer.vert"
         "src/Gui/debayer.frag"
+)
+
+qt6_add_shaders(PinPoint "bayer_demosaic_shaders"
+    PRECOMPILE
+    OPTIMIZED
+    PREFIX "/shaders"
+    FILES
+        "src/Video/shaders/bayer_demosaic.vert"
+        "src/Video/shaders/bayer_demosaic.frag"
 )
 
 target_compile_definitions(PinPoint PRIVATE
@@ -154,7 +170,7 @@ configure_file(
 
 
 target_link_libraries(PinPoint
-    PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::Quick3D Qt6::SerialPort Qt6::Bluetooth Qt6::Multimedia Qt6::Network Qt6::WebSockets Qt6::Concurrent
+    PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::Quick3D Qt6::SerialPort Qt6::Bluetooth Qt6::Multimedia Qt6::Network Qt6::WebSockets Qt6::Concurrent Qt6::GuiPrivate
 )
 
 

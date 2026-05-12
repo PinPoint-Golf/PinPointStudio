@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QVideoFrameFormat>
+#include "raw_video_frame.h"
 
 // Abstract base for camera / video capture.
 //
@@ -44,13 +45,20 @@ public:
     // Status
     // -----------------------------------------------------------------------
 
-    virtual bool              isActive()    const = 0;
-    virtual QVideoFrameFormat frameFormat() const = 0;
-    virtual State             state()       const;
+    virtual bool              isActive()      const = 0;
+    virtual QVideoFrameFormat frameFormat()   const = 0;
+    virtual State             state()         const;
+    // Returns true when the backend emits rawVideoFrameReady (raw Bayer bytes)
+    // rather than videoFrameReady (pre-decoded frames).  Valid after start().
+    virtual bool              emitsRawBayer() const { return false; }
 
 signals:
-    // Emitted for every decoded camera frame.
+    // Emitted for every decoded camera frame (non-Bayer backends).
     void videoFrameReady(const QVideoFrame &frame);
+
+    // Emitted by Bayer backends instead of videoFrameReady.  Data is packed
+    // (stride == width) so the GPU upload path needs no row-stride adjustment.
+    void rawVideoFrameReady(const RawVideoFrame &frame);
 
     void stateChanged(VideoInputBase::State state);
     void errorOccurred(const QString &message);

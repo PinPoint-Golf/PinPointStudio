@@ -19,8 +19,9 @@ public:
     void              stop()    override;
     void              suspend() override;
     void              resume()  override;
-    bool              isActive()    const override;
-    QVideoFrameFormat frameFormat() const override;
+    bool              isActive()      const override;
+    QVideoFrameFormat frameFormat()   const override;
+    bool              emitsRawBayer() const override { return m_emitRaw; }
 
 private:
     void captureLoop();
@@ -29,4 +30,6 @@ private:
     void *m_camera    = nullptr; // Spinnaker::CameraPtr*
     bool  m_streaming = false;
     bool  m_abort     = false;
+    int   m_bayerPattern = 0;   // RawVideoFrame::BayerPattern int, valid when Bayer format selected
+    bool  m_emitRaw      = false; // true when camera runs a Bayer pixel format
 };

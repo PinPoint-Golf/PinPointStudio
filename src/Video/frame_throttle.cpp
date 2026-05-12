@@ -32,15 +32,42 @@ void FrameThrottle::clearBusy()
     QVideoFrame next;
     {
         QMutexLocker lk(&m_mutex);
-        next    = m_latest;
+        next     = m_latest;
         m_latest = QVideoFrame();
     }
     if (next.isValid()) {
-        // Keep m_busy=true — immediately kick off next inference on the
-        // freshest frame that arrived during the previous cycle.
         emit frameReady(next);
     } else {
         m_busy.store(false, std::memory_order_relaxed);
+    }
+}
+
+void FrameThrottle::offerRaw(const RawVideoFrame &frame)
+{
+    if (++m_rawOfferCount % m_skipFactor != 0)
+        return;
+
+    if (m_rawBusy.load(std::memory_order_relaxed)) {
+        QMutexLocker lk(&m_rawMutex);
+        m_rawLatest = frame;
+        return;
+    }
+    m_rawBusy.store(true, std::memory_order_relaxed);
+    emit rawFrameReady(frame);
+}
+
+void FrameThrottle::clearRawBusy()
+{
+    RawVideoFrame next;
+    {
+        QMutexLocker lk(&m_rawMutex);
+        next        = m_rawLatest;
+        m_rawLatest = RawVideoFrame();
+    }
+    if (!next.isNull()) {
+        emit rawFrameReady(next);
+    } else {
+        m_rawBusy.store(false, std::memory_order_relaxed);
     }
 }
 

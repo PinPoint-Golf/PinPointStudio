@@ -30,6 +30,7 @@ public:
 
 public slots:
     void processFrame(const QVideoFrame &frame) override;
+    void processRawFrame(const RawVideoFrame &frame) override;
 
 signals:
     void framePreprocessed(const cv::Mat &mat);

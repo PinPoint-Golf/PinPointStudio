@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QVideoFrame>
+#include "raw_video_frame.h"
 
 // Abstract base for classes that pre-process raw video frames into a form
 // suitable for downstream analysis (e.g. pose estimation).
@@ -26,6 +27,7 @@ public:
 
 public slots:
     virtual void processFrame(const QVideoFrame &frame) = 0;
+    virtual void processRawFrame(const RawVideoFrame &frame) {}
 
 signals:
     // Rolling average preprocessing time in milliseconds, emitted each frame

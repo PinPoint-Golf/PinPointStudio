@@ -10,12 +10,14 @@
 #include <atomic>
 
 #include "device_enumerator.h"
+#include "raw_video_frame.h"
 
 class QThread;
 class QVideoFrame;
 class QVideoSink;
 class VideoInputBase;
 class VideoPreprocessorBase;
+class BayerVideoItem;
 
 #ifdef HAVE_OPENCV
 #include "pose_estimator_base.h"
@@ -69,6 +71,7 @@ public:
     void setPerspective(int p);
 
     Q_INVOKABLE void setVideoSink(QVideoSink *sink);
+    Q_INVOKABLE void setBayerItem(QObject *item);   // called from QML with a BayerVideoItem
     Q_INVOKABLE void startRecording();
     Q_INVOKABLE void stopRecording();
     Q_INVOKABLE void selectMoveNetModel(int variant);
@@ -92,6 +95,7 @@ signals:
 private slots:
     void onVideoFrame(const QVideoFrame &frame);
     void drainDisplayFrame();
+    void drainRawFrame();
     void onVideoError(const QString &message);
     void onPreprocessStats(double avgMs);
     void onPoseStats(double avgMs, double fps);
@@ -107,15 +111,21 @@ private:
     QThread               *m_captureThread   = nullptr;
     VideoInputBase        *m_videoInput       = nullptr;
     QVideoSink            *m_videoSink        = nullptr;
+    BayerVideoItem        *m_bayerItem        = nullptr;
     bool                   m_recording        = false;
     QString                m_deviceId;
     QString                m_deviceDescription;
 
-    // Display-path throttle: at most one QVideoFrame is ever queued to the
-    // main thread at a time, preventing unbounded queue growth at high frame rates.
+    // Display-path throttle: at most one frame is ever queued to the main thread
+    // at a time (shared between the QVideoFrame and RawVideoFrame paths, which are
+    // mutually exclusive per camera type).
     std::atomic<bool>      m_displayFramePending{false};
+
     QMutex                 m_latestFrameMutex;
     QVideoFrame            m_latestDisplayFrame;
+
+    QMutex                 m_latestRawFrameMutex;
+    RawVideoFrame          m_latestRawFrame;
 
     QThread               *m_preprocessThread = nullptr;
     VideoPreprocessorBase *m_preprocessor     = nullptr;

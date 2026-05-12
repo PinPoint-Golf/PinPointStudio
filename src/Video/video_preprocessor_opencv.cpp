@@ -72,4 +72,57 @@ void VideoPreprocessorOpenCV::processFrame(const QVideoFrame &frame)
         emit preprocessStatsUpdated(m_timingSum / kWindowSize);
 }
 
+void VideoPreprocessorOpenCV::processRawFrame(const RawVideoFrame &rawFrame)
+{
+    if (rawFrame.isNull())
+        return;
+
+    if (m_frameTimer.isValid()) {
+        const double intervalMs = m_frameTimer.nsecsElapsed() / 1e6;
+        m_intervalSum -= m_intervalSamples[m_intervalIndex];
+        m_intervalSamples[m_intervalIndex] = intervalMs;
+        m_intervalSum += intervalMs;
+        m_intervalIndex = (m_intervalIndex + 1) % kWindowSize;
+        if (m_intervalCount < kWindowSize)
+            ++m_intervalCount;
+        if (m_intervalCount == kWindowSize) {
+            const double avgInterval = m_intervalSum / kWindowSize;
+            if (avgInterval > 0.0)
+                emit cameraFpsUpdated(1000.0 / avgInterval);
+        }
+    }
+    m_frameTimer.restart();
+
+    QElapsedTimer timer;
+    timer.start();
+
+    const int cvtCode = rawFrame.opencvBayerToBgrCode();
+    cv::Mat bgr;
+    if (cvtCode >= 0) {
+        cv::Mat bayer(rawFrame.height, rawFrame.width, CV_8UC1,
+                      const_cast<char *>(rawFrame.data.constData()),
+                      static_cast<size_t>(rawFrame.width));
+        cv::cvtColor(bayer, bgr, cvtCode);
+    } else {
+        // Fallback for unknown patterns: treat as grayscale.
+        cv::Mat gray(rawFrame.height, rawFrame.width, CV_8UC1,
+                     const_cast<char *>(rawFrame.data.constData()),
+                     static_cast<size_t>(rawFrame.width));
+        cv::cvtColor(gray, bgr, cv::COLOR_GRAY2BGR);
+    }
+
+    emit framePreprocessed(bgr);
+
+    const double ms = timer.nsecsElapsed() / 1e6;
+    m_timingSum -= m_timingSamples[m_timingIndex];
+    m_timingSamples[m_timingIndex] = ms;
+    m_timingSum += ms;
+    m_timingIndex = (m_timingIndex + 1) % kWindowSize;
+    if (m_timingCount < kWindowSize)
+        ++m_timingCount;
+
+    if (m_timingCount == kWindowSize)
+        emit preprocessStatsUpdated(m_timingSum / kWindowSize);
+}
+
 #endif // HAVE_OPENCV

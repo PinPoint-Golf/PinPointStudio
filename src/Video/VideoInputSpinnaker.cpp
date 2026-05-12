@@ -7,11 +7,8 @@
 #include "SpinGenApi/SpinnakerGenApi.h"
 #endif
 
-#ifdef HAVE_OPENCV
-#include <opencv2/imgproc.hpp>
-#endif
-
 #include "VideoInputSpinnaker.h"
+#include "raw_video_frame.h"
 #include <QDebug>
 #include <QVideoFrame>
 #include <QtConcurrent>
@@ -79,30 +76,63 @@ bool VideoInputSpinnaker::start(const QString &deviceId)
         m_camera = camera;
         (*camera)->Init();
 
-        // Configure camera (similar to Aravis)
         INodeMap& nodeMap = (*camera)->GetNodeMap();
-        
-        // Set Acquisition Mode to Continuous
+
         CEnumerationPtr ptrAcquisitionMode = nodeMap.GetNode("AcquisitionMode");
         if (IsAvailable(ptrAcquisitionMode) && IsWritable(ptrAcquisitionMode)) {
-            CEnumEntryPtr ptrAcquisitionModeContinuous = ptrAcquisitionMode->GetEntryByName("Continuous");
-            if (IsAvailable(ptrAcquisitionModeContinuous) && IsReadable(ptrAcquisitionModeContinuous)) {
-                ptrAcquisitionMode->SetIntValue(ptrAcquisitionModeContinuous->GetValue());
-            }
+            CEnumEntryPtr ptrContinuous = ptrAcquisitionMode->GetEntryByName("Continuous");
+            if (IsAvailable(ptrContinuous) && IsReadable(ptrContinuous))
+                ptrAcquisitionMode->SetIntValue(ptrContinuous->GetValue());
         }
 
-        // Prefer RGB8Packed (no conversion), then Bayer (SDK conversion), then Mono8.
+        // Prefer raw Bayer formats: lower bus bandwidth (1 byte/pixel vs 3),
+        // camera free from ISP work, and host GPU handles demosaic.
+        // Fall back to RGB8Packed or Mono8 if no Bayer format is available.
+        struct FmtEntry { const char *name; int pattern; bool isBayer; };
+        static const FmtEntry fmtPriority[] = {
+            {"BayerRG8", 0, true},
+            {"BayerBG8", 1, true},
+            {"BayerGR8", 2, true},
+            {"BayerGB8", 3, true},
+            {"BGR8",     0, false},
+            {"RGB8Packed", 0, false},
+            {"Mono8",    0, false},
+        };
+
+        m_emitRaw = false;
         CEnumerationPtr ptrPixelFormat = nodeMap.GetNode("PixelFormat");
         if (IsAvailable(ptrPixelFormat) && IsWritable(ptrPixelFormat)) {
-            const char* formats[] = {"RGB8Packed", "BayerRG8", "BayerBG8", "BayerGR8", "BayerGB8", "Mono8"};
-            for (const char* fmtName : formats) {
-                CEnumEntryPtr ptrEntry = ptrPixelFormat->GetEntryByName(fmtName);
+            for (const auto &fmt : fmtPriority) {
+                CEnumEntryPtr ptrEntry = ptrPixelFormat->GetEntryByName(fmt.name);
                 if (IsAvailable(ptrEntry) && IsReadable(ptrEntry)) {
                     ptrPixelFormat->SetIntValue(ptrEntry->GetValue());
-                    qDebug() << "[VideoInputSpinnaker] Pixel format set to" << fmtName;
+                    m_bayerPattern = fmt.pattern;
+                    m_emitRaw      = fmt.isBayer;
+                    qDebug() << "[VideoInputSpinnaker] Pixel format:" << fmt.name
+                             << (fmt.isBayer ? "(raw Bayer, GPU demosaic)" : "(pre-decoded)");
                     break;
                 }
             }
+        }
+
+        // Increase the image buffer pool. StreamBufferCount lives in the
+        // TL Stream node map (transport layer), NOT the device node map.
+        // Default pool size is typically 10; raw Bayer (1 byte/pixel) fills
+        // buffers 3x faster than BGR8, exhausting the pool at high frame rates.
+        INodeMap &streamMap = (*camera)->GetTLStreamNodeMap();
+        CEnumerationPtr ptrBufferMode = streamMap.GetNode("StreamBufferCountMode");
+        CIntegerPtr ptrBufferCount = streamMap.GetNode("StreamBufferCountManual");
+        if (IsAvailable(ptrBufferMode) && IsWritable(ptrBufferMode)) {
+            CEnumEntryPtr ptrManual = ptrBufferMode->GetEntryByName("Manual");
+            if (IsAvailable(ptrManual) && IsReadable(ptrManual))
+                ptrBufferMode->SetIntValue(ptrManual->GetValue());
+        }
+        if (IsAvailable(ptrBufferCount) && IsWritable(ptrBufferCount)) {
+            const int64_t desired = 40;
+            ptrBufferCount->SetValue(
+                qBound(ptrBufferCount->GetMin(), desired, ptrBufferCount->GetMax()));
+            qDebug() << "[VideoInputSpinnaker] Stream buffer count:"
+                     << ptrBufferCount->GetValue();
         }
 
         (*camera)->BeginAcquisition();
@@ -110,7 +140,6 @@ bool VideoInputSpinnaker::start(const QString &deviceId)
         m_state = State::Active;
         emit stateChanged(State::Active);
 
-        // Start capture loop in a background thread
         (void)QtConcurrent::run([this]() { captureLoop(); });
 
         return true;
@@ -187,85 +216,76 @@ QVideoFrameFormat VideoInputSpinnaker::frameFormat() const
 void VideoInputSpinnaker::captureLoop()
 {
 #ifdef HAVE_SPINNAKER
-#ifndef HAVE_OPENCV
-    // ImageProcessor only needed when OpenCV is unavailable for Bayer conversion.
-    ImageProcessor processor;
-    processor.SetColorProcessing(SPINNAKER_COLOR_PROCESSING_ALGORITHM_NEAREST_NEIGHBOR);
-#endif
-
     while (!m_abort && m_camera) {
         CameraPtr *camera = (CameraPtr*)m_camera;
         try {
-            ImagePtr pResultImage = (*camera)->GetNextImage(1000); // 1s timeout
+            ImagePtr pResultImage = (*camera)->GetNextImage(1000);
             if (pResultImage->IsIncomplete()) {
-                qDebug() << "[VideoInputSpinnaker] Image incomplete with status" << pResultImage->GetImageStatus();
+                qDebug() << "[VideoInputSpinnaker] Incomplete image, status"
+                         << pResultImage->GetImageStatus();
+                pResultImage->Release();
+                continue;
+            }
+
+            const size_t width  = pResultImage->GetWidth();
+            const size_t height = pResultImage->GetHeight();
+            const size_t stride = pResultImage->GetStride();
+            const uchar *src    = static_cast<const uchar*>(pResultImage->GetData());
+
+            PixelFormatEnums fmt = pResultImage->GetPixelFormat();
+            bool isBayer = (fmt == PixelFormat_BayerRG8 || fmt == PixelFormat_BayerBG8 ||
+                            fmt == PixelFormat_BayerGR8 || fmt == PixelFormat_BayerGB8);
+            bool isRGB   = (fmt == PixelFormat_RGB8Packed);
+            bool isBGR   = (fmt == PixelFormat_BGR8);
+
+            if (isBayer && m_emitRaw) {
+                // Hot path: copy raw Bayer bytes once; GPU demosaics on the display thread.
+                // Pack rows (remove any stride padding) so the GPU upload path is simple.
+                RawVideoFrame rawFrame;
+                rawFrame.width   = static_cast<int>(width);
+                rawFrame.height  = static_cast<int>(height);
+                rawFrame.pattern = static_cast<RawVideoFrame::BayerPattern>(m_bayerPattern);
+                rawFrame.data.resize(static_cast<qsizetype>(width * height));
+                char *dst = rawFrame.data.data();
+                if (stride == width) {
+                    memcpy(dst, src, width * height);
+                } else {
+                    for (size_t y = 0; y < height; ++y)
+                        memcpy(dst + y * width, src + y * stride, width);
+                }
+                pResultImage->Release();
+
+                QMetaObject::invokeMethod(this, [this, rawFrame = std::move(rawFrame)]() mutable {
+                    emit rawVideoFrameReady(rawFrame);
+                }, Qt::QueuedConnection);
+
             } else {
-                size_t width  = pResultImage->GetWidth();
-                size_t height = pResultImage->GetHeight();
-
-                PixelFormatEnums fmt = pResultImage->GetPixelFormat();
-                bool isBayer = (fmt == PixelFormat_BayerRG8 || fmt == PixelFormat_BayerBG8 ||
-                                fmt == PixelFormat_BayerGR8 || fmt == PixelFormat_BayerGB8);
-                bool isRGB   = (fmt == PixelFormat_RGB8Packed);
-                bool isBGR   = (fmt == PixelFormat_BGR8);
-
+                // Pre-decoded path (RGB8Packed, BGR8, Mono8): wrap and emit as QVideoFrame.
                 QImage img;
                 if (isRGB) {
-                    img = QImage(static_cast<const uchar*>(pResultImage->GetData()),
-                                 static_cast<int>(width), static_cast<int>(height),
-                                 static_cast<int>(width) * 3,
-                                 QImage::Format_RGB888).copy();
+                    img = QImage(src, static_cast<int>(width), static_cast<int>(height),
+                                 static_cast<int>(width) * 3, QImage::Format_RGB888).copy();
                 } else if (isBGR) {
-                    // Keep as BGR888; drainDisplayFrame converts to RGB888 at display rate.
-                    img = QImage(static_cast<const uchar*>(pResultImage->GetData()),
-                                 static_cast<int>(width), static_cast<int>(height),
-                                 static_cast<int>(width) * 3,
-                                 QImage::Format_BGR888).copy();
-                } else if (isBayer) {
-#ifdef HAVE_OPENCV
-                    // OpenCV's SIMD-optimised Bayer→BGR demosaic.
-                    // Map Spinnaker pixel format to the matching OpenCV conversion code.
-                    int cvtCode;
-                    if      (fmt == PixelFormat_BayerRG8) cvtCode = cv::COLOR_BayerRGGB2BGR;
-                    else if (fmt == PixelFormat_BayerBG8) cvtCode = cv::COLOR_BayerBGGR2BGR;
-                    else if (fmt == PixelFormat_BayerGR8) cvtCode = cv::COLOR_BayerGRBG2BGR;
-                    else                                   cvtCode = cv::COLOR_BayerGBRG2BGR;
-
-                    // Wrap raw Bayer8 buffer without copying (read-only, valid until Release).
-                    cv::Mat bayer(static_cast<int>(height), static_cast<int>(width), CV_8UC1,
-                                  pResultImage->GetData(),
-                                  static_cast<size_t>(pResultImage->GetStride()));
-                    cv::Mat bgrMat;
-                    cv::cvtColor(bayer, bgrMat, cvtCode);
-                    // .copy() moves the result into Qt-managed heap memory so the D3D
-                    // video pipeline gets a standard allocation (avoids display lag from
-                    // the OpenCV allocator being handed directly to the upload path).
-                    img = QImage(bgrMat.data,
-                                 static_cast<int>(width), static_cast<int>(height),
-                                 static_cast<int>(bgrMat.step[0]),
-                                 QImage::Format_BGR888).copy();
-#else
-                    // Fallback: Spinnaker SDK conversion when OpenCV is unavailable.
-                    ImagePtr converted = processor.Convert(pResultImage, PixelFormat_BGR8);
-                    img = QImage(static_cast<const uchar*>(converted->GetData()),
-                                 static_cast<int>(width), static_cast<int>(height),
-                                 static_cast<int>(width) * 3,
-                                 QImage::Format_BGR888).copy();
-#endif
+                    img = QImage(src, static_cast<int>(width), static_cast<int>(height),
+                                 static_cast<int>(width) * 3, QImage::Format_BGR888).copy();
                 } else {
-                    img = QImage(static_cast<const uchar*>(pResultImage->GetData()),
-                                 static_cast<int>(width), static_cast<int>(height),
+                    img = QImage(src, static_cast<int>(width), static_cast<int>(height),
                                  QImage::Format_Grayscale8).copy();
                 }
+                pResultImage->Release();
 
                 QVideoFrame frame(img);
                 QMetaObject::invokeMethod(this, [this, frame]() {
                     emit videoFrameReady(frame);
                 }, Qt::QueuedConnection);
             }
-            pResultImage->Release();
+
         } catch (Spinnaker::Exception &e) {
-            qDebug() << "[VideoInputSpinnaker] Capture error:" << e.what();
+            // -1012 (SPINNAKER_ERR_ABORT) is the normal consequence of
+            // EndAcquisition() being called while GetNextImage() is waiting.
+            // Only log it when the abort was unexpected (m_abort is still false).
+            if (!m_abort)
+                qWarning() << "[VideoInputSpinnaker] Capture error:" << e.what();
         }
     }
 #endif

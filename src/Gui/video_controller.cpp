@@ -3,6 +3,7 @@
 #include "video_input_base.h"
 #include "video_input_factory.h"
 #include "video_preprocessor_base.h"
+#include "bayer_video_item.h"
 #ifdef HAVE_OPENCV
 #include "video_preprocessor_opencv.h"
 #include "frame_throttle.h"
@@ -78,13 +79,15 @@ void VideoController::setupPipeline()
                 this, &VideoController::onPoseBackendReady, Qt::QueuedConnection);
 
         m_frameThrottle = new FrameThrottle();
-        m_frameThrottle->setSkipFactor(10);
+        m_frameThrottle->setSkipFactor(2);
 
         auto *cvPP = qobject_cast<VideoPreprocessorOpenCV *>(m_preprocessor);
         connect(cvPP, &VideoPreprocessorOpenCV::framePreprocessed,
                 m_poseEstimator, &PoseEstimatorBase::estimatePose, Qt::QueuedConnection);
         connect(m_poseEstimator, &PoseEstimatorBase::estimationDone,
                 m_frameThrottle, &FrameThrottle::clearBusy, Qt::DirectConnection);
+        connect(m_poseEstimator, &PoseEstimatorBase::estimationDone,
+                m_frameThrottle, &FrameThrottle::clearRawBusy, Qt::DirectConnection);
         connect(m_poseEstimator, &PoseEstimatorBase::poseEstimated,
                 this, &VideoController::onPoseEstimated, Qt::QueuedConnection);
         m_poseThread->start();
@@ -93,6 +96,15 @@ void VideoController::setupPipeline()
 #endif // HAVE_OPENCV
 
     connectVideoInput();
+
+    // Re-evaluate needsDebayer once the camera has started and resolved its
+    // pixel format (emitsRawBayer() is only meaningful after Active state).
+    connect(m_videoInput, &VideoInputBase::stateChanged,
+            this, [this](VideoInputBase::State s) {
+                if (s == VideoInputBase::State::Active)
+                    emit needsDebayerChanged();
+            });
+
     m_captureThread->start();
 
     // Sample the capture-thread frame counter every 500 ms to compute actual fps.
@@ -162,15 +174,10 @@ VideoController::~VideoController()
 
 void VideoController::connectVideoInput()
 {
-    // Gate the display path: the capture thread runs up to 100 fps per camera
-    // but the main thread can only drain at screen refresh rate (~60 Hz).
-    // A plain QueuedConnection would accumulate hundreds of QVideoFrame copies
-    // in the main-thread event queue, causing unbounded memory growth.
-    // Instead, use DirectConnection on the capture thread to store only the
-    // freshest frame and post at most one drain event at a time.
+    // Standard QVideoFrame display path — used by Qt Multimedia and Aravis.
+    // DirectConnection so only the freshest frame is ever queued to the main thread.
     connect(m_videoInput, &VideoInputBase::videoFrameReady,
             this, [this](const QVideoFrame &frame) {
-                // Capture-thread: count every frame for the fps stat.
                 m_frameCaptureCount.fetch_add(1, std::memory_order_relaxed);
                 {
                     QMutexLocker lk(&m_latestFrameMutex);
@@ -181,16 +188,41 @@ void VideoController::connectVideoInput()
                                              Qt::QueuedConnection);
                 }
             }, Qt::DirectConnection);
+
+    // Raw Bayer display path — used by Spinnaker (and future Bayer backends).
+    // Replaces the QVideoFrame path for cameras that emit rawVideoFrameReady.
+    connect(m_videoInput, &VideoInputBase::rawVideoFrameReady,
+            this, [this](const RawVideoFrame &frame) {
+                m_frameCaptureCount.fetch_add(1, std::memory_order_relaxed);
+                {
+                    QMutexLocker lk(&m_latestRawFrameMutex);
+                    m_latestRawFrame = frame;
+                }
+                if (!m_displayFramePending.exchange(true, std::memory_order_acq_rel)) {
+                    QMetaObject::invokeMethod(this, &VideoController::drainRawFrame,
+                                             Qt::QueuedConnection);
+                }
+            }, Qt::DirectConnection);
+
     connect(m_videoInput, &VideoInputBase::errorOccurred,
             this, &VideoController::onVideoError);
 
 #ifdef HAVE_OPENCV
     if (m_frameThrottle) {
+        // QVideoFrame throttle path (Qt Multimedia, Aravis).
         connect(m_videoInput, &VideoInputBase::videoFrameReady,
                 m_frameThrottle, &FrameThrottle::offer,
                 Qt::DirectConnection);
         connect(m_frameThrottle, &FrameThrottle::frameReady,
                 m_preprocessor, &VideoPreprocessorBase::processFrame,
+                Qt::QueuedConnection);
+
+        // Raw Bayer throttle path (Spinnaker).
+        connect(m_videoInput, &VideoInputBase::rawVideoFrameReady,
+                m_frameThrottle, &FrameThrottle::offerRaw,
+                Qt::DirectConnection);
+        connect(m_frameThrottle, &FrameThrottle::rawFrameReady,
+                m_preprocessor, &VideoPreprocessorBase::processRawFrame,
                 Qt::QueuedConnection);
     }
 #endif
@@ -203,7 +235,7 @@ void VideoController::connectVideoInput()
 bool   VideoController::isRecording()    const { return m_recording; }
 bool   VideoController::isAravis()       const { return VideoInputFactory::backendType(m_videoInput) == VideoInputFactory::Backend::Aravis; }
 bool   VideoController::isSpinnaker()    const { return VideoInputFactory::backendType(m_videoInput) == VideoInputFactory::Backend::Spinnaker; }
-bool   VideoController::needsDebayer()   const { return isAravis() || isSpinnaker(); }
+bool   VideoController::needsDebayer()   const { return isSpinnaker() && m_videoInput->emitsRawBayer(); }
 double  VideoController::preprocessAvgMs()        const { return m_preprocessAvgMs; }
 double  VideoController::cameraFps()              const { return m_cameraFps; }
 double  VideoController::poseAvgMs()              const { return m_poseAvgMs; }
@@ -237,6 +269,15 @@ VideoPreprocessorBase *VideoController::preprocessor() const { return m_preproce
 void VideoController::setVideoSink(QVideoSink *sink)
 {
     m_videoSink = sink;
+}
+
+void VideoController::setBayerItem(QObject *item)
+{
+    m_bayerItem = qobject_cast<BayerVideoItem *>(item);
+    if (item && !m_bayerItem)
+        qWarning() << "[VideoController] setBayerItem: cast failed — item is" << item->metaObject()->className();
+    else
+        qDebug() << "[VideoController] setBayerItem:" << (m_bayerItem ? "ok" : "null");
 }
 
 void VideoController::selectMoveNetModel(int variant)
@@ -353,24 +394,45 @@ void VideoController::stopRecording()
 
 void VideoController::drainDisplayFrame()
 {
+    // Reset pending flag BEFORE consuming the frame so that any videoFrameReady
+    // arriving in this window can schedule a fresh drain (prevents frames getting
+    // permanently stuck when they arrive mid-drain).
+    m_displayFramePending.store(false, std::memory_order_release);
+
     QVideoFrame f;
     {
         QMutexLocker lk(&m_latestFrameMutex);
         f = m_latestDisplayFrame;
         m_latestDisplayFrame = QVideoFrame();
     }
+    onVideoFrame(f);
+}
+
+void VideoController::drainRawFrame()
+{
+    // Same ordering as drainDisplayFrame: reset pending flag first.
     m_displayFramePending.store(false, std::memory_order_release);
 
-    // Spinnaker emits BGR888 to avoid a full-image R/B swap on the capture thread
-    // for every frame.  Convert to RGB888 here, at display rate (~30 fps), not at
-    // capture rate (up to 100 fps per camera).
-    if (f.isValid()) {
-        const QImage img = f.toImage();
-        if (img.format() == QImage::Format_BGR888)
-            f = QVideoFrame(img.convertToFormat(QImage::Format_RGB888));
+    RawVideoFrame raw;
+    {
+        QMutexLocker lk(&m_latestRawFrameMutex);
+        raw              = m_latestRawFrame;
+        m_latestRawFrame = RawVideoFrame();
     }
 
-    onVideoFrame(f);
+    if (raw.isNull())
+        return;
+
+    static bool logged = false;
+    if (!logged) {
+        qDebug() << "[VideoController] first raw Bayer frame:" << raw.width << "x" << raw.height
+                 << "pattern" << static_cast<int>(raw.pattern)
+                 << "bayerItem" << (m_bayerItem ? "set" : "NULL");
+        logged = true;
+    }
+
+    if (m_bayerItem)
+        m_bayerItem->updateFrame(raw);
 }
 
 void VideoController::onVideoFrame(const QVideoFrame &frame)

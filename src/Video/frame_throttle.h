@@ -6,6 +6,7 @@
 #include <QObject>
 #include <QVideoFrame>
 #include <atomic>
+#include "raw_video_frame.h"
 
 // Sits between the camera and VideoPreprocessorOpenCV.
 // Ensures the preprocessor (and therefore the pose estimator) only ever
@@ -37,18 +38,30 @@ public:
     void setSkipFactor(int n);
 
 public slots:
+    // QVideoFrame path — used by Qt Multimedia / Aravis.
     void offer(const QVideoFrame &frame);
     void clearBusy();
 
+    // RawVideoFrame path — used by Bayer cameras (Spinnaker).
+    void offerRaw(const RawVideoFrame &frame);
+    void clearRawBusy();
+
 signals:
     void frameReady(const QVideoFrame &frame);
+    void rawFrameReady(const RawVideoFrame &frame);
 
 private:
     std::atomic<bool> m_busy{false};
     QVideoFrame       m_latest;
     QMutex            m_mutex;
-    int               m_skipFactor{1};
-    int               m_offerCount{0};
+
+    std::atomic<bool> m_rawBusy{false};
+    RawVideoFrame     m_rawLatest;
+    QMutex            m_rawMutex;
+
+    int m_skipFactor{1};
+    int m_offerCount{0};
+    int m_rawOfferCount{0};
 };
 
 #endif // HAVE_OPENCV
