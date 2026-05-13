@@ -21,6 +21,7 @@
 #include <QElapsedTimer>
 #include <QMutex>
 #include <QObject>
+#include <QRectF>
 #include <QTimer>
 #include <QVariantList>
 #include <QVideoFrame>
@@ -60,6 +61,7 @@ class VideoController : public QObject
     Q_PROPERTY(QVariantList poseKeypoints READ poseKeypoints NOTIFY poseKeypointsChanged)
     Q_PROPERTY(QString deviceDescription READ deviceDescription CONSTANT)
     Q_PROPERTY(int perspective READ perspective NOTIFY perspectiveChanged)
+    Q_PROPERTY(QRectF roi READ roi NOTIFY roiChanged)
 
 public:
     // Perspective values — matches the selector in CameraView.qml.
@@ -83,6 +85,7 @@ public:
     QVariantList poseKeypoints() const;
     QString deviceDescription() const;
     int     perspective() const;
+    QRectF  roi() const;
 
     // Called by CameraManager only — not Q_INVOKABLE so QML cannot bypass
     // the uniqueness check enforced by CameraManager::setPerspective().
@@ -93,6 +96,8 @@ public:
     Q_INVOKABLE void startRecording();
     Q_INVOKABLE void stopRecording();
     Q_INVOKABLE void selectMoveNetModel(int variant);
+    Q_INVOKABLE void setRoi(QRectF roi);
+    Q_INVOKABLE void clearRoi();
 
     VideoPreprocessorBase *preprocessor() const;
 
@@ -109,6 +114,7 @@ signals:
     void moveNetModelChanged();
     void poseKeypointsChanged();
     void perspectiveChanged();
+    void roiChanged();
 
 private slots:
     void onVideoFrame(const QVideoFrame &frame);
@@ -165,4 +171,5 @@ private:
     int                m_moveNetModel       = 0;
     QVariantList       m_poseKeypoints;
     int                m_perspective        = 0;
+    QRectF             m_roi;
 };

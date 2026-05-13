@@ -282,6 +282,25 @@ bool    VideoController::moveNetThunderAvailable() const
 
 QVariantList VideoController::poseKeypoints() const { return m_poseKeypoints; }
 
+QRectF VideoController::roi() const { return m_roi; }
+
+void VideoController::setRoi(QRectF roi)
+{
+    roi = roi.normalized().intersected(QRectF(0.0, 0.0, 1.0, 1.0));
+    if (roi.isEmpty() || m_roi == roi)
+        return;
+    m_roi = roi;
+    emit roiChanged();
+}
+
+void VideoController::clearRoi()
+{
+    if (m_roi.isEmpty())
+        return;
+    m_roi = QRectF();
+    emit roiChanged();
+}
+
 VideoPreprocessorBase *VideoController::preprocessor() const { return m_preprocessor; }
 
 void VideoController::setVideoSink(QVideoSink *sink)

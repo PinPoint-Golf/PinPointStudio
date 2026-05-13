@@ -27,6 +27,15 @@ Item {
 
     property QtObject controller
 
+    // ROI selection state
+    property bool  roiSelecting:  false
+    property point roiDragStart:  Qt.point(0, 0)
+    property point roiDragEnd:    Qt.point(0, 0)
+    property bool  roiDragging:   false
+
+    // Whether any ROI is currently set.
+    readonly property bool roiIsSet: controller && controller.roi.width > 0 && controller.roi.height > 0
+
     Component.onCompleted: {
         controller.setVideoSink(videoOut.videoSink)
         controller.setBayerItem(bayerView)
@@ -42,6 +51,7 @@ Item {
 
         // ── Camera frame ──────────────────────────────────────────────────────
         Rectangle {
+            id: frameRect
             Layout.fillWidth: true
             Layout.fillHeight: true
             color: "#181825"
@@ -167,6 +177,103 @@ Item {
                     ctx.globalAlpha = 1.0
                 }
             }
+
+            // ── Persistent ROI overlay ────────────────────────────────────────
+            // Shows the confirmed ROI as a labelled rectangle mapped back from
+            // normalized [0,1] coords to the actual video content bounds.
+            Rectangle {
+                id: roiOverlay
+                visible: root.roiIsSet && !root.roiSelecting
+                z: 20
+                color: "transparent"
+                border.color: "#fab387"
+                border.width: 2
+
+                // Content bounds in frameRect coordinates.
+                // videoOut sits at x=2, y=2 (anchors.margins: 2) and
+                // contentRect is relative to videoOut.
+                property real crX: root.controller && root.controller.needsDebayer
+                                   ? 2 : (2 + videoOut.contentRect.x)
+                property real crY: root.controller && root.controller.needsDebayer
+                                   ? 2 : (2 + videoOut.contentRect.y)
+                property real crW: root.controller && root.controller.needsDebayer
+                                   ? bayerView.width : videoOut.contentRect.width
+                property real crH: root.controller && root.controller.needsDebayer
+                                   ? bayerView.height : videoOut.contentRect.height
+
+                x: crX + (root.controller ? root.controller.roi.x * crW : 0)
+                y: crY + (root.controller ? root.controller.roi.y * crH : 0)
+                width:  root.controller ? root.controller.roi.width  * crW : 0
+                height: root.controller ? root.controller.roi.height * crH : 0
+
+                Text {
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.margins: 3
+                    text: "Hitting Area"
+                    color: "#fab387"
+                    font.pixelSize: 10
+                    font.bold: true
+                }
+            }
+
+            // ── Rubber-band while dragging ────────────────────────────────────
+            Rectangle {
+                id: rubberBand
+                visible: root.roiDragging
+                z: 25
+                x: Math.min(root.roiDragStart.x, root.roiDragEnd.x)
+                y: Math.min(root.roiDragStart.y, root.roiDragEnd.y)
+                width:  Math.abs(root.roiDragEnd.x - root.roiDragStart.x)
+                height: Math.abs(root.roiDragEnd.y - root.roiDragStart.y)
+                color: "#22fab387"
+                border.color: "#fab387"
+                border.width: 2
+            }
+
+            // ── ROI drag-select MouseArea ─────────────────────────────────────
+            MouseArea {
+                anchors.fill: parent
+                enabled: root.roiSelecting
+                visible: root.roiSelecting
+                cursorShape: Qt.CrossCursor
+                z: 30
+
+                onPressed: (mouse) => {
+                    root.roiDragStart = Qt.point(mouse.x, mouse.y)
+                    root.roiDragEnd   = Qt.point(mouse.x, mouse.y)
+                    root.roiDragging  = true
+                }
+                onPositionChanged: (mouse) => {
+                    if (root.roiDragging)
+                        root.roiDragEnd = Qt.point(mouse.x, mouse.y)
+                }
+                onReleased: (mouse) => {
+                    root.roiDragging  = false
+                    root.roiSelecting = false
+
+                    // Map drag rect to normalized frame coords.
+                    var crX = (root.controller && root.controller.needsDebayer)
+                              ? 2 : (2 + videoOut.contentRect.x)
+                    var crY = (root.controller && root.controller.needsDebayer)
+                              ? 2 : (2 + videoOut.contentRect.y)
+                    var crW = (root.controller && root.controller.needsDebayer)
+                              ? bayerView.width : videoOut.contentRect.width
+                    var crH = (root.controller && root.controller.needsDebayer)
+                              ? bayerView.height : videoOut.contentRect.height
+                    if (crW <= 0 || crH <= 0) return
+
+                    var x1  = Math.min(root.roiDragStart.x, mouse.x)
+                    var y1  = Math.min(root.roiDragStart.y, mouse.y)
+                    var x2  = Math.max(root.roiDragStart.x, mouse.x)
+                    var y2  = Math.max(root.roiDragStart.y, mouse.y)
+                    var nx  = Math.max(0, Math.min(1, (x1 - crX) / crW))
+                    var ny  = Math.max(0, Math.min(1, (y1 - crY) / crH))
+                    var nx2 = Math.max(0, Math.min(1, (x2 - crX) / crW))
+                    var ny2 = Math.max(0, Math.min(1, (y2 - crY) / crH))
+                    root.controller.setRoi(Qt.rect(nx, ny, nx2 - nx, ny2 - ny))
+                }
+            }
         }
 
         // ── Per-camera stats + controls ───────────────────────────────────────
@@ -220,6 +327,44 @@ Item {
                         }
                     }
                 }
+            }
+
+            // ── ROI button ────────────────────────────────────────────────────
+            Rectangle {
+                height: 20
+                width: roiBtnLabel.implicitWidth + 10
+                radius: 4
+                color: root.roiSelecting ? "#fab387"
+                     : root.roiIsSet     ? "#f9e2af"
+                     :                     "#313244"
+
+                Text {
+                    id: roiBtnLabel
+                    anchors.centerIn: parent
+                    text: qsTr("Hitting Area")
+                    color: (root.roiSelecting || root.roiIsSet) ? "#1e1e2e" : "#cdd6f4"
+                    font.pixelSize: 11
+                    font.bold: root.roiSelecting || root.roiIsSet
+                }
+                TapHandler {
+                    onTapped: {
+                        if (root.roiSelecting) {
+                            // Cancel active selection.
+                            root.roiSelecting = false
+                            root.roiDragging  = false
+                        } else {
+                            // Clear any existing ROI and enter selection mode.
+                            root.controller.clearRoi()
+                            root.roiSelecting = true
+                        }
+                    }
+                }
+                HoverHandler { id: roiBtnHover; cursorShape: Qt.PointingHandCursor }
+                ToolTip.visible: roiBtnHover.hovered
+                ToolTip.text: root.roiSelecting ? qsTr("Click to cancel — drag on video to define hitting area")
+                            : root.roiIsSet     ? qsTr("Hitting area set — click to redefine")
+                            :                     qsTr("Click then drag on video to define hitting area")
+                ToolTip.delay: 600
             }
 
             Item { Layout.fillWidth: true }
