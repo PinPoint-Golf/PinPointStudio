@@ -386,6 +386,43 @@ Item {
                                 scale: Qt.vector3d(0.4, 0.4, 0.4)
                                 materials: DefaultMaterial { diffuseColor: "#cdd6f4" }
                             }
+
+                            // Acceleration arrow — grows from cube centre in body-frame accel direction.
+                            // Hidden when mag ≈ 0; capped at 3 g so the arrow stays on screen.
+                            Node {
+                                id: accelNode
+                                property real ax: imuController.accelX
+                                property real ay: imuController.accelY
+                                property real az: imuController.accelZ
+                                property real mag: Math.sqrt(ax*ax + ay*ay + az*az)
+                                property real s: Math.min(mag, 3.0)   // display scale, capped at 3 g
+                                visible: mag > 0.05
+                                rotation: {
+                                    if (mag < 0.001) return Qt.quaternion(1, 0, 0, 0)
+                                    var dx = ax/mag, dy = ay/mag, dz = az/mag
+                                    // Rotate +Y axis toward (dx,dy,dz): q = normalize(1+dy, dz, 0, -dx)
+                                    if (dy < -0.9999) return Qt.quaternion(0, 1, 0, 0)
+                                    var qw = 1.0 + dy, qx = dz, qz = -dx
+                                    var n = Math.sqrt(qw*qw + qx*qx + qz*qz)
+                                    return Qt.quaternion(qw/n, qx/n, 0.0, qz/n)
+                                }
+                                // Shaft: base at cube centre (y=0), tip at y=75*s
+                                // Cylinder is centred, so position = half-height = 37.5*s
+                                Model {
+                                    source: "#Cylinder"
+                                    position: Qt.vector3d(0, 37.5 * accelNode.s, 0)
+                                    scale: Qt.vector3d(0.12, 0.75 * accelNode.s, 0.12)
+                                    materials: DefaultMaterial { diffuseColor: "#f9e2af" }
+                                }
+                                // Head: cone base (origin) at shaft tip y=75*s; tip = 75*s + 100*(0.25*s) = 100*s
+                                // At 1 g the tip sits exactly at the cube face; beyond 1 g it emerges
+                                Model {
+                                    source: "#Cone"
+                                    position: Qt.vector3d(0, 75 * accelNode.s, 0)
+                                    scale: Qt.vector3d(0.25 * accelNode.s, 0.25 * accelNode.s, 0.25 * accelNode.s)
+                                    materials: DefaultMaterial { diffuseColor: "#f9e2af" }
+                                }
+                            }
                 }
             }
         }

@@ -97,7 +97,15 @@ ImuController::ImuController(QObject *parent)
     });
 
     connect(m_imu, &WT9011DCL_Base::accelUpdated,
-            this, [this](const WT9011DCL_Base::AccelData &) {
+            this, [this](const WT9011DCL_Base::AccelData &d) {
+        // Remap from sensor frame to display frame to match eulerToQuat:
+        //   sensor X (Roll axis)  → display X  (unchanged)
+        //   sensor Z (Yaw axis)   → display Y
+        //   sensor Y (Pitch axis) → display Z, negated  (-Pitch → displayZ)
+        m_accelX =  d.x;
+        m_accelY =  d.z;
+        m_accelZ = -d.y;
+        emit accelChanged();
         onDataRecord();
     });
 
