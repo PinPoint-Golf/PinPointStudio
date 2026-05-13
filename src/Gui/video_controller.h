@@ -40,6 +40,7 @@ class BayerVideoItem;
 
 #ifdef HAVE_OPENCV
 #include "pose_estimator_base.h"
+#include "ball_detector.h"
 class FrameThrottle;
 #endif
 
@@ -62,6 +63,10 @@ class VideoController : public QObject
     Q_PROPERTY(QString deviceDescription READ deviceDescription CONSTANT)
     Q_PROPERTY(int perspective READ perspective NOTIFY perspectiveChanged)
     Q_PROPERTY(QRectF roi READ roi NOTIFY roiChanged)
+    Q_PROPERTY(bool   ballDetected READ ballDetected NOTIFY ballDetectedChanged)
+    Q_PROPERTY(double ballX        READ ballX        NOTIFY ballDetectedChanged)
+    Q_PROPERTY(double ballY        READ ballY        NOTIFY ballDetectedChanged)
+    Q_PROPERTY(double ballRadius   READ ballRadius   NOTIFY ballDetectedChanged)
 
 public:
     // Perspective values — matches the selector in CameraView.qml.
@@ -85,7 +90,11 @@ public:
     QVariantList poseKeypoints() const;
     QString deviceDescription() const;
     int     perspective() const;
-    QRectF  roi() const;
+    QRectF  roi()          const;
+    bool    ballDetected() const;
+    double  ballX()        const;
+    double  ballY()        const;
+    double  ballRadius()   const;
 
     // Called by CameraManager only — not Q_INVOKABLE so QML cannot bypass
     // the uniqueness check enforced by CameraManager::setPerspective().
@@ -115,6 +124,7 @@ signals:
     void poseKeypointsChanged();
     void perspectiveChanged();
     void roiChanged();
+    void ballDetectedChanged();
 
 private slots:
     void onVideoFrame(const QVideoFrame &frame);
@@ -126,6 +136,7 @@ private slots:
     void onPoseBackendReady(const QString &label);
 #ifdef HAVE_OPENCV
     void onPoseEstimated(const PoseResult &result);
+    void onBallDetected(const BallDetection &result);
 #endif
 
 private:
@@ -159,7 +170,13 @@ private:
     QThread           *m_poseThread    = nullptr;
     PoseEstimatorBase *m_poseEstimator = nullptr;
     FrameThrottle     *m_frameThrottle = nullptr;
+    QThread           *m_ballThread    = nullptr;
+    BallDetector      *m_ballDetector  = nullptr;
 #endif
+    bool   m_ballDetected = false;
+    double m_ballX        = 0.0;
+    double m_ballY        = 0.0;
+    double m_ballRadius   = 0.0;
     // Capture-rate FPS: counted on the capture thread, sampled on a timer.
     std::atomic<int>   m_frameCaptureCount{0};
     QTimer            *m_fpsSampleTimer    = nullptr;

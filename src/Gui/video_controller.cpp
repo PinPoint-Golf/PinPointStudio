@@ -31,6 +31,10 @@
 #include "pose_estimator_movenet.h"
 #endif
 
+#ifdef HAVE_OPENCV
+#include "ball_detector.h"
+#endif
+
 #include <QCoreApplication>
 #include <QMetaObject>
 #include "pp_debug.h"
@@ -84,6 +88,8 @@ void VideoController::setupPipeline()
                 this, &VideoController::onPreprocessStats, Qt::QueuedConnection);
         m_preprocessThread->start();
 
+        auto *cvPP = qobject_cast<VideoPreprocessorOpenCV *>(m_preprocessor);
+
 #if defined(HAVE_MOVENET) && defined(HAVE_ONNXRUNTIME)
         m_poseThread = new QThread(this);
         m_poseThread->setObjectName(QStringLiteral("PoseEstimatorThread"));
@@ -99,7 +105,6 @@ void VideoController::setupPipeline()
         m_frameThrottle = new FrameThrottle();
         m_frameThrottle->setSkipFactor(2);
 
-        auto *cvPP = qobject_cast<VideoPreprocessorOpenCV *>(m_preprocessor);
         connect(cvPP, &VideoPreprocessorOpenCV::framePreprocessed,
                 m_poseEstimator, &PoseEstimatorBase::estimatePose, Qt::QueuedConnection);
         connect(m_poseEstimator, &PoseEstimatorBase::estimationDone,
@@ -110,6 +115,28 @@ void VideoController::setupPipeline()
                 this, &VideoController::onPoseEstimated, Qt::QueuedConnection);
         m_poseThread->start();
 #endif // HAVE_MOVENET && HAVE_ONNXRUNTIME
+
+        // Ball detector — connects to the same preprocessed frame signal,
+        // runs on its own thread so it never stalls the pose estimator.
+        m_ballThread = new QThread(this);
+        m_ballThread->setObjectName(QStringLiteral("BallDetectorThread"));
+        m_ballDetector = new BallDetector();
+        m_ballDetector->moveToThread(m_ballThread);
+
+        connect(cvPP, &VideoPreprocessorOpenCV::framePreprocessed,
+                m_ballDetector, &BallDetector::detect, Qt::QueuedConnection);
+        connect(m_ballDetector, &BallDetector::ballDetected,
+                this, &VideoController::onBallDetected, Qt::QueuedConnection);
+
+        // Forward ROI changes to the detector thread.  The lambda captures the
+        // current roi value on the main thread before posting it to the detector.
+        connect(this, &VideoController::roiChanged, this, [this]() {
+            QMetaObject::invokeMethod(m_ballDetector, "setRoi",
+                Qt::QueuedConnection, Q_ARG(QRectF, m_roi));
+        }, Qt::DirectConnection);
+
+        m_ballThread->start();
+
     } // kPoseEnabled
 #endif // HAVE_OPENCV
 
@@ -183,6 +210,17 @@ VideoController::~VideoController()
     }
     delete m_poseEstimator;
     m_poseEstimator = nullptr;
+
+    // 4. Stop ball detector.
+    if (m_ballDetector && m_ballThread && m_ballThread->isRunning()) {
+        QMetaObject::invokeMethod(m_ballDetector, [this]() {
+            m_ballDetector->moveToThread(QCoreApplication::instance()->thread());
+        }, Qt::BlockingQueuedConnection);
+        m_ballThread->quit();
+        m_ballThread->wait();
+    }
+    delete m_ballDetector;
+    m_ballDetector = nullptr;
 #endif
 }
 
@@ -299,7 +337,33 @@ void VideoController::clearRoi()
         return;
     m_roi = QRectF();
     emit roiChanged();
+    if (m_ballDetected) {
+        m_ballDetected = false;
+        m_ballX = m_ballY = m_ballRadius = 0.0;
+        emit ballDetectedChanged();
+    }
 }
+
+bool   VideoController::ballDetected() const { return m_ballDetected; }
+double VideoController::ballX()        const { return m_ballX; }
+double VideoController::ballY()        const { return m_ballY; }
+double VideoController::ballRadius()   const { return m_ballRadius; }
+
+#ifdef HAVE_OPENCV
+void VideoController::onBallDetected(const BallDetection &result)
+{
+    // Always update position when a ball is present; only suppress the signal
+    // when the "not found" state is unchanged to avoid thrashing QML bindings.
+    if (!result.found && !m_ballDetected)
+        return;
+
+    m_ballDetected = result.found;
+    m_ballX        = result.x;
+    m_ballY        = result.y;
+    m_ballRadius   = result.radius;
+    emit ballDetectedChanged();
+}
+#endif
 
 VideoPreprocessorBase *VideoController::preprocessor() const { return m_preprocessor; }
 
@@ -423,6 +487,11 @@ void VideoController::stopRecording()
     emit isRecordingChanged();
     m_poseKeypoints.clear();
     emit poseKeypointsChanged();
+    if (m_ballDetected) {
+        m_ballDetected = false;
+        m_ballX = m_ballY = m_ballRadius = 0.0;
+        emit ballDetectedChanged();
+    }
 }
 
 // ---------------------------------------------------------------------------

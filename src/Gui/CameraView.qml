@@ -231,6 +231,34 @@ Item {
                 border.width: 2
             }
 
+            // ── Detected ball circle ──────────────────────────────────────────
+            // Shown only when a ball has been found within the hitting area.
+            Rectangle {
+                id: ballCircle
+                visible: root.controller.ballDetected && root.roiIsSet
+                z: 22
+                color: "transparent"
+                border.color: "#a6e3a1"
+                border.width: 2
+
+                property real crX: root.controller && root.controller.needsDebayer
+                                   ? 2 : (2 + videoOut.contentRect.x)
+                property real crY: root.controller && root.controller.needsDebayer
+                                   ? 2 : (2 + videoOut.contentRect.y)
+                property real crW: root.controller && root.controller.needsDebayer
+                                   ? bayerView.width : videoOut.contentRect.width
+                property real crH: root.controller && root.controller.needsDebayer
+                                   ? bayerView.height : videoOut.contentRect.height
+
+                property real screenR: Math.max(4, root.controller.ballRadius * crW)
+
+                x: crX + root.controller.ballX * crW - screenR
+                y: crY + root.controller.ballY * crH - screenR
+                width:  screenR * 2
+                height: screenR * 2
+                radius: screenR
+            }
+
             // ── ROI drag-select MouseArea ─────────────────────────────────────
             MouseArea {
                 anchors.fill: parent
@@ -365,6 +393,24 @@ Item {
                             : root.roiIsSet     ? qsTr("Hitting area set — click to redefine")
                             :                     qsTr("Click then drag on video to define hitting area")
                 ToolTip.delay: 600
+            }
+
+            // ── Ball detection badge ──────────────────────────────────────────
+            Rectangle {
+                visible: root.roiIsSet && root.controller.isRecording
+                width: ballBadgeLabel.implicitWidth + 10
+                height: 20
+                radius: 4
+                color: root.controller.ballDetected ? "#a6e3a1" : "#313244"
+
+                Text {
+                    id: ballBadgeLabel
+                    anchors.centerIn: parent
+                    text: root.controller.ballDetected ? qsTr("Ball") : qsTr("No Ball")
+                    color: root.controller.ballDetected ? "#1e1e2e" : "#6c7086"
+                    font.pixelSize: 11
+                    font.bold: root.controller.ballDetected
+                }
             }
 
             Item { Layout.fillWidth: true }
