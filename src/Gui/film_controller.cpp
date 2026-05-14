@@ -31,6 +31,10 @@
 #include "pose_estimator_movenet.h"
 #endif
 
+#if defined(HAVE_OPENCV) && defined(HAVE_MEDIAPIPE) && defined(HAVE_ONNXRUNTIME)
+#include "pose_estimator_mediapipe.h"
+#endif
+
 #if defined(HAVE_OPENCV) && defined(HAVE_SEGMENTER) && defined(HAVE_ONNXRUNTIME)
 #include "person_segmenter.h"
 #endif
@@ -173,26 +177,39 @@ FilmController::FilmController(QObject *parent)
     connect(m_captureSink, &QVideoSink::videoFrameChanged,
             m_overlay, &VideoOverlayBase::overlayFrame, Qt::QueuedConnection);
 
-#if defined(HAVE_MOVENET) && defined(HAVE_ONNXRUNTIME)
+#if defined(HAVE_ONNXRUNTIME)
     // ── Pose estimator thread ────────────────────────────────────────────────
     m_poseThread = new QThread(this);
     m_poseThread->setObjectName(QStringLiteral("FilmPoseThread"));
-    auto *mn = new PoseEstimatorMoveNet();
-    m_poseEstimator = mn;
-    m_poseEstimator->moveToThread(m_poseThread);
-    connect(m_poseThread, &QThread::started, mn, &PoseEstimatorMoveNet::load);
-    connect(m_poseEstimator, &PoseEstimatorBase::poseStatsUpdated,
-            this, &FilmController::onPoseStats, Qt::QueuedConnection);
-    connect(m_poseEstimator, &PoseEstimatorBase::poseBackendReady,
-            this, &FilmController::onPoseBackendReady, Qt::QueuedConnection);
 
-    // poseEstimated → FilmController::onPoseEstimated (not directly to overlay)
-    // so we can sequence updatePose + overlayFrame on the stored annotation frame.
-    connect(m_poseEstimator, &PoseEstimatorBase::poseEstimated,
-            this, &FilmController::onPoseEstimated, Qt::QueuedConnection);
+#if defined(HAVE_MEDIAPIPE)
+    // Default to MediaPipe when available — 31 landmarks give better golf coverage.
+    {
+        auto *mp = new PoseEstimatorMediaPipe();
+        m_poseEstimator = mp;
+        m_moveNetModel  = 2;
+        m_poseEstimator->moveToThread(m_poseThread);
+        connect(m_poseThread, &QThread::started, mp, &PoseEstimatorMediaPipe::load);
+    }
+#elif defined(HAVE_MOVENET)
+    {
+        auto *mn = new PoseEstimatorMoveNet();
+        m_poseEstimator = mn;
+        m_poseEstimator->moveToThread(m_poseThread);
+        connect(m_poseThread, &QThread::started, mn, &PoseEstimatorMoveNet::load);
+    }
+#endif
 
-    m_poseThread->start();
-#endif // HAVE_MOVENET && HAVE_ONNXRUNTIME
+    if (m_poseEstimator) {
+        connect(m_poseEstimator, &PoseEstimatorBase::poseStatsUpdated,
+                this, &FilmController::onPoseStats, Qt::QueuedConnection);
+        connect(m_poseEstimator, &PoseEstimatorBase::poseBackendReady,
+                this, &FilmController::onPoseBackendReady, Qt::QueuedConnection);
+        connect(m_poseEstimator, &PoseEstimatorBase::poseEstimated,
+                this, &FilmController::onPoseEstimated, Qt::QueuedConnection);
+        m_poseThread->start();
+    }
+#endif // HAVE_ONNXRUNTIME
 
 #if defined(HAVE_SEGMENTER)
     if (m_segmenter.load())
@@ -255,6 +272,15 @@ bool FilmController::poseAvailable() const
 {
 #if defined(HAVE_OPENCV) && defined(HAVE_MOVENET) && defined(HAVE_ONNXRUNTIME)
     return true;
+#else
+    return false;
+#endif
+}
+
+bool FilmController::mediaPipeAvailable() const
+{
+#if defined(HAVE_OPENCV) && defined(HAVE_MEDIAPIPE) && defined(HAVE_ONNXRUNTIME)
+    return PoseEstimatorMediaPipe::isAvailable();
 #else
     return false;
 #endif
@@ -567,9 +593,14 @@ void FilmController::clearOverlayPose()
 
 void FilmController::annotate()
 {
-#if defined(HAVE_OPENCV) && defined(HAVE_MOVENET) && defined(HAVE_ONNXRUNTIME)
+#if defined(HAVE_OPENCV) && defined(HAVE_ONNXRUNTIME)
     if (m_annotating || !m_currentFrame.isValid() || !m_poseEstimator)
         return;
+
+    // Reset any inter-frame tracking before each single-frame annotation so a
+    // stale ROI from a previous call never shrinks the search window.
+    QMetaObject::invokeMethod(m_poseEstimator, "resetTracking",
+                              Qt::QueuedConnection);
 
     m_annotateFrame = m_currentFrame;
     m_annotating    = true;
@@ -603,22 +634,81 @@ void FilmController::annotate()
     QMetaObject::invokeMethod(m_poseEstimator, "estimatePose",
                               Qt::QueuedConnection,
                               Q_ARG(cv::Mat, m_rawMat));
-#endif
+#endif // HAVE_ONNXRUNTIME
 }
 
 void FilmController::selectMoveNetModel(int variant)
 {
-#if defined(HAVE_OPENCV) && defined(HAVE_MOVENET) && defined(HAVE_ONNXRUNTIME)
-    if (variant == m_moveNetModel)
+#if defined(HAVE_OPENCV) && defined(HAVE_ONNXRUNTIME)
+    if (variant == m_moveNetModel || !m_poseThread || !m_poseEstimator)
         return;
+
     m_moveNetModel = variant;
     emit moveNetModelChanged();
     m_poseAvgMs = 0.0; emit poseAvgMsChanged();
     m_poseFps   = 0.0; emit poseFpsChanged();
     m_poseBackendLabel.clear(); emit poseBackendLabelChanged();
-    if (m_poseEstimator)
+
+    const bool wantMediaPipe =
+#if defined(HAVE_MEDIAPIPE)
+        (variant == 2);
+#else
+        false;
+#endif
+    const bool haveMediaPipe =
+#if defined(HAVE_MEDIAPIPE)
+        (qobject_cast<PoseEstimatorMediaPipe*>(m_poseEstimator) != nullptr);
+#else
+        false;
+#endif
+
+    // Lightning ↔ Thunder swap within MoveNet — just reload.
+    if (!wantMediaPipe && !haveMediaPipe) {
+#if defined(HAVE_MOVENET)
         QMetaObject::invokeMethod(m_poseEstimator, "reloadModel",
                                   Qt::QueuedConnection, Q_ARG(int, variant));
+#endif
+        return;
+    }
+
+    // Type change: drain, delete old, create new.
+    if (m_poseThread->isRunning()) {
+        QMetaObject::invokeMethod(m_poseEstimator, [this]() {
+            m_poseEstimator->moveToThread(QCoreApplication::instance()->thread());
+        }, Qt::BlockingQueuedConnection);
+        m_poseThread->quit();
+        m_poseThread->wait();
+    }
+    disconnect(m_poseThread, &QThread::started, nullptr, nullptr);
+    delete m_poseEstimator;
+    m_poseEstimator = nullptr;
+
+#if defined(HAVE_MEDIAPIPE)
+    if (wantMediaPipe) {
+        auto *mp = new PoseEstimatorMediaPipe();
+        m_poseEstimator = mp;
+        m_poseEstimator->moveToThread(m_poseThread);
+        connect(m_poseThread, &QThread::started, mp, &PoseEstimatorMediaPipe::load);
+    } else
+#endif
+    {
+#if defined(HAVE_MOVENET)
+        auto *mn = new PoseEstimatorMoveNet();
+        m_poseEstimator = mn;
+        m_poseEstimator->moveToThread(m_poseThread);
+        connect(m_poseThread, &QThread::started, mn, &PoseEstimatorMoveNet::load);
+#endif
+    }
+
+    if (m_poseEstimator) {
+        connect(m_poseEstimator, &PoseEstimatorBase::poseStatsUpdated,
+                this, &FilmController::onPoseStats, Qt::QueuedConnection);
+        connect(m_poseEstimator, &PoseEstimatorBase::poseBackendReady,
+                this, &FilmController::onPoseBackendReady, Qt::QueuedConnection);
+        connect(m_poseEstimator, &PoseEstimatorBase::poseEstimated,
+                this, &FilmController::onPoseEstimated, Qt::QueuedConnection);
+        m_poseThread->start();
+    }
 #else
     Q_UNUSED(variant)
 #endif

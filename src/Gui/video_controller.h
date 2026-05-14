@@ -57,8 +57,10 @@ class VideoController : public QObject
     Q_PROPERTY(double poseAvgMs READ poseAvgMs NOTIFY poseAvgMsChanged)
     Q_PROPERTY(double poseFps   READ poseFps   NOTIFY poseFpsChanged)
     Q_PROPERTY(QString poseBackendLabel READ poseBackendLabel NOTIFY poseBackendLabelChanged)
+    // moveNetModel is the active pose-model selector: 0=Lightning, 1=Thunder, 2=MediaPipe.
     Q_PROPERTY(int moveNetModel READ moveNetModel NOTIFY moveNetModelChanged)
     Q_PROPERTY(bool moveNetThunderAvailable READ moveNetThunderAvailable CONSTANT)
+    Q_PROPERTY(bool mediaPipeAvailable READ mediaPipeAvailable CONSTANT)
     Q_PROPERTY(QVariantList poseKeypoints READ poseKeypoints NOTIFY poseKeypointsChanged)
     Q_PROPERTY(QString deviceDescription READ deviceDescription CONSTANT)
     Q_PROPERTY(int perspective READ perspective NOTIFY perspectiveChanged)
@@ -87,6 +89,7 @@ public:
     QString poseBackendLabel() const;
     int     moveNetModel() const;
     bool    moveNetThunderAvailable() const;
+    bool    mediaPipeAvailable()      const;
     QVariantList poseKeypoints() const;
     QString deviceDescription() const;
     int     perspective() const;

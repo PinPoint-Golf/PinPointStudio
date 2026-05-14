@@ -79,6 +79,11 @@ public slots:
     // Receives a BGR CV_8UC3 frame from VideoPreprocessorOpenCV.
     virtual void estimatePose(const cv::Mat &frame) = 0;
 
+    // Resets any inter-frame tracking state (e.g. BlazePose ROI window).
+    // Call before single-frame annotation to prevent a stale ROI from a
+    // previous call influencing the next one.
+    virtual void resetTracking() {}
+
 signals:
     void poseEstimated(const PoseResult &result);
 

@@ -515,6 +515,331 @@ else()
     message(STATUS "MoveNet: Lightning model unavailable -- pose estimation disabled")
 endif()
 
+# ── MediaPipe Pose (two-model BlazePose pipeline from Qualcomm AI Hub) ────────
+# The ONNX models cannot be downloaded directly (Qualcomm distributes them as
+# device-specific compiled artefacts, not as plain HTTP files).  cmake exports
+# them locally via the qai-hub-models Python package.
+#
+# cmake will try this automatically if Python3 + qai-hub-models are importable
+# in the current environment (including an active venv).  If not, it writes a
+# helper script and prints instructions:
+#
+#   python3 -m venv .venv
+#   source .venv/bin/activate          # Windows: .venv\Scripts\activate
+#   pip install qai-hub-models torch onnxscript
+#   python3 <build>/_deps/mediapipe/export_mediapipe_pose.py \
+#           <build>/_deps/mediapipe
+#   cmake ..      ← re-run to pick up the exported models
+#
+# Detector input:  [1, 3, 128, 128] float32 NCHW, RGB, normalised [0,1]
+# Detector output: 4 tensors — scores×2 + boxes×2, split by stride level
+#   [1, 512, 1], [1, 384, 1] scores; [1, 512, 12], [1, 384, 12] boxes
+#   896 total anchors (512 at stride-8, 384 at stride-16)
+#
+# Landmark input:  [1, 3, 256, 256] float32 NCHW, RGB, normalised [0,1]
+# Landmark output: flag [1] + landmarks [1, 31, 4] (x,y,z,vis normalised [0,1])
+#   + heatmap [1, 128, 128] (ignored)
+
+set(_mediapipe_model_dir "${CMAKE_BINARY_DIR}/_deps/mediapipe")
+file(MAKE_DIRECTORY "${_mediapipe_model_dir}")
+
+set(_mediapipe_detector_file "MediaPipePoseDetector.onnx")
+set(_mediapipe_landmark_file "MediaPipePoseLandmarkDetector.onnx")
+set(_mediapipe_detector_path "${_mediapipe_model_dir}/${_mediapipe_detector_file}")
+set(_mediapipe_landmark_path "${_mediapipe_model_dir}/${_mediapipe_landmark_file}")
+
+# ── Write the export helper so the user can run it manually if cmake can't. ──
+set(_mediapipe_export_script "${_mediapipe_model_dir}/export_mediapipe_pose.py")
+file(WRITE "${_mediapipe_export_script}" [=[
+#!/usr/bin/env python3
+"""
+Export MediaPipe BlazePose detector + landmark models to ONNX.
+
+Usage:
+    python3 export_mediapipe_pose.py <output_dir>
+
+Requirements:
+    pip install qai-hub-models torch onnxscript
+    (Python >=3.10, <3.14 required by qai-hub-models)
+
+Output shapes (confirmed from qai_hub_models 0.53.x):
+  Detector  input : [1, 3, 128, 128]
+  Detector  output: 4 tensors — [1,512,12], [1,384,12] boxes,
+                                [1,512,1],  [1,384,1]  scores
+  Landmark  input : [1, 3, 256, 256]
+  Landmark  output: flag [1], landmarks [1,31,4] (x,y,z,vis), heatmap [1,128,128]
+"""
+import builtins
+import sys
+import pathlib
+import traceback
+
+
+def main() -> int:
+    output_dir = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    det_path = output_dir / "MediaPipePoseDetector.onnx"
+    lm_path  = output_dir / "MediaPipePoseLandmarkDetector.onnx"
+
+    if det_path.exists() and lm_path.exists():
+        print(f"Models already present in {output_dir}")
+        return 0
+
+    # ── Check dependencies ────────────────────────────────────────────────────
+    try:
+        import torch
+    except ImportError:
+        print("ERROR: torch not installed.  Run: pip install torch", file=sys.stderr)
+        return 1
+
+    try:
+        import onnxscript  # noqa: F401  required by newer torch.onnx
+    except ImportError:
+        print("ERROR: onnxscript not installed.  Run: pip install onnxscript",
+              file=sys.stderr)
+        return 1
+
+    try:
+        from qai_hub_models.models.mediapipe_pose.model import (
+            PoseDetector, PoseLandmarkDetector)
+    except ImportError:
+        print("ERROR: qai_hub_models not installed.", file=sys.stderr)
+        print("  Run: pip install qai-hub-models", file=sys.stderr)
+        return 1
+
+    # ── Download weights ──────────────────────────────────────────────────────
+    # qai-hub-models may interactively ask permission to clone MediaPipePyTorch.
+    # Auto-accept by patching builtins.input before the import/load calls.
+    _real_input = builtins.input
+    builtins.input = lambda *a, **kw: "y"
+
+    print("Loading MediaPipe Pose weights (may clone a repo + download on first run)...")
+    try:
+        det_model = PoseDetector.from_pretrained()
+        lm_model  = PoseLandmarkDetector.from_pretrained()
+    except Exception as exc:
+        builtins.input = _real_input
+        print(f"ERROR: from_pretrained() failed: {exc}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        return 1
+    finally:
+        builtins.input = _real_input
+
+    # The qai_hub_models wrappers expose the raw PyTorch model as .detector.
+    detector = det_model.detector
+    landmark = lm_model.detector
+    detector.eval()
+    landmark.eval()
+
+    # torch.onnx.export with the new exporter (PyTorch >= 2.x) writes an
+    # external .data sidecar when the model is large.  We immediately merge
+    # it back into a single self-contained file using onnx.save_model so
+    # cmake only needs to copy one file per model.
+    try:
+        import onnx as _onnx
+    except ImportError:
+        print("ERROR: onnx not installed.  Run: pip install onnx onnxscript",
+              file=sys.stderr)
+        return 1
+
+    def _export_and_merge(net, dummy_input, out_path):
+        torch.onnx.export(
+            net, dummy_input, str(out_path),
+            opset_version=18,
+            input_names=["image"],
+            do_constant_folding=True,
+        )
+        # Merge external data sidecar (if any) into a single self-contained file.
+        data_file = out_path.parent / (out_path.name + ".data")
+        if data_file.exists():
+            model = _onnx.load(str(out_path))
+            _onnx.save_model(model, str(out_path), save_as_external_data=False)
+            data_file.unlink()
+        print(f"  -> {out_path}  ({out_path.stat().st_size // 1024} KB, self-contained)")
+
+    # ── Export detector [1,3,128,128] ─────────────────────────────────────────
+    print("Exporting detector (BlazePose person detector, 128x128 input)...")
+    try:
+        _export_and_merge(detector, torch.zeros(1, 3, 128, 128), det_path)
+    except Exception as exc:
+        print(f"ERROR: detector export failed: {exc}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        return 1
+
+    # ── Export landmark detector [1,3,256,256] ────────────────────────────────
+    print("Exporting landmark detector (BlazePose landmark, 256x256 input)...")
+    try:
+        _export_and_merge(landmark, torch.zeros(1, 3, 256, 256), lm_path)
+    except Exception as exc:
+        print(f"ERROR: landmark export failed: {exc}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        return 1
+
+    print("Export complete.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+]=])
+
+# ── Try the automatic export if the models are not already present ────────────
+if(NOT EXISTS "${_mediapipe_detector_path}" OR NOT EXISTS "${_mediapipe_landmark_path}")
+
+    # qai-hub-models requires Python >=3.10, <3.14.
+    # Search order: active venv → in-tree venv → specific minor versions (so a
+    # compatible version is preferred over an incompatible system python3) →
+    # bare python3/python fallback.
+    find_program(_mp_python
+        NAMES python3.13 python3.12 python3.11 python3.10 python3 python
+        HINTS
+            "$ENV{VIRTUAL_ENV}/bin"
+            "$ENV{VIRTUAL_ENV}/Scripts"
+            "${CMAKE_SOURCE_DIR}/.venv/bin"
+            "${CMAKE_SOURCE_DIR}/.venv/Scripts"
+            "${CMAKE_SOURCE_DIR}/venv/bin"
+            "${CMAKE_SOURCE_DIR}/venv/Scripts"
+            "${CMAKE_BINARY_DIR}/.venv/bin"
+            "${CMAKE_BINARY_DIR}/.venv/Scripts"
+            "${CMAKE_BINARY_DIR}/venv/bin"
+            "${CMAKE_BINARY_DIR}/venv/Scripts"
+        NO_DEFAULT_PATH
+    )
+    if(NOT _mp_python)
+        find_program(_mp_python
+            NAMES python3.13 python3.12 python3.11 python3.10 python3 python)
+    endif()
+
+    if(_mp_python)
+        # Get the version string for diagnostic messages.
+        execute_process(
+            COMMAND "${_mp_python}" --version
+            OUTPUT_VARIABLE _py_ver_stdout  OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_VARIABLE  _py_ver_stderr  ERROR_STRIP_TRAILING_WHITESPACE
+        )
+        if(_py_ver_stdout)
+            set(_py_ver "${_py_ver_stdout}")
+        else()
+            set(_py_ver "${_py_ver_stderr}")  # Python <3.4 printed to stderr
+        endif()
+
+        # Check compatibility: qai-hub-models requires >=3.10, <3.14.
+        execute_process(
+            COMMAND "${_mp_python}" -c
+                "import sys; v=sys.version_info; sys.exit(0 if (3,10)<=v<(3,14) else 1)"
+            RESULT_VARIABLE _py_compat
+            OUTPUT_QUIET ERROR_QUIET
+        )
+
+        if(NOT _py_compat EQUAL 0)
+            message(STATUS "MediaPipe: ${_py_ver} at ${_mp_python} is not compatible")
+            message(STATUS "  qai-hub-models requires Python >=3.10, <3.14")
+            message(STATUS "  Install a compatible Python then create a venv and re-run cmake:")
+            message(STATUS "    # Ubuntu/Debian:")
+            message(STATUS "    sudo add-apt-repository ppa:deadsnakes/ppa")
+            message(STATUS "    sudo apt install python3.12 python3.12-venv")
+            message(STATUS "    python3.12 -m venv .venv && source .venv/bin/activate")
+            message(STATUS "    pip install qai-hub-models torch onnxscript && cmake ..")
+            message(STATUS "    # macOS:  brew install python@3.12")
+            message(STATUS "    # Windows: winget install Python.Python.3.12")
+        else()
+            # Version is compatible — check whether qai_hub_models is importable.
+            execute_process(
+                COMMAND "${_mp_python}" -c "import qai_hub_models"
+                RESULT_VARIABLE _qhm_available
+                OUTPUT_QUIET ERROR_QUIET
+            )
+
+            if(_qhm_available EQUAL 0)
+                message(STATUS
+                    "MediaPipe: exporting via qai-hub-models using ${_py_ver}"
+                    " (may download ~150 MB on first run)...")
+                execute_process(
+                    COMMAND "${_mp_python}" "${_mediapipe_export_script}"
+                            "${_mediapipe_model_dir}"
+                    RESULT_VARIABLE _mp_result
+                    OUTPUT_VARIABLE _mp_out
+                    ERROR_VARIABLE  _mp_err
+                )
+                if(_mp_result EQUAL 0)
+                    message(STATUS "MediaPipe: export succeeded")
+                    if(_mp_out)
+                        message(STATUS "${_mp_out}")
+                    endif()
+                else()
+                    message(WARNING
+                        "MediaPipe: export failed (exit ${_mp_result}).\n"
+                        "${_mp_err}\n"
+                        "Fix the error above then run manually:\n"
+                        "  ${_mp_python} ${_mediapipe_export_script}"
+                        " ${_mediapipe_model_dir}\n"
+                        "and re-run cmake."
+                    )
+                endif()
+            else()
+                message(STATUS
+                    "MediaPipe: qai-hub-models not installed in ${_py_ver}"
+                    " — skipping auto-export")
+                message(STATUS
+                    "  Activate a venv (or install into ${_mp_python}) and re-run cmake:")
+                message(STATUS
+                    "    pip install qai-hub-models torch onnxscript && cmake ..")
+                message(STATUS "  Or create a fresh venv first:")
+                message(STATUS
+                    "    python3.11 -m venv .venv && source .venv/bin/activate"
+                    "  # Windows: .venv\\Scripts\\activate")
+                message(STATUS
+                    "    pip install qai-hub-models torch onnxscript && cmake ..")
+            endif()
+        endif()
+    else()
+        message(STATUS "MediaPipe: no Python found — skipping auto-export")
+        message(STATUS "  Install Python 3.12 (or 3.10–3.13) and re-run cmake:")
+        message(STATUS "    # Ubuntu/Debian:")
+        message(STATUS "    sudo add-apt-repository ppa:deadsnakes/ppa")
+        message(STATUS "    sudo apt install python3.12 python3.12-venv")
+        message(STATUS "    python3.12 -m venv .venv && source .venv/bin/activate")
+        message(STATUS "    pip install qai-hub-models torch onnxscript && cmake ..")
+        message(STATUS "    # macOS:  brew install python@3.12 && ...")
+        message(STATUS "    # Windows: winget install Python.Python.3.12 && ...")
+    endif()
+
+endif() # NOT EXISTS both models
+
+if(EXISTS "${_mediapipe_detector_path}" AND EXISTS "${_mediapipe_landmark_path}")
+    message(STATUS "MediaPipe Pose: models ready")
+    target_compile_definitions(PinPoint PRIVATE
+        HAVE_MEDIAPIPE
+        MEDIAPIPE_DETECTOR_FILE="${_mediapipe_detector_file}"
+        MEDIAPIPE_LANDMARK_FILE="${_mediapipe_landmark_file}"
+    )
+
+    if(APPLE)
+        add_custom_command(TARGET PinPoint POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_mediapipe_detector_path}"
+                "$<TARGET_BUNDLE_CONTENT_DIR:PinPoint>/Resources/models/${_mediapipe_detector_file}"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_mediapipe_landmark_path}"
+                "$<TARGET_BUNDLE_CONTENT_DIR:PinPoint>/Resources/models/${_mediapipe_landmark_file}"
+            COMMENT "Bundling MediaPipe Pose models into app"
+        )
+    else()
+        add_custom_command(TARGET PinPoint POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_mediapipe_detector_path}"
+                "$<TARGET_FILE_DIR:PinPoint>/models/${_mediapipe_detector_file}"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_mediapipe_landmark_path}"
+                "$<TARGET_FILE_DIR:PinPoint>/models/${_mediapipe_landmark_file}"
+            COMMENT "Copying MediaPipe Pose models to output directory"
+        )
+    endif()
+else()
+    message(STATUS "MediaPipe Pose: models unavailable -- MediaPipe option disabled")
+endif()
+
 # ── Person segmenter (background suppression before MoveNet) ─────────────────
 # Downloads the MediaPipe Selfie Segmentation ONNX model (~480 KB).
 # Runs before MoveNet in the Film tab to isolate the subject so background
@@ -885,6 +1210,14 @@ if(EXISTS "${_movenet_lightning_path}")
         src/Pose/pose_estimator_movenet.cpp
     )
     message(STATUS "MoveNet pose estimator: enabled")
+endif()
+
+if(EXISTS "${_mediapipe_detector_path}" AND EXISTS "${_mediapipe_landmark_path}")
+    target_sources(PinPoint PRIVATE
+        src/Pose/pose_estimator_mediapipe.h
+        src/Pose/pose_estimator_mediapipe.cpp
+    )
+    message(STATUS "MediaPipe pose estimator: enabled")
 endif()
 
 if(APPLE)
