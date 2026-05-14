@@ -269,8 +269,9 @@ endif()
 # Three independent EP flags — each defaults ON; platform guards below control
 # which ones are actually wired up and which GPU binary is downloaded.
 # CPU EP is always the implicit fallback at runtime regardless of these flags.
-option(WITH_CUDA     "Enable CUDA execution provider (Linux/Windows)"    ON)
-option(WITH_COREML   "Enable CoreML execution provider (macOS ARM64)"    ON)
+option(WITH_CUDA       "Enable CUDA execution provider (Linux/Windows)"                        ON)
+option(WITH_COREML     "Enable CoreML execution provider (macOS ARM64)"                        ON)
+option(WITH_MEDIAPIPE  "Build with MediaPipe BlazePose pose estimator (requires Python + qai-hub-models)"  OFF)
 
 set(ORT_VERSION "1.26.0")
 
@@ -515,6 +516,7 @@ else()
     message(STATUS "MoveNet: Lightning model unavailable -- pose estimation disabled")
 endif()
 
+if(WITH_MEDIAPIPE)
 # ── MediaPipe Pose (two-model BlazePose pipeline from Qualcomm AI Hub) ────────
 # The ONNX models cannot be downloaded directly (Qualcomm distributes them as
 # device-specific compiled artefacts, not as plain HTTP files).  cmake exports
@@ -839,6 +841,8 @@ if(EXISTS "${_mediapipe_detector_path}" AND EXISTS "${_mediapipe_landmark_path}"
 else()
     message(STATUS "MediaPipe Pose: models unavailable -- MediaPipe option disabled")
 endif()
+
+endif() # WITH_MEDIAPIPE
 
 # ── Person segmenter (background suppression before MoveNet) ─────────────────
 # Downloads the MediaPipe Selfie Segmentation ONNX model (~480 KB).
@@ -1212,7 +1216,7 @@ if(EXISTS "${_movenet_lightning_path}")
     message(STATUS "MoveNet pose estimator: enabled")
 endif()
 
-if(EXISTS "${_mediapipe_detector_path}" AND EXISTS "${_mediapipe_landmark_path}")
+if(WITH_MEDIAPIPE AND EXISTS "${_mediapipe_detector_path}" AND EXISTS "${_mediapipe_landmark_path}")
     target_sources(PinPoint PRIVATE
         src/Pose/pose_estimator_mediapipe.h
         src/Pose/pose_estimator_mediapipe.cpp

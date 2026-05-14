@@ -59,7 +59,6 @@ class FilmController : public QObject
     Q_PROPERTY(bool    isAnnotating       READ isAnnotating       NOTIFY isAnnotatingChanged)
     Q_PROPERTY(bool    poseAvailable      READ poseAvailable      CONSTANT)
     Q_PROPERTY(bool    moveNetThunderAvailable READ moveNetThunderAvailable CONSTANT)
-    Q_PROPERTY(bool    mediaPipeAvailable     READ mediaPipeAvailable     CONSTANT)
     Q_PROPERTY(bool    ytdlpAvailable     READ ytdlpAvailable     CONSTANT)
     Q_PROPERTY(QVariantList cacheEntries READ cacheEntries NOTIFY cacheEntriesChanged)
     Q_PROPERTY(QString currentFilePath   READ currentFilePath    NOTIFY currentFilePathChanged)
@@ -83,7 +82,6 @@ public:
     bool    isAnnotating()            const;
     bool         poseAvailable()           const;
     bool         moveNetThunderAvailable() const;
-    bool         mediaPipeAvailable()     const;
     bool         ytdlpAvailable()          const;
     QVariantList cacheEntries()            const;
     QString      currentFilePath()         const;

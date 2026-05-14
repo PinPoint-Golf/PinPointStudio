@@ -481,10 +481,9 @@ Item {
                 color: "#6c7086"; font.pixelSize: 12; font.family: "Courier New"
             }
 
-            // ── Pose model selector (Lightning / Thunder / MediaPipe) ─────────
+            // ── Pose model selector (Lightning / Thunder) ────────────────────
             Row {
                 visible: filmController.moveNetThunderAvailable
-                         || filmController.mediaPipeAvailable
                 spacing: 0
 
                 Rectangle {
@@ -505,8 +504,7 @@ Item {
                 Rectangle {
                     visible: filmController.moveNetThunderAvailable
                     height: 20; width: tLabel.implicitWidth + 10
-                    topRightRadius:    filmController.mediaPipeAvailable ? 0 : 4
-                    bottomRightRadius: filmController.mediaPipeAvailable ? 0 : 4
+                    topRightRadius: 4; bottomRightRadius: 4
                     color: filmController.moveNetModel === 1 ? "#cba6f7" : "#313244"
                     Text {
                         id: tLabel; anchors.centerIn: parent
@@ -515,21 +513,6 @@ Item {
                         font.pixelSize: 11; font.bold: filmController.moveNetModel === 1
                     }
                     TapHandler { onTapped: filmController.selectMoveNetModel(1) }
-                    HoverHandler { cursorShape: Qt.PointingHandCursor }
-                }
-
-                Rectangle {
-                    visible: filmController.mediaPipeAvailable
-                    height: 20; width: mpLabel.implicitWidth + 10
-                    topRightRadius: 4; bottomRightRadius: 4
-                    color: filmController.moveNetModel === 2 ? "#cba6f7" : "#313244"
-                    Text {
-                        id: mpLabel; anchors.centerIn: parent
-                        text: qsTr("MediaPipe")
-                        color: filmController.moveNetModel === 2 ? "#1e1e2e" : "#cdd6f4"
-                        font.pixelSize: 11; font.bold: filmController.moveNetModel === 2
-                    }
-                    TapHandler { onTapped: filmController.selectMoveNetModel(2) }
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
                 }
             }
@@ -541,10 +524,7 @@ Item {
                 color: filmController.poseBackendLabel !== "" ? "#a6e3a1" : "#6c7086"
                 HoverHandler { id: poseHover }
                 ToolTip.visible: poseHover.hovered
-                ToolTip.text: {
-                    const model = filmController.moveNetModel === 2 ? "MediaPipe" : "MoveNet"
-                    return model + " ORT: " + (filmController.poseBackendLabel || "CPU")
-                }
+                ToolTip.text: "MoveNet ORT: " + (filmController.poseBackendLabel || "CPU")
                 ToolTip.delay: 500
                 Text {
                     id: poseText; anchors.centerIn: parent

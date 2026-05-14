@@ -31,10 +31,6 @@
 #include "pose_estimator_movenet.h"
 #endif
 
-#if defined(HAVE_OPENCV) && defined(HAVE_MEDIAPIPE) && defined(HAVE_ONNXRUNTIME)
-#include "pose_estimator_mediapipe.h"
-#endif
-
 #ifdef HAVE_OPENCV
 #include "ball_detector.h"
 #endif
@@ -322,15 +318,6 @@ bool    VideoController::moveNetThunderAvailable() const
 #endif
 }
 
-bool    VideoController::mediaPipeAvailable() const
-{
-#if defined(HAVE_OPENCV) && defined(HAVE_MEDIAPIPE) && defined(HAVE_ONNXRUNTIME)
-    return PoseEstimatorMediaPipe::isAvailable();
-#else
-    return false;
-#endif
-}
-
 QVariantList VideoController::poseKeypoints() const { return m_poseKeypoints; }
 
 QRectF VideoController::roi() const { return m_roi; }
@@ -406,116 +393,10 @@ void VideoController::selectMoveNetModel(int variant)
     m_poseFps   = 0.0; emit poseFpsChanged();
     m_poseBackendLabel = QString(); emit poseBackendLabelChanged();
 
-    const bool wantMediaPipe =
-#if defined(HAVE_MEDIAPIPE)
-        (variant == 2);
-#else
-        false;
-#endif
-
-    const bool haveMediaPipe =
-#if defined(HAVE_MEDIAPIPE)
-        (m_poseEstimator && qobject_cast<PoseEstimatorMediaPipe*>(m_poseEstimator));
-#else
-        false;
-#endif
-
-    // Same estimator type: just reload (Lightning ↔ Thunder swap within MoveNet).
-    if (!wantMediaPipe && !haveMediaPipe) {
 #if defined(HAVE_MOVENET)
-        if (m_poseEstimator) {
-            QMetaObject::invokeMethod(m_poseEstimator, "reloadModel",
-                                     Qt::QueuedConnection, Q_ARG(int, variant));
-        }
-#endif
-        return;
-    }
-
-    // Type change: drain and swap the estimator.
-    if (!m_poseEstimator) return;
-
-    // 1. Drain the pose thread: move estimator back to main thread, then stop thread.
-    if (m_poseThread->isRunning()) {
-        QMetaObject::invokeMethod(m_poseEstimator, [this]() {
-            m_poseEstimator->moveToThread(QCoreApplication::instance()->thread());
-        }, Qt::BlockingQueuedConnection);
-        m_poseThread->quit();
-        m_poseThread->wait();
-    }
-
-    // 2. Disconnect thread::started from the old estimator (auto-removed when we
-    //    delete the old estimator below, but do it explicitly to be safe).
-    disconnect(m_poseThread, &QThread::started, nullptr, nullptr);
-
-    // 3. Delete old estimator (auto-removes all connections to/from it).
-    delete m_poseEstimator;
-    m_poseEstimator = nullptr;
-
-    // 4. Create the replacement estimator.
-#if defined(HAVE_MEDIAPIPE)
-    if (wantMediaPipe) {
-        auto *mp = new PoseEstimatorMediaPipe();
-        m_poseEstimator = mp;
-        m_poseEstimator->moveToThread(m_poseThread);
-        connect(m_poseThread, &QThread::started, mp,
-                &PoseEstimatorMediaPipe::load);
-    } else
-#endif
-    {
-#if defined(HAVE_MOVENET)
-        auto *mn = new PoseEstimatorMoveNet();
-        m_poseEstimator = mn;
-        m_poseEstimator->moveToThread(m_poseThread);
-        connect(m_poseThread, &QThread::started, mn, &PoseEstimatorMoveNet::load);
-        // Variant 0 (Lightning) is the default; Thunder would need a queued reloadModel
-        // after load(), which load() already handles via the m_variant member default.
-#endif
-    }
-
-    if (!m_poseEstimator) return;
-
-    // 5. Reconnect common base-class signals.
-    connect(m_poseEstimator, &PoseEstimatorBase::poseStatsUpdated,
-            this, &VideoController::onPoseStats, Qt::QueuedConnection);
-    connect(m_poseEstimator, &PoseEstimatorBase::poseBackendReady,
-            this, &VideoController::onPoseBackendReady, Qt::QueuedConnection);
-    connect(m_poseEstimator, &PoseEstimatorBase::poseEstimated,
-            this, &VideoController::onPoseEstimated, Qt::QueuedConnection);
-
-    if (m_frameThrottle) {
-        connect(m_poseEstimator, &PoseEstimatorBase::estimationDone,
-                m_frameThrottle, &FrameThrottle::clearBusy,    Qt::DirectConnection);
-        connect(m_poseEstimator, &PoseEstimatorBase::estimationDone,
-                m_frameThrottle, &FrameThrottle::clearRawBusy, Qt::DirectConnection);
-    }
-
-    // 6. Reconnect preprocessor → new estimator (old connection was auto-removed
-    //    when the old estimator was deleted in step 3).
-    if (auto *cvPP = qobject_cast<VideoPreprocessorOpenCV*>(m_preprocessor)) {
-        connect(cvPP, &VideoPreprocessorOpenCV::framePreprocessed,
-                m_poseEstimator, &PoseEstimatorBase::estimatePose,
-                Qt::QueuedConnection);
-    }
-
-    // 7. Restart the thread — emits started → new estimator's load() slot.
-    m_poseThread->start();
-
-    // 8. The throttle's m_busy may still be true from the last in-flight MoveNet
-    //    frame: the estimationDone → clearBusy connection was torn down before
-    //    clearBusy() was called for that frame, leaving the throttle permanently
-    //    gated.  Reset it so the new estimator actually receives frames.
-    if (m_frameThrottle) {
-        m_frameThrottle->clearBusy();
-        m_frameThrottle->clearRawBusy();
-    }
-
-    // When switching from MediaPipe back to Thunder, the new MoveNet defaults to
-    // Lightning.  Queue a reload after load() completes to switch to Thunder.
-#if defined(HAVE_MOVENET)
-    if (!wantMediaPipe && variant == static_cast<int>(PoseEstimatorMoveNet::ModelVariant::Thunder)) {
+    if (m_poseEstimator) {
         QMetaObject::invokeMethod(m_poseEstimator, "reloadModel",
-                                  Qt::QueuedConnection,
-                                  Q_ARG(int, variant));
+                                  Qt::QueuedConnection, Q_ARG(int, variant));
     }
 #endif
 #else

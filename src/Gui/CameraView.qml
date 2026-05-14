@@ -440,10 +440,9 @@ Item {
                 font.family: "Courier New"
             }
 
-            // ── Pose model selector (Lightning / Thunder / MediaPipe) ─────────
+            // ── Pose model selector (Lightning / Thunder) ────────────────────
             Row {
                 visible: root.controller.moveNetThunderAvailable
-                         || root.controller.mediaPipeAvailable
                 spacing: 0
 
                 Rectangle {
@@ -451,7 +450,6 @@ Item {
                     height: 20
                     width: lightningLabel.implicitWidth + 10
                     topLeftRadius: 4; bottomLeftRadius: 4
-                    // Right corners are square when other buttons follow.
                     topRightRadius: 0; bottomRightRadius: 0
                     color: root.controller.moveNetModel === 0 ? "#cba6f7" : "#313244"
                     Text {
@@ -471,9 +469,7 @@ Item {
                     visible: root.controller.moveNetThunderAvailable
                     height: 20
                     width: thunderLabel.implicitWidth + 10
-                    // Right corners rounded only when MediaPipe button is absent.
-                    topRightRadius:    root.controller.mediaPipeAvailable ? 0 : 4
-                    bottomRightRadius: root.controller.mediaPipeAvailable ? 0 : 4
+                    topRightRadius: 4; bottomRightRadius: 4
                     color: root.controller.moveNetModel === 1 ? "#cba6f7" : "#313244"
                     Text {
                         id: thunderLabel
@@ -484,25 +480,6 @@ Item {
                         font.bold: root.controller.moveNetModel === 1
                     }
                     TapHandler { onTapped: root.controller.selectMoveNetModel(1) }
-                    HoverHandler { cursorShape: Qt.PointingHandCursor }
-                }
-
-                Rectangle {
-                    id: mediaPipeBtn
-                    visible: root.controller.mediaPipeAvailable
-                    height: 20
-                    width: mediaPipeLabel.implicitWidth + 10
-                    topRightRadius: 4; bottomRightRadius: 4
-                    color: root.controller.moveNetModel === 2 ? "#cba6f7" : "#313244"
-                    Text {
-                        id: mediaPipeLabel
-                        anchors.centerIn: parent
-                        text: qsTr("MediaPipe")
-                        color: root.controller.moveNetModel === 2 ? "#1e1e2e" : "#cdd6f4"
-                        font.pixelSize: 11
-                        font.bold: root.controller.moveNetModel === 2
-                    }
-                    TapHandler { onTapped: root.controller.selectMoveNetModel(2) }
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
                 }
             }
@@ -519,10 +496,9 @@ Item {
                 HoverHandler { id: poseBackendHover }
                 ToolTip.visible: poseBackendHover.hovered
                 ToolTip.text: {
-                    const model = root.controller.moveNetModel === 2 ? "MediaPipe" : "MoveNet"
-                    const ep    = root.controller.poseBackendLabel !== ""
-                                  ? root.controller.poseBackendLabel : "CPU"
-                    return model + " ORT: " + ep
+                    const ep = root.controller.poseBackendLabel !== ""
+                               ? root.controller.poseBackendLabel : "CPU"
+                    return "MoveNet ORT: " + ep
                 }
                 ToolTip.delay: 500
 
