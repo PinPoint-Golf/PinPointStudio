@@ -52,6 +52,13 @@ sudo apt install libespeak-ng-dev
 - **CUDA 13**: Not yet wired up in the Linux CMake path (only Windows); falls back to CPU for ORT.
 - **CPU**: Used automatically when no matching CUDA is found.
 
+> **Intel integrated GPU (including Linux on MacBook Pro Intel):**
+> ORT's only GPU execution provider on Linux is CUDA. Intel UHD and Iris integrated graphics cannot use it.
+> OpenVINO would be the natural alternative EP for Intel hardware, but it requires building ORT from source
+> (`-DONNXRUNTIME_USE_OPENVINO=ON`) — Intel stopped bundling their own ORT build in the OpenVINO toolkit
+> after the 2024.x series. Pre-built `libonnxruntime_providers_openvino.so` is not available for download.
+> ORT therefore runs on CPU on any Linux machine without an NVIDIA GPU.
+
 ---
 
 ## macOS
@@ -159,14 +166,16 @@ If a download fails, the affected feature is disabled but the rest of the build 
 
 ## GPU Acceleration Summary by Platform
 
-| Feature | Windows CUDA 12 | Windows CUDA 13 | Linux CUDA 12 | macOS ARM64 | macOS Intel |
-|---|---|---|---|---|---|
-| Whisper STT | Vulkan or CUDA | Vulkan or CUDA | Vulkan or CUDA | Metal | CPU |
-| Kokoro TTS (ORT) | CUDA | CUDA | CUDA | CoreML | CPU |
-| MoveNet pose (ORT) | CUDA | CUDA | CUDA | CoreML | CPU |
-| Person segmenter (ORT) | CUDA | CUDA | CUDA | CoreML | CPU |
+| Feature | Windows CUDA 12 | Windows CUDA 13 | Linux CUDA 12 | Linux (Intel GPU) | macOS ARM64 | macOS Intel |
+|---|---|---|---|---|---|---|
+| Whisper STT | Vulkan or CUDA | Vulkan or CUDA | Vulkan or CUDA | Vulkan (Intel ANV) | Metal | CPU |
+| Kokoro TTS (ORT) | CUDA | CUDA | CUDA | CPU | CoreML | CPU |
+| MoveNet pose (ORT) | CUDA | CUDA | CUDA | CPU | CoreML | CPU |
+| Person segmenter (ORT) | CUDA | CUDA | CUDA | CPU | CoreML | CPU |
 
-Vulkan is preferred over CUDA for Whisper because it works across GPU vendors (NVIDIA, AMD, Intel Arc) without needing the CUDA Toolkit.
+Vulkan is preferred over CUDA for Whisper because it works across GPU vendors (NVIDIA, AMD, Intel Arc) without needing the CUDA Toolkit. The Intel ANV Vulkan driver covers integrated graphics on Linux (UHD, Iris, Xe); Intel Arc discrete cards also work via Vulkan.
+
+ORT on Linux with Intel integrated graphics runs on CPU — see the note above on why OpenVINO EP is not supported.
 
 ---
 
@@ -176,6 +185,7 @@ Vulkan is preferred over CUDA for Whisper because it works across GPU vendors (N
 |---|---|---|
 | `-DWITH_CUDA=ON/OFF` | ON | Enable CUDA EP for ONNX Runtime (auto-disabled on version mismatch) |
 | `-DWITH_COREML=ON/OFF` | ON | Enable CoreML EP on macOS ARM64 |
+| `-DWITH_MEDIAPIPE=ON/OFF` | OFF | Build MediaPipe BlazePose estimator (requires Python + `qai-hub-models`) |
 | `-DASSEMBLYAI_API_KEY=<key>` | — | Seed AssemblyAI API key into settings at build time |
 | `-DOpenCV_DIR=<path>` | — | Path to OpenCV CMake config (Windows, non-standard location) |
 
