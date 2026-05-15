@@ -227,6 +227,100 @@ Item {
             }
         }
 
+        // ── Buffer controls ───────────────────────────────────────────────────
+        RowLayout {
+            visible: imuController.imuConnected
+            spacing: 8
+
+            Rectangle {
+                width: 10; height: 10; radius: 5
+                color: {
+                    switch(cameraManager.bufferState) {
+                        case "capturing": return "#a6e3a1"
+                        case "paused":    return "#f9e2af"
+                        default:          return "#6c7086"
+                    }
+                }
+                SequentialAnimation on opacity {
+                    running: cameraManager.bufferState === "capturing"
+                    loops: Animation.Infinite
+                    NumberAnimation { to: 0.3; duration: 1200; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: 1.0; duration: 1200; easing.type: Easing.InOutSine }
+                }
+            }
+
+            Label {
+                text: {
+                    switch(cameraManager.bufferState) {
+                        case "capturing": return qsTr("Buffer capturing")
+                        case "paused":    return qsTr("Buffer paused")
+                        case "idle":      return qsTr("Buffer idle — start camera to activate")
+                        default:          return qsTr("Buffer: ") + cameraManager.bufferState
+                    }
+                }
+                color: {
+                    switch(cameraManager.bufferState) {
+                        case "capturing": return "#a6e3a1"
+                        case "paused":    return "#f9e2af"
+                        default:          return "#6c7086"
+                    }
+                }
+                font.pixelSize: 13
+            }
+
+            Button {
+                id: imuPauseBtn
+                text: qsTr("Pause ⏸")
+                enabled: cameraManager.bufferState === "capturing"
+                onClicked: cameraManager.pauseBuffer()
+                contentItem: Text {
+                    text: imuPauseBtn.text
+                    color: imuPauseBtn.enabled ? "#1e1e2e" : "#6c7086"
+                    font.pixelSize: 13
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle {
+                    color: imuPauseBtn.enabled
+                           ? (imuPauseBtn.pressed ? "#f9e2af" : "#df8e1d")
+                           : "#313244"
+                    radius: 6
+                }
+            }
+
+            Button {
+                id: imuResumeBtn
+                text: qsTr("Resume ▶")
+                enabled: cameraManager.bufferState === "paused"
+                onClicked: cameraManager.resumeBuffer()
+                contentItem: Text {
+                    text: imuResumeBtn.text
+                    color: imuResumeBtn.enabled ? "#1e1e2e" : "#6c7086"
+                    font.pixelSize: 13
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle {
+                    color: imuResumeBtn.enabled
+                           ? (imuResumeBtn.pressed ? "#a6e3a1" : "#40a02b")
+                           : "#313244"
+                    radius: 6
+                }
+            }
+
+            Item { Layout.fillWidth: true }
+
+            Label {
+                visible: cameraManager.bufferState !== "idle"
+                         && cameraManager.bufferState !== "unavailable"
+                text: bufferController.totalEvents + " events"
+                color: "#6c7086"
+                font.pixelSize: 12
+                font.family: "Courier New"
+                verticalAlignment: Text.AlignVCenter
+            }
+        }
+
         TabBar {
             id: imuTabBar
             Layout.fillWidth: true

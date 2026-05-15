@@ -169,5 +169,112 @@ Item {
 
             Item { Layout.fillWidth: true }
         }
+
+        // ── Buffer controls (visible while recording) ─────────────────────────
+        RowLayout {
+            visible: cameraManager.isRecording
+            spacing: 8
+
+            Rectangle {
+                width: 10; height: 10; radius: 5
+                color: {
+                    switch(cameraManager.bufferState) {
+                        case "capturing": return "#a6e3a1"
+                        case "paused":    return "#f9e2af"
+                        case "stopping":  return "#f9e2af"
+                        default:          return "#6c7086"
+                    }
+                }
+                SequentialAnimation on opacity {
+                    running: cameraManager.bufferState === "capturing"
+                    loops: Animation.Infinite
+                    NumberAnimation { to: 0.3; duration: 1200; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: 1.0; duration: 1200; easing.type: Easing.InOutSine }
+                }
+            }
+
+            Label {
+                text: {
+                    switch(cameraManager.bufferState) {
+                        case "capturing": return qsTr("Buffer capturing")
+                        case "paused":    return qsTr("Buffer paused")
+                        case "stopping":  return qsTr("Buffer stopping…")
+                        default:          return qsTr("Buffer idle")
+                    }
+                }
+                color: {
+                    switch(cameraManager.bufferState) {
+                        case "capturing": return "#a6e3a1"
+                        case "paused":    return "#f9e2af"
+                        default:          return "#6c7086"
+                    }
+                }
+                font.pixelSize: 13
+            }
+
+            Button {
+                id: pauseBufferBtn
+                text: qsTr("Pause ⏸")
+                enabled: cameraManager.bufferState === "capturing"
+                onClicked: cameraManager.pauseBuffer()
+                contentItem: Text {
+                    text: pauseBufferBtn.text
+                    color: pauseBufferBtn.enabled ? "#1e1e2e" : "#6c7086"
+                    font.pixelSize: 13
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle {
+                    color: pauseBufferBtn.enabled
+                           ? (pauseBufferBtn.pressed ? "#f9e2af" : "#df8e1d")
+                           : "#313244"
+                    radius: 6
+                }
+            }
+
+            Button {
+                id: resumeBufferBtn
+                text: qsTr("Resume ▶")
+                enabled: cameraManager.bufferState === "paused"
+                onClicked: cameraManager.resumeBuffer()
+                contentItem: Text {
+                    text: resumeBufferBtn.text
+                    color: resumeBufferBtn.enabled ? "#1e1e2e" : "#6c7086"
+                    font.pixelSize: 13
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle {
+                    color: resumeBufferBtn.enabled
+                           ? (resumeBufferBtn.pressed ? "#a6e3a1" : "#40a02b")
+                           : "#313244"
+                    radius: 6
+                }
+            }
+
+            Item { Layout.fillWidth: true }
+
+            Label {
+                visible: cameraManager.bufferState === "capturing"
+                         || cameraManager.bufferState === "paused"
+                text: bufferController.totalEvents + " events"
+                color: "#6c7086"
+                font.pixelSize: 12
+                font.family: "Courier New"
+                verticalAlignment: Text.AlignVCenter
+            }
+
+            Repeater {
+                model: bufferController.sources
+                delegate: Label {
+                    required property var modelData
+                    visible: modelData.overwritten > 0
+                    text: "⚠ " + modelData.name + " overrun"
+                    color: "#f38ba8"
+                    font.pixelSize: 12
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+        }
     }
 }

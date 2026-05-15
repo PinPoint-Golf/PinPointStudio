@@ -72,18 +72,22 @@ VideoController::VideoController(const Device &device, pinpoint::EventBuffer *bu
     , m_videoInput(VideoInputFactory::create(device.backend))
     , m_eventBuffer(buffer)
 {
+    // Register source now with conservative defaults so the source ID is valid
+    // before EventBuffer::start() is called in main(). updateBufferDescriptor()
+    // fires on first Active and logs the actual format; re-registration is not
+    // supported in EventBuffer v1 (TODO Phase 5).
     if (m_eventBuffer) {
         pinpoint::SourceDescriptor desc;
         desc.name = device.description.toStdString();
 
-        pinpoint::CameraFormat fmt{};
-        fmt.pixel_format          = pinpoint::PixelFormat::Unknown;
-        fmt.width                 = 0;
-        fmt.height                = 0;
-        fmt.fps_numerator         = 60;
-        fmt.fps_denominator       = 1;
-        fmt.max_payload_bytes     = 1920 * 1080 * 2;
-        fmt.typical_payload_bytes = 1920 * 1080;
+        pinpoint::CameraFormat cfmt{};
+        cfmt.pixel_format          = pinpoint::PixelFormat::Unknown;
+        cfmt.width                 = 0;
+        cfmt.height                = 0;
+        cfmt.fps_numerator         = 60;
+        cfmt.fps_denominator       = 1;
+        cfmt.max_payload_bytes     = 1920 * 1080 * 2;
+        cfmt.typical_payload_bytes = 1920 * 1080;
 
         switch (device.backend) {
         case VideoInputFactory::Backend::AppleAVFoundation:
@@ -97,10 +101,10 @@ VideoController::VideoController(const Device &device, pinpoint::EventBuffer *bu
             desc.format.device = pinpoint::DeviceKind::Camera_UVC;
             break;
         }
-        desc.format.format                = fmt;
-        desc.window_duration              = std::chrono::milliseconds(5000);
-        desc.expected_interarrival_us     = std::chrono::microseconds(16667);
-        desc.sync_source                  = pinpoint::SyncSource::SoftwareTimestamp;
+        desc.format.format            = cfmt;
+        desc.window_duration          = std::chrono::milliseconds(5000);
+        desc.expected_interarrival_us = std::chrono::microseconds(16667);
+        desc.sync_source              = pinpoint::SyncSource::SoftwareTimestamp;
 
         m_sourceId = m_eventBuffer->registerSource(desc);
     }
@@ -183,13 +187,15 @@ void VideoController::setupPipeline()
 
     connectVideoInput();
 
-    // Re-evaluate needsDebayer once the camera has started and resolved its
-    // pixel format (emitsRawBayer() is only meaningful after Active state).
+    // On first Active state: register the buffer source with actual format/fps,
+    // and re-evaluate needsDebayer (only meaningful after Active).
     connect(m_videoInput, &VideoInputBase::stateChanged,
             this, [this](VideoInputBase::State s) {
-                if (s == VideoInputBase::State::Active)
+                if (s == VideoInputBase::State::Active) {
+                    updateBufferDescriptor();
                     emit needsDebayerChanged();
-            });
+                }
+            }, Qt::QueuedConnection);
 
     m_captureThread->start();
 
@@ -683,6 +689,87 @@ void VideoController::onPoseBackendReady(const QString &label)
         return;
     m_poseBackendLabel = label;
     emit poseBackendLabelChanged();
+}
+
+// ---------------------------------------------------------------------------
+// EventBuffer descriptor registration (called once on first Active state)
+// ---------------------------------------------------------------------------
+
+void VideoController::updateBufferDescriptor()
+{
+    if (!m_eventBuffer) return;
+    if (!m_videoInput || !m_videoInput->isActive()) return;
+
+    QVideoFrameFormat fmt = m_videoInput->frameFormat();
+    bool isRaw = m_videoInput->emitsRawBayer();
+
+    pinpoint::SourceDescriptor desc;
+    desc.name            = m_deviceDescription.toStdString();
+    desc.window_duration = std::chrono::milliseconds(5000);
+    desc.sync_source     = pinpoint::SyncSource::SoftwareTimestamp;
+
+    pinpoint::CameraFormat cfmt{};
+
+    if (isRaw) {
+        cfmt.width  = static_cast<uint32_t>(fmt.frameWidth()  > 0 ? fmt.frameWidth()  : 1920);
+        cfmt.height = static_cast<uint32_t>(fmt.frameHeight() > 0 ? fmt.frameHeight() : 1080);
+        cfmt.pixel_format          = pinpoint::PixelFormat::BayerRG8;
+        cfmt.max_payload_bytes     = cfmt.width * cfmt.height;
+        cfmt.typical_payload_bytes = cfmt.max_payload_bytes;
+        desc.format.device         = pinpoint::DeviceKind::Camera_GenICam;
+    } else {
+        cfmt.width  = static_cast<uint32_t>(fmt.frameWidth());
+        cfmt.height = static_cast<uint32_t>(fmt.frameHeight());
+        switch (fmt.pixelFormat()) {
+        case QVideoFrameFormat::Format_NV12:
+            cfmt.pixel_format      = pinpoint::PixelFormat::NV12;
+            cfmt.max_payload_bytes = cfmt.width * cfmt.height * 3 / 2;
+            break;
+        case QVideoFrameFormat::Format_YUYV:
+            cfmt.pixel_format      = pinpoint::PixelFormat::YUYV;
+            cfmt.max_payload_bytes = cfmt.width * cfmt.height * 2;
+            break;
+        case QVideoFrameFormat::Format_YUV420P:
+            cfmt.pixel_format      = pinpoint::PixelFormat::YUV420P;
+            cfmt.max_payload_bytes = cfmt.width * cfmt.height * 3 / 2;
+            break;
+        case QVideoFrameFormat::Format_BGRA8888:
+            cfmt.pixel_format      = pinpoint::PixelFormat::BGRA32;
+            cfmt.max_payload_bytes = cfmt.width * cfmt.height * 4;
+            break;
+        default:
+            cfmt.pixel_format      = pinpoint::PixelFormat::Unknown;
+            cfmt.max_payload_bytes = cfmt.width * cfmt.height * 4;
+            break;
+        }
+        cfmt.typical_payload_bytes = cfmt.max_payload_bytes;
+        desc.format.device         = pinpoint::DeviceKind::Camera_UVC;
+    }
+
+    float fps = fmt.streamFrameRate() > 0.0f ? fmt.streamFrameRate() : 30.0f;
+    cfmt.fps_numerator   = static_cast<uint32_t>(fps * 1000);
+    cfmt.fps_denominator = 1000;
+    desc.expected_interarrival_us =
+        std::chrono::microseconds(static_cast<int64_t>(1'000'000.0f / fps));
+    desc.format.format = cfmt;
+
+    // Always log actual format — useful for verifying correct sizing vs the
+    // conservative defaults used at construction time.
+    ppWarn() << "[VideoController] camera active:" << QString::fromStdString(desc.name)
+             << cfmt.width << "x" << cfmt.height << "@" << fps << "fps"
+             << "ideal slots:" << desc.computeSlotCount()
+             << "ideal slot_bytes:" << desc.computeSlotBytes();
+
+    // Source was registered in the constructor with conservative defaults.
+    // EventBuffer v1 does not support re-registration after start().
+    // TODO Phase 5: support source re-registration for resolution/fps changes.
+    if (m_sourceId != pinpoint::kInvalidSourceId) return;
+
+    // Safety guard — buffer must be Idle to register (should not reach here
+    // in normal operation since the constructor always registers first).
+    if (m_eventBuffer->state() != pinpoint::BufferState::Idle) return;
+
+    m_sourceId = m_eventBuffer->registerSource(desc);
 }
 
 // ---------------------------------------------------------------------------

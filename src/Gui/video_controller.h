@@ -153,6 +153,7 @@ private slots:
 private:
     void setupPipeline();
     void connectVideoInput();
+    void updateBufferDescriptor();
     void publishFrameToBuffer(const QVideoFrame &frame);
     void publishRawFrameToBuffer(const RawVideoFrame &frame);
 
