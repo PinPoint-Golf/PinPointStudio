@@ -94,6 +94,12 @@ bool CameraManager::anySelected() const
 
 void CameraManager::setSelected(int index, bool selected)
 {
+    // Selection is locked while recording — cameras must be chosen before
+    // starting. Matches the UI constraint (chips disabled while isRecording).
+    // Prevents VideoController constructor from calling registerSource() on a
+    // non-Idle EventBuffer, which asserts and crashes (Windows bug).
+    if (m_recording) return;
+
     if (index < 0 || index >= m_cameras.size())
         return;
     if (m_cameras[index].selected == selected)

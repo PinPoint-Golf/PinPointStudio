@@ -115,6 +115,7 @@ public:
             std::string name;
             uint64_t    events_written;
             uint64_t    events_overwritten;
+            uint64_t    slot_count;
             uint64_t    bytes_written_total;
             int64_t     last_write_timestamp_us;
             int64_t     max_inter_arrival_us;

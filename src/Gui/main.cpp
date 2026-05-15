@@ -49,10 +49,6 @@ int main(int argc, char *argv[])
     FilmController          filmController;
     BufferController        bufferController(&eventBuffer);
 
-    // Start after all sources are registered. Buffer runs for the lifetime of
-    // the app so IMU and camera data flow independently of camera recording state.
-    eventBuffer.start();
-
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("imuController"),    &imuController);
     engine.rootContext()->setContextProperty(QStringLiteral("controller"),       &controller);

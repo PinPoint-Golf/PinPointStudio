@@ -33,13 +33,19 @@ void BufferController::refresh()
     if (!m_buffer) return;
     m_snapshot = m_buffer->diagnostics();
 
-    ppWarn() << "[Buffer] state=" << state()
+    ppInfo() << "[Buffer] state=" << state()
              << " timeline=" << m_snapshot.timeline_entries;
     for (const auto &src : m_snapshot.sources) {
-        ppWarn() << "  source=" << QString::fromStdString(src.name)
-                 << " written=" << src.events_written
-                 << " overwritten=" << src.events_overwritten
-                 << " stalled=" << src.stalled;
+        if (src.stalled)
+            ppWarn() << "  source=" << QString::fromStdString(src.name)
+                     << " written=" << src.events_written
+                     << " overwritten=" << src.events_overwritten
+                     << " stalled=" << src.stalled;
+        else
+            ppInfo() << "  source=" << QString::fromStdString(src.name)
+                     << " written=" << src.events_written
+                     << " overwritten=" << src.events_overwritten
+                     << " stalled=" << src.stalled;
     }
 
     emit diagnosticsChanged();
@@ -66,6 +72,7 @@ QVariantList BufferController::sources() const
         m[QStringLiteral("name")]          = QString::fromStdString(s.name);
         m[QStringLiteral("eventsWritten")] = quint64(s.events_written);
         m[QStringLiteral("overwritten")]   = quint64(s.events_overwritten);
+        m[QStringLiteral("slotCount")]     = quint64(s.slot_count);
         m[QStringLiteral("stalled")]       = s.stalled;
         result.append(m);
     }

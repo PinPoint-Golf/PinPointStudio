@@ -268,7 +268,7 @@ Item {
                 model: bufferController.sources
                 delegate: Label {
                     required property var modelData
-                    visible: modelData.overwritten > 0
+                    visible: modelData.overwritten > Math.max(0, modelData.eventsWritten - modelData.slotCount)
                     text: "⚠ " + modelData.name + " overrun"
                     color: "#f38ba8"
                     font.pixelSize: 12

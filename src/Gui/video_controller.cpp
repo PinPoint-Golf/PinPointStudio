@@ -95,7 +95,13 @@ VideoController::VideoController(const Device &device, pinpoint::EventBuffer *bu
             break;
         case VideoInputFactory::Backend::Aravis:
         case VideoInputFactory::Backend::Spinnaker:
-            desc.format.device = pinpoint::DeviceKind::Camera_GenICam;
+            desc.format.device     = pinpoint::DeviceKind::Camera_GenICam;
+            // GenICam cameras (Spinnaker/Aravis) can run well above 60 fps.
+            // Use 200 fps as the conservative upper bound so the ring is sized
+            // for ceil(200*5)=1000 → 1024 slots, enough for 150 fps cameras.
+            // At 60 fps the ring was 512 slots, causing constant overwrites at
+            // 150 fps (150*5=750 frames > 512 ring capacity).
+            cfmt.fps_numerator = 200;
             break;
         default:
             desc.format.device = pinpoint::DeviceKind::Camera_UVC;
@@ -103,7 +109,10 @@ VideoController::VideoController(const Device &device, pinpoint::EventBuffer *bu
         }
         desc.format.format            = cfmt;
         desc.window_duration          = std::chrono::milliseconds(5000);
-        desc.expected_interarrival_us = std::chrono::microseconds(16667);
+        desc.expected_interarrival_us = std::chrono::microseconds(
+            cfmt.fps_denominator > 0
+                ? static_cast<int64_t>(1'000'000.0 * cfmt.fps_denominator / cfmt.fps_numerator)
+                : 16667);
         desc.sync_source              = pinpoint::SyncSource::SoftwareTimestamp;
 
         m_sourceId = m_eventBuffer->registerSource(desc);
@@ -753,9 +762,10 @@ void VideoController::updateBufferDescriptor()
         std::chrono::microseconds(static_cast<int64_t>(1'000'000.0f / fps));
     desc.format.format = cfmt;
 
-    // Always log actual format — useful for verifying correct sizing vs the
-    // conservative defaults used at construction time.
-    ppWarn() << "[VideoController] camera active:" << QString::fromStdString(desc.name)
+    // Log actual format for sizing verification. Note: streamFrameRate() is
+    // unreliable for raw Bayer sources (Spinnaker/Aravis) — fps shown may be
+    // Qt's default (30), not the camera's actual capture rate.
+    ppInfo() << "[VideoController] camera active:" << QString::fromStdString(desc.name)
              << cfmt.width << "x" << cfmt.height << "@" << fps << "fps"
              << "ideal slots:" << desc.computeSlotCount()
              << "ideal slot_bytes:" << desc.computeSlotBytes();

@@ -460,6 +460,7 @@ EventBuffer::DiagnosticsSnapshot EventBuffer::diagnostics() const {
         info.name                    = src.desc.name;
         info.events_written          = s.events_written.load(std::memory_order_relaxed);
         info.events_overwritten      = s.events_overwritten.load(std::memory_order_relaxed);
+        info.slot_count              = src.ring->slotCount();
         info.bytes_written_total     = s.bytes_written_total.load(std::memory_order_relaxed);
         info.last_write_timestamp_us = s.last_write_timestamp_us.load(std::memory_order_relaxed);
         info.max_inter_arrival_us    = s.max_inter_arrival_us.load(std::memory_order_relaxed);
