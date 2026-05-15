@@ -17,6 +17,7 @@
  */
 
 #include "wt9011dcl_base.h"
+#include "event_buffer.h"
 #include <QtMath>
 
 WT9011DCL_Base::WT9011DCL_Base(QObject *parent)
@@ -101,6 +102,11 @@ void WT9011DCL_Base::sendCommand(quint8 reg, quint16 value)
 
 void WT9011DCL_Base::receiveData(const QByteArray &data)
 {
+    // Emit raw bytes for EventBuffer before any parsing.
+    // Timestamp taken here — first moment of observation.
+    if (!data.isEmpty())
+        emit rawPacketReady(data, static_cast<qint64>(pinpoint::EventBuffer::nowMicros()));
+
     m_buffer.append(data);
     processBuffer();
 }

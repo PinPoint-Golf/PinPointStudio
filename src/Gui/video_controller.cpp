@@ -18,6 +18,10 @@
 
 #include "video_controller.h"
 
+#include "event_buffer.h"
+#include "source_descriptor.h"
+#include <cstring>
+
 #include "ting_player.h"
 #include "video_input_base.h"
 #include "video_input_factory.h"
@@ -60,13 +64,47 @@ VideoController::VideoController(QObject *parent)
     setupPipeline();
 }
 
-VideoController::VideoController(const Device &device, QObject *parent)
+VideoController::VideoController(const Device &device, pinpoint::EventBuffer *buffer, QObject *parent)
     : QObject(parent)
     , m_captureThread(new QThread(this))
     , m_deviceId(device.id)
     , m_deviceDescription(device.description)
     , m_videoInput(VideoInputFactory::create(device.backend))
+    , m_eventBuffer(buffer)
 {
+    if (m_eventBuffer) {
+        pinpoint::SourceDescriptor desc;
+        desc.name = device.description.toStdString();
+
+        pinpoint::CameraFormat fmt{};
+        fmt.pixel_format          = pinpoint::PixelFormat::Unknown;
+        fmt.width                 = 0;
+        fmt.height                = 0;
+        fmt.fps_numerator         = 60;
+        fmt.fps_denominator       = 1;
+        fmt.max_payload_bytes     = 1920 * 1080 * 2;
+        fmt.typical_payload_bytes = 1920 * 1080;
+
+        switch (device.backend) {
+        case VideoInputFactory::Backend::AppleAVFoundation:
+            desc.format.device = pinpoint::DeviceKind::Camera_AVFoundation;
+            break;
+        case VideoInputFactory::Backend::Aravis:
+        case VideoInputFactory::Backend::Spinnaker:
+            desc.format.device = pinpoint::DeviceKind::Camera_GenICam;
+            break;
+        default:
+            desc.format.device = pinpoint::DeviceKind::Camera_UVC;
+            break;
+        }
+        desc.format.format                = fmt;
+        desc.window_duration              = std::chrono::milliseconds(5000);
+        desc.expected_interarrival_us     = std::chrono::microseconds(16667);
+        desc.sync_source                  = pinpoint::SyncSource::SoftwareTimestamp;
+
+        m_sourceId = m_eventBuffer->registerSource(desc);
+    }
+
     setupPipeline();
 }
 
@@ -238,6 +276,13 @@ void VideoController::connectVideoInput()
     connect(m_videoInput, &VideoInputBase::videoFrameReady,
             this, [this](const QVideoFrame &frame) {
                 m_frameCaptureCount.fetch_add(1, std::memory_order_relaxed);
+
+                // EventBuffer publish (zero-copy into pre-allocated ring slot)
+                if (m_eventBuffer && m_sourceId != pinpoint::kInvalidSourceId
+                        && m_eventBuffer->isCapturing()) {
+                    publishFrameToBuffer(frame);
+                }
+
                 {
                     QMutexLocker lk(&m_latestFrameMutex);
                     m_latestDisplayFrame = frame;
@@ -253,6 +298,13 @@ void VideoController::connectVideoInput()
     connect(m_videoInput, &VideoInputBase::rawVideoFrameReady,
             this, [this](const RawVideoFrame &frame) {
                 m_frameCaptureCount.fetch_add(1, std::memory_order_relaxed);
+
+                // EventBuffer publish for raw Bayer frames
+                if (m_eventBuffer && m_sourceId != pinpoint::kInvalidSourceId
+                        && m_eventBuffer->isCapturing()) {
+                    publishRawFrameToBuffer(frame);
+                }
+
                 {
                     QMutexLocker lk(&m_latestRawFrameMutex);
                     m_latestRawFrame = frame;
@@ -631,4 +683,46 @@ void VideoController::onPoseBackendReady(const QString &label)
         return;
     m_poseBackendLabel = label;
     emit poseBackendLabelChanged();
+}
+
+// ---------------------------------------------------------------------------
+// EventBuffer publish helpers (called on the capture thread via DirectConnection)
+// ---------------------------------------------------------------------------
+
+void VideoController::publishFrameToBuffer(const QVideoFrame &frame)
+{
+    if (!frame.isValid())
+        return;
+
+    QVideoFrame mutable_frame = frame;  // QVideoFrame is ref-counted; copy is cheap
+    if (!mutable_frame.map(QVideoFrame::ReadOnly))
+        return;
+
+    const uint8_t *src  = mutable_frame.bits(0);
+    const size_t   size = static_cast<size_t>(mutable_frame.mappedBytes(0));
+
+    auto slot = m_eventBuffer->acquireWriteSlot(m_sourceId);
+    if (slot.valid && size <= slot.capacity) {
+        std::memcpy(slot.data, src, size);
+        *slot.bytes_written = static_cast<uint32_t>(size);
+        *slot.timestamp_us  = pinpoint::EventBuffer::nowMicros();
+        m_eventBuffer->publish(m_sourceId, slot.sequence);
+    }
+
+    mutable_frame.unmap();
+}
+
+void VideoController::publishRawFrameToBuffer(const RawVideoFrame &frame)
+{
+    if (frame.isNull())
+        return;
+
+    const size_t size = static_cast<size_t>(frame.data.size());
+    auto slot = m_eventBuffer->acquireWriteSlot(m_sourceId);
+    if (slot.valid && size <= slot.capacity) {
+        std::memcpy(slot.data, frame.data.constData(), size);
+        *slot.bytes_written = static_cast<uint32_t>(size);
+        *slot.timestamp_us  = pinpoint::EventBuffer::nowMicros();
+        m_eventBuffer->publish(m_sourceId, slot.sequence);
+    }
 }

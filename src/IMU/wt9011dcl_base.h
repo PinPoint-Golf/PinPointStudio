@@ -182,6 +182,11 @@ signals:
     void batteryUpdated(int percent);  // 0–100; emitted when a 0x71 response carries a valid reading
     void batteryReadRetry();           // device returned 0 — caller should retry after a short delay
 
+    // Emitted for every raw byte chunk received from the device, before parsing.
+    // 'data' is the exact bytes as delivered by the transport. Timestamp is
+    // taken at the moment bytes first arrive in receiveData().
+    void rawPacketReady(const QByteArray &data, qint64 timestamp_us);
+
 protected:
     // Converts device Euler angles to a world-frame quaternion, applying any
     // axis remapping and frame corrections specific to the physical hardware.

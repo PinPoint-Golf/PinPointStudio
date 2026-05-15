@@ -18,17 +18,43 @@
 
 #include "imu_controller.h"
 
+#include "event_buffer.h"
+#include "source_descriptor.h"
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QStandardPaths>
 #include <QTextStream>
 #include <chrono>
+#include <cstring>
 
-ImuController::ImuController(QObject *parent)
+ImuController::ImuController(pinpoint::EventBuffer *buffer, QObject *parent)
     : QObject(parent)
     , m_imu(new WT9011DCL_BLE(this))
+    , m_eventBuffer(buffer)
 {
+    if (m_eventBuffer) {
+        pinpoint::SourceDescriptor desc;
+        desc.name = "wt9011dcl_ble";
+
+        pinpoint::ImuFormat fmt{};
+        fmt.device          = pinpoint::DeviceKind::IMU_WitMotion;
+        fmt.sample_rate_hz  = 100;
+        // BLE driver batches multiple frames per notification (typically 4×20 = 80 bytes,
+        // occasionally 5×20 = 100 bytes). Use 512 — the BLE ATT MTU ceiling — so no
+        // notification is ever dropped regardless of firmware batching behaviour.
+        fmt.packet_bytes    = 512;
+        fmt.packet_schema   = "wt9011dcl_ble_notification_v1";
+
+        desc.format.device            = pinpoint::DeviceKind::IMU_WitMotion;
+        desc.format.format            = fmt;
+        desc.window_duration          = std::chrono::milliseconds(5000);
+        desc.expected_interarrival_us = std::chrono::microseconds(10000);  // 100 Hz
+        desc.sync_source              = pinpoint::SyncSource::SoftwareTimestamp;
+
+        m_imuSourceId = m_eventBuffer->registerSource(desc);
+    }
+
     m_retryTimer.setSingleShot(true);
     m_logTimer.setSingleShot(false);
     connect(&m_logTimer, &QTimer::timeout, this, [this]() {
@@ -166,6 +192,24 @@ ImuController::ImuController(QObject *parent)
         m_quatW = q.w; m_quatX = q.x; m_quatY = q.y; m_quatZ = q.z;
         emit quatChanged();
     });
+
+    // Publish raw IMU packets into the EventBuffer on the BLE notification thread.
+    // DirectConnection: signal fires on the BLE thread; lambda only touches lock-free atomics.
+    if (m_eventBuffer && m_imuSourceId != pinpoint::kInvalidSourceId) {
+        connect(m_imu, &WT9011DCL_Base::rawPacketReady,
+                this, [this](const QByteArray &data, qint64 ts) {
+                    if (!m_eventBuffer->isCapturing()) return;
+                    auto slot = m_eventBuffer->acquireWriteSlot(m_imuSourceId);
+                    if (!slot.valid) return;
+                    const size_t n = static_cast<size_t>(data.size());
+                    if (n <= slot.capacity) {
+                        std::memcpy(slot.data, data.constData(), n);
+                        *slot.bytes_written = static_cast<uint32_t>(n);
+                        *slot.timestamp_us  = static_cast<int64_t>(ts);
+                        m_eventBuffer->publish(m_imuSourceId, slot.sequence);
+                    }
+                }, Qt::DirectConnection);
+    }
 }
 
 void ImuController::connectImu()

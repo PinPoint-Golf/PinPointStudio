@@ -23,6 +23,9 @@
 #include <QStringList>
 #include <QTimer>
 #include "wt9011dcl_ble.h"
+#include "types.h"
+
+namespace pinpoint { class EventBuffer; }
 
 class ImuController : public QObject
 {
@@ -45,7 +48,8 @@ class ImuController : public QObject
     Q_PROPERTY(int     batteryPercent READ batteryPercent NOTIFY batteryPercentChanged)
 
 public:
-    explicit ImuController(QObject *parent = nullptr);
+    explicit ImuController(pinpoint::EventBuffer *buffer = nullptr,
+                           QObject *parent = nullptr);
 
     QString stateLabel()   const { return m_stateLabel; }
     bool    imuConnected() const { return m_connected; }
@@ -88,6 +92,9 @@ private:
     void setStateLabel(const QString &s);
     void onStateChanged(WT9011DCL_BLE::State s);
     void onDataRecord();  // call once per received combined frame
+
+    pinpoint::EventBuffer *m_eventBuffer  = nullptr;
+    pinpoint::SourceId     m_imuSourceId = pinpoint::kInvalidSourceId;
 
     WT9011DCL_BLE *m_imu;
     QStringList    m_logEntries;

@@ -47,5 +47,9 @@ endfunction()
 
 pinpoint_apply_sanitizers(pinpoint_buffer)
 
-enable_testing()
-add_subdirectory(tests)
+# Only include tests when Buffer is the top-level project (standalone build).
+# When consumed via add_subdirectory() from the main app, tests are skipped.
+if(PROJECT_IS_TOP_LEVEL)
+    enable_testing()
+    add_subdirectory(tests)
+endif()

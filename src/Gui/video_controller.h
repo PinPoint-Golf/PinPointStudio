@@ -32,6 +32,9 @@
 #include "device_enumerator.h"
 #include "raw_video_frame.h"
 #include "ting_player.h"
+#include "types.h"
+
+namespace pinpoint { class EventBuffer; }
 
 class QThread;
 class QVideoFrame;
@@ -77,7 +80,9 @@ public:
     enum Perspective { None = 0, DownTheLine = 1, FaceOn = 2, Other = 3 };
 
     explicit VideoController(QObject *parent = nullptr);
-    explicit VideoController(const Device &device, QObject *parent = nullptr);
+    explicit VideoController(const Device &device,
+                             pinpoint::EventBuffer *buffer = nullptr,
+                             QObject *parent = nullptr);
     ~VideoController() override;
 
     bool   isRecording() const;
@@ -148,6 +153,11 @@ private slots:
 private:
     void setupPipeline();
     void connectVideoInput();
+    void publishFrameToBuffer(const QVideoFrame &frame);
+    void publishRawFrameToBuffer(const RawVideoFrame &frame);
+
+    pinpoint::EventBuffer *m_eventBuffer      = nullptr;
+    pinpoint::SourceId     m_sourceId         = pinpoint::kInvalidSourceId;
 
     QThread               *m_captureThread   = nullptr;
     VideoInputBase        *m_videoInput       = nullptr;

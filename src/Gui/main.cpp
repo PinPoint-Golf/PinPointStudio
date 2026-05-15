@@ -27,6 +27,8 @@
 #include "transcription_controller.h"
 #include "tts_controller.h"
 #include "camera_manager.h"
+#include "buffer_controller.h"
+#include "event_buffer.h"
 
 int main(int argc, char *argv[])
 {
@@ -34,11 +36,22 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     SecretsManager::initializeDefaults();
 
-    ImuController           imuController;
+    // EventBuffer declared first — destroyed last (stack unwinds in reverse).
+    // All controllers that hold a pointer to it must be destroyed first.
+    pinpoint::EventBuffer   eventBuffer;
+
+    // Controllers are constructed first so all registerSource() calls complete
+    // before start() is called — registerSource() asserts Idle state.
+    ImuController           imuController(&eventBuffer);
     TranscriptionController controller;
     TtsController           ttsController;
-    CameraManager           cameraManager;
+    CameraManager           cameraManager(&eventBuffer);
     FilmController          filmController;
+    BufferController        bufferController(&eventBuffer);
+
+    // Start after all sources are registered. Buffer runs for the lifetime of
+    // the app so IMU and camera data flow independently of camera recording state.
+    eventBuffer.start();
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("imuController"),    &imuController);
@@ -46,6 +59,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("ttsController"),    &ttsController);
     engine.rootContext()->setContextProperty(QStringLiteral("cameraManager"),    &cameraManager);
     engine.rootContext()->setContextProperty(QStringLiteral("filmController"),   &filmController);
+    engine.rootContext()->setContextProperty(QStringLiteral("bufferController"), &bufferController);
 
     QObject::connect(
         &engine,

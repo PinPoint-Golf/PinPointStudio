@@ -21,6 +21,7 @@ project(PinPoint VERSION 0.1 LANGUAGES CXX)
 # Qt GuiPrivate is used for QRhi (public API since Qt 6.6, accessed via GuiPrivate includes).
 set(QT_NO_PRIVATE_MODULE_WARNING ON)
 
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 Quick3D SerialPort Bluetooth Multimedia Network WebSockets Concurrent ShaderTools GuiPrivate)
@@ -95,6 +96,9 @@ set(LIBSAMPLERATE_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(BUILD_TESTING          OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(libsamplerate)
 
+# EventBuffer library — lock-free ring-buffer capture store
+add_subdirectory(src/Buffer)
+
 qt_add_executable(PinPoint
     src/Gui/main.cpp
     src/Gui/imu_controller.h           src/Gui/imu_controller.cpp
@@ -122,6 +126,7 @@ qt_add_executable(PinPoint
     src/Video/VideoInputAravis.h           src/Video/VideoInputAravis.cpp
     src/Gui/video_controller.h             src/Gui/video_controller.cpp
     src/Gui/camera_manager.h               src/Gui/camera_manager.cpp
+    src/Gui/buffer_controller.h            src/Gui/buffer_controller.cpp
     src/STT/stt_processor.h          src/STT/stt_processor.cpp
     src/TTS/TTSEngine.h              src/TTS/TTSEngine.cpp
     src/TTS/TTSEngineFactory.h       src/TTS/TTSEngineFactory.cpp
@@ -132,7 +137,7 @@ qt_add_executable(PinPoint
     src/TTS/ModelDownloader.h        src/TTS/ModelDownloader.cpp
 )
 
-target_include_directories(PinPoint PRIVATE src/Gui src/IMU src/Audio src/Video src/Pose src/STT src/TTS src/Secrets src/Core)
+target_include_directories(PinPoint PRIVATE src/Gui src/IMU src/Audio src/Video src/Pose src/STT src/TTS src/Secrets src/Core src/Buffer)
 
 qt_add_qml_module(PinPoint
     URI PinPoint
@@ -204,6 +209,7 @@ configure_file(
 
 target_link_libraries(PinPoint
     PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::Quick3D Qt6::SerialPort Qt6::Bluetooth Qt6::Multimedia Qt6::Network Qt6::WebSockets Qt6::Concurrent Qt6::GuiPrivate
+            pinpoint_buffer
 )
 
 

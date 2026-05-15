@@ -20,9 +20,11 @@
 
 #include "video_controller.h"
 #include "video_input_factory.h"
+#include "event_buffer.h"
 
-CameraManager::CameraManager(QObject *parent)
+CameraManager::CameraManager(pinpoint::EventBuffer *buffer, QObject *parent)
     : QObject(parent)
+    , m_eventBuffer(buffer)
 {
     VideoInputFactory::enumerateDevices();
 
@@ -132,10 +134,17 @@ void CameraManager::startAll()
         return;
     m_recording = true;
     emit isRecordingChanged();
+
+    // Start the buffer before cameras so the first frames are captured.
+    if (m_eventBuffer && m_eventBuffer->state() == pinpoint::BufferState::Idle)
+        m_eventBuffer->start();
+
     for (auto &cam : m_cameras) {
         if (cam.selected && cam.controller)
             cam.controller->startRecording();
     }
+
+    emit bufferStateChanged();
 }
 
 void CameraManager::stopAll()
@@ -148,6 +157,39 @@ void CameraManager::stopAll()
     }
     m_recording = false;
     emit isRecordingChanged();
+
+    if (m_eventBuffer && m_eventBuffer->state() != pinpoint::BufferState::Idle)
+        m_eventBuffer->stop();
+
+    emit bufferStateChanged();
+}
+
+void CameraManager::pauseBuffer()
+{
+    if (m_eventBuffer && m_eventBuffer->state() == pinpoint::BufferState::Capturing) {
+        m_eventBuffer->pause();
+        emit bufferStateChanged();
+    }
+}
+
+void CameraManager::resumeBuffer()
+{
+    if (m_eventBuffer && m_eventBuffer->state() == pinpoint::BufferState::Paused) {
+        m_eventBuffer->resume();
+        emit bufferStateChanged();
+    }
+}
+
+QString CameraManager::bufferState() const
+{
+    if (!m_eventBuffer) return QStringLiteral("unavailable");
+    switch (m_eventBuffer->state()) {
+    case pinpoint::BufferState::Idle:      return QStringLiteral("idle");
+    case pinpoint::BufferState::Capturing: return QStringLiteral("capturing");
+    case pinpoint::BufferState::Paused:    return QStringLiteral("paused");
+    case pinpoint::BufferState::Stopping:  return QStringLiteral("stopping");
+    }
+    return QStringLiteral("unknown");
 }
 
 void CameraManager::setPerspective(QObject *rawController, int perspective)
@@ -176,5 +218,5 @@ void CameraManager::setPerspective(QObject *rawController, int perspective)
 
 VideoController *CameraManager::createController(const Device &device)
 {
-    return new VideoController(device, this);
+    return new VideoController(device, m_eventBuffer, this);
 }
