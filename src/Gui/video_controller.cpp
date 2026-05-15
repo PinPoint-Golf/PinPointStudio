@@ -18,6 +18,7 @@
 
 #include "video_controller.h"
 
+#include "ting_player.h"
 #include "video_input_base.h"
 #include "video_input_factory.h"
 #include "video_preprocessor_base.h"
@@ -74,6 +75,8 @@ void VideoController::setupPipeline()
     // Set to false to disable the entire preprocessor/pose/throttle pipeline
     // for capture-rate diagnostics.  Flip back to true to restore.
     static constexpr bool kPoseEnabled = true;
+
+    m_tingPlayer = new TingPlayer(this);
 
     m_captureThread->setObjectName(QStringLiteral("VideoCaptureThread"));
     m_videoInput->moveToThread(m_captureThread);
@@ -342,18 +345,47 @@ void VideoController::clearRoi()
         m_ballX = m_ballY = m_ballRadius = 0.0;
         emit ballDetectedChanged();
     }
+    m_ballWindow.clear();
+    m_ballPresentCount = 0;
+    m_ballPresent = false;
+    if (m_ballPresencePercent != 0.0) {
+        m_ballPresencePercent = 0.0;
+        emit ballPresencePercentChanged();
+    }
 }
 
-bool   VideoController::ballDetected() const { return m_ballDetected; }
-double VideoController::ballX()        const { return m_ballX; }
-double VideoController::ballY()        const { return m_ballY; }
-double VideoController::ballRadius()   const { return m_ballRadius; }
+bool   VideoController::ballDetected()        const { return m_ballDetected; }
+double VideoController::ballX()               const { return m_ballX; }
+double VideoController::ballY()               const { return m_ballY; }
+double VideoController::ballRadius()          const { return m_ballRadius; }
+double VideoController::ballPresencePercent() const { return m_ballPresencePercent; }
 
 #ifdef HAVE_OPENCV
 void VideoController::onBallDetected(const BallDetection &result)
 {
-    // Always update position when a ball is present; only suppress the signal
-    // when the "not found" state is unchanged to avoid thrashing QML bindings.
+    // Update the rolling 50-frame window.
+    m_ballWindow.push_back(result.found);
+    if (result.found)
+        ++m_ballPresentCount;
+    if (static_cast<int>(m_ballWindow.size()) > kBallWindowSize) {
+        if (m_ballWindow.front())
+            --m_ballPresentCount;
+        m_ballWindow.pop_front();
+    }
+    const int pct = m_ballWindow.empty() ? 0
+                  : static_cast<int>(std::round(m_ballPresentCount * 100.0 / static_cast<int>(m_ballWindow.size())));
+    if (pct != static_cast<int>(std::round(m_ballPresencePercent))) {
+        m_ballPresencePercent = static_cast<double>(pct);
+        emit ballPresencePercentChanged();
+    }
+
+    // Fire ting when the threshold-based presence state flips false → true.
+    const bool nowPresent = (m_ballPresencePercent > kBallPresentThreshold);
+    if (!m_ballPresent && nowPresent)
+        m_tingPlayer->play();
+    m_ballPresent = nowPresent;
+
+    // Only emit ballDetectedChanged when the present/absent state flips.
     if (!result.found && !m_ballDetected)
         return;
 
@@ -494,6 +526,13 @@ void VideoController::stopRecording()
         m_ballDetected = false;
         m_ballX = m_ballY = m_ballRadius = 0.0;
         emit ballDetectedChanged();
+    }
+    m_ballWindow.clear();
+    m_ballPresentCount = 0;
+    m_ballPresent = false;
+    if (m_ballPresencePercent != 0.0) {
+        m_ballPresencePercent = 0.0;
+        emit ballPresencePercentChanged();
     }
 }
 

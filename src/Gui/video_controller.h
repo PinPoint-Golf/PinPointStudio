@@ -27,9 +27,11 @@
 #include <QVideoFrame>
 #include <array>
 #include <atomic>
+#include <deque>
 
 #include "device_enumerator.h"
 #include "raw_video_frame.h"
+#include "ting_player.h"
 
 class QThread;
 class QVideoFrame;
@@ -64,10 +66,11 @@ class VideoController : public QObject
     Q_PROPERTY(QString deviceDescription READ deviceDescription CONSTANT)
     Q_PROPERTY(int perspective READ perspective NOTIFY perspectiveChanged)
     Q_PROPERTY(QRectF roi READ roi NOTIFY roiChanged)
-    Q_PROPERTY(bool   ballDetected READ ballDetected NOTIFY ballDetectedChanged)
-    Q_PROPERTY(double ballX        READ ballX        NOTIFY ballDetectedChanged)
-    Q_PROPERTY(double ballY        READ ballY        NOTIFY ballDetectedChanged)
-    Q_PROPERTY(double ballRadius   READ ballRadius   NOTIFY ballDetectedChanged)
+    Q_PROPERTY(bool   ballDetected       READ ballDetected       NOTIFY ballDetectedChanged)
+    Q_PROPERTY(double ballX              READ ballX              NOTIFY ballDetectedChanged)
+    Q_PROPERTY(double ballY              READ ballY              NOTIFY ballDetectedChanged)
+    Q_PROPERTY(double ballRadius         READ ballRadius         NOTIFY ballDetectedChanged)
+    Q_PROPERTY(double ballPresencePercent READ ballPresencePercent NOTIFY ballPresencePercentChanged)
 
 public:
     // Perspective values — matches the selector in CameraView.qml.
@@ -92,10 +95,11 @@ public:
     QString deviceDescription() const;
     int     perspective() const;
     QRectF  roi()          const;
-    bool    ballDetected() const;
-    double  ballX()        const;
-    double  ballY()        const;
-    double  ballRadius()   const;
+    bool    ballDetected()        const;
+    double  ballX()               const;
+    double  ballY()               const;
+    double  ballRadius()          const;
+    double  ballPresencePercent() const;
 
     // Called by CameraManager only — not Q_INVOKABLE so QML cannot bypass
     // the uniqueness check enforced by CameraManager::setPerspective().
@@ -126,6 +130,7 @@ signals:
     void perspectiveChanged();
     void roiChanged();
     void ballDetectedChanged();
+    void ballPresencePercentChanged();
 
 private slots:
     void onVideoFrame(const QVideoFrame &frame);
@@ -178,6 +183,14 @@ private:
     double m_ballX        = 0.0;
     double m_ballY        = 0.0;
     double m_ballRadius   = 0.0;
+
+    static constexpr int kBallWindowSize      = 50;
+    static constexpr double kBallPresentThreshold = 30.0;
+    std::deque<bool> m_ballWindow;
+    int              m_ballPresentCount     = 0;
+    double           m_ballPresencePercent  = 0.0;
+    bool             m_ballPresent          = false;
+    TingPlayer      *m_tingPlayer           = nullptr;
     // Capture-rate FPS: counted on the capture thread, sampled on a timer.
     std::atomic<int>   m_frameCaptureCount{0};
     QTimer            *m_fpsSampleTimer    = nullptr;

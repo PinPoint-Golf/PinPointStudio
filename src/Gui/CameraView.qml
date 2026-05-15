@@ -401,16 +401,28 @@ Item {
                 width: ballBadgeLabel.implicitWidth + 10
                 height: 20
                 radius: 4
-                color: root.controller.ballDetected ? "#a6e3a1" : "#313244"
+
+                readonly property bool ballPresent: root.controller.ballPresencePercent > 30
+
+                color: ballPresent ? "#a6e3a1" : "#313244"
 
                 Text {
                     id: ballBadgeLabel
                     anchors.centerIn: parent
-                    text: root.controller.ballDetected ? qsTr("Ball") : qsTr("No Ball")
-                    color: root.controller.ballDetected ? "#1e1e2e" : "#6c7086"
+                    text: parent.ballPresent ? qsTr("Ball") : qsTr("No Ball")
+                    color: parent.ballPresent ? "#1e1e2e" : "#6c7086"
                     font.pixelSize: 11
-                    font.bold: root.controller.ballDetected
+                    font.bold: parent.ballPresent
                 }
+            }
+
+            // ── Rolling ball-presence percentage (last 50 frames) ─────────────
+            Label {
+                visible: root.roiIsSet && root.controller.isRecording
+                text: root.controller.ballPresencePercent.toFixed(0) + "%"
+                color: "#6c7086"
+                font.pixelSize: 11
+                font.family: "Courier New"
             }
 
             Item { Layout.fillWidth: true }
