@@ -13,6 +13,7 @@ add_library(pinpoint_buffer
     wait_flag.cpp
     event_buffer.cpp
     swing_window.cpp
+    thread_policy.cpp
 )
 
 target_include_directories(pinpoint_buffer

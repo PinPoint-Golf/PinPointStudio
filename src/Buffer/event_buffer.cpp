@@ -17,12 +17,14 @@
  */
 
 #include "event_buffer.h"
+#include "thread_policy.h"
 #include "platform.h"
 
 #include <algorithm>
 #include <cassert>
 #include <chrono>
 #include <climits>
+#include <cstdio>
 #include <stdexcept>
 #include <thread>
 
@@ -207,8 +209,12 @@ const SourceStats& EventBuffer::statsFor(SourceId id) const {
 }
 
 std::vector<SourceId> EventBuffer::stalledSources() const {
-    // TODO Phase 3: return sources whose stalled flag is set
-    return {};
+    std::vector<SourceId> result;
+    for (size_t i = 0; i < source_count_; ++i) {
+        if (sources_[i]->stalled.load(std::memory_order_acquire))
+            result.push_back(sources_[i]->desc.id);
+    }
+    return result;
 }
 
 BufferState EventBuffer::state() const noexcept {
@@ -251,6 +257,13 @@ void EventBuffer::mergerLoop() {
 #if defined(PINPOINT_PLATFORM_WINDOWS)
     timeBeginPeriod(1);
 #endif
+
+    ThreadPolicy::apply(ThreadRole::Merger);
+    fprintf(stderr, "[pinpoint] merger thread priority: %s\n",
+            ThreadPolicy::lastApplyDescription());
+
+    if (config_.cpu_affinity_enabled)
+        ThreadPolicy::pinToCore(1);
 
     MergerState state;
 
@@ -373,7 +386,8 @@ void EventBuffer::mergerLoop() {
         int64_t safe_until = computeSafe();
         any_progress      |= emitReady(safe_until);
 
-        // TODO Phase 3: watchdogTick()
+        if (!draining_.load(std::memory_order_acquire))
+            maybeRunWatchdog();
 
         if (any_progress) {
             for (uint32_t i = 0; i < config_.merger_spin_iterations; ++i)
@@ -389,8 +403,66 @@ void EventBuffer::mergerLoop() {
 #endif
 }
 
-void EventBuffer::watchdogTick() {
-    // TODO Phase 3: implement liveness watchdog
+void EventBuffer::maybeRunWatchdog() {
+    auto now = std::chrono::steady_clock::now();
+    if (now - last_watchdog_tick_ <
+            std::chrono::milliseconds(config_.watchdog_interval_ms))
+        return;
+    last_watchdog_tick_ = now;
+
+    int64_t now_us = EventBuffer::nowMicros();
+    for (size_t i = 0; i < source_count_; ++i) {
+        auto& src = *sources_[i];
+
+        if (src.desc.expected_interarrival_us.count() == 0) continue;
+
+        int64_t last_ts = src.ring->stats()
+                              .last_write_timestamp_us
+                              .load(std::memory_order_relaxed);
+        if (last_ts == 0) continue;
+
+        int64_t threshold_us =
+            static_cast<int64_t>(src.desc.expected_interarrival_us.count())
+            * static_cast<int64_t>(config_.stall_threshold_mult);
+
+        bool silent = (now_us - last_ts) > threshold_us;
+
+        if (silent && !src.stalled.exchange(true, std::memory_order_acq_rel)) {
+            IndexEntry marker{};
+            marker.timestamp_us = now_us;
+            marker.source_id    = src.desc.id;
+            marker.flags        = IndexEntryFlags::SourceStalled;
+            uint64_t seq = index_.append(marker);
+            index_wait_.store(seq);
+            index_wait_.notifyAll();
+        } else if (!silent) {
+            src.stalled.store(false, std::memory_order_release);
+        }
+    }
+}
+
+EventBuffer::DiagnosticsSnapshot EventBuffer::diagnostics() const {
+    DiagnosticsSnapshot snap;
+    snap.state = state_.load(std::memory_order_acquire);
+    snap.snapshot_timestamp_us = nowMicros();
+    snap.timeline_entries = index_.latestSequence();
+    for (size_t i = 0; i < source_count_; ++i) {
+        const auto& src = *sources_[i];
+        const auto& s   = src.ring->stats();
+        DiagnosticsSnapshot::SourceInfo info{};
+        info.id                      = src.desc.id;
+        info.name                    = src.desc.name;
+        info.events_written          = s.events_written.load(std::memory_order_relaxed);
+        info.events_overwritten      = s.events_overwritten.load(std::memory_order_relaxed);
+        info.bytes_written_total     = s.bytes_written_total.load(std::memory_order_relaxed);
+        info.last_write_timestamp_us = s.last_write_timestamp_us.load(std::memory_order_relaxed);
+        info.max_inter_arrival_us    = s.max_inter_arrival_us.load(std::memory_order_relaxed);
+        info.bounds_violations       = s.bounds_violations.load(std::memory_order_relaxed);
+        info.monotonicity_violations = s.monotonicity_violations.load(std::memory_order_relaxed);
+        info.stalled                 = src.stalled.load(std::memory_order_acquire);
+        snap.sources.push_back(std::move(info));
+    }
+    return snap;
 }
 
 // ---------------------------------------------------------------------------

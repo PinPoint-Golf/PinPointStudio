@@ -42,3 +42,22 @@ add_executable(swing_window_test swing_window_test.cpp)
 target_link_libraries(swing_window_test PRIVATE pinpoint_buffer GTest::gtest_main)
 pinpoint_apply_sanitizers(swing_window_test)
 add_test(NAME swing_window_test COMMAND swing_window_test)
+
+# watchdog_test
+add_executable(watchdog_test watchdog_test.cpp)
+target_link_libraries(watchdog_test PRIVATE pinpoint_buffer GTest::gtest_main)
+pinpoint_apply_sanitizers(watchdog_test)
+add_test(NAME watchdog_test COMMAND watchdog_test)
+
+# thread_policy_test
+add_executable(thread_policy_test thread_policy_test.cpp)
+target_link_libraries(thread_policy_test PRIVATE pinpoint_buffer GTest::gtest_main)
+pinpoint_apply_sanitizers(thread_policy_test)
+add_test(NAME thread_policy_test COMMAND thread_policy_test)
+
+# latency_benchmark — not a gtest, not added to ctest.
+# Run manually: ./tests/build_bench/latency_benchmark
+add_executable(latency_benchmark latency_benchmark.cpp)
+target_link_libraries(latency_benchmark PRIVATE pinpoint_buffer)
+pinpoint_apply_sanitizers(latency_benchmark)
+# Note: intentionally NOT added to add_test() — manual run only

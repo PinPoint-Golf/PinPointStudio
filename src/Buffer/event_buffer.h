@@ -107,7 +107,28 @@ public:
 
     // --- Observability ---
     const SourceStats&    statsFor(SourceId id) const;
-    std::vector<SourceId> stalledSources() const; // TODO Phase 3
+    std::vector<SourceId> stalledSources() const;
+
+    struct DiagnosticsSnapshot {
+        struct SourceInfo {
+            SourceId    id;
+            std::string name;
+            uint64_t    events_written;
+            uint64_t    events_overwritten;
+            uint64_t    bytes_written_total;
+            int64_t     last_write_timestamp_us;
+            int64_t     max_inter_arrival_us;
+            uint64_t    bounds_violations;
+            uint64_t    monotonicity_violations;
+            bool        stalled;
+        };
+        std::vector<SourceInfo> sources;
+        uint64_t                timeline_entries;
+        BufferState             state;
+        int64_t                 snapshot_timestamp_us;
+    };
+
+    DiagnosticsSnapshot diagnostics() const;
 
     // --- Clock ---
     static int64_t nowMicros() noexcept;
@@ -142,7 +163,7 @@ private:
 
     int findSlotIndex(SourceId id) const noexcept;
     void mergerLoop();
-    void watchdogTick(); // TODO Phase 3 — stub
+    void maybeRunWatchdog();
 };
 
 } // namespace pinpoint
