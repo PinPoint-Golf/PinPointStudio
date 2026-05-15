@@ -1,0 +1,148 @@
+/*
+ * Copyright (C) 2026 Mark Liversedge (liversedge@gmail.com)
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc., 51
+ * Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
+#pragma once
+
+#include "types.h"
+#include "source_descriptor.h"
+#include "source_ring.h"
+#include "source_stats.h"
+#include "timeline_index.h"
+#include "wait_flag.h"
+#include "event_buffer_config.h"
+#include "swing_window.h"
+
+#include <array>
+#include <atomic>
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <thread>
+#include <vector>
+
+namespace pinpoint {
+
+enum class BufferState {
+    Idle,        // constructed, not started; no merger thread
+    Capturing,   // merger running, producers active
+    Paused,      // merger quiesced, rings frozen, safe for analysis
+    Stopping,    // teardown in progress (transient)
+};
+
+class EventBuffer {
+public:
+    static constexpr size_t MAX_SOURCES = 16;
+
+    explicit EventBuffer(EventBufferConfig cfg = {});
+    ~EventBuffer();
+
+    EventBuffer(const EventBuffer&)            = delete;
+    EventBuffer& operator=(const EventBuffer&) = delete;
+
+    // --- Registration (before start() only) ---
+    SourceId registerSource(SourceDescriptor desc);
+
+    // --- Producer API ---
+    // acquireWriteSlot returns valid=false when state != Capturing.
+    SourceRing::WriteSlot acquireWriteSlot(SourceId id) noexcept;
+    SourceRing::WriteSlot getSlotByIndex(SourceId id, size_t slot_idx) noexcept;
+    void                  publish(SourceId id, uint64_t sequence) noexcept;
+
+    // DMA registration helpers
+    std::vector<std::byte*> getSlotPointers(SourceId id) const;
+    size_t                  getSlotCapacity(SourceId id)  const;
+    size_t                  getSlotCount(SourceId id)     const;
+
+    // --- Consumer API ---
+    class Subscription {
+    public:
+        bool     waitNext(IndexEntry& out, std::chrono::microseconds timeout);
+        bool     tryNext(IndexEntry& out);
+        void     resetToLatest();
+        uint64_t overrunsSinceLastRead() const noexcept { return overruns_; }
+
+    private:
+        friend class EventBuffer;
+        Subscription(EventBuffer* buf, uint64_t start_seq, uint64_t gen);
+
+        EventBuffer* buffer_;
+        uint64_t     next_seq_;
+        uint64_t     gen_;        // sub_gen_ snapshot; mismatch means timeline was reset
+        uint64_t     overruns_ = 0;
+    };
+
+    Subscription subscribe();
+
+    SourceRing::ReadHandle  acquireReadHandle(SourceId id, uint64_t source_seq) const noexcept;
+    const FormatDescriptor& formatOf(SourceId id) const;
+    std::vector<IndexEntry> snapshot(int64_t t_start_us, int64_t t_end_us);
+
+    // --- Lifecycle ---
+    void        start();
+    void        pause();
+    void        resume();
+    void        stop();
+    BufferState state() const noexcept;
+    bool        isCapturing() const noexcept;
+
+    // SwingWindow — only callable in Paused state (asserts otherwise)
+    SwingWindow captureSwingWindow(int64_t t_start_us, int64_t t_end_us);
+    SwingWindow captureSwingWindow(std::chrono::milliseconds trailing_duration);
+
+    // --- Observability ---
+    const SourceStats&    statsFor(SourceId id) const;
+    std::vector<SourceId> stalledSources() const; // TODO Phase 3
+
+    // --- Clock ---
+    static int64_t nowMicros() noexcept;
+
+private:
+    friend class SwingWindow;
+
+    struct SourceSlot {
+        SourceDescriptor        desc;
+        std::unique_ptr<SourceRing> ring;
+        uint64_t                next_seq = 0; // next ring sequence to drain
+        std::atomic<bool>       stalled{false};
+    };
+
+    EventBufferConfig config_;
+
+    std::array<std::unique_ptr<SourceSlot>, MAX_SOURCES> sources_;
+    size_t source_count_ = 0;
+
+    TimelineIndex index_;
+    WaitFlag      index_wait_;
+
+    alignas(64) std::atomic<bool>        capturing_{false};
+    std::atomic<BufferState>             state_{BufferState::Idle};
+    std::atomic<bool>                    running_{false};
+    std::atomic<bool>                    draining_{false};
+    std::atomic<bool>                    drained_{false};
+    std::atomic<uint64_t>                sub_gen_{0};
+
+    std::thread merger_thread_;
+    std::chrono::steady_clock::time_point last_watchdog_tick_;
+
+    int findSlotIndex(SourceId id) const noexcept;
+    void mergerLoop();
+    void watchdogTick(); // TODO Phase 3 — stub
+};
+
+} // namespace pinpoint

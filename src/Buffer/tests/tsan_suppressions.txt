@@ -5,3 +5,4 @@
 race:pinpoint::SourceRing::acquireReadHandle
 race:pinpoint::SourceRing::ReadHandle::validate
 race:pinpoint::SourceRing::ReadHandle::copyBytesRacy
+race:pinpoint::TimelineIndex::tryRead

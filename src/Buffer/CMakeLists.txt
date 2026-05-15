@@ -7,7 +7,13 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Headers and source live flat in this directory.
 # Consumers add src/Buffer to their include path and use #include "source_ring.h" etc.
-add_library(pinpoint_buffer source_ring.cpp)
+add_library(pinpoint_buffer
+    source_ring.cpp
+    timeline_index.cpp
+    wait_flag.cpp
+    event_buffer.cpp
+    swing_window.cpp
+)
 
 target_include_directories(pinpoint_buffer
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}

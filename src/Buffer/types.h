@@ -51,4 +51,13 @@ namespace IndexEntryFlags {
     static constexpr uint32_t SourceStalled = 1u << 0;
 }
 
+struct IndexEntry {
+    int64_t  timestamp_us    = 0;
+    SourceId source_id       = kInvalidSourceId;
+    uint64_t source_sequence = 0;
+    uint64_t global_sequence = 0;
+    uint32_t flags           = 0;
+};
+static_assert(sizeof(IndexEntry) <= 40, "IndexEntry must not exceed 40 bytes");
+
 } // namespace pinpoint

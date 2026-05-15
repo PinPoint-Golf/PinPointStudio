@@ -235,6 +235,20 @@ bool SourceRing::peekTimestamp(uint64_t sequence, int64_t& out) const noexcept {
     return gen_after == gen_before;
 }
 
+void SourceRing::reset() noexcept {
+    write_seq_.store(0, std::memory_order_relaxed);
+    for (size_t i = 0; i < slot_count_; ++i)
+        slotHeaderAt(i).generation.store(0, std::memory_order_relaxed);
+    stats_.events_written.store(0, std::memory_order_relaxed);
+    stats_.events_overwritten.store(0, std::memory_order_relaxed);
+    stats_.bytes_written_total.store(0, std::memory_order_relaxed);
+    stats_.last_write_timestamp_us.store(0, std::memory_order_relaxed);
+    stats_.max_inter_arrival_us.store(0, std::memory_order_relaxed);
+    stats_.bounds_violations.store(0, std::memory_order_relaxed);
+    stats_.monotonicity_violations.store(0, std::memory_order_relaxed);
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+}
+
 std::vector<std::byte*> SourceRing::getSlotPointers() const {
     std::vector<std::byte*> ptrs;
     ptrs.reserve(slot_count_);

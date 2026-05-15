@@ -84,11 +84,24 @@ public:
     const SourceStats& stats()    const noexcept { return stats_; }
     SourceId           id()       const noexcept { return source_id_; }
 
+    // --- Reset (call only when no producer is active — buffer Paused) ---
+    void reset() noexcept;
+
+    // Called by merger to record a timestamp non-monotonicity it corrected.
+    void recordMonotonicityViolation() noexcept {
+        stats_.monotonicity_violations.fetch_add(1, std::memory_order_relaxed);
+    }
+
     // --- DMA registration ---
     std::vector<std::byte*> getSlotPointers() const;
-    size_t slotCapacity() const noexcept { return slot_max_bytes_; }
-    size_t slotCount()    const noexcept { return slot_count_; }
-    size_t slotStride()   const noexcept { return slot_stride_; }
+    size_t slotCapacity()   const noexcept { return slot_max_bytes_; }
+    size_t slotCount()      const noexcept { return slot_count_; }
+    size_t slotStride()     const noexcept { return slot_stride_; }
+
+    // Next sequence to be acquired (write_seq_). Used by merger for overrun detection.
+    uint64_t writeSequence() const noexcept {
+        return write_seq_.load(std::memory_order_acquire);
+    }
 
 private:
     struct alignas(64) SlotHeader {
