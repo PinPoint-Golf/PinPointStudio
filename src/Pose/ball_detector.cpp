@@ -58,19 +58,22 @@ void BallDetector::detect(const cv::Mat &frame)
     cv::GaussianBlur(gray, gray, cv::Size(9, 9), 2.0);
 
     // Radius bounds relative to the ROI so the detector adapts to different
-    // camera distances.  Tune param2 (accumulator threshold) up for fewer
-    // false positives, down if the ball is missed in noisy conditions.
+    // camera distances.
     const int roiMin    = std::min(rw, rh);
     const int minRadius = std::max(5, roiMin / 15);
     const int maxRadius = roiMin / 2;
     const int minDist   = std::max(10, rh / 8);
 
+    // Low param1 (Canny threshold) and low param2 (accumulator threshold) let
+    // HOUGH_GRADIENT accumulate votes from partial arcs — each edge pixel votes
+    // along its gradient direction so even a quarter-circle of visible rim is
+    // enough to locate the centre.
     std::vector<cv::Vec3f> circles;
     cv::HoughCircles(gray, circles, cv::HOUGH_GRADIENT,
                      /*dp=*/      1,
                      /*minDist=*/ minDist,
-                     /*param1=*/  100,  // Canny high threshold
-                     /*param2=*/  30,   // accumulator threshold
+                     /*param1=*/  40,   // Canny high threshold — lenient edge detection
+                     /*param2=*/  30,   // accumulator threshold — accepts partial arcs
                      minRadius,
                      maxRadius);
 
