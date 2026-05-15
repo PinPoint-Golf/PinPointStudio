@@ -152,6 +152,8 @@ void EventBuffer::publish(SourceId id, uint64_t sequence) noexcept {
     int idx = findSlotIndex(id);
     if (idx < 0) return;
     sources_[idx]->ring->publish(sequence);
+    source_published_.store(source_published_.load() + 1);
+    source_published_.notifyAll();
 }
 
 std::vector<std::byte*> EventBuffer::getSlotPointers(SourceId id) const {
@@ -393,8 +395,9 @@ void EventBuffer::mergerLoop() {
             for (uint32_t i = 0; i < config_.merger_spin_iterations; ++i)
                 PINPOINT_CPU_PAUSE();
         } else {
-            index_wait_.waitFor(index_wait_.load(),
-                                std::chrono::microseconds(config_.merger_cold_timeout_us));
+            uint64_t observed = source_published_.load();
+            source_published_.waitFor(observed,
+                                      std::chrono::microseconds(config_.merger_cold_timeout_us));
         }
     }
 
@@ -522,6 +525,8 @@ void EventBuffer::resume() {
     draining_.store(false, std::memory_order_release);
     drained_.store(false, std::memory_order_relaxed);
     capturing_.store(true, std::memory_order_release);
+
+    source_published_.store(0);
 
     // Wake the merger so it exits the draining-wait block.
     index_wait_.store(0);

@@ -28,6 +28,9 @@ struct EventBufferConfig {
     uint32_t stall_threshold_mult     = 5;
     uint32_t timeline_index_capacity  = 8192;   // must be power of 2
     uint32_t merger_spin_iterations   = 64;
+    // On macOS/iOS, this is the yield budget per merger iteration rather than
+    // a blocking sleep duration. Lower values reduce idle CPU at the cost of
+    // slightly higher minimum latency during truly idle periods.
     uint32_t merger_cold_timeout_us   = 500;
     uint32_t pause_drain_timeout_ms   = 20;
     bool     resume_clear_rings       = true;

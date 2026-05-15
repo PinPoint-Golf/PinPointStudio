@@ -672,6 +672,36 @@ REORDER_WINDOW_US = 5000  (5ms default, configurable)
 
 If `sync_group` is set on a group of sources (future hardware sync), a tighter window may be applied within that group. v1 ignores `sync_group` in this computation.
 
+> **Latency Contribution of Cross-Source Ordering**
+>
+> The reorder window combined with multi-source operation creates an unavoidable
+> latency floor. An event from a fast source (e.g. 200Hz IMU) cannot be emitted
+> until the slowest source has produced an event with a later timestamp, plus
+> the reorder window margin. Mathematically:
+>
+> ```
+> visible_latency_floor ≈ reorder_window_us + 0.5 × slowest_source_interval_us
+> ```
+>
+> For 5ms reorder window + 60Hz camera (16.7ms interval): IMU events are visible
+> ~13ms after publish on average. This is correct by design — the reorder window
+> exists to absorb cross-source clock jitter, and is the price of in-order delivery.
+>
+> Two distinct latency metrics matter and must not be conflated:
+>
+> 1. **Merger response latency** — producer publish → event observable in source
+>    ring via direct read. Bounded only by merger wake speed and atomic visibility.
+>    Sub-100µs achievable. Use a single-source benchmark to measure.
+>
+> 2. **End-to-end visible latency** — producer publish → event readable via
+>    `Subscription`. Bounded by reorder window + cross-source ordering delay.
+>    Multi-second-window analysis via `SwingWindow` has zero observable latency
+>    since the buffer is paused.
+>
+> For Pinpoint's primary use case (analyse after pause), end-to-end latency is
+> irrelevant — `SwingWindow` provides immediate access to the entire frozen
+> buffer. Live preview latency of ~15ms is well below human perception threshold.
+
 ### 7.4 Monotonicity Enforcement
 
 ```cpp
@@ -952,7 +982,8 @@ event buffer is the foundation of every downstream component.
 | 6 | ASAN + UBSAN | Zero errors across all test categories |
 | 7 | 24h soak | Zero correctness errors; zero RSS growth; monotonic overrun-counter only increase |
 | 8 | Adversarial timing fuzzer | Consumer reading slot N-1 while producer writes slot N; no corruption |
-| 9 | Latency benchmark | p50 < 100µs (IMU), < 1ms (video); p99 < 500µs (IMU), < 2ms (video) |
+| 9a | Merger latency benchmark (single-source) | p50 < 100µs (IMU), < 200µs (video); p99 < 500µs (IMU), < 1ms (video). Measures merger thread responsiveness with no cross-source ordering delay. |
+| 9b | End-to-end latency benchmark (multi-source) | p50 ≤ reorder_window + 0.5 × slowest_source_interval. For 5ms reorder + 60Hz camera: p50 < 15ms (IMU), < 10ms (video). p99 < 2 × p50. Measures realistic latency including reorder window. |
 | 10 | Memory bounds | Ring sizing matches formula; no overallocation; no heap growth after start() |
 | 11 | Shutdown cleanliness | DMA teardown order correct; ASAN clean on stop(); V4L2 STREAMOFF before free |
 | 12 | Cross-platform CI | Full suite on Linux/Windows/macOS on every commit |
@@ -986,47 +1017,62 @@ Do not use broad suppressions. All other races must be clean.
 ## 16. File Layout
 
 ```
-pinpoint/event_buffer/
-├── include/pinpoint/event_buffer/
-│   ├── types.h                    // SourceId, DeviceKind, PixelFormat, IndexEntryFlags
-│   ├── format_descriptor.h        // FormatDescriptor, CameraFormat, ImuFormat
-│   ├── source_descriptor.h        // SourceDescriptor, SyncSource
-│   ├── source_stats.h             // SourceStats (cache-line aligned)
-│   ├── source_ring.h              // SourceRing (seqlock SPSC, byte-oriented)
-│   ├── timeline_index.h           // TimelineIndex (SPMC seqlock)
-│   ├── wait_flag.h                // WaitFlag (platform-dispatched)
-│   ├── thread_policy.h            // ThreadPolicy helper
-│   ├── event_buffer.h             // EventBuffer, Subscription
-│   └── capture_source.h           // CaptureSource abstract base
-├── src/
-│   ├── source_ring.cpp
-│   ├── timeline_index.cpp
-│   ├── event_buffer.cpp           // merger loop, watchdog, registration
-│   ├── wait_flag_linux.cpp        // futex-direct atomic::wait + watchdog
-│   ├── wait_flag_windows.cpp      // WaitOnAddress / WakeByAddress
-│   ├── wait_flag_apple.cpp        // condition_variable path
-│   ├── wait_flag_posix.cpp        // fallback condition_variable for other POSIX
-│   ├── thread_policy_linux.cpp
-│   ├── thread_policy_windows.cpp
-│   ├── thread_policy_apple.cpp
-│   └── thread_policy_android.cpp
-├── capture/                       // separate CMake library target
+src/Buffer/
+├── types.h                    // SourceId, DeviceKind, PixelFormat, IndexEntryFlags
+├── format_descriptor.h        // FormatDescriptor, CameraFormat, ImuFormat
+├── source_descriptor.h        // SourceDescriptor, SyncSource
+├── source_stats.h             // SourceStats (cache-line aligned)
+├── source_ring.h              // SourceRing (seqlock SPSC, byte-oriented)
+├── timeline_index.h           // TimelineIndex (SPMC seqlock)
+├── wait_flag.h                // WaitFlag (platform-dispatched)
+├── thread_policy.h            // ThreadPolicy helper
+├── event_buffer.h             // EventBuffer, Subscription, SwingWindow
+├── capture_source.h           // CaptureSource abstract base
+├── source_ring.cpp
+├── timeline_index.cpp
+├── event_buffer.cpp           // merger loop, watchdog, lifecycle, registration
+├── swing_window.cpp
+├── wait_flag_linux.cpp        // futex-direct atomic::wait + watchdog
+├── wait_flag_windows.cpp      // WaitOnAddress / WakeByAddress
+├── wait_flag_apple.cpp        // condition_variable path
+├── wait_flag_posix.cpp        // fallback condition_variable for other POSIX
+├── thread_policy_linux.cpp
+├── thread_policy_windows.cpp
+├── thread_policy_apple.cpp
+├── thread_policy_android.cpp
+├── capture/                   // separate CMake library target: pinpoint_capture
 │   ├── v4l2_capture_source.cpp               // Linux UVC — DirectDma
 │   ├── spinnaker_capture_source.cpp          // Chameleon3 — DirectDma
 │   ├── mediafoundation_capture_source.cpp    // Windows UVC — SingleCopy
 │   ├── avfoundation_capture_source.mm        // macOS/iOS — SingleCopy
 │   ├── camera2_capture_source.cpp            // Android — SingleCopy
 │   └── serial_imu_capture_source.cpp         // All platforms — StreamingRead
+├── CMakeLists.txt
 └── tests/
+    ├── CMakeLists.txt
+    ├── tsan_suppressions.txt
     ├── source_ring_test.cpp
     ├── timeline_index_test.cpp
     ├── wait_flag_test.cpp
     ├── event_buffer_test.cpp
+    ├── swing_window_test.cpp
     ├── adversarial_fuzz_test.cpp
-    ├── soak_test.cpp                 // 24h run, RSS monitoring
+    ├── soak_test.cpp              // 24h run, RSS monitoring
     ├── latency_benchmark.cpp
-    └── tsan_suppressions.txt
+    └── build/                     // CMake build tree — not committed to VCS
 ```
+
+**Include convention**: consumers use `#include "source_ring.h"` (or with a path prefix
+matching however the parent CMakeLists.txt exposes `src/Buffer` as an include directory).
+No subdirectory nesting in the include path.
+
+**CMake targets produced:**
+
+| Target | Sources | Links to |
+|---|---|---|
+| `pinpoint_buffer` | `src/Buffer/*.cpp` | (nothing external) |
+| `pinpoint_capture` | `src/Buffer/capture/*.cpp` | `pinpoint_buffer` |
+| `pinpoint_buffer_tests` | `src/Buffer/tests/*.cpp` | `pinpoint_buffer`, GTest |
 
 ---
 

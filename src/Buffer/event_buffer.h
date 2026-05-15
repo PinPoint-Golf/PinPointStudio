@@ -150,6 +150,7 @@ private:
 
     TimelineIndex index_;
     WaitFlag      index_wait_;
+    alignas(64) WaitFlag source_published_; // signalled by every publish(); merger cold-path waits on this
 
     alignas(64) std::atomic<bool>        capturing_{false};
     std::atomic<BufferState>             state_{BufferState::Idle};

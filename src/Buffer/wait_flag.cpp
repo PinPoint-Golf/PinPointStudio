@@ -19,6 +19,10 @@
 #include "wait_flag.h"
 #include <thread>
 
+#if defined(PINPOINT_PLATFORM_APPLE)
+  #include <sched.h>
+#endif
+
 #if defined(PINPOINT_PLATFORM_WINDOWS)
   #ifndef WIN32_LEAN_AND_MEAN
     #define WIN32_LEAN_AND_MEAN
@@ -29,26 +33,44 @@
 
 namespace pinpoint {
 
-// ---- Apple: condition_variable path ----------------------------------------
+// ---- Apple: spin + sched_yield path ----------------------------------------
+// cv_.wait_for() on macOS maps to pthread_cond_timedwait which is subject to
+// Darwin timer coalescing: a 500µs request routinely sleeps 5–10ms. Instead,
+// spin briefly then yield cooperatively — sched_yield() costs 1–20µs and does
+// not engage the Darwin timer subsystem.
 
 #if defined(PINPOINT_PLATFORM_APPLE)
 
 uint64_t WaitFlag::waitFor(uint64_t expected,
                            std::chrono::microseconds timeout) noexcept {
-    std::unique_lock lock(mtx_);
-    cv_.wait_for(lock, timeout, [&] {
-        return value_.load(std::memory_order_acquire) != expected;
-    });
+    uint64_t current = value_.load(std::memory_order_acquire);
+    if (current != expected) return current;
+
+    auto deadline = std::chrono::steady_clock::now() + timeout;
+
+    // Phase 1: tight spin — catches events that arrive within ~2µs
+    for (int i = 0; i < 32; ++i) {
+        PINPOINT_CPU_PAUSE();
+        current = value_.load(std::memory_order_acquire);
+        if (current != expected) return current;
+    }
+
+    // Phase 2: yield loop — cooperative, avoids Darwin timer coalescing
+    while (std::chrono::steady_clock::now() < deadline) {
+        sched_yield();
+        current = value_.load(std::memory_order_acquire);
+        if (current != expected) return current;
+    }
+
     return value_.load(std::memory_order_acquire);
 }
 
 void WaitFlag::store(uint64_t v) noexcept {
-    { std::lock_guard lock(mtx_); value_.store(v, std::memory_order_release); }
-    cv_.notify_all();
+    value_.store(v, std::memory_order_release);
 }
 
 void WaitFlag::notifyAll() noexcept {
-    cv_.notify_all();
+    // Spin loop polls value_ directly — no condition variable to notify.
 }
 
 // ---- Windows: WaitOnAddress / WakeByAddressAll -----------------------------
