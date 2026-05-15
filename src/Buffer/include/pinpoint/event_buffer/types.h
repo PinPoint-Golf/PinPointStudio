@@ -1,0 +1,54 @@
+/*
+ * Copyright (C) 2026 Mark Liversedge (liversedge@gmail.com)
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc., 51
+ * Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
+#pragma once
+
+#include <cstdint>
+#include <climits>
+
+namespace pinpoint {
+
+using SourceId = uint32_t;
+static constexpr SourceId kInvalidSourceId = UINT32_MAX;
+
+enum class DeviceKind {
+    Camera_UVC,
+    Camera_GenICam,
+    Camera_AVFoundation,
+    Camera_Camera2,
+    IMU_WitMotion,
+    IMU_Bosch,
+    IMU_Custom,
+};
+
+enum class PixelFormat {
+    Unknown,
+    Mono8, Mono12, Mono12Packed, Mono16,
+    BayerRG8, BayerRG12, BayerRG16,
+    YUV422, YUYV, UYVY,
+    NV12, YUV420P,
+    BGR24, RGB24, BGRA32, RGBA32,
+    MJPEG, H264_NAL,
+};
+
+namespace IndexEntryFlags {
+    static constexpr uint32_t None          = 0;
+    static constexpr uint32_t SourceStalled = 1u << 0;
+}
+
+} // namespace pinpoint

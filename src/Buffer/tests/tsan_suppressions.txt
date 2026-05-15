@@ -1,0 +1,7 @@
+# Deliberate benign data races in the seqlock implementation.
+# The read of payload bytes between two generation-counter checks is
+# intentionally racy — the validate() call detects any corruption.
+# These suppressions are NARROW and cover only the seqlock payload read.
+race:pinpoint::SourceRing::acquireReadHandle
+race:pinpoint::SourceRing::ReadHandle::validate
+race:pinpoint::SourceRing::ReadHandle::copyBytesRacy
