@@ -5,6 +5,10 @@ A golf swing analysis app that extracts kinematic metrics using IMUs and compute
 ## Documentation
 - [Building Instructions](BUILDING.md) — How to resolve dependencies and build PinPoint.
 
+## Developers
+- [EventBuffer Design](docs/event_buffer_design.md) — Architecture and design rationale for the lock-free EventBuffer.
+- [EventBuffer Developer Guide](docs/event_buffer_developer_guide.md) — Tutorial covering usage, threading model, and integration patterns.
+
 ## Overview
 
 Initial prototyping is underway using IMUs and high-speed industrial cameras. The app currently has four main tabs:
