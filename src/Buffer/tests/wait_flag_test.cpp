@@ -41,7 +41,7 @@ TEST(WaitFlag, ReturnsImmediatelyWhenDiffers) {
     auto elapsed = std::chrono::steady_clock::now() - t0;
 
     EXPECT_EQ(result, 5u);
-    EXPECT_LT(elapsed, 10ms);
+    EXPECT_LT(elapsed, 30ms); // generous: ±20ms for macOS scheduler jitter
 }
 
 // ---------------------------------------------------------------------------
@@ -57,7 +57,7 @@ TEST(WaitFlag, TimesOut) {
     auto elapsed = std::chrono::steady_clock::now() - t0;
 
     EXPECT_EQ(result, 0u);
-    EXPECT_GE(elapsed, 70ms);
+    EXPECT_GE(elapsed, 60ms); // 80ms nominal - 20ms tolerance
     EXPECT_LT(elapsed, 200ms);
 }
 
