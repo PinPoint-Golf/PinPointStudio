@@ -1,36 +1,20 @@
-# Copyright (C) 2026 Mark Liversedge (liversedge@gmail.com)
-#
-# This program is free software; you can redistribute it and/or modify it
-# under the terms of the GNU General Public License as published by the Free
-# Software Foundation; either version 2 of the License, or (at your option)
-# any later version.
+include(FetchContent)
 
-add_executable(source_ring_test
-    source_ring_test.cpp
+FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG        v1.14.0
 )
-target_link_libraries(source_ring_test PRIVATE
-    pinpoint_event_buffer
-    pinpoint_sanitizers
-    GTest::gtest_main
-)
-target_compile_options(source_ring_test PRIVATE
-    $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wall -Wextra -Wpedantic>
-    $<$<CXX_COMPILER_ID:MSVC>:/W4>
-)
+FetchContent_MakeAvailable(googletest)
 
-add_executable(adversarial_fuzz_test
-    adversarial_fuzz_test.cpp
-)
-target_link_libraries(adversarial_fuzz_test PRIVATE
-    pinpoint_event_buffer
-    pinpoint_sanitizers
-    GTest::gtest_main
-)
-target_compile_options(adversarial_fuzz_test PRIVATE
-    $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wall -Wextra -Wpedantic>
-    $<$<CXX_COMPILER_ID:MSVC>:/W4>
-)
+# source_ring_test
+add_executable(source_ring_test source_ring_test.cpp)
+target_link_libraries(source_ring_test PRIVATE pinpoint_buffer GTest::gtest_main)
+pinpoint_apply_sanitizers(source_ring_test)
+add_test(NAME source_ring_test COMMAND source_ring_test)
 
-include(GoogleTest)
-gtest_discover_tests(source_ring_test)
-gtest_discover_tests(adversarial_fuzz_test)
+# adversarial_fuzz_test
+add_executable(adversarial_fuzz_test adversarial_fuzz_test.cpp)
+target_link_libraries(adversarial_fuzz_test PRIVATE pinpoint_buffer GTest::gtest_main)
+pinpoint_apply_sanitizers(adversarial_fuzz_test)
+add_test(NAME adversarial_fuzz_test COMMAND adversarial_fuzz_test)

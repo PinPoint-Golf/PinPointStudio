@@ -16,7 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "pinpoint/event_buffer/source_ring.h"
+#include "source_ring.h"
 
 #include <gtest/gtest.h>
 #include <atomic>

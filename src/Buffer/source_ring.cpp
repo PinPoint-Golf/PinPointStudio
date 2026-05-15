@@ -16,8 +16,8 @@
  * Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "pinpoint/event_buffer/source_ring.h"
-#include "pinpoint/event_buffer/source_descriptor.h"
+#include "source_ring.h"
+#include "source_descriptor.h"
 
 #include <cassert>
 #include <cmath>
