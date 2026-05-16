@@ -31,6 +31,7 @@ Initial prototyping is underway using IMUs and high-speed industrial cameras. Th
 - **Camera backends**: UVC webcams, Aravis (GenICam industrial cameras), Spinnaker (Teledyne/FLIR)
 - **Spinnaker pipeline**: raw Bayer bytes are captured with no CPU demosaic on the hot path; a custom `QQuickRhiItem` runs a bilinear GPU Bayer demosaic shader at display rate while the pose estimator receives OpenCV-demosaiced frames at its already-throttled rate
 - **Pose estimation**: MoveNet SinglePose Lightning and Thunder via ONNX Runtime — real-time skeleton overlay on each live feed
+- **Swing replay**: on ball-lost, the last 5 seconds of captured footage replay automatically at ¼ speed with a `REPLAY ¼×` overlay — ball detection drives buffer capture so the replay always covers the full swing
 - **GPU acceleration**: CoreML (Apple Silicon), CUDA 12/13 (NVIDIA on Linux/Windows)
 
 ### Film
