@@ -498,6 +498,7 @@ double VideoController::ballX()               const { return m_ballX; }
 double VideoController::ballY()               const { return m_ballY; }
 double VideoController::ballRadius()          const { return m_ballRadius; }
 double VideoController::ballPresencePercent() const { return m_ballPresencePercent; }
+bool   VideoController::ballPresent()         const { return m_ballPresent; }
 
 #ifdef HAVE_OPENCV
 void VideoController::onBallDetected(const BallDetection &result)
@@ -518,11 +519,14 @@ void VideoController::onBallDetected(const BallDetection &result)
         emit ballPresencePercentChanged();
     }
 
-    // Fire ting when the threshold-based presence state flips false → true.
+    // Fire ting and notify CameraManager when threshold-based presence flips.
     const bool nowPresent = (m_ballPresencePercent > kBallPresentThreshold);
-    if (!m_ballPresent && nowPresent)
-        m_tingPlayer->play();
-    m_ballPresent = nowPresent;
+    if (m_ballPresent != nowPresent) {
+        if (!m_ballPresent && nowPresent)
+            m_tingPlayer->play();
+        m_ballPresent = nowPresent;
+        emit ballPresentChanged(nowPresent);
+    }
 
     // Only emit ballDetectedChanged when the present/absent state flips.
     if (!result.found && !m_ballDetected)
@@ -668,7 +672,10 @@ void VideoController::stopRecording()
     }
     m_ballWindow.clear();
     m_ballPresentCount = 0;
-    m_ballPresent = false;
+    if (m_ballPresent) {
+        m_ballPresent = false;
+        emit ballPresentChanged(false);
+    }
     if (m_ballPresencePercent != 0.0) {
         m_ballPresencePercent = 0.0;
         emit ballPresencePercentChanged();

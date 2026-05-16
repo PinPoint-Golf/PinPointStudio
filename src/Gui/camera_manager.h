@@ -72,8 +72,12 @@ private:
     };
 
     QList<CameraEntry> m_cameras;
-    bool               m_recording    = false;
-    pinpoint::EventBuffer *m_eventBuffer = nullptr;
+    bool               m_recording       = false;
+    int                m_ballPresentCount = 0;
+    pinpoint::EventBuffer *m_eventBuffer  = nullptr;
 
     VideoController *createController(const Device &device);
+
+private slots:
+    void onCameraBallPresenceChanged(bool present);
 };

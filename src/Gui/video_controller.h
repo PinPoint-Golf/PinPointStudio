@@ -74,6 +74,7 @@ class VideoController : public QObject
     Q_PROPERTY(double ballY              READ ballY              NOTIFY ballDetectedChanged)
     Q_PROPERTY(double ballRadius         READ ballRadius         NOTIFY ballDetectedChanged)
     Q_PROPERTY(double ballPresencePercent READ ballPresencePercent NOTIFY ballPresencePercentChanged)
+    Q_PROPERTY(bool   ballPresent        READ ballPresent        NOTIFY ballPresentChanged)
     Q_PROPERTY(int    frameWidth         READ frameWidth          NOTIFY frameSizeChanged)
     Q_PROPERTY(int    frameHeight        READ frameHeight         NOTIFY frameSizeChanged)
     Q_PROPERTY(double configuredFps     READ configuredFps       NOTIFY frameSizeChanged)
@@ -108,6 +109,7 @@ public:
     double  ballY()               const;
     double  ballRadius()          const;
     double  ballPresencePercent() const;
+    bool    ballPresent()         const;
     int     frameWidth()          const;
     int     frameHeight()         const;
     double  configuredFps()       const;
@@ -142,6 +144,7 @@ signals:
     void roiChanged();
     void ballDetectedChanged();
     void ballPresencePercentChanged();
+    void ballPresentChanged(bool present);
     void frameSizeChanged();
 
 private slots:

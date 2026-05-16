@@ -127,7 +127,8 @@ void CameraManager::setSelected(int index, bool selected)
         }
     }
 
-    if (wasCapturing)
+    // Resume only if ball detection currently warrants it; don't blindly restore.
+    if (wasCapturing && m_recording && m_ballPresentCount > 0)
         m_eventBuffer->resume();
 
     emit cameraListChanged();
@@ -140,8 +141,10 @@ void CameraManager::startAll()
     m_recording = true;
     emit isRecordingChanged();
 
-    // Buffer is already Capturing (started in main.cpp at app launch).
-    // Start camera recording pipelines only — do NOT touch the buffer lifecycle.
+    // Pause the buffer so ball detection drives capture: resume fires on first ball.
+    pauseBuffer();
+    m_ballPresentCount = 0;
+
     for (auto &cam : m_cameras) {
         if (cam.selected && cam.controller)
             cam.controller->startRecording();
@@ -158,9 +161,10 @@ void CameraManager::stopAll()
             cam.controller->stopRecording();
     }
     m_recording = false;
+    m_ballPresentCount = 0;
     emit isRecordingChanged();
-    // Buffer remains Capturing — do NOT call m_eventBuffer->stop().
-    // Ring memory stays allocated. Next startAll() resumes instantly.
+    // Pause the buffer to freeze any captured swing data for analysis.
+    pauseBuffer();
     emit bufferStateChanged();
 }
 
@@ -218,5 +222,27 @@ void CameraManager::setPerspective(QObject *rawController, int perspective)
 
 VideoController *CameraManager::createController(const Device &device)
 {
-    return new VideoController(device, m_eventBuffer, this);
+    auto *ctrl = new VideoController(device, m_eventBuffer, this);
+    connect(ctrl, &VideoController::ballPresentChanged,
+            this, &CameraManager::onCameraBallPresenceChanged);
+    return ctrl;
+}
+
+void CameraManager::onCameraBallPresenceChanged(bool present)
+{
+    if (present)
+        ++m_ballPresentCount;
+    else
+        --m_ballPresentCount;
+
+    if (m_ballPresentCount < 0)
+        m_ballPresentCount = 0;
+
+    if (!m_recording)
+        return;
+
+    if (m_ballPresentCount > 0)
+        resumeBuffer();
+    else
+        pauseBuffer();
 }
