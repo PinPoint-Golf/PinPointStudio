@@ -52,12 +52,14 @@ public:
     // VideoInputBase interface
     // -----------------------------------------------------------------------
 
+    void              prepareDevice(const QString &deviceId) override;
     bool              start(const QString &deviceId = {}) override;
     void              stop()    override;
     void              suspend() override;
     void              resume()  override;
     bool              isActive()    const override;
     QVideoFrameFormat frameFormat() const override;
+    CameraCapabilities queryCapabilities() const override;
 
     // -----------------------------------------------------------------------
     // Configuration (call before start())
@@ -76,4 +78,5 @@ private:
     QMediaCaptureSession *m_session = nullptr;
     QVideoSink           *m_sink    = nullptr;
     QVideoFrameFormat     m_preferredFormat;
+    QString               m_targetDeviceId;
 };

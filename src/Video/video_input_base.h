@@ -21,6 +21,7 @@
 #include <QObject>
 #include <QVideoFrameFormat>
 #include "raw_video_frame.h"
+#include "camera_capabilities.h"
 
 // Abstract base for camera / video capture.
 //
@@ -69,6 +70,18 @@ public:
     // Returns true when the backend emits rawVideoFrameReady (raw Bayer bytes)
     // rather than videoFrameReady (pre-decoded frames).  Valid after start().
     virtual bool              emitsRawBayer() const { return false; }
+
+    // Prime the backend with a target device ID before start() so that
+    // queryCapabilities() can enumerate that device's formats without opening
+    // a live camera handle.  Default is a no-op; VideoInput overrides it.
+    virtual void prepareDevice(const QString &) {}
+
+    // Query what this camera can do. Returns a default-constructed
+    // CameraCapabilities (all fields Unavailable / zero) if the camera has
+    // not been opened yet or the backend does not support introspection.
+    // Implementations should call this before start() to enumerate presets,
+    // or after start() to read live/active values from the device.
+    virtual CameraCapabilities queryCapabilities() const = 0;
 
 signals:
     // Emitted for every decoded camera frame (non-Bayer backends).

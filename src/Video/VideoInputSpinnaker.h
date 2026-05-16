@@ -40,6 +40,7 @@ public:
     bool              isActive()      const override;
     QVideoFrameFormat frameFormat()   const override;
     bool              emitsRawBayer() const override { return m_emitRaw; }
+    CameraCapabilities queryCapabilities() const override;
 
 private:
     void captureLoop();

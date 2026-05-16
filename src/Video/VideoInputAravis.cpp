@@ -25,6 +25,7 @@
 
 #include "VideoInputAravis.h"
 #include <QVideoFrame>
+#include <QDateTime>
 #include "pp_debug.h"
 #include <QtConcurrent>
 
@@ -145,6 +146,160 @@ bool VideoInputAravis::isActive() const
 QVideoFrameFormat VideoInputAravis::frameFormat() const
 {
     return QVideoFrameFormat();
+}
+
+CameraCapabilities VideoInputAravis::queryCapabilities() const
+{
+    CameraCapabilities caps;
+    caps.queriedAt   = QDateTime::currentDateTime();
+    caps.driverVersion = "Aravis GigE/USB3 Vision";
+
+#ifdef HAVE_ARAVIS
+    // Do not open a live connection before start() — return empty so that
+    // callers can safely query capabilities pre-start without side-effects.
+    if (!m_camera) return caps;
+    auto doQuery = [&caps](ArvCamera *cam) {
+        GError *err = nullptr;
+
+        // --- Identity ---
+        const char *vendor = arv_camera_get_vendor_name(cam, &err);
+        if (!err && vendor) caps.vendorName = QString::fromLocal8Bit(vendor);
+        g_clear_error(&err);
+
+        const char *model = arv_camera_get_model_name(cam, &err);
+        if (!err && model) caps.modelName = QString::fromLocal8Bit(model);
+        g_clear_error(&err);
+
+        // --- Interface type ---
+        if (arv_camera_is_gv_device(cam))
+            caps.connectionInterface = CameraCapabilities::Interface::GigE;
+        else if (arv_camera_is_uv_device(cam))
+            caps.connectionInterface = CameraCapabilities::Interface::USB3;
+
+        // --- Resolution ---
+        gint wMin, wMax, hMin, hMax, wInc, hInc;
+        arv_camera_get_width_bounds(cam, &wMin, &wMax, &err);
+        if (!err) {
+            g_clear_error(&err);
+            arv_camera_get_height_bounds(cam, &hMin, &hMax, &err);
+            if (!err) {
+                wInc = arv_camera_get_width_increment(cam, nullptr);
+                hInc = arv_camera_get_height_increment(cam, nullptr);
+                gint curW, curH;
+                arv_camera_get_region(cam, nullptr, nullptr, &curW, &curH, nullptr);
+                caps.resolution.kind     = CapabilityKind::Range;
+                caps.resolution.writable = true;
+                caps.resolution.widthRange  = { wMin, wMax, wInc, curW };
+                caps.resolution.heightRange = { hMin, hMax, hInc, curH };
+                caps.resolution.defaultResolution = { curW, curH };
+            }
+        }
+        g_clear_error(&err);
+
+        // --- Frame rate ---
+        double fpsMin, fpsMax;
+        arv_camera_get_frame_rate_bounds(cam, &fpsMin, &fpsMax, &err);
+        if (!err) {
+            double curFps = arv_camera_get_frame_rate(cam, nullptr);
+            caps.frameRate.kind               = CapabilityKind::Range;
+            caps.frameRate.readable           = true;
+            caps.frameRate.writable           = true;
+            caps.frameRate.range.min          = fpsMin;
+            caps.frameRate.range.max          = fpsMax;
+            caps.frameRate.range.step         = 0;
+            caps.frameRate.range.defaultValue = curFps;
+        }
+        g_clear_error(&err);
+
+        // --- Exposure time ---
+        double expMin, expMax;
+        arv_camera_get_exposure_time_bounds(cam, &expMin, &expMax, &err);
+        if (!err) {
+            double curExp = arv_camera_get_exposure_time(cam, nullptr);
+            caps.exposureTime.kind               = CapabilityKind::Range;
+            caps.exposureTime.readable           = true;
+            caps.exposureTime.writable           = true;
+            caps.exposureTime.range.min          = expMin;
+            caps.exposureTime.range.max          = expMax;
+            caps.exposureTime.range.step         = 0;
+            caps.exposureTime.range.defaultValue = curExp;
+        }
+        g_clear_error(&err);
+
+        // --- Gain ---
+        double gainMin, gainMax;
+        arv_camera_get_gain_bounds(cam, &gainMin, &gainMax, &err);
+        if (!err) {
+            double curGain = arv_camera_get_gain(cam, nullptr);
+            caps.gain.kind               = CapabilityKind::Range;
+            caps.gain.readable           = true;
+            caps.gain.writable           = true;
+            caps.gain.range.min          = gainMin;
+            caps.gain.range.max          = gainMax;
+            caps.gain.range.step         = 0;
+            caps.gain.range.defaultValue = curGain;
+        }
+        g_clear_error(&err);
+
+        // --- Pixel format ---
+        guint nFormats;
+        const char **fmts = arv_camera_dup_available_pixel_formats_as_strings(cam, &nFormats, &err);
+        if (!err && fmts) {
+            caps.pixelFormat.kind     = CapabilityKind::Discrete;
+            caps.pixelFormat.writable = true;
+            const char *curFmt = arv_camera_get_pixel_format_as_string(cam, nullptr);
+            for (guint i = 0; i < nFormats; ++i) {
+                PixelFormat pf;
+                pf.nativeKey = QString::fromLocal8Bit(fmts[i]);
+                if      (pf.nativeKey == "BayerRG8")   { pf.encoding = PixelEncoding::BayerRG8;  pf.bitsPerPixel = 8; }
+                else if (pf.nativeKey == "BayerGB8")   { pf.encoding = PixelEncoding::BayerGB8;  pf.bitsPerPixel = 8; }
+                else if (pf.nativeKey == "BayerGR8")   { pf.encoding = PixelEncoding::BayerGR8;  pf.bitsPerPixel = 8; }
+                else if (pf.nativeKey == "BayerBG8")   { pf.encoding = PixelEncoding::BayerBG8;  pf.bitsPerPixel = 8; }
+                else if (pf.nativeKey == "Mono8")      { pf.encoding = PixelEncoding::Mono8;     pf.bitsPerPixel = 8; }
+                else if (pf.nativeKey == "Mono10")     { pf.encoding = PixelEncoding::Mono10;    pf.bitsPerPixel = 10; }
+                else if (pf.nativeKey == "Mono12")     { pf.encoding = PixelEncoding::Mono12;    pf.bitsPerPixel = 12; }
+                else if (pf.nativeKey == "RGB8Packed") { pf.encoding = PixelEncoding::RGB8;      pf.bitsPerPixel = 24; }
+                else if (pf.nativeKey == "BGR8")       { pf.encoding = PixelEncoding::BGR8;      pf.bitsPerPixel = 24; }
+                else                                   { pf.encoding = PixelEncoding::Unknown; }
+                caps.pixelFormat.supported.append(pf);
+                if (curFmt && pf.nativeKey == QString::fromLocal8Bit(curFmt))
+                    caps.pixelFormat.defaultFormat = pf;
+            }
+            g_free(fmts);
+        }
+        g_clear_error(&err);
+
+        // --- Trigger ---
+        ArvDevice *device = arv_camera_get_device(cam);
+        if (device) {
+            ArvGcNode *trigSrc = arv_device_get_feature(device, "TriggerSource");
+            if (trigSrc) {
+                caps.trigger.supported       = true;
+                caps.trigger.hasTimestamping = true;
+                caps.trigger.sources.append(TriggerSource::Software);
+                caps.trigger.sources.append(TriggerSource::Hardware);
+                caps.trigger.hasHardwareInput = true;
+            }
+        }
+    };
+
+    if (m_camera) {
+        doQuery((ArvCamera*)m_camera);
+    } else {
+        arv_update_device_list();
+        if (arv_get_n_devices() > 0) {
+            GError *err = nullptr;
+            ArvCamera *cam = arv_camera_new(nullptr, &err);
+            if (cam) {
+                doQuery(cam);
+                g_object_unref(cam);
+            }
+            g_clear_error(&err);
+        }
+    }
+#endif
+
+    return caps;
 }
 
 void VideoInputAravis::captureLoop()

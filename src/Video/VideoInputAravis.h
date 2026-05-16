@@ -40,6 +40,7 @@ public:
     void              resume()  override;
     bool              isActive()    const override;
     QVideoFrameFormat frameFormat() const override;
+    CameraCapabilities queryCapabilities() const override;
 
 private:
     void captureLoop();

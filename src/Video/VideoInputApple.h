@@ -48,6 +48,7 @@ public:
     void              resume()  override;
     bool              isActive()    const override;
     QVideoFrameFormat frameFormat() const override;
+    CameraCapabilities queryCapabilities() const override;
 
     // Called by the Obj-C sample-buffer delegate — not for external use.
     void onFrameCaptured(const QVideoFrame &frame);

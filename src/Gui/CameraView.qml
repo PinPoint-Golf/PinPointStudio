@@ -105,6 +105,32 @@ Item {
                 }
             }
 
+            // ── Resolution / FPS overlay (bottom-right) ──────────────────────
+            Rectangle {
+                visible: root.controller.isRecording
+                         && root.controller.frameWidth > 0
+                anchors.bottom: parent.bottom
+                anchors.right:  parent.right
+                anchors.margins: 8
+                width:  resLabel.implicitWidth + 10
+                height: 18
+                radius: 3
+                color: "#99000000"
+
+                Text {
+                    id: resLabel
+                    anchors.centerIn: parent
+                    text: root.controller.frameWidth + "x"
+                        + root.controller.frameHeight + "  "
+                        + (root.controller.configuredFps > 0
+                               ? root.controller.configuredFps
+                               : root.controller.cameraFps).toFixed(0) + " fps"
+                    color: "#cdd6f4"
+                    font.pixelSize: 10
+                    font.family: "Courier New"
+                }
+            }
+
             // ── Skeleton overlay ──────────────────────────────────────────────
             Canvas {
                 id: skeletonCanvas

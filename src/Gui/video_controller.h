@@ -74,6 +74,9 @@ class VideoController : public QObject
     Q_PROPERTY(double ballY              READ ballY              NOTIFY ballDetectedChanged)
     Q_PROPERTY(double ballRadius         READ ballRadius         NOTIFY ballDetectedChanged)
     Q_PROPERTY(double ballPresencePercent READ ballPresencePercent NOTIFY ballPresencePercentChanged)
+    Q_PROPERTY(int    frameWidth         READ frameWidth          NOTIFY frameSizeChanged)
+    Q_PROPERTY(int    frameHeight        READ frameHeight         NOTIFY frameSizeChanged)
+    Q_PROPERTY(double configuredFps     READ configuredFps       NOTIFY frameSizeChanged)
 
 public:
     // Perspective values — matches the selector in CameraView.qml.
@@ -105,6 +108,9 @@ public:
     double  ballY()               const;
     double  ballRadius()          const;
     double  ballPresencePercent() const;
+    int     frameWidth()          const;
+    int     frameHeight()         const;
+    double  configuredFps()       const;
 
     // Called by CameraManager only — not Q_INVOKABLE so QML cannot bypass
     // the uniqueness check enforced by CameraManager::setPerspective().
@@ -136,6 +142,7 @@ signals:
     void roiChanged();
     void ballDetectedChanged();
     void ballPresencePercentChanged();
+    void frameSizeChanged();
 
 private slots:
     void onVideoFrame(const QVideoFrame &frame);
@@ -214,4 +221,7 @@ private:
     QVariantList       m_poseKeypoints;
     int                m_perspective        = 0;
     QRectF             m_roi;
+    int                m_frameWidth  = 0;
+    int                m_frameHeight = 0;
+    double             m_configuredFps = 0.0;
 };

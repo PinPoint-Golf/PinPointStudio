@@ -72,22 +72,57 @@ VideoController::VideoController(const Device &device, pinpoint::EventBuffer *bu
     , m_videoInput(VideoInputFactory::create(device.backend))
     , m_eventBuffer(buffer)
 {
-    // Register source now with conservative defaults so the source ID is valid
-    // before EventBuffer::start() is called in main(). updateBufferDescriptor()
-    // fires on first Active and logs the actual format; re-registration is not
-    // supported in EventBuffer v1 (TODO Phase 5).
+    // Register the source before EventBuffer::start() is called in main().
+    // Prime the backend with the device ID so queryCapabilities() can enumerate
+    // its formats without starting the camera, then use the results to size
+    // slots correctly.  Aravis/Spinnaker return empty pre-start (they would open
+    // a live connection), so those fall back to conservative defaults.
     if (m_eventBuffer) {
+        m_videoInput->prepareDevice(m_deviceId);
+        CameraCapabilities caps = m_videoInput->queryCapabilities();
+
         pinpoint::SourceDescriptor desc;
         desc.name = device.description.toStdString();
 
         pinpoint::CameraFormat cfmt{};
-        cfmt.pixel_format          = pinpoint::PixelFormat::Unknown;
-        cfmt.width                 = 0;
-        cfmt.height                = 0;
-        cfmt.fps_numerator         = 60;
-        cfmt.fps_denominator       = 1;
-        cfmt.max_payload_bytes     = 1920 * 1080 * 2;
-        cfmt.typical_payload_bytes = 1920 * 1080;
+        cfmt.pixel_format = pinpoint::PixelFormat::Unknown;
+
+        // --- Resolution ---
+        // Prefer the configured default; otherwise take the largest preset.
+        int w = caps.resolution.defaultResolution.width;
+        int h = caps.resolution.defaultResolution.height;
+        if (w == 0 || h == 0) {
+            for (const Resolution &r : caps.resolution.presets) {
+                if (r.width * r.height > w * h) { w = r.width; h = r.height; }
+            }
+        }
+        cfmt.width  = static_cast<uint32_t>(w > 0 ? w : 1920);
+        cfmt.height = static_cast<uint32_t>(h > 0 ? h : 1080);
+
+        // --- Slot payload: worst-case bytes per pixel across all supported formats ---
+        int maxBpp = 2; // NV12/YUYV baseline
+        for (const PixelFormat &pf : caps.pixelFormat.supported) {
+            int bpp = pf.bitsPerPixel > 0 ? (pf.bitsPerPixel + 7) / 8 : 0;
+            if (bpp == 0) {
+                switch (pf.encoding) {
+                case PixelEncoding::RGBA8:
+                case PixelEncoding::BGR8:          bpp = 4; break;
+                case PixelEncoding::BayerRG16:
+                case PixelEncoding::BayerGB16:
+                case PixelEncoding::YUV422_YUYV:
+                case PixelEncoding::YUV422_UYVY:   bpp = 2; break;
+                default:                           bpp = 2; break;
+                }
+            }
+            maxBpp = std::max(maxBpp, bpp);
+        }
+        cfmt.max_payload_bytes     = cfmt.width * cfmt.height * static_cast<uint32_t>(maxBpp);
+        cfmt.typical_payload_bytes = cfmt.max_payload_bytes;
+
+        // --- FPS: use the maximum supported rate for worst-case slot count ---
+        double fps = caps.frameRate.range.max > 0.0 ? caps.frameRate.range.max : 60.0;
+        cfmt.fps_numerator   = static_cast<uint32_t>(fps * 1000.0);
+        cfmt.fps_denominator = 1000;
 
         switch (device.backend) {
         case VideoInputFactory::Backend::AppleAVFoundation:
@@ -109,11 +144,16 @@ VideoController::VideoController(const Device &device, pinpoint::EventBuffer *bu
         }
         desc.format.format            = cfmt;
         desc.window_duration          = std::chrono::milliseconds(5000);
-        desc.expected_interarrival_us = std::chrono::microseconds(
-            cfmt.fps_denominator > 0
-                ? static_cast<int64_t>(1'000'000.0 * cfmt.fps_denominator / cfmt.fps_numerator)
-                : 16667);
+        desc.expected_interarrival_us =
+            std::chrono::microseconds(static_cast<int64_t>(1'000'000.0 / fps));
         desc.sync_source              = pinpoint::SyncSource::SoftwareTimestamp;
+
+        ppWarn() << "[VideoController] registering buffer source:"
+                 << device.description
+                 << cfmt.width << "x" << cfmt.height
+                 << "@ max" << fps << "fps"
+                 << "slot_bytes:" << desc.computeSlotBytes()
+                 << "slots:" << desc.computeSlotCount();
 
         m_sourceId = m_eventBuffer->registerSource(desc);
     }
@@ -203,6 +243,24 @@ void VideoController::setupPipeline()
                 if (s == VideoInputBase::State::Active) {
                     updateBufferDescriptor();
                     emit needsDebayerChanged();
+
+                    // queryCapabilities() must run on the capture thread where
+                    // m_videoInput (and its camera handle) lives.  Post it there,
+                    // then deliver the result back to the main thread.
+                    QMetaObject::invokeMethod(m_videoInput, [this]() {
+                        CameraCapabilities caps = m_videoInput->queryCapabilities();
+                        QMetaObject::invokeMethod(this, [this, caps = std::move(caps)]() {
+                            int w     = caps.resolution.defaultResolution.width;
+                            int h     = caps.resolution.defaultResolution.height;
+                            double fps = caps.frameRate.range.defaultValue;
+                            if (w > 0 && h > 0) {
+                                m_frameWidth    = w;
+                                m_frameHeight   = h;
+                                m_configuredFps = fps;
+                                emit frameSizeChanged();
+                            }
+                        });
+                    }, Qt::QueuedConnection);
                 }
             }, Qt::QueuedConnection);
 
@@ -364,6 +422,9 @@ bool   VideoController::isSpinnaker()    const { return VideoInputFactory::backe
 bool   VideoController::needsDebayer()   const { return isSpinnaker() && m_videoInput->emitsRawBayer(); }
 double  VideoController::preprocessAvgMs()        const { return m_preprocessAvgMs; }
 double  VideoController::cameraFps()              const { return m_cameraFps; }
+int     VideoController::frameWidth()             const { return m_frameWidth; }
+int     VideoController::frameHeight()            const { return m_frameHeight; }
+double  VideoController::configuredFps()          const { return m_configuredFps; }
 double  VideoController::poseAvgMs()              const { return m_poseAvgMs; }
 double  VideoController::poseFps()                const { return m_poseFps; }
 QString VideoController::poseBackendLabel()       const { return m_poseBackendLabel; }
@@ -619,6 +680,16 @@ void VideoController::drainDisplayFrame()
         QMutexLocker lk(&m_latestFrameMutex);
         f = m_latestDisplayFrame;
         m_latestDisplayFrame = QVideoFrame();
+    }
+    // Fallback: populate frame size from the actual pixel dimensions if the
+    // capabilities query hasn't delivered a result yet.
+    if (f.isValid() && m_frameWidth == 0) {
+        int w = f.width(), h = f.height();
+        if (w > 0 && h > 0) {
+            m_frameWidth  = w;
+            m_frameHeight = h;
+            emit frameSizeChanged();
+        }
     }
     onVideoFrame(f);
 }

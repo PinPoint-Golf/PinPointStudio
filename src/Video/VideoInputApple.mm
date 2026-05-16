@@ -17,12 +17,15 @@
  */
 
 #import <AVFoundation/AVFoundation.h>
+#import <CoreMedia/CoreMedia.h>
+#import <CoreVideo/CoreVideo.h>
 
 #include "VideoInputApple.h"
 
 #include <QImage>
 #include <QVideoFrame>
 #include <QVideoFrameFormat>
+#include <QDateTime>
 
 // ---------------------------------------------------------------------------
 // Private implementation struct (Obj-C strong pointers — ARC manages them)
@@ -233,4 +236,151 @@ QVideoFrameFormat VideoInputApple::frameFormat() const
 void VideoInputApple::onFrameCaptured(const QVideoFrame &frame)
 {
     emit videoFrameReady(frame);
+}
+
+CameraCapabilities VideoInputApple::queryCapabilities() const
+{
+    CameraCapabilities caps;
+    caps.queriedAt   = QDateTime::currentDateTime();
+    caps.driverVersion = "AVFoundation";
+
+    @autoreleasepool {
+        AVCaptureDevice *device = nil;
+
+        // Use the already-open device if available, otherwise find the default.
+        if (d->session) {
+            for (AVCaptureInput *input in d->session.inputs) {
+                if ([input isKindOfClass:[AVCaptureDeviceInput class]])
+                    device = ((AVCaptureDeviceInput *)input).device;
+            }
+        }
+        if (!device)
+            device = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
+        if (!device)
+            return caps;
+
+        caps.modelName = QString::fromNSString(device.localizedName);
+
+        // --- Connection interface ---
+        if ([device.deviceType isEqualToString:AVCaptureDeviceTypeBuiltInWideAngleCamera]
+#if defined(__IPHONE_OS_VERSION_MIN_REQUIRED)
+            || [device.deviceType isEqualToString:AVCaptureDeviceTypeBuiltInTelephotoCamera]
+#endif
+        ) {
+            caps.connectionInterface = CameraCapabilities::Interface::CSI2;
+        } else {
+            caps.connectionInterface = CameraCapabilities::Interface::USB3;
+        }
+
+        // --- Pixel formats and resolution presets ---
+        caps.pixelFormat.kind     = CapabilityKind::Discrete;
+        caps.pixelFormat.writable = true;
+        caps.resolution.kind     = CapabilityKind::Discrete;
+        caps.resolution.writable = true;
+
+        double minFps = 1e9, maxFps = 0.0;
+
+        for (AVCaptureDeviceFormat *fmt in device.formats) {
+            CMFormatDescriptionRef desc = fmt.formatDescription;
+            FourCharCode subtype = CMFormatDescriptionGetMediaSubType(desc);
+            CMVideoDimensions dims = CMVideoFormatDescriptionGetDimensions(desc);
+
+            // Pixel format
+            PixelFormat pf;
+            switch (subtype) {
+                case kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange:
+                case kCVPixelFormatType_420YpCbCr8BiPlanarFullRange:
+                    pf.encoding     = PixelEncoding::YUV420_NV12;
+                    pf.bitsPerPixel = 12;
+                    pf.nativeKey    = (subtype == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange)
+                                      ? "420f" : "420v";
+                    break;
+                case kCMVideoCodecType_JPEG:
+                case kCMVideoCodecType_JPEG_OpenDML:
+                    pf.encoding     = PixelEncoding::MJPEG;
+                    pf.bitsPerPixel = 0;
+                    pf.nativeKey    = "jpeg";
+                    break;
+                case kCVPixelFormatType_32BGRA:
+                    pf.encoding     = PixelEncoding::BGR8;
+                    pf.bitsPerPixel = 32;
+                    pf.nativeKey    = "BGRA";
+                    break;
+                default: {
+                    char fourcc[5] = { (char)(subtype >> 24), (char)(subtype >> 16),
+                                       (char)(subtype >> 8),  (char)(subtype), 0 };
+                    pf.encoding  = PixelEncoding::Unknown;
+                    pf.nativeKey = QString::fromLatin1(fourcc);
+                    break;
+                }
+            }
+            bool pfFound = false;
+            for (const auto &existing : caps.pixelFormat.supported)
+                if (existing.nativeKey == pf.nativeKey) { pfFound = true; break; }
+            if (!pfFound) caps.pixelFormat.supported.append(pf);
+
+            // Resolution preset
+            Resolution r { (int)dims.width, (int)dims.height };
+            bool resFound = false;
+            for (const auto &existing : caps.resolution.presets)
+                if (existing.width == r.width && existing.height == r.height) { resFound = true; break; }
+            if (!resFound) caps.resolution.presets.append(r);
+
+            // Frame rate ranges
+            for (AVFrameRateRange *range in fmt.videoSupportedFrameRateRanges) {
+                minFps = qMin(minFps, range.minFrameRate);
+                maxFps = qMax(maxFps, range.maxFrameRate);
+            }
+        }
+
+        if (maxFps > 0.0) {
+            caps.frameRate.kind               = CapabilityKind::Range;
+            caps.frameRate.readable           = true;
+            caps.frameRate.writable           = true;
+            caps.frameRate.range.min          = minFps;
+            caps.frameRate.range.max          = maxFps;
+            caps.frameRate.range.step         = 0;
+            caps.frameRate.range.defaultValue = maxFps;
+        }
+
+        // --- Exposure time (CMTime → microseconds) ---
+        CMTime minExp = device.activeFormat.minExposureDuration;
+        CMTime maxExp = device.activeFormat.maxExposureDuration;
+        double minExpUs = (double)minExp.value / minExp.timescale * 1e6;
+        double maxExpUs = (double)maxExp.value / maxExp.timescale * 1e6;
+        if (maxExpUs > 0.0) {
+            caps.exposureTime.kind               = CapabilityKind::Range;
+            caps.exposureTime.readable           = true;
+            caps.exposureTime.writable           = true;
+            caps.exposureTime.range.min          = minExpUs;
+            caps.exposureTime.range.max          = maxExpUs;
+            caps.exposureTime.range.step         = 0;
+            caps.exposureTime.range.defaultValue = maxExpUs;
+        }
+
+        // --- ISO as proxy for gain ---
+        float minISO = device.activeFormat.minISO;
+        float maxISO = device.activeFormat.maxISO;
+        if (maxISO > 0.0f) {
+            caps.gain.kind               = CapabilityKind::Range;
+            caps.gain.readable           = true;
+            caps.gain.writable           = true;
+            caps.gain.range.min          = minISO;
+            caps.gain.range.max          = maxISO;
+            caps.gain.range.step         = 0;
+            caps.gain.range.defaultValue = minISO;
+        }
+
+        // --- Exposure mode ---
+        caps.exposureMode.kind     = CapabilityKind::Discrete;
+        caps.exposureMode.readable = true;
+        caps.exposureMode.writable = true;
+        caps.exposureMode.options  = {
+            { "Locked", "Locked", device.exposureMode == AVCaptureExposureModeLocked },
+            { "Auto",   "Auto",   device.exposureMode == AVCaptureExposureModeAutoExpose },
+            { "Custom", "Custom", device.exposureMode == AVCaptureExposureModeCustom }
+        };
+    }
+
+    return caps;
 }

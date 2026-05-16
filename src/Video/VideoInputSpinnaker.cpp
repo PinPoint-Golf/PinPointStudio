@@ -28,6 +28,7 @@
 #include "VideoInputSpinnaker.h"
 #include "raw_video_frame.h"
 #include <QVideoFrame>
+#include <QDateTime>
 #include "pp_debug.h"
 #include <QtConcurrent>
 
@@ -229,6 +230,217 @@ bool VideoInputSpinnaker::isActive() const
 QVideoFrameFormat VideoInputSpinnaker::frameFormat() const
 {
     return QVideoFrameFormat();
+}
+
+CameraCapabilities VideoInputSpinnaker::queryCapabilities() const
+{
+    CameraCapabilities caps;
+    caps.queriedAt   = QDateTime::currentDateTime();
+    caps.driverVersion = "Teledyne Spinnaker SDK";
+
+#ifdef HAVE_SPINNAKER
+    // Do not open a live connection before start() — return empty so that
+    // callers can safely query capabilities pre-start without side-effects.
+    if (!m_camera) return caps;
+
+    auto doQuery = [&caps](Spinnaker::CameraPtr camera) {
+        using namespace Spinnaker::GenApi;
+
+        // --- Identity (TL Device nodemap) ---
+        INodeMap &tlMap = camera->GetTLDeviceNodeMap();
+        auto readStr = [&tlMap](const char *name) -> QString {
+            CStringPtr n = tlMap.GetNode(name);
+            if (IsAvailable(n) && IsReadable(n))
+                return QString::fromStdString(n->GetValue().c_str());
+            return {};
+        };
+        caps.vendorName      = readStr("DeviceVendorName");
+        caps.modelName       = readStr("DeviceModelName");
+        caps.serialNumber    = readStr("DeviceSerialNumber");
+        caps.firmwareVersion = readStr("DeviceVersion");
+
+        CStringPtr ptrIface = tlMap.GetNode("DeviceType");
+        if (IsAvailable(ptrIface) && IsReadable(ptrIface)) {
+            QString iface = QString::fromStdString(ptrIface->GetValue().c_str());
+            if (iface.contains("GigEVision", Qt::CaseInsensitive))
+                caps.connectionInterface = CameraCapabilities::Interface::GigE;
+            else if (iface.contains("USB3Vision", Qt::CaseInsensitive))
+                caps.connectionInterface = CameraCapabilities::Interface::USB3;
+        }
+
+        INodeMap &nodeMap = camera->GetNodeMap();
+
+        // --- Pixel formats ---
+        CEnumerationPtr ptrPixelFormat = nodeMap.GetNode("PixelFormat");
+        if (IsAvailable(ptrPixelFormat) && IsReadable(ptrPixelFormat)) {
+            caps.pixelFormat.kind     = CapabilityKind::Discrete;
+            caps.pixelFormat.writable = IsWritable(ptrPixelFormat);
+
+            NodeList_t entries;
+            ptrPixelFormat->GetEntries(entries);
+            for (INode *entry : entries) {
+                CEnumEntryPtr e(entry);
+                if (!IsAvailable(e) || !IsReadable(e)) continue;
+                QString key = QString::fromStdString(e->GetSymbolic().c_str());
+                PixelFormat pf;
+                pf.nativeKey = key;
+                if      (key == "BayerRG8")                   { pf.encoding = PixelEncoding::BayerRG8;  pf.bitsPerPixel = 8; }
+                else if (key == "BayerGB8")                   { pf.encoding = PixelEncoding::BayerGB8;  pf.bitsPerPixel = 8; }
+                else if (key == "BayerGR8")                   { pf.encoding = PixelEncoding::BayerGR8;  pf.bitsPerPixel = 8; }
+                else if (key == "BayerBG8")                   { pf.encoding = PixelEncoding::BayerBG8;  pf.bitsPerPixel = 8; }
+                else if (key == "BayerRG16")                  { pf.encoding = PixelEncoding::BayerRG16; pf.bitsPerPixel = 16; }
+                else if (key == "BayerGB16")                  { pf.encoding = PixelEncoding::BayerGB16; pf.bitsPerPixel = 16; }
+                else if (key == "Mono8")                      { pf.encoding = PixelEncoding::Mono8;     pf.bitsPerPixel = 8; }
+                else if (key == "Mono10")                     { pf.encoding = PixelEncoding::Mono10;    pf.bitsPerPixel = 10; }
+                else if (key == "Mono12")                     { pf.encoding = PixelEncoding::Mono12;    pf.bitsPerPixel = 12; }
+                else if (key == "Mono16")                     { pf.encoding = PixelEncoding::Mono16;    pf.bitsPerPixel = 16; }
+                else if (key == "RGB8Packed" || key == "RGB8"){ pf.encoding = PixelEncoding::RGB8;      pf.bitsPerPixel = 24; }
+                else if (key == "BGR8")                       { pf.encoding = PixelEncoding::BGR8;      pf.bitsPerPixel = 24; }
+                else                                          { pf.encoding = PixelEncoding::Unknown; }
+
+                bool isDefault = (e->GetValue() == ptrPixelFormat->GetIntValue());
+                caps.pixelFormat.supported.append(pf);
+                if (isDefault) caps.pixelFormat.defaultFormat = pf;
+            }
+        }
+
+        // --- Resolution ---
+        CIntegerPtr ptrWidth  = nodeMap.GetNode("Width");
+        CIntegerPtr ptrHeight = nodeMap.GetNode("Height");
+        if (IsAvailable(ptrWidth) && IsReadable(ptrWidth) &&
+            IsAvailable(ptrHeight) && IsReadable(ptrHeight)) {
+            caps.resolution.kind     = CapabilityKind::Range;
+            caps.resolution.writable = IsWritable(ptrWidth);
+            caps.resolution.widthRange  = { (int)ptrWidth->GetMin(),  (int)ptrWidth->GetMax(),  (int)ptrWidth->GetInc(),  (int)ptrWidth->GetValue()  };
+            caps.resolution.heightRange = { (int)ptrHeight->GetMin(), (int)ptrHeight->GetMax(), (int)ptrHeight->GetInc(), (int)ptrHeight->GetValue() };
+            caps.resolution.defaultResolution = { (int)ptrWidth->GetValue(), (int)ptrHeight->GetValue() };
+        }
+
+        // --- Frame rate ---
+        CFloatPtr ptrFps = nodeMap.GetNode("AcquisitionFrameRate");
+        if (IsAvailable(ptrFps) && IsReadable(ptrFps)) {
+            caps.frameRate.kind               = CapabilityKind::Range;
+            caps.frameRate.readable           = true;
+            caps.frameRate.writable           = IsWritable(ptrFps);
+            caps.frameRate.range.min          = ptrFps->GetMin();
+            caps.frameRate.range.max          = ptrFps->GetMax();
+            caps.frameRate.range.step         = 0;
+            caps.frameRate.range.defaultValue = ptrFps->GetValue();
+        }
+
+        // --- Exposure time ---
+        CFloatPtr ptrExp = nodeMap.GetNode("ExposureTime");
+        if (IsAvailable(ptrExp) && IsReadable(ptrExp)) {
+            caps.exposureTime.kind               = CapabilityKind::Range;
+            caps.exposureTime.readable           = true;
+            caps.exposureTime.writable           = IsWritable(ptrExp);
+            caps.exposureTime.range.min          = ptrExp->GetMin();
+            caps.exposureTime.range.max          = ptrExp->GetMax();
+            caps.exposureTime.range.step         = 0;
+            caps.exposureTime.range.defaultValue = ptrExp->GetValue();
+        }
+
+        // --- Gain ---
+        CFloatPtr ptrGain = nodeMap.GetNode("Gain");
+        if (IsAvailable(ptrGain) && IsReadable(ptrGain)) {
+            caps.gain.kind               = CapabilityKind::Range;
+            caps.gain.readable           = true;
+            caps.gain.writable           = IsWritable(ptrGain);
+            caps.gain.range.min          = ptrGain->GetMin();
+            caps.gain.range.max          = ptrGain->GetMax();
+            caps.gain.range.step         = 0;
+            caps.gain.range.defaultValue = ptrGain->GetValue();
+        }
+
+        // --- Exposure mode ---
+        CEnumerationPtr ptrExpAuto = nodeMap.GetNode("ExposureAuto");
+        if (IsAvailable(ptrExpAuto) && IsReadable(ptrExpAuto)) {
+            caps.exposureMode.kind     = CapabilityKind::Discrete;
+            caps.exposureMode.readable = true;
+            caps.exposureMode.writable = IsWritable(ptrExpAuto);
+            NodeList_t entries;
+            ptrExpAuto->GetEntries(entries);
+            for (INode *e : entries) {
+                CEnumEntryPtr entry(e);
+                if (!IsAvailable(entry) || !IsReadable(entry)) continue;
+                QString key = QString::fromStdString(entry->GetSymbolic().c_str());
+                bool isDefault = (entry->GetValue() == ptrExpAuto->GetIntValue());
+                caps.exposureMode.options.append({ key, key, isDefault });
+            }
+        }
+
+        // --- ROI ---
+        CIntegerPtr ptrOffX = nodeMap.GetNode("OffsetX");
+        CIntegerPtr ptrOffY = nodeMap.GetNode("OffsetY");
+        if (IsAvailable(ptrOffX) && IsReadable(ptrOffX)) {
+            caps.roi.supported    = true;
+            caps.roi.offsetXRange = { (int)ptrOffX->GetMin(), (int)ptrOffX->GetMax(), (int)ptrOffX->GetInc(), 0 };
+            caps.roi.offsetYRange = { (int)ptrOffY->GetMin(), (int)ptrOffY->GetMax(), (int)ptrOffY->GetInc(), 0 };
+            caps.roi.widthRange   = caps.resolution.widthRange;
+            caps.roi.heightRange  = caps.resolution.heightRange;
+        }
+
+        // --- Trigger ---
+        CEnumerationPtr ptrTrigSrc = nodeMap.GetNode("TriggerSource");
+        if (IsAvailable(ptrTrigSrc) && IsReadable(ptrTrigSrc)) {
+            caps.trigger.supported      = true;
+            caps.trigger.hasTimestamping = true;
+            NodeList_t entries;
+            ptrTrigSrc->GetEntries(entries);
+            for (INode *e : entries) {
+                CEnumEntryPtr entry(e);
+                if (!IsAvailable(entry) || !IsReadable(entry)) continue;
+                QString key = QString::fromStdString(entry->GetSymbolic().c_str());
+                if (key.contains("Software", Qt::CaseInsensitive))
+                    caps.trigger.sources.append(TriggerSource::Software);
+                else if (key.contains("Line", Qt::CaseInsensitive))
+                    { caps.trigger.sources.append(TriggerSource::Hardware); caps.trigger.hasHardwareInput = true; }
+                else if (key.contains("Action", Qt::CaseInsensitive))
+                    caps.trigger.sources.append(TriggerSource::Action);
+            }
+        }
+
+        // --- Chunk data ---
+        CBooleanPtr ptrChunk = nodeMap.GetNode("ChunkModeActive");
+        if (IsAvailable(ptrChunk)) {
+            auto chunkEnabled = [&nodeMap](const char *name) {
+                CBooleanPtr n = nodeMap.GetNode(name);
+                return IsAvailable(n);
+            };
+            caps.chunkData.frameCounter = chunkEnabled("ChunkFrameCounter");
+            caps.chunkData.timestamp    = chunkEnabled("ChunkTimestamp");
+            caps.chunkData.exposureTime = chunkEnabled("ChunkExposureTime");
+            caps.chunkData.gain         = chunkEnabled("ChunkGain");
+        }
+
+        // --- Extensions: device temperature ---
+        CFloatPtr ptrTemp = nodeMap.GetNode("DeviceTemperature");
+        if (IsAvailable(ptrTemp) && IsReadable(ptrTemp))
+            caps.extensions["spinnaker.DeviceTemperature"] = ptrTemp->GetValue();
+    };
+
+    if (m_camera) {
+        CameraPtr *camera = (CameraPtr*)m_camera;
+        doQuery(*camera);
+    } else {
+        try {
+            SystemPtr system = System::GetInstance();
+            CameraList camList = system->GetCameras();
+            if (camList.GetSize() > 0) {
+                CameraPtr cam = camList.GetByIndex(0);
+                cam->Init();
+                doQuery(cam);
+                cam->DeInit();
+            }
+            camList.Clear();
+            system->ReleaseInstance();
+        } catch (Spinnaker::Exception &e) {
+            caps.extensions["spinnaker.queryError"] = QString::fromLocal8Bit(e.what());
+        }
+    }
+#endif
+
+    return caps;
 }
 
 void VideoInputSpinnaker::captureLoop()

@@ -115,6 +115,7 @@ qt_add_executable(PinPoint
     src/Audio/audio_output.h         src/Audio/audio_output.cpp
     src/Audio/audio_stream_saver.h   src/Audio/audio_stream_saver.cpp
     src/Audio/ting_player.h          src/Audio/ting_player.cpp
+    src/Video/camera_capabilities.h
     src/Video/video_input_base.h           src/Video/video_input_base.cpp
     src/Video/video_input.h                src/Video/video_input.cpp
     src/Video/video_input_factory.h        src/Video/video_input_factory.cpp
