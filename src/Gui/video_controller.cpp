@@ -781,6 +781,8 @@ void VideoController::onVideoFrame(const QVideoFrame &frame)
 #ifdef HAVE_OPENCV
 void VideoController::onPoseEstimated(const PoseResult &result)
 {
+    if (m_replaying) return;
+
     QVariantList kps;
     kps.reserve(PoseResult::kNumKeypoints);
     for (const auto &kp : result.keypoints) {
@@ -845,6 +847,10 @@ void VideoController::setReplaying(bool replaying)
 {
     if (m_replaying == replaying) return;
     m_replaying = replaying;
+    if (replaying) {
+        m_poseKeypoints.clear();
+        emit poseKeypointsChanged();
+    }
     emit isReplayingChanged();
 }
 
