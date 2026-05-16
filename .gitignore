@@ -45,6 +45,7 @@ Build/
 build-*/
 build_bench/
 build_tsan/
+build_asan/
 
 # Qt guff
 .qtcreator
