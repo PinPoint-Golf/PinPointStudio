@@ -40,13 +40,18 @@ QList<Device> DeviceEnumerator::devices() const
     return m_devices;
 }
 
-void DeviceEnumerator::registerDevice(DeviceType type, VideoInputFactory::Backend backend, const QString &id, const QString &description)
+void DeviceEnumerator::registerDevice(DeviceType type, VideoInputFactory::Backend backend,
+                                       const QString &id, const QString &description,
+                                       const CameraCapabilities &capabilities)
 {
-    // Check for duplicates
     for (const auto &dev : m_devices) {
         if (dev.type == type && dev.backend == backend && dev.id == id) return;
     }
-
-    Device dev = { type, backend, id, description };
+    Device dev;
+    dev.type         = type;
+    dev.backend      = backend;
+    dev.id           = id;
+    dev.description  = description;
+    dev.capabilities = capabilities;
     m_devices.append(dev);
 }

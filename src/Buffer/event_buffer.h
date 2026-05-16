@@ -116,6 +116,10 @@ public:
     // "waiting for first device" state from a deliberate swing-analysis pause.
     bool        isWaitingForSources() const noexcept { return no_source_paused_; }
 
+    // Update the format metadata for an already-registered source.
+    // Safe to call in any state — touches only the descriptor, not ring memory.
+    void updateSourceFormat(SourceId id, const FormatDescriptor &fmt);
+
     // SwingWindow — only callable in Paused state (asserts otherwise)
     SwingWindow captureSwingWindow(int64_t t_start_us, int64_t t_end_us);
     SwingWindow captureSwingWindow(std::chrono::milliseconds trailing_duration);

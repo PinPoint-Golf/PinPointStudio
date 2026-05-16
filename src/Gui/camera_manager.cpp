@@ -150,12 +150,24 @@ void CameraManager::startAll()
             cam.controller->startRecording();
     }
 
+    // Sync with current detector state: ballPresentChanged() only fires on a
+    // transition, so if a ball was already present before recording started the
+    // signal won't fire again and m_ballPresentCount would stay 0.
+    for (auto &cam : m_cameras) {
+        if (cam.selected && cam.controller && cam.controller->ballPresent())
+            ++m_ballPresentCount;
+    }
+    if (m_ballPresentCount > 0)
+        resumeBuffer();
+
     emit bufferStateChanged();
 }
 
 void CameraManager::stopAll()
 {
     if (!m_recording) return;
+    if (m_replaying)
+        stopReplay(false); // tear down replay without resuming the buffer
     for (auto &cam : m_cameras) {
         if (cam.selected && cam.controller)
             cam.controller->stopRecording();
@@ -183,6 +195,8 @@ void CameraManager::resumeBuffer()
         emit bufferStateChanged();
     }
 }
+
+bool CameraManager::isReplaying() const { return m_replaying; }
 
 QString CameraManager::bufferState() const
 {
@@ -241,8 +255,130 @@ void CameraManager::onCameraBallPresenceChanged(bool present)
     if (!m_recording)
         return;
 
-    if (m_ballPresentCount > 0)
+    if (m_ballPresentCount > 0) {
+        if (!m_replaying)
+            resumeBuffer();
+        // else: ball re-appeared during replay; resumeBuffer() fires in stopReplay()
+    } else {
+        if (!m_replaying) {
+            pauseBuffer();
+            startReplay();
+        }
+        // else: already replaying, ignore further ball-lost signals
+    }
+}
+
+void CameraManager::startReplay()
+{
+    if (!m_eventBuffer || m_eventBuffer->state() != pinpoint::BufferState::Paused)
+        return;
+
+    auto window = m_eventBuffer->captureSwingWindow(std::chrono::milliseconds(5000));
+
+    m_replayTracks.clear();
+    for (auto &cam : m_cameras) {
+        if (!cam.controller || !cam.selected) continue;
+        const pinpoint::SourceId sid = cam.controller->sourceId();
+        if (sid == pinpoint::kInvalidSourceId) continue;
+        auto entries = window.entriesFor(sid);
+        if (entries.empty()) continue;
+        ReplayTrack track;
+        track.ctrl     = cam.controller;
+        track.sourceId = sid;
+        track.entries  = std::move(entries);
+        m_replayTracks.push_back(std::move(track));
+    }
+
+    if (m_replayTracks.empty())
+        return; // nothing captured — stay paused, wait for next ball detection
+
+    m_swingWindow.emplace(std::move(window));
+
+    // Anchor to the actual first/last captured entry so replay starts immediately
+    // rather than waiting for the (potentially empty) leading portion of the window.
+    m_replayWindowStartUs = m_swingWindow->endTimestampUs();
+    m_replayWindowEndUs   = m_swingWindow->startTimestampUs();
+    for (const auto &track : m_replayTracks) {
+        if (!track.entries.empty()) {
+            m_replayWindowStartUs = std::min(m_replayWindowStartUs,
+                                             track.entries.front().timestamp_us);
+            m_replayWindowEndUs   = std::max(m_replayWindowEndUs,
+                                             track.entries.back().timestamp_us);
+        }
+    }
+
+    for (auto &track : m_replayTracks)
+        track.ctrl->setReplaying(true);
+
+    m_replaying = true;
+    emit isReplayingChanged();
+    emit bufferStateChanged();
+
+    m_replayElapsed.start();
+    m_replayTimer = new QTimer(this);
+    m_replayTimer->setInterval(16); // ~60 Hz drive
+    connect(m_replayTimer, &QTimer::timeout, this, &CameraManager::onReplayTick);
+    m_replayTimer->start();
+}
+
+void CameraManager::onReplayTick()
+{
+    // Quarter speed: divide real elapsed time by 4 to get virtual footage time.
+    const int64_t realElapsedUs   = m_replayElapsed.elapsed() * 1000LL;
+    const int64_t virtualTimeUs   = realElapsedUs / 4;
+    const int64_t footageDuration = m_replayWindowEndUs - m_replayWindowStartUs;
+
+    if (virtualTimeUs >= footageDuration) {
+        stopReplay();
+        return;
+    }
+
+    for (auto &track : m_replayTracks) {
+        // Advance to the newest frame whose offset from the first entry <= virtual time.
+        while (track.idx + 1 < track.entries.size()) {
+            const int64_t nextOffset =
+                track.entries[track.idx + 1].timestamp_us - m_replayWindowStartUs;
+            if (nextOffset <= virtualTimeUs)
+                ++track.idx;
+            else
+                break;
+        }
+
+        const auto &entry  = track.entries[track.idx];
+        const auto  handle = m_swingWindow->payloadOf(entry);
+        if (!handle.data) continue;
+
+        const auto &fd = m_swingWindow->formatOf(track.sourceId);
+        if (const auto *cfmt = std::get_if<pinpoint::CameraFormat>(&fd.format)) {
+            track.ctrl->displayReplayFrame(
+                handle.data,
+                handle.bytes,
+                static_cast<int>(cfmt->width),
+                static_cast<int>(cfmt->height),
+                cfmt->pixel_format);
+        }
+    }
+}
+
+void CameraManager::stopReplay(bool autoResume)
+{
+    if (!m_replaying) return;
+
+    if (m_replayTimer) {
+        m_replayTimer->stop();
+        m_replayTimer->deleteLater();
+        m_replayTimer = nullptr;
+    }
+
+    for (auto &track : m_replayTracks)
+        track.ctrl->setReplaying(false);
+    m_replayTracks.clear();
+
+    m_swingWindow.reset(); // must be destroyed before any resume()
+    m_replaying = false;
+    emit isReplayingChanged();
+    emit bufferStateChanged();
+
+    if (autoResume && m_recording && m_ballPresentCount > 0)
         resumeBuffer();
-    else
-        pauseBuffer();
 }

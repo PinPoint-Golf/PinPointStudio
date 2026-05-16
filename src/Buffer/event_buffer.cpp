@@ -234,6 +234,12 @@ const FormatDescriptor& EventBuffer::formatOf(SourceId id) const {
     return sources_[idx]->desc.format;
 }
 
+void EventBuffer::updateSourceFormat(SourceId id, const FormatDescriptor &fmt) {
+    int idx = findSlotIndex(id);
+    if (idx < 0) return;
+    sources_[idx]->desc.format = fmt;
+}
+
 std::vector<IndexEntry> EventBuffer::snapshot(int64_t t_start_us,
                                                int64_t t_end_us) {
     return index_.snapshot(t_start_us, t_end_us);

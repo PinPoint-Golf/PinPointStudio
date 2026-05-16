@@ -18,6 +18,7 @@
 
 #include "video_input_factory.h"
 #include "video_input.h"
+#include "camera_capabilities.h"
 #include "../Core/device_enumerator.h"
 
 #ifdef Q_OS_MACOS
@@ -47,30 +48,84 @@
 void VideoInputFactory::enumerateDevices()
 {
 #ifdef Q_OS_MACOS
-    // On macOS the Qt Multimedia camera backend (VideoInput/QCamera) cannot
-    // obtain permission because QCameraPermission is only compiled into the
-    // AVFoundation multimedia plugin, not the FFmpeg one.  Enumerate cameras
-    // via QMediaDevices but register them as AppleAVFoundation so that
-    // CameraManager creates VideoInputApple instances (pure AVFoundation, no
-    // QCameraPermission) for every device.
+    // macOS: capabilities come from QCameraDevice — no connection needed.
     for (const QCameraDevice &dev : QMediaDevices::videoInputs()) {
         DeviceEnumerator::instance()->registerDevice(
             DeviceType::VideoInput, Backend::AppleAVFoundation,
-            dev.id(), dev.description());
+            dev.id(), dev.description(),
+            VideoInput::capabilitiesFor(dev));
     }
 #else
+    // Qt Multimedia: VideoInput::availableDevices() now passes capabilities.
     VideoInput::availableDevices();
 #endif
 
 #ifdef HAVE_ARAVIS
+    // Aravis: open each device briefly to read its GenICam parameters, then
+    // release — capabilities are stored in the Device struct so VideoController
+    // never needs to re-open a camera just for format discovery.
     arv_update_device_list();
     unsigned int nAravis = arv_get_n_devices();
     for (unsigned int i = 0; i < nAravis; ++i) {
+        const char *deviceId = arv_get_device_id(i);
+        const char *model    = arv_get_device_model(i);
+
+        CameraCapabilities caps;
+        caps.driverVersion = "Aravis GigE/USB3 Vision";
+        GError *err = nullptr;
+        ArvCamera *cam = arv_camera_new(deviceId, &err);
+        if (cam) {
+            caps.connectionInterface = arv_camera_is_gv_device(cam)
+                ? CameraCapabilities::Interface::GigE
+                : CameraCapabilities::Interface::USB3;
+
+            gint curW = 0, curH = 0;
+            arv_camera_get_region(cam, nullptr, nullptr, &curW, &curH, nullptr);
+            gint wMin, wMax, hMin, hMax, wInc, hInc;
+            arv_camera_get_width_bounds(cam, &wMin, &wMax, nullptr);
+            arv_camera_get_height_bounds(cam, &hMin, &hMax, nullptr);
+            wInc = arv_camera_get_width_increment(cam, nullptr);
+            hInc = arv_camera_get_height_increment(cam, nullptr);
+            caps.resolution.kind     = CapabilityKind::Range;
+            caps.resolution.writable = true;
+            caps.resolution.widthRange  = { wMin, wMax, wInc, curW };
+            caps.resolution.heightRange = { hMin, hMax, hInc, curH };
+            caps.resolution.defaultResolution = { curW, curH };
+
+            guint nFormats = 0;
+            const char **fmts = arv_camera_dup_available_pixel_formats_as_strings(cam, &nFormats, nullptr);
+            if (fmts) {
+                caps.pixelFormat.kind     = CapabilityKind::Discrete;
+                caps.pixelFormat.writable = true;
+                const char *curFmt = arv_camera_get_pixel_format_as_string(cam, nullptr);
+                for (guint j = 0; j < nFormats; ++j) {
+                    PixelFormat pf;
+                    pf.nativeKey = QString::fromLocal8Bit(fmts[j]);
+                    if      (pf.nativeKey == "BayerRG8")   { pf.encoding = PixelEncoding::BayerRG8;  pf.bitsPerPixel = 8; }
+                    else if (pf.nativeKey == "BayerGB8")   { pf.encoding = PixelEncoding::BayerGB8;  pf.bitsPerPixel = 8; }
+                    else if (pf.nativeKey == "BayerGR8")   { pf.encoding = PixelEncoding::BayerGR8;  pf.bitsPerPixel = 8; }
+                    else if (pf.nativeKey == "BayerBG8")   { pf.encoding = PixelEncoding::BayerBG8;  pf.bitsPerPixel = 8; }
+                    else if (pf.nativeKey == "Mono8")      { pf.encoding = PixelEncoding::Mono8;     pf.bitsPerPixel = 8; }
+                    else if (pf.nativeKey == "Mono10")     { pf.encoding = PixelEncoding::Mono10;    pf.bitsPerPixel = 10; }
+                    else if (pf.nativeKey == "Mono12")     { pf.encoding = PixelEncoding::Mono12;    pf.bitsPerPixel = 12; }
+                    else if (pf.nativeKey == "RGB8Packed") { pf.encoding = PixelEncoding::RGB8;      pf.bitsPerPixel = 24; }
+                    else if (pf.nativeKey == "BGR8")       { pf.encoding = PixelEncoding::BGR8;      pf.bitsPerPixel = 24; }
+                    else                                   { pf.encoding = PixelEncoding::Unknown; }
+                    caps.pixelFormat.supported.append(pf);
+                    if (curFmt && pf.nativeKey == QString::fromLocal8Bit(curFmt))
+                        caps.pixelFormat.defaultFormat = pf;
+                }
+                g_free(fmts);
+            }
+            g_object_unref(cam);
+        }
+        g_clear_error(&err);
+
         DeviceEnumerator::instance()->registerDevice(
             DeviceType::VideoInput, Backend::Aravis,
-            QString::fromLocal8Bit(arv_get_device_id(i)),
-            QString::fromLocal8Bit(arv_get_device_model(i))
-        );
+            QString::fromLocal8Bit(deviceId),
+            QString::fromLocal8Bit(model),
+            caps);
     }
 #endif
 
@@ -80,19 +135,73 @@ void VideoInputFactory::enumerateDevices()
         Spinnaker::CameraList camList = system->GetCameras();
         for (unsigned int i = 0; i < camList.GetSize(); ++i) {
             Spinnaker::CameraPtr cam = camList.GetByIndex(i);
-            Spinnaker::GenApi::INodeMap& nodeMapTLDevice = cam->GetTLDeviceNodeMap();
-            Spinnaker::GenApi::CStringPtr ptrDeviceID = nodeMapTLDevice.GetNode("DeviceID");
-            Spinnaker::GenApi::CStringPtr ptrDeviceModel = nodeMapTLDevice.GetNode("DeviceModelName");
+            Spinnaker::GenApi::INodeMap &tlMap = cam->GetTLDeviceNodeMap();
 
-            QString id = "Unknown";
-            QString model = "Spinnaker Camera";
-            if (Spinnaker::GenApi::IsAvailable(ptrDeviceID) && Spinnaker::GenApi::IsReadable(ptrDeviceID))
-                id = QString::fromStdString(ptrDeviceID->GetValue().c_str());
-            if (Spinnaker::GenApi::IsAvailable(ptrDeviceModel) && Spinnaker::GenApi::IsReadable(ptrDeviceModel))
-                model = QString::fromStdString(ptrDeviceModel->GetValue().c_str());
+            auto readTLStr = [&tlMap](const char *name) -> QString {
+                Spinnaker::GenApi::CStringPtr n = tlMap.GetNode(name);
+                if (Spinnaker::GenApi::IsAvailable(n) && Spinnaker::GenApi::IsReadable(n))
+                    return QString::fromStdString(n->GetValue().c_str());
+                return {};
+            };
+            QString id    = readTLStr("DeviceID");
+            QString model = readTLStr("DeviceModelName");
+            if (id.isEmpty())    id    = "Unknown";
+            if (model.isEmpty()) model = "Spinnaker Camera";
+
+            // Init gives full GenICam nodemap access without starting acquisition.
+            CameraCapabilities caps;
+            caps.driverVersion = "Teledyne Spinnaker SDK";
+            try {
+                cam->Init();
+                Spinnaker::GenApi::INodeMap &nodeMap = cam->GetNodeMap();
+
+                using namespace Spinnaker::GenApi;
+                CEnumerationPtr ptrPixelFormat = nodeMap.GetNode("PixelFormat");
+                if (IsAvailable(ptrPixelFormat) && IsReadable(ptrPixelFormat)) {
+                    caps.pixelFormat.kind     = CapabilityKind::Discrete;
+                    caps.pixelFormat.writable = IsWritable(ptrPixelFormat);
+                    NodeList_t entries;
+                    ptrPixelFormat->GetEntries(entries);
+                    for (INode *entry : entries) {
+                        CEnumEntryPtr e(entry);
+                        if (!IsAvailable(e) || !IsReadable(e)) continue;
+                        QString key = QString::fromStdString(e->GetSymbolic().c_str());
+                        PixelFormat pf;
+                        pf.nativeKey = key;
+                        if      (key == "BayerRG8")                    { pf.encoding = PixelEncoding::BayerRG8;  pf.bitsPerPixel = 8; }
+                        else if (key == "BayerGB8")                    { pf.encoding = PixelEncoding::BayerGB8;  pf.bitsPerPixel = 8; }
+                        else if (key == "BayerGR8")                    { pf.encoding = PixelEncoding::BayerGR8;  pf.bitsPerPixel = 8; }
+                        else if (key == "BayerBG8")                    { pf.encoding = PixelEncoding::BayerBG8;  pf.bitsPerPixel = 8; }
+                        else if (key == "BayerRG16")                   { pf.encoding = PixelEncoding::BayerRG16; pf.bitsPerPixel = 16; }
+                        else if (key == "BayerGB16")                   { pf.encoding = PixelEncoding::BayerGB16; pf.bitsPerPixel = 16; }
+                        else if (key == "Mono8")                       { pf.encoding = PixelEncoding::Mono8;     pf.bitsPerPixel = 8; }
+                        else if (key == "Mono10")                      { pf.encoding = PixelEncoding::Mono10;    pf.bitsPerPixel = 10; }
+                        else if (key == "Mono12")                      { pf.encoding = PixelEncoding::Mono12;    pf.bitsPerPixel = 12; }
+                        else if (key == "Mono16")                      { pf.encoding = PixelEncoding::Mono16;    pf.bitsPerPixel = 16; }
+                        else if (key == "RGB8Packed" || key == "RGB8") { pf.encoding = PixelEncoding::RGB8;      pf.bitsPerPixel = 24; }
+                        else if (key == "BGR8")                        { pf.encoding = PixelEncoding::BGR8;      pf.bitsPerPixel = 24; }
+                        else                                           { pf.encoding = PixelEncoding::Unknown; }
+                        bool isDefault = (e->GetValue() == ptrPixelFormat->GetIntValue());
+                        caps.pixelFormat.supported.append(pf);
+                        if (isDefault) caps.pixelFormat.defaultFormat = pf;
+                    }
+                }
+
+                CIntegerPtr ptrW = nodeMap.GetNode("Width");
+                CIntegerPtr ptrH = nodeMap.GetNode("Height");
+                if (IsAvailable(ptrW) && IsReadable(ptrW) &&
+                    IsAvailable(ptrH) && IsReadable(ptrH)) {
+                    caps.resolution.kind     = CapabilityKind::Range;
+                    caps.resolution.writable = IsWritable(ptrW);
+                    caps.resolution.widthRange  = { (int)ptrW->GetMin(), (int)ptrW->GetMax(), (int)ptrW->GetInc(), (int)ptrW->GetValue() };
+                    caps.resolution.heightRange = { (int)ptrH->GetMin(), (int)ptrH->GetMax(), (int)ptrH->GetInc(), (int)ptrH->GetValue() };
+                    caps.resolution.defaultResolution = { (int)ptrW->GetValue(), (int)ptrH->GetValue() };
+                }
+                cam->DeInit();
+            } catch (...) {}
 
             DeviceEnumerator::instance()->registerDevice(
-                DeviceType::VideoInput, Backend::Spinnaker, id, model);
+                DeviceType::VideoInput, Backend::Spinnaker, id, model, caps);
         }
         camList.Clear();
         system->ReleaseInstance();

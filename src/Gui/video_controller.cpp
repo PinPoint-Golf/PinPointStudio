@@ -46,11 +46,29 @@
 #include <QThread>
 #include <QTimer>
 #include <QVideoFrame>
+#include <QVideoFrameFormat>
 #include <QVideoSink>
 
 #ifdef Q_OS_MACOS
 #include "macos_permissions.h"
 #endif
+
+// Maps the backend-neutral PixelEncoding (from CameraCapabilities) to the
+// pinpoint buffer type.  Used by both the constructor (pre-start estimate from
+// enumerated capabilities) and updateBufferDescriptor() (post-start correction).
+static pinpoint::PixelFormat bufferPixelFormat(PixelEncoding enc)
+{
+    switch (enc) {
+    case PixelEncoding::YUV422_YUYV: return pinpoint::PixelFormat::YUYV;
+    case PixelEncoding::YUV422_UYVY: return pinpoint::PixelFormat::UYVY;
+    case PixelEncoding::YUV420_NV12: return pinpoint::PixelFormat::NV12;
+    case PixelEncoding::YUV420_I420: return pinpoint::PixelFormat::YUV420P;
+    case PixelEncoding::BGR8:        return pinpoint::PixelFormat::BGRA32;
+    case PixelEncoding::BayerRG8:    return pinpoint::PixelFormat::BayerRG8;
+    case PixelEncoding::BayerRG16:   return pinpoint::PixelFormat::BayerRG16;
+    default:                          return pinpoint::PixelFormat::Unknown;
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Constructors / destructor
@@ -73,29 +91,35 @@ VideoController::VideoController(const Device &device, pinpoint::EventBuffer *bu
     , m_eventBuffer(buffer)
 {
     // Register the source before EventBuffer::start() is called in main().
-    // Prime the backend with the device ID so queryCapabilities() can enumerate
-    // its formats without starting the camera, then use the results to size
-    // slots correctly.  Aravis/Spinnaker return empty pre-start (they would open
-    // a live connection), so those fall back to conservative defaults.
+    // Capabilities were queried at enumeration time (VideoInputFactory::enumerateDevices)
+    // and stored in the Device struct — use them directly without re-opening the camera.
     if (m_eventBuffer) {
-        m_videoInput->prepareDevice(m_deviceId);
-        CameraCapabilities caps = m_videoInput->queryCapabilities();
+        const CameraCapabilities &caps = device.capabilities;
 
         pinpoint::SourceDescriptor desc;
         desc.name = device.description.toStdString();
 
         pinpoint::CameraFormat cfmt{};
-        cfmt.pixel_format = pinpoint::PixelFormat::Unknown;
+
+        // --- Pixel format ---
+        // queryCapabilities() now populates defaultFormat from Qt's preferred
+        // (first) video format pre-start, so we have a real pixel format here
+        // without needing the camera to be running.  updateBufferDescriptor()
+        // will call updateSourceFormat() to correct it to the actual negotiated
+        // format once the camera is active.
+        cfmt.pixel_format = bufferPixelFormat(caps.pixelFormat.defaultFormat.encoding);
 
         // --- Resolution ---
-        // Prefer the configured default; otherwise take the largest preset.
-        int w = caps.resolution.defaultResolution.width;
-        int h = caps.resolution.defaultResolution.height;
-        if (w == 0 || h == 0) {
-            for (const Resolution &r : caps.resolution.presets) {
-                if (r.width * r.height > w * h) { w = r.width; h = r.height; }
-            }
+        // Slot capacity must fit any frame Qt might negotiate, so size for the
+        // LARGEST supported resolution (not the default).  The actual negotiated
+        // resolution is written into the descriptor by updateSourceFormat() once
+        // the camera is active.
+        int w = 0, h = 0;
+        for (const Resolution &r : caps.resolution.presets) {
+            if (r.width * r.height > w * h) { w = r.width; h = r.height; }
         }
+        if (w == 0) { w = caps.resolution.defaultResolution.width;
+                      h = caps.resolution.defaultResolution.height; }
         cfmt.width  = static_cast<uint32_t>(w > 0 ? w : 1920);
         cfmt.height = static_cast<uint32_t>(h > 0 ? h : 1080);
 
@@ -258,6 +282,10 @@ void VideoController::setupPipeline()
                     // queryCapabilities() must run on the capture thread where
                     // m_videoInput (and its camera handle) lives.  Post it there,
                     // then deliver the result back to the main thread.
+                    // By the time this queued call runs, frames are flowing and
+                    // m_sink->videoFrame() is valid — so queryCapabilities() returns
+                    // the true negotiated format.  Re-run updateBufferDescriptor()
+                    // here to correct any mismatch from the immediate call above.
                     QMetaObject::invokeMethod(m_videoInput, [this]() {
                         CameraCapabilities caps = m_videoInput->queryCapabilities();
                         QMetaObject::invokeMethod(this, [this, caps = std::move(caps)]() {
@@ -270,6 +298,7 @@ void VideoController::setupPipeline()
                                 m_configuredFps = fps;
                                 emit frameSizeChanged();
                             }
+                            updateBufferDescriptor();
                         });
                     }, Qt::QueuedConnection);
                 }
@@ -699,6 +728,10 @@ void VideoController::drainDisplayFrame()
         f = m_latestDisplayFrame;
         m_latestDisplayFrame = QVideoFrame();
     }
+
+    if (m_replaying)  // replay frames are pushed directly; suppress live feed
+        return;
+
     // Fallback: populate frame size from the actual pixel dimensions if the
     // capabilities query hasn't delivered a result yet.
     if (f.isValid() && m_frameWidth == 0) {
@@ -724,7 +757,7 @@ void VideoController::drainRawFrame()
         m_latestRawFrame = RawVideoFrame();
     }
 
-    if (raw.isNull())
+    if (m_replaying || raw.isNull())  // suppress live feed during replay
         return;
 
     static bool logged = false;
@@ -790,85 +823,117 @@ void VideoController::onPoseBackendReady(const QString &label)
 }
 
 // ---------------------------------------------------------------------------
+// Replay support
+// ---------------------------------------------------------------------------
+
+static QVideoFrameFormat::PixelFormat toQtPixelFormat(pinpoint::PixelFormat fmt)
+{
+    switch (fmt) {
+    case pinpoint::PixelFormat::NV12:    return QVideoFrameFormat::Format_NV12;
+    case pinpoint::PixelFormat::YUYV:    return QVideoFrameFormat::Format_YUYV;
+    case pinpoint::PixelFormat::UYVY:    return QVideoFrameFormat::Format_UYVY;
+    case pinpoint::PixelFormat::YUV420P: return QVideoFrameFormat::Format_YUV420P;
+    case pinpoint::PixelFormat::BGRA32:  return QVideoFrameFormat::Format_BGRA8888;
+    default:                              return QVideoFrameFormat::Format_Invalid;
+    }
+}
+
+pinpoint::SourceId VideoController::sourceId() const { return m_sourceId; }
+bool               VideoController::isReplaying() const { return m_replaying; }
+
+void VideoController::setReplaying(bool replaying)
+{
+    if (m_replaying == replaying) return;
+    m_replaying = replaying;
+    emit isReplayingChanged();
+}
+
+void VideoController::displayReplayFrame(const std::byte *data, size_t bytes,
+                                          int w, int h, pinpoint::PixelFormat fmt)
+{
+    if (!data || bytes == 0) return;
+
+    const bool isBayer = (fmt == pinpoint::PixelFormat::BayerRG8  ||
+                          fmt == pinpoint::PixelFormat::BayerRG12 ||
+                          fmt == pinpoint::PixelFormat::BayerRG16);
+
+    if (isBayer) {
+        if (!m_bayerItem) return;
+        RawVideoFrame raw;
+        raw.width   = w;
+        raw.height  = h;
+        raw.pattern = RawVideoFrame::BayerPattern::RG;
+        raw.data    = QByteArray(reinterpret_cast<const char *>(data),
+                                 static_cast<qsizetype>(bytes));
+        m_bayerItem->updateFrame(raw);
+    } else {
+        if (!m_videoSink) return;
+        const auto qtFmt = toQtPixelFormat(fmt);
+        if (qtFmt == QVideoFrameFormat::Format_Invalid) return;
+
+        QVideoFrameFormat frameFormat(QSize(w, h), qtFmt);
+        QVideoFrame replayFrame(frameFormat);
+        if (!replayFrame.map(QVideoFrame::WriteOnly)) return;
+
+        // Restore all planes from the sequentially-stored buffer.
+        // publishFrameToBuffer stores planes in order: plane0 bytes, plane1 bytes, …
+        const auto *src = reinterpret_cast<const uint8_t *>(data);
+        size_t offset = 0;
+        for (int p = 0; p < replayFrame.planeCount(); ++p) {
+            const size_t planeBytes = static_cast<size_t>(replayFrame.mappedBytes(p));
+            const size_t available  = offset < bytes ? bytes - offset : 0;
+            std::memcpy(replayFrame.bits(p), src + offset,
+                        std::min(planeBytes, available));
+            offset += planeBytes;
+        }
+
+        replayFrame.unmap();
+        m_videoSink->setVideoFrame(replayFrame);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // EventBuffer descriptor registration (called once on first Active state)
 // ---------------------------------------------------------------------------
 
 void VideoController::updateBufferDescriptor()
 {
-    if (!m_eventBuffer) return;
+    if (!m_eventBuffer || m_sourceId == pinpoint::kInvalidSourceId) return;
     if (!m_videoInput || !m_videoInput->isActive()) return;
 
-    QVideoFrameFormat fmt = m_videoInput->frameFormat();
-    bool isRaw = m_videoInput->emitsRawBayer();
+    // queryCapabilities() returns accurate values for all backends once the
+    // camera is active — no Qt-specific format mapping needed here.
+    const CameraCapabilities caps = m_videoInput->queryCapabilities();
+    const PixelFormat        &pf  = caps.pixelFormat.defaultFormat;
+    const Resolution         &res = caps.resolution.defaultResolution;
 
-    pinpoint::SourceDescriptor desc;
-    desc.name            = m_deviceDescription.toStdString();
-    desc.window_duration = std::chrono::milliseconds(5000);
-    desc.sync_source     = pinpoint::SyncSource::SoftwareTimestamp;
+    const auto backend = VideoInputFactory::backendType(m_videoInput);
+    pinpoint::FormatDescriptor fd;
+    fd.device = (backend == VideoInputFactory::Backend::Aravis ||
+                 backend == VideoInputFactory::Backend::Spinnaker)
+                ? pinpoint::DeviceKind::Camera_GenICam
+                : (backend == VideoInputFactory::Backend::AppleAVFoundation
+                   ? pinpoint::DeviceKind::Camera_AVFoundation
+                   : pinpoint::DeviceKind::Camera_UVC);
 
     pinpoint::CameraFormat cfmt{};
-
-    if (isRaw) {
-        cfmt.width  = static_cast<uint32_t>(fmt.frameWidth()  > 0 ? fmt.frameWidth()  : 1920);
-        cfmt.height = static_cast<uint32_t>(fmt.frameHeight() > 0 ? fmt.frameHeight() : 1080);
-        cfmt.pixel_format          = pinpoint::PixelFormat::BayerRG8;
-        cfmt.max_payload_bytes     = cfmt.width * cfmt.height;
-        cfmt.typical_payload_bytes = cfmt.max_payload_bytes;
-        desc.format.device         = pinpoint::DeviceKind::Camera_GenICam;
-    } else {
-        cfmt.width  = static_cast<uint32_t>(fmt.frameWidth());
-        cfmt.height = static_cast<uint32_t>(fmt.frameHeight());
-        switch (fmt.pixelFormat()) {
-        case QVideoFrameFormat::Format_NV12:
-            cfmt.pixel_format      = pinpoint::PixelFormat::NV12;
-            cfmt.max_payload_bytes = cfmt.width * cfmt.height * 3 / 2;
-            break;
-        case QVideoFrameFormat::Format_YUYV:
-            cfmt.pixel_format      = pinpoint::PixelFormat::YUYV;
-            cfmt.max_payload_bytes = cfmt.width * cfmt.height * 2;
-            break;
-        case QVideoFrameFormat::Format_YUV420P:
-            cfmt.pixel_format      = pinpoint::PixelFormat::YUV420P;
-            cfmt.max_payload_bytes = cfmt.width * cfmt.height * 3 / 2;
-            break;
-        case QVideoFrameFormat::Format_BGRA8888:
-            cfmt.pixel_format      = pinpoint::PixelFormat::BGRA32;
-            cfmt.max_payload_bytes = cfmt.width * cfmt.height * 4;
-            break;
-        default:
-            cfmt.pixel_format      = pinpoint::PixelFormat::Unknown;
-            cfmt.max_payload_bytes = cfmt.width * cfmt.height * 4;
-            break;
-        }
-        cfmt.typical_payload_bytes = cfmt.max_payload_bytes;
-        desc.format.device         = pinpoint::DeviceKind::Camera_UVC;
-    }
-
-    float fps = fmt.streamFrameRate() > 0.0f ? fmt.streamFrameRate() : 30.0f;
-    cfmt.fps_numerator   = static_cast<uint32_t>(fps * 1000);
+    cfmt.pixel_format = bufferPixelFormat(pf.encoding);
+    cfmt.width        = static_cast<uint32_t>(res.width  > 0 ? res.width  : 1920);
+    cfmt.height       = static_cast<uint32_t>(res.height > 0 ? res.height : 1080);
+    const int bpp     = pf.bitsPerPixel > 0 ? pf.bitsPerPixel : 16;
+    cfmt.max_payload_bytes     = cfmt.width * cfmt.height * static_cast<uint32_t>(bpp) / 8;
+    cfmt.typical_payload_bytes = cfmt.max_payload_bytes;
+    const double fps           = caps.frameRate.range.defaultValue > 0.0
+                                 ? caps.frameRate.range.defaultValue : 30.0;
+    cfmt.fps_numerator   = static_cast<uint32_t>(fps * 1000.0);
     cfmt.fps_denominator = 1000;
-    desc.expected_interarrival_us =
-        std::chrono::microseconds(static_cast<int64_t>(1'000'000.0f / fps));
-    desc.format.format = cfmt;
+    fd.format = cfmt;
 
-    // Log actual format for sizing verification. Note: streamFrameRate() is
-    // unreliable for raw Bayer sources (Spinnaker/Aravis) — fps shown may be
-    // Qt's default (30), not the camera's actual capture rate.
-    ppInfo() << "[VideoController] camera active:" << QString::fromStdString(desc.name)
+    ppInfo() << "[VideoController] camera active:" << m_deviceDescription
              << cfmt.width << "x" << cfmt.height << "@" << fps << "fps"
-             << "ideal slots:" << desc.computeSlotCount()
-             << "ideal slot_bytes:" << desc.computeSlotBytes();
+             << "fmt:" << pf.nativeKey;
 
-    // Source was registered in the constructor with conservative defaults.
-    // EventBuffer v1 does not support re-registration after start().
-    // TODO Phase 5: support source re-registration for resolution/fps changes.
-    if (m_sourceId != pinpoint::kInvalidSourceId) return;
-
-    // Safety guard — buffer must be Idle to register (should not reach here
-    // in normal operation since the constructor always registers first).
-    if (m_eventBuffer->state() != pinpoint::BufferState::Idle) return;
-
-    m_sourceId = m_eventBuffer->registerSource(desc);
+    m_eventBuffer->updateSourceFormat(m_sourceId, fd);
 }
 
 // ---------------------------------------------------------------------------
@@ -884,13 +949,23 @@ void VideoController::publishFrameToBuffer(const QVideoFrame &frame)
     if (!mutable_frame.map(QVideoFrame::ReadOnly))
         return;
 
-    const uint8_t *src  = mutable_frame.bits(0);
-    const size_t   size = static_cast<size_t>(mutable_frame.mappedBytes(0));
+    // Sum all planes — multi-plane formats (NV12, YUV420P) have separate luma
+    // and chroma planes; storing only bits(0) loses the chroma plane and causes
+    // green frames on replay.
+    size_t totalBytes = 0;
+    for (int p = 0; p < mutable_frame.planeCount(); ++p)
+        totalBytes += static_cast<size_t>(mutable_frame.mappedBytes(p));
 
     auto slot = m_eventBuffer->acquireWriteSlot(m_sourceId);
-    if (slot.valid && size <= slot.capacity) {
-        std::memcpy(slot.data, src, size);
-        *slot.bytes_written = static_cast<uint32_t>(size);
+    if (slot.valid && totalBytes > 0 && totalBytes <= slot.capacity) {
+        auto *dst = reinterpret_cast<uint8_t *>(slot.data);
+        size_t offset = 0;
+        for (int p = 0; p < mutable_frame.planeCount(); ++p) {
+            const size_t planeBytes = static_cast<size_t>(mutable_frame.mappedBytes(p));
+            std::memcpy(dst + offset, mutable_frame.bits(p), planeBytes);
+            offset += planeBytes;
+        }
+        *slot.bytes_written = static_cast<uint32_t>(totalBytes);
         *slot.timestamp_us  = pinpoint::EventBuffer::nowMicros();
         m_eventBuffer->publish(m_sourceId, slot.sequence);
     }

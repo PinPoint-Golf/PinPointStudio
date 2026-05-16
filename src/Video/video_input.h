@@ -48,6 +48,11 @@ public:
     // Returns every available camera on this platform.
     static QList<QCameraDevice> availableDevices();
 
+    // Build full capabilities from a QCameraDevice without opening a connection.
+    // Called by VideoInputFactory::enumerateDevices() so capabilities are stored
+    // in the Device struct before any VideoController is created.
+    static CameraCapabilities capabilitiesFor(const QCameraDevice &dev);
+
     // -----------------------------------------------------------------------
     // VideoInputBase interface
     // -----------------------------------------------------------------------

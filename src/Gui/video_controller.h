@@ -78,6 +78,7 @@ class VideoController : public QObject
     Q_PROPERTY(int    frameWidth         READ frameWidth          NOTIFY frameSizeChanged)
     Q_PROPERTY(int    frameHeight        READ frameHeight         NOTIFY frameSizeChanged)
     Q_PROPERTY(double configuredFps     READ configuredFps       NOTIFY frameSizeChanged)
+    Q_PROPERTY(bool   isReplaying       READ isReplaying         NOTIFY isReplayingChanged)
 
 public:
     // Perspective values — matches the selector in CameraView.qml.
@@ -113,10 +114,14 @@ public:
     int     frameWidth()          const;
     int     frameHeight()         const;
     double  configuredFps()       const;
+    bool    isReplaying()         const;
+    pinpoint::SourceId sourceId() const;
 
     // Called by CameraManager only — not Q_INVOKABLE so QML cannot bypass.
     void setPerspective(int p);
     void deregisterFromBuffer();
+    void setReplaying(bool replaying);
+    void displayReplayFrame(const std::byte *data, size_t bytes, int w, int h, pinpoint::PixelFormat fmt);
 
     Q_INVOKABLE void setVideoSink(QVideoSink *sink);
     Q_INVOKABLE void setBayerItem(QObject *item);   // called from QML with a BayerVideoItem
@@ -146,6 +151,7 @@ signals:
     void ballPresencePercentChanged();
     void ballPresentChanged(bool present);
     void frameSizeChanged();
+    void isReplayingChanged();
 
 private slots:
     void onVideoFrame(const QVideoFrame &frame);
@@ -212,6 +218,7 @@ private:
     double           m_ballPresencePercent  = 0.0;
     bool             m_ballPresent          = false;
     TingPlayer      *m_tingPlayer           = nullptr;
+    bool             m_replaying            = false;
     // Capture-rate FPS: counted on the capture thread, sampled on a timer.
     std::atomic<int>   m_frameCaptureCount{0};
     QTimer            *m_fpsSampleTimer    = nullptr;

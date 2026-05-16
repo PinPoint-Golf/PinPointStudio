@@ -21,6 +21,7 @@
 #include <QString>
 #include <QList>
 #include <QObject>
+#include "../Video/camera_capabilities.h"
 #include "../Video/video_input_factory.h"
 
 enum class DeviceType {
@@ -31,9 +32,10 @@ enum class DeviceType {
 
 struct Device {
     DeviceType type;
-    VideoInputFactory::Backend backend; // For non-video, we can use a generic "System" or "Qt" backend
+    VideoInputFactory::Backend backend;
     QString id;
     QString description;
+    CameraCapabilities capabilities; // populated at enumeration time
 };
 
 class DeviceEnumerator : public QObject
@@ -46,7 +48,9 @@ public:
     void enumerate();
     QList<Device> devices() const;
 
-    void registerDevice(DeviceType type, VideoInputFactory::Backend backend, const QString &id, const QString &description);
+    void registerDevice(DeviceType type, VideoInputFactory::Backend backend,
+                        const QString &id, const QString &description,
+                        const CameraCapabilities &capabilities = {});
 
 private:
     explicit DeviceEnumerator(QObject *parent = nullptr);

@@ -285,6 +285,49 @@ Item {
                 radius: screenR
             }
 
+            // ── Replay overlay ────────────────────────────────────────────────
+            Rectangle {
+                id: replayBadge
+                visible: root.controller.isReplaying
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                anchors.topMargin: 12
+                width: replayRow.implicitWidth + 24
+                height: 28
+                radius: 14
+                color: "#CC1e1e2e"
+                z: 30
+
+                Row {
+                    id: replayRow
+                    anchors.centerIn: parent
+                    spacing: 6
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "REPLAY"
+                        color: "#f38ba8"
+                        font.pixelSize: 13
+                        font.bold: true
+                        font.letterSpacing: 1.5
+                    }
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "¼×"
+                        color: "#cba6f7"
+                        font.pixelSize: 11
+                    }
+                }
+
+                SequentialAnimation on opacity {
+                    running: root.controller.isReplaying
+                    loops: Animation.Infinite
+                    NumberAnimation { to: 0.5; duration: 800; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: 1.0; duration: 800; easing.type: Easing.InOutSine }
+                }
+            }
+
             // ── ROI drag-select MouseArea ─────────────────────────────────────
             MouseArea {
                 anchors.fill: parent
