@@ -55,8 +55,19 @@ public:
     EventBuffer(const EventBuffer&)            = delete;
     EventBuffer& operator=(const EventBuffer&) = delete;
 
-    // --- Registration (before start() only) ---
+    // --- Registration ---
+    // Callable while Idle or Paused. NOT callable while Capturing or Stopping.
     SourceId registerSource(SourceDescriptor desc);
+
+    // Deregister a source and immediately free its ring memory.
+    // ONLY callable while Paused.
+    // Asserts no SwingWindow is currently live (caller must destroy SwingWindow
+    // before deregistering any source it references).
+    // After this call, 'id' is invalid. Any further calls with 'id' are no-ops.
+    void deregisterSource(SourceId id);
+
+    // Number of currently active (registered) sources.
+    size_t activeSourceCount() const noexcept;
 
     // --- Producer API ---
     // acquireWriteSlot returns valid=false when state != Capturing.
@@ -100,6 +111,10 @@ public:
     void        stop();
     BufferState state() const noexcept;
     bool        isCapturing() const noexcept;
+    // True when the buffer is Paused solely because it has no registered
+    // sources. Cleared when resume() succeeds. Use this to distinguish the
+    // "waiting for first device" state from a deliberate swing-analysis pause.
+    bool        isWaitingForSources() const noexcept { return no_source_paused_; }
 
     // SwingWindow — only callable in Paused state (asserts otherwise)
     SwingWindow captureSwingWindow(int64_t t_start_us, int64_t t_end_us);
@@ -147,7 +162,13 @@ private:
     EventBufferConfig config_;
 
     std::array<std::unique_ptr<SourceSlot>, MAX_SOURCES> sources_;
-    size_t source_count_ = 0;
+    size_t slot_hwm_       = 0;   // highest index ever assigned + 1; merger iterates 0..slot_hwm_
+    size_t active_sources_ = 0;   // count of non-null slots
+    // True while the buffer is Paused solely because there are no registered
+    // sources. registerSource() clears this and calls resume() automatically
+    // when the first source is added. Set by start(), resume() (blocked), and
+    // deregisterSource() when the last source is removed.
+    bool   no_source_paused_ = false;
 
     TimelineIndex index_;
     WaitFlag      index_wait_;
@@ -162,6 +183,10 @@ private:
 
     std::thread merger_thread_;
     std::chrono::steady_clock::time_point last_watchdog_tick_;
+
+    // Set to true while a SwingWindow is live. deregisterSource() asserts this
+    // is false. SwingWindow constructor sets it true; destructor sets it false.
+    std::atomic<bool> swing_window_live_{false};
 
     int findSlotIndex(SourceId id) const noexcept;
     void mergerLoop();

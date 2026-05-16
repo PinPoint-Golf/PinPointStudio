@@ -39,9 +39,10 @@ int main(int argc, char *argv[])
     // EventBuffer declared first — destroyed last (stack unwinds in reverse).
     // All controllers that hold a pointer to it must be destroyed first.
     pinpoint::EventBuffer   eventBuffer;
+    // Merger runs for app lifetime. With no sources registered yet it
+    // auto-pauses; the first registerSource() call auto-resumes it.
+    eventBuffer.start();
 
-    // Controllers are constructed first so all registerSource() calls complete
-    // before start() is called — registerSource() asserts Idle state.
     ImuController           imuController(&eventBuffer);
     TranscriptionController controller;
     TtsController           ttsController;
@@ -56,6 +57,11 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("cameraManager"),    &cameraManager);
     engine.rootContext()->setContextProperty(QStringLiteral("filmController"),   &filmController);
     engine.rootContext()->setContextProperty(QStringLiteral("bufferController"), &bufferController);
+
+    // Clean merger shutdown before Qt tears down its event loop.
+    QObject::connect(&app, &QGuiApplication::aboutToQuit, [&eventBuffer]() {
+        eventBuffer.stop();
+    });
 
     QObject::connect(
         &engine,

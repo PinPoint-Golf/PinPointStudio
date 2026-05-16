@@ -34,11 +34,10 @@ CameraManager::CameraManager(pinpoint::EventBuffer *buffer, QObject *parent)
             m_cameras.append({dev, false, nullptr});
     }
 
-    // Auto-select and create controller for the first camera.
-    if (!m_cameras.isEmpty()) {
-        m_cameras[0].selected = true;
-        m_cameras[0].controller = createController(m_cameras[0].device);
-    }
+    // Auto-select the first camera via setSelected() so the buffer is correctly
+    // paused around registerSource() even when start() has already been called.
+    if (!m_cameras.isEmpty())
+        setSelected(0, true);
 }
 
 CameraManager::~CameraManager()
@@ -94,41 +93,42 @@ bool CameraManager::anySelected() const
 
 void CameraManager::setSelected(int index, bool selected)
 {
-    // Selection is locked while recording — cameras must be chosen before
-    // starting. Matches the UI constraint (chips disabled while isRecording).
-    // Prevents VideoController constructor from calling registerSource() on a
-    // non-Idle EventBuffer, which asserts and crashes (Windows bug).
-    if (m_recording) return;
-
-    if (index < 0 || index >= m_cameras.size())
-        return;
-    if (m_cameras[index].selected == selected)
-        return;
+    if (index < 0 || index >= m_cameras.size()) return;
+    if (m_cameras[index].selected == selected) return;
 
     m_cameras[index].selected = selected;
 
+    // Snapshot buffer state before touching anything.
+    bool wasCapturing = m_eventBuffer &&
+                        m_eventBuffer->state() == pinpoint::BufferState::Capturing;
+
+    // Any change to device selection requires the buffer to be Paused so that
+    // registerSource() / deregisterSource() are called in a safe state.
+    // Note: pause() → resume() clears all ring buffers. Any data captured
+    // before this device change is discarded. This is intentional.
+    if (wasCapturing) m_eventBuffer->pause();
+
     if (selected) {
         m_cameras[index].controller = createController(m_cameras[index].device);
-        if (m_recording)
+        if (m_recording && m_cameras[index].controller)
             m_cameras[index].controller->startRecording();
     } else {
         VideoController *ctrl = m_cameras[index].controller;
         m_cameras[index].controller = nullptr;
-
-        // Notify QML first so the Repeater removes the delegate while the
-        // controller object is still alive.  deleteLater() then runs after the
-        // current event-loop turn, by which point the CameraView bindings are
-        // already gone and cannot dereference the deleted pointer.
-        emit cameraListChanged();
-        emit instancesChanged();
-
         if (ctrl) {
-            if (m_recording)
-                ctrl->stopRecording();
+            if (m_recording) ctrl->stopRecording();
+            ctrl->deregisterFromBuffer();
+            // Notify QML so the Repeater removes the delegate while the
+            // controller is still alive; deleteLater() defers the actual
+            // destruction until bindings have already been torn down.
+            emit cameraListChanged();
+            emit instancesChanged();
             ctrl->deleteLater();
         }
-        return;
     }
+
+    if (wasCapturing)
+        m_eventBuffer->resume();
 
     emit cameraListChanged();
     emit instancesChanged();
@@ -136,15 +136,12 @@ void CameraManager::setSelected(int index, bool selected)
 
 void CameraManager::startAll()
 {
-    if (m_recording)
-        return;
+    if (m_recording) return;
     m_recording = true;
     emit isRecordingChanged();
 
-    // Start the buffer before cameras so the first frames are captured.
-    if (m_eventBuffer && m_eventBuffer->state() == pinpoint::BufferState::Idle)
-        m_eventBuffer->start();
-
+    // Buffer is already Capturing (started in main.cpp at app launch).
+    // Start camera recording pipelines only — do NOT touch the buffer lifecycle.
     for (auto &cam : m_cameras) {
         if (cam.selected && cam.controller)
             cam.controller->startRecording();
@@ -155,18 +152,15 @@ void CameraManager::startAll()
 
 void CameraManager::stopAll()
 {
-    if (!m_recording)
-        return;
+    if (!m_recording) return;
     for (auto &cam : m_cameras) {
         if (cam.selected && cam.controller)
             cam.controller->stopRecording();
     }
     m_recording = false;
     emit isRecordingChanged();
-
-    if (m_eventBuffer && m_eventBuffer->state() != pinpoint::BufferState::Idle)
-        m_eventBuffer->stop();
-
+    // Buffer remains Capturing — do NOT call m_eventBuffer->stop().
+    // Ring memory stays allocated. Next startAll() resumes instantly.
     emit bufferStateChanged();
 }
 

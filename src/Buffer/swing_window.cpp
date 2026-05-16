@@ -24,7 +24,7 @@
 
 namespace pinpoint {
 
-SwingWindow::SwingWindow(const EventBuffer* buffer,
+SwingWindow::SwingWindow(EventBuffer* buffer,
                          std::vector<IndexEntry> entries,
                          int64_t start_us,
                          int64_t end_us)
@@ -32,7 +32,15 @@ SwingWindow::SwingWindow(const EventBuffer* buffer,
     , entries_(std::move(entries))
     , start_us_(start_us)
     , end_us_(end_us)
-{}
+{
+    if (buffer_)
+        buffer_->swing_window_live_.store(true, std::memory_order_release);
+}
+
+SwingWindow::~SwingWindow() {
+    if (buffer_)
+        buffer_->swing_window_live_.store(false, std::memory_order_release);
+}
 
 SwingWindow::SwingWindow(SwingWindow&& o) noexcept
     : buffer_(o.buffer_)
@@ -45,6 +53,8 @@ SwingWindow::SwingWindow(SwingWindow&& o) noexcept
 
 SwingWindow& SwingWindow::operator=(SwingWindow&& o) noexcept {
     if (this != &o) {
+        if (buffer_)
+            buffer_->swing_window_live_.store(false, std::memory_order_release);
         buffer_   = o.buffer_;
         entries_  = std::move(o.entries_);
         start_us_ = o.start_us_;

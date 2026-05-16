@@ -112,9 +112,9 @@ public:
     int     frameHeight()         const;
     double  configuredFps()       const;
 
-    // Called by CameraManager only — not Q_INVOKABLE so QML cannot bypass
-    // the uniqueness check enforced by CameraManager::setPerspective().
+    // Called by CameraManager only — not Q_INVOKABLE so QML cannot bypass.
     void setPerspective(int p);
+    void deregisterFromBuffer();
 
     Q_INVOKABLE void setVideoSink(QVideoSink *sink);
     Q_INVOKABLE void setBayerItem(QObject *item);   // called from QML with a BayerVideoItem

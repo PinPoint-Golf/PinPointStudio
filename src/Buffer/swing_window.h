@@ -42,7 +42,7 @@ public:
     SwingWindow(SwingWindow&&) noexcept;
     SwingWindow& operator=(SwingWindow&&) noexcept;
 
-    ~SwingWindow() = default;
+    ~SwingWindow();
 
     int64_t startTimestampUs() const noexcept { return start_us_; }
     int64_t endTimestampUs()   const noexcept { return end_us_; }
@@ -74,12 +74,12 @@ public:
 private:
     friend class EventBuffer;
 
-    SwingWindow(const EventBuffer* buffer,
+    SwingWindow(EventBuffer* buffer,
                 std::vector<IndexEntry> entries,
                 int64_t start_us,
                 int64_t end_us);
 
-    const EventBuffer*      buffer_;
+    EventBuffer*            buffer_;
     std::vector<IndexEntry> entries_;
     int64_t                 start_us_;
     int64_t                 end_us_;

@@ -66,19 +66,29 @@ ring that overwrites from the oldest end.
 
 ### The swing workflow
 
-1. The user opens the Video or IMU tab and starts capture. `CameraManager::startAll()`
-   calls `EventBuffer::start()` — the buffer begins filling continuously.
-2. The user swings. Data from cameras and IMUs is captured frame-by-frame into the
-   ring. Old data is silently overwritten as the ring wraps.
-3. Swing detection fires (manual button or automatic trigger). The application calls
-   `EventBuffer::pause()` — all producers stop writing, the merger quiesces, and the
-   ring freezes in place. No data is lost; the last 5 seconds are intact.
-4. `EventBuffer::captureSwingWindow(4000ms)` returns a `SwingWindow` — a frozen,
-   zero-copy view of the last 4 seconds of data across all sources.
-5. Analysis reads from the `SwingWindow`. Frames and IMU packets are accessed
-   directly from ring memory — no copies.
-6. The user dismisses the results. `EventBuffer::resume()` clears the rings and
-   restarts capture for the next swing.
+1. **App launch**: `EventBuffer::start()` is called in `main.cpp` with zero sources.
+   The merger thread runs quietly, sleeping efficiently until devices are registered.
+2. **Device selection**: The user selects cameras and IMUs from the UI.
+   `CameraManager::setSelected()` briefly pauses the buffer, calls
+   `registerSource()` (allocating ring memory once), then resumes. Ring memory
+   stays allocated until the device is deselected — it is never freed between swings.
+3. **Capture**: With sources registered, the buffer fills continuously. Camera frames
+   and IMU packets are published into their respective rings. Old data is silently
+   overwritten as rings wrap.
+4. **Swing detection**: Ball detection and IMU analysis fire a swing-complete event
+   (future feature). The application calls `EventBuffer::pause()` — producers stop
+   writing, the merger quiesces, rings freeze. The last 5 seconds are intact.
+5. **Analysis**: `EventBuffer::captureSwingWindow(4000ms)` returns a `SwingWindow` —
+   a frozen, zero-copy view. Frames and IMU packets are accessed directly from ring
+   memory — no copies.
+6. **Dismiss**: User dismisses results. The `SwingWindow` is destroyed (ring memory
+   stays allocated — only ring positions are reset), then `EventBuffer::resume()`
+   clears the positions and restarts capture for the next swing.
+7. **Device deselection**: When the user deselects a device, `CameraManager::setSelected()`
+   pauses the buffer, calls `deregisterSource()` (freeing ring memory immediately),
+   then resumes.
+8. **App exit**: `aboutToQuit` fires `EventBuffer::stop()`, joining the merger thread.
+   `~EventBuffer()` frees any remaining source rings.
 
 The buffer is invisible to QML. The `CameraManager` and `ImuController` in
 `src/Gui/` own the integration. The `BufferController` exposes diagnostic
@@ -229,8 +239,32 @@ buffer.stop();    // → Idle; merger thread joined
 
 ## 5. Registering Sources
 
-Registration must happen **before** `start()` and is permanent for the lifetime of
-the application (no hot-plug removal in v1).
+Registration is callable while `Idle` or `Paused`. The buffer does not need to be
+Idle — device selection can happen at any point as long as the buffer is paused first.
+`CameraManager::setSelected()` handles this automatically.
+
+**Memory is allocated at registration and freed at deregistration** — never between
+swings. This is deliberate: GB-scale ring allocations are expensive, and some operating
+systems do not fully return freed memory to the system on `free()`. Keep rings warm.
+
+### `deregisterSource()`
+
+```cpp
+// Deregister a source and immediately free its ring memory.
+// ONLY callable while Paused.
+// You MUST destroy any live SwingWindow before calling this.
+// After this call 'id' is invalid — further calls with it are safe no-ops.
+buffer.deregisterSource(id);
+```
+
+This is called automatically by `VideoController::deregisterFromBuffer()` when
+`CameraManager::setSelected(index, false)` is called.
+
+### `activeSourceCount()`
+
+```cpp
+size_t n = buffer.activeSourceCount();   // count of non-deregistered sources
+```
 
 ### `SourceDescriptor` fields
 
@@ -353,6 +387,11 @@ sources corrupts the timeline ordering.
 The buffer has four states. Transitions that are not listed are invalid and will
 assert in debug builds.
 
+**v6 model**: `start()` and `stop()` are app-level operations called once each
+(in `main.cpp`). `pause()` and `resume()` are the capture gate — called
+automatically by swing/ball detection. Device selection calls
+`registerSource()`/`deregisterSource()` with a brief internal pause/resume.
+
 ```
   [constructed]
        │
@@ -377,8 +416,10 @@ assert in debug builds.
 ### `start()` — Idle → Capturing
 
 Launches the merger thread, sets the `capturing_` flag so producers begin writing.
-The merger applies `ThreadPolicy::apply(ThreadRole::Merger)` at entry to elevate
-its scheduling priority (see Section 13).
+Valid with **zero registered sources** — the merger runs quietly, sleeping efficiently
+until sources are registered. Called once in `main.cpp` before any controllers
+are constructed. The merger applies `ThreadPolicy::apply(ThreadRole::Merger)` at
+entry to elevate its scheduling priority (see Section 13).
 
 ### `pause()` — Capturing → Paused
 
@@ -407,8 +448,9 @@ This is expected — subscriptions that span a resume are invalidated. Live cons
 ### `stop()` — Capturing or Paused → Idle
 
 If Capturing, internally calls `pause()` first. Then signals the merger to exit
-and joins its thread. The buffer returns to Idle and can be `start()`'ed again for
-the next session.
+and joins its thread. The buffer returns to Idle. Called once on app exit via
+`QObject::connect(&app, &QGuiApplication::aboutToQuit, ...)` in `main.cpp`.
+`~EventBuffer()` calls `stop()` as a safety net.
 
 ### State query
 
@@ -943,6 +985,25 @@ increments `bounds_violations`. The stored payload will be truncated — the con
 will see partial data with no error. Monitor `bounds_violations` in diagnostics.
 Camera registrations should use the actual frame size reported by the driver after
 the camera starts.
+
+### Calling `deregisterSource()` while a `SwingWindow` is live
+
+`deregisterSource()` asserts that `swing_window_live_` is false. If you call it while
+a `SwingWindow` exists that references data in that source's ring, you get a use-after-free.
+Always destroy the `SwingWindow` before deregistering any source. The typical flow:
+
+```cpp
+window = {};                           // destroy SwingWindow first
+buffer.deregisterSource(cam_id);       // now safe — ring memory freed
+```
+
+### Calling `deregisterSource()` while Capturing
+
+`deregisterSource()` asserts `Paused` state. It is never safe to free ring memory
+while the merger is running — the merger holds `SourceSlot&` references from its
+`drainSources` lambda. `CameraManager::setSelected()` handles the pause/deregister/resume
+sequence automatically — do not call `deregisterSource()` directly from application code
+unless you also manage the state transition.
 
 ### Mixing `QDateTime` or `QElapsedTimer` for timestamps
 

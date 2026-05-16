@@ -155,10 +155,21 @@ VideoController::VideoController(const Device &device, pinpoint::EventBuffer *bu
                  << "slot_bytes:" << desc.computeSlotBytes()
                  << "slots:" << desc.computeSlotCount();
 
+        // CameraManager::setSelected() ensures the buffer is Paused before
+        // creating this controller, so registration is always safe. Memory is
+        // allocated once and held until deregisterFromBuffer() is called on
+        // device deselection — it is NOT freed between swings.
         m_sourceId = m_eventBuffer->registerSource(desc);
     }
 
     setupPipeline();
+}
+
+void VideoController::deregisterFromBuffer()
+{
+    if (!m_eventBuffer || m_sourceId == pinpoint::kInvalidSourceId) return;
+    m_eventBuffer->deregisterSource(m_sourceId);
+    m_sourceId = pinpoint::kInvalidSourceId;
 }
 
 void VideoController::setupPipeline()

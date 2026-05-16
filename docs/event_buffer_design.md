@@ -1,8 +1,8 @@
 # Pinpoint Central Event Buffer — Design Document
 
-**Version**: 5 (Final)
+**Version**: 6 (Final)
 **Status**: Implementation Specification — Locked
-**Supersedes**: v1, v2, v3, v4
+**Supersedes**: v1, v2, v3, v4, v5
 
 ---
 
@@ -15,13 +15,14 @@
 | v3 | Chameleon3 validation; DMA transport abstraction per OS; hardware sync placeholders; C++20 toolchain validation; unprivileged thread priority strategy |
 | v4 | Performance/security/robustness review. Incorporated Rec-1,2,3,6,8,9,10,11,13,15,16. Desktop-first defaults locked. Lock-free on Linux/Windows; condition_variable fallback on macOS (accepted). Crash forensics deferred. |
 | v5 | Application lifecycle design. Added `BufferState` formal state machine, `pause()`/`resume()` API, `SwingWindow` protected time-range view, `WriteSlot::valid` flag in producer protocol, lifecycle section (Section 20), updated architectural decisions and open configuration parameters. |
+| v6 | Dynamic source registration. Lifted Idle-only registration constraint; added `deregisterSource()` with immediate memory release; sparse slot array with `slot_hwm_` / `active_sources_`; `SwingWindow` live-flag safety; buffer lifetime = app lifetime; `start()` valid with zero sources; `pause()`/`resume()` as the capture gate; `startAll()`/`stopAll()` control camera pipelines only. |
 
 ---
 
 ## 1. Design Goals
 
 1. **Central registration** — sources register; consumers subscribe to a unified timeline
-2. **Pre-allocated** — fixed 5s window, zero allocation on hot path after registration
+2. **Pre-allocated** — fixed 5s window per source, zero allocation on hot path after registration
 3. **Circular / drop-oldest** — overwrite tail when full, no producer backpressure
 4. **Lock-free on hot paths** — Linux/Windows native; macOS uses `condition_variable` for waits (accepted degradation)
 5. **Zero-copy where the OS API permits**, one copy where it does not
@@ -29,7 +30,8 @@
 7. **Real-time timestamps** — sub-100µs accuracy, single shared monotonic clock
 8. **Production observability** — per-source statistics, liveness monitoring, overrun detection
 9. **Desktop-first** — Windows and Linux desktop are primary targets; mobile platforms supported via configuration profiles
-10. **Application lifecycle** — buffer supports repeated start/pause/resume/stop cycles matching the swing capture → analysis → review → next swing workflow without DMA teardown between swings
+10. **Application lifecycle** — buffer lifetime equals app lifetime; `pause()`/`resume()` gate capture windows; device selection drives memory allocation
+11. **Dynamic device registration** — sources can be registered while `Idle` or `Paused` and deregistered while `Paused`; memory freed immediately on deregistration
 
 ---
 
@@ -41,7 +43,7 @@
 | 2 | **SPSC per source, SPMC index** — no MPMC anywhere |
 | 3 | **Seqlock-protected slots** — generation counters frame writes, consumers validate before/after |
 | 4 | **Sequence-number-based reads** — consumers track position, detect overruns explicitly |
-| 5 | **Dedicated merger thread** — k-way timestamp merge into the index |
+| 5 | **Dedicated merger thread** — k-way timestamp merge into the index; runs for app lifetime |
 | 6 | **Raw bytes + FormatDescriptor** — buffer never interprets payloads |
 | 7 | **Single shared `nowMicros()` monotonic clock** — used by all capture threads |
 | 8 | **Three transport classes** — `DirectDma`, `SingleCopy`, `StreamingRead` |
@@ -50,12 +52,15 @@
 | 11 | **`WaitFlag` abstraction** — lock-free on Linux/Windows, `condition_variable` on macOS/iOS (accepted degradation) |
 | 12 | **Unprivileged thread priority elevation** — graceful fallback where elevation requires admin |
 | 13 | **Desktop-first defaults** — 5s window, 1080p60 expected; mobile is a configuration profile, not a separate code path |
-| 14 | **Fixed-size, registration-time source lifecycle** — sources registered at startup, no hot-plug in v1 |
+| 14 | **Dynamic source lifecycle** — `registerSource()` callable while `Idle` or `Paused`; `deregisterSource()` callable while `Paused`; memory freed immediately on deregistration; `SourceId` is stable and may be reused after deregistration |
 | 15 | **Hard bounds enforcement in release builds** — defence in depth on the producer/consumer contract |
-| 16 | **Formal `BufferState` machine** — `Idle → Capturing → Paused → Capturing → Idle`; transitions are explicit, invalid transitions assert |
+| 16 | **Formal `BufferState` machine** — `Idle → Capturing → Paused → Capturing → ...`; transitions are explicit, invalid transitions assert |
 | 17 | **`pause()` does not tear down DMA** — producer capture threads quiesce via atomic flag; merger drains reorder heap; rings freeze. `resume()` reverses with no kernel calls |
-| 18 | **`SwingWindow` is only valid after `pause()`** — analysis reads a frozen buffer; no pin/reference-counting needed on slots; simplest correct design |
-| 19 | **`WriteSlot::valid` flag** — `acquireWriteSlot()` returns `valid = false` when paused; capture threads check this flag and return early from callbacks; no blocking in capture path |
+| 18 | **`SwingWindow` is only valid after `pause()`** — analysis reads a frozen buffer; `swing_window_live_` atomic flag prevents deregistration while a window is live |
+| 19 | **`WriteSlot::valid` flag** — `acquireWriteSlot()` returns `valid = false` when paused or when the source has been deregistered; capture threads check this flag and return early from callbacks; no blocking in capture path |
+| 20 | **Buffer lifetime = app lifetime** — `start()` called once at app launch with zero sources; `stop()` called on app exit via `aboutToQuit`; `pause()`/`resume()` are the capture gate driven by swing/ball detection; `startAll()`/`stopAll()` control camera pipelines only |
+| 21 | **Sparse slot array** — `sources_[MAX_SOURCES]` may contain null entries (deregistered slots); `slot_hwm_` is the iteration ceiling; `active_sources_` is the live count; null slots skipped atomically in all merger, watchdog, and diagnostics loops |
+| 21 | **Sparse slot array** — `sources_[MAX_SOURCES]` may contain null entries (deregistered slots); `slot_hwm_` is the high-water mark iterated by the merger; `active_sources_` is the live count; null slots skipped in all loops |
 
 ---
 
@@ -343,23 +348,38 @@ enum class BufferState {
 
 class EventBuffer {
 public:
-    EventBuffer();
-    ~EventBuffer();   // RAII: calls stop(), asserts all CaptureSource instances stopped
+    static constexpr size_t MAX_SOURCES = 16;
 
-    // --- Registration (startup only — see Section 2, Decision 14) ---
-    SourceId registerSource(const SourceDescriptor&);
+    explicit EventBuffer(EventBufferConfig cfg = {});
+    ~EventBuffer();   // RAII: calls stop() if not Idle
+
+    EventBuffer(const EventBuffer&)            = delete;
+    EventBuffer& operator=(const EventBuffer&) = delete;
+
+    // --- Registration ---
+    // registerSource: callable while Idle or Paused. NOT callable while Capturing.
+    // Allocates ring memory here. Reuses freed slots before extending hwm.
+    // Returns kInvalidSourceId if state is wrong or MAX_SOURCES exhausted.
+    SourceId registerSource(SourceDescriptor desc);
+
+    // deregisterSource: Paused state ONLY. Asserts no SwingWindow is live.
+    // Immediately frees all ring memory. SourceId becomes invalid thereafter.
+    void deregisterSource(SourceId id);
+
+    // Count of currently live (non-deregistered) sources.
+    size_t activeSourceCount() const noexcept;
 
     // --- Producer API ---
-    // Returns WriteSlot with valid=false when state != Capturing.
-    // Capture threads MUST check slot.valid before writing.
-    SourceRing::WriteSlot acquireWriteSlot(SourceId) noexcept;
-    SourceRing::WriteSlot getSlotByIndex(SourceId, size_t slot_idx) noexcept;
-    void                  publish(SourceId, uint64_t sequence) noexcept;
+    // acquireWriteSlot returns valid=false when state != Capturing
+    // or when id has been deregistered.
+    SourceRing::WriteSlot acquireWriteSlot(SourceId id) noexcept;
+    SourceRing::WriteSlot getSlotByIndex(SourceId id, size_t slot_idx) noexcept;
+    void                  publish(SourceId id, uint64_t sequence) noexcept;
 
     // DMA registration helpers (called by CaptureSource::start())
-    std::vector<std::byte*> getSlotPointers(SourceId)  const;
-    size_t                  getSlotCapacity(SourceId)  const;
-    size_t                  getSlotCount(SourceId)     const;
+    std::vector<std::byte*> getSlotPointers(SourceId id)  const;
+    size_t                  getSlotCapacity(SourceId id)  const;
+    size_t                  getSlotCount(SourceId id)     const;
 
     // --- Consumer API ---
     class Subscription {
@@ -371,50 +391,69 @@ public:
     };
     Subscription subscribe();
 
-    SourceRing::ReadHandle  acquireReadHandle(SourceId, uint64_t source_seq) const noexcept;
-    const FormatDescriptor& formatOf(SourceId) const;
-
-    // Post-processing range query (allocates; use SwingWindow for analysis)
+    SourceRing::ReadHandle  acquireReadHandle(SourceId id, uint64_t source_seq) const noexcept;
+    const FormatDescriptor& formatOf(SourceId id) const;
     std::vector<IndexEntry> snapshot(int64_t t_start_us, int64_t t_end_us);
 
     // --- Lifecycle ---
-    // See Section 20 for full state machine and transition rules.
+    // See Section 19 for full state machine and transition rules.
+    // start() is valid with zero registered sources.
     void        start();    // Idle → Capturing; launches merger thread
     void        pause();    // Capturing → Paused; quiesces producers and merger
-    void        resume();   // Paused → Capturing; restores capture, clears rings
+    void        resume();   // Paused → Capturing; clears rings, restores capture
     void        stop();     // Capturing|Paused → Idle; joins merger thread
-    BufferState state() const noexcept;
-    bool        isCapturing() const noexcept;   // convenience — true only in Capturing
+    BufferState state()       const noexcept;
+    bool        isCapturing() const noexcept;
 
-    // Swing window — only callable in Paused state (asserts otherwise)
+    // SwingWindow — only callable in Paused state.
+    // Sets swing_window_live_ flag; deregisterSource() asserts this is false.
     SwingWindow captureSwingWindow(int64_t t_start_us, int64_t t_end_us);
     SwingWindow captureSwingWindow(std::chrono::milliseconds trailing_duration);
 
     // --- Observability ---
-    const SourceStats&     statsFor(SourceId) const;
-    std::vector<SourceId>  stalledSources()   const;
+    const SourceStats&     statsFor(SourceId id) const;
+    std::vector<SourceId>  stalledSources() const;
+    DiagnosticsSnapshot    diagnostics() const;
 
     // --- Clock ---
     static int64_t nowMicros() noexcept;
 
-    static constexpr size_t MAX_SOURCES = 16;
-
 private:
+    friend class SwingWindow;
+
+    struct SourceSlot {
+        SourceDescriptor            desc;
+        std::unique_ptr<SourceRing> ring;
+        uint64_t                    next_seq = 0;
+        std::atomic<bool>           stalled{false};
+    };
+
+    EventBufferConfig config_;
+
+    // Sparse slot array — null entries are deregistered sources.
     std::array<std::unique_ptr<SourceSlot>, MAX_SOURCES> sources_;
-    size_t source_count_ = 0;
+    size_t slot_hwm_       = 0;   // highest index ever assigned + 1
+    size_t active_sources_ = 0;   // count of non-null slots
+
+    std::atomic<bool> swing_window_live_{false};  // guards deregisterSource()
 
     TimelineIndex index_;
     WaitFlag      index_wait_;
+    alignas(64) WaitFlag source_published_;
 
-    std::thread              merger_thread_;
-    std::atomic<BufferState> state_{BufferState::Idle};
-    std::atomic<bool>        capturing_{false};   // hot-path flag for producers
+    alignas(64) std::atomic<bool>     capturing_{false};
+    std::atomic<BufferState>           state_{BufferState::Idle};
+    std::atomic<bool>                  running_{false};
+    std::atomic<bool>                  draining_{false};
+    std::atomic<bool>                  drained_{false};
+    std::atomic<uint64_t>              sub_gen_{0};
 
+    std::thread merger_thread_;
     std::chrono::steady_clock::time_point last_watchdog_tick_;
 
+    int  findSlotIndex(SourceId id) const noexcept;
     void mergerLoop();
-    void watchdogTick();
-    void drainMergerReorderHeap();   // called during pause() to flush pending events
+    void maybeRunWatchdog();
 };
 ```
 
@@ -732,7 +771,8 @@ void EventBuffer::maybeRunWatchdog() {
     last_watchdog_tick_ = now;
 
     int64_t now_us = EventBuffer::nowMicros();
-    for (size_t i = 0; i < source_count_; ++i) {
+    for (size_t i = 0; i < slot_hwm_; ++i) {
+        if (!sources_[i]) continue;           // deregistered slot — skip
         auto& src       = *sources_[i];
         int64_t last_ts = src.ring->stats().last_write_timestamp_us
                                            .load(std::memory_order_relaxed);
@@ -1224,53 +1264,72 @@ builds and are no-ops in release.
 
 ### 19.3 Typical Application Flow
 
-```
-// App startup
+The buffer runs for the lifetime of the application. Memory is allocated once
+per device selection and freed on deselection — never freed between swings.
+
+```cpp
+// ── App startup ──────────────────────────────────────────────────────────
 EventBuffer buffer;
-buffer.registerSource(cam0_desc);
-buffer.registerSource(cam1_desc);
-buffer.registerSource(imu0_desc);
-// ... register all sources ...
+buffer.start();   // zero sources — valid; merger runs idle, negligible cost
 
-cam0.start(buffer, cam0_id);
-cam1.start(buffer, cam1_id);
-imu0.start(buffer, imu0_id);
+// Controllers constructed after start(). Sources register when user selects
+// devices from the UI — each registerSource() call allocates ring memory once.
+CameraManager cameraManager(&buffer);
+ImuController imuController(&buffer);
 
-// --- Swing session loop ---
+// Clean shutdown wired to app exit signal
+QObject::connect(&app, &QCoreApplication::aboutToQuit, [&buffer]() {
+    buffer.stop();
+});
+
+// ── User selects Camera 0 ─────────────────────────────────────────────────
+// cameraManager.setSelected(0, true) internally calls:
+//   buffer.pause()
+//   buffer.registerSource(cam0_desc)   ← GB allocated HERE, ONCE
+//   buffer.resume()
+// Camera frame callbacks begin publishing immediately.
+
+// ── User selects IMU 0 ───────────────────────────────────────────────────
+// Similar: pause → registerSource(imu0_desc) → resume
+
+// ── Swing capture loop (no start/stop between swings) ────────────────────
 while (session_active) {
 
-    // 1. Start capturing
-    buffer.start();
-    ui.showLivePreview();
+    // Buffer is Capturing continuously. Rings fill and wrap silently.
 
-    // 2. Wait for swing detection (external trigger or user action)
-    swing_detector.waitForSwing();
+    // Ball detection fires swing-complete event (future feature):
+    buffer.pause();   // rings frozen — last 5s intact
 
-    // 3. Freeze the buffer — all data intact
-    buffer.pause();
-
-    // 4. Grab the swing window (last 4 seconds covers backswing + downswing + follow-through)
+    // Grab swing window — zero copy into frozen ring
     auto window = buffer.captureSwingWindow(std::chrono::milliseconds(4000));
 
-    // 5. Analyse — window is frozen, zero-copy access to all frames and IMU data
+    // Analyse — window guaranteed valid while buffer is Paused
     auto result = swing_analyser.analyse(window);
-
-    // 6. Show results to user — window stays alive as long as needed
     ui.showAnalysis(result, window);
 
-    // 7. User dismisses results — window released, next swing
-    // window goes out of scope here — RAII, no explicit free needed
+    // User dismisses — destroy window BEFORE resume
+    window = {};   // ring memory stays allocated — only positions reset
 
-    // 8. Restart for next swing (clears rings, clean timeline)
-    buffer.resume();
+    buffer.resume();   // rings cleared, capturing resumes immediately
 }
 
-// App shutdown
-buffer.stop();
-cam0.stop();   // CaptureSource RAII — DMA STREAMOFF happens here
-cam1.stop();
-imu0.stop();
+// ── User deselects Camera 0 ──────────────────────────────────────────────
+// cameraManager.setSelected(0, false) internally calls:
+//   buffer.pause()
+//   buffer.deregisterSource(cam0_id)   ← GB freed HERE
+//   buffer.resume()
+
+// ── App exit ─────────────────────────────────────────────────────────────
+// aboutToQuit fires → buffer.stop() → merger joined
+// ~EventBuffer() frees any remaining registered sources
 ```
+
+**Key differences from earlier versions:**
+- `buffer.start()` is called once at app launch, not per feature session
+- `buffer.stop()` is called once on app exit, not per feature session
+- `pause()`/`resume()` gate each capture window (driven by ball/swing detection)
+- `registerSource()` / `deregisterSource()` are the device selection API
+- `startAll()` / `stopAll()` in `CameraManager` control camera pipelines only
 
 ### 19.4 Thread Safety of State Transitions
 
@@ -1319,7 +1378,9 @@ public:
 
     // RAII — releasing the SwingWindow does not resume the buffer.
     // The application calls buffer.resume() explicitly when ready.
-    ~SwingWindow() = default;
+    // Destructor clears EventBuffer::swing_window_live_ — this unblocks
+    // any pending deregisterSource() call which asserts the flag is false.
+    ~SwingWindow();
 
     // Time range
     int64_t startTimestampUs() const noexcept;
@@ -1442,7 +1503,7 @@ Revisit when the listed condition is met. Do not implement speculatively.
 | Merger sharding | Source count exceeds 10 |
 | `std::variant` / `std::function` elimination | Profiling shows > 2% time in dispatch |
 | Active hardware sync (HardwarePts / HardwareTrigger) | Hardware sync acquisition confirmed |
-| Hot-plug source support | UX requirement defined |
+| Hot-plug source support (re-registration while Capturing) | UX requirement defined — deregister/register while Paused is supported; Capturing-state hot-plug requires locking not yet present |
 | Mobile buffer profile | Mobile platform launch |
 | MJPEG / variable-payload validation path | First MJPEG-capable camera integrated |
 | `SwingWindow::copyPayloads()` — materialise frames to owned memory | Multi-swing comparison feature requested |

@@ -387,3 +387,133 @@ TEST(EventBufferSoak, ThirtySecondStressNoBloat) {
 
     EXPECT_GT(consumed.load(), 0u);
 }
+
+// ---------------------------------------------------------------------------
+// Phase 5: dynamic source registration / deregistration
+// ---------------------------------------------------------------------------
+
+static SourceDescriptor makeImuDescriptor(const std::string& name, uint32_t hz = 200) {
+    SourceDescriptor d = makeImu(hz);
+    d.name = name;
+    return d;
+}
+
+TEST(EventBuffer, StartWithZeroSources) {
+    pinpoint::EventBuffer buf;
+    ASSERT_NO_THROW(buf.start());
+    // With no sources the buffer auto-pauses and waits for the first source.
+    EXPECT_EQ(buf.state(), pinpoint::BufferState::Paused);
+    EXPECT_EQ(buf.activeSourceCount(), 0u);
+    buf.stop();
+    EXPECT_EQ(buf.state(), pinpoint::BufferState::Idle);
+}
+
+TEST(EventBuffer, RegisterWhilePaused) {
+    pinpoint::EventBuffer buf;
+    buf.start();  // auto-pauses: no sources
+    EXPECT_EQ(buf.state(), pinpoint::BufferState::Paused);
+
+    pinpoint::SourceId id = buf.registerSource(makeImuDescriptor("test_imu"));
+    EXPECT_NE(id, pinpoint::kInvalidSourceId);
+    EXPECT_EQ(buf.activeSourceCount(), 1u);
+    // Caller controls resume.
+    EXPECT_EQ(buf.state(), pinpoint::BufferState::Paused);
+    buf.resume();
+    EXPECT_EQ(buf.state(), pinpoint::BufferState::Capturing);
+
+    buf.stop();
+}
+
+TEST(EventBuffer, DeregisterFreesSlotForReuse) {
+    pinpoint::EventBuffer buf;
+    buf.start();  // auto-pauses: no sources
+
+    auto id0 = buf.registerSource(makeImuDescriptor("imu_0"));
+    auto id1 = buf.registerSource(makeImuDescriptor("imu_1"));
+    EXPECT_EQ(buf.activeSourceCount(), 2u);
+
+    buf.deregisterSource(id0);
+    EXPECT_EQ(buf.activeSourceCount(), 1u);
+
+    // New registration must reuse slot 0.
+    auto id2 = buf.registerSource(makeImuDescriptor("imu_new"));
+    EXPECT_EQ(id2, id0);
+    EXPECT_EQ(buf.activeSourceCount(), 2u);
+
+    buf.resume();
+    buf.stop();
+    (void)id1;
+}
+
+TEST(EventBuffer, DeregisterWhileCapturingAsserts) {
+    pinpoint::EventBuffer buf;
+    buf.start();  // auto-pauses
+    auto id = buf.registerSource(makeImuDescriptor("imu"));
+    buf.resume();  // caller resumes
+
+#ifndef NDEBUG
+    EXPECT_DEATH(buf.deregisterSource(id), "Paused");
+#endif
+    buf.stop();
+}
+
+TEST(EventBuffer, DeregisterWithLiveSwingWindowAsserts) {
+    pinpoint::EventBuffer buf(zeroReorder());
+    buf.start();  // auto-pauses
+    auto id = buf.registerSource(makeImuDescriptor("imu"));
+    buf.resume();  // caller resumes
+
+    writeEvents(buf, id, 10, EventBuffer::nowMicros() - 100'000, 1'000);
+    std::this_thread::sleep_for(20ms);
+    buf.pause();
+
+#ifndef NDEBUG
+    {
+        auto window = buf.captureSwingWindow(std::chrono::milliseconds(1000));
+        EXPECT_DEATH(buf.deregisterSource(id), "SwingWindow");
+        // window destroyed at end of scope — swing_window_live_ cleared
+    }
+#endif
+
+    ASSERT_NO_THROW(buf.deregisterSource(id));
+    buf.resume();
+    buf.stop();
+}
+
+TEST(EventBuffer, SourceRegisterDeregisterRegisterCycle) {
+    pinpoint::EventBuffer buf(zeroReorder());
+    buf.start();  // auto-pauses: no sources
+    EXPECT_EQ(buf.activeSourceCount(), 0u);
+    EXPECT_EQ(buf.state(), pinpoint::BufferState::Paused);
+
+    auto id = buf.registerSource(makeImuDescriptor("imu"));
+    buf.resume();  // caller controls when to start capturing
+
+    for (int i = 0; i < 100; ++i) {
+        auto slot = buf.acquireWriteSlot(id);
+        ASSERT_TRUE(slot.valid);
+        *slot.timestamp_us  = EventBuffer::nowMicros();
+        *slot.bytes_written = 4;
+        buf.publish(id, slot.sequence);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    std::this_thread::sleep_for(20ms);
+
+    EXPECT_GT(buf.statsFor(id).events_written.load(), 0u);
+
+    buf.pause();
+    buf.deregisterSource(id);
+    EXPECT_EQ(buf.activeSourceCount(), 0u);
+
+    // acquireWriteSlot with a dead id is a safe no-op.
+    auto slot = buf.acquireWriteSlot(id);
+    EXPECT_FALSE(slot.valid);
+
+    // Re-register — slot 0 reused. Caller resumes when ready.
+    auto id2 = buf.registerSource(makeImuDescriptor("imu_new"));
+    EXPECT_EQ(id2, id);
+    EXPECT_EQ(buf.state(), pinpoint::BufferState::Paused);
+    buf.resume();
+    EXPECT_EQ(buf.state(), pinpoint::BufferState::Capturing);
+    buf.stop();
+}

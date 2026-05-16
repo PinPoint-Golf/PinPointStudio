@@ -108,15 +108,24 @@ EventBuffer::~EventBuffer() {
 // ---------------------------------------------------------------------------
 
 SourceId EventBuffer::registerSource(SourceDescriptor desc) {
-    assert(state_.load(std::memory_order_acquire) == BufferState::Idle
-           && "registerSource must be called before start()");
+    auto st = state_.load(std::memory_order_acquire);
+    assert((st == BufferState::Idle || st == BufferState::Paused)
+           && "registerSource requires Idle or Paused state");
+    if (st != BufferState::Idle && st != BufferState::Paused)
+        return kInvalidSourceId;
 
-    if (source_count_ >= MAX_SOURCES)
-        throw std::runtime_error("EventBuffer: MAX_SOURCES exceeded");
+    // Find a free slot: prefer reusing a deregistered slot, then extend hwm.
+    SourceId id = kInvalidSourceId;
+    for (size_t i = 0; i < slot_hwm_; ++i) {
+        if (!sources_[i]) { id = static_cast<SourceId>(i); break; }
+    }
+    if (id == kInvalidSourceId) {
+        if (slot_hwm_ >= MAX_SOURCES)
+            throw std::runtime_error("EventBuffer: MAX_SOURCES exceeded");
+        id = static_cast<SourceId>(slot_hwm_++);
+    }
 
-    SourceId id = static_cast<SourceId>(source_count_);
     desc.id = id;
-
     size_t slot_count = desc.computeSlotCount();
     size_t slot_bytes = desc.computeSlotBytes();
 
@@ -124,8 +133,35 @@ SourceId EventBuffer::registerSource(SourceDescriptor desc) {
     slot->desc = std::move(desc);
     slot->ring = std::make_unique<SourceRing>(id, slot_count, slot_bytes,
                                               &capturing_);
-    sources_[source_count_++] = std::move(slot);
+    sources_[id] = std::move(slot);
+    ++active_sources_;
     return id;
+}
+
+void EventBuffer::deregisterSource(SourceId id) {
+    assert(state_.load(std::memory_order_acquire) == BufferState::Paused
+           && "deregisterSource requires Paused state");
+    assert(!swing_window_live_.load(std::memory_order_acquire)
+           && "deregisterSource called while a SwingWindow is live — "
+              "destroy the SwingWindow before deregistering sources");
+
+    int idx = findSlotIndex(id);
+    if (idx < 0) return;  // already deregistered or invalid — no-op
+
+    // Destroy the unique_ptr — frees ring memory via AlignedDeleter.
+    sources_[id].reset();
+    --active_sources_;
+    // slot_hwm_ is NOT decremented — the index may be reused by a future
+    // registerSource() call (which scans for null entries).
+
+    // If this was the last source, flag that the next registerSource() should
+    // auto-resume (resume() will be blocked until then).
+    if (active_sources_ == 0)
+        no_source_paused_ = true;
+}
+
+size_t EventBuffer::activeSourceCount() const noexcept {
+    return active_sources_;
 }
 
 // ---------------------------------------------------------------------------
@@ -133,9 +169,9 @@ SourceId EventBuffer::registerSource(SourceDescriptor desc) {
 // ---------------------------------------------------------------------------
 
 int EventBuffer::findSlotIndex(SourceId id) const noexcept {
-    // Source IDs are assigned sequentially from 0 == their index.
-    if (id < source_count_ && sources_[id]) return static_cast<int>(id);
-    return -1;
+    if (id >= static_cast<SourceId>(slot_hwm_)) return -1;
+    if (!sources_[id]) return -1;  // deregistered
+    return static_cast<int>(id);
 }
 
 SourceRing::WriteSlot EventBuffer::acquireWriteSlot(SourceId id) noexcept {
@@ -215,7 +251,8 @@ const SourceStats& EventBuffer::statsFor(SourceId id) const {
 
 std::vector<SourceId> EventBuffer::stalledSources() const {
     std::vector<SourceId> result;
-    for (size_t i = 0; i < source_count_; ++i) {
+    for (size_t i = 0; i < slot_hwm_; ++i) {
+        if (!sources_[i]) continue;
         if (sources_[i]->stalled.load(std::memory_order_acquire))
             result.push_back(sources_[i]->desc.id);
     }
@@ -244,7 +281,7 @@ SwingWindow EventBuffer::captureSwingWindow(int64_t t_start_us,
     assert(state_.load(std::memory_order_acquire) == BufferState::Paused
            && "captureSwingWindow requires Paused state");
     auto entries = index_.snapshot(t_start_us, t_end_us);
-    return SwingWindow(this, std::move(entries), t_start_us, t_end_us);
+    return SwingWindow(this, std::move(entries), t_start_us, t_end_us); // sets swing_window_live_
 }
 
 SwingWindow EventBuffer::captureSwingWindow(
@@ -276,7 +313,8 @@ void EventBuffer::mergerLoop() {
     // Returns true if any new event was pulled.
     auto drainSources = [&]() -> bool {
         bool any = false;
-        for (size_t i = 0; i < source_count_; ++i) {
+        for (size_t i = 0; i < slot_hwm_; ++i) {
+            if (!sources_[i]) continue;         // deregistered slot
             auto& slot = *sources_[i];
             if (state.heads[i].valid) continue; // head already filled
 
@@ -307,7 +345,8 @@ void EventBuffer::mergerLoop() {
     auto computeSafe = [&]() -> int64_t {
         int64_t min_ts = INT64_MAX;
         bool    any    = false;
-        for (size_t i = 0; i < source_count_; ++i) {
+        for (size_t i = 0; i < slot_hwm_; ++i) {
+            if (!sources_[i]) continue;         // deregistered slot
             int64_t ts = sources_[i]->ring->stats()
                              .last_write_timestamp_us.load(std::memory_order_relaxed);
             if (ts == 0) continue; // source never written
@@ -417,7 +456,8 @@ void EventBuffer::maybeRunWatchdog() {
     last_watchdog_tick_ = now;
 
     int64_t now_us = EventBuffer::nowMicros();
-    for (size_t i = 0; i < source_count_; ++i) {
+    for (size_t i = 0; i < slot_hwm_; ++i) {
+        if (!sources_[i]) continue;
         auto& src = *sources_[i];
 
         if (src.desc.expected_interarrival_us.count() == 0) continue;
@@ -452,7 +492,8 @@ EventBuffer::DiagnosticsSnapshot EventBuffer::diagnostics() const {
     snap.state = state_.load(std::memory_order_acquire);
     snap.snapshot_timestamp_us = nowMicros();
     snap.timeline_entries = index_.latestSequence();
-    for (size_t i = 0; i < source_count_; ++i) {
+    for (size_t i = 0; i < slot_hwm_; ++i) {
+        if (!sources_[i]) continue;
         const auto& src = *sources_[i];
         const auto& s   = src.ring->stats();
         DiagnosticsSnapshot::SourceInfo info{};
@@ -481,11 +522,22 @@ void EventBuffer::start() {
            && "start() requires Idle state");
     if (state_.load(std::memory_order_acquire) != BufferState::Idle) return;
 
-    draining_.store(false, std::memory_order_relaxed);
-    drained_.store(false, std::memory_order_relaxed);
-    capturing_.store(true, std::memory_order_release);
     running_.store(true, std::memory_order_release);
-    state_.store(BufferState::Capturing, std::memory_order_release);
+    drained_.store(false, std::memory_order_relaxed);
+
+    if (active_sources_ == 0) {
+        // No sources yet — start Paused so registerSource() can be called
+        // safely. The first registerSource() will auto-resume.
+        no_source_paused_ = true;
+        capturing_.store(false, std::memory_order_release);
+        draining_.store(true, std::memory_order_release);
+        state_.store(BufferState::Paused, std::memory_order_release);
+    } else {
+        no_source_paused_ = false;
+        capturing_.store(true, std::memory_order_release);
+        draining_.store(false, std::memory_order_relaxed);
+        state_.store(BufferState::Capturing, std::memory_order_release);
+    }
 
     merger_thread_ = std::thread([this] { mergerLoop(); });
 }
@@ -515,8 +567,17 @@ void EventBuffer::resume() {
            && "resume() requires Paused state");
     if (state_.load(std::memory_order_acquire) != BufferState::Paused) return;
 
+    // Refuse to resume with no sources — stay Paused until at least one
+    // source registers, at which point registerSource() auto-resumes.
+    if (active_sources_ == 0) {
+        no_source_paused_ = true;
+        return;
+    }
+    no_source_paused_ = false;
+
     if (config_.resume_clear_rings) {
-        for (size_t i = 0; i < source_count_; ++i) {
+        for (size_t i = 0; i < slot_hwm_; ++i) {
+            if (!sources_[i]) continue;
             sources_[i]->ring->reset();
             sources_[i]->next_seq = 0;
         }
