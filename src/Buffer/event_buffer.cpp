@@ -337,8 +337,17 @@ void EventBuffer::mergerLoop() {
                     any = true;
                     break;
                 } else {
-                    // Overrun: skip to current write head.
-                    next = write_seq;
+                    // peekTimestamp returned false for one of two reasons:
+                    //   (a) the slot is being written right now (gen=odd) — transient;
+                    //       the producer just advanced write_seq before finishing the copy,
+                    //       which can take several milliseconds on some platforms (e.g. macOS
+                    //       AVFoundation frame mapping).  Do NOT skip: retry next iteration.
+                    //   (b) genuine ring overrun: the producer lapped the merger by more than
+                    //       slot_count entries.  Skip to the current write head.
+                    uint64_t ws_now = slot.ring->writeSequence();
+                    if ((ws_now - next) > slot.ring->slotCount())
+                        next = ws_now; // genuine overrun
+                    // else: slot being written — break and retry without advancing next
                     break;
                 }
             }
