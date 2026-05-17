@@ -31,52 +31,30 @@ ApplicationWindow {
     color: Theme.colorBg
     font.family: Theme.fontBody
 
-    ColumnLayout {
+    RowLayout {
         anchors.fill: parent
         spacing: 0
 
-        TabBar {
-            id: tabBar
-            Layout.fillWidth: true
-            background: Rectangle { color: Theme.colorBg2 }
-
-            Repeater {
-                model: [qsTr("IMU"), qsTr("Audio"), qsTr("Video"), qsTr("Film")]
-                delegate: TabButton {
-                    required property string modelData
-                    required property int index
-                    text: modelData
-                    contentItem: Text {
-                        text: parent.text
-                        color: parent.checked ? Theme.colorText : Theme.colorText3
-                        font.family: Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        font.weight: Font.Normal
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    background: Rectangle {
-                        color: parent.checked ? Theme.colorBg : Theme.colorBg2
-                        Rectangle {
-                            anchors.bottom: parent.bottom
-                            width: parent.width
-                            height: 2
-                            color: parent.parent.checked ? Theme.colorAccent : "transparent"
-                        }
-                    }
-                }
-            }
+        PpRail {
+            id: rail
+            Layout.fillHeight: true
+            // implicitWidth declared in PpRail.qml drives the column width
+            currentPageIndex: contentStack.currentIndex
+            onPageRequested: function(index) { contentStack.currentIndex = index }
         }
 
         StackLayout {
+            id: contentStack
             Layout.fillWidth: true
             Layout.fillHeight: true
-            currentIndex: tabBar.currentIndex
+            currentIndex: 0
 
-            CapturePage {}
-            AudioPage {}
-            VideoPage {}
-            FilmPage {}
+            ScreenWelcome   {}                                         // 0 — opening / default
+            ScreenPlaceholder { iconText: "◑"; titleText: "Swing"  }  // 1
+            ScreenPlaceholder { iconText: "⌖"; titleText: "Wrist"  }  // 2
+            ScreenPlaceholder { iconText: "⇅"; titleText: "GRF"    }  // 3
+            ScreenPlaceholder { iconText: "✦"; titleText: "Coach"  }  // 4
+            PlayPage {}                                                // 5 — Play dev-hatch only
         }
     }
 }

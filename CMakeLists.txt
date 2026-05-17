@@ -153,6 +153,12 @@ qt_add_qml_module(PinPoint
         src/Gui/FilmPage.qml
         src/Gui/VideoPage.qml
         src/Gui/CameraView.qml
+        src/Gui/PpRail.qml
+        src/Gui/PpRailButton.qml
+        src/Gui/PpDivider.qml
+        src/Gui/PlayPage.qml
+        src/Gui/ScreenWelcome.qml
+        src/Gui/ScreenPlaceholder.qml
     SOURCES
         src/Video/bayer_video_item.h
         src/Video/bayer_video_item.cpp
