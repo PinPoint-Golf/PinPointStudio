@@ -6,6 +6,7 @@ A golf swing analysis app that extracts kinematic metrics using IMUs and compute
 - [Building Instructions](BUILDING.md) — How to resolve dependencies and build PinPoint.
 
 ## Developers
+- [UX Design](docs/pinpoint-ux-design.md) — UI structure, tab layout, and interaction design rationale.
 - [EventBuffer Design](docs/event_buffer_design.md) — Architecture and design rationale for the lock-free EventBuffer.
 - [EventBuffer Developer Guide](docs/event_buffer_developer_guide.md) — Tutorial covering usage, threading model, and integration patterns.
 
