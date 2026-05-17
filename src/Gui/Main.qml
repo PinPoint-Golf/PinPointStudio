@@ -50,7 +50,7 @@ ApplicationWindow {
             currentIndex: 0
 
             ScreenWelcome   {}                                         // 0 — opening / default
-            ScreenPlaceholder { iconText: "◑"; titleText: "Swing"  }  // 1
+            VideoPage       {}                                         // 1 — Swing
             ScreenPlaceholder { iconText: "⌖"; titleText: "Wrist"  }  // 2
             ScreenPlaceholder { iconText: "⇅"; titleText: "GRF"    }  // 3
             ScreenPlaceholder { iconText: "✦"; titleText: "Coach"  }  // 4

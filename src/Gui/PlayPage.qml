@@ -33,7 +33,7 @@ Item {
             background: Rectangle { color: Theme.colorBg2 }
 
             Repeater {
-                model: [qsTr("IMU"), qsTr("Audio"), qsTr("Video"), qsTr("Film")]
+                model: [qsTr("IMU"), qsTr("Audio")]
                 delegate: TabButton {
                     required property string modelData
                     required property int index
@@ -67,8 +67,6 @@ Item {
 
             CapturePage {}
             AudioPage {}
-            VideoPage {}
-            FilmPage {}
         }
     }
 }
