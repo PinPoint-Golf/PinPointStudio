@@ -20,6 +20,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Controls.Basic
+import PinPoint
 
 Item {
 
@@ -30,13 +31,13 @@ Item {
 
         handle: Rectangle {
             implicitHeight: 8
-            color: SplitHandle.hovered || SplitHandle.pressed ? "#585b70" : "#45475a"
+            color: SplitHandle.hovered || SplitHandle.pressed ? Theme.colorBg3 : Theme.colorBg2
 
             Rectangle {
                 width: 40; height: 2
                 anchors.centerIn: parent
                 radius: 1
-                color: "#6c7086"
+                color: Theme.colorText3
             }
         }
 
@@ -53,9 +54,10 @@ Item {
 
                 Label {
                     text: "Live Transcript"
-                    color: "#cdd6f4"
-                    font.pixelSize: 20
-                    font.bold: true
+                    color: Theme.colorText
+                    font.family: Theme.fontBody
+                    font.pixelSize: Theme.fontSzHeading
+                    font.weight: Font.Normal
                 }
 
                 ScrollView {
@@ -69,13 +71,15 @@ Item {
                         readOnly: true
                         text: controller.transcript
                         wrapMode: TextArea.Wrap
-                        color: "#cdd6f4"
-                        font.pixelSize: 14
-                        font.family: "Menlo, Monaco, monospace"
+                        color: Theme.colorText
+                        font.family: Theme.fontData
+                        font.pixelSize: Theme.fontSzBody
                         padding: 12
                         background: Rectangle {
-                            color: "#313244"
-                            radius: 6
+                            color: Theme.colorSurface
+                            radius: Theme.radius
+                            border.width: 1
+                            border.color: Theme.colorBorderMid
                         }
                         onTextChanged: scrollView.ScrollBar.vertical.position =
                             Math.max(0, 1.0 - scrollView.ScrollBar.vertical.size)
@@ -92,16 +96,18 @@ Item {
                         onClicked: controller.startListening()
                         contentItem: Text {
                             text: listenButton.text
-                            color: listenButton.enabled ? "#1e1e2e" : "#6c7086"
-                            font.pixelSize: 13
+                            color: listenButton.enabled ? Theme.colorBg : Theme.colorText3
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody
+                            font.weight: Font.Normal
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
                         background: Rectangle {
                             color: listenButton.enabled
-                                   ? (listenButton.pressed ? "#a6e3a1" : "#40a02b")
-                                   : "#313244"
-                            radius: 6
+                                   ? (listenButton.pressed ? Qt.darker(Theme.colorAccent, 1.1) : Theme.colorAccent)
+                                   : Theme.colorBg3
+                            radius: Theme.radius
                         }
                     }
 
@@ -112,23 +118,27 @@ Item {
                         onClicked: controller.stopListening()
                         contentItem: Text {
                             text: stopListenButton.text
-                            color: stopListenButton.enabled ? "#1e1e2e" : "#6c7086"
-                            font.pixelSize: 13
+                            color: stopListenButton.enabled ? Theme.colorWarn : Theme.colorText3
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody
+                            font.weight: Font.Normal
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
                         background: Rectangle {
                             color: stopListenButton.enabled
-                                   ? (stopListenButton.pressed ? "#f38ba8" : "#e64553")
-                                   : "#313244"
-                            radius: 6
+                                   ? Theme.colorWarnLight
+                                   : Theme.colorBg3
+                            border.width: stopListenButton.enabled ? 1 : 0
+                            border.color: Qt.rgba(Theme.colorWarn.r, Theme.colorWarn.g, Theme.colorWarn.b, 0.5)
+                            radius: Theme.radius
                         }
                     }
 
                     Rectangle {
                         visible: controller.isListening
-                        width: 10; height: 10; radius: 5
-                        color: "#a6e3a1"
+                        width: 8; height: 8; radius: 4
+                        color: Theme.colorGood
                         SequentialAnimation on opacity {
                             running: controller.isListening
                             loops: Animation.Infinite
@@ -140,8 +150,9 @@ Item {
                     Label {
                         visible: controller.isListening
                         text: qsTr("Listening…")
-                        color: "#a6e3a1"
-                        font.pixelSize: 13
+                        color: Theme.colorGood
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
                     }
 
                     Item { Layout.fillWidth: true }
@@ -151,15 +162,25 @@ Item {
                         text: controller.lastSttLatencyMs < 1000
                               ? controller.lastSttLatencyMs + "ms"
                               : (controller.lastSttLatencyMs / 1000).toFixed(1) + "s"
-                        color: "#6c7086"
-                        font.pixelSize: 10
+                        color: Theme.colorText3
+                        font.family: Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
                     }
 
+                    // STT backend badge
                     Rectangle {
-                        radius: 3
-                        color: controller.sttBackend === "CPU"   ? "#2a2a3a"
-                             : controller.sttBackend === "Cloud" ? "#1a2a3a"
-                             : "#1a3a2a"
+                        radius: Theme.radius
+                        color: controller.sttBackend === "Cloud"
+                               ? Theme.colorAccentLight
+                               : controller.sttBackend !== "" && controller.sttBackend !== "CPU"
+                                 ? Theme.colorGoodLight
+                                 : Theme.colorBg3
+                        border.width: 1
+                        border.color: controller.sttBackend === "Cloud"
+                                      ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.25)
+                                      : controller.sttBackend !== "" && controller.sttBackend !== "CPU"
+                                        ? Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.25)
+                                        : Theme.colorBorderMid
                         implicitWidth: sttBackendBadge.implicitWidth + 10
                         implicitHeight: sttBackendBadge.implicitHeight + 4
                         ToolTip.visible: sttBackendHover.hovered
@@ -183,14 +204,15 @@ Item {
                         Label {
                             id: sttBackendBadge
                             anchors.centerIn: parent
-                            text: controller.sttBackend !== "" ? controller.sttBackend
-                                                               : qsTr("CPU")
-                            color: controller.sttBackend === "Cloud" ? "#89b4fa"
-                                 : controller.sttBackend !== "" && controller.sttBackend !== "CPU"
-                                   ? "#a6e3a1"
-                                 : "#6c7086"
-                            font.pixelSize: 10
-                            font.bold: true
+                            text: controller.sttBackend !== "" ? controller.sttBackend : qsTr("CPU")
+                            color: controller.sttBackend === "Cloud"
+                                   ? Theme.colorAccent
+                                   : controller.sttBackend !== "" && controller.sttBackend !== "CPU"
+                                     ? Theme.colorGood
+                                     : Theme.colorText3
+                            font.family: Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            font.weight: Font.Normal
                         }
                     }
                 }
@@ -210,9 +232,10 @@ Item {
 
                 Label {
                     text: "Text to Speech"
-                    color: "#cdd6f4"
-                    font.pixelSize: 16
-                    font.bold: true
+                    color: Theme.colorText
+                    font.family: Theme.fontBody
+                    font.pixelSize: Theme.fontSzHeading
+                    font.weight: Font.Normal
                 }
 
                 TextArea {
@@ -220,15 +243,16 @@ Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     placeholderText: qsTr("Type text to speak…")
-                    placeholderTextColor: "#6c7086"
+                    placeholderTextColor: Theme.colorText3
                     wrapMode: TextArea.Wrap
-                    color: "#cdd6f4"
-                    font.pixelSize: 14
+                    color: Theme.colorText
+                    font.family: Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody
                     padding: 10
                     background: Rectangle {
-                        color: "#313244"
-                        radius: 6
-                        border.color: ttsInput.activeFocus ? "#89b4fa" : "transparent"
+                        color: Theme.colorSurface
+                        radius: Theme.radius
+                        border.color: ttsInput.activeFocus ? Theme.colorAccent : Theme.colorBorderMid
                         border.width: 1
                     }
                     Keys.onPressed: function(event) {
@@ -251,16 +275,18 @@ Item {
                         onClicked: ttsController.speak(ttsInput.text)
                         contentItem: Text {
                             text: speakButton.text
-                            color: speakButton.enabled ? "#1e1e2e" : "#6c7086"
-                            font.pixelSize: 13
+                            color: speakButton.enabled ? Theme.colorBg : Theme.colorText3
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody
+                            font.weight: Font.Normal
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
                         background: Rectangle {
                             color: speakButton.enabled
-                                   ? (speakButton.pressed ? "#74c7ec" : "#89b4fa")
-                                   : "#313244"
-                            radius: 6
+                                   ? (speakButton.pressed ? Qt.darker(Theme.colorAccent, 1.1) : Theme.colorAccent)
+                                   : Theme.colorBg3
+                            radius: Theme.radius
                         }
                     }
 
@@ -271,16 +297,18 @@ Item {
                         onClicked: ttsController.stopSpeaking()
                         contentItem: Text {
                             text: stopButton.text
-                            color: stopButton.enabled ? "#1e1e2e" : "#6c7086"
-                            font.pixelSize: 13
+                            color: stopButton.enabled ? Theme.colorWarn : Theme.colorText3
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody
+                            font.weight: Font.Normal
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
                         background: Rectangle {
-                            color: stopButton.enabled
-                                   ? (stopButton.pressed ? "#f38ba8" : "#fab387")
-                                   : "#313244"
-                            radius: 6
+                            color: stopButton.enabled ? Theme.colorWarnLight : Theme.colorBg3
+                            border.width: stopButton.enabled ? 1 : 0
+                            border.color: Qt.rgba(Theme.colorWarn.r, Theme.colorWarn.g, Theme.colorWarn.b, 0.5)
+                            radius: Theme.radius
                         }
                     }
 
@@ -291,24 +319,27 @@ Item {
                         onClicked: ttsController.replayLastAudio()
                         contentItem: Text {
                             text: replayButton.text
-                            color: replayButton.enabled ? "#1e1e2e" : "#6c7086"
-                            font.pixelSize: 13
+                            color: replayButton.enabled ? Theme.colorText2 : Theme.colorText3
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody
+                            font.weight: Font.Normal
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
                         background: Rectangle {
-                            color: replayButton.enabled
-                                   ? (replayButton.pressed ? "#cba6f7" : "#b4befe")
-                                   : "#313244"
-                            radius: 6
+                            color: "transparent"
+                            border.width: 1
+                            border.color: replayButton.enabled ? Theme.colorBorderStrong : Theme.colorBorderMid
+                            radius: Theme.radius
                         }
                     }
 
                     Label {
                         visible: ttsController.ttsBackend !== "Cloud"
                         text: qsTr("Voice:")
-                        color: "#cdd6f4"
-                        font.pixelSize: 13
+                        color: Theme.colorText2
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
                     }
 
                     ComboBox {
@@ -321,19 +352,37 @@ Item {
                         contentItem: Text {
                             leftPadding: 8
                             text: voiceSelector.displayText
-                            color: "#cdd6f4"
-                            font.pixelSize: 13
+                            color: Theme.colorText
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody
                             verticalAlignment: Text.AlignVCenter
                         }
                         background: Rectangle {
-                            color: "#313244"
-                            radius: 6
-                            border.color: voiceSelector.activeFocus ? "#89b4fa" : "transparent"
+                            color: Theme.colorSurface
+                            radius: Theme.radius
+                            border.color: voiceSelector.activeFocus ? Theme.colorAccent : Theme.colorBorderMid
                             border.width: 1
                         }
                         popup.background: Rectangle {
-                            color: "#313244"
-                            radius: 6
+                            color: Theme.colorSurface
+                            radius: Theme.radius
+                            border.width: 1
+                            border.color: Theme.colorBorderMid
+                        }
+                        delegate: ItemDelegate {
+                            required property var modelData
+                            width: voiceSelector.width
+                            contentItem: Text {
+                                text: modelData
+                                color: Theme.colorText
+                                font.family: Theme.fontBody
+                                font.pixelSize: Theme.fontSzBody
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            background: Rectangle {
+                                color: hovered ? Theme.colorBg3 : "transparent"
+                                radius: Theme.radius - 1
+                            }
                         }
                     }
 
@@ -344,13 +393,14 @@ Item {
                         text: ttsController.lastTtsLatencyMs < 1000
                               ? ttsController.lastTtsLatencyMs + "ms"
                               : (ttsController.lastTtsLatencyMs / 1000).toFixed(1) + "s"
-                        color: "#6c7086"
-                        font.pixelSize: 10
+                        color: Theme.colorText3
+                        font.family: Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
                     }
 
                     Rectangle {
                         width: 8; height: 8; radius: 4
-                        color: ttsController.ttsReady ? "#a6e3a1" : "#f38ba8"
+                        color: ttsController.ttsReady ? Theme.colorGood : Theme.colorWarn
                         ToolTip.visible: ttsStatusHover.hovered
                         ToolTip.text: ttsController.ttsReady ? qsTr("TTS model ready")
                                                               : qsTr("TTS model not loaded")
@@ -361,16 +411,26 @@ Item {
                         text: ttsController.ttsReady    ? qsTr("Ready")
                             : ttsController.downloading ? qsTr("Downloading…")
                             :                             qsTr("Loading…")
-                        color: ttsController.ttsReady ? "#a6e3a1" : "#f9e2af"
-                        font.pixelSize: 12
+                        color: ttsController.ttsReady ? Theme.colorGood : Theme.colorWarn
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody2
                     }
 
+                    // TTS backend badge
                     Rectangle {
                         visible: ttsController.ttsReady
-                        radius: 3
-                        color: ttsController.ttsBackend === "Cloud" ? "#1a2a3a"
-                             : ttsController.ttsBackend !== ""       ? "#1a3a2a"
-                             :                                          "#2a2a3a"
+                        radius: Theme.radius
+                        color: ttsController.ttsBackend === "Cloud"
+                               ? Theme.colorAccentLight
+                               : ttsController.ttsBackend !== ""
+                                 ? Theme.colorGoodLight
+                                 : Theme.colorBg3
+                        border.width: 1
+                        border.color: ttsController.ttsBackend === "Cloud"
+                                      ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.25)
+                                      : ttsController.ttsBackend !== ""
+                                        ? Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.25)
+                                        : Theme.colorBorderMid
                         implicitWidth: backendBadge.implicitWidth + 10
                         implicitHeight: backendBadge.implicitHeight + 4
                         ToolTip.visible: backendHover.hovered
@@ -396,13 +456,15 @@ Item {
                         Label {
                             id: backendBadge
                             anchors.centerIn: parent
-                            text: ttsController.ttsBackend !== "" ? ttsController.ttsBackend
-                                                                  : qsTr("CPU")
-                            color: ttsController.ttsBackend === "Cloud" ? "#89b4fa"
-                                 : ttsController.ttsBackend !== ""       ? "#a6e3a1"
-                                 :                                          "#6c7086"
-                            font.pixelSize: 10
-                            font.bold: true
+                            text: ttsController.ttsBackend !== "" ? ttsController.ttsBackend : qsTr("CPU")
+                            color: ttsController.ttsBackend === "Cloud"
+                                   ? Theme.colorAccent
+                                   : ttsController.ttsBackend !== ""
+                                     ? Theme.colorGood
+                                     : Theme.colorText3
+                            font.family: Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            font.weight: Font.Normal
                         }
                     }
                 }
@@ -416,13 +478,17 @@ Item {
                     ProgressBar {
                         Layout.fillWidth: true
                         value: ttsController.downloadProgress
-                        background: Rectangle { color: "#313244"; radius: 3 }
+                        background: Rectangle {
+                            color: Theme.colorBg3
+                            radius: Theme.radius - 2
+                            implicitHeight: 6
+                        }
                         contentItem: Item {
                             Rectangle {
                                 width: parent.width * ttsController.downloadProgress
                                 height: parent.height
-                                radius: 3
-                                color: "#89b4fa"
+                                radius: Theme.radius - 2
+                                color: Theme.colorAccent
                                 Behavior on width { NumberAnimation { duration: 150 } }
                             }
                         }
@@ -430,8 +496,9 @@ Item {
 
                     Label {
                         text: ttsController.downloadStatus
-                        color: "#a6adc8"
-                        font.pixelSize: 11
+                        color: Theme.colorText3
+                        font.family: Theme.fontData
+                        font.pixelSize: Theme.fontSzLabel
                     }
                 }
             }

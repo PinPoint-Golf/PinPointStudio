@@ -140,10 +140,13 @@ qt_add_executable(PinPoint
 
 target_include_directories(PinPoint PRIVATE src/Gui src/IMU src/Audio src/Video src/Pose src/STT src/TTS src/Secrets src/Core src/Buffer)
 
+set_source_files_properties(src/Gui/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+
 qt_add_qml_module(PinPoint
     URI PinPoint
     OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/qml/PinPoint
     QML_FILES
+        src/Gui/Theme.qml
         src/Gui/Main.qml
         src/Gui/AudioPage.qml
         src/Gui/CapturePage.qml

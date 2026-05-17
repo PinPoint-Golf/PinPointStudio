@@ -20,6 +20,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Controls.Basic
+import PinPoint
 
 Item {
 
@@ -34,9 +35,10 @@ Item {
 
             Label {
                 text: "Camera"
-                color: "#cdd6f4"
-                font.pixelSize: 20
-                font.bold: true
+                color: Theme.colorText
+                font.family: Theme.fontBody
+                font.pixelSize: Theme.fontSzHeading
+                font.weight: Font.Normal
             }
 
             Item { Layout.fillWidth: true }
@@ -47,17 +49,22 @@ Item {
                 delegate: Rectangle {
                     width: camChipLabel.implicitWidth + 16
                     height: 24
-                    radius: 4
-                    color: modelData.selected ? "#cba6f7" : "#313244"
+                    radius: Theme.radius
+                    color: modelData.selected ? Theme.colorAccent : Theme.colorSurface
+                    border.width: 1
+                    border.color: modelData.selected
+                                  ? Theme.colorAccent
+                                  : Theme.colorBorderMid
                     opacity: cameraManager.isRecording ? 0.5 : 1.0
 
                     Text {
                         id: camChipLabel
                         anchors.centerIn: parent
                         text: modelData.description
-                        color: modelData.selected ? "#1e1e2e" : "#cdd6f4"
-                        font.pixelSize: 12
-                        font.bold: modelData.selected
+                        color: modelData.selected ? Theme.colorBg : Theme.colorText2
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody2
+                        font.weight: Font.Normal
                     }
 
                     TapHandler {
@@ -92,14 +99,17 @@ Item {
                 visible: cameraManager.instances.length === 0
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                color: "#181825"
-                radius: 6
+                color: Theme.colorBg2
+                radius: Theme.radius
+                border.width: 1
+                border.color: Theme.colorBorderMid
 
                 Label {
                     anchors.centerIn: parent
                     text: qsTr("Select a camera above")
-                    color: "#6c7086"
-                    font.pixelSize: 14
+                    color: Theme.colorText3
+                    font.family: Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody
                 }
             }
         }
@@ -115,16 +125,18 @@ Item {
                 onClicked: cameraManager.startAll()
                 contentItem: Text {
                     text: startButton.text
-                    color: startButton.enabled ? "#1e1e2e" : "#6c7086"
-                    font.pixelSize: 13
+                    color: startButton.enabled ? Theme.colorBg : Theme.colorText3
+                    font.family: Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody
+                    font.weight: Font.Normal
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
                 background: Rectangle {
                     color: startButton.enabled
-                           ? (startButton.pressed ? "#a6e3a1" : "#40a02b")
-                           : "#313244"
-                    radius: 6
+                           ? (startButton.pressed ? Qt.darker(Theme.colorAccent, 1.1) : Theme.colorAccent)
+                           : Theme.colorBg3
+                    radius: Theme.radius
                 }
             }
 
@@ -135,23 +147,25 @@ Item {
                 onClicked: cameraManager.stopAll()
                 contentItem: Text {
                     text: stopButton.text
-                    color: stopButton.enabled ? "#1e1e2e" : "#6c7086"
-                    font.pixelSize: 13
+                    color: stopButton.enabled ? Theme.colorWarn : Theme.colorText3
+                    font.family: Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody
+                    font.weight: Font.Normal
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
                 background: Rectangle {
-                    color: stopButton.enabled
-                           ? (stopButton.pressed ? "#f38ba8" : "#e64553")
-                           : "#313244"
-                    radius: 6
+                    color: stopButton.enabled ? Theme.colorWarnLight : Theme.colorBg3
+                    border.width: stopButton.enabled ? 1 : 0
+                    border.color: Qt.rgba(Theme.colorWarn.r, Theme.colorWarn.g, Theme.colorWarn.b, 0.5)
+                    radius: Theme.radius
                 }
             }
 
             Rectangle {
                 visible: cameraManager.isRecording
-                width: 10; height: 10; radius: 5
-                color: "#f38ba8"
+                width: 8; height: 8; radius: 4
+                color: Theme.colorWarn
                 SequentialAnimation on opacity {
                     running: cameraManager.isRecording
                     loops: Animation.Infinite
@@ -163,8 +177,9 @@ Item {
             Label {
                 visible: cameraManager.isRecording
                 text: qsTr("Recording…")
-                color: "#f38ba8"
-                font.pixelSize: 13
+                color: Theme.colorWarn
+                font.family: Theme.fontBody
+                font.pixelSize: Theme.fontSzBody
             }
 
             Item { Layout.fillWidth: true }
@@ -180,9 +195,9 @@ Item {
             Label {
                 visible: cameraManager.bufferState !== "idle"
                 text: bufferController.totalEvents + " events"
-                color: "#6c7086"
-                font.pixelSize: 12
-                font.family: "Courier New"
+                color: Theme.colorText3
+                font.family: Theme.fontData
+                font.pixelSize: Theme.fontSzBody2
                 verticalAlignment: Text.AlignVCenter
             }
 
@@ -192,8 +207,9 @@ Item {
                     required property var modelData
                     visible: modelData.overwritten > Math.max(0, modelData.eventsWritten - modelData.slotCount)
                     text: "⚠ " + modelData.name + " overrun"
-                    color: "#f38ba8"
-                    font.pixelSize: 12
+                    color: Theme.colorWarn
+                    font.family: Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody2
                     verticalAlignment: Text.AlignVCenter
                 }
             }

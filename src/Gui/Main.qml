@@ -20,6 +20,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Controls.Basic
+import PinPoint
 
 ApplicationWindow {
     id: root
@@ -27,7 +28,8 @@ ApplicationWindow {
     height: 700
     visible: true
     title: qsTr("PinPoint")
-    color: "#1e1e2e"
+    color: Theme.colorBg
+    font.family: Theme.fontBody
 
     ColumnLayout {
         anchors.fill: parent
@@ -36,84 +38,31 @@ ApplicationWindow {
         TabBar {
             id: tabBar
             Layout.fillWidth: true
-            background: Rectangle { color: "#181825" }
+            background: Rectangle { color: Theme.colorBg2 }
 
-            TabButton {
-                text: qsTr("IMU")
-                contentItem: Text {
-                    text: parent.text
-                    color: parent.checked ? "#cdd6f4" : "#6c7086"
-                    font.pixelSize: 13
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    color: parent.checked ? "#1e1e2e" : "#181825"
-                    Rectangle {
-                        anchors.bottom: parent.bottom
-                        width: parent.width
-                        height: 2
-                        color: parent.parent.checked ? "#89b4fa" : "transparent"
+            Repeater {
+                model: [qsTr("IMU"), qsTr("Audio"), qsTr("Video"), qsTr("Film")]
+                delegate: TabButton {
+                    required property string modelData
+                    required property int index
+                    text: modelData
+                    contentItem: Text {
+                        text: parent.text
+                        color: parent.checked ? Theme.colorText : Theme.colorText3
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        font.weight: Font.Normal
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
                     }
-                }
-            }
-
-            TabButton {
-                text: qsTr("Audio")
-                contentItem: Text {
-                    text: parent.text
-                    color: parent.checked ? "#cdd6f4" : "#6c7086"
-                    font.pixelSize: 13
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    color: parent.checked ? "#1e1e2e" : "#181825"
-                    Rectangle {
-                        anchors.bottom: parent.bottom
-                        width: parent.width
-                        height: 2
-                        color: parent.parent.checked ? "#89b4fa" : "transparent"
-                    }
-                }
-            }
-
-            TabButton {
-                text: qsTr("Video")
-                contentItem: Text {
-                    text: parent.text
-                    color: parent.checked ? "#cdd6f4" : "#6c7086"
-                    font.pixelSize: 13
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    color: parent.checked ? "#1e1e2e" : "#181825"
-                    Rectangle {
-                        anchors.bottom: parent.bottom
-                        width: parent.width
-                        height: 2
-                        color: parent.parent.checked ? "#89b4fa" : "transparent"
-                    }
-                }
-            }
-
-            TabButton {
-                text: qsTr("Film")
-                contentItem: Text {
-                    text: parent.text
-                    color: parent.checked ? "#cdd6f4" : "#6c7086"
-                    font.pixelSize: 13
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    color: parent.checked ? "#1e1e2e" : "#181825"
-                    Rectangle {
-                        anchors.bottom: parent.bottom
-                        width: parent.width
-                        height: 2
-                        color: parent.parent.checked ? "#89b4fa" : "transparent"
+                    background: Rectangle {
+                        color: parent.checked ? Theme.colorBg : Theme.colorBg2
+                        Rectangle {
+                            anchors.bottom: parent.bottom
+                            width: parent.width
+                            height: 2
+                            color: parent.parent.checked ? Theme.colorAccent : "transparent"
+                        }
                     }
                 }
             }

@@ -20,6 +20,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Controls.Basic
+import PinPoint
 import QtQuick3D
 
 Item {
@@ -31,9 +32,10 @@ Item {
 
         Label {
             text: "IMU"
-            color: "#cdd6f4"
-            font.pixelSize: 20
-            font.bold: true
+            color: Theme.colorText
+            font.family: Theme.fontBody
+            font.pixelSize: Theme.fontSzHeading
+            font.weight: Font.Normal
         }
 
         RowLayout {
@@ -46,16 +48,18 @@ Item {
                 onClicked: imuController.connectImu()
                 contentItem: Text {
                     text: connectBtn.text
-                    color: connectBtn.enabled ? "#1e1e2e" : "#6c7086"
-                    font.pixelSize: 13
+                    color: connectBtn.enabled ? Theme.colorBg : Theme.colorText3
+                    font.family: Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody
+                    font.weight: Font.Normal
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
                 background: Rectangle {
                     color: connectBtn.enabled
-                           ? (connectBtn.pressed ? "#a6e3a1" : "#40a02b")
-                           : "#313244"
-                    radius: 6
+                           ? (connectBtn.pressed ? Qt.darker(Theme.colorAccent, 1.1) : Theme.colorAccent)
+                           : Theme.colorBg3
+                    radius: Theme.radius
                 }
             }
 
@@ -66,23 +70,25 @@ Item {
                 onClicked: imuController.disconnectImu()
                 contentItem: Text {
                     text: disconnectBtn.text
-                    color: disconnectBtn.enabled ? "#1e1e2e" : "#6c7086"
-                    font.pixelSize: 13
+                    color: disconnectBtn.enabled ? Theme.colorWarn : Theme.colorText3
+                    font.family: Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody
+                    font.weight: Font.Normal
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
                 background: Rectangle {
-                    color: disconnectBtn.enabled
-                           ? (disconnectBtn.pressed ? "#f38ba8" : "#e64553")
-                           : "#313244"
-                    radius: 6
+                    color: disconnectBtn.enabled ? Theme.colorWarnLight : Theme.colorBg3
+                    border.width: disconnectBtn.enabled ? 1 : 0
+                    border.color: Qt.rgba(Theme.colorWarn.r, Theme.colorWarn.g, Theme.colorWarn.b, 0.5)
+                    radius: Theme.radius
                 }
             }
 
             Rectangle {
                 visible: imuController.busy
-                width: 10; height: 10; radius: 5
-                color: "#f9e2af"
+                width: 8; height: 8; radius: 4
+                color: Theme.colorWarn
                 SequentialAnimation on opacity {
                     running: imuController.busy
                     loops: Animation.Infinite
@@ -93,20 +99,26 @@ Item {
 
             Label {
                 text: imuController.stateLabel
-                color: imuController.imuConnected ? "#a6e3a1"
-                     : imuController.busy          ? "#f9e2af"
-                     :                               "#6c7086"
-                font.pixelSize: 13
+                color: imuController.imuConnected ? Theme.colorGood
+                     : imuController.busy          ? Theme.colorWarn
+                     :                               Theme.colorText3
+                font.family: Theme.fontBody
+                font.pixelSize: Theme.fontSzBody
             }
 
             Item { Layout.fillWidth: true }
 
+            // Battery badge
             Rectangle {
                 visible: imuController.imuConnected && imuController.batteryPercent >= 0
-                radius: 3
-                color: imuController.batteryPercent > 60 ? "#1a3a2a"
-                     : imuController.batteryPercent > 20 ? "#3a3a1a"
-                     :                                     "#3a1a1a"
+                radius: Theme.radius
+                color: imuController.batteryPercent > 60 ? Theme.colorGoodLight
+                     : imuController.batteryPercent > 20 ? Theme.colorWarnLight
+                     :                                     Theme.colorWarnLight
+                border.width: 1
+                border.color: imuController.batteryPercent > 60
+                              ? Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.25)
+                              : Qt.rgba(Theme.colorWarn.r, Theme.colorWarn.g, Theme.colorWarn.b, 0.25)
                 implicitWidth:  batteryBadge.implicitWidth  + 10
                 implicitHeight: batteryBadge.implicitHeight + 4
 
@@ -114,27 +126,29 @@ Item {
                     id: batteryBadge
                     anchors.centerIn: parent
                     text: "BAT: " + imuController.batteryPercent + "%"
-                    color: imuController.batteryPercent > 60 ? "#a6e3a1"
-                         : imuController.batteryPercent > 20 ? "#f9e2af"
-                         :                                     "#f38ba8"
-                    font.pixelSize: 10
-                    font.bold: true
+                    color: imuController.batteryPercent > 60 ? Theme.colorGood
+                         : imuController.batteryPercent > 20 ? Theme.colorWarn
+                         :                                     Theme.colorWarn
+                    font.family: Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    font.weight: Font.Normal
                 }
             }
 
             Label {
                 visible: imuController.imuConnected && imuController.dataRateHz > 0
                 text: imuController.dataRateHz.toFixed(1) + " Hz"
-                color: "#a6e3a1"
-                font.pixelSize: 13
-                font.family: "Courier New"
+                color: Theme.colorGood
+                font.family: Theme.fontData
+                font.pixelSize: Theme.fontSzBody
                 verticalAlignment: Text.AlignVCenter
             }
 
             Label {
                 text: "Rate:"
-                color: "#6c7086"
-                font.pixelSize: 13
+                color: Theme.colorText3
+                font.family: Theme.fontBody
+                font.pixelSize: Theme.fontSzBody
                 verticalAlignment: Text.AlignVCenter
             }
 
@@ -151,21 +165,27 @@ Item {
                 contentItem: Text {
                     leftPadding: 8
                     text: rateCombo.displayText + " Hz"
-                    color: rateCombo.enabled ? "#cdd6f4" : "#6c7086"
-                    font.pixelSize: 13
+                    color: rateCombo.enabled ? Theme.colorText : Theme.colorText3
+                    font.family: Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody
                     verticalAlignment: Text.AlignVCenter
                 }
                 background: Rectangle {
-                    color: rateCombo.enabled ? "#313244" : "#1e1e2e"
-                    border.color: rateCombo.enabled ? "#45475a" : "#313244"
+                    color: Theme.colorSurface
+                    border.color: rateCombo.enabled ? Theme.colorBorderMid : Theme.colorBorder
                     border.width: 1
-                    radius: 6
+                    radius: Theme.radius
                 }
                 popup: Popup {
                     y: rateCombo.height + 2
                     width: rateCombo.width
                     padding: 4
-                    background: Rectangle { color: "#313244"; radius: 6 }
+                    background: Rectangle {
+                        color: Theme.colorSurface
+                        radius: Theme.radius
+                        border.width: 1
+                        border.color: Theme.colorBorderMid
+                    }
                     contentItem: ListView {
                         implicitHeight: contentHeight
                         model: rateCombo.delegateModel
@@ -178,13 +198,14 @@ Item {
                     width: rateCombo.width
                     contentItem: Text {
                         text: modelData + " Hz"
-                        color: rateCombo.currentIndex === index ? "#cdd6f4" : "#6c7086"
-                        font.pixelSize: 13
+                        color: rateCombo.currentIndex === index ? Theme.colorText : Theme.colorText3
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
                         verticalAlignment: Text.AlignVCenter
                     }
                     background: Rectangle {
-                        color: hovered ? "#45475a" : "transparent"
-                        radius: 4
+                        color: hovered ? Theme.colorBg3 : "transparent"
+                        radius: Theme.radius - 1
                     }
                 }
             }
@@ -196,16 +217,18 @@ Item {
                 onClicked: imuController.zeroOrientation()
                 contentItem: Text {
                     text: zeroBtn.text
-                    color: zeroBtn.enabled ? "#1e1e2e" : "#6c7086"
-                    font.pixelSize: 13
+                    color: zeroBtn.enabled ? Theme.colorText2 : Theme.colorText3
+                    font.family: Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody
+                    font.weight: Font.Normal
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
                 background: Rectangle {
-                    color: zeroBtn.enabled
-                           ? (zeroBtn.pressed ? "#7287fd" : "#89b4fa")
-                           : "#313244"
-                    radius: 6
+                    color: "transparent"
+                    border.width: 1
+                    border.color: zeroBtn.enabled ? Theme.colorBorderStrong : Theme.colorBorderMid
+                    radius: Theme.radius
                 }
             }
 
@@ -215,14 +238,18 @@ Item {
                 onClicked: imuController.saveLog()
                 contentItem: Text {
                     text: saveLogBtn.text
-                    color: "#1e1e2e"
-                    font.pixelSize: 13
+                    color: Theme.colorText2
+                    font.family: Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody
+                    font.weight: Font.Normal
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
                 background: Rectangle {
-                    color: saveLogBtn.pressed ? "#89b4fa" : "#585b70"
-                    radius: 6
+                    color: "transparent"
+                    border.width: 1
+                    border.color: Theme.colorBorderStrong
+                    radius: Theme.radius
                 }
             }
         }
@@ -238,9 +265,9 @@ Item {
                 visible: cameraManager.bufferState !== "idle"
                          && cameraManager.bufferState !== "unavailable"
                 text: bufferController.totalEvents + " events"
-                color: "#6c7086"
-                font.pixelSize: 12
-                font.family: "Courier New"
+                color: Theme.colorText3
+                font.family: Theme.fontData
+                font.pixelSize: Theme.fontSzBody2
                 verticalAlignment: Text.AlignVCenter
             }
         }
@@ -248,19 +275,27 @@ Item {
         TabBar {
             id: imuTabBar
             Layout.fillWidth: true
+            background: Rectangle {
+                color: Theme.colorSurface
+                radius: Theme.radius
+                border.width: 1
+                border.color: Theme.colorBorderMid
+            }
 
             TabButton {
                 text: "Log"
                 contentItem: Text {
                     text: parent.text
-                    color: imuTabBar.currentIndex === 0 ? "#cdd6f4" : "#6c7086"
-                    font.pixelSize: 13
+                    color: imuTabBar.currentIndex === 0 ? Theme.colorText : Theme.colorText3
+                    font.family: Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody
+                    font.weight: Font.Normal
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
                 background: Rectangle {
-                    color: imuTabBar.currentIndex === 0 ? "#45475a" : "transparent"
-                    radius: 4
+                    color: imuTabBar.currentIndex === 0 ? Theme.colorBg3 : "transparent"
+                    radius: Theme.radius - 1
                 }
             }
 
@@ -269,20 +304,20 @@ Item {
                 enabled: imuController.imuConnected
                 contentItem: Text {
                     text: parent.text
-                    color: imuTabBar.currentIndex === 1 ? "#cdd6f4"
-                         : imuController.imuConnected   ? "#6c7086"
-                         :                               "#45475a"
-                    font.pixelSize: 13
+                    color: imuTabBar.currentIndex === 1 ? Theme.colorText
+                         : imuController.imuConnected   ? Theme.colorText3
+                         :                                Theme.colorBg3
+                    font.family: Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody
+                    font.weight: Font.Normal
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
                 background: Rectangle {
-                    color: imuTabBar.currentIndex === 1 ? "#45475a" : "transparent"
-                    radius: 4
+                    color: imuTabBar.currentIndex === 1 ? Theme.colorBg3 : "transparent"
+                    radius: Theme.radius - 1
                 }
             }
-
-            background: Rectangle { color: "#313244"; radius: 6 }
         }
 
         StackLayout {
@@ -292,8 +327,10 @@ Item {
 
             // Log tab
             Rectangle {
-                color: "#313244"
-                radius: 6
+                color: Theme.colorSurface
+                radius: Theme.radius
+                border.width: 1
+                border.color: Theme.colorBorderMid
 
                 ListView {
                     id: logView
@@ -307,9 +344,9 @@ Item {
                         required property string entry
                         width: logView.width
                         text: entry
-                        color: "#cdd6f4"
-                        font.family: "Courier New"
-                        font.pixelSize: 11
+                        color: Theme.colorText
+                        font.family: Theme.fontData
+                        font.pixelSize: Theme.fontSzLabel
                         wrapMode: Text.NoWrap
                     }
                 }
@@ -318,7 +355,7 @@ Item {
             // Viz tab
             View3D {
                 environment: SceneEnvironment {
-                    clearColor: "#1e1e2e"
+                    clearColor: Theme.colorBg
                     backgroundMode: SceneEnvironment.Color
                 }
 
@@ -334,131 +371,119 @@ Item {
                     rotation: Qt.quaternion(imuController.quatW, imuController.quatX,
                                             imuController.quatY, imuController.quatZ)
 
-                            // Helper component — a labelled face texture
-                            component FaceTex: Texture {
-                                required property string label
-                                required property color faceColor
-                                property bool flip: false
-                                sourceItem: Item {
-                                    width: 256; height: 256
-                                    Rectangle { anchors.fill: parent; color: faceColor }
-                                    Item {
-                                        anchors.fill: parent
-                                        transform: Scale { xScale: flip ? -1 : 1; origin.x: 128 }
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: label
-                                            color: "white"
-                                            font.pixelSize: 52
-                                            font.bold: true
-                                        }
-                                    }
+                    component FaceTex: Texture {
+                        required property string label
+                        required property color faceColor
+                        property bool flip: false
+                        sourceItem: Item {
+                            width: 256; height: 256
+                            Rectangle { anchors.fill: parent; color: faceColor }
+                            Item {
+                                anchors.fill: parent
+                                transform: Scale { xScale: flip ? -1 : 1; origin.x: 128 }
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: label
+                                    color: "white"
+                                    font.pixelSize: 52
+                                    font.weight: Font.Medium
                                 }
                             }
+                        }
+                    }
 
-                            // Top face — red
-                            Model {
-                                source: "#Rectangle"; position: Qt.vector3d(0, 100, 0)
-                                eulerRotation.x: -90; scale: Qt.vector3d(2, 2, 1)
-                                materials: DefaultMaterial {
-                                    cullMode: Material.NoCulling
-                                    diffuseMap: FaceTex { label: "Top"; faceColor: "#e64553" }
-                                }
-                            }
-                            // Bottom face — red
-                            Model {
-                                source: "#Rectangle"; position: Qt.vector3d(0, -100, 0)
-                                eulerRotation.x: 90; scale: Qt.vector3d(2, 2, 1)
-                                materials: DefaultMaterial {
-                                    cullMode: Material.NoCulling
-                                    diffuseMap: FaceTex { label: "Bottom"; faceColor: "#e64553" }
-                                }
-                            }
-                            // Front face — orange
-                            Model {
-                                source: "#Rectangle"; position: Qt.vector3d(0, 0, 100)
-                                scale: Qt.vector3d(2, 2, 1)
-                                materials: DefaultMaterial {
-                                    cullMode: Material.NoCulling
-                                    diffuseMap: FaceTex { label: "Front"; faceColor: "#fe640b" }
-                                }
-                            }
-                            // Back face — orange
-                            Model {
-                                source: "#Rectangle"; position: Qt.vector3d(0, 0, -100)
-                                eulerRotation.y: 180; scale: Qt.vector3d(2, 2, 1)
-                                materials: DefaultMaterial {
-                                    cullMode: Material.NoCulling
-                                    diffuseMap: FaceTex { label: "Back"; faceColor: "#fe640b" }
-                                }
-                            }
-                            // Right face — orange
-                            Model {
-                                source: "#Rectangle"; position: Qt.vector3d(100, 0, 0)
-                                eulerRotation.y: -90; scale: Qt.vector3d(2, 2, 1)
-                                materials: DefaultMaterial {
-                                    cullMode: Material.NoCulling
-                                    diffuseMap: FaceTex { label: "Left"; faceColor: "#fe640b"; flip: true }
-                                }
-                            }
-                            // Left face — orange
-                            Model {
-                                source: "#Rectangle"; position: Qt.vector3d(-100, 0, 0)
-                                eulerRotation.y: 90; scale: Qt.vector3d(2, 2, 1)
-                                materials: DefaultMaterial {
-                                    cullMode: Material.NoCulling
-                                    diffuseMap: FaceTex { label: "Right"; faceColor: "#fe640b"; flip: true }
-                                }
-                            }
-                            // Up arrow — shaft
-                            Model {
-                                source: "#Cylinder"; position: Qt.vector3d(0, 160, 0)
-                                scale: Qt.vector3d(0.15, 0.6, 0.15)
-                                materials: DefaultMaterial { diffuseColor: "#cdd6f4" }
-                            }
-                            // Up arrow — head (base at cone origin = cylinder top at 160 + 100×0.6/2)
-                            Model {
-                                source: "#Cone"; position: Qt.vector3d(0, 190, 0)
-                                scale: Qt.vector3d(0.4, 0.4, 0.4)
-                                materials: DefaultMaterial { diffuseColor: "#cdd6f4" }
-                            }
+                    // Top / Bottom faces
+                    Model {
+                        source: "#Rectangle"; position: Qt.vector3d(0, 100, 0)
+                        eulerRotation.x: -90; scale: Qt.vector3d(2, 2, 1)
+                        materials: DefaultMaterial {
+                            cullMode: Material.NoCulling
+                            diffuseMap: FaceTex { label: "Top"; faceColor: Theme.colorWarn }
+                        }
+                    }
+                    Model {
+                        source: "#Rectangle"; position: Qt.vector3d(0, -100, 0)
+                        eulerRotation.x: 90; scale: Qt.vector3d(2, 2, 1)
+                        materials: DefaultMaterial {
+                            cullMode: Material.NoCulling
+                            diffuseMap: FaceTex { label: "Bottom"; faceColor: Theme.colorWarn }
+                        }
+                    }
+                    // Front / Back / Left / Right faces
+                    Model {
+                        source: "#Rectangle"; position: Qt.vector3d(0, 0, 100)
+                        scale: Qt.vector3d(2, 2, 1)
+                        materials: DefaultMaterial {
+                            cullMode: Material.NoCulling
+                            diffuseMap: FaceTex { label: "Front"; faceColor: Theme.colorAccent }
+                        }
+                    }
+                    Model {
+                        source: "#Rectangle"; position: Qt.vector3d(0, 0, -100)
+                        eulerRotation.y: 180; scale: Qt.vector3d(2, 2, 1)
+                        materials: DefaultMaterial {
+                            cullMode: Material.NoCulling
+                            diffuseMap: FaceTex { label: "Back"; faceColor: Theme.colorAccent }
+                        }
+                    }
+                    Model {
+                        source: "#Rectangle"; position: Qt.vector3d(100, 0, 0)
+                        eulerRotation.y: -90; scale: Qt.vector3d(2, 2, 1)
+                        materials: DefaultMaterial {
+                            cullMode: Material.NoCulling
+                            diffuseMap: FaceTex { label: "Left"; faceColor: Theme.colorAccent; flip: true }
+                        }
+                    }
+                    Model {
+                        source: "#Rectangle"; position: Qt.vector3d(-100, 0, 0)
+                        eulerRotation.y: 90; scale: Qt.vector3d(2, 2, 1)
+                        materials: DefaultMaterial {
+                            cullMode: Material.NoCulling
+                            diffuseMap: FaceTex { label: "Right"; faceColor: Theme.colorAccent; flip: true }
+                        }
+                    }
+                    // Up-direction arrow
+                    Model {
+                        source: "#Cylinder"; position: Qt.vector3d(0, 160, 0)
+                        scale: Qt.vector3d(0.15, 0.6, 0.15)
+                        materials: DefaultMaterial { diffuseColor: Theme.colorText }
+                    }
+                    Model {
+                        source: "#Cone"; position: Qt.vector3d(0, 190, 0)
+                        scale: Qt.vector3d(0.4, 0.4, 0.4)
+                        materials: DefaultMaterial { diffuseColor: Theme.colorText }
+                    }
 
-                            // Acceleration arrow — grows from cube centre in body-frame accel direction.
-                            // Hidden when mag ≈ 0; capped at 3 g so the arrow stays on screen.
-                            Node {
-                                id: accelNode
-                                property real ax: imuController.accelX
-                                property real ay: imuController.accelY
-                                property real az: imuController.accelZ
-                                property real mag: Math.sqrt(ax*ax + ay*ay + az*az)
-                                property real s: Math.min(mag, 3.0)   // display scale, capped at 3 g
-                                visible: mag > 0.05
-                                rotation: {
-                                    if (mag < 0.001) return Qt.quaternion(1, 0, 0, 0)
-                                    var dx = ax/mag, dy = ay/mag, dz = az/mag
-                                    // Rotate +Y axis toward (dx,dy,dz): q = normalize(1+dy, dz, 0, -dx)
-                                    if (dy < -0.9999) return Qt.quaternion(0, 1, 0, 0)
-                                    var qw = 1.0 + dy, qx = dz, qz = -dx
-                                    var n = Math.sqrt(qw*qw + qx*qx + qz*qz)
-                                    return Qt.quaternion(qw/n, qx/n, 0.0, qz/n)
-                                }
-                                // Shaft: base at cube centre (y=0), tip at y=75*s
-                                // Cylinder is centred, so position = half-height = 37.5*s
-                                Model {
-                                    source: "#Cylinder"
-                                    position: Qt.vector3d(0, 37.5 * accelNode.s, 0)
-                                    scale: Qt.vector3d(0.12, 0.75 * accelNode.s, 0.12)
-                                    materials: DefaultMaterial { diffuseColor: "#f9e2af" }
-                                }
-                                // Head: cone base (origin) at shaft tip y=75*s; tip = 75*s + 100*(0.25*s) = 100*s
-                                // At 1 g the tip sits exactly at the cube face; beyond 1 g it emerges
-                                Model {
-                                    source: "#Cone"
-                                    position: Qt.vector3d(0, 75 * accelNode.s, 0)
-                                    scale: Qt.vector3d(0.25 * accelNode.s, 0.25 * accelNode.s, 0.25 * accelNode.s)
-                                    materials: DefaultMaterial { diffuseColor: "#f9e2af" }
-                                }
-                            }
+                    // Acceleration arrow — grows from cube centre in body-frame accel direction.
+                    Node {
+                        id: accelNode
+                        property real ax: imuController.accelX
+                        property real ay: imuController.accelY
+                        property real az: imuController.accelZ
+                        property real mag: Math.sqrt(ax*ax + ay*ay + az*az)
+                        property real s: Math.min(mag, 3.0)
+                        visible: mag > 0.05
+                        rotation: {
+                            if (mag < 0.001) return Qt.quaternion(1, 0, 0, 0)
+                            var dx = ax/mag, dy = ay/mag, dz = az/mag
+                            if (dy < -0.9999) return Qt.quaternion(0, 1, 0, 0)
+                            var qw = 1.0 + dy, qx = dz, qz = -dx
+                            var n = Math.sqrt(qw*qw + qx*qx + qz*qz)
+                            return Qt.quaternion(qw/n, qx/n, 0.0, qz/n)
+                        }
+                        Model {
+                            source: "#Cylinder"
+                            position: Qt.vector3d(0, 37.5 * accelNode.s, 0)
+                            scale: Qt.vector3d(0.12, 0.75 * accelNode.s, 0.12)
+                            materials: DefaultMaterial { diffuseColor: Theme.colorWarn }
+                        }
+                        Model {
+                            source: "#Cone"
+                            position: Qt.vector3d(0, 75 * accelNode.s, 0)
+                            scale: Qt.vector3d(0.25 * accelNode.s, 0.25 * accelNode.s, 0.25 * accelNode.s)
+                            materials: DefaultMaterial { diffuseColor: Theme.colorWarn }
+                        }
+                    }
                 }
             }
         }

@@ -20,6 +20,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Controls.Basic
+import PinPoint
 import QtMultimedia
 
 Item {
@@ -33,7 +34,6 @@ Item {
     property point roiDragEnd:    Qt.point(0, 0)
     property bool  roiDragging:   false
 
-    // Whether any ROI is currently set.
     readonly property bool roiIsSet: controller && controller.roi.width > 0 && controller.roi.height > 0
 
     Component.onCompleted: {
@@ -54,10 +54,11 @@ Item {
             id: frameRect
             Layout.fillWidth: true
             Layout.fillHeight: true
-            color: "#181825"
-            radius: 6
+            color: Theme.colorBg2
+            radius: Theme.radius
+            border.width: 1
+            border.color: Theme.colorBorderMid
 
-            // Standard Qt Multimedia path for webcams and pre-decoded streams.
             VideoOutput {
                 id: videoOut
                 anchors.fill: parent
@@ -66,7 +67,6 @@ Item {
                 visible: !root.controller.needsDebayer
             }
 
-            // GPU Bayer demosaic path for industrial Bayer cameras (Spinnaker).
             BayerVideoItem {
                 id: bayerView
                 anchors.fill: parent
@@ -78,8 +78,9 @@ Item {
                 anchors.centerIn: parent
                 visible: !root.controller.isRecording
                 text: qsTr("No camera feed")
-                color: "#6c7086"
-                font.pixelSize: 14
+                color: Theme.colorText3
+                font.family: Theme.fontBody
+                font.pixelSize: Theme.fontSzBody
             }
 
             // ── Perspective badge (top-left overlay) ──────────────────────────
@@ -90,8 +91,10 @@ Item {
                 anchors.margins: 8
                 width: perspBadgeText.implicitWidth + 10
                 height: 20
-                radius: 4
-                color: "#89b4fa"
+                radius: Theme.radius
+                color: Theme.colorAccentMid
+                border.width: 1
+                border.color: Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.4)
 
                 Text {
                     id: perspBadgeText
@@ -99,23 +102,24 @@ Item {
                     text: root.controller.perspective === 1 ? "DTL"
                         : root.controller.perspective === 2 ? "Face On"
                         : "Other"
-                    color: "#1e1e2e"
-                    font.pixelSize: 11
-                    font.bold: true
+                    color: Theme.colorAccent
+                    font.family: Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    font.weight: Font.Normal
+                    font.letterSpacing: Theme.trackingData
                 }
             }
 
             // ── Resolution / FPS overlay (bottom-right) ──────────────────────
             Rectangle {
-                visible: root.controller.isRecording
-                         && root.controller.frameWidth > 0
+                visible: root.controller.isRecording && root.controller.frameWidth > 0
                 anchors.bottom: parent.bottom
                 anchors.right:  parent.right
                 anchors.margins: 8
                 width:  resLabel.implicitWidth + 10
                 height: 18
-                radius: 3
-                color: "#99000000"
+                radius: Theme.radius - 1
+                color: Qt.rgba(0, 0, 0, 0.55)
 
                 Text {
                     id: resLabel
@@ -125,9 +129,9 @@ Item {
                         + (root.controller.configuredFps > 0
                                ? root.controller.configuredFps
                                : root.controller.cameraFps).toFixed(0) + " fps"
-                    color: "#cdd6f4"
-                    font.pixelSize: 10
-                    font.family: "Courier New"
+                    color: Theme.colorText
+                    font.family: Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
                 }
             }
 
@@ -137,17 +141,20 @@ Item {
                 anchors.fill: parent
                 visible: root.controller.isRecording
 
+                // Skeleton edge definitions — colours mapped to theme tokens.
+                // Left-body edges use colorGood; right-body use colorAccent;
+                // mid-line connections use colorWarn.
                 readonly property var kEdges: [
-                    {a:0,  b:1,  color:"#a6e3a1"}, {a:0,  b:2,  color:"#89b4fa"},
-                    {a:1,  b:3,  color:"#a6e3a1"}, {a:2,  b:4,  color:"#89b4fa"},
-                    {a:0,  b:5,  color:"#a6e3a1"}, {a:0,  b:6,  color:"#89b4fa"},
-                    {a:5,  b:6,  color:"#f9e2af"},
-                    {a:5,  b:7,  color:"#a6e3a1"}, {a:7,  b:9,  color:"#a6e3a1"},
-                    {a:6,  b:8,  color:"#89b4fa"}, {a:8,  b:10, color:"#89b4fa"},
-                    {a:5,  b:11, color:"#a6e3a1"}, {a:6,  b:12, color:"#89b4fa"},
-                    {a:11, b:12, color:"#f9e2af"},
-                    {a:11, b:13, color:"#a6e3a1"}, {a:13, b:15, color:"#a6e3a1"},
-                    {a:12, b:14, color:"#89b4fa"}, {a:14, b:16, color:"#89b4fa"}
+                    {a:0,  b:1,  side:"good"}, {a:0,  b:2,  side:"accent"},
+                    {a:1,  b:3,  side:"good"}, {a:2,  b:4,  side:"accent"},
+                    {a:0,  b:5,  side:"good"}, {a:0,  b:6,  side:"accent"},
+                    {a:5,  b:6,  side:"warn"},
+                    {a:5,  b:7,  side:"good"}, {a:7,  b:9,  side:"good"},
+                    {a:6,  b:8,  side:"accent"}, {a:8,  b:10, side:"accent"},
+                    {a:5,  b:11, side:"good"}, {a:6,  b:12, side:"accent"},
+                    {a:11, b:12, side:"warn"},
+                    {a:11, b:13, side:"good"}, {a:13, b:15, side:"good"},
+                    {a:12, b:14, side:"accent"}, {a:14, b:16, side:"accent"}
                 ]
 
                 Connections {
@@ -163,8 +170,6 @@ Item {
                     if (!kps || kps.length < 17)
                         return
 
-                    // For Spinnaker (BayerVideoItem), use the item's full bounds.
-                    // For standard VideoOutput, use the letterboxed contentRect.
                     var cr = root.controller.needsDebayer
                         ? Qt.rect(0, 0, bayerView.width, bayerView.height)
                         : videoOut.contentRect
@@ -172,6 +177,10 @@ Item {
                         return
 
                     var kMinScore = 0.25
+                    var cGood   = Qt.rgba(Theme.colorGood.r,   Theme.colorGood.g,   Theme.colorGood.b,   1)
+                    var cAccent = Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 1)
+                    var cWarn   = Qt.rgba(Theme.colorWarn.r,   Theme.colorWarn.g,   Theme.colorWarn.b,   1)
+                    var cText   = Qt.rgba(Theme.colorText.r,   Theme.colorText.g,   Theme.colorText.b,   1)
 
                     for (var i = 0; i < kEdges.length; ++i) {
                         var e = kEdges[i]
@@ -179,7 +188,9 @@ Item {
                         if (ka.score < kMinScore || kb.score < kMinScore)
                             continue
                         ctx.globalAlpha = 0.4 + 0.6 * Math.min(ka.score, kb.score)
-                        ctx.strokeStyle = e.color
+                        ctx.strokeStyle = e.side === "good"   ? cGood
+                                        : e.side === "accent" ? cAccent
+                                        :                       cWarn
                         ctx.lineWidth   = 2
                         ctx.lineCap     = "round"
                         ctx.beginPath()
@@ -193,7 +204,7 @@ Item {
                         if (kp.score < kMinScore)
                             continue
                         var s = kp.score
-                        ctx.fillStyle   = s >= 0.6 ? "#cdd6f4" : s >= 0.4 ? "#f9e2af" : "#f38ba8"
+                        ctx.fillStyle   = s >= 0.6 ? cText : cWarn
                         ctx.globalAlpha = 0.5 + 0.5 * s
                         ctx.beginPath()
                         ctx.arc(kp.x * cr.width + cr.x, kp.y * cr.height + cr.y, 4, 0, Math.PI * 2)
@@ -205,19 +216,14 @@ Item {
             }
 
             // ── Persistent ROI overlay ────────────────────────────────────────
-            // Shows the confirmed ROI as a labelled rectangle mapped back from
-            // normalized [0,1] coords to the actual video content bounds.
             Rectangle {
                 id: roiOverlay
                 visible: root.roiIsSet && !root.roiSelecting
                 z: 20
                 color: "transparent"
-                border.color: "#fab387"
+                border.color: Theme.colorWarn
                 border.width: 2
 
-                // Content bounds in frameRect coordinates.
-                // videoOut sits at x=2, y=2 (anchors.margins: 2) and
-                // contentRect is relative to videoOut.
                 property real crX: root.controller && root.controller.needsDebayer
                                    ? 2 : (2 + videoOut.contentRect.x)
                 property real crY: root.controller && root.controller.needsDebayer
@@ -237,9 +243,11 @@ Item {
                     anchors.left: parent.left
                     anchors.margins: 3
                     text: "Hitting Area"
-                    color: "#fab387"
-                    font.pixelSize: 10
-                    font.bold: true
+                    color: Theme.colorWarn
+                    font.family: Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    font.weight: Font.Normal
+                    font.letterSpacing: Theme.trackingData
                 }
             }
 
@@ -252,19 +260,18 @@ Item {
                 y: Math.min(root.roiDragStart.y, root.roiDragEnd.y)
                 width:  Math.abs(root.roiDragEnd.x - root.roiDragStart.x)
                 height: Math.abs(root.roiDragEnd.y - root.roiDragStart.y)
-                color: "#22fab387"
-                border.color: "#fab387"
+                color: Theme.colorWarnLight
+                border.color: Theme.colorWarn
                 border.width: 2
             }
 
             // ── Detected ball circle ──────────────────────────────────────────
-            // Shown only when a ball has been found within the hitting area.
             Rectangle {
                 id: ballCircle
                 visible: root.controller.ballDetected && root.roiIsSet
                 z: 22
                 color: "transparent"
-                border.color: "#a6e3a1"
+                border.color: Theme.colorGood
                 border.width: 2
 
                 property real crX: root.controller && root.controller.needsDebayer
@@ -285,7 +292,7 @@ Item {
                 radius: screenR
             }
 
-            // ── Replay overlay ────────────────────────────────────────────────
+            // ── Replay badge ──────────────────────────────────────────────────
             Rectangle {
                 id: replayBadge
                 visible: root.controller.isReplaying
@@ -295,7 +302,9 @@ Item {
                 width: replayRow.implicitWidth + 24
                 height: 28
                 radius: 14
-                color: "#CC1e1e2e"
+                color: Qt.rgba(Theme.colorBg.r, Theme.colorBg.g, Theme.colorBg.b, 0.8)
+                border.width: 1
+                border.color: Theme.colorBorderMid
                 z: 30
 
                 Row {
@@ -306,17 +315,20 @@ Item {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: "REPLAY"
-                        color: "#f38ba8"
-                        font.pixelSize: 13
-                        font.bold: true
-                        font.letterSpacing: 1.5
+                        color: Theme.colorWarn
+                        font.family: Theme.fontData
+                        font.pixelSize: Theme.fontSzBody
+                        font.weight: Font.Normal
+                        font.letterSpacing: Theme.trackingMicro
+                        font.capitalization: Font.AllUppercase
                     }
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: "¼×"
-                        color: "#cba6f7"
-                        font.pixelSize: 11
+                        color: Theme.colorAccent
+                        font.family: Theme.fontData
+                        font.pixelSize: Theme.fontSzLabel
                     }
                 }
 
@@ -349,7 +361,6 @@ Item {
                     root.roiDragging  = false
                     root.roiSelecting = false
 
-                    // Map drag rect to normalized frame coords.
                     var crX = (root.controller && root.controller.needsDebayer)
                               ? 2 : (2 + videoOut.contentRect.x)
                     var crY = (root.controller && root.controller.needsDebayer)
@@ -381,8 +392,9 @@ Item {
             Label {
                 visible: root.controller.deviceDescription !== ""
                 text: root.controller.deviceDescription
-                color: "#6c7086"
-                font.pixelSize: 11
+                color: Theme.colorText3
+                font.family: Theme.fontBody
+                font.pixelSize: Theme.fontSzLabel
                 elide: Text.ElideRight
                 Layout.maximumWidth: 140
             }
@@ -401,27 +413,28 @@ Item {
                         readonly property bool active: root.controller.perspective === modelData.value
                         height: 20
                         width: perspLabel.implicitWidth + 10
-                        topLeftRadius:     modelData.leftR  ? 4 : 0
-                        bottomLeftRadius:  modelData.leftR  ? 4 : 0
-                        topRightRadius:    modelData.rightR ? 4 : 0
-                        bottomRightRadius: modelData.rightR ? 4 : 0
-                        color: active ? "#89b4fa" : "#313244"
+                        topLeftRadius:     modelData.leftR  ? Theme.radius : 0
+                        bottomLeftRadius:  modelData.leftR  ? Theme.radius : 0
+                        topRightRadius:    modelData.rightR ? Theme.radius : 0
+                        bottomRightRadius: modelData.rightR ? Theme.radius : 0
+                        color: active ? Theme.colorAccent : Theme.colorSurface
+                        border.width: 1
+                        border.color: active ? Theme.colorAccent : Theme.colorBorderMid
                         Text {
                             id: perspLabel
                             anchors.centerIn: parent
                             text: modelData.label
-                            color: active ? "#1e1e2e" : "#cdd6f4"
-                            font.pixelSize: 11
-                            font.bold: active
+                            color: active ? Theme.colorBg : Theme.colorText2
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.fontSzLabel
+                            font.weight: Font.Normal
                         }
                         TapHandler {
                             onTapped: cameraManager.setPerspective(
                                 root.controller,
                                 active ? 0 : modelData.value)
                         }
-                        HoverHandler {
-                            cursorShape: Qt.PointingHandCursor
-                        }
+                        HoverHandler { cursorShape: Qt.PointingHandCursor }
                     }
                 }
             }
@@ -430,27 +443,32 @@ Item {
             Rectangle {
                 height: 20
                 width: roiBtnLabel.implicitWidth + 10
-                radius: 4
-                color: root.roiSelecting ? "#fab387"
-                     : root.roiIsSet     ? "#f9e2af"
-                     :                     "#313244"
+                radius: Theme.radius
+                color: root.roiSelecting ? Theme.colorWarn
+                     : root.roiIsSet     ? Theme.colorWarnLight
+                     :                     Theme.colorSurface
+                border.width: 1
+                border.color: root.roiSelecting || root.roiIsSet
+                              ? Qt.rgba(Theme.colorWarn.r, Theme.colorWarn.g, Theme.colorWarn.b, 0.5)
+                              : Theme.colorBorderMid
 
                 Text {
                     id: roiBtnLabel
                     anchors.centerIn: parent
                     text: qsTr("Hitting Area")
-                    color: (root.roiSelecting || root.roiIsSet) ? "#1e1e2e" : "#cdd6f4"
-                    font.pixelSize: 11
-                    font.bold: root.roiSelecting || root.roiIsSet
+                    color: root.roiSelecting ? Theme.colorBg
+                         : root.roiIsSet     ? Theme.colorWarn
+                         :                     Theme.colorText2
+                    font.family: Theme.fontBody
+                    font.pixelSize: Theme.fontSzLabel
+                    font.weight: Font.Normal
                 }
                 TapHandler {
                     onTapped: {
                         if (root.roiSelecting) {
-                            // Cancel active selection.
                             root.roiSelecting = false
                             root.roiDragging  = false
                         } else {
-                            // Clear any existing ROI and enter selection mode.
                             root.controller.clearRoi()
                             root.roiSelecting = true
                         }
@@ -469,29 +487,34 @@ Item {
                 visible: root.roiIsSet && root.controller.isRecording
                 width: ballBadgeLabel.implicitWidth + 10
                 height: 20
-                radius: 4
+                radius: Theme.radius
 
                 readonly property bool ballPresent: root.controller.ballPresencePercent > 30
 
-                color: ballPresent ? "#a6e3a1" : "#313244"
+                color: ballPresent ? Theme.colorGoodLight : Theme.colorSurface
+                border.width: 1
+                border.color: ballPresent
+                              ? Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.3)
+                              : Theme.colorBorderMid
 
                 Text {
                     id: ballBadgeLabel
                     anchors.centerIn: parent
                     text: parent.ballPresent ? qsTr("Ball") : qsTr("No Ball")
-                    color: parent.ballPresent ? "#1e1e2e" : "#6c7086"
-                    font.pixelSize: 11
-                    font.bold: parent.ballPresent
+                    color: parent.ballPresent ? Theme.colorGood : Theme.colorText3
+                    font.family: Theme.fontBody
+                    font.pixelSize: Theme.fontSzLabel
+                    font.weight: Font.Normal
                 }
             }
 
-            // ── Rolling ball-presence percentage (last 50 frames) ─────────────
+            // ── Rolling ball-presence percentage ─────────────────────────────
             Label {
                 visible: root.roiIsSet && root.controller.isRecording
                 text: root.controller.ballPresencePercent.toFixed(0) + "%"
-                color: "#6c7086"
-                font.pixelSize: 11
-                font.family: "Courier New"
+                color: Theme.colorText3
+                font.family: Theme.fontData
+                font.pixelSize: Theme.fontSzLabel
             }
 
             Item { Layout.fillWidth: true }
@@ -499,26 +522,26 @@ Item {
             Label {
                 visible: root.controller.isRecording && root.controller.preprocessAvgMs > 0
                 text: "Pre: " + root.controller.preprocessAvgMs.toFixed(1) + " ms"
-                color: "#6c7086"
-                font.pixelSize: 11
-                font.family: "Courier New"
+                color: Theme.colorText3
+                font.family: Theme.fontData
+                font.pixelSize: Theme.fontSzLabel
             }
 
             Label {
                 visible: root.controller.isRecording && root.controller.cameraFps > 0
                 text: "Cam: " + root.controller.cameraFps.toFixed(1) + " fps"
-                color: "#6c7086"
-                font.pixelSize: 11
-                font.family: "Courier New"
+                color: Theme.colorText3
+                font.family: Theme.fontData
+                font.pixelSize: Theme.fontSzLabel
             }
 
             Label {
                 visible: root.controller.isRecording && root.controller.poseFps > 0
                 text: "Pose: " + root.controller.poseAvgMs.toFixed(1) + " ms  "
                     + root.controller.poseFps.toFixed(1) + " fps"
-                color: "#6c7086"
-                font.pixelSize: 11
-                font.family: "Courier New"
+                color: Theme.colorText3
+                font.family: Theme.fontData
+                font.pixelSize: Theme.fontSzLabel
             }
 
             // ── Pose model selector (Lightning / Thunder) ────────────────────
@@ -530,16 +553,21 @@ Item {
                     id: lightningBtn
                     height: 20
                     width: lightningLabel.implicitWidth + 10
-                    topLeftRadius: 4; bottomLeftRadius: 4
+                    topLeftRadius: Theme.radius; bottomLeftRadius: Theme.radius
                     topRightRadius: 0; bottomRightRadius: 0
-                    color: root.controller.moveNetModel === 0 ? "#cba6f7" : "#313244"
+                    color: root.controller.moveNetModel === 0 ? Theme.colorAccentMid : Theme.colorSurface
+                    border.width: 1
+                    border.color: root.controller.moveNetModel === 0
+                                  ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.4)
+                                  : Theme.colorBorderMid
                     Text {
                         id: lightningLabel
                         anchors.centerIn: parent
                         text: qsTr("Lightning")
-                        color: root.controller.moveNetModel === 0 ? "#1e1e2e" : "#cdd6f4"
-                        font.pixelSize: 11
-                        font.bold: root.controller.moveNetModel === 0
+                        color: root.controller.moveNetModel === 0 ? Theme.colorAccent : Theme.colorText2
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fontSzLabel
+                        font.weight: Font.Normal
                     }
                     TapHandler { onTapped: root.controller.selectMoveNetModel(0) }
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
@@ -550,15 +578,21 @@ Item {
                     visible: root.controller.moveNetThunderAvailable
                     height: 20
                     width: thunderLabel.implicitWidth + 10
-                    topRightRadius: 4; bottomRightRadius: 4
-                    color: root.controller.moveNetModel === 1 ? "#cba6f7" : "#313244"
+                    topRightRadius: Theme.radius; bottomRightRadius: Theme.radius
+                    topLeftRadius: 0; bottomLeftRadius: 0
+                    color: root.controller.moveNetModel === 1 ? Theme.colorAccentMid : Theme.colorSurface
+                    border.width: 1
+                    border.color: root.controller.moveNetModel === 1
+                                  ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.4)
+                                  : Theme.colorBorderMid
                     Text {
                         id: thunderLabel
                         anchors.centerIn: parent
                         text: qsTr("Thunder")
-                        color: root.controller.moveNetModel === 1 ? "#1e1e2e" : "#cdd6f4"
-                        font.pixelSize: 11
-                        font.bold: root.controller.moveNetModel === 1
+                        color: root.controller.moveNetModel === 1 ? Theme.colorAccent : Theme.colorText2
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fontSzLabel
+                        font.weight: Font.Normal
                     }
                     TapHandler { onTapped: root.controller.selectMoveNetModel(1) }
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
@@ -567,12 +601,15 @@ Item {
 
             // ── ORT backend badge ─────────────────────────────────────────────
             Rectangle {
-                visible: root.controller.poseBackendLabel !== ""
-                         || root.controller.poseFps > 0
+                visible: root.controller.poseBackendLabel !== "" || root.controller.poseFps > 0
                 width: poseBackendText.implicitWidth + 10
                 height: 20
-                radius: 4
-                color: root.controller.poseBackendLabel !== "" ? "#a6e3a1" : "#6c7086"
+                radius: Theme.radius
+                color: root.controller.poseBackendLabel !== "" ? Theme.colorGoodLight : Theme.colorSurface
+                border.width: 1
+                border.color: root.controller.poseBackendLabel !== ""
+                              ? Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.3)
+                              : Theme.colorBorderMid
 
                 HoverHandler { id: poseBackendHover }
                 ToolTip.visible: poseBackendHover.hovered
@@ -589,9 +626,10 @@ Item {
                     text: root.controller.poseBackendLabel !== ""
                           ? root.controller.poseBackendLabel
                           : qsTr("CPU")
-                    color: "#1e1e2e"
-                    font.pixelSize: 11
-                    font.bold: true
+                    color: root.controller.poseBackendLabel !== "" ? Theme.colorGood : Theme.colorText3
+                    font.family: Theme.fontData
+                    font.pixelSize: Theme.fontSzLabel
+                    font.weight: Font.Normal
                 }
             }
         }
