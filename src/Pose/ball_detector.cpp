@@ -22,6 +22,7 @@
 #include "pp_debug.h"
 
 #include <opencv2/imgproc.hpp>
+#include <opencv2/features2d.hpp>
 
 BallDetector::BallDetector(QObject *parent)
     : QObject(parent)
@@ -50,12 +51,16 @@ void BallDetector::detect(const cv::Mat &frame)
 
     cv::Mat roiMat = frame(cv::Rect(rx, ry, rw, rh));
 
-    cv::Mat gray;
-    cv::cvtColor(roiMat, gray, cv::COLOR_BGR2GRAY);
+    // White segmentation: isolate high-V, low-S pixels (the ball). Shadows are
+    // not white so they are eliminated before any geometry detection runs.
+    cv::Mat hsv;
+    cv::cvtColor(roiMat, hsv, cv::COLOR_BGR2HSV);
+    cv::Mat whiteMask;
+    cv::inRange(hsv, cv::Scalar(0, 0, 170), cv::Scalar(180, 50, 255), whiteMask);
 
-    // Gaussian blur reduces noise and suppresses the ball's dimple texture,
-    // making the overall circular outline more prominent to the Hough transform.
-    cv::GaussianBlur(gray, gray, cv::Size(9, 9), 2.0);
+    // Morphological close fills dimple-texture gaps in the white mask.
+    const cv::Mat closeKernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(5, 5));
+    cv::morphologyEx(whiteMask, whiteMask, cv::MORPH_CLOSE, closeKernel);
 
     // Radius bounds relative to the ROI so the detector adapts to different
     // camera distances.
@@ -64,31 +69,66 @@ void BallDetector::detect(const cv::Mat &frame)
     const int maxRadius = roiMin / 2;
     const int minDist   = std::max(10, rh / 8);
 
-    // Low param1 (Canny threshold) and low param2 (accumulator threshold) let
-    // HOUGH_GRADIENT accumulate votes from partial arcs — each edge pixel votes
-    // along its gradient direction so even a quarter-circle of visible rim is
-    // enough to locate the centre.
-    std::vector<cv::Vec3f> circles;
-    cv::HoughCircles(gray, circles, cv::HOUGH_GRADIENT,
-                     /*dp=*/      1,
-                     /*minDist=*/ minDist,
-                     /*param1=*/  30,   // Canny high threshold — lenient edge detection
-                     /*param2=*/  30,   // accumulator threshold — accepts partial arcs
-                     minRadius,
-                     maxRadius);
+    // Upsample 2× so small distant balls generate more accumulator votes per arc.
+    cv::Mat upsampled;
+    cv::resize(whiteMask, upsampled, cv::Size(), 2.0, 2.0, cv::INTER_CUBIC);
+    const int minRadiusUp = minRadius * 2;
+    const int maxRadiusUp = maxRadius * 2;
+    const int minDistUp   = minDist   * 2;
 
-    if (circles.empty()) {
+    // Strategy 1: HOUGH_GRADIENT_ALT in confidence mode on the white mask.
+    std::vector<cv::Vec3f> circles;
+    cv::HoughCircles(upsampled, circles, cv::HOUGH_GRADIENT_ALT,
+                     /*dp=*/      1,
+                     /*minDist=*/ minDistUp,
+                     /*param1=*/  300,  // Canny high threshold
+                     /*param2=*/  0.7,  // confidence threshold [0,1]
+                     minRadiusUp,
+                     maxRadiusUp);
+
+    if (!circles.empty()) {
+        const auto &c = circles[0];
+        const float cx = (rx + c[0] / 2.f) / static_cast<float>(fw);
+        const float cy = (ry + c[1] / 2.f) / static_cast<float>(fh);
+        const float cr =      (c[2] / 2.f)  / static_cast<float>(fw);
+        ppDebug() << "[BallDetector] strategy: hough" << cx << cy << "r=" << cr;
+        emit ballDetected(BallDetection{true, cx, cy, cr});
+        return;
+    }
+
+    // Strategy 2: SimpleBlobDetector fallback handles cases where the ball and
+    // shadow merge into a non-circular but still convex blob.
+    cv::SimpleBlobDetector::Params blobParams;
+    blobParams.filterByColor       = true;
+    blobParams.blobColor           = 255;
+    blobParams.filterByCircularity = true;
+    blobParams.minCircularity      = 0.55f;
+    blobParams.filterByArea        = true;
+    blobParams.minArea             = static_cast<float>(CV_PI * minRadiusUp * minRadiusUp);
+    blobParams.maxArea             = static_cast<float>(CV_PI * maxRadiusUp * maxRadiusUp);
+    blobParams.filterByConvexity   = true;
+    blobParams.minConvexity        = 0.70f;
+    blobParams.filterByInertia     = true;
+    blobParams.minInertiaRatio     = 0.45f;
+
+    std::vector<cv::KeyPoint> keypoints;
+    cv::SimpleBlobDetector::create(blobParams)->detect(upsampled, keypoints);
+
+    if (keypoints.empty()) {
         emit ballDetected(BallDetection{false, 0.f, 0.f, 0.f});
         return;
     }
 
-    // HOUGH_GRADIENT returns circles in decreasing accumulator order — take the first.
-    const auto &c = circles[0];
-    const float cx = (rx + c[0]) / static_cast<float>(fw);
-    const float cy = (ry + c[1]) / static_cast<float>(fh);
-    const float cr =       c[2]  / static_cast<float>(fw);
+    // Take the largest blob.
+    const auto &best = *std::max_element(keypoints.begin(), keypoints.end(),
+        [](const cv::KeyPoint &a, const cv::KeyPoint &b) { return a.size < b.size; });
 
-    ppDebug() << "[BallDetector] found at" << cx << cy << "r=" << cr;
+    // best.pt is in upsampled space; /2 converts back. best.size is diameter.
+    const float cx = (rx + best.pt.x / 2.f) / static_cast<float>(fw);
+    const float cy = (ry + best.pt.y / 2.f) / static_cast<float>(fh);
+    const float cr =      (best.size  / 4.f) / static_cast<float>(fw);
+
+    ppDebug() << "[BallDetector] strategy: blob" << cx << cy << "r=" << cr;
     emit ballDetected(BallDetection{true, cx, cy, cr});
 }
 
