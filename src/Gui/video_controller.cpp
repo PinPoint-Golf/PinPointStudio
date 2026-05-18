@@ -238,6 +238,7 @@ void VideoController::setupPipeline()
 
         m_frameThrottle = new FrameThrottle();
         m_frameThrottle->setSkipFactor(2);
+        m_frameThrottle->setConsumerCount(2);  // pose estimator + ball detector
 
         connect(cvPP, &VideoPreprocessorOpenCV::framePreprocessed,
                 m_poseEstimator, &PoseEstimatorBase::estimatePose, Qt::QueuedConnection);
@@ -261,6 +262,8 @@ void VideoController::setupPipeline()
                 m_ballDetector, &BallDetector::detect, Qt::QueuedConnection);
         connect(m_ballDetector, &BallDetector::ballDetected,
                 this, &VideoController::onBallDetected, Qt::QueuedConnection);
+        connect(m_ballDetector, &BallDetector::ballDetected,
+                m_frameThrottle, &FrameThrottle::clearBusy, Qt::DirectConnection);
 
         // Forward ROI changes to the detector thread.  The lambda captures the
         // current roi value on the main thread before posting it to the detector.
@@ -472,6 +475,7 @@ int     VideoController::frameHeight()            const { return m_frameHeight; 
 double  VideoController::configuredFps()          const { return m_configuredFps; }
 double  VideoController::poseAvgMs()              const { return m_poseAvgMs; }
 double  VideoController::poseFps()                const { return m_poseFps; }
+double  VideoController::ballAvgMs()              const { return m_ballAvgMs; }
 QString VideoController::poseBackendLabel()       const { return m_poseBackendLabel; }
 int     VideoController::moveNetModel()           const { return m_moveNetModel; }
 QString VideoController::deviceDescription()      const { return m_deviceDescription; }
@@ -538,6 +542,18 @@ bool   VideoController::ballPresent()         const { return m_ballPresent; }
 void VideoController::onBallDetected(const BallDetection &result)
 {
     if (m_replaying) return;
+
+    // EMA of detection latency — only when detect() actually ran (detectMs > 0).
+    if (result.detectMs > 0) {
+        constexpr double kAlpha = 0.1;
+        const double ms = m_ballAvgMs == 0.0
+                        ? static_cast<double>(result.detectMs)
+                        : kAlpha * static_cast<double>(result.detectMs) + (1.0 - kAlpha) * m_ballAvgMs;
+        if (!qFuzzyCompare(m_ballAvgMs, ms)) {
+            m_ballAvgMs = ms;
+            emit ballAvgMsChanged();
+        }
+    }
 
     // Update the rolling 50-frame window.
     m_ballWindow.push_back(result.found);

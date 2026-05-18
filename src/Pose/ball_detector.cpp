@@ -21,6 +21,7 @@
 #include "ball_detector.h"
 #include "pp_debug.h"
 
+#include <QElapsedTimer>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/features2d.hpp>
 
@@ -37,8 +38,13 @@ void BallDetector::setRoi(QRectF roi)
 
 void BallDetector::detect(const cv::Mat &frame)
 {
-    if (m_roi.isEmpty() || frame.empty())
+    if (m_roi.isEmpty() || frame.empty()) {
+        emit ballDetected(BallDetection{});
         return;
+    }
+
+    QElapsedTimer t;
+    t.start();
 
     const int fw = frame.cols;
     const int fh = frame.rows;
@@ -92,7 +98,7 @@ void BallDetector::detect(const cv::Mat &frame)
         const float cy = (ry + c[1] / 2.f) / static_cast<float>(fh);
         const float cr =      (c[2] / 2.f)  / static_cast<float>(fw);
         ppDebug() << "[BallDetector] strategy: hough" << cx << cy << "r=" << cr;
-        emit ballDetected(BallDetection{true, cx, cy, cr});
+        emit ballDetected(BallDetection{true, cx, cy, cr, t.elapsed()});
         return;
     }
 
@@ -115,7 +121,7 @@ void BallDetector::detect(const cv::Mat &frame)
     cv::SimpleBlobDetector::create(blobParams)->detect(upsampled, keypoints);
 
     if (keypoints.empty()) {
-        emit ballDetected(BallDetection{false, 0.f, 0.f, 0.f});
+        emit ballDetected(BallDetection{false, 0.f, 0.f, 0.f, t.elapsed()});
         return;
     }
 
@@ -129,7 +135,7 @@ void BallDetector::detect(const cv::Mat &frame)
     const float cr =      (best.size  / 4.f) / static_cast<float>(fw);
 
     ppDebug() << "[BallDetector] strategy: blob" << cx << cy << "r=" << cr;
-    emit ballDetected(BallDetection{true, cx, cy, cr});
+    emit ballDetected(BallDetection{true, cx, cy, cr, t.elapsed()});
 }
 
 #endif // HAVE_OPENCV

@@ -31,6 +31,16 @@ void FrameThrottle::setSkipFactor(int n)
     m_skipFactor = qMax(1, n);
 }
 
+void FrameThrottle::setConsumerCount(int n)
+{
+    m_consumerCount = qMax(1, n);
+}
+
+void FrameThrottle::setRawConsumerCount(int n)
+{
+    m_rawConsumerCount = qMax(1, n);
+}
+
 void FrameThrottle::offer(const QVideoFrame &frame)
 {
     if (++m_offerCount % m_skipFactor != 0)
@@ -47,6 +57,10 @@ void FrameThrottle::offer(const QVideoFrame &frame)
 
 void FrameThrottle::clearBusy()
 {
+    if (++m_doneCount < m_consumerCount)
+        return;
+    m_doneCount.store(0, std::memory_order_relaxed);
+
     QVideoFrame next;
     {
         QMutexLocker lk(&m_mutex);
@@ -76,6 +90,10 @@ void FrameThrottle::offerRaw(const RawVideoFrame &frame)
 
 void FrameThrottle::clearRawBusy()
 {
+    if (++m_rawDoneCount < m_rawConsumerCount)
+        return;
+    m_rawDoneCount.store(0, std::memory_order_relaxed);
+
     RawVideoFrame next;
     {
         QMutexLocker lk(&m_rawMutex);

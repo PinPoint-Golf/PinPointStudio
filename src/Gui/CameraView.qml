@@ -544,6 +544,14 @@ Item {
                 font.pixelSize: Theme.fontSzLabel
             }
 
+            Label {
+                visible: root.controller.isRecording && root.controller.ballAvgMs > 0
+                text: "Ball: " + root.controller.ballAvgMs.toFixed(1) + " ms"
+                color: Theme.colorText3
+                font.family: Theme.fontData
+                font.pixelSize: Theme.fontSzLabel
+            }
+
             // ── Pose model selector (Lightning / Thunder) ────────────────────
             Row {
                 visible: root.controller.moveNetThunderAvailable

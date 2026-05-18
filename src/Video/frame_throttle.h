@@ -55,6 +55,12 @@ public:
     // Default is 1 (every frame).  Set to 2 to halve the pose rate, etc.
     void setSkipFactor(int n);
 
+    // Number of downstream consumers that must call clearBusy() before the
+    // throttle releases the next frame.  Default is 1 (original behaviour).
+    // Call before wiring any connections.
+    void setConsumerCount(int n);
+    void setRawConsumerCount(int n);
+
 public slots:
     // QVideoFrame path — used by Qt Multimedia / Aravis.
     void offer(const QVideoFrame &frame);
@@ -80,6 +86,12 @@ private:
     int m_skipFactor{1};
     int m_offerCount{0};
     int m_rawOfferCount{0};
+
+    int                m_consumerCount{1};
+    std::atomic<int>   m_doneCount{0};
+
+    int                m_rawConsumerCount{1};
+    std::atomic<int>   m_rawDoneCount{0};
 };
 
 #endif // HAVE_OPENCV

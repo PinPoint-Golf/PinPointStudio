@@ -25,10 +25,11 @@
 #include <opencv2/core.hpp>
 
 struct BallDetection {
-    bool  found  = false;
-    float x      = 0.f;   // normalized [0,1] within the full frame (centre)
-    float y      = 0.f;
-    float radius = 0.f;   // radius normalised to frame width
+    bool    found     = false;
+    float   x         = 0.f;   // normalized [0,1] within the full frame (centre)
+    float   y         = 0.f;
+    float   radius    = 0.f;   // radius normalised to frame width
+    qint64  detectMs  = 0;     // wall-clock duration of detect() in ms (0 = skipped)
 };
 Q_DECLARE_METATYPE(BallDetection)
 
