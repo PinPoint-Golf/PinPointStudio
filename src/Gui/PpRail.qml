@@ -149,7 +149,7 @@ Item {
             iconText:  "⚙"
             labelText: "Settings"
             isActive:  false
-            onClicked: console.log("Settings pressed")
+            onClicked: Theme.cycleTheme()
         }
 
         Item { Layout.preferredHeight: 16; Layout.fillWidth: true }

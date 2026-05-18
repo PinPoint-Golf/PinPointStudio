@@ -28,9 +28,16 @@ import QtQuick
 QtObject {
     id: root
 
-    // Active aesthetic and mode — bind to C++ AppSettings at startup.
-    property string aesthetic: "editorial"
-    property bool   dark:      false
+    // Theme cycle index: 0–5 maps to instrument-light, instrument-dark,
+    // editorial-light, editorial-dark, studio-light, studio-dark.
+    property int themeIndex: 0
+
+    function cycleTheme() { themeIndex = (themeIndex + 1) % 6 }
+
+    // Active aesthetic and mode — derived from themeIndex.
+    // Can also be set directly to bind to C++ AppSettings at startup.
+    readonly property string aesthetic: ["instrument","instrument","editorial","editorial","studio","studio"][themeIndex]
+    readonly property bool   dark:      (themeIndex % 2) === 1
 
     // ── Colour tokens ────────────────────────────────────────────────────────
 
