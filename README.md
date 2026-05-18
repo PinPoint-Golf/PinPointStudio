@@ -1,8 +1,12 @@
 # PinPoint
 
+PinPoint is a free, open source and cross-platform desktop application for serious golf swing analysis. It combines high-speed industrial cameras, Bluetooth IMUs, and on-device AI to build a complete picture of the swing — without sending data to the cloud unless you configure it to.
+
+The app is currently in active prototyping. The core capture and analysis pipeline is functional; the coaching and session-history layers are in development.
+
 ![PinPoint — Editorial light](docs/aesthetic/editorial_opening_light.png)
 
-A golf swing analysis app that extracts kinematic metrics using IMUs and computer vision, coupled with an AI coach to diagnose and explain your swing.
+The long term goal is to exploit computer vision and wearables to analyse golf movements and mechanistically determine the kinematic sequence, extracting key golf swing metrics, working with the full swing, wrist angles, estimated ground forces. With an ambition to be a platform that can be used by golfers, coaches and researchers.
 
 ## Documentation
 - [Building Instructions](BUILDING.md) — How to resolve dependencies and build PinPoint.
@@ -13,14 +17,6 @@ A golf swing analysis app that extracts kinematic metrics using IMUs and compute
 - [WT901BLE67 Protocol Reference](docs/WT901BLE67_Protocol.md) — Packet formats, register map, and BLE transport details for the Witmotion IMU.
 - [Aesthetic Design Concepts](docs/aesthetic/pinpoint-aesthetic-concepts.md) — Three visual design directions (Editorial, Instrument, Studio) across light and dark themes.
 - [QML Design System](docs/PINPOINT_QML_DESIGN_SYSTEM.md) — Token system, typography rules, and component patterns; read before writing any QML.
-
----
-
-## Overview
-
-PinPoint is a cross-platform desktop application for serious golf swing analysis. It combines high-speed industrial cameras, Bluetooth IMUs, and on-device AI to build a complete picture of the swing — without sending data to the cloud unless you configure it to.
-
-The app is currently in active prototyping. The core capture and analysis pipeline is functional; the coaching and session-history layers are in development.
 
 ---
 
