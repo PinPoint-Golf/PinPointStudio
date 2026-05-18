@@ -21,6 +21,8 @@ import QtQuick.Layouts
 import PinPoint
 
 Item {
+    signal addAthleteRequested()
+
     // Scrollable content centred in the available area
     Flickable {
         anchors.fill:       parent
@@ -111,7 +113,7 @@ Item {
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
-                    onClicked:   console.log("Add athlete pressed")
+                    onClicked:   addAthleteRequested()
                 }
             }
 

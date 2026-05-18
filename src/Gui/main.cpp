@@ -29,6 +29,7 @@
 #include "camera_manager.h"
 #include "buffer_controller.h"
 #include "event_buffer.h"
+#include "athlete_controller.h"
 
 int main(int argc, char *argv[])
 {
@@ -49,8 +50,10 @@ int main(int argc, char *argv[])
     CameraManager           cameraManager(&eventBuffer);
     FilmController          filmController;
     BufferController        bufferController(&eventBuffer);
+    AthleteController       athleteController;
 
     QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty(QStringLiteral("athleteController"), &athleteController);
     engine.rootContext()->setContextProperty(QStringLiteral("imuController"),    &imuController);
     engine.rootContext()->setContextProperty(QStringLiteral("controller"),       &controller);
     engine.rootContext()->setContextProperty(QStringLiteral("ttsController"),    &ttsController);

@@ -105,6 +105,7 @@ qt_add_executable(PinPoint
     src/Gui/transcription_controller.h src/Gui/transcription_controller.cpp
     src/Gui/tts_controller.h           src/Gui/tts_controller.cpp
     src/Gui/film_controller.h          src/Gui/film_controller.cpp
+    src/Gui/athlete_controller.h       src/Gui/athlete_controller.cpp
     src/IMU/wt9011dcl_base.h src/IMU/wt9011dcl_base.cpp
     src/IMU/wt9011dcl.h      src/IMU/wt9011dcl.cpp
     src/IMU/wt9011dcl_ble.h  src/IMU/wt9011dcl_ble.cpp
@@ -159,6 +160,14 @@ qt_add_qml_module(PinPoint
         src/Gui/PlayPage.qml
         src/Gui/ScreenWelcome.qml
         src/Gui/ScreenPlaceholder.qml
+        src/Gui/ScreenAthleteForm.qml
+        src/Gui/ScreenAthletePicker.qml
+        src/Gui/PpTextField.qml
+        src/Gui/PpChipGroup.qml
+        src/Gui/PpUnitToggle.qml
+        src/Gui/PpButton.qml
+        src/Gui/PpAthleteCard.qml
+        src/Gui/PpAthleteRow.qml
     SOURCES
         src/Video/bayer_video_item.h
         src/Video/bayer_video_item.cpp

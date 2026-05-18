@@ -32,6 +32,9 @@ Item {
     // Emitted whenever a nav button is pressed; caller sets contentStack.currentIndex
     signal pageRequested(int index)
 
+    // Emitted when the athlete avatar is clicked
+    signal avatarClicked()
+
     // Background — Instrument uses colorBg2; Studio and Editorial use colorBg
     Rectangle {
         anchors.fill: parent
@@ -61,16 +64,37 @@ Item {
             width:  32
             height: 32
             radius: 16
-            color:  Theme.colorAccentLight
-            border.width: 1
-            border.color: Theme.colorAccentMid
+            color:  athleteController.hasCurrentAthlete
+                        ? Theme.colorAccentLight : "transparent"
+            border.width: athleteController.hasCurrentAthlete ? 1 : 1
+            border.color: athleteController.hasCurrentAthlete
+                              ? Theme.colorAccentMid : Theme.colorBorderStrong
+
+            // Dashed border for the "no athlete" state — overlay a dotted Rectangle
+            Rectangle {
+                anchors.fill:  parent
+                radius:        parent.radius
+                color:         "transparent"
+                border.width:  1
+                border.color:  Theme.colorBorderStrong
+                visible:       !athleteController.hasCurrentAthlete
+                // QML doesn't support dashed borders natively; solid low-opacity suffices
+            }
 
             Text {
                 anchors.centerIn: parent
-                text:           "MC"
+                text:           athleteController.hasCurrentAthlete
+                                    ? athleteController.currentInitials : "＋"
                 font.family:    Theme.fontData
                 font.pixelSize: 10
-                color:          Theme.colorAccent
+                color:          athleteController.hasCurrentAthlete
+                                    ? Theme.colorAccent : Theme.colorText3
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                cursorShape:  Qt.PointingHandCursor
+                onClicked:    root.avatarClicked()
             }
         }
 
