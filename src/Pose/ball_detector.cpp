@@ -72,7 +72,7 @@ void BallDetector::detect(const cv::Mat &frame)
     cv::HoughCircles(gray, circles, cv::HOUGH_GRADIENT,
                      /*dp=*/      1,
                      /*minDist=*/ minDist,
-                     /*param1=*/  40,   // Canny high threshold — lenient edge detection
+                     /*param1=*/  30,   // Canny high threshold — lenient edge detection
                      /*param2=*/  30,   // accumulator threshold — accepts partial arcs
                      minRadius,
                      maxRadius);

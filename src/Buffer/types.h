@@ -40,6 +40,7 @@ enum class PixelFormat {
     Unknown,
     Mono8, Mono12, Mono12Packed, Mono16,
     BayerRG8, BayerRG12, BayerRG16,
+    BayerBG8, BayerGR8, BayerGB8, BayerGB16,
     YUV422, YUYV, UYVY,
     NV12, YUV420P,
     BGR24, RGB24, BGRA32, RGBA32,

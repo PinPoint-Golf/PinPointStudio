@@ -66,6 +66,10 @@ static pinpoint::PixelFormat bufferPixelFormat(PixelEncoding enc)
     case PixelEncoding::BGR8:        return pinpoint::PixelFormat::BGRA32;
     case PixelEncoding::BayerRG8:    return pinpoint::PixelFormat::BayerRG8;
     case PixelEncoding::BayerRG16:   return pinpoint::PixelFormat::BayerRG16;
+    case PixelEncoding::BayerBG8:    return pinpoint::PixelFormat::BayerBG8;
+    case PixelEncoding::BayerGR8:    return pinpoint::PixelFormat::BayerGR8;
+    case PixelEncoding::BayerGB8:    return pinpoint::PixelFormat::BayerGB8;
+    case PixelEncoding::BayerGB16:   return pinpoint::PixelFormat::BayerGB16;
     default:                          return pinpoint::PixelFormat::Unknown;
     }
 }
@@ -160,7 +164,8 @@ VideoController::VideoController(const Device &device, pinpoint::EventBuffer *bu
             // for ceil(200*5)=1000 → 1024 slots, enough for 150 fps cameras.
             // At 60 fps the ring was 512 slots, causing constant overwrites at
             // 150 fps (150*5=750 frames > 512 ring capacity).
-            cfmt.fps_numerator = 200;
+            cfmt.fps_numerator   = 200;
+            cfmt.fps_denominator = 1;
             break;
         default:
             desc.format.device = pinpoint::DeviceKind::Camera_UVC;
@@ -863,14 +868,25 @@ void VideoController::displayReplayFrame(const std::byte *data, size_t bytes,
 
     const bool isBayer = (fmt == pinpoint::PixelFormat::BayerRG8  ||
                           fmt == pinpoint::PixelFormat::BayerRG12 ||
-                          fmt == pinpoint::PixelFormat::BayerRG16);
+                          fmt == pinpoint::PixelFormat::BayerRG16 ||
+                          fmt == pinpoint::PixelFormat::BayerBG8  ||
+                          fmt == pinpoint::PixelFormat::BayerGR8  ||
+                          fmt == pinpoint::PixelFormat::BayerGB8  ||
+                          fmt == pinpoint::PixelFormat::BayerGB16);
 
     if (isBayer) {
         if (!m_bayerItem) return;
         RawVideoFrame raw;
         raw.width   = w;
         raw.height  = h;
-        raw.pattern = RawVideoFrame::BayerPattern::RG;
+        raw.pattern = (fmt == pinpoint::PixelFormat::BayerBG8)
+                    ? RawVideoFrame::BayerPattern::BG
+                    : (fmt == pinpoint::PixelFormat::BayerGR8)
+                    ? RawVideoFrame::BayerPattern::GR
+                    : (fmt == pinpoint::PixelFormat::BayerGB8  ||
+                       fmt == pinpoint::PixelFormat::BayerGB16)
+                    ? RawVideoFrame::BayerPattern::GB
+                    : RawVideoFrame::BayerPattern::RG;
         raw.data    = QByteArray(reinterpret_cast<const char *>(data),
                                  static_cast<qsizetype>(bytes));
         m_bayerItem->updateFrame(raw);
