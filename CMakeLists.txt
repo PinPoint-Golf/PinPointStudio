@@ -174,6 +174,10 @@ qt_add_qml_module(PinPoint
         src/Gui/RmSourceRow.qml
         src/Gui/RmTimelineChart.qml
         src/Gui/RmWarningNotice.qml
+        src/Gui/ScreenHome.qml
+        src/Gui/HmTypeCard.qml
+        src/Gui/HmDeviceRow.qml
+        src/Gui/HmSessionTile.qml
     SOURCES
         src/Video/bayer_video_item.h
         src/Video/bayer_video_item.cpp

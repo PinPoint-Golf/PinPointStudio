@@ -25,7 +25,7 @@ import PinPoint
 ApplicationWindow {
     id: root
     height: 700
-    width: Math.round(height * 1.6)
+    width: Math.round(700 * 1.6)
     visible: true
     title: qsTr("PinPoint")
     color: Theme.colorBg
@@ -57,8 +57,11 @@ ApplicationWindow {
             Layout.fillHeight: true
             currentIndex: 0
 
-            ScreenWelcome {                                            // 0 — opening / default
-                onAddAthleteRequested: contentStack.currentIndex = 6
+            ScreenHome {                                               // 0 — home / default
+                onAddAthleteRequested:    contentStack.currentIndex = 6
+                onAthletePickerRequested: contentStack.currentIndex = 7
+                onStartSessionRequested:  console.log("Session start — not yet implemented")
+                onSystemRequested:        contentStack.currentIndex = 8
             }
             VideoPage       {}                                         // 1 — Swing
             ScreenPlaceholder { iconText: "⌖"; titleText: "Wrist"  }  // 2

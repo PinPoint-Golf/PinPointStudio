@@ -109,9 +109,18 @@ Item {
         }
         Item { Layout.preferredHeight: 12; Layout.fillWidth: true }
 
-        // ── Mode buttons (pages 1–4) ──────────────────────────────────────────
+        // ── Mode buttons (pages 0–4) ──────────────────────────────────────────
 
-        // Indices 1-4: mode placeholders; 5: Play dev-hatch (existing app tabs)
+        PpRailButton {
+            Layout.alignment: Qt.AlignHCenter
+            iconText:  "⌂"
+            labelText: "Home"
+            isActive:  root.currentPageIndex === 0
+            onClicked: root.pageRequested(0)
+        }
+
+        Item { Layout.preferredHeight: 8; Layout.fillWidth: true }
+
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
             iconText:  "◑"

@@ -32,6 +32,7 @@ class AthleteController : public QObject
     Q_PROPERTY(QString      currentHandedness READ currentHandedness NOTIFY currentAthleteChanged)
     Q_PROPERTY(QString      currentUuid       READ currentUuid       NOTIFY currentAthleteChanged)
     Q_PROPERTY(QVariantList athletes          READ athletes          NOTIFY athletesChanged)
+    Q_PROPERTY(QVariantList recentSessions   READ recentSessions    NOTIFY athletesChanged)
 
 public:
     explicit AthleteController(QObject *parent = nullptr);
@@ -42,6 +43,7 @@ public:
     QString      currentHandedness() const { return m_currentHandedness; }
     QString      currentUuid()       const { return m_currentUuid; }
     QVariantList athletes()          const { return m_athletes; }
+    QVariantList recentSessions()    const { return {}; }
 
     Q_INVOKABLE QString createAthlete(
         const QString &name,
