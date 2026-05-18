@@ -439,6 +439,7 @@ This mapping is baked into `WT9011DCL_BLE::eulerToQuat()`. All corrections live 
 | Streaming frame | standard 0x51/0x52/0x53 packets | 0x61 combined frame (BLE extension) |
 | Angular velocity voltage | valid for BT products in 0x52 | not available; device uses 0x61 which has no voltage field |
 | Command lock | 10 s serial-port auto-lock | No lock over BLE for sensor init commands |
+| BLE advertising | Publishes live advertisements (negative RSSI) | Never advertises; only present as OS BLE cache entry (RSSI = 0) |
 
 ---
 
@@ -446,11 +447,11 @@ This mapping is baked into `WT9011DCL_BLE::eulerToQuat()`. All corrections live 
 
 - Device MAC: `DC:78:5B:33:7A:80` (static random — top 2 bits of `DC` = `11`)
 - Filter scan results: only connect to devices whose name starts with `WT901` or whose service UUID contains `ffe5`
-- Skip devices with RSSI = 0 — these are BlueZ cache entries from a previous session, not live advertisements. Connecting to a cache entry risks an immediate or 25-second HCI timeout
+- **⚠ The WT901BLE67 does not publish live BLE advertisements.** The device is only present in the OS BLE cache (RSSI = 0). Do not apply an RSSI < 0 filter — it will permanently exclude this device. Connect directly from the cache entry.
 - After a failed connection attempt, the device enters a ~40-second cooldown before it will accept a new connection
 - `UnknownError (error 1)` after ~25 s = HCI timeout; device is in cooldown
 - `UnknownError (error 1)` after < 1 s = BlueZ/kernel still recovering; wait ~15 s before retrying
-- `UnknownRemoteDeviceError (error 2)` = device not in BlueZ D-Bus managed objects; cannot connect until a fresh advertisement is seen
+- `UnknownRemoteDeviceError (error 2)` = device not in BlueZ D-Bus managed objects; rescan required
 
 ---
 
