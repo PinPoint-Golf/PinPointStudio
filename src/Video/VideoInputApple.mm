@@ -344,6 +344,8 @@ CameraCapabilities VideoInputApple::queryCapabilities() const
         }
 
         // --- Exposure time (CMTime → microseconds) ---
+        // minExposureDuration/maxExposureDuration on AVCaptureDeviceFormat are iOS-only
+#if !TARGET_OS_OSX
         CMTime minExp = device.activeFormat.minExposureDuration;
         CMTime maxExp = device.activeFormat.maxExposureDuration;
         double minExpUs = (double)minExp.value / minExp.timescale * 1e6;
@@ -359,6 +361,7 @@ CameraCapabilities VideoInputApple::queryCapabilities() const
         }
 
         // --- ISO as proxy for gain ---
+        // minISO/maxISO on AVCaptureDeviceFormat are iOS-only
         float minISO = device.activeFormat.minISO;
         float maxISO = device.activeFormat.maxISO;
         if (maxISO > 0.0f) {
@@ -370,6 +373,7 @@ CameraCapabilities VideoInputApple::queryCapabilities() const
             caps.gain.range.step         = 0;
             caps.gain.range.defaultValue = minISO;
         }
+#endif
 
         // --- Exposure mode ---
         caps.exposureMode.kind     = CapabilityKind::Discrete;
