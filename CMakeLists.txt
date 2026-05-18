@@ -184,8 +184,8 @@ qt6_add_shaders(PinPoint "debayer_shaders"
     PRECOMPILE
     PREFIX "/shaders"
     FILES
-        "src/Gui/debayer.vert"
-        "src/Gui/debayer.frag"
+        "src/Shaders/debayer.vert"
+        "src/Shaders/debayer.frag"
 )
 
 qt6_add_shaders(PinPoint "bayer_demosaic_shaders"
@@ -193,8 +193,8 @@ qt6_add_shaders(PinPoint "bayer_demosaic_shaders"
     OPTIMIZED
     PREFIX "/shaders"
     FILES
-        "src/Video/shaders/bayer_demosaic.vert"
-        "src/Video/shaders/bayer_demosaic.frag"
+        "src/Shaders/bayer_demosaic.vert"
+        "src/Shaders/bayer_demosaic.frag"
 )
 
 target_compile_definitions(PinPoint PRIVATE

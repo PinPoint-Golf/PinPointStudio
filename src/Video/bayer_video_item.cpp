@@ -118,8 +118,8 @@ void BayerVideoItemRenderer::buildPipeline()
     delete m_pipeline;
     m_pipeline = rhi()->newGraphicsPipeline();
     m_pipeline->setShaderStages({
-        { QRhiShaderStage::Vertex,   loadShader(":/shaders/src/Video/shaders/bayer_demosaic.vert.qsb") },
-        { QRhiShaderStage::Fragment, loadShader(":/shaders/src/Video/shaders/bayer_demosaic.frag.qsb") },
+        { QRhiShaderStage::Vertex,   loadShader(":/shaders/src/Shaders/bayer_demosaic.vert.qsb") },
+        { QRhiShaderStage::Fragment, loadShader(":/shaders/src/Shaders/bayer_demosaic.frag.qsb") },
     });
 
     QRhiVertexInputLayout inputLayout;
