@@ -1,5 +1,7 @@
 # PinPoint
 
+![PinPoint](docs/aesthetic/editorial_summary_light.png)
+
 A golf swing analysis app that extracts kinematic metrics using IMUs and computer vision, coupled with an AI coach to diagnose and explain your swing.
 
 ## Documentation
