@@ -30,6 +30,7 @@
 #include "buffer_controller.h"
 #include "event_buffer.h"
 #include "athlete_controller.h"
+#include "resource_monitor_controller.h"
 
 int main(int argc, char *argv[])
 {
@@ -51,6 +52,7 @@ int main(int argc, char *argv[])
     FilmController          filmController;
     BufferController        bufferController(&eventBuffer);
     AthleteController       athleteController;
+    ResourceMonitorController resourceMonitor(&eventBuffer, &cameraManager, &imuController);
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("athleteController"), &athleteController);
@@ -60,6 +62,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("cameraManager"),    &cameraManager);
     engine.rootContext()->setContextProperty(QStringLiteral("filmController"),   &filmController);
     engine.rootContext()->setContextProperty(QStringLiteral("bufferController"), &bufferController);
+    engine.rootContext()->setContextProperty(QStringLiteral("resourceMonitor"),  &resourceMonitor);
 
     // Clean merger shutdown before Qt tears down its event loop.
     QObject::connect(&app, &QGuiApplication::aboutToQuit, [&eventBuffer]() {

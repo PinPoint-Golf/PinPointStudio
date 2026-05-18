@@ -48,6 +48,7 @@ ApplicationWindow {
                     contentStack.currentIndex = index
             }
             onAvatarClicked:  contentStack.currentIndex = 7
+            onSystemClicked:  contentStack.currentIndex = 8
         }
 
         StackLayout {
@@ -73,6 +74,7 @@ ApplicationWindow {
                 onAthleteSelected:    contentStack.currentIndex = 0
                 onNewAthleteRequested: contentStack.currentIndex = 6
             }
+            ScreenResourceMonitor {}                                   // 8 — system resource monitor
         }
     }
 }

@@ -35,6 +35,9 @@ Item {
     // Emitted when the athlete avatar is clicked
     signal avatarClicked()
 
+    // Emitted when the System button is clicked
+    signal systemClicked()
+
     // Background — Instrument uses colorBg2; Studio and Editorial use colorBg
     Rectangle {
         anchors.fill: parent
@@ -164,6 +167,16 @@ Item {
             labelText: "Play"
             isActive:  root.currentPageIndex === 5
             onClicked: root.pageRequested(5)
+        }
+
+        Item { Layout.preferredHeight: 8; Layout.fillWidth: true }
+
+        PpRailButton {
+            Layout.alignment: Qt.AlignHCenter
+            iconText:  "◈"
+            labelText: "System"
+            isActive:  root.currentPageIndex === 8
+            onClicked: root.systemClicked()
         }
 
         Item { Layout.preferredHeight: 8; Layout.fillWidth: true }

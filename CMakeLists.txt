@@ -106,6 +106,7 @@ qt_add_executable(PinPoint
     src/Gui/tts_controller.h           src/Gui/tts_controller.cpp
     src/Gui/film_controller.h          src/Gui/film_controller.cpp
     src/Gui/athlete_controller.h       src/Gui/athlete_controller.cpp
+    src/Gui/resource_monitor_controller.h src/Gui/resource_monitor_controller.cpp
     src/IMU/wt9011dcl_base.h src/IMU/wt9011dcl_base.cpp
     src/IMU/wt9011dcl.h      src/IMU/wt9011dcl.cpp
     src/IMU/wt9011dcl_ble.h  src/IMU/wt9011dcl_ble.cpp
@@ -168,6 +169,11 @@ qt_add_qml_module(PinPoint
         src/Gui/PpButton.qml
         src/Gui/PpAthleteCard.qml
         src/Gui/PpAthleteRow.qml
+        src/Gui/ScreenResourceMonitor.qml
+        src/Gui/RmDeviceCard.qml
+        src/Gui/RmSourceRow.qml
+        src/Gui/RmTimelineChart.qml
+        src/Gui/RmWarningNotice.qml
     SOURCES
         src/Video/bayer_video_item.h
         src/Video/bayer_video_item.cpp
