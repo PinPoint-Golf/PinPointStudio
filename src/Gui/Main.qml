@@ -24,8 +24,8 @@ import PinPoint
 
 ApplicationWindow {
     id: root
-    width: 800
     height: 700
+    width: Math.round(height * 1.6)
     visible: true
     title: qsTr("PinPoint")
     color: Theme.colorBg
