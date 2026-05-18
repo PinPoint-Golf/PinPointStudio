@@ -42,6 +42,18 @@ CameraManager::CameraManager(pinpoint::EventBuffer *buffer, QObject *parent)
 
 CameraManager::~CameraManager()
 {
+    if (m_eventBuffer) {
+        if (m_eventBuffer->state() == pinpoint::BufferState::Capturing)
+            m_eventBuffer->pause();
+        if (m_eventBuffer->state() == pinpoint::BufferState::Paused) {
+            for (auto &cam : m_cameras) {
+                if (cam.controller)
+                    cam.controller->deregisterFromBuffer();
+            }
+        }
+        // If Idle (stop() already called via aboutToQuit), EventBuffer cleans
+        // up its own sources — skip deregistration.
+    }
     for (auto &cam : m_cameras) {
         delete cam.controller;
         cam.controller = nullptr;
