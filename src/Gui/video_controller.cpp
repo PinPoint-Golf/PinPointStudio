@@ -532,6 +532,8 @@ bool   VideoController::ballPresent()         const { return m_ballPresent; }
 #ifdef HAVE_OPENCV
 void VideoController::onBallDetected(const BallDetection &result)
 {
+    if (m_replaying) return;
+
     // Update the rolling 50-frame window.
     m_ballWindow.push_back(result.found);
     if (result.found)
