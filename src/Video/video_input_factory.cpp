@@ -197,6 +197,32 @@ void VideoInputFactory::enumerateDevices()
                     caps.resolution.heightRange = { (int)ptrH->GetMin(), (int)ptrH->GetMax(), (int)ptrH->GetInc(), (int)ptrH->GetValue() };
                     caps.resolution.defaultResolution = { (int)ptrW->GetValue(), (int)ptrH->GetValue() };
                 }
+
+                // --- Frame rate ---
+                // AcquisitionFrameRateEnable defaults to false on FLIR cameras
+                // (auto rate), which causes GetMax() to return the
+                // exposure-limited rate rather than the hardware maximum.
+                // Enable it briefly to read the true hardware max, then restore.
+                CBooleanPtr ptrFpsEnable = nodeMap.GetNode("AcquisitionFrameRateEnable");
+                bool restoredFpsEnable = false;
+                if (IsAvailable(ptrFpsEnable) && IsWritable(ptrFpsEnable)
+                        && !ptrFpsEnable->GetValue()) {
+                    ptrFpsEnable->SetValue(true);
+                    restoredFpsEnable = true;
+                }
+                CFloatPtr ptrFps = nodeMap.GetNode("AcquisitionFrameRate");
+                if (IsAvailable(ptrFps) && IsReadable(ptrFps)) {
+                    caps.frameRate.kind               = CapabilityKind::Range;
+                    caps.frameRate.readable           = true;
+                    caps.frameRate.writable           = IsWritable(ptrFps);
+                    caps.frameRate.range.min          = ptrFps->GetMin();
+                    caps.frameRate.range.max          = ptrFps->GetMax();
+                    caps.frameRate.range.step         = 0;
+                    caps.frameRate.range.defaultValue = ptrFps->GetValue();
+                }
+                if (restoredFpsEnable && IsAvailable(ptrFpsEnable) && IsWritable(ptrFpsEnable))
+                    ptrFpsEnable->SetValue(false);
+
                 cam->DeInit();
             } catch (...) {}
 

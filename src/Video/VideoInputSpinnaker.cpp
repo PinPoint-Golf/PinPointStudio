@@ -317,6 +317,17 @@ CameraCapabilities VideoInputSpinnaker::queryCapabilities() const
         }
 
         // --- Frame rate ---
+        // AcquisitionFrameRateEnable defaults to false on FLIR cameras
+        // (auto rate), which causes GetMax() to return the exposure-limited
+        // rate rather than the hardware maximum. Enable it briefly to read
+        // the true hardware max, then restore.
+        CBooleanPtr ptrFpsEnable = nodeMap.GetNode("AcquisitionFrameRateEnable");
+        bool restoredFpsEnable = false;
+        if (IsAvailable(ptrFpsEnable) && IsWritable(ptrFpsEnable)
+                && !ptrFpsEnable->GetValue()) {
+            ptrFpsEnable->SetValue(true);
+            restoredFpsEnable = true;
+        }
         CFloatPtr ptrFps = nodeMap.GetNode("AcquisitionFrameRate");
         if (IsAvailable(ptrFps) && IsReadable(ptrFps)) {
             caps.frameRate.kind               = CapabilityKind::Range;
@@ -327,6 +338,8 @@ CameraCapabilities VideoInputSpinnaker::queryCapabilities() const
             caps.frameRate.range.step         = 0;
             caps.frameRate.range.defaultValue = ptrFps->GetValue();
         }
+        if (restoredFpsEnable && IsAvailable(ptrFpsEnable) && IsWritable(ptrFpsEnable))
+            ptrFpsEnable->SetValue(false);
 
         // --- Exposure time ---
         CFloatPtr ptrExp = nodeMap.GetNode("ExposureTime");
