@@ -335,7 +335,7 @@ Item {
                             width: 72; height: parent.height
                             Text {
                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                text: "OVERRUNS"
+                                text: "WRAPS"
                                 font.family: Theme.fontData
                                 font.pixelSize: 9
                                 font.letterSpacing: Theme.trackingMicro

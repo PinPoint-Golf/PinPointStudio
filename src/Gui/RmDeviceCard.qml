@@ -174,9 +174,9 @@ Rectangle {
                     { key: "Bytes written",
                       value: d.bytesWrittenStr,
                       cls: "neutral" },
-                    { key: "Ring overruns",
+                    { key: "Ring wraps",
                       value: d.eventsOverwrittenStr,
-                      cls: d.eventsOverwritten > 0 ? "warn" : "good" },
+                      cls: "neutral" },
                     { key: "Ring size",
                       value: d.ringCapacityStr,
                       cls: "neutral" }
@@ -193,9 +193,9 @@ Rectangle {
                     { key: "Events written",
                       value: d.eventsWrittenStr,
                       cls: "neutral" },
-                    { key: "Ring overruns",
+                    { key: "Ring wraps",
                       value: d.eventsOverwrittenStr,
-                      cls: d.eventsOverwritten > 0 ? "warn" : "good" },
+                      cls: "neutral" },
                     { key: "Ring size",
                       value: d.ringCapacityStr,
                       cls: "neutral" }

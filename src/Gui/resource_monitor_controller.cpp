@@ -160,10 +160,10 @@ void ResourceMonitorController::refresh()
         dev[QStringLiteral("batteryPct")]         = -1;
         dev[QStringLiteral("sourceName")]         = srcName;
         dev[QStringLiteral("ringFill")]           = fill;
-        // Stall warnings are only meaningful when the buffer is actively capturing;
-        // sources being silent during a deliberate pause is expected, not an error.
-        dev[QStringLiteral("hasWarning")]         = capturing && srcInfo
-                                                     && (srcInfo->stalled || evOW > 0);
+        // Stall is the only meaningful device-level warning. events_overwritten
+        // counts normal ring wrap-arounds (prev_gen > 0 in acquireWriteSlot),
+        // not merger overruns, so it must not be used as a warning condition.
+        dev[QStringLiteral("hasWarning")]         = capturing && srcInfo && srcInfo->stalled;
         dev[QStringLiteral("eventsWritten")]      = evW;
         dev[QStringLiteral("bytesWritten")]       = byW;
         dev[QStringLiteral("eventsOverwritten")]  = evOW;
@@ -221,7 +221,7 @@ void ResourceMonitorController::refresh()
         dev[QStringLiteral("batteryPct")]         = batPct;
         dev[QStringLiteral("sourceName")]         = imuSrcName;
         dev[QStringLiteral("ringFill")]           = fill;
-        dev[QStringLiteral("hasWarning")]         = capturing && imuSrc && (imuSrc->stalled || imuOW > 0);
+        dev[QStringLiteral("hasWarning")]         = capturing && imuSrc && imuSrc->stalled;
         dev[QStringLiteral("eventsWritten")]      = imuEW;
         dev[QStringLiteral("bytesWritten")]       = imuBW;
         dev[QStringLiteral("eventsOverwritten")]  = imuOW;
@@ -255,11 +255,6 @@ void ResourceMonitorController::refresh()
             m_warnings.append(
                 QStringLiteral("%1 has stalled — no events received for %2ms. Ring is %3% full.")
                     .arg(name).arg(stalledMs).arg(fillPct));
-        }
-        if (src.events_overwritten > 0) {
-            m_warnings.append(
-                QStringLiteral("%1 has %2 ring overruns. Events are being dropped — check device bandwidth.")
-                    .arg(name).arg(src.events_overwritten));
         }
         if (src.bounds_violations > 0 || src.monotonicity_violations > 0) {
             m_warnings.append(

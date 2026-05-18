@@ -73,7 +73,7 @@ Rectangle {
             }
         }
 
-        // Overruns — 72px
+        // Ring wraps — 72px
         Item {
             width: 72
             height: parent.height
@@ -82,8 +82,7 @@ Rectangle {
                 text: root.sourceData.eventsOverwrittenStr
                 font.family: Theme.fontData
                 font.pixelSize: Theme.fontSzDataSm
-                color: root.sourceData.eventsOverwritten > 0
-                       ? Theme.colorWarn : Theme.colorText2
+                color: Theme.colorText2
             }
         }
 
