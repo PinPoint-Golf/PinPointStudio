@@ -103,17 +103,8 @@ ImuController::ImuController(pinpoint::EventBuffer *buffer, QObject *parent)
             this, [this](const QBluetoothDeviceInfo &device) {
         if (m_attemptingConn)
             return;
-        // RSSI=0 means BlueZ reported the device from its in-memory cache, not
-        // from a live HCI advertising event. Cache entries can have a stale
-        // AddressType, causing an immediate or 25s connection failure. Skip them
-        // and let the scan continue until a real advertisement arrives.
-        if (device.rssi() >= 0) {
-            appendLog(timestamp()
-                      + QStringLiteral("  [diag] %1 seen from BlueZ cache (RSSI=0) — waiting for real advertisement")
-                        .arg(device.name()));
-            return;
-        }
         m_attemptingConn = true;
+        m_imu->stopScan();
         const QString name = device.name().isEmpty() ? QStringLiteral("(unnamed)")
                                                      : device.name();
         const QString id = device.address().isNull()
