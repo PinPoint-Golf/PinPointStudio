@@ -6,7 +6,9 @@ The app is currently in active prototyping. The core capture and analysis pipeli
 
 ![PinPoint — Editorial light](docs/aesthetic/editorial_opening_light.png)
 
-The long term goal is to exploit computer vision and wearables to analyse golf movements and mechanistically determine the kinematic sequence, extracting key golf swing metrics, working with the full swing, wrist angles, estimated ground forces. With an ambition to be a platform that can be used by golfers, coaches and researchers.
+The long term goal is to exploit computer vision and wearables to analyse golf movements and mechanistically determine your kinematic sequence aka Lateral-Rock-Twist-Jump, extract key golf swing metrics like X-Factor and tilt, working with the full swing or specialist shots such as pitching and in the sand, wrist angles to examine cupping, cocking and flipping, estimated ground forces to support the kinematic sequence analysis. 
+
+Our ambition is to be a platform that can be used by golfers, coaches and researchers to improve everyone's golfing ability and understanding of the golf swing.
 
 ## Documentation
 - [Building Instructions](BUILDING.md) — How to resolve dependencies and build PinPoint.
