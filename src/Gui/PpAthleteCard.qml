@@ -27,7 +27,7 @@ Rectangle {
 
     signal clicked()
 
-    height:       116
+    height:       Theme.sp(116)
     radius:       Theme.radiusLg
     color:        isSelected ? Theme.colorAccentLight : Theme.colorSurface
     border.width: 1
@@ -49,15 +49,15 @@ Rectangle {
             left:    parent.left
             right:   parent.right
             top:     parent.top
-            margins: 14
+            margins: Theme.sp(14)
         }
-        spacing: 4
+        spacing: Theme.sp(4)
 
         // Initials circle
         Rectangle {
-            width:        28
-            height:       28
-            radius:       14
+            width:        Theme.sp(28)
+            height:       Theme.sp(28)
+            radius:       Theme.sp(14)
             color:        root.avatarColor
             border.width: 1
             border.color: Qt.darker(root.avatarColor, 1.3)
@@ -66,7 +66,7 @@ Rectangle {
                 anchors.centerIn: parent
                 text:           athleteData.initials || "?"
                 font.family:    Theme.fontData
-                font.pixelSize: 10
+                font.pixelSize: Theme.sp(10)
                 color:          Qt.darker(root.avatarColor, 2.2)
             }
         }
@@ -76,7 +76,7 @@ Rectangle {
             width:          parent.width
             text:           athleteData.name || ""
             font.family:    Theme.fontBody
-            font.pixelSize: 13
+            font.pixelSize: Theme.fontSzBody
             font.weight:    Font.Normal
             color:          Theme.colorText
             elide:          Text.ElideRight
@@ -86,7 +86,7 @@ Rectangle {
         Text {
             width:          parent.width
             font.family:    Theme.fontData
-            font.pixelSize: 10
+            font.pixelSize: Theme.sp(10)
             color:          Theme.colorText3
             elide:          Text.ElideRight
             text: {
@@ -103,7 +103,7 @@ Rectangle {
         Text {
             width:          parent.width
             font.family:    Theme.fontData
-            font.pixelSize: 10
+            font.pixelSize: Theme.sp(10)
             color:          Theme.colorText3
             text: {
                 const ts = athleteData.lastSessionAt || 0

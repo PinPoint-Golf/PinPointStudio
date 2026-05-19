@@ -26,12 +26,12 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 16
-        spacing: 12
+        anchors.margins: Theme.sp(16)
+        spacing: Theme.sp(12)
 
         // ── Header row: title + camera selector ───────────────────────────────
         RowLayout {
-            spacing: 12
+            spacing: Theme.sp(12)
 
             Label {
                 text: "Camera"
@@ -47,8 +47,8 @@ Item {
             Repeater {
                 model: cameraManager.cameraList
                 delegate: Rectangle {
-                    width: camChipLabel.implicitWidth + 16
-                    height: 24
+                    width: camChipLabel.implicitWidth + Theme.sp(16)
+                    height: Theme.sp(24)
                     radius: Theme.radius
                     color: modelData.selected ? Theme.colorAccent : Theme.colorSurface
                     border.width: 1
@@ -83,7 +83,7 @@ Item {
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: 8
+            spacing: Theme.sp(8)
 
             Repeater {
                 model: cameraManager.instances
@@ -116,7 +116,7 @@ Item {
 
         // ── Shared controls ───────────────────────────────────────────────────
         RowLayout {
-            spacing: 8
+            spacing: Theme.sp(8)
 
             Button {
                 id: startButton
@@ -164,7 +164,7 @@ Item {
 
             Rectangle {
                 visible: cameraManager.isRecording
-                width: 8; height: 8; radius: 4
+                width: Theme.sp(8); height: Theme.sp(8); radius: Theme.sp(4)
                 color: Theme.colorWarn
                 SequentialAnimation on opacity {
                     running: cameraManager.isRecording
@@ -188,7 +188,7 @@ Item {
         // ── Buffer status (visible while recording) ───────────────────────────
         RowLayout {
             visible: cameraManager.isRecording
-            spacing: 8
+            spacing: Theme.sp(8)
 
             Item { Layout.fillWidth: true }
 

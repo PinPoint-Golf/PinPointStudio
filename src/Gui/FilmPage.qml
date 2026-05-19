@@ -27,8 +27,8 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 16
-        spacing: 12
+        anchors.margins: Theme.sp(16)
+        spacing: Theme.sp(12)
 
         Label {
             text: "Film"
@@ -40,7 +40,7 @@ Item {
 
         // ── URL + download controls ───────────────────────────────────────────
         RowLayout {
-            spacing: 8
+            spacing: Theme.sp(8)
 
             TextField {
                 id: urlField
@@ -138,7 +138,7 @@ Item {
         // ── Download progress ─────────────────────────────────────────────────
         ColumnLayout {
             visible: filmController.isDownloading || filmController.downloadStatus.length > 0
-            spacing: 4
+            spacing: Theme.sp(4)
 
             ProgressBar {
                 Layout.fillWidth: true
@@ -175,10 +175,10 @@ Item {
         ColumnLayout {
             visible: filmController.cacheEntries.length > 0
             Layout.fillWidth: true
-            spacing: 4
+            spacing: Theme.sp(4)
 
             RowLayout {
-                spacing: 6
+                spacing: Theme.sp(6)
                 Label {
                     text: qsTr("CACHED")
                     color: Theme.colorText3
@@ -202,14 +202,14 @@ Item {
                 Layout.fillWidth: true
                 implicitHeight: 116
                 orientation: Qt.Horizontal
-                spacing: 8
+                spacing: Theme.sp(8)
                 clip: true
                 model: filmController.cacheEntries
 
                 delegate: Item {
                     id: cacheCard
-                    width: 164
-                    height: 114
+                    width: Theme.sp(164)
+                    height: Theme.sp(114)
 
                     HoverHandler { id: cardHover }
 
@@ -230,8 +230,8 @@ Item {
                             anchors.top: parent.top
                             anchors.left: parent.left
                             anchors.right: parent.right
-                            anchors.margins: 1
-                            height: 92
+                            anchors.margins: Theme.sp(1)
+                            height: Theme.sp(92)
                             radius: Theme.radius - 1
                             color: Theme.colorBg
                             clip: true
@@ -257,9 +257,9 @@ Item {
                                 visible: modelData.durationMs > 0
                                 anchors.bottom: parent.bottom
                                 anchors.right: parent.right
-                                anchors.margins: 4
-                                width: durLabel.implicitWidth + 8
-                                height: 16
+                                anchors.margins: Theme.sp(4)
+                                width: durLabel.implicitWidth + Theme.sp(8)
+                                height: Theme.sp(16)
                                 radius: Theme.radius - 2
                                 color: Qt.rgba(0, 0, 0, 0.6)
 
@@ -278,8 +278,8 @@ Item {
                                 visible: cardHover.hovered
                                 anchors.top: parent.top
                                 anchors.right: parent.right
-                                anchors.margins: 4
-                                width: 18; height: 18; radius: 9
+                                anchors.margins: Theme.sp(4)
+                                width: Theme.sp(18); height: Theme.sp(18); radius: Theme.sp(9)
                                 color: Theme.colorWarn
 
                                 Text {
@@ -330,7 +330,7 @@ Item {
             VideoOutput {
                 id: filmOut
                 anchors.fill: parent
-                anchors.margins: 2
+                anchors.margins: Theme.sp(2)
                 fillMode: VideoOutput.PreserveAspectFit
                 Component.onCompleted: filmController.setVideoSink(filmOut.videoSink)
             }
@@ -353,7 +353,7 @@ Item {
         // ── Seek bar ──────────────────────────────────────────────────────────
         RowLayout {
             visible: filmController.hasMedia
-            spacing: 8
+            spacing: Theme.sp(8)
 
             Label {
                 text: formatTime(filmController.position)
@@ -386,18 +386,18 @@ Item {
                     x: seekSlider.leftPadding
                     y: seekSlider.topPadding + seekSlider.availableHeight / 2 - height / 2
                     width: seekSlider.availableWidth
-                    height: 4; radius: 2
+                    height: Theme.sp(4); radius: Theme.sp(2)
                     color: Theme.colorBg3
                     Rectangle {
                         width: seekSlider.visualPosition * parent.width
-                        height: parent.height; radius: 2
+                        height: parent.height; radius: Theme.sp(2)
                         color: Theme.colorAccent
                     }
                 }
                 handle: Rectangle {
                     x: seekSlider.leftPadding + seekSlider.visualPosition * seekSlider.availableWidth - width / 2
                     y: seekSlider.topPadding + seekSlider.availableHeight / 2 - height / 2
-                    width: 12; height: 12; radius: 6
+                    width: Theme.sp(12); height: Theme.sp(12); radius: Theme.sp(6)
                     color: Theme.colorAccent
                 }
             }
@@ -412,7 +412,7 @@ Item {
 
         // ── Playback controls + pipeline stats ────────────────────────────────
         RowLayout {
-            spacing: 8
+            spacing: Theme.sp(8)
 
             Button {
                 text: qsTr("⏪ 10s")
@@ -542,7 +542,7 @@ Item {
                 spacing: 0
 
                 Rectangle {
-                    height: 20; width: lLabel.implicitWidth + 10
+                    height: Theme.sp(20); width: lLabel.implicitWidth + Theme.sp(10)
                     topLeftRadius: Theme.radius; bottomLeftRadius: Theme.radius
                     topRightRadius: 0; bottomRightRadius: 0
                     color: filmController.moveNetModel === 0 ? Theme.colorAccentMid : Theme.colorSurface
@@ -564,7 +564,7 @@ Item {
 
                 Rectangle {
                     visible: filmController.moveNetThunderAvailable
-                    height: 20; width: tLabel.implicitWidth + 10
+                    height: Theme.sp(20); width: tLabel.implicitWidth + Theme.sp(10)
                     topRightRadius: Theme.radius; bottomRightRadius: Theme.radius
                     topLeftRadius: 0; bottomLeftRadius: 0
                     color: filmController.moveNetModel === 1 ? Theme.colorAccentMid : Theme.colorSurface

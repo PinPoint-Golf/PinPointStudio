@@ -25,26 +25,26 @@ Rectangle {
     property var  sourceData
     property bool isAlternate: false
 
-    height: 40
+    height: Theme.sp(40)
     color: isAlternate ? Theme.colorBg : Theme.colorSurface
 
     Row {
-        anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
+        anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
         visible: root.sourceData !== null && root.sourceData !== undefined
 
         // Source name (fills remaining width)
         Item {
-            width: parent.width - 80 - 72 - 80 - 90 - 60
+            width: parent.width - Theme.sp(80) - Theme.sp(72) - Theme.sp(80) - Theme.sp(90) - Theme.sp(60)
             height: parent.height
 
             Row {
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: 6
+                spacing: Theme.sp(6)
 
                 Rectangle {
-                    width: 5
-                    height: 5
-                    radius: 3
+                    width: Theme.sp(5)
+                    height: Theme.sp(5)
+                    radius: Theme.sp(3)
                     anchors.verticalCenter: parent.verticalCenter
                     color: root.sourceData.stalled ? Theme.colorWarn : Theme.colorGood
                 }
@@ -62,7 +62,7 @@ Rectangle {
 
         // Written — 80px
         Item {
-            width: 80
+            width: Theme.sp(80)
             height: parent.height
             Text {
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
@@ -75,7 +75,7 @@ Rectangle {
 
         // Ring wraps — 72px
         Item {
-            width: 72
+            width: Theme.sp(72)
             height: parent.height
             Text {
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
@@ -88,7 +88,7 @@ Rectangle {
 
         // Bytes — 80px
         Item {
-            width: 80
+            width: Theme.sp(80)
             height: parent.height
             Text {
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
@@ -101,7 +101,7 @@ Rectangle {
 
         // Max inter-arrival — 90px
         Item {
-            width: 90
+            width: Theme.sp(90)
             height: parent.height
             Text {
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
@@ -115,19 +115,19 @@ Rectangle {
 
         // Ring fill bar — 60px
         Item {
-            width: 60
+            width: Theme.sp(60)
             height: parent.height
 
             Rectangle {
-                width: 44
-                height: 4
-                radius: 2
+                width: Theme.sp(44)
+                height: Theme.sp(4)
+                radius: Theme.sp(2)
                 color: Theme.colorBg3
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
 
                 Rectangle {
-                    height: 4
-                    radius: 2
+                    height: Theme.sp(4)
+                    radius: Theme.sp(2)
                     width: parent.width * Math.min(1.0, root.sourceData.ringFillFraction)
                     color: root.sourceData.ringFillFraction > 0.85
                            ? Theme.colorWarn : Theme.colorGood

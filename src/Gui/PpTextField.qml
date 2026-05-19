@@ -25,9 +25,9 @@ TextField {
 
     property bool hasError: false
 
-    implicitHeight: 34
-    leftPadding:    10
-    rightPadding:   10
+    implicitHeight: Theme.sp(34)
+    leftPadding:    Theme.sp(10)
+    rightPadding:   Theme.sp(10)
     topPadding:     0
     bottomPadding:  0
     verticalAlignment: TextInput.AlignVCenter

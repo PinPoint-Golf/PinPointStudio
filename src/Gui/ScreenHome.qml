@@ -64,10 +64,10 @@ Item {
         Column {
             id: mainCol
             anchors.horizontalCenter: parent.horizontalCenter
-            width:   Math.min(parent.width - 80, 580)
+            width:   Math.min(parent.width - 80, Math.round(580 * Theme.fontScale))
             spacing: 0
 
-            Item { width: 1; height: 48 }
+            Item { width: 1; height: Theme.sp(48) }
 
             // ── Section 1: Athlete identity ──────────────────────────────────
 
@@ -85,7 +85,7 @@ Item {
                     font.letterSpacing: Theme.trackingMicro
                     color:              Theme.colorText3
                 }
-                Item { width: 1; height: 12 }
+                Item { width: 1; height: Theme.sp(12) }
 
                 Text {
                     width:          parent.width
@@ -97,7 +97,7 @@ Item {
                     wrapMode:       Text.WordWrap
                     lineHeight:     1.1
                 }
-                Item { width: 1; height: 10 }
+                Item { width: 1; height: Theme.sp(10) }
 
                 Text {
                     width:          parent.width
@@ -109,7 +109,7 @@ Item {
                     wrapMode:       Text.WordWrap
                     lineHeight:     1.7
                 }
-                Item { width: 1; height: 32 }
+                Item { width: 1; height: Theme.sp(32) }
 
                 Text {
                     width:          parent.width
@@ -118,7 +118,7 @@ Item {
                     font.pixelSize: Theme.fontSzBody
                     color:          Theme.colorText
                 }
-                Item { width: 1; height: 4 }
+                Item { width: 1; height: Theme.sp(4) }
 
                 Text {
                     width:          parent.width
@@ -128,11 +128,11 @@ Item {
                     font.weight:    Font.Light
                     color:          Theme.colorText3
                 }
-                Item { width: 1; height: 16 }
+                Item { width: 1; height: Theme.sp(16) }
 
                 Rectangle {
                     width:  parent.width
-                    height: 42
+                    height: Theme.sp(42)
                     radius: Theme.radius
                     color:  Theme.colorAccent
 
@@ -150,11 +150,11 @@ Item {
                         onClicked:    root.addAthleteRequested()
                     }
                 }
-                Item { width: 1; height: 48 }
+                Item { width: 1; height: Theme.sp(48) }
 
                 Row {
                     width:   parent.width
-                    spacing: 10
+                    spacing: Theme.sp(10)
 
                     Repeater {
                         model: [
@@ -174,13 +174,13 @@ Item {
 
                             Column {
                                 id: secCardCol
-                                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 14 }
+                                anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.sp(14) }
                                 spacing: 0
 
-                                Item { width: 1; height: 14 }
+                                Item { width: 1; height: Theme.sp(14) }
                                 Text {
                                     text:           modelData.icon
-                                    font.pixelSize: 16
+                                    font.pixelSize: Theme.sp(16)
                                     color:          Theme.colorText2
                                 }
                                 Item { width: 1; height: 7 }
@@ -214,7 +214,7 @@ Item {
                         }
                     }
                 }
-                Item { width: 1; height: 24 }
+                Item { width: 1; height: Theme.sp(24) }
 
                 Text {
                     width:               parent.width
@@ -235,7 +235,7 @@ Item {
 
                 Rectangle {
                     id: avatarCircle
-                    width: 52; height: 52; radius: 26
+                    width: Theme.sp(52); height: Theme.sp(52); radius: Theme.sp(26)
                     anchors.left:           parent.left
                     anchors.verticalCenter: parent.verticalCenter
                     color:        Theme.colorAccentLight
@@ -246,7 +246,7 @@ Item {
                         anchors.centerIn: parent
                         text:           athleteController.currentInitials
                         font.family:    Theme.fontData
-                        font.pixelSize: 16
+                        font.pixelSize: Theme.sp(16)
                         color:          Theme.colorAccent
                     }
                 }
@@ -257,7 +257,7 @@ Item {
                     anchors.right:          switchLink.left
                     anchors.rightMargin:    12
                     anchors.verticalCenter: parent.verticalCenter
-                    spacing: 3
+                    spacing: Theme.sp(3)
 
                     Text {
                         width:          parent.width
@@ -311,7 +311,7 @@ Item {
                 width:   parent.width
                 spacing: 0
 
-                Item { width: 1; height: 40 }
+                Item { width: 1; height: Theme.sp(40) }
 
                 Text {
                     text:               "NEW SESSION"
@@ -320,11 +320,11 @@ Item {
                     font.letterSpacing: Theme.trackingMicro
                     color:              Theme.colorText3
                 }
-                Item { width: 1; height: 16 }
+                Item { width: 1; height: Theme.sp(16) }
 
                 Grid {
                     columns: 2
-                    spacing: 8
+                    spacing: Theme.sp(8)
                     width:   parent.width
 
                     Repeater {
@@ -351,15 +351,15 @@ Item {
                         }
                     }
                 }
-                Item { width: 1; height: 20 }
+                Item { width: 1; height: Theme.sp(20) }
 
                 Row {
                     width:   parent.width
-                    spacing: 16
+                    spacing: Theme.sp(16)
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        width:              36
+                        width:              Theme.sp(36)
                         text:               "CLUB"
                         font.family:        Theme.fontData
                         font.pixelSize:     Theme.fontSzMicro
@@ -374,11 +374,11 @@ Item {
                         onSelectionChanged: function(value) { root.selectedClub = value }
                     }
                 }
-                Item { width: 1; height: 20 }
+                Item { width: 1; height: Theme.sp(20) }
 
                 Rectangle {
                     width:  parent.width
-                    height: 44
+                    height: Theme.sp(44)
                     radius: Theme.radius
                     color:  cameraManager.anySelected ? Theme.colorAccent : Theme.colorBg3
 
@@ -386,7 +386,7 @@ Item {
                         anchors.centerIn: parent
                         text:           "▶  Start session"
                         font.family:    Theme.fontBody
-                        font.pixelSize: 14
+                        font.pixelSize: Theme.sp(14)
                         font.weight:    Font.Normal
                         color:          cameraManager.anySelected
                                             ? (Theme.dark ? Theme.colorBg : "#FFFFFF")
@@ -400,7 +400,7 @@ Item {
                         onClicked:    root.startSessionRequested()
                     }
                 }
-                Item { width: 1; height: 8 }
+                Item { width: 1; height: Theme.sp(8) }
 
                 Text {
                     width:               parent.width
@@ -415,11 +415,11 @@ Item {
             }
 
             // ── Section 3: Device readiness ──────────────────────────────────
-            Item { width: 1; height: 44 }
+            Item { width: 1; height: Theme.sp(44) }
 
             Item {
                 width:  parent.width
-                height: 20
+                height: Theme.sp(20)
 
                 Text {
                     anchors { left: parent.left; verticalCenter: parent.verticalCenter }
@@ -470,7 +470,7 @@ Item {
                     required property var modelData
                     property var d: modelData
                     width:  mainCol.width
-                    height: 40
+                    height: Theme.sp(40)
 
                     Rectangle {
                         anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
@@ -485,11 +485,11 @@ Item {
                         Item {
                             id: dotItem
                             property var d: parent.parent.d
-                            width:  20
+                            width:  Theme.sp(20)
                             height: parent.height
 
                             Rectangle {
-                                width: 6; height: 6; radius: 3
+                                width: Theme.sp(6); height: Theme.sp(6); radius: Theme.sp(3)
                                 anchors.centerIn: parent
                                 color: {
                                     var d = dotItem.d
@@ -512,7 +512,7 @@ Item {
                         }
 
                         Text {
-                            width:  80
+                            width:  Theme.sp(80)
                             height: parent.height
                             text: {
                                 var d = parent.parent.d

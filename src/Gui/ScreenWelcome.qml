@@ -33,7 +33,7 @@ Item {
         Column {
             id: contentCol
             anchors.horizontalCenter: parent.horizontalCenter
-            width:   500
+            width:   Math.min(parent.width - 80, Theme.sp(500))
             spacing: 0
             y:       40
 
@@ -98,7 +98,7 @@ Item {
             // CTA button
             Rectangle {
                 width:  parent.width
-                height: 42
+                height: Theme.sp(42)
                 radius: Theme.radius
                 color:  Theme.colorAccent
 
@@ -118,14 +118,14 @@ Item {
             }
 
             // Divider with margins
-            Item { width: 1; height: 28 }
+            Item { width: 1; height: Theme.sp(28) }
             PpDivider { width: parent.width }
-            Item { width: 1; height: 28 }
+            Item { width: 1; height: Theme.sp(28) }
 
             // Secondary actions row
             Row {
                 width:   parent.width
-                spacing: 10
+                spacing: Theme.sp(10)
 
                 Repeater {
                     model: [
@@ -137,7 +137,7 @@ Item {
                     delegate: Rectangle {
                         required property var modelData
                         width:  (parent.width - 20) / 3
-                        height: secCol.implicitHeight + 28
+                        height: secCol.implicitHeight + Theme.sp(28)
                         radius: Theme.radius
                         color:  "transparent"
                         border.width: 1
@@ -145,14 +145,14 @@ Item {
 
                         Column {
                             id: secCol
-                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 14 }
+                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.sp(14) }
                             spacing: 0
 
-                            Item { width: 1; height: 14 }
+                            Item { width: 1; height: Theme.sp(14) }
 
                             Text {
                                 text:           modelData.icon
-                                font.pixelSize: 16
+                                font.pixelSize: Theme.sp(16)
                                 color:          Theme.colorText2
                                 bottomPadding:  7
                             }
@@ -190,7 +190,7 @@ Item {
             }
 
             // Footer
-            Item { width: 1; height: 24 }
+            Item { width: 1; height: Theme.sp(24) }
             Text {
                 width:              parent.width
                 text:               "Nothing connects to the cloud unless you configure it."
@@ -200,7 +200,7 @@ Item {
                 color:              Theme.colorText3
                 horizontalAlignment: Text.AlignHCenter
             }
-            Item { width: 1; height: 40 }
+            Item { width: 1; height: Theme.sp(40) }
         }
     }
 }

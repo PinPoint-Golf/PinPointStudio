@@ -62,7 +62,7 @@ Item {
                 font.pixelSize:     Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingMicro
                 color:              Theme.colorText3
-                bottomPadding:      10
+                bottomPadding:      Theme.sp(10)
             }
             Text {
                 text:           "Choose athlete"
@@ -70,13 +70,13 @@ Item {
                 font.italic:    Theme.fontDisplayItalic
                 font.pixelSize: Theme.fontSzDisplay
                 color:          Theme.colorText
-                bottomPadding:  24
+                bottomPadding:  Theme.sp(24)
             }
 
             // ── Recent section ───────────────────────────────────────────────
             Column {
                 width:   parent.width
-                spacing: 8
+                spacing: Theme.sp(8)
                 visible: athleteController.athletes.length > 0
 
                 Text {
@@ -85,13 +85,13 @@ Item {
                     font.pixelSize:     Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro
                     color:              Theme.colorText3
-                    bottomPadding:      2
+                    bottomPadding:      Theme.sp(2)
                 }
 
                 Row {
                     id: recentRow
                     width:   parent.width
-                    spacing: 10
+                    spacing: Theme.sp(10)
 
                     readonly property int cardCount: Math.min(3, athleteController.athletes.length)
 
@@ -112,7 +112,7 @@ Item {
 
             Item {
                 width:  1
-                height: athleteController.athletes.length > 0 ? 24 : 0
+                height: athleteController.athletes.length > 0 ? Theme.sp(24) : 0
             }
 
             // ── All athletes header row ───────────────────────────────────────
@@ -130,8 +130,8 @@ Item {
                 Item { Layout.fillWidth: true }
 
                 Rectangle {
-                    width:  180
-                    height: 28
+                    width:  Theme.sp(180)
+                    height: Theme.sp(28)
                     radius: Theme.radius
                     color:  Theme.colorSurface
                     border.width: 1
@@ -140,7 +140,7 @@ Item {
 
                     TextField {
                         id: searchField
-                        anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
+                        anchors { fill: parent; leftMargin: Theme.sp(8); rightMargin: Theme.sp(8) }
                         placeholderText:      "⌕  Search…"
                         placeholderTextColor: Theme.colorText3
                         background:           null
@@ -156,14 +156,14 @@ Item {
                 }
             }
 
-            Item { width: 1; height: 8 }
+            Item { width: 1; height: Theme.sp(8) }
 
             // ── Athletes list ─────────────────────────────────────────────────
             Rectangle {
                 width:        parent.width
                 height:       root.filteredAthletes.length > 0
-                                  ? root.filteredAthletes.length * 44
-                                  : 44
+                                  ? root.filteredAthletes.length * Theme.sp(44)
+                                  : Theme.sp(44)
                 radius:       Theme.radius
                 border.width: 1
                 border.color: Theme.colorBorderMid
@@ -202,11 +202,11 @@ Item {
             }
 
             // ── Action row ───────────────────────────────────────────────────
-            Item { width: 1; height: 20 }
+            Item { width: 1; height: Theme.sp(20) }
 
             RowLayout {
                 width:   parent.width
-                spacing: 8
+                spacing: Theme.sp(8)
 
                 PpButton {
                     label:    "＋ New athlete"
@@ -242,7 +242,7 @@ Item {
                 }
             }
 
-            Item { width: 1; height: 32 }
+            Item { width: 1; height: Theme.sp(32) }
         }
     }
 }

@@ -25,12 +25,12 @@ Item {
 
     Column {
         anchors.centerIn: parent
-        spacing: 12
+        spacing: Theme.sp(12)
 
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
             text:           iconText
-            font.pixelSize: 32
+            font.pixelSize: Theme.sp(32)
             color:          Theme.colorText3
         }
 

@@ -35,7 +35,14 @@ QtObject {
     Component.onCompleted:  themeIndex = appSettings.themeIndex
     onThemeIndexChanged:    appSettings.themeIndex = themeIndex
 
+    property real fontScale: 1.0
+    onFontScaleChanged: appSettings.fontScale = fontScale
+
     function cycleTheme() { themeIndex = (themeIndex + 1) % 6 }
+
+    // Scale-aware pixel helper — use Theme.sp(n) instead of hardcoded pixel values
+    // so all dimensions respond to the user's text size preference.
+    function sp(n) { return Math.round(n * fontScale) }
 
     // Active aesthetic and mode — derived from themeIndex.
     // Can also be set directly to bind to C++ AppSettings at startup.
@@ -160,19 +167,18 @@ QtObject {
 
     // ── Typography scale tokens ──────────────────────────────────────────────
     readonly property int  fontSzDisplay: {
-        if (aesthetic === "instrument") return 26
-        if (aesthetic === "editorial")  return 34
-        return 22
+        var base = aesthetic === "instrument" ? 26 : aesthetic === "editorial" ? 34 : 22
+        return Math.round(base * fontScale)
     }
     readonly property bool fontDisplayItalic: aesthetic !== "studio"
 
-    readonly property int  fontSzData:    20   // large metric/data values
-    readonly property int  fontSzDataSm:  13   // small data / status strings
-    readonly property int  fontSzMicro:   10   // uppercase micro labels
-    readonly property int  fontSzHeading: 16   // section headings
-    readonly property int  fontSzBody:    13   // primary UI body text
-    readonly property int  fontSzBody2:   12   // secondary/muted body text
-    readonly property int  fontSzLabel:   11   // uppercase field labels
+    readonly property int  fontSzData:    Math.round(20 * fontScale)
+    readonly property int  fontSzDataSm:  Math.round(13 * fontScale)
+    readonly property int  fontSzMicro:   Math.round(10 * fontScale)
+    readonly property int  fontSzHeading: Math.round(16 * fontScale)
+    readonly property int  fontSzBody:    Math.round(13 * fontScale)
+    readonly property int  fontSzBody2:   Math.round(12 * fontScale)
+    readonly property int  fontSzLabel:   Math.round(11 * fontScale)
 
     // ── Letter-spacing tokens (px) ───────────────────────────────────────────
     readonly property real trackingMicro:  0.8

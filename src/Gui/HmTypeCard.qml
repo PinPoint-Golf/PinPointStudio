@@ -36,7 +36,7 @@ Rectangle {
 
     signal clicked()
 
-    height: contentCol.implicitHeight + 24
+    height: contentCol.implicitHeight + Theme.sp(24)
     radius: Theme.radiusLg
     color:  (isSelected || hoverArea.containsMouse) ? Theme.colorAccentLight : Theme.colorSurface
     border.width: 1
@@ -46,18 +46,18 @@ Rectangle {
 
     Column {
         id: contentCol
-        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+        anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.sp(12) }
         spacing: 0
 
-        Item { width: 1; height: 4 }
+        Item { width: 1; height: Theme.sp(4) }
 
         Text {
             text:           root.iconText
-            font.pixelSize: 32
+            font.pixelSize: Theme.sp(32)
             color:          Theme.colorText2
         }
 
-        Item { width: 1; height: 4 }
+        Item { width: 1; height: Theme.sp(4) }
 
         Text {
             width:          parent.width
@@ -68,7 +68,7 @@ Rectangle {
             color:          Theme.colorText
         }
 
-        Item { width: 1; height: 4 }
+        Item { width: 1; height: Theme.sp(4) }
 
         Text {
             width:          parent.width
@@ -81,10 +81,10 @@ Rectangle {
             visible:        root.description !== ""
         }
 
-        Item { width: 1; height: 6 }
+        Item { width: 1; height: Theme.sp(6) }
 
         Row {
-            spacing: 12
+            spacing: Theme.sp(12)
 
             Text {
                 text:               root.camerasOptional
@@ -111,7 +111,7 @@ Rectangle {
             }
         }
 
-        Item { width: 1; height: 4 }
+        Item { width: 1; height: Theme.sp(4) }
     }
 
     MouseArea {

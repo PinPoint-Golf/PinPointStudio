@@ -28,26 +28,26 @@ Rectangle {
     color: Theme.colorWarnLight
     border.width: 1
     border.color: Qt.rgba(Theme.colorWarn.r, Theme.colorWarn.g, Theme.colorWarn.b, 0.4)
-    implicitHeight: body.implicitHeight + 22
-    implicitWidth: body.implicitWidth + 28
+    implicitHeight: body.implicitHeight + Theme.sp(22)
+    implicitWidth: body.implicitWidth + Theme.sp(28)
 
     Row {
         id: body
         anchors { left: parent.left; right: parent.right; top: parent.top }
-        anchors.margins: 11
-        anchors.topMargin: 11
-        spacing: 10
+        anchors.margins: Theme.sp(11)
+        anchors.topMargin: Theme.sp(11)
+        spacing: Theme.sp(10)
 
         Text {
             text: "⚠"
-            font.pixelSize: 14
+            font.pixelSize: Theme.sp(14)
             color: Theme.colorWarn
             anchors.top: parent.top
         }
 
         Column {
-            spacing: 3
-            width: parent.width - 24
+            spacing: Theme.sp(3)
+            width: parent.width - Theme.sp(24)
 
             Text {
                 text: "WARNING"

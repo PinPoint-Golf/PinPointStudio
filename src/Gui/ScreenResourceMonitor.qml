@@ -42,15 +42,15 @@ Item {
     // ── Left column: Devices ──────────────────────────────────────────────────
     ScrollView {
         id: leftScroll
-        width: 320
+        width: Theme.sp(320)
         anchors { top: parent.top; bottom: parent.bottom; left: parent.left }
         clip: true
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
         Column {
-            width: 320
-            padding: 20
-            spacing: 12
+            width: Theme.sp(320)
+            padding: Theme.sp(20)
+            spacing: Theme.sp(12)
 
             // Section label
             Text {
@@ -67,7 +67,7 @@ Item {
 
                 RmDeviceCard {
                     deviceData: modelData
-                    width: 280
+                    width: Theme.sp(280)
                 }
             }
 
@@ -75,9 +75,9 @@ Item {
             Text {
                 text: root.snapshotAgeText
                 font.family: Theme.fontData
-                font.pixelSize: 9
+                font.pixelSize: Theme.sp(9)
                 color: Theme.colorText3
-                topPadding: 4
+                topPadding: Theme.sp(4)
             }
         }
     }
@@ -103,8 +103,8 @@ Item {
 
         Column {
             width: rightScroll.availableWidth
-            padding: 20
-            spacing: 16
+            padding: Theme.sp(20)
+            spacing: Theme.sp(16)
 
             // Section label
             Text {
@@ -119,21 +119,21 @@ Item {
             // Buffer state bar
             Rectangle {
                 width: parent.width - 40
-                height: 72
+                height: Theme.sp(72)
                 radius: Theme.radiusLg
                 border.width: 1
                 border.color: Theme.colorBorderMid
                 color: Theme.colorSurface
 
                 Row {
-                    anchors { fill: parent; leftMargin: 16; rightMargin: 16 }
-                    spacing: 12
+                    anchors { fill: parent; leftMargin: Theme.sp(16); rightMargin: Theme.sp(16) }
+                    spacing: Theme.sp(12)
 
                     // Status dot
                     Rectangle {
-                        width: 7
-                        height: 7
-                        radius: 4
+                        width: Theme.sp(7)
+                        height: Theme.sp(7)
+                        radius: Theme.sp(4)
                         anchors.verticalCenter: parent.verticalCenter
                         color: {
                             var s = resourceMonitor.bufferState
@@ -156,13 +156,13 @@ Item {
                             if (s === "paused")    return Theme.colorWarn
                             return Theme.colorText3
                         }
-                        width: 80
+                        width: Theme.sp(80)
                     }
 
                     // Divider
                     Rectangle {
                         width: 1
-                        height: 40
+                        height: Theme.sp(40)
                         anchors.verticalCenter: parent.verticalCenter
                         color: Theme.colorBorderMid
                     }
@@ -170,15 +170,15 @@ Item {
                     // KV pairs
                     Row {
                         anchors.verticalCenter: parent.verticalCenter
-                        spacing: 28
+                        spacing: Theme.sp(28)
 
                         // Total events
                         Column {
-                            spacing: 2
+                            spacing: Theme.sp(2)
                             Text {
                                 text: "EVENTS"
                                 font.family: Theme.fontData
-                                font.pixelSize: 9
+                                font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
                                 color: Theme.colorText3
                             }
@@ -192,18 +192,18 @@ Item {
                             Text {
                                 text: "written"
                                 font.family: Theme.fontData
-                                font.pixelSize: 9
+                                font.pixelSize: Theme.sp(9)
                                 color: Theme.colorText3
                             }
                         }
 
                         // Timeline entries
                         Column {
-                            spacing: 2
+                            spacing: Theme.sp(2)
                             Text {
                                 text: "TIMELINE"
                                 font.family: Theme.fontData
-                                font.pixelSize: 9
+                                font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
                                 color: Theme.colorText3
                             }
@@ -217,18 +217,18 @@ Item {
                             Text {
                                 text: "entries"
                                 font.family: Theme.fontData
-                                font.pixelSize: 9
+                                font.pixelSize: Theme.sp(9)
                                 color: Theme.colorText3
                             }
                         }
 
                         // Source count
                         Column {
-                            spacing: 2
+                            spacing: Theme.sp(2)
                             Text {
                                 text: "SOURCES"
                                 font.family: Theme.fontData
-                                font.pixelSize: 9
+                                font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
                                 color: Theme.colorText3
                             }
@@ -242,7 +242,7 @@ Item {
                             Text {
                                 text: "active"
                                 font.family: Theme.fontData
-                                font.pixelSize: 9
+                                font.pixelSize: Theme.sp(9)
                                 color: Theme.colorText3
                             }
                         }
@@ -254,7 +254,7 @@ Item {
             Column {
                 visible: resourceMonitor.warnings.length > 0
                 width: parent.width - 40
-                spacing: 8
+                spacing: Theme.sp(8)
 
                 Repeater {
                     model: resourceMonitor.warnings
@@ -284,7 +284,7 @@ Item {
                 // Header row
                 Rectangle {
                     width: parent.width
-                    height: 30
+                    height: Theme.sp(30)
                     color: Theme.colorBg2
                     radius: Theme.radiusLg
 
@@ -302,9 +302,9 @@ Item {
                     }
 
                     Row {
-                        anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
+                        anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
 
-                        property int nameW: parent.width - 10 - 10 - 80 - 72 - 80 - 90 - 60
+                        property int nameW: parent.width - Theme.sp(10) - Theme.sp(10) - Theme.sp(80) - Theme.sp(72) - Theme.sp(80) - Theme.sp(90) - Theme.sp(60)
 
                         Item {
                             width: parent.nameW
@@ -313,67 +313,67 @@ Item {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: "SOURCE"
                                 font.family: Theme.fontData
-                                font.pixelSize: 9
+                                font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
                                 color: Theme.colorText3
                             }
                         }
 
                         Item {
-                            width: 80; height: parent.height
+                            width: Theme.sp(80); height: parent.height
                             Text {
                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                                 text: "WRITTEN"
                                 font.family: Theme.fontData
-                                font.pixelSize: 9
+                                font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
                                 color: Theme.colorText3
                             }
                         }
 
                         Item {
-                            width: 72; height: parent.height
+                            width: Theme.sp(72); height: parent.height
                             Text {
                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                                 text: "WRAPS"
                                 font.family: Theme.fontData
-                                font.pixelSize: 9
+                                font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
                                 color: Theme.colorText3
                             }
                         }
 
                         Item {
-                            width: 80; height: parent.height
+                            width: Theme.sp(80); height: parent.height
                             Text {
                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                                 text: "BYTES"
                                 font.family: Theme.fontData
-                                font.pixelSize: 9
+                                font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
                                 color: Theme.colorText3
                             }
                         }
 
                         Item {
-                            width: 90; height: parent.height
+                            width: Theme.sp(90); height: parent.height
                             Text {
                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                                 text: "MAX INTER"
                                 font.family: Theme.fontData
-                                font.pixelSize: 9
+                                font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
                                 color: Theme.colorText3
                             }
                         }
 
                         Item {
-                            width: 60; height: parent.height
+                            width: Theme.sp(60); height: parent.height
                             Text {
                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                                 text: "FILL"
                                 font.family: Theme.fontData
-                                font.pixelSize: 9
+                                font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
                                 color: Theme.colorText3
                             }
@@ -396,7 +396,7 @@ Item {
                 Rectangle {
                     visible: resourceMonitor.sources.length === 0
                     width: parent.width
-                    height: 40
+                    height: Theme.sp(40)
                     color: Theme.colorSurface
 
                     Text {
@@ -416,7 +416,7 @@ Item {
                 bufferState: resourceMonitor.bufferState
             }
 
-            Item { height: 4 }
+            Item { height: Theme.sp(4) }
         }
     }
 }

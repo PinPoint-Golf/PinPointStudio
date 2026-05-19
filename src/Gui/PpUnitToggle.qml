@@ -40,8 +40,8 @@ Row {
             readonly property bool isFirst:  index === 0
             readonly property bool isLast:   index === root.units.length - 1
 
-            width:  36
-            height: 34
+            width:  Theme.sp(36)
+            height: Theme.sp(34)
             color:  isActive ? Theme.colorAccentLight : Theme.colorBg2
 
             // Per-corner radius: left button gets left-side radius, right button gets right-side radius

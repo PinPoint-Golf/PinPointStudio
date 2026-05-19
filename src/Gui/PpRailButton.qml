@@ -29,18 +29,18 @@ Item {
 
     signal clicked()
 
-    implicitWidth:  60
+    implicitWidth:  Theme.sp(60)
     implicitHeight: buttonCol.implicitHeight
 
     Column {
         id: buttonCol
         anchors.horizontalCenter: parent.horizontalCenter
-        spacing: 3
+        spacing: Theme.sp(3)
 
         Rectangle {
             id: bg
-            width:  60
-            height: 60
+            width:  Theme.sp(60)
+            height: Theme.sp(60)
             radius: Theme.radius
 
             color: {
@@ -66,7 +66,7 @@ Item {
             Text {
                 anchors.centerIn: parent
                 text:            root.iconText
-                font.pixelSize:  21
+                font.pixelSize:  Theme.sp(21)
                 color: {
                     if (root.isActive) return Theme.colorAccent
                     if (!root.isMuted && mouseArea.containsMouse) return Theme.colorText2
@@ -80,11 +80,11 @@ Item {
 
         Text {
             id: labelItem
-            width:                  60
+            width:                  Theme.sp(60)
             horizontalAlignment:    Text.AlignHCenter
             text:                   root.labelText.toUpperCase()
             font.family:            Theme.fontBody
-            font.pixelSize:         8
+            font.pixelSize:         Theme.sp(8)
             font.letterSpacing:     Theme.trackingMicro
             color: {
                 if (root.isActive) return Theme.colorAccent

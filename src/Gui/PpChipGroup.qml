@@ -27,7 +27,7 @@ Row {
 
     signal selectionChanged(string value)
 
-    spacing: 6
+    spacing: Theme.sp(6)
 
     Repeater {
         model: root.options
@@ -36,8 +36,8 @@ Row {
             required property string modelData
             required property int    index
 
-            height:  28
-            width:   chipLabel.implicitWidth + 24
+            height:  Theme.sp(28)
+            width:   chipLabel.implicitWidth + Theme.sp(24)
             radius:  Theme.radius
             color:   modelData === root.selected ? Theme.colorAccentLight : "transparent"
             border.width: 1

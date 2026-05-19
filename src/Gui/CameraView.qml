@@ -47,7 +47,7 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        spacing: 6
+        spacing: Theme.sp(6)
 
         // ── Camera frame ──────────────────────────────────────────────────────
         Rectangle {
@@ -62,7 +62,7 @@ Item {
             VideoOutput {
                 id: videoOut
                 anchors.fill: parent
-                anchors.margins: 2
+                anchors.margins: Theme.sp(2)
                 fillMode: VideoOutput.PreserveAspectFit
                 visible: !root.controller.needsDebayer
             }
@@ -70,7 +70,7 @@ Item {
             BayerVideoItem {
                 id: bayerView
                 anchors.fill: parent
-                anchors.margins: 2
+                anchors.margins: Theme.sp(2)
                 visible: root.controller.needsDebayer
             }
 
@@ -88,9 +88,9 @@ Item {
                 visible: root.controller.perspective > 0
                 anchors.top: parent.top
                 anchors.left: parent.left
-                anchors.margins: 8
-                width: perspBadgeText.implicitWidth + 10
-                height: 20
+                anchors.margins: Theme.sp(8)
+                width: perspBadgeText.implicitWidth + Theme.sp(10)
+                height: Theme.sp(20)
                 radius: Theme.radius
                 color: Theme.colorAccentMid
                 border.width: 1
@@ -115,9 +115,9 @@ Item {
                 visible: root.controller.isRecording && root.controller.frameWidth > 0
                 anchors.bottom: parent.bottom
                 anchors.right:  parent.right
-                anchors.margins: 8
-                width:  resLabel.implicitWidth + 10
-                height: 18
+                anchors.margins: Theme.sp(8)
+                width:  resLabel.implicitWidth + Theme.sp(10)
+                height: Theme.sp(18)
                 radius: Theme.radius - 1
                 color: Qt.rgba(0, 0, 0, 0.55)
 
@@ -241,7 +241,7 @@ Item {
                 Text {
                     anchors.top: parent.top
                     anchors.left: parent.left
-                    anchors.margins: 3
+                    anchors.margins: Theme.sp(3)
                     text: "Hitting Area"
                     color: Theme.colorWarn
                     font.family: Theme.fontData
@@ -298,10 +298,10 @@ Item {
                 visible: root.controller.isReplaying
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.top: parent.top
-                anchors.topMargin: 12
-                width: replayRow.implicitWidth + 24
-                height: 28
-                radius: 14
+                anchors.topMargin: Theme.sp(12)
+                width: replayRow.implicitWidth + Theme.sp(24)
+                height: Theme.sp(28)
+                radius: Theme.sp(14)
                 color: Qt.rgba(Theme.colorBg.r, Theme.colorBg.g, Theme.colorBg.b, 0.8)
                 border.width: 1
                 border.color: Theme.colorBorderMid
@@ -310,7 +310,7 @@ Item {
                 Row {
                     id: replayRow
                     anchors.centerIn: parent
-                    spacing: 6
+                    spacing: Theme.sp(6)
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
@@ -387,7 +387,7 @@ Item {
         // ── Per-camera stats + controls ───────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: Theme.sp(8)
 
             Label {
                 visible: root.controller.deviceDescription !== ""
@@ -411,8 +411,8 @@ Item {
                     ]
                     delegate: Rectangle {
                         readonly property bool active: root.controller.perspective === modelData.value
-                        height: 20
-                        width: perspLabel.implicitWidth + 10
+                        height: Theme.sp(20)
+                        width: perspLabel.implicitWidth + Theme.sp(10)
                         topLeftRadius:     modelData.leftR  ? Theme.radius : 0
                         bottomLeftRadius:  modelData.leftR  ? Theme.radius : 0
                         topRightRadius:    modelData.rightR ? Theme.radius : 0
@@ -441,8 +441,8 @@ Item {
 
             // ── ROI button ────────────────────────────────────────────────────
             Rectangle {
-                height: 20
-                width: roiBtnLabel.implicitWidth + 10
+                height: Theme.sp(20)
+                width: roiBtnLabel.implicitWidth + Theme.sp(10)
                 radius: Theme.radius
                 color: root.roiSelecting ? Theme.colorWarn
                      : root.roiIsSet     ? Theme.colorWarnLight
@@ -485,8 +485,8 @@ Item {
             // ── Ball detection badge ──────────────────────────────────────────
             Rectangle {
                 visible: root.roiIsSet && root.controller.isRecording
-                width: ballBadgeLabel.implicitWidth + 10
-                height: 20
+                width: ballBadgeLabel.implicitWidth + Theme.sp(10)
+                height: Theme.sp(20)
                 radius: Theme.radius
 
                 readonly property bool ballPresent: root.controller.ballPresencePercent > 30
@@ -559,8 +559,8 @@ Item {
 
                 Rectangle {
                     id: lightningBtn
-                    height: 20
-                    width: lightningLabel.implicitWidth + 10
+                    height: Theme.sp(20)
+                    width: lightningLabel.implicitWidth + Theme.sp(10)
                     topLeftRadius: Theme.radius; bottomLeftRadius: Theme.radius
                     topRightRadius: 0; bottomRightRadius: 0
                     color: root.controller.moveNetModel === 0 ? Theme.colorAccentMid : Theme.colorSurface
@@ -584,8 +584,8 @@ Item {
                 Rectangle {
                     id: thunderBtn
                     visible: root.controller.moveNetThunderAvailable
-                    height: 20
-                    width: thunderLabel.implicitWidth + 10
+                    height: Theme.sp(20)
+                    width: thunderLabel.implicitWidth + Theme.sp(10)
                     topRightRadius: Theme.radius; bottomRightRadius: Theme.radius
                     topLeftRadius: 0; bottomLeftRadius: 0
                     color: root.controller.moveNetModel === 1 ? Theme.colorAccentMid : Theme.colorSurface
@@ -610,8 +610,8 @@ Item {
             // ── ORT backend badge ─────────────────────────────────────────────
             Rectangle {
                 visible: root.controller.poseBackendLabel !== "" || root.controller.poseFps > 0
-                width: poseBackendText.implicitWidth + 10
-                height: 20
+                width: poseBackendText.implicitWidth + Theme.sp(10)
+                height: Theme.sp(20)
                 radius: Theme.radius
                 color: root.controller.poseBackendLabel !== "" ? Theme.colorGoodLight : Theme.colorSurface
                 border.width: 1

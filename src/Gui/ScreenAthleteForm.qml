@@ -117,11 +117,11 @@ Item {
                     // Header strip
                     Rectangle {
                         width:  parent.width
-                        height: 36
+                        height: Theme.sp(36)
                         color:  Theme.colorBg2
 
                         RowLayout {
-                            anchors { fill: parent; leftMargin: 14; rightMargin: 14 }
+                            anchors { fill: parent; leftMargin: Theme.sp(14); rightMargin: Theme.sp(14) }
                             Text {
                                 text:           "Required"
                                 font.family:    Theme.fontData
@@ -157,13 +157,13 @@ Item {
 
                         Column {
                             id: reqBody
-                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 18 }
-                            spacing: 12
+                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.sp(18) }
+                            spacing: Theme.sp(12)
 
                             // Name
                             Column {
                                 width:   parent.width
-                                spacing: 4
+                                spacing: Theme.sp(4)
                                 Text {
                                     text:               "NAME"
                                     font.family:        Theme.fontData
@@ -191,7 +191,7 @@ Item {
                             // Handedness
                             Column {
                                 width:   parent.width
-                                spacing: 4
+                                spacing: Theme.sp(4)
                                 Text {
                                     text:               "HANDEDNESS"
                                     font.family:        Theme.fontData
@@ -210,7 +210,7 @@ Item {
                 }
             }
 
-            Item { width: 1; height: 16 }
+            Item { width: 1; height: Theme.sp(16) }
 
             // ── Recommended group ────────────────────────────────────────────
             Rectangle {
@@ -230,11 +230,11 @@ Item {
                     // Header strip
                     Rectangle {
                         width:  parent.width
-                        height: 36
+                        height: Theme.sp(36)
                         color:  Theme.colorBg2
 
                         RowLayout {
-                            anchors { fill: parent; leftMargin: 14; rightMargin: 14 }
+                            anchors { fill: parent; leftMargin: Theme.sp(14); rightMargin: Theme.sp(14) }
                             Text {
                                 text:           "Recommended"
                                 font.family:    Theme.fontData
@@ -268,13 +268,13 @@ Item {
 
                         Column {
                             id: recBody
-                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 18 }
-                            spacing: 12
+                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.sp(18) }
+                            spacing: Theme.sp(12)
 
                             // Height
                             Column {
                                 width:   parent.width
-                                spacing: 4
+                                spacing: Theme.sp(4)
                                 Text {
                                     text:               "HEIGHT"
                                     font.family:        Theme.fontData
@@ -312,7 +312,7 @@ Item {
                             // Weight
                             Column {
                                 width:   parent.width
-                                spacing: 4
+                                spacing: Theme.sp(4)
                                 Text {
                                     text:               "WEIGHT"
                                     font.family:        Theme.fontData
@@ -350,7 +350,7 @@ Item {
                             // Handicap
                             Column {
                                 width:   parent.width
-                                spacing: 4
+                                spacing: Theme.sp(4)
                                 Text {
                                     text:               "HANDICAP"
                                     font.family:        Theme.fontData
@@ -360,7 +360,7 @@ Item {
                                 }
                                 PpTextField {
                                     id: handicapField
-                                    width:            100
+                                    width:            Theme.sp(100)
                                     placeholderText:  "e.g. 5"
                                     inputMethodHints: Qt.ImhFormattedNumbersOnly
                                 }
@@ -369,7 +369,7 @@ Item {
                             // Primary club
                             Column {
                                 width:   parent.width
-                                spacing: 4
+                                spacing: Theme.sp(4)
                                 Text {
                                     text:               "PRIMARY CLUB"
                                     font.family:        Theme.fontData
@@ -388,7 +388,7 @@ Item {
                 }
             }
 
-            Item { width: 1; height: 16 }
+            Item { width: 1; height: Theme.sp(16) }
 
             // ── Optional group ───────────────────────────────────────────────
             Rectangle {
@@ -408,11 +408,11 @@ Item {
                     // Header strip
                     Rectangle {
                         width:  parent.width
-                        height: 36
+                        height: Theme.sp(36)
                         color:  Theme.colorBg2
 
                         RowLayout {
-                            anchors { fill: parent; leftMargin: 14; rightMargin: 14 }
+                            anchors { fill: parent; leftMargin: Theme.sp(14); rightMargin: Theme.sp(14) }
                             Text {
                                 text:           "Optional"
                                 font.family:    Theme.fontData
@@ -446,13 +446,13 @@ Item {
 
                         Column {
                             id: optBody
-                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 18 }
-                            spacing: 12
+                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.sp(18) }
+                            spacing: Theme.sp(12)
 
                             // Driver speed target
                             Column {
                                 width:   parent.width
-                                spacing: 4
+                                spacing: Theme.sp(4)
                                 Text {
                                     text:               "DRIVER SPEED TARGET"
                                     font.family:        Theme.fontData
@@ -471,8 +471,8 @@ Item {
                                     }
                                     Rectangle {
                                         id: speedUnit
-                                        width:  36
-                                        height: 34
+                                        width:  Theme.sp(36)
+                                        height: Theme.sp(34)
                                         color:  Theme.colorBg2
                                         border.width: 1
                                         border.color: Theme.colorBorderStrong
@@ -491,7 +491,7 @@ Item {
                             // Notes
                             Column {
                                 width:   parent.width
-                                spacing: 4
+                                spacing: Theme.sp(4)
                                 Text {
                                     text:               "NOTES / TAGS"
                                     font.family:        Theme.fontData
@@ -511,7 +511,7 @@ Item {
                     // Note strip
                     Rectangle {
                         width:  parent.width
-                        height: noteText.implicitHeight + 20
+                        height: noteText.implicitHeight + Theme.sp(20)
                         color:  Theme.colorSurface
                         border.width: 0
 
@@ -524,7 +524,7 @@ Item {
 
                         Text {
                             id: noteText
-                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 18; topMargin: 10 }
+                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.sp(18); topMargin: Theme.sp(10) }
                             text:           "Pinpoint builds baselines automatically from early sessions. You don't need to know your driver speed to get started."
                             font.family:    Theme.fontData
                             font.pixelSize: Theme.fontSzDataSm
@@ -538,10 +538,10 @@ Item {
             }
 
             // ── Action row ───────────────────────────────────────────────────
-            Item { width: 1; height: 24 }
+            Item { width: 1; height: Theme.sp(24) }
             Row {
                 anchors.right: parent.right
-                spacing: 8
+                spacing: Theme.sp(8)
                 bottomPadding: 32
 
                 PpButton {
@@ -566,7 +566,7 @@ Item {
                     }
                 }
             }
-            Item { width: 1; height: 32 }
+            Item { width: 1; height: Theme.sp(32) }
         }
     }
 }

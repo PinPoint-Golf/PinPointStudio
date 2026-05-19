@@ -28,7 +28,7 @@ Item {
 
     signal clicked()
 
-    height: 44
+    height: Theme.sp(44)
 
     Rectangle {
         anchors.fill: parent
@@ -52,16 +52,16 @@ Item {
             left:           parent.left
             right:          parent.right
             verticalCenter: parent.verticalCenter
-            leftMargin:     12
-            rightMargin:    12
+            leftMargin:     Theme.sp(12)
+            rightMargin:    Theme.sp(12)
         }
-        spacing: 12
+        spacing: Theme.sp(12)
 
         // Avatar circle
         Rectangle {
-            width:        28
-            height:       28
-            radius:       14
+            width:        Theme.sp(28)
+            height:       Theme.sp(28)
+            radius:       Theme.sp(14)
             color:        root.avatarColor
             border.width: 1
             border.color: Qt.darker(root.avatarColor, 1.3)
@@ -71,14 +71,14 @@ Item {
                 anchors.centerIn: parent
                 text:           athleteData.initials || "?"
                 font.family:    Theme.fontData
-                font.pixelSize: 10
+                font.pixelSize: Theme.sp(10)
                 color:          Qt.darker(root.avatarColor, 2.2)
             }
         }
 
         // Name — fills remaining space
         Text {
-            width:          parent.width - 28 - 60 - 60 - 60 - 72 - 16 - parent.spacing * 5
+            width:          parent.width - Theme.sp(28) - Theme.sp(60) - Theme.sp(60) - Theme.sp(60) - Theme.sp(72) - Theme.sp(16) - parent.spacing * 5
             anchors.verticalCenter: parent.verticalCenter
             text:           athleteData.name || ""
             font.family:    Theme.fontBody
@@ -89,46 +89,46 @@ Item {
 
         // Handedness
         Text {
-            width:          60
+            width:          Theme.sp(60)
             horizontalAlignment: Text.AlignRight
             anchors.verticalCenter: parent.verticalCenter
             text:           (athleteData.handedness || "Right")[0] + "H"
             font.family:    Theme.fontData
-            font.pixelSize: 10
+            font.pixelSize: Theme.sp(10)
             color:          Theme.colorText3
         }
 
         // Handicap
         Text {
-            width:          60
+            width:          Theme.sp(60)
             horizontalAlignment: Text.AlignRight
             anchors.verticalCenter: parent.verticalCenter
             text:           (athleteData.handicap >= 0)
                                 ? Math.round(athleteData.handicap) + " hcp"
                                 : "—"
             font.family:    Theme.fontData
-            font.pixelSize: 10
+            font.pixelSize: Theme.sp(10)
             color:          Theme.colorText3
         }
 
         // Sessions
         Text {
-            width:          60
+            width:          Theme.sp(60)
             horizontalAlignment: Text.AlignRight
             anchors.verticalCenter: parent.verticalCenter
             text:           (athleteData.sessionCount || 0) + " sess"
             font.family:    Theme.fontData
-            font.pixelSize: 10
+            font.pixelSize: Theme.sp(10)
             color:          Theme.colorText3
         }
 
         // Last seen
         Text {
-            width:          72
+            width:          Theme.sp(72)
             horizontalAlignment: Text.AlignRight
             anchors.verticalCenter: parent.verticalCenter
             font.family:    Theme.fontData
-            font.pixelSize: 10
+            font.pixelSize: Theme.sp(10)
             color:          Theme.colorText3
             text: {
                 const ts = athleteData.lastSessionAt || 0
@@ -142,7 +142,7 @@ Item {
 
         // Chevron
         Text {
-            width:          16
+            width:          Theme.sp(16)
             horizontalAlignment: Text.AlignRight
             anchors.verticalCenter: parent.verticalCenter
             text:           "›"

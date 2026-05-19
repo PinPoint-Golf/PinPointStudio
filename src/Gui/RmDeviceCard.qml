@@ -35,7 +35,7 @@ Rectangle {
     // ── Header strip ─────────────────────────────────────────────────────────
     Rectangle {
         id: header
-        height: 40
+        height: Theme.sp(40)
         anchors { top: parent.top; left: parent.left; right: parent.right }
         color: Theme.colorBg2
         radius: Theme.radiusLg
@@ -54,14 +54,14 @@ Rectangle {
         }
 
         Row {
-            anchors { fill: parent; leftMargin: 12; rightMargin: 10 }
-            spacing: 8
+            anchors { fill: parent; leftMargin: Theme.sp(12); rightMargin: Theme.sp(10) }
+            spacing: Theme.sp(8)
 
             // Status dot
             Rectangle {
-                width: 7
-                height: 7
-                radius: 4
+                width: Theme.sp(7)
+                height: Theme.sp(7)
+                radius: Theme.sp(4)
                 anchors.verticalCenter: parent.verticalCenter
                 color: {
                     var s = root.deviceData.status
@@ -75,7 +75,7 @@ Rectangle {
             Column {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 1
-                width: parent.width - 7 - 8 - pillItem.implicitWidth - 8
+                width: parent.width - Theme.sp(7) - Theme.sp(8) - pillItem.implicitWidth - Theme.sp(8)
 
                 Text {
                     text: root.deviceData.name
@@ -91,7 +91,7 @@ Rectangle {
                           ? root.deviceData.model + " · " + root.deviceData.backend
                           : root.deviceData.backend
                     font.family: Theme.fontData
-                    font.pixelSize: 9
+                    font.pixelSize: Theme.sp(9)
                     color: Theme.colorText3
                     elide: Text.ElideRight
                     width: parent.width
@@ -102,8 +102,8 @@ Rectangle {
             Item {
                 id: pillItem
                 anchors.verticalCenter: parent.verticalCenter
-                implicitWidth: pill.implicitWidth + 14
-                implicitHeight: pill.implicitHeight + 6
+                implicitWidth: pill.implicitWidth + Theme.sp(14)
+                implicitHeight: pill.implicitHeight + Theme.sp(6)
 
                 Rectangle {
                     anchors.fill: parent
@@ -135,7 +135,7 @@ Rectangle {
                         return s.toUpperCase()
                     }
                     font.family: Theme.fontData
-                    font.pixelSize: 9
+                    font.pixelSize: Theme.sp(9)
                     font.letterSpacing: Theme.trackingMicro
                     color: {
                         var s = root.deviceData.status
@@ -152,11 +152,11 @@ Rectangle {
     Column {
         id: body
         anchors { top: header.bottom; left: parent.left; right: parent.right }
-        topPadding: 12
-        bottomPadding: 12
-        leftPadding: 14
-        rightPadding: 14
-        spacing: 7
+        topPadding: Theme.sp(12)
+        bottomPadding: Theme.sp(12)
+        leftPadding: Theme.sp(14)
+        rightPadding: Theme.sp(14)
+        spacing: Theme.sp(7)
 
         property var rows: {
             var d = root.deviceData
@@ -208,23 +208,23 @@ Rectangle {
 
             Row {
                 width: body.width - body.leftPadding - body.rightPadding
-                spacing: 8
+                spacing: Theme.sp(8)
 
                 Text {
                     width: parent.width * 0.52
                     text: modelData.key
                     font.family: Theme.fontBody
-                    font.pixelSize: 11
+                    font.pixelSize: Theme.sp(11)
                     font.weight: Font.Light
                     color: Theme.colorText3
                     anchors.verticalCenter: parent.verticalCenter
                 }
 
                 Text {
-                    width: parent.width - parent.width * 0.52 - 8
+                    width: parent.width - parent.width * 0.52 - Theme.sp(8)
                     text: modelData.value
                     font.family: Theme.fontData
-                    font.pixelSize: 11
+                    font.pixelSize: Theme.sp(11)
                     horizontalAlignment: Text.AlignRight
                     color: modelData.cls === "good" ? Theme.colorGood
                          : modelData.cls === "warn" ? Theme.colorWarn
@@ -237,13 +237,13 @@ Rectangle {
         // Ring fill bar
         Rectangle {
             width: body.width - body.leftPadding - body.rightPadding
-            height: 3
-            radius: 2
+            height: Theme.sp(3)
+            radius: Theme.sp(2)
             color: Theme.colorBg3
 
             Rectangle {
-                height: 3
-                radius: 2
+                height: Theme.sp(3)
+                radius: Theme.sp(2)
                 width: {
                     var fill = root.deviceData.ringFill
                     return parent.width * Math.min(1.0, fill)

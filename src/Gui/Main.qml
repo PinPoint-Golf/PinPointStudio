@@ -34,6 +34,15 @@ ApplicationWindow {
     onWidthChanged:  appSettings.windowWidth  = width
     onHeightChanged: appSettings.windowHeight = height
 
+    Component.onCompleted: {
+        if (appSettings.fontScale > 0) {
+            Theme.fontScale = appSettings.fontScale
+        } else {
+            var w = Screen.desktopAvailableWidth
+            Theme.fontScale = w >= 3840 ? 1.5 : w >= 2560 ? 1.25 : 1.0
+        }
+    }
+
     RowLayout {
         anchors.fill: parent
         spacing: 0

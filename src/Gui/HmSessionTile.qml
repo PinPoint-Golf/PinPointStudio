@@ -24,23 +24,23 @@ Rectangle {
 
     property var sessionData
 
-    width:  148
-    height: 88
+    width:  Theme.sp(148)
+    height: Theme.sp(88)
     radius: Theme.radiusLg
     color:  hoverArea.containsMouse ? Theme.colorAccentLight : Theme.colorBg
     border.width: 1
     border.color: hoverArea.containsMouse ? Theme.colorAccent : Theme.colorBorderMid
 
     Column {
-        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+        anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.sp(12) }
         spacing: 0
 
-        Item { width: 1; height: 2 }
+        Item { width: 1; height: Theme.sp(2) }
 
         Rectangle {
-            height: 18
-            width:  badgeLabel.implicitWidth + 16
-            radius: 20
+            height: Theme.sp(18)
+            width:  badgeLabel.implicitWidth + Theme.sp(16)
+            radius: Theme.sp(20)
             color:  Theme.colorAccentLight
             border.width: 1
             border.color: Theme.colorAccentMid
@@ -55,12 +55,12 @@ Rectangle {
             }
         }
 
-        Item { width: 1; height: 4 }
+        Item { width: 1; height: Theme.sp(4) }
 
         Text {
             text:           root.sessionData ? (root.sessionData.date || "—") : ""
             font.family:    Theme.fontData
-            font.pixelSize: 9
+            font.pixelSize: Theme.sp(9)
             color:          Theme.colorText3
         }
 

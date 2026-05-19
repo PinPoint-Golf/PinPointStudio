@@ -24,7 +24,7 @@ Rectangle {
 
     property var deviceData
 
-    height: 44
+    height: Theme.sp(44)
     color:  "transparent"
 
     Rectangle {
@@ -38,13 +38,13 @@ Rectangle {
         spacing:      0
 
         Item {
-            width:  16
+            width:  Theme.sp(16)
             height: parent.height
 
             Rectangle {
-                width:  7
-                height: 7
-                radius: 3.5
+                width:  Theme.sp(7)
+                height: Theme.sp(7)
+                radius: Theme.sp(4)
                 anchors.centerIn: parent
                 color: {
                     if (!root.deviceData) return Theme.colorBorderStrong
@@ -57,7 +57,7 @@ Rectangle {
         }
 
         Text {
-            width:              parent.width - 16 - statusDetail.width
+            width:              parent.width - Theme.sp(16) - statusDetail.width
             height:             parent.height
             leftPadding:        9
             text:               root.deviceData ? root.deviceData.name : ""
@@ -70,7 +70,7 @@ Rectangle {
 
         Text {
             id: statusDetail
-            width:               64
+            width:               Theme.sp(64)
             height:              parent.height
             text: {
                 if (!root.deviceData) return "—"

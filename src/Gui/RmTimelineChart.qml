@@ -29,13 +29,13 @@ Rectangle {
     border.width: 1
     border.color: Theme.colorBorderMid
     color: Theme.colorSurface
-    height: 180
+    height: Theme.sp(180)
     clip: true
 
     // Title
     Text {
         id: chartTitle
-        anchors { top: parent.top; left: parent.left; right: parent.right; margins: 14 }
+        anchors { top: parent.top; left: parent.left; right: parent.right; margins: Theme.sp(14) }
         text: "TIMELINE INDEX — ENTRIES PER 2 S WINDOW"
         font.family: Theme.fontData
         font.pixelSize: Theme.fontSzMicro
@@ -46,14 +46,14 @@ Rectangle {
     // Footer
     Item {
         id: footer
-        anchors { bottom: parent.bottom; left: parent.left; right: parent.right; margins: 14 }
-        height: 14
+        anchors { bottom: parent.bottom; left: parent.left; right: parent.right; margins: Theme.sp(14) }
+        height: Theme.sp(14)
 
         Text {
             anchors { left: parent.left; verticalCenter: parent.verticalCenter }
             text: "−" + (root.historyData.length * 2) + " s"
             font.family: Theme.fontData
-            font.pixelSize: 9
+            font.pixelSize: Theme.sp(9)
             color: Theme.colorText3
         }
 
@@ -61,7 +61,7 @@ Rectangle {
             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
             text: "now"
             font.family: Theme.fontData
-            font.pixelSize: 9
+            font.pixelSize: Theme.sp(9)
             color: Theme.colorText3
         }
     }
@@ -76,8 +76,8 @@ Rectangle {
             bottomMargin: 4
             left: parent.left
             right: parent.right
-            leftMargin: 14
-            rightMargin: 14
+            leftMargin: Theme.sp(14)
+            rightMargin: Theme.sp(14)
         }
 
         property int  barCount: root.historyData.length > 0 ? root.historyData.length : 1
@@ -93,7 +93,7 @@ Rectangle {
 
         Row {
             anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
-            spacing: 3
+            spacing: Theme.sp(3)
 
             Repeater {
                 model: root.historyData
@@ -106,7 +106,7 @@ Rectangle {
                         anchors.bottom: parent.bottom
                         width: parent.width
                         height: Math.max(2, modelData / chartArea.maxVal * chartArea.height)
-                        radius: 1
+                        radius: Theme.sp(1)
                         color: Theme.colorAccent
                         opacity: index === root.historyData.length - 1 ? 0.8 : 0.5
 

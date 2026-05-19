@@ -30,13 +30,13 @@ Item {
         orientation: Qt.Vertical
 
         handle: Rectangle {
-            implicitHeight: 8
+            implicitHeight: Theme.sp(8)
             color: SplitHandle.hovered || SplitHandle.pressed ? Theme.colorBg3 : Theme.colorBg2
 
             Rectangle {
-                width: 40; height: 2
+                width: Theme.sp(40); height: Theme.sp(2)
                 anchors.centerIn: parent
-                radius: 1
+                radius: Theme.sp(1)
                 color: Theme.colorText3
             }
         }
@@ -48,9 +48,9 @@ Item {
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 16
-                anchors.bottomMargin: 8
-                spacing: 12
+                anchors.margins: Theme.sp(16)
+                anchors.bottomMargin: Theme.sp(8)
+                spacing: Theme.sp(12)
 
                 Label {
                     text: "Live Transcript"
@@ -74,7 +74,7 @@ Item {
                         color: Theme.colorText
                         font.family: Theme.fontData
                         font.pixelSize: Theme.fontSzBody
-                        padding: 12
+                        padding: Theme.sp(12)
                         background: Rectangle {
                             color: Theme.colorSurface
                             radius: Theme.radius
@@ -87,7 +87,7 @@ Item {
                 }
 
                 RowLayout {
-                    spacing: 8
+                    spacing: Theme.sp(8)
 
                     Button {
                         id: listenButton
@@ -137,7 +137,7 @@ Item {
 
                     Rectangle {
                         visible: controller.isListening
-                        width: 8; height: 8; radius: 4
+                        width: Theme.sp(8); height: Theme.sp(8); radius: Theme.sp(4)
                         color: Theme.colorGood
                         SequentialAnimation on opacity {
                             running: controller.isListening
@@ -181,8 +181,8 @@ Item {
                                       : controller.sttBackend !== "" && controller.sttBackend !== "CPU"
                                         ? Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.25)
                                         : Theme.colorBorderMid
-                        implicitWidth: sttBackendBadge.implicitWidth + 10
-                        implicitHeight: sttBackendBadge.implicitHeight + 4
+                        implicitWidth: sttBackendBadge.implicitWidth + Theme.sp(10)
+                        implicitHeight: sttBackendBadge.implicitHeight + Theme.sp(4)
                         ToolTip.visible: sttBackendHover.hovered
                         ToolTip.text: controller.cloudSttFallbackAvailable
                             ? (controller.sttBackend === "Cloud"
@@ -226,9 +226,9 @@ Item {
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 16
-                anchors.topMargin: 8
-                spacing: 12
+                anchors.margins: Theme.sp(16)
+                anchors.topMargin: Theme.sp(8)
+                spacing: Theme.sp(12)
 
                 Label {
                     text: "Text to Speech"
@@ -248,7 +248,7 @@ Item {
                     color: Theme.colorText
                     font.family: Theme.fontBody
                     font.pixelSize: Theme.fontSzBody
-                    padding: 10
+                    padding: Theme.sp(10)
                     background: Rectangle {
                         color: Theme.colorSurface
                         radius: Theme.radius
@@ -265,7 +265,7 @@ Item {
                 }
 
                 RowLayout {
-                    spacing: 8
+                    spacing: Theme.sp(8)
 
                     Button {
                         id: speakButton
@@ -348,7 +348,7 @@ Item {
                         model: ttsController.voices
                         currentIndex: ttsController.voices.indexOf(ttsController.voice)
                         onActivated: ttsController.voice = currentText
-                        implicitWidth: 130
+                        implicitWidth: Theme.sp(130)
                         contentItem: Text {
                             leftPadding: 8
                             text: voiceSelector.displayText
@@ -399,7 +399,7 @@ Item {
                     }
 
                     Rectangle {
-                        width: 8; height: 8; radius: 4
+                        width: Theme.sp(8); height: Theme.sp(8); radius: Theme.sp(4)
                         color: ttsController.ttsReady ? Theme.colorGood : Theme.colorWarn
                         ToolTip.visible: ttsStatusHover.hovered
                         ToolTip.text: ttsController.ttsReady ? qsTr("TTS model ready")
@@ -431,8 +431,8 @@ Item {
                                       : ttsController.ttsBackend !== ""
                                         ? Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.25)
                                         : Theme.colorBorderMid
-                        implicitWidth: backendBadge.implicitWidth + 10
-                        implicitHeight: backendBadge.implicitHeight + 4
+                        implicitWidth: backendBadge.implicitWidth + Theme.sp(10)
+                        implicitHeight: backendBadge.implicitHeight + Theme.sp(4)
                         ToolTip.visible: backendHover.hovered
                         ToolTip.text: ttsController.cloudTtsFallbackAvailable
                             ? (ttsController.ttsBackend === "Cloud"
@@ -472,7 +472,7 @@ Item {
                 // Download progress — only visible while fetching model files
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: 4
+                    spacing: Theme.sp(4)
                     visible: ttsController.downloading
 
                     ProgressBar {

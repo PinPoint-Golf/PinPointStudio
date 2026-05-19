@@ -29,8 +29,8 @@ Rectangle {
 
     signal clicked()
 
-    implicitWidth:  btnLabel.implicitWidth + 24
-    implicitHeight: 34
+    implicitWidth:  btnLabel.implicitWidth + Theme.sp(24)
+    implicitHeight: Theme.sp(34)
     radius:         Theme.radius
     opacity:        root.enabled ? 1.0 : 0.4
 

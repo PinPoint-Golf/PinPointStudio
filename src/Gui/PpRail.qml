@@ -59,14 +59,14 @@ Item {
         spacing: 0
 
         // ── Top padding ──────────────────────────────────────────────────────
-        Item { Layout.preferredHeight: 16; Layout.fillWidth: true }
+        Item { Layout.preferredHeight: Theme.sp(16); Layout.fillWidth: true }
 
         // ── Athlete avatar ───────────────────────────────────────────────────
         Rectangle {
             Layout.alignment: Qt.AlignHCenter
-            width:  32
-            height: 32
-            radius: 16
+            width:  Theme.sp(32)
+            height: Theme.sp(32)
+            radius: Theme.sp(16)
             color:  athleteController.hasCurrentAthlete
                         ? Theme.colorAccentLight : "transparent"
             border.width: athleteController.hasCurrentAthlete ? 1 : 1
@@ -89,7 +89,7 @@ Item {
                 text:           athleteController.hasCurrentAthlete
                                     ? athleteController.currentInitials : "＋"
                 font.family:    Theme.fontData
-                font.pixelSize: 10
+                font.pixelSize: Theme.sp(10)
                 color:          athleteController.hasCurrentAthlete
                                     ? Theme.colorAccent : Theme.colorText3
             }
@@ -102,12 +102,12 @@ Item {
         }
 
         // ── Divider ──────────────────────────────────────────────────────────
-        Item { Layout.preferredHeight: 12; Layout.fillWidth: true }
+        Item { Layout.preferredHeight: Theme.sp(12); Layout.fillWidth: true }
         PpDivider {
-            Layout.preferredWidth: 24
+            Layout.preferredWidth: Theme.sp(24)
             Layout.alignment: Qt.AlignHCenter
         }
-        Item { Layout.preferredHeight: 12; Layout.fillWidth: true }
+        Item { Layout.preferredHeight: Theme.sp(12); Layout.fillWidth: true }
 
         // ── Mode buttons (pages 0–4) ──────────────────────────────────────────
 
@@ -119,7 +119,7 @@ Item {
             onClicked: root.pageRequested(0)
         }
 
-        Item { Layout.preferredHeight: 8; Layout.fillWidth: true }
+        Item { Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true }
 
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
@@ -129,7 +129,7 @@ Item {
             onClicked: root.pageRequested(1)
         }
 
-        Item { Layout.preferredHeight: 8; Layout.fillWidth: true }
+        Item { Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true }
 
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
@@ -139,7 +139,7 @@ Item {
             onClicked: root.pageRequested(2)
         }
 
-        Item { Layout.preferredHeight: 8; Layout.fillWidth: true }
+        Item { Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true }
 
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
@@ -149,7 +149,7 @@ Item {
             onClicked: root.pageRequested(3)
         }
 
-        Item { Layout.preferredHeight: 8; Layout.fillWidth: true }
+        Item { Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true }
 
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
@@ -164,10 +164,10 @@ Item {
 
         // ── Bottom section: Play dev-hatch + Settings ─────────────────────────
         PpDivider {
-            Layout.preferredWidth: 24
+            Layout.preferredWidth: Theme.sp(24)
             Layout.alignment: Qt.AlignHCenter
         }
-        Item { Layout.preferredHeight: 8; Layout.fillWidth: true }
+        Item { Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true }
 
         // Play — dev hatch to existing app tabs (index 5); lights up when there
         PpRailButton {
@@ -178,7 +178,7 @@ Item {
             onClicked: root.pageRequested(5)
         }
 
-        Item { Layout.preferredHeight: 8; Layout.fillWidth: true }
+        Item { Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true }
 
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
@@ -188,7 +188,7 @@ Item {
             onClicked: root.systemClicked()
         }
 
-        Item { Layout.preferredHeight: 8; Layout.fillWidth: true }
+        Item { Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true }
 
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
@@ -198,6 +198,6 @@ Item {
             onClicked: Theme.cycleTheme()
         }
 
-        Item { Layout.preferredHeight: 16; Layout.fillWidth: true }
+        Item { Layout.preferredHeight: Theme.sp(16); Layout.fillWidth: true }
     }
 }

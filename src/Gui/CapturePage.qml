@@ -27,8 +27,8 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 16
-        spacing: 12
+        anchors.margins: Theme.sp(16)
+        spacing: Theme.sp(12)
 
         Label {
             text: "IMU"
@@ -39,7 +39,7 @@ Item {
         }
 
         RowLayout {
-            spacing: 8
+            spacing: Theme.sp(8)
 
             Button {
                 id: connectBtn
@@ -87,7 +87,7 @@ Item {
 
             Rectangle {
                 visible: imuController.busy
-                width: 8; height: 8; radius: 4
+                width: Theme.sp(8); height: Theme.sp(8); radius: Theme.sp(4)
                 color: Theme.colorWarn
                 SequentialAnimation on opacity {
                     running: imuController.busy
@@ -119,8 +119,8 @@ Item {
                 border.color: imuController.batteryPercent > 60
                               ? Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.25)
                               : Qt.rgba(Theme.colorWarn.r, Theme.colorWarn.g, Theme.colorWarn.b, 0.25)
-                implicitWidth:  batteryBadge.implicitWidth  + 10
-                implicitHeight: batteryBadge.implicitHeight + 4
+                implicitWidth:  batteryBadge.implicitWidth  + Theme.sp(10)
+                implicitHeight: batteryBadge.implicitHeight + Theme.sp(4)
 
                 Label {
                     id: batteryBadge
@@ -161,7 +161,7 @@ Item {
                     return idx >= 0 ? idx : 2
                 }
                 onActivated: imuController.setOutputRateHz(model[currentIndex])
-                implicitWidth: 90
+                implicitWidth: Theme.sp(90)
                 contentItem: Text {
                     leftPadding: 8
                     text: rateCombo.displayText + " Hz"
@@ -179,7 +179,7 @@ Item {
                 popup: Popup {
                     y: rateCombo.height + 2
                     width: rateCombo.width
-                    padding: 4
+                    padding: Theme.sp(4)
                     background: Rectangle {
                         color: Theme.colorSurface
                         radius: Theme.radius
@@ -257,7 +257,7 @@ Item {
         // ── Buffer status ─────────────────────────────────────────────────────
         RowLayout {
             visible: imuController.imuConnected
-            spacing: 8
+            spacing: Theme.sp(8)
 
             Item { Layout.fillWidth: true }
 
@@ -335,7 +335,7 @@ Item {
                 ListView {
                     id: logView
                     anchors.fill: parent
-                    anchors.margins: 8
+                    anchors.margins: Theme.sp(8)
                     clip: true
                     model: ListModel { id: logModel }
                     spacing: 1
