@@ -17,6 +17,7 @@
  */
 
 #include <QGuiApplication>
+#include <QFontDatabase>
 #include <QIcon>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -39,6 +40,25 @@ int main(int argc, char *argv[])
 {
     PinPointDebug::install();
     QGuiApplication app(argc, argv);
+
+    // Load bundled fonts so Theme.qml family names resolve on all platforms.
+    const QStringList fontResources = {
+        ":/fonts/DMSans-Variable.ttf",
+        ":/fonts/DMSans-Italic-Variable.ttf",
+        ":/fonts/DMMono-Regular.ttf",
+        ":/fonts/DMMono-Medium.ttf",
+        ":/fonts/DMSerifDisplay-Regular.ttf",
+        ":/fonts/InstrumentSans-Variable.ttf",
+        ":/fonts/JetBrainsMono-Variable.ttf",
+        ":/fonts/PlayfairDisplay-Variable.ttf",
+        ":/fonts/Geist-Variable.ttf",
+        ":/fonts/GeistMono-Variable.ttf",
+    };
+    for (const QString &path : fontResources) {
+        if (QFontDatabase::addApplicationFont(path) < 0)
+            ppWarn() << "[Fonts] failed to load" << path;
+    }
+
     app.setWindowIcon(QIcon(":/icons/pinpoint_256.png"));
     app.setDesktopFileName(QStringLiteral("pinpoint"));
     SecretsManager::initializeDefaults();

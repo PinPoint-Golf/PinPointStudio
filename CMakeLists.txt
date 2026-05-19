@@ -260,6 +260,22 @@ qt_add_resources(PinPoint "app_icons"
         src/Resources/icons/pinpoint_256.png
 )
 
+qt_add_resources(PinPoint "app_fonts"
+    PREFIX "/fonts"
+    BASE "src/Resources/fonts"
+    FILES
+        src/Resources/fonts/DMSans-Variable.ttf
+        src/Resources/fonts/DMSans-Italic-Variable.ttf
+        src/Resources/fonts/DMMono-Regular.ttf
+        src/Resources/fonts/DMMono-Medium.ttf
+        src/Resources/fonts/DMSerifDisplay-Regular.ttf
+        src/Resources/fonts/InstrumentSans-Variable.ttf
+        src/Resources/fonts/JetBrainsMono-Variable.ttf
+        src/Resources/fonts/PlayfairDisplay-Variable.ttf
+        src/Resources/fonts/Geist-Variable.ttf
+        src/Resources/fonts/GeistMono-Variable.ttf
+)
+
 # ── Linux: deploy icon + .desktop to user dirs on every build ────────────────
 # GNOME's taskbar icon comes from the .desktop file, not setWindowIcon().
 # Copying to ~/.local/share avoids requiring cmake --install or sudo.
