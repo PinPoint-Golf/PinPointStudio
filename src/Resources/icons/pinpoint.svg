@@ -1,16 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <!-- Badge background -->
   <rect x="0" y="0" width="512" height="512" rx="112" fill="#16a34a"/>
-  <!-- P glyph, white, serif, positioned so bottom of serif sits at ~78% height -->
   <text
-    x="336"
+    x="260"
     y="432"
     text-anchor="middle"
     font-family="Georgia, 'Times New Roman', serif"
     font-size="480"
     font-weight="700"
     fill="white">P</text>
-  <!-- Tonal dot: bottom aligned with serif foot, sitting on outer bowl edge -->
-  <!-- Centre x=383, centre y=398, radius=38 — bottom edge at y=436 ~= serif baseline -->
   <circle cx="383" cy="398" r="38" fill="#0d7a30"/>
 </svg>
