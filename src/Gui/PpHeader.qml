@@ -119,22 +119,6 @@ Item {
         }
 
         Text {
-            text:           "Pinpoint"
-            font.family:    Theme.fontDisplay
-            font.italic:    Theme.fontDisplayItalic
-            font.pixelSize: Theme.sp(15)
-            color:          Theme.colorText
-        }
-
-        Rectangle {
-            width:   1
-            height:  16
-            color:   Theme.colorBorderStrong
-            opacity: Theme.borderOpacityNormal
-            Layout.alignment: Qt.AlignVCenter
-        }
-
-        Text {
             text:                root.screenName
             font.family:         Theme.fontBody
             font.pixelSize:      Theme.fontSzLabel

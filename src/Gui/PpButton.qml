@@ -25,7 +25,6 @@ Rectangle {
     property string label:       ""
     property bool   primary:     false
     property bool   destructive: false
-    property bool   enabled:     true
 
     signal clicked()
 

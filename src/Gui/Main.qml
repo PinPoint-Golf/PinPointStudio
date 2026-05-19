@@ -65,7 +65,7 @@ ApplicationWindow {
             Layout.fillHeight: true
             // implicitWidth declared in PpRail.qml drives the column width
             currentPageIndex: navController.currentIndex
-            onPageRequested: navController.navigateRail(index)
+            onPageRequested: function(index) { navController.navigateRail(index) }
             onAvatarClicked: navController.navigateRail(7)
             onSystemClicked: navController.navigateRail(8)
         }
