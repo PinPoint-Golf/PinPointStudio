@@ -43,6 +43,81 @@ Item {
         anchors.rightMargin: 16
         spacing:             16
 
+        // Back/forward navigation cluster
+        Row {
+            spacing:          Theme.sp(4)
+            Layout.alignment: Qt.AlignVCenter
+            height:           Theme.headerHeight
+
+            Item {
+                width:  Theme.sp(28)
+                height: parent.height
+
+                Text {
+                    anchors.centerIn: parent
+                    text:             "‹"
+                    font.family:      Theme.fontBody
+                    font.pixelSize:   Theme.sp(16)
+                    color:            navController.canGoBack
+                                      ? (backHover.containsMouse ? Theme.colorText
+                                                                 : Theme.colorText2)
+                                      : Theme.colorText3
+                    opacity:          navController.canGoBack ? 1.0 : 0.4
+                    Behavior on opacity {
+                        NumberAnimation { duration: Theme.durationFast }
+                    }
+                }
+
+                MouseArea {
+                    id:           backHover
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    enabled:      navController.canGoBack
+                    cursorShape:  navController.canGoBack
+                                  ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked:    navController.back()
+                }
+            }
+
+            Item {
+                width:  Theme.sp(28)
+                height: parent.height
+
+                Text {
+                    anchors.centerIn: parent
+                    text:             "›"
+                    font.family:      Theme.fontBody
+                    font.pixelSize:   Theme.sp(16)
+                    color:            navController.canGoForward
+                                      ? (fwdHover.containsMouse ? Theme.colorText
+                                                                : Theme.colorText2)
+                                      : Theme.colorText3
+                    opacity:          navController.canGoForward ? 1.0 : 0.4
+                    Behavior on opacity {
+                        NumberAnimation { duration: Theme.durationFast }
+                    }
+                }
+
+                MouseArea {
+                    id:           fwdHover
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    enabled:      navController.canGoForward
+                    cursorShape:  navController.canGoForward
+                                  ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked:    navController.forward()
+                }
+            }
+        }
+
+        Rectangle {
+            width:   1
+            height:  Theme.sp(16)
+            color:   Theme.colorBorderMid
+            opacity: Theme.borderOpacityNormal
+            Layout.alignment: Qt.AlignVCenter
+        }
+
         Text {
             text:           "Pinpoint"
             font.family:    Theme.fontDisplay
@@ -69,12 +144,5 @@ Item {
         }
 
         Item { Layout.fillWidth: true }
-
-        // Right content placeholder — populated per-screen in a future task
-        Item {
-            id: rightSlot
-            implicitHeight: parent.height
-            implicitWidth:  0
-        }
     }
 }

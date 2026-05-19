@@ -107,6 +107,7 @@ qt_add_executable(PinPoint
     src/Gui/tts_controller.h           src/Gui/tts_controller.cpp
     src/Gui/film_controller.h          src/Gui/film_controller.cpp
     src/Gui/athlete_controller.h       src/Gui/athlete_controller.cpp
+    src/Gui/navigation_controller.h    src/Gui/navigation_controller.cpp
     src/Gui/resource_monitor_controller.h src/Gui/resource_monitor_controller.cpp
     src/IMU/wt9011dcl_base.h src/IMU/wt9011dcl_base.cpp
     src/IMU/wt9011dcl.h      src/IMU/wt9011dcl.cpp

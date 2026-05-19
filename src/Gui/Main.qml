@@ -64,16 +64,10 @@ ApplicationWindow {
             id: rail
             Layout.fillHeight: true
             // implicitWidth declared in PpRail.qml drives the column width
-            currentPageIndex: contentStack.currentIndex
-            onPageRequested: function(index) {
-                // Wrist (2) and GRF (3) require at least one athlete; redirect to Welcome if none exist
-                if ((index === 2 || index === 3 || index === 4) && athleteController.athletes.length === 0)
-                    contentStack.currentIndex = 0
-                else
-                    contentStack.currentIndex = index
-            }
-            onAvatarClicked:  contentStack.currentIndex = 7
-            onSystemClicked:  contentStack.currentIndex = 8
+            currentPageIndex: navController.currentIndex
+            onPageRequested: navController.navigateRail(index)
+            onAvatarClicked: navController.navigateRail(7)
+            onSystemClicked: navController.navigateRail(8)
         }
 
         ColumnLayout {
@@ -84,21 +78,21 @@ ApplicationWindow {
             PpHeader {
                 id: appHeader
                 Layout.fillWidth: true
-                screenName: contentStack.currentIndex < screenNames.length
-                            ? screenNames[contentStack.currentIndex] : ""
+                screenName: navController.currentIndex < screenNames.length
+                            ? screenNames[navController.currentIndex] : ""
             }
 
             StackLayout {
                 id: contentStack
                 Layout.fillWidth:  true
                 Layout.fillHeight: true
-                currentIndex: 0
+                currentIndex: navController.currentIndex
 
                 ScreenHome {                                               // 0 — home / default
-                    onAddAthleteRequested:    contentStack.currentIndex = 6
-                    onAthletePickerRequested: contentStack.currentIndex = 7
+                    onAddAthleteRequested:    navController.navigate(6)
+                    onAthletePickerRequested: navController.navigate(7)
                     onStartSessionRequested:  console.log("Session start — not yet implemented")
-                    onSystemRequested:        contentStack.currentIndex = 8
+                    onSystemRequested:        navController.navigate(8)
                 }
                 VideoPage       {}                                         // 1 — Swing
                 ScreenPlaceholder { iconText: "⌖"; titleText: "Wrist"  }  // 2
@@ -106,13 +100,13 @@ ApplicationWindow {
                 ScreenPlaceholder { iconText: "✦"; titleText: "Coach"  }  // 4
                 PlayPage {}                                                // 5 — Play dev-hatch only
                 ScreenAthleteForm {                                        // 6 — new athlete form
-                    onCancelled:       contentStack.currentIndex = 0
-                    onSaved:           contentStack.currentIndex = 7
-                    onSavedAndStarted: contentStack.currentIndex = 7
+                    onCancelled:       navController.navigate(0)
+                    onSaved:           navController.navigate(7)
+                    onSavedAndStarted: navController.navigate(7)
                 }
                 ScreenAthletePicker {                                      // 7 — athlete picker
-                    onAthleteSelected:    contentStack.currentIndex = 0
-                    onNewAthleteRequested: contentStack.currentIndex = 6
+                    onAthleteSelected:     navController.navigate(0)
+                    onNewAthleteRequested: navController.navigate(6)
                 }
                 ScreenResourceMonitor {}                                   // 8 — system resource monitor
             }

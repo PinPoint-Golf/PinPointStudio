@@ -31,6 +31,7 @@
 #include "buffer_controller.h"
 #include "event_buffer.h"
 #include "athlete_controller.h"
+#include "navigation_controller.h"
 #include "resource_monitor_controller.h"
 
 int main(int argc, char *argv[])
@@ -54,11 +55,13 @@ int main(int argc, char *argv[])
     FilmController          filmController;
     BufferController        bufferController(&eventBuffer);
     AthleteController       athleteController;
+    NavigationController    navController(&athleteController);
     ResourceMonitorController resourceMonitor(&eventBuffer, &cameraManager, &imuController);
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("appSettings"),       &appSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("athleteController"), &athleteController);
+    engine.rootContext()->setContextProperty(QStringLiteral("navController"),     &navController);
     engine.rootContext()->setContextProperty(QStringLiteral("imuController"),    &imuController);
     engine.rootContext()->setContextProperty(QStringLiteral("controller"),       &controller);
     engine.rootContext()->setContextProperty(QStringLiteral("ttsController"),    &ttsController);
