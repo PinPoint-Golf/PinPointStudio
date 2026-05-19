@@ -528,7 +528,7 @@ void VideoInputSpinnaker::captureLoop()
             // EndAcquisition() being called while GetNextImage() is waiting.
             // Only log it when the abort was unexpected (m_abort is still false).
             if (!m_abort)
-                ppWarn() << "[VideoInputSpinnaker] Capture error:" << e.what();
+                ppError() << "[VideoInputSpinnaker] Capture error:" << e.what();
         }
     }
 #endif

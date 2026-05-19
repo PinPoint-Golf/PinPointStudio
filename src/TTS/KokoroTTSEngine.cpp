@@ -53,7 +53,7 @@ KokoroTTSEngine::KokoroTTSEngine(QObject *parent)
         Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CoreML(m_ort->opts, COREML_FLAG_USE_NONE));
         m_gpuBackend = QStringLiteral("CoreML");
     } catch (const Ort::Exception &e) {
-        ppInfo() << "KokoroTTS: CoreML unavailable:" << e.what() << "— falling back";
+        ppInfo() << "[KokoroTTS] CoreML unavailable:" << e.what() << "— falling back";
     }
 #endif
 
@@ -72,7 +72,7 @@ KokoroTTSEngine::KokoroTTSEngine(QObject *parent)
         const bool hasNvidiaDriver = true;
 #  endif
         if (!hasNvidiaDriver) {
-            ppInfo() << "KokoroTTS: No NVIDIA GPU detected — skipping CUDA EP";
+            ppInfo() << "[KokoroTTS] No NVIDIA GPU detected — skipping CUDA EP";
         } else {
             try {
                 OrtCUDAProviderOptions cuda{};
@@ -80,7 +80,7 @@ KokoroTTSEngine::KokoroTTSEngine(QObject *parent)
                 m_ort->opts.AppendExecutionProvider_CUDA(cuda);
                 m_gpuBackend = QStringLiteral("CUDA");
             } catch (const Ort::Exception &e) {
-                ppInfo() << "KokoroTTS: CUDA unavailable:" << e.what() << "— falling back";
+                ppInfo() << "[KokoroTTS] CUDA unavailable:" << e.what() << "— falling back";
             }
         }
     }
@@ -92,15 +92,15 @@ KokoroTTSEngine::KokoroTTSEngine(QObject *parent)
             m_ort->opts.AppendExecutionProvider("DML");
             m_gpuBackend = QStringLiteral("DirectML");
         } catch (const Ort::Exception &e) {
-            ppInfo() << "KokoroTTS: DirectML unavailable:" << e.what() << "— falling back";
+            ppInfo() << "[KokoroTTS] DirectML unavailable:" << e.what() << "— falling back";
         }
     }
 #endif
 
     if (m_gpuBackend.isEmpty())
-        ppInfo() << "KokoroTTS: using CPU execution provider";
+        ppInfo() << "[KokoroTTS] using CPU execution provider";
     else
-        ppInfo() << "KokoroTTS: using" << m_gpuBackend << "execution provider";
+        ppInfo() << "[KokoroTTS] using" << m_gpuBackend << "execution provider";
 #endif
 }
 
@@ -249,7 +249,7 @@ void KokoroTTSEngine::synthesise(const QString &text)
             QString sampleStr;
             for (int i = 0; i < nCheck; ++i)
                 sampleStr += QString::number(double(s[i]), 'f', 4) + QLatin1Char(' ');
-            ppDebug() << "KokoroTTS: output shape" << shapeStr
+            ppDebug() << "[KokoroTTS] output shape" << shapeStr
                       << "samples" << numSamples
                       << "first values:" << sampleStr.trimmed();
             if (numSamples > 0) {
@@ -257,14 +257,14 @@ void KokoroTTSEngine::synthesise(const QString &text)
                 for (int64_t i = 0; i < qMin(numSamples, (int64_t)200); ++i)
                     if (s[i] != 0.0f) { allZero = false; break; }
                 if (allZero)
-                    ppWarn() << "KokoroTTS: output is all-zeros — possible CoreML/model incompatibility";
+                    ppError() << "[KokoroTTS] output is all-zeros — possible CoreML/model incompatibility";
             }
         }
 
         const float *samples = outputs[0].GetTensorData<float>();
         const QByteArray pcm(reinterpret_cast<const char *>(samples),
                              static_cast<int>(numSamples * sizeof(float)));
-        ppDebug() << "KokoroTTS: emitting" << pcm.size() << "bytes of PCM";
+        ppDebug() << "[KokoroTTS] emitting" << pcm.size() << "bytes of PCM";
         emit audioReady(pcm, kokoroFormat());
 
     } catch (const Ort::Exception &e) {

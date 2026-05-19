@@ -250,22 +250,6 @@ Item {
                 }
             }
 
-            // Warning notices
-            Column {
-                visible: resourceMonitor.warnings.length > 0
-                width: parent.width - 40
-                spacing: Theme.sp(8)
-
-                Repeater {
-                    model: resourceMonitor.warnings
-
-                    RmWarningNotice {
-                        message: modelData
-                        width: parent.width
-                    }
-                }
-            }
-
             // Sources section
             Column {
                 width: parent.width - 40
@@ -416,7 +400,337 @@ Item {
                 bufferState: resourceMonitor.bufferState
             }
 
-            Item { height: Theme.sp(4) }
+            // ── Message log (grows downward; lives at bottom) ─────────────────
+            Column {
+                id: msgLogColumn
+                width: parent.width - 40
+                spacing: 0
+
+                // Active severity filters — reassign (don't mutate) to trigger reactivity
+                property var    activeFilters: ({"INFO": true, "WARN": true, "ERROR": true, "FATAL": true})
+                property string textFilter:    ""
+
+                function toggleFilter(sev) {
+                    var f = Object.assign({}, activeFilters)
+                    f[sev] = !f[sev]
+                    activeFilters = f
+                }
+
+                function severityColor(sev) {
+                    if (sev === "WARN")                    return Theme.colorWarn
+                    if (sev === "ERROR" || sev === "FATAL") return Theme.colorError
+                    if (sev === "INFO")                    return Theme.colorText2
+                    return Theme.colorText3  // DEBUG
+                }
+
+                property var filteredLog: {
+                    var filters = activeFilters
+                    var needle  = textFilter.toLowerCase()
+                    var log = resourceMonitor.messageLog
+                    var result = []
+                    for (var i = 0; i < log.length; i++) {
+                        var e = log[i]
+                        if (filters[e.severity] === false) continue
+                        if (needle !== "" && e.message.toLowerCase().indexOf(needle) === -1) continue
+                        result.push(e)
+                    }
+                    return result
+                }
+
+                // Header
+                Item {
+                    width: parent.width
+                    height: Theme.sp(32)
+
+                    Text {
+                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                        text: "MESSAGE LOG"
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fontSzMicro
+                        font.letterSpacing: Theme.trackingMicro
+                        color: Theme.colorText3
+                    }
+
+                    // Entry count
+                    Text {
+                        visible: resourceMonitor.messageLog.length > 0
+                        anchors { left: parent.left; leftMargin: Theme.sp(100); verticalCenter: parent.verticalCenter }
+                        text: msgLogColumn.filteredLog.length + " entries"
+                        font.family: Theme.fontData
+                        font.pixelSize: Theme.sp(9)
+                        color: Theme.colorText3
+                    }
+
+                    // Clear button
+                    Rectangle {
+                        id: clearBtn
+                        visible: resourceMonitor.messageLog.length > 0
+                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                        width: clearLbl.implicitWidth + Theme.sp(16)
+                        height: Theme.sp(18)
+                        radius: Theme.radius
+                        color: "transparent"
+                        border.width: 1
+                        border.color: Theme.colorBorderMid
+
+                        Text {
+                            id: clearLbl
+                            anchors.centerIn: parent
+                            text: "Clear"
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.sp(10)
+                            color: Theme.colorText3
+                        }
+
+                        TapHandler  { onTapped: resourceMonitor.clearLog() }
+                        HoverHandler { cursorShape: Qt.PointingHandCursor }
+                    }
+
+                    // Inline text filter box
+                    Rectangle {
+                        id: filterBox
+                        visible: resourceMonitor.messageLog.length > 0
+                        anchors { right: filterChips.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
+                        width: Theme.sp(120)
+                        height: Theme.sp(18)
+                        radius: Theme.radius
+                        color: Theme.colorBg2
+                        border.width: 1
+                        border.color: filterInput.activeFocus ? Theme.colorAccent : Theme.colorBorderMid
+
+                        Text {
+                            anchors { left: parent.left; leftMargin: Theme.sp(7); verticalCenter: parent.verticalCenter }
+                            visible: filterInput.text.length === 0
+                            text: "Filter…"
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.sp(10)
+                            color: Theme.colorText3
+                        }
+
+                        TextInput {
+                            id: filterInput
+                            anchors { left: parent.left; right: clearFilter.left; leftMargin: Theme.sp(7); rightMargin: Theme.sp(4); verticalCenter: parent.verticalCenter }
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.sp(10)
+                            color: Theme.colorText
+                            selectionColor: Theme.colorAccentMid
+                            selectedTextColor: Theme.colorText
+                            clip: true
+                            onTextChanged: msgLogColumn.textFilter = text
+                        }
+
+                        Text {
+                            id: clearFilter
+                            anchors { right: parent.right; rightMargin: Theme.sp(5); verticalCenter: parent.verticalCenter }
+                            visible: filterInput.text.length > 0
+                            text: "×"
+                            font.pixelSize: Theme.sp(12)
+                            color: Theme.colorText3
+                            TapHandler   { onTapped: { filterInput.text = ""; filterInput.forceActiveFocus() } }
+                            HoverHandler { cursorShape: Qt.PointingHandCursor }
+                        }
+                    }
+
+                    // Severity filter chips
+                    Row {
+                        id: filterChips
+                        visible: resourceMonitor.messageLog.length > 0
+                        anchors { right: clearBtn.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
+                        spacing: Theme.sp(4)
+
+                        Repeater {
+                            model: ["INFO", "WARN", "ERROR"]
+
+                            Rectangle {
+                                required property string modelData
+
+                                readonly property bool   active:   msgLogColumn.activeFilters[modelData] !== false
+                                readonly property color  sevColor: msgLogColumn.severityColor(modelData)
+
+                                width:  chipLbl.implicitWidth + Theme.sp(10)
+                                height: Theme.sp(18)
+                                radius: Theme.sp(9)
+                                color: active
+                                    ? Qt.rgba(sevColor.r, sevColor.g, sevColor.b, 0.15)
+                                    : "transparent"
+                                border.width: 1
+                                border.color: active
+                                    ? Qt.rgba(sevColor.r, sevColor.g, sevColor.b, 0.4)
+                                    : Theme.colorBorderMid
+
+                                Text {
+                                    id: chipLbl
+                                    anchors.centerIn: parent
+                                    text: parent.modelData
+                                    font.family: Theme.fontData
+                                    font.pixelSize: Theme.sp(9)
+                                    font.letterSpacing: Theme.trackingMicro
+                                    color: parent.active ? parent.sevColor : Theme.colorText3
+                                }
+
+                                TapHandler  { onTapped: msgLogColumn.toggleFilter(parent.modelData) }
+                                HoverHandler { cursorShape: Qt.PointingHandCursor }
+                            }
+                        }
+                    }
+                }
+
+                // Column header for entries
+                Rectangle {
+                    visible: resourceMonitor.messageLog.length > 0
+                    width: parent.width
+                    height: Theme.sp(24)
+                    color: Theme.colorBg2
+                    radius: Theme.radiusLg
+                    // Square bottom corners
+                    Rectangle {
+                        anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
+                        height: Theme.radiusLg; color: Theme.colorBg2
+                    }
+                    Rectangle {
+                        anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
+                        height: 1; color: Theme.colorBorderMid
+                    }
+
+                    Row {
+                        anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
+
+                        Item {
+                            width: Theme.sp(62); height: parent.height
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "TIME"
+                                font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                            }
+                        }
+
+                        Item {
+                            width: Theme.sp(52); height: parent.height
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "SEVERITY"
+                                font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                            }
+                        }
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "MESSAGE"
+                            font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                            font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                        }
+                    }
+                }
+
+                // Empty state
+                Rectangle {
+                    visible: msgLogColumn.filteredLog.length === 0
+                    width: parent.width
+                    height: Theme.sp(40)
+                    color: Theme.colorSurface
+                    radius: Theme.radius
+                    border.width: 1
+                    border.color: Theme.colorBorderMid
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "No messages logged"
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody2
+                        color: Theme.colorText3
+                    }
+                }
+
+                // Log rows — newest first
+                Repeater {
+                    model: msgLogColumn.filteredLog
+
+                    Rectangle {
+                        required property var  modelData
+                        required property int  index
+
+                        width: parent.width
+                        height: logMsg.implicitHeight + Theme.sp(12)
+                        color: index % 2 === 0 ? Theme.colorSurface : Theme.colorBg
+                        radius: 0
+                        bottomLeftRadius:  index === msgLogColumn.filteredLog.length - 1 ? Theme.radius : 0
+                        bottomRightRadius: index === msgLogColumn.filteredLog.length - 1 ? Theme.radius : 0
+
+                        // Helpers: severity → colour and abbreviation
+                        readonly property color  sevColor: {
+                            var s = modelData.severity
+                            if (s === "WARN")            return Theme.colorWarn
+                            if (s === "ERROR" || s === "FATAL") return Theme.colorError
+                            if (s === "INFO")            return Theme.colorText2
+                            return Theme.colorText3   // DEBUG
+                        }
+
+                        // Timestamp
+                        TextEdit {
+                            id: logTs
+                            anchors { left: parent.left; top: parent.top
+                                      leftMargin: Theme.sp(10); topMargin: Theme.sp(6) }
+                            width: Theme.sp(52)
+                            text: modelData.timestamp
+                            font.family: Theme.fontData
+                            font.pixelSize: Theme.sp(10)
+                            color: Theme.colorText3
+                            readOnly: true
+                            selectByMouse: true
+                            selectionColor: Theme.colorAccentMid
+                            selectedTextColor: Theme.colorText
+                        }
+
+                        // Severity badge
+                        Rectangle {
+                            id: sevBadge
+                            anchors { left: logTs.right; top: parent.top
+                                      leftMargin: Theme.sp(4); topMargin: Theme.sp(5) }
+                            width: Theme.sp(44)
+                            height: Theme.sp(16)
+                            radius: Theme.sp(3)
+                            color: Qt.rgba(parent.sevColor.r, parent.sevColor.g,
+                                           parent.sevColor.b, 0.12)
+                            border.width: 1
+                            border.color: Qt.rgba(parent.sevColor.r, parent.sevColor.g,
+                                                  parent.sevColor.b, 0.35)
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: modelData.severity
+                                font.family: Theme.fontData
+                                font.pixelSize: Theme.sp(9)
+                                font.letterSpacing: Theme.trackingMicro
+                                color: parent.parent.sevColor
+                            }
+                        }
+
+                        // Message text
+                        TextEdit {
+                            id: logMsg
+                            anchors {
+                                left: sevBadge.right; right: parent.right; top: parent.top
+                                leftMargin: Theme.sp(8); rightMargin: Theme.sp(10)
+                                topMargin: Theme.sp(6)
+                            }
+                            text: modelData.message
+                            wrapMode: TextEdit.WordWrap
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody2
+                            font.weight: Font.Light
+                            color: Theme.colorText2
+                            readOnly: true
+                            selectByMouse: true
+                            selectionColor: Theme.colorAccentMid
+                            selectedTextColor: Theme.colorText
+                        }
+                    }
+                }
+            }
+
+            Item { height: Theme.sp(16) }
         }
     }
 }

@@ -60,7 +60,7 @@ bool STTBackendAssemblyAI::loadModel(const QString&)
     connect(m_socket, &QWebSocket::sslErrors,
             this, [this](const QList<QSslError> &errors) {
                 for (const QSslError &e : errors)
-                    ppWarn() << "[AssemblyAI] SSL error:" << e.errorString();
+                    ppError() << "[AssemblyAI] SSL error:" << e.errorString();
             });
 
     m_abortTimer = new QTimer(this);
@@ -201,7 +201,7 @@ void STTBackendAssemblyAI::onTextMessageReceived(const QString& message)
     }
 
     if (type == QLatin1String("Error")) {
-        ppWarn() << "[AssemblyAI] Server error:" << obj[QLatin1String("error")].toString();
+        ppError() << "[AssemblyAI] Server error:" << obj[QLatin1String("error")].toString();
         return;
     }
 
@@ -215,7 +215,7 @@ void STTBackendAssemblyAI::onTextMessageReceived(const QString& message)
 
 void STTBackendAssemblyAI::onSocketError(QAbstractSocket::SocketError errorCode)
 {
-    ppWarn() << "[AssemblyAI] Socket error" << static_cast<int>(errorCode)
+    ppError() << "[AssemblyAI] Socket error" << static_cast<int>(errorCode)
                << "(" << m_socket->errorString() << ")";
     m_abortTimer->stop();
     m_pendingPartial.clear();

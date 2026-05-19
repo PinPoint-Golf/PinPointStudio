@@ -17,6 +17,7 @@
  */
 
 #include "pp_debug.h"
+#include "PpMessageLog.h"
 
 #include <whisper.h>
 #include <ggml.h>
@@ -26,20 +27,36 @@
 #endif
 
 #include <QMessageLogContext>
-#include <QString>
 #include <cstdio>
 
-Q_LOGGING_CATEGORY(lcPP, "pinpoint")
+// ── PpLogStream ───────────────────────────────────────────────────────────────
+
+PpLogStream::PpLogStream(QtMsgType t)
+    : m_type(t), m_dbg(std::in_place, &m_buf)
+{}
+
+PpLogStream::~PpLogStream()
+{
+    m_dbg.reset();  // destructs QDebug, flushing its internal state to m_buf
+
+    if (m_type == QtDebugMsg) {
+        fprintf(stderr, "%s\n", m_buf.trimmed().toLocal8Bit().constData());
+    } else {
+        PpMessageLog::instance()->append(m_type, m_buf.trimmed());
+    }
+
+    if (m_type == QtFatalMsg) ::abort();
+}
 
 // ── Qt message handler ────────────────────────────────────────────────────────
-// Suppresses noisy framework categories and applies the compile-time level gate.
+// Pinpoint messages now bypass this via PpLogStream. This handler exists only
+// to suppress high-volume Qt framework categories from reaching stderr.
 
 static void ppMessageHandler(QtMsgType type, const QMessageLogContext &ctx, const QString &msg)
 {
     if (ctx.category) {
         const QLatin1StringView cat(ctx.category);
 
-        // Always suppress these high-volume Qt framework categories.
         if (cat.startsWith(QLatin1StringView("qt.multimedia.ffmpeg"))
          || cat.startsWith(QLatin1StringView("qt.multimedia.playbackengine"))
          || cat.startsWith(QLatin1StringView("qt.core.qfuture"))
@@ -47,56 +64,37 @@ static void ppMessageHandler(QtMsgType type, const QMessageLogContext &ctx, cons
             return;
 
 #if PINPOINT_DEBUG_LEVEL < 3
-        // At level < 3 also suppress other Qt framework debug/info noise.
         if (type < QtWarningMsg && cat.startsWith(QLatin1StringView("qt.")))
             return;
 #endif
     }
 
 #if PINPOINT_DEBUG_LEVEL == 0
-    // Completely silent — suppress all output including our own.
     Q_UNUSED(type); Q_UNUSED(msg);
-    if (type == QtFatalMsg) { ::abort(); }
+    if (type == QtFatalMsg) ::abort();
     return;
 #else
     const QByteArray localMsg = msg.toLocal8Bit();
     switch (type) {
     case QtDebugMsg:
-        fprintf(stderr, "%s\n", localMsg.constData());
-        break;
-    case QtInfoMsg:
-        fprintf(stderr, "%s\n", localMsg.constData());
-        break;
-    case QtWarningMsg:
-        fprintf(stderr, "WARNING: %s\n", localMsg.constData());
-        break;
-    case QtCriticalMsg:
-        fprintf(stderr, "CRITICAL: %s\n", localMsg.constData());
-        break;
-    case QtFatalMsg:
-        fprintf(stderr, "FATAL: %s\n", localMsg.constData());
-        ::abort();
+    case QtInfoMsg:     fprintf(stderr, "%s\n",           localMsg.constData()); break;
+    case QtWarningMsg:  fprintf(stderr, "WARNING: %s\n",  localMsg.constData()); break;
+    case QtCriticalMsg: fprintf(stderr, "CRITICAL: %s\n", localMsg.constData()); break;
+    case QtFatalMsg:    fprintf(stderr, "FATAL: %s\n",    localMsg.constData()); ::abort();
     }
 #endif
 }
 
 // ── Dependency log suppressors ────────────────────────────────────────────────
 
-#if PINPOINT_DEBUG_LEVEL < 3
 static void silentLogCallback(ggml_log_level, const char *, void *) {}
-#endif
 
 void PinPointDebug::install()
 {
     qInstallMessageHandler(ppMessageHandler);
 
-    // Silence whisper.cpp and ggml internal logging (log-callback messages).
-    // Note: ggml-vulkan shader compilation uses std::cerr directly — that
-    // is suppressed in STTBackendWhisperCpp::loadModel() via cerr redirect.
-#if PINPOINT_DEBUG_LEVEL < 3
     whisper_log_set(silentLogCallback, nullptr);
     ggml_log_set(silentLogCallback, nullptr);
-#endif
 
     // Suppress FFmpeg's av_log output (Qt Multimedia's bundled FFmpeg prints
     // "Input #0, mov,mp4,..." at AV_LOG_INFO when opening media files).
@@ -111,7 +109,6 @@ void PinPointDebug::install()
 #if defined(PP_HAS_DLSYM) && PINPOINT_DEBUG_LEVEL < 3
     {
         using Fn = void(*)(int);
-        // Candidate SONAMEs in preference order.
         static const char * const kLibs[] = {
             "libavutil.so.59",   // Qt 6.7–6.11
             "libavutil.so.58",   // Qt 6.4–6.6
@@ -122,7 +119,6 @@ void PinPointDebug::install()
 
         bool done = false;
 
-        // Pass 1: if already resident (loaded by some other init code) just set level.
         for (int i = 0; !done && kLibs[i]; ++i) {
             if (void *h = dlopen(kLibs[i], RTLD_LAZY | RTLD_NOLOAD)) {
                 if (auto fn = reinterpret_cast<Fn>(dlsym(h, "av_log_set_level")))
@@ -132,14 +128,11 @@ void PinPointDebug::install()
             }
         }
 
-        // Pass 2: pre-load so the FFmpeg plugin inherits the level on first use.
         if (!done) {
             for (int i = 0; !done && kLibs[i]; ++i) {
                 if (void *h = dlopen(kLibs[i], RTLD_LAZY)) {
                     if (auto fn = reinterpret_cast<Fn>(dlsym(h, "av_log_set_level")))
                         fn(24);
-                    // Intentionally keep handle open — library stays resident
-                    // so the FFmpeg plugin reuses this instance.
                     done = true;
                 }
             }

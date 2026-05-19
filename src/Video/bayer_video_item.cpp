@@ -58,7 +58,7 @@ static QShader loadShader(const QString &path)
 {
     QFile f(path);
     if (!f.open(QIODevice::ReadOnly)) {
-        ppWarn() << "[BayerVideoItem] cannot open shader:" << path;
+        ppError() << "[BayerVideoItem] cannot open shader:" << path;
         return {};
     }
     QShader s = QShader::fromSerialized(f.readAll());

@@ -19,6 +19,7 @@
 #include "resource_monitor_controller.h"
 #include "camera_manager.h"
 #include "imu_controller.h"
+#include "pp_debug.h"
 #include "video_controller.h"
 
 #include <cmath>
@@ -242,7 +243,8 @@ void ResourceMonitorController::refresh()
     }
 
     // ── Warnings — only generated while actively capturing ───────────────────
-    // Sources being silent during a deliberate pause is expected; don't warn.
+    // Edge-trigger stall/anomaly conditions through ppWarn() so they flow into
+    // PpMessageLog automatically.  m_activeWarnings prevents repeated firing.
     m_warnings.clear();
     if (capturing) for (const auto &src : m_snapshot.sources) {
         QString name = QString::fromStdString(src.name);
@@ -252,18 +254,39 @@ void ResourceMonitorController::refresh()
                 src.slot_count > 0
                     ? double(src.events_written) / double(src.slot_count) * 100.0
                     : 0.0));
-            m_warnings.append(
-                QStringLiteral("%1 has stalled — no events received for %2ms. Ring is %3% full.")
-                    .arg(name).arg(stalledMs).arg(fillPct));
+            QString msg = QStringLiteral("%1 stalled — no events for %2 ms, ring %3% full")
+                              .arg(name).arg(stalledMs).arg(fillPct);
+            m_warnings.append(msg);
+            if (!m_activeWarnings.contains(msg))
+                ppWarn() << qPrintable(msg);
         }
         if (src.bounds_violations > 0 || src.monotonicity_violations > 0) {
-            m_warnings.append(
-                QStringLiteral("%1: %2 timestamp anomalies detected (bounds: %3, monotonicity: %4).")
-                    .arg(name)
-                    .arg(src.bounds_violations + src.monotonicity_violations)
-                    .arg(src.bounds_violations)
-                    .arg(src.monotonicity_violations));
+            QString msg = QStringLiteral("%1: %2 timestamp anomalies (bounds: %3, monotonicity: %4)")
+                              .arg(name)
+                              .arg(src.bounds_violations + src.monotonicity_violations)
+                              .arg(src.bounds_violations)
+                              .arg(src.monotonicity_violations);
+            m_warnings.append(msg);
+            if (!m_activeWarnings.contains(msg))
+                ppWarn() << qPrintable(msg);
         }
+    }
+    m_activeWarnings = QSet<QString>(m_warnings.begin(), m_warnings.end());
+
+    // ── Pull new entries from the global PpMessageLog into the display list ──
+    // Entries arrive oldest-first from fetchSince(); prepend each so the list
+    // stays newest-first for the QML view.
+    {
+        const auto newEntries = PpMessageLog::instance()->fetchSince(m_logSeq);
+        for (auto it = newEntries.crbegin(); it != newEntries.crend(); ++it) {
+            QVariantMap row;
+            row[QStringLiteral("timestamp")] = it->timestamp;
+            row[QStringLiteral("severity")]  = it->severity;
+            row[QStringLiteral("message")]   = it->message;
+            m_messageLog.prepend(row);
+        }
+        while (m_messageLog.size() > kMaxLogEntries)
+            m_messageLog.removeLast();
     }
 
     // ── Timeline history (delta per tick) ────────────────────────────────────
@@ -319,4 +342,14 @@ QVariantList ResourceMonitorController::timelineHistory() const
     for (quint64 v : m_timelineHistory)
         result.append(QVariant::fromValue(v));
     return result;
+}
+
+QVariantList ResourceMonitorController::messageLog() const { return m_messageLog; }
+
+void ResourceMonitorController::clearLog()
+{
+    m_messageLog.clear();
+    m_activeWarnings.clear();
+    m_logSeq = PpMessageLog::instance()->currentSeq();
+    emit snapshotChanged();
 }

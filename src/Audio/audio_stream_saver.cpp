@@ -65,7 +65,7 @@ void AudioStreamSaver::openFile(const QAudioFormat &format)
 
     m_file.setFileName(path);
     if (!m_file.open(QIODevice::WriteOnly)) {
-        ppWarn() << "[AudioStreamSaver] Cannot open file for writing:" << path;
+        ppError() << "[AudioStreamSaver] Cannot open file for writing:" << path;
         return;
     }
 

@@ -18,7 +18,8 @@
 
 #pragma once
 #include <QDebug>
-#include <QLoggingCategory>
+#include <QString>
+#include <optional>
 
 // PINPOINT_DEBUG_LEVEL controls in-app output verbosity.
 //   0 = silent (no PinPoint output at all)
@@ -32,25 +33,36 @@
 #  define PINPOINT_DEBUG_LEVEL 1
 #endif
 
-Q_DECLARE_LOGGING_CATEGORY(lcPP)
+// RAII stream: collects tokens via QDebug operator<<, then on destruction
+// writes to stderr and directly into PpMessageLog — no Qt logging category
+// involved, so no category-level filtering can suppress the message.
+class PpLogStream {
+    QtMsgType             m_type;
+    QString               m_buf;
+    std::optional<QDebug> m_dbg;   // destroyed first so m_buf is fully written
+
+public:
+    explicit PpLogStream(QtMsgType t);
+    ~PpLogStream();
+
+    PpLogStream(const PpLogStream &) = delete;
+    PpLogStream &operator=(const PpLogStream &) = delete;
+
+    template <typename T>
+    PpLogStream &operator<<(T &&v) { *m_dbg << std::forward<T>(v); return *this; }
+};
 
 // ppDebug — per-operation trace, compiled away below level 3
 #if PINPOINT_DEBUG_LEVEL >= 3
-#  define ppDebug() qCDebug(lcPP)
+#  define ppDebug() PpLogStream(QtDebugMsg)
 #else
-#  define ppDebug() QT_NO_QDEBUG_MACRO()
+#  define ppDebug() if (false) PpLogStream(QtDebugMsg)
 #endif
 
-// ppInfo — startup / configuration messages, compiled away below level 2
-#if PINPOINT_DEBUG_LEVEL >= 2
-#  define ppInfo()  qCInfo(lcPP)
-#else
-#  define ppInfo()  QT_NO_QDEBUG_MACRO()
-#endif
-
-// ppWarn / ppError — always emitted regardless of level
-#define ppWarn()    qCWarning(lcPP)
-#define ppError()   qCCritical(lcPP)
+// ppInfo / ppWarn / ppError — always emitted regardless of level
+#define ppInfo()    PpLogStream(QtInfoMsg)
+#define ppWarn()    PpLogStream(QtWarningMsg)
+#define ppError()   PpLogStream(QtCriticalMsg)
 
 namespace PinPointDebug {
     // Call once at the very start of main(), before creating any Qt objects.

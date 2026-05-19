@@ -787,7 +787,7 @@ void FilmController::onPlayerStateChanged(QMediaPlayer::PlaybackState)
 
 void FilmController::onPlayerError(QMediaPlayer::Error, const QString &errorString)
 {
-    ppWarn() << "[Film] Player error:" << errorString;
+    ppError() << "[Film] Player error:" << errorString;
     setDownloadStatus(QStringLiteral("Playback error: ") + errorString);
 }
 

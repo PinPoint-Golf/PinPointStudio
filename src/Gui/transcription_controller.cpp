@@ -76,7 +76,7 @@ TranscriptionController::TranscriptionController(QObject *parent)
     requestSpeechRecognitionPermission([self](bool sttGranted) {
         QMetaObject::invokeMethod(self, [self, sttGranted]() {
             if (!sttGranted)
-                ppWarn() << "[TranscriptionController] Speech recognition permission denied."
+                ppError() << "[TranscriptionController] Speech recognition permission denied."
                            << "Grant access in System Settings → Privacy & Security → Speech Recognition.";
             self->m_processorThread->start();
         }, Qt::QueuedConnection);
@@ -88,7 +88,7 @@ TranscriptionController::TranscriptionController(QObject *parent)
             if (micGranted)
                 self->startAudio();
             else
-                ppWarn() << "[TranscriptionController] Microphone permission denied."
+                ppError() << "[TranscriptionController] Microphone permission denied."
                            << "Grant access in System Settings → Privacy & Security → Microphone.";
         }, Qt::QueuedConnection);
     });

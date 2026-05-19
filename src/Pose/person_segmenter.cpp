@@ -70,7 +70,7 @@ bool PersonSegmenter::load()
 {
     const QString path = modelPath();
     if (!QFile::exists(path)) {
-        ppWarn() << "[Segmenter] Model not found:" << path;
+        ppError() << "[Segmenter] Model not found:" << path;
         return false;
     }
 
@@ -88,7 +88,7 @@ bool PersonSegmenter::load()
             m_ort->env, path.toUtf8().constData(), m_ort->opts);
 #endif
     } catch (const Ort::Exception &e) {
-        ppWarn() << "[Segmenter] Failed to load model:" << e.what();
+        ppError() << "[Segmenter] Failed to load model:" << e.what();
         m_ort.reset();
         return false;
     }
@@ -227,7 +227,7 @@ cv::Mat PersonSegmenter::segment(const cv::Mat &bgr) const
         cv::resize(mask, mask, cv::Size(origW, origH));
 
     } catch (const Ort::Exception &e) {
-        ppWarn() << "[Segmenter] Inference error:" << e.what();
+        ppError() << "[Segmenter] Inference error:" << e.what();
         return {};
     }
 

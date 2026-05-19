@@ -315,11 +315,11 @@ void PoseEstimatorMediaPipe::load()
     const QString lmPath  = landmarkModelPath();
 
     if (!QFile::exists(detPath)) {
-        ppWarn() << "[MediaPipe] Detector model not found:" << detPath;
+        ppError() << "[MediaPipe] Detector model not found:" << detPath;
         return;
     }
     if (!QFile::exists(lmPath)) {
-        ppWarn() << "[MediaPipe] Landmark model not found:" << lmPath;
+        ppError() << "[MediaPipe] Landmark model not found:" << lmPath;
         return;
     }
 
@@ -470,7 +470,7 @@ void PoseEstimatorMediaPipe::load()
             m_ort->env, lmPath.toUtf8().constData(), m_ort->lmOpts);
 #endif
     } catch (const Ort::Exception &e) {
-        ppWarn() << "[MediaPipe] Failed to load landmark model:" << e.what();
+        ppError() << "[MediaPipe] Failed to load landmark model:" << e.what();
         m_ort.reset();
         return;
     }
@@ -928,7 +928,7 @@ void PoseEstimatorMediaPipe::estimatePose(const cv::Mat &frame)
         emit poseEstimated(result);
 
     } catch (const Ort::Exception &e) {
-        ppWarn() << "[MediaPipe] Inference error:" << e.what();
+        ppError() << "[MediaPipe] Inference error:" << e.what();
         m_trackingLost = true;
         emit estimationDone();
         return;

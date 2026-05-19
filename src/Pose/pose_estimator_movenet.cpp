@@ -98,7 +98,7 @@ void PoseEstimatorMoveNet::load()
 {
     const QString path = modelPath(m_variant);
     if (!QFile::exists(path)) {
-        ppWarn() << "[MoveNet] Model not found:" << path;
+        ppError() << "[MoveNet] Model not found:" << path;
         return;
     }
 
@@ -174,7 +174,7 @@ void PoseEstimatorMoveNet::load()
             m_ort->env, path.toUtf8().constData(), m_ort->opts);
 #endif
     } catch (const Ort::Exception &e) {
-        ppWarn() << "[MoveNet] Failed to load model:" << e.what();
+        ppError() << "[MoveNet] Failed to load model:" << e.what();
         m_ort.reset();
         return;
     }
@@ -253,7 +253,7 @@ void PoseEstimatorMoveNet::estimatePose(const cv::Mat &frame)
         emit poseEstimated(result);
 
     } catch (const Ort::Exception &e) {
-        ppWarn() << "[MoveNet] Inference error:" << e.what();
+        ppError() << "[MoveNet] Inference error:" << e.what();
         emit estimationDone();
         return;
     }

@@ -24,6 +24,7 @@
 #include <QStringList>
 #include <QVariantList>
 
+#include "PpMessageLog.h"
 #include "event_buffer.h"
 
 class CameraManager;
@@ -44,6 +45,7 @@ class ResourceMonitorController : public QObject
     Q_PROPERTY(QVariantList timelineHistory    READ timelineHistory    NOTIFY snapshotChanged)
     Q_PROPERTY(QString      totalEventsStr     READ totalEventsStr     NOTIFY snapshotChanged)
     Q_PROPERTY(QString      timelineEntriesStr READ timelineEntriesStr NOTIFY snapshotChanged)
+    Q_PROPERTY(QVariantList messageLog         READ messageLog         NOTIFY snapshotChanged)
 
 public:
     explicit ResourceMonitorController(
@@ -63,8 +65,10 @@ public:
     QVariantList timelineHistory()    const;
     QString      totalEventsStr()     const;
     QString      timelineEntriesStr() const;
+    QVariantList messageLog()         const;
 
     Q_INVOKABLE void refresh();
+    Q_INVOKABLE void clearLog();
 
 signals:
     void snapshotChanged();
@@ -84,6 +88,10 @@ private:
     QVariantList   m_devices;
     QStringList    m_warnings;
     QList<quint64> m_timelineHistory;
+    QVariantList   m_messageLog;
+    QSet<QString>  m_activeWarnings;  // for stall edge-detection only
+    int            m_logSeq = -1;     // last PpMessageLog seq fetched
 
-    static constexpr int kHistoryCount = 15;
+    static constexpr int kHistoryCount  = 15;
+    static constexpr int kMaxLogEntries = 500;
 };

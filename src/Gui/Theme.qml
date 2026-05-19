@@ -135,7 +135,7 @@ QtObject {
         return dark ? "#1230c983" : "#0f0a7a4a"
     }
 
-    // Warn (danger / stop / error)
+    // Warn (caution / unexpected)
     readonly property color colorWarn: {
         if (aesthetic === "instrument") return dark ? "#D4896A" : "#7A3B1E"
         if (aesthetic === "editorial")  return dark ? "#D4896A" : "#8B2500"
@@ -145,6 +145,18 @@ QtObject {
         if (aesthetic === "instrument") return dark ? "#17d4896a" : "#147a3b1e"
         if (aesthetic === "editorial")  return dark ? "#12d4896a" : "#0f8b2500"
         return dark ? "#14ff6b35" : "#0fd94a00"
+    }
+
+    // Error (critical failure / fatal — distinctly red, darker than warn)
+    readonly property color colorError: {
+        if (aesthetic === "instrument") return dark ? "#C46868" : "#7A2020"
+        if (aesthetic === "editorial")  return dark ? "#C46868" : "#8B1E1E"
+        return dark ? "#FF5555" : "#CC2000"
+    }
+    readonly property color colorErrorLight: {
+        if (aesthetic === "instrument") return dark ? "#17c46868" : "#147a2020"
+        if (aesthetic === "editorial")  return dark ? "#12c46868" : "#0f8b1e1e"
+        return dark ? "#14ff5555" : "#0fcc2000"
     }
 
     // ── Font family tokens ───────────────────────────────────────────────────

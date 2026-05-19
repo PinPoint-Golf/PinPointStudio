@@ -214,7 +214,7 @@ void TtsController::onModelReady()
 
 void TtsController::onModelFailed(const QString &error)
 {
-    ppWarn() << "[TTS] Model load failed:" << error;
+    ppError() << "[TTS] Model load failed:" << error;
     m_ttsReady = false;
     emit ttsReadyChanged();
 }
@@ -366,7 +366,7 @@ void TtsController::onDownloadFailed(const QString &error)
     m_downloading = false;
     emit downloadingChanged();
     setDownloadStatus(tr("Download failed: %1").arg(error));
-    ppWarn() << "[TTS] Download failed:" << error;
+    ppError() << "[TTS] Download failed:" << error;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

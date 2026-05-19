@@ -54,7 +54,7 @@ bool STTBackendWhisperCpp::loadModel(const QString& modelPath) {
 #endif
 
   if (!m_ctx) {
-    ppWarn() << "[STTBackendWhisperCpp] Failed to load model from" << modelPath;
+    ppError() << "[STTBackendWhisperCpp] Failed to load model from" << modelPath;
     return false;
   }
   return true;

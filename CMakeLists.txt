@@ -225,6 +225,8 @@ target_sources(PinPoint PRIVATE
     src/Core/pp_debug.h
     src/Core/pp_debug.cpp
     src/Core/pp_settings.h
+    src/Core/PpMessageLog.h
+    src/Core/PpMessageLog.cpp
 )
 
 # ── Application icon ─────────────────────────────────────────────────────────

@@ -33,8 +33,8 @@ void BufferController::refresh()
     if (!m_buffer) return;
     m_snapshot = m_buffer->diagnostics();
 
-    ppInfo() << "[Buffer] state=" << state()
-             << " timeline=" << m_snapshot.timeline_entries;
+    ppDebug() << "[Buffer] state=" << state()
+              << " timeline=" << m_snapshot.timeline_entries;
     for (const auto &src : m_snapshot.sources) {
         if (src.stalled)
             ppWarn() << "  source=" << QString::fromStdString(src.name)
@@ -42,10 +42,10 @@ void BufferController::refresh()
                      << " overwritten=" << src.events_overwritten
                      << " stalled=" << src.stalled;
         else
-            ppInfo() << "  source=" << QString::fromStdString(src.name)
-                     << " written=" << src.events_written
-                     << " overwritten=" << src.events_overwritten
-                     << " stalled=" << src.stalled;
+            ppDebug() << "  source=" << QString::fromStdString(src.name)
+                      << " written=" << src.events_written
+                      << " overwritten=" << src.events_overwritten
+                      << " stalled=" << src.stalled;
     }
 
     emit diagnosticsChanged();

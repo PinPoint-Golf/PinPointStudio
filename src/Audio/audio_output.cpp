@@ -142,13 +142,13 @@ bool AudioOutput::start(const QString &deviceName)
     QAudioFormat fmt;
     if (m_preferredFormat.isValid() && m_activeDevice.isFormatSupported(m_preferredFormat)) {
         fmt = m_preferredFormat;
-        ppInfo() << "AudioOutput: using preferred format"
+        ppInfo() << "[AudioOutput] using preferred format"
                  << fmt.sampleRate() << "Hz"
                  << fmt.channelCount() << "ch fmt="
                  << static_cast<int>(fmt.sampleFormat());
     } else {
         fmt = m_activeDevice.preferredFormat();
-        ppWarn() << "AudioOutput: preferred format not supported, falling back to device format"
+        ppWarn() << "[AudioOutput] preferred format not supported, falling back to device format"
                    << fmt.sampleRate() << "Hz"
                    << fmt.channelCount() << "ch fmt="
                    << static_cast<int>(fmt.sampleFormat())

@@ -177,7 +177,7 @@ VideoController::VideoController(const Device &device, pinpoint::EventBuffer *bu
             std::chrono::microseconds(static_cast<int64_t>(1'000'000.0 / fps));
         desc.sync_source              = pinpoint::SyncSource::SoftwareTimestamp;
 
-        ppWarn() << "[VideoController] registering buffer source:"
+        ppInfo() << "[VideoController] registering buffer source:"
                  << device.description
                  << cfmt.width << "x" << cfmt.height
                  << "@ max" << fps << "fps"
@@ -603,7 +603,7 @@ void VideoController::setBayerItem(QObject *item)
 {
     m_bayerItem = qobject_cast<BayerVideoItem *>(item);
     if (item && !m_bayerItem)
-        ppWarn() << "[VideoController] setBayerItem: cast failed — item is" << item->metaObject()->className();
+        ppError() << "[VideoController] setBayerItem: cast failed — item is" << item->metaObject()->className();
     else
         ppDebug() << "[VideoController] setBayerItem:" << (m_bayerItem ? "ok" : "null");
 }
@@ -645,7 +645,7 @@ void VideoController::startRecording()
     requestCameraPermission([self](bool granted) {
         QMetaObject::invokeMethod(self, [self, granted]() {
             if (!granted) {
-                ppWarn() << "[VideoController] Camera permission denied."
+                ppError() << "[VideoController] Camera permission denied."
                            << "Grant access in System Settings → Privacy & Security → Camera.";
                 return;
             }
@@ -667,7 +667,7 @@ void VideoController::startRecording()
 
         if (m_deviceId.isEmpty()) {
             // Auto-mode only: fall back from industrial camera to Qt Multimedia webcam.
-            ppWarn() << "[VideoController] Failed to start primary video input. Attempting fallback...";
+            ppError() << "[VideoController] Failed to start primary video input. Attempting fallback...";
             VideoInputFactory::Backend currentBackend = VideoInputFactory::backendType(m_videoInput);
             if (currentBackend == VideoInputFactory::Backend::Aravis ||
                 currentBackend == VideoInputFactory::Backend::Spinnaker)
@@ -696,7 +696,7 @@ void VideoController::startRecording()
                 }, Qt::QueuedConnection);
             }
         } else {
-            ppWarn() << "[VideoController] Failed to start camera:" << m_deviceDescription;
+            ppError() << "[VideoController] Failed to start camera:" << m_deviceDescription;
             QMetaObject::invokeMethod(this, [this]() {
                 m_recording = false;
                 emit isRecordingChanged();
