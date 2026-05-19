@@ -517,7 +517,7 @@ Item {
                             text: {
                                 var d = parent.parent.d
                                 if (d.kind === "Camera")
-                                    return d.status === "streaming" ? d.dataRateHz.toFixed(0) + " fps" : "—"
+                                    return d.status === "streaming" ? d.dataRateHz.toFixed(0) + " fps" : "idle"
                                 return d.status === "connected" ? d.dataRateHz.toFixed(0) + " Hz" : "disconnected"
                             }
                             font.family:         Theme.fontData

@@ -151,7 +151,9 @@ void ResourceMonitorController::refresh()
 
         QVariantMap dev;
         dev[QStringLiteral("kind")]               = QStringLiteral("Camera");
-        dev[QStringLiteral("name")]               = ctrl->deviceDescription();
+        dev[QStringLiteral("name")]               = ctrl->deviceSerialNumber().isEmpty()
+                                                     ? ctrl->deviceDescription()
+                                                     : ctrl->deviceDescription() + QStringLiteral(" (") + ctrl->deviceSerialNumber() + QStringLiteral(")");
         dev[QStringLiteral("model")]              = ctrl->deviceDescription();
         dev[QStringLiteral("serialNumber")]       = ctrl->deviceSerialNumber();
         dev[QStringLiteral("backend")]            = backendStr;
