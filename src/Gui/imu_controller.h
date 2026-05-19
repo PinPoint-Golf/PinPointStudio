@@ -32,6 +32,7 @@ class ImuController : public QObject
     Q_OBJECT
     Q_PROPERTY(QString stateLabel   READ stateLabel   NOTIFY stateLabelChanged)
     Q_PROPERTY(bool    imuConnected READ imuConnected NOTIFY imuConnectedChanged)
+    Q_PROPERTY(int     imuCount     READ imuCount     NOTIFY imuConnectedChanged)
     Q_PROPERTY(bool    busy         READ busy         NOTIFY busyChanged)
     Q_PROPERTY(float   quatW        READ quatW        NOTIFY quatChanged)
     Q_PROPERTY(float   quatX        READ quatX        NOTIFY quatChanged)
@@ -53,6 +54,7 @@ public:
 
     QString stateLabel()   const { return m_stateLabel; }
     bool    imuConnected() const { return m_connected; }
+    int     imuCount()     const { return m_connected ? 1 : 0; }
     bool    busy()         const { return m_busy; }
     float   quatW()        const { return m_quatW; }
     float   quatX()        const { return m_quatX; }

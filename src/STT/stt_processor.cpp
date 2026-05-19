@@ -22,12 +22,12 @@
 #include "STTBackendFactory.h"
 #include "STTWorker.h"
 #include "SecretsManager.h"
+#include "pp_settings.h"
 
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
 #include <QMetaType>
-#include <QSettings>
 #include <QStandardPaths>
 #include <QThread>
 #include <QTimer>
@@ -262,7 +262,7 @@ QStringList STTProcessor::modelCandidates(const QString &filename) const
 
     // 1. User/CI override via QSettings key "stt/modelPath"
     const QString settingsOverride =
-        QSettings().value(QStringLiteral("stt/modelPath")).toString();
+        ppSettings().value(QStringLiteral("stt/modelPath")).toString();
     if (!settingsOverride.isEmpty())
         candidates << settingsOverride;
 

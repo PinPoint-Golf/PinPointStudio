@@ -24,12 +24,15 @@ import PinPoint
 
 ApplicationWindow {
     id: root
-    height: 700
-    width: Math.round(700 * 1.6)
+    width:   appSettings.windowWidth
+    height:  appSettings.windowHeight
     visible: true
     title: qsTr("PinPoint")
     color: Theme.colorBg
     font.family: Theme.fontBody
+
+    onWidthChanged:  appSettings.windowWidth  = width
+    onHeightChanged: appSettings.windowHeight = height
 
     RowLayout {
         anchors.fill: parent

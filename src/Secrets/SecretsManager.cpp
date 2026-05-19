@@ -17,8 +17,8 @@
  */
 
 #include "SecretsManager.h"
+#include "pp_settings.h"
 #include <QProcessEnvironment>
-#include <QSettings>
 
 // Converts camelCase key to UPPER_SNAKE_CASE for env var lookup.
 // "assemblyaiApiKey" → "ASSEMBLYAI_API_KEY"
@@ -41,12 +41,12 @@ QString SecretsManager::read(const QString& key)
     if (!envVal.isEmpty())
         return envVal;
 
-    return QSettings().value(QStringLiteral("secrets/") + key).toString();
+    return ppSettings().value(QStringLiteral("secrets/") + key).toString();
 }
 
 void SecretsManager::write(const QString& key, const QString& value)
 {
-    QSettings().setValue(QStringLiteral("secrets/") + key, value);
+    ppSettings().setValue(QStringLiteral("secrets/") + key, value);
 }
 
 // Persists keys into QSettings on first run so they survive without the
@@ -59,7 +59,7 @@ void SecretsManager::write(const QString& key, const QString& value)
 //     not required again after that.
 void SecretsManager::initializeDefaults()
 {
-    QSettings settings;
+    QSettings settings = ppSettings();
 
 #ifdef ASSEMBLYAI_API_KEY_DEFAULT
     {

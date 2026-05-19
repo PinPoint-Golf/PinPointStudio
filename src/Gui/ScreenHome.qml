@@ -329,23 +329,25 @@ Item {
 
                     Repeater {
                         model: [
-                            { icon: "◑", name: "Swing analysis",  req: "cameras", idx: 0 },
-                            { icon: "⌖", name: "Wrist dynamics", req: "IMUs",    idx: 1 },
-                            { icon: "⇅", name: "Ground forces", req: "cameras", idx: 2 },
-                            { icon: "✦", name: "AI coach",      req: "cameras", idx: 3 }
+                            { icon: "◑", name: "Swing analysis", desc: "Capture golf shots with IMUs on your spine and review your sequencing and key swing metrics to assess your swing", reqCameras: 2, reqImus: 3, idx: 0 },
+                            { icon: "⌖", name: "Wrist motion",   desc: "Hit shots with IMUs on your lead wrist and hand to assess how your wrist angles impact club delivery",              reqCameras: 0, optCameras: true, reqImus: 2, idx: 1 },
+                            { icon: "⇅", name: "Ground forces",  desc: "Hit shots with IMUs on your hips to assess how you use the ground to generate power",                              reqCameras: 2, reqImus: 3, idx: 2 },
+                            { icon: "✦", name: "AI coach",       desc: "Work with an AI coach to hit shots and get feedback on your swing and how to improve",                             reqCameras: 2, reqImus: 3, idx: 3 }
                         ]
 
                         delegate: HmTypeCard {
                             required property var modelData
-                            width:          (parent.width - 8) / 2
-                            iconText:       modelData.icon
-                            typeName:       modelData.name
-                            requirement:    modelData.req
-                            requirementMet: modelData.req === "cameras"
-                                                ? cameraManager.anySelected
-                                                : imuController.imuConnected
-                            isSelected:     root.selectedType === modelData.idx
-                            onClicked:      root.selectedType = modelData.idx
+                            width:           (parent.width - 8) / 2
+                            iconText:        modelData.icon
+                            typeName:        modelData.name
+                            description:     modelData.desc
+                            camerasRequired: modelData.reqCameras
+                            camerasOptional: modelData.optCameras || false
+                            imusRequired:    modelData.reqImus
+                            camerasCount:    cameraManager.cameraList.length
+                            imusCount:       imuController.imuCount
+                            isSelected:      root.selectedType === modelData.idx
+                            onClicked:       root.selectedType = modelData.idx
                         }
                     }
                 }

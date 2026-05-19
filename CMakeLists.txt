@@ -101,6 +101,7 @@ add_subdirectory(src/Buffer)
 
 qt_add_executable(PinPoint
     src/Gui/main.cpp
+    src/Gui/app_settings.h
     src/Gui/imu_controller.h           src/Gui/imu_controller.cpp
     src/Gui/transcription_controller.h src/Gui/transcription_controller.cpp
     src/Gui/tts_controller.h           src/Gui/tts_controller.cpp
@@ -219,6 +220,7 @@ target_compile_definitions(PinPoint PRIVATE PINPOINT_DEBUG_LEVEL=${PINPOINT_DEBU
 target_sources(PinPoint PRIVATE
     src/Core/pp_debug.h
     src/Core/pp_debug.cpp
+    src/Core/pp_settings.h
 )
 
 set_target_properties(PinPoint PROPERTIES

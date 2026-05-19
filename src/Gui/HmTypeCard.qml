@@ -24,13 +24,19 @@ Rectangle {
 
     property string iconText:       ""
     property string typeName:       ""
-    property string requirement:    ""
-    property bool   requirementMet: false
-    property bool   isSelected:     false
+    property string description:    ""
+    property int    camerasRequired:  2
+    property int    imusRequired:     3
+    property int    camerasCount:     0
+    property int    imusCount:        0
+    property bool   camerasOptional:  false
+    property bool   camerasMet:       camerasOptional || camerasCount >= camerasRequired
+    property bool   imusMet:          imusCount >= imusRequired
+    property bool   isSelected:       false
 
     signal clicked()
 
-    height: 96
+    height: contentCol.implicitHeight + 24
     radius: Theme.radiusLg
     color:  (isSelected || hoverArea.containsMouse) ? Theme.colorAccentLight : Theme.colorSurface
     border.width: 1
@@ -39,6 +45,7 @@ Rectangle {
                 : Theme.colorBorderMid
 
     Column {
+        id: contentCol
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
         spacing: 0
 
@@ -46,7 +53,7 @@ Rectangle {
 
         Text {
             text:           root.iconText
-            font.pixelSize: 16
+            font.pixelSize: 32
             color:          Theme.colorText2
         }
 
@@ -64,13 +71,47 @@ Rectangle {
         Item { width: 1; height: 4 }
 
         Text {
-            text:               root.requirementMet ? "✓ " + root.requirement
-                                                    : "⚠ " + root.requirement
-            font.family:        Theme.fontData
-            font.pixelSize:     Theme.fontSzMicro
-            font.letterSpacing: Theme.trackingData
-            color:              root.requirementMet ? Theme.colorGood : Theme.colorWarn
+            width:          parent.width
+            text:           root.description
+            font.family:    Theme.fontBody
+            font.pixelSize: Theme.fontSzBody2
+            font.weight:    Font.Normal
+            color:          Theme.colorText3
+            wrapMode:       Text.Wrap
+            visible:        root.description !== ""
         }
+
+        Item { width: 1; height: 6 }
+
+        Row {
+            spacing: 12
+
+            Text {
+                text:               root.camerasOptional
+                                        ? "✓ Optional camera"
+                                        : (root.camerasMet ? "✓ " : "⚠ ")
+                                          + root.camerasRequired
+                                          + (root.camerasRequired === 1 ? " camera" : " cameras")
+                font.family:        Theme.fontData
+                font.pixelSize:     Theme.fontSzMicro
+                font.letterSpacing: Theme.trackingData
+                color:              root.camerasOptional
+                                        ? (root.camerasCount >= 1 ? Theme.colorGood : Theme.colorWarn)
+                                        : (root.camerasMet ? Theme.colorGood : Theme.colorWarn)
+            }
+
+            Text {
+                text:               root.imusMet
+                                        ? "✓ " + root.imusRequired + " IMUs"
+                                        : "⚠ " + root.imusRequired + " IMUs"
+                font.family:        Theme.fontData
+                font.pixelSize:     Theme.fontSzMicro
+                font.letterSpacing: Theme.trackingData
+                color:              root.imusMet ? Theme.colorGood : Theme.colorWarn
+            }
+        }
+
+        Item { width: 1; height: 4 }
     }
 
     MouseArea {

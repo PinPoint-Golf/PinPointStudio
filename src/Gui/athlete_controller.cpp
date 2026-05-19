@@ -18,7 +18,7 @@
 
 #include "athlete_controller.h"
 
-#include <QSettings>
+#include "pp_settings.h"
 #include <QUuid>
 #include <QDateTime>
 #include <algorithm>
@@ -39,11 +39,6 @@ static constexpr auto kCreatedAt     = "createdAt";
 static constexpr auto kLastSessionAt = "lastSessionAt";
 static constexpr auto kSessionCount  = "sessionCount";
 
-static QSettings openSettings()
-{
-    return QSettings(QSettings::IniFormat, QSettings::UserScope,
-                     QStringLiteral("Pinpoint"), QStringLiteral("Pinpoint"));
-}
 
 AthleteController::AthleteController(QObject *parent)
     : QObject(parent)
@@ -65,7 +60,7 @@ QString AthleteController::computeInitials(const QString &name)
 
 void AthleteController::reload()
 {
-    QSettings s = openSettings();
+    QSettings s = ppSettings();
 
     // Collect all athlete UUIDs
     s.beginGroup(kGroup);
@@ -166,7 +161,7 @@ QString AthleteController::createAthlete(
     if (weightUnit == QLatin1String("kg") && weightValue > 0.0)
         storedWeight = weightValue * 2.20462;
 
-    QSettings s = openSettings();
+    QSettings s = ppSettings();
     s.beginGroup(kGroup);
     s.beginGroup(uuid);
 
@@ -196,7 +191,7 @@ QString AthleteController::createAthlete(
 
 bool AthleteController::updateAthlete(const QString &uuid, const QString &fieldName, const QVariant &value)
 {
-    QSettings s = openSettings();
+    QSettings s = ppSettings();
 
     s.beginGroup(kGroup);
     const bool exists = s.childGroups().contains(uuid);
@@ -218,7 +213,7 @@ bool AthleteController::updateAthlete(const QString &uuid, const QString &fieldN
 
 bool AthleteController::deleteAthlete(const QString &uuid)
 {
-    QSettings s = openSettings();
+    QSettings s = ppSettings();
 
     s.beginGroup(kGroup);
     s.remove(uuid);
@@ -234,7 +229,7 @@ bool AthleteController::deleteAthlete(const QString &uuid)
 
 void AthleteController::selectAthlete(const QString &uuid)
 {
-    QSettings s = openSettings();
+    QSettings s = ppSettings();
     s.setValue(kCurrentUuid, uuid);
     s.sync();
     reload();
@@ -242,7 +237,7 @@ void AthleteController::selectAthlete(const QString &uuid)
 
 void AthleteController::clearCurrentAthlete()
 {
-    QSettings s = openSettings();
+    QSettings s = ppSettings();
     s.remove(kCurrentUuid);
     s.sync();
     reload();

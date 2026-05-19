@@ -32,6 +32,9 @@ QtObject {
     // editorial-light, editorial-dark, studio-light, studio-dark.
     property int themeIndex: 0
 
+    Component.onCompleted:  themeIndex = appSettings.themeIndex
+    onThemeIndexChanged:    appSettings.themeIndex = themeIndex
+
     function cycleTheme() { themeIndex = (themeIndex + 1) % 6 }
 
     // Active aesthetic and mode — derived from themeIndex.

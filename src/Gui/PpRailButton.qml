@@ -29,7 +29,7 @@ Item {
 
     signal clicked()
 
-    implicitWidth:  40
+    implicitWidth:  60
     implicitHeight: buttonCol.implicitHeight
 
     Column {
@@ -39,8 +39,8 @@ Item {
 
         Rectangle {
             id: bg
-            width:  40
-            height: 40
+            width:  60
+            height: 60
             radius: Theme.radius
 
             color: {
@@ -66,7 +66,7 @@ Item {
             Text {
                 anchors.centerIn: parent
                 text:            root.iconText
-                font.pixelSize:  14
+                font.pixelSize:  21
                 color: {
                     if (root.isActive) return Theme.colorAccent
                     if (!root.isMuted && mouseArea.containsMouse) return Theme.colorText2
@@ -80,7 +80,7 @@ Item {
 
         Text {
             id: labelItem
-            width:                  40
+            width:                  60
             horizontalAlignment:    Text.AlignHCenter
             text:                   root.labelText.toUpperCase()
             font.family:            Theme.fontBody

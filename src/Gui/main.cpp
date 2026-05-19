@@ -21,6 +21,7 @@
 #include <QQmlContext>
 
 #include "pp_debug.h"
+#include "app_settings.h"
 #include "SecretsManager.h"
 #include "film_controller.h"
 #include "imu_controller.h"
@@ -45,6 +46,7 @@ int main(int argc, char *argv[])
     // auto-pauses; the first registerSource() call auto-resumes it.
     eventBuffer.start();
 
+    AppSettings              appSettings;
     ImuController           imuController(&eventBuffer);
     TranscriptionController controller;
     TtsController           ttsController;
@@ -55,6 +57,7 @@ int main(int argc, char *argv[])
     ResourceMonitorController resourceMonitor(&eventBuffer, &cameraManager, &imuController);
 
     QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty(QStringLiteral("appSettings"),       &appSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("athleteController"), &athleteController);
     engine.rootContext()->setContextProperty(QStringLiteral("imuController"),    &imuController);
     engine.rootContext()->setContextProperty(QStringLiteral("controller"),       &controller);
