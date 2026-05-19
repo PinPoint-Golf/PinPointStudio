@@ -1,0 +1,4 @@
+// Windows resource file for PinPoint
+// Embeds the application icon so it appears in Explorer, the taskbar,
+// and the Alt-Tab switcher.
+IDI_ICON1 ICON "src/Resources/icons/pinpoint.ico"

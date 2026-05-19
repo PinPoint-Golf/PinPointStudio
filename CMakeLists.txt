@@ -101,6 +101,8 @@ add_subdirectory(src/Buffer)
 
 qt_add_executable(PinPoint
     src/Gui/main.cpp
+    $<$<BOOL:${APPLE}>:${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/icons/PinPoint.icns>
+    $<$<BOOL:${WIN32}>:${CMAKE_CURRENT_SOURCE_DIR}/PinPoint.rc>
     src/Gui/app_settings.h
     src/Gui/imu_controller.h           src/Gui/imu_controller.cpp
     src/Gui/transcription_controller.h src/Gui/transcription_controller.cpp
@@ -225,8 +227,18 @@ target_sources(PinPoint PRIVATE
     src/Core/pp_settings.h
 )
 
+# ── Application icon ─────────────────────────────────────────────────────────
+if(APPLE)
+    set(MACOSX_BUNDLE_ICON_FILE PinPoint)
+    set_source_files_properties(
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/icons/PinPoint.icns"
+        PROPERTIES MACOSX_PACKAGE_LOCATION "Resources"
+    )
+endif()
+
 set_target_properties(PinPoint PROPERTIES
     MACOSX_BUNDLE TRUE
+    MACOSX_BUNDLE_ICON_FILE PinPoint
     WIN32_EXECUTABLE TRUE
 )
 
@@ -239,6 +251,45 @@ configure_file(
     COPYONLY
 )
 
+
+qt_add_resources(PinPoint "app_icons"
+    PREFIX "/icons"
+    FILES
+        src/Resources/icons/pinpoint_256.png
+)
+
+# ── Linux: deploy icon + .desktop to user dirs on every build ────────────────
+# GNOME's taskbar icon comes from the .desktop file, not setWindowIcon().
+# Copying to ~/.local/share avoids requiring cmake --install or sudo.
+if(UNIX AND NOT APPLE)
+    set(_xdg_icon_dir "$ENV{HOME}/.local/share/icons/hicolor/256x256/apps")
+    set(_xdg_apps_dir "$ENV{HOME}/.local/share/applications")
+
+    file(GENERATE
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/pinpoint.desktop"
+        CONTENT "[Desktop Entry]
+Name=PinPoint
+Exec=$<TARGET_FILE:PinPoint>
+Icon=pinpoint
+Type=Application
+Terminal=false
+Categories=Sports;
+StartupWMClass=PinPoint
+"
+    )
+
+    add_custom_command(TARGET PinPoint POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${_xdg_icon_dir}"
+        COMMAND ${CMAKE_COMMAND} -E copy
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/icons/pinpoint_256.png"
+            "${_xdg_icon_dir}/pinpoint.png"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${_xdg_apps_dir}"
+        COMMAND ${CMAKE_COMMAND} -E copy
+            "${CMAKE_CURRENT_BINARY_DIR}/pinpoint.desktop"
+            "${_xdg_apps_dir}/pinpoint.desktop"
+        COMMENT "Registering PinPoint icon and launcher in user dirs"
+    )
+endif()
 
 target_link_libraries(PinPoint
     PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::Quick3D Qt6::SerialPort Qt6::Bluetooth Qt6::Multimedia Qt6::Network Qt6::WebSockets Qt6::Concurrent Qt6::GuiPrivate
@@ -1284,6 +1335,12 @@ if(APPLE)
             "$<TARGET_BUNDLE_CONTENT_DIR:PinPoint>/Info.plist"
         COMMENT "Installing Info.plist into bundle"
     )
+    add_custom_command(TARGET PinPoint POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/icons/PinPoint.icns"
+            "$<TARGET_BUNDLE_CONTENT_DIR:PinPoint>/Resources/PinPoint.icns"
+        COMMENT "Installing PinPoint.icns into app bundle"
+    )
     target_link_libraries(PinPoint PRIVATE
         "-framework AVFoundation"
         "-framework CoreMedia"
@@ -1308,3 +1365,18 @@ install(TARGETS PinPoint
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+
+# ── Linux: install hicolor PNG icons + .desktop file ─────────────────────────
+if(UNIX AND NOT APPLE)
+    foreach(_sz 16 32 48 64 128 256)
+        install(FILES
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/icons/pinpoint_${_sz}.png"
+            DESTINATION "share/icons/hicolor/${_sz}x${_sz}/apps"
+            RENAME "pinpoint.png"
+        )
+    endforeach()
+    install(FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/PinPoint.desktop"
+        DESTINATION "share/applications"
+    )
+endif()

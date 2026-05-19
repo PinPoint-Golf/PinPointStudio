@@ -17,6 +17,7 @@
  */
 
 #include <QGuiApplication>
+#include <QIcon>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 
@@ -38,6 +39,8 @@ int main(int argc, char *argv[])
 {
     PinPointDebug::install();
     QGuiApplication app(argc, argv);
+    app.setWindowIcon(QIcon(":/icons/pinpoint_256.png"));
+    app.setDesktopFileName(QStringLiteral("pinpoint"));
     SecretsManager::initializeDefaults();
 
     // EventBuffer declared first — destroyed last (stack unwinds in reverse).

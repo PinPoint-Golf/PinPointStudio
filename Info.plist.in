@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>CFBundleDisplayName</key>
+    <string>PinPoint</string>
     <key>CFBundleExecutable</key>
     <string>PinPoint</string>
     <key>CFBundleIdentifier</key>
-    <string>com.pinpoint-golf.PinPoint</string>
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
+    <string>com.pinpoint.app</string>
     <key>CFBundleName</key>
     <string>PinPoint</string>
     <key>CFBundlePackageType</key>
@@ -15,20 +16,18 @@
     <key>CFBundleShortVersionString</key>
     <string>0.1</string>
     <key>CFBundleVersion</key>
-    <string>0.1</string>
-    <key>NSBluetoothAlwaysUsageDescription</key>
-    <string>PinPoint connects to the WT9011DCL Bluetooth IMU sensor to capture motion data during your golf swing.</string>
-    <key>NSCameraUsageDescription</key>
-    <string>PinPoint captures video from the camera to record and analyse your golf swing.</string>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>PinPoint records audio through the microphone to transcribe speech in real time.</string>
-    <key>NSSpeechRecognitionUsageDescription</key>
-    <string>PinPoint uses speech recognition to transcribe audio captured during your session.</string>
+    <string>1</string>
+    <key>CFBundleIconFile</key>
+    <string>PinPoint</string>
     <key>NSHighResolutionCapable</key>
     <true/>
-    <key>NSPrincipalClass</key>
-    <string>NSApplication</string>
-    <key>NSSupportsAutomaticGraphicsSwitching</key>
-    <true/>
+    <key>NSCameraUsageDescription</key>
+    <string>PinPoint uses the camera to capture and analyse your golf swing.</string>
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>PinPoint uses Bluetooth to connect to the IMU sensor on your club.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>PinPoint uses speech recognition for hands-free control.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>PinPoint needs microphone access for voice commands.</string>
 </dict>
 </plist>
