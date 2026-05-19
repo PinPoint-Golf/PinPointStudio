@@ -1,3 +1,7 @@
+<p align="left">
+    <img src="src/Resources/icons/pinpoint_1024.png" width="150" />
+  </p>
+
 # PinPoint
 
 PinPoint is a free, open source and cross-platform desktop application for serious golf swing analysis. It combines high-speed industrial cameras, Bluetooth IMUs, and on-device AI to build a complete picture of the swing — without sending data to the cloud unless you configure it to.
