@@ -43,6 +43,19 @@ ApplicationWindow {
         }
     }
 
+    // Maps StackLayout index → header screen name
+    readonly property var screenNames: [
+        "Home",             // 0
+        "Swing",            // 1
+        "Wrist",            // 2
+        "Ground forces",    // 3
+        "Coach",            // 4
+        "Play",             // 5
+        "New athlete",      // 6
+        "Athletes",         // 7
+        "System resources"  // 8
+    ]
+
     RowLayout {
         anchors.fill: parent
         spacing: 0
@@ -63,33 +76,46 @@ ApplicationWindow {
             onSystemClicked:  contentStack.currentIndex = 8
         }
 
-        StackLayout {
-            id: contentStack
-            Layout.fillWidth: true
+        ColumnLayout {
+            Layout.fillWidth:  true
             Layout.fillHeight: true
-            currentIndex: 0
+            spacing: 0
 
-            ScreenHome {                                               // 0 — home / default
-                onAddAthleteRequested:    contentStack.currentIndex = 6
-                onAthletePickerRequested: contentStack.currentIndex = 7
-                onStartSessionRequested:  console.log("Session start — not yet implemented")
-                onSystemRequested:        contentStack.currentIndex = 8
+            PpHeader {
+                id: appHeader
+                Layout.fillWidth: true
+                screenName: contentStack.currentIndex < screenNames.length
+                            ? screenNames[contentStack.currentIndex] : ""
             }
-            VideoPage       {}                                         // 1 — Swing
-            ScreenPlaceholder { iconText: "⌖"; titleText: "Wrist"  }  // 2
-            ScreenPlaceholder { iconText: "⇅"; titleText: "GRF"    }  // 3
-            ScreenPlaceholder { iconText: "✦"; titleText: "Coach"  }  // 4
-            PlayPage {}                                                // 5 — Play dev-hatch only
-            ScreenAthleteForm {                                        // 6 — new athlete form
-                onCancelled:       contentStack.currentIndex = 0
-                onSaved:           contentStack.currentIndex = 7
-                onSavedAndStarted: contentStack.currentIndex = 7
+
+            StackLayout {
+                id: contentStack
+                Layout.fillWidth:  true
+                Layout.fillHeight: true
+                currentIndex: 0
+
+                ScreenHome {                                               // 0 — home / default
+                    onAddAthleteRequested:    contentStack.currentIndex = 6
+                    onAthletePickerRequested: contentStack.currentIndex = 7
+                    onStartSessionRequested:  console.log("Session start — not yet implemented")
+                    onSystemRequested:        contentStack.currentIndex = 8
+                }
+                VideoPage       {}                                         // 1 — Swing
+                ScreenPlaceholder { iconText: "⌖"; titleText: "Wrist"  }  // 2
+                ScreenPlaceholder { iconText: "⇅"; titleText: "GRF"    }  // 3
+                ScreenPlaceholder { iconText: "✦"; titleText: "Coach"  }  // 4
+                PlayPage {}                                                // 5 — Play dev-hatch only
+                ScreenAthleteForm {                                        // 6 — new athlete form
+                    onCancelled:       contentStack.currentIndex = 0
+                    onSaved:           contentStack.currentIndex = 7
+                    onSavedAndStarted: contentStack.currentIndex = 7
+                }
+                ScreenAthletePicker {                                      // 7 — athlete picker
+                    onAthleteSelected:    contentStack.currentIndex = 0
+                    onNewAthleteRequested: contentStack.currentIndex = 6
+                }
+                ScreenResourceMonitor {}                                   // 8 — system resource monitor
             }
-            ScreenAthletePicker {                                      // 7 — athlete picker
-                onAthleteSelected:    contentStack.currentIndex = 0
-                onNewAthleteRequested: contentStack.currentIndex = 6
-            }
-            ScreenResourceMonitor {}                                   // 8 — system resource monitor
         }
     }
 }

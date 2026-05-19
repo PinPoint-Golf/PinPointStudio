@@ -159,6 +159,7 @@ qt_add_qml_module(PinPoint
         src/Gui/PpRail.qml
         src/Gui/PpRailButton.qml
         src/Gui/PpDivider.qml
+        src/Gui/PpHeader.qml
         src/Gui/PlayPage.qml
         src/Gui/ScreenWelcome.qml
         src/Gui/ScreenPlaceholder.qml
