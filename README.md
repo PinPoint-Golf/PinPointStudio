@@ -148,19 +148,49 @@ PinPoint reads and writes files in several locations. Platform paths shown for L
 ### Application settings
 `~/.config/Pinpoint/Pinpoint.ini` (macOS: `~/Library/Preferences/Pinpoint.plist`, Windows: Registry `HKCU\Software\Pinpoint`)
 
-| Key | What | Written when |
-|---|---|---|
-| `athletes/<uuid>/name` | Athlete name | On athlete creation |
-| `athletes/<uuid>/…` | Full athlete record | On creation or update |
-| `currentAthleteUuid` | UUID of the selected athlete | On athlete selection |
-| `secrets/assemblyaiApiKey` | AssemblyAI API key | First launch if `ASSEMBLYAI_API_KEY` env var is set |
-| `secrets/azureTtsApiKey` | Azure TTS key | First launch if `AZURE_TTS_API_KEY` env var is set |
-| `secrets/azureSttApiKey` | Azure STT key | First launch if `AZURE_STT_API_KEY` env var is set |
-| `ui/themeIndex` | Selected visual theme (0–5) | On every theme change |
-| `ui/windowWidth` | Main window width in pixels | On every resize |
-| `ui/windowHeight` | Main window height in pixels | On every resize |
+**UI**
 
-> **Note:** API keys written to settings persist even after the env var is removed. To clear a key, delete the relevant entry from the settings file directly.
+| Key | Default | What |
+|---|---|---|
+| `ui/themeIndex` | `0` | Selected visual theme (0–5: Editorial light/dark, Instrument light/dark, Studio light/dark) |
+| `ui/windowWidth` | `1120` | Main window width in pixels; updated on every resize |
+| `ui/windowHeight` | `700` | Main window height in pixels; updated on every resize |
+| `ui/fontScale` | `-1.0` | Font scale multiplier (`-1.0` = auto from display DPI) |
+
+**Athletes** — one group per athlete, keyed by UUID (`athletes/<uuid>/…`)
+
+| Key | Default | What |
+|---|---|---|
+| `currentAthleteUuid` | _(none)_ | UUID of the currently selected athlete |
+| `athletes/<uuid>/name` | — | Full display name |
+| `athletes/<uuid>/handedness` | `"Right"` | `"Right"` or `"Left"` |
+| `athletes/<uuid>/heightValue` | `0.0` | Height stored in ft regardless of entry unit |
+| `athletes/<uuid>/heightUnit` | `"ft"` | Unit used when the value was entered (`"ft"` or `"cm"`) |
+| `athletes/<uuid>/weightValue` | `0.0` | Weight stored in lb regardless of entry unit |
+| `athletes/<uuid>/weightUnit` | `"lb"` | Unit used when the value was entered (`"lb"` or `"kg"`) |
+| `athletes/<uuid>/handicap` | `-1.0` | Golf handicap index (`-1.0` = not set) |
+| `athletes/<uuid>/primaryClub` | `"Driver"` | Default club |
+| `athletes/<uuid>/speedTarget` | `0.0` | Driver speed target in mph (`0.0` = not set) |
+| `athletes/<uuid>/notes` | _(empty)_ | Free-text notes/tags |
+| `athletes/<uuid>/createdAt` | — | Unix epoch seconds; set once at creation |
+| `athletes/<uuid>/lastSessionAt` | `0` | Unix epoch seconds; updated after each session |
+| `athletes/<uuid>/sessionCount` | `0` | Running count of completed sessions |
+
+**STT**
+
+| Key | Default | What |
+|---|---|---|
+| `stt/modelPath` | _(empty)_ | Manual override for the Whisper model path; takes priority over the platform app-data and executable-adjacent locations |
+
+**Secrets** — all loaded at startup from env vars and persisted so subsequent launches work without the original env var
+
+| Key | Env var | What |
+|---|---|---|
+| `secrets/assemblyaiApiKey` | `ASSEMBLYAI_API_KEY` | AssemblyAI streaming STT key (also settable via cmake `-DASSEMBLYAI_API_KEY=`) |
+| `secrets/azureTtsApiKey` | `AZURE_TTS_API_KEY` | Azure Cognitive Services key for TTS (also covers STT if no dedicated STT key is set) |
+| `secrets/azureSttApiKey` | `AZURE_STT_API_KEY` | Azure Cognitive Services key for STT (overrides `azureTtsApiKey` when present) |
+
+> **Note:** Keys written to settings persist even after the env var is removed. To clear a key, delete the relevant `secrets/` entry from the settings file directly (see `SecretsManager` in `src/Secrets/`).
 
 ### Next to the executable
 `<install dir>/models/`
