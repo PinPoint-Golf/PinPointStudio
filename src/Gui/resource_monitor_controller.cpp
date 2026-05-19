@@ -153,6 +153,7 @@ void ResourceMonitorController::refresh()
         dev[QStringLiteral("kind")]               = QStringLiteral("Camera");
         dev[QStringLiteral("name")]               = ctrl->deviceDescription();
         dev[QStringLiteral("model")]              = ctrl->deviceDescription();
+        dev[QStringLiteral("serialNumber")]       = ctrl->deviceSerialNumber();
         dev[QStringLiteral("backend")]            = backendStr;
         dev[QStringLiteral("status")]             = ctrl->isRecording()
                                                      ? QStringLiteral("streaming")

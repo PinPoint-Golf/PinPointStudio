@@ -161,26 +161,18 @@ Rectangle {
         property var rows: {
             var d = root.deviceData
             if (d.kind === "Camera") {
-                return [
-                    { key: "Resolution",
-                      value: d.resolutionStr,
-                      cls: "neutral" },
-                    { key: "Frame rate",
-                      value: d.dataRateStr,
-                      cls: d.dataRateHz > 0 ? "good" : "neutral" },
-                    { key: "Events written",
-                      value: d.eventsWrittenStr,
-                      cls: "neutral" },
-                    { key: "Bytes written",
-                      value: d.bytesWrittenStr,
-                      cls: "neutral" },
-                    { key: "Ring wraps",
-                      value: d.eventsOverwrittenStr,
-                      cls: "neutral" },
-                    { key: "Ring size",
-                      value: d.ringCapacityStr,
-                      cls: "neutral" }
-                ]
+                var camRows = []
+                if (d.serialNumber)
+                    camRows.push({ key: "Identifier", value: d.serialNumber, cls: "neutral" })
+                camRows.push(
+                    { key: "Resolution",    value: d.resolutionStr,       cls: "neutral" },
+                    { key: "Frame rate",    value: d.dataRateStr,         cls: d.dataRateHz > 0 ? "good" : "neutral" },
+                    { key: "Events written",value: d.eventsWrittenStr,    cls: "neutral" },
+                    { key: "Bytes written", value: d.bytesWrittenStr,     cls: "neutral" },
+                    { key: "Ring wraps",    value: d.eventsOverwrittenStr,cls: "neutral" },
+                    { key: "Ring size",     value: d.ringCapacityStr,     cls: "neutral" }
+                )
+                return camRows
             } else {
                 return [
                     { key: "Data rate",

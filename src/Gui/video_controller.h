@@ -66,7 +66,8 @@ class VideoController : public QObject
     Q_PROPERTY(int moveNetModel READ moveNetModel NOTIFY moveNetModelChanged)
     Q_PROPERTY(bool moveNetThunderAvailable READ moveNetThunderAvailable CONSTANT)
     Q_PROPERTY(QVariantList poseKeypoints READ poseKeypoints NOTIFY poseKeypointsChanged)
-    Q_PROPERTY(QString deviceDescription READ deviceDescription CONSTANT)
+    Q_PROPERTY(QString deviceDescription  READ deviceDescription  CONSTANT)
+    Q_PROPERTY(QString deviceSerialNumber READ deviceSerialNumber CONSTANT)
     Q_PROPERTY(int perspective READ perspective NOTIFY perspectiveChanged)
     Q_PROPERTY(QRectF roi READ roi NOTIFY roiChanged)
     Q_PROPERTY(bool   ballDetected       READ ballDetected       NOTIFY ballDetectedChanged)
@@ -103,7 +104,8 @@ public:
     int     moveNetModel() const;
     bool    moveNetThunderAvailable() const;
     QVariantList poseKeypoints() const;
-    QString deviceDescription() const;
+    QString deviceDescription()   const;
+    QString deviceSerialNumber()  const;
     int     perspective() const;
     QRectF  roi()          const;
     bool    ballDetected()        const;
@@ -186,6 +188,7 @@ private:
     bool                   m_recording        = false;
     QString                m_deviceId;
     QString                m_deviceDescription;
+    QString                m_deviceSerialNumber;
 
     // Display-path throttle: at most one frame is ever queued to the main thread
     // at a time (shared between the QVideoFrame and RawVideoFrame paths, which are

@@ -91,6 +91,7 @@ VideoController::VideoController(const Device &device, pinpoint::EventBuffer *bu
     , m_captureThread(new QThread(this))
     , m_deviceId(device.id)
     , m_deviceDescription(device.description)
+    , m_deviceSerialNumber(device.capabilities.serialNumber)
     , m_videoInput(VideoInputFactory::create(device.backend))
     , m_eventBuffer(buffer)
 {
@@ -179,6 +180,8 @@ VideoController::VideoController(const Device &device, pinpoint::EventBuffer *bu
 
         ppInfo() << "[VideoController] registering buffer source:"
                  << device.description
+                 << (device.capabilities.serialNumber.isEmpty()
+                     ? QString() : "(" + device.capabilities.serialNumber + ")")
                  << cfmt.width << "x" << cfmt.height
                  << "@ max" << fps << "fps"
                  << "slot_bytes:" << desc.computeSlotBytes()
@@ -479,6 +482,7 @@ double  VideoController::ballAvgMs()              const { return m_ballAvgMs; }
 QString VideoController::poseBackendLabel()       const { return m_poseBackendLabel; }
 int     VideoController::moveNetModel()           const { return m_moveNetModel; }
 QString VideoController::deviceDescription()      const { return m_deviceDescription; }
+QString VideoController::deviceSerialNumber()     const { return m_deviceSerialNumber; }
 int     VideoController::perspective()            const { return m_perspective; }
 
 void VideoController::setPerspective(int p)

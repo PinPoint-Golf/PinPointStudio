@@ -31,6 +31,9 @@ Use the [Qt Online Installer](https://www.qt.io/download-qt-installer). Select t
 # Industrial camera support (Aravis v0.8.x)
 sudo apt install libglib2.0-dev libaravis-0.8-dev
 
+# Camera device identifier lookup (USB serial numbers for V4L2 cameras)
+sudo apt install libudev-dev
+
 # Pose estimation and video pre-processing
 sudo apt install libopencv-dev
 

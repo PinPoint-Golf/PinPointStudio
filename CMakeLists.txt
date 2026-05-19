@@ -1276,6 +1276,33 @@ if(WIN32)
     endif()
 endif()
 
+# ── libudev (Linux V4L2 serial number lookup) ────────────────────────────────
+if(UNIX AND NOT APPLE)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(UDEV libudev)
+    endif()
+    if(NOT UDEV_FOUND)
+        find_path(UDEV_INCLUDE_DIRS NAMES libudev.h)
+        find_library(UDEV_LIBRARIES NAMES udev)
+        if(UDEV_INCLUDE_DIRS AND UDEV_LIBRARIES)
+            set(UDEV_FOUND TRUE)
+        endif()
+    endif()
+    if(UDEV_FOUND)
+        message(STATUS "libudev: found (V4L2 camera serial number lookup enabled)")
+        target_compile_definitions(PinPoint PRIVATE HAVE_LIBUDEV)
+        target_include_directories(PinPoint PRIVATE ${UDEV_INCLUDE_DIRS})
+        target_link_libraries(PinPoint PRIVATE ${UDEV_LIBRARIES})
+    else()
+        message(STATUS "libudev: not found (V4L2 cameras will use device path as identifier)")
+    endif()
+endif()
+
+if(WIN32)
+    # cfgmgr32: device tree traversal to extract USB serial numbers for Qt Multimedia cameras.
+    target_link_libraries(PinPoint PRIVATE cfgmgr32)
+endif()
+
 # ── OpenCV ───────────────────────────────────────────────────────────────────
 # macOS: inject Homebrew prefix so CMake can locate OpenCVConfig.cmake
 if(APPLE)

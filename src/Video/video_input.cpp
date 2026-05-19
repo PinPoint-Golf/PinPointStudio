@@ -24,6 +24,59 @@
 #include <QMediaDevices>
 #include <QVideoSink>
 #include <QDateTime>
+#include <QFileInfo>
+
+#ifdef HAVE_LIBUDEV
+#include <libudev.h>
+#endif
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <cfgmgr32.h>
+
+// Walk the Windows device tree from a Media Foundation camera symlink up to the
+// USB device node and return the serial number embedded in its instance ID.
+// The symlink from QCameraDevice::id() looks like:
+//   \\?\usb#vid_046d&pid_0825&mi_00#<serial_or_port_hash>#{e5323777-...}
+// Converting '#' → '\' and stripping the \\?\ prefix and #{guid} suffix gives
+// the device instance ID, which CM_Locate_DevNodeW can resolve directly.
+static QString usbSerialFromCameraPath(const QByteArray &id)
+{
+    QString path = QString::fromUtf8(id);
+    if (path.startsWith("\\\\?\\")) path = path.mid(4);
+    int brace = path.indexOf('{');
+    if (brace > 0) path = path.left(brace - 1); // strip trailing #
+    path = path.replace('#', '\\').toUpper();
+    // path is now e.g. "USB\VID_046D&PID_0825&MI_00\6&2A3B4C5D&0&0000"
+
+    DEVINST devInst = 0;
+    if (CM_Locate_DevNodeW(&devInst,
+            reinterpret_cast<DEVINSTID_W>(path.toStdWString().data()),
+            CM_LOCATE_DEVNODE_NORMAL) != CR_SUCCESS)
+        return {};
+
+    // Walk up the parent chain to the USB device node (max 3 levels covers
+    // interface → composite → USB device).
+    for (int depth = 0; depth < 3; ++depth) {
+        DEVINST parent = 0;
+        if (CM_Get_Parent(&parent, devInst, 0) != CR_SUCCESS) break;
+
+        wchar_t instanceId[512] = {};
+        if (CM_Get_Device_IDW(parent, instanceId, 512, 0) != CR_SUCCESS) break;
+
+        QString parentId = QString::fromWCharArray(instanceId);
+        if (parentId.startsWith("USB\\", Qt::CaseInsensitive)) {
+            QString serial = parentId.section('\\', -1);
+            // Windows uses "6&XXXXXXXX&0&PORT" when the device has no serial.
+            if (!serial.isEmpty() && !serial.startsWith("6&", Qt::CaseInsensitive))
+                return serial;
+            return {};
+        }
+        devInst = parent;
+    }
+    return {};
+}
+#endif // Q_OS_WIN
 
 VideoInput::VideoInput(QObject *parent)
     : VideoInputBase(parent)
@@ -83,6 +136,46 @@ CameraCapabilities VideoInput::capabilitiesFor(const QCameraDevice &dev)
     caps.driverVersion        = "Qt6 Multimedia";
     caps.connectionInterface  = CameraCapabilities::Interface::USB3;
     caps.modelName            = dev.description();
+
+#if defined(HAVE_LIBUDEV)
+    // Walk the udev device tree to find the USB serial number for this V4L2 node.
+    // QCameraDevice::id() is the raw device node path (e.g. "/dev/video0") on Linux,
+    // which is port-order dependent and can change across reboots with multiple cameras.
+    {
+        QString devNode = QString::fromUtf8(dev.id());
+        QString sysName = QFileInfo(devNode).fileName(); // "video0"
+        struct udev *udev = udev_new();
+        if (udev) {
+            struct udev_device *vdev = udev_device_new_from_subsystem_sysname(
+                udev, "video4linux", sysName.toLocal8Bit().constData());
+            if (vdev) {
+                struct udev_device *usb = udev_device_get_parent_with_subsystem_devtype(
+                    vdev, "usb", "usb_device");
+                if (usb) {
+                    const char *sn = udev_device_get_sysattr_value(usb, "serial");
+                    if (sn && sn[0]) caps.serialNumber = QString::fromLocal8Bit(sn);
+                    const char *mfr = udev_device_get_sysattr_value(usb, "manufacturer");
+                    if (mfr && mfr[0]) caps.vendorName  = QString::fromLocal8Bit(mfr);
+                    const char *prod = udev_device_get_sysattr_value(usb, "product");
+                    if (prod && prod[0]) caps.modelName  = QString::fromLocal8Bit(prod);
+                }
+                udev_device_unref(vdev);
+            }
+            udev_unref(udev);
+        }
+    }
+#elif defined(Q_OS_WIN)
+    // Walk the Windows device tree from the Media Foundation symlink up to the
+    // USB device node to read the manufacturer-programmed serial number.
+    // Falls back to empty if the device has no serial (port-hash is discarded).
+    {
+        QString serial = usbSerialFromCameraPath(dev.id());
+        if (!serial.isEmpty()) caps.serialNumber = serial;
+    }
+#else
+    // macOS: QCameraDevice::id() is AVCaptureDevice.uniqueID — hardware-derived.
+    caps.serialNumber = QString::fromUtf8(dev.id());
+#endif
 
     caps.pixelFormat.kind     = CapabilityKind::Discrete;
     caps.pixelFormat.writable = true;

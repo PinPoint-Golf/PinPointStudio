@@ -79,6 +79,19 @@ void VideoInputFactory::enumerateDevices()
                 ? CameraCapabilities::Interface::GigE
                 : CameraCapabilities::Interface::USB3;
 
+            ArvDevice *arvDev = arv_camera_get_device(cam);
+            if (arvDev) {
+                GError *snErr = nullptr;
+                const char *sn = arv_device_get_string_feature_value(arvDev, "DeviceSerialNumber", &snErr);
+                if (sn && !snErr) caps.serialNumber = QString::fromLocal8Bit(sn);
+                g_clear_error(&snErr);
+                GError *vnErr = nullptr;
+                const char *vn = arv_device_get_string_feature_value(arvDev, "DeviceVendorName", &vnErr);
+                if (vn && !vnErr) caps.vendorName = QString::fromLocal8Bit(vn);
+                g_clear_error(&vnErr);
+            }
+            caps.modelName = QString::fromLocal8Bit(model);
+
             gint curW = 0, curH = 0;
             arv_camera_get_region(cam, nullptr, nullptr, &curW, &curH, nullptr);
             gint wMin, wMax, hMin, hMax, wInc, hInc;
@@ -143,14 +156,19 @@ void VideoInputFactory::enumerateDevices()
                     return QString::fromStdString(n->GetValue().c_str());
                 return {};
             };
-            QString id    = readTLStr("DeviceID");
-            QString model = readTLStr("DeviceModelName");
+            QString id     = readTLStr("DeviceID");
+            QString model  = readTLStr("DeviceModelName");
+            QString serial = readTLStr("DeviceSerialNumber");
+            QString vendor = readTLStr("DeviceVendorName");
             if (id.isEmpty())    id    = "Unknown";
             if (model.isEmpty()) model = "Spinnaker Camera";
 
             // Init gives full GenICam nodemap access without starting acquisition.
             CameraCapabilities caps;
-            caps.driverVersion = "Teledyne Spinnaker SDK";
+            caps.driverVersion  = "Teledyne Spinnaker SDK";
+            caps.serialNumber   = serial;
+            caps.vendorName     = vendor;
+            caps.modelName      = model;
             try {
                 cam->Init();
                 Spinnaker::GenApi::INodeMap &nodeMap = cam->GetNodeMap();
