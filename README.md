@@ -24,10 +24,11 @@ Our ambition is to be a platform that can be used by golfers, coaches and resear
 
 ## UI shell
 
-The interface uses a left-side navigation rail with five mode buttons and an athlete avatar at the top.
+The interface uses a left-side navigation rail with a Home button, five mode buttons, and an athlete avatar at the top.
 
 | Mode | Status | Description |
 |---|---|---|
+| **Home** | Active | Session type selection, device readiness, club selector, and Start button |
 | **Swing** | Active | Multi-camera capture, pose estimation, and ¼-speed swing replay |
 | **Wrist** | Placeholder | IMU-based wrist kinematics (requires an athlete) |
 | **GRF** | Placeholder | Ground reaction force analysis (requires an athlete) |
@@ -35,7 +36,7 @@ The interface uses a left-side navigation rail with five mode buttons and an ath
 
 Wrist, GRF, and Coach redirect to the Welcome screen until at least one athlete has been created.
 
-The **Settings** button (bottom of the rail) cycles through all six visual themes — three aesthetics (Editorial, Instrument, Studio) × two modes (light, dark). See [Aesthetic Design Concepts](docs/aesthetic/pinpoint-aesthetic-concepts.md).
+The **Settings** button (bottom of the rail) cycles through all six visual themes — three aesthetics (Editorial, Instrument, Studio) × two modes (light, dark) — and the selected theme is persisted across restarts. See [Aesthetic Design Concepts](docs/aesthetic/pinpoint-aesthetic-concepts.md).
 
 | Editorial | Instrument | Studio |
 |---|---|---|
@@ -45,6 +46,23 @@ The **Settings** button (bottom of the rail) cycles through all six visual theme
 
 ## Features
 
+### Home screen
+
+The Home screen is the default landing page and the starting point for every session.
+
+- **Session type cards** — Four modes displayed as selectable cards, each showing a description, required device counts, and live readiness indicators:
+
+  | Mode | Cameras | IMUs | Description |
+  |---|---|---|---|
+  | **Swing analysis** | 2 required | 3 required | Sequencing and key swing metrics via spine IMUs |
+  | **Wrist motion** | 1 optional | 2 required | Wrist angle and club delivery analysis |
+  | **Ground forces** | 2 required | 3 required | Ground use and power generation via hip IMUs |
+  | **AI coach** | 2 required | 3 required | Shot-by-shot feedback from an AI coach |
+
+- **Device readiness** — Each card shows a live `✓ / ⚠` status for cameras and IMUs independently. Cameras require at least the stated number to be enumerated; Wrist motion shows the camera as optional (amber tick when absent, green when present).
+- **Club selector** — Choose the club in play before starting; recorded with the session.
+- **Start session** — Enabled once device requirements are met; session begins on the first ball detected.
+
 ### Athlete management
 
 Every session belongs to an athlete. The athlete management flow is the entry point to the app.
@@ -53,7 +71,7 @@ Every session belongs to an athlete. The athlete management flow is the entry po
 - **Athlete picker** — Shows the three most-recently-active athletes as cards, plus a full searchable list. The selected athlete's initials appear in the rail avatar.
 - **Delete athlete** — Destructive action available in the picker with a single click on the highlighted athlete.
 - **Persistence** — All athlete records stored in `QSettings` (INI format); survives restarts. Heights stored in ft, weights in lb regardless of entry unit.
-- **Navigation guard** — Wrist, GRF, and Coach modes require at least one athlete; they redirect to the Welcome screen if the roster is empty.
+- **Navigation guard** — Wrist, GRF, and Coach modes require at least one athlete; selecting them from the Home screen redirects to the Welcome screen if the roster is empty.
 
 ### Swing — multi-camera video analysis
 
@@ -134,6 +152,9 @@ PinPoint reads and writes files in several locations. Platform paths shown for L
 | `secrets/assemblyaiApiKey` | AssemblyAI API key | First launch if `ASSEMBLYAI_API_KEY` env var is set |
 | `secrets/azureTtsApiKey` | Azure TTS key | First launch if `AZURE_TTS_API_KEY` env var is set |
 | `secrets/azureSttApiKey` | Azure STT key | First launch if `AZURE_STT_API_KEY` env var is set |
+| `ui/themeIndex` | Selected visual theme (0–5) | On every theme change |
+| `ui/windowWidth` | Main window width in pixels | On every resize |
+| `ui/windowHeight` | Main window height in pixels | On every resize |
 
 > **Note:** API keys written to settings persist even after the env var is removed. To clear a key, delete the relevant entry from the settings file directly.
 
@@ -170,7 +191,7 @@ The app only contacts external services when explicitly configured:
 - **Two-camera 3D pose reconstruction** — triangulate occluded joints from a second viewpoint (multi-camera capture is already in place)
 - **Kinematic metric extraction** — derive club head speed, hip/shoulder rotation, lag angle from pose sequences and IMU data
 - **AI coach integration** — session-aware coaching output in the Coach mode
-- **Wrist / GRF modes** — connect IMU and force plate data to the athlete and session model
+- **Wrist / GRF modes** — connect IMU data to the athlete and session model (Home screen entry points and device requirements already in place)
 - **Smartphone companion** — once core concepts are proven on desktop
 
 It will be published as an open-source desktop application for use in golf studios and coaching facilities.
