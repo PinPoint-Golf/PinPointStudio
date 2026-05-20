@@ -183,6 +183,7 @@ qt_add_qml_module(PinPoint
         src/Gui/ScreenSettings.qml
         src/Gui/AppearancePanel.qml
         src/Gui/GeneralPanel.qml
+        src/Gui/DisplaysPanel.qml
         src/Gui/HmTypeCard.qml
         src/Gui/HmDeviceRow.qml
         src/Gui/HmSessionTile.qml

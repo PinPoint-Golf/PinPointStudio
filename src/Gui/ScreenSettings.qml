@@ -258,7 +258,10 @@ Item {
                     Layout.fillWidth:  true
                     Layout.fillHeight: true
                 }
-                ScreenPlaceholder { titleText: "Displays"       }  // 2
+                DisplaysPanel {                                     // 2
+                    Layout.fillWidth:  true
+                    Layout.fillHeight: true
+                }
                 ScreenPlaceholder { titleText: "Cameras"        }  // 3
                 ScreenPlaceholder { titleText: "IMUs"           }  // 4
                 ScreenPlaceholder { titleText: "Launch Monitor" }  // 5

@@ -44,6 +44,14 @@ class AppSettings : public QObject
     Q_PROPERTY(bool    aiCoachingOnSessionEnd      READ aiCoachingOnSessionEnd      WRITE setAiCoachingOnSessionEnd      NOTIFY aiCoachingOnSessionEndChanged)
     Q_PROPERTY(bool    checkForUpdates             READ checkForUpdates             WRITE setCheckForUpdates             NOTIFY checkForUpdatesChanged)
     Q_PROPERTY(bool    sendDiagnostics             READ sendDiagnostics             WRITE setSendDiagnostics             NOTIFY sendDiagnosticsChanged)
+    Q_PROPERTY(QString mainDisplayMode             READ mainDisplayMode             WRITE setMainDisplayMode             NOTIFY mainDisplayModeChanged)
+    Q_PROPERTY(bool    rememberWindowGeometry      READ rememberWindowGeometry      WRITE setRememberWindowGeometry      NOTIFY rememberWindowGeometryChanged)
+    Q_PROPERTY(QString secondaryDisplayMode        READ secondaryDisplayMode        WRITE setSecondaryDisplayMode        NOTIFY secondaryDisplayModeChanged)
+    Q_PROPERTY(QString postShotContent             READ postShotContent             WRITE setPostShotContent             NOTIFY postShotContentChanged)
+    Q_PROPERTY(double  postShotDelay               READ postShotDelay               WRITE setPostShotDelay               NOTIFY postShotDelayChanged)
+    Q_PROPERTY(bool    postShotMirror              READ postShotMirror              WRITE setPostShotMirror              NOTIFY postShotMirrorChanged)
+    Q_PROPERTY(QString uiFrameRateCap              READ uiFrameRateCap              WRITE setUiFrameRateCap              NOTIFY uiFrameRateCapChanged)
+    Q_PROPERTY(bool    hardwareAcceleration        READ hardwareAcceleration        WRITE setHardwareAcceleration        NOTIFY hardwareAccelerationChanged)
 
 public:
     explicit AppSettings(QObject *parent = nullptr) : QObject(parent)
@@ -66,6 +74,15 @@ public:
         m_aiCoachingOnSessionEnd    = ppSettings().value(QStringLiteral("general/aiCoachingOnSessionEnd"),    true).toBool();
         m_checkForUpdates           = ppSettings().value(QStringLiteral("general/checkForUpdates"),           true).toBool();
         m_sendDiagnostics           = ppSettings().value(QStringLiteral("general/sendDiagnostics"),           false).toBool();
+
+        m_mainDisplayMode        = ppSettings().value(QStringLiteral("display/mainDisplayMode"),        QStringLiteral("primary")).toString();
+        m_rememberWindowGeometry = ppSettings().value(QStringLiteral("display/rememberWindowGeometry"), true).toBool();
+        m_secondaryDisplayMode   = ppSettings().value(QStringLiteral("display/secondaryDisplayMode"),   QStringLiteral("none")).toString();
+        m_postShotContent        = ppSettings().value(QStringLiteral("display/postShotContent"),        QStringLiteral("replay")).toString();
+        m_postShotDelay          = ppSettings().value(QStringLiteral("display/postShotDelay"),          0.5).toDouble();
+        m_postShotMirror         = ppSettings().value(QStringLiteral("display/postShotMirror"),         false).toBool();
+        m_uiFrameRateCap         = ppSettings().value(QStringLiteral("display/uiFrameRateCap"),         QStringLiteral("display")).toString();
+        m_hardwareAcceleration   = ppSettings().value(QStringLiteral("display/hardwareAcceleration"),   true).toBool();
     }
 
     QString appVersion()     const { return QStringLiteral(PINPOINT_VERSION_STRING); }
@@ -87,6 +104,15 @@ public:
     bool    aiCoachingOnSessionEnd()    const { return m_aiCoachingOnSessionEnd; }
     bool    checkForUpdates()           const { return m_checkForUpdates; }
     bool    sendDiagnostics()           const { return m_sendDiagnostics; }
+
+    QString mainDisplayMode()        const { return m_mainDisplayMode; }
+    bool    rememberWindowGeometry() const { return m_rememberWindowGeometry; }
+    QString secondaryDisplayMode()   const { return m_secondaryDisplayMode; }
+    QString postShotContent()        const { return m_postShotContent; }
+    double  postShotDelay()          const { return m_postShotDelay; }
+    bool    postShotMirror()         const { return m_postShotMirror; }
+    QString uiFrameRateCap()         const { return m_uiFrameRateCap; }
+    bool    hardwareAcceleration()   const { return m_hardwareAcceleration; }
 
     void setThemeIndex(int v)
     {
@@ -224,6 +250,70 @@ public:
         emit sendDiagnosticsChanged();
     }
 
+    void setMainDisplayMode(const QString &v)
+    {
+        if (m_mainDisplayMode == v) return;
+        m_mainDisplayMode = v;
+        ppSettings().setValue(QStringLiteral("display/mainDisplayMode"), v);
+        emit mainDisplayModeChanged();
+    }
+
+    void setRememberWindowGeometry(bool v)
+    {
+        if (m_rememberWindowGeometry == v) return;
+        m_rememberWindowGeometry = v;
+        ppSettings().setValue(QStringLiteral("display/rememberWindowGeometry"), v);
+        emit rememberWindowGeometryChanged();
+    }
+
+    void setSecondaryDisplayMode(const QString &v)
+    {
+        if (m_secondaryDisplayMode == v) return;
+        m_secondaryDisplayMode = v;
+        ppSettings().setValue(QStringLiteral("display/secondaryDisplayMode"), v);
+        emit secondaryDisplayModeChanged();
+    }
+
+    void setPostShotContent(const QString &v)
+    {
+        if (m_postShotContent == v) return;
+        m_postShotContent = v;
+        ppSettings().setValue(QStringLiteral("display/postShotContent"), v);
+        emit postShotContentChanged();
+    }
+
+    void setPostShotDelay(double v)
+    {
+        if (qFuzzyCompare(m_postShotDelay, v)) return;
+        m_postShotDelay = v;
+        ppSettings().setValue(QStringLiteral("display/postShotDelay"), v);
+        emit postShotDelayChanged();
+    }
+
+    void setPostShotMirror(bool v)
+    {
+        if (m_postShotMirror == v) return;
+        m_postShotMirror = v;
+        ppSettings().setValue(QStringLiteral("display/postShotMirror"), v);
+        emit postShotMirrorChanged();
+    }
+
+    void setUiFrameRateCap(const QString &v)
+    {
+        if (m_uiFrameRateCap == v) return;
+        m_uiFrameRateCap = v;
+        ppSettings().setValue(QStringLiteral("display/uiFrameRateCap"), v);
+        emit uiFrameRateCapChanged();
+    }
+
+    void setHardwareAcceleration(bool v)
+    {
+        if (m_hardwareAcceleration == v) return;
+        m_hardwareAcceleration = v;
+        ppSettings().setValue(QStringLiteral("display/hardwareAcceleration"), v);
+        emit hardwareAccelerationChanged();
+    }
+
 signals:
     void themeIndexChanged();
     void windowWidthChanged();
@@ -242,6 +332,14 @@ signals:
     void aiCoachingOnSessionEndChanged();
     void checkForUpdatesChanged();
     void sendDiagnosticsChanged();
+    void mainDisplayModeChanged();
+    void rememberWindowGeometryChanged();
+    void secondaryDisplayModeChanged();
+    void postShotContentChanged();
+    void postShotDelayChanged();
+    void postShotMirrorChanged();
+    void uiFrameRateCapChanged();
+    void hardwareAccelerationChanged();
 
 private:
     int     m_themeIndex      = 0;
@@ -262,4 +360,13 @@ private:
     bool    m_aiCoachingOnSessionEnd    = true;
     bool    m_checkForUpdates           = true;
     bool    m_sendDiagnostics           = false;
+
+    QString m_mainDisplayMode        = QStringLiteral("primary");
+    bool    m_rememberWindowGeometry = true;
+    QString m_secondaryDisplayMode   = QStringLiteral("none");
+    QString m_postShotContent        = QStringLiteral("replay");
+    double  m_postShotDelay          = 0.5;
+    bool    m_postShotMirror         = false;
+    QString m_uiFrameRateCap         = QStringLiteral("display");
+    bool    m_hardwareAcceleration   = true;
 };
