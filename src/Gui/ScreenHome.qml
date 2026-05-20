@@ -17,6 +17,7 @@
  */
 
 import QtQuick
+import QtQuick.Layouts
 import PinPoint
 
 Item {
@@ -322,10 +323,11 @@ Item {
                 }
                 Item { width: 1; height: Theme.sp(16) }
 
-                Grid {
-                    columns: 2
-                    spacing: Theme.sp(8)
-                    width:   parent.width
+                GridLayout {
+                    columns:       2
+                    columnSpacing: Theme.sp(8)
+                    rowSpacing:    Theme.sp(8)
+                    width:         parent.width
 
                     Repeater {
                         model: [
@@ -337,7 +339,8 @@ Item {
 
                         delegate: HmTypeCard {
                             required property var modelData
-                            width:           (parent.width - 8) / 2
+                            Layout.fillWidth:  true
+                            Layout.fillHeight: true
                             iconText:        modelData.icon
                             typeName:        modelData.name
                             description:     modelData.desc

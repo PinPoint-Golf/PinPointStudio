@@ -36,7 +36,7 @@ Rectangle {
 
     signal clicked()
 
-    height: contentCol.implicitHeight + Theme.sp(24)
+    implicitHeight: contentCol.implicitHeight + Theme.sp(24)
     radius: Theme.radiusLg
     color:  (isSelected || hoverArea.containsMouse) ? Theme.colorAccentLight : Theme.colorSurface
     border.width: 1
