@@ -33,7 +33,8 @@ class AppSettings : public QObject
     Q_PROPERTY(double  fontScale    READ fontScale    WRITE setFontScale    NOTIFY fontScaleChanged)
     Q_PROPERTY(QString density      READ density      WRITE setDensity      NOTIFY densityChanged)
     Q_PROPERTY(bool    reduceMotion READ reduceMotion WRITE setReduceMotion NOTIFY reduceMotionChanged)
-    Q_PROPERTY(double  overlayOpacity READ overlayOpacity WRITE setOverlayOpacity NOTIFY overlayOpacityChanged)
+    Q_PROPERTY(double  overlayOpacity  READ overlayOpacity  WRITE setOverlayOpacity  NOTIFY overlayOpacityChanged)
+    Q_PROPERTY(bool    windowMaximized READ windowMaximized WRITE setWindowMaximized NOTIFY windowMaximizedChanged)
 
 public:
     explicit AppSettings(QObject *parent = nullptr) : QObject(parent)
@@ -45,6 +46,7 @@ public:
         m_density         = ppSettings().value(QStringLiteral("ui/density"),         QStringLiteral("default")).toString();
         m_reduceMotion    = ppSettings().value(QStringLiteral("ui/reduceMotion"),    false).toBool();
         m_overlayOpacity  = ppSettings().value(QStringLiteral("ui/overlayOpacity"),  0.7).toDouble();
+        m_windowMaximized = ppSettings().value(QStringLiteral("ui/windowMaximized"), false).toBool();
     }
 
     QString appVersion()     const { return QStringLiteral(PINPOINT_VERSION_STRING); }
@@ -54,7 +56,8 @@ public:
     double  fontScale()     const { return m_fontScale; }
     QString density()       const { return m_density; }
     bool    reduceMotion()  const { return m_reduceMotion; }
-    double  overlayOpacity() const { return m_overlayOpacity; }
+    double  overlayOpacity()  const { return m_overlayOpacity; }
+    bool    windowMaximized() const { return m_windowMaximized; }
 
     void setThemeIndex(int v)
     {
@@ -112,6 +115,14 @@ public:
         emit overlayOpacityChanged();
     }
 
+    void setWindowMaximized(bool v)
+    {
+        if (m_windowMaximized == v) return;
+        m_windowMaximized = v;
+        ppSettings().setValue(QStringLiteral("ui/windowMaximized"), v);
+        emit windowMaximizedChanged();
+    }
+
 signals:
     void themeIndexChanged();
     void windowWidthChanged();
@@ -120,6 +131,7 @@ signals:
     void densityChanged();
     void reduceMotionChanged();
     void overlayOpacityChanged();
+    void windowMaximizedChanged();
 
 private:
     int     m_themeIndex      = 0;
@@ -129,4 +141,5 @@ private:
     QString m_density         = QStringLiteral("default");
     bool    m_reduceMotion    = false;
     double  m_overlayOpacity  = 0.7;
+    bool    m_windowMaximized = false;
 };

@@ -26,6 +26,9 @@ Item {
     // The screen name shown after the separator. Set by Main.qml.
     property string screenName: ""
     property bool showVersionPill: false
+    property bool isFullscreen: false
+
+    signal fullscreenToggleRequested()
 
     implicitHeight: Theme.headerHeight
 
@@ -152,6 +155,69 @@ Item {
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingData
                 color:               Theme.colorText3
+            }
+        }
+
+        // Fullscreen toggle button — corner-bracket expand/compress icon
+        Item {
+            id: fsButton
+            Layout.alignment: Qt.AlignVCenter
+            implicitWidth:    Theme.sp(28)
+            implicitHeight:   Theme.headerHeight
+
+            readonly property color iconColor: fsHover.containsMouse ? Theme.colorText : Theme.colorText3
+
+            Canvas {
+                id: fsCanvas
+                anchors.centerIn: parent
+                width:  Theme.sp(14)
+                height: Theme.sp(14)
+
+                onPaint: {
+                    var ctx = getContext("2d")
+                    ctx.clearRect(0, 0, width, height)
+                    ctx.strokeStyle = fsButton.iconColor.toString()
+                    ctx.lineWidth   = Math.max(1, Math.round(width / 10))
+                    ctx.lineCap     = "square"
+                    var a = Math.round(width * 0.35)  // arm length
+                    var w = width, h = height
+                    ctx.beginPath()
+                    if (!root.isFullscreen) {
+                        // Expand: L-brackets at corners pointing outward
+                        ctx.moveTo(a, 0); ctx.lineTo(0, 0); ctx.lineTo(0, a)
+                        ctx.moveTo(w-a, 0); ctx.lineTo(w, 0); ctx.lineTo(w, a)
+                        ctx.moveTo(0, h-a); ctx.lineTo(0, h); ctx.lineTo(a, h)
+                        ctx.moveTo(w-a, h); ctx.lineTo(w, h); ctx.lineTo(w, h-a)
+                    } else {
+                        // Compress: L-brackets inset, pointing inward
+                        ctx.moveTo(0, a); ctx.lineTo(a, a); ctx.lineTo(a, 0)
+                        ctx.moveTo(w, a); ctx.lineTo(w-a, a); ctx.lineTo(w-a, 0)
+                        ctx.moveTo(0, h-a); ctx.lineTo(a, h-a); ctx.lineTo(a, h)
+                        ctx.moveTo(w, h-a); ctx.lineTo(w-a, h-a); ctx.lineTo(w-a, h)
+                    }
+                    ctx.stroke()
+                }
+
+                onWidthChanged:           requestPaint()
+                Component.onCompleted:    requestPaint()
+            }
+
+            Connections {
+                target: root
+                function onIsFullscreenChanged() { fsCanvas.requestPaint() }
+            }
+
+            Connections {
+                target: fsButton
+                function onIconColorChanged() { fsCanvas.requestPaint() }
+            }
+
+            MouseArea {
+                id:           fsHover
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape:  Qt.PointingHandCursor
+                onClicked:    root.fullscreenToggleRequested()
             }
         }
 

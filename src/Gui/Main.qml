@@ -18,8 +18,8 @@
 
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Layouts
 import QtQuick.Controls.Basic
+import QtQuick.Layouts
 import PinPoint
 
 ApplicationWindow {
@@ -31,8 +31,13 @@ ApplicationWindow {
     color: Theme.colorBg
     font.family: Theme.fontBody
 
-    onWidthChanged:  appSettings.windowWidth  = width
-    onHeightChanged: appSettings.windowHeight = height
+    // Only persist size when windowed — avoid clobbering the saved size with screen dimensions.
+    onWidthChanged:  { if (visibility === Window.Windowed) appSettings.windowWidth  = width }
+    onHeightChanged: { if (visibility === Window.Windowed) appSettings.windowHeight = height }
+
+    onVisibilityChanged: {
+        appSettings.windowMaximized = (root.visibility === Window.FullScreen)
+    }
 
     Component.onCompleted: {
         if (appSettings.fontScale > 0) {
@@ -41,7 +46,20 @@ ApplicationWindow {
             var w = Screen.desktopAvailableWidth
             Theme.fontScale = w >= 3840 ? 1.5 : w >= 2560 ? 1.25 : 1.0
         }
+        if (appSettings.windowMaximized)
+            root.showFullScreen()
     }
+
+    function toggleFullscreen() {
+        if (visibility === Window.Maximized || visibility === Window.FullScreen)
+            root.showNormal()
+        else
+            root.showFullScreen()
+    }
+
+    // F11 everywhere; Ctrl+Cmd+F is the macOS convention (Ctrl = Meta in Qt key names on macOS)
+    Shortcut { sequence: "F11";         onActivated: root.toggleFullscreen() }
+    Shortcut { sequence: "Meta+Ctrl+F"; onActivated: root.toggleFullscreen() }
 
     // Maps StackLayout index → header screen name
     readonly property var screenNames: [
@@ -82,6 +100,8 @@ ApplicationWindow {
                 screenName: navController.currentIndex < screenNames.length
                             ? screenNames[navController.currentIndex] : ""
                 showVersionPill: navController.currentIndex === 9
+                isFullscreen: root.visibility === Window.FullScreen
+                onFullscreenToggleRequested: root.toggleFullscreen()
             }
 
             StackLayout {
