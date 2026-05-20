@@ -111,10 +111,6 @@ Item {
                         radius: Theme.radius
                         clip:   true
 
-                        border.width: isSelected ? 2 : 1
-                        border.color: isSelected ? Theme.colorAccent : Theme.colorBorderStrong
-                        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
                         // ── Top — colour preview (52 px) ──────────────────
                         Row {
                             anchors.left:  parent.left
@@ -235,6 +231,17 @@ Item {
                                     color:          Theme.colorSurface
                                 }
                             }
+                        }
+
+                        // Border overlay — rendered after all children so it isn't
+                        // occluded by the preview/label Rectangles that fill to the edges.
+                        Rectangle {
+                            anchors.fill: parent
+                            radius:       parent.radius
+                            color:        "transparent"
+                            border.width: isSelected ? 2 : 1
+                            border.color: isSelected ? Theme.colorAccent : Theme.colorBorderStrong
+                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
                         }
 
                         MouseArea {
