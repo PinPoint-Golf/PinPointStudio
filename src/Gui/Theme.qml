@@ -216,7 +216,13 @@ QtObject {
     // On Windows, Segoe UI Emoji intercepts symbol codepoints (e.g. ⚙ U+2699)
     // and renders them as large coloured emoji glyphs. Segoe UI Symbol has the
     // same characters as flat monochrome glyphs and prevents that fallback.
-    readonly property string fontSymbol: Qt.platform.os === "windows" ? "Segoe UI Symbol" : ""
+    // On macOS, Apple Color Emoji does the same — Apple Symbols provides flat
+    // monochrome glyphs for those codepoints and wins the font-selection race.
+    readonly property string fontSymbol: {
+        if (Qt.platform.os === "windows") return "Segoe UI Symbol"
+        if (Qt.platform.os === "osx")     return "Apple Symbols"
+        return ""
+    }
 
     // ── Typography scale tokens ──────────────────────────────────────────────
     readonly property int  fontSzDisplay: {
