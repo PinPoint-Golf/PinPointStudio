@@ -67,6 +67,7 @@ Item {
                 anchors.centerIn: parent
                 text:            root.iconText
                 font.pixelSize:  Theme.sp(21)
+                font.family:     Theme.fontSymbol
                 color: {
                     if (root.isActive) return Theme.colorAccent
                     if (!root.isMuted && mouseArea.containsMouse) return Theme.colorText2

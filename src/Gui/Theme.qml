@@ -213,6 +213,10 @@ QtObject {
         if (aesthetic === "vector")     return "Space Mono"
         return "Geist"
     }
+    // On Windows, Segoe UI Emoji intercepts symbol codepoints (e.g. ⚙ U+2699)
+    // and renders them as large coloured emoji glyphs. Segoe UI Symbol has the
+    // same characters as flat monochrome glyphs and prevents that fallback.
+    readonly property string fontSymbol: Qt.platform.os === "windows" ? "Segoe UI Symbol" : ""
 
     // ── Typography scale tokens ──────────────────────────────────────────────
     readonly property int  fontSzDisplay: {
