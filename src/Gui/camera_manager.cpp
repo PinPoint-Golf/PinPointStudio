@@ -54,14 +54,11 @@ CameraManager::CameraManager(pinpoint::EventBuffer *buffer, QObject *parent)
         }
     }
 
-    // Auto-select the first non-excluded camera via setSelected() so the buffer
-    // is correctly paused around registerSource() even when start() has already
-    // been called.
+    // Select all non-excluded cameras so every enabled camera gets a controller
+    // and has its ROI / perspective restored via createController().
     for (int i = 0; i < m_cameras.size(); ++i) {
-        if (!m_cameras[i].excluded) {
+        if (!m_cameras[i].excluded)
             setSelected(i, true);
-            break;
-        }
     }
 }
 

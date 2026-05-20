@@ -426,7 +426,7 @@ Item {
                             Text {
                                 id: fpsLabel
                                 anchors.centerIn: parent
-                                text:           modelData + qsTr(" fps")
+                                text:           (Math.round(modelData * 10) / 10) + qsTr(" fps")
                                 font.family:    Theme.fontData
                                 font.pixelSize: Theme.fontSzMicro
                                 color:          isSelected ? Theme.colorAccent : Theme.colorText2
@@ -916,7 +916,7 @@ Item {
                                     return camData.maxFps > 0 ? camData.maxFps : 0
                                 }
                                 visible: displayFps > 0
-                                text:    Math.round(displayFps) + qsTr(" fps")
+                                text:    (Math.round(displayFps * 10) / 10).toFixed(1) + qsTr(" fps")
                                 font.family:    Theme.fontData
                                 font.pixelSize: Theme.fontSzMicro
                                 color:          Qt.rgba(1, 1, 1, 0.3)

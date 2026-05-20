@@ -160,6 +160,7 @@ void VideoInputFactory::enumerateDevices()
             QString model  = readTLStr("DeviceModelName");
             QString serial = readTLStr("DeviceSerialNumber");
             QString vendor = readTLStr("DeviceVendorName");
+            QString iftype = readTLStr("DeviceType");
             if (id.isEmpty())    id    = "Unknown";
             if (model.isEmpty()) model = "Spinnaker Camera";
 
@@ -169,6 +170,12 @@ void VideoInputFactory::enumerateDevices()
             caps.serialNumber   = serial;
             caps.vendorName     = vendor;
             caps.modelName      = model;
+            if (iftype.contains(QLatin1String("USB3"), Qt::CaseInsensitive))
+                caps.connectionInterface = CameraCapabilities::Interface::USB3;
+            else if (iftype.contains(QLatin1String("USB2"), Qt::CaseInsensitive))
+                caps.connectionInterface = CameraCapabilities::Interface::USB2;
+            else if (iftype.contains(QLatin1String("GigE"), Qt::CaseInsensitive))
+                caps.connectionInterface = CameraCapabilities::Interface::GigE;
             try {
                 cam->Init();
                 Spinnaker::GenApi::INodeMap &nodeMap = cam->GetNodeMap();
