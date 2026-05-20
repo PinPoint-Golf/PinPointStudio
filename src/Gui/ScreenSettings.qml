@@ -87,7 +87,7 @@ Item {
                             id: searchInput
                             width: searchRow.width - searchIcon.width - searchRow.spacing
                             height: Theme.sp(20)
-                            placeholderText:      "Search settings…"
+                            placeholderText:      qsTr("Search settings…")
                             placeholderTextColor: Theme.colorText3
                             font.family:    Theme.fontBody
                             font.pixelSize: Theme.fontSzBody2
@@ -114,25 +114,27 @@ Item {
 
                 // ── Nav items ────────────────────────────────────────────────
                 Repeater {
-                    model: ListModel {
-                        ListElement { navIdx: 0; icon: "⊞"; label: "General";       sectionHead: "General";  hasBadge: false }
-                        ListElement { navIdx: 1; icon: "◐"; label: "Appearance";     sectionHead: "";         hasBadge: false }
-                        ListElement { navIdx: 2; icon: "▭"; label: "Displays";       sectionHead: "";         hasBadge: false }
-                        ListElement { navIdx: 3; icon: "⊙"; label: "Cameras";        sectionHead: "Hardware"; hasBadge: true  }
-                        ListElement { navIdx: 4; icon: "⌖"; label: "IMUs";           sectionHead: "";         hasBadge: true  }
-                        ListElement { navIdx: 5; icon: "◎"; label: "Launch Monitor"; sectionHead: "";         hasBadge: false }
-                        ListElement { navIdx: 6; icon: "▤"; label: "Archiving";      sectionHead: "Data";     hasBadge: false }
-                    }
+                    model: [
+                        { navIdx: 0, icon: "⊞", label: qsTr("General"),       sectionHead: qsTr("General"),  hasBadge: false },
+                        { navIdx: 1, icon: "◐", label: qsTr("Appearance"),     sectionHead: "",               hasBadge: false },
+                        { navIdx: 2, icon: "▭", label: qsTr("Displays"),       sectionHead: "",               hasBadge: false },
+                        { navIdx: 3, icon: "⊙", label: qsTr("Cameras"),        sectionHead: qsTr("Hardware"), hasBadge: true  },
+                        { navIdx: 4, icon: "⌖", label: qsTr("IMUs"),           sectionHead: "",               hasBadge: true  },
+                        { navIdx: 5, icon: "◎", label: qsTr("Launch Monitor"), sectionHead: "",               hasBadge: false },
+                        { navIdx: 6, icon: "▤", label: qsTr("Archiving"),      sectionHead: qsTr("Data"),     hasBadge: false }
+                    ]
 
                     delegate: Column {
+                        required property var modelData
+
                         width:   sidenav.width
                         spacing: 0
 
                         // Section eyebrow
                         Item {
                             width:   parent.width
-                            height:  sectionHead !== "" ? Theme.sp(14) + eyebrow.implicitHeight + Theme.sp(4) : 0
-                            visible: sectionHead !== ""
+                            height:  modelData.sectionHead !== "" ? Theme.sp(14) + eyebrow.implicitHeight + Theme.sp(4) : 0
+                            visible: modelData.sectionHead !== ""
 
                             Text {
                                 id: eyebrow
@@ -140,7 +142,7 @@ Item {
                                 anchors.leftMargin:   Theme.sp(16)
                                 anchors.bottom:       parent.bottom
                                 anchors.bottomMargin: Theme.sp(4)
-                                text:                 sectionHead
+                                text:                 modelData.sectionHead
                                 font.family:          Theme.fontBody
                                 font.pixelSize:       Theme.fontSzMicro
                                 font.weight:          Font.Light
@@ -156,14 +158,14 @@ Item {
                             width:  parent.width
                             height: Theme.sp(38)
 
-                            readonly property bool isActive: root.activeNavIndex === navIdx
+                            readonly property bool isActive: root.activeNavIndex === modelData.navIdx
                             readonly property bool hovered:  navArea.containsMouse
-                            readonly property int  actualBadge: !hasBadge ? -1
-                                                                : (navIdx === 3 ? root.cameraCount
-                                                                : (navIdx === 4 ? root.imuCount : -1))
+                            readonly property int  actualBadge: !modelData.hasBadge ? -1
+                                                                : (modelData.navIdx === 3 ? root.cameraCount
+                                                                : (modelData.navIdx === 4 ? root.imuCount : -1))
 
                             opacity: root.searchQuery.length === 0
-                                     || label.toLowerCase().indexOf(root.searchQuery) >= 0
+                                     || modelData.label.toLowerCase().indexOf(root.searchQuery) >= 0
                                      ? 1.0 : 0.3
                             Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
 
@@ -188,7 +190,7 @@ Item {
                                 anchors.left:           parent.left
                                 anchors.leftMargin:     Theme.sp(16)
                                 anchors.verticalCenter: parent.verticalCenter
-                                text:           icon
+                                text:           modelData.icon
                                 font.family:    Theme.fontData
                                 font.pixelSize: Theme.fontSzBody
                                 color: navItem.isActive ? Theme.colorAccent
@@ -202,7 +204,7 @@ Item {
                                 anchors.right:          navItemBadge.visible ? navItemBadge.left : parent.right
                                 anchors.rightMargin:    Theme.sp(10)
                                 anchors.verticalCenter: parent.verticalCenter
-                                text:           label
+                                text:           modelData.label
                                 font.family:    Theme.fontBody
                                 font.pixelSize: Theme.fontSzBody2
                                 font.weight:    navItem.isActive ? Font.Normal : Font.Light
@@ -230,7 +232,7 @@ Item {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape:  Qt.PointingHandCursor
-                                onClicked:    root.activeNavIndex = navIdx
+                                onClicked:    root.activeNavIndex = modelData.navIdx
                             }
                         }
                     }

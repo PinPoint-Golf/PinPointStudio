@@ -63,16 +63,16 @@ ApplicationWindow {
 
     // Maps StackLayout index → header screen name
     readonly property var screenNames: [
-        "Home",             // 0
-        "Swing",            // 1
-        "Wrist",            // 2
-        "Ground forces",    // 3
-        "Coach",            // 4
-        "Play",             // 5
-        "New athlete",      // 6
-        "Athletes",         // 7
-        "System resources",  // 8
-        "Settings"           // 9
+        qsTr("Home"),             // 0
+        qsTr("Swing"),            // 1
+        qsTr("Wrist"),            // 2
+        qsTr("Ground forces"),    // 3
+        qsTr("Coach"),            // 4
+        qsTr("Play"),             // 5
+        qsTr("New athlete"),      // 6
+        qsTr("Athletes"),         // 7
+        qsTr("System resources"), // 8
+        qsTr("Settings")          // 9
     ]
 
     RowLayout {

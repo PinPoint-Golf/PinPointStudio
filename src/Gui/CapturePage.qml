@@ -31,7 +31,7 @@ Item {
         spacing: Theme.sp(12)
 
         Label {
-            text: "IMU"
+            text: qsTr("IMU")
             color: Theme.colorText
             font.family: Theme.fontBody
             font.pixelSize: Theme.fontSzHeading
@@ -145,7 +145,7 @@ Item {
             }
 
             Label {
-                text: "Rate:"
+                text: qsTr("Rate:")
                 color: Theme.colorText3
                 font.family: Theme.fontBody
                 font.pixelSize: Theme.fontSzBody
@@ -283,7 +283,7 @@ Item {
             }
 
             TabButton {
-                text: "Log"
+                text: qsTr("Log")
                 contentItem: Text {
                     text: parent.text
                     color: imuTabBar.currentIndex === 0 ? Theme.colorText : Theme.colorText3
@@ -300,7 +300,7 @@ Item {
             }
 
             TabButton {
-                text: "Viz"
+                text: qsTr("Viz")
                 enabled: imuController.imuConnected
                 contentItem: Text {
                     text: parent.text
@@ -398,7 +398,7 @@ Item {
                         eulerRotation.x: -90; scale: Qt.vector3d(2, 2, 1)
                         materials: DefaultMaterial {
                             cullMode: Material.NoCulling
-                            diffuseMap: FaceTex { label: "Top"; faceColor: Theme.colorWarn }
+                            diffuseMap: FaceTex { label: qsTr("Top"); faceColor: Theme.colorWarn }
                         }
                     }
                     Model {
@@ -406,7 +406,7 @@ Item {
                         eulerRotation.x: 90; scale: Qt.vector3d(2, 2, 1)
                         materials: DefaultMaterial {
                             cullMode: Material.NoCulling
-                            diffuseMap: FaceTex { label: "Bottom"; faceColor: Theme.colorWarn }
+                            diffuseMap: FaceTex { label: qsTr("Bottom"); faceColor: Theme.colorWarn }
                         }
                     }
                     // Front / Back / Left / Right faces
@@ -415,7 +415,7 @@ Item {
                         scale: Qt.vector3d(2, 2, 1)
                         materials: DefaultMaterial {
                             cullMode: Material.NoCulling
-                            diffuseMap: FaceTex { label: "Front"; faceColor: Theme.colorAccent }
+                            diffuseMap: FaceTex { label: qsTr("Front"); faceColor: Theme.colorAccent }
                         }
                     }
                     Model {
@@ -423,7 +423,7 @@ Item {
                         eulerRotation.y: 180; scale: Qt.vector3d(2, 2, 1)
                         materials: DefaultMaterial {
                             cullMode: Material.NoCulling
-                            diffuseMap: FaceTex { label: "Back"; faceColor: Theme.colorAccent }
+                            diffuseMap: FaceTex { label: qsTr("Back"); faceColor: Theme.colorAccent }
                         }
                     }
                     Model {
@@ -431,7 +431,7 @@ Item {
                         eulerRotation.y: -90; scale: Qt.vector3d(2, 2, 1)
                         materials: DefaultMaterial {
                             cullMode: Material.NoCulling
-                            diffuseMap: FaceTex { label: "Left"; faceColor: Theme.colorAccent; flip: true }
+                            diffuseMap: FaceTex { label: qsTr("Left"); faceColor: Theme.colorAccent; flip: true }
                         }
                     }
                     Model {
@@ -439,7 +439,7 @@ Item {
                         eulerRotation.y: 90; scale: Qt.vector3d(2, 2, 1)
                         materials: DefaultMaterial {
                             cullMode: Material.NoCulling
-                            diffuseMap: FaceTex { label: "Right"; faceColor: Theme.colorAccent; flip: true }
+                            diffuseMap: FaceTex { label: qsTr("Right"); faceColor: Theme.colorAccent; flip: true }
                         }
                     }
                     // Up-direction arrow

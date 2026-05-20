@@ -31,7 +31,7 @@ Item {
         spacing: Theme.sp(12)
 
         Label {
-            text: "Film"
+                    text: qsTr("Film")
             color: Theme.colorText
             font.family: Theme.fontBody
             font.pixelSize: Theme.fontSzHeading

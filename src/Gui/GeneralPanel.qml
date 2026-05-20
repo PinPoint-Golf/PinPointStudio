@@ -26,18 +26,18 @@ Item {
     id: root
 
     readonly property var languageModel: [
-        { label: "English (UK)", tag: "en_GB" },
-        { label: "English (US)", tag: "en_US" },
-        { label: "Français",     tag: "fr_FR" },
-        { label: "Deutsch",      tag: "de_DE" },
-        { label: "日本語",        tag: "ja_JP" },
-        { label: "한국어",        tag: "ko_KR" },
-        { label: "中文（简体）",  tag: "zh_CN" }
+        { label: qsTr("English (UK)"), tag: "en_GB" },
+        { label: qsTr("English (US)"), tag: "en_US" },
+        { label: qsTr("Français"),     tag: "fr_FR" },
+        { label: qsTr("Deutsch"),      tag: "de_DE" },
+        { label: qsTr("日本語"),        tag: "ja_JP" },
+        { label: qsTr("한국어"),        tag: "ko_KR" },
+        { label: qsTr("中文（简体）"),  tag: "zh_CN" }
     ]
 
     FolderDialog {
         id: folderDialog
-        title: "Select athlete library location"
+        title: qsTr("Select athlete library location")
         onAccepted: appSettings.athleteLibraryPath = selectedFolder.toString().replace("file://", "")
     }
 
@@ -56,7 +56,7 @@ Item {
             // ── Page header ───────────────────────────────────────────────────
 
             Text {
-                text: "CONFIGURATION"
+                text: qsTr("CONFIGURATION")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
@@ -65,7 +65,7 @@ Item {
             }
 
             Text {
-                text: "General"
+                text: qsTr("General")
                 font.family:  Theme.fontDisplay
                 font.italic:  Theme.fontDisplayItalic
                 font.pixelSize: Theme.fontSzDisplay
@@ -73,7 +73,7 @@ Item {
             }
 
             Text {
-                text: "Language, athlete data, measurement units, and application behaviour."
+                text: qsTr("Language, athlete data, measurement units, and application behaviour.")
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody2
                 font.weight:    Font.Light
@@ -85,7 +85,7 @@ Item {
             // ── Group 1 — Localisation ────────────────────────────────────────
 
             Text {
-                text: "LOCALISATION"
+                text: qsTr("LOCALISATION")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
@@ -103,13 +103,13 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
-                        text:           "Language"
+                        text:           qsTr("Language")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
                         color:          Theme.colorText
                     }
                     Text {
-                        text:           "Restart required to apply"
+                        text:           qsTr("Restart required to apply")
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3
@@ -219,13 +219,13 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
-                        text:           "Units"
+                        text:           qsTr("Units")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
                         color:          Theme.colorText
                     }
                     Text {
-                        text:           "Speed and distance displayed throughout"
+                        text:           qsTr("Speed and distance displayed throughout")
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3
@@ -245,7 +245,7 @@ Item {
             // ── Group 2 — Athlete data ────────────────────────────────────────
 
             Text {
-                text: "ATHLETE DATA"
+                text: qsTr("ATHLETE DATA")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
@@ -262,13 +262,13 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
-                        text:           "Athlete library location"
+                        text:           qsTr("Athlete library location")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
                         color:          Theme.colorText
                     }
                     Text {
-                        text:           "Root directory for all athlete profiles and session archives"
+                        text:           qsTr("Root directory for all athlete profiles and session archives")
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3
@@ -296,7 +296,7 @@ Item {
                             }
                             text:           appSettings.athleteLibraryPath.length > 0
                                                 ? appSettings.athleteLibraryPath
-                                                : "No location selected"
+                                                : qsTr("No location selected")
                             font.family:    Theme.fontData
                             font.pixelSize: Theme.fontSzMicro
                             color:          appSettings.athleteLibraryPath.length > 0
@@ -307,7 +307,7 @@ Item {
                     }
 
                     PpButton {
-                        label:     "Change…"
+                        label:     qsTr("Change…")
                         onClicked: folderDialog.open()
                     }
                 }
@@ -323,13 +323,13 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
-                        text:           "Auto-save session on completion"
+                        text:           qsTr("Auto-save session on completion")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
                         color:          Theme.colorText
                     }
                     Text {
-                        text:           "Writes to archive immediately when session ends"
+                        text:           qsTr("Writes to archive immediately when session ends")
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3
@@ -370,7 +370,7 @@ Item {
             // ── Group 3 — Session behaviour ───────────────────────────────────
 
             Text {
-                text: "SESSION BEHAVIOUR"
+                text: qsTr("SESSION BEHAVIOUR")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
@@ -388,13 +388,13 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
-                        text:           "Auto-detect swing start"
+                        text:           qsTr("Auto-detect swing start")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
                         color:          Theme.colorText
                     }
                     Text {
-                        text:           "Begins capture when motion exceeds threshold"
+                        text:           qsTr("Begins capture when motion exceeds threshold")
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3
@@ -442,13 +442,13 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
-                        text:           "Swing detection sensitivity"
+                        text:           qsTr("Swing detection sensitivity")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
                         color:          Theme.colorText
                     }
                     Text {
-                        text:           "Lower values trigger on slower movements"
+                        text:           qsTr("Lower values trigger on slower movements")
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3
@@ -456,7 +456,7 @@ Item {
                 }
 
                 PpChipGroup {
-                    options:  ["Low", "Medium", "High"]
+                    options:  [qsTr("Low"), qsTr("Medium"), qsTr("High")]
                     selected: appSettings.swingDetectionSensitivity
                     onSelectionChanged: (value) => appSettings.swingDetectionSensitivity = value
                     Layout.alignment: Qt.AlignVCenter
@@ -473,13 +473,13 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
-                        text:           "AI coaching on session end"
+                        text:           qsTr("AI coaching on session end")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
                         color:          Theme.colorText
                     }
                     Text {
-                        text:           "Automatically generate a Claude observation"
+                        text:           qsTr("Automatically generate a Claude observation")
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3
@@ -520,7 +520,7 @@ Item {
             // ── Group 4 — Application ─────────────────────────────────────────
 
             Text {
-                text: "APPLICATION"
+                text: qsTr("APPLICATION")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
@@ -538,13 +538,13 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
-                        text:           "Check for updates automatically"
+                        text:           qsTr("Check for updates automatically")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
                         color:          Theme.colorText
                     }
                     Text {
-                        text:           "Checks on launch — never downloads without confirmation"
+                        text:           qsTr("Checks on launch — never downloads without confirmation")
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3
@@ -590,13 +590,13 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
-                        text:           "Send anonymous diagnostics"
+                        text:           qsTr("Send anonymous diagnostics")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
                         color:          Theme.colorText
                     }
                     Text {
-                        text:           "Crash reports and performance data only — no session content"
+                        text:           qsTr("Crash reports and performance data only — no session content")
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3
@@ -638,7 +638,7 @@ Item {
                 spacing: Theme.sp(16)
 
                 Text {
-                    text:           "Version"
+                    text:           qsTr("Version")
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody
                     color:          Theme.colorText
@@ -678,7 +678,7 @@ Item {
                         Text {
                             id: badgeText
                             anchors.centerIn: parent
-                            text:           "✓  Up to date"
+                            text:           qsTr("✓  Up to date")
                             font.family:    Theme.fontData
                             font.pixelSize: Theme.fontSzMicro
                             color:          Theme.colorGood

@@ -45,7 +45,7 @@ Item {
 
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
-            text:               "COMING SOON"
+            text:               qsTr("COMING SOON")
             font.family:        Theme.fontData
             font.pixelSize:     Theme.fontSzMicro
             font.letterSpacing: Theme.trackingMicro

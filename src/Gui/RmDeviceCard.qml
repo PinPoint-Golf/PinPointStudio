@@ -163,32 +163,32 @@ Rectangle {
             if (d.kind === "Camera") {
                 var camRows = []
                 if (d.serialNumber)
-                    camRows.push({ key: "Identifier", value: d.serialNumber, cls: "neutral" })
+                    camRows.push({ key: qsTr("Identifier"), value: d.serialNumber, cls: "neutral" })
                 camRows.push(
-                    { key: "Resolution",    value: d.resolutionStr,       cls: "neutral" },
-                    { key: "Frame rate",    value: d.dataRateStr,         cls: d.dataRateHz > 0 ? "good" : "neutral" },
-                    { key: "Events written",value: d.eventsWrittenStr,    cls: "neutral" },
-                    { key: "Bytes written", value: d.bytesWrittenStr,     cls: "neutral" },
-                    { key: "Ring wraps",    value: d.eventsOverwrittenStr,cls: "neutral" },
-                    { key: "Ring size",     value: d.ringCapacityStr,     cls: "neutral" }
+                    { key: qsTr("Resolution"),    value: d.resolutionStr,       cls: "neutral" },
+                    { key: qsTr("Frame rate"),    value: d.dataRateStr,         cls: d.dataRateHz > 0 ? "good" : "neutral" },
+                    { key: qsTr("Events written"),value: d.eventsWrittenStr,    cls: "neutral" },
+                    { key: qsTr("Bytes written"), value: d.bytesWrittenStr,     cls: "neutral" },
+                    { key: qsTr("Ring wraps"),    value: d.eventsOverwrittenStr,cls: "neutral" },
+                    { key: qsTr("Ring size"),     value: d.ringCapacityStr,     cls: "neutral" }
                 )
                 return camRows
             } else {
                 return [
-                    { key: "Data rate",
+                    { key: qsTr("Data rate"),
                       value: d.dataRateStr,
                       cls: d.dataRateHz > 0 ? "good" : "neutral" },
-                    { key: "Battery",
+                    { key: qsTr("Battery"),
                       value: d.batteryStr,
                       cls: d.batteryPct >= 0 && d.batteryPct < 20 ? "warn"
                          : d.batteryPct > 60 ? "good" : "neutral" },
-                    { key: "Events written",
+                    { key: qsTr("Events written"),
                       value: d.eventsWrittenStr,
                       cls: "neutral" },
-                    { key: "Ring wraps",
+                    { key: qsTr("Ring wraps"),
                       value: d.eventsOverwrittenStr,
                       cls: "neutral" },
-                    { key: "Ring size",
+                    { key: qsTr("Ring size"),
                       value: d.ringCapacityStr,
                       cls: "neutral" }
                 ]

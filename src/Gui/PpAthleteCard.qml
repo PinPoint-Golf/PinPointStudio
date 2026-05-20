@@ -107,11 +107,11 @@ Rectangle {
             color:          Theme.colorText3
             text: {
                 const ts = athleteData.lastSessionAt || 0
-                if (ts === 0) return "no sessions yet"
+                if (ts === 0) return qsTr("no sessions yet")
                 const days = Math.floor((Date.now() / 1000 - ts) / 86400)
-                if (days === 0) return "last seen today"
-                if (days === 1) return "last seen yesterday"
-                return "last " + days + " days ago"
+                if (days === 0) return qsTr("last seen today")
+                if (days === 1) return qsTr("last seen yesterday")
+                return qsTr("last %1 days ago").arg(days)
             }
         }
     }

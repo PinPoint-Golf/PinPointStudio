@@ -87,11 +87,12 @@ Rectangle {
             spacing: Theme.sp(12)
 
             Text {
-                text:               root.camerasOptional
-                                        ? "✓ Optional camera"
-                                        : (root.camerasMet ? "✓ " : "⚠ ")
-                                          + root.camerasRequired
-                                          + (root.camerasRequired === 1 ? " camera" : " cameras")
+                text: {
+                    if (root.camerasOptional) return qsTr("✓ Optional camera")
+                    var prefix = root.camerasMet ? "✓ " : "⚠ "
+                    var noun = root.camerasRequired === 1 ? qsTr("camera") : qsTr("cameras")
+                    return prefix + root.camerasRequired + " " + noun
+                }
                 font.family:        Theme.fontData
                 font.pixelSize:     Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingData
@@ -101,9 +102,7 @@ Rectangle {
             }
 
             Text {
-                text:               root.imusMet
-                                        ? "✓ " + root.imusRequired + " IMUs"
-                                        : "⚠ " + root.imusRequired + " IMUs"
+                text:               (root.imusMet ? "✓ " : "⚠ ") + root.imusRequired + " " + qsTr("IMUs")
                 font.family:        Theme.fontData
                 font.pixelSize:     Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingData

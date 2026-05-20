@@ -57,7 +57,7 @@ Item {
 
             // ── Header ───────────────────────────────────────────────────────
             Text {
-                text:               "ATHLETES"
+                text:               qsTr("ATHLETES")
                 font.family:        Theme.fontData
                 font.pixelSize:     Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingMicro
@@ -65,7 +65,7 @@ Item {
                 bottomPadding:      Theme.sp(10)
             }
             Text {
-                text:           "Choose athlete"
+                text:           qsTr("Choose athlete")
                 font.family:    Theme.fontDisplay
                 font.italic:    Theme.fontDisplayItalic
                 font.pixelSize: Theme.fontSzDisplay
@@ -80,7 +80,7 @@ Item {
                 visible: athleteController.athletes.length > 0
 
                 Text {
-                    text:               "RECENT"
+                    text:               qsTr("RECENT")
                     font.family:        Theme.fontData
                     font.pixelSize:     Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro
@@ -120,7 +120,7 @@ Item {
                 width: parent.width
 
                 Text {
-                    text:           "All athletes · " + athleteController.athletes.length + " total"
+                    text:           qsTr("All athletes · %1 total").arg(athleteController.athletes.length)
                     font.family:    Theme.fontData
                     font.pixelSize: Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro
@@ -141,7 +141,7 @@ Item {
                     TextField {
                         id: searchField
                         anchors { fill: parent; leftMargin: Theme.sp(8); rightMargin: Theme.sp(8) }
-                        placeholderText:      "⌕  Search…"
+                        placeholderText:      qsTr("⌕  Search…")
                         placeholderTextColor: Theme.colorText3
                         background:           null
                         font.family:          Theme.fontBody
@@ -174,8 +174,8 @@ Item {
                     anchors.centerIn: parent
                     visible:        root.filteredAthletes.length === 0
                     text:           athleteController.athletes.length === 0
-                                        ? "No athletes yet — add one below"
-                                        : "No athletes match \"" + searchField.text + "\""
+                                        ? qsTr("No athletes yet — add one below")
+                                        : qsTr("No athletes match \"%1\"").arg(searchField.text)
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
                     color:          Theme.colorText3
@@ -209,16 +209,16 @@ Item {
                 spacing: Theme.sp(8)
 
                 PpButton {
-                    label:    "＋ New athlete"
+                    label:    qsTr("＋ New athlete")
                     onClicked: root.newAthleteRequested()
                 }
                 PpButton {
-                    label:    "Import roster"
+                    label:    qsTr("Import roster")
                     onClicked: console.log("Import roster pressed")
                 }
                 Item { Layout.fillWidth: true }
                 PpButton {
-                    label:       "Delete athlete"
+                    label:       qsTr("Delete athlete")
                     destructive: true
                     enabled:     root.selectedUuid !== ""
                     onClicked: {
@@ -228,10 +228,10 @@ Item {
                 }
                 PpButton {
                     label: {
-                        if (root.selectedUuid === "") return "Select athlete ↗"
+                        if (root.selectedUuid === "") return qsTr("Select athlete ↗")
                         const found = athleteController.athletes.find(
                             function(a) { return a.uuid === root.selectedUuid })
-                        return found ? ("Select " + found.name + " ↗") : "Select athlete ↗"
+                        return found ? qsTr("Select %1 ↗").arg(found.name) : qsTr("Select athlete ↗")
                     }
                     primary: true
                     enabled: root.selectedUuid !== ""

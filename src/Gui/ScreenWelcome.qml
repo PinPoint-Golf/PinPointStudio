@@ -40,7 +40,7 @@ Item {
             // Eyebrow
             Text {
                 width:              parent.width
-                text:               "GOLF SWING ANALYSIS"
+                text:               qsTr("GOLF SWING ANALYSIS")
                 font.family:        Theme.fontData
                 font.pixelSize:     Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingMicro
@@ -51,7 +51,7 @@ Item {
             // Title
             Text {
                 width:           parent.width
-                text:            "Welcome to Pinpoint"
+                text:            qsTr("Welcome to Pinpoint")
                 font.family:     Theme.fontDisplay
                 font.italic:     Theme.fontDisplayItalic
                 font.pixelSize:  Theme.fontSzDisplay
@@ -64,7 +64,7 @@ Item {
             // Description
             Text {
                 width:          parent.width
-                text:           "An open-source workshop for understanding the golf swing — cameras, IMUs, and ground forces working together to show you what's actually happening."
+                text:           qsTr("An open-source workshop for understanding the golf swing — cameras, IMUs, and ground forces working together to show you what's actually happening.")
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody
                 font.weight:    Font.Light
@@ -77,7 +77,7 @@ Item {
             // Add-athlete heading
             Text {
                 width:          parent.width
-                text:           "Start by adding an athlete"
+                text:           qsTr("Start by adding an athlete")
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody
                 color:          Theme.colorText
@@ -87,7 +87,7 @@ Item {
             // Sub-heading
             Text {
                 width:          parent.width
-                text:           "Every session belongs to someone. That's usually you."
+                text:           qsTr("Every session belongs to someone. That's usually you.")
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody2
                 font.weight:    Font.Light
@@ -104,7 +104,7 @@ Item {
 
                 Text {
                     anchors.centerIn: parent
-                    text:           "Add your first athlete"
+                    text:           qsTr("Add your first athlete")
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody
                     color:          Theme.dark ? Theme.colorBg : "#FFFFFF"
@@ -129,9 +129,9 @@ Item {
 
                 Repeater {
                     model: [
-                        { icon: "⊞", title: "Connect a camera",  desc: "Basler or GenTL over USB3" },
-                        { icon: "⌖", title: "Pair wrist IMUs",    desc: "Lead and trail hand sensors" },
-                        { icon: "↗", title: "Read the docs",      desc: "Setup guides and hardware" }
+                        { icon: "⊞", title: qsTr("Connect a camera"),  desc: qsTr("Basler or GenTL over USB3") },
+                        { icon: "⌖", title: qsTr("Pair wrist IMUs"),    desc: qsTr("Lead and trail hand sensors") },
+                        { icon: "↗", title: qsTr("Read the docs"),      desc: qsTr("Setup guides and hardware") }
                     ]
 
                     delegate: Rectangle {
@@ -193,7 +193,7 @@ Item {
             Item { width: 1; height: Theme.sp(24) }
             Text {
                 width:              parent.width
-                text:               "Nothing connects to the cloud unless you configure it."
+                text:               qsTr("Nothing connects to the cloud unless you configure it.")
                 font.family:        Theme.fontBody
                 font.pixelSize:     Theme.fontSzBody2
                 font.weight:        Font.Light

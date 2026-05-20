@@ -72,7 +72,7 @@ Item {
 
             // ── Header ───────────────────────────────────────────────────────
             Text {
-                text:               "ATHLETE PROFILE"
+                text:               qsTr("ATHLETE PROFILE")
                 font.family:        Theme.fontData
                 font.pixelSize:     Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingMicro
@@ -80,7 +80,7 @@ Item {
                 bottomPadding:      10
             }
             Text {
-                text:            "New athlete"
+                text:            qsTr("New athlete")
                 font.family:     Theme.fontDisplay
                 font.italic:     Theme.fontDisplayItalic
                 font.pixelSize:  Theme.fontSzDisplay
@@ -89,7 +89,7 @@ Item {
             }
             Text {
                 width:          parent.width
-                text:           "Only the first two fields are required. The rest sharpen analysis and personalise coaching output."
+                text:           qsTr("Only the first two fields are required. The rest sharpen analysis and personalise coaching output.")
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody2
                 font.weight:    Font.Light
@@ -123,7 +123,7 @@ Item {
                         RowLayout {
                             anchors { fill: parent; leftMargin: Theme.sp(14); rightMargin: Theme.sp(14) }
                             Text {
-                                text:           "Required"
+                                text:           qsTr("Required")
                                 font.family:    Theme.fontData
                                 font.pixelSize: Theme.fontSzMicro
                                 font.letterSpacing: Theme.trackingMicro
@@ -132,7 +132,7 @@ Item {
                             }
                             Item { Layout.fillWidth: true }
                             Text {
-                                text:           "Name and handedness"
+                                text:           qsTr("Name and handedness")
                                 font.family:    Theme.fontData
                                 font.pixelSize: Theme.fontSzMicro
                                 color:          Theme.colorText3
@@ -165,7 +165,7 @@ Item {
                                 width:   parent.width
                                 spacing: Theme.sp(4)
                                 Text {
-                                    text:               "NAME"
+                                    text:               qsTr("NAME")
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -174,14 +174,14 @@ Item {
                                 PpTextField {
                                     id: nameField
                                     width:           parent.width
-                                    placeholderText: "e.g. Mark Carter"
+                                    placeholderText: qsTr("e.g. Mark Carter")
                                     hasError:        root.nameError
                                     onTextChanged:   if (root.nameError && text.trim() !== "") root.nameError = false
                                 }
                                 Text {
                                     visible:        root.nameError
                                     height:         root.nameError ? implicitHeight : 0
-                                    text:           "Name is required"
+                                    text:           qsTr("Name is required")
                                     font.family:    Theme.fontData
                                     font.pixelSize: Theme.fontSzMicro
                                     color:          Theme.colorWarn
@@ -193,7 +193,7 @@ Item {
                                 width:   parent.width
                                 spacing: Theme.sp(4)
                                 Text {
-                                    text:               "HANDEDNESS"
+                                    text:               qsTr("HANDEDNESS")
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -236,7 +236,7 @@ Item {
                         RowLayout {
                             anchors { fill: parent; leftMargin: Theme.sp(14); rightMargin: Theme.sp(14) }
                             Text {
-                                text:           "Recommended"
+                                text:           qsTr("Recommended")
                                 font.family:    Theme.fontData
                                 font.pixelSize: Theme.fontSzMicro
                                 font.letterSpacing: Theme.trackingMicro
@@ -245,7 +245,7 @@ Item {
                             }
                             Item { Layout.fillWidth: true }
                             Text {
-                                text:           "Improves analysis accuracy"
+                                text:           qsTr("Improves analysis accuracy")
                                 font.family:    Theme.fontData
                                 font.pixelSize: Theme.fontSzMicro
                                 color:          Theme.colorText3
@@ -276,7 +276,7 @@ Item {
                                 width:   parent.width
                                 spacing: Theme.sp(4)
                                 Text {
-                                    text:               "HEIGHT"
+                                    text:               qsTr("HEIGHT")
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -314,7 +314,7 @@ Item {
                                 width:   parent.width
                                 spacing: Theme.sp(4)
                                 Text {
-                                    text:               "WEIGHT"
+                                    text:               qsTr("WEIGHT")
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -352,7 +352,7 @@ Item {
                                 width:   parent.width
                                 spacing: Theme.sp(4)
                                 Text {
-                                    text:               "HANDICAP"
+                                    text:               qsTr("HANDICAP")
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -371,7 +371,7 @@ Item {
                                 width:   parent.width
                                 spacing: Theme.sp(4)
                                 Text {
-                                    text:               "PRIMARY CLUB"
+                                    text:               qsTr("PRIMARY CLUB")
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -414,7 +414,7 @@ Item {
                         RowLayout {
                             anchors { fill: parent; leftMargin: Theme.sp(14); rightMargin: Theme.sp(14) }
                             Text {
-                                text:           "Optional"
+                                text:           qsTr("Optional")
                                 font.family:    Theme.fontData
                                 font.pixelSize: Theme.fontSzMicro
                                 font.letterSpacing: Theme.trackingMicro
@@ -423,7 +423,7 @@ Item {
                             }
                             Item { Layout.fillWidth: true }
                             Text {
-                                text:           "Personalises coaching output"
+                                text:           qsTr("Personalises coaching output")
                                 font.family:    Theme.fontData
                                 font.pixelSize: Theme.fontSzMicro
                                 color:          Theme.colorText3
@@ -454,7 +454,7 @@ Item {
                                 width:   parent.width
                                 spacing: Theme.sp(4)
                                 Text {
-                                    text:               "DRIVER SPEED TARGET"
+                                    text:               qsTr("DRIVER SPEED TARGET")
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -493,7 +493,7 @@ Item {
                                 width:   parent.width
                                 spacing: Theme.sp(4)
                                 Text {
-                                    text:               "NOTES / TAGS"
+                                    text:               qsTr("NOTES / TAGS")
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -525,7 +525,7 @@ Item {
                         Text {
                             id: noteText
                             anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.sp(18); topMargin: Theme.sp(10) }
-                            text:           "Pinpoint builds baselines automatically from early sessions. You don't need to know your driver speed to get started."
+                            text:           qsTr("Pinpoint builds baselines automatically from early sessions. You don't need to know your driver speed to get started.")
                             font.family:    Theme.fontData
                             font.pixelSize: Theme.fontSzDataSm
                             font.weight:    Font.Light
@@ -545,11 +545,11 @@ Item {
                 bottomPadding: 32
 
                 PpButton {
-                    label: "Cancel"
+                    label: qsTr("Cancel")
                     onClicked: root.cancelled()
                 }
                 PpButton {
-                    label: "Save"
+                    label: qsTr("Save")
                     onClicked: {
                         if (!validate()) return
                         const uuid = doSave()
@@ -557,7 +557,7 @@ Item {
                     }
                 }
                 PpButton {
-                    label: "Save and start ↗"
+                    label: qsTr("Save and start ↗")
                     primary: true
                     onClicked: {
                         if (!validate()) return

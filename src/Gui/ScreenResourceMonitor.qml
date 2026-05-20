@@ -35,7 +35,7 @@ Item {
         onTriggered: {
             resourceMonitor.refresh()
             var age = Math.round(resourceMonitor.snapshotAgeMs / 1000)
-            snapshotAgeText = age <= 1 ? "refreshed just now" : "refreshed " + age + " s ago"
+            snapshotAgeText = age <= 1 ? qsTr("refreshed just now") : qsTr("refreshed %1 s ago").arg(age)
         }
     }
 
@@ -54,7 +54,7 @@ Item {
 
             // Section label
             Text {
-                text: "DEVICES"
+                text: qsTr("DEVICES")
                 font.family: Theme.fontBody
                 font.pixelSize: Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingMicro
@@ -73,7 +73,7 @@ Item {
 
             // Age text at bottom of devices column
             Text {
-                text: root.snapshotAgeText
+                text: root.snapshotAgeText  // set from JS; individual strings wrapped at assignment
                 font.family: Theme.fontData
                 font.pixelSize: Theme.sp(9)
                 color: Theme.colorText3
@@ -108,7 +108,7 @@ Item {
 
             // Section label
             Text {
-                text: "EVENT BUFFER"
+                text: qsTr("EVENT BUFFER")
                 font.family: Theme.fontBody
                 font.pixelSize: Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingMicro
@@ -176,7 +176,7 @@ Item {
                         Column {
                             spacing: Theme.sp(2)
                             Text {
-                                text: "EVENTS"
+                                text: qsTr("EVENTS")
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
@@ -190,7 +190,7 @@ Item {
                                 color: Theme.colorText
                             }
                             Text {
-                                text: "written"
+                                text: qsTr("written")
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.sp(9)
                                 color: Theme.colorText3
@@ -201,7 +201,7 @@ Item {
                         Column {
                             spacing: Theme.sp(2)
                             Text {
-                                text: "TIMELINE"
+                                text: qsTr("TIMELINE")
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
@@ -215,7 +215,7 @@ Item {
                                 color: Theme.colorText
                             }
                             Text {
-                                text: "entries"
+                                text: qsTr("entries")
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.sp(9)
                                 color: Theme.colorText3
@@ -226,7 +226,7 @@ Item {
                         Column {
                             spacing: Theme.sp(2)
                             Text {
-                                text: "SOURCES"
+                                text: qsTr("SOURCES")
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
@@ -240,7 +240,7 @@ Item {
                                 color: Theme.colorText
                             }
                             Text {
-                                text: "active"
+                                text: qsTr("active")
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.sp(9)
                                 color: Theme.colorText3
@@ -257,7 +257,7 @@ Item {
 
                 // Section label
                 Text {
-                    text: "SOURCES"
+                    text: qsTr("SOURCES")
                     font.family: Theme.fontBody
                     font.pixelSize: Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro
@@ -295,7 +295,7 @@ Item {
                             height: parent.height
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: "SOURCE"
+                                text: qsTr("SOURCE")
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
@@ -307,7 +307,7 @@ Item {
                             width: Theme.sp(80); height: parent.height
                             Text {
                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                text: "WRITTEN"
+                                text: qsTr("WRITTEN")
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
@@ -319,7 +319,7 @@ Item {
                             width: Theme.sp(72); height: parent.height
                             Text {
                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                text: "WRAPS"
+                                text: qsTr("WRAPS")
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
@@ -331,7 +331,7 @@ Item {
                             width: Theme.sp(80); height: parent.height
                             Text {
                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                text: "BYTES"
+                                text: qsTr("BYTES")
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
@@ -343,7 +343,7 @@ Item {
                             width: Theme.sp(90); height: parent.height
                             Text {
                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                text: "MAX INTER"
+                                text: qsTr("MAX INTER")
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
@@ -355,7 +355,7 @@ Item {
                             width: Theme.sp(60); height: parent.height
                             Text {
                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                text: "FILL"
+                                text: qsTr("FILL")
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
@@ -385,7 +385,7 @@ Item {
 
                     Text {
                         anchors.centerIn: parent
-                        text: "No sources registered"
+                        text: qsTr("No sources registered")
                         font.family: Theme.fontBody
                         font.pixelSize: Theme.fontSzBody2
                         color: Theme.colorText3
@@ -444,7 +444,7 @@ Item {
 
                     Text {
                         anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                        text: "MESSAGE LOG"
+                        text: qsTr("MESSAGE LOG")
                         font.family: Theme.fontBody
                         font.pixelSize: Theme.fontSzMicro
                         font.letterSpacing: Theme.trackingMicro
@@ -455,7 +455,7 @@ Item {
                     Text {
                         visible: resourceMonitor.messageLog.length > 0
                         anchors { left: parent.left; leftMargin: Theme.sp(100); verticalCenter: parent.verticalCenter }
-                        text: msgLogColumn.filteredLog.length + " entries"
+                        text: qsTr("%1 entries").arg(msgLogColumn.filteredLog.length)
                         font.family: Theme.fontData
                         font.pixelSize: Theme.sp(9)
                         color: Theme.colorText3
@@ -476,7 +476,7 @@ Item {
                         Text {
                             id: clearLbl
                             anchors.centerIn: parent
-                            text: "Clear"
+                            text: qsTr("Clear")
                             font.family: Theme.fontBody
                             font.pixelSize: Theme.sp(10)
                             color: Theme.colorText3
@@ -501,7 +501,7 @@ Item {
                         Text {
                             anchors { left: parent.left; leftMargin: Theme.sp(7); verticalCenter: parent.verticalCenter }
                             visible: filterInput.text.length === 0
-                            text: "Filter…"
+                            text: qsTr("Filter…")
                             font.family: Theme.fontBody
                             font.pixelSize: Theme.sp(10)
                             color: Theme.colorText3
@@ -599,7 +599,7 @@ Item {
                             width: Theme.sp(62); height: parent.height
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: "TIME"
+                                text: qsTr("TIME")
                                 font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                             }
@@ -609,7 +609,7 @@ Item {
                             width: Theme.sp(52); height: parent.height
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: "SEVERITY"
+                                text: qsTr("SEVERITY")
                                 font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                             }
@@ -617,7 +617,7 @@ Item {
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "MESSAGE"
+                            text: qsTr("MESSAGE")
                             font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                             font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                         }
@@ -636,7 +636,7 @@ Item {
 
                     Text {
                         anchors.centerIn: parent
-                        text: "No messages logged"
+                        text: qsTr("No messages logged")
                         font.family: Theme.fontBody
                         font.pixelSize: Theme.fontSzBody2
                         color: Theme.colorText3

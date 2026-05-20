@@ -34,7 +34,7 @@ Item {
             spacing: Theme.sp(12)
 
             Label {
-                text: "Camera"
+                text: qsTr("Camera")
                 color: Theme.colorText
                 font.family: Theme.fontBody
                 font.pixelSize: Theme.fontSzHeading
@@ -206,7 +206,7 @@ Item {
                 delegate: Label {
                     required property var modelData
                     visible: modelData.overwritten > Math.max(0, modelData.eventsWritten - modelData.slotCount)
-                    text: "⚠ " + modelData.name + " overrun"
+                    text: qsTr("⚠ %1 overrun").arg(modelData.name)
                     color: Theme.colorWarn
                     font.family: Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2

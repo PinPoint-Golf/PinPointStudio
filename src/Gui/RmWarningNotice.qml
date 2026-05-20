@@ -50,7 +50,7 @@ Rectangle {
             width: parent.width - Theme.sp(24)
 
             Text {
-                text: "WARNING"
+                text: qsTr("WARNING")
                 font.family: Theme.fontData
                 font.pixelSize: Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingMicro

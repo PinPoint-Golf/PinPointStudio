@@ -114,7 +114,7 @@ Item {
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
             iconText:  "⌂"
-            labelText: "Home"
+            labelText: qsTr("Home")
             isActive:  root.currentPageIndex === 0
             onClicked: root.pageRequested(0)
         }
@@ -124,7 +124,7 @@ Item {
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
             iconText:  "◑"
-            labelText: "Swing"
+            labelText: qsTr("Swing")
             isActive:  root.currentPageIndex === 1
             onClicked: root.pageRequested(1)
         }
@@ -134,7 +134,7 @@ Item {
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
             iconText:  "⌖"
-            labelText: "Wrist"
+            labelText: qsTr("Wrist")
             isActive:  root.currentPageIndex === 2
             onClicked: root.pageRequested(2)
         }
@@ -144,7 +144,7 @@ Item {
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
             iconText:  "⇅"
-            labelText: "GRF"
+            labelText: qsTr("GRF")
             isActive:  root.currentPageIndex === 3
             onClicked: root.pageRequested(3)
         }
@@ -154,7 +154,7 @@ Item {
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
             iconText:  "✦"
-            labelText: "Coach"
+            labelText: qsTr("Coach")
             isActive:  root.currentPageIndex === 4
             onClicked: root.pageRequested(4)
         }
@@ -173,7 +173,7 @@ Item {
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
             iconText:  "▶"
-            labelText: "Play"
+            labelText: qsTr("Play")
             isActive:  root.currentPageIndex === 5
             onClicked: root.pageRequested(5)
         }
@@ -183,7 +183,7 @@ Item {
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
             iconText:  "◈"
-            labelText: "System"
+            labelText: qsTr("System")
             isActive:  root.currentPageIndex === 8
             onClicked: root.systemClicked()
         }
@@ -193,7 +193,7 @@ Item {
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
             iconText:  "⚙"
-            labelText: "Settings"
+            labelText: qsTr("Settings")
             isActive:  root.currentPageIndex === 9
             onClicked: root.pageRequested(9)
         }

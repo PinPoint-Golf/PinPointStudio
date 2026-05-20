@@ -52,7 +52,7 @@ Item {
             // ── Page header ───────────────────────────────────────────────────
 
             Text {
-                text: "CONFIGURATION"
+                text: qsTr("CONFIGURATION")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
@@ -61,7 +61,7 @@ Item {
             }
 
             Text {
-                text: "Appearance"
+                text: qsTr("Appearance")
                 font.family:  Theme.fontDisplay
                 font.italic:  Theme.fontDisplayItalic
                 font.pixelSize: Theme.fontSzDisplay
@@ -69,7 +69,7 @@ Item {
             }
 
             Text {
-                text: "Aesthetic, colour mode, type scale and interface behaviour."
+                text: qsTr("Aesthetic, colour mode, type scale and interface behaviour.")
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody2
                 font.weight:    Font.Light
@@ -81,7 +81,7 @@ Item {
             // ── Group 1 — Aesthetic & colour mode ────────────────────────────
 
             Text {
-                text: "AESTHETIC & COLOUR MODE"
+                text: qsTr("AESTHETIC & COLOUR MODE")
                 font.family:        Theme.fontBody
                 font.pixelSize:     Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingMicro
@@ -260,7 +260,7 @@ Item {
             // ── Group 2 — Type scale ──────────────────────────────────────────
 
             Text {
-                text: "TYPE SCALE"
+                text: qsTr("TYPE SCALE")
                 font.family:        Theme.fontBody
                 font.pixelSize:     Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingMicro
@@ -278,13 +278,13 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
-                        text:           "Text size"
+                        text:           qsTr("Text size")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
                         color:          Theme.colorText
                     }
                     Text {
-                        text:           "Scales all fonts and spacing proportionally · " + Math.round(Theme.fontScale * 100) + "%"
+                        text:           qsTr("Scales all fonts and spacing proportionally · %1%").arg(Math.round(Theme.fontScale * 100))
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3
@@ -500,7 +500,7 @@ Item {
             // ── Group 3 — Interface ───────────────────────────────────────────
 
             Text {
-                text: "INTERFACE"
+                text: qsTr("INTERFACE")
                 font.family:        Theme.fontBody
                 font.pixelSize:     Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingMicro
@@ -518,13 +518,13 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
-                        text:           "Density"
+                        text:           qsTr("Density")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
                         color:          Theme.colorText
                     }
                     Text {
-                        text:           "Compact reduces rail and panel padding"
+                        text:           qsTr("Compact reduces rail and panel padding")
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3
@@ -549,13 +549,13 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
-                        text:           "Reduce motion"
+                        text:           qsTr("Reduce motion")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
                         color:          Theme.colorText
                     }
                     Text {
-                        text:           "Disables all transitions and animations"
+                        text:           qsTr("Disables all transitions and animations")
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3
@@ -600,13 +600,13 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
-                        text:           "Overlay opacity"
+                        text:           qsTr("Overlay opacity")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
                         color:          Theme.colorText
                     }
                     Text {
-                        text:           "Skeleton and angle guide overlays · " + Math.round(Theme.overlayOpacity * 100) + "%"
+                        text:           qsTr("Skeleton and angle guide overlays · %1%").arg(Math.round(Theme.overlayOpacity * 100))
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3

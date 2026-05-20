@@ -242,7 +242,7 @@ Item {
                     anchors.top: parent.top
                     anchors.left: parent.left
                     anchors.margins: Theme.sp(3)
-                    text: "Hitting Area"
+                    text: qsTr("Hitting Area")
                     color: Theme.colorWarn
                     font.family: Theme.fontData
                     font.pixelSize: Theme.fontSzMicro
@@ -314,7 +314,7 @@ Item {
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "REPLAY"
+                        text: qsTr("REPLAY")
                         color: Theme.colorWarn
                         font.family: Theme.fontData
                         font.pixelSize: Theme.fontSzBody
@@ -405,9 +405,9 @@ Item {
 
                 Repeater {
                     model: [
-                        { value: 1, label: "DTL",     leftR: true,  rightR: false },
-                        { value: 2, label: "Face On",  leftR: false, rightR: false },
-                        { value: 3, label: "Other",    leftR: false, rightR: true  }
+                        { value: 1, label: qsTr("DTL"),     leftR: true,  rightR: false },
+                        { value: 2, label: qsTr("Face On"),  leftR: false, rightR: false },
+                        { value: 3, label: qsTr("Other"),    leftR: false, rightR: true  }
                     ]
                     delegate: Rectangle {
                         readonly property bool active: root.controller.perspective === modelData.value

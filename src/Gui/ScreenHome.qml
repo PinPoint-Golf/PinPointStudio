@@ -80,7 +80,7 @@ Item {
                 spacing: 0
 
                 Text {
-                    text:               "GOLF SWING ANALYSIS"
+                    text:               qsTr("GOLF SWING ANALYSIS")
                     font.family:        Theme.fontData
                     font.pixelSize:     Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro
@@ -90,7 +90,7 @@ Item {
 
                 Text {
                     width:          parent.width
-                    text:           "Welcome to Pinpoint"
+                    text:           qsTr("Welcome to Pinpoint")
                     font.family:    Theme.fontDisplay
                     font.italic:    Theme.fontDisplayItalic
                     font.pixelSize: Theme.fontSzDisplay
@@ -102,7 +102,7 @@ Item {
 
                 Text {
                     width:          parent.width
-                    text:           "An open-source workshop for understanding the golf swing — cameras, IMUs, and ground forces working together to show you what's actually happening."
+                    text:           qsTr("An open-source workshop for understanding the golf swing — cameras, IMUs, and ground forces working together to show you what's actually happening.")
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody
                     font.weight:    Font.Light
@@ -114,7 +114,7 @@ Item {
 
                 Text {
                     width:          parent.width
-                    text:           "Start by adding an athlete"
+                    text:           qsTr("Start by adding an athlete")
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody
                     color:          Theme.colorText
@@ -123,7 +123,7 @@ Item {
 
                 Text {
                     width:          parent.width
-                    text:           "Every session belongs to someone. That's usually you."
+                    text:           qsTr("Every session belongs to someone. That's usually you.")
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
                     font.weight:    Font.Light
@@ -139,7 +139,7 @@ Item {
 
                     Text {
                         anchors.centerIn: parent
-                        text:           "Add your first athlete"
+                        text:           qsTr("Add your first athlete")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
                         color:          Theme.dark ? Theme.colorBg : "#FFFFFF"
@@ -159,9 +159,9 @@ Item {
 
                     Repeater {
                         model: [
-                            { icon: "⊞", title: "Connect a camera", desc: "Basler or GenTL over USB3" },
-                            { icon: "⌖", title: "Pair wrist IMUs",   desc: "Lead and trail hand sensors" },
-                            { icon: "↗", title: "Read the docs",     desc: "Setup guides and hardware" }
+                            { icon: "⊞", title: qsTr("Connect a camera"), desc: qsTr("Basler or GenTL over USB3") },
+                            { icon: "⌖", title: qsTr("Pair wrist IMUs"),   desc: qsTr("Lead and trail hand sensors") },
+                            { icon: "↗", title: qsTr("Read the docs"),     desc: qsTr("Setup guides and hardware") }
                         ]
 
                         delegate: Rectangle {
@@ -219,7 +219,7 @@ Item {
 
                 Text {
                     width:               parent.width
-                    text:                "Nothing connects to the cloud unless you configure it."
+                    text:                qsTr("Nothing connects to the cloud unless you configure it.")
                     font.family:         Theme.fontBody
                     font.pixelSize:      Theme.fontSzBody2
                     font.weight:         Font.Light
@@ -292,7 +292,7 @@ Item {
                     id: switchLink
                     anchors.right:          parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    text:           "Switch →"
+                    text:           qsTr("Switch →")
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
                     color:          Theme.colorAccent
@@ -315,7 +315,7 @@ Item {
                 Item { width: 1; height: Theme.sp(40) }
 
                 Text {
-                    text:               "NEW SESSION"
+                    text:               qsTr("NEW SESSION")
                     font.family:        Theme.fontData
                     font.pixelSize:     Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro
@@ -331,10 +331,10 @@ Item {
 
                     Repeater {
                         model: [
-                            { icon: "◑", name: "Swing analysis", desc: "Capture golf shots with IMUs on your spine and review your sequencing and key swing metrics to assess your swing", reqCameras: 2, reqImus: 3, idx: 0 },
-                            { icon: "⌖", name: "Wrist motion",   desc: "Hit shots with IMUs on your lead wrist and hand to assess how your wrist angles impact club delivery",              reqCameras: 0, optCameras: true, reqImus: 2, idx: 1 },
-                            { icon: "⇅", name: "Ground forces",  desc: "Hit shots with IMUs on your hips to assess how you use the ground to generate power",                              reqCameras: 2, reqImus: 3, idx: 2 },
-                            { icon: "✦", name: "AI coach",       desc: "Work with an AI coach to hit shots and get feedback on your swing and how to improve",                             reqCameras: 2, reqImus: 3, idx: 3 }
+                            { icon: "◑", name: qsTr("Swing analysis"), desc: qsTr("Capture golf shots with IMUs on your spine and review your sequencing and key swing metrics to assess your swing"), reqCameras: 2, reqImus: 3, idx: 0 },
+                            { icon: "⌖", name: qsTr("Wrist motion"),   desc: qsTr("Hit shots with IMUs on your lead wrist and hand to assess how your wrist angles impact club delivery"),              reqCameras: 0, optCameras: true, reqImus: 2, idx: 1 },
+                            { icon: "⇅", name: qsTr("Ground forces"),  desc: qsTr("Hit shots with IMUs on your hips to assess how you use the ground to generate power"),                              reqCameras: 2, reqImus: 3, idx: 2 },
+                            { icon: "✦", name: qsTr("AI coach"),       desc: qsTr("Work with an AI coach to hit shots and get feedback on your swing and how to improve"),                             reqCameras: 2, reqImus: 3, idx: 3 }
                         ]
 
                         delegate: HmTypeCard {
@@ -363,7 +363,7 @@ Item {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         width:              Theme.sp(36)
-                        text:               "CLUB"
+                        text:               qsTr("CLUB")
                         font.family:        Theme.fontData
                         font.pixelSize:     Theme.fontSzMicro
                         font.letterSpacing: Theme.trackingMicro
@@ -387,7 +387,7 @@ Item {
 
                     Text {
                         anchors.centerIn: parent
-                        text:           "▶  Start session"
+                        text:           qsTr("▶  Start session")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.sp(14)
                         font.weight:    Font.Normal
@@ -408,8 +408,8 @@ Item {
                 Text {
                     width:               parent.width
                     text:                cameraManager.anySelected
-                                             ? "Session starts when you hit the first ball"
-                                             : "No camera connected — check device connections"
+                                             ? qsTr("Session starts when you hit the first ball")
+                                             : qsTr("No camera connected — check device connections")
                     font.family:         Theme.fontData
                     font.pixelSize:      Theme.fontSzMicro
                     color:               Theme.colorText3
@@ -426,7 +426,7 @@ Item {
 
                 Text {
                     anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                    text:               "DEVICES"
+                    text:               qsTr("DEVICES")
                     font.family:        Theme.fontData
                     font.pixelSize:     Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro
@@ -435,7 +435,7 @@ Item {
 
                 Text {
                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                    text:           "System resources →"
+                    text:           qsTr("System resources →")
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
                     color:          Theme.colorAccent
@@ -457,7 +457,7 @@ Item {
 
                 Text {
                     anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                    text:           "No devices detected. Connect a camera or IMU to get started."
+                    text:           qsTr("No devices detected. Connect a camera or IMU to get started.")
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
                     font.weight:    Font.Light
@@ -520,8 +520,8 @@ Item {
                             text: {
                                 var d = parent.parent.d
                                 if (d.kind === "Camera")
-                                    return d.status === "streaming" ? d.dataRateHz.toFixed(0) + " fps" : "idle"
-                                return d.status === "connected" ? d.dataRateHz.toFixed(0) + " Hz" : "disconnected"
+                                    return d.status === "streaming" ? d.dataRateHz.toFixed(0) + " fps" : qsTr("idle")
+                                return d.status === "connected" ? d.dataRateHz.toFixed(0) + " Hz" : qsTr("disconnected")
                             }
                             font.family:         Theme.fontData
                             font.pixelSize:      Theme.fontSzMicro

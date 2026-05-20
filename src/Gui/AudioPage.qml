@@ -53,7 +53,7 @@ Item {
                 spacing: Theme.sp(12)
 
                 Label {
-                    text: "Live Transcript"
+                    text: qsTr("Live Transcript")
                     color: Theme.colorText
                     font.family: Theme.fontBody
                     font.pixelSize: Theme.fontSzHeading
@@ -231,7 +231,7 @@ Item {
                 spacing: Theme.sp(12)
 
                 Label {
-                    text: "Text to Speech"
+                    text: qsTr("Text to Speech")
                     color: Theme.colorText
                     font.family: Theme.fontBody
                     font.pixelSize: Theme.fontSzHeading

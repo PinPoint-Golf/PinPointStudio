@@ -36,7 +36,7 @@ Rectangle {
     Text {
         id: chartTitle
         anchors { top: parent.top; left: parent.left; right: parent.right; margins: Theme.sp(14) }
-        text: "TIMELINE INDEX — ENTRIES PER 2 S WINDOW"
+        text: qsTr("TIMELINE INDEX — ENTRIES PER 2 S WINDOW")
         font.family: Theme.fontData
         font.pixelSize: Theme.fontSzMicro
         font.letterSpacing: Theme.trackingMicro
@@ -59,7 +59,7 @@ Rectangle {
 
         Text {
             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-            text: "now"
+            text: qsTr("now")
             font.family: Theme.fontData
             font.pixelSize: Theme.sp(9)
             color: Theme.colorText3

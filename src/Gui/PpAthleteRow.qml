@@ -132,11 +132,11 @@ Item {
             color:          Theme.colorText3
             text: {
                 const ts = athleteData.lastSessionAt || 0
-                if (ts === 0) return "never"
+                if (ts === 0) return qsTr("never")
                 const days = Math.floor((Date.now() / 1000 - ts) / 86400)
-                if (days === 0) return "today"
-                if (days === 1) return "yesterday"
-                return days + "d ago"
+                if (days === 0) return qsTr("today")
+                if (days === 1) return qsTr("yesterday")
+                return qsTr("%1d ago").arg(days)
             }
         }
 
