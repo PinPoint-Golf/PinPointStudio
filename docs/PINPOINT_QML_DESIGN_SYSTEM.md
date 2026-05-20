@@ -4,9 +4,10 @@ This document instructs Claude Code on how to implement the Pinpoint visual desi
 system in QML/Qt. Read this file before writing any QML. Every UI component must
 conform to the token system, typography rules, and component patterns defined here.
 
-Three aesthetic directions have been designed and prototyped (Instrument, Editorial,
-Studio). The active aesthetic is configured via a single property on the Theme singleton.
-All QML must use Theme tokens — never hardcode colours, font sizes, or spacing values.
+Four aesthetic directions have been designed and prototyped (Instrument, Editorial,
+Studio, Vector). The active aesthetic is configured via a single property on the Theme
+singleton. All QML must use Theme tokens — never hardcode colours, font sizes, or
+spacing values.
 
 ---
 
@@ -64,7 +65,7 @@ import QtQuick
 QtObject {
     id: root
 
-    // Active aesthetic: "instrument" | "editorial" | "studio"
+    // Active aesthetic: "instrument" | "editorial" | "studio" | "vector"
     // Set from C++ via QQmlContext or from Settings at startup.
     property string aesthetic: "studio"
 
@@ -75,6 +76,7 @@ QtObject {
     readonly property var _t: {
         if (aesthetic === "instrument") return dark ? InstrumentDark : InstrumentLight
         if (aesthetic === "editorial")  return dark ? EditorialDark  : EditorialLight
+        if (aesthetic === "vector")     return dark ? VectorDark     : VectorLight
         return dark ? StudioDark : StudioLight
     }
 
@@ -100,11 +102,14 @@ QtObject {
     // ── Typography tokens ────────────────────────────────────────────────────
     // fontBody: primary UI font (menus, labels, body copy)
     // fontData: monospaced font for all numeric values, timestamps, status
-    // fontDisplay: serif display font for headings/session titles
-    //              (Instrument and Editorial only; Studio uses fontBody at larger size)
+    // fontDisplay: display font for headings/session titles
+    //              Instrument: DM Serif Display (italic)
+    //              Editorial:  Playfair Display (italic)
+    //              Vector:     Space Mono (upright — no italic variant)
+    //              Studio:     Geist (same as fontBody, no separate display font)
     readonly property string fontBody:    _t.fontBody
     readonly property string fontData:    _t.fontData
-    readonly property string fontDisplay: _t.fontDisplay   // may equal fontBody in Studio
+    readonly property string fontDisplay: _t.fontDisplay   // may equal fontBody/fontData
 
     // ── Spacing & geometry tokens ────────────────────────────────────────────
     readonly property int railWidth:     _t.railWidth      // px
@@ -227,6 +232,37 @@ QtObject {
 // warn "#FF6B35"  warnLight Qt.rgba(255/255,107/255,53/255,0.08)
 ```
 
+### 3.4 Vector
+
+F1 telemetry-inspired. Pure near-black grounds, all-monospace typography (Space Grotesk
+body, Space Mono data/display), zero border radius, orange accent.
+
+```qml
+// Light:
+// bg "#F0F1F4"  bg2 "#E4E6EB"  bg3 "#D8DBE3"  surface "#FAFBFC"
+// border Qt.rgba(0,0,0,0.07)  borderMid Qt.rgba(0,0,0,0.11)  borderStrong Qt.rgba(0,0,0,0.18)
+// text "#0A0B10"  text2 "#4A4E5E"  text3 "#9098B0"
+// accent "#CC3300"  accentLight Qt.rgba(204/255,51/255,0,0.06)
+// accentMid Qt.rgba(204/255,51/255,0,0.14)
+// good "#006B45"  goodLight Qt.rgba(0,107/255,69/255,0.06)
+// warn "#7A3800"  warnLight Qt.rgba(122/255,56/255,0,0.06)
+// error "#8B0014"  errorLight Qt.rgba(139/255,0,20/255,0.06)
+// fontBody "Space Grotesk"  fontData "Space Mono"  fontDisplay "Space Mono"
+// railWidth 52  radius 0  radiusLg 0
+
+// Dark variant:
+// bg "#0A0B0D"  bg2 "#0F1114"  bg3 "#151719"  surface "#13151A"
+// border Qt.rgba(255/255,255/255,255/255,0.059)
+// borderMid Qt.rgba(255/255,255/255,255/255,0.102)
+// borderStrong Qt.rgba(255/255,255/255,255/255,0.18)
+// text "#E8EAF0"  text2 "#8B90A0"  text3 "#484E5E"
+// accent "#FF5500"  accentLight Qt.rgba(255/255,85/255,0,0.07)
+// accentMid Qt.rgba(255/255,85/255,0,0.14)
+// good "#2EE8A0"  goodLight Qt.rgba(46/255,232/255,160/255,0.07)
+// warn "#FF8C35"  warnLight Qt.rgba(255/255,140/255,53/255,0.08)
+// error "#FF4455"  errorLight Qt.rgba(255/255,68/255,85/255,0.08)
+```
+
 ---
 
 ## 4. FONT LOADING
@@ -248,6 +284,9 @@ FontLoader { id: flPlayfair;         source: "qrc:/fonts/PlayfairDisplay-Variabl
 FontLoader { id: flPlayfairItalic;   source: "qrc:/fonts/PlayfairDisplay-Italic-VariableFont.ttf" }
 FontLoader { id: flGeist;            source: "qrc:/fonts/Geist-VariableFont.ttf" }
 FontLoader { id: flGeistMono;        source: "qrc:/fonts/GeistMono-VariableFont.ttf" }
+FontLoader { id: flSpaceGrotesk;     source: "qrc:/fonts/SpaceGrotesk-Variable.ttf" }
+FontLoader { id: flSpaceMonoReg;     source: "qrc:/fonts/SpaceMono-Regular.ttf" }
+FontLoader { id: flSpaceMonoBold;    source: "qrc:/fonts/SpaceMono-Bold.ttf" }
 ```
 
 **Font weight mapping (QML `font.weight` values):**
@@ -275,6 +314,7 @@ so the aesthetic switch can rescale without touching components.
 | `display` | Instrument | 26 | Normal | DM Serif Display italic |
 | `display` | Editorial  | 34 | Normal | Playfair Display italic |
 | `display` | Studio     | 22 | Light  | Geist |
+| `display` | Vector     | 24 | Normal | Space Mono (upright — no italic) |
 | `heading` | all        | 16 | Normal | fontBody |
 | `body`    | all        | 13 | Normal | fontBody |
 | `body2`   | all        | 12 | Light  | fontBody |
@@ -290,7 +330,7 @@ so the aesthetic switch can rescale without touching components.
 
 // Display — session titles, welcome heading
 readonly property int fontSzDisplay: _t.fontSzDisplay   // 22–34 depending on aesthetic
-readonly property bool fontDisplayItalic: _t.fontDisplayItalic  // true for Instrument + Editorial
+readonly property bool fontDisplayItalic: _t.fontDisplayItalic  // true for Instrument + Editorial only
 
 // Data values — metric readouts, fps, timestamps
 readonly property int fontSzData:    20    // large metric values
@@ -432,17 +472,17 @@ Rectangle {
     color: isActive ? _activeBg : "transparent"
     radius: Theme.radius
 
-    // Editorial: left-border accent, no background radius
+    // Editorial + Vector: left-border accent, no background radius
     // Instrument + Studio: filled background rect with radius
     readonly property color _activeBg: {
-        if (aesthetic === "editorial") return Theme.colorAccentLight
+        if (aesthetic === "editorial" || aesthetic === "vector") return Theme.colorAccentLight
         if (aesthetic === "instrument") return Theme.colorSurface
         return Theme.colorSurface   // Studio
     }
 
-    // Editorial uses a 2px left accent bar instead of a full background
+    // Editorial + Vector use a 2px left accent bar instead of a full background
     Rectangle {
-        visible: Theme.aesthetic === "editorial" && isActive
+        visible: isActive && (Theme.aesthetic === "editorial" || Theme.aesthetic === "vector")
         anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
         width: 2
         color: Theme.colorAccent
@@ -450,7 +490,7 @@ Rectangle {
     }
 
     // Studio + Instrument: hairline border when active
-    border.width: isActive && aesthetic !== "editorial" ? 1 : 0
+    border.width: isActive && aesthetic !== "editorial" && aesthetic !== "vector" ? 1 : 0
     border.color: Theme.colorBorderMid
 }
 ```
@@ -964,7 +1004,7 @@ These rules are absolute. Do not break them regardless of expediency.
 - **Never use gradients, drop shadows, or blur effects** — the design is flat
 - **Never use `Image` decoratively** — all visual elements are geometric primitives
 - **Never use `border.width` greater than 1** in standard components
-  (exception: the active-mode selection indicator in the left rail is 2px in Editorial)
+  (exception: the active-mode selection indicator in the left rail is 2px in Editorial and Vector)
 - **Never use opaque coloured backgrounds on the rail or header** that compete
   with the content area — the structural chrome must always recede
 - **Never animate `x`, `y`, `width`, or `height`** on the main layout elements —

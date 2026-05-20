@@ -4,15 +4,15 @@
 **Screens:** Opening · Swing analysis · End of session
 **Themes:** Light and dark for each aesthetic
 
-Three distinct visual directions are presented. Each is a fully working HTML prototype with interactive screen and theme switching. The screenshots below document all states. No direction is recommended here — that judgement belongs in context, ideally with the personas from the assessment document alongside.
+Four distinct visual directions are presented. Each is a fully working HTML prototype with interactive screen and theme switching. The screenshots below document all states. No direction is recommended here — that judgement belongs in context, ideally with the personas from the assessment document alongside.
 
 ---
 
 ## How to read these
 
-Each aesthetic is shown across six states: opening screen in light and dark, swing analysis in light and dark, and end-of-session summary in light and dark. The structural elements (rail, header, borders) are intentionally kept as quiet as possible in all three directions — the aim in each case is for the *content* (video feeds, data values, charts) to be the dominant visual element, with chrome that recedes.
+Each aesthetic is shown across six states: opening screen in light and dark, swing analysis in light and dark, and end-of-session summary in light and dark. The structural elements (rail, header, borders) are intentionally kept as quiet as possible in all four directions — the aim in each case is for the *content* (video feeds, data values, charts) to be the dominant visual element, with chrome that recedes.
 
-The three directions differ in personality, not in principle. All three share the same information architecture from the UX design document. What changes is the typographic register, the colour temperature, and the degree of warmth versus restraint.
+The four directions differ in personality, not in principle. All four share the same information architecture from the UX design document. What changes is the typographic register, the colour temperature, and the degree of warmth versus restraint.
 
 ---
 
@@ -156,22 +156,31 @@ All three dark modes are genuinely dark rather than colour-inverted — they use
 |---|---|---|---|
 | Display type | DM Serif Display | Playfair Display | none |
 | Data type | DM Mono | JetBrains Mono | Geist Mono |
-| Colour temperature | Warm (parchment / forest) | Cool–neutral (off-white / navy) | Neutral (pure grey / blue) |
-| Session title treatment | Serif italic, modest size | Serif italic, large | Sans light, restrained |
-| Metric value treatment | Large mono, instrument-like | Large serif, editorial | Medium mono, precise |
-| Strongest personality signal | Scientific instrument | Golf magazine | Creative software |
-| Warmth | Highest | Medium | Lowest |
-| Approachability | Medium | Highest | Medium |
+| Colour temperature | Warm (parchment / forest) | Cool–neutral (off-white / navy) | Neutral (pure grey / blue) | Near-black / orange |
+| Session title treatment | Serif italic, modest size | Serif italic, large | Sans light, restrained | Mono upright, technical |
+| Metric value treatment | Large mono, instrument-like | Large serif, editorial | Medium mono, precise | Mono, maximum contrast |
+| Strongest personality signal | Scientific instrument | Golf magazine | Creative software | F1 pit-wall telemetry |
+| Warmth | Highest | Medium | Lowest | None |
+| Approachability | Medium | Highest | Medium | Lowest |
+
+---
+
+## Aesthetic 4 — Vector
+
+**Fonts:** Space Grotesk (body) · Space Mono (data, display)
+**Radius:** 0px throughout — all corners square
+**Accent:** Orange (`#FF5500` dark / `#CC3300` light)
+**Dark grounds:** `#0A0B0D` background · `#13151A` surface
+
+Vector is an F1 telemetry-inspired aesthetic: pure near-black grounds, all-monospace typography, zero border radius, and a single orange accent. It targets users who want the UI to feel like racing data software rather than consumer tooling. Everything is upright and utilitarian; there is no warmth and no decoration.
+
+The zero-radius rule is absolute: cards, buttons, inputs, and the rail all use square corners. The orange accent on near-black creates maximum legibility for critical state indicators. Space Mono is used for both data values and display headings — there is no separate serif face.
 
 ### Considerations for selection
 
-The teaching pro persona is most likely to respond to Instrument — it reads like a trusted piece of professional equipment, which is the right frame for a tool they will use in front of clients. The warmth is reassuring without being decorative.
+Vector is not appropriate for the teaching pro or wealthy newcomer personas — the aesthetic is deliberately hostile to approachability. It best serves the enthusiastic amateur who self-identifies as technical and wants the tool to look like it belongs alongside their performance monitoring stack. It also has strong appeal as an optional "pro mode" that any user can select once they are comfortable with the product.
 
-The wealthy newcomer is most likely to respond to Editorial — the magazine register signals quality and seriousness in terms they already understand from golf print media, and the large serif type feels premium rather than technical.
-
-The enthusiastic amateur could work well with any of the three but is probably best served by Studio — it signals that Pinpoint is serious tooling in the same category as the professional software they already use, which is the frame that will make them trust the data.
-
-None of these should be treated as exclusive. The direction chosen should work for all three personas; the considerations above are about which register each will find *most* natural on first encounter.
+None of these should be treated as exclusive. The direction chosen should work for all four personas; the considerations above are about which register each will find *most* natural on first encounter.
 
 ---
 

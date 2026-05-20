@@ -44,18 +44,18 @@ Item {
             radius: Theme.radius
 
             color: {
-                if (isActive && Theme.aesthetic === "editorial") return Theme.colorAccentLight
+                if (isActive && (Theme.aesthetic === "editorial" || Theme.aesthetic === "vector")) return Theme.colorAccentLight
                 if (isActive) return Theme.colorSurface
                 if (!isMuted && mouseArea.containsMouse) return Theme.colorBg3
                 return "transparent"
             }
 
-            border.width: (isActive && Theme.aesthetic !== "editorial") ? 1 : 0
+            border.width: (isActive && Theme.aesthetic !== "editorial" && Theme.aesthetic !== "vector") ? 1 : 0
             border.color: Theme.colorBorderMid
 
-            // Editorial active: 2px left-edge accent bar
+            // Editorial / Vector active: 2px left-edge accent bar
             Rectangle {
-                visible: root.isActive && Theme.aesthetic === "editorial"
+                visible: root.isActive && (Theme.aesthetic === "editorial" || Theme.aesthetic === "vector")
                 x: 0
                 y: 0
                 width:  2

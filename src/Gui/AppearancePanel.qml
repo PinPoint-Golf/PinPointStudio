@@ -32,7 +32,9 @@ Item {
         { aesthetic: "Editorial",  mode: "Light", railBg: "#FFFFFF", sidenavBg: "#FFFFFF", contentBg: "#FAFAF8", dot: "#1A3A5C" },
         { aesthetic: "Editorial",  mode: "Dark",  railBg: "#181816", sidenavBg: "#181816", contentBg: "#141412", dot: "#A8C4E0" },
         { aesthetic: "Studio",     mode: "Light", railBg: "#FAFAF9", sidenavBg: "#FAFAF9", contentBg: "#F6F6F5", dot: "#0066FF" },
-        { aesthetic: "Studio",     mode: "Dark",  railBg: "#161615", sidenavBg: "#161615", contentBg: "#111110", dot: "#4D90FF" }
+        { aesthetic: "Studio",     mode: "Dark",  railBg: "#161615", sidenavBg: "#161615", contentBg: "#111110", dot: "#4D90FF" },
+        { aesthetic: "Vector",     mode: "Light", railBg: "#FAFBFC", sidenavBg: "#FAFBFC", contentBg: "#F0F1F4", dot: "#CC3300" },
+        { aesthetic: "Vector",     mode: "Dark",  railBg: "#13151A", sidenavBg: "#13151A", contentBg: "#0A0B0D", dot: "#FF5500" }
     ]
 
     ScrollView {
@@ -62,10 +64,10 @@ Item {
             Item {
                 id: cardGrid
                 Layout.fillWidth: true
-                implicitHeight: Theme.sp(80) * 2 + Theme.sp(10)
+                implicitHeight: Theme.sp(80) * 3 + Theme.sp(10) * 2
 
                 Repeater {
-                    model: 6
+                    model: 8
                     delegate: Rectangle {
                         required property int index
 

@@ -276,6 +276,9 @@ qt_add_resources(PinPoint "app_fonts"
         src/Resources/fonts/PlayfairDisplay-Variable.ttf
         src/Resources/fonts/Geist-Variable.ttf
         src/Resources/fonts/GeistMono-Variable.ttf
+        src/Resources/fonts/SpaceGrotesk-Variable.ttf
+        src/Resources/fonts/SpaceMono-Regular.ttf
+        src/Resources/fonts/SpaceMono-Bold.ttf
 )
 
 # ── Linux: deploy icon + .desktop to user dirs on every build ────────────────

@@ -53,6 +53,9 @@ int main(int argc, char *argv[])
         ":/fonts/PlayfairDisplay-Variable.ttf",
         ":/fonts/Geist-Variable.ttf",
         ":/fonts/GeistMono-Variable.ttf",
+        ":/fonts/SpaceGrotesk-Variable.ttf",
+        ":/fonts/SpaceMono-Regular.ttf",
+        ":/fonts/SpaceMono-Bold.ttf",
     };
     for (const QString &path : fontResources) {
         if (QFontDatabase::addApplicationFont(path) < 0)
