@@ -31,9 +31,6 @@ ApplicationWindow {
     color: Theme.colorBg
     font.family: Theme.fontBody
 
-    onVisibilityChanged: {
-        appSettings.windowMaximized = (root.visibility === Window.FullScreen)
-    }
 
     // Debounce geometry writes — 500 ms after the last move or resize.
     // Saves all four values together so they stay consistent in QSettings.
