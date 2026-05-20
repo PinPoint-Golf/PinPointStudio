@@ -221,6 +221,33 @@ Item {
             }
         }
 
+        // Close button — only on Linux/Windows in full-screen mode (macOS has the
+        // traffic-light controls in the title bar even when the app is full-screened).
+        Item {
+            id: closeButton
+            Layout.alignment: Qt.AlignVCenter
+            implicitWidth:    Theme.sp(28)
+            implicitHeight:   Theme.headerHeight
+            visible:          root.isFullscreen && Qt.platform.os !== "macos"
+
+            Text {
+                anchors.centerIn: parent
+                text:             "✕"
+                font.family:      Theme.fontBody
+                font.pixelSize:   Theme.sp(13)
+                color:            closeHover.containsMouse ? Theme.colorError : Theme.colorText3
+                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+            }
+
+            MouseArea {
+                id:           closeHover
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape:  Qt.PointingHandCursor
+                onClicked:    Qt.quit()
+            }
+        }
+
         Item { Layout.preferredWidth: Theme.sp(4) }
     }
 }
