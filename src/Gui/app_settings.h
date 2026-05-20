@@ -20,6 +20,8 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
+#include <QVariantMap>
 #include <QCursor>
 #include <QGuiApplication>
 #include <QScreen>
@@ -57,6 +59,13 @@ class AppSettings : public QObject
     Q_PROPERTY(bool    postShotMirror              READ postShotMirror              WRITE setPostShotMirror              NOTIFY postShotMirrorChanged)
     Q_PROPERTY(QString uiFrameRateCap              READ uiFrameRateCap              WRITE setUiFrameRateCap              NOTIFY uiFrameRateCapChanged)
     Q_PROPERTY(bool    hardwareAcceleration        READ hardwareAcceleration        WRITE setHardwareAcceleration        NOTIFY hardwareAccelerationChanged)
+    Q_PROPERTY(QStringList cameraExcluded  READ cameraExcluded  WRITE setCameraExcluded  NOTIFY cameraExcludedChanged)
+    Q_PROPERTY(QVariantMap cameraTargetFps READ cameraTargetFps WRITE setCameraTargetFps NOTIFY cameraTargetFpsChanged)
+    Q_PROPERTY(QVariantMap cameraTriggerMode READ cameraTriggerMode WRITE setCameraTriggerMode NOTIFY cameraTriggerModeChanged)
+    Q_PROPERTY(QVariantMap cameraRoi         READ cameraRoi         WRITE setCameraRoi         NOTIFY cameraRoiChanged)
+    Q_PROPERTY(QVariantMap cameraPerspective READ cameraPerspective WRITE setCameraPerspective NOTIFY cameraPerspectiveChanged)
+    Q_PROPERTY(double      cameraPreroll     READ cameraPreroll     WRITE setCameraPreroll     NOTIFY cameraPrerollChanged)
+    Q_PROPERTY(bool        cameraSyncEnabled READ cameraSyncEnabled WRITE setCameraSyncEnabled NOTIFY cameraSyncEnabledChanged)
 
 public:
     explicit AppSettings(QObject *parent = nullptr) : QObject(parent)
@@ -90,6 +99,14 @@ public:
         m_postShotMirror         = ppSettings().value(QStringLiteral("display/postShotMirror"),         false).toBool();
         m_uiFrameRateCap         = ppSettings().value(QStringLiteral("display/uiFrameRateCap"),         QStringLiteral("display")).toString();
         m_hardwareAcceleration   = ppSettings().value(QStringLiteral("display/hardwareAcceleration"),   true).toBool();
+
+        m_cameraExcluded    = ppSettings().value(QStringLiteral("camera/excluded"),    QStringList{}).toStringList();
+        m_cameraTargetFps   = ppSettings().value(QStringLiteral("camera/targetFps"),   QVariantMap{}).toMap();
+        m_cameraTriggerMode = ppSettings().value(QStringLiteral("camera/triggerMode"), QVariantMap{}).toMap();
+        m_cameraRoi         = ppSettings().value(QStringLiteral("camera/roi"),         QVariantMap{}).toMap();
+        m_cameraPerspective = ppSettings().value(QStringLiteral("camera/perspective"), QVariantMap{}).toMap();
+        m_cameraPreroll     = ppSettings().value(QStringLiteral("camera/preroll"),     1.0).toDouble();
+        m_cameraSyncEnabled = ppSettings().value(QStringLiteral("camera/syncEnabled"), true).toBool();
     }
 
     QString appVersion()     const { return QStringLiteral(PINPOINT_VERSION_STRING); }
@@ -134,6 +151,14 @@ public:
     bool    postShotMirror()         const { return m_postShotMirror; }
     QString uiFrameRateCap()         const { return m_uiFrameRateCap; }
     bool    hardwareAcceleration()   const { return m_hardwareAcceleration; }
+
+    QStringList cameraExcluded()    const { return m_cameraExcluded; }
+    QVariantMap cameraTargetFps()   const { return m_cameraTargetFps; }
+    QVariantMap cameraTriggerMode() const { return m_cameraTriggerMode; }
+    QVariantMap cameraRoi()         const { return m_cameraRoi; }
+    QVariantMap cameraPerspective() const { return m_cameraPerspective; }
+    double      cameraPreroll()     const { return m_cameraPreroll; }
+    bool        cameraSyncEnabled() const { return m_cameraSyncEnabled; }
 
     void setThemeIndex(int v)
     {
@@ -351,6 +376,62 @@ public:
         emit hardwareAccelerationChanged();
     }
 
+    void setCameraExcluded(const QStringList &v)
+    {
+        if (m_cameraExcluded == v) return;
+        m_cameraExcluded = v;
+        ppSettings().setValue(QStringLiteral("camera/excluded"), v);
+        emit cameraExcludedChanged();
+    }
+
+    void setCameraTargetFps(const QVariantMap &v)
+    {
+        if (m_cameraTargetFps == v) return;
+        m_cameraTargetFps = v;
+        ppSettings().setValue(QStringLiteral("camera/targetFps"), v);
+        emit cameraTargetFpsChanged();
+    }
+
+    void setCameraTriggerMode(const QVariantMap &v)
+    {
+        if (m_cameraTriggerMode == v) return;
+        m_cameraTriggerMode = v;
+        ppSettings().setValue(QStringLiteral("camera/triggerMode"), v);
+        emit cameraTriggerModeChanged();
+    }
+
+    void setCameraRoi(const QVariantMap &v)
+    {
+        if (m_cameraRoi == v) return;
+        m_cameraRoi = v;
+        ppSettings().setValue(QStringLiteral("camera/roi"), v);
+        emit cameraRoiChanged();
+    }
+
+    void setCameraPerspective(const QVariantMap &v)
+    {
+        if (m_cameraPerspective == v) return;
+        m_cameraPerspective = v;
+        ppSettings().setValue(QStringLiteral("camera/perspective"), v);
+        emit cameraPerspectiveChanged();
+    }
+
+    void setCameraPreroll(double v)
+    {
+        if (qFuzzyCompare(m_cameraPreroll, v)) return;
+        m_cameraPreroll = v;
+        ppSettings().setValue(QStringLiteral("camera/preroll"), v);
+        emit cameraPrerollChanged();
+    }
+
+    void setCameraSyncEnabled(bool v)
+    {
+        if (m_cameraSyncEnabled == v) return;
+        m_cameraSyncEnabled = v;
+        ppSettings().setValue(QStringLiteral("camera/syncEnabled"), v);
+        emit cameraSyncEnabledChanged();
+    }
+
 signals:
     void themeIndexChanged();
     void windowWidthChanged();
@@ -379,6 +460,13 @@ signals:
     void postShotMirrorChanged();
     void uiFrameRateCapChanged();
     void hardwareAccelerationChanged();
+    void cameraExcludedChanged();
+    void cameraTargetFpsChanged();
+    void cameraTriggerModeChanged();
+    void cameraRoiChanged();
+    void cameraPerspectiveChanged();
+    void cameraPrerollChanged();
+    void cameraSyncEnabledChanged();
 
 private:
     int     m_themeIndex      = 0;
@@ -410,4 +498,12 @@ private:
     bool    m_postShotMirror         = false;
     QString m_uiFrameRateCap         = QStringLiteral("display");
     bool    m_hardwareAcceleration   = true;
+
+    QStringList m_cameraExcluded;
+    QVariantMap m_cameraTargetFps;
+    QVariantMap m_cameraTriggerMode;
+    QVariantMap m_cameraRoi;
+    QVariantMap m_cameraPerspective;
+    double      m_cameraPreroll     = 1.0;
+    bool        m_cameraSyncEnabled = true;
 };

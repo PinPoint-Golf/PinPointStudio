@@ -21,6 +21,8 @@
 #include "event_buffer.h"
 #include "source_descriptor.h"
 #include <cstring>
+#include <QVideoFrameFormat>
+#include <QVideoSink>
 
 #include "ting_player.h"
 #include "video_input_base.h"
@@ -445,17 +447,22 @@ void VideoController::connectVideoInput()
 #ifdef HAVE_OPENCV
     if (m_frameThrottle) {
         // QVideoFrame throttle path (Qt Multimedia, Aravis).
+        // Suppressed in preview-only mode so the pose/ball pipeline never runs.
         connect(m_videoInput, &VideoInputBase::videoFrameReady,
-                m_frameThrottle, &FrameThrottle::offer,
-                Qt::DirectConnection);
+                this, [this](const QVideoFrame &frame) {
+                    if (!m_previewOnly.load(std::memory_order_relaxed))
+                        m_frameThrottle->offer(frame);
+                }, Qt::DirectConnection);
         connect(m_frameThrottle, &FrameThrottle::frameReady,
                 m_preprocessor, &VideoPreprocessorBase::processFrame,
                 Qt::QueuedConnection);
 
         // Raw Bayer throttle path (Spinnaker).
         connect(m_videoInput, &VideoInputBase::rawVideoFrameReady,
-                m_frameThrottle, &FrameThrottle::offerRaw,
-                Qt::DirectConnection);
+                this, [this](const RawVideoFrame &frame) {
+                    if (!m_previewOnly.load(std::memory_order_relaxed))
+                        m_frameThrottle->offerRaw(frame);
+                }, Qt::DirectConnection);
         connect(m_frameThrottle, &FrameThrottle::rawFrameReady,
                 m_preprocessor, &VideoPreprocessorBase::processRawFrame,
                 Qt::QueuedConnection);
@@ -535,6 +542,23 @@ void VideoController::clearRoi()
     }
 }
 
+QRectF VideoController::cropRoi() const { return m_cropRoi; }
+
+void VideoController::setCropRoi(QRectF roi)
+{
+    roi = roi.normalized().intersected(QRectF(0.0, 0.0, 1.0, 1.0));
+    if (m_cropRoi == roi) return;
+    m_cropRoi = roi;
+    emit cropRoiChanged();
+}
+
+void VideoController::clearCropRoi()
+{
+    if (m_cropRoi.isEmpty()) return;
+    m_cropRoi = QRectF();
+    emit cropRoiChanged();
+}
+
 bool   VideoController::ballDetected()        const { return m_ballDetected; }
 double VideoController::ballX()               const { return m_ballX; }
 double VideoController::ballY()               const { return m_ballY; }
@@ -603,6 +627,11 @@ void VideoController::setVideoSink(QVideoSink *sink)
     m_videoSink = sink;
 }
 
+void VideoController::setSettingsSink(QVideoSink *sink)
+{
+    m_settingsSink = sink;
+}
+
 void VideoController::setBayerItem(QObject *item)
 {
     m_bayerItem = qobject_cast<BayerVideoItem *>(item);
@@ -639,6 +668,33 @@ void VideoController::selectMoveNetModel(int variant)
 // Recording control
 // ---------------------------------------------------------------------------
 
+void VideoController::startPreview()
+{
+    if (m_previewing || !m_captureThread->isRunning()) return;
+    m_previewing = true;
+    if (m_recording) return; // camera already running; pipeline already active
+    m_previewOnly.store(true, std::memory_order_relaxed);
+    QMetaObject::invokeMethod(m_videoInput, [this]() {
+        if (!m_videoInput->start(m_deviceId)) {
+            QMetaObject::invokeMethod(this, [this]() {
+                m_previewing = false;
+                m_previewOnly.store(false, std::memory_order_relaxed);
+            }, Qt::QueuedConnection);
+        }
+    }, Qt::QueuedConnection);
+}
+
+void VideoController::stopPreview()
+{
+    if (!m_previewing) return;
+    m_previewing = false;
+    m_previewOnly.store(false, std::memory_order_relaxed);
+    if (m_recording) return; // recording keeps camera alive
+    QMetaObject::invokeMethod(m_videoInput, [this]() {
+        m_videoInput->stop();
+    }, Qt::QueuedConnection);
+}
+
 void VideoController::startRecording()
 {
     if (m_recording || !m_captureThread->isRunning())
@@ -664,6 +720,12 @@ void VideoController::startRecording()
 #else
     m_recording = true;
     emit isRecordingChanged();
+
+    if (m_previewing) {
+        // Camera already running — promote to full recording by enabling the pipeline.
+        m_previewOnly.store(false, std::memory_order_relaxed);
+        return;
+    }
 
     QMetaObject::invokeMethod(m_videoInput, [this]() {
         if (m_videoInput->start(m_deviceId))
@@ -714,9 +776,14 @@ void VideoController::stopRecording()
 {
     if (!m_recording)
         return;
-    QMetaObject::invokeMethod(m_videoInput, [this]() {
-        m_videoInput->stop();
-    }, Qt::QueuedConnection);
+    if (!m_previewing) {
+        QMetaObject::invokeMethod(m_videoInput, [this]() {
+            m_videoInput->stop();
+        }, Qt::QueuedConnection);
+    } else {
+        // Demote back to preview-only — camera stays running but pipeline suppressed.
+        m_previewOnly.store(true, std::memory_order_relaxed);
+    }
     m_recording = false;
     emit isRecordingChanged();
     m_poseKeypoints.clear();
@@ -797,12 +864,29 @@ void VideoController::drainRawFrame()
 
     if (m_bayerItem)
         m_bayerItem->updateFrame(raw);
+
+    // Deliver greyscale Y8 preview to the settings sink (Bayer pattern as luma).
+    if (m_settingsSink && !raw.isNull()) {
+        QVideoFrameFormat fmt(QSize(raw.width, raw.height), QVideoFrameFormat::Format_Y8);
+        QVideoFrame yFrame(fmt);
+        if (yFrame.map(QVideoFrame::WriteOnly)) {
+            const auto *src = reinterpret_cast<const uchar *>(raw.data.constData());
+            uchar *dst = yFrame.bits(0);
+            const int pixels = raw.width * raw.height;
+            // Raw data is always 8-bit packed (BayerRG8 etc.) from the ring buffer.
+            memcpy(dst, src, pixels);
+            yFrame.unmap();
+            m_settingsSink->setVideoFrame(yFrame);
+        }
+    }
 }
 
 void VideoController::onVideoFrame(const QVideoFrame &frame)
 {
     if (m_videoSink && frame.isValid())
         m_videoSink->setVideoFrame(frame);
+    if (m_settingsSink && frame.isValid())
+        m_settingsSink->setVideoFrame(frame);
 }
 
 #ifdef HAVE_OPENCV

@@ -1,0 +1,1662 @@
+/*
+ * Copyright (c) 2026 Mark Liversedge (liversedge@gmail.com)
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc., 51
+ * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls.Basic
+import QtMultimedia
+import PinPoint
+
+Item {
+    id: root
+
+    // Index of the camera row whose ROI panel is currently open (-1 = none).
+    property int openRoiIndex: -1
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Inline component — reusable toggle pill
+    // ─────────────────────────────────────────────────────────────────────────
+    component TogglePill: Rectangle {
+        id: pill
+        property bool checked: false
+        signal toggled(bool value)
+
+        width:  Theme.sp(34)
+        height: Theme.sp(18)
+        radius: Theme.sp(9)
+        color:  pill.checked ? Theme.colorAccent : Theme.colorBg3
+        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+        Rectangle {
+            width:  Theme.sp(12)
+            height: Theme.sp(12)
+            radius: Theme.sp(6)
+            color:  "white"
+            anchors.verticalCenter: parent.verticalCenter
+            x: pill.checked ? parent.width - width - Theme.sp(3) : Theme.sp(3)
+            Behavior on x { NumberAnimation { duration: 120 } }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            cursorShape:  Qt.PointingHandCursor
+            onClicked:    pill.toggled(!pill.checked)
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Inline component — camera device row
+    // ─────────────────────────────────────────────────────────────────────────
+    component CameraDeviceRow: Item {
+        id: camRow
+
+        property var camData: ({})  // one entry from cameraManager.cameraList
+
+        readonly property var controller: {
+            var instances = cameraManager.instances
+            for (var i = 0; i < instances.length; ++i) {
+                if (instances[i].deviceSerialNumber === camData.serialNumber)
+                    return instances[i]
+            }
+            return null
+        }
+
+        readonly property bool roiOpen: root.openRoiIndex === camData.index
+
+        // Effective fps for storage calculations:
+        // priority: user-set target → live measured configuredFps → capability maxFps → 30
+        readonly property double currentFps: {
+            var stored = appSettings.cameraTargetFps[camData.cameraKey]
+            if (stored !== undefined && stored > 0) return stored
+            if (camRow.controller && camRow.controller.configuredFps > 0)
+                return camRow.controller.configuredFps
+            return camData.maxFps > 0 ? camData.maxFps : 30
+        }
+
+        implicitHeight: camRow.roiOpen
+                            ? headerRow.height + bodyRow.height + roiPanel.height
+                            : headerRow.height + (camData.enabled ? bodyRow.height : excludedNote.height)
+
+        Behavior on implicitHeight { NumberAnimation { duration: Theme.durationFast } }
+
+        opacity: camData.enabled ? 1.0 : 0.5
+        Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+
+        // Background fill — drawn first, behind all content
+        Rectangle {
+            anchors.fill: parent
+            color:        Theme.colorSurface
+            radius:       Theme.radius
+        }
+
+        clip: true
+
+        // Border overlay — drawn last via z:100 so content never occludes it
+        Rectangle {
+            anchors.fill: parent
+            color:        "transparent"
+            border.width: 1
+            border.color: camRow.roiOpen
+                            ? Theme.colorAccent
+                            : (camData.enabled ? Theme.colorBorderStrong : Theme.colorBorderMid)
+            radius:       Theme.radius
+            z:            100
+            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+        }
+
+        // ── Header row ───────────────────────────────────────────────────────
+        RowLayout {
+            id: headerRow
+            anchors.top:   parent.top
+            anchors.left:  parent.left
+            anchors.right: parent.right
+            anchors.margins: Theme.sp(14)
+            height: Theme.sp(44)
+            spacing: Theme.sp(10)
+
+            // Status dot
+            Rectangle {
+                width:  Theme.sp(6)
+                height: Theme.sp(6)
+                radius: Theme.sp(3)
+                color: camRow.controller && camRow.controller.isRecording
+                            ? Theme.colorGood
+                            : (camData.enabled ? Theme.colorWarn : Theme.colorText3)
+                Layout.alignment: Qt.AlignVCenter
+                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+            }
+
+            // Name + meta
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: Theme.sp(2)
+
+                Text {
+                    text:           camData.description || qsTr("Unknown Camera")
+                    font.family:    Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody
+                    color:          Theme.colorText
+                    elide:          Text.ElideRight
+                    Layout.fillWidth: true
+                }
+
+                Row {
+                    spacing: Theme.sp(10)
+                    Text {
+                        text:           camData.interface || ""
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText3
+                    }
+                    Text {
+                        text:           camData.serialNumber || ""
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText3
+                    }
+                }
+            }
+
+            // Enable toggle
+            Row {
+                spacing: Theme.sp(6)
+                Layout.alignment: Qt.AlignVCenter
+
+                Text {
+                    text:           qsTr("Enable")
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    color:          Theme.colorText3
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                TogglePill {
+                    checked: camData.enabled
+                    onToggled: (v) => cameraManager.setExcluded(camData.index, !v)
+                }
+            }
+        }
+
+        // ── Excluded note (shown when disabled) ──────────────────────────────
+        Item {
+            id: excludedNote
+            anchors.top:   headerRow.bottom
+            anchors.left:  parent.left
+            anchors.right: parent.right
+            height: camData.enabled ? 0 : implicitContentHeight + Theme.sp(14)
+            visible: !camData.enabled
+            clip: true
+
+            readonly property real implicitContentHeight: excText.implicitHeight + Theme.sp(14)
+
+            Text {
+                id: excText
+                anchors {
+                    left:        parent.left
+                    right:       parent.right
+                    top:         parent.top
+                    leftMargin:  Theme.sp(14)
+                    rightMargin: Theme.sp(14)
+                    topMargin:   Theme.sp(4)
+                }
+                text:           qsTr("Excluded — will not appear in view assignment or consume capture resources.")
+                font.family:    Theme.fontData
+                font.pixelSize: Theme.fontSzMicro
+                font.italic:    true
+                color:          Theme.colorText3
+                wrapMode:       Text.WordWrap
+            }
+        }
+
+        // ── Body row (visible when enabled) ──────────────────────────────────
+        RowLayout {
+            id: bodyRow
+            anchors.top:    headerRow.bottom
+            anchors.left:   parent.left
+            anchors.right:  parent.right
+            anchors.leftMargin:   Theme.sp(14)
+            anchors.rightMargin:  Theme.sp(14)
+            anchors.bottomMargin: Theme.sp(28)
+            height: camData.enabled ? implicitHeight + Theme.sp(28) : 0
+            visible: camData.enabled
+            spacing: Theme.sp(16)
+            clip: true
+
+            // View selector ──────────────────────────────────────────────────
+            ColumnLayout {
+                spacing: Theme.sp(4)
+                Layout.alignment: Qt.AlignTop
+
+                Text {
+                    text:           qsTr("VIEW")
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    font.letterSpacing: Theme.trackingMicro
+                    font.capitalization: Font.AllUppercase
+                    color:          Theme.colorText3
+                }
+
+                ComboBox {
+                    id: viewCombo
+                    implicitWidth: Theme.sp(168)
+
+                    // perspective: None=0, DownTheLine=1, FaceOn=2, Other=3
+                    readonly property var viewOptions: [
+                        { label: qsTr("— Unassigned —"), perspective: 0 },
+                        { label: qsTr("Face-on"),         perspective: 2 },
+                        { label: qsTr("Down-the-line"),   perspective: 1 },
+                        { label: qsTr("Other"),           perspective: 3 }
+                    ]
+
+                    model: viewOptions.map(function(o) { return o.label })
+
+                    function perspectiveTakenBy(p) {
+                        if (p === 0) return false
+                        var insts = cameraManager.instances
+                        for (var i = 0; i < insts.length; ++i) {
+                            if (insts[i].deviceSerialNumber !== camData.serialNumber
+                                && insts[i].perspective === p)
+                                return true
+                        }
+                        return false
+                    }
+
+                    Component.onCompleted: {
+                        var p = camRow.controller ? camRow.controller.perspective : 0
+                        for (var i = 0; i < viewOptions.length; i++) {
+                            if (viewOptions[i].perspective === p) { currentIndex = i; break }
+                        }
+                    }
+
+                    Connections {
+                        target: cameraManager
+                        function onInstancesChanged() {
+                            var p = camRow.controller ? camRow.controller.perspective : 0
+                            for (var i = 0; i < viewCombo.viewOptions.length; i++) {
+                                if (viewCombo.viewOptions[i].perspective === p) {
+                                    viewCombo.currentIndex = i; break
+                                }
+                            }
+                        }
+                    }
+
+                    onActivated: (idx) => {
+                        if (camRow.controller)
+                            cameraManager.setPerspective(camRow.controller, viewOptions[idx].perspective)
+                    }
+
+                    font.family:    Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody2
+                    font.weight:    Font.Light
+
+                    contentItem: Text {
+                        leftPadding: Theme.sp(10)
+                        text:           viewCombo.displayText
+                        font:           viewCombo.font
+                        color:          Theme.colorText
+                        verticalAlignment: Text.AlignVCenter
+                        elide:          Text.ElideRight
+                    }
+
+                    background: Rectangle {
+                        color:        Theme.colorSurface
+                        border.width: 1
+                        border.color: Theme.colorBorderStrong
+                        radius:       Theme.radius
+                    }
+
+                    indicator: Text {
+                        x: viewCombo.width - width - Theme.sp(10)
+                        anchors.verticalCenter: parent.verticalCenter
+                        text:           "⌄"
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        color:          Theme.colorText3
+                    }
+
+                    popup: Popup {
+                        y: viewCombo.height
+                        width: viewCombo.width
+                        padding: 0
+
+                        background: Rectangle {
+                            color:        Theme.colorSurface
+                            border.width: 1
+                            border.color: Theme.colorBorderStrong
+                            radius:       Theme.radius
+                        }
+
+                        contentItem: ListView {
+                            implicitHeight: contentHeight
+                            model: viewCombo.delegateModel
+                            clip: true
+                        }
+                    }
+
+                    delegate: ItemDelegate {
+                        required property string modelData
+                        required property int    index
+
+                        width: viewCombo.width
+                        highlighted: viewCombo.highlightedIndex === index
+
+                        enabled: !viewCombo.perspectiveTakenBy(viewCombo.viewOptions[index].perspective)
+
+                        contentItem: Text {
+                            leftPadding: Theme.sp(10)
+                            text:           modelData
+                            font.family:    Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody2
+                            font.weight:    Font.Light
+                            color:          parent.enabled ? Theme.colorText : Theme.colorText3
+                            verticalAlignment: Text.AlignVCenter
+                        }
+
+                        background: Rectangle {
+                            color: parent.highlighted ? Theme.colorAccentLight : "transparent"
+                        }
+                    }
+                }
+            }
+
+            // Frame rate chips ────────────────────────────────────────────────
+            ColumnLayout {
+                spacing: Theme.sp(4)
+                Layout.alignment: Qt.AlignTop
+
+                Text {
+                    text:           qsTr("FRAME RATE")
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    font.letterSpacing: Theme.trackingMicro
+                    font.capitalization: Font.AllUppercase
+                    color:          Theme.colorText3
+                }
+
+                Row {
+                    spacing: Theme.sp(4)
+
+                    readonly property var fpsOptions: {
+                        var opts = []
+                        var max = camData.maxFps > 0 ? camData.maxFps : 60
+                        if (max >= 30) opts.push(30)
+                        if (max >= 60 && max > 30) opts.push(60)
+                        if (max >= 120 && max > 60) opts.push(120)
+                        if (max > 0 && opts.indexOf(max) < 0) opts.push(max)
+                        return opts
+                    }
+
+                    readonly property double selectedFps: {
+                        var v = appSettings.cameraTargetFps[camData.cameraKey]
+                        return (v !== undefined && v > 0) ? v : (camData.maxFps > 0 ? camData.maxFps : 60)
+                    }
+
+                    Repeater {
+                        model: parent.fpsOptions
+
+                        delegate: Rectangle {
+                            required property var modelData
+
+                            readonly property bool isSelected: Math.abs(parent.selectedFps - modelData) < 0.5
+
+                            width:  fpsLabel.implicitWidth + Theme.sp(20)
+                            height: Theme.sp(24)
+                            radius: Theme.radius
+                            color:  isSelected ? Theme.colorAccentLight : "transparent"
+                            border.width: 1
+                            border.color: isSelected ? Theme.colorAccent : Theme.colorBorderStrong
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                            Text {
+                                id: fpsLabel
+                                anchors.centerIn: parent
+                                text:           modelData + qsTr(" fps")
+                                font.family:    Theme.fontData
+                                font.pixelSize: Theme.fontSzMicro
+                                color:          isSelected ? Theme.colorAccent : Theme.colorText2
+                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape:  Qt.PointingHandCursor
+                                onClicked:    cameraManager.setTargetFps(camData.index, modelData)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Trigger chips ───────────────────────────────────────────────────
+            ColumnLayout {
+                spacing: Theme.sp(4)
+                Layout.alignment: Qt.AlignTop
+
+                Text {
+                    text:           qsTr("TRIGGER")
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    font.letterSpacing: Theme.trackingMicro
+                    font.capitalization: Font.AllUppercase
+                    color:          Theme.colorText3
+                }
+
+                Row {
+                    spacing: Theme.sp(4)
+
+                    readonly property string selectedMode: {
+                        var v = appSettings.cameraTriggerMode[camData.cameraKey]
+                        return v !== undefined ? v : "freerun"
+                    }
+
+                    Repeater {
+                        model: camData.hwTrigger
+                                ? [{ label: qsTr("Free-run"), mode: "freerun" },
+                                   { label: qsTr("HW sync"),  mode: "hwsync"  }]
+                                : [{ label: qsTr("Free-run"), mode: "freerun" }]
+
+                        delegate: Rectangle {
+                            required property var modelData
+
+                            readonly property bool isSelected: parent.selectedMode === modelData.mode
+
+                            width:  trigLabel.implicitWidth + Theme.sp(20)
+                            height: Theme.sp(24)
+                            radius: Theme.radius
+                            color:  isSelected ? Theme.colorAccentLight : "transparent"
+                            border.width: 1
+                            border.color: isSelected ? Theme.colorAccent : Theme.colorBorderStrong
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                            Text {
+                                id: trigLabel
+                                anchors.centerIn: parent
+                                text:           modelData.label
+                                font.family:    Theme.fontData
+                                font.pixelSize: Theme.fontSzMicro
+                                color:          isSelected ? Theme.colorAccent : Theme.colorText2
+                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape:  Qt.PointingHandCursor
+                                onClicked:    cameraManager.setTriggerMode(camData.index, modelData.mode)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Item { Layout.fillWidth: true }
+
+            // Action buttons ─────────────────────────────────────────────────
+            Row {
+                spacing:  Theme.sp(6)
+                Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
+
+                // Set crop — always available (setRoi() is a software crop on every camera)
+                Rectangle {
+                    visible: true
+                    width:  cropLabel.implicitWidth + Theme.sp(24)
+                    height: Theme.sp(26)
+                    radius: Theme.radius
+                    color:  camRow.roiOpen ? Theme.colorAccentLight : "transparent"
+                    border.width: 1
+                    border.color: camRow.roiOpen ? Theme.colorAccent : Theme.colorBorderStrong
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                    Text {
+                        id: cropLabel
+                        anchors.centerIn: parent
+                        text:           qsTr("Set crop")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody2
+                        font.weight:    Font.Light
+                        color:          camRow.roiOpen ? Theme.colorAccent : Theme.colorText2
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape:  Qt.PointingHandCursor
+                        onClicked: {
+                            if (camRow.roiOpen) {
+                                root.openRoiIndex = -1
+                            } else {
+                                root.openRoiIndex = camData.index
+                                // Apply default ROI if not yet set
+                                if (camRow.controller) {
+                                    var r = camRow.controller.cropRoi
+                                    if (r.width <= 0 || r.height <= 0) {
+                                        var dw = 0.4
+                                        var dx = (1.0 - dw) / 2.0
+                                        camRow.controller.setCropRoi(Qt.rect(dx, 0.0, dw, 1.0))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+            }
+        }
+
+        // ── ROI panel ────────────────────────────────────────────────────────
+        Item {
+            id: roiPanel
+            anchors.top:   bodyRow.bottom
+            anchors.left:  parent.left
+            anchors.right: parent.right
+            height: camRow.roiOpen ? roiPanelContent.implicitHeight : 0
+            clip: true
+            visible: camRow.roiOpen
+
+            Behavior on height { NumberAnimation { duration: Theme.durationFast } }
+
+            ColumnLayout {
+                id: roiPanelContent
+                anchors.left:  parent.left
+                anchors.right: parent.right
+                spacing: 0
+
+                // Top border separator
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 1
+                    color:  Theme.colorBorderMid
+                    opacity: Theme.borderOpacityNormal
+                }
+
+                // ── Camera capabilities strip ────────────────────────────────
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 0
+
+                    Repeater {
+                        model: [
+                            { key: qsTr("Sensor"),         val: (camData.vendorName || "") + " " + (camData.modelName || "") },
+                            { key: qsTr("Max resolution"),  val: (camData.maxWidth || 0) + " × " + (camData.maxHeight || 0) + " px" },
+                            { key: qsTr("Pixel format"),    val: camData.pixelFormat || "—" },
+                            { key: qsTr("Bit depth"),       val: (camData.bitsPerPixel || 0) + " bit" },
+                            { key: qsTr("Bytes / px"),      val: ((camData.bitsPerPixel || 0) / 8.0).toFixed(2) }
+                        ]
+
+                        delegate: Rectangle {
+                            required property var modelData
+                            required property int index
+
+                            Layout.fillWidth: true
+                            implicitHeight: capCol.implicitHeight + Theme.sp(18)
+                            color: Theme.colorBg2
+
+                            // Vertical separator (except last)
+                            Rectangle {
+                                anchors.right:  parent.right
+                                anchors.top:    parent.top
+                                anchors.bottom: parent.bottom
+                                width: 1
+                                color: Theme.colorBorderMid
+                                opacity: Theme.borderOpacityNormal
+                                visible: index < 4
+                            }
+
+                            ColumnLayout {
+                                id: capCol
+                                anchors {
+                                    left:   parent.left
+                                    right:  parent.right
+                                    top:    parent.top
+                                    leftMargin:  Theme.sp(14)
+                                    rightMargin: Theme.sp(14)
+                                    topMargin:   Theme.sp(9)
+                                }
+                                spacing: Theme.sp(3)
+
+                                Text {
+                                    text:            modelData.key
+                                    font.family:     Theme.fontData
+                                    font.pixelSize:  Theme.fontSzMicro
+                                    font.letterSpacing: Theme.trackingMicro
+                                    font.capitalization: Font.AllUppercase
+                                    color:           Theme.colorText3
+                                }
+                                Text {
+                                    text:            modelData.val
+                                    font.family:     Theme.fontData
+                                    font.pixelSize:  Theme.fontSzBody2
+                                    color:           Theme.colorText
+                                    elide:           Text.ElideRight
+                                    Layout.fillWidth: true
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ── Preview + controls ───────────────────────────────────────
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.leftMargin:  Theme.sp(16)
+                    Layout.rightMargin: Theme.sp(16)
+                    Layout.topMargin:   Theme.sp(16)
+                    Layout.bottomMargin: Theme.sp(28)
+                    spacing: Theme.sp(20)
+
+                    // Video preview + draggable ROI
+                    ColumnLayout {
+                        spacing: 0
+                        Layout.alignment: Qt.AlignTop
+
+                        // Preview area
+                        Rectangle {
+                            id: previewRect
+                            width:  Theme.sp(340)
+                            height: Theme.sp(192)
+                            color:  "#080a0c"
+                            border.width: 1
+                            border.color: Theme.colorBorderMid
+                            radius: 2
+                            clip: true
+
+                            // ── ROI box pixel positions (bound to controller.cropRoi) ──
+                            readonly property real rX: camRow.controller ? camRow.controller.cropRoi.x      * previewRect.width  : 0
+                            readonly property real rY: camRow.controller ? camRow.controller.cropRoi.y      * previewRect.height : 0
+                            readonly property real rW: camRow.controller && camRow.controller.cropRoi.width  > 0
+                                                           ? camRow.controller.cropRoi.width  * previewRect.width  : previewRect.width
+                            readonly property real rH: camRow.controller && camRow.controller.cropRoi.height > 0
+                                                           ? camRow.controller.cropRoi.height * previewRect.height : previewRect.height
+
+                            // ── Unified drag state ────────────────────────────
+                            property string roiDragMode: "none" // none|move|tl|tr|bl|br
+                            property real   roiDragStartX: 0
+                            property real   roiDragStartY: 0
+                            property real   roiOrigX: 0
+                            property real   roiOrigY: 0
+                            property real   roiOrigW: 0
+                            property real   roiOrigH: 0
+
+                            // ── Live video feed ───────────────────────────────
+                            VideoOutput {
+                                id: settingsVideoOutput
+                                anchors.fill: parent
+                            }
+
+                            // Wire/clear the settings sink and start/stop preview with the panel
+                            Connections {
+                                target: camRow
+                                function onRoiOpenChanged() {
+                                    if (!camRow.controller) return
+                                    if (camRow.roiOpen) {
+                                        camRow.controller.setSettingsSink(settingsVideoOutput.videoSink)
+                                        camRow.controller.startPreview()
+                                    } else {
+                                        camRow.controller.setSettingsSink(null)
+                                        camRow.controller.stopPreview()
+                                    }
+                                }
+                            }
+
+                            // ── Overlay shades around the ROI ─────────────────
+                            readonly property bool hasRoi: camRow.controller
+                                                        && camRow.controller.cropRoi.width > 0
+
+                            Rectangle {   // left
+                                x: 0; y: 0
+                                width:  previewRect.rX
+                                height: previewRect.height
+                                color:  "black"; opacity: 0.52
+                                visible: previewRect.hasRoi
+                            }
+                            Rectangle {   // right
+                                x: previewRect.rX + previewRect.rW; y: 0
+                                width:  previewRect.width - (previewRect.rX + previewRect.rW)
+                                height: previewRect.height
+                                color:  "black"; opacity: 0.52
+                                visible: previewRect.hasRoi
+                            }
+                            Rectangle {   // top
+                                x: previewRect.rX; y: 0
+                                width:  previewRect.rW
+                                height: previewRect.rY
+                                color:  "black"; opacity: 0.52
+                                visible: previewRect.hasRoi
+                            }
+                            Rectangle {   // bottom
+                                x: previewRect.rX
+                                y: previewRect.rY + previewRect.rH
+                                width:  previewRect.rW
+                                height: previewRect.height - (previewRect.rY + previewRect.rH)
+                                color:  "black"; opacity: 0.52
+                                visible: previewRect.hasRoi
+                            }
+
+                            // ── ROI outline + corner handles (visual only) ────
+                            Item {
+                                id: roiVisual
+                                x:      previewRect.rX
+                                y:      previewRect.rY
+                                width:  previewRect.rW
+                                height: previewRect.rH
+                                visible: previewRect.hasRoi
+                                z: 5
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    color:        Theme.colorAccent
+                                    opacity:      0.05
+                                }
+                                Rectangle {
+                                    anchors.fill:  parent
+                                    color:        "transparent"
+                                    border.width:  1.5
+                                    border.color:  Theme.colorAccent
+                                }
+
+                                // Corner handle squares (visual only — drag handled by the MouseArea below)
+                                readonly property int hs: Theme.sp(10)
+                                Rectangle { width: parent.hs; height: parent.hs; x: -parent.hs/2;              y: -parent.hs/2;              color: Theme.colorAccent; border.width:1; border.color:"black" }
+                                Rectangle { width: parent.hs; height: parent.hs; x: parent.width-parent.hs/2;  y: -parent.hs/2;              color: Theme.colorAccent; border.width:1; border.color:"black" }
+                                Rectangle { width: parent.hs; height: parent.hs; x: -parent.hs/2;              y: parent.height-parent.hs/2; color: Theme.colorAccent; border.width:1; border.color:"black" }
+                                Rectangle { width: parent.hs; height: parent.hs; x: parent.width-parent.hs/2;  y: parent.height-parent.hs/2; color: Theme.colorAccent; border.width:1; border.color:"black" }
+                            }
+
+                            // ── Single unified drag MouseArea ─────────────────
+                            // Covers the entire preview so the mouse is never "outside"
+                            // its active area during a fast drag.
+                            MouseArea {
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                preventStealing: true
+                                z: 20
+
+                                // Handle hit radius (larger than the 10px visual square)
+                                readonly property real hr: Theme.sp(16)
+
+                                function hitZone(mx, my) {
+                                    if (!previewRect.hasRoi) return "none"
+                                    var rx = previewRect.rX, ry = previewRect.rY
+                                    var rw = previewRect.rW, rh = previewRect.rH
+                                    var h  = hr
+                                    if (Math.abs(mx - rx)      < h && Math.abs(my - ry)      < h) return "tl"
+                                    if (Math.abs(mx - (rx+rw)) < h && Math.abs(my - ry)      < h) return "tr"
+                                    if (Math.abs(mx - rx)      < h && Math.abs(my - (ry+rh)) < h) return "bl"
+                                    if (Math.abs(mx - (rx+rw)) < h && Math.abs(my - (ry+rh)) < h) return "br"
+                                    if (mx > rx && mx < rx+rw && my > ry && my < ry+rh)           return "move"
+                                    return "none"
+                                }
+
+                                cursorShape: {
+                                    switch (hitZone(mouseX, mouseY)) {
+                                    case "tl": case "br": return Qt.SizeFDiagCursor
+                                    case "tr": case "bl": return Qt.SizeBDiagCursor
+                                    case "move":          return Qt.SizeAllCursor
+                                    default:              return Qt.CrossCursor
+                                    }
+                                }
+
+                                onPressed: (mouse) => {
+                                    previewRect.roiDragMode   = hitZone(mouse.x, mouse.y)
+                                    previewRect.roiDragStartX = mouse.x
+                                    previewRect.roiDragStartY = mouse.y
+                                    if (camRow.controller && previewRect.hasRoi) {
+                                        var r = camRow.controller.cropRoi
+                                        previewRect.roiOrigX = r.x
+                                        previewRect.roiOrigY = r.y
+                                        previewRect.roiOrigW = r.width
+                                        previewRect.roiOrigH = r.height
+                                    }
+                                }
+
+                                onPositionChanged: (mouse) => {
+                                    if (previewRect.roiDragMode === "none") return
+                                    if (!camRow.controller) return
+                                    // All deltas are computed from press-start in normalised coords
+                                    var dx = (mouse.x - previewRect.roiDragStartX) / previewRect.width
+                                    var dy = (mouse.y - previewRect.roiDragStartY) / previewRect.height
+                                    var ox = previewRect.roiOrigX, oy = previewRect.roiOrigY
+                                    var ow = previewRect.roiOrigW, oh = previewRect.roiOrigH
+                                    var nx, ny, nw, nh
+                                    switch (previewRect.roiDragMode) {
+                                    case "move":
+                                        nx = Math.max(0, Math.min(1.0 - ow, ox + dx))
+                                        ny = Math.max(0, Math.min(1.0 - oh, oy + dy))
+                                        camRow.controller.setCropRoi(Qt.rect(nx, ny, ow, oh))
+                                        break
+                                    case "tl":
+                                        nx = Math.max(0,   Math.min(ox + ow - 0.02, ox + dx))
+                                        ny = Math.max(0,   Math.min(oy + oh - 0.02, oy + dy))
+                                        nw = Math.max(0.02, ow - (nx - ox))
+                                        nh = Math.max(0.02, oh - (ny - oy))
+                                        camRow.controller.setCropRoi(Qt.rect(nx, ny, nw, nh))
+                                        break
+                                    case "tr":
+                                        ny = Math.max(0,   Math.min(oy + oh - 0.02, oy + dy))
+                                        nw = Math.max(0.02, Math.min(1.0 - ox, ow + dx))
+                                        nh = Math.max(0.02, oh - (ny - oy))
+                                        camRow.controller.setCropRoi(Qt.rect(ox, ny, nw, nh))
+                                        break
+                                    case "bl":
+                                        nx = Math.max(0,   Math.min(ox + ow - 0.02, ox + dx))
+                                        nw = Math.max(0.02, ow - (nx - ox))
+                                        nh = Math.max(0.02, Math.min(1.0 - oy, oh + dy))
+                                        camRow.controller.setCropRoi(Qt.rect(nx, oy, nw, nh))
+                                        break
+                                    case "br":
+                                        nw = Math.max(0.02, Math.min(1.0 - ox, ow + dx))
+                                        nh = Math.max(0.02, Math.min(1.0 - oy, oh + dy))
+                                        camRow.controller.setCropRoi(Qt.rect(ox, oy, nw, nh))
+                                        break
+                                    }
+                                }
+
+                                onReleased: previewRect.roiDragMode = "none"
+                            }
+
+                            // Live badge
+                            Rectangle {
+                                anchors.top:        parent.top
+                                anchors.left:       parent.left
+                                anchors.topMargin:  Theme.sp(8)
+                                anchors.leftMargin: Theme.sp(8)
+                                implicitWidth:  liveBadgeRow.implicitWidth + Theme.sp(16)
+                                implicitHeight: Theme.sp(18)
+                                color:  Qt.rgba(26/255, 74/255, 46/255, 0.9)
+                                border.width: 1
+                                border.color: Theme.colorGood
+                                radius: 2
+                                z: 25
+
+                                Row {
+                                    id: liveBadgeRow
+                                    anchors.centerIn: parent
+                                    spacing: Theme.sp(4)
+
+                                    Rectangle {
+                                        width:  Theme.sp(5); height: Theme.sp(5); radius: Theme.sp(3)
+                                        color:  Theme.colorGood
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                    Text {
+                                        text:           qsTr("Live")
+                                        font.family:    Theme.fontData
+                                        font.pixelSize: Theme.fontSzMicro
+                                        color:          Theme.colorGood
+                                    }
+                                }
+                            }
+
+                            // FPS badge — hidden when fps is unknown (0)
+                            Text {
+                                anchors.top:         parent.top
+                                anchors.right:       parent.right
+                                anchors.topMargin:   Theme.sp(8)
+                                anchors.rightMargin: Theme.sp(8)
+                                readonly property double displayFps: {
+                                    if (camRow.controller && camRow.controller.configuredFps > 0)
+                                        return camRow.controller.configuredFps
+                                    return camData.maxFps > 0 ? camData.maxFps : 0
+                                }
+                                visible: displayFps > 0
+                                text:    Math.round(displayFps) + qsTr(" fps")
+                                font.family:    Theme.fontData
+                                font.pixelSize: Theme.fontSzMicro
+                                color:          Qt.rgba(1, 1, 1, 0.3)
+                                z: 25
+                            }
+                        }
+
+                        // Footer below preview
+                        Rectangle {
+                            width:  Theme.sp(340)
+                            height: Theme.sp(26)
+                            color:  Theme.colorSurface
+                            border.width: 1
+                            border.color: Theme.colorBorderMid
+                            radius: 0
+
+                            RowLayout {
+                                anchors {
+                                    fill:        parent
+                                    leftMargin:  Theme.sp(10)
+                                    rightMargin: Theme.sp(10)
+                                }
+
+                                Text {
+                                    text: {
+                                        var w = camData.maxWidth  || 0
+                                        var h = camData.maxHeight || 0
+                                        return w + " × " + h + " px (full)"
+                                    }
+                                    font.family:    Theme.fontData
+                                    font.pixelSize: Theme.fontSzMicro
+                                    color:          Theme.colorText3
+                                }
+
+                                Item { Layout.fillWidth: true }
+
+                                Text {
+                                    text: {
+                                        if (!camRow.controller || camRow.controller.cropRoi.width <= 0)
+                                            return ""
+                                        var r  = camRow.controller.cropRoi
+                                        var rw = Math.round(r.width  * (camData.maxWidth  || 0))
+                                        var rh = Math.round(r.height * (camData.maxHeight || 0))
+                                        return rw + " × " + rh + " px (ROI)"
+                                    }
+                                    font.family:    Theme.fontData
+                                    font.pixelSize: Theme.fontSzMicro
+                                    color:          Theme.colorAccent
+                                }
+                            }
+                        }
+                    }
+
+                    // ── Numeric inputs + storage ─────────────────────────────
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: Theme.sp(10)
+                        Layout.alignment: Qt.AlignTop
+
+                        // Origin inputs
+                        ColumnLayout {
+                            spacing: Theme.sp(4)
+
+                            Text {
+                                text:           qsTr("ORIGIN (px)")
+                                font.family:    Theme.fontData
+                                font.pixelSize: Theme.fontSzMicro
+                                font.letterSpacing: Theme.trackingMicro
+                                font.capitalization: Font.AllUppercase
+                                color:          Theme.colorText3
+                            }
+
+                            RowLayout {
+                                spacing: Theme.sp(6)
+
+                                Text {
+                                    text:  "X"
+                                    font.family:    Theme.fontData
+                                    font.pixelSize: Theme.fontSzMicro
+                                    color: Theme.colorText3
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+
+                                Rectangle {
+                                    implicitWidth:  Theme.sp(70)
+                                    implicitHeight: Theme.sp(24)
+                                    color:  Theme.colorSurface
+                                    border.width: 1
+                                    border.color: xField.activeFocus ? Theme.colorAccent : Theme.colorBorderStrong
+                                    radius: Theme.radius
+                                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                                    TextInput {
+                                        id: xField
+                                        anchors { fill: parent; leftMargin: Theme.sp(8); rightMargin: Theme.sp(8) }
+                                        verticalAlignment: TextInput.AlignVCenter
+                                        font.family:    Theme.fontData
+                                        font.pixelSize: Theme.fontSzBody2
+                                        color:          Theme.colorText
+                                        text: camRow.controller ? Math.round(camRow.controller.cropRoi.x * (camData.maxWidth || 0)).toString() : "0"
+                                        onEditingFinished: {
+                                            if (!camRow.controller) return
+                                            var val = parseInt(text) || 0
+                                            var r   = camRow.controller.cropRoi
+                                            var nx  = Math.max(0, Math.min(1.0 - r.width, val / (camData.maxWidth || 1)))
+                                            camRow.controller.setCropRoi(Qt.rect(nx, r.y, r.width, r.height))
+                                        }
+                                    }
+                                }
+
+                                Text {
+                                    text:  "Y"
+                                    font.family:    Theme.fontData
+                                    font.pixelSize: Theme.fontSzMicro
+                                    color: Theme.colorText3
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+
+                                Rectangle {
+                                    implicitWidth:  Theme.sp(70)
+                                    implicitHeight: Theme.sp(24)
+                                    color:  Theme.colorSurface
+                                    border.width: 1
+                                    border.color: yField.activeFocus ? Theme.colorAccent : Theme.colorBorderStrong
+                                    radius: Theme.radius
+                                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                                    TextInput {
+                                        id: yField
+                                        anchors { fill: parent; leftMargin: Theme.sp(8); rightMargin: Theme.sp(8) }
+                                        verticalAlignment: TextInput.AlignVCenter
+                                        font.family:    Theme.fontData
+                                        font.pixelSize: Theme.fontSzBody2
+                                        color:          Theme.colorText
+                                        text: camRow.controller ? Math.round(camRow.controller.cropRoi.y * (camData.maxHeight || 0)).toString() : "0"
+                                        onEditingFinished: {
+                                            if (!camRow.controller) return
+                                            var val = parseInt(text) || 0
+                                            var r   = camRow.controller.cropRoi
+                                            var ny  = Math.max(0, Math.min(1.0 - r.height, val / (camData.maxHeight || 1)))
+                                            camRow.controller.setCropRoi(Qt.rect(r.x, ny, r.width, r.height))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Size inputs
+                        ColumnLayout {
+                            spacing: Theme.sp(4)
+
+                            Text {
+                                text:           qsTr("SIZE (px)")
+                                font.family:    Theme.fontData
+                                font.pixelSize: Theme.fontSzMicro
+                                font.letterSpacing: Theme.trackingMicro
+                                font.capitalization: Font.AllUppercase
+                                color:          Theme.colorText3
+                            }
+
+                            RowLayout {
+                                spacing: Theme.sp(6)
+
+                                Text {
+                                    text:  "W"
+                                    font.family:    Theme.fontData
+                                    font.pixelSize: Theme.fontSzMicro
+                                    color: Theme.colorText3
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+
+                                Rectangle {
+                                    implicitWidth:  Theme.sp(70)
+                                    implicitHeight: Theme.sp(24)
+                                    color:  Theme.colorSurface
+                                    border.width: 1
+                                    border.color: wField.activeFocus ? Theme.colorAccent : Theme.colorBorderStrong
+                                    radius: Theme.radius
+                                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                                    TextInput {
+                                        id: wField
+                                        anchors { fill: parent; leftMargin: Theme.sp(8); rightMargin: Theme.sp(8) }
+                                        verticalAlignment: TextInput.AlignVCenter
+                                        font.family:    Theme.fontData
+                                        font.pixelSize: Theme.fontSzBody2
+                                        color:          Theme.colorText
+                                        text: camRow.controller ? Math.round(camRow.controller.cropRoi.width  * (camData.maxWidth  || 0)).toString() : (camData.maxWidth  || 0).toString()
+                                        onEditingFinished: {
+                                            if (!camRow.controller) return
+                                            var val = parseInt(text) || (camData.maxWidth || 0)
+                                            var r   = camRow.controller.cropRoi
+                                            var nw  = Math.max(0.01, Math.min(1.0 - r.x, val / (camData.maxWidth || 1)))
+                                            camRow.controller.setCropRoi(Qt.rect(r.x, r.y, nw, r.height))
+                                        }
+                                    }
+                                }
+
+                                Text {
+                                    text:  "H"
+                                    font.family:    Theme.fontData
+                                    font.pixelSize: Theme.fontSzMicro
+                                    color: Theme.colorText3
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+
+                                Rectangle {
+                                    implicitWidth:  Theme.sp(70)
+                                    implicitHeight: Theme.sp(24)
+                                    color:  Theme.colorSurface
+                                    border.width: 1
+                                    border.color: hField.activeFocus ? Theme.colorAccent : Theme.colorBorderStrong
+                                    radius: Theme.radius
+                                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                                    TextInput {
+                                        id: hField
+                                        anchors { fill: parent; leftMargin: Theme.sp(8); rightMargin: Theme.sp(8) }
+                                        verticalAlignment: TextInput.AlignVCenter
+                                        font.family:    Theme.fontData
+                                        font.pixelSize: Theme.fontSzBody2
+                                        color:          Theme.colorText
+                                        text: camRow.controller ? Math.round(camRow.controller.cropRoi.height * (camData.maxHeight || 0)).toString() : (camData.maxHeight || 0).toString()
+                                        onEditingFinished: {
+                                            if (!camRow.controller) return
+                                            var val = parseInt(text) || (camData.maxHeight || 0)
+                                            var r   = camRow.controller.cropRoi
+                                            var nh  = Math.max(0.01, Math.min(1.0 - r.y, val / (camData.maxHeight || 1)))
+                                            camRow.controller.setCropRoi(Qt.rect(r.x, r.y, r.width, nh))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Preset buttons
+                        ColumnLayout {
+                            spacing: Theme.sp(4)
+
+                            Text {
+                                text:           qsTr("PRESETS")
+                                font.family:    Theme.fontData
+                                font.pixelSize: Theme.fontSzMicro
+                                font.letterSpacing: Theme.trackingMicro
+                                font.capitalization: Font.AllUppercase
+                                color:          Theme.colorText3
+                            }
+
+                            Row {
+                                spacing: Theme.sp(4)
+
+                                Repeater {
+                                    model: [
+                                        { label: qsTr("Full frame"),    action: "full"    },
+                                        { label: qsTr("Default crop"),  action: "default" },
+                                        { label: qsTr("16:9"),          action: "16:9"    }
+                                    ]
+
+                                    delegate: Rectangle {
+                                        required property var modelData
+
+                                        width:  presetLabel.implicitWidth + Theme.sp(20)
+                                        height: Theme.sp(24)
+                                        radius: Theme.radius
+                                        color:  "transparent"
+                                        border.width: 1
+                                        border.color: Theme.colorBorderStrong
+
+                                        Text {
+                                            id: presetLabel
+                                            anchors.centerIn: parent
+                                            text:           modelData.label
+                                            font.family:    Theme.fontBody
+                                            font.pixelSize: Theme.fontSzBody2
+                                            font.weight:    Font.Light
+                                            color:          Theme.colorText2
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape:  Qt.PointingHandCursor
+                                            onClicked: {
+                                                if (!camRow.controller) return
+                                                switch (modelData.action) {
+                                                case "full":
+                                                    camRow.controller.setCropRoi(Qt.rect(0, 0, 1, 1))
+                                                    break
+                                                case "default":
+                                                    camRow.controller.setCropRoi(Qt.rect(0.3, 0, 0.4, 1.0))
+                                                    break
+                                                case "16:9": {
+                                                    var mw = camData.maxWidth  || 1
+                                                    var mh = camData.maxHeight || 1
+                                                    var h  = mw * 9.0 / 16.0 / mh
+                                                    var y  = (1.0 - h) / 2.0
+                                                    camRow.controller.setCropRoi(Qt.rect(0, y, 1.0, h))
+                                                    break
+                                                }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Storage block
+                        Rectangle {
+                            id: storageRect
+                            Layout.fillWidth: true
+                            implicitHeight:   storageCol.implicitHeight + Theme.sp(24)
+                            color:  Theme.colorBg2
+                            border.width: 1
+                            border.color: Theme.colorBorderStrong
+                            radius: Theme.radius
+
+                            // Slot sizing matches VideoController's ring buffer allocation exactly.
+                            // slotBytesPerPixel = worst-case BPP (min 2), slotWidth/Height = max resolution.
+                            readonly property int  slotBpp:   camData.slotBytesPerPixel || 2
+                            readonly property int  slotW:     camData.slotWidth  || camData.maxWidth  || 0
+                            readonly property int  slotH:     camData.slotHeight || camData.maxHeight || 0
+                            readonly property real slotBytes: slotW * slotH * slotBpp
+
+                            // Full-frame display values use the default (actual) format for the caption.
+                            readonly property real bpp:       (camData.bitsPerPixel > 0 ? camData.bitsPerPixel : 8) / 8.0
+                            readonly property real fullBytes: slotBytes  // slot = full frame at worst-case BPP
+
+                            // ROI crop dimensions (normalised → pixels using default resolution for display).
+                            readonly property real roiCropW:  camRow.controller && camRow.controller.cropRoi.width  > 0
+                                                                ? camRow.controller.cropRoi.width  * (camData.maxWidth  || 0)
+                                                                : (camData.maxWidth  || 0)
+                            readonly property real roiCropH:  camRow.controller && camRow.controller.cropRoi.height > 0
+                                                                ? camRow.controller.cropRoi.height * (camData.maxHeight || 0)
+                                                                : (camData.maxHeight || 0)
+                            // ROI bytes uses the slot BPP so the saving is relative to the allocated slot.
+                            readonly property real roiBytes:  roiCropW * roiCropH * slotBpp
+                            readonly property int  framePct:  fullBytes > 0 ? Math.round(roiBytes / fullBytes * 100) : 100
+
+                            // Slot count mirrors SourceRing: nextPow2(ceil(fps × 5)).
+                            readonly property double slotFps: (camData.slotFps > 0 ? camData.slotFps : camRow.currentFps) || 60
+                            readonly property int    slotCount: {
+                                var n = Math.ceil(slotFps * 5.0)
+                                if (n <= 0) return 1
+                                --n
+                                n |= n >> 1; n |= n >> 2; n |= n >> 4; n |= n >> 8; n |= n >> 16
+                                return n + 1
+                            }
+                            readonly property real   ringBytes:     roiBytes  * slotCount
+                            readonly property real   ringFullBytes: fullBytes * slotCount
+                            readonly property int    ringPct:       ringFullBytes > 0 ? Math.round(ringBytes / ringFullBytes * 100) : 100
+
+                            ColumnLayout {
+                                id: storageCol
+                                anchors {
+                                    fill:        parent
+                                    margins:     Theme.sp(12)
+                                }
+                                spacing: Theme.sp(10)
+
+                                // Frame storage bar
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: Theme.sp(4)
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        Text {
+                                            text:           qsTr("FRAME STORAGE (ROI vs FULL FRAME)")
+                                            font.family:    Theme.fontData
+                                            font.pixelSize: Theme.fontSzMicro
+                                            font.letterSpacing: Theme.trackingMicro
+                                            font.capitalization: Font.AllUppercase
+                                            color:          Theme.colorText3
+                                            Layout.fillWidth: true
+                                        }
+                                        Text {
+                                            text:           storageRect.framePct + "%"
+                                            font.family:    Theme.fontData
+                                            font.pixelSize: Theme.fontSzMicro
+                                            color:          Theme.colorAccent
+                                        }
+                                    }
+
+                                    Text {
+                                        text: {
+                                            var roiMb  = (storageRect.roiBytes  / 1048576).toFixed(2)
+                                            var fullMb = (storageRect.fullBytes / 1048576).toFixed(2)
+                                            return qsTr("ROI: ") + roiMb + qsTr(" MB/frame  (full frame: ") + fullMb + qsTr(" MB)")
+                                        }
+                                        font.family:    Theme.fontData
+                                        font.pixelSize: Theme.fontSzMicro
+                                        color:          Theme.colorText2
+                                    }
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        height: Theme.sp(4)
+                                        radius: Theme.sp(2)
+                                        color:  Theme.colorBg3
+
+                                        Rectangle {
+                                            width:  parent.width * Math.min(1, storageRect.framePct / 100.0)
+                                            height: parent.height
+                                            radius: parent.radius
+                                            color:  Theme.colorAccent
+                                            Behavior on width { NumberAnimation { duration: Theme.durationFast } }
+                                        }
+                                    }
+                                }
+
+                                // Ring buffer bar
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: Theme.sp(4)
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        Text {
+                                            text:           qsTr("RING BUFFER  ")
+                                                            + storageRect.slotCount
+                                                            + qsTr(" SLOTS  (")
+                                                            + Math.round(storageRect.slotFps)
+                                                            + qsTr(" fps × 5 s → nextPow2)")
+                                            font.family:    Theme.fontData
+                                            font.pixelSize: Theme.fontSzMicro
+                                            font.letterSpacing: Theme.trackingMicro
+                                            font.capitalization: Font.AllUppercase
+                                            color:          Theme.colorText3
+                                            Layout.fillWidth: true
+                                        }
+                                        Text {
+                                            text:           storageRect.ringPct + "%"
+                                            font.family:    Theme.fontData
+                                            font.pixelSize: Theme.fontSzMicro
+                                            color:          Theme.colorGood
+                                        }
+                                    }
+
+                                    Text {
+                                        text: {
+                                            var frames   = storageRect.slotCount
+                                            var roiMb    = (storageRect.roiBytes     / 1048576).toFixed(2)
+                                            var ringMb   = (storageRect.ringBytes    / 1048576).toFixed(0)
+                                            var ringFull = (storageRect.ringFullBytes / 1048576).toFixed(0)
+                                            return frames + qsTr(" slots × ") + roiMb + qsTr(" MB = ") + ringMb + qsTr(" MB  (full: ") + ringFull + qsTr(" MB)")
+                                        }
+                                        font.family:    Theme.fontData
+                                        font.pixelSize: Theme.fontSzMicro
+                                        color:          Theme.colorText2
+                                    }
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        height: Theme.sp(4)
+                                        radius: Theme.sp(2)
+                                        color:  Theme.colorBg3
+
+                                        Rectangle {
+                                            width:  parent.width * Math.min(1, storageRect.ringPct / 100.0)
+                                            height: parent.height
+                                            radius: parent.radius
+                                            color:  Theme.colorGood
+                                            Behavior on width { NumberAnimation { duration: Theme.durationFast } }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Reset / done buttons
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: Theme.sp(6)
+
+                            Rectangle {
+                                width:  resetLabel.implicitWidth + Theme.sp(20)
+                                height: Theme.sp(26)
+                                radius: Theme.radius
+                                color:  "transparent"
+                                border.width: 1
+                                border.color: Theme.colorBorderStrong
+
+                                Text {
+                                    id: resetLabel
+                                    anchors.centerIn: parent
+                                    text:           qsTr("Reset to full frame")
+                                    font.family:    Theme.fontBody
+                                    font.pixelSize: Theme.fontSzBody2
+                                    font.weight:    Font.Light
+                                    color:          Theme.colorText2
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape:  Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (camRow.controller)
+                                            camRow.controller.setCropRoi(Qt.rect(0, 0, 1, 1))
+                                    }
+                                }
+                            }
+
+                            Item { Layout.fillWidth: true }
+
+                            Rectangle {
+                                width:  doneLabel.implicitWidth + Theme.sp(24)
+                                height: Theme.sp(26)
+                                radius: Theme.radius
+                                color:  Theme.colorAccentLight
+                                border.width: 1
+                                border.color: Theme.colorAccent
+
+                                Text {
+                                    id: doneLabel
+                                    anchors.centerIn: parent
+                                    text:           qsTr("Done")
+                                    font.family:    Theme.fontBody
+                                    font.pixelSize: Theme.fontSzBody2
+                                    font.weight:    Font.Normal
+                                    color:          Theme.colorAccent
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape:  Qt.PointingHandCursor
+                                    onClicked:    root.openRoiIndex = -1
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Main scroll view
+    // ─────────────────────────────────────────────────────────────────────────
+    ScrollView {
+        anchors.fill: parent
+        contentWidth: availableWidth
+        contentHeight: contentCol.y + contentCol.implicitHeight + Theme.sp(28)
+
+        ColumnLayout {
+            id: contentCol
+            x: Theme.sp(32)
+            y: Theme.sp(28)
+            width: parent.width - Theme.sp(64)
+            spacing: Theme.sp(16)
+
+            // ── Page header ────────────────────────────────────────────────
+            Text {
+                text: qsTr("HARDWARE")
+                font.family:         Theme.fontBody
+                font.pixelSize:      Theme.fontSzMicro
+                font.letterSpacing:  Theme.trackingMicro
+                font.capitalization: Font.AllUppercase
+                color: Theme.colorText3
+            }
+
+            Text {
+                text: qsTr("Cameras")
+                font.family:  Theme.fontDisplay
+                font.italic:  Theme.fontDisplayItalic
+                font.pixelSize: Theme.fontSzDisplay
+                color: Theme.colorText
+            }
+
+            Text {
+                text: qsTr("All detected cameras are listed below. Enable each device, assign it to a view, configure capture parameters, and optionally define a crop region to reduce frame storage and ring buffer size.")
+                font.family:    Theme.fontBody
+                font.pixelSize: Theme.fontSzBody2
+                font.weight:    Font.Light
+                color:          Theme.colorText3
+                wrapMode:       Text.WordWrap
+                Layout.fillWidth: true
+            }
+
+            // ── Detected cameras section ───────────────────────────────────
+            RowLayout {
+                Layout.fillWidth: true
+
+                Text {
+                    text:           qsTr("DETECTED CAMERAS")
+                    font.family:    Theme.fontBody
+                    font.pixelSize: Theme.fontSzMicro
+                    font.letterSpacing: Theme.trackingMicro
+                    font.capitalization: Font.AllUppercase
+                    color:          Theme.colorText3
+                    Layout.fillWidth: true
+                }
+
+                PpButton {
+                    label: qsTr("Refresh")
+                    onClicked: cameraManager.enumerate()
+                }
+            }
+
+            // Camera rows
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: Theme.sp(8)
+
+                Repeater {
+                    model: cameraManager.cameraList
+
+                    delegate: CameraDeviceRow {
+                        required property var modelData
+                        camData: modelData
+                        Layout.fillWidth: true
+                    }
+                }
+
+                // Empty state
+                Text {
+                    visible: cameraManager.cameraList.length === 0
+                    text:    qsTr("No cameras detected. Connect a camera and click Refresh.")
+                    font.family:    Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody2
+                    font.weight:    Font.Light
+                    font.italic:    true
+                    color:          Theme.colorText3
+                    Layout.fillWidth: true
+                }
+            }
+
+            PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
+
+            // ── Global capture section ─────────────────────────────────────
+            Text {
+                text:           qsTr("GLOBAL CAPTURE")
+                font.family:    Theme.fontBody
+                font.pixelSize: Theme.fontSzMicro
+                font.letterSpacing: Theme.trackingMicro
+                font.capitalization: Font.AllUppercase
+                color:          Theme.colorText3
+            }
+
+            // Pre-roll buffer row
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.sp(16)
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.sp(3)
+
+                    Text {
+                        text:           qsTr("Pre-roll buffer")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        color:          Theme.colorText
+                    }
+                    Text {
+                        text:           qsTr("Seconds of frames held before swing trigger — directly sets ring buffer size above")
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText3
+                        wrapMode:       Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+                }
+
+                // Chip group for preroll values
+                Row {
+                    spacing: Theme.sp(4)
+                    Layout.alignment: Qt.AlignVCenter
+
+                    readonly property var prerollOptions: [
+                        { label: qsTr("0.5 s"), value: 0.5 },
+                        { label: qsTr("1.0 s"), value: 1.0 },
+                        { label: qsTr("2.0 s"), value: 2.0 }
+                    ]
+
+                    Repeater {
+                        model: parent.prerollOptions
+
+                        delegate: Rectangle {
+                            required property var modelData
+
+                            readonly property bool isSelected: Math.abs(appSettings.cameraPreroll - modelData.value) < 0.01
+
+                            width:  prerollLabel.implicitWidth + Theme.sp(20)
+                            height: Theme.sp(24)
+                            radius: Theme.radius
+                            color:  isSelected ? Theme.colorAccentLight : "transparent"
+                            border.width: 1
+                            border.color: isSelected ? Theme.colorAccent : Theme.colorBorderStrong
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                            Text {
+                                id: prerollLabel
+                                anchors.centerIn: parent
+                                text:           modelData.label
+                                font.family:    Theme.fontData
+                                font.pixelSize: Theme.fontSzMicro
+                                color:          isSelected ? Theme.colorAccent : Theme.colorText2
+                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape:  Qt.PointingHandCursor
+                                onClicked:    appSettings.cameraPreroll = modelData.value
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Synchronise cameras row
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.sp(16)
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.sp(3)
+
+                    Text {
+                        text:           qsTr("Synchronise cameras")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        color:          Theme.colorText
+                    }
+                    Text {
+                        text:           qsTr("Lock frame timing across all enabled cameras")
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText3
+                    }
+                }
+
+                TogglePill {
+                    checked: appSettings.cameraSyncEnabled
+                    onToggled: (v) => appSettings.cameraSyncEnabled = v
+                    Layout.alignment: Qt.AlignVCenter
+                }
+            }
+        }
+    }
+}

@@ -21,6 +21,9 @@
 #include "video_controller.h"
 #include "video_input_factory.h"
 #include "event_buffer.h"
+#include "app_settings.h"
+#include "../Video/camera_capabilities.h"
+#include <algorithm>
 
 CameraManager::CameraManager(pinpoint::EventBuffer *buffer, QObject *parent)
     : QObject(parent)
@@ -30,14 +33,36 @@ CameraManager::CameraManager(pinpoint::EventBuffer *buffer, QObject *parent)
 
     const QList<Device> allDevices = DeviceEnumerator::instance()->devices();
     for (const Device &dev : allDevices) {
-        if (dev.type == DeviceType::VideoInput)
-            m_cameras.append({dev, false, nullptr});
+        if (dev.type != DeviceType::VideoInput) continue;
+        CameraEntry entry;
+        entry.device = dev;
+        m_cameras.append(entry);
     }
 
-    // Auto-select the first camera via setSelected() so the buffer is correctly
-    // paused around registerSource() even when start() has already been called.
-    if (!m_cameras.isEmpty())
-        setSelected(0, true);
+    // Apply persisted per-device settings keyed by serial number.
+    AppSettings settings;
+    const QStringList excluded    = settings.cameraExcluded();
+    const QVariantMap targetFps   = settings.cameraTargetFps();
+    const QVariantMap triggerMode = settings.cameraTriggerMode();
+
+    for (auto &cam : m_cameras) {
+        const QString key = cameraKey(cam);
+        if (!key.isEmpty()) {
+            if (excluded.contains(key))    cam.excluded    = true;
+            if (targetFps.contains(key))   cam.targetFps   = targetFps.value(key).toDouble();
+            if (triggerMode.contains(key)) cam.triggerMode = triggerMode.value(key).toString();
+        }
+    }
+
+    // Auto-select the first non-excluded camera via setSelected() so the buffer
+    // is correctly paused around registerSource() even when start() has already
+    // been called.
+    for (int i = 0; i < m_cameras.size(); ++i) {
+        if (!m_cameras[i].excluded) {
+            setSelected(i, true);
+            break;
+        }
+    }
 }
 
 CameraManager::~CameraManager()
@@ -68,10 +93,65 @@ QVariantList CameraManager::cameraList() const
 {
     QVariantList list;
     for (int i = 0; i < m_cameras.size(); ++i) {
+        const CameraEntry &cam = m_cameras[i];
+        const CameraCapabilities &cap = cam.device.capabilities;
         QVariantMap entry;
         entry[QStringLiteral("index")]       = i;
-        entry[QStringLiteral("description")] = m_cameras[i].device.description;
-        entry[QStringLiteral("selected")]    = m_cameras[i].selected;
+        entry[QStringLiteral("description")] = cam.device.description;
+        entry[QStringLiteral("selected")]    = cam.selected;
+        entry[QStringLiteral("vendorName")]  = cap.vendorName;
+        entry[QStringLiteral("modelName")]   = cap.modelName;
+        entry[QStringLiteral("serialNumber")] = cap.serialNumber;
+        entry[QStringLiteral("cameraKey")]   = cameraKey(cam);
+        entry[QStringLiteral("interface")]   = interfaceString(cap.connectionInterface);
+        entry[QStringLiteral("maxWidth")]    = cap.resolution.defaultResolution.width;
+        entry[QStringLiteral("maxHeight")]   = cap.resolution.defaultResolution.height;
+        entry[QStringLiteral("pixelFormat")] = cap.pixelFormat.defaultFormat.nativeKey;
+        entry[QStringLiteral("bitsPerPixel")] = cap.pixelFormat.defaultFormat.bitsPerPixel;
+        entry[QStringLiteral("maxFps")]      = cap.frameRate.range.max;
+        entry[QStringLiteral("roiSupported")] = cap.roi.supported;
+        entry[QStringLiteral("hwTrigger")]   = cap.trigger.hasHardwareInput;
+        entry[QStringLiteral("enabled")]     = !cam.excluded;
+
+        // --- Ring buffer sizing fields (mirror VideoController's allocation logic) ---
+        // Slot width/height: largest supported resolution, not just the default.
+        int slotW = 0, slotH = 0;
+        for (const Resolution &r : cap.resolution.presets) {
+            if (r.width * r.height > slotW * slotH) { slotW = r.width; slotH = r.height; }
+        }
+        if (slotW == 0) { slotW = cap.resolution.defaultResolution.width;
+                          slotH = cap.resolution.defaultResolution.height; }
+        if (slotW == 0) { slotW = 1920; slotH = 1080; }
+
+        // Slot BPP: worst-case across all supported formats, minimum 2 bytes/pixel.
+        int maxBpp = 2;
+        for (const PixelFormat &pf : cap.pixelFormat.supported) {
+            int bpp = pf.bitsPerPixel > 0 ? (pf.bitsPerPixel + 7) / 8 : 0;
+            if (bpp == 0) {
+                switch (pf.encoding) {
+                case PixelEncoding::RGBA8:
+                case PixelEncoding::BGR8:          bpp = 4; break;
+                case PixelEncoding::BayerRG16:
+                case PixelEncoding::BayerGB16:
+                case PixelEncoding::YUV422_YUYV:
+                case PixelEncoding::YUV422_UYVY:   bpp = 2; break;
+                default:                           bpp = 2; break;
+                }
+            }
+            maxBpp = std::max(maxBpp, bpp);
+        }
+
+        // Slot FPS: GenICam cameras use 200 fps as the conservative upper bound.
+        double slotFps = cap.frameRate.range.max > 0.0 ? cap.frameRate.range.max : 60.0;
+        if (cam.device.backend == VideoInputFactory::Backend::Aravis ||
+            cam.device.backend == VideoInputFactory::Backend::Spinnaker)
+            slotFps = 200.0;
+
+        entry[QStringLiteral("slotWidth")]        = slotW;
+        entry[QStringLiteral("slotHeight")]       = slotH;
+        entry[QStringLiteral("slotBytesPerPixel")] = maxBpp;
+        entry[QStringLiteral("slotFps")]          = slotFps;
+
         list.append(entry);
     }
     return list;
@@ -222,6 +302,98 @@ QString CameraManager::bufferState() const
     return QStringLiteral("unknown");
 }
 
+void CameraManager::enumerate()
+{
+    VideoInputFactory::enumerateDevices();
+
+    // Merge any newly discovered video devices into m_cameras.
+    // Existing entries are matched by device id and left untouched so their
+    // controllers, settings and selected state are preserved.
+    const QList<Device> allDevices = DeviceEnumerator::instance()->devices();
+    bool added = false;
+    for (const Device &dev : allDevices) {
+        if (dev.type != DeviceType::VideoInput) continue;
+        bool found = false;
+        for (const auto &cam : m_cameras) {
+            if (cam.device.id == dev.id) { found = true; break; }
+        }
+        if (!found) {
+            CameraEntry entry;
+            entry.device = dev;
+            // Apply any persisted settings for this device.
+            AppSettings s;
+            const QString key = cameraKey(entry);
+            if (s.cameraExcluded().contains(key))    entry.excluded    = true;
+            if (s.cameraTargetFps().contains(key))   entry.targetFps   = s.cameraTargetFps().value(key).toDouble();
+            if (s.cameraTriggerMode().contains(key)) entry.triggerMode = s.cameraTriggerMode().value(key).toString();
+            m_cameras.append(entry);
+            added = true;
+        }
+    }
+
+    if (added) {
+        emit cameraListChanged();
+        emit instancesChanged();
+    }
+}
+
+void CameraManager::setExcluded(int index, bool excluded)
+{
+    if (index < 0 || index >= m_cameras.size()) return;
+    if (m_cameras[index].excluded == excluded) return;
+
+    m_cameras[index].excluded = excluded;
+
+    if (excluded && m_cameras[index].selected) {
+        setSelected(index, false);
+    } else if (!excluded && !m_cameras[index].selected) {
+        setSelected(index, true);
+    }
+
+    // Persist to AppSettings keyed by serial number.
+    const QString key = cameraKey(m_cameras[index]);
+    if (!key.isEmpty()) {
+        AppSettings settings;
+        QStringList excList = settings.cameraExcluded();
+        if (excluded)
+            excList.append(key);
+        else
+            excList.removeAll(key);
+        settings.setCameraExcluded(excList);
+    }
+
+    emit cameraListChanged();
+}
+
+void CameraManager::setTargetFps(int index, double fps)
+{
+    if (index < 0 || index >= m_cameras.size()) return;
+    m_cameras[index].targetFps = fps;
+
+    // TODO: apply to VideoController when setFps() is implemented
+    const QString key = cameraKey(m_cameras[index]);
+    if (!key.isEmpty()) {
+        AppSettings settings;
+        QVariantMap map = settings.cameraTargetFps();
+        map[key] = fps;
+        settings.setCameraTargetFps(map);
+    }
+}
+
+void CameraManager::setTriggerMode(int index, const QString &mode)
+{
+    if (index < 0 || index >= m_cameras.size()) return;
+    m_cameras[index].triggerMode = mode;
+
+    const QString key = cameraKey(m_cameras[index]);
+    if (!key.isEmpty()) {
+        AppSettings settings;
+        QVariantMap map = settings.cameraTriggerMode();
+        map[key] = mode;
+        settings.setCameraTriggerMode(map);
+    }
+}
+
 void CameraManager::setPerspective(QObject *rawController, int perspective)
 {
     auto *target = qobject_cast<VideoController *>(rawController);
@@ -251,6 +423,73 @@ VideoController *CameraManager::createController(const Device &device)
     auto *ctrl = new VideoController(device, m_eventBuffer, this);
     connect(ctrl, &VideoController::ballPresentChanged,
             this, &CameraManager::onCameraBallPresenceChanged);
+
+    // Restore persisted ROI and perspective for this device.
+    const QString key = device.description + QStringLiteral("|")
+                        + (device.capabilities.serialNumber.isEmpty()
+                               ? device.id
+                               : device.capabilities.serialNumber);
+
+    AppSettings s;
+
+    const QVariantMap roiMap = s.cameraRoi();
+    if (roiMap.contains(key)) {
+        const QVariantMap r = roiMap.value(key).toMap();
+        double x = r.value(QStringLiteral("x")).toDouble();
+        double y = r.value(QStringLiteral("y")).toDouble();
+        double w = r.value(QStringLiteral("w")).toDouble();
+        double h = r.value(QStringLiteral("h")).toDouble();
+        if (w > 0 && h > 0)
+            ctrl->setCropRoi(QRectF(x, y, w, h));
+    }
+
+    const QVariantMap perspMap = s.cameraPerspective();
+    if (perspMap.contains(key)) {
+        int p = perspMap.value(key).toInt();
+        if (p > 0)
+            ctrl->setPerspective(p);
+    }
+
+    // Save crop ROI changes back to AppSettings (separate from hitting-area roi).
+    connect(ctrl, &VideoController::cropRoiChanged, this, [this, ctrl]() {
+        for (const auto &cam : m_cameras) {
+            if (cam.controller != ctrl) continue;
+            const QString k = cameraKey(cam);
+            AppSettings settings;
+            QVariantMap map = settings.cameraRoi();
+            const QRectF roi = ctrl->cropRoi();
+            if (roi.width() > 0 && roi.height() > 0) {
+                QVariantMap r;
+                r[QStringLiteral("x")] = roi.x();
+                r[QStringLiteral("y")] = roi.y();
+                r[QStringLiteral("w")] = roi.width();
+                r[QStringLiteral("h")] = roi.height();
+                map[k] = r;
+            } else {
+                map.remove(k);
+            }
+            settings.setCameraRoi(map);
+            break;
+        }
+    });
+
+    // Save perspective changes back to AppSettings.
+    connect(ctrl, &VideoController::perspectiveChanged, this, [this, ctrl]() {
+        for (const auto &cam : m_cameras) {
+            if (cam.controller != ctrl) continue;
+            const QString k = cameraKey(cam);
+            AppSettings settings;
+            QVariantMap map = settings.cameraPerspective();
+            const int p = ctrl->perspective();
+            if (p > 0)
+                map[k] = p;
+            else
+                map.remove(k);
+            settings.setCameraPerspective(map);
+            break;
+        }
+    });
+
     return ctrl;
 }
 

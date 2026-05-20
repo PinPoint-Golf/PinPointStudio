@@ -24,7 +24,7 @@ import PinPoint
 Item {
     id: root
 
-    property int    cameraCount:    2
+    property int    cameraCount:    cameraManager.cameraList.length
     property int    imuCount:       4
     property int    activeNavIndex: 0
     property string searchQuery:    ""
@@ -262,7 +262,10 @@ Item {
                     Layout.fillWidth:  true
                     Layout.fillHeight: true
                 }
-                ScreenPlaceholder { titleText: "Cameras"        }  // 3
+                CamerasPanel {                                      // 3
+                    Layout.fillWidth:  true
+                    Layout.fillHeight: true
+                }
                 ScreenPlaceholder { titleText: "IMUs"           }  // 4
                 ScreenPlaceholder { titleText: "Launch Monitor" }  // 5
                 ScreenPlaceholder { titleText: "Archiving"      }  // 6

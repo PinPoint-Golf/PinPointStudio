@@ -28,6 +28,7 @@
 
 #include "device_enumerator.h"
 #include "swing_window.h"
+#include "../Video/camera_capabilities.h"
 
 namespace pinpoint { class EventBuffer; }
 class VideoController;
@@ -60,10 +61,15 @@ public:
     Q_INVOKABLE void stopAll();
     Q_INVOKABLE void pauseBuffer();
     Q_INVOKABLE void resumeBuffer();
+    Q_INVOKABLE void enumerate();
 
     // Sets the perspective on one camera and clears it from any other camera
     // that currently has the same non-zero perspective value.
     Q_INVOKABLE void setPerspective(QObject *controller, int perspective);
+
+    Q_INVOKABLE void setExcluded(int index, bool excluded);
+    Q_INVOKABLE void setTargetFps(int index, double fps);
+    Q_INVOKABLE void setTriggerMode(int index, const QString &mode);
 
 signals:
     void cameraListChanged();
@@ -77,7 +83,34 @@ private:
         Device device;
         bool selected = false;
         VideoController *controller = nullptr;
+        bool excluded = false;
+        double targetFps = 0.0;
+        QString triggerMode = QStringLiteral("freerun");
     };
+
+    // Stable per-device key for settings storage.
+    // Format: "ModelName|SerialNumber" so keys are human-readable in QSettings and
+    // immune to cross-manufacturer serial-number collisions.
+    // Falls back to "ModelName|DeviceId" when no serial is available.
+    static QString cameraKey(const CameraEntry &cam)
+    {
+        const QString model = cam.device.description;
+        const QString sn    = cam.device.capabilities.serialNumber;
+        const QString id    = sn.isEmpty() ? cam.device.id : sn;
+        return model + QStringLiteral("|") + id;
+    }
+
+    static QString interfaceString(CameraCapabilities::Interface iface)
+    {
+        switch (iface) {
+        case CameraCapabilities::Interface::USB2:  return QStringLiteral("USB2");
+        case CameraCapabilities::Interface::USB3:  return QStringLiteral("USB3");
+        case CameraCapabilities::Interface::GigE:
+        case CameraCapabilities::Interface::GigE5:
+        case CameraCapabilities::Interface::GigE10: return QStringLiteral("GigE");
+        default:                                    return QStringLiteral("Unknown");
+        }
+    }
 
     struct ReplayTrack {
         VideoController                   *ctrl      = nullptr;

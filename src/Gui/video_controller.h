@@ -69,7 +69,8 @@ class VideoController : public QObject
     Q_PROPERTY(QString deviceDescription  READ deviceDescription  CONSTANT)
     Q_PROPERTY(QString deviceSerialNumber READ deviceSerialNumber CONSTANT)
     Q_PROPERTY(int perspective READ perspective NOTIFY perspectiveChanged)
-    Q_PROPERTY(QRectF roi READ roi NOTIFY roiChanged)
+    Q_PROPERTY(QRectF roi     READ roi     NOTIFY roiChanged)
+    Q_PROPERTY(QRectF cropRoi READ cropRoi NOTIFY cropRoiChanged)
     Q_PROPERTY(bool   ballDetected       READ ballDetected       NOTIFY ballDetectedChanged)
     Q_PROPERTY(double ballX              READ ballX              NOTIFY ballDetectedChanged)
     Q_PROPERTY(double ballY              READ ballY              NOTIFY ballDetectedChanged)
@@ -108,6 +109,7 @@ public:
     QString deviceSerialNumber()  const;
     int     perspective() const;
     QRectF  roi()          const;
+    QRectF  cropRoi()      const;
     bool    ballDetected()        const;
     double  ballX()               const;
     double  ballY()               const;
@@ -128,12 +130,17 @@ public:
     void displayReplayFrame(const std::byte *data, size_t bytes, int w, int h, pinpoint::PixelFormat fmt);
 
     Q_INVOKABLE void setVideoSink(QVideoSink *sink);
-    Q_INVOKABLE void setBayerItem(QObject *item);   // called from QML with a BayerVideoItem
+    Q_INVOKABLE void setSettingsSink(QVideoSink *sink);
+    Q_INVOKABLE void setBayerItem(QObject *item);
     Q_INVOKABLE void startRecording();
     Q_INVOKABLE void stopRecording();
+    Q_INVOKABLE void startPreview();  // start camera without ring-buffer capture (settings preview)
+    Q_INVOKABLE void stopPreview();
     Q_INVOKABLE void selectMoveNetModel(int variant);
-    Q_INVOKABLE void setRoi(QRectF roi);
+    Q_INVOKABLE void setRoi(QRectF roi);    // hitting area for ball detection
     Q_INVOKABLE void clearRoi();
+    Q_INVOKABLE void setCropRoi(QRectF roi); // frame crop for storage / ring-buffer sizing
+    Q_INVOKABLE void clearCropRoi();
 
     VideoPreprocessorBase *preprocessor() const;
 
@@ -151,6 +158,7 @@ signals:
     void poseKeypointsChanged();
     void perspectiveChanged();
     void roiChanged();
+    void cropRoiChanged();
     void ballDetectedChanged();
     void ballPresencePercentChanged();
     void ballPresentChanged(bool present);
@@ -183,9 +191,12 @@ private:
 
     QThread               *m_captureThread   = nullptr;
     VideoInputBase        *m_videoInput       = nullptr;
-    QVideoSink            *m_videoSink        = nullptr;
+    QVideoSink            *m_videoSink         = nullptr;
+    QVideoSink            *m_settingsSink      = nullptr;
     BayerVideoItem        *m_bayerItem        = nullptr;
     bool                   m_recording        = false;
+    bool                   m_previewing       = false;
+    std::atomic<bool>      m_previewOnly{false}; // true = camera running but pipeline suppressed
     QString                m_deviceId;
     QString                m_deviceDescription;
     QString                m_deviceSerialNumber;
@@ -238,6 +249,7 @@ private:
     QVariantList       m_poseKeypoints;
     int                m_perspective        = 0;
     QRectF             m_roi;
+    QRectF             m_cropRoi;
     int                m_frameWidth  = 0;
     int                m_frameHeight = 0;
     double             m_configuredFps = 0.0;
