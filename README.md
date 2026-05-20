@@ -28,7 +28,7 @@ Our ambition is to be a platform that can be used by golfers, coaches and resear
 
 ## UI shell
 
-The interface uses a left-side navigation rail with a Home button, five mode buttons, and an athlete avatar at the top.
+The interface uses a left-side navigation rail with an athlete avatar at the top, five mode buttons, and utility buttons at the bottom.
 
 | Mode | Status | Description |
 |---|---|---|
@@ -40,7 +40,15 @@ The interface uses a left-side navigation rail with a Home button, five mode but
 
 Wrist, GRF, and Coach redirect to the Welcome screen until at least one athlete has been created.
 
-The **Settings** button (bottom of the rail) cycles through all six visual themes — three aesthetics (Editorial, Instrument, Studio) × two modes (light, dark) — and the selected theme is persisted across restarts. See [Aesthetic Design Concepts](docs/aesthetic/pinpoint-aesthetic-concepts.md).
+Three utility buttons sit at the bottom of the rail:
+
+| Button | Description |
+|---|---|
+| **Play ▶** | Developer hatch — direct access to legacy tab pages during prototyping |
+| **System ◈** | Opens the resource monitor (buffer, camera, and IMU diagnostics) |
+| **Settings ⚙** | Opens the full Settings screen (see [Settings](#settings)) |
+
+The **Settings** screen selects from eight visual themes — four aesthetics (Instrument, Editorial, Studio, Vector) × two modes (light, dark) — and the selected theme is persisted across restarts. See [Aesthetic Design Concepts](docs/aesthetic/pinpoint-aesthetic-concepts.md).
 
 | Editorial | Instrument | Studio |
 |---|---|---|
@@ -104,6 +112,22 @@ Every session belongs to an athlete. The athlete management flow is the entry po
 - **Text-to-speech** — Kokoro TTS (local, ONNX Runtime) with Azure Neural Voice fallback for CPU-only systems. Same badge/toggle pattern.
 - **Latency display** — Per-request latency shown next to each badge (e.g. `523 ms`).
 
+### Settings
+
+The Settings screen uses a sidebar navigation with a search field and panel-level organisation.
+
+| Panel | Status | Contents |
+|---|---|---|
+| **General** | Active | Language, measurement units, athlete library path, session behaviour, update and diagnostics preferences |
+| **Appearance** | Active | Theme selector (8 options), font scale, UI density, reduce motion, pose overlay opacity |
+| **Displays** | Active | Main display placement, window geometry memory, secondary display output, post-shot content and delay, UI frame-rate cap, hardware acceleration |
+| **Cameras** | Active | Per-camera enable/disable, view assignment (Face-on / Down-the-line / Other), frame-rate chips, trigger mode (Free-run / HW sync), ROI crop with live preview; global pre-roll buffer and camera-sync toggle |
+| **IMUs** | Placeholder | IMU assignment and configuration (not yet implemented) |
+| **Launch Monitor** | Placeholder | External launch monitor integration (not yet implemented) |
+| **Archiving** | Placeholder | Session archive path and retention policy (not yet implemented) |
+
+The Cameras panel shows sensor info (vendor/model, resolution, pixel format, bit depth) and a real-time storage estimate (per-frame MB and ring-buffer slot count) that updates as the ROI is adjusted.
+
 ### Film — video annotation
 
 - **YouTube download** — Bundled yt-dlp fetches videos from YouTube (Premium quality, browser cookie auth) to a local cache; no re-download on repeat analysis.
@@ -152,10 +176,55 @@ PinPoint reads and writes files in several locations. Platform paths shown for L
 
 | Key | Default | What |
 |---|---|---|
-| `ui/themeIndex` | `0` | Selected visual theme (0–5: Editorial light/dark, Instrument light/dark, Studio light/dark) |
+| `ui/themeIndex` | `0` | Selected visual theme (0–7: Instrument light/dark, Editorial light/dark, Studio light/dark, Vector light/dark) |
 | `ui/windowWidth` | `1120` | Main window width in pixels; updated on every resize |
 | `ui/windowHeight` | `700` | Main window height in pixels; updated on every resize |
+| `ui/windowX` | `-1` | Saved window X position (`-1` = not saved) |
+| `ui/windowY` | `-1` | Saved window Y position (`-1` = not saved) |
+| `ui/windowMaximized` | `false` | Whether window was last maximised/full-screen |
 | `ui/fontScale` | `-1.0` | Font scale multiplier (`-1.0` = auto from display DPI) |
+| `ui/density` | `"default"` | UI density (`"default"` or `"compact"`) |
+| `ui/reduceMotion` | `false` | Disable animated transitions |
+| `ui/overlayOpacity` | `0.7` | Opacity of the pose skeleton overlay (0.0–1.0) |
+
+**General**
+
+| Key | Default | What |
+|---|---|---|
+| `general/language` | `"en_GB"` | UI language tag (e.g. `"en_US"`, `"fr_FR"`, `"ja_JP"`) |
+| `general/units` | `"mph"` | Speed/distance unit (`"mph"` or `"kmh"`) |
+| `general/athleteLibraryPath` | _(empty)_ | Root directory for athlete profiles and session archives |
+| `general/autoSaveSession` | `true` | Write session to archive immediately on completion |
+| `general/autoDetectSwing` | `true` | Start capture automatically when motion exceeds threshold |
+| `general/swingDetectionSensitivity` | `"Medium"` | Trigger threshold (`"Low"`, `"Medium"`, `"High"`) |
+| `general/aiCoachingOnSessionEnd` | `true` | Auto-generate a Claude coaching observation after each session |
+| `general/checkForUpdates` | `true` | Check on launch for a newer release |
+| `general/sendDiagnostics` | `false` | Send anonymous crash/performance data |
+
+**Display**
+
+| Key | Default | What |
+|---|---|---|
+| `display/mainDisplayMode` | `"primary"` | Where to open the main window (`"primary"`, `"cursor"`, `"screen:<n>"`) |
+| `display/rememberWindowGeometry` | `true` | Restore exact window position and size from previous session |
+| `display/secondaryDisplayMode` | `"none"` | Secondary output for post-shot replay (`"none"` or `"screen:<n>"`) |
+| `display/postShotContent` | `"replay"` | What to show on the secondary display after a shot |
+| `display/postShotDelay` | `0.5` | Seconds before post-shot content is shown |
+| `display/postShotMirror` | `false` | Mirror the post-shot image horizontally |
+| `display/uiFrameRateCap` | `"display"` | UI render rate cap (`"display"` = match monitor refresh, or explicit Hz) |
+| `display/hardwareAcceleration` | `true` | Use GPU-accelerated rendering |
+
+**Camera** — per-camera values are maps keyed by the camera's persistent serial-number key
+
+| Key | Default | What |
+|---|---|---|
+| `camera/excluded` | _(empty list)_ | Serial-number keys of cameras excluded from capture |
+| `camera/targetFps` | _(empty map)_ | Per-camera frame-rate target; key → fps value |
+| `camera/triggerMode` | _(empty map)_ | Per-camera trigger mode; key → `"freerun"` or `"hwsync"` |
+| `camera/roi` | _(empty map)_ | Per-camera ROI; key → normalised `{x, y, w, h}` rect |
+| `camera/perspective` | _(empty map)_ | Per-camera view assignment; key → `0` (unassigned), `1` (down-the-line), `2` (face-on), `3` (other) |
+| `camera/preroll` | `1.0` | Pre-roll buffer in seconds (0.5 / 1.0 / 2.0) |
+| `camera/syncEnabled` | `true` | Lock frame timing across all enabled cameras |
 
 **Athletes** — one group per athlete, keyed by UUID (`athletes/<uuid>/…`)
 
