@@ -697,8 +697,6 @@ Item {
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3
-                        wrapMode:       Text.WordWrap
-                        Layout.fillWidth: true
                     }
                 }
 
