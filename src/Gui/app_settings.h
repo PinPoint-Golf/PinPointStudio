@@ -20,6 +20,9 @@
 
 #include <QObject>
 #include <QString>
+#include <QCursor>
+#include <QGuiApplication>
+#include <QScreen>
 #include "pp_settings.h"
 #include "version.h"
 
@@ -35,6 +38,8 @@ class AppSettings : public QObject
     Q_PROPERTY(bool    reduceMotion READ reduceMotion WRITE setReduceMotion NOTIFY reduceMotionChanged)
     Q_PROPERTY(double  overlayOpacity  READ overlayOpacity  WRITE setOverlayOpacity  NOTIFY overlayOpacityChanged)
     Q_PROPERTY(bool    windowMaximized READ windowMaximized WRITE setWindowMaximized NOTIFY windowMaximizedChanged)
+    Q_PROPERTY(int     windowX         READ windowX         WRITE setWindowX         NOTIFY windowXChanged)
+    Q_PROPERTY(int     windowY         READ windowY         WRITE setWindowY         NOTIFY windowYChanged)
     Q_PROPERTY(QString language                    READ language                    WRITE setLanguage                    NOTIFY languageChanged)
     Q_PROPERTY(QString units                       READ units                       WRITE setUnits                       NOTIFY unitsChanged)
     Q_PROPERTY(QString athleteLibraryPath          READ athleteLibraryPath          WRITE setAthleteLibraryPath          NOTIFY athleteLibraryPathChanged)
@@ -64,6 +69,8 @@ public:
         m_reduceMotion    = ppSettings().value(QStringLiteral("ui/reduceMotion"),    false).toBool();
         m_overlayOpacity  = ppSettings().value(QStringLiteral("ui/overlayOpacity"),  0.7).toDouble();
         m_windowMaximized = ppSettings().value(QStringLiteral("ui/windowMaximized"), false).toBool();
+        m_windowX         = ppSettings().value(QStringLiteral("ui/windowX"),         -1).toInt();
+        m_windowY         = ppSettings().value(QStringLiteral("ui/windowY"),         -1).toInt();
 
         m_language                  = ppSettings().value(QStringLiteral("general/language"),                  QStringLiteral("en_GB")).toString();
         m_units                     = ppSettings().value(QStringLiteral("general/units"),                     QStringLiteral("mph")).toString();
@@ -94,6 +101,20 @@ public:
     bool    reduceMotion()  const { return m_reduceMotion; }
     double  overlayOpacity()  const { return m_overlayOpacity; }
     bool    windowMaximized() const { return m_windowMaximized; }
+    int     windowX()         const { return m_windowX; }
+    int     windowY()         const { return m_windowY; }
+
+    // Returns the index into Qt.application.screens of the screen containing the cursor.
+    Q_INVOKABLE int cursorScreenIndex() const
+    {
+        const QPoint pos = QCursor::pos();
+        const QList<QScreen *> screens = QGuiApplication::screens();
+        for (int i = 0; i < screens.size(); ++i) {
+            if (screens[i]->geometry().contains(pos))
+                return i;
+        }
+        return 0;
+    }
 
     QString language()                  const { return m_language; }
     QString units()                     const { return m_units; }
@@ -176,6 +197,22 @@ public:
         m_windowMaximized = v;
         ppSettings().setValue(QStringLiteral("ui/windowMaximized"), v);
         emit windowMaximizedChanged();
+    }
+
+    void setWindowX(int v)
+    {
+        if (m_windowX == v) return;
+        m_windowX = v;
+        ppSettings().setValue(QStringLiteral("ui/windowX"), v);
+        emit windowXChanged();
+    }
+
+    void setWindowY(int v)
+    {
+        if (m_windowY == v) return;
+        m_windowY = v;
+        ppSettings().setValue(QStringLiteral("ui/windowY"), v);
+        emit windowYChanged();
     }
 
     void setLanguage(const QString &v)
@@ -323,6 +360,8 @@ signals:
     void reduceMotionChanged();
     void overlayOpacityChanged();
     void windowMaximizedChanged();
+    void windowXChanged();
+    void windowYChanged();
     void languageChanged();
     void unitsChanged();
     void athleteLibraryPathChanged();
@@ -350,6 +389,8 @@ private:
     bool    m_reduceMotion    = false;
     double  m_overlayOpacity  = 0.7;
     bool    m_windowMaximized = false;
+    int     m_windowX         = -1;
+    int     m_windowY         = -1;
 
     QString m_language                  = QStringLiteral("en_GB");
     QString m_units                     = QStringLiteral("mph");

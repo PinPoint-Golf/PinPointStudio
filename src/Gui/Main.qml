@@ -31,21 +31,69 @@ ApplicationWindow {
     color: Theme.colorBg
     font.family: Theme.fontBody
 
-    // Only persist size when windowed — avoid clobbering the saved size with screen dimensions.
-    onWidthChanged:  { if (visibility === Window.Windowed) appSettings.windowWidth  = width }
-    onHeightChanged: { if (visibility === Window.Windowed) appSettings.windowHeight = height }
-
     onVisibilityChanged: {
         appSettings.windowMaximized = (root.visibility === Window.FullScreen)
     }
 
+    // Debounce geometry writes — 500 ms after the last move or resize.
+    // Saves all four values together so they stay consistent in QSettings.
+    Timer {
+        id: geometryTimer
+        interval: 500
+        repeat: false
+        onTriggered: {
+            if (root.visibility !== Window.Windowed) return
+            if (!appSettings.rememberWindowGeometry) return
+            appSettings.windowX      = root.x
+            appSettings.windowY      = root.y
+            appSettings.windowWidth  = root.width
+            appSettings.windowHeight = root.height
+        }
+    }
+
+    onXChanged:      { if (visibility === Window.Windowed) geometryTimer.restart() }
+    onYChanged:      { if (visibility === Window.Windowed) geometryTimer.restart() }
+    onWidthChanged:  { if (visibility === Window.Windowed) geometryTimer.restart() }
+    onHeightChanged: { if (visibility === Window.Windowed) geometryTimer.restart() }
+
     Component.onCompleted: {
+        // Font scale
         if (appSettings.fontScale > 0) {
             Theme.fontScale = appSettings.fontScale
         } else {
             var w = Screen.desktopAvailableWidth
             Theme.fontScale = w >= 3840 ? 1.5 : w >= 2560 ? 1.25 : 1.0
         }
+
+        // Geometry: restore saved position, or place on the chosen display.
+        if (appSettings.rememberWindowGeometry
+                && appSettings.windowX >= 0 && appSettings.windowY >= 0) {
+            // Exact saved position — preserves which screen the user last used.
+            root.x = appSettings.windowX
+            root.y = appSettings.windowY
+        } else {
+            // No saved position: place on the screen chosen in Display settings.
+            var screens = Qt.application.screens
+            var target  = screens[0]   // index 0 is always the primary screen in Qt
+            var mode    = appSettings.mainDisplayMode
+
+            if (mode === "cursor") {
+                var ci = appSettings.cursorScreenIndex()
+                if (ci >= 0 && ci < screens.length)
+                    target = screens[ci]
+            } else if (mode.indexOf("screen:") === 0) {
+                var idx = parseInt(mode.substring(7))
+                if (!isNaN(idx) && idx >= 0 && idx < screens.length)
+                    target = screens[idx]
+            }
+            // "primary" falls through — target is already screens[0]
+
+            root.screen = target
+            // Centre the window on the chosen screen.
+            root.x = target.virtualX + Math.round((target.width  - root.width)  / 2)
+            root.y = target.virtualY + Math.round((target.height - root.height) / 2)
+        }
+
         if (appSettings.windowMaximized)
             root.showFullScreen()
     }
