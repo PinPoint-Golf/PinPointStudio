@@ -25,6 +25,7 @@ Item {
 
     // The screen name shown after the separator. Set by Main.qml.
     property string screenName: ""
+    property bool showVersionPill: false
 
     implicitHeight: Theme.headerHeight
 
@@ -133,6 +134,7 @@ Item {
             Layout.alignment:   Qt.AlignVCenter
             implicitWidth:      versionLabel.implicitWidth + Theme.sp(10)
             implicitHeight:     versionLabel.implicitHeight + Theme.sp(6)
+            visible:            root.showVersionPill
 
             Rectangle {
                 anchors.fill:  parent

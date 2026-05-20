@@ -32,11 +32,25 @@ QtObject {
     // editorial-light, editorial-dark, studio-light, studio-dark.
     property int themeIndex: 0
 
-    Component.onCompleted:  themeIndex = appSettings.themeIndex
-    onThemeIndexChanged:    appSettings.themeIndex = themeIndex
+    Component.onCompleted: {
+        themeIndex     = appSettings.themeIndex
+        density        = appSettings.density
+        reduceMotion   = appSettings.reduceMotion
+        overlayOpacity = appSettings.overlayOpacity
+    }
+    onThemeIndexChanged: appSettings.themeIndex = themeIndex
 
     property real fontScale: 1.0
     onFontScaleChanged: appSettings.fontScale = fontScale
+
+    property string density: "default"
+    onDensityChanged: appSettings.density = density
+
+    property bool reduceMotion: false
+    onReduceMotionChanged: appSettings.reduceMotion = reduceMotion
+
+    property real overlayOpacity: 0.7
+    onOverlayOpacityChanged: appSettings.overlayOpacity = overlayOpacity
 
     function cycleTheme() { themeIndex = (themeIndex + 1) % 6 }
 
@@ -225,7 +239,7 @@ QtObject {
     readonly property real borderOpacityStrong: 0.75
 
     // ── Animation duration tokens (ms) ───────────────────────────────────────
-    readonly property int durationFast:   120
-    readonly property int durationNormal: 220
-    readonly property int durationSlow:   350
+    readonly property int durationFast:   reduceMotion ? 0 : 120
+    readonly property int durationNormal: reduceMotion ? 0 : 220
+    readonly property int durationSlow:   reduceMotion ? 0 : 350
 }

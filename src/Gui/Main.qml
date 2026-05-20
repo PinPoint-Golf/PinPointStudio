@@ -81,6 +81,7 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 screenName: navController.currentIndex < screenNames.length
                             ? screenNames[navController.currentIndex] : ""
+                showVersionPill: navController.currentIndex === 9
             }
 
             StackLayout {

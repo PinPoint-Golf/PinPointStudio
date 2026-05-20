@@ -249,7 +249,10 @@ Item {
                 currentIndex:  root.activeNavIndex
 
                 ScreenPlaceholder { titleText: "General"        }  // 0
-                ScreenPlaceholder { titleText: "Appearance"     }  // 1
+                AppearancePanel {                                   // 1
+                    Layout.fillWidth:  true
+                    Layout.fillHeight: true
+                }
                 ScreenPlaceholder { titleText: "Displays"       }  // 2
                 ScreenPlaceholder { titleText: "Cameras"        }  // 3
                 ScreenPlaceholder { titleText: "IMUs"           }  // 4
