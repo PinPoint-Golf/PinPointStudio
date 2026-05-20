@@ -32,8 +32,9 @@
 #        at compile time, but those shims must not propagate to consumers.
 #
 # Pass: -DFILE1=<abs_path_src_CMakeLists> -DFILE2=<abs_path_libespeak-ng_CMakeLists>
+#       -DFILE3=<abs_path_top_CMakeLists>
 
-foreach(var FILE1 FILE2)
+foreach(var FILE1 FILE2 FILE3)
   if(NOT DEFINED "${var}")
     message(FATAL_ERROR "PatchEspeakNg.cmake: ${var} is not set")
   endif()
@@ -72,3 +73,15 @@ string(REPLACE
     _c2 "${_c2}")
 
 file(WRITE "${FILE2}" "${_c2}")
+
+# --- top-level CMakeLists.txt -------------------------------------------
+# Guard the CPack include so it only fires when espeak-ng is the top-level
+# project.  When used as a FetchContent subdirectory, CPack writes
+# CPackConfig.cmake to the *parent* build directory and fails on Windows
+# with "Permission denied" because the parent CMake run still owns that path.
+file(READ "${FILE3}" _c3)
+string(REPLACE
+    "include(cmake/package.cmake)\ninclude(CPack)"
+    "if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)\n  include(cmake/package.cmake)\n  include(CPack)\nendif()"
+    _c3 "${_c3}")
+file(WRITE "${FILE3}" "${_c3}")

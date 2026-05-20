@@ -1159,6 +1159,7 @@ else()
             ${CMAKE_COMMAND}
             "-DFILE1=${CMAKE_BINARY_DIR}/_deps/espeak_ng-src/src/CMakeLists.txt"
             "-DFILE2=${CMAKE_BINARY_DIR}/_deps/espeak_ng-src/src/libespeak-ng/CMakeLists.txt"
+            "-DFILE3=${CMAKE_BINARY_DIR}/_deps/espeak_ng-src/CMakeLists.txt"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/PatchEspeakNg.cmake"
     )
     set(ESPEAK_BUILD_MANPAGES OFF CACHE BOOL "" FORCE)
