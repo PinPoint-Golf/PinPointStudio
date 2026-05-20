@@ -204,6 +204,7 @@ QtObject {
         if (aesthetic === "editorial")  return 58
         return 52
     }
+    readonly property int sidenavWidth:    sp(275)
     readonly property int headerHeight:    40
     readonly property int carouselHeight:  120
     readonly property int statusBarHeight: 36

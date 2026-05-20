@@ -108,6 +108,7 @@ QtObject {
 
     // ── Spacing & geometry tokens ────────────────────────────────────────────
     readonly property int railWidth:     _t.railWidth      // px
+    readonly property int sidenavWidth:  _t.sidenavWidth   // all secondary side panels (settings, athletes, etc.)
     readonly property int headerHeight:  40                 // fixed across all aesthetics
     readonly property int carouselHeight: _t.carouselHeight
     readonly property int statusBarHeight: _t.statusBarHeight
@@ -971,6 +972,9 @@ These rules are absolute. Do not break them regardless of expediency.
 - **Never use `Qt.rgba(r, g, b, 1.0)` when `Theme.color*` already provides the value**
 - **Never set `font.capitalization: Font.AllUppercase`** except on `label` and `micro`
   role text — body copy and data values are always sentence case
+- **Never hardcode a secondary side-panel width** — always use `Theme.sidenavWidth`
+  (275 sp). Every secondary navigation panel (settings, athletes, or any future screen
+  with a side rail) must bind to this token so all sidebars remain the same width.
 
 ---
 

@@ -36,7 +36,7 @@ Item {
         // ── Sidenav ──────────────────────────────────────────────────────────
         Item {
             id: sidenav
-            Layout.preferredWidth: Theme.sp(204)
+            Layout.preferredWidth: Theme.sidenavWidth
             Layout.fillHeight: true
 
             Rectangle {
