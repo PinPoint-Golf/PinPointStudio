@@ -19,11 +19,14 @@
 #pragma once
 
 #include <QObject>
+#include <QString>
 #include "pp_settings.h"
+#include "version.h"
 
 class AppSettings : public QObject
 {
     Q_OBJECT
+    Q_PROPERTY(QString appVersion   READ appVersion   CONSTANT)
     Q_PROPERTY(int    themeIndex   READ themeIndex   WRITE setThemeIndex   NOTIFY themeIndexChanged)
     Q_PROPERTY(int    windowWidth  READ windowWidth  WRITE setWindowWidth  NOTIFY windowWidthChanged)
     Q_PROPERTY(int    windowHeight READ windowHeight WRITE setWindowHeight NOTIFY windowHeightChanged)
@@ -38,6 +41,7 @@ public:
         m_fontScale    = ppSettings().value(QStringLiteral("ui/fontScale"),    -1.0).toDouble();
     }
 
+    QString appVersion()  const { return QStringLiteral(PINPOINT_VERSION_STRING); }
     int    themeIndex()   const { return m_themeIndex; }
     int    windowWidth()  const { return m_windowWidth; }
     int    windowHeight() const { return m_windowHeight; }

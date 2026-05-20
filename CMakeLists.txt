@@ -180,6 +180,7 @@ qt_add_qml_module(PinPoint
         src/Gui/RmTimelineChart.qml
         src/Gui/RmWarningNotice.qml
         src/Gui/ScreenHome.qml
+        src/Gui/ScreenSettings.qml
         src/Gui/HmTypeCard.qml
         src/Gui/HmDeviceRow.qml
         src/Gui/HmSessionTile.qml

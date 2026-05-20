@@ -194,8 +194,8 @@ Item {
             Layout.alignment: Qt.AlignHCenter
             iconText:  "⚙"
             labelText: "Settings"
-            isActive:  false
-            onClicked: Theme.cycleTheme()
+            isActive:  root.currentPageIndex === 9
+            onClicked: root.pageRequested(9)
         }
 
         Item { Layout.preferredHeight: Theme.sp(16); Layout.fillWidth: true }

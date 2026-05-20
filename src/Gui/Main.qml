@@ -53,7 +53,8 @@ ApplicationWindow {
         "Play",             // 5
         "New athlete",      // 6
         "Athletes",         // 7
-        "System resources"  // 8
+        "System resources",  // 8
+        "Settings"           // 9
     ]
 
     RowLayout {
@@ -109,6 +110,7 @@ ApplicationWindow {
                     onNewAthleteRequested: navController.navigate(6)
                 }
                 ScreenResourceMonitor {}                                   // 8 — system resource monitor
+                ScreenSettings {}                                          // 9 — settings
             }
         }
     }

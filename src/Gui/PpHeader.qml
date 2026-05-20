@@ -128,5 +128,31 @@ Item {
         }
 
         Item { Layout.fillWidth: true }
+
+        Item {
+            Layout.alignment:   Qt.AlignVCenter
+            implicitWidth:      versionLabel.implicitWidth + Theme.sp(10)
+            implicitHeight:     versionLabel.implicitHeight + Theme.sp(6)
+
+            Rectangle {
+                anchors.fill:  parent
+                color:         "transparent"
+                border.width:  1
+                border.color:  Theme.colorBorderMid
+                radius:        Theme.radius
+            }
+
+            Text {
+                id: versionLabel
+                anchors.centerIn:    parent
+                text:                appSettings.appVersion
+                font.family:         Theme.fontData
+                font.pixelSize:      Theme.fontSzMicro
+                font.letterSpacing:  Theme.trackingData
+                color:               Theme.colorText3
+            }
+        }
+
+        Item { Layout.preferredWidth: Theme.sp(4) }
     }
 }
