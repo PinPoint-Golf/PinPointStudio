@@ -142,6 +142,18 @@ void ResourceMonitorController::refresh()
         double rate = ctrl->cameraFps();
         int    fw   = ctrl->frameWidth();
         int    fh   = ctrl->frameHeight();
+        // Fall back to enumerated capabilities when no frame has been delivered yet.
+        if (fw == 0 || fh == 0) {
+            const QString sn = ctrl->deviceSerialNumber();
+            for (const QVariant &qv : m_cameras->cameraList()) {
+                const QVariantMap cam = qv.toMap();
+                if (cam[QStringLiteral("serialNumber")].toString() == sn) {
+                    fw = cam[QStringLiteral("maxWidth")].toInt();
+                    fh = cam[QStringLiteral("maxHeight")].toInt();
+                    break;
+                }
+            }
+        }
         quint64 evW  = srcInfo ? quint64(srcInfo->events_written)     : 0;
         quint64 byW  = srcInfo ? quint64(srcInfo->bytes_written_total) : 0;
         quint64 evOW = srcInfo ? quint64(srcInfo->events_overwritten)  : 0;
