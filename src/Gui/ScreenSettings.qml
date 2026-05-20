@@ -248,7 +248,10 @@ Item {
                 anchors.fill:  parent
                 currentIndex:  root.activeNavIndex
 
-                ScreenPlaceholder { titleText: "General"        }  // 0
+                GeneralPanel {                                      // 0
+                    Layout.fillWidth:  true
+                    Layout.fillHeight: true
+                }
                 AppearancePanel {                                   // 1
                     Layout.fillWidth:  true
                     Layout.fillHeight: true

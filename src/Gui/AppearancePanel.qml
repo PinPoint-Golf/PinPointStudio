@@ -49,6 +49,35 @@ Item {
             width: parent.width - Theme.sp(64)
             spacing: Theme.sp(20)
 
+            // ── Page header ───────────────────────────────────────────────────
+
+            Text {
+                text: "CONFIGURATION"
+                font.family:         Theme.fontBody
+                font.pixelSize:      Theme.fontSzMicro
+                font.letterSpacing:  Theme.trackingMicro
+                font.capitalization: Font.AllUppercase
+                color: Theme.colorText3
+            }
+
+            Text {
+                text: "Appearance"
+                font.family:  Theme.fontDisplay
+                font.italic:  Theme.fontDisplayItalic
+                font.pixelSize: Theme.fontSzDisplay
+                color: Theme.colorText
+            }
+
+            Text {
+                text: "Aesthetic, colour mode, type scale and interface behaviour."
+                font.family:    Theme.fontBody
+                font.pixelSize: Theme.fontSzBody2
+                font.weight:    Font.Light
+                color:          Theme.colorText3
+                wrapMode:       Text.WordWrap
+                Layout.fillWidth: true
+            }
+
             // ── Group 1 — Aesthetic & colour mode ────────────────────────────
 
             Text {
