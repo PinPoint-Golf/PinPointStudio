@@ -505,6 +505,59 @@ Item {
                 }
             }
 
+            // ── Fixed in place toggle ────────────────────────────────────────
+            ColumnLayout {
+                spacing: Theme.sp(4)
+                Layout.alignment: Qt.AlignTop
+
+                Text {
+                    text:                qsTr("FIXED IN PLACE")
+                    font.family:         Theme.fontData
+                    font.pixelSize:      Theme.fontSzMicro
+                    font.letterSpacing:  Theme.trackingMicro
+                    font.capitalization: Font.AllUppercase
+                    color:               Theme.colorText3
+                }
+
+                RowLayout {
+                    spacing: Theme.sp(6)
+
+                    TogglePill {
+                        readonly property bool fixedVal: {
+                            var v = appSettings.cameraFixedInPlace[camData.cameraKey]
+                            return v !== undefined ? !!v : false
+                        }
+                        checked: fixedVal
+                        onToggled: (v) => {
+                            var map = appSettings.cameraFixedInPlace
+                            map[camData.cameraKey] = v
+                            appSettings.cameraFixedInPlace = map
+                        }
+                    }
+
+                    Text {
+                        text: {
+                            var v = appSettings.cameraFixedInPlace[camData.cameraKey]
+                            return (v !== undefined && !!v) ? qsTr("Yes") : qsTr("No")
+                        }
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText2
+                        Layout.alignment: Qt.AlignVCenter
+                    }
+                }
+
+                Text {
+                    text:           qsTr("Camera is attached to the wall or immovable.")
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    font.italic:    true
+                    color:          Theme.colorText3
+                    wrapMode:       Text.WordWrap
+                    Layout.preferredWidth: Theme.sp(160)
+                }
+            }
+
             Item { Layout.fillWidth: true }
 
             // Action buttons ─────────────────────────────────────────────────

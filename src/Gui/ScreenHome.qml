@@ -25,7 +25,7 @@ Item {
 
     signal addAthleteRequested()
     signal athletePickerRequested()
-    signal startSessionRequested()
+    signal startSessionRequested(int sessionTypeIndex)
     signal systemRequested()
 
     property int    selectedType: 0
@@ -400,7 +400,7 @@ Item {
                         anchors.fill: parent
                         cursorShape:  cameraManager.anySelected ? Qt.PointingHandCursor : Qt.ArrowCursor
                         enabled:      cameraManager.anySelected
-                        onClicked:    root.startSessionRequested()
+                        onClicked:    root.startSessionRequested(root.selectedType)
                     }
                 }
                 Item { width: 1; height: Theme.sp(8) }

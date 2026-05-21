@@ -28,7 +28,14 @@ Item {
     property bool showVersionPill: false
     property bool isFullscreen: false
 
+    // Override-able navigation state — default to navController, Main.qml
+    // can replace these to intercept back/forward for wizard step navigation.
+    property bool backEnabled:    navController.canGoBack
+    property bool forwardEnabled: navController.canGoForward
+
     signal fullscreenToggleRequested()
+    signal backRequested()
+    signal forwardRequested()
 
     implicitHeight: Theme.headerHeight
 
@@ -62,11 +69,11 @@ Item {
                     text:             "‹"
                     font.family:      Theme.fontBody
                     font.pixelSize:   Theme.sp(16)
-                    color:            navController.canGoBack
+                    color:            root.backEnabled
                                       ? (backHover.containsMouse ? Theme.colorText
                                                                  : Theme.colorText2)
                                       : Theme.colorText3
-                    opacity:          navController.canGoBack ? 1.0 : 0.4
+                    opacity:          root.backEnabled ? 1.0 : 0.4
                     Behavior on opacity {
                         NumberAnimation { duration: Theme.durationFast }
                     }
@@ -76,10 +83,9 @@ Item {
                     id:           backHover
                     anchors.fill: parent
                     hoverEnabled: true
-                    enabled:      navController.canGoBack
-                    cursorShape:  navController.canGoBack
-                                  ? Qt.PointingHandCursor : Qt.ArrowCursor
-                    onClicked:    navController.back()
+                    enabled:      root.backEnabled
+                    cursorShape:  root.backEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked:    root.backRequested()
                 }
             }
 
@@ -92,11 +98,11 @@ Item {
                     text:             "›"
                     font.family:      Theme.fontBody
                     font.pixelSize:   Theme.sp(16)
-                    color:            navController.canGoForward
+                    color:            root.forwardEnabled
                                       ? (fwdHover.containsMouse ? Theme.colorText
                                                                 : Theme.colorText2)
                                       : Theme.colorText3
-                    opacity:          navController.canGoForward ? 1.0 : 0.4
+                    opacity:          root.forwardEnabled ? 1.0 : 0.4
                     Behavior on opacity {
                         NumberAnimation { duration: Theme.durationFast }
                     }
@@ -106,10 +112,9 @@ Item {
                     id:           fwdHover
                     anchors.fill: parent
                     hoverEnabled: true
-                    enabled:      navController.canGoForward
-                    cursorShape:  navController.canGoForward
-                                  ? Qt.PointingHandCursor : Qt.ArrowCursor
-                    onClicked:    navController.forward()
+                    enabled:      root.forwardEnabled
+                    cursorShape:  root.forwardEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked:    root.forwardRequested()
                 }
             }
         }

@@ -117,7 +117,8 @@ ApplicationWindow {
         qsTr("New athlete"),      // 6
         qsTr("Athletes"),         // 7
         qsTr("System resources"), // 8
-        qsTr("Settings")          // 9
+        qsTr("Settings"),         // 9
+        qsTr("New session")       // 10
     ]
 
     RowLayout {
@@ -129,9 +130,27 @@ ApplicationWindow {
             Layout.fillHeight: true
             // implicitWidth declared in PpRail.qml drives the column width
             currentPageIndex: navController.currentIndex
-            onPageRequested: function(index) { navController.navigateRail(index) }
-            onAvatarClicked: navController.navigateRail(7)
-            onSystemClicked: navController.navigateRail(8)
+            // Lock all session and home buttons while the wizard is open so the
+            // user stays in the setup flow. System and Settings remain accessible
+            // and use navigate() (not navigateRail()) to preserve wizard in history.
+            locked: navController.currentIndex === 10
+
+            onPageRequested: function(index) {
+                if (navController.currentIndex === 10)
+                    navController.navigate(index)   // preserves wizard in back-history
+                else
+                    navController.navigateRail(index)
+            }
+            onAvatarClicked: {
+                if (navController.currentIndex !== 10)
+                    navController.navigateRail(7)
+            }
+            onSystemClicked: {
+                if (navController.currentIndex === 10)
+                    navController.navigate(8)       // preserves wizard in back-history
+                else
+                    navController.navigateRail(8)
+            }
         }
 
         ColumnLayout {
@@ -147,6 +166,35 @@ ApplicationWindow {
                 showVersionPill: navController.currentIndex === 9
                 isFullscreen: root.visibility === Window.FullScreen
                 onFullscreenToggleRequested: root.toggleFullscreen()
+
+                // When on the wizard, ‹/› navigate steps; otherwise delegate to navController.
+                backEnabled: navController.currentIndex === 10
+                                 ? (sessionWizard.currentStep > 0 || navController.canGoBack)
+                                 : navController.canGoBack
+                forwardEnabled: navController.currentIndex === 10
+                                    ? sessionWizard.currentStep < 3
+                                    : navController.canGoForward
+
+                onBackRequested: {
+                    if (navController.currentIndex === 10 && sessionWizard.currentStep > 0) {
+                        var arr = sessionWizard.stepStates.slice()
+                        arr[sessionWizard.currentStep] = "pending"
+                        sessionWizard.stepStates = arr
+                        sessionWizard.currentStep--
+                    } else {
+                        navController.back()
+                    }
+                }
+                onForwardRequested: {
+                    if (navController.currentIndex === 10 && sessionWizard.currentStep < 3) {
+                        var arr = sessionWizard.stepStates.slice()
+                        arr[sessionWizard.currentStep] = "done"
+                        sessionWizard.stepStates = arr
+                        sessionWizard.currentStep++
+                    } else {
+                        navController.forward()
+                    }
+                }
             }
 
             StackLayout {
@@ -158,7 +206,12 @@ ApplicationWindow {
                 ScreenHome {                                               // 0 — home / default
                     onAddAthleteRequested:    navController.navigate(6)
                     onAthletePickerRequested: navController.navigate(7)
-                    onStartSessionRequested:  console.log("Session start — not yet implemented")
+                    onStartSessionRequested: function(sessionTypeIndex) {
+                        sessionWizard.sessionType = sessionTypeIndex
+                        sessionWizard.currentStep = 0
+                        sessionWizard.stepStates  = ["pending", "pending", "pending", "pending"]
+                        navController.navigate(10)
+                    }
                     onSystemRequested:        navController.navigate(8)
                 }
                 VideoPage       {}                                         // 1 — Swing
@@ -176,7 +229,27 @@ ApplicationWindow {
                     onNewAthleteRequested: navController.navigate(6)
                 }
                 ScreenResourceMonitor {}                                   // 8 — system resource monitor
-                ScreenSettings {}                                          // 9 — settings
+                ScreenSettings { id: settingsScreen }                      // 9 — settings
+                ScreenSessionWizard {                                      // 10 — session setup wizard
+                    id: sessionWizard
+                    onCancelled: navController.navigate(0)
+                    onSessionStartRequested: function(type, goals) {
+                        var map = appSettings.sessionGoalsByType
+                        map[type.toString()] = goals
+                        appSettings.sessionGoalsByType = map
+                        appSettings.lastSessionType    = type
+                        navController.navigateRail(sessionWizard.sessionTypes[type].railIndex)
+                    }
+                    onNavigateToSettings: function(panelIndex) {
+                        settingsScreen.activeNavIndex = panelIndex
+                        navController.navigate(9)
+                    }
+                    onRecalibrateRequested: {
+                        // TODO: navigate to ScreenCalibration (separate prompt).
+                        // When calibration completes, call sessionWizard.reopenAtCameras()
+                        // and navController.navigate(10).
+                    }
+                }
             }
         }
     }

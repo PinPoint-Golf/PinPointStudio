@@ -98,7 +98,9 @@ Item {
     MouseArea {
         id: mouseArea
         anchors.fill: parent
-        hoverEnabled: true
-        onClicked: root.clicked()
+        hoverEnabled: !root.isMuted
+        enabled:      !root.isMuted
+        cursorShape:  root.isMuted ? Qt.ArrowCursor : Qt.PointingHandCursor
+        onClicked:    root.clicked()
     }
 }

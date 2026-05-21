@@ -27,7 +27,10 @@ Item {
     implicitWidth: Math.ceil(Theme.railWidth * 1.6)
 
     // Reflects contentStack.currentIndex in Main.qml
-    property int currentPageIndex: 0
+    property int  currentPageIndex: 0
+
+    // When true, only System and Settings are interactive; all other buttons are muted.
+    property bool locked: false
 
     // Emitted whenever a nav button is pressed; caller sets contentStack.currentIndex
     signal pageRequested(int index)
@@ -96,7 +99,8 @@ Item {
 
             MouseArea {
                 anchors.fill: parent
-                cursorShape:  Qt.PointingHandCursor
+                enabled:      !root.locked
+                cursorShape:  root.locked ? Qt.ArrowCursor : Qt.PointingHandCursor
                 onClicked:    root.avatarClicked()
             }
         }
@@ -116,6 +120,7 @@ Item {
             iconText:  "⌂"
             labelText: qsTr("Home")
             isActive:  root.currentPageIndex === 0
+            isMuted:   root.locked
             onClicked: root.pageRequested(0)
         }
 
@@ -126,6 +131,7 @@ Item {
             iconText:  "◑"
             labelText: qsTr("Swing")
             isActive:  root.currentPageIndex === 1
+            isMuted:   root.locked
             onClicked: root.pageRequested(1)
         }
 
@@ -136,6 +142,7 @@ Item {
             iconText:  "⌖"
             labelText: qsTr("Wrist")
             isActive:  root.currentPageIndex === 2
+            isMuted:   root.locked
             onClicked: root.pageRequested(2)
         }
 
@@ -146,6 +153,7 @@ Item {
             iconText:  "⇅"
             labelText: qsTr("GRF")
             isActive:  root.currentPageIndex === 3
+            isMuted:   root.locked
             onClicked: root.pageRequested(3)
         }
 
@@ -156,6 +164,7 @@ Item {
             iconText:  "✦"
             labelText: qsTr("Coach")
             isActive:  root.currentPageIndex === 4
+            isMuted:   root.locked
             onClicked: root.pageRequested(4)
         }
 
@@ -175,11 +184,13 @@ Item {
             iconText:  "▶"
             labelText: qsTr("Play")
             isActive:  root.currentPageIndex === 5
+            isMuted:   root.locked
             onClicked: root.pageRequested(5)
         }
 
         Item { Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true }
 
+        // System and Settings always active — allowed during wizard
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
             iconText:  "◈"
