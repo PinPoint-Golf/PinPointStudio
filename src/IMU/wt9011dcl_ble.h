@@ -19,6 +19,7 @@
 #pragma once
 
 #include "wt9011dcl_base.h"
+#include "imu_capabilities.h"
 #include <QBluetoothDeviceDiscoveryAgent>
 #include <QElapsedTimer>
 #include <QBluetoothDeviceInfo>
@@ -67,6 +68,9 @@ public:
 
     explicit WT9011DCL_BLE(QObject *parent = nullptr);
     ~WT9011DCL_BLE() override;
+
+    Transport       transport()    const override { return Transport::Ble; }
+    ImuCapabilities capabilities() const override;
 
     State state()   const { return m_state; }
     bool  isReady() const { return m_state == State::Ready; }

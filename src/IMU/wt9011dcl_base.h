@@ -18,12 +18,12 @@
 
 #pragma once
 
-#include <QObject>
-#include <QByteArray>
+#include "imu_base.h"
+#include "imu_capabilities.h"
 
-// Abstract base class for WT9011DCL (MPU9250) IMU drivers.
+// WT9011DCL (MPU9250) IMU protocol layer — transport-agnostic.
 //
-// Packet protocol (transport-agnostic):
+// Packet protocol:
 //   [0]     0x55  (header)
 //   [1]     type  (PacketType)
 //   [2..9]  four signed int16 payload words, little-endian
@@ -36,37 +36,17 @@
 // Subclasses implement writeToDevice() to send bytes over their transport,
 // and call receiveData() whenever bytes arrive from the device.
 
-class WT9011DCL_Base : public QObject
+class WT9011DCL_Base : public ImuBase
 {
     Q_OBJECT
 
 public:
-    // -----------------------------------------------------------------------
-    // Data structures
-    // -----------------------------------------------------------------------
-
-    struct AccelData {
-        float x = 0, y = 0, z = 0;   // g-force
-        float temperature = 0;         // °C
-    };
-
-    struct GyroData {
-        float x = 0, y = 0, z = 0;   // °/s
-        float temperature = 0;         // °C
-    };
-
-    struct EulerAngles {
-        float roll = 0, pitch = 0, yaw = 0;  // degrees
-    };
-
-    struct MagData {
-        float x = 0, y = 0, z = 0;   // raw ADC (÷120 ≈ μT)
-        float temperature = 0;         // °C
-    };
-
-    struct QuaternionData {
-        float w = 1, x = 0, y = 0, z = 0;  // unit quaternion
-    };
+    // Source-compatibility aliases — callers may still use WT9011DCL_Base::AccelData etc.
+    using AccelData      = ImuBase::AccelData;
+    using GyroData       = ImuBase::GyroData;
+    using EulerAngles    = ImuBase::EulerAngles;
+    using MagData        = ImuBase::MagData;
+    using QuaternionData = ImuBase::QuaternionData;
 
     // -----------------------------------------------------------------------
     // Configuration enumerations
@@ -133,7 +113,7 @@ public:
     // Re-sends the full device initialisation sequence (orientation, algorithm,
     // angle zeroing). Call this whenever the device is repositioned.
     // Subclasses override to apply their device-specific init commands.
-    virtual void reinitialize() {}
+    void reinitialize() override {}
 
     // -----------------------------------------------------------------------
     // Calibration
@@ -156,36 +136,28 @@ public:
 
     // Sends a read request for the battery voltage register (0x64).
     // Result arrives asynchronously via batteryUpdated().
-    void requestBattery();
+    void requestBattery() override;
+
+    // -----------------------------------------------------------------------
+    // Transport identity and capabilities — concrete subclasses must implement.
+    // -----------------------------------------------------------------------
+
+    Transport       transport()    const override = 0;
+    ImuCapabilities capabilities() const override = 0;
+
+    // Returns an ImuCapabilities pre-filled with common WT901 defaults.
+    // Used by concrete subclasses and by device enumeration code.
+    static ImuCapabilities wt901Defaults();
 
     // -----------------------------------------------------------------------
     // Latest cached values
     // -----------------------------------------------------------------------
 
-    AccelData      accelData()      const { return m_accel; }
-    GyroData       gyroData()       const { return m_gyro;  }
-    EulerAngles    eulerAngles()    const { return m_euler; }
-    MagData        magData()        const { return m_mag;   }
-    QuaternionData quaternionData() const { return m_quat;  }
-
-signals:
-    void connected();
-    void disconnected();
-    void errorOccurred(const QString &message);
-    void diagnosticInfo(const QString &message);
-
-    void accelUpdated(const WT9011DCL_Base::AccelData &data);
-    void gyroUpdated(const WT9011DCL_Base::GyroData &data);
-    void eulerAnglesUpdated(const WT9011DCL_Base::EulerAngles &angles);
-    void magUpdated(const WT9011DCL_Base::MagData &data);
-    void quaternionUpdated(const WT9011DCL_Base::QuaternionData &quat);
-    void batteryUpdated(int percent);  // 0–100; emitted when a 0x71 response carries a valid reading
-    void batteryReadRetry();           // device returned 0 — caller should retry after a short delay
-
-    // Emitted for every raw byte chunk received from the device, before parsing.
-    // 'data' is the exact bytes as delivered by the transport. Timestamp is
-    // taken at the moment bytes first arrive in receiveData().
-    void rawPacketReady(const QByteArray &data, qint64 timestamp_us);
+    AccelData      accelData()      const override { return m_accel; }
+    GyroData       gyroData()       const override { return m_gyro;  }
+    EulerAngles    eulerAngles()    const override { return m_euler; }
+    MagData        magData()        const override { return m_mag;   }
+    QuaternionData quaternionData() const override { return m_quat;  }
 
 protected:
     // Converts device Euler angles to a world-frame quaternion, applying any

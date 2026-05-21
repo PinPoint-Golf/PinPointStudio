@@ -111,9 +111,12 @@ qt_add_executable(PinPoint
     src/Gui/athlete_controller.h       src/Gui/athlete_controller.cpp
     src/Gui/navigation_controller.h    src/Gui/navigation_controller.cpp
     src/Gui/resource_monitor_controller.h src/Gui/resource_monitor_controller.cpp
-    src/IMU/wt9011dcl_base.h src/IMU/wt9011dcl_base.cpp
-    src/IMU/wt9011dcl.h      src/IMU/wt9011dcl.cpp
-    src/IMU/wt9011dcl_ble.h  src/IMU/wt9011dcl_ble.cpp
+    src/IMU/imu_base.h        src/IMU/imu_base.cpp
+    src/IMU/imu_capabilities.h
+    src/IMU/imu_factory.h     src/IMU/imu_factory.cpp
+    src/IMU/wt9011dcl_base.h  src/IMU/wt9011dcl_base.cpp
+    src/IMU/wt9011dcl.h       src/IMU/wt9011dcl.cpp
+    src/IMU/wt9011dcl_ble.h   src/IMU/wt9011dcl_ble.cpp
     src/Audio/audio_processor_base.h src/Audio/audio_processor_base.cpp
     src/Audio/audio_input_base.h     src/Audio/audio_input_base.cpp
     src/Audio/audio_input.h          src/Audio/audio_input.cpp

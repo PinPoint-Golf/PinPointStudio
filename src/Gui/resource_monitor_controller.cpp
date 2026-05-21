@@ -199,62 +199,79 @@ void ResourceMonitorController::refresh()
         m_devices.append(dev);
     }
 
-    // IMU entry — always shown; match source by eliminating camera source IDs
+    // IMU entries — one per device registered in the enumerator.
+    // Buffer sources that are not camera sources are paired with enumerated IMU
+    // devices by position (index 0 → first non-camera source, etc.).
     {
-        const pinpoint::EventBuffer::DiagnosticsSnapshot::SourceInfo *imuSrc = nullptr;
+        QList<const pinpoint::EventBuffer::DiagnosticsSnapshot::SourceInfo *> imuSources;
         for (const auto &src : m_snapshot.sources) {
-            if (!cameraSourceIds.contains(src.id)) {
-                imuSrc = &src;
-                break;
-            }
+            if (!cameraSourceIds.contains(src.id))
+                imuSources.append(&src);
         }
-        QString imuSrcName = imuSrc ? QString::fromStdString(imuSrc->name) : QString();
-        double fill = imuSrc && imuSrc->slot_count > 0
-            ? std::min(1.0, double(imuSrc->events_written) / double(imuSrc->slot_count))
-            : 0.0;
 
-        QString imuStatus;
-        if (m_imu->imuConnected()) imuStatus = QStringLiteral("connected");
-        else if (m_imu->busy())    imuStatus = QStringLiteral("connecting");
-        else                       imuStatus = QStringLiteral("disconnected");
+        const QList<Device> imuDevices =
+            DeviceEnumerator::instance()->devices(DeviceType::Imu);
 
-        double imuRate = m_imu->dataRateHz();
-        int    batPct  = m_imu->batteryPercent();
-        quint64 imuEW  = imuSrc ? quint64(imuSrc->events_written)     : 0;
-        quint64 imuBW  = imuSrc ? quint64(imuSrc->bytes_written_total) : 0;
-        quint64 imuOW  = imuSrc ? quint64(imuSrc->events_overwritten)  : 0;
-        quint64 imuRingBytes = imuSrc
-            ? quint64(m_buffer->getSlotCapacity(imuSrc->id)) * quint64(imuSrc->slot_count)
-            : 0;
+        for (int i = 0; i < imuDevices.size(); ++i) {
+            const Device &imuDev = imuDevices[i];
+            const auto *imuSrc  = (i < imuSources.size()) ? imuSources[i] : nullptr;
 
-        QVariantMap dev;
-        dev[QStringLiteral("kind")]               = QStringLiteral("IMU");
-        dev[QStringLiteral("name")]               = QStringLiteral("Lead wrist IMU");
-        dev[QStringLiteral("model")]              = QStringLiteral("WT9011DCL-BLE");
-        dev[QStringLiteral("backend")]            = QStringLiteral("Bluetooth LE");
-        dev[QStringLiteral("status")]             = imuStatus;
-        dev[QStringLiteral("dataRateHz")]         = imuRate;
-        dev[QStringLiteral("batteryPct")]         = batPct;
-        dev[QStringLiteral("sourceName")]         = imuSrcName;
-        dev[QStringLiteral("ringFill")]           = fill;
-        dev[QStringLiteral("hasWarning")]         = capturing && imuSrc && imuSrc->stalled;
-        dev[QStringLiteral("eventsWritten")]      = imuEW;
-        dev[QStringLiteral("bytesWritten")]       = imuBW;
-        dev[QStringLiteral("eventsOverwritten")]  = imuOW;
-        // Pre-formatted strings
-        dev[QStringLiteral("dataRateStr")]        = imuRate > 0
-            ? QString::number(imuRate, 'f', 1) + QStringLiteral(" Hz")
-            : QStringLiteral("—");
-        dev[QStringLiteral("eventsWrittenStr")]   = fmtCount(imuEW);
-        dev[QStringLiteral("bytesWrittenStr")]    = fmtBytes(imuBW);
-        dev[QStringLiteral("eventsOverwrittenStr")] = imuOW > 0
-            ? QString::number(imuOW) : QStringLiteral("0");
-        dev[QStringLiteral("batteryStr")]         = batPct >= 0
-            ? QString::number(batPct) + QStringLiteral(" %")
-            : QStringLiteral("—");
-        dev[QStringLiteral("ringCapacityStr")]    = imuRingBytes > 0
-            ? fmtBytes(imuRingBytes) : QStringLiteral("—");
-        m_devices.append(dev);
+            const QString backend = imuDev.imuTransport == ImuBase::Transport::Ble
+                ? QStringLiteral("Bluetooth LE")
+                : QStringLiteral("Serial");
+
+            const QString model = imuDev.imuCapabilities.modelName.isEmpty()
+                ? imuDev.description
+                : imuDev.imuCapabilities.modelName;
+
+            QString imuStatus;
+            if (m_imu->imuConnected()) imuStatus = QStringLiteral("connected");
+            else if (m_imu->busy())    imuStatus = QStringLiteral("connecting");
+            else                       imuStatus = QStringLiteral("disconnected");
+
+            double  imuRate      = m_imu->dataRateHz();
+            int     batPct       = m_imu->batteryPercent();
+            quint64 imuEW        = imuSrc ? quint64(imuSrc->events_written)     : 0;
+            quint64 imuBW        = imuSrc ? quint64(imuSrc->bytes_written_total) : 0;
+            quint64 imuOW        = imuSrc ? quint64(imuSrc->events_overwritten)  : 0;
+            quint64 imuRingBytes = imuSrc
+                ? quint64(m_buffer->getSlotCapacity(imuSrc->id)) * quint64(imuSrc->slot_count)
+                : 0;
+            double  fill         = imuSrc && imuSrc->slot_count > 0
+                ? std::min(1.0, double(imuSrc->events_written) / double(imuSrc->slot_count))
+                : 0.0;
+            QString imuSrcName   = imuSrc
+                ? QString::fromStdString(imuSrc->name) : QString();
+
+            QVariantMap dev;
+            dev[QStringLiteral("kind")]               = QStringLiteral("IMU");
+            dev[QStringLiteral("name")]               = imuDev.description;
+            dev[QStringLiteral("model")]              = model;
+            dev[QStringLiteral("backend")]            = backend;
+            dev[QStringLiteral("identifier")]         = imuDev.id;
+            dev[QStringLiteral("status")]             = imuStatus;
+            dev[QStringLiteral("dataRateHz")]         = imuRate;
+            dev[QStringLiteral("batteryPct")]         = batPct;
+            dev[QStringLiteral("sourceName")]         = imuSrcName;
+            dev[QStringLiteral("ringFill")]           = fill;
+            dev[QStringLiteral("hasWarning")]         = capturing && imuSrc && imuSrc->stalled;
+            dev[QStringLiteral("eventsWritten")]      = imuEW;
+            dev[QStringLiteral("bytesWritten")]       = imuBW;
+            dev[QStringLiteral("eventsOverwritten")]  = imuOW;
+            dev[QStringLiteral("dataRateStr")]        = imuRate > 0
+                ? QString::number(imuRate, 'f', 1) + QStringLiteral(" Hz")
+                : QStringLiteral("—");
+            dev[QStringLiteral("eventsWrittenStr")]   = fmtCount(imuEW);
+            dev[QStringLiteral("bytesWrittenStr")]    = fmtBytes(imuBW);
+            dev[QStringLiteral("eventsOverwrittenStr")] = imuOW > 0
+                ? QString::number(imuOW) : QStringLiteral("0");
+            dev[QStringLiteral("batteryStr")]         = batPct >= 0
+                ? QString::number(batPct) + QStringLiteral(" %")
+                : QStringLiteral("—");
+            dev[QStringLiteral("ringCapacityStr")]    = imuRingBytes > 0
+                ? fmtBytes(imuRingBytes) : QStringLiteral("—");
+            m_devices.append(dev);
+        }
     }
 
     // ── Warnings — only generated while actively capturing ───────────────────

@@ -174,7 +174,10 @@ Rectangle {
                 )
                 return camRows
             } else {
-                return [
+                var imuRows = []
+                if (d.identifier)
+                    imuRows.push({ key: qsTr("Identifier"), value: d.identifier, cls: "neutral" })
+                imuRows.push(
                     { key: qsTr("Data rate"),
                       value: d.dataRateStr,
                       cls: d.dataRateHz > 0 ? "good" : "neutral" },
@@ -191,7 +194,8 @@ Rectangle {
                     { key: qsTr("Ring size"),
                       value: d.ringCapacityStr,
                       cls: "neutral" }
-                ]
+                )
+                return imuRows
             }
         }
 

@@ -17,6 +17,29 @@
  */
 
 #include "wt9011dcl.h"
+#include "imu_capabilities.h"
+
+ImuCapabilities WT9011DCL::capabilities() const
+{
+    ImuCapabilities caps = wt901Defaults();
+    caps.modelName    = QStringLiteral("WT9011DCL");
+    caps.transport    = Transport::Serial;
+
+    // Standard 0x5x packet stream includes magnetometer and temperature
+    caps.hasMagnetometer = true;
+    caps.hasTemperature  = true;
+    caps.magRange        = { -1000.0f, 1000.0f }; // raw ADC; ÷120 ≈ µT
+
+    // No battery register on serial-connected device
+    caps.hasBattery = false;
+
+    // Serial transport supports baud rate and output data selection
+    caps.supportsBaudRateControl     = true;   // BAUD register
+    caps.supportsOutputDataSelection = true;   // RSW register
+
+    caps.queriedAt = QDateTime::currentDateTime();
+    return caps;
+}
 
 WT9011DCL::WT9011DCL(QObject *parent)
     : WT9011DCL_Base(parent)

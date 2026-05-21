@@ -17,7 +17,37 @@
  */
 
 #include "wt9011dcl_ble.h"
+#include "imu_capabilities.h"
 #include <QtMath>
+
+// ---------------------------------------------------------------------------
+// Capabilities
+// ---------------------------------------------------------------------------
+
+ImuCapabilities WT9011DCL_BLE::capabilities() const
+{
+    ImuCapabilities caps = wt901Defaults();
+    caps.modelName = QStringLiteral("WT901BLE67");
+    caps.transport = Transport::Ble;
+
+    // The WT901BLE67 firmware sends 0x61 combined frames (accel+gyro+euler).
+    // These carry no magnetometer data and no temperature.
+    caps.hasMagnetometer = false;
+    caps.hasTemperature  = false;
+
+    // Battery level is readable via register 0x64 (0x71 response frame)
+    caps.hasBattery = true;
+
+    // BLE transport has no baud rate concept
+    caps.supportsBaudRateControl = false;
+
+    // setOutputData() (RSW register) disrupts the 0x61 combined-frame stream
+    // on this firmware — must not be used
+    caps.supportsOutputDataSelection = false;
+
+    caps.queriedAt = QDateTime::currentDateTime();
+    return caps;
+}
 
 QBluetoothUuid WT9011DCL_BLE::ServiceUuid =
     QBluetoothUuid(QStringLiteral("0000ffe5-0000-1000-8000-00805f9b34fb"));

@@ -83,40 +83,37 @@ ImuController::ImuController(pinpoint::EventBuffer *buffer, QObject *parent)
     connect(m_imu, &WT9011DCL_BLE::stateChanged,
             this,  &ImuController::onStateChanged);
 
-    connect(m_imu, &WT9011DCL_BLE::rawDeviceFound,
-            this, [this](const QBluetoothDeviceInfo &device) {
-        const QString name = device.name().isEmpty()
-                             ? QStringLiteral("(unnamed)")
-                             : device.name();
-        // macOS CoreBluetooth hides MAC addresses; use the per-host UUID instead.
-        const QString id = device.address().isNull()
-                           ? device.deviceUuid().toString()
-                           : device.address().toString();
-        appendLog(timestamp()
-                  + QStringLiteral("  BLE: ") + name
-                  + QStringLiteral(" [") + id
-                  + QStringLiteral("] RSSI=") + QString::number(device.rssi())
-                  + QStringLiteral(" dBm"));
+    // Kick off the startup BLE scan. Results arrive asynchronously via
+    // DeviceEnumerator signals; connectImu() consumes them.
+    DeviceEnumerator::instance()->scanImu();
+
+    // If the user clicks Connect while the scan is still running, m_waitingForScan
+    // is set. The two lambdas below fire for all remaining scan lifetime and
+    // connect or report failure when the result is known.
+    connect(DeviceEnumerator::instance(), &DeviceEnumerator::deviceAdded,
+            this, [this](const Device &dev) {
+        if (dev.type == DeviceType::Imu)
+            emit imuEnumeratedCountChanged();
+        if (!m_waitingForScan) return;
+        if (dev.imuTransport != ImuBase::Transport::Ble) return;
+        m_waitingForScan = false;
+        connectToEnumeratedDevice(dev);
     });
 
-    connect(m_imu, &WT9011DCL_BLE::deviceDiscovered,
-            this, [this](const QBluetoothDeviceInfo &device) {
-        if (m_attemptingConn)
-            return;
-        m_attemptingConn = true;
-        m_imu->stopScan();
-        const QString name = device.name().isEmpty() ? QStringLiteral("(unnamed)")
-                                                     : device.name();
-        const QString id = device.address().isNull()
-                           ? device.deviceUuid().toString()
-                           : device.address().toString();
-        appendLog(timestamp() + "  >>> Attempting: " + name + " [" + id + "]");
-        m_imu->connectToDevice(device);
-    });
-
-    connect(m_imu, &WT9011DCL_BLE::scanFinished, this, [this]() {
-        if (!m_connected && !m_attemptingConn)
-            appendLog(timestamp() + "  Scan finished — no IMU found");
+    connect(DeviceEnumerator::instance(), &DeviceEnumerator::imuScanFinished,
+            this, [this]() {
+        if (!m_waitingForScan) return;
+        m_waitingForScan = false;
+        // Final check — device may have been registered just before this signal
+        for (const Device &d : DeviceEnumerator::instance()->devices(DeviceType::Imu)) {
+            if (d.imuTransport == ImuBase::Transport::Ble) {
+                connectToEnumeratedDevice(d);
+                return;
+            }
+        }
+        appendLog(timestamp() + QStringLiteral("  No IMU devices found during startup scan"));
+        setStateLabel(QStringLiteral("No IMU found"));
+        if (m_busy) { m_busy = false; emit busyChanged(); }
     });
 
     connect(m_imu, &WT9011DCL_Base::connected, this, [this]() {
@@ -203,10 +200,50 @@ ImuController::ImuController(pinpoint::EventBuffer *buffer, QObject *parent)
     }
 }
 
+int ImuController::imuEnumeratedCount() const
+{
+    return DeviceEnumerator::instance()->devices(DeviceType::Imu).count();
+}
+
 void ImuController::connectImu()
 {
     m_retryTimer.stop();
-    m_imu->scan(30000);  // 30 seconds
+
+    // Already waiting for the startup scan — ignore duplicate requests.
+    if (m_waitingForScan) return;
+
+    auto *enumerator = DeviceEnumerator::instance();
+
+    // Best case: a BLE IMU was found during the startup scan — connect directly.
+    for (const Device &dev : enumerator->devices(DeviceType::Imu)) {
+        if (dev.imuTransport == ImuBase::Transport::Ble) {
+            connectToEnumeratedDevice(dev);
+            return;
+        }
+    }
+
+    // Scan still in progress — arm the waiting flag; the deviceAdded /
+    // imuScanFinished handlers wired in the constructor take it from here.
+    if (enumerator->isImuScanActive()) {
+        m_waitingForScan = true;
+        setStateLabel(QStringLiteral("Waiting for scan…"));
+        appendLog(timestamp() + QStringLiteral("  Startup BLE scan still running — will connect when device found"));
+        if (!m_busy) { m_busy = true; emit busyChanged(); }
+        return;
+    }
+
+    // Scan finished with no devices found.
+    appendLog(timestamp() + QStringLiteral("  No IMU devices found — restart app to rescan"));
+    setStateLabel(QStringLiteral("No IMU found"));
+}
+
+void ImuController::connectToEnumeratedDevice(const Device &dev)
+{
+    if (m_attemptingConn) return;
+    m_attemptingConn = true;
+    appendLog(timestamp() + QStringLiteral("  >>> Connecting to: ")
+              + dev.description + QStringLiteral(" [") + dev.id + QStringLiteral("]"));
+    m_imu->connectToDevice(dev.platformHandle.value<QBluetoothDeviceInfo>());
 }
 
 void ImuController::onDataRecord()
@@ -246,9 +283,9 @@ void ImuController::zeroOrientation()
 void ImuController::disconnectImu()
 {
     m_retryTimer.stop();
-    m_retryCount = 0;
+    m_retryCount     = 0;
     m_inConnectPhase = false;
-    m_imu->stopScan();
+    m_waitingForScan = false;
     m_imu->disconnectFromDevice();
 }
 

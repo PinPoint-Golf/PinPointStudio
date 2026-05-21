@@ -21,8 +21,53 @@
 #include <QtMath>
 
 WT9011DCL_Base::WT9011DCL_Base(QObject *parent)
-    : QObject(parent)
+    : ImuBase(parent)
 {}
+
+// ---------------------------------------------------------------------------
+// Capabilities
+// ---------------------------------------------------------------------------
+
+ImuCapabilities WT9011DCL_Base::wt901Defaults()
+{
+    ImuCapabilities caps;
+    caps.vendorName           = QStringLiteral("WitMotion");
+
+    // Sensors common to all WT901 variants
+    caps.hasAccelerometer     = true;
+    caps.hasGyroscope         = true;
+    caps.hasEulerAngles       = true;   // fusion output
+    caps.hasQuaternion        = true;   // computed from Euler via eulerToQuat()
+    caps.dataIsFiltered       = true;   // onboard Kalman filter
+
+    // Both 6-axis (gyro-only) and 9-axis (with mag) fusion are selectable via AXIS6
+    caps.supportsSixAxisFusion  = true;
+    caps.supportsNineAxisFusion = true;
+
+    // Fixed measurement ranges (encoded in the protocol divisors)
+    caps.accelRange = { -16.0f,  16.0f  };   // /32768 * 16 g
+    caps.gyroRange  = { -2000.0f, 2000.0f }; // /32768 * 2000 °/s
+
+    // All integer-Hz RRATE values (sub-Hz rates 0.1 and 0.5 exist but are
+    // impractical for real-time motion capture)
+    caps.supportedRatesHz = { 1, 2, 5, 10, 20, 50, 100, 200 };
+    caps.defaultRateHz    = 100;
+
+    // ORIENT register — horizontal and vertical installation both supported
+    caps.supportsHorizontalMount = true;
+    caps.supportsVerticalMount   = true;
+
+    // Configuration registers available on all WT901 variants
+    caps.supportsOutputRateControl    = true;   // RRATE
+    caps.supportsAngleReference       = true;   // CALSW=0x0008
+    caps.supportsHeadingZero          = true;   // CALSW=0x0004
+    caps.supportsAccelGyroCalibration = true;   // CALSW=0x0001
+    caps.supportsMagCalibration       = true;   // CALSW=0x0007
+    caps.supportsConfigPersistence    = true;   // SAVE register
+
+    caps.queriedAt = QDateTime::currentDateTime();
+    return caps;
+}
 
 // Default Euler→quaternion: standard ZYX (RPY) convention.
 // Device subclasses override this to apply their mounting-specific mapping.

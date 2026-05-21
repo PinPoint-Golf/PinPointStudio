@@ -19,6 +19,7 @@
 #pragma once
 
 #include "wt9011dcl_base.h"
+#include "imu_capabilities.h"
 #include <QSerialPort>
 
 // WT9011DCL driver — UART/serial transport.
@@ -37,6 +38,9 @@ class WT9011DCL : public WT9011DCL_Base
 public:
     explicit WT9011DCL(QObject *parent = nullptr);
     ~WT9011DCL() override;
+
+    Transport       transport()    const override { return Transport::Serial; }
+    ImuCapabilities capabilities() const override;
 
     bool    open(const QString &portName, qint32 baudRate = 115200);
     void    close();

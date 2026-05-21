@@ -23,6 +23,7 @@
 #include <QStringList>
 #include <QTimer>
 #include "wt9011dcl_ble.h"
+#include "device_enumerator.h"
 #include "types.h"
 
 namespace pinpoint { class EventBuffer; }
@@ -46,7 +47,8 @@ class ImuController : public QObject
     Q_PROPERTY(float   imuYaw       READ imuYaw       NOTIFY eulerChanged)
     Q_PROPERTY(int     outputRateHz  READ outputRateHz  NOTIFY outputRateHzChanged)
     Q_PROPERTY(double  dataRateHz    READ dataRateHz    NOTIFY dataRateHzChanged)
-    Q_PROPERTY(int     batteryPercent READ batteryPercent NOTIFY batteryPercentChanged)
+    Q_PROPERTY(int     batteryPercent       READ batteryPercent       NOTIFY batteryPercentChanged)
+    Q_PROPERTY(int     imuEnumeratedCount  READ imuEnumeratedCount   NOTIFY imuEnumeratedCountChanged)
 
 public:
     explicit ImuController(pinpoint::EventBuffer *buffer = nullptr,
@@ -66,9 +68,10 @@ public:
     float   imuRoll()      const { return m_roll; }
     float   imuPitch()     const { return m_pitch; }
     float   imuYaw()       const { return m_yaw; }
-    int     outputRateHz()   const { return m_outputRateHz; }
-    double  dataRateHz()     const { return m_dataRateHz; }
-    int     batteryPercent() const { return m_batteryPercent; }
+    int     outputRateHz()        const { return m_outputRateHz; }
+    double  dataRateHz()          const { return m_dataRateHz; }
+    int     batteryPercent()      const { return m_batteryPercent; }
+    int     imuEnumeratedCount()  const;
 
     Q_INVOKABLE void connectImu();
     Q_INVOKABLE void disconnectImu();
@@ -86,6 +89,7 @@ signals:
     void outputRateHzChanged();
     void dataRateHzChanged();
     void batteryPercentChanged();
+    void imuEnumeratedCountChanged();
     void logEntryAdded(const QString &entry);
 
 private:
@@ -94,6 +98,7 @@ private:
     void setStateLabel(const QString &s);
     void onStateChanged(WT9011DCL_BLE::State s);
     void onDataRecord();  // call once per received combined frame
+    void connectToEnumeratedDevice(const Device &dev);
 
     pinpoint::EventBuffer *m_eventBuffer  = nullptr;
     pinpoint::SourceId     m_imuSourceId = pinpoint::kInvalidSourceId;
@@ -106,6 +111,7 @@ private:
     int    m_retryCount     = 0;
     bool   m_inConnectPhase = false;
     bool   m_attemptingConn = false;
+    bool   m_waitingForScan = false; // true while waiting for startup BLE scan to find a device
 
     // Battery polling
     QTimer m_batteryTimer;

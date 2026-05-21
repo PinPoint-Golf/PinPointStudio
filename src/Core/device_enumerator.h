@@ -21,21 +21,37 @@
 #include <QString>
 #include <QList>
 #include <QObject>
+#include <QVariant>
+#include <QThread>
 #include "../Video/camera_capabilities.h"
 #include "../Video/video_input_factory.h"
+#include "imu_base.h"
+#include "imu_capabilities.h"
 
 enum class DeviceType {
     VideoInput,
     AudioInput,
-    AudioOutput
+    AudioOutput,
+    Imu
 };
 
 struct Device {
-    DeviceType type;
-    VideoInputFactory::Backend backend;
-    QString id;
-    QString description;
-    CameraCapabilities capabilities; // populated at enumeration time
+    DeviceType type = DeviceType::VideoInput;
+
+    // --- Camera / audio fields (valid when type == VideoInput/AudioInput/AudioOutput) ---
+    VideoInputFactory::Backend backend = VideoInputFactory::Backend::Auto;
+    CameraCapabilities capabilities;
+
+    // --- IMU fields (valid when type == Imu) ---
+    ImuBase::Transport imuTransport    = ImuBase::Transport::Serial;
+    ImuCapabilities    imuCapabilities;
+    // Opaque transport handle. For BLE: stores QBluetoothDeviceInfo via QVariant::fromValue().
+    // Callers that need it: #include <QBluetoothDeviceInfo> and use .value<QBluetoothDeviceInfo>().
+    QVariant           platformHandle;
+
+    // --- Common ---
+    QString id;           // camera: device id; IMU BLE: MAC address or UUID; serial: port name
+    QString description;  // human-readable label
 };
 
 class DeviceEnumerator : public QObject
@@ -45,18 +61,45 @@ class DeviceEnumerator : public QObject
 public:
     static DeviceEnumerator* instance();
 
+    // Synchronous enumeration — individual backends register themselves on demand.
     void enumerate();
-    QList<Device> devices() const;
 
+    // Starts an asynchronous BLE IMU scan (30 s timeout) in a worker thread.
+    // Serial scan is a stub that finds nothing (TODO: probe serial ports).
+    // Safe to call multiple times; ignored if a scan is already in progress.
+    void scanImu();
+    bool isImuScanActive() const { return m_imuScanActive; }
+
+    // Returns all registered devices, optionally filtered by type.
+    QList<Device> devices() const;
+    QList<Device> devices(DeviceType type) const;
+
+    // Register a camera / audio device (used by video/audio backends).
     void registerDevice(DeviceType type, VideoInputFactory::Backend backend,
                         const QString &id, const QString &description,
                         const CameraCapabilities &capabilities = {});
 
+    // Register an IMU device (used by scanImu() and future IMU backends).
+    void registerImuDevice(ImuBase::Transport transport,
+                           const QString &id,
+                           const QString &description,
+                           const ImuCapabilities &capabilities = {},
+                           const QVariant &platformHandle = {});
+
+signals:
+    // Emitted whenever a new device is added (any type).
+    void deviceAdded(const Device &device);
+
+    // Emitted when the asynchronous IMU BLE scan finishes (timeout or explicit stop).
+    void imuScanFinished();
+
 private:
     explicit DeviceEnumerator(QObject *parent = nullptr);
-    
+
     QList<Device> m_devices;
-    bool m_videoEnumerated = false;
+    bool m_videoEnumerated      = false;
     bool m_audioInputEnumerated = false;
     bool m_audioOutputEnumerated = false;
+    bool m_imuScanActive        = false;
+    QThread *m_imuScanThread    = nullptr;
 };
