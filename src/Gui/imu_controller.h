@@ -21,6 +21,7 @@
 #include <QObject>
 #include <QList>
 #include <QStringList>
+#include <QVariant>
 #include <QTimer>
 #include "wt9011dcl_ble.h"
 #include "device_enumerator.h"
@@ -48,7 +49,9 @@ class ImuController : public QObject
     Q_PROPERTY(int     outputRateHz  READ outputRateHz  NOTIFY outputRateHzChanged)
     Q_PROPERTY(double  dataRateHz    READ dataRateHz    NOTIFY dataRateHzChanged)
     Q_PROPERTY(int     batteryPercent       READ batteryPercent       NOTIFY batteryPercentChanged)
-    Q_PROPERTY(int     imuEnumeratedCount  READ imuEnumeratedCount   NOTIFY imuEnumeratedCountChanged)
+    Q_PROPERTY(int          imuEnumeratedCount READ imuEnumeratedCount  NOTIFY imuEnumeratedCountChanged)
+    Q_PROPERTY(QVariantList imuDeviceList      READ imuDeviceList       NOTIFY imuDeviceListChanged)
+    Q_PROPERTY(QString      connectedDeviceId  READ connectedDeviceId   NOTIFY imuConnectedChanged)
 
 public:
     explicit ImuController(pinpoint::EventBuffer *buffer = nullptr,
@@ -71,10 +74,15 @@ public:
     int     outputRateHz()        const { return m_outputRateHz; }
     double  dataRateHz()          const { return m_dataRateHz; }
     int     batteryPercent()      const { return m_batteryPercent; }
-    int     imuEnumeratedCount()  const;
+    int          imuEnumeratedCount() const;
+    QVariantList imuDeviceList()      const;
+    QString      connectedDeviceId()  const { return m_connectedDeviceId; }
 
     Q_INVOKABLE void connectImu();
     Q_INVOKABLE void disconnectImu();
+    Q_INVOKABLE void rescanImu();
+    Q_INVOKABLE void connectToDevice(const QString &deviceId);
+    Q_INVOKABLE void disconnectDevice();
     Q_INVOKABLE void zeroOrientation();
     Q_INVOKABLE QString saveLog();
     Q_INVOKABLE void setOutputRateHz(int hz);
@@ -90,6 +98,7 @@ signals:
     void dataRateHzChanged();
     void batteryPercentChanged();
     void imuEnumeratedCountChanged();
+    void imuDeviceListChanged();
     void logEntryAdded(const QString &entry);
 
 private:
@@ -119,7 +128,9 @@ private:
     static constexpr int kMaxBatteryRetries = 3;
 
     // State
-    QString m_stateLabel = QStringLiteral("Disconnected");
+    QString m_stateLabel      = QStringLiteral("Disconnected");
+    QString m_connectedDeviceId;
+    QString m_pendingDeviceId;
     bool    m_connected  = false;
     bool    m_busy       = false;
 

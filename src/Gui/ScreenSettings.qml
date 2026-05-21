@@ -266,7 +266,10 @@ Item {
                     Layout.fillWidth:  true
                     Layout.fillHeight: true
                 }
-                ScreenPlaceholder { titleText: "IMUs"           }  // 4
+                ImusPanel {                                         // 4
+                    Layout.fillWidth:  true
+                    Layout.fillHeight: true
+                }
                 ScreenPlaceholder { titleText: "Launch Monitor" }  // 5
                 ScreenPlaceholder { titleText: "Archiving"      }  // 6
             }

@@ -1,0 +1,1483 @@
+/*
+ * Copyright (c) 2026 Mark Liversedge (liversedge@gmail.com)
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc., 51
+ * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls.Basic
+import PinPoint
+
+Item {
+    id: root
+
+    // Id of the IMU device whose test panel is currently open ("" = none).
+    property string openTestId: ""
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Inline component — reusable toggle pill (copied verbatim from CamerasPanel)
+    // ─────────────────────────────────────────────────────────────────────────
+    component TogglePill: Rectangle {
+        id: pill
+        property bool checked: false
+        signal toggled(bool value)
+
+        width:  Theme.sp(34)
+        height: Theme.sp(18)
+        radius: Theme.sp(9)
+        color:  pill.checked ? Theme.colorAccent : Theme.colorBg3
+        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+        Rectangle {
+            width:  Theme.sp(12)
+            height: Theme.sp(12)
+            radius: Theme.sp(6)
+            color:  "white"
+            anchors.verticalCenter: parent.verticalCenter
+            x: pill.checked ? parent.width - width - Theme.sp(3) : Theme.sp(3)
+            Behavior on x { NumberAnimation { duration: 120 } }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            cursorShape:  Qt.PointingHandCursor
+            onClicked:    pill.toggled(!pill.checked)
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Inline component — IMU device row
+    // ─────────────────────────────────────────────────────────────────────────
+    component ImuDeviceRow: Item {
+        id: imuRow
+
+        property var imuData: ({})
+
+        readonly property bool isConnected: imuController.imuConnected
+                                         && imuController.connectedDeviceId === imuData.id
+        readonly property bool isExcluded:  appSettings.imuExcluded.indexOf(imuData.id) >= 0
+        readonly property bool testOpen:    root.openTestId === imuData.id
+
+        // Capabilities strip cell model — reactive to live battery data.
+        readonly property var capsCells: {
+            var sensors = []
+            if (imuData.hasAccelerometer) sensors.push(qsTr("Accel"))
+            if (imuData.hasGyroscope)     sensors.push(qsTr("Gyro"))
+            if (imuData.hasMagnetometer)  sensors.push(qsTr("Mag"))
+            var rates = imuData.supportedRatesHz || []
+            var maxRate = rates.length > 0 ? Math.max.apply(null, rates) : 0
+            var batPct = (imuRow.isConnected && imuController.batteryPercent >= 0)
+                             ? imuController.batteryPercent : -1
+            return [
+                { key: qsTr("Transport"),   val: imuData.transport || "—",    isAccent: false, batPct: -1 },
+                { key: qsTr("Sensors"),     val: sensors.length > 0 ? sensors.join(" · ") : "—",
+                                                                               isAccent: false, batPct: -1 },
+                { key: qsTr("Accel range"), val: (imuData.accelRangeMax > 0)
+                                                    ? ("±" + imuData.accelRangeMax.toFixed(0) + " g") : "—",
+                                                                               isAccent: false, batPct: -1 },
+                { key: qsTr("Gyro range"),  val: (imuData.gyroRangeMax > 0)
+                                                    ? ("±" + imuData.gyroRangeMax.toFixed(0) + " °/s") : "—",
+                                                                               isAccent: false, batPct: -1 },
+                { key: qsTr("Max rate"),    val: maxRate > 0 ? (maxRate + " Hz") : "—",
+                                                                               isAccent: true,  batPct: -1 },
+                { key: qsTr("Battery"),     val: batPct >= 0 ? (batPct + "%") : "—",
+                                                                               isAccent: false, batPct: batPct }
+            ]
+        }
+
+        implicitHeight: testOpen && !isExcluded
+            ? headerRow.height + bodyWrap.height + testPanel.height
+            : headerRow.height + (isExcluded ? excludedNote.height : bodyWrap.height)
+
+        Behavior on implicitHeight { NumberAnimation { duration: Theme.durationFast } }
+
+        opacity: isExcluded ? 0.5 : 1.0
+        Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+
+        // Background fill
+        Rectangle {
+            anchors.fill: parent
+            color:        Theme.colorSurface
+            radius:       Theme.radius
+        }
+
+        clip: true
+
+        // Border overlay — z:100 so content never occludes it
+        Rectangle {
+            anchors.fill: parent
+            color:        "transparent"
+            border.width: 1
+            border.color: imuRow.testOpen    ? Theme.colorAccent
+                        : imuRow.isConnected ? Theme.colorGood
+                        : imuRow.isExcluded  ? Theme.colorBorderMid
+                        :                      Theme.colorBorderStrong
+            radius: Theme.radius
+            z:      100
+            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+        }
+
+        // ── Header row ───────────────────────────────────────────────────────
+        RowLayout {
+            id: headerRow
+            anchors.top:     parent.top
+            anchors.left:    parent.left
+            anchors.right:   parent.right
+            anchors.margins: Theme.sp(14)
+            height:   Theme.sp(44)
+            spacing:  Theme.sp(10)
+
+            // Status dot
+            Rectangle {
+                width:  Theme.sp(6)
+                height: Theme.sp(6)
+                radius: Theme.sp(3)
+                color: imuRow.isConnected ? Theme.colorGood
+                     : !imuRow.isExcluded  ? Theme.colorWarn
+                     :                       Theme.colorText3
+                Layout.alignment: Qt.AlignVCenter
+                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+            }
+
+            // Name + meta
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: Theme.sp(2)
+
+                Text {
+                    text:  imuData.description || qsTr("Unknown IMU")
+                    font.family:    Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody
+                    color:          Theme.colorText
+                    elide:          Text.ElideRight
+                    Layout.fillWidth: true
+                }
+                Row {
+                    spacing: Theme.sp(10)
+                    Text { text: imuData.transport || "";      font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText3 }
+                    Text { text: imuData.id || "";             font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText3 }
+                    Text { text: imuData.firmwareVersion || ""; font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText3 }
+                }
+            }
+
+            // Enable toggle
+            Row {
+                spacing: Theme.sp(6)
+                Layout.alignment: Qt.AlignVCenter
+
+                Text {
+                    text:           qsTr("Enable")
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    color:          Theme.colorText3
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                TogglePill {
+                    checked: !imuRow.isExcluded
+                    onToggled: (v) => {
+                        var list = appSettings.imuExcluded
+                        var idx  = list.indexOf(imuData.id)
+                        if (!v && idx < 0)  list.push(imuData.id)
+                        if ( v && idx >= 0) list.splice(idx, 1)
+                        appSettings.imuExcluded = list
+                        if (!v && imuRow.testOpen) root.openTestId = ""
+                    }
+                }
+            }
+        }
+
+        // ── Excluded note ────────────────────────────────────────────────────
+        Item {
+            id: excludedNote
+            anchors.top:   headerRow.bottom
+            anchors.left:  parent.left
+            anchors.right: parent.right
+            height:  imuRow.isExcluded ? (excText.implicitHeight + Theme.sp(18)) : 0
+            visible: imuRow.isExcluded
+            clip:    true
+
+            Text {
+                id: excText
+                anchors {
+                    left:        parent.left
+                    right:       parent.right
+                    top:         parent.top
+                    leftMargin:  Theme.sp(14)
+                    rightMargin: Theme.sp(14)
+                    topMargin:   Theme.sp(4)
+                }
+                text:        qsTr("Excluded — will not be connected at session start.")
+                font.family: Theme.fontData
+                font.pixelSize: Theme.fontSzMicro
+                font.italic: true
+                color:       Theme.colorText3
+                wrapMode:    Text.WordWrap
+            }
+        }
+
+        // ── Body wrap — chips + capabilities strip ───────────────────────────
+        Item {
+            id: bodyWrap
+            anchors.top:   headerRow.bottom
+            anchors.left:  parent.left
+            anchors.right: parent.right
+            height:  !imuRow.isExcluded ? (bodyCol.implicitHeight + Theme.sp(20)) : 0
+            visible: !imuRow.isExcluded
+            clip:    true
+
+            ColumnLayout {
+                id: bodyCol
+                anchors.left:  parent.left
+                anchors.right: parent.right
+                anchors.top:   parent.top
+                spacing: 0
+
+                // Config chips row
+                RowLayout {
+                    Layout.fillWidth:    true
+                    Layout.leftMargin:   Theme.sp(14)
+                    Layout.rightMargin:  Theme.sp(14)
+                    Layout.topMargin:    Theme.sp(4)
+                    Layout.bottomMargin: Theme.sp(12)
+                    spacing: Theme.sp(16)
+
+                    // ── Placement selector ───────────────────────────────────
+                    ColumnLayout {
+                        spacing: Theme.sp(4)
+                        Layout.alignment: Qt.AlignTop
+
+                        Text {
+                            text:                qsTr("PLACEMENT")
+                            font.family:         Theme.fontData
+                            font.pixelSize:      Theme.fontSzMicro
+                            font.letterSpacing:  Theme.trackingMicro
+                            font.capitalization: Font.AllUppercase
+                            color:               Theme.colorText3
+                        }
+
+                        ComboBox {
+                            id: placementCombo
+                            implicitWidth: Theme.sp(200)
+
+                            readonly property var placementOptions: [
+                                { label: qsTr("— Unassigned —"),                  value: ""      },
+                                { label: qsTr("A — Thorax / Lead Wrist"),         value: "A"     },
+                                { label: qsTr("B — Lumbar Spine / Lead Hand"),    value: "B"     },
+                                { label: qsTr("C — T12 Junction / Shoulder"),     value: "C"     },
+                                { label: qsTr("D — Other"),                       value: "D"     }
+                            ]
+
+                            model: placementOptions.map(function(o) { return o.label })
+
+                            function placementTakenBy(value) {
+                                if (!value || value === "" || value === "other") return false
+                                var map     = appSettings.imuPlacement
+                                var devList = imuController.imuDeviceList
+                                for (var i = 0; i < devList.length; ++i) {
+                                    var d = devList[i]
+                                    if (d.id !== imuData.id
+                                            && appSettings.imuExcluded.indexOf(d.id) < 0
+                                            && map[d.id] === value)
+                                        return true
+                                }
+                                return false
+                            }
+
+                            Component.onCompleted: {
+                                var saved = appSettings.imuPlacement[imuData.id] || ""
+                                for (var i = 0; i < placementOptions.length; i++) {
+                                    if (placementOptions[i].value === saved) { currentIndex = i; break }
+                                }
+                            }
+
+                            Connections {
+                                target: appSettings
+                                function onImuPlacementChanged() {
+                                    var saved = appSettings.imuPlacement[imuData.id] || ""
+                                    for (var i = 0; i < placementCombo.placementOptions.length; i++) {
+                                        if (placementCombo.placementOptions[i].value === saved) {
+                                            placementCombo.currentIndex = i; break
+                                        }
+                                    }
+                                }
+                            }
+
+                            onActivated: (idx) => {
+                                var map = appSettings.imuPlacement
+                                map[imuData.id] = placementOptions[idx].value
+                                appSettings.imuPlacement = map
+                            }
+
+                            font.family:    Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody2
+                            font.weight:    Font.Light
+
+                            contentItem: Text {
+                                leftPadding: Theme.sp(10)
+                                text:  placementCombo.displayText
+                                font:  placementCombo.font
+                                color: Theme.colorText
+                                verticalAlignment: Text.AlignVCenter
+                                elide: Text.ElideRight
+                            }
+
+                            background: Rectangle {
+                                color:        Theme.colorSurface
+                                border.width: 1
+                                border.color: Theme.colorBorderStrong
+                                radius:       Theme.radius
+                            }
+
+                            indicator: Text {
+                                x: placementCombo.width - width - Theme.sp(10)
+                                anchors.verticalCenter: parent.verticalCenter
+                                text:           "⌄"
+                                font.family:    Theme.fontBody
+                                font.pixelSize: Theme.fontSzBody
+                                color:          Theme.colorText3
+                            }
+
+                            popup: Popup {
+                                y:       placementCombo.height
+                                width:   placementCombo.width
+                                padding: 0
+
+                                background: Rectangle {
+                                    color:        Theme.colorSurface
+                                    border.width: 1
+                                    border.color: Theme.colorBorderStrong
+                                    radius:       Theme.radius
+                                }
+
+                                contentItem: ListView {
+                                    implicitHeight: contentHeight
+                                    model: placementCombo.delegateModel
+                                    clip:  true
+                                }
+                            }
+
+                            delegate: ItemDelegate {
+                                required property string modelData
+                                required property int    index
+
+                                width:       placementCombo.width
+                                highlighted: placementCombo.highlightedIndex === index
+                                enabled:     !placementCombo.placementTakenBy(
+                                                 placementCombo.placementOptions[index].value)
+
+                                contentItem: Text {
+                                    leftPadding: Theme.sp(10)
+                                    text:  modelData
+                                    font.family:    Theme.fontBody
+                                    font.pixelSize: Theme.fontSzBody2
+                                    font.weight:    Font.Light
+                                    color: parent.enabled ? Theme.colorText : Theme.colorText3
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+
+                                background: Rectangle {
+                                    color: parent.highlighted ? Theme.colorAccentLight : "transparent"
+                                }
+                            }
+                        }
+                    }
+
+                    // ── Output rate chips ────────────────────────────────────
+                    ColumnLayout {
+                        spacing: Theme.sp(4)
+                        Layout.alignment: Qt.AlignTop
+
+                        Text {
+                            text:                qsTr("OUTPUT RATE")
+                            font.family:         Theme.fontData
+                            font.pixelSize:      Theme.fontSzMicro
+                            font.letterSpacing:  Theme.trackingMicro
+                            font.capitalization: Font.AllUppercase
+                            color:               Theme.colorText3
+                        }
+
+                        Row {
+                            id: rateChipRow
+                            spacing: Theme.sp(4)
+
+                            readonly property var rateOptions: {
+                                var rates = imuData.supportedRatesHz
+                                return (rates && rates.length > 0) ? rates : [50, 100, 200, 500]
+                            }
+
+                            readonly property int selectedRate: {
+                                var v = appSettings.imuOutputRateHz[imuData.id]
+                                return (v !== undefined && v > 0) ? v : (imuData.defaultRateHz || 100)
+                            }
+
+                            Repeater {
+                                model: rateChipRow.rateOptions
+
+                                delegate: Rectangle {
+                                    required property var modelData
+
+                                    readonly property bool isSelected: rateChipRow.selectedRate === modelData
+
+                                    width:  rateChipLabel.implicitWidth + Theme.sp(20)
+                                    height: Theme.sp(24)
+                                    radius: Theme.radius
+                                    color:  isSelected ? Theme.colorAccentLight : "transparent"
+                                    border.width: 1
+                                    border.color: isSelected ? Theme.colorAccent : Theme.colorBorderStrong
+                                    Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
+                                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                                    Text {
+                                        id: rateChipLabel
+                                        anchors.centerIn: parent
+                                        text:           modelData + qsTr(" Hz")
+                                        font.family:    Theme.fontData
+                                        font.pixelSize: Theme.fontSzMicro
+                                        color:          isSelected ? Theme.colorAccent : Theme.colorText2
+                                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape:  Qt.PointingHandCursor
+                                        onClicked: {
+                                            var map = appSettings.imuOutputRateHz
+                                            map[imuData.id] = modelData
+                                            appSettings.imuOutputRateHz = map
+                                            if (imuRow.isConnected)
+                                                imuController.setOutputRateHz(modelData)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // ── Fusion algorithm chips ───────────────────────────────
+                    ColumnLayout {
+                        spacing: Theme.sp(4)
+                        Layout.alignment: Qt.AlignTop
+                        visible: imuData.supportsSixAxisFusion || imuData.supportsNineAxisFusion
+
+                        Text {
+                            text:                qsTr("FUSION")
+                            font.family:         Theme.fontData
+                            font.pixelSize:      Theme.fontSzMicro
+                            font.letterSpacing:  Theme.trackingMicro
+                            font.capitalization: Font.AllUppercase
+                            color:               Theme.colorText3
+                        }
+
+                        Row {
+                            id: fusionChipRow
+                            spacing: Theme.sp(4)
+
+                            readonly property var fusionOptions: {
+                                var opts = []
+                                if (imuData.supportsNineAxisFusion) opts.push({ label: qsTr("9-axis"), value: "9axis" })
+                                if (imuData.supportsSixAxisFusion)  opts.push({ label: qsTr("6-axis"), value: "6axis" })
+                                return opts
+                            }
+
+                            readonly property string selectedFusion: {
+                                var v = appSettings.imuFusionMode[imuData.id]
+                                return v || appSettings.imuDefaultFusionMode
+                            }
+
+                            Repeater {
+                                model: fusionChipRow.fusionOptions
+
+                                delegate: Rectangle {
+                                    required property var modelData
+
+                                    readonly property bool isSelected: fusionChipRow.selectedFusion === modelData.value
+
+                                    width:  fusionLabel.implicitWidth + Theme.sp(20)
+                                    height: Theme.sp(24)
+                                    radius: Theme.radius
+                                    color:  isSelected ? Theme.colorAccentLight : "transparent"
+                                    border.width: 1
+                                    border.color: isSelected ? Theme.colorAccent : Theme.colorBorderStrong
+                                    Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
+                                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                                    Text {
+                                        id: fusionLabel
+                                        anchors.centerIn: parent
+                                        text:           modelData.label
+                                        font.family:    Theme.fontData
+                                        font.pixelSize: Theme.fontSzMicro
+                                        color:          isSelected ? Theme.colorAccent : Theme.colorText2
+                                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape:  Qt.PointingHandCursor
+                                        onClicked: {
+                                            var map = appSettings.imuFusionMode
+                                            map[imuData.id] = modelData.value
+                                            appSettings.imuFusionMode = map
+                                            // TODO: apply on connect via ImuController::setFusionMode()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // ── Mount orientation chips ──────────────────────────────
+                    ColumnLayout {
+                        spacing: Theme.sp(4)
+                        Layout.alignment: Qt.AlignTop
+                        visible: imuData.supportsHorizontalMount || imuData.supportsVerticalMount
+
+                        Text {
+                            text:                qsTr("MOUNT")
+                            font.family:         Theme.fontData
+                            font.pixelSize:      Theme.fontSzMicro
+                            font.letterSpacing:  Theme.trackingMicro
+                            font.capitalization: Font.AllUppercase
+                            color:               Theme.colorText3
+                        }
+
+                        Row {
+                            id: mountChipRow
+                            spacing: Theme.sp(4)
+
+                            readonly property var mountOptions: {
+                                var opts = []
+                                if (imuData.supportsHorizontalMount) opts.push({ label: qsTr("Horizontal"), value: "horizontal" })
+                                if (imuData.supportsVerticalMount)   opts.push({ label: qsTr("Vertical"),   value: "vertical"   })
+                                return opts
+                            }
+
+                            readonly property string selectedMount: {
+                                var v = appSettings.imuMountOrientation[imuData.id]
+                                return v || "horizontal"
+                            }
+
+                            Repeater {
+                                model: mountChipRow.mountOptions
+
+                                delegate: Rectangle {
+                                    required property var modelData
+
+                                    readonly property bool isSelected: mountChipRow.selectedMount === modelData.value
+
+                                    width:  mountLabel.implicitWidth + Theme.sp(20)
+                                    height: Theme.sp(24)
+                                    radius: Theme.radius
+                                    color:  isSelected ? Theme.colorAccentLight : "transparent"
+                                    border.width: 1
+                                    border.color: isSelected ? Theme.colorAccent : Theme.colorBorderStrong
+                                    Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
+                                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                                    Text {
+                                        id: mountLabel
+                                        anchors.centerIn: parent
+                                        text:           modelData.label
+                                        font.family:    Theme.fontData
+                                        font.pixelSize: Theme.fontSzMicro
+                                        color:          isSelected ? Theme.colorAccent : Theme.colorText2
+                                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape:  Qt.PointingHandCursor
+                                        onClicked: {
+                                            var map = appSettings.imuMountOrientation
+                                            map[imuData.id] = modelData.value
+                                            appSettings.imuMountOrientation = map
+                                            // TODO: apply on connect via ImuController::setMountOrientation()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Item { Layout.fillWidth: true }
+
+                    // ── Test button ──────────────────────────────────────────
+                    Rectangle {
+                        id: testBtn
+                        readonly property bool active: imuRow.testOpen
+                        width:  testBtnLabel.implicitWidth + Theme.sp(24)
+                        height: Theme.sp(26)
+                        radius: Theme.radius
+                        color:  active ? Theme.colorAccentLight : "transparent"
+                        border.width: 1
+                        border.color: active ? Theme.colorAccent : Theme.colorBorderStrong
+                        Layout.alignment: Qt.AlignVCenter
+                        Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
+                        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                        Text {
+                            id: testBtnLabel
+                            anchors.centerIn: parent
+                            text:           qsTr("Test")
+                            font.family:    Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody2
+                            font.weight:    Font.Light
+                            color:          testBtn.active ? Theme.colorAccent : Theme.colorText2
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape:  Qt.PointingHandCursor
+                            onClicked: {
+                                if (imuRow.testOpen) {
+                                    root.openTestId = ""
+                                } else {
+                                    root.openTestId = imuData.id
+                                    if (!imuRow.isConnected)
+                                        imuController.connectToDevice(imuData.id)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ── Capabilities strip ───────────────────────────────────────
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 0
+
+                    Repeater {
+                        model: imuRow.capsCells
+
+                        delegate: Rectangle {
+                            required property var modelData
+                            required property int index
+
+                            Layout.fillWidth: true
+                            implicitHeight: capsCol.implicitHeight + Theme.sp(18)
+                            color: Theme.colorBg2
+
+                            // Vertical separator (except last)
+                            Rectangle {
+                                anchors.right:  parent.right
+                                anchors.top:    parent.top
+                                anchors.bottom: parent.bottom
+                                width:   1
+                                color:   Theme.colorBorderMid
+                                opacity: Theme.borderOpacityNormal
+                                visible: index < 5
+                            }
+
+                            ColumnLayout {
+                                id: capsCol
+                                anchors {
+                                    left:   parent.left
+                                    right:  parent.right
+                                    top:    parent.top
+                                    leftMargin:  Theme.sp(14)
+                                    rightMargin: Theme.sp(14)
+                                    topMargin:   Theme.sp(9)
+                                }
+                                spacing: Theme.sp(3)
+
+                                Text {
+                                    text:                modelData.key
+                                    font.family:         Theme.fontData
+                                    font.pixelSize:      Theme.fontSzMicro
+                                    font.letterSpacing:  Theme.trackingMicro
+                                    font.capitalization: Font.AllUppercase
+                                    color:               Theme.colorText3
+                                }
+                                Text {
+                                    text:  modelData.val
+                                    font.family:    Theme.fontData
+                                    font.pixelSize: Theme.fontSzBody2
+                                    color: modelData.isAccent ? Theme.colorAccent
+                                         : (modelData.batPct >= 0)
+                                               ? (modelData.batPct > 60 ? Theme.colorGood
+                                                 : modelData.batPct > 20 ? Theme.colorWarn
+                                                 :                         Theme.colorError)
+                                         : Theme.colorText
+                                    elide: Text.ElideRight
+                                    Layout.fillWidth: true
+                                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Test panel ───────────────────────────────────────────────────────
+        Item {
+            id: testPanel
+            anchors.top:   bodyWrap.bottom
+            anchors.left:  parent.left
+            anchors.right: parent.right
+            height: imuRow.testOpen && !imuRow.isExcluded ? testPanelContent.implicitHeight : 0
+            clip:   true
+
+            Behavior on height { NumberAnimation { duration: Theme.durationFast } }
+
+            ColumnLayout {
+                id: testPanelContent
+                anchors.left:  parent.left
+                anchors.right: parent.right
+                spacing: 0
+
+                // Top separator
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 1
+                    color:  Theme.colorBorderMid
+                    opacity: Theme.borderOpacityNormal
+                }
+
+                // ── Panel header ──────────────────────────────────────────────
+                RowLayout {
+                    Layout.fillWidth:    true
+                    Layout.leftMargin:   Theme.sp(14)
+                    Layout.rightMargin:  Theme.sp(14)
+                    Layout.topMargin:    Theme.sp(12)
+                    Layout.bottomMargin: Theme.sp(12)
+                    spacing: Theme.sp(8)
+
+                    Text {
+                        text: {
+                            var p = appSettings.imuPlacement[imuData.id]
+                            var label = (p && p !== "") ? (p + " — " + imuData.description)
+                                                        : imuData.description
+                            return qsTr("Live test — ") + label
+                        }
+                        font.family:         Theme.fontData
+                        font.pixelSize:      Theme.fontSzMicro
+                        font.letterSpacing:  Theme.trackingMicro
+                        font.capitalization: Font.AllUppercase
+                        color:               Theme.colorText3
+                        Layout.fillWidth:    true
+                    }
+
+                    // Connect / Disconnect button — fixed width sized for the longer label.
+                    Rectangle {
+                        id: connBtn
+                        readonly property bool connected: imuRow.isConnected
+                        width:  disconnectMeasure.implicitWidth + Theme.sp(24)
+                        height: Theme.sp(26)
+                        radius: Theme.radius
+                        color:  "transparent"
+                        border.width: 1
+                        border.color: connected ? Qt.rgba(Theme.colorWarn.r, Theme.colorWarn.g, Theme.colorWarn.b, 0.5)
+                                                : Theme.colorBorderStrong
+                        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                        // Invisible sizer — always measures the longer string so the button
+                        // never shrinks when switching between "Connect" and "Disconnect".
+                        Text {
+                            id: disconnectMeasure
+                            visible:        false
+                            text:           qsTr("Disconnect")
+                            font.family:    Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody2
+                            font.weight:    Font.Light
+                        }
+
+                        Text {
+                            id: connBtnLabel
+                            anchors.centerIn: parent
+                            text:           connBtn.connected ? qsTr("Disconnect") : qsTr("Connect")
+                            font.family:    Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody2
+                            font.weight:    Font.Light
+                            color:          connBtn.connected ? Theme.colorWarn : Theme.colorAccent
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape:  Qt.PointingHandCursor
+                            onClicked: {
+                                if (imuRow.isConnected)
+                                    imuController.disconnectDevice()
+                                else
+                                    imuController.connectToDevice(imuData.id)
+                            }
+                        }
+                    }
+
+                    // Done button
+                    Rectangle {
+                        width:  doneBtnLabel.implicitWidth + Theme.sp(24)
+                        height: Theme.sp(26)
+                        radius: Theme.radius
+                        color:  Theme.colorAccentLight
+                        border.width: 1
+                        border.color: Theme.colorAccent
+
+                        Text {
+                            id: doneBtnLabel
+                            anchors.centerIn: parent
+                            text:           qsTr("Done")
+                            font.family:    Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody2
+                            font.weight:    Font.Normal
+                            color:          Theme.colorAccent
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape:  Qt.PointingHandCursor
+                            onClicked: {
+                                if (imuRow.isConnected)
+                                    imuController.disconnectDevice()
+                                root.openTestId = ""
+                            }
+                        }
+                    }
+                }
+
+                // ── Body — viz left, live data right ─────────────────────────
+                RowLayout {
+                    Layout.fillWidth:    true
+                    Layout.leftMargin:   Theme.sp(14)
+                    Layout.rightMargin:  Theme.sp(14)
+                    Layout.bottomMargin: Theme.sp(24)
+                    spacing: Theme.sp(16)
+
+                    // ImuVizView — loaded only when test panel is open to avoid
+                    // creating GPU contexts for every row at startup.
+                    Item {
+                        width:  Theme.sp(220)
+                        height: Theme.sp(220)
+                        Layout.alignment: Qt.AlignTop
+
+                        Loader {
+                            anchors.fill: parent
+                            active:  imuRow.testOpen
+                            visible: imuRow.isConnected
+                            sourceComponent: Component {
+                                ImuVizView {
+                                    anchors.fill: parent
+                                    controller:   imuController
+                                }
+                            }
+                        }
+
+                        // Placeholder when not connected
+                        Rectangle {
+                            anchors.fill:  parent
+                            color:         Theme.colorBg
+                            border.width:  1
+                            border.color:  Theme.colorBorderMid
+                            radius:        Theme.radius
+                            visible:       !imuRow.isConnected
+
+                            Text {
+                                anchors.centerIn: parent
+                                text:           qsTr("Not connected")
+                                font.family:    Theme.fontData
+                                font.pixelSize: Theme.fontSzMicro
+                                color:          Theme.colorText3
+                            }
+                        }
+                    }
+
+                    // ── Live data ─────────────────────────────────────────────
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignTop
+                        spacing: Theme.sp(12)
+
+                        // Connection status + battery
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: Theme.sp(8)
+
+                            // Status dot
+                            Rectangle {
+                                width:  Theme.sp(6)
+                                height: Theme.sp(6)
+                                radius: Theme.sp(3)
+                                color: imuRow.isConnected ? Theme.colorGood
+                                     : imuController.busy  ? Theme.colorAccent
+                                     :                        Theme.colorText3
+                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            }
+
+                            // State label + data rate
+                            Text {
+                                text: imuRow.isConnected
+                                        ? (imuController.stateLabel + qsTr(" · ")
+                                           + imuController.dataRateHz.toFixed(1) + qsTr(" Hz"))
+                                        : imuController.stateLabel
+                                font.family:    Theme.fontData
+                                font.pixelSize: Theme.fontSzBody2
+                                color: imuRow.isConnected ? Theme.colorGood
+                                     : imuController.busy  ? Theme.colorWarn
+                                     :                        Theme.colorText3
+                                Layout.fillWidth: true
+                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            }
+
+                            // Battery indicator
+                            RowLayout {
+                                visible: imuRow.isConnected && imuController.batteryPercent >= 0
+                                spacing: Theme.sp(4)
+
+                                Text {
+                                    text:           qsTr("BAT")
+                                    font.family:    Theme.fontData
+                                    font.pixelSize: Theme.fontSzMicro
+                                    color:          Theme.colorText3
+                                }
+
+                                Rectangle {
+                                    width:  Theme.sp(40)
+                                    height: Theme.sp(8)
+                                    radius: Theme.sp(2)
+                                    color:  Theme.colorBg3
+                                    border.width: 1
+                                    border.color: Theme.colorBorderStrong
+
+                                    Rectangle {
+                                        width:  parent.width * Math.max(0, Math.min(1, imuController.batteryPercent / 100.0))
+                                        height: parent.height
+                                        radius: parent.radius
+                                        color:  imuController.batteryPercent > 60 ? Theme.colorGood
+                                              : imuController.batteryPercent > 20 ? Theme.colorWarn
+                                              :                                      Theme.colorError
+                                        Behavior on width { NumberAnimation { duration: Theme.durationFast } }
+                                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                    }
+                                }
+
+                                Text {
+                                    text:           imuController.batteryPercent + qsTr("%")
+                                    font.family:    Theme.fontData
+                                    font.pixelSize: Theme.fontSzMicro
+                                    color:  imuController.batteryPercent > 60 ? Theme.colorGood
+                                          : imuController.batteryPercent > 20 ? Theme.colorWarn
+                                          :                                      Theme.colorError
+                                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                }
+                            }
+                        }
+
+                        // ── Euler angles ──────────────────────────────────────
+                        ColumnLayout {
+                            Layout.fillWidth:    true
+                            Layout.bottomMargin: Theme.sp(8)
+                            spacing: Theme.sp(4)
+
+                            Text {
+                                text:                qsTr("EULER ANGLES")
+                                font.family:         Theme.fontData
+                                font.pixelSize:      Theme.fontSzMicro
+                                font.letterSpacing:  Theme.trackingMicro
+                                font.capitalization: Font.AllUppercase
+                                color:               Theme.colorText3
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: Theme.sp(6)
+
+                                Repeater {
+                                    model: 3
+
+                                    delegate: Rectangle {
+                                        required property int index
+
+                                        Layout.fillWidth: true
+                                        height: Theme.sp(60)
+                                        color:  Theme.colorBg2
+                                        radius: Theme.radius
+                                        border.width: 1
+                                        border.color: Theme.colorBorderMid
+
+                                        ColumnLayout {
+                                            anchors.fill:          parent
+                                            anchors.topMargin:     Theme.sp(8)
+                                            anchors.bottomMargin:  Theme.sp(12)
+                                            anchors.leftMargin:    Theme.sp(8)
+                                            anchors.rightMargin:   Theme.sp(8)
+                                            spacing: Theme.sp(2)
+
+                                            Text {
+                                                text: [qsTr("ROLL"), qsTr("PITCH"), qsTr("YAW")][index]
+                                                font.family:         Theme.fontData
+                                                font.pixelSize:      Theme.fontSzMicro
+                                                font.letterSpacing:  Theme.trackingMicro
+                                                font.capitalization: Font.AllUppercase
+                                                color:               Theme.colorText3
+                                            }
+                                            Text {
+                                                text: [
+                                                    imuController.imuRoll.toFixed(1)  + "°",
+                                                    imuController.imuPitch.toFixed(1) + "°",
+                                                    imuController.imuYaw.toFixed(1)   + "°"
+                                                ][index]
+                                                font.family:    Theme.fontData
+                                                font.pixelSize: Theme.fontSzHeading
+                                                color:          Theme.colorText
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // ── Calibration tools ─────────────────────────────────
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: Theme.sp(4)
+                            enabled: imuRow.isConnected
+
+                            Text {
+                                text:                qsTr("CALIBRATION")
+                                font.family:         Theme.fontData
+                                font.pixelSize:      Theme.fontSzMicro
+                                font.letterSpacing:  Theme.trackingMicro
+                                font.capitalization: Font.AllUppercase
+                                color:               Theme.colorText3
+                            }
+
+                            Row {
+                                spacing: Theme.sp(6)
+
+                                // Zero orientation
+                                Rectangle {
+                                    width:  zeroLabel.implicitWidth + Theme.sp(20)
+                                    height: Theme.sp(24)
+                                    radius: Theme.radius
+                                    color:  "transparent"
+                                    border.width: 1
+                                    border.color: parent.parent.enabled
+                                                    ? Theme.colorBorderStrong : Theme.colorBorderMid
+
+                                    Text {
+                                        id: zeroLabel
+                                        anchors.centerIn: parent
+                                        text:           qsTr("Zero orientation")
+                                        font.family:    Theme.fontBody
+                                        font.pixelSize: Theme.fontSzBody2
+                                        font.weight:    Font.Light
+                                        color:          parent.parent.parent.enabled
+                                                            ? Theme.colorText2 : Theme.colorText3
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape:  Qt.PointingHandCursor
+                                        onClicked:    imuController.zeroOrientation()
+                                    }
+                                }
+
+                                // Calibrate magnetometer (placeholder — no API yet)
+                                Rectangle {
+                                    visible: imuData.supportsMagCalibration
+                                    width:   magCalLabel.implicitWidth + Theme.sp(20)
+                                    height:  Theme.sp(24)
+                                    radius:  Theme.radius
+                                    color:   "transparent"
+                                    border.width: 1
+                                    border.color: Theme.colorBorderMid
+                                    opacity: 0.5
+
+                                    Text {
+                                        id: magCalLabel
+                                        anchors.centerIn: parent
+                                        text:           qsTr("Calibrate mag")
+                                        font.family:    Theme.fontBody
+                                        font.pixelSize: Theme.fontSzBody2
+                                        font.weight:    Font.Light
+                                        color:          Theme.colorText3
+                                    }
+                                    // TODO: imuController.calibrateMagnetometer() — not implemented yet
+                                }
+
+                                // Save to flash (placeholder — no API yet)
+                                Rectangle {
+                                    visible: imuData.supportsConfigPersistence
+                                    width:   saveFlashLabel.implicitWidth + Theme.sp(20)
+                                    height:  Theme.sp(24)
+                                    radius:  Theme.radius
+                                    color:   "transparent"
+                                    border.width: 1
+                                    border.color: Theme.colorBorderMid
+                                    opacity: 0.5
+
+                                    Text {
+                                        id: saveFlashLabel
+                                        anchors.centerIn: parent
+                                        text:           qsTr("Save to flash")
+                                        font.family:    Theme.fontBody
+                                        font.pixelSize: Theme.fontSzBody2
+                                        font.weight:    Font.Light
+                                        color:          Theme.colorText3
+                                    }
+                                    // TODO: imuController.saveConfigToFlash() — not implemented yet
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Main scroll view
+    // ─────────────────────────────────────────────────────────────────────────
+    ScrollView {
+        anchors.fill:  parent
+        contentWidth:  availableWidth
+        contentHeight: contentCol.y + contentCol.implicitHeight + Theme.sp(28)
+
+        ColumnLayout {
+            id: contentCol
+            x:       Theme.sp(32)
+            y:       Theme.sp(28)
+            width:   parent.width - Theme.sp(64)
+            spacing: Theme.sp(16)
+
+            // ── Page header ────────────────────────────────────────────────
+            Text {
+                text:                qsTr("HARDWARE")
+                font.family:         Theme.fontBody
+                font.pixelSize:      Theme.fontSzMicro
+                font.letterSpacing:  Theme.trackingMicro
+                font.capitalization: Font.AllUppercase
+                color:               Theme.colorText3
+            }
+
+            Text {
+                text:           qsTr("IMUs")
+                font.family:    Theme.fontDisplay
+                font.italic:    Theme.fontDisplayItalic
+                font.pixelSize: Theme.fontSzDisplay
+                color:          Theme.colorText
+            }
+
+            Text {
+                text: qsTr("All enumerated IMU devices are listed below. Assign each to a body placement, configure the output rate, and use the Test panel to verify orientation before a session.")
+                font.family:    Theme.fontBody
+                font.pixelSize: Theme.fontSzBody2
+                font.weight:    Font.Light
+                color:          Theme.colorText3
+                wrapMode:       Text.WordWrap
+                Layout.fillWidth: true
+            }
+
+            // ── Enumerated devices header ──────────────────────────────────
+            RowLayout {
+                Layout.fillWidth: true
+
+                Text {
+                    text:                qsTr("ENUMERATED DEVICES")
+                    font.family:         Theme.fontBody
+                    font.pixelSize:      Theme.fontSzMicro
+                    font.letterSpacing:  Theme.trackingMicro
+                    font.capitalization: Font.AllUppercase
+                    color:               Theme.colorText3
+                    Layout.fillWidth:    true
+                }
+
+                // Scan button — fixed width sized for the longer "Scanning…" label.
+                Rectangle {
+                    id: scanBtn
+                    property bool scanning: false
+
+                    width:  scanningMeasure.implicitWidth + Theme.sp(24)
+                    height: Theme.sp(26)
+                    radius: Theme.radius
+                    color:  scanning ? Theme.colorAccentLight : "transparent"
+                    border.width: 1
+                    border.color: scanning ? Theme.colorAccent : Theme.colorBorderStrong
+                    Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
+                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                    // Invisible sizer — always measures the longer string.
+                    Text {
+                        id: scanningMeasure
+                        visible:        false
+                        text:           qsTr("Scanning…")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody2
+                        font.weight:    Font.Light
+                    }
+
+                    Text {
+                        id: scanBtnLabel
+                        anchors.centerIn: parent
+                        text:           scanBtn.scanning ? qsTr("Scanning…") : qsTr("Scan")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody2
+                        font.weight:    Font.Light
+                        color:          scanBtn.scanning ? Theme.colorAccent : Theme.colorText2
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    }
+
+                    Timer {
+                        id: scanTimer
+                        interval: 30000
+                        onTriggered: scanBtn.scanning = false
+                    }
+
+                    Connections {
+                        target: imuController
+                        function onImuEnumeratedCountChanged() { scanTimer.stop(); scanBtn.scanning = false }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape:  Qt.PointingHandCursor
+                        onClicked: {
+                            scanBtn.scanning = true
+                            imuController.rescanImu()
+                            scanTimer.restart()
+                        }
+                    }
+                }
+            }
+
+            // ── Device rows ────────────────────────────────────────────────
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: Theme.sp(8)
+
+                Repeater {
+                    model: imuController.imuDeviceList
+
+                    delegate: ImuDeviceRow {
+                        required property var modelData
+                        imuData:          modelData
+                        Layout.fillWidth: true
+                    }
+                }
+
+                // Empty state
+                Text {
+                    visible:        imuController.imuDeviceList.length === 0
+                    text:           qsTr("No IMU devices found. Click Scan to search for BLE devices.")
+                    font.family:    Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody2
+                    font.weight:    Font.Light
+                    font.italic:    true
+                    color:          Theme.colorText3
+                    Layout.fillWidth: true
+                }
+            }
+
+            // ── Status summary ─────────────────────────────────────────────
+            Rectangle {
+                id: summaryRect
+                Layout.fillWidth: true
+                height:  Theme.sp(40)
+                color:   Theme.colorBg2
+                radius:  Theme.radius
+                border.width: 1
+                border.color: Theme.colorBorderMid
+
+                readonly property int enabledCount: {
+                    var list = imuController.imuDeviceList
+                    var ex   = appSettings.imuExcluded
+                    return list.filter(function(d) { return ex.indexOf(d.id) < 0 }).length
+                }
+                readonly property int connectedCount: imuController.imuConnected ? 1 : 0
+
+                readonly property var assignedPlacements: {
+                    var map = appSettings.imuPlacement
+                    return Object.values(map).filter(function(v) { return v && v !== "" && v !== "other" })
+                }
+                readonly property var missingPlacements: {
+                    var all = ["A", "B", "C", "D"]
+                    return all.filter(function(p) { return summaryRect.assignedPlacements.indexOf(p) < 0 })
+                }
+
+                RowLayout {
+                    anchors.fill:    parent
+                    anchors.margins: Theme.sp(12)
+                    spacing:         Theme.sp(16)
+
+                    Text {
+                        text:  summaryRect.connectedCount + qsTr(" of ") + summaryRect.enabledCount + qsTr(" connected")
+                        color: (summaryRect.connectedCount === summaryRect.enabledCount && summaryRect.enabledCount > 0)
+                                    ? Theme.colorGood : Theme.colorWarn
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    }
+
+                    Rectangle { width: 1; height: Theme.sp(14); color: Theme.colorBorderStrong; opacity: 0.4 }
+
+                    Text {
+                        text:  summaryRect.assignedPlacements.length > 0
+                                   ? qsTr("Assigned: ") + summaryRect.assignedPlacements.join(qsTr(" · "))
+                                   : qsTr("No placements assigned")
+                        color:          Theme.colorText2
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        Layout.fillWidth: true
+                    }
+
+                    Text {
+                        visible:        summaryRect.missingPlacements.length > 0
+                        text:           qsTr("Missing: ") + summaryRect.missingPlacements.join(qsTr(" · "))
+                        color:          Theme.colorWarn
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                    }
+                }
+            }
+
+            PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
+
+            // ── Global IMU settings ────────────────────────────────────────
+            Text {
+                text:                qsTr("GLOBAL IMU SETTINGS")
+                font.family:         Theme.fontBody
+                font.pixelSize:      Theme.fontSzMicro
+                font.letterSpacing:  Theme.trackingMicro
+                font.capitalization: Font.AllUppercase
+                color:               Theme.colorText3
+            }
+
+            // Auto-connect on session start
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.sp(16)
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.sp(3)
+
+                    Text {
+                        text:           qsTr("Auto-connect on session start")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        color:          Theme.colorText
+                    }
+                    Text {
+                        text:           qsTr("Connects all enabled devices before recording begins")
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText3
+                    }
+                }
+
+                TogglePill {
+                    checked: appSettings.imuAutoConnect
+                    onToggled: (v) => appSettings.imuAutoConnect = v
+                    Layout.alignment: Qt.AlignVCenter
+                }
+            }
+
+            // Auto-reconnect on signal loss
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.sp(16)
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.sp(3)
+
+                    Text {
+                        text:           qsTr("Auto-reconnect on signal loss")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        color:          Theme.colorText
+                    }
+                    Text {
+                        text:           qsTr("Attempts reconnect if the BLE link drops during a session")
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText3
+                    }
+                }
+
+                TogglePill {
+                    checked: appSettings.imuAutoReconnect
+                    onToggled: (v) => appSettings.imuAutoReconnect = v
+                    Layout.alignment: Qt.AlignVCenter
+                }
+            }
+
+            // Save calibration to device flash
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.sp(16)
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.sp(3)
+
+                    Text {
+                        text:           qsTr("Save calibration to device flash")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        color:          Theme.colorText
+                    }
+                    Text {
+                        text:           qsTr("Persists zero-orientation and mag calibration across power cycles")
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText3
+                    }
+                }
+
+                TogglePill {
+                    checked: appSettings.imuSaveCalibrationToFlash
+                    onToggled: (v) => appSettings.imuSaveCalibrationToFlash = v
+                    Layout.alignment: Qt.AlignVCenter
+                }
+            }
+
+            // Use 9-axis fusion by default
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.sp(16)
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.sp(3)
+
+                    Text {
+                        text:           qsTr("Use 9-axis fusion by default")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        color:          Theme.colorText
+                    }
+                    Text {
+                        text:           qsTr("Magnetometer-aided orientation — disable near ferromagnetic interference")
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText3
+                        wrapMode:       Text.WordWrap
+                    }
+                }
+
+                TogglePill {
+                    checked: appSettings.imuDefaultFusionMode === "9axis"
+                    onToggled: (v) => appSettings.imuDefaultFusionMode = v ? "9axis" : "6axis"
+                    Layout.alignment: Qt.AlignVCenter
+                }
+            }
+        }
+    }
+}

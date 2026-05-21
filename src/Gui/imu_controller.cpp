@@ -92,8 +92,10 @@ ImuController::ImuController(pinpoint::EventBuffer *buffer, QObject *parent)
     // connect or report failure when the result is known.
     connect(DeviceEnumerator::instance(), &DeviceEnumerator::deviceAdded,
             this, [this](const Device &dev) {
-        if (dev.type == DeviceType::Imu)
+        if (dev.type == DeviceType::Imu) {
             emit imuEnumeratedCountChanged();
+            emit imuDeviceListChanged();
+        }
         if (!m_waitingForScan) return;
         if (dev.imuTransport != ImuBase::Transport::Ble) return;
         m_waitingForScan = false;
@@ -241,9 +243,73 @@ void ImuController::connectToEnumeratedDevice(const Device &dev)
 {
     if (m_attemptingConn) return;
     m_attemptingConn = true;
+    m_pendingDeviceId = dev.id;
     appendLog(timestamp() + QStringLiteral("  >>> Connecting to: ")
               + dev.description + QStringLiteral(" [") + dev.id + QStringLiteral("]"));
     m_imu->connectToDevice(dev.platformHandle.value<QBluetoothDeviceInfo>());
+}
+
+void ImuController::connectToDevice(const QString &deviceId)
+{
+    const auto devices = DeviceEnumerator::instance()->devices(DeviceType::Imu);
+    for (const Device &dev : devices) {
+        if (dev.id == deviceId) {
+            connectToEnumeratedDevice(dev);
+            return;
+        }
+    }
+    appendLog(timestamp() + QStringLiteral("  connectToDevice: device not found: ") + deviceId);
+}
+
+void ImuController::disconnectDevice()
+{
+    disconnectImu();
+}
+
+void ImuController::rescanImu()
+{
+    appendLog(timestamp() + QStringLiteral("  Rescanning for IMU devices…"));
+    DeviceEnumerator::instance()->scanImu();
+}
+
+QVariantList ImuController::imuDeviceList() const
+{
+    QVariantList list;
+    const auto devices = DeviceEnumerator::instance()->devices(DeviceType::Imu);
+    for (const Device &dev : devices) {
+        const ImuCapabilities &cap = dev.imuCapabilities;
+        QVariantMap entry;
+        entry[QStringLiteral("id")]          = dev.id;
+        entry[QStringLiteral("description")] = dev.description;
+        entry[QStringLiteral("transport")]   = (dev.imuTransport == ImuBase::Transport::Ble)
+                                                    ? QStringLiteral("BLE")
+                                                    : QStringLiteral("Serial");
+        entry[QStringLiteral("vendorName")]    = cap.vendorName;
+        entry[QStringLiteral("modelName")]     = cap.modelName;
+        entry[QStringLiteral("serialNumber")]  = cap.serialNumber;
+        entry[QStringLiteral("firmwareVersion")] = cap.firmwareVersion;
+        entry[QStringLiteral("hasAccelerometer")] = cap.hasAccelerometer;
+        entry[QStringLiteral("hasGyroscope")]  = cap.hasGyroscope;
+        entry[QStringLiteral("hasMagnetometer")] = cap.hasMagnetometer;
+        entry[QStringLiteral("hasBattery")]    = cap.hasBattery;
+        entry[QStringLiteral("accelRangeMax")] = cap.accelRange.max;
+        entry[QStringLiteral("gyroRangeMax")]  = cap.gyroRange.max;
+        QVariantList ratesList;
+        for (int r : cap.supportedRatesHz) ratesList.append(r);
+        entry[QStringLiteral("supportedRatesHz")] = ratesList;
+        entry[QStringLiteral("defaultRateHz")] = cap.defaultRateHz;
+        entry[QStringLiteral("supportsSixAxisFusion")]  = cap.supportsSixAxisFusion;
+        entry[QStringLiteral("supportsNineAxisFusion")] = cap.supportsNineAxisFusion;
+        entry[QStringLiteral("supportsHorizontalMount")] = cap.supportsHorizontalMount;
+        entry[QStringLiteral("supportsVerticalMount")]   = cap.supportsVerticalMount;
+        entry[QStringLiteral("supportsAngleReference")]  = cap.supportsAngleReference;
+        entry[QStringLiteral("supportsHeadingZero")]     = cap.supportsHeadingZero;
+        entry[QStringLiteral("supportsMagCalibration")]  = cap.supportsMagCalibration;
+        entry[QStringLiteral("supportsAccelGyroCalibration")] = cap.supportsAccelGyroCalibration;
+        entry[QStringLiteral("supportsConfigPersistence")] = cap.supportsConfigPersistence;
+        list.append(entry);
+    }
+    return list;
 }
 
 void ImuController::onDataRecord()
@@ -300,6 +366,8 @@ void ImuController::onStateChanged(WT9011DCL_BLE::State s)
         m_logTimer.stop();
         m_batteryTimer.stop();
         m_packetTimes.clear();
+        m_pendingDeviceId.clear();
+        m_connectedDeviceId.clear();
         if (m_dataRateHz != 0.0) { m_dataRateHz = 0.0; emit dataRateHzChanged(); }
         if (m_batteryPercent != -1) { m_batteryPercent = -1; emit batteryPercentChanged(); }
         if (m_connected || m_busy) {
@@ -333,6 +401,7 @@ void ImuController::onStateChanged(WT9011DCL_BLE::State s)
         m_retryCount     = 0;
         m_connected = true;
         m_busy = false;
+        m_connectedDeviceId = m_pendingDeviceId;
         emit imuConnectedChanged();
         emit busyChanged();
         m_totalRecords    = 0;

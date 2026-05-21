@@ -66,6 +66,15 @@ class AppSettings : public QObject
     Q_PROPERTY(QVariantMap cameraPerspective READ cameraPerspective WRITE setCameraPerspective NOTIFY cameraPerspectiveChanged)
     Q_PROPERTY(double      cameraPreroll     READ cameraPreroll     WRITE setCameraPreroll     NOTIFY cameraPrerollChanged)
     Q_PROPERTY(bool        cameraSyncEnabled READ cameraSyncEnabled WRITE setCameraSyncEnabled NOTIFY cameraSyncEnabledChanged)
+    Q_PROPERTY(QStringList imuExcluded            READ imuExcluded            WRITE setImuExcluded            NOTIFY imuExcludedChanged)
+    Q_PROPERTY(QVariantMap imuPlacement           READ imuPlacement           WRITE setImuPlacement           NOTIFY imuPlacementChanged)
+    Q_PROPERTY(QVariantMap imuOutputRateHz        READ imuOutputRateHz        WRITE setImuOutputRateHz        NOTIFY imuOutputRateHzChanged)
+    Q_PROPERTY(QVariantMap imuFusionMode          READ imuFusionMode          WRITE setImuFusionMode          NOTIFY imuFusionModeChanged)
+    Q_PROPERTY(QVariantMap imuMountOrientation    READ imuMountOrientation    WRITE setImuMountOrientation    NOTIFY imuMountOrientationChanged)
+    Q_PROPERTY(bool        imuAutoConnect         READ imuAutoConnect         WRITE setImuAutoConnect         NOTIFY imuAutoConnectChanged)
+    Q_PROPERTY(bool        imuAutoReconnect       READ imuAutoReconnect       WRITE setImuAutoReconnect       NOTIFY imuAutoReconnectChanged)
+    Q_PROPERTY(bool        imuSaveCalibrationToFlash READ imuSaveCalibrationToFlash WRITE setImuSaveCalibrationToFlash NOTIFY imuSaveCalibrationToFlashChanged)
+    Q_PROPERTY(QString     imuDefaultFusionMode   READ imuDefaultFusionMode   WRITE setImuDefaultFusionMode   NOTIFY imuDefaultFusionModeChanged)
 
 public:
     explicit AppSettings(QObject *parent = nullptr) : QObject(parent)
@@ -107,6 +116,16 @@ public:
         m_cameraPerspective = ppSettings().value(QStringLiteral("camera/perspective"), QVariantMap{}).toMap();
         m_cameraPreroll     = ppSettings().value(QStringLiteral("camera/preroll"),     1.0).toDouble();
         m_cameraSyncEnabled = ppSettings().value(QStringLiteral("camera/syncEnabled"), true).toBool();
+
+        m_imuExcluded             = ppSettings().value(QStringLiteral("imu/excluded"),             QStringList{}).toStringList();
+        m_imuPlacement            = ppSettings().value(QStringLiteral("imu/placement"),            QVariantMap{}).toMap();
+        m_imuOutputRateHz         = ppSettings().value(QStringLiteral("imu/outputRateHz"),         QVariantMap{}).toMap();
+        m_imuFusionMode           = ppSettings().value(QStringLiteral("imu/fusionMode"),           QVariantMap{}).toMap();
+        m_imuMountOrientation     = ppSettings().value(QStringLiteral("imu/mountOrientation"),     QVariantMap{}).toMap();
+        m_imuAutoConnect          = ppSettings().value(QStringLiteral("imu/autoConnect"),          true).toBool();
+        m_imuAutoReconnect        = ppSettings().value(QStringLiteral("imu/autoReconnect"),        true).toBool();
+        m_imuSaveCalibrationToFlash = ppSettings().value(QStringLiteral("imu/saveCalibrationToFlash"), false).toBool();
+        m_imuDefaultFusionMode    = ppSettings().value(QStringLiteral("imu/defaultFusionMode"),    QStringLiteral("9axis")).toString();
     }
 
     QString appVersion()     const { return QStringLiteral(PINPOINT_VERSION_STRING); }
@@ -159,6 +178,16 @@ public:
     QVariantMap cameraPerspective() const { return m_cameraPerspective; }
     double      cameraPreroll()     const { return m_cameraPreroll; }
     bool        cameraSyncEnabled() const { return m_cameraSyncEnabled; }
+
+    QStringList imuExcluded()             const { return m_imuExcluded; }
+    QVariantMap imuPlacement()            const { return m_imuPlacement; }
+    QVariantMap imuOutputRateHz()         const { return m_imuOutputRateHz; }
+    QVariantMap imuFusionMode()           const { return m_imuFusionMode; }
+    QVariantMap imuMountOrientation()     const { return m_imuMountOrientation; }
+    bool        imuAutoConnect()          const { return m_imuAutoConnect; }
+    bool        imuAutoReconnect()        const { return m_imuAutoReconnect; }
+    bool        imuSaveCalibrationToFlash() const { return m_imuSaveCalibrationToFlash; }
+    QString     imuDefaultFusionMode()    const { return m_imuDefaultFusionMode; }
 
     void setThemeIndex(int v)
     {
@@ -432,6 +461,78 @@ public:
         emit cameraSyncEnabledChanged();
     }
 
+    void setImuExcluded(const QStringList &v)
+    {
+        if (m_imuExcluded == v) return;
+        m_imuExcluded = v;
+        ppSettings().setValue(QStringLiteral("imu/excluded"), v);
+        emit imuExcludedChanged();
+    }
+
+    void setImuPlacement(const QVariantMap &v)
+    {
+        if (m_imuPlacement == v) return;
+        m_imuPlacement = v;
+        ppSettings().setValue(QStringLiteral("imu/placement"), v);
+        emit imuPlacementChanged();
+    }
+
+    void setImuOutputRateHz(const QVariantMap &v)
+    {
+        if (m_imuOutputRateHz == v) return;
+        m_imuOutputRateHz = v;
+        ppSettings().setValue(QStringLiteral("imu/outputRateHz"), v);
+        emit imuOutputRateHzChanged();
+    }
+
+    void setImuFusionMode(const QVariantMap &v)
+    {
+        if (m_imuFusionMode == v) return;
+        m_imuFusionMode = v;
+        ppSettings().setValue(QStringLiteral("imu/fusionMode"), v);
+        emit imuFusionModeChanged();
+    }
+
+    void setImuMountOrientation(const QVariantMap &v)
+    {
+        if (m_imuMountOrientation == v) return;
+        m_imuMountOrientation = v;
+        ppSettings().setValue(QStringLiteral("imu/mountOrientation"), v);
+        emit imuMountOrientationChanged();
+    }
+
+    void setImuAutoConnect(bool v)
+    {
+        if (m_imuAutoConnect == v) return;
+        m_imuAutoConnect = v;
+        ppSettings().setValue(QStringLiteral("imu/autoConnect"), v);
+        emit imuAutoConnectChanged();
+    }
+
+    void setImuAutoReconnect(bool v)
+    {
+        if (m_imuAutoReconnect == v) return;
+        m_imuAutoReconnect = v;
+        ppSettings().setValue(QStringLiteral("imu/autoReconnect"), v);
+        emit imuAutoReconnectChanged();
+    }
+
+    void setImuSaveCalibrationToFlash(bool v)
+    {
+        if (m_imuSaveCalibrationToFlash == v) return;
+        m_imuSaveCalibrationToFlash = v;
+        ppSettings().setValue(QStringLiteral("imu/saveCalibrationToFlash"), v);
+        emit imuSaveCalibrationToFlashChanged();
+    }
+
+    void setImuDefaultFusionMode(const QString &v)
+    {
+        if (m_imuDefaultFusionMode == v) return;
+        m_imuDefaultFusionMode = v;
+        ppSettings().setValue(QStringLiteral("imu/defaultFusionMode"), v);
+        emit imuDefaultFusionModeChanged();
+    }
+
 signals:
     void themeIndexChanged();
     void windowWidthChanged();
@@ -467,6 +568,15 @@ signals:
     void cameraPerspectiveChanged();
     void cameraPrerollChanged();
     void cameraSyncEnabledChanged();
+    void imuExcludedChanged();
+    void imuPlacementChanged();
+    void imuOutputRateHzChanged();
+    void imuFusionModeChanged();
+    void imuMountOrientationChanged();
+    void imuAutoConnectChanged();
+    void imuAutoReconnectChanged();
+    void imuSaveCalibrationToFlashChanged();
+    void imuDefaultFusionModeChanged();
 
 private:
     int     m_themeIndex      = 0;
@@ -506,4 +616,14 @@ private:
     QVariantMap m_cameraPerspective;
     double      m_cameraPreroll     = 1.0;
     bool        m_cameraSyncEnabled = true;
+
+    QStringList m_imuExcluded;
+    QVariantMap m_imuPlacement;
+    QVariantMap m_imuOutputRateHz;
+    QVariantMap m_imuFusionMode;
+    QVariantMap m_imuMountOrientation;
+    bool        m_imuAutoConnect          = true;
+    bool        m_imuAutoReconnect        = true;
+    bool        m_imuSaveCalibrationToFlash = false;
+    QString     m_imuDefaultFusionMode    = QStringLiteral("9axis");
 };
