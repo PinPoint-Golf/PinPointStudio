@@ -40,11 +40,92 @@ Item {
         RowLayout {
             spacing: Theme.sp(8)
 
+            // Device selector — hidden while connected (state label takes its place)
+            ComboBox {
+                id: deviceCombo
+                visible: !imuController.imuConnected
+                enabled: !imuController.busy && !imuController.imuConnected
+                implicitWidth: Theme.sp(260)
+                model: imuController.imuDeviceList.length > 0
+                           ? imuController.imuDeviceList.map(function(d) {
+                                 return d.description + " · " + d.id
+                             })
+                           : [qsTr("No devices found")]
+
+                // Keep currentIndex in bounds when the list changes.
+                onModelChanged: {
+                    if (currentIndex >= count) currentIndex = 0
+                }
+
+                contentItem: Text {
+                    leftPadding: Theme.sp(8)
+                    text:  deviceCombo.displayText
+                    color: deviceCombo.enabled ? Theme.colorText : Theme.colorText3
+                    font.family:    Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody
+                    verticalAlignment: Text.AlignVCenter
+                    elide: Text.ElideRight
+                }
+                background: Rectangle {
+                    color:        Theme.colorSurface
+                    border.color: deviceCombo.enabled ? Theme.colorBorderMid : Theme.colorBorder
+                    border.width: 1
+                    radius:       Theme.radius
+                }
+                indicator: Text {
+                    x: deviceCombo.width - width - Theme.sp(8)
+                    anchors.verticalCenter: parent.verticalCenter
+                    text:           "⌄"
+                    font.family:    Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody
+                    color:          Theme.colorText3
+                }
+                popup: Popup {
+                    y:       deviceCombo.height + 2
+                    width:   deviceCombo.width
+                    padding: Theme.sp(4)
+                    background: Rectangle {
+                        color:        Theme.colorSurface
+                        radius:       Theme.radius
+                        border.width: 1
+                        border.color: Theme.colorBorderMid
+                    }
+                    contentItem: ListView {
+                        implicitHeight: contentHeight
+                        model: deviceCombo.delegateModel
+                        clip:  true
+                    }
+                }
+                delegate: ItemDelegate {
+                    required property var modelData
+                    required property int index
+                    width: deviceCombo.width
+                    contentItem: Text {
+                        leftPadding: Theme.sp(8)
+                        text:  modelData
+                        color: deviceCombo.currentIndex === index ? Theme.colorText : Theme.colorText3
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        color:  hovered ? Theme.colorBg3 : "transparent"
+                        radius: Theme.radius - 1
+                    }
+                }
+            }
+
             Button {
                 id: connectBtn
                 text: qsTr("Connect")
                 enabled: !imuController.busy && !imuController.imuConnected
-                onClicked: imuController.connectImu()
+                onClicked: {
+                    var list = imuController.imuDeviceList
+                    if (list.length > 0)
+                        imuController.connectToDevice(list[deviceCombo.currentIndex].id)
+                    else
+                        imuController.connectImu()
+                }
                 contentItem: Text {
                     text: connectBtn.text
                     color: connectBtn.enabled ? Theme.colorBg : Theme.colorText3

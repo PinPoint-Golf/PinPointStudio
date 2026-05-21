@@ -48,9 +48,9 @@ ImuCapabilities WT9011DCL_Base::wt901Defaults()
     caps.accelRange = { -16.0f,  16.0f  };   // /32768 * 16 g
     caps.gyroRange  = { -2000.0f, 2000.0f }; // /32768 * 2000 °/s
 
-    // All integer-Hz RRATE values (sub-Hz rates 0.1 and 0.5 exist but are
-    // impractical for real-time motion capture)
-    caps.supportedRatesHz = { 1, 2, 5, 10, 20, 50, 100, 200 };
+    // Rates practical for real-time motion capture (1, 2, 5 Hz omitted —
+    // too slow for swing analysis and not useful in any session context)
+    caps.supportedRatesHz = { 10, 20, 50, 100, 200 };
     caps.defaultRateHz    = 100;
 
     // ORIENT register — horizontal and vertical installation both supported
