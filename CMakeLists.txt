@@ -159,6 +159,7 @@ qt_add_qml_module(PinPoint
         src/Gui/Main.qml
         src/Gui/AudioPage.qml
         src/Gui/CapturePage.qml
+        src/Gui/ImuVizView.qml
         src/Gui/FilmPage.qml
         src/Gui/VideoPage.qml
         src/Gui/CameraView.qml
