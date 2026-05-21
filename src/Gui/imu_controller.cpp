@@ -193,24 +193,35 @@ void ImuController::setSelected(int index, bool selected)
     if (selected) {
         entry.instance = createInstance(device);
         entry.instance->start();
+        if (wasCapturing) m_eventBuffer->resume();
+        emit imuListChanged();
+        emit instancesChanged();
     } else {
         ImuInstance *inst = entry.instance;
         entry.instance = nullptr;
         if (inst) {
             inst->stop();
             inst->deregisterFromBuffer();
-            // Notify QML before deleteLater() so bindings tear down while the
-            // instance is still a valid object.
-            emit imuListChanged();
-            emit instancesChanged();
-            inst->deleteLater();
         }
+        if (wasCapturing) m_eventBuffer->resume();
+        // Update chip colours / connecting state immediately.
+        emit imuListChanged();
+        // Defer removing the instance from the Repeater model by one event-loop
+        // tick. A synchronous instancesChanged() destroys the ImuVizView (View3D)
+        // while the QSGRenderThread may be inside QRhi::beginFrame(), which
+        // processes pending Metal pipeline-state deletions. The AMD Radeon driver
+        // then hits a use-after-free in GFX10_MtlRenderPipelineState → SIGBUS.
+        // Deferring gives the render thread time to finish its current frame first.
+        if (inst) {
+            QTimer::singleShot(0, this, [this, inst]() {
+                emit instancesChanged();
+                inst->deleteLater();
+            });
+        } else {
+            emit instancesChanged();
+        }
+        return;
     }
-
-    if (wasCapturing) m_eventBuffer->resume();
-
-    emit imuListChanged();
-    emit instancesChanged();
 }
 
 void ImuController::rescanImu()
