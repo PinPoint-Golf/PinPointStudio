@@ -97,10 +97,11 @@ Every session belongs to an athlete. The athlete management flow is the entry po
 ### IMU — wrist motion capture
 
 - **Device** — Witmotion WT901BLE67 BLE 6-axis IMU (accelerometer, gyroscope, Euler angles, quaternion).
-- **3D orientation visualiser** — Labelled cube driven by the corrected quaternion; matches the physical device orientation in real time.
+- **Device selector** — Dropdown on the capture page lists all enumerated IMUs by name and MAC address; Connect targets the selected device rather than always using the first found.
+- **3D orientation visualiser** — Labelled cube driven by the corrected quaternion; matches the physical device orientation in real time. Extracted as the reusable `ImuVizView` component, shared between the capture page and the settings test panel.
 - **Auto-initialisation** — Sets vertical mounting, 6-axis algorithm, 100 Hz output rate, and zeros orientation to current position on every connect.
 - **Zero button** — Re-zeroes orientation on demand for mid-session repositioning.
-- **Rate selector** — Adjustable output rate (10 / 20 / 50 / 100 / 200 Hz).
+- **Rate selector** — Adjustable output rate (10 / 20 / 50 / 100 / 200 Hz); sub-10 Hz rates removed as impractical for swing capture.
 - **Live data rate** — 2-second rolling Hz average shown in the UI.
 - **Battery indicator** — Colour-coded BAT: N% badge, polled via register 0x64 every 60 s.
 - **Auto-retry** — One automatic retry after a 45-second cooldown on failed connections (device requires ~40 s to exit cooldown after a rejected attempt).
@@ -122,7 +123,7 @@ The Settings screen uses a sidebar navigation with a search field and panel-leve
 | **Appearance** | Active | Theme selector (8 options), font scale, UI density, reduce motion, pose overlay opacity |
 | **Displays** | Active | Main display placement, window geometry memory, secondary display output, post-shot content and delay, UI frame-rate cap, hardware acceleration |
 | **Cameras** | Active | Per-camera enable/disable, view assignment (Face-on / Down-the-line / Other), frame-rate chips, trigger mode (Free-run / HW sync), ROI crop with live preview; global pre-roll buffer and camera-sync toggle |
-| **IMUs** | Placeholder | IMU assignment and configuration (not yet implemented) |
+| **IMUs** | Active | Per-device enable/disable, body placement assignment (A–D), output rate and fusion-mode chips, mount orientation, live test panel with 3D viz and Euler angles; global auto-connect, auto-reconnect, save-to-flash, and default fusion mode |
 | **Launch Monitor** | Placeholder | External launch monitor integration (not yet implemented) |
 | **Archiving** | Placeholder | Session archive path and retention policy (not yet implemented) |
 
@@ -225,6 +226,20 @@ PinPoint reads and writes files in several locations. Platform paths shown for L
 | `camera/perspective` | _(empty map)_ | Per-camera view assignment; key → `0` (unassigned), `1` (down-the-line), `2` (face-on), `3` (other) |
 | `camera/preroll` | `1.0` | Pre-roll buffer in seconds (0.5 / 1.0 / 2.0) |
 | `camera/syncEnabled` | `true` | Lock frame timing across all enabled cameras |
+
+**IMU** — per-device values are maps keyed by the device MAC address / UUID
+
+| Key | Default | What |
+|---|---|---|
+| `imu/excluded` | _(empty list)_ | MAC addresses of IMUs excluded from auto-connect |
+| `imu/placement` | _(empty map)_ | Per-device body placement; key → `"A"` (Thorax/Lead Wrist), `"B"` (Lumbar Spine/Lead Hand), `"C"` (T12 Junction/Shoulder), `"D"` (Other), or `""` (unassigned) |
+| `imu/outputRateHz` | _(empty map)_ | Per-device output rate override; key → Hz (10 / 20 / 50 / 100 / 200) |
+| `imu/fusionMode` | _(empty map)_ | Per-device fusion algorithm; key → `"9axis"` or `"6axis"` |
+| `imu/mountOrientation` | _(empty map)_ | Per-device mount; key → `"horizontal"` or `"vertical"` |
+| `imu/autoConnect` | `true` | Connect all enabled IMUs automatically before recording begins |
+| `imu/autoReconnect` | `true` | Attempt reconnect if the BLE link drops during a session |
+| `imu/saveCalibrationToFlash` | `false` | Persist zero-orientation and mag calibration to device flash |
+| `imu/defaultFusionMode` | `"9axis"` | Default fusion algorithm for devices with no per-device override |
 
 **Athletes** — one group per athlete, keyed by UUID (`athletes/<uuid>/…`)
 
