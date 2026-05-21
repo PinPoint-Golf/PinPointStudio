@@ -28,7 +28,7 @@
 #include "event_buffer.h"
 
 class CameraManager;
-class ImuController;
+class ImuManager;
 class ImuInstance;
 
 class ResourceMonitorController : public QObject
@@ -52,7 +52,7 @@ public:
     explicit ResourceMonitorController(
         pinpoint::EventBuffer *buffer,
         CameraManager         *cameras,
-        ImuController         *imu,
+        ImuManager            *imu,
         QObject               *parent = nullptr);
 
     QString      bufferState()        const;
@@ -77,7 +77,7 @@ signals:
 private:
     pinpoint::EventBuffer *m_buffer;
     CameraManager         *m_cameras;
-    ImuController         *m_imu;
+    ImuManager            *m_imu;
 
     QElapsedTimer m_ageTimer;
 

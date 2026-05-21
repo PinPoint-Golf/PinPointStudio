@@ -348,7 +348,7 @@ Item {
                             camerasOptional: modelData.optCameras || false
                             imusRequired:    modelData.reqImus
                             camerasCount:    cameraManager.cameraList.length
-                            imusCount:       imuController.imuEnumeratedCount
+                            imusCount:       imuManager.imuEnumeratedCount
                             isSelected:      root.selectedType === modelData.idx
                             onClicked:       root.selectedType = modelData.idx
                         }

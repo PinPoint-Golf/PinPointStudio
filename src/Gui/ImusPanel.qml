@@ -69,8 +69,8 @@ Item {
         // Live ImuInstance for this device; null when not selected/connected.
         // Rebinds whenever instances change (selection or connection-state change).
         readonly property QtObject inst: {
-            imuController.instances // triggers rebind on selection/connection changes
-            return imuController.instanceFor(imuData.id)
+            imuManager.instances // triggers rebind on selection/connection changes
+            return imuManager.instanceFor(imuData.id)
         }
 
         readonly property bool isConnected: inst !== null && inst.imuConnected
@@ -292,7 +292,7 @@ Item {
                             function placementTakenBy(value) {
                                 if (!value || value === "" || value === "other") return false
                                 var map     = appSettings.imuPlacement
-                                var devList = imuController.imuDeviceList
+                                var devList = imuManager.imuDeviceList
                                 for (var i = 0; i < devList.length; ++i) {
                                     var d = devList[i]
                                     if (d.id !== imuData.id
@@ -538,7 +538,7 @@ Item {
                                             var map = appSettings.imuFusionMode
                                             map[imuData.id] = modelData.value
                                             appSettings.imuFusionMode = map
-                                            // TODO: apply on connect via ImuController::setFusionMode()
+                                            // TODO: apply on connect via ImuManager::setFusionMode()
                                         }
                                     }
                                 }
@@ -611,7 +611,7 @@ Item {
                                             var map = appSettings.imuMountOrientation
                                             map[imuData.id] = modelData.value
                                             appSettings.imuMountOrientation = map
-                                            // TODO: apply on connect via ImuController::setMountOrientation()
+                                            // TODO: apply on connect via ImuManager::setMountOrientation()
                                         }
                                     }
                                 }
@@ -655,7 +655,7 @@ Item {
                                 } else {
                                     root.openTestId = imuData.id
                                     if (!imuRow.isConnected)
-                                        imuController.setSelected(imuData.index, true)
+                                        imuManager.setSelected(imuData.index, true)
                                 }
                             }
                         }
@@ -819,9 +819,9 @@ Item {
                             cursorShape:  Qt.PointingHandCursor
                             onClicked: {
                                 if (imuRow.isConnected)
-                                    imuController.setSelected(imuData.index, false)
+                                    imuManager.setSelected(imuData.index, false)
                                 else
-                                    imuController.setSelected(imuData.index, true)
+                                    imuManager.setSelected(imuData.index, true)
                             }
                         }
                     }
@@ -1116,7 +1116,7 @@ Item {
                                         font.weight:    Font.Light
                                         color:          Theme.colorText3
                                     }
-                                    // TODO: imuController.calibrateMagnetometer() — not implemented yet
+                                    // TODO: imuManager.calibrateMagnetometer() — not implemented yet
                                 }
 
                                 // Save to flash (placeholder — no API yet)
@@ -1139,7 +1139,7 @@ Item {
                                         font.weight:    Font.Light
                                         color:          Theme.colorText3
                                     }
-                                    // TODO: imuController.saveConfigToFlash() — not implemented yet
+                                    // TODO: imuManager.saveConfigToFlash() — not implemented yet
                                 }
                             }
                         }
@@ -1248,7 +1248,7 @@ Item {
                     }
 
                     Connections {
-                        target: imuController
+                        target: imuManager
                         function onImuEnumeratedCountChanged() { scanTimer.stop(); scanBtn.scanning = false }
                     }
 
@@ -1257,7 +1257,7 @@ Item {
                         cursorShape:  Qt.PointingHandCursor
                         onClicked: {
                             scanBtn.scanning = true
-                            imuController.rescanImu()
+                            imuManager.rescanImu()
                             scanTimer.restart()
                         }
                     }
@@ -1270,7 +1270,7 @@ Item {
                 spacing: Theme.sp(8)
 
                 Repeater {
-                    model: imuController.imuDeviceList
+                    model: imuManager.imuDeviceList
 
                     delegate: ImuDeviceRow {
                         required property var modelData
@@ -1281,7 +1281,7 @@ Item {
 
                 // Empty state
                 Text {
-                    visible:        imuController.imuDeviceList.length === 0
+                    visible:        imuManager.imuDeviceList.length === 0
                     text:           qsTr("No IMU devices found. Click Scan to search for BLE devices.")
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
@@ -1303,11 +1303,11 @@ Item {
                 border.color: Theme.colorBorderMid
 
                 readonly property int enabledCount: {
-                    var list = imuController.imuDeviceList
+                    var list = imuManager.imuDeviceList
                     var ex   = appSettings.imuExcluded
                     return list.filter(function(d) { return ex.indexOf(d.id) < 0 }).length
                 }
-                readonly property int connectedCount: imuController.imuCount
+                readonly property int connectedCount: imuManager.imuCount
 
                 readonly property var assignedPlacements: {
                     var map = appSettings.imuPlacement

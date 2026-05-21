@@ -16,11 +16,11 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#include "imu_controller.h"
+#include "imu_manager.h"
 
 #include "event_buffer.h"
 
-ImuController::ImuController(pinpoint::EventBuffer *buffer, QObject *parent)
+ImuManager::ImuManager(pinpoint::EventBuffer *buffer, QObject *parent)
     : QObject(parent)
     , m_eventBuffer(buffer)
 {
@@ -40,7 +40,7 @@ ImuController::ImuController(pinpoint::EventBuffer *buffer, QObject *parent)
     });
 }
 
-ImuController::~ImuController()
+ImuManager::~ImuManager()
 {
     // Stop and deregister all active instances.
     if (m_eventBuffer) {
@@ -65,7 +65,7 @@ ImuController::~ImuController()
 // Properties — both list accessors read from DeviceEnumerator directly
 // ---------------------------------------------------------------------------
 
-QVariantList ImuController::imuList() const
+QVariantList ImuManager::imuList() const
 {
     const QList<Device> devs = DeviceEnumerator::instance()->devices(DeviceType::Imu);
     QVariantList list;
@@ -89,7 +89,7 @@ QVariantList ImuController::imuList() const
     return list;
 }
 
-QVariantList ImuController::imuDeviceList() const
+QVariantList ImuManager::imuDeviceList() const
 {
     const QList<Device> devs = DeviceEnumerator::instance()->devices(DeviceType::Imu);
     QVariantList list;
@@ -131,7 +131,7 @@ QVariantList ImuController::imuDeviceList() const
     return list;
 }
 
-QVariantList ImuController::instances() const
+QVariantList ImuManager::instances() const
 {
     QVariantList list;
     for (const auto &entry : m_selected) {
@@ -141,26 +141,26 @@ QVariantList ImuController::instances() const
     return list;
 }
 
-bool ImuController::anySelected() const
+bool ImuManager::anySelected() const
 {
     for (const auto &entry : m_selected)
         if (entry.selected) return true;
     return false;
 }
 
-int ImuController::imuEnumeratedCount() const
+int ImuManager::imuEnumeratedCount() const
 {
     return DeviceEnumerator::instance()->devices(DeviceType::Imu).size();
 }
 
-bool ImuController::imuConnected() const
+bool ImuManager::imuConnected() const
 {
     for (const auto &entry : m_selected)
         if (entry.instance && entry.instance->imuConnected()) return true;
     return false;
 }
 
-int ImuController::imuCount() const
+int ImuManager::imuCount() const
 {
     int n = 0;
     for (const auto &entry : m_selected)
@@ -172,7 +172,7 @@ int ImuController::imuCount() const
 // Invokables
 // ---------------------------------------------------------------------------
 
-void ImuController::setSelected(int index, bool selected)
+void ImuManager::setSelected(int index, bool selected)
 {
     const QList<Device> devs = DeviceEnumerator::instance()->devices(DeviceType::Imu);
     if (index < 0 || index >= devs.size()) return;
@@ -224,12 +224,12 @@ void ImuController::setSelected(int index, bool selected)
     }
 }
 
-void ImuController::rescanImu()
+void ImuManager::rescanImu()
 {
     DeviceEnumerator::instance()->scanImu();
 }
 
-QObject *ImuController::instanceFor(const QString &deviceId) const
+QObject *ImuManager::instanceFor(const QString &deviceId) const
 {
     const ImuEntry &entry = m_selected.value(deviceId);
     if (entry.selected && entry.instance)
@@ -237,7 +237,7 @@ QObject *ImuController::instanceFor(const QString &deviceId) const
     return nullptr;
 }
 
-QString ImuController::saveLog()
+QString ImuManager::saveLog()
 {
     QStringList paths;
     for (const auto &entry : m_selected) {
@@ -247,7 +247,7 @@ QString ImuController::saveLog()
     return paths.isEmpty() ? QStringLiteral("No active IMU instances") : paths.join(QStringLiteral("\n"));
 }
 
-void ImuController::zeroAll()
+void ImuManager::zeroAll()
 {
     for (const auto &entry : m_selected)
         if (entry.instance) entry.instance->zeroOrientation();
@@ -257,13 +257,13 @@ void ImuController::zeroAll()
 // Private
 // ---------------------------------------------------------------------------
 
-ImuInstance *ImuController::createInstance(const Device &device)
+ImuInstance *ImuManager::createInstance(const Device &device)
 {
     auto *inst = new ImuInstance(device, m_eventBuffer, this);
 
-    // Forward log entries to any QML log view listening to imuController.
+    // Forward log entries to any QML log view listening to imuManager.
     connect(inst, &ImuInstance::logEntryAdded,
-            this, &ImuController::logEntryAdded);
+            this, &ImuManager::logEntryAdded);
 
     // Re-emit imuListChanged when connection state changes so chip colours update.
     connect(inst, &ImuInstance::imuConnectedChanged, this, [this]() {

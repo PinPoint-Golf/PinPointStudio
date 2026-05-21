@@ -45,7 +45,7 @@ Item {
 
             // One toggle chip per discovered IMU — same pattern as VideoPage camera chips.
             Repeater {
-                model: imuController.imuList
+                model: imuManager.imuList
                 delegate: Rectangle {
                     readonly property bool isConnecting: modelData.connecting
                     readonly property bool isConnected:  modelData.connected
@@ -97,7 +97,7 @@ Item {
                     }
 
                     TapHandler {
-                        onTapped: imuController.setSelected(modelData.index, !modelData.selected)
+                        onTapped: imuManager.setSelected(modelData.index, !modelData.selected)
                     }
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
                 }
@@ -143,14 +143,14 @@ Item {
                 }
 
                 Connections {
-                    target: imuController
+                    target: imuManager
                     function onImuEnumeratedCountChanged() { scanTimer.stop(); scanChip.scanning = false }
                 }
 
                 TapHandler {
                     onTapped: {
                         scanChip.scanning = true
-                        imuController.rescanImu()
+                        imuManager.rescanImu()
                         scanTimer.restart()
                     }
                 }
@@ -165,7 +165,7 @@ Item {
             spacing: Theme.sp(8)
 
             Repeater {
-                model: imuController.instances
+                model: imuManager.instances
                 delegate: Item {
                     // Follow the QML QObject* list pattern from CLAUDE.md:
                     // property QtObject (not required / var) for proper NOTIFY tracking.
@@ -448,7 +448,7 @@ Item {
 
             // Placeholder when no IMU is selected
             Rectangle {
-                visible: imuController.instances.length === 0
+                visible: imuManager.instances.length === 0
                 Layout.fillWidth:  true
                 Layout.fillHeight: true
                 color:        Theme.colorBg2
@@ -468,7 +468,7 @@ Item {
 
         // ── Buffer status ─────────────────────────────────────────────────────
         RowLayout {
-            visible: imuController.imuConnected
+            visible: imuManager.imuConnected
             spacing: Theme.sp(8)
 
             Item { Layout.fillWidth: true }

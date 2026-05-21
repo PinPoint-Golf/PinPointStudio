@@ -147,7 +147,7 @@ Item {
     // ── IMU detail string when connected ──────────────────────────────────────
 
     readonly property string imuDetail: {
-        var insts = imuController.instances // rebind on connection changes
+        var insts = imuManager.instances // rebind on connection changes
         if (insts.length === 0) return ""
         // Show detail from the first connected instance.
         var inst = null
@@ -226,7 +226,7 @@ Item {
     // True when a device in imuDeviceList has been assigned to the given slot letter.
     // Reactive: re-evaluates when imuDeviceList or imuPlacement changes.
     function deviceForSlot(slotLetter) {
-        var list      = imuController.imuDeviceList
+        var list      = imuManager.imuDeviceList
         var placement = appSettings.imuPlacement
         for (var i = 0; i < list.length; ++i)
             if (placement[list[i].id] === slotLetter) return list[i]
@@ -237,7 +237,7 @@ Item {
     readonly property bool imusOk: {
         if (!_todo_calibrationComplete) return false
         var reqs      = root.curImuReqs
-        var list      = imuController.imuDeviceList
+        var list      = imuManager.imuDeviceList
         var placement = appSettings.imuPlacement
         for (var i = 0; i < reqs.length; ++i) {
             if (!reqs[i].required) continue
@@ -282,7 +282,7 @@ Item {
             issues.push({ text: qsTr("Motion sensors skipped — no movement data will be captured"), panel: -1 })
         } else {
             var reqs      = curImuReqs
-            var list      = imuController.imuDeviceList
+            var list      = imuManager.imuDeviceList
             var placement = appSettings.imuPlacement
             for (var i = 0; i < reqs.length; ++i) {
                 if (!reqs[i].required) continue
@@ -750,7 +750,7 @@ Item {
                                 Text {
                                     Layout.fillWidth: true
                                     text: {
-                                        var n = imuController.imuDeviceList.length
+                                        var n = imuManager.imuDeviceList.length
                                         return n === 0
                                             ? qsTr("NO DEVICES FOUND")
                                             : n === 1 ? qsTr("1 DEVICE FOUND")
@@ -759,7 +759,7 @@ Item {
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingMicro
-                                    color: imuController.imuDeviceList.length > 0
+                                    color: imuManager.imuDeviceList.length > 0
                                                ? Theme.colorText3 : Theme.colorWarn
                                 }
 
@@ -798,7 +798,7 @@ Item {
                                         onTriggered: imuWizScanBtn.scanning = false
                                     }
                                     Connections {
-                                        target: imuController
+                                        target: imuManager
                                         function onImuEnumeratedCountChanged() {
                                             imuWizScanTimer.stop()
                                             imuWizScanBtn.scanning = false
@@ -809,7 +809,7 @@ Item {
                                         cursorShape:  Qt.PointingHandCursor
                                         onClicked: {
                                             imuWizScanBtn.scanning = true
-                                            imuController.rescanImu()
+                                            imuManager.rescanImu()
                                             imuWizScanTimer.restart()
                                         }
                                     }
@@ -835,7 +835,7 @@ Item {
                                         label:    qsTr("IMU %1 — %2").arg(modelData.slot).arg(modelData.placement)
 
                                         ok: {
-                                            var list      = imuController.imuDeviceList
+                                            var list      = imuManager.imuDeviceList
                                             var placement = appSettings.imuPlacement
                                             for (var i = 0; i < list.length; ++i)
                                                 if (placement[list[i].id] === modelData.slot) return true
@@ -843,7 +843,7 @@ Item {
                                         }
 
                                         subOk: {
-                                            var list      = imuController.imuDeviceList
+                                            var list      = imuManager.imuDeviceList
                                             var placement = appSettings.imuPlacement
                                             for (var i = 0; i < list.length; ++i) {
                                                 if (placement[list[i].id] === modelData.slot) {
@@ -857,7 +857,7 @@ Item {
                                         }
 
                                         subFail: {
-                                            var noDevices = imuController.imuDeviceList.length === 0
+                                            var noDevices = imuManager.imuDeviceList.length === 0
                                             if (noDevices)
                                                 return modelData.required
                                                     ? qsTr("NO DEVICES FOUND — CLICK SCAN")

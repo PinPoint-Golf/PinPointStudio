@@ -183,7 +183,7 @@ void ImuInstance::start()
     if (m_attemptingConn) return;
 
     // Look up fresh from the enumerator at connection time — the same path the
-    // old ImuController::connectToEnumeratedDevice() used.
+    // old ImuManager::connectToEnumeratedDevice() used.
     QBluetoothDeviceInfo deviceInfo;
     for (const Device &dev : DeviceEnumerator::instance()->devices(DeviceType::Imu)) {
         if (dev.id == m_deviceId) {

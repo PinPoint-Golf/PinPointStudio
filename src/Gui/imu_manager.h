@@ -37,7 +37,7 @@ namespace pinpoint { class EventBuffer; }
 // imuDeviceList() always read from it so they stay current even before
 // deviceAdded signals fire. m_selected is a map of device-id → ImuEntry
 // tracking only selection state and live instances.
-class ImuController : public QObject
+class ImuManager : public QObject
 {
     Q_OBJECT
 
@@ -54,9 +54,9 @@ class ImuController : public QObject
     Q_PROPERTY(int  imuCount     READ imuCount     NOTIFY instancesChanged)
 
 public:
-    explicit ImuController(pinpoint::EventBuffer *buffer = nullptr,
-                           QObject *parent = nullptr);
-    ~ImuController() override;
+    explicit ImuManager(pinpoint::EventBuffer *buffer = nullptr,
+                        QObject *parent = nullptr);
+    ~ImuManager() override;
 
     // Both list accessors read from DeviceEnumerator directly (the old pattern)
     // so they are always current regardless of deviceAdded signal timing.

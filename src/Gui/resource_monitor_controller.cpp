@@ -18,7 +18,7 @@
 
 #include "resource_monitor_controller.h"
 #include "camera_manager.h"
-#include "imu_controller.h"
+#include "imu_manager.h"
 #include "imu_instance.h"
 #include "pp_debug.h"
 #include "video_controller.h"
@@ -28,7 +28,7 @@
 ResourceMonitorController::ResourceMonitorController(
     pinpoint::EventBuffer *buffer,
     CameraManager         *cameras,
-    ImuController         *imu,
+    ImuManager            *imu,
     QObject               *parent)
     : QObject(parent)
     , m_buffer(buffer)

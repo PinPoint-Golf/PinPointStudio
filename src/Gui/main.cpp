@@ -26,7 +26,7 @@
 #include "app_settings.h"
 #include "SecretsManager.h"
 #include "film_controller.h"
-#include "imu_controller.h"
+#include "imu_manager.h"
 #include "transcription_controller.h"
 #include "tts_controller.h"
 #include "camera_manager.h"
@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
     eventBuffer.start();
 
     AppSettings              appSettings;
-    ImuController           imuController(&eventBuffer);
+    ImuManager              imuManager(&eventBuffer);
     TranscriptionController controller;
     TtsController           ttsController;
     CameraManager           cameraManager(&eventBuffer);
@@ -82,13 +82,13 @@ int main(int argc, char *argv[])
     BufferController        bufferController(&eventBuffer);
     AthleteController       athleteController;
     NavigationController    navController(&athleteController);
-    ResourceMonitorController resourceMonitor(&eventBuffer, &cameraManager, &imuController);
+    ResourceMonitorController resourceMonitor(&eventBuffer, &cameraManager, &imuManager);
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("appSettings"),       &appSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("athleteController"), &athleteController);
     engine.rootContext()->setContextProperty(QStringLiteral("navController"),     &navController);
-    engine.rootContext()->setContextProperty(QStringLiteral("imuController"),    &imuController);
+    engine.rootContext()->setContextProperty(QStringLiteral("imuManager"),       &imuManager);
     engine.rootContext()->setContextProperty(QStringLiteral("controller"),       &controller);
     engine.rootContext()->setContextProperty(QStringLiteral("ttsController"),    &ttsController);
     engine.rootContext()->setContextProperty(QStringLiteral("cameraManager"),    &cameraManager);

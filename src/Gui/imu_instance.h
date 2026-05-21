@@ -30,7 +30,7 @@
 namespace pinpoint { class EventBuffer; }
 
 // Manages the BLE connection lifecycle and live data for a single IMU device.
-// Created and owned by ImuController; one instance per selected device.
+// Created and owned by ImuManager; one instance per selected device.
 class ImuInstance : public QObject
 {
     Q_OBJECT
@@ -82,7 +82,7 @@ public:
     double  dataRateHz()     const { return m_dataRateHz; }
     int     batteryPercent() const { return m_batteryPercent; }
 
-    // Lifecycle — called by ImuController
+    // Lifecycle — called by ImuManager
     void start();                // begin BLE connection
     void stop();                 // disconnect and cancel any retry
     void deregisterFromBuffer(); // call while EventBuffer is paused

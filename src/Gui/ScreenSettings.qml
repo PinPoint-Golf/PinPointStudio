@@ -25,7 +25,7 @@ Item {
     id: root
 
     property int    cameraCount:    cameraManager.cameraList.length
-    property int    imuCount:       imuController.imuEnumeratedCount
+    property int    imuCount:       imuManager.imuEnumeratedCount
     property int    activeNavIndex: 0
     property string searchQuery:    ""
 
