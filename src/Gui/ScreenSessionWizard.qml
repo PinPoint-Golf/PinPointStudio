@@ -147,14 +147,22 @@ Item {
     // ── IMU detail string when connected ──────────────────────────────────────
 
     readonly property string imuDetail: {
-        if (!imuController.imuConnected) return ""
+        var insts = imuController.instances // rebind on connection changes
+        if (insts.length === 0) return ""
+        // Show detail from the first connected instance.
+        var inst = null
+        for (var i = 0; i < insts.length; ++i) {
+            if (insts[i].imuConnected) { inst = insts[i]; break }
+        }
+        if (!inst) return ""
         var parts = []
-        var hz = imuController.dataRateHz
+        var hz = inst.dataRateHz
         if (hz > 0) parts.push(Math.round(hz) + " Hz")
-        var rate = imuController.outputRateHz
+        var rate = inst.outputRateHz
         if (rate > 0) parts.push(qsTr("configured %1 Hz").arg(rate))
-        var bat = imuController.batteryPercent
+        var bat = inst.batteryPercent
         if (bat >= 0) parts.push(qsTr("battery %1%").arg(bat))
+        if (insts.length > 1) parts.push(qsTr("%1 IMUs").arg(insts.length))
         return parts.join(" · ")
     }
 

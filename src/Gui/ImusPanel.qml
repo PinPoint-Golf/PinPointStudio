@@ -66,8 +66,14 @@ Item {
 
         property var imuData: ({})
 
-        readonly property bool isConnected: imuController.imuConnected
-                                         && imuController.connectedDeviceId === imuData.id
+        // Live ImuInstance for this device; null when not selected/connected.
+        // Rebinds whenever instances change (selection or connection-state change).
+        readonly property QtObject inst: {
+            imuController.instances // triggers rebind on selection/connection changes
+            return imuController.instanceFor(imuData.id)
+        }
+
+        readonly property bool isConnected: inst !== null && inst.imuConnected
         readonly property bool isExcluded:  appSettings.imuExcluded.indexOf(imuData.id) >= 0
         readonly property bool testOpen:    root.openTestId === imuData.id
 
@@ -79,8 +85,8 @@ Item {
             if (imuData.hasMagnetometer)  sensors.push(qsTr("Mag"))
             var rates = imuData.supportedRatesHz || []
             var maxRate = rates.length > 0 ? Math.max.apply(null, rates) : 0
-            var batPct = (imuRow.isConnected && imuController.batteryPercent >= 0)
-                             ? imuController.batteryPercent : -1
+            var batPct = (imuRow.isConnected && imuRow.inst && imuRow.inst.batteryPercent >= 0)
+                             ? imuRow.inst.batteryPercent : -1
             return [
                 { key: qsTr("Transport"),   val: imuData.transport || "—",    isAccent: false, batPct: -1 },
                 { key: qsTr("Sensors"),     val: sensors.length > 0 ? sensors.join(" · ") : "—",
@@ -458,8 +464,8 @@ Item {
                                             var map = appSettings.imuOutputRateHz
                                             map[imuData.id] = modelData
                                             appSettings.imuOutputRateHz = map
-                                            if (imuRow.isConnected)
-                                                imuController.setOutputRateHz(modelData)
+                                            if (imuRow.isConnected && imuRow.inst)
+                                                imuRow.inst.setOutputRateHz(modelData)
                                         }
                                     }
                                 }
@@ -649,7 +655,7 @@ Item {
                                 } else {
                                     root.openTestId = imuData.id
                                     if (!imuRow.isConnected)
-                                        imuController.connectToDevice(imuData.id)
+                                        imuController.setSelected(imuData.index, true)
                                 }
                             }
                         }
@@ -813,14 +819,14 @@ Item {
                             cursorShape:  Qt.PointingHandCursor
                             onClicked: {
                                 if (imuRow.isConnected)
-                                    imuController.disconnectDevice()
+                                    imuController.setSelected(imuData.index, false)
                                 else
-                                    imuController.connectToDevice(imuData.id)
+                                    imuController.setSelected(imuData.index, true)
                             }
                         }
                     }
 
-                    // Done button
+                    // Done button — closes the test panel; does not disconnect
                     Rectangle {
                         width:  doneBtnLabel.implicitWidth + Theme.sp(24)
                         height: Theme.sp(26)
@@ -842,11 +848,7 @@ Item {
                         MouseArea {
                             anchors.fill: parent
                             cursorShape:  Qt.PointingHandCursor
-                            onClicked: {
-                                if (imuRow.isConnected)
-                                    imuController.disconnectDevice()
-                                root.openTestId = ""
-                            }
+                            onClicked:    root.openTestId = ""
                         }
                     }
                 }
@@ -868,12 +870,12 @@ Item {
 
                         Loader {
                             anchors.fill: parent
-                            active:  imuRow.testOpen
+                            active:  imuRow.testOpen && imuRow.inst !== null
                             visible: imuRow.isConnected
                             sourceComponent: Component {
                                 ImuVizView {
                                     anchors.fill: parent
-                                    controller:   imuController
+                                    controller:   imuRow.inst
                                 }
                             }
                         }
@@ -913,30 +915,34 @@ Item {
                                 width:  Theme.sp(6)
                                 height: Theme.sp(6)
                                 radius: Theme.sp(3)
-                                color: imuRow.isConnected ? Theme.colorGood
-                                     : imuController.busy  ? Theme.colorAccent
-                                     :                        Theme.colorText3
+                                color: imuRow.isConnected                     ? Theme.colorGood
+                                     : (imuRow.inst && imuRow.inst.busy)      ? Theme.colorAccent
+                                     :                                           Theme.colorText3
                                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                             }
 
                             // State label + data rate
                             Text {
-                                text: imuRow.isConnected
-                                        ? (imuController.stateLabel + qsTr(" · ")
-                                           + imuController.dataRateHz.toFixed(1) + qsTr(" Hz"))
-                                        : imuController.stateLabel
+                                text: {
+                                    var s = imuRow.inst ? imuRow.inst.stateLabel : qsTr("Disconnected")
+                                    if (imuRow.isConnected && imuRow.inst && imuRow.inst.dataRateHz > 0)
+                                        return s + qsTr(" · ") + imuRow.inst.dataRateHz.toFixed(1) + qsTr(" Hz")
+                                    return s
+                                }
                                 font.family:    Theme.fontData
                                 font.pixelSize: Theme.fontSzBody2
-                                color: imuRow.isConnected ? Theme.colorGood
-                                     : imuController.busy  ? Theme.colorWarn
-                                     :                        Theme.colorText3
+                                color: imuRow.isConnected                     ? Theme.colorGood
+                                     : (imuRow.inst && imuRow.inst.busy)      ? Theme.colorWarn
+                                     :                                           Theme.colorText3
                                 Layout.fillWidth: true
                                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                             }
 
                             // Battery indicator
                             RowLayout {
-                                visible: imuRow.isConnected && imuController.batteryPercent >= 0
+                                visible: imuRow.isConnected
+                                         && imuRow.inst !== null
+                                         && imuRow.inst.batteryPercent >= 0
                                 spacing: Theme.sp(4)
 
                                 Text {
@@ -955,24 +961,26 @@ Item {
                                     border.color: Theme.colorBorderStrong
 
                                     Rectangle {
-                                        width:  parent.width * Math.max(0, Math.min(1, imuController.batteryPercent / 100.0))
+                                        property int pct: imuRow.inst ? imuRow.inst.batteryPercent : 0
+                                        width:  parent.width * Math.max(0, Math.min(1, pct / 100.0))
                                         height: parent.height
                                         radius: parent.radius
-                                        color:  imuController.batteryPercent > 60 ? Theme.colorGood
-                                              : imuController.batteryPercent > 20 ? Theme.colorWarn
-                                              :                                      Theme.colorError
+                                        color:  pct > 60 ? Theme.colorGood
+                                              : pct > 20 ? Theme.colorWarn
+                                              :             Theme.colorError
                                         Behavior on width { NumberAnimation { duration: Theme.durationFast } }
                                         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                                     }
                                 }
 
                                 Text {
-                                    text:           imuController.batteryPercent + qsTr("%")
+                                    property int pct: imuRow.inst ? imuRow.inst.batteryPercent : 0
+                                    text:  pct + qsTr("%")
                                     font.family:    Theme.fontData
                                     font.pixelSize: Theme.fontSzMicro
-                                    color:  imuController.batteryPercent > 60 ? Theme.colorGood
-                                          : imuController.batteryPercent > 20 ? Theme.colorWarn
-                                          :                                      Theme.colorError
+                                    color: pct > 60 ? Theme.colorGood
+                                         : pct > 20 ? Theme.colorWarn
+                                         :             Theme.colorError
                                     Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                                 }
                             }
@@ -1028,9 +1036,9 @@ Item {
                                             }
                                             Text {
                                                 text: [
-                                                    imuController.imuRoll.toFixed(1)  + "°",
-                                                    imuController.imuPitch.toFixed(1) + "°",
-                                                    imuController.imuYaw.toFixed(1)   + "°"
+                                                    (imuRow.inst ? imuRow.inst.imuRoll.toFixed(1)  : "0.0") + "°",
+                                                    (imuRow.inst ? imuRow.inst.imuPitch.toFixed(1) : "0.0") + "°",
+                                                    (imuRow.inst ? imuRow.inst.imuYaw.toFixed(1)   : "0.0") + "°"
                                                 ][index]
                                                 font.family:    Theme.fontData
                                                 font.pixelSize: Theme.fontSzHeading
@@ -1046,7 +1054,7 @@ Item {
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: Theme.sp(4)
-                            enabled: imuRow.isConnected
+                            enabled: imuRow.isConnected && imuRow.inst !== null
 
                             Text {
                                 text:                qsTr("CALIBRATION")
@@ -1084,7 +1092,7 @@ Item {
                                     MouseArea {
                                         anchors.fill: parent
                                         cursorShape:  Qt.PointingHandCursor
-                                        onClicked:    imuController.zeroOrientation()
+                                        onClicked:    if (imuRow.inst) imuRow.inst.zeroOrientation()
                                     }
                                 }
 
@@ -1299,7 +1307,7 @@ Item {
                     var ex   = appSettings.imuExcluded
                     return list.filter(function(d) { return ex.indexOf(d.id) < 0 }).length
                 }
-                readonly property int connectedCount: imuController.imuConnected ? 1 : 0
+                readonly property int connectedCount: imuController.imuCount
 
                 readonly property var assignedPlacements: {
                     var map = appSettings.imuPlacement

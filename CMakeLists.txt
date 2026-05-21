@@ -105,6 +105,7 @@ qt_add_executable(PinPoint
     $<$<BOOL:${WIN32}>:${CMAKE_CURRENT_SOURCE_DIR}/PinPoint.rc>
     src/Gui/app_settings.h
     src/Gui/imu_controller.h           src/Gui/imu_controller.cpp
+    src/Gui/imu_instance.h             src/Gui/imu_instance.cpp
     src/Gui/transcription_controller.h src/Gui/transcription_controller.cpp
     src/Gui/tts_controller.h           src/Gui/tts_controller.cpp
     src/Gui/film_controller.h          src/Gui/film_controller.cpp

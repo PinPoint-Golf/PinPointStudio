@@ -29,6 +29,7 @@
 
 class CameraManager;
 class ImuController;
+class ImuInstance;
 
 class ResourceMonitorController : public QObject
 {

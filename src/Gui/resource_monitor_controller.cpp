@@ -19,6 +19,7 @@
 #include "resource_monitor_controller.h"
 #include "camera_manager.h"
 #include "imu_controller.h"
+#include "imu_instance.h"
 #include "pp_debug.h"
 #include "video_controller.h"
 
@@ -199,48 +200,45 @@ void ResourceMonitorController::refresh()
         m_devices.append(dev);
     }
 
-    // IMU entries — one per device registered in the enumerator.
-    // Buffer sources that are not camera sources are paired with enumerated IMU
-    // devices by position (index 0 → first non-camera source, etc.).
+    // IMU entries — one per enumerated device (mirrors cameraList pattern).
+    // Devices appear regardless of connection state; the live ImuInstance (if
+    // selected) supplies data rates, battery, and buffer source info.
     {
-        QList<const pinpoint::EventBuffer::DiagnosticsSnapshot::SourceInfo *> imuSources;
-        for (const auto &src : m_snapshot.sources) {
-            if (!cameraSourceIds.contains(src.id))
-                imuSources.append(&src);
-        }
-
         const QList<Device> imuDevices =
             DeviceEnumerator::instance()->devices(DeviceType::Imu);
 
-        for (int i = 0; i < imuDevices.size(); ++i) {
-            const Device &imuDev = imuDevices[i];
-            const auto *imuSrc  = (i < imuSources.size()) ? imuSources[i] : nullptr;
+        for (const Device &imuDev : imuDevices) {
+            // Look up a live instance for this device (null when not selected).
+            ImuInstance *inst = qobject_cast<ImuInstance *>(m_imu->instanceFor(imuDev.id));
+
+            const pinpoint::SourceId sid = inst
+                ? inst->sourceId() : pinpoint::kInvalidSourceId;
+            const auto *imuSrc = findSourceById(sid);
 
             const QString backend = imuDev.imuTransport == ImuBase::Transport::Ble
                 ? QStringLiteral("Bluetooth LE")
                 : QStringLiteral("Serial");
-
             const QString model = imuDev.imuCapabilities.modelName.isEmpty()
                 ? imuDev.description
                 : imuDev.imuCapabilities.modelName;
 
             QString imuStatus;
-            if (m_imu->imuConnected()) imuStatus = QStringLiteral("connected");
-            else if (m_imu->busy())    imuStatus = QStringLiteral("connecting");
-            else                       imuStatus = QStringLiteral("disconnected");
+            if (inst && inst->imuConnected()) imuStatus = QStringLiteral("connected");
+            else if (inst && inst->busy())    imuStatus = QStringLiteral("connecting");
+            else                              imuStatus = QStringLiteral("disconnected");
 
-            double  imuRate      = m_imu->dataRateHz();
-            int     batPct       = m_imu->batteryPercent();
-            quint64 imuEW        = imuSrc ? quint64(imuSrc->events_written)     : 0;
-            quint64 imuBW        = imuSrc ? quint64(imuSrc->bytes_written_total) : 0;
-            quint64 imuOW        = imuSrc ? quint64(imuSrc->events_overwritten)  : 0;
+            double  imuRate      = inst ? inst->dataRateHz()     : 0.0;
+            int     batPct       = inst ? inst->batteryPercent()  : -1;
+            quint64 imuEW        = imuSrc ? quint64(imuSrc->events_written)      : 0;
+            quint64 imuBW        = imuSrc ? quint64(imuSrc->bytes_written_total)  : 0;
+            quint64 imuOW        = imuSrc ? quint64(imuSrc->events_overwritten)   : 0;
             quint64 imuRingBytes = imuSrc
                 ? quint64(m_buffer->getSlotCapacity(imuSrc->id)) * quint64(imuSrc->slot_count)
                 : 0;
-            double  fill         = imuSrc && imuSrc->slot_count > 0
+            double fill = imuSrc && imuSrc->slot_count > 0
                 ? std::min(1.0, double(imuSrc->events_written) / double(imuSrc->slot_count))
                 : 0.0;
-            QString imuSrcName   = imuSrc
+            QString imuSrcName = imuSrc
                 ? QString::fromStdString(imuSrc->name) : QString();
 
             QVariantMap dev;

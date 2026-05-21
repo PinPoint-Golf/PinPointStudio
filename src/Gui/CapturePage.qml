@@ -29,307 +29,439 @@ Item {
         anchors.margins: Theme.sp(16)
         spacing: Theme.sp(12)
 
-        Label {
-            text: qsTr("IMU")
-            color: Theme.colorText
-            font.family: Theme.fontBody
-            font.pixelSize: Theme.fontSzHeading
-            font.weight: Font.Normal
-        }
-
+        // ── Header row: title + IMU selector chips ────────────────────────────
         RowLayout {
-            spacing: Theme.sp(8)
-
-            // Device selector — hidden while connected (state label takes its place)
-            ComboBox {
-                id: deviceCombo
-                visible: !imuController.imuConnected
-                enabled: !imuController.busy && !imuController.imuConnected
-                implicitWidth: Theme.sp(260)
-                model: imuController.imuDeviceList.length > 0
-                           ? imuController.imuDeviceList.map(function(d) {
-                                 return d.description + " · " + d.id
-                             })
-                           : [qsTr("No devices found")]
-
-                // Keep currentIndex in bounds when the list changes.
-                onModelChanged: {
-                    if (currentIndex >= count) currentIndex = 0
-                }
-
-                contentItem: Text {
-                    leftPadding: Theme.sp(8)
-                    text:  deviceCombo.displayText
-                    color: deviceCombo.enabled ? Theme.colorText : Theme.colorText3
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody
-                    verticalAlignment: Text.AlignVCenter
-                    elide: Text.ElideRight
-                }
-                background: Rectangle {
-                    color:        Theme.colorSurface
-                    border.color: deviceCombo.enabled ? Theme.colorBorderMid : Theme.colorBorder
-                    border.width: 1
-                    radius:       Theme.radius
-                }
-                indicator: Text {
-                    x: deviceCombo.width - width - Theme.sp(8)
-                    anchors.verticalCenter: parent.verticalCenter
-                    text:           "⌄"
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody
-                    color:          Theme.colorText3
-                }
-                popup: Popup {
-                    y:       deviceCombo.height + 2
-                    width:   deviceCombo.width
-                    padding: Theme.sp(4)
-                    background: Rectangle {
-                        color:        Theme.colorSurface
-                        radius:       Theme.radius
-                        border.width: 1
-                        border.color: Theme.colorBorderMid
-                    }
-                    contentItem: ListView {
-                        implicitHeight: contentHeight
-                        model: deviceCombo.delegateModel
-                        clip:  true
-                    }
-                }
-                delegate: ItemDelegate {
-                    required property var modelData
-                    required property int index
-                    width: deviceCombo.width
-                    contentItem: Text {
-                        leftPadding: Theme.sp(8)
-                        text:  modelData
-                        color: deviceCombo.currentIndex === index ? Theme.colorText : Theme.colorText3
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    background: Rectangle {
-                        color:  hovered ? Theme.colorBg3 : "transparent"
-                        radius: Theme.radius - 1
-                    }
-                }
-            }
-
-            Button {
-                id: connectBtn
-                text: qsTr("Connect")
-                enabled: !imuController.busy && !imuController.imuConnected
-                onClicked: {
-                    var list = imuController.imuDeviceList
-                    if (list.length > 0)
-                        imuController.connectToDevice(list[deviceCombo.currentIndex].id)
-                    else
-                        imuController.connectImu()
-                }
-                contentItem: Text {
-                    text: connectBtn.text
-                    color: connectBtn.enabled ? Theme.colorBg : Theme.colorText3
-                    font.family: Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody
-                    font.weight: Font.Normal
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    color: connectBtn.enabled
-                           ? (connectBtn.pressed ? Qt.darker(Theme.colorAccent, 1.1) : Theme.colorAccent)
-                           : Theme.colorBg3
-                    radius: Theme.radius
-                }
-            }
-
-            Button {
-                id: disconnectBtn
-                text: qsTr("Disconnect")
-                enabled: imuController.busy || imuController.imuConnected
-                onClicked: imuController.disconnectImu()
-                contentItem: Text {
-                    text: disconnectBtn.text
-                    color: disconnectBtn.enabled ? Theme.colorWarn : Theme.colorText3
-                    font.family: Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody
-                    font.weight: Font.Normal
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    color: disconnectBtn.enabled ? Theme.colorWarnLight : Theme.colorBg3
-                    border.width: disconnectBtn.enabled ? 1 : 0
-                    border.color: Qt.rgba(Theme.colorWarn.r, Theme.colorWarn.g, Theme.colorWarn.b, 0.5)
-                    radius: Theme.radius
-                }
-            }
-
-            Rectangle {
-                visible: imuController.busy
-                width: Theme.sp(8); height: Theme.sp(8); radius: Theme.sp(4)
-                color: Theme.colorWarn
-                SequentialAnimation on opacity {
-                    running: imuController.busy
-                    loops: Animation.Infinite
-                    NumberAnimation { to: 0.2; duration: 600; easing.type: Easing.InOutSine }
-                    NumberAnimation { to: 1.0; duration: 600; easing.type: Easing.InOutSine }
-                }
-            }
+            spacing: Theme.sp(12)
 
             Label {
-                text: imuController.stateLabel
-                color: imuController.imuConnected ? Theme.colorGood
-                     : imuController.busy          ? Theme.colorWarn
-                     :                               Theme.colorText3
+                text: qsTr("IMU")
+                color: Theme.colorText
                 font.family: Theme.fontBody
-                font.pixelSize: Theme.fontSzBody
+                font.pixelSize: Theme.fontSzHeading
+                font.weight: Font.Normal
             }
 
             Item { Layout.fillWidth: true }
 
-            // Battery badge
+            // One toggle chip per discovered IMU — same pattern as VideoPage camera chips.
+            Repeater {
+                model: imuController.imuList
+                delegate: Rectangle {
+                    readonly property bool isConnecting: modelData.connecting
+                    readonly property bool isConnected:  modelData.connected
+
+                    width:  imuChipLabel.implicitWidth + Theme.sp(16)
+                    height: Theme.sp(24)
+                    radius: Theme.radius
+
+                    color: modelData.selected
+                           ? (isConnected ? Theme.colorAccent : Theme.colorAccentLight)
+                           : Theme.colorSurface
+                    border.width: 1
+                    border.color: modelData.selected
+                                  ? Theme.colorAccent
+                                  : Theme.colorBorderMid
+
+                    Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
+                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                    Text {
+                        id: imuChipLabel
+                        anchors.centerIn: parent
+                        text: modelData.description
+                        color: (modelData.selected && isConnected)
+                               ? Theme.colorBg
+                               : modelData.selected
+                                 ? Theme.colorAccent
+                                 : Theme.colorText2
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody2
+                        font.weight:    Font.Normal
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    }
+
+                    // Pulsing ring while connecting
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: parent.radius
+                        color:  "transparent"
+                        border.width: 2
+                        border.color: Theme.colorAccent
+                        visible: isConnecting
+                        SequentialAnimation on opacity {
+                            running: isConnecting
+                            loops: Animation.Infinite
+                            NumberAnimation { to: 0.2; duration: 600; easing.type: Easing.InOutSine }
+                            NumberAnimation { to: 1.0; duration: 600; easing.type: Easing.InOutSine }
+                        }
+                    }
+
+                    TapHandler {
+                        onTapped: imuController.setSelected(modelData.index, !modelData.selected)
+                    }
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                }
+            }
+
+            // Scan button
             Rectangle {
-                visible: imuController.imuConnected && imuController.batteryPercent >= 0
+                id: scanChip
+                property bool scanning: false
+
+                width:  scanMeasure.implicitWidth + Theme.sp(20)
+                height: Theme.sp(24)
                 radius: Theme.radius
-                color: imuController.batteryPercent > 60 ? Theme.colorGoodLight
-                     : imuController.batteryPercent > 20 ? Theme.colorWarnLight
-                     :                                     Theme.colorWarnLight
+                color:  scanning ? Theme.colorAccentLight : "transparent"
                 border.width: 1
-                border.color: imuController.batteryPercent > 60
-                              ? Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.25)
-                              : Qt.rgba(Theme.colorWarn.r, Theme.colorWarn.g, Theme.colorWarn.b, 0.25)
-                implicitWidth:  batteryBadge.implicitWidth  + Theme.sp(10)
-                implicitHeight: batteryBadge.implicitHeight + Theme.sp(4)
+                border.color: scanning ? Theme.colorAccent : Theme.colorBorderStrong
+                Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
+                Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                Text {
+                    id: scanMeasure
+                    visible: false
+                    text: qsTr("Scanning…")
+                    font.family:    Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody2
+                    font.weight:    Font.Light
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    text:           scanChip.scanning ? qsTr("Scanning…") : qsTr("Scan")
+                    font.family:    Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody2
+                    font.weight:    Font.Light
+                    color:          scanChip.scanning ? Theme.colorAccent : Theme.colorText2
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                }
+
+                Timer {
+                    id: scanTimer
+                    interval: 30000
+                    onTriggered: scanChip.scanning = false
+                }
+
+                Connections {
+                    target: imuController
+                    function onImuEnumeratedCountChanged() { scanTimer.stop(); scanChip.scanning = false }
+                }
+
+                TapHandler {
+                    onTapped: {
+                        scanChip.scanning = true
+                        imuController.rescanImu()
+                        scanTimer.restart()
+                    }
+                }
+                HoverHandler { cursorShape: Qt.PointingHandCursor }
+            }
+        }
+
+        // ── Per-instance views (side-by-side) ─────────────────────────────────
+        RowLayout {
+            Layout.fillWidth:  true
+            Layout.fillHeight: true
+            spacing: Theme.sp(8)
+
+            Repeater {
+                model: imuController.instances
+                delegate: Item {
+                    // Follow the QML QObject* list pattern from CLAUDE.md:
+                    // property QtObject (not required / var) for proper NOTIFY tracking.
+                    property QtObject ctrl: modelData
+
+                    Layout.fillWidth:  true
+                    Layout.fillHeight: true
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        spacing: Theme.sp(6)
+
+                        TabBar {
+                            id: instTabBar
+                            Layout.fillWidth: true
+                            background: Rectangle {
+                                color: Theme.colorSurface
+                                radius: Theme.radius
+                                border.width: 1
+                                border.color: Theme.colorBorderMid
+                            }
+
+                            TabButton {
+                                text: qsTr("Viz")
+                                contentItem: Text {
+                                    text: parent.text
+                                    color: instTabBar.currentIndex === 0 ? Theme.colorText : Theme.colorText3
+                                    font.family:    Theme.fontBody
+                                    font.pixelSize: Theme.fontSzBody
+                                    font.weight:    Font.Normal
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment:   Text.AlignVCenter
+                                }
+                                background: Rectangle {
+                                    color:  instTabBar.currentIndex === 0 ? Theme.colorBg3 : "transparent"
+                                    radius: Theme.radius - 1
+                                }
+                            }
+
+                            TabButton {
+                                text: qsTr("Log")
+                                contentItem: Text {
+                                    text: parent.text
+                                    color: instTabBar.currentIndex === 1 ? Theme.colorText : Theme.colorText3
+                                    font.family:    Theme.fontBody
+                                    font.pixelSize: Theme.fontSzBody
+                                    font.weight:    Font.Normal
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment:   Text.AlignVCenter
+                                }
+                                background: Rectangle {
+                                    color:  instTabBar.currentIndex === 1 ? Theme.colorBg3 : "transparent"
+                                    radius: Theme.radius - 1
+                                }
+                            }
+                        }
+
+                        StackLayout {
+                            Layout.fillWidth:  true
+                            Layout.fillHeight: true
+                            currentIndex: instTabBar.currentIndex
+
+                            // Viz tab
+                            ImuVizView {
+                                controller: ctrl
+                            }
+
+                            // Log tab
+                            Rectangle {
+                                color:        Theme.colorSurface
+                                radius:       Theme.radius
+                                border.width: 1
+                                border.color: Theme.colorBorderMid
+
+                                ListView {
+                                    id: instLogView
+                                    anchors.fill:    parent
+                                    anchors.margins: Theme.sp(8)
+                                    clip:  true
+                                    model: ListModel { id: instLogModel }
+                                    spacing: 1
+
+                                    delegate: Text {
+                                        required property string entry
+                                        width:      instLogView.width
+                                        text:       entry
+                                        color:      Theme.colorText
+                                        font.family:    Theme.fontData
+                                        font.pixelSize: Theme.fontSzLabel
+                                        wrapMode:   Text.NoWrap
+                                    }
+                                }
+                            }
+                        }
+
+                        // ── Per-instance controls ──────────────────────────────
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: Theme.sp(8)
+
+                            // Status dot
+                            Rectangle {
+                                width:  Theme.sp(6)
+                                height: Theme.sp(6)
+                                radius: Theme.sp(3)
+                                color: ctrl && ctrl.imuConnected ? Theme.colorGood
+                                     : ctrl && ctrl.busy         ? Theme.colorAccent
+                                     :                              Theme.colorText3
+                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            }
+
+                            Label {
+                                text: {
+                                    if (!ctrl) return ""
+                                    if (ctrl.imuConnected && ctrl.dataRateHz > 0)
+                                        return ctrl.stateLabel + " · " + ctrl.dataRateHz.toFixed(1) + " Hz"
+                                    return ctrl.stateLabel
+                                }
+                                color: ctrl && ctrl.imuConnected ? Theme.colorGood
+                                     : ctrl && ctrl.busy         ? Theme.colorWarn
+                                     :                              Theme.colorText3
+                                font.family:    Theme.fontBody
+                                font.pixelSize: Theme.fontSzBody2
+                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            }
+
+                            // Battery badge
+                            Rectangle {
+                                visible: ctrl && ctrl.imuConnected && ctrl.batteryPercent >= 0
+                                radius: Theme.radius
+                                color: ctrl && ctrl.batteryPercent > 60 ? Theme.colorGoodLight
+                                     : Theme.colorWarnLight
+                                border.width: 1
+                                border.color: ctrl && ctrl.batteryPercent > 60
+                                              ? Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.25)
+                                              : Qt.rgba(Theme.colorWarn.r, Theme.colorWarn.g, Theme.colorWarn.b, 0.25)
+                                implicitWidth:  batLabel.implicitWidth + Theme.sp(10)
+                                implicitHeight: batLabel.implicitHeight + Theme.sp(4)
+
+                                Label {
+                                    id: batLabel
+                                    anchors.centerIn: parent
+                                    text: ctrl ? ("BAT: " + ctrl.batteryPercent + "%") : ""
+                                    color: ctrl && ctrl.batteryPercent > 60 ? Theme.colorGood : Theme.colorWarn
+                                    font.family:    Theme.fontData
+                                    font.pixelSize: Theme.fontSzMicro
+                                }
+                            }
+
+                            Item { Layout.fillWidth: true }
+
+                            // Rate selector
+                            ComboBox {
+                                id: rateCombo
+                                enabled: ctrl && ctrl.imuConnected
+                                model: [10, 50, 100, 200]
+                                currentIndex: {
+                                    if (!ctrl) return 2
+                                    var idx = model.indexOf(ctrl.outputRateHz)
+                                    return idx >= 0 ? idx : 2
+                                }
+                                onActivated: if (ctrl) ctrl.setOutputRateHz(model[currentIndex])
+                                implicitWidth: Theme.sp(90)
+
+                                contentItem: Text {
+                                    leftPadding: Theme.sp(8)
+                                    text: rateCombo.displayText + " Hz"
+                                    color: rateCombo.enabled ? Theme.colorText : Theme.colorText3
+                                    font.family:    Theme.fontBody
+                                    font.pixelSize: Theme.fontSzBody
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                                background: Rectangle {
+                                    color:        Theme.colorSurface
+                                    border.color: rateCombo.enabled ? Theme.colorBorderMid : Theme.colorBorder
+                                    border.width: 1
+                                    radius:       Theme.radius
+                                }
+                                indicator: Text {
+                                    x: rateCombo.width - width - Theme.sp(8)
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text:  "⌄"
+                                    font.family:    Theme.fontBody
+                                    font.pixelSize: Theme.fontSzBody
+                                    color: Theme.colorText3
+                                }
+                                popup: Popup {
+                                    y: rateCombo.height + 2
+                                    width: rateCombo.width
+                                    padding: Theme.sp(4)
+                                    background: Rectangle {
+                                        color:        Theme.colorSurface
+                                        radius:       Theme.radius
+                                        border.width: 1
+                                        border.color: Theme.colorBorderMid
+                                    }
+                                    contentItem: ListView {
+                                        implicitHeight: contentHeight
+                                        model: rateCombo.delegateModel
+                                        clip:  true
+                                    }
+                                }
+                                delegate: ItemDelegate {
+                                    required property var modelData
+                                    required property int index
+                                    width: rateCombo.width
+                                    contentItem: Text {
+                                        text: modelData + " Hz"
+                                        color: rateCombo.currentIndex === index ? Theme.colorText : Theme.colorText3
+                                        font.family:    Theme.fontBody
+                                        font.pixelSize: Theme.fontSzBody
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                    background: Rectangle {
+                                        color:  hovered ? Theme.colorBg3 : "transparent"
+                                        radius: Theme.radius - 1
+                                    }
+                                }
+                            }
+
+                            // Zero button
+                            Button {
+                                id: zeroBtn
+                                text: qsTr("Zero")
+                                enabled: ctrl && ctrl.imuConnected
+                                onClicked: if (ctrl) ctrl.zeroOrientation()
+                                contentItem: Text {
+                                    text:  zeroBtn.text
+                                    color: zeroBtn.enabled ? Theme.colorText2 : Theme.colorText3
+                                    font.family:    Theme.fontBody
+                                    font.pixelSize: Theme.fontSzBody
+                                    font.weight:    Font.Normal
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment:   Text.AlignVCenter
+                                }
+                                background: Rectangle {
+                                    color:        "transparent"
+                                    border.width: 1
+                                    border.color: zeroBtn.enabled ? Theme.colorBorderStrong : Theme.colorBorderMid
+                                    radius: Theme.radius
+                                }
+                            }
+
+                            // Save Log button
+                            Button {
+                                id: saveLogBtn
+                                text: qsTr("Save Log")
+                                onClicked: if (ctrl) ctrl.saveLog()
+                                contentItem: Text {
+                                    text:  saveLogBtn.text
+                                    color: Theme.colorText2
+                                    font.family:    Theme.fontBody
+                                    font.pixelSize: Theme.fontSzBody
+                                    font.weight:    Font.Normal
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment:   Text.AlignVCenter
+                                }
+                                background: Rectangle {
+                                    color:        "transparent"
+                                    border.width: 1
+                                    border.color: Theme.colorBorderStrong
+                                    radius: Theme.radius
+                                }
+                            }
+                        }
+                    }
+
+                    // Wire log entries from this instance into instLogModel.
+                    // Component.onCompleted fires after ctrl is set.
+                    Component.onCompleted: {
+                        if (ctrl) {
+                            ctrl.logEntryAdded.connect(function(entry) {
+                                instLogModel.append({ "entry": entry })
+                                instLogView.positionViewAtEnd()
+                            })
+                        }
+                    }
+                }
+            }
+
+            // Placeholder when no IMU is selected
+            Rectangle {
+                visible: imuController.instances.length === 0
+                Layout.fillWidth:  true
+                Layout.fillHeight: true
+                color:        Theme.colorBg2
+                radius:       Theme.radius
+                border.width: 1
+                border.color: Theme.colorBorderMid
 
                 Label {
-                    id: batteryBadge
                     anchors.centerIn: parent
-                    text: "BAT: " + imuController.batteryPercent + "%"
-                    color: imuController.batteryPercent > 60 ? Theme.colorGood
-                         : imuController.batteryPercent > 20 ? Theme.colorWarn
-                         :                                     Theme.colorWarn
-                    font.family: Theme.fontData
-                    font.pixelSize: Theme.fontSzMicro
-                    font.weight: Font.Normal
-                }
-            }
-
-            Label {
-                visible: imuController.imuConnected && imuController.dataRateHz > 0
-                text: imuController.dataRateHz.toFixed(1) + " Hz"
-                color: Theme.colorGood
-                font.family: Theme.fontData
-                font.pixelSize: Theme.fontSzBody
-                verticalAlignment: Text.AlignVCenter
-            }
-
-            Label {
-                text: qsTr("Rate:")
-                color: Theme.colorText3
-                font.family: Theme.fontBody
-                font.pixelSize: Theme.fontSzBody
-                verticalAlignment: Text.AlignVCenter
-            }
-
-            ComboBox {
-                id: rateCombo
-                enabled: imuController.imuConnected
-                model: [10, 50, 100, 200]
-                currentIndex: {
-                    var idx = model.indexOf(imuController.outputRateHz)
-                    return idx >= 0 ? idx : 2
-                }
-                onActivated: imuController.setOutputRateHz(model[currentIndex])
-                implicitWidth: Theme.sp(90)
-                contentItem: Text {
-                    leftPadding: 8
-                    text: rateCombo.displayText + " Hz"
-                    color: rateCombo.enabled ? Theme.colorText : Theme.colorText3
-                    font.family: Theme.fontBody
+                    text:  qsTr("Select an IMU above")
+                    color: Theme.colorText3
+                    font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    color: Theme.colorSurface
-                    border.color: rateCombo.enabled ? Theme.colorBorderMid : Theme.colorBorder
-                    border.width: 1
-                    radius: Theme.radius
-                }
-                popup: Popup {
-                    y: rateCombo.height + 2
-                    width: rateCombo.width
-                    padding: Theme.sp(4)
-                    background: Rectangle {
-                        color: Theme.colorSurface
-                        radius: Theme.radius
-                        border.width: 1
-                        border.color: Theme.colorBorderMid
-                    }
-                    contentItem: ListView {
-                        implicitHeight: contentHeight
-                        model: rateCombo.delegateModel
-                        clip: true
-                    }
-                }
-                delegate: ItemDelegate {
-                    required property var modelData
-                    required property int index
-                    width: rateCombo.width
-                    contentItem: Text {
-                        text: modelData + " Hz"
-                        color: rateCombo.currentIndex === index ? Theme.colorText : Theme.colorText3
-                        font.family: Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    background: Rectangle {
-                        color: hovered ? Theme.colorBg3 : "transparent"
-                        radius: Theme.radius - 1
-                    }
-                }
-            }
-
-            Button {
-                id: zeroBtn
-                text: qsTr("Zero")
-                enabled: imuController.imuConnected
-                onClicked: imuController.zeroOrientation()
-                contentItem: Text {
-                    text: zeroBtn.text
-                    color: zeroBtn.enabled ? Theme.colorText2 : Theme.colorText3
-                    font.family: Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody
-                    font.weight: Font.Normal
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    color: "transparent"
-                    border.width: 1
-                    border.color: zeroBtn.enabled ? Theme.colorBorderStrong : Theme.colorBorderMid
-                    radius: Theme.radius
-                }
-            }
-
-            Button {
-                id: saveLogBtn
-                text: qsTr("Save Log")
-                onClicked: imuController.saveLog()
-                contentItem: Text {
-                    text: saveLogBtn.text
-                    color: Theme.colorText2
-                    font.family: Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody
-                    font.weight: Font.Normal
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    color: "transparent"
-                    border.width: 1
-                    border.color: Theme.colorBorderStrong
-                    radius: Theme.radius
                 }
             }
         }
@@ -344,110 +476,12 @@ Item {
             Label {
                 visible: cameraManager.bufferState !== "idle"
                          && cameraManager.bufferState !== "unavailable"
-                text: bufferController.totalEvents + " events"
+                text:  bufferController.totalEvents + " events"
                 color: Theme.colorText3
-                font.family: Theme.fontData
+                font.family:    Theme.fontData
                 font.pixelSize: Theme.fontSzBody2
                 verticalAlignment: Text.AlignVCenter
             }
-        }
-
-        TabBar {
-            id: imuTabBar
-            Layout.fillWidth: true
-            background: Rectangle {
-                color: Theme.colorSurface
-                radius: Theme.radius
-                border.width: 1
-                border.color: Theme.colorBorderMid
-            }
-
-            TabButton {
-                text: qsTr("Log")
-                contentItem: Text {
-                    text: parent.text
-                    color: imuTabBar.currentIndex === 0 ? Theme.colorText : Theme.colorText3
-                    font.family: Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody
-                    font.weight: Font.Normal
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    color: imuTabBar.currentIndex === 0 ? Theme.colorBg3 : "transparent"
-                    radius: Theme.radius - 1
-                }
-            }
-
-            TabButton {
-                text: qsTr("Viz")
-                enabled: imuController.imuConnected
-                contentItem: Text {
-                    text: parent.text
-                    color: imuTabBar.currentIndex === 1 ? Theme.colorText
-                         : imuController.imuConnected   ? Theme.colorText3
-                         :                                Theme.colorBg3
-                    font.family: Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody
-                    font.weight: Font.Normal
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    color: imuTabBar.currentIndex === 1 ? Theme.colorBg3 : "transparent"
-                    radius: Theme.radius - 1
-                }
-            }
-        }
-
-        StackLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            currentIndex: imuTabBar.currentIndex
-
-            // Log tab
-            Rectangle {
-                color: Theme.colorSurface
-                radius: Theme.radius
-                border.width: 1
-                border.color: Theme.colorBorderMid
-
-                ListView {
-                    id: logView
-                    anchors.fill: parent
-                    anchors.margins: Theme.sp(8)
-                    clip: true
-                    model: ListModel { id: logModel }
-                    spacing: 1
-
-                    delegate: Text {
-                        required property string entry
-                        width: logView.width
-                        text: entry
-                        color: Theme.colorText
-                        font.family: Theme.fontData
-                        font.pixelSize: Theme.fontSzLabel
-                        wrapMode: Text.NoWrap
-                    }
-                }
-            }
-
-            // Viz tab
-            ImuVizView {
-                controller: imuController
-            }
-        }
-    }
-
-    Connections {
-        target: imuController
-        function onLogEntryAdded(entry) {
-            logModel.append({ "entry": entry })
-            logView.positionViewAtEnd()
-        }
-        function onImuConnectedChanged() {
-            if (!imuController.imuConnected && imuTabBar.currentIndex === 1)
-                imuTabBar.currentIndex = 0
         }
     }
 }

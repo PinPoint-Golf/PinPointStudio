@@ -23,7 +23,7 @@ import PinPoint
 View3D {
     id: root
 
-    // The data source. Bind to an ImuController instance.
+    // The data source. Bind to an ImuInstance (or any QtObject with quat*/accel* properties).
     // Required — the component will not function without it.
     required property QtObject controller
 

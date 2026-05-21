@@ -19,501 +19,249 @@
 #include "imu_controller.h"
 
 #include "event_buffer.h"
-#include "source_descriptor.h"
-#include <QDateTime>
-#include <QDir>
-#include <QFile>
-#include <QStandardPaths>
-#include <QTextStream>
-#include <chrono>
-#include <cstring>
 
 ImuController::ImuController(pinpoint::EventBuffer *buffer, QObject *parent)
     : QObject(parent)
-    , m_imu(new WT9011DCL_BLE(this))
     , m_eventBuffer(buffer)
 {
-    if (m_eventBuffer) {
-        pinpoint::SourceDescriptor desc;
-        desc.name = "wt9011dcl_ble";
-
-        pinpoint::ImuFormat fmt{};
-        fmt.device          = pinpoint::DeviceKind::IMU_WitMotion;
-        fmt.sample_rate_hz  = 100;
-        // BLE driver batches multiple frames per notification (typically 4×20 = 80 bytes,
-        // occasionally 5×20 = 100 bytes). Use 512 — the BLE ATT MTU ceiling — so no
-        // notification is ever dropped regardless of firmware batching behaviour.
-        fmt.packet_bytes    = 512;
-        fmt.packet_schema   = "wt9011dcl_ble_notification_v1";
-
-        desc.format.device            = pinpoint::DeviceKind::IMU_WitMotion;
-        desc.format.format            = fmt;
-        desc.window_duration          = std::chrono::milliseconds(5000);
-        desc.expected_interarrival_us = std::chrono::microseconds(10000);  // 100 Hz
-        desc.sync_source              = pinpoint::SyncSource::SoftwareTimestamp;
-
-        m_imuSourceId = m_eventBuffer->registerSource(desc);
-    }
-
-    m_retryTimer.setSingleShot(true);
-    m_logTimer.setSingleShot(false);
-    connect(&m_logTimer, &QTimer::timeout, this, [this]() {
-        const QString bat = m_batteryPercent >= 0
-            ? QString("  BAT=%1%").arg(m_batteryPercent)
-            : QString();
-        appendLog(timestamp()
-            + QString("  Data: %1 records total  (+%2 in last 10s)  %3 Hz avg%4")
-                .arg(m_totalRecords)
-                .arg(m_recordsSinceLog)
-                .arg(m_dataRateHz, 0, 'f', 1)
-                .arg(bat));
-        m_recordsSinceLog = 0;
-    });
-    connect(&m_retryTimer, &QTimer::timeout, this, [this]() {
-        appendLog(timestamp() + QStringLiteral("  Auto-retrying connection…"));
-        connectImu();
-    });
-
-    m_batteryTimer.setInterval(60'000);
-    m_batteryTimer.setSingleShot(false);
-    connect(&m_batteryTimer, &QTimer::timeout, this, [this]() {
-        if (m_connected) m_imu->requestBattery();
-    });
-
-    connect(m_imu, &WT9011DCL_BLE::stateChanged,
-            this,  &ImuController::onStateChanged);
-
-    // Kick off the startup BLE scan. Results arrive asynchronously via
-    // DeviceEnumerator signals; connectImu() consumes them.
+    // Start the async BLE scan.  Results arrive via deviceAdded and are
+    // automatically reflected by imuList() / imuDeviceList() reading directly
+    // from DeviceEnumerator — no local list copy needed.
     DeviceEnumerator::instance()->scanImu();
 
-    // If the user clicks Connect while the scan is still running, m_waitingForScan
-    // is set. The two lambdas below fire for all remaining scan lifetime and
-    // connect or report failure when the result is known.
+    // Emit property-change signals when new devices are registered so QML
+    // Repeaters rebuild their chips / rows.
     connect(DeviceEnumerator::instance(), &DeviceEnumerator::deviceAdded,
             this, [this](const Device &dev) {
-        if (dev.type == DeviceType::Imu) {
-            emit imuEnumeratedCountChanged();
-            emit imuDeviceListChanged();
-        }
-        if (!m_waitingForScan) return;
-        if (dev.imuTransport != ImuBase::Transport::Ble) return;
-        m_waitingForScan = false;
-        connectToEnumeratedDevice(dev);
+        if (dev.type != DeviceType::Imu) return;
+        emit imuListChanged();
+        emit imuDeviceListChanged();
+        emit imuEnumeratedCountChanged();
     });
+}
 
-    connect(DeviceEnumerator::instance(), &DeviceEnumerator::imuScanFinished,
-            this, [this]() {
-        if (!m_waitingForScan) return;
-        m_waitingForScan = false;
-        // Final check — device may have been registered just before this signal
-        for (const Device &d : DeviceEnumerator::instance()->devices(DeviceType::Imu)) {
-            if (d.imuTransport == ImuBase::Transport::Ble) {
-                connectToEnumeratedDevice(d);
-                return;
+ImuController::~ImuController()
+{
+    // Stop and deregister all active instances.
+    if (m_eventBuffer) {
+        const bool wasCapturing =
+            m_eventBuffer->state() == pinpoint::BufferState::Capturing;
+        if (wasCapturing) m_eventBuffer->pause();
+
+        if (m_eventBuffer->state() == pinpoint::BufferState::Paused) {
+            for (auto &entry : m_selected) {
+                if (entry.instance) {
+                    entry.instance->stop();
+                    entry.instance->deregisterFromBuffer();
+                }
             }
         }
-        appendLog(timestamp() + QStringLiteral("  No IMU devices found during startup scan"));
-        setStateLabel(QStringLiteral("No IMU found"));
-        if (m_busy) { m_busy = false; emit busyChanged(); }
-    });
-
-    connect(m_imu, &WT9011DCL_Base::connected, this, [this]() {
-        appendLog(timestamp() + "  BLE link up — notifications enabled");
-    });
-
-    connect(m_imu, &WT9011DCL_Base::errorOccurred, this, [this](const QString &msg) {
-        appendLog(timestamp() + "  ERROR: " + msg);
-    });
-
-    connect(m_imu, &WT9011DCL_Base::diagnosticInfo, this, [this](const QString &msg) {
-        appendLog(timestamp() + "  [diag] " + msg);
-    });
-
-    connect(m_imu, &WT9011DCL_Base::accelUpdated,
-            this, [this](const WT9011DCL_Base::AccelData &d) {
-        // Remap from sensor frame to display frame to match eulerToQuat:
-        //   sensor X (Roll axis)  → display X  (unchanged)
-        //   sensor Z (Yaw axis)   → display Y
-        //   sensor Y (Pitch axis) → display Z, negated  (-Pitch → displayZ)
-        m_accelX =  d.x;
-        m_accelY =  d.z;
-        m_accelZ = -d.y;
-        emit accelChanged();
-        onDataRecord();
-    });
-
-    connect(m_imu, &WT9011DCL_Base::batteryUpdated, this, [this](int percent) {
-        if (percent == m_batteryPercent)
-            return;
-        m_batteryPercent = percent;
-        emit batteryPercentChanged();
-        appendLog(timestamp() + QString("  Battery: %1%").arg(percent));
-    });
-
-    connect(m_imu, &WT9011DCL_Base::batteryReadRetry, this, [this]() {
-        if (m_batteryRetries >= kMaxBatteryRetries)
-            return;
-        ++m_batteryRetries;
-        QTimer::singleShot(5000, this, [this]() {
-            if (m_connected) m_imu->requestBattery();
-        });
-    });
-
-
-    connect(m_imu, &WT9011DCL_Base::eulerAnglesUpdated,
-            this, [this](const WT9011DCL_Base::EulerAngles &a) {
-        m_roll = a.roll; m_pitch = a.pitch; m_yaw = a.yaw;
-        emit eulerChanged();
-    });
-
-    connect(m_imu, &WT9011DCL_Base::magUpdated,
-            this, [this](const WT9011DCL_Base::MagData &d) {
-        appendLog(timestamp()
-            + QString("  Mag     x=%1  y=%2  z=%3  T=%4°C")
-                .arg(d.x, 8, 'f', 1)
-                .arg(d.y, 8, 'f', 1)
-                .arg(d.z, 8, 'f', 1)
-                .arg(d.temperature, 5, 'f', 1));
-    });
-
-    connect(m_imu, &WT9011DCL_Base::quaternionUpdated,
-            this, [this](const WT9011DCL_Base::QuaternionData &q) {
-        m_quatW = q.w; m_quatX = q.x; m_quatY = q.y; m_quatZ = q.z;
-        emit quatChanged();
-    });
-
-    // Publish raw IMU packets into the EventBuffer on the BLE notification thread.
-    // DirectConnection: signal fires on the BLE thread; lambda only touches lock-free atomics.
-    if (m_eventBuffer && m_imuSourceId != pinpoint::kInvalidSourceId) {
-        connect(m_imu, &WT9011DCL_Base::rawPacketReady,
-                this, [this](const QByteArray &data, qint64 ts) {
-                    if (!m_eventBuffer->isCapturing()) return;
-                    auto slot = m_eventBuffer->acquireWriteSlot(m_imuSourceId);
-                    if (!slot.valid) return;
-                    const size_t n = static_cast<size_t>(data.size());
-                    if (n <= slot.capacity) {
-                        std::memcpy(slot.data, data.constData(), n);
-                        *slot.bytes_written = static_cast<uint32_t>(n);
-                        *slot.timestamp_us  = static_cast<int64_t>(ts);
-                        m_eventBuffer->publish(m_imuSourceId, slot.sequence);
-                    }
-                }, Qt::DirectConnection);
     }
+    for (auto &entry : m_selected)
+        delete entry.instance;
 }
 
-int ImuController::imuEnumeratedCount() const
+// ---------------------------------------------------------------------------
+// Properties — both list accessors read from DeviceEnumerator directly
+// ---------------------------------------------------------------------------
+
+QVariantList ImuController::imuList() const
 {
-    return DeviceEnumerator::instance()->devices(DeviceType::Imu).count();
-}
-
-void ImuController::connectImu()
-{
-    m_retryTimer.stop();
-
-    // Already waiting for the startup scan — ignore duplicate requests.
-    if (m_waitingForScan) return;
-
-    auto *enumerator = DeviceEnumerator::instance();
-
-    // Best case: a BLE IMU was found during the startup scan — connect directly.
-    for (const Device &dev : enumerator->devices(DeviceType::Imu)) {
-        if (dev.imuTransport == ImuBase::Transport::Ble) {
-            connectToEnumeratedDevice(dev);
-            return;
-        }
+    const QList<Device> devs = DeviceEnumerator::instance()->devices(DeviceType::Imu);
+    QVariantList list;
+    for (int i = 0; i < devs.size(); ++i) {
+        const Device &dev = devs[i];
+        const ImuEntry &entry = m_selected.value(dev.id);
+        const bool connected  = entry.instance && entry.instance->imuConnected();
+        const bool connecting = entry.instance && entry.instance->busy() && !connected;
+        QVariantMap m;
+        m[QStringLiteral("index")]       = i;
+        m[QStringLiteral("id")]          = dev.id;
+        m[QStringLiteral("description")] = dev.description;
+        m[QStringLiteral("transport")]   = (dev.imuTransport == ImuBase::Transport::Ble)
+                                               ? QStringLiteral("BLE")
+                                               : QStringLiteral("Serial");
+        m[QStringLiteral("selected")]    = entry.selected;
+        m[QStringLiteral("connected")]   = connected;
+        m[QStringLiteral("connecting")]  = connecting;
+        list.append(m);
     }
-
-    // Scan still in progress — arm the waiting flag; the deviceAdded /
-    // imuScanFinished handlers wired in the constructor take it from here.
-    if (enumerator->isImuScanActive()) {
-        m_waitingForScan = true;
-        setStateLabel(QStringLiteral("Waiting for scan…"));
-        appendLog(timestamp() + QStringLiteral("  Startup BLE scan still running — will connect when device found"));
-        if (!m_busy) { m_busy = true; emit busyChanged(); }
-        return;
-    }
-
-    // Scan finished with no devices found.
-    appendLog(timestamp() + QStringLiteral("  No IMU devices found — restart app to rescan"));
-    setStateLabel(QStringLiteral("No IMU found"));
-}
-
-void ImuController::connectToEnumeratedDevice(const Device &dev)
-{
-    if (m_attemptingConn) return;
-    m_attemptingConn = true;
-    m_pendingDeviceId = dev.id;
-    appendLog(timestamp() + QStringLiteral("  >>> Connecting to: ")
-              + dev.description + QStringLiteral(" [") + dev.id + QStringLiteral("]"));
-    m_imu->connectToDevice(dev.platformHandle.value<QBluetoothDeviceInfo>());
-}
-
-void ImuController::connectToDevice(const QString &deviceId)
-{
-    const auto devices = DeviceEnumerator::instance()->devices(DeviceType::Imu);
-    for (const Device &dev : devices) {
-        if (dev.id == deviceId) {
-            connectToEnumeratedDevice(dev);
-            return;
-        }
-    }
-    appendLog(timestamp() + QStringLiteral("  connectToDevice: device not found: ") + deviceId);
-}
-
-void ImuController::disconnectDevice()
-{
-    disconnectImu();
-}
-
-void ImuController::rescanImu()
-{
-    appendLog(timestamp() + QStringLiteral("  Rescanning for IMU devices…"));
-    DeviceEnumerator::instance()->scanImu();
+    return list;
 }
 
 QVariantList ImuController::imuDeviceList() const
 {
+    const QList<Device> devs = DeviceEnumerator::instance()->devices(DeviceType::Imu);
     QVariantList list;
-    const auto devices = DeviceEnumerator::instance()->devices(DeviceType::Imu);
-    for (const Device &dev : devices) {
+    for (int i = 0; i < devs.size(); ++i) {
+        const Device &dev = devs[i];
         const ImuCapabilities &cap = dev.imuCapabilities;
         QVariantMap entry;
+        entry[QStringLiteral("index")]       = i;
         entry[QStringLiteral("id")]          = dev.id;
         entry[QStringLiteral("description")] = dev.description;
         entry[QStringLiteral("transport")]   = (dev.imuTransport == ImuBase::Transport::Ble)
-                                                    ? QStringLiteral("BLE")
-                                                    : QStringLiteral("Serial");
-        entry[QStringLiteral("vendorName")]    = cap.vendorName;
-        entry[QStringLiteral("modelName")]     = cap.modelName;
-        entry[QStringLiteral("serialNumber")]  = cap.serialNumber;
+                                                   ? QStringLiteral("BLE")
+                                                   : QStringLiteral("Serial");
+        entry[QStringLiteral("vendorName")]     = cap.vendorName;
+        entry[QStringLiteral("modelName")]      = cap.modelName;
+        entry[QStringLiteral("serialNumber")]   = cap.serialNumber;
         entry[QStringLiteral("firmwareVersion")] = cap.firmwareVersion;
-        entry[QStringLiteral("hasAccelerometer")] = cap.hasAccelerometer;
-        entry[QStringLiteral("hasGyroscope")]  = cap.hasGyroscope;
-        entry[QStringLiteral("hasMagnetometer")] = cap.hasMagnetometer;
-        entry[QStringLiteral("hasBattery")]    = cap.hasBattery;
-        entry[QStringLiteral("accelRangeMax")] = cap.accelRange.max;
-        entry[QStringLiteral("gyroRangeMax")]  = cap.gyroRange.max;
+        entry[QStringLiteral("hasAccelerometer")]  = cap.hasAccelerometer;
+        entry[QStringLiteral("hasGyroscope")]      = cap.hasGyroscope;
+        entry[QStringLiteral("hasMagnetometer")]   = cap.hasMagnetometer;
+        entry[QStringLiteral("hasBattery")]        = cap.hasBattery;
+        entry[QStringLiteral("accelRangeMax")]     = cap.accelRange.max;
+        entry[QStringLiteral("gyroRangeMax")]      = cap.gyroRange.max;
         QVariantList ratesList;
         for (int r : cap.supportedRatesHz) ratesList.append(r);
-        entry[QStringLiteral("supportedRatesHz")] = ratesList;
-        entry[QStringLiteral("defaultRateHz")] = cap.defaultRateHz;
-        entry[QStringLiteral("supportsSixAxisFusion")]  = cap.supportsSixAxisFusion;
-        entry[QStringLiteral("supportsNineAxisFusion")] = cap.supportsNineAxisFusion;
-        entry[QStringLiteral("supportsHorizontalMount")] = cap.supportsHorizontalMount;
-        entry[QStringLiteral("supportsVerticalMount")]   = cap.supportsVerticalMount;
-        entry[QStringLiteral("supportsAngleReference")]  = cap.supportsAngleReference;
-        entry[QStringLiteral("supportsHeadingZero")]     = cap.supportsHeadingZero;
-        entry[QStringLiteral("supportsMagCalibration")]  = cap.supportsMagCalibration;
+        entry[QStringLiteral("supportedRatesHz")]  = ratesList;
+        entry[QStringLiteral("defaultRateHz")]     = cap.defaultRateHz;
+        entry[QStringLiteral("supportsSixAxisFusion")]       = cap.supportsSixAxisFusion;
+        entry[QStringLiteral("supportsNineAxisFusion")]      = cap.supportsNineAxisFusion;
+        entry[QStringLiteral("supportsHorizontalMount")]     = cap.supportsHorizontalMount;
+        entry[QStringLiteral("supportsVerticalMount")]       = cap.supportsVerticalMount;
+        entry[QStringLiteral("supportsAngleReference")]      = cap.supportsAngleReference;
+        entry[QStringLiteral("supportsHeadingZero")]         = cap.supportsHeadingZero;
+        entry[QStringLiteral("supportsMagCalibration")]      = cap.supportsMagCalibration;
         entry[QStringLiteral("supportsAccelGyroCalibration")] = cap.supportsAccelGyroCalibration;
-        entry[QStringLiteral("supportsConfigPersistence")] = cap.supportsConfigPersistence;
+        entry[QStringLiteral("supportsConfigPersistence")]   = cap.supportsConfigPersistence;
         list.append(entry);
     }
     return list;
 }
 
-void ImuController::onDataRecord()
+QVariantList ImuController::instances() const
 {
-    ++m_totalRecords;
-    ++m_recordsSinceLog;
-
-    // Rolling 30s window: push now, prune old entries.
-    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-    m_packetTimes.append(nowMs);
-    const qint64 cutoff = nowMs - kRollingWindowMs;
-    while (!m_packetTimes.isEmpty() && m_packetTimes.first() < cutoff)
-        m_packetTimes.removeFirst();
-
-    // Compute Hz: count / window (capped at 30s).
-    const qint64 windowMs = m_packetTimes.size() > 1
-        ? (nowMs - m_packetTimes.first())
-        : 0;
-    const double hz = (windowMs > 0)
-        ? (m_packetTimes.size() * 1000.0 / windowMs)
-        : 0.0;
-
-    if (qAbs(hz - m_dataRateHz) > 0.1) {
-        m_dataRateHz = hz;
-        emit dataRateHzChanged();
+    QVariantList list;
+    for (const auto &entry : m_selected) {
+        if (entry.selected && entry.instance)
+            list.append(QVariant::fromValue(static_cast<QObject *>(entry.instance)));
     }
+    return list;
 }
 
-void ImuController::zeroOrientation()
+bool ImuController::anySelected() const
 {
-    if (!m_connected)
-        return;
-    appendLog(timestamp() + "  Zeroing orientation…");
-    m_imu->reinitialize();
+    for (const auto &entry : m_selected)
+        if (entry.selected) return true;
+    return false;
 }
 
-void ImuController::disconnectImu()
+int ImuController::imuEnumeratedCount() const
 {
-    m_retryTimer.stop();
-    m_retryCount     = 0;
-    m_inConnectPhase = false;
-    m_waitingForScan = false;
-    m_imu->disconnectFromDevice();
+    return DeviceEnumerator::instance()->devices(DeviceType::Imu).size();
 }
 
-void ImuController::onStateChanged(WT9011DCL_BLE::State s)
+bool ImuController::imuConnected() const
 {
-    switch (s) {
-    case WT9011DCL_BLE::State::Disconnected:
-        setStateLabel(QStringLiteral("Disconnected"));
-        m_attemptingConn = false;
-        m_inConnectPhase = false;
-        m_retryCount     = 0;
-        m_logTimer.stop();
-        m_batteryTimer.stop();
-        m_packetTimes.clear();
-        m_pendingDeviceId.clear();
-        m_connectedDeviceId.clear();
-        if (m_dataRateHz != 0.0) { m_dataRateHz = 0.0; emit dataRateHzChanged(); }
-        if (m_batteryPercent != -1) { m_batteryPercent = -1; emit batteryPercentChanged(); }
-        if (m_connected || m_busy) {
-            m_connected = false;
-            m_busy = false;
-            emit imuConnectedChanged();
-            emit busyChanged();
+    for (const auto &entry : m_selected)
+        if (entry.instance && entry.instance->imuConnected()) return true;
+    return false;
+}
+
+int ImuController::imuCount() const
+{
+    int n = 0;
+    for (const auto &entry : m_selected)
+        if (entry.instance && entry.instance->imuConnected()) ++n;
+    return n;
+}
+
+// ---------------------------------------------------------------------------
+// Invokables
+// ---------------------------------------------------------------------------
+
+void ImuController::setSelected(int index, bool selected)
+{
+    const QList<Device> devs = DeviceEnumerator::instance()->devices(DeviceType::Imu);
+    if (index < 0 || index >= devs.size()) return;
+
+    const Device &device = devs[index];
+    const QString  id    = device.id;
+
+    ImuEntry &entry = m_selected[id];   // creates entry with defaults if absent
+    if (entry.selected == selected) return;
+
+    entry.selected = selected;
+
+    // Pause the buffer around EventBuffer register/deregister (same pattern as CameraManager).
+    const bool wasCapturing = m_eventBuffer &&
+                              m_eventBuffer->state() == pinpoint::BufferState::Capturing;
+    if (wasCapturing) m_eventBuffer->pause();
+
+    if (selected) {
+        entry.instance = createInstance(device);
+        entry.instance->start();
+    } else {
+        ImuInstance *inst = entry.instance;
+        entry.instance = nullptr;
+        if (inst) {
+            inst->stop();
+            inst->deregisterFromBuffer();
+            // Notify QML before deleteLater() so bindings tear down while the
+            // instance is still a valid object.
+            emit imuListChanged();
+            emit instancesChanged();
+            inst->deleteLater();
         }
-        break;
-    case WT9011DCL_BLE::State::Scanning:
-        setStateLabel(QStringLiteral("Scanning…"));
-        if (!m_busy) {
-            m_busy = true;
-            emit busyChanged();
-        }
-        appendLog(timestamp() + "  Scanning for IMU devices…");
-        break;
-    case WT9011DCL_BLE::State::Connecting:
-        m_inConnectPhase = true;
-        setStateLabel(QStringLiteral("Connecting…"));
-        appendLog(timestamp() + "  Connecting…");
-        break;
-    case WT9011DCL_BLE::State::DiscoveringServices:
-        setStateLabel(QStringLiteral("Discovering services…"));
-        appendLog(timestamp() + "  Discovering BLE services…");
-        break;
-    case WT9011DCL_BLE::State::Ready:
-        setStateLabel(QStringLiteral("Connected"));
-        m_attemptingConn = false;
-        m_inConnectPhase = false;
-        m_retryCount     = 0;
-        m_connected = true;
-        m_busy = false;
-        m_connectedDeviceId = m_pendingDeviceId;
-        emit imuConnectedChanged();
-        emit busyChanged();
-        m_totalRecords    = 0;
-        m_recordsSinceLog = 0;
-        m_batteryRetries  = 0;
-        m_packetTimes.clear();
-        m_logTimer.start(kLogIntervalMs);
-        appendLog(timestamp() + "  IMU ready — receiving data");
-        // Poke the device to start streaming: some WitMotion BLE firmware
-        // won't output data until it receives a valid write-characteristic command.
-        setOutputRateHz(m_outputRateHz);
-        // Request initial battery reading after the init sequence settles.
-        QTimer::singleShot(1500, this, [this]() {
-            if (m_connected) {
-                appendLog(timestamp() + "  Requesting battery level…");
-                m_imu->requestBattery();
-            }
-        });
-        m_batteryTimer.start();
-        break;
-    case WT9011DCL_BLE::State::Error:
-        m_attemptingConn = false;
-        if (m_inConnectPhase && m_retryCount < kMaxRetries) {
-            // The first 1-2 attempts can fail because BlueZ's HCI advertising
-            // report gives the wrong address type for this device. After a
-            // failed attempt BlueZ corrects its stored type, so a retry
-            // succeeds. Allow up to kMaxRetries automatic retries with a delay
-            // that lets the kernel BLE controller recover from the timeout.
-            m_retryCount++;
-            m_inConnectPhase = false;
-            const int delaySec = kRetryDelayMs / 1000;
-            setStateLabel(QStringLiteral("Retrying…"));
-            appendLog(timestamp()
-                      + QStringLiteral("  Connection failed — auto-retry %1/%2 in %3 s")
-                        .arg(m_retryCount).arg(kMaxRetries).arg(delaySec));
-            m_retryTimer.start(kRetryDelayMs);
-            // Keep m_busy=true so Connect button stays disabled during wait.
-        } else {
-            m_inConnectPhase = false;
-            m_retryCount     = 0;
-            setStateLabel(QStringLiteral("Error"));
-            if (m_busy) {
-                m_busy = false;
-                emit busyChanged();
-            }
-        }
-        break;
     }
+
+    if (wasCapturing) m_eventBuffer->resume();
+
+    emit imuListChanged();
+    emit instancesChanged();
 }
 
-QString ImuController::timestamp()
+void ImuController::rescanImu()
 {
-    using namespace std::chrono;
-    const auto now = system_clock::now();
-    const qint64 us_total =
-        duration_cast<microseconds>(now.time_since_epoch()).count();
-    const qint64 secs = us_total / 1'000'000;
-    const int    frac  = static_cast<int>(us_total % 1'000'000);
-    const QDateTime dt = QDateTime::fromSecsSinceEpoch(secs);
-    return dt.toString(QStringLiteral("HH:mm:ss"))
-           + QLatin1Char('.')
-           + QString::number(frac).rightJustified(6, QLatin1Char('0'));
+    DeviceEnumerator::instance()->scanImu();
 }
 
-void ImuController::appendLog(const QString &text)
+QObject *ImuController::instanceFor(const QString &deviceId) const
 {
-    m_logEntries.append(text);
-    emit logEntryAdded(text);
+    const ImuEntry &entry = m_selected.value(deviceId);
+    if (entry.selected && entry.instance)
+        return static_cast<QObject *>(entry.instance);
+    return nullptr;
 }
 
 QString ImuController::saveLog()
 {
-    const QString dir = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
-    const QString fileName = QStringLiteral("imu_log_%1.txt")
-        .arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss")));
-    const QString path = dir + QDir::separator() + fileName;
-
-    QFile f(path);
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Text))
-        return QStringLiteral("ERROR: could not write to %1").arg(path);
-
-    QTextStream out(&f);
-    for (const QString &line : std::as_const(m_logEntries))
-        out << line << '\n';
-
-    appendLog(timestamp() + QStringLiteral("  Log saved to ") + path);
-    return path;
+    QStringList paths;
+    for (const auto &entry : m_selected) {
+        if (entry.instance)
+            paths.append(entry.instance->saveLog());
+    }
+    return paths.isEmpty() ? QStringLiteral("No active IMU instances") : paths.join(QStringLiteral("\n"));
 }
 
-void ImuController::setOutputRateHz(int hz)
+void ImuController::zeroAll()
 {
-    using R = WT9011DCL_Base::OutputRate;
-    R rate;
-    switch (hz) {
-    case 10:  rate = R::Hz_10;  break;
-    case 20:  rate = R::Hz_20;  break;
-    case 50:  rate = R::Hz_50;  break;
-    case 200: rate = R::Hz_200; break;
-    default:  rate = R::Hz_100; hz = 100; break;
-    }
-    m_outputRateHz = hz;
-    emit outputRateHzChanged();
-    if (m_connected) {
-        m_imu->setOutputRate(rate);
-        m_imu->reinitialize();
-    }
+    for (const auto &entry : m_selected)
+        if (entry.instance) entry.instance->zeroOrientation();
 }
 
-void ImuController::setStateLabel(const QString &s)
+// ---------------------------------------------------------------------------
+// Private
+// ---------------------------------------------------------------------------
+
+ImuInstance *ImuController::createInstance(const Device &device)
 {
-    if (m_stateLabel == s)
-        return;
-    m_stateLabel = s;
-    emit stateLabelChanged();
+    auto *inst = new ImuInstance(device, m_eventBuffer, this);
+
+    // Forward log entries to any QML log view listening to imuController.
+    connect(inst, &ImuInstance::logEntryAdded,
+            this, &ImuController::logEntryAdded);
+
+    // Re-emit imuListChanged when connection state changes so chip colours update.
+    connect(inst, &ImuInstance::imuConnectedChanged, this, [this]() {
+        emit imuListChanged();
+        emit instancesChanged(); // instanceFor() rebinds in QML
+    });
+    connect(inst, &ImuInstance::busyChanged, this, [this]() {
+        emit imuListChanged();
+    });
+
+    return inst;
 }
