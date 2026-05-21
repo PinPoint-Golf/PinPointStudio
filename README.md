@@ -97,15 +97,16 @@ Every session belongs to an athlete. The athlete management flow is the entry po
 ### IMU — wrist motion capture
 
 - **Device** — Witmotion WT901BLE67 BLE 6-axis IMU (accelerometer, gyroscope, Euler angles, quaternion).
-- **Device selector** — Dropdown on the capture page lists all enumerated IMUs by name and MAC address; Connect targets the selected device rather than always using the first found.
-- **3D orientation visualiser** — Labelled cube driven by the corrected quaternion; matches the physical device orientation in real time. Extracted as the reusable `ImuVizView` component, shared between the capture page and the settings test panel.
+- **Multi-device support** — Select any number of discovered IMUs simultaneously; each gets its own side-by-side 3D visualiser, state label, battery badge, rate selector, and Zero button. Mirrors the multi-camera chip pattern.
+- **Device chips** — One toggle chip per enumerated IMU at the top of the Play → IMU tab; tap to connect/disconnect. Devices appear as soon as the BLE scan finds them.
+- **3D orientation visualiser** — Labelled cube driven by the corrected quaternion; matches the physical device orientation in real time. The `ImuVizView` component is shared between the capture page (per-instance) and the settings test panel.
 - **Auto-initialisation** — Sets vertical mounting, 6-axis algorithm, 100 Hz output rate, and zeros orientation to current position on every connect.
-- **Zero button** — Re-zeroes orientation on demand for mid-session repositioning.
-- **Rate selector** — Adjustable output rate (10 / 20 / 50 / 100 / 200 Hz); sub-10 Hz rates removed as impractical for swing capture.
-- **Live data rate** — 2-second rolling Hz average shown in the UI.
-- **Battery indicator** — Colour-coded BAT: N% badge, polled via register 0x64 every 60 s.
+- **Zero button** — Re-zeroes orientation on demand for mid-session repositioning, per device.
+- **Rate selector** — Adjustable output rate per device (10 / 20 / 50 / 100 / 200 Hz).
+- **Live data rate** — 2-second rolling Hz average shown per device.
+- **Battery indicator** — Colour-coded BAT: N% badge per device, polled via register 0x64 every 60 s.
 - **Auto-retry** — One automatic retry after a 45-second cooldown on failed connections (device requires ~40 s to exit cooldown after a rejected attempt).
-- **Session log** — Timestamped per-record diagnostics; Save Log writes the full session to `~/imu_log_<timestamp>.txt`.
+- **Session log** — Timestamped per-record diagnostics per device; Save Log writes to `~/imu_log_<MAC>_<timestamp>.txt`.
 
 ### Audio — speech interface
 
@@ -293,7 +294,7 @@ These are copied from the CMake build cache automatically — no manual placemen
 | File | What | Trigger |
 |---|---|---|
 | `~/pinpoint_audio_<timestamp>.wav` | Recorded audio session | Save Audio button |
-| `~/imu_log_<timestamp>.txt` | IMU session log | Save Log button |
+| `~/imu_log_<MAC>_<timestamp>.txt` | IMU session log (one per device) | Save Log button |
 
 ### External network activity
 The app only contacts external services when explicitly configured:
