@@ -53,6 +53,7 @@ ApplicationWindow {
     onWidthChanged:  { if (visibility === Window.Windowed) geometryTimer.restart() }
     onHeightChanged: { if (visibility === Window.Windowed) geometryTimer.restart() }
 
+
     Component.onCompleted: {
         // Font scale
         if (appSettings.fontScale > 0) {
@@ -95,6 +96,8 @@ ApplicationWindow {
             root.showFullScreen()
     }
 
+    // NOTE: on Wayland the compositor owns window placement — Qt6 applications
+    // cannot set their own position after showNormal().  No workaround exists.
     function toggleFullscreen() {
         if (visibility === Window.Maximized || visibility === Window.FullScreen)
             root.showNormal()
