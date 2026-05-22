@@ -168,9 +168,48 @@ Item {
         "raw":    qsTr("Uncompressed RAW stores every pixel at full bit depth. Files are very large but preserve all sensor data for reprocessing.")
     })
 
+    // ── Search scroll-to support ──────────────────────────────────────────────
+
+    property string lastHighlightId: ""
+
+    function findChild(parent, name) {
+        for (var i = 0; i < parent.children.length; i++) {
+            var child = parent.children[i]
+            if (child.objectName === name) return child
+            var found = findChild(child, name)
+            if (found) return found
+        }
+        return null
+    }
+
+    function scrollToItem(itemId) {
+        if (!itemId) return true
+        var target = findChild(contentCol, itemId)
+        if (!target) return false
+        var mapped = target.mapToItem(contentCol, 0, 0)
+        scrollView.contentItem.contentY = Math.max(0, Math.min(
+            mapped.y - Theme.sp(24),
+            scrollView.contentItem.contentHeight - scrollView.height
+        ))
+        target.searchHighlight = true
+        lastHighlightId = itemId
+        highlightTimer.restart()
+        return true
+    }
+
+    Timer {
+        id: highlightTimer
+        interval: 1800
+        onTriggered: {
+            var target = findChild(contentCol, lastHighlightId)
+            if (target) target.searchHighlight = false
+        }
+    }
+
     // ── Main scroll view ──────────────────────────────────────────────────────
 
     ScrollView {
+        id: scrollView
         anchors.fill: parent
         contentWidth: availableWidth
         contentHeight: contentCol.y + contentCol.implicitHeight + Theme.sp(28)
@@ -224,8 +263,11 @@ Item {
 
             // Library location — stacked layout (from GeneralPanel)
             ColumnLayout {
+                objectName: "setting_libraryPath"
                 Layout.fillWidth: true
                 spacing: Theme.sp(8)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     spacing: Theme.sp(3)
@@ -398,8 +440,11 @@ Item {
 
             // Session folder naming row
             ColumnLayout {
+                objectName: "setting_sessionNaming"
                 Layout.fillWidth: true
                 spacing: Theme.sp(8)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -528,8 +573,11 @@ Item {
 
             // Auto-save session row (moved verbatim from GeneralPanel)
             RowLayout {
+                objectName: "setting_autoSave"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -593,8 +641,11 @@ Item {
 
             // Recording resolution
             RowLayout {
+                objectName: "setting_videoRes"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -660,8 +711,11 @@ Item {
 
             // Video codec
             RowLayout {
+                objectName: "setting_videoCodec"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -751,9 +805,12 @@ Item {
 
             // Encoding quality (dimmed when codec is raw)
             RowLayout {
+                objectName: "setting_videoQuality"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
                 opacity: appSettings.videoCodec === "raw" ? 0.4 : 1.0
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
                 enabled: appSettings.videoCodec !== "raw"
                 Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
 
@@ -821,8 +878,11 @@ Item {
 
             // Save raw camera frames
             RowLayout {
+                objectName: "setting_saveRaw"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -876,8 +936,11 @@ Item {
 
             // Container format
             RowLayout {
+                objectName: "setting_container"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -1072,8 +1135,11 @@ Item {
 
             // Save pose keypoints
             RowLayout {
+                objectName: "setting_savePose"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -1102,8 +1168,11 @@ Item {
 
             // Save IMU streams
             RowLayout {
+                objectName: "setting_saveImu"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -1132,9 +1201,12 @@ Item {
 
             // IMU data format (dimmed when saveImuStreams is off)
             RowLayout {
+                objectName: "setting_imuFormat"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
                 opacity: appSettings.saveImuStreams ? 1.0 : 0.4
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
                 enabled: appSettings.saveImuStreams
                 Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
 
@@ -1199,8 +1271,11 @@ Item {
 
             // Save launch monitor data
             RowLayout {
+                objectName: "setting_saveLaunchMon"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true

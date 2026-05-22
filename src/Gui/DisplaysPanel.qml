@@ -61,7 +61,46 @@ Item {
         return 0
     }
 
+    // ── Search scroll-to support ──────────────────────────────────────────────
+
+    property string lastHighlightId: ""
+
+    function findChild(parent, name) {
+        for (var i = 0; i < parent.children.length; i++) {
+            var child = parent.children[i]
+            if (child.objectName === name) return child
+            var found = findChild(child, name)
+            if (found) return found
+        }
+        return null
+    }
+
+    function scrollToItem(itemId) {
+        if (!itemId) return true
+        var target = findChild(contentCol, itemId)
+        if (!target) return false
+        var mapped = target.mapToItem(contentCol, 0, 0)
+        scrollView.contentItem.contentY = Math.max(0, Math.min(
+            mapped.y - Theme.sp(24),
+            scrollView.contentItem.contentHeight - scrollView.height
+        ))
+        target.searchHighlight = true
+        lastHighlightId = itemId
+        highlightTimer.restart()
+        return true
+    }
+
+    Timer {
+        id: highlightTimer
+        interval: 1800
+        onTriggered: {
+            var target = findChild(contentCol, lastHighlightId)
+            if (target) target.searchHighlight = false
+        }
+    }
+
     ScrollView {
+        id: scrollView
         anchors.fill: parent
         contentWidth: availableWidth
         contentHeight: contentCol.y + contentCol.implicitHeight + Theme.sp(28)
@@ -248,8 +287,11 @@ Item {
 
             // Launch on row
             RowLayout {
+                objectName: "setting_launchOn"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -365,9 +407,12 @@ Item {
 
             // Remember window geometry row
             RowLayout {
+                objectName: "setting_rememberGeometry"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
                 opacity: appSettings.windowMaximized ? 0.4 : 1.0
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
                 Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
 
                 ColumnLayout {
@@ -418,8 +463,11 @@ Item {
 
             // Launch in full screen row
             RowLayout {
+                objectName: "setting_fullScreen"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -482,8 +530,11 @@ Item {
 
             // Secondary display row
             RowLayout {
+                objectName: "setting_secondaryDisplay"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -595,8 +646,11 @@ Item {
 
             // Post-shot content row (dimmed when no secondary display)
             RowLayout {
+                objectName: "setting_postShotContent"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
                 opacity: appSettings.secondaryDisplayMode === "none" ? 0.4 : 1.0
                 Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
 
@@ -635,10 +689,13 @@ Item {
 
             // Display delay row (dimmed when no secondary display)
             RowLayout {
+                objectName: "setting_postShotDelay"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
                 opacity: appSettings.secondaryDisplayMode === "none" ? 0.4 : 1.0
                 Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -678,10 +735,13 @@ Item {
 
             // Mirror main window row (dimmed when no secondary display)
             RowLayout {
+                objectName: "setting_mirrorMain"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
                 opacity: appSettings.secondaryDisplayMode === "none" ? 0.4 : 1.0
                 Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -744,8 +804,11 @@ Item {
 
             // Frame rate cap row
             RowLayout {
+                objectName: "setting_frameRateCap"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -782,8 +845,11 @@ Item {
 
             // Hardware acceleration row
             RowLayout {
+                objectName: "setting_hwAccel"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true

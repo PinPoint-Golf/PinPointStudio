@@ -35,7 +35,46 @@ Item {
         { label: qsTr("中文（简体）"),  tag: "zh_CN" }
     ]
 
+    // ── Search scroll-to support ──────────────────────────────────────────────
+
+    property string lastHighlightId: ""
+
+    function findChild(parent, name) {
+        for (var i = 0; i < parent.children.length; i++) {
+            var child = parent.children[i]
+            if (child.objectName === name) return child
+            var found = findChild(child, name)
+            if (found) return found
+        }
+        return null
+    }
+
+    function scrollToItem(itemId) {
+        if (!itemId) return true
+        var target = findChild(contentCol, itemId)
+        if (!target) return false
+        var mapped = target.mapToItem(contentCol, 0, 0)
+        scrollView.contentItem.contentY = Math.max(0, Math.min(
+            mapped.y - Theme.sp(24),
+            scrollView.contentItem.contentHeight - scrollView.height
+        ))
+        target.searchHighlight = true
+        lastHighlightId = itemId
+        highlightTimer.restart()
+        return true
+    }
+
+    Timer {
+        id: highlightTimer
+        interval: 1800
+        onTriggered: {
+            var target = findChild(contentCol, lastHighlightId)
+            if (target) target.searchHighlight = false
+        }
+    }
+
     ScrollView {
+        id: scrollView
         anchors.fill: parent
         contentWidth: availableWidth
         contentHeight: contentCol.y + contentCol.implicitHeight + Theme.sp(28)
@@ -89,8 +128,11 @@ Item {
 
             // Language row
             RowLayout {
+                objectName: "setting_language"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -205,8 +247,11 @@ Item {
 
             // Units row
             RowLayout {
+                objectName: "setting_units"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -249,8 +294,11 @@ Item {
 
             // Auto-detect swing start row
             RowLayout {
+                objectName: "setting_autoDetect"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -301,9 +349,12 @@ Item {
 
             // Swing detection sensitivity row
             RowLayout {
+                objectName: "setting_swingSensitivity"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
                 opacity: appSettings.autoDetectSwing ? 1.0 : 0.4
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
                 Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
 
                 ColumnLayout {
@@ -334,8 +385,11 @@ Item {
 
             // AI coaching on session end row
             RowLayout {
+                objectName: "setting_aiCoaching"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -399,8 +453,11 @@ Item {
 
             // Check for updates row
             RowLayout {
+                objectName: "setting_checkUpdates"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -451,8 +508,11 @@ Item {
 
             // Send anonymous diagnostics row
             RowLayout {
+                objectName: "setting_diagnostics"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -503,8 +563,11 @@ Item {
 
             // Version row
             RowLayout {
+                objectName: "setting_version"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 Text {
                     text:           qsTr("Version")

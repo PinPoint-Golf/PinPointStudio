@@ -37,7 +37,46 @@ Item {
         { aesthetic: "Vector",     mode: "Dark",  railBg: "#13151A", sidenavBg: "#13151A", contentBg: "#0A0B0D", dot: "#FF5500" }
     ]
 
+    // ── Search scroll-to support ──────────────────────────────────────────────
+
+    property string lastHighlightId: ""
+
+    function findChild(parent, name) {
+        for (var i = 0; i < parent.children.length; i++) {
+            var child = parent.children[i]
+            if (child.objectName === name) return child
+            var found = findChild(child, name)
+            if (found) return found
+        }
+        return null
+    }
+
+    function scrollToItem(itemId) {
+        if (!itemId) return true
+        var target = findChild(contentCol, itemId)
+        if (!target) return false
+        var mapped = target.mapToItem(contentCol, 0, 0)
+        scrollView.contentItem.contentY = Math.max(0, Math.min(
+            mapped.y - Theme.sp(24),
+            scrollView.contentItem.contentHeight - scrollView.height
+        ))
+        target.searchHighlight = true
+        lastHighlightId = itemId
+        highlightTimer.restart()
+        return true
+    }
+
+    Timer {
+        id: highlightTimer
+        interval: 1800
+        onTriggered: {
+            var target = findChild(contentCol, lastHighlightId)
+            if (target) target.searchHighlight = false
+        }
+    }
+
     ScrollView {
+        id: scrollView
         anchors.fill: parent
         contentWidth: availableWidth
         contentHeight: contentCol.y + contentCol.implicitHeight + Theme.sp(28)
@@ -92,8 +131,11 @@ Item {
             // 3 × 2 card grid — manual x/y positioning for reliable equal widths
             Item {
                 id: cardGrid
+                objectName: "setting_aesthetic"
                 Layout.fillWidth: true
                 implicitHeight: Theme.sp(80) * 3 + Theme.sp(10) * 2
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 Repeater {
                     model: 8
@@ -270,8 +312,11 @@ Item {
 
             // Text size row
             RowLayout {
+                objectName: "setting_textSize"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -510,8 +555,11 @@ Item {
 
             // Density row
             RowLayout {
+                objectName: "setting_density"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -541,8 +589,11 @@ Item {
 
             // Reduce motion row
             RowLayout {
+                objectName: "setting_reduceMotion"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -592,8 +643,11 @@ Item {
 
             // Overlay opacity row
             RowLayout {
+                objectName: "setting_overlayOpacity"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true

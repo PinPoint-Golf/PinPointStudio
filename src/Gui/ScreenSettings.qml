@@ -29,6 +29,51 @@ Item {
     property int    activeNavIndex: 0
     property string searchQuery:    ""
 
+    // ── Full-text search ──────────────────────────────────────────────────────
+
+    readonly property bool isSearching: root.searchQuery.trim().length >= 2
+
+    readonly property var searchResults: {
+        var q = root.searchQuery.trim().toLowerCase()
+        if (q.length < 2) return []
+        var results = []
+        var entries = SettingsIndex.entries
+        for (var i = 0; i < entries.length; i++) {
+            var e = entries[i]
+            var haystack = (e.label + " " + e.subtitle + " " + (e.actions || "") + " " + e.groupLabel + " " + e.panelLabel).toLowerCase()
+            if (haystack.indexOf(q) >= 0)
+                results.push(e)
+        }
+        return results
+    }
+
+    function navigateToResult(entry) {
+        searchInput.text = ""
+        root.searchQuery  = ""
+        root.activeNavIndex = entry.panelIndex
+        Qt.callLater(function() {
+            var panels = [
+                generalPanel, appearancePanel, displaysPanel,
+                camerasPanel, imusPanel, null,
+                storagePanel
+            ]
+            var panel = panels[entry.panelIndex]
+            if (panel) scrollWithRetry(panel, entry.itemId, 0)
+        })
+    }
+
+    function scrollWithRetry(panel, itemId, retries) {
+        if (!panel || retries > 3) return
+        var ok = panel.scrollToItem(itemId)
+        if (!ok && retries < 3)
+            Qt.callLater(function() { scrollWithRetry(panel, itemId, retries + 1) })
+    }
+
+    Shortcut {
+        sequence: StandardKey.Find
+        onActivated: searchInput.forceActiveFocus()
+    }
+
     RowLayout {
         anchors.fill: parent
         spacing: 0
@@ -57,27 +102,25 @@ Item {
                 anchors.fill: parent
                 spacing: 0
 
-                // ── Search field ─────────────────────────────────────────────
+                // ── Search field ──────────────────────────────────────────────
                 Item {
                     width:  parent.width
                     height: Theme.sp(46)
 
                     Row {
                         id: searchRow
-                        anchors.left:       parent.left
-                        anchors.right:      parent.right
-                        anchors.top:        parent.top
-                        anchors.leftMargin: Theme.sp(10)
+                        anchors.left:            parent.left
+                        anchors.right:           parent.right
+                        anchors.verticalCenter:  parent.verticalCenter
+                        anchors.leftMargin:  Theme.sp(10)
                         anchors.rightMargin: Theme.sp(10)
-                        anchors.topMargin:  Theme.sp(10)
-                        height:  Theme.sp(20)
                         spacing: Theme.sp(6)
 
                         Text {
                             id: searchIcon
                             text: "⌕"
                             font.family:    Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody
+                            font.pixelSize: Theme.fontSzHeading
                             color: searchInput.activeFocus ? Theme.colorText2 : Theme.colorText3
                             anchors.verticalCenter: parent.verticalCenter
                             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
@@ -85,8 +128,11 @@ Item {
 
                         TextField {
                             id: searchInput
-                            width: searchRow.width - searchIcon.width - searchRow.spacing
-                            height: Theme.sp(20)
+                            width:         searchRow.width - searchIcon.width - searchRow.spacing
+                            topPadding:    0
+                            bottomPadding: 0
+                            leftPadding:   0
+                            rightPadding:  0
                             placeholderText:      qsTr("Search settings…")
                             placeholderTextColor: Theme.colorText3
                             font.family:    Theme.fontBody
@@ -94,7 +140,6 @@ Item {
                             font.weight:    Font.Light
                             color:          Theme.colorText
                             background:     null
-                            verticalAlignment: TextInput.AlignVCenter
                             onTextChanged: root.searchQuery = text.toLowerCase()
                         }
                     }
@@ -112,128 +157,229 @@ Item {
                     }
                 }
 
-                // ── Nav items ────────────────────────────────────────────────
-                Repeater {
-                    model: [
-                        { navIdx: 0, icon: "⊞", label: qsTr("General"),       sectionHead: qsTr("General"),  hasBadge: false },
-                        { navIdx: 1, icon: "◐", label: qsTr("Appearance"),     sectionHead: "",               hasBadge: false },
-                        { navIdx: 2, icon: "▭", label: qsTr("Displays"),       sectionHead: "",               hasBadge: false },
-                        { navIdx: 3, icon: "⊙", label: qsTr("Cameras"),        sectionHead: qsTr("Hardware"), hasBadge: true  },
-                        { navIdx: 4, icon: "⌖", label: qsTr("IMUs"),           sectionHead: "",               hasBadge: true  },
-                        { navIdx: 5, icon: "◎", label: qsTr("Launch Monitor"), sectionHead: "",               hasBadge: false },
-                        { navIdx: 6, icon: "▥", label: qsTr("Storage"),        sectionHead: qsTr("Data"),     hasBadge: false },
-                        { navIdx: 7, icon: "▤", label: qsTr("Archiving"),      sectionHead: "",               hasBadge: false }
-                    ]
+                // ── Nav list — hidden while searching ────────────────────────
+                Item {
+                    width:   parent.width
+                    height:  root.isSearching ? 0 : parent.height - Theme.sp(46)
+                    clip:    true
+                    visible: !root.isSearching
+                    Behavior on height { NumberAnimation { duration: Theme.durationFast } }
 
-                    delegate: Column {
-                        required property var modelData
-
-                        width:   sidenav.width
+                    Column {
+                        width:   parent.width
                         spacing: 0
 
-                        // Section eyebrow
-                        Item {
-                            width:   parent.width
-                            height:  modelData.sectionHead !== "" ? Theme.sp(14) + eyebrow.implicitHeight + Theme.sp(4) : 0
-                            visible: modelData.sectionHead !== ""
+                        Repeater {
+                            model: [
+                                { navIdx: 0, icon: "⊞", label: qsTr("General"),       sectionHead: qsTr("General"),  hasBadge: false },
+                                { navIdx: 1, icon: "◐", label: qsTr("Appearance"),     sectionHead: "",               hasBadge: false },
+                                { navIdx: 2, icon: "▭", label: qsTr("Displays"),       sectionHead: "",               hasBadge: false },
+                                { navIdx: 3, icon: "⊙", label: qsTr("Cameras"),        sectionHead: qsTr("Hardware"), hasBadge: true  },
+                                { navIdx: 4, icon: "⌖", label: qsTr("IMUs"),           sectionHead: "",               hasBadge: true  },
+                                { navIdx: 5, icon: "◎", label: qsTr("Launch Monitor"), sectionHead: "",               hasBadge: false },
+                                { navIdx: 6, icon: "▥", label: qsTr("Storage"),        sectionHead: qsTr("Data"),     hasBadge: false },
+                                { navIdx: 7, icon: "▤", label: qsTr("Archiving"),      sectionHead: "",               hasBadge: false }
+                            ]
 
-                            Text {
-                                id: eyebrow
-                                anchors.left:         parent.left
-                                anchors.leftMargin:   Theme.sp(16)
-                                anchors.bottom:       parent.bottom
-                                anchors.bottomMargin: Theme.sp(4)
-                                text:                 modelData.sectionHead
-                                font.family:          Theme.fontBody
-                                font.pixelSize:       Theme.fontSzMicro
-                                font.weight:          Font.Light
-                                font.letterSpacing:   Theme.trackingMicro
-                                font.capitalization:  Font.AllUppercase
-                                color:                Theme.colorText3
+                            delegate: Column {
+                                required property var modelData
+
+                                width:   sidenav.width
+                                spacing: 0
+
+                                // Section eyebrow
+                                Item {
+                                    width:   parent.width
+                                    height:  modelData.sectionHead !== "" ? Theme.sp(14) + eyebrow.implicitHeight + Theme.sp(4) : 0
+                                    visible: modelData.sectionHead !== ""
+
+                                    Text {
+                                        id: eyebrow
+                                        anchors.left:         parent.left
+                                        anchors.leftMargin:   Theme.sp(16)
+                                        anchors.bottom:       parent.bottom
+                                        anchors.bottomMargin: Theme.sp(4)
+                                        text:                 modelData.sectionHead
+                                        font.family:          Theme.fontBody
+                                        font.pixelSize:       Theme.fontSzMicro
+                                        font.weight:          Font.Light
+                                        font.letterSpacing:   Theme.trackingMicro
+                                        font.capitalization:  Font.AllUppercase
+                                        color:                Theme.colorText3
+                                    }
+                                }
+
+                                // Nav item row
+                                Item {
+                                    id: navItem
+                                    width:  parent.width
+                                    height: Theme.sp(38)
+
+                                    readonly property bool isActive: root.activeNavIndex === modelData.navIdx
+                                    readonly property bool hovered:  navArea.containsMouse
+                                    readonly property int  actualBadge: !modelData.hasBadge ? -1
+                                                                        : (modelData.navIdx === 3 ? root.cameraCount
+                                                                        : (modelData.navIdx === 4 ? root.imuCount : -1))
+
+                                    opacity: root.searchQuery.length === 0
+                                             || modelData.label.toLowerCase().indexOf(root.searchQuery) >= 0
+                                             ? 1.0 : 0.3
+                                    Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        color: navItem.isActive ? Theme.colorAccentLight
+                                                                : (navItem.hovered ? Theme.colorBg2 : "transparent")
+                                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                    }
+
+                                    Rectangle {
+                                        anchors.left:   parent.left
+                                        anchors.top:    parent.top
+                                        anchors.bottom: parent.bottom
+                                        width: 2
+                                        color: navItem.isActive ? Theme.colorAccent : "transparent"
+                                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                    }
+
+                                    Text {
+                                        id: navItemIcon
+                                        anchors.left:           parent.left
+                                        anchors.leftMargin:     Theme.sp(16)
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text:           modelData.icon
+                                        font.family:    Theme.fontData
+                                        font.pixelSize: Theme.fontSzBody
+                                        color: navItem.isActive ? Theme.colorAccent
+                                                                : (navItem.hovered ? Theme.colorText2 : Theme.colorText3)
+                                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                    }
+
+                                    Text {
+                                        anchors.left:           navItemIcon.right
+                                        anchors.leftMargin:     Theme.sp(10)
+                                        anchors.right:          navItemBadge.visible ? navItemBadge.left : parent.right
+                                        anchors.rightMargin:    Theme.sp(10)
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text:           modelData.label
+                                        font.family:    Theme.fontBody
+                                        font.pixelSize: Theme.fontSzBody2
+                                        font.weight:    navItem.isActive ? Font.Normal : Font.Light
+                                        color: navItem.isActive ? Theme.colorAccent
+                                                                : (navItem.hovered ? Theme.colorText : Theme.colorText2)
+                                        elide: Text.ElideRight
+                                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                    }
+
+                                    Text {
+                                        id: navItemBadge
+                                        anchors.right:          parent.right
+                                        anchors.rightMargin:    Theme.sp(12)
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text:           navItem.actualBadge >= 0 ? navItem.actualBadge.toString() : ""
+                                        visible:        navItem.actualBadge >= 0
+                                        font.family:    Theme.fontData
+                                        font.pixelSize: Theme.fontSzMicro
+                                        color: navItem.isActive ? Theme.colorAccent : Theme.colorText3
+                                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                    }
+
+                                    MouseArea {
+                                        id: navArea
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape:  Qt.PointingHandCursor
+                                        onClicked:    root.activeNavIndex = modelData.navIdx
+                                    }
+                                }
                             }
                         }
+                    }
+                }
 
-                        // Nav item row
-                        Item {
-                            id: navItem
-                            width:  parent.width
-                            height: Theme.sp(38)
+                // ── Search results — shown while searching ────────────────────
+                Item {
+                    width:   parent.width
+                    height:  root.isSearching ? parent.height - Theme.sp(46) : 0
+                    clip:    true
+                    visible: root.isSearching
+                    Behavior on height { NumberAnimation { duration: Theme.durationFast } }
 
-                            readonly property bool isActive: root.activeNavIndex === modelData.navIdx
-                            readonly property bool hovered:  navArea.containsMouse
-                            readonly property int  actualBadge: !modelData.hasBadge ? -1
-                                                                : (modelData.navIdx === 3 ? root.cameraCount
-                                                                : (modelData.navIdx === 4 ? root.imuCount : -1))
+                    ListView {
+                        id: resultsList
+                        anchors.fill:    parent
+                        anchors.margins: Theme.sp(8)
+                        spacing:         Theme.sp(2)
+                        clip:            true
+                        model:           root.searchResults
 
-                            opacity: root.searchQuery.length === 0
-                                     || modelData.label.toLowerCase().indexOf(root.searchQuery) >= 0
-                                     ? 1.0 : 0.3
-                            Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+                        Text {
+                            anchors.centerIn:    parent
+                            visible:             resultsList.count === 0
+                            text:                qsTr("No settings match \"%1\"").arg(root.searchQuery)
+                            font.family:         Theme.fontData
+                            font.pixelSize:      Theme.fontSzMicro
+                            color:               Theme.colorText3
+                            horizontalAlignment: Text.AlignHCenter
+                            wrapMode:            Text.WordWrap
+                            width:               parent.width
+                        }
 
-                            Rectangle {
-                                anchors.fill: parent
-                                color: navItem.isActive ? Theme.colorAccentLight
-                                                        : (navItem.hovered ? Theme.colorBg2 : "transparent")
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            }
+                        delegate: Rectangle {
+                            required property var modelData
+                            required property int index
 
-                            Rectangle {
-                                anchors.left:   parent.left
-                                anchors.top:    parent.top
-                                anchors.bottom: parent.bottom
-                                width: 2
-                                color: navItem.isActive ? Theme.colorAccent : "transparent"
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            }
+                            width:         resultsList.width
+                            implicitHeight: resultContent.implicitHeight + Theme.sp(16)
+                            color:          resultMouse.containsMouse ? Theme.colorAccentLight : "transparent"
+                            radius:         Theme.radius
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
-                            Text {
-                                id: navItemIcon
-                                anchors.left:           parent.left
-                                anchors.leftMargin:     Theme.sp(16)
-                                anchors.verticalCenter: parent.verticalCenter
-                                text:           modelData.icon
-                                font.family:    Theme.fontData
-                                font.pixelSize: Theme.fontSzBody
-                                color: navItem.isActive ? Theme.colorAccent
-                                                        : (navItem.hovered ? Theme.colorText2 : Theme.colorText3)
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            }
+                            ColumnLayout {
+                                id: resultContent
+                                anchors {
+                                    left:  parent.left;  right: parent.right
+                                    verticalCenter: parent.verticalCenter
+                                    leftMargin: Theme.sp(10); rightMargin: Theme.sp(10)
+                                }
+                                spacing: Theme.sp(2)
 
-                            Text {
-                                anchors.left:           navItemIcon.right
-                                anchors.leftMargin:     Theme.sp(10)
-                                anchors.right:          navItemBadge.visible ? navItemBadge.left : parent.right
-                                anchors.rightMargin:    Theme.sp(10)
-                                anchors.verticalCenter: parent.verticalCenter
-                                text:           modelData.label
-                                font.family:    Theme.fontBody
-                                font.pixelSize: Theme.fontSzBody2
-                                font.weight:    navItem.isActive ? Font.Normal : Font.Light
-                                color: navItem.isActive ? Theme.colorAccent
-                                                        : (navItem.hovered ? Theme.colorText : Theme.colorText2)
-                                elide: Text.ElideRight
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            }
+                                Text {
+                                    text:                modelData.panelLabel + "  →  " + modelData.groupLabel
+                                    font.family:         Theme.fontData
+                                    font.pixelSize:      Theme.fontSzMicro
+                                    font.letterSpacing:  Theme.trackingMicro
+                                    color:               Theme.colorText3
+                                    elide:               Text.ElideRight
+                                    Layout.fillWidth:    true
+                                }
 
-                            Text {
-                                id: navItemBadge
-                                anchors.right:          parent.right
-                                anchors.rightMargin:    Theme.sp(12)
-                                anchors.verticalCenter: parent.verticalCenter
-                                text:           navItem.actualBadge >= 0 ? navItem.actualBadge.toString() : ""
-                                visible:        navItem.actualBadge >= 0
-                                font.family:    Theme.fontData
-                                font.pixelSize: Theme.fontSzMicro
-                                color: navItem.isActive ? Theme.colorAccent : Theme.colorText3
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                Text {
+                                    text:             modelData.label
+                                    font.family:      Theme.fontBody
+                                    font.pixelSize:   Theme.fontSzBody2
+                                    color:            Theme.colorText
+                                    elide:            Text.ElideRight
+                                    Layout.fillWidth: true
+                                }
+
+                                Text {
+                                    text:             modelData.subtitle
+                                    font.family:      Theme.fontData
+                                    font.pixelSize:   Theme.fontSzMicro
+                                    color:            Theme.colorText3
+                                    elide:            Text.ElideRight
+                                    Layout.fillWidth: true
+                                    visible:          modelData.subtitle.length > 0
+                                }
                             }
 
                             MouseArea {
-                                id: navArea
+                                id:           resultMouse
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape:  Qt.PointingHandCursor
-                                onClicked:    root.activeNavIndex = modelData.navIdx
+                                onClicked:    root.navigateToResult(modelData)
                             }
                         }
                     }
@@ -251,32 +397,14 @@ Item {
                 anchors.fill:  parent
                 currentIndex:  root.activeNavIndex
 
-                GeneralPanel {                                      // 0
-                    Layout.fillWidth:  true
-                    Layout.fillHeight: true
-                }
-                AppearancePanel {                                   // 1
-                    Layout.fillWidth:  true
-                    Layout.fillHeight: true
-                }
-                DisplaysPanel {                                     // 2
-                    Layout.fillWidth:  true
-                    Layout.fillHeight: true
-                }
-                CamerasPanel {                                      // 3
-                    Layout.fillWidth:  true
-                    Layout.fillHeight: true
-                }
-                ImusPanel {                                         // 4
-                    Layout.fillWidth:  true
-                    Layout.fillHeight: true
-                }
-                ScreenPlaceholder { titleText: "Launch Monitor" }  // 5
-                StoragePanel {                                      // 6
-                    Layout.fillWidth:  true
-                    Layout.fillHeight: true
-                }
-                ScreenPlaceholder { titleText: "Archiving" }       // 7
+                GeneralPanel {    id: generalPanel;    Layout.fillWidth: true; Layout.fillHeight: true }  // 0
+                AppearancePanel { id: appearancePanel; Layout.fillWidth: true; Layout.fillHeight: true }  // 1
+                DisplaysPanel {   id: displaysPanel;   Layout.fillWidth: true; Layout.fillHeight: true }  // 2
+                CamerasPanel {    id: camerasPanel;    Layout.fillWidth: true; Layout.fillHeight: true }  // 3
+                ImusPanel {       id: imusPanel;       Layout.fillWidth: true; Layout.fillHeight: true }  // 4
+                ScreenPlaceholder { titleText: "Launch Monitor" }                                          // 5
+                StoragePanel {    id: storagePanel;    Layout.fillWidth: true; Layout.fillHeight: true }  // 6
+                ScreenPlaceholder { titleText: "Archiving" }                                               // 7
             }
         }
     }
