@@ -239,9 +239,15 @@ void ResourceMonitorController::refresh()
             QString imuSrcName = imuSrc
                 ? QString::fromStdString(imuSrc->name) : QString();
 
+            const QString imuId = imuDev.imuCapabilities.serialNumber.isEmpty()
+                ? imuDev.id
+                : imuDev.imuCapabilities.serialNumber;
+
             QVariantMap dev;
             dev[QStringLiteral("kind")]               = QStringLiteral("IMU");
-            dev[QStringLiteral("name")]               = imuDev.description;
+            dev[QStringLiteral("name")]               = imuId.isEmpty()
+                ? imuDev.description
+                : imuDev.description + QStringLiteral(" (") + imuId + QStringLiteral(")");
             dev[QStringLiteral("model")]              = model;
             dev[QStringLiteral("backend")]            = backend;
             dev[QStringLiteral("identifier")]         = imuDev.id;
