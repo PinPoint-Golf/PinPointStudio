@@ -121,7 +121,8 @@ Item {
                         { navIdx: 3, icon: "⊙", label: qsTr("Cameras"),        sectionHead: qsTr("Hardware"), hasBadge: true  },
                         { navIdx: 4, icon: "⌖", label: qsTr("IMUs"),           sectionHead: "",               hasBadge: true  },
                         { navIdx: 5, icon: "◎", label: qsTr("Launch Monitor"), sectionHead: "",               hasBadge: false },
-                        { navIdx: 6, icon: "▤", label: qsTr("Archiving"),      sectionHead: qsTr("Data"),     hasBadge: false }
+                        { navIdx: 6, icon: "▥", label: qsTr("Storage"),        sectionHead: qsTr("Data"),     hasBadge: false },
+                        { navIdx: 7, icon: "▤", label: qsTr("Archiving"),      sectionHead: "",               hasBadge: false }
                     ]
 
                     delegate: Column {
@@ -271,7 +272,11 @@ Item {
                     Layout.fillHeight: true
                 }
                 ScreenPlaceholder { titleText: "Launch Monitor" }  // 5
-                ScreenPlaceholder { titleText: "Archiving"      }  // 6
+                StoragePanel {                                      // 6
+                    Layout.fillWidth:  true
+                    Layout.fillHeight: true
+                }
+                ScreenPlaceholder { titleText: "Archiving" }       // 7
             }
         }
     }

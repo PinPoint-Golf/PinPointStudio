@@ -28,6 +28,21 @@
 #include "pp_settings.h"
 #include "version.h"
 
+// Must be declared outside AppSettings — moc does not support Q_GADGET in nested classes.
+struct StorageInfo {
+    Q_GADGET
+    Q_PROPERTY(qint64  totalBytes   MEMBER totalBytes)
+    Q_PROPERTY(qint64  freeBytes    MEMBER freeBytes)
+    Q_PROPERTY(qint64  sessionBytes MEMBER sessionBytes)
+    Q_PROPERTY(QString volumeName   MEMBER volumeName)
+public:
+    qint64  totalBytes   = 0;
+    qint64  freeBytes    = 0;
+    qint64  sessionBytes = 0;
+    QString volumeName;
+};
+Q_DECLARE_METATYPE(StorageInfo)
+
 class AppSettings : public QObject
 {
     Q_OBJECT
@@ -79,7 +94,19 @@ class AppSettings : public QObject
     Q_PROPERTY(QVariantMap sessionGoalsByType READ sessionGoalsByType WRITE setSessionGoalsByType NOTIFY sessionGoalsByTypeChanged)
     Q_PROPERTY(int         lastSessionType   READ lastSessionType   WRITE setLastSessionType   NOTIFY lastSessionTypeChanged)
 
+    Q_PROPERTY(QString sessionNamingPattern  READ sessionNamingPattern  WRITE setSessionNamingPattern  NOTIFY sessionNamingPatternChanged)
+    Q_PROPERTY(QString videoResolutionMode   READ videoResolutionMode   WRITE setVideoResolutionMode   NOTIFY videoResolutionModeChanged)
+    Q_PROPERTY(QString videoCodec            READ videoCodec            WRITE setVideoCodec            NOTIFY videoCodecChanged)
+    Q_PROPERTY(QString videoQuality          READ videoQuality          WRITE setVideoQuality          NOTIFY videoQualityChanged)
+    Q_PROPERTY(QString videoContainer        READ videoContainer        WRITE setVideoContainer        NOTIFY videoContainerChanged)
+    Q_PROPERTY(bool    saveRawFrames         READ saveRawFrames         WRITE setSaveRawFrames         NOTIFY saveRawFramesChanged)
+    Q_PROPERTY(bool    savePoseKeypoints     READ savePoseKeypoints     WRITE setSavePoseKeypoints     NOTIFY savePoseKeypointsChanged)
+    Q_PROPERTY(bool    saveImuStreams        READ saveImuStreams        WRITE setImuStreams            NOTIFY saveImuStreamsChanged)
+    Q_PROPERTY(QString imuDataFormat         READ imuDataFormat         WRITE setImuDataFormat         NOTIFY imuDataFormatChanged)
+    Q_PROPERTY(bool    saveLaunchMonitorData READ saveLaunchMonitorData WRITE setSaveLaunchMonitorData NOTIFY saveLaunchMonitorDataChanged)
+
 public:
+    Q_INVOKABLE StorageInfo queryStorageInfo() const;
     explicit AppSettings(QObject *parent = nullptr) : QObject(parent)
     {
         m_themeIndex      = ppSettings().value(QStringLiteral("ui/themeIndex"),      0).toInt();
@@ -133,6 +160,17 @@ public:
 
         m_sessionGoalsByType = ppSettings().value(QStringLiteral("session/goalsByType"), QVariantMap{}).toMap();
         m_lastSessionType    = ppSettings().value(QStringLiteral("session/lastType"), 0).toInt();
+
+        m_sessionNamingPattern  = ppSettings().value(QStringLiteral("storage/sessionNamingPattern"),  QStringLiteral("date-name-type")).toString();
+        m_videoResolutionMode   = ppSettings().value(QStringLiteral("storage/videoResolutionMode"),   QStringLiteral("native")).toString();
+        m_videoCodec            = ppSettings().value(QStringLiteral("storage/videoCodec"),            QStringLiteral("h264")).toString();
+        m_videoQuality          = ppSettings().value(QStringLiteral("storage/videoQuality"),          QStringLiteral("medium")).toString();
+        m_videoContainer        = ppSettings().value(QStringLiteral("storage/videoContainer"),        QStringLiteral("mp4")).toString();
+        m_saveRawFrames         = ppSettings().value(QStringLiteral("storage/saveRawFrames"),         false).toBool();
+        m_savePoseKeypoints     = ppSettings().value(QStringLiteral("storage/savePoseKeypoints"),     true).toBool();
+        m_saveImuStreams         = ppSettings().value(QStringLiteral("storage/saveImuStreams"),        true).toBool();
+        m_imuDataFormat         = ppSettings().value(QStringLiteral("storage/imuDataFormat"),         QStringLiteral("json")).toString();
+        m_saveLaunchMonitorData = ppSettings().value(QStringLiteral("storage/saveLaunchMonitorData"), true).toBool();
     }
 
     QString appVersion()     const { return QStringLiteral(PINPOINT_VERSION_STRING); }
@@ -189,6 +227,17 @@ public:
 
     QVariantMap sessionGoalsByType() const { return m_sessionGoalsByType; }
     int         lastSessionType()    const { return m_lastSessionType; }
+
+    QString sessionNamingPattern()  const { return m_sessionNamingPattern; }
+    QString videoResolutionMode()   const { return m_videoResolutionMode; }
+    QString videoCodec()            const { return m_videoCodec; }
+    QString videoQuality()          const { return m_videoQuality; }
+    QString videoContainer()        const { return m_videoContainer; }
+    bool    saveRawFrames()         const { return m_saveRawFrames; }
+    bool    savePoseKeypoints()     const { return m_savePoseKeypoints; }
+    bool    saveImuStreams()        const { return m_saveImuStreams; }
+    QString imuDataFormat()         const { return m_imuDataFormat; }
+    bool    saveLaunchMonitorData() const { return m_saveLaunchMonitorData; }
 
     QStringList imuExcluded()             const { return m_imuExcluded; }
     QVariantMap imuPlacement()            const { return m_imuPlacement; }
@@ -568,6 +617,86 @@ public:
         emit lastSessionTypeChanged();
     }
 
+    void setSessionNamingPattern(const QString &v)
+    {
+        if (m_sessionNamingPattern == v) return;
+        m_sessionNamingPattern = v;
+        ppSettings().setValue(QStringLiteral("storage/sessionNamingPattern"), v);
+        emit sessionNamingPatternChanged();
+    }
+
+    void setVideoResolutionMode(const QString &v)
+    {
+        if (m_videoResolutionMode == v) return;
+        m_videoResolutionMode = v;
+        ppSettings().setValue(QStringLiteral("storage/videoResolutionMode"), v);
+        emit videoResolutionModeChanged();
+    }
+
+    void setVideoCodec(const QString &v)
+    {
+        if (m_videoCodec == v) return;
+        m_videoCodec = v;
+        ppSettings().setValue(QStringLiteral("storage/videoCodec"), v);
+        emit videoCodecChanged();
+    }
+
+    void setVideoQuality(const QString &v)
+    {
+        if (m_videoQuality == v) return;
+        m_videoQuality = v;
+        ppSettings().setValue(QStringLiteral("storage/videoQuality"), v);
+        emit videoQualityChanged();
+    }
+
+    void setVideoContainer(const QString &v)
+    {
+        if (m_videoContainer == v) return;
+        m_videoContainer = v;
+        ppSettings().setValue(QStringLiteral("storage/videoContainer"), v);
+        emit videoContainerChanged();
+    }
+
+    void setSaveRawFrames(bool v)
+    {
+        if (m_saveRawFrames == v) return;
+        m_saveRawFrames = v;
+        ppSettings().setValue(QStringLiteral("storage/saveRawFrames"), v);
+        emit saveRawFramesChanged();
+    }
+
+    void setSavePoseKeypoints(bool v)
+    {
+        if (m_savePoseKeypoints == v) return;
+        m_savePoseKeypoints = v;
+        ppSettings().setValue(QStringLiteral("storage/savePoseKeypoints"), v);
+        emit savePoseKeypointsChanged();
+    }
+
+    void setImuStreams(bool v)
+    {
+        if (m_saveImuStreams == v) return;
+        m_saveImuStreams = v;
+        ppSettings().setValue(QStringLiteral("storage/saveImuStreams"), v);
+        emit saveImuStreamsChanged();
+    }
+
+    void setImuDataFormat(const QString &v)
+    {
+        if (m_imuDataFormat == v) return;
+        m_imuDataFormat = v;
+        ppSettings().setValue(QStringLiteral("storage/imuDataFormat"), v);
+        emit imuDataFormatChanged();
+    }
+
+    void setSaveLaunchMonitorData(bool v)
+    {
+        if (m_saveLaunchMonitorData == v) return;
+        m_saveLaunchMonitorData = v;
+        ppSettings().setValue(QStringLiteral("storage/saveLaunchMonitorData"), v);
+        emit saveLaunchMonitorDataChanged();
+    }
+
 signals:
     void themeIndexChanged();
     void windowWidthChanged();
@@ -615,6 +744,16 @@ signals:
     void imuDefaultFusionModeChanged();
     void sessionGoalsByTypeChanged();
     void lastSessionTypeChanged();
+    void sessionNamingPatternChanged();
+    void videoResolutionModeChanged();
+    void videoCodecChanged();
+    void videoQualityChanged();
+    void videoContainerChanged();
+    void saveRawFramesChanged();
+    void savePoseKeypointsChanged();
+    void saveImuStreamsChanged();
+    void imuDataFormatChanged();
+    void saveLaunchMonitorDataChanged();
 
 private:
     int     m_themeIndex      = 0;
@@ -668,4 +807,15 @@ private:
 
     QVariantMap m_sessionGoalsByType;
     int         m_lastSessionType = 0;
+
+    QString m_sessionNamingPattern  = QStringLiteral("date-name-type");
+    QString m_videoResolutionMode   = QStringLiteral("native");
+    QString m_videoCodec            = QStringLiteral("h264");
+    QString m_videoQuality          = QStringLiteral("medium");
+    QString m_videoContainer        = QStringLiteral("mp4");
+    bool    m_saveRawFrames         = false;
+    bool    m_savePoseKeypoints     = true;
+    bool    m_saveImuStreams        = true;
+    QString m_imuDataFormat         = QStringLiteral("json");
+    bool    m_saveLaunchMonitorData = true;
 };

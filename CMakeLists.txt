@@ -103,7 +103,7 @@ qt_add_executable(PinPoint
     src/Gui/main.cpp
     $<$<BOOL:${APPLE}>:${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/icons/PinPoint.icns>
     $<$<BOOL:${WIN32}>:${CMAKE_CURRENT_SOURCE_DIR}/PinPoint.rc>
-    src/Gui/app_settings.h
+    src/Gui/app_settings.h             src/Gui/app_settings.cpp
     src/Gui/imu_manager.h              src/Gui/imu_manager.cpp
     src/Gui/imu_instance.h             src/Gui/imu_instance.cpp
     src/Gui/transcription_controller.h src/Gui/transcription_controller.cpp
@@ -191,6 +191,7 @@ qt_add_qml_module(PinPoint
         src/Gui/DisplaysPanel.qml
         src/Gui/CamerasPanel.qml
         src/Gui/ImusPanel.qml
+        src/Gui/StoragePanel.qml
         src/Gui/HmTypeCard.qml
         src/Gui/HmDeviceRow.qml
         src/Gui/HmSessionTile.qml

@@ -35,12 +35,6 @@ Item {
         { label: qsTr("中文（简体）"),  tag: "zh_CN" }
     ]
 
-    FolderDialog {
-        id: folderDialog
-        title: qsTr("Select athlete library location")
-        onAccepted: appSettings.athleteLibraryPath = selectedFolder.toString().replace("file://", "")
-    }
-
     ScrollView {
         anchors.fill: parent
         contentWidth: availableWidth
@@ -73,7 +67,7 @@ Item {
             }
 
             Text {
-                text: qsTr("Language, athlete data, measurement units, and application behaviour.")
+                text: qsTr("Language, measurement units, and application behaviour.")
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody2
                 font.weight:    Font.Light
@@ -242,132 +236,7 @@ Item {
 
             PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
 
-            // ── Group 2 — Athlete data ────────────────────────────────────────
-
-            Text {
-                text: qsTr("ATHLETE DATA")
-                font.family:         Theme.fontBody
-                font.pixelSize:      Theme.fontSzMicro
-                font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
-                color: Theme.colorText3
-            }
-
-            // Athlete library location — stacked layout
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: Theme.sp(8)
-
-                ColumnLayout {
-                    spacing: Theme.sp(3)
-
-                    Text {
-                        text:           qsTr("Athlete library location")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           qsTr("Root directory for all athlete profiles and session archives")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                    }
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.sp(6)
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        implicitHeight: Theme.sp(28)
-                        color:        Theme.colorBg2
-                        border.width: 1
-                        border.color: Theme.colorBorderStrong
-                        radius:       Theme.radius
-                        clip:         true
-
-                        Text {
-                            anchors {
-                                left: parent.left; leftMargin: Theme.sp(10)
-                                right: parent.right; rightMargin: Theme.sp(10)
-                                verticalCenter: parent.verticalCenter
-                            }
-                            text:           appSettings.athleteLibraryPath.length > 0
-                                                ? appSettings.athleteLibraryPath
-                                                : qsTr("No location selected")
-                            font.family:    Theme.fontData
-                            font.pixelSize: Theme.fontSzMicro
-                            color:          appSettings.athleteLibraryPath.length > 0
-                                                ? Theme.colorText2
-                                                : Theme.colorText3
-                            elide:          Text.ElideLeft
-                        }
-                    }
-
-                    PpButton {
-                        label:     qsTr("Change…")
-                        onClicked: folderDialog.open()
-                    }
-                }
-            }
-
-            // Auto-save session row
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: Theme.sp(16)
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.sp(3)
-
-                    Text {
-                        text:           qsTr("Auto-save session on completion")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           qsTr("Writes to archive immediately when session ends")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                    }
-                }
-
-                Rectangle {
-                    Layout.alignment: Qt.AlignVCenter
-                    width:  Theme.sp(34)
-                    height: Theme.sp(18)
-                    radius: Theme.sp(9)
-                    color:  autoSaveToggle.checked ? Theme.colorAccent : Theme.colorBg3
-                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-                    property bool checked: appSettings.autoSaveSession
-                    id: autoSaveToggle
-
-                    Rectangle {
-                        width:  Theme.sp(12)
-                        height: Theme.sp(12)
-                        radius: Theme.sp(6)
-                        color:  "white"
-                        anchors.verticalCenter: parent.verticalCenter
-                        x: autoSaveToggle.checked ? parent.width - width - Theme.sp(3) : Theme.sp(3)
-                        Behavior on x { NumberAnimation { duration: 120 } }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape:  Qt.PointingHandCursor
-                        onClicked:    appSettings.autoSaveSession = !appSettings.autoSaveSession
-                    }
-                }
-            }
-
-            PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
-
-            // ── Group 3 — Session behaviour ───────────────────────────────────
+            // ── Group 2 — Session behaviour ───────────────────────────────────
 
             Text {
                 text: qsTr("SESSION BEHAVIOUR")
@@ -517,7 +386,7 @@ Item {
 
             PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
 
-            // ── Group 4 — Application ─────────────────────────────────────────
+            // ── Group 3 — Application ────────────────────────────────────────
 
             Text {
                 text: qsTr("APPLICATION")
