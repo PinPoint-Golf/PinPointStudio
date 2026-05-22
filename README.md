@@ -17,6 +17,7 @@ Our ambition is to be a platform that can be used by golfers, coaches and resear
 ## Documentation
 - [Building Instructions](BUILDING.md) — How to resolve dependencies and build PinPoint.
 - [UX Design](docs/pinpoint-ux-design.md) — UI structure, navigation, and interaction design rationale.
+- [User Personas](docs/PERSONAS.md) — Definitions of the three primary user archetypes (club golfer, coach, researcher).
 - [Persona UX Assessment](docs/pinpoint-persona-assessment.md) — UX evaluation against three user archetypes; identifies gaps and design priorities.
 - [EventBuffer Design](docs/event_buffer_design.md) — Architecture and design rationale for the lock-free EventBuffer.
 - [EventBuffer Developer Guide](docs/event_buffer_developer_guide.md) — Tutorial covering usage, threading model, and integration patterns.
