@@ -50,7 +50,9 @@ Rectangle {
                 }
 
                 Text {
-                    text: root.sourceData.name
+                    text: root.sourceData.identifier
+                          ? root.sourceData.name + " (" + root.sourceData.identifier + ")"
+                          : root.sourceData.name
                     font.family: Theme.fontData
                     font.pixelSize: Theme.fontSzDataSm
                     color: root.sourceData.stalled ? Theme.colorWarn : Theme.colorText2

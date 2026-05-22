@@ -89,6 +89,7 @@ void ResourceMonitorController::refresh()
         int64_t maxIa = src.max_inter_arrival_us;
         QVariantMap m;
         m[QStringLiteral("name")]               = QString::fromStdString(src.name);
+        m[QStringLiteral("identifier")]         = QString::fromStdString(src.identifier);
         m[QStringLiteral("eventsWritten")]       = quint64(src.events_written);
         m[QStringLiteral("eventsOverwritten")]   = overwritten;
         m[QStringLiteral("bytesWritten")]        = quint64(src.bytes_written_total);

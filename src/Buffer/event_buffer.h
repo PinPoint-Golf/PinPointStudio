@@ -140,6 +140,7 @@ public:
         struct SourceInfo {
             SourceId    id;
             std::string name;
+            std::string identifier;
             uint64_t    events_written;
             uint64_t    events_overwritten;
             uint64_t    slot_count;

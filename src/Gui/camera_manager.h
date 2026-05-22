@@ -75,6 +75,12 @@ public:
     Q_INVOKABLE void setTargetFps(int index, double fps);
     Q_INVOKABLE void setTriggerMode(int index, const QString &mode);
 
+    // Creates a lightweight preview-only VideoController (no event buffer, no pose
+    // pipeline) for use in the settings panel crop UI.  The returned object is owned
+    // by this CameraManager and must be released via destroyPreviewController() when done.
+    Q_INVOKABLE QObject *createPreviewController(int index);
+    Q_INVOKABLE void     destroyPreviewController(QObject *ctrl);
+
 signals:
     void cameraListChanged();
     void instancesChanged();

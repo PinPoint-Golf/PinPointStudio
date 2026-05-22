@@ -41,7 +41,10 @@ ImuInstance::ImuInstance(const Device &device,
 {
     if (m_eventBuffer) {
         pinpoint::SourceDescriptor desc;
-        desc.name = "wt9011dcl_ble";
+        desc.name       = "wt9011dcl_ble";
+        desc.identifier = (device.imuCapabilities.serialNumber.isEmpty()
+                           ? device.id
+                           : device.imuCapabilities.serialNumber).toStdString();
 
         pinpoint::ImuFormat fmt{};
         fmt.device         = pinpoint::DeviceKind::IMU_WitMotion;

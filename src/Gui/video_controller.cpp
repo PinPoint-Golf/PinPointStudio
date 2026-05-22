@@ -104,7 +104,8 @@ VideoController::VideoController(const Device &device, pinpoint::EventBuffer *bu
         const CameraCapabilities &caps = device.capabilities;
 
         pinpoint::SourceDescriptor desc;
-        desc.name = device.description.toStdString();
+        desc.name       = device.description.toStdString();
+        desc.identifier = device.capabilities.serialNumber.toStdString();
 
         pinpoint::CameraFormat cfmt{};
 
@@ -217,7 +218,7 @@ void VideoController::setupPipeline()
     m_videoInput->moveToThread(m_captureThread);
 
 #ifdef HAVE_OPENCV
-    if (kPoseEnabled) {
+    if (kPoseEnabled && m_eventBuffer) {
         m_preprocessThread = new QThread(this);
         m_preprocessThread->setObjectName(QStringLiteral("VideoPreprocessThread"));
         m_preprocessor = new VideoPreprocessorOpenCV();

@@ -533,6 +533,7 @@ EventBuffer::DiagnosticsSnapshot EventBuffer::diagnostics() const {
         DiagnosticsSnapshot::SourceInfo info{};
         info.id                      = src.desc.id;
         info.name                    = src.desc.name;
+        info.identifier              = src.desc.identifier;
         info.events_written          = s.events_written.load(std::memory_order_relaxed);
         info.events_overwritten      = s.events_overwritten.load(std::memory_order_relaxed);
         info.slot_count              = src.ring->slotCount();

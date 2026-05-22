@@ -67,7 +67,8 @@ Item {
 
         property var camData: ({})  // one entry from cameraManager.cameraList
 
-        readonly property var controller: {
+        // The selected VideoController for this camera (null when not selected).
+        readonly property var realController: {
             var instances = cameraManager.instances
             for (var i = 0; i < instances.length; ++i) {
                 if (instances[i].deviceSerialNumber === camData.serialNumber)
@@ -75,6 +76,13 @@ Item {
             }
             return null
         }
+
+        // Lightweight preview-only controller created on-demand by the crop panel.
+        property var localPreviewCtrl: null
+
+        // Effective controller: real (selected) controller when available,
+        // otherwise the local preview-only controller.
+        readonly property var controller: realController !== null ? realController : localPreviewCtrl
 
         readonly property bool roiOpen: root.openRoiIndex === camData.index
 
@@ -134,7 +142,7 @@ Item {
                 width:  Theme.sp(6)
                 height: Theme.sp(6)
                 radius: Theme.sp(3)
-                color: camRow.controller && camRow.controller.isRecording
+                color: camRow.realController && camRow.realController.isRecording
                             ? Theme.colorGood
                             : (camData.enabled ? Theme.colorWarn : Theme.colorText3)
                 Layout.alignment: Qt.AlignVCenter
@@ -277,16 +285,16 @@ Item {
                     }
 
                     Component.onCompleted: {
-                        var p = camRow.controller ? camRow.controller.perspective : 0
+                        var p = appSettings.cameraPerspective[camData.cameraKey] || 0
                         for (var i = 0; i < viewOptions.length; i++) {
                             if (viewOptions[i].perspective === p) { currentIndex = i; break }
                         }
                     }
 
                     Connections {
-                        target: cameraManager
-                        function onInstancesChanged() {
-                            var p = camRow.controller ? camRow.controller.perspective : 0
+                        target: appSettings
+                        function onCameraPerspectiveChanged() {
+                            var p = appSettings.cameraPerspective[camData.cameraKey] || 0
                             for (var i = 0; i < viewCombo.viewOptions.length; i++) {
                                 if (viewCombo.viewOptions[i].perspective === p) {
                                     viewCombo.currentIndex = i; break
@@ -296,8 +304,13 @@ Item {
                     }
 
                     onActivated: (idx) => {
-                        if (camRow.controller)
-                            cameraManager.setPerspective(camRow.controller, viewOptions[idx].perspective)
+                        var p = viewOptions[idx].perspective
+                        var map = appSettings.cameraPerspective
+                        if (p > 0) map[camData.cameraKey] = p
+                        else delete map[camData.cameraKey]
+                        appSettings.cameraPerspective = map
+                        if (camRow.realController)
+                            cameraManager.setPerspective(camRow.realController, p)
                     }
 
                     font.family:    Theme.fontBody
@@ -436,7 +449,12 @@ Item {
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape:  Qt.PointingHandCursor
-                                onClicked:    cameraManager.setTargetFps(camData.index, modelData)
+                                onClicked: {
+                                    var map = appSettings.cameraTargetFps
+                                    map[camData.cameraKey] = modelData
+                                    appSettings.cameraTargetFps = map
+                                    cameraManager.setTargetFps(camData.index, modelData)
+                                }
                             }
                         }
                     }
@@ -498,7 +516,12 @@ Item {
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape:  Qt.PointingHandCursor
-                                onClicked:    cameraManager.setTriggerMode(camData.index, modelData.mode)
+                                onClicked: {
+                                    var map = appSettings.cameraTriggerMode
+                                    map[camData.cameraKey] = modelData.mode
+                                    appSettings.cameraTriggerMode = map
+                                    cameraManager.setTriggerMode(camData.index, modelData.mode)
+                                }
                             }
                         }
                     }
@@ -753,17 +776,43 @@ Item {
                                 anchors.fill: parent
                             }
 
-                            // Wire/clear the settings sink and start/stop preview with the panel
+                            // Persist ROI changes directly to AppSettings whenever the
+                            // controller's cropRoi changes (drag, numeric field, preset).
+                            Connections {
+                                target: camRow.controller
+                                function onCropRoiChanged() {
+                                    if (!camData.cameraKey) return
+                                    var roi = camRow.controller.cropRoi
+                                    var map = appSettings.cameraRoi
+                                    if (roi.width > 0 && roi.height > 0)
+                                        map[camData.cameraKey] = { x: roi.x, y: roi.y, w: roi.width, h: roi.height }
+                                    else
+                                        delete map[camData.cameraKey]
+                                    appSettings.cameraRoi = map
+                                }
+                            }
+
+                            // Wire/clear the settings sink and start/stop preview with the panel.
+                            // When no real (selected) controller exists, a lightweight preview-only
+                            // controller is created on demand (no event buffer, no pose pipeline).
                             Connections {
                                 target: camRow
                                 function onRoiOpenChanged() {
-                                    if (!camRow.controller) return
                                     if (camRow.roiOpen) {
+                                        if (!camRow.realController && !camRow.localPreviewCtrl)
+                                            camRow.localPreviewCtrl = cameraManager.createPreviewController(camData.index)
+                                        if (!camRow.controller) return
                                         camRow.controller.setSettingsSink(settingsVideoOutput.videoSink)
                                         camRow.controller.startPreview()
                                     } else {
-                                        camRow.controller.setSettingsSink(null)
-                                        camRow.controller.stopPreview()
+                                        if (camRow.controller) {
+                                            camRow.controller.setSettingsSink(null)
+                                            camRow.controller.stopPreview()
+                                        }
+                                        if (camRow.localPreviewCtrl) {
+                                            cameraManager.destroyPreviewController(camRow.localPreviewCtrl)
+                                            camRow.localPreviewCtrl = null
+                                        }
                                     }
                                 }
                             }

@@ -368,29 +368,13 @@ void CameraManager::setTargetFps(int index, double fps)
 {
     if (index < 0 || index >= m_cameras.size()) return;
     m_cameras[index].targetFps = fps;
-
-    // TODO: apply to VideoController when setFps() is implemented
-    const QString key = cameraKey(m_cameras[index]);
-    if (!key.isEmpty()) {
-        AppSettings settings;
-        QVariantMap map = settings.cameraTargetFps();
-        map[key] = fps;
-        settings.setCameraTargetFps(map);
-    }
+    // TODO: apply to live VideoController when setFps() is implemented
 }
 
 void CameraManager::setTriggerMode(int index, const QString &mode)
 {
     if (index < 0 || index >= m_cameras.size()) return;
     m_cameras[index].triggerMode = mode;
-
-    const QString key = cameraKey(m_cameras[index]);
-    if (!key.isEmpty()) {
-        AppSettings settings;
-        QVariantMap map = settings.cameraTriggerMode();
-        map[key] = mode;
-        settings.setCameraTriggerMode(map);
-    }
 }
 
 void CameraManager::setPerspective(QObject *rawController, int perspective)
@@ -399,15 +383,23 @@ void CameraManager::setPerspective(QObject *rawController, int perspective)
     if (!target)
         return;
 
-    // Clear this perspective from every other camera that currently holds it.
+    // Clear this perspective from every other camera that currently holds it,
+    // and remove it from AppSettings so the cleared camera doesn't re-acquire
+    // the view on next startup.
     if (perspective > 0) {
+        AppSettings settings;
+        QVariantMap map = settings.cameraPerspective();
+        bool changed = false;
         for (auto &cam : m_cameras) {
             if (cam.controller && cam.controller != target
                 && cam.controller->perspective() == perspective)
             {
                 cam.controller->setPerspective(0);
+                map.remove(cameraKey(cam));
+                changed = true;
             }
         }
+        if (changed) settings.setCameraPerspective(map);
     }
 
     target->setPerspective(perspective);
@@ -416,6 +408,35 @@ void CameraManager::setPerspective(QObject *rawController, int perspective)
 // ---------------------------------------------------------------------------
 // Private
 // ---------------------------------------------------------------------------
+
+QObject *CameraManager::createPreviewController(int index)
+{
+    if (index < 0 || index >= m_cameras.size()) return nullptr;
+
+    // nullptr buffer → no ring-buffer registration, no pose/throttle pipeline
+    auto *ctrl = new VideoController(m_cameras[index].device, nullptr, this);
+
+    const QString key = cameraKey(m_cameras[index]);
+    AppSettings s;
+
+    const QVariantMap roiMap = s.cameraRoi();
+    if (roiMap.contains(key)) {
+        const QVariantMap r = roiMap.value(key).toMap();
+        double x = r.value(QStringLiteral("x")).toDouble();
+        double y = r.value(QStringLiteral("y")).toDouble();
+        double w = r.value(QStringLiteral("w")).toDouble();
+        double h = r.value(QStringLiteral("h")).toDouble();
+        if (w > 0 && h > 0)
+            ctrl->setCropRoi(QRectF(x, y, w, h));
+    }
+
+    return ctrl;
+}
+
+void CameraManager::destroyPreviewController(QObject *ctrl)
+{
+    if (ctrl) ctrl->deleteLater();
+}
 
 VideoController *CameraManager::createController(const Device &device)
 {
@@ -448,46 +469,6 @@ VideoController *CameraManager::createController(const Device &device)
         if (p > 0)
             ctrl->setPerspective(p);
     }
-
-    // Save crop ROI changes back to AppSettings (separate from hitting-area roi).
-    connect(ctrl, &VideoController::cropRoiChanged, this, [this, ctrl]() {
-        for (const auto &cam : m_cameras) {
-            if (cam.controller != ctrl) continue;
-            const QString k = cameraKey(cam);
-            AppSettings settings;
-            QVariantMap map = settings.cameraRoi();
-            const QRectF roi = ctrl->cropRoi();
-            if (roi.width() > 0 && roi.height() > 0) {
-                QVariantMap r;
-                r[QStringLiteral("x")] = roi.x();
-                r[QStringLiteral("y")] = roi.y();
-                r[QStringLiteral("w")] = roi.width();
-                r[QStringLiteral("h")] = roi.height();
-                map[k] = r;
-            } else {
-                map.remove(k);
-            }
-            settings.setCameraRoi(map);
-            break;
-        }
-    });
-
-    // Save perspective changes back to AppSettings.
-    connect(ctrl, &VideoController::perspectiveChanged, this, [this, ctrl]() {
-        for (const auto &cam : m_cameras) {
-            if (cam.controller != ctrl) continue;
-            const QString k = cameraKey(cam);
-            AppSettings settings;
-            QVariantMap map = settings.cameraPerspective();
-            const int p = ctrl->perspective();
-            if (p > 0)
-                map[k] = p;
-            else
-                map.remove(k);
-            settings.setCameraPerspective(map);
-            break;
-        }
-    });
 
     return ctrl;
 }

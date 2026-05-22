@@ -37,6 +37,7 @@ enum class SyncSource {
 struct SourceDescriptor {
     SourceId id{kInvalidSourceId};
     std::string name;
+    std::string identifier;  // device serial number or opaque device id
     FormatDescriptor format;
     std::chrono::milliseconds window_duration{5000};
 

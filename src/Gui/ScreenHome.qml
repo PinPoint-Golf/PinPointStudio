@@ -383,7 +383,7 @@ Item {
                     width:  parent.width
                     height: Theme.sp(44)
                     radius: Theme.radius
-                    color:  cameraManager.anySelected ? Theme.colorAccent : Theme.colorBg3
+                    color:  Theme.colorAccent
 
                     Text {
                         anchors.centerIn: parent
@@ -391,15 +391,12 @@ Item {
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.sp(14)
                         font.weight:    Font.Normal
-                        color:          cameraManager.anySelected
-                                            ? (Theme.dark ? Theme.colorBg : "#FFFFFF")
-                                            : Theme.colorText3
+                        color:          Theme.dark ? Theme.colorBg : "#FFFFFF"
                     }
 
                     MouseArea {
                         anchors.fill: parent
-                        cursorShape:  cameraManager.anySelected ? Qt.PointingHandCursor : Qt.ArrowCursor
-                        enabled:      cameraManager.anySelected
+                        cursorShape:  Qt.PointingHandCursor
                         onClicked:    root.startSessionRequested(root.selectedType)
                     }
                 }
