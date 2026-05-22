@@ -49,8 +49,9 @@ PpLogStream::~PpLogStream()
 }
 
 // ── Qt message handler ────────────────────────────────────────────────────────
-// Pinpoint messages now bypass this via PpLogStream. This handler exists only
-// to suppress high-volume Qt framework categories from reaching stderr.
+// Pinpoint messages bypass this via PpLogStream. This handler suppresses
+// high-volume Qt framework categories and routes Qt warnings/errors into
+// PpMessageLog so they appear in the resource monitor's application log.
 
 static void ppMessageHandler(QtMsgType type, const QMessageLogContext &ctx, const QString &msg)
 {
@@ -69,8 +70,16 @@ static void ppMessageHandler(QtMsgType type, const QMessageLogContext &ctx, cons
 #endif
     }
 
+    // Capture warnings and above into the in-app log regardless of debug level.
+    // Prefix the logging category when it's not the anonymous default.
+    if (type >= QtWarningMsg) {
+        QString logMsg = msg;
+        if (ctx.category && QLatin1StringView(ctx.category) != QLatin1StringView("default"))
+            logMsg = QStringLiteral("[") + QString::fromLatin1(ctx.category) + QStringLiteral("] ") + msg;
+        PpMessageLog::instance()->append(type, logMsg);
+    }
+
 #if PINPOINT_DEBUG_LEVEL == 0
-    Q_UNUSED(type); Q_UNUSED(msg);
     if (type == QtFatalMsg) ::abort();
     return;
 #else

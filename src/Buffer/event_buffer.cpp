@@ -26,6 +26,7 @@
 #include <climits>
 #include <cstdio>
 #include <stdexcept>
+#include <string>
 #include <thread>
 
 #if defined(PINPOINT_PLATFORM_WINDOWS)
@@ -101,6 +102,24 @@ EventBuffer::EventBuffer(EventBufferConfig cfg)
 EventBuffer::~EventBuffer() {
     if (state_.load(std::memory_order_acquire) != BufferState::Idle)
         stop();
+}
+
+void EventBuffer::setLogCallback(LogCallback cb)
+{
+    m_logCallback = std::move(cb);
+}
+
+void EventBuffer::logMsg(LogSeverity sev, const char *msg) const
+{
+    if (m_logCallback) {
+        m_logCallback(sev, msg);
+        return;
+    }
+    switch (sev) {
+    case LogSeverity::Error: fprintf(stderr, "ERROR: %s\n",   msg); break;
+    case LogSeverity::Warn:  fprintf(stderr, "WARNING: %s\n", msg); break;
+    default:                 fprintf(stderr, "%s\n",           msg); break;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -307,8 +326,8 @@ void EventBuffer::mergerLoop() {
 #endif
 
     ThreadPolicy::apply(ThreadRole::Merger);
-    fprintf(stderr, "[pinpoint] merger thread priority: %s\n",
-            ThreadPolicy::lastApplyDescription());
+    logMsg(LogSeverity::Warn, (std::string("[pinpoint] merger thread priority: ")
+                               + ThreadPolicy::lastApplyDescription()).c_str());
 
     if (config_.cpu_affinity_enabled)
         ThreadPolicy::pinToCore(1);

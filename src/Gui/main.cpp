@@ -69,6 +69,12 @@ int main(int argc, char *argv[])
     // EventBuffer declared first — destroyed last (stack unwinds in reverse).
     // All controllers that hold a pointer to it must be destroyed first.
     pinpoint::EventBuffer   eventBuffer;
+    eventBuffer.setLogCallback([](pinpoint::LogSeverity sev, const char *msg) {
+        if (sev >= pinpoint::LogSeverity::Error)
+            ppError() << msg;
+        else
+            ppWarn() << msg;
+    });
     // Merger runs for app lifetime. With no sources registered yet it
     // auto-pauses; the first registerSource() call auto-resumes it.
     eventBuffer.start();

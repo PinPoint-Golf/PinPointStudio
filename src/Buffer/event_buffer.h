@@ -32,11 +32,15 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <thread>
 #include <vector>
 
 namespace pinpoint {
+
+enum class LogSeverity { Info, Warn, Error };
+using LogCallback = std::function<void(LogSeverity, const char *)>;
 
 enum class BufferState {
     Idle,        // constructed, not started; no merger thread
@@ -51,6 +55,10 @@ public:
 
     explicit EventBuffer(EventBufferConfig cfg = {});
     ~EventBuffer();
+
+    // Register a log callback before calling start(). If none is set, messages
+    // go to stderr. The callback may be invoked from the merger thread.
+    void setLogCallback(LogCallback cb);
 
     EventBuffer(const EventBuffer&)            = delete;
     EventBuffer& operator=(const EventBuffer&) = delete;
@@ -192,6 +200,9 @@ private:
     // is false. SwingWindow constructor sets it true; destructor sets it false.
     std::atomic<bool> swing_window_live_{false};
 
+    LogCallback m_logCallback;
+
+    void logMsg(LogSeverity sev, const char *msg) const;
     int findSlotIndex(SourceId id) const noexcept;
     void mergerLoop();
     void maybeRunWatchdog();
