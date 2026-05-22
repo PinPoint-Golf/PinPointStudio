@@ -171,31 +171,21 @@ Item {
     readonly property var curType:    sessionTypes[sessionType]
     readonly property var curImuReqs: imuRequirements[sessionType]
 
-    // Find the cameraList entry whose serial matches a given controller serial.
-    // Depends on both instances and cameraList so bindings retrigger on either change.
+    // Find the cameraList entry assigned to a given perspective.
+    // perspective: 2 = face-on, 1 = down-the-line (matches VideoController convention).
+    // Reads directly from cameraList which now includes the persisted perspective field,
+    // so this works whether or not cameras are currently selected.
     readonly property var faceOnData: {
-        var insts = cameraManager.instances
-        for (var i = 0; i < insts.length; ++i) {
-            if (insts[i].perspective === 2) {
-                var sn = insts[i].deviceSerialNumber
-                var list = cameraManager.cameraList
-                for (var j = 0; j < list.length; ++j)
-                    if (list[j].serialNumber === sn) return list[j]
-            }
-        }
+        var list = cameraManager.cameraList
+        for (var i = 0; i < list.length; ++i)
+            if (list[i].perspective === 2) return list[i]
         return null
     }
 
     readonly property var dtlData: {
-        var insts = cameraManager.instances
-        for (var i = 0; i < insts.length; ++i) {
-            if (insts[i].perspective === 1) {
-                var sn = insts[i].deviceSerialNumber
-                var list = cameraManager.cameraList
-                for (var j = 0; j < list.length; ++j)
-                    if (list[j].serialNumber === sn) return list[j]
-            }
-        }
+        var list = cameraManager.cameraList
+        for (var i = 0; i < list.length; ++i)
+            if (list[i].perspective === 1) return list[i]
         return null
     }
 

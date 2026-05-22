@@ -82,10 +82,14 @@ CameraManager::~CameraManager()
 
 QVariantList CameraManager::cameraList() const
 {
+    AppSettings s;
+    const QVariantMap perspMap = s.cameraPerspective();
+
     QVariantList list;
     for (int i = 0; i < m_cameras.size(); ++i) {
         const CameraEntry &cam = m_cameras[i];
         const CameraCapabilities &cap = cam.device.capabilities;
+        const QString key = cameraKey(cam);
         QVariantMap entry;
         entry[QStringLiteral("index")]       = i;
         entry[QStringLiteral("description")] = cam.device.description;
@@ -93,7 +97,7 @@ QVariantList CameraManager::cameraList() const
         entry[QStringLiteral("vendorName")]  = cap.vendorName;
         entry[QStringLiteral("modelName")]   = cap.modelName;
         entry[QStringLiteral("serialNumber")] = cap.serialNumber;
-        entry[QStringLiteral("cameraKey")]   = cameraKey(cam);
+        entry[QStringLiteral("cameraKey")]   = key;
         entry[QStringLiteral("interface")]   = interfaceString(cap.connectionInterface);
         entry[QStringLiteral("maxWidth")]    = cap.resolution.defaultResolution.width;
         entry[QStringLiteral("maxHeight")]   = cap.resolution.defaultResolution.height;
@@ -103,6 +107,7 @@ QVariantList CameraManager::cameraList() const
         entry[QStringLiteral("roiSupported")] = cap.roi.supported;
         entry[QStringLiteral("hwTrigger")]   = cap.trigger.hasHardwareInput;
         entry[QStringLiteral("enabled")]     = !cam.excluded;
+        entry[QStringLiteral("perspective")] = perspMap.value(key, 0).toInt();
 
         // --- Ring buffer sizing fields (mirror VideoController's allocation logic) ---
         // Slot width/height: largest supported resolution, not just the default.
@@ -403,6 +408,7 @@ void CameraManager::setPerspective(QObject *rawController, int perspective)
     }
 
     target->setPerspective(perspective);
+    emit cameraListChanged();
 }
 
 // ---------------------------------------------------------------------------
