@@ -257,7 +257,7 @@ Item {
 
                 // Section label
                 Text {
-                    text: qsTr("SOURCES")
+                    text: qsTr("REGISTERED SOURCES")
                     font.family: Theme.fontBody
                     font.pixelSize: Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro

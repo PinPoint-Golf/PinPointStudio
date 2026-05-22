@@ -190,9 +190,8 @@ VideoController::VideoController(const Device &device, pinpoint::EventBuffer *bu
                  << "slots:" << desc.computeSlotCount();
 
         // CameraManager::setSelected() ensures the buffer is Paused before
-        // creating this controller, so registration is always safe. Memory is
-        // allocated once and held until deregisterFromBuffer() is called on
-        // device deselection — it is NOT freed between swings.
+        // creating this controller, so registration is always safe.
+        // Memory is held until deregisterFromBuffer() is called on deselection.
         m_sourceId = m_eventBuffer->registerSource(desc);
     }
 

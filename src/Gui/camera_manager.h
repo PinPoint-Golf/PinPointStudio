@@ -56,6 +56,10 @@ public:
     QString bufferState()     const;
     bool isReplaying()        const;
 
+    // Returns the live VideoController for a given device ID, or nullptr when
+    // the device is enumerated but not selected.  Mirrors ImuManager::instanceFor().
+    VideoController *controllerFor(const QString &deviceId) const;
+
     Q_INVOKABLE void setSelected(int index, bool selected);
     Q_INVOKABLE void startAll();
     Q_INVOKABLE void stopAll();

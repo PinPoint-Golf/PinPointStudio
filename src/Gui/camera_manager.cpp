@@ -54,12 +54,6 @@ CameraManager::CameraManager(pinpoint::EventBuffer *buffer, QObject *parent)
         }
     }
 
-    // Select all non-excluded cameras so every enabled camera gets a controller
-    // and has its ROI / perspective restored via createController().
-    for (int i = 0; i < m_cameras.size(); ++i) {
-        if (!m_cameras[i].excluded)
-            setSelected(i, true);
-    }
 }
 
 CameraManager::~CameraManager()
@@ -162,6 +156,14 @@ QVariantList CameraManager::instances() const
             list.append(QVariant::fromValue(static_cast<QObject *>(cam.controller)));
     }
     return list;
+}
+
+VideoController *CameraManager::controllerFor(const QString &deviceId) const
+{
+    for (const auto &cam : m_cameras)
+        if (cam.device.id == deviceId && cam.controller)
+            return cam.controller;
+    return nullptr;
 }
 
 bool CameraManager::isRecording() const

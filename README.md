@@ -140,6 +140,70 @@ The Cameras panel shows sensor info (vendor/model, resolution, pixel format, bit
 
 ---
 
+## Device lifecycle
+
+Every physical device — camera or IMU — passes through the same four stages. New code must respect this contract; violating it corrupts the EventBuffer or leaks ring-buffer memory.
+
+### Stages
+
+```
+Enumerated → Selected → Recording → Deselected
+     ↑            ↓                      ↓
+  (scan)    registerSource()      deregisterSource()
+```
+
+| Stage | Camera | IMU |
+|---|---|---|
+| **Enumerated** | `VideoInputFactory::enumerateDevices()` at `CameraManager` construction. Device appears in `cameraList`; no `VideoController` exists. | `DeviceEnumerator::scanImu()` starts async BLE scan at `ImuManager` construction. Device appears in `imuList` as discovered; no `ImuInstance` exists. |
+| **Selected** | User taps chip → `CameraManager::setSelected(i, true)` → `VideoController` constructed → `EventBuffer::registerSource()`. | User taps chip → `ImuManager::setSelected(i, true)` → `ImuInstance` constructed → `EventBuffer::registerSource()`, then `start()` begins the async BLE connection. |
+| **Recording** | `CameraManager::startAll()` → `VideoController::startRecording()` on each selected controller. Buffer transitions to Capturing once a ball is detected. | IMU writes data continuously once the BLE connection is established; the EventBuffer's Capturing/Paused state gates whether the merger reads from the ring. |
+| **Deselected** | User taps chip → `CameraManager::setSelected(i, false)` → `stopRecording()` if active → `deregisterFromBuffer()` → `deleteLater()`. | User taps chip → `ImuManager::setSelected(i, false)` → `stop()` (BLE disconnect) → `deregisterFromBuffer()` → deferred `deleteLater()`. |
+
+### Invariants
+
+These invariants must hold at all times:
+
+1. **No registration at startup.** Neither manager creates instances or registers sources in its constructor. The first registration always follows an explicit user selection.
+
+2. **Register on selection, deregister on deselection.** `registerSource()` is called exactly once — in the device instance constructor, which runs inside `setSelected(…, true)`. `deregisterSource()` is called exactly once — in `deregisterFromBuffer()`, which runs inside `setSelected(…, false)` and in the manager destructor.
+
+3. **Buffer is paused around every register/deregister call.** `setSelected()` snapshots `wasCapturing`, calls `pause()` before touching sources, then restores the buffer state after. This prevents the EventBuffer merger from reading a half-initialised or already-freed source.
+
+4. **`deregisterFromBuffer()` is called before `deleteLater()`.** The instance pointer is nulled and `instancesChanged()` emitted first so QML delegates are torn down while the object is still live; deregistration happens next; only then is the object queued for deletion.
+
+5. **Excluded ≠ deselected.** The `excluded` flag is a Settings-level preference (applied via `setExcluded()`). Setting `excluded = true` on a currently-selected device triggers an explicit `setSelected(…, false)` call, which follows invariant 4 above. Clearing `excluded` on a deselected device triggers `setSelected(…, true)`.
+
+6. **Re-enumeration is safe.** Calling `enumerateDevices()` again (e.g. after a settings scan) only adds new entries to `DeviceEnumerator`; it never removes or invalidates live instances or registered sources.
+
+### Buffer state machine
+
+The EventBuffer moves between states under `CameraManager` control:
+
+```
+Idle ──startAll()──▶ Paused ──ball present──▶ Capturing
+                        ▲                          │
+                        └────────ball lost──────────┘
+                                  (after replay)
+```
+
+- **Idle** — before the first `startAll()` and after `stop()`.
+- **Paused** — recording is active but no ball is in the ROI; the merger does not advance the timeline. Ring memory is live.
+- **Capturing** — ball is present; the merger reads all registered sources and builds the merged timeline.
+- Replay (`SwingWindow`) runs during Paused; the buffer must remain Paused for the duration. `resume()` is called only after the `SwingWindow` is destroyed.
+
+### Applying this to new device types
+
+To add a new device type (e.g. a launch monitor, a force plate):
+
+1. Create a `DeviceEnumerator` scan path; populate results with `DeviceType::YourType`.
+2. Create a manager class (e.g. `LaunchMonitorManager`) following the `ImuManager` pattern: constructor scans only, no instances created.
+3. Create an instance class (e.g. `LaunchMonitorInstance`) that calls `registerSource()` in its constructor and exposes `deregisterFromBuffer()`.
+4. In `setSelected(…, true)`: pause buffer → construct instance (registers source) → resume buffer.
+5. In `setSelected(…, false)`: pause buffer → stop → `deregisterFromBuffer()` → null the pointer → emit changed → `deleteLater()` → resume buffer.
+6. In the manager destructor: repeat the deselection teardown for all live instances.
+
+---
+
 ## Technology
 
 Built with **Qt 6.11** and **C++20**.

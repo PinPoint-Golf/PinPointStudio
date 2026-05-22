@@ -117,87 +117,85 @@ void ResourceMonitorController::refresh()
         return nullptr;
     };
 
-    QSet<pinpoint::SourceId> cameraSourceIds;
+    // Camera entries — one per enumerated device, mirrors the IMU pattern.
+    // A live VideoController is present only when the device is selected.
+    {
+        const QList<Device> camDevices =
+            DeviceEnumerator::instance()->devices(DeviceType::VideoInput);
 
-    const QVariantList camInstances = m_cameras->instances();
-    for (const QVariant &qv : camInstances) {
-        VideoController *ctrl = qobject_cast<VideoController*>(qv.value<QObject*>());
-        if (!ctrl) continue;
+        for (const Device &camDev : camDevices) {
+            VideoController *ctrl = m_cameras->controllerFor(camDev.id);
 
-        pinpoint::SourceId sid = ctrl->sourceId();
-        cameraSourceIds.insert(sid);
+            const pinpoint::SourceId sid = ctrl
+                ? ctrl->sourceId() : pinpoint::kInvalidSourceId;
+            const auto *srcInfo = findSourceById(sid);
 
-        const auto *srcInfo = findSourceById(sid);
-        QString srcName = srcInfo ? QString::fromStdString(srcInfo->name) : QString();
-        double fill = srcInfo && srcInfo->slot_count > 0
-            ? std::min(1.0, double(srcInfo->events_written) / double(srcInfo->slot_count))
-            : 0.0;
-
-        QString backendStr;
-        if (ctrl->isAravis())         backendStr = QStringLiteral("Aravis");
-        else if (ctrl->isSpinnaker()) backendStr = QStringLiteral("Spinnaker");
-        else                          backendStr = QStringLiteral("Qt Multimedia");
-
-        // cameraFps() samples the hardware capture counter every 500ms regardless
-        // of buffer state — valid even when the buffer is paused.
-        double rate = ctrl->cameraFps();
-        int    fw   = ctrl->frameWidth();
-        int    fh   = ctrl->frameHeight();
-        // Fall back to enumerated capabilities when no frame has been delivered yet.
-        if (fw == 0 || fh == 0) {
-            const QString sn = ctrl->deviceSerialNumber();
-            for (const QVariant &qv : m_cameras->cameraList()) {
-                const QVariantMap cam = qv.toMap();
-                if (cam[QStringLiteral("serialNumber")].toString() == sn) {
-                    fw = cam[QStringLiteral("maxWidth")].toInt();
-                    fh = cam[QStringLiteral("maxHeight")].toInt();
-                    break;
-                }
+            QString backendStr;
+            switch (camDev.backend) {
+            case VideoInputFactory::Backend::Aravis:    backendStr = QStringLiteral("Aravis");         break;
+            case VideoInputFactory::Backend::Spinnaker: backendStr = QStringLiteral("Spinnaker");      break;
+            default:                                    backendStr = QStringLiteral("Qt Multimedia");  break;
             }
-        }
-        quint64 evW  = srcInfo ? quint64(srcInfo->events_written)     : 0;
-        quint64 byW  = srcInfo ? quint64(srcInfo->bytes_written_total) : 0;
-        quint64 evOW = srcInfo ? quint64(srcInfo->events_overwritten)  : 0;
-        quint64 ringBytes = (sid != pinpoint::kInvalidSourceId)
-            ? quint64(m_buffer->getSlotCapacity(sid)) * quint64(m_buffer->getSlotCount(sid))
-            : 0;
 
-        QVariantMap dev;
-        dev[QStringLiteral("kind")]               = QStringLiteral("Camera");
-        dev[QStringLiteral("name")]               = ctrl->deviceSerialNumber().isEmpty()
-                                                     ? ctrl->deviceDescription()
-                                                     : ctrl->deviceDescription() + QStringLiteral(" (") + ctrl->deviceSerialNumber() + QStringLiteral(")");
-        dev[QStringLiteral("model")]              = ctrl->deviceDescription();
-        dev[QStringLiteral("serialNumber")]       = ctrl->deviceSerialNumber();
-        dev[QStringLiteral("backend")]            = backendStr;
-        dev[QStringLiteral("status")]             = ctrl->isRecording()
-                                                     ? QStringLiteral("streaming")
-                                                     : QStringLiteral("stopped");
-        dev[QStringLiteral("dataRateHz")]         = rate;
-        dev[QStringLiteral("batteryPct")]         = -1;
-        dev[QStringLiteral("sourceName")]         = srcName;
-        dev[QStringLiteral("ringFill")]           = fill;
-        // Stall is the only meaningful device-level warning. events_overwritten
-        // counts normal ring wrap-arounds (prev_gen > 0 in acquireWriteSlot),
-        // not merger overruns, so it must not be used as a warning condition.
-        dev[QStringLiteral("hasWarning")]         = capturing && srcInfo && srcInfo->stalled;
-        dev[QStringLiteral("eventsWritten")]      = evW;
-        dev[QStringLiteral("bytesWritten")]       = byW;
-        dev[QStringLiteral("eventsOverwritten")]  = evOW;
-        // Pre-formatted strings
-        dev[QStringLiteral("dataRateStr")]        = rate > 0
-            ? QString::number(rate, 'f', 1) + QStringLiteral(" fps")
-            : QStringLiteral("—");
-        dev[QStringLiteral("eventsWrittenStr")]   = fmtCount(evW);
-        dev[QStringLiteral("bytesWrittenStr")]    = fmtBytes(byW);
-        dev[QStringLiteral("eventsOverwrittenStr")] = evOW > 0
-            ? QString::number(evOW) : QStringLiteral("0");
-        dev[QStringLiteral("ringCapacityStr")]     = ringBytes > 0
-            ? fmtBytes(ringBytes) : QStringLiteral("—");
-        dev[QStringLiteral("resolutionStr")]       = (fw > 0 && fh > 0)
-            ? QString::number(fw) + QStringLiteral(" × ") + QString::number(fh)
-            : QStringLiteral("—");
-        m_devices.append(dev);
+            const QString sn = camDev.capabilities.serialNumber;
+
+            // Live frame rate and resolution from the controller when available;
+            // fall back to enumerated capabilities before any frame has arrived.
+            double rate = ctrl ? ctrl->cameraFps() : 0.0;
+            int    fw   = ctrl ? ctrl->frameWidth()  : 0;
+            int    fh   = ctrl ? ctrl->frameHeight() : 0;
+            if (fw == 0 || fh == 0) {
+                fw = camDev.capabilities.resolution.defaultResolution.width;
+                fh = camDev.capabilities.resolution.defaultResolution.height;
+            }
+
+            QString camStatus;
+            if (!ctrl)               camStatus = QStringLiteral("not selected");
+            else if (ctrl->isRecording()) camStatus = QStringLiteral("streaming");
+            else                     camStatus = QStringLiteral("stopped");
+
+            quint64 evW  = srcInfo ? quint64(srcInfo->events_written)      : 0;
+            quint64 byW  = srcInfo ? quint64(srcInfo->bytes_written_total)  : 0;
+            quint64 evOW = srcInfo ? quint64(srcInfo->events_overwritten)   : 0;
+            double  fill = srcInfo && srcInfo->slot_count > 0
+                ? std::min(1.0, double(srcInfo->events_written) / double(srcInfo->slot_count))
+                : 0.0;
+            quint64 ringBytes = (sid != pinpoint::kInvalidSourceId)
+                ? quint64(m_buffer->getSlotCapacity(sid)) * quint64(m_buffer->getSlotCount(sid))
+                : 0;
+            QString srcName = srcInfo ? QString::fromStdString(srcInfo->name) : QString();
+
+            QVariantMap dev;
+            dev[QStringLiteral("kind")]         = QStringLiteral("Camera");
+            dev[QStringLiteral("name")]         = sn.isEmpty()
+                ? camDev.description
+                : camDev.description + QStringLiteral(" (") + sn + QStringLiteral(")");
+            dev[QStringLiteral("model")]        = camDev.description;
+            dev[QStringLiteral("serialNumber")] = sn;
+            dev[QStringLiteral("backend")]      = backendStr;
+            dev[QStringLiteral("status")]       = camStatus;
+            dev[QStringLiteral("dataRateHz")]   = rate;
+            dev[QStringLiteral("batteryPct")]   = -1;
+            dev[QStringLiteral("sourceName")]   = srcName;
+            dev[QStringLiteral("ringFill")]     = fill;
+            dev[QStringLiteral("hasWarning")]   = capturing && srcInfo && srcInfo->stalled;
+            dev[QStringLiteral("eventsWritten")]     = evW;
+            dev[QStringLiteral("bytesWritten")]      = byW;
+            dev[QStringLiteral("eventsOverwritten")] = evOW;
+            dev[QStringLiteral("dataRateStr")]   = rate > 0
+                ? QString::number(rate, 'f', 1) + QStringLiteral(" fps")
+                : QStringLiteral("—");
+            dev[QStringLiteral("eventsWrittenStr")]    = fmtCount(evW);
+            dev[QStringLiteral("bytesWrittenStr")]     = fmtBytes(byW);
+            dev[QStringLiteral("eventsOverwrittenStr")] = evOW > 0
+                ? QString::number(evOW) : QStringLiteral("0");
+            dev[QStringLiteral("ringCapacityStr")] = ringBytes > 0
+                ? fmtBytes(ringBytes) : QStringLiteral("—");
+            dev[QStringLiteral("resolutionStr")] = (fw > 0 && fh > 0)
+                ? QString::number(fw) + QStringLiteral(" × ") + QString::number(fh)
+                : QStringLiteral("—");
+            m_devices.append(dev);
+        }
     }
 
     // IMU entries — one per enumerated device (mirrors cameraList pattern).
