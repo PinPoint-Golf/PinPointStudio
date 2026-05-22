@@ -116,16 +116,17 @@ Every session belongs to an athlete. The athlete management flow is the entry po
 
 ### Settings
 
-The Settings screen uses a sidebar navigation with a search field and panel-level organisation.
+The Settings screen uses a sidebar navigation with full-text search (Ctrl/Cmd+F) and panel-level organisation.
 
 | Panel | Status | Contents |
 |---|---|---|
-| **General** | Active | Language, measurement units, athlete library path, session behaviour, update and diagnostics preferences |
+| **General** | Active | Language, measurement units, session behaviour (auto-detect swing, AI coaching), update and diagnostics preferences |
 | **Appearance** | Active | Theme selector (8 options), font scale, UI density, reduce motion, pose overlay opacity |
 | **Displays** | Active | Main display placement, window geometry memory, secondary display output, post-shot content and delay, UI frame-rate cap, hardware acceleration |
 | **Cameras** | Active | Per-camera enable/disable, view assignment (Face-on / Down-the-line / Other), frame-rate chips, trigger mode (Free-run / HW sync), ROI crop with live preview; global pre-roll buffer and camera-sync toggle |
 | **IMUs** | Active | Per-device enable/disable, body placement assignment (A–D), output rate and fusion-mode chips, mount orientation, live test panel with 3D viz and Euler angles; global auto-connect, auto-reconnect, save-to-flash, and default fusion mode |
 | **Launch Monitor** | Placeholder | External launch monitor integration (not yet implemented) |
+| **Storage** | Active | Athlete library path, session folder naming, auto-save; video codec/resolution/quality/container; sensor data export format |
 | **Archiving** | Placeholder | Session archive path and retention policy (not yet implemented) |
 
 The Cameras panel shows sensor info (vendor/model, resolution, pixel format, bit depth) and a real-time storage estimate (per-frame MB and ring-buffer slot count) that updates as the ROI is adjusted.
@@ -174,73 +175,96 @@ PinPoint reads and writes files in several locations. Platform paths shown for L
 ### Application settings
 `~/.config/Pinpoint/Pinpoint.ini` (macOS: `~/Library/Preferences/Pinpoint.plist`, Windows: Registry `HKCU\Software\Pinpoint`)
 
+**Status key** — ✅ wired (read by app code; drives behaviour) · ⚙️ live (applied interactively but not restored on next startup/reconnect) · 📋 planned (persisted; not yet consumed outside settings)
+
 **UI**
 
-| Key | Default | What |
-|---|---|---|
-| `ui/themeIndex` | `0` | Selected visual theme (0–7: Instrument light/dark, Editorial light/dark, Studio light/dark, Vector light/dark) |
-| `ui/windowWidth` | `1120` | Main window width in pixels; updated on every resize |
-| `ui/windowHeight` | `700` | Main window height in pixels; updated on every resize |
-| `ui/windowX` | `-1` | Saved window X position (`-1` = not saved) |
-| `ui/windowY` | `-1` | Saved window Y position (`-1` = not saved) |
-| `ui/windowMaximized` | `false` | Whether window was last maximised/full-screen |
-| `ui/fontScale` | `-1.0` | Font scale multiplier (`-1.0` = auto from display DPI) |
-| `ui/density` | `"default"` | UI density (`"default"` or `"compact"`) |
-| `ui/reduceMotion` | `false` | Disable animated transitions |
-| `ui/overlayOpacity` | `0.7` | Opacity of the pose skeleton overlay (0.0–1.0) |
+| Key | Default | Status | What |
+|---|---|---|---|
+| `ui/themeIndex` | `0` | ✅ | Selected visual theme (0–7: Instrument light/dark, Editorial light/dark, Studio light/dark, Vector light/dark) |
+| `ui/windowWidth` | `1120` | ✅ | Main window width in pixels; updated on every resize |
+| `ui/windowHeight` | `700` | ✅ | Main window height in pixels; updated on every resize |
+| `ui/windowX` | `-1` | ✅ | Saved window X position (`-1` = not saved) |
+| `ui/windowY` | `-1` | ✅ | Saved window Y position (`-1` = not saved) |
+| `ui/windowMaximized` | `false` | ✅ | Whether window was last maximised/full-screen |
+| `ui/fontScale` | `-1.0` | ✅ | Font scale multiplier (`-1.0` = auto from display DPI) |
+| `ui/density` | `"default"` | ✅ | UI density (`"default"`, `"compact"`, or `"spacious"`) |
+| `ui/reduceMotion` | `false` | ✅ | Disable animated transitions |
+| `ui/overlayOpacity` | `0.7` | ✅ | Opacity of the pose skeleton overlay (0.0–1.0) |
 
 **General**
 
-| Key | Default | What |
-|---|---|---|
-| `general/language` | `"en_GB"` | UI language tag (e.g. `"en_US"`, `"fr_FR"`, `"ja_JP"`) |
-| `general/units` | `"mph"` | Speed/distance unit (`"mph"` or `"kmh"`) |
-| `general/athleteLibraryPath` | _(empty)_ | Root directory for athlete profiles and session archives |
-| `general/autoSaveSession` | `true` | Write session to archive immediately on completion |
-| `general/autoDetectSwing` | `true` | Start capture automatically when motion exceeds threshold |
-| `general/swingDetectionSensitivity` | `"Medium"` | Trigger threshold (`"Low"`, `"Medium"`, `"High"`) |
-| `general/aiCoachingOnSessionEnd` | `true` | Auto-generate a Claude coaching observation after each session |
-| `general/checkForUpdates` | `true` | Check on launch for a newer release |
-| `general/sendDiagnostics` | `false` | Send anonymous crash/performance data |
+| Key | Default | Status | What |
+|---|---|---|---|
+| `general/language` | `"en_GB"` | ✅ | UI language tag (e.g. `"en_US"`, `"fr_FR"`, `"ja_JP"`); restart required |
+| `general/units` | `"mph"` | ✅ | Speed/distance unit (`"mph"` or `"kmh"`); used in session goals |
+| `general/autoDetectSwing` | `true` | 📋 | Start capture automatically when motion exceeds threshold |
+| `general/swingDetectionSensitivity` | `"Medium"` | 📋 | Trigger threshold (`"Low"`, `"Medium"`, `"High"`) |
+| `general/aiCoachingOnSessionEnd` | `true` | 📋 | Auto-generate a Claude coaching observation after each session |
+| `general/checkForUpdates` | `true` | 📋 | Check on launch for a newer release |
+| `general/sendDiagnostics` | `false` | 📋 | Send anonymous crash/performance data |
 
 **Display**
 
-| Key | Default | What |
-|---|---|---|
-| `display/mainDisplayMode` | `"primary"` | Where to open the main window (`"primary"`, `"cursor"`, `"screen:<n>"`) |
-| `display/rememberWindowGeometry` | `true` | Restore exact window position and size from previous session |
-| `display/secondaryDisplayMode` | `"none"` | Secondary output for post-shot replay (`"none"` or `"screen:<n>"`) |
-| `display/postShotContent` | `"replay"` | What to show on the secondary display after a shot |
-| `display/postShotDelay` | `0.5` | Seconds before post-shot content is shown |
-| `display/postShotMirror` | `false` | Mirror the post-shot image horizontally |
-| `display/uiFrameRateCap` | `"display"` | UI render rate cap (`"display"` = match monitor refresh, or explicit Hz) |
-| `display/hardwareAcceleration` | `true` | Use GPU-accelerated rendering |
+| Key | Default | Status | What |
+|---|---|---|---|
+| `display/mainDisplayMode` | `"primary"` | ✅ | Where to open the main window (`"primary"`, `"cursor"`, `"screen:<n>"`) |
+| `display/rememberWindowGeometry` | `true` | ✅ | Restore exact window position and size from previous session |
+| `display/secondaryDisplayMode` | `"none"` | 📋 | Secondary output for post-shot replay (`"none"` or `"screen:<n>"`) |
+| `display/postShotContent` | `"replay"` | 📋 | What to show on the secondary display after a shot |
+| `display/postShotDelay` | `0.5` | 📋 | Seconds before post-shot content is shown |
+| `display/postShotMirror` | `false` | 📋 | Mirror the post-shot image horizontally |
+| `display/uiFrameRateCap` | `"display"` | 📋 | UI render rate cap (`"display"` = match monitor refresh, or explicit Hz) |
+| `display/hardwareAcceleration` | `true` | 📋 | Use GPU-accelerated rendering |
 
 **Camera** — per-camera values are maps keyed by the camera's persistent serial-number key
 
-| Key | Default | What |
-|---|---|---|
-| `camera/excluded` | _(empty list)_ | Serial-number keys of cameras excluded from capture |
-| `camera/targetFps` | _(empty map)_ | Per-camera frame-rate target; key → fps value |
-| `camera/triggerMode` | _(empty map)_ | Per-camera trigger mode; key → `"freerun"` or `"hwsync"` |
-| `camera/roi` | _(empty map)_ | Per-camera ROI; key → normalised `{x, y, w, h}` rect |
-| `camera/perspective` | _(empty map)_ | Per-camera view assignment; key → `0` (unassigned), `1` (down-the-line), `2` (face-on), `3` (other) |
-| `camera/preroll` | `1.0` | Pre-roll buffer in seconds (0.5 / 1.0 / 2.0) |
-| `camera/syncEnabled` | `true` | Lock frame timing across all enabled cameras |
+| Key | Default | Status | What |
+|---|---|---|---|
+| `camera/excluded` | _(empty list)_ | ✅ | Serial-number keys of cameras excluded from capture |
+| `camera/targetFps` | _(empty map)_ | ✅ | Per-camera frame-rate target; key → fps value |
+| `camera/triggerMode` | _(empty map)_ | ✅ | Per-camera trigger mode; key → `"freerun"` or `"hwsync"` |
+| `camera/roi` | _(empty map)_ | ✅ | Per-camera ROI; key → normalised `{x, y, w, h}` rect |
+| `camera/perspective` | _(empty map)_ | ✅ | Per-camera view assignment; key → `0` (unassigned), `1` (down-the-line), `2` (face-on), `3` (other) |
+| `camera/fixedInPlace` | _(empty map)_ | 📋 | Per-camera wall-mount flag; read by session wizard but not yet by capture |
+| `camera/preroll` | `1.0` | 📋 | Pre-roll buffer in seconds (0.5 / 1.0 / 2.0); ring buffer still sized at fixed 5 s |
+| `camera/syncEnabled` | `true` | 📋 | Lock frame timing across all enabled cameras |
 
 **IMU** — per-device values are maps keyed by the device MAC address / UUID
 
-| Key | Default | What |
-|---|---|---|
-| `imu/excluded` | _(empty list)_ | MAC addresses of IMUs excluded from auto-connect |
-| `imu/placement` | _(empty map)_ | Per-device body placement; key → `"A"` (Thorax/Lead Wrist), `"B"` (Lumbar Spine/Lead Hand), `"C"` (T12 Junction/Shoulder), `"D"` (Other), or `""` (unassigned) |
-| `imu/outputRateHz` | _(empty map)_ | Per-device output rate override; key → Hz (10 / 20 / 50 / 100 / 200) |
-| `imu/fusionMode` | _(empty map)_ | Per-device fusion algorithm; key → `"9axis"` or `"6axis"` |
-| `imu/mountOrientation` | _(empty map)_ | Per-device mount; key → `"horizontal"` or `"vertical"` |
-| `imu/autoConnect` | `true` | Connect all enabled IMUs automatically before recording begins |
-| `imu/autoReconnect` | `true` | Attempt reconnect if the BLE link drops during a session |
-| `imu/saveCalibrationToFlash` | `false` | Persist zero-orientation and mag calibration to device flash |
-| `imu/defaultFusionMode` | `"9axis"` | Default fusion algorithm for devices with no per-device override |
+| Key | Default | Status | What |
+|---|---|---|---|
+| `imu/excluded` | _(empty list)_ | ✅ | MAC addresses of IMUs excluded from the device list and auto-connect |
+| `imu/defaultFusionMode` | `"9axis"` | ✅ | Fallback fusion algorithm shown in per-device chips when no override is set |
+| `imu/outputRateHz` | _(empty map)_ | ⚙️ | Per-device output rate; applied immediately when chip is tapped, not restored on reconnect |
+| `imu/fusionMode` | _(empty map)_ | ⚙️ | Per-device fusion algorithm; applied immediately when chip is tapped, not restored on reconnect |
+| `imu/placement` | _(empty map)_ | ✅ | Per-device body placement; read by session wizard and resource monitor |
+| `imu/mountOrientation` | _(empty map)_ | 📋 | Per-device mount; key → `"horizontal"` or `"vertical"` |
+| `imu/autoConnect` | `true` | 📋 | Connect all enabled IMUs automatically before recording begins |
+| `imu/autoReconnect` | `true` | 📋 | Attempt reconnect if the BLE link drops during a session |
+| `imu/saveCalibrationToFlash` | `false` | 📋 | Persist zero-orientation and mag calibration to device flash |
+
+**Session**
+
+| Key | Default | Status | What |
+|---|---|---|---|
+| `session/goalsByType` | _(empty map)_ | ✅ | Per-session-type speed goals; key → target mph value |
+| `session/lastType` | `0` | ✅ | Index of the last-used session type; pre-selects on next wizard open |
+
+**Storage** — recording pipeline not yet built; all keys persisted for future use
+
+| Key | Default | Status | What |
+|---|---|---|---|
+| `storage/sessionNamingPattern` | `"date-name-type"` | 📋 | Folder name format (`"date-name-type"`, `"date-type-name"`, `"name-date-type"`, `"date-only"`) |
+| `storage/videoResolutionMode` | `"native"` | 📋 | Recording resolution (`"4k"`, `"1080p"`, `"native"`, `"half"`) |
+| `storage/videoCodec` | `"h264"` | 📋 | Encoding codec (`"h264"`, `"h265"`, `"prores"`, `"raw"`) |
+| `storage/videoQuality` | `"medium"` | 📋 | Encoding quality (`"low"`, `"medium"`, `"high"`, `"lossless"`); ignored when codec is `"raw"` |
+| `storage/videoContainer` | `"mp4"` | 📋 | Container format (`"mp4"`, `"mov"`, `"mkv"`) |
+| `storage/saveRawFrames` | `false` | 📋 | Save unprocessed Bayer frames alongside encoded clips |
+| `storage/savePoseKeypoints` | `true` | 📋 | Save MoveNet skeleton data as JSON per clip |
+| `storage/saveImuStreams` | `true` | 📋 | Save full IMU quaternion/accelerometer data |
+| `storage/imuDataFormat` | `"json"` | 📋 | IMU export format (`"json"`, `"csv"`, `"binary"`) |
+| `storage/saveLaunchMonitorData` | `true` | 📋 | Save ball-flight data from connected launch monitor |
 
 **Athletes** — one group per athlete, keyed by UUID (`athletes/<uuid>/…`)
 
