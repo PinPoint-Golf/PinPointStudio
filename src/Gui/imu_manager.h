@@ -81,7 +81,6 @@ public:
     // Snapshot of live per-device stats for monitoring purposes.
     // Avoids exposing ImuInstance to callers that only need metrics.
     struct ImuDeviceStats {
-        bool               selected       = false;
         pinpoint::SourceId sourceId       = pinpoint::kInvalidSourceId;
         double             dataRateHz     = 0.0;
         int                batteryPercent = -1;

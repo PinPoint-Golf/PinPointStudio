@@ -186,7 +186,6 @@ CameraManager::CameraDeviceStats CameraManager::liveDeviceStats(const QString &d
             continue;
         if (!e.controller)
             break;
-        stats.selected  = true;
         stats.sourceId  = e.controller->sourceId();
         stats.fps       = e.controller->cameraFps();
         stats.width     = e.controller->frameWidth();

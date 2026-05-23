@@ -63,7 +63,6 @@ public:
     // Snapshot of live per-device stats for monitoring purposes.
     // Avoids exposing VideoController to callers that only need metrics.
     struct CameraDeviceStats {
-        bool               selected  = false;
         pinpoint::SourceId sourceId  = pinpoint::kInvalidSourceId;
         double             fps       = 0.0;
         int                width     = 0;

@@ -147,9 +147,9 @@ void ResourceMonitorController::refresh()
             }
 
             QString camStatus;
-            if (!cam.selected)      camStatus = QStringLiteral("not selected");
-            else if (cam.recording) camStatus = QStringLiteral("streaming");
-            else                    camStatus = QStringLiteral("stopped");
+            if (sid == pinpoint::kInvalidSourceId) camStatus = QStringLiteral("idle");
+            else if (cam.recording)                camStatus = QStringLiteral("streaming");
+            else                                   camStatus = QStringLiteral("ready");
 
             quint64 evW  = srcInfo ? quint64(srcInfo->events_written)      : 0;
             quint64 byW  = srcInfo ? quint64(srcInfo->bytes_written_total)  : 0;
@@ -216,9 +216,10 @@ void ResourceMonitorController::refresh()
                 : imuDev.imuCapabilities.modelName;
 
             QString imuStatus;
-            if (imu.connected) imuStatus = QStringLiteral("connected");
-            else if (imu.busy) imuStatus = QStringLiteral("connecting");
-            else               imuStatus = QStringLiteral("disconnected");
+            if (sid == pinpoint::kInvalidSourceId) imuStatus = QStringLiteral("idle");
+            else if (imu.connected)                imuStatus = QStringLiteral("connected");
+            else if (imu.busy)                     imuStatus = QStringLiteral("connecting");
+            else                                   imuStatus = QStringLiteral("disconnected");
 
             double  imuRate      = imu.dataRateHz;
             int     batPct       = imu.batteryPercent;

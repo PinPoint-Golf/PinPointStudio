@@ -242,7 +242,6 @@ ImuManager::ImuDeviceStats ImuManager::liveDeviceStats(const QString &deviceId) 
     ImuDeviceStats stats;
     const ImuEntry &e = m_selected.value(deviceId);
     if (e.selected && e.instance) {
-        stats.selected       = true;
         stats.sourceId       = e.instance->sourceId();
         stats.dataRateHz     = e.instance->dataRateHz();
         stats.batteryPercent = e.instance->batteryPercent();
