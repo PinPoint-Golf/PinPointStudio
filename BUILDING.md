@@ -161,6 +161,7 @@ The following are fetched at `cmake ..` time — no manual steps required:
 | MoveNet Lightning | ONNX pose model (Hugging Face) | ~9 MB | Always |
 | MoveNet Thunder | ONNX pose model (Hugging Face) | ~30 MB | Always |
 | u2netp | ONNX person segmentation model | ~4.7 MB | Always |
+| ViTPose-B wholebody | ONNX whole-body pose model (HuggingFace JunkyByte/easy_ViTPose) | ~330 MB | `WITH_VITPOSE=ON` (default) |
 | yt-dlp | Platform binary for YouTube download | ~15 MB | Always |
 
 If a download fails, the affected feature is disabled but the rest of the build continues normally. Re-run CMake to retry failed downloads.
@@ -188,6 +189,7 @@ ORT on Linux with Intel integrated graphics runs on CPU — see the note above o
 |---|---|---|
 | `-DWITH_CUDA=ON/OFF` | ON | Enable CUDA EP for ONNX Runtime (auto-disabled on version mismatch) |
 | `-DWITH_COREML=ON/OFF` | ON | Enable CoreML EP on macOS ARM64 |
+| `-DWITH_VITPOSE=ON/OFF` | ON | Download and build ViTPose-B wholebody pose estimator (~330 MB model) |
 | `-DWITH_MEDIAPIPE=ON/OFF` | OFF | Build MediaPipe BlazePose estimator (requires Python + `qai-hub-models`) |
 | `-DASSEMBLYAI_API_KEY=<key>` | — | Seed AssemblyAI API key into settings at build time |
 | `-DOpenCV_DIR=<path>` | — | Path to OpenCV CMake config (Windows, non-standard location) |

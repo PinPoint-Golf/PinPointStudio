@@ -214,7 +214,7 @@ Built with **Qt 6.11** and **C++20**.
 | UI | Qt Quick / QML (Qt 6.11) |
 | Speech-to-text | whisper.cpp (Vulkan / CUDA) + Azure Speech REST |
 | Text-to-speech | Kokoro ONNX Runtime + Azure Neural Voice |
-| Pose estimation | MoveNet Lightning / Thunder (ONNX Runtime) |
+| Pose estimation | MoveNet Lightning / Thunder, ViTPose-B (ONNX Runtime) |
 | Person segmentation | u2netp (ONNX Runtime) |
 | Video download | yt-dlp (bundled binary) |
 | GPU acceleration | Vulkan, CUDA 12 + 13, CoreML (Apple Silicon) |
@@ -373,6 +373,7 @@ PinPoint reads and writes files in several locations. Platform paths shown for L
 |---|---|
 | `movenet_singlepose_lightning.onnx` | MoveNet Lightning pose model (~9 MB) |
 | `movenet_singlepose_thunder.onnx` | MoveNet Thunder pose model (~30 MB) |
+| `vitpose-b-wholebody.onnx` | ViTPose-B whole-body pose model (~330 MB) — present when `WITH_VITPOSE=ON` |
 | `u2netp.onnx` | Person segmentation model (~4.7 MB) |
 | `yt-dlp` / `yt-dlp.exe` | Bundled yt-dlp binary for YouTube download |
 
