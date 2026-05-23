@@ -289,10 +289,12 @@ void WT9011DCL_BLE::onServiceDiscoveryFinished()
 void WT9011DCL_BLE::onControllerError(QLowEnergyController::Error error)
 {
     setState(State::Error);
+    const QString errStr = m_controller ? m_controller->errorString()
+                                        : QStringLiteral("(controller already torn down)");
     emit errorOccurred(
         QStringLiteral("Controller error %1: %2 (after %3 ms)")
         .arg(static_cast<int>(error))
-        .arg(m_controller->errorString())
+        .arg(errStr)
         .arg(m_connectTimer.elapsed()));
 }
 

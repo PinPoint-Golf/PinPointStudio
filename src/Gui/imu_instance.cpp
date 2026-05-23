@@ -156,14 +156,12 @@ ImuInstance::ImuInstance(const Device &device,
     });
 
     // Publish raw IMU packets into the EventBuffer on the BLE notification thread.
-    // DirectConnection: signal fires on the BLE thread.
-    // m_ringMutex is held for the full write sequence so deregisterFromBuffer()
-    // (which also holds m_ringMutex) cannot free ring memory mid-write.
+    // DirectConnection: signal fires on the BLE thread. Safe because stop() calls
+    // disconnect(rawPacketReady) before deregisterFromBuffer() — the producer is
+    // severed before ring memory is freed, matching the camera stopCapture() barrier.
     if (m_eventBuffer && m_imuSourceId != pinpoint::kInvalidSourceId) {
         connect(m_imu, &WT9011DCL_Base::rawPacketReady,
                 this, [this](const QByteArray &data, qint64 ts) {
-                    QMutexLocker guard(&m_ringMutex);
-                    if (m_imuSourceId == pinpoint::kInvalidSourceId) return;
                     if (!m_eventBuffer->isCapturing()) return;
                     auto slot = m_eventBuffer->acquireWriteSlot(m_imuSourceId);
                     if (!slot.valid) return;
@@ -219,17 +217,12 @@ void ImuInstance::stop()
     m_retryCount     = 0;
     m_inConnectPhase = false;
     m_attemptingConn = false;
-    // Sever the BLE-thread ring-write path before deregisterFromBuffer() frees
-    // ring memory.  Without this, the DirectConnection lambda can fire on the
-    // BLE notification thread concurrent with ring deallocation (or after
-    // deleteLater() completes), accessing freed ImuInstance memory.
     disconnect(m_imu, &WT9011DCL_Base::rawPacketReady, this, nullptr);
     m_imu->disconnectFromDevice();
 }
 
 void ImuInstance::deregisterFromBuffer()
 {
-    QMutexLocker guard(&m_ringMutex);
     if (m_eventBuffer && m_imuSourceId != pinpoint::kInvalidSourceId) {
         m_eventBuffer->deregisterSource(m_imuSourceId);
         m_imuSourceId = pinpoint::kInvalidSourceId;
