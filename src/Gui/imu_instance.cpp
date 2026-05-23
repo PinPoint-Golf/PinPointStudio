@@ -215,6 +215,11 @@ void ImuInstance::stop()
     m_retryCount     = 0;
     m_inConnectPhase = false;
     m_attemptingConn = false;
+    // Sever the BLE-thread ring-write path before deregisterFromBuffer() frees
+    // ring memory.  Without this, the DirectConnection lambda can fire on the
+    // BLE notification thread concurrent with ring deallocation (or after
+    // deleteLater() completes), accessing freed ImuInstance memory.
+    disconnect(m_imu, &WT9011DCL_Base::rawPacketReady, this, nullptr);
     m_imu->disconnectFromDevice();
 }
 
