@@ -156,10 +156,14 @@ ImuInstance::ImuInstance(const Device &device,
     });
 
     // Publish raw IMU packets into the EventBuffer on the BLE notification thread.
-    // DirectConnection: signal fires on the BLE thread; lambda only touches lock-free atomics.
+    // DirectConnection: signal fires on the BLE thread.
+    // m_ringMutex is held for the full write sequence so deregisterFromBuffer()
+    // (which also holds m_ringMutex) cannot free ring memory mid-write.
     if (m_eventBuffer && m_imuSourceId != pinpoint::kInvalidSourceId) {
         connect(m_imu, &WT9011DCL_Base::rawPacketReady,
                 this, [this](const QByteArray &data, qint64 ts) {
+                    QMutexLocker guard(&m_ringMutex);
+                    if (m_imuSourceId == pinpoint::kInvalidSourceId) return;
                     if (!m_eventBuffer->isCapturing()) return;
                     auto slot = m_eventBuffer->acquireWriteSlot(m_imuSourceId);
                     if (!slot.valid) return;
@@ -225,6 +229,7 @@ void ImuInstance::stop()
 
 void ImuInstance::deregisterFromBuffer()
 {
+    QMutexLocker guard(&m_ringMutex);
     if (m_eventBuffer && m_imuSourceId != pinpoint::kInvalidSourceId) {
         m_eventBuffer->deregisterSource(m_imuSourceId);
         m_imuSourceId = pinpoint::kInvalidSourceId;

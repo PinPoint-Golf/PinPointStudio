@@ -19,6 +19,7 @@
 #pragma once
 
 #include <QList>
+#include <QMutex>
 #include <QObject>
 #include <QStringList>
 #include <QTimer>
@@ -113,6 +114,10 @@ private:
 
     pinpoint::EventBuffer *m_eventBuffer  = nullptr;
     pinpoint::SourceId     m_imuSourceId  = pinpoint::kInvalidSourceId;
+    // Guards the ring write path against concurrent deregisterFromBuffer().
+    // Held for the full acquireWriteSlot→memcpy→publish sequence; also held by
+    // deregisterFromBuffer() so the two can never interleave.
+    QMutex                 m_ringMutex;
 
     WT9011DCL_BLE *m_imu               = nullptr;
     Device         m_device;
