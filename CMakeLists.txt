@@ -399,6 +399,7 @@ endif()
 option(WITH_CUDA       "Enable CUDA execution provider (Linux/Windows)"                        ON)
 option(WITH_COREML     "Enable CoreML execution provider (macOS ARM64)"                        ON)
 option(WITH_MEDIAPIPE  "Build with MediaPipe BlazePose pose estimator (requires Python + qai-hub-models)"  OFF)
+option(WITH_VITPOSE    "Download and build ViTPose-B pose estimator (ONNX, all platforms)"     ON)
 
 set(ORT_VERSION "1.26.0")
 
@@ -1030,6 +1031,63 @@ else()
     message(STATUS "Segmenter: model unavailable -- background suppression disabled")
 endif()
 
+# ── ViTPose-B (whole-body ONNX model) ────────────────────────────────────────
+# Downloads the JunkyByte/easy_ViTPose whole-body model (~330 MB) at configure
+# time, cached in _deps/vitpose/ so reconfigures do not re-download.
+#
+# Model I/O (confirmed from easy_ViTPose source):
+#   Input:  [1, 3, 256, 192] float32 NCHW, RGB, ImageNet-normalised
+#   Output: [1, 133, 64, 48] float32 heatmaps — COCO-WholeBody 133-keypoint format
+#
+# The C++ estimator currently consumes only the first 17 COCO body channels.
+# See pose_estimator_vitpose.cpp for the note about 133-keypoint future support.
+
+if(WITH_VITPOSE)
+    set(_vitpose_model_dir  "${CMAKE_BINARY_DIR}/_deps/vitpose")
+    set(_vitpose_model_file "vitpose-b-wholebody.onnx")
+    set(_vitpose_model_path "${_vitpose_model_dir}/${_vitpose_model_file}")
+    file(MAKE_DIRECTORY "${_vitpose_model_dir}")
+
+    if(NOT EXISTS "${_vitpose_model_path}")
+        message(STATUS "ViTPose: downloading vitpose-b-wholebody model (~330 MB)...")
+        file(DOWNLOAD
+            "https://huggingface.co/JunkyByte/easy_ViTPose/resolve/main/onnx/wholebody/vitpose-b-wholebody.onnx"
+            "${_vitpose_model_path}"
+            SHOW_PROGRESS TLS_VERIFY ON STATUS _vtp_dl_status)
+        list(GET _vtp_dl_status 0 _vtp_dl_code)
+        if(NOT _vtp_dl_code EQUAL 0)
+            list(GET _vtp_dl_status 1 _vtp_dl_msg)
+            message(WARNING "ViTPose: download failed (${_vtp_dl_msg}) -- ViTPose estimator disabled")
+            file(REMOVE "${_vitpose_model_path}")
+        endif()
+    endif()
+
+    if(EXISTS "${_vitpose_model_path}")
+        message(STATUS "ViTPose: model ready (${_vitpose_model_path})")
+        target_compile_definitions(PinPoint PRIVATE
+            HAVE_VITPOSE
+            VITPOSE_MODEL_FILE="${_vitpose_model_file}"
+        )
+        if(APPLE)
+            add_custom_command(TARGET PinPoint POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${_vitpose_model_path}"
+                    "$<TARGET_BUNDLE_CONTENT_DIR:PinPoint>/Resources/models/${_vitpose_model_file}"
+                COMMENT "Bundling ViTPose model into app"
+            )
+        else()
+            add_custom_command(TARGET PinPoint POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${_vitpose_model_path}"
+                    "$<TARGET_FILE_DIR:PinPoint>/models/${_vitpose_model_file}"
+                COMMENT "Copying ViTPose model to output directory"
+            )
+        endif()
+    else()
+        message(STATUS "ViTPose: model unavailable -- estimator disabled")
+    endif()
+endif() # WITH_VITPOSE
+
 # ── Whisper model (ggml-base.en.bin) ─────────────────────────────────────────
 # Downloaded at configure time, cached in _deps/whisper-models/ so it survives
 # reconfigures without re-downloading.  Copied to models/whisper/ next to the
@@ -1377,6 +1435,14 @@ if(WITH_MEDIAPIPE AND EXISTS "${_mediapipe_detector_path}" AND EXISTS "${_mediap
         src/Pose/pose_estimator_mediapipe.cpp
     )
     message(STATUS "MediaPipe pose estimator: enabled")
+endif()
+
+if(WITH_VITPOSE AND EXISTS "${_vitpose_model_path}")
+    target_sources(PinPoint PRIVATE
+        src/Pose/pose_estimator_vitpose.h
+        src/Pose/pose_estimator_vitpose.cpp
+    )
+    message(STATUS "ViTPose-B pose estimator: enabled")
 endif()
 
 if(APPLE)
