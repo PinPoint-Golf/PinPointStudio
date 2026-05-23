@@ -20,6 +20,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Controls.Basic
+import QtQuick3D.Helpers
 import PinPoint
 
 Item {
@@ -221,6 +222,22 @@ Item {
                                     radius: Theme.radius - 1
                                 }
                             }
+                            TabButton {
+                                text: qsTr("Arm")
+                                contentItem: Text {
+                                    text: parent.text
+                                    color: instTabBar.currentIndex === 2 ? Theme.colorText : Theme.colorText3
+                                    font.family:    Theme.fontBody
+                                    font.pixelSize: Theme.fontSzBody
+                                    font.weight:    Font.Normal
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment:   Text.AlignVCenter
+                                }
+                                background: Rectangle {
+                                    color:  instTabBar.currentIndex === 2 ? Theme.colorBg3 : "transparent"
+                                    radius: Theme.radius - 1
+                                }
+                            }
                         }
 
                         StackLayout {
@@ -258,6 +275,12 @@ Item {
                                         wrapMode:   Text.NoWrap
                                     }
                                 }
+                            }
+
+                            // Arm viz tab
+                            ArmVizView {
+                                Layout.fillWidth:  true
+                                Layout.fillHeight: true
                             }
                         }
 
