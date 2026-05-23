@@ -78,6 +78,18 @@ public:
     // Returns the live ImuInstance QObject* for deviceId, or nullptr if not selected.
     Q_INVOKABLE QObject *instanceFor(const QString &deviceId) const;
 
+    // Snapshot of live per-device stats for monitoring purposes.
+    // Avoids exposing ImuInstance to callers that only need metrics.
+    struct ImuDeviceStats {
+        bool               selected       = false;
+        pinpoint::SourceId sourceId       = pinpoint::kInvalidSourceId;
+        double             dataRateHz     = 0.0;
+        int                batteryPercent = -1;
+        bool               connected      = false;
+        bool               busy           = false;
+    };
+    ImuDeviceStats liveDeviceStats(const QString &deviceId) const;
+
     // Aggregate save — writes one log file per active instance.
     Q_INVOKABLE QString saveLog();
 

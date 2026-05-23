@@ -19,9 +19,7 @@
 #include "resource_monitor_controller.h"
 #include "camera_manager.h"
 #include "imu_manager.h"
-#include "imu_instance.h"
 #include "pp_debug.h"
-#include "video_controller.h"
 
 #include <cmath>
 
@@ -119,16 +117,14 @@ void ResourceMonitorController::refresh()
     };
 
     // Camera entries — one per enumerated device, mirrors the IMU pattern.
-    // A live VideoController is present only when the device is selected.
     {
         const QList<Device> camDevices =
             DeviceEnumerator::instance()->devices(DeviceType::VideoInput);
 
         for (const Device &camDev : camDevices) {
-            VideoController *ctrl = m_cameras->controllerFor(camDev.id);
+            const auto cam = m_cameras->liveDeviceStats(camDev.id);
 
-            const pinpoint::SourceId sid = ctrl
-                ? ctrl->sourceId() : pinpoint::kInvalidSourceId;
+            const pinpoint::SourceId sid = cam.sourceId;
             const auto *srcInfo = findSourceById(sid);
 
             QString backendStr;
@@ -142,18 +138,18 @@ void ResourceMonitorController::refresh()
 
             // Live frame rate and resolution from the controller when available;
             // fall back to enumerated capabilities before any frame has arrived.
-            double rate = ctrl ? ctrl->cameraFps() : 0.0;
-            int    fw   = ctrl ? ctrl->frameWidth()  : 0;
-            int    fh   = ctrl ? ctrl->frameHeight() : 0;
+            double rate = cam.fps;
+            int    fw   = cam.width;
+            int    fh   = cam.height;
             if (fw == 0 || fh == 0) {
                 fw = camDev.capabilities.resolution.defaultResolution.width;
                 fh = camDev.capabilities.resolution.defaultResolution.height;
             }
 
             QString camStatus;
-            if (!ctrl)               camStatus = QStringLiteral("not selected");
-            else if (ctrl->isRecording()) camStatus = QStringLiteral("streaming");
-            else                     camStatus = QStringLiteral("stopped");
+            if (!cam.selected)      camStatus = QStringLiteral("not selected");
+            else if (cam.recording) camStatus = QStringLiteral("streaming");
+            else                    camStatus = QStringLiteral("stopped");
 
             quint64 evW  = srcInfo ? quint64(srcInfo->events_written)      : 0;
             quint64 byW  = srcInfo ? quint64(srcInfo->bytes_written_total)  : 0;
@@ -200,18 +196,16 @@ void ResourceMonitorController::refresh()
     }
 
     // IMU entries — one per enumerated device (mirrors cameraList pattern).
-    // Devices appear regardless of connection state; the live ImuInstance (if
+    // Devices appear regardless of connection state; the live instance (if
     // selected) supplies data rates, battery, and buffer source info.
     {
         const QList<Device> imuDevices =
             DeviceEnumerator::instance()->devices(DeviceType::Imu);
 
         for (const Device &imuDev : imuDevices) {
-            // Look up a live instance for this device (null when not selected).
-            ImuInstance *inst = qobject_cast<ImuInstance *>(m_imu->instanceFor(imuDev.id));
+            const auto imu = m_imu->liveDeviceStats(imuDev.id);
 
-            const pinpoint::SourceId sid = inst
-                ? inst->sourceId() : pinpoint::kInvalidSourceId;
+            const pinpoint::SourceId sid = imu.sourceId;
             const auto *imuSrc = findSourceById(sid);
 
             const QString backend = imuDev.imuTransport == ImuBase::Transport::Ble
@@ -222,12 +216,12 @@ void ResourceMonitorController::refresh()
                 : imuDev.imuCapabilities.modelName;
 
             QString imuStatus;
-            if (inst && inst->imuConnected()) imuStatus = QStringLiteral("connected");
-            else if (inst && inst->busy())    imuStatus = QStringLiteral("connecting");
-            else                              imuStatus = QStringLiteral("disconnected");
+            if (imu.connected) imuStatus = QStringLiteral("connected");
+            else if (imu.busy) imuStatus = QStringLiteral("connecting");
+            else               imuStatus = QStringLiteral("disconnected");
 
-            double  imuRate      = inst ? inst->dataRateHz()     : 0.0;
-            int     batPct       = inst ? inst->batteryPercent()  : -1;
+            double  imuRate      = imu.dataRateHz;
+            int     batPct       = imu.batteryPercent;
             quint64 imuEW        = imuSrc ? quint64(imuSrc->events_written)      : 0;
             quint64 imuBW        = imuSrc ? quint64(imuSrc->bytes_written_total)  : 0;
             quint64 imuOW        = imuSrc ? quint64(imuSrc->events_overwritten)   : 0;

@@ -337,11 +337,8 @@ void VideoController::setupPipeline()
     m_fpsSampleTimer->start();
 }
 
-VideoController::~VideoController()
+void VideoController::stopCapture()
 {
-    // Shutdown in pipeline order so no stage receives frames after it is torn down.
-
-    // 1. Stop capture — no more videoFrameReady signals after this.
     if (m_captureThread->isRunning()) {
         QMetaObject::invokeMethod(m_videoInput, [this]() {
             m_videoInput->stop();
@@ -350,6 +347,14 @@ VideoController::~VideoController()
         m_captureThread->quit();
         m_captureThread->wait();
     }
+}
+
+VideoController::~VideoController()
+{
+    // Shutdown in pipeline order so no stage receives frames after it is torn down.
+
+    // 1. Stop capture — no more videoFrameReady signals after this.
+    stopCapture();
     delete m_videoInput;
     m_videoInput = nullptr;
 

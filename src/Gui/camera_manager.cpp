@@ -58,6 +58,13 @@ CameraManager::CameraManager(pinpoint::EventBuffer *buffer, QObject *parent)
 
 CameraManager::~CameraManager()
 {
+    // Stop all capture threads first so no frame events can be posted to the
+    // main thread after we free ring memory or delete the controllers.
+    for (auto &cam : m_cameras) {
+        if (cam.controller)
+            cam.controller->stopCapture();
+    }
+
     if (m_eventBuffer) {
         if (m_eventBuffer->state() == pinpoint::BufferState::Capturing)
             m_eventBuffer->pause();
@@ -171,6 +178,25 @@ VideoController *CameraManager::controllerFor(const QString &deviceId) const
     return nullptr;
 }
 
+CameraManager::CameraDeviceStats CameraManager::liveDeviceStats(const QString &deviceId) const
+{
+    CameraDeviceStats stats;
+    for (const CameraEntry &e : m_cameras) {
+        if (e.device.id != deviceId)
+            continue;
+        if (!e.controller)
+            break;
+        stats.selected  = true;
+        stats.sourceId  = e.controller->sourceId();
+        stats.fps       = e.controller->cameraFps();
+        stats.width     = e.controller->frameWidth();
+        stats.height    = e.controller->frameHeight();
+        stats.recording = e.controller->isRecording();
+        break;
+    }
+    return stats;
+}
+
 bool CameraManager::isRecording() const
 {
     return m_recording;
@@ -212,7 +238,12 @@ void CameraManager::setSelected(int index, bool selected)
         VideoController *ctrl = m_cameras[index].controller;
         m_cameras[index].controller = nullptr;
         if (ctrl) {
-            if (m_recording) ctrl->stopRecording();
+            // Stop the capture thread synchronously before freeing ring memory.
+            // The capture thread posts drainDisplayFrame events via QueuedConnection;
+            // if we call deleteLater() while it is still running, a stale event can
+            // fire on the freed object and corrupt the heap.  Stopping first ensures
+            // no new frame events are queued after this point.
+            ctrl->stopCapture();
             ctrl->deregisterFromBuffer();
             // Notify QML so the Repeater removes the delegate while the
             // controller is still alive; deleteLater() defers the actual

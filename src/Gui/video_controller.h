@@ -124,6 +124,7 @@ public:
     pinpoint::SourceId sourceId() const;
 
     // Called by CameraManager only — not Q_INVOKABLE so QML cannot bypass.
+    void stopCapture();       // Synchronously stops the capture thread; call before deregisterFromBuffer()
     void setPerspective(int p);
     void deregisterFromBuffer();
     void setReplaying(bool replaying);
