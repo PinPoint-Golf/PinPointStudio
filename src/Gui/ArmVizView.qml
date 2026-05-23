@@ -97,9 +97,11 @@ Item {
         }
 
         // ── Orbit controls — mouse drag / pinch to zoom ───────────────────
+        Node { id: orbitOrigin }
+
         OrbitCameraController {
             anchors.fill: parent
-            origin: Qt.vector3d(0, 0, 0)
+            origin: orbitOrigin
             camera: camera
         }
 

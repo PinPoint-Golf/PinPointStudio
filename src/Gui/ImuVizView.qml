@@ -24,8 +24,8 @@ View3D {
     id: root
 
     // The data source. Bind to an ImuInstance (or any QtObject with quat*/accel* properties).
-    // Required — the component will not function without it.
-    required property QtObject controller
+    // Null-safe: all bindings guard against null so the view can persist with no active instance.
+    property QtObject controller: null
 
     environment: SceneEnvironment {
         clearColor: Theme.colorBg
@@ -41,8 +41,11 @@ View3D {
     }
 
     Node {
-        rotation: Qt.quaternion(root.controller.quatW, root.controller.quatX,
-                                root.controller.quatY, root.controller.quatZ)
+        // Null-guard: controller may be null when no IMU is selected.
+        rotation: root.controller
+            ? Qt.quaternion(root.controller.quatW, root.controller.quatX,
+                            root.controller.quatY, root.controller.quatZ)
+            : Qt.quaternion(1, 0, 0, 0)
 
         component FaceTex: Texture {
             required property string label
@@ -115,6 +118,7 @@ View3D {
                 diffuseMap: FaceTex { label: qsTr("Right"); faceColor: Theme.colorAccent; flip: true }
             }
         }
+
         // Up-direction arrow
         Model {
             source: "#Cylinder"; position: Qt.vector3d(0, 160, 0)
@@ -130,9 +134,9 @@ View3D {
         // Acceleration arrow — grows from cube centre in body-frame accel direction.
         Node {
             id: accelNode
-            property real ax: root.controller.accelX
-            property real ay: root.controller.accelY
-            property real az: root.controller.accelZ
+            property real ax: root.controller ? root.controller.accelX : 0
+            property real ay: root.controller ? root.controller.accelY : 0
+            property real az: root.controller ? root.controller.accelZ : 0
             property real mag: Math.sqrt(ax*ax + ay*ay + az*az)
             property real s: Math.min(mag, 3.0)
             visible: mag > 0.05
