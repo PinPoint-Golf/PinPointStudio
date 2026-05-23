@@ -95,15 +95,17 @@ Item {
     readonly property var goalDefsByType: [
         // 0 — Swing Analysis
         [
-            { key: "kinematicSequence", name: qsTr("Kinematic sequence"), sub: qsTr("SEGMENT VELOCITY ORDER")    },
-            { key: "xFactor",           name: qsTr("X-factor"),           sub: qsTr("HIP–SHOULDER SEPARATION")   },
-            { key: "swingTempo",        name: qsTr("Swing tempo"),         sub: qsTr("BACK : DOWN RATIO")         },
-            { key: "earlyExtension",    name: qsTr("Early extension"),     sub: qsTr("HIP SWAY DETECTION")        },
-            { key: "clubPath",          name: qsTr("Club path"),           sub: qsTr("IN-OUT TREND")              },
-            { key: "wristAngles",       name: qsTr("Wrist angles"),        sub: qsTr("FLEXION AT IMPACT")         }
+            { key: "generalAssessment", name: qsTr("General assessment"),  sub: qsTr("CHECK WHERE I'M AT · IDENTIFY AREAS TO IMPROVE") },
+            { key: "kinematicSequence", name: qsTr("Kinematic sequence"),  sub: qsTr("SEGMENT VELOCITY ORDER")    },
+            { key: "xFactor",           name: qsTr("X-factor"),            sub: qsTr("HIP–SHOULDER SEPARATION")   },
+            { key: "swingTempo",        name: qsTr("Swing tempo"),          sub: qsTr("BACK : DOWN RATIO")         },
+            { key: "earlyExtension",    name: qsTr("Early extension"),      sub: qsTr("HIP SWAY DETECTION")        },
+            { key: "clubPath",          name: qsTr("Club path"),            sub: qsTr("IN-OUT TREND")              },
+            { key: "wristAngles",       name: qsTr("Wrist angles"),         sub: qsTr("FLEXION AT IMPACT")         }
         ],
         // 1 — Wrist Motion
         [
+            { key: "generalAssessment", name: qsTr("General assessment"),  sub: qsTr("CHECK WHERE I'M AT · IDENTIFY AREAS TO IMPROVE") },
             { key: "wristAngleTop",       name: qsTr("Wrist angle at the top"),    sub: qsTr("FLAT / BOWED / CUPPED AT TOP")     },
             { key: "impactConditions",    name: qsTr("Impact conditions"),         sub: qsTr("FLEXION / EXTENSION AT CONTACT")   },
             { key: "wristAngleSequence",  name: qsTr("Wrist angle sequence"),      sub: qsTr("TRANSITION & ARC PROFILE")         },
@@ -111,21 +113,23 @@ Item {
         ],
         // 2 — Ground Forces
         [
-            { key: "kinematicSequence", name: qsTr("Kinematic sequence"), sub: qsTr("SEGMENT VELOCITY ORDER")    },
-            { key: "xFactor",           name: qsTr("X-factor"),           sub: qsTr("HIP–SHOULDER SEPARATION")   },
-            { key: "swingTempo",        name: qsTr("Swing tempo"),         sub: qsTr("BACK : DOWN RATIO")         },
-            { key: "earlyExtension",    name: qsTr("Early extension"),     sub: qsTr("HIP SWAY DETECTION")        },
-            { key: "clubPath",          name: qsTr("Club path"),           sub: qsTr("IN-OUT TREND")              },
-            { key: "wristAngles",       name: qsTr("Wrist angles"),        sub: qsTr("FLEXION AT IMPACT")         }
+            { key: "generalAssessment", name: qsTr("General assessment"),  sub: qsTr("CHECK WHERE I'M AT · IDENTIFY AREAS TO IMPROVE") },
+            { key: "kinematicSequence", name: qsTr("Kinematic sequence"),  sub: qsTr("SEGMENT VELOCITY ORDER")    },
+            { key: "xFactor",           name: qsTr("X-factor"),            sub: qsTr("HIP–SHOULDER SEPARATION")   },
+            { key: "swingTempo",        name: qsTr("Swing tempo"),          sub: qsTr("BACK : DOWN RATIO")         },
+            { key: "earlyExtension",    name: qsTr("Early extension"),      sub: qsTr("HIP SWAY DETECTION")        },
+            { key: "clubPath",          name: qsTr("Club path"),            sub: qsTr("IN-OUT TREND")              },
+            { key: "wristAngles",       name: qsTr("Wrist angles"),         sub: qsTr("FLEXION AT IMPACT")         }
         ],
         // 3 — AI Coach
         [
-            { key: "kinematicSequence", name: qsTr("Kinematic sequence"), sub: qsTr("SEGMENT VELOCITY ORDER")    },
-            { key: "xFactor",           name: qsTr("X-factor"),           sub: qsTr("HIP–SHOULDER SEPARATION")   },
-            { key: "swingTempo",        name: qsTr("Swing tempo"),         sub: qsTr("BACK : DOWN RATIO")         },
-            { key: "earlyExtension",    name: qsTr("Early extension"),     sub: qsTr("HIP SWAY DETECTION")        },
-            { key: "clubPath",          name: qsTr("Club path"),           sub: qsTr("IN-OUT TREND")              },
-            { key: "wristAngles",       name: qsTr("Wrist angles"),        sub: qsTr("FLEXION AT IMPACT")         }
+            { key: "generalAssessment", name: qsTr("General assessment"),  sub: qsTr("CHECK WHERE I'M AT · IDENTIFY AREAS TO IMPROVE") },
+            { key: "kinematicSequence", name: qsTr("Kinematic sequence"),  sub: qsTr("SEGMENT VELOCITY ORDER")    },
+            { key: "xFactor",           name: qsTr("X-factor"),            sub: qsTr("HIP–SHOULDER SEPARATION")   },
+            { key: "swingTempo",        name: qsTr("Swing tempo"),          sub: qsTr("BACK : DOWN RATIO")         },
+            { key: "earlyExtension",    name: qsTr("Early extension"),      sub: qsTr("HIP SWAY DETECTION")        },
+            { key: "clubPath",          name: qsTr("Club path"),            sub: qsTr("IN-OUT TREND")              },
+            { key: "wristAngles",       name: qsTr("Wrist angles"),         sub: qsTr("FLEXION AT IMPACT")         }
         ]
     ]
 
@@ -600,11 +604,13 @@ Item {
                                                 }
                                             }
                                             Text {
+                                                width:              parent.width
                                                 text:               chip.modelData.sub
                                                 font.family:        Theme.fontData
                                                 font.pixelSize:     Theme.fontSzMicro
                                                 font.letterSpacing: Theme.trackingData
                                                 color:              Theme.colorText3
+                                                wrapMode:           Text.WordWrap
                                             }
                                         }
 
