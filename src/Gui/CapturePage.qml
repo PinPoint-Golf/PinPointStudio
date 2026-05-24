@@ -338,6 +338,8 @@ Item {
                             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                         }
 
+                        Item { Layout.fillWidth: true }
+
                         // Battery badge
                         Rectangle {
                             visible: ctrl && ctrl.imuConnected && ctrl.batteryPercent >= 0
@@ -360,8 +362,6 @@ Item {
                                 font.pixelSize: Theme.fontSzMicro
                             }
                         }
-
-                        Item { Layout.fillWidth: true }
 
                         // Rate selector
                         ComboBox {
@@ -499,22 +499,5 @@ Item {
             }
         }
 
-        // ── Buffer status ─────────────────────────────────────────────────────
-        RowLayout {
-            visible: imuManager.imuConnected
-            spacing: Theme.sp(8)
-
-            Item { Layout.fillWidth: true }
-
-            Label {
-                visible: cameraManager.bufferState !== "idle"
-                         && cameraManager.bufferState !== "unavailable"
-                text:  bufferController.totalEvents + " events"
-                color: Theme.colorText3
-                font.family:    Theme.fontData
-                font.pixelSize: Theme.fontSzBody2
-                verticalAlignment: Text.AlignVCenter
-            }
-        }
     }
 }
