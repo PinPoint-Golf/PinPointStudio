@@ -1663,6 +1663,7 @@ Item {
             // Camera rows
             ColumnLayout {
                 Layout.fillWidth: true
+                Layout.leftMargin: Theme.sp(26)
                 spacing: Theme.sp(8)
 
                 Repeater {

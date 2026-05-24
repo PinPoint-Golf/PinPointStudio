@@ -261,15 +261,16 @@ Item {
                 color:               Theme.colorText3
             }
 
-            // Library location — stacked layout (from GeneralPanel)
-            ColumnLayout {
+            // Library location
+            RowLayout {
                 objectName: "setting_libraryPath"
                 Layout.fillWidth: true
-                spacing: Theme.sp(8)
+                spacing: Theme.sp(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
+                    Layout.fillWidth: true
                     spacing: Theme.sp(3)
 
                     Text {
@@ -284,12 +285,6 @@ Item {
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3
                     }
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.sp(6)
-
                     Rectangle {
                         Layout.fillWidth: true
                         implicitHeight:   Theme.sp(28)
@@ -315,7 +310,11 @@ Item {
                             elide:          Text.ElideLeft
                         }
                     }
+                }
 
+                ColumnLayout {
+                    Layout.alignment: Qt.AlignBottom
+                    spacing: Theme.sp(4)
                     PpButton {
                         label:     qsTr("Change…")
                         onClicked: folderDialog.open()
@@ -439,30 +438,40 @@ Item {
             }
 
             // Session folder naming row
-            ColumnLayout {
+            RowLayout {
                 objectName: "setting_sessionNaming"
                 Layout.fillWidth: true
-                spacing: Theme.sp(8)
+                spacing: Theme.sp(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
-                RowLayout {
+                ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(16)
+                    spacing: Theme.sp(3)
 
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: Theme.sp(3)
-
-                        Text {
-                            text:           qsTr("Session folder naming")
-                            font.family:    Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody
-                            color:          Theme.colorText
-                        }
+                    Text {
+                        text:           qsTr("Session folder naming")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        color:          Theme.colorText
                     }
 
-                    ComboBox {
+                    // Live preview of folder name pattern
+                    Text {
+                        text: {
+                            var p = appSettings.sessionNamingPattern
+                            if (p === "date-name-type") return "2026-05-22_Mark-Liversedge_Driver"
+                            if (p === "date-type-name") return "2026-05-22_Driver_Mark-Liversedge"
+                            if (p === "name-date-type") return "Mark-Liversedge_2026-05-22_Driver"
+                            return "2026-05-22"
+                        }
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorAccent
+                    }
+                }
+
+                ComboBox {
                         id: namingCombo
                         Layout.alignment: Qt.AlignVCenter
                         implicitWidth: Theme.sp(240)
@@ -554,22 +563,6 @@ Item {
                         }
                     }
                 }
-
-                // Live preview of folder name pattern
-                Text {
-                    text: {
-                        var p = appSettings.sessionNamingPattern
-                        if (p === "date-name-type") return "2026-05-22_Mark-Liversedge_Driver"
-                        if (p === "date-type-name") return "2026-05-22_Driver_Mark-Liversedge"
-                        if (p === "name-date-type") return "Mark-Liversedge_2026-05-22_Driver"
-                        return "2026-05-22"
-                    }
-                    font.family:      Theme.fontData
-                    font.pixelSize:   Theme.fontSzMicro
-                    color:            Theme.colorAccent
-                    Layout.fillWidth: true
-                }
-            }
 
             // Auto-save session row (moved verbatim from GeneralPanel)
             RowLayout {
@@ -733,6 +726,14 @@ Item {
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3
                     }
+                    Text {
+                        text:           root.codecDescriptions[appSettings.videoCodec] || ""
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText2
+                        wrapMode:       Text.WordWrap
+                        Layout.fillWidth: true
+                    }
                 }
 
                 Row {
@@ -776,30 +777,6 @@ Item {
                             }
                         }
                     }
-                }
-            }
-
-            // Codec description strip
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight:   codecDescText.implicitHeight + Theme.sp(20)
-                color:            Theme.colorAccentLight
-                border.width:     1
-                border.color:     Theme.colorAccentMid
-                radius:           Theme.radius
-
-                Text {
-                    id: codecDescText
-                    anchors {
-                        left: parent.left; right: parent.right
-                        top:  parent.top
-                        leftMargin: Theme.sp(12); rightMargin: Theme.sp(12); topMargin: Theme.sp(10)
-                    }
-                    text:           root.codecDescriptions[appSettings.videoCodec] || ""
-                    font.family:    Theme.fontData
-                    font.pixelSize: Theme.fontSzMicro
-                    color:          Theme.colorText2
-                    wrapMode:       Text.WordWrap
                 }
             }
 
@@ -1004,27 +981,15 @@ Item {
                 }
             }
 
-            // Estimated size card
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight:   estimateRow.implicitHeight + Theme.sp(24)
-                color:            Theme.colorBg2
-                border.width:     1
-                border.color:     Theme.colorBorderMid
-                radius:           Theme.radius
-
-                RowLayout {
-                    id: estimateRow
-                    anchors {
-                        left: parent.left; right: parent.right; top: parent.top
-                        margins: Theme.sp(12)
-                    }
-                    spacing: 0
+            // Estimated sizes
+            RowLayout {
+                id: estimateRow
+                spacing: 0
 
                     // Column 1 — per-swing clip
                     ColumnLayout {
-                        Layout.fillWidth: true
                         spacing: Theme.sp(4)
+                        Layout.leftMargin: Theme.sp(26)
 
                         Text {
                             text:                qsTr("Per-swing clip")
@@ -1047,11 +1012,9 @@ Item {
                                 var res     = appSettings.videoResolutionMode
                                 return qsTr("2 cameras · 3 s · ") + codec + " " + quality + " · " + res
                             }
-                            font.family:      Theme.fontData
-                            font.pixelSize:   Theme.fontSzMicro
-                            color:            Theme.colorText3
-                            wrapMode:         Text.WordWrap
-                            Layout.fillWidth: true
+                            font.family:    Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          Theme.colorText3
                         }
                     }
 
@@ -1066,7 +1029,6 @@ Item {
 
                     // Column 2 — per session
                     ColumnLayout {
-                        Layout.fillWidth: true
                         spacing: Theme.sp(4)
 
                         Text {
@@ -1096,7 +1058,6 @@ Item {
 
                     // Column 3 — remaining capacity
                     ColumnLayout {
-                        Layout.fillWidth: true
                         spacing: Theme.sp(4)
 
                         Text {
@@ -1117,8 +1078,8 @@ Item {
                             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                         }
                     }
+
                 }
-            }
 
             PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
 

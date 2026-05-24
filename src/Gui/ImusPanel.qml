@@ -1306,6 +1306,7 @@ Item {
             // ── Device rows ────────────────────────────────────────────────
             ColumnLayout {
                 Layout.fillWidth: true
+                Layout.leftMargin: Theme.sp(26)
                 spacing: Theme.sp(8)
 
                 Repeater {
@@ -1335,6 +1336,7 @@ Item {
             Rectangle {
                 id: summaryRect
                 Layout.fillWidth: true
+                Layout.leftMargin: Theme.sp(26)
                 height:  Theme.sp(40)
                 color:   Theme.colorBg2
                 radius:  Theme.radius

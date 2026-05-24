@@ -128,12 +128,13 @@ Item {
                 color: Theme.colorText3
             }
 
-            // 3 × 2 card grid — manual x/y positioning for reliable equal widths
+            // 4 × 2 card grid — manual x/y positioning for reliable equal widths
             Item {
                 id: cardGrid
                 objectName: "setting_aesthetic"
                 Layout.fillWidth: true
-                implicitHeight: Theme.sp(80) * 3 + Theme.sp(10) * 2
+                Layout.leftMargin: Theme.sp(16)
+                implicitHeight: Theme.sp(80) * 2 + Theme.sp(10)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
@@ -144,10 +145,10 @@ Item {
 
                         readonly property var   tData:      root.themeData[index]
                         readonly property bool  isSelected: Theme.themeIndex === index
-                        readonly property real  cardW:      (cardGrid.width - 2 * Theme.sp(10)) / 3
+                        readonly property real  cardW:      (cardGrid.width - 3 * Theme.sp(10)) / 4
 
-                        x: (index % 3) * (cardW + Theme.sp(10))
-                        y: Math.floor(index / 3) * (Theme.sp(80) + Theme.sp(10))
+                        x: (index % 4) * (cardW + Theme.sp(10))
+                        y: Math.floor(index / 4) * (Theme.sp(80) + Theme.sp(10))
                         width:  cardW
                         height: Theme.sp(80)
                         radius: Theme.radius
@@ -396,6 +397,7 @@ Item {
             // Live font scale preview
             Rectangle {
                 Layout.fillWidth: true
+                Layout.leftMargin: Theme.sp(26)
                 implicitHeight: Theme.sp(90)
                 color:        Theme.colorSurface
                 border.width: 1
