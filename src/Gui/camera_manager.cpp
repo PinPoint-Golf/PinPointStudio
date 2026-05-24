@@ -206,6 +206,7 @@ CameraManager::CameraDeviceStats CameraManager::liveDeviceStats(const QString &d
         stats.width     = e.controller->frameWidth();
         stats.height    = e.controller->frameHeight();
         stats.recording = e.controller->isRecording();
+        stats.cropRoi   = e.controller->cropRoi();
         break;
     }
     return stats;

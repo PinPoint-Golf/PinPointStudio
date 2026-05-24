@@ -21,6 +21,7 @@
 #include <QElapsedTimer>
 #include <QList>
 #include <QObject>
+#include <QRectF>
 #include <QTimer>
 #include <QVariantList>
 #include <optional>
@@ -70,6 +71,7 @@ public:
         int                width     = 0;
         int                height    = 0;
         bool               recording = false;
+        QRectF             cropRoi;
     };
     CameraDeviceStats liveDeviceStats(const QString &deviceId) const;
 

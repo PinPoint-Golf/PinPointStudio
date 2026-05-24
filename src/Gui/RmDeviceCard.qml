@@ -166,6 +166,7 @@ Rectangle {
                     camRows.push({ key: qsTr("Identifier"), value: d.serialNumber, cls: "neutral" })
                 camRows.push(
                     { key: qsTr("Resolution"),    value: d.resolutionStr,       cls: "neutral" },
+                    { key: qsTr("Crop size"),     value: d.cropStr,             cls: "neutral" },
                     { key: qsTr("Frame rate"),    value: d.dataRateStr,         cls: d.dataRateHz > 0 ? "good" : "neutral" },
                     { key: qsTr("Events written"),value: d.eventsWrittenStr,    cls: "neutral" },
                     { key: qsTr("Bytes written"), value: d.bytesWrittenStr,     cls: "neutral" },

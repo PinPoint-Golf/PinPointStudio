@@ -210,6 +210,27 @@ void ResourceMonitorController::refresh()
             dev[QStringLiteral("resolutionStr")] = (fw > 0 && fh > 0)
                 ? QString::number(fw) + QStringLiteral(" × ") + QString::number(fh)
                 : QStringLiteral("—");
+            {
+                // cropRoi is a normalized QRectF (0.0–1.0). Multiply by frame
+                // dimensions to get pixel size. When no capture controller is active,
+                // fall back to the persisted AppSettings value so the row still shows
+                // for cameras that are configured but not currently selected.
+                QRectF cr = cam.cropRoi;
+                if (cr.isEmpty()) {
+                    const QVariantMap roiMap = appSettings.cameraRoi();
+                    if (roiMap.contains(camKey)) {
+                        const QVariantMap r = roiMap.value(camKey).toMap();
+                        double w = r.value(QStringLiteral("w")).toDouble();
+                        double h = r.value(QStringLiteral("h")).toDouble();
+                        if (w > 0 && h > 0)
+                            cr = QRectF(r.value(QStringLiteral("x")).toDouble(),
+                                        r.value(QStringLiteral("y")).toDouble(), w, h);
+                    }
+                }
+                dev[QStringLiteral("cropStr")] = (!cr.isEmpty() && fw > 0 && fh > 0)
+                    ? QString::number(qRound(cr.width() * fw)) + QStringLiteral(" × ") + QString::number(qRound(cr.height() * fh))
+                    : QStringLiteral("—");
+            }
             m_devices.append(dev);
         }
     }
