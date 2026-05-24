@@ -563,8 +563,8 @@ Item {
                                         required property var modelData
                                         required property int index
 
-                                        Layout.fillWidth: true
-                                        height: chipCol.implicitHeight + Theme.sp(36)
+                                        Layout.fillWidth:    true
+                                        Layout.preferredHeight: chipCol.implicitHeight + Theme.sp(36)
                                         radius: Theme.radius
 
                                         readonly property bool sel: root.selectedGoals.indexOf(modelData.key) !== -1
@@ -610,7 +610,7 @@ Item {
                                                 font.pixelSize:     Theme.fontSzMicro
                                                 font.letterSpacing: Theme.trackingData
                                                 color:              Theme.colorText3
-                                                wrapMode:           Text.WordWrap
+                                                elide:              Text.ElideRight
                                             }
                                         }
 
