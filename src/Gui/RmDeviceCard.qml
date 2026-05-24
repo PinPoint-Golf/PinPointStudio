@@ -24,6 +24,8 @@ Rectangle {
 
     property var deviceData
 
+    signal openSettingsRequested()
+
     radius: Theme.radiusLg
     border.width: 1
     border.color: Theme.colorBorderMid
@@ -252,6 +254,24 @@ Rectangle {
                 Behavior on width {
                     NumberAnimation { duration: 600; easing.type: Easing.OutCubic }
                 }
+            }
+        }
+
+        // Settings link
+        Item {
+            width: body.width - body.leftPadding - body.rightPadding
+            height: Theme.sp(18)
+
+            Text {
+                id: settingsLink
+                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                text: qsTr("Settings →")
+                font.family: Theme.fontBody
+                font.pixelSize: Theme.sp(10)
+                color: Theme.colorAccent
+
+                HoverHandler { cursorShape: Qt.PointingHandCursor }
+                TapHandler  { onTapped: root.openSettingsRequested() }
             }
         }
     }

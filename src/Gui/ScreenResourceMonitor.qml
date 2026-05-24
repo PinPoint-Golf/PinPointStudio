@@ -23,6 +23,8 @@ import PinPoint
 Item {
     id: root
 
+    signal navigateToSettings(int panelIndex)
+
     property string snapshotAgeText: "refreshed just now"
 
     // Refresh data every 500ms, but only while this screen is visible.
@@ -68,6 +70,7 @@ Item {
                 RmDeviceCard {
                     deviceData: modelData
                     width: Theme.sp(280)
+                    onOpenSettingsRequested: root.navigateToSettings(modelData.kind === "Camera" ? 3 : 4)
                 }
             }
 

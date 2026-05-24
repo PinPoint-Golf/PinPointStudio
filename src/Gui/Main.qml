@@ -243,7 +243,12 @@ ApplicationWindow {
                     onAthleteSelected:     navController.navigate(0)
                     onNewAthleteRequested: navController.navigate(6)
                 }
-                ScreenResourceMonitor {}                                   // 8 — system resource monitor
+                ScreenResourceMonitor {                                    // 8 — system resource monitor
+                    onNavigateToSettings: function(panelIndex) {
+                        settingsScreen.activeNavIndex = panelIndex
+                        navController.navigate(9)
+                    }
+                }
                 ScreenSettings { id: settingsScreen }                      // 9 — settings
                 ScreenSessionWizard {                                      // 10 — session setup wizard
                     id: sessionWizard
