@@ -27,7 +27,7 @@
 ImuCapabilities WT9011DCL_BLE::capabilities() const
 {
     ImuCapabilities caps = wt901Defaults();
-    caps.modelName = QStringLiteral("WT901BLE67");
+    caps.modelName = QStringLiteral("WT901 Series");
     caps.transport = Transport::Ble;
 
     // The WT901BLE67 firmware sends 0x61 combined frames (accel+gyro+euler).

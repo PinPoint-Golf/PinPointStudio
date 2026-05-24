@@ -213,11 +213,11 @@ void DeviceEnumerator::scanImu()
                     ? info.deviceUuid().toString()
                     : info.address().toString();
                 const QString name = info.name().isEmpty()
-                    ? QStringLiteral("WT901BLE67") : info.name();
+                    ? QStringLiteral("WT901 Series") : info.name();
 
                 // Build capabilities using the shared WT901 defaults
                 ImuCapabilities caps = WT9011DCL_Base::wt901Defaults();
-                caps.modelName                    = QStringLiteral("WT901BLE67");
+                caps.modelName                    = QStringLiteral("WT901 Series");
                 caps.transport                    = ImuBase::Transport::Ble;
                 caps.hasMagnetometer              = false;
                 caps.hasTemperature               = false;

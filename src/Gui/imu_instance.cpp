@@ -41,7 +41,7 @@ ImuInstance::ImuInstance(const Device &device,
 {
     if (m_eventBuffer) {
         pinpoint::SourceDescriptor desc;
-        desc.name       = "wt9011dcl_ble";
+        desc.name       = device.description.toStdString();
         desc.identifier = (device.imuCapabilities.serialNumber.isEmpty()
                            ? device.id
                            : device.imuCapabilities.serialNumber).toStdString();
