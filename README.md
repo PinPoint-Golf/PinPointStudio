@@ -2,9 +2,9 @@
     <img src="src/Resources/icons/pinpoint_1024.png" width="150" />
   </p>
 
-# PinPoint
+# PinPoint Studio
 
-PinPoint is a free, open source and cross-platform desktop application for serious golf swing analysis. It combines high-speed industrial cameras, Bluetooth IMUs, and on-device AI to build a complete picture of the swing — without sending data to the cloud unless you configure it to.
+PinPoint Studio is a free, open source and cross-platform desktop application for serious golf swing analysis. It combines high-speed industrial cameras, Bluetooth IMUs, and on-device AI to build a complete picture of the swing — without sending data to the cloud unless you configure it to.
 
 The app is currently in active prototyping. The core capture and analysis pipeline is functional; the coaching and session-history layers are in development.
 
