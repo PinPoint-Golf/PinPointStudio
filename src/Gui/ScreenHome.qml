@@ -400,18 +400,6 @@ Item {
                         onClicked:    root.startSessionRequested(root.selectedType)
                     }
                 }
-                Item { width: 1; height: Theme.sp(8) }
-
-                Text {
-                    width:               parent.width
-                    text:                cameraManager.anySelected
-                                             ? qsTr("Session starts when you hit the first ball")
-                                             : qsTr("No camera connected — check device connections")
-                    font.family:         Theme.fontData
-                    font.pixelSize:      Theme.fontSzMicro
-                    color:               Theme.colorText3
-                    horizontalAlignment: Text.AlignHCenter
-                }
             }
 
             // ── Section 3: Device readiness ──────────────────────────────────
