@@ -198,7 +198,7 @@ Item {
         var sn  = d.serialNumber ? qsTr("SN: ") + d.serialNumber : ""
         var res = (d.maxWidth && d.maxHeight) ? d.maxWidth + " × " + d.maxHeight : ""
         var ifc = d.interface || ""
-        return [d.description, sn, ifc, res].filter(function(s){ return s !== "" }).join(" · ")
+        return [d.alias || d.description, sn, ifc, res].filter(function(s){ return s !== "" }).join(" · ")
     }
 
     // True when at least one of the session's cameras is marked fixed in place —
@@ -844,7 +844,7 @@ Item {
                                             for (var i = 0; i < list.length; ++i) {
                                                 if (placement[list[i].id] === modelData.slot) {
                                                     var d = list[i]
-                                                    return [d.description, d.transport, d.id]
+                                                    return [d.alias || d.description, d.transport, d.id]
                                                                .filter(function(s){ return s && s !== "" })
                                                                .join(" · ")
                                                 }

@@ -17,6 +17,7 @@
  */
 
 #include "resource_monitor_controller.h"
+#include "app_settings.h"
 #include "camera_manager.h"
 #include "imu_manager.h"
 #include "pp_debug.h"
@@ -77,7 +78,17 @@ void ResourceMonitorController::refresh()
     m_snapshot = m_buffer->diagnostics();
     const bool capturing = (m_snapshot.state == pinpoint::BufferState::Capturing);
 
+    // Alias maps — read once per refresh so devices and sources share the same snapshot.
+    AppSettings appSettings;
+    const QVariantMap camAliasMap = appSettings.cameraAlias();
+    const QVariantMap imuAliasMap = appSettings.imuAlias();
+
+    // sourceId → alias, populated while building the devices section below.
+    QMap<pinpoint::SourceId, QString> sourceAliases;
+
     // ── Sources ──────────────────────────────────────────────────────────────
+    // Built after devices so sourceAliases is populated first — see below.
+    auto buildSources = [&]() {
     m_sources.clear();
     for (const auto &src : m_snapshot.sources) {
         double fill = src.slot_count > 0
@@ -85,8 +96,9 @@ void ResourceMonitorController::refresh()
             : 0.0;
         quint64 overwritten = quint64(src.events_overwritten);
         int64_t maxIa = src.max_inter_arrival_us;
+        const QString srcAlias = sourceAliases.value(src.id, QString::fromStdString(src.name));
         QVariantMap m;
-        m[QStringLiteral("name")]               = QString::fromStdString(src.name);
+        m[QStringLiteral("name")]               = srcAlias;
         m[QStringLiteral("identifier")]         = QString::fromStdString(src.identifier);
         m[QStringLiteral("eventsWritten")]       = quint64(src.events_written);
         m[QStringLiteral("eventsOverwritten")]   = overwritten;
@@ -104,6 +116,7 @@ void ResourceMonitorController::refresh()
         m[QStringLiteral("maxInterArrivalStr")]  = fmtInterArrival(maxIa);
         m_sources.append(m);
     }
+    }; // end buildSources lambda — called after devices so sourceAliases is ready
 
     // ── Devices ──────────────────────────────────────────────────────────────
     m_devices.clear();
@@ -135,6 +148,14 @@ void ResourceMonitorController::refresh()
             }
 
             const QString sn = camDev.capabilities.serialNumber;
+            const QString camKey = camDev.description + QStringLiteral("|") +
+                                   (sn.isEmpty() ? camDev.id : sn);
+            const QString camAlias = camAliasMap.value(camKey,
+                sn.isEmpty() ? camDev.description
+                             : camDev.description + QStringLiteral(" (") + sn + QStringLiteral(")")).toString();
+
+            if (sid != pinpoint::kInvalidSourceId)
+                sourceAliases[sid] = camAlias;
 
             // Live frame rate and resolution from the controller when available;
             // fall back to enumerated capabilities before any frame has arrived.
@@ -164,9 +185,7 @@ void ResourceMonitorController::refresh()
 
             QVariantMap dev;
             dev[QStringLiteral("kind")]         = QStringLiteral("Camera");
-            dev[QStringLiteral("name")]         = sn.isEmpty()
-                ? camDev.description
-                : camDev.description + QStringLiteral(" (") + sn + QStringLiteral(")");
+            dev[QStringLiteral("name")]         = camAlias;
             dev[QStringLiteral("model")]        = camDev.description;
             dev[QStringLiteral("serialNumber")] = sn;
             dev[QStringLiteral("backend")]      = backendStr;
@@ -238,12 +257,17 @@ void ResourceMonitorController::refresh()
             const QString imuId = imuDev.imuCapabilities.serialNumber.isEmpty()
                 ? imuDev.id
                 : imuDev.imuCapabilities.serialNumber;
+            const QString imuKey   = imuDev.description + QStringLiteral("|") + imuDev.id;
+            const QString imuAlias = imuAliasMap.value(imuKey,
+                imuId.isEmpty() ? imuDev.description
+                                : imuDev.description + QStringLiteral(" (") + imuId + QStringLiteral(")")).toString();
+
+            if (sid != pinpoint::kInvalidSourceId)
+                sourceAliases[sid] = imuAlias;
 
             QVariantMap dev;
             dev[QStringLiteral("kind")]               = QStringLiteral("IMU");
-            dev[QStringLiteral("name")]               = imuId.isEmpty()
-                ? imuDev.description
-                : imuDev.description + QStringLiteral(" (") + imuId + QStringLiteral(")");
+            dev[QStringLiteral("name")]               = imuAlias;
             dev[QStringLiteral("model")]              = model;
             dev[QStringLiteral("backend")]            = backend;
             dev[QStringLiteral("identifier")]         = imuDev.id;
@@ -271,6 +295,9 @@ void ResourceMonitorController::refresh()
             m_devices.append(dev);
         }
     }
+
+    // sourceAliases is now populated — build sources with alias-resolved names.
+    buildSources();
 
     // ── Warnings — only generated while actively capturing ───────────────────
     // Edge-trigger stall/anomaly conditions through ppWarn() so they flow into

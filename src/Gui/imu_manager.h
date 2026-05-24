@@ -24,6 +24,7 @@
 #include <QStringList>
 #include <QVariantList>
 
+#include "app_settings.h"
 #include "device_enumerator.h"
 #include "imu_instance.h"
 #include "types.h"
@@ -55,6 +56,7 @@ class ImuManager : public QObject
 
 public:
     explicit ImuManager(pinpoint::EventBuffer *buffer = nullptr,
+                        AppSettings *appSettings = nullptr,
                         QObject *parent = nullptr);
     ~ImuManager() override;
 
@@ -74,6 +76,10 @@ public:
 
     // Trigger a new BLE scan to find devices.
     Q_INVOKABLE void rescanImu();
+
+    // Persist a user-visible alias for a device. key = description|id.
+    // Pass empty alias to revert to default (device description).
+    Q_INVOKABLE void setImuAlias(const QString &key, const QString &alias);
 
     // Returns the live ImuInstance QObject* for deviceId, or nullptr if not selected.
     Q_INVOKABLE QObject *instanceFor(const QString &deviceId) const;
@@ -111,6 +117,7 @@ private:
 
     ImuInstance *createInstance(const Device &device);
 
-    pinpoint::EventBuffer      *m_eventBuffer = nullptr;
-    QMap<QString, ImuEntry>     m_selected;   // keyed by device id
+    pinpoint::EventBuffer      *m_eventBuffer  = nullptr;
+    AppSettings                *m_appSettings  = nullptr;
+    QMap<QString, ImuEntry>     m_selected;    // keyed by device id
 };

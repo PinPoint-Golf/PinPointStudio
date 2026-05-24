@@ -134,7 +134,7 @@ Item {
             anchors.left:  parent.left
             anchors.right: parent.right
             anchors.margins: Theme.sp(14)
-            height: Theme.sp(44)
+            height: Theme.sp(54)
             spacing: Theme.sp(10)
 
             // Status dot
@@ -149,22 +149,26 @@ Item {
                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
             }
 
-            // Name + meta
+            // Alias (editable) + meta
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: Theme.sp(2)
 
-                Text {
-                    text:           camData.description || qsTr("Unknown Camera")
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody
-                    color:          Theme.colorText
-                    elide:          Text.ElideRight
+                PpTextField {
                     Layout.fillWidth: true
+                    placeholderText:  qsTr("Device alias…")
+                    text:             camData.alias
+                    onEditingFinished: cameraManager.setCameraAlias(camData.cameraKey, text)
                 }
 
                 Row {
                     spacing: Theme.sp(10)
+                    Text {
+                        text:           camData.description || ""
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText3
+                    }
                     Text {
                         text:           camData.interface || ""
                         font.family:    Theme.fontData

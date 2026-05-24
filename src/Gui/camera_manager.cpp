@@ -21,13 +21,13 @@
 #include "video_controller.h"
 #include "video_input_factory.h"
 #include "event_buffer.h"
-#include "app_settings.h"
 #include "../Video/camera_capabilities.h"
 #include <algorithm>
 
-CameraManager::CameraManager(pinpoint::EventBuffer *buffer, QObject *parent)
+CameraManager::CameraManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, QObject *parent)
     : QObject(parent)
     , m_eventBuffer(buffer)
+    , m_appSettings(appSettings)
 {
     VideoInputFactory::enumerateDevices();
 
@@ -40,10 +40,17 @@ CameraManager::CameraManager(pinpoint::EventBuffer *buffer, QObject *parent)
     }
 
     // Apply persisted per-device settings keyed by serial number.
-    AppSettings settings;
-    const QStringList excluded    = settings.cameraExcluded();
-    const QVariantMap targetFps   = settings.cameraTargetFps();
-    const QVariantMap triggerMode = settings.cameraTriggerMode();
+    // Use m_appSettings when available so the live QML-bound object stays in sync.
+    AppSettings  fallback;
+    AppSettings *s = m_appSettings ? m_appSettings : &fallback;
+
+    const QStringList excluded    = s->cameraExcluded();
+    const QVariantMap targetFps   = s->cameraTargetFps();
+    const QVariantMap triggerMode = s->cameraTriggerMode();
+
+    // Seed alias for any newly-seen device so it always has a value.
+    QVariantMap aliasMap   = s->cameraAlias();
+    bool        aliasDirty = false;
 
     for (auto &cam : m_cameras) {
         const QString key = cameraKey(cam);
@@ -51,9 +58,14 @@ CameraManager::CameraManager(pinpoint::EventBuffer *buffer, QObject *parent)
             if (excluded.contains(key))    cam.excluded    = true;
             if (targetFps.contains(key))   cam.targetFps   = targetFps.value(key).toDouble();
             if (triggerMode.contains(key)) cam.triggerMode = triggerMode.value(key).toString();
+            if (!aliasMap.contains(key)) {
+                aliasMap[key] = QString(key).replace(QLatin1Char('|'), QLatin1Char(' '));
+                aliasDirty = true;
+            }
         }
     }
-
+    if (aliasDirty)
+        s->setCameraAlias(aliasMap);
 }
 
 CameraManager::~CameraManager()
@@ -89,8 +101,10 @@ CameraManager::~CameraManager()
 
 QVariantList CameraManager::cameraList() const
 {
-    AppSettings s;
-    const QVariantMap perspMap = s.cameraPerspective();
+    AppSettings  fallback;
+    AppSettings *s = m_appSettings ? m_appSettings : &fallback;
+    const QVariantMap perspMap  = s->cameraPerspective();
+    const QVariantMap aliasMap  = s->cameraAlias();
 
     QVariantList list;
     for (int i = 0; i < m_cameras.size(); ++i) {
@@ -100,6 +114,7 @@ QVariantList CameraManager::cameraList() const
         QVariantMap entry;
         entry[QStringLiteral("index")]       = i;
         entry[QStringLiteral("description")] = cam.device.description;
+        entry[QStringLiteral("alias")]       = aliasMap.value(key).toString();
         entry[QStringLiteral("selected")]    = cam.selected;
         entry[QStringLiteral("vendorName")]  = cap.vendorName;
         entry[QStringLiteral("modelName")]   = cap.modelName;
@@ -355,11 +370,12 @@ void CameraManager::enumerate()
             CameraEntry entry;
             entry.device = dev;
             // Apply any persisted settings for this device.
-            AppSettings s;
+            AppSettings  efallback;
+            AppSettings *es = m_appSettings ? m_appSettings : &efallback;
             const QString key = cameraKey(entry);
-            if (s.cameraExcluded().contains(key))    entry.excluded    = true;
-            if (s.cameraTargetFps().contains(key))   entry.targetFps   = s.cameraTargetFps().value(key).toDouble();
-            if (s.cameraTriggerMode().contains(key)) entry.triggerMode = s.cameraTriggerMode().value(key).toString();
+            if (es->cameraExcluded().contains(key))    entry.excluded    = true;
+            if (es->cameraTargetFps().contains(key))   entry.targetFps   = es->cameraTargetFps().value(key).toDouble();
+            if (es->cameraTriggerMode().contains(key)) entry.triggerMode = es->cameraTriggerMode().value(key).toString();
             m_cameras.append(entry);
             added = true;
         }
@@ -387,13 +403,14 @@ void CameraManager::setExcluded(int index, bool excluded)
     // Persist to AppSettings keyed by serial number.
     const QString key = cameraKey(m_cameras[index]);
     if (!key.isEmpty()) {
-        AppSettings settings;
-        QStringList excList = settings.cameraExcluded();
+        AppSettings  xfallback;
+        AppSettings *xs = m_appSettings ? m_appSettings : &xfallback;
+        QStringList excList = xs->cameraExcluded();
         if (excluded)
             excList.append(key);
         else
             excList.removeAll(key);
-        settings.setCameraExcluded(excList);
+        xs->setCameraExcluded(excList);
     }
 
     emit cameraListChanged();
@@ -422,8 +439,9 @@ void CameraManager::setPerspective(QObject *rawController, int perspective)
     // and remove it from AppSettings so the cleared camera doesn't re-acquire
     // the view on next startup.
     if (perspective > 0) {
-        AppSettings settings;
-        QVariantMap map = settings.cameraPerspective();
+        AppSettings  pfallback;
+        AppSettings *ps = m_appSettings ? m_appSettings : &pfallback;
+        QVariantMap map = ps->cameraPerspective();
         bool changed = false;
         for (auto &cam : m_cameras) {
             if (cam.controller && cam.controller != target
@@ -434,7 +452,7 @@ void CameraManager::setPerspective(QObject *rawController, int perspective)
                 changed = true;
             }
         }
-        if (changed) settings.setCameraPerspective(map);
+        if (changed) ps->setCameraPerspective(map);
     }
 
     target->setPerspective(perspective);
@@ -453,9 +471,10 @@ QObject *CameraManager::createPreviewController(int index)
     auto *ctrl = new VideoController(m_cameras[index].device, nullptr, this);
 
     const QString key = cameraKey(m_cameras[index]);
-    AppSettings s;
+    AppSettings  rfallback;
+    AppSettings *rs = m_appSettings ? m_appSettings : &rfallback;
 
-    const QVariantMap roiMap = s.cameraRoi();
+    const QVariantMap roiMap = rs->cameraRoi();
     if (roiMap.contains(key)) {
         const QVariantMap r = roiMap.value(key).toMap();
         double x = r.value(QStringLiteral("x")).toDouble();
@@ -486,9 +505,10 @@ VideoController *CameraManager::createController(const Device &device)
                                ? device.id
                                : device.capabilities.serialNumber);
 
-    AppSettings s;
+    AppSettings  cfallback;
+    AppSettings *cs = m_appSettings ? m_appSettings : &cfallback;
 
-    const QVariantMap roiMap = s.cameraRoi();
+    const QVariantMap roiMap = cs->cameraRoi();
     if (roiMap.contains(key)) {
         const QVariantMap r = roiMap.value(key).toMap();
         double x = r.value(QStringLiteral("x")).toDouble();
@@ -499,7 +519,7 @@ VideoController *CameraManager::createController(const Device &device)
             ctrl->setCropRoi(QRectF(x, y, w, h));
     }
 
-    const QVariantMap perspMap = s.cameraPerspective();
+    const QVariantMap perspMap = cs->cameraPerspective();
     if (perspMap.contains(key)) {
         int p = perspMap.value(key).toInt();
         if (p > 0)
@@ -648,4 +668,32 @@ void CameraManager::stopReplay(bool autoResume)
 
     if (autoResume && m_recording && m_ballPresentCount > 0)
         resumeBuffer();
+}
+
+void CameraManager::setCameraAlias(const QString &key, const QString &alias)
+{
+    AppSettings  fallback;
+    AppSettings *s = m_appSettings ? m_appSettings : &fallback;
+
+    QVariantMap map = s->cameraAlias();
+    const QString trimmed = alias.trimmed();
+    const QString current = map.value(key).toString();
+
+    // No-op if the alias hasn't actually changed.
+    const bool changed = trimmed.isEmpty() ? map.contains(key) : (current != trimmed);
+    if (!changed) return;
+
+    if (trimmed.isEmpty())
+        map.remove(key);
+    else
+        map[key] = trimmed;
+    s->setCameraAlias(map);
+
+    // Push the new alias to any live controller so CameraView.qml updates immediately.
+    for (const auto &cam : m_cameras) {
+        if (cameraKey(cam) == key && cam.controller)
+            cam.controller->setDeviceAlias(trimmed);
+    }
+
+    emit cameraListChanged();
 }

@@ -143,7 +143,7 @@ Item {
             anchors.left:    parent.left
             anchors.right:   parent.right
             anchors.margins: Theme.sp(14)
-            height:   Theme.sp(44)
+            height:   Theme.sp(54)
             spacing:  Theme.sp(10)
 
             // Status dot
@@ -158,21 +158,21 @@ Item {
                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
             }
 
-            // Name + meta
+            // Alias (editable) + meta
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: Theme.sp(2)
 
-                Text {
-                    text:  imuData.description || qsTr("Unknown IMU")
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody
-                    color:          Theme.colorText
-                    elide:          Text.ElideRight
+                PpTextField {
                     Layout.fillWidth: true
+                    placeholderText:  qsTr("Device alias…")
+                    text:             imuData.alias
+                    onEditingFinished: imuManager.setImuAlias(imuData.imuKey, text)
                 }
+
                 Row {
                     spacing: Theme.sp(10)
+                    Text { text: imuData.description || "";    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText3 }
                     Text { text: imuData.transport || "";      font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText3 }
                     Text { text: imuData.id || "";             font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText3 }
                     Text { text: imuData.firmwareVersion || ""; font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText3 }

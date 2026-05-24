@@ -39,6 +39,11 @@ TextField {
 
     placeholderTextColor: Theme.colorText3
 
+    // Commit the current text whenever this field loses keyboard focus —
+    // covers the common case where the user navigates away from the settings
+    // screen without pressing Enter or clicking elsewhere first.
+    onActiveFocusChanged: if (!activeFocus) root.editingFinished()
+
     background: Rectangle {
         radius:       Theme.radius
         color:        Theme.colorSurface

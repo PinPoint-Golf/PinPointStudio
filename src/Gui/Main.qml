@@ -109,6 +109,18 @@ ApplicationWindow {
     Shortcut { sequence: "F11";         onActivated: root.toggleFullscreen() }
     Shortcut { sequence: "Meta+Ctrl+F"; onActivated: root.toggleFullscreen() }
 
+    // Commit any in-progress text-field edit before the screen changes.
+    // StackLayout keeps all screens alive (not destroyed on switch), so items in
+    // hidden screens retain activeFocus and onActiveFocusChanged never fires.
+    // Forcing focus to the root window content item steals it from any TextField,
+    // triggering the onActiveFocusChanged handler in PpTextField.qml.
+    Connections {
+        target: navController
+        function onCurrentIndexChanged() {
+            root.contentItem.forceActiveFocus()
+        }
+    }
+
     // Maps StackLayout index → header screen name
     readonly property var screenNames: [
         qsTr("Home"),             // 0

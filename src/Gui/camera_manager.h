@@ -28,6 +28,7 @@
 
 #include "device_enumerator.h"
 #include "swing_window.h"
+#include "app_settings.h"
 #include "../Video/camera_capabilities.h"
 
 namespace pinpoint { class EventBuffer; }
@@ -46,6 +47,7 @@ class CameraManager : public QObject
 
 public:
     explicit CameraManager(pinpoint::EventBuffer *buffer = nullptr,
+                           AppSettings *appSettings = nullptr,
                            QObject *parent = nullptr);
     ~CameraManager() override;
 
@@ -74,6 +76,7 @@ public:
     Q_INVOKABLE void setSelected(int index, bool selected);
     Q_INVOKABLE void startAll();
     Q_INVOKABLE void stopAll();
+    Q_INVOKABLE void setCameraAlias(const QString &key, const QString &alias);
     Q_INVOKABLE void pauseBuffer();
     Q_INVOKABLE void resumeBuffer();
     Q_INVOKABLE void enumerate();
@@ -144,6 +147,7 @@ private:
     bool                                 m_recording        = false;
     int                                  m_ballPresentCount = 0;
     pinpoint::EventBuffer               *m_eventBuffer      = nullptr;
+    AppSettings                         *m_appSettings      = nullptr;
     bool                                 m_replaying        = false;
     std::optional<pinpoint::SwingWindow> m_swingWindow;
     int64_t                              m_replayWindowStartUs = 0;

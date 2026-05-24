@@ -60,7 +60,7 @@ Item {
                     Text {
                         id: camChipLabel
                         anchors.centerIn: parent
-                        text: modelData.description
+                        text: modelData.alias || modelData.description
                         color: modelData.selected ? Theme.colorBg : Theme.colorText2
                         font.family: Theme.fontBody
                         font.pixelSize: Theme.fontSzBody2

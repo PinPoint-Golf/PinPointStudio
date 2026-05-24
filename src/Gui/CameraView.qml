@@ -390,8 +390,8 @@ Item {
             spacing: Theme.sp(8)
 
             Label {
-                visible: root.controller.deviceDescription !== ""
-                text: root.controller.deviceDescription
+                visible: root.controller.deviceAlias !== ""
+                text: root.controller.deviceAlias
                 color: Theme.colorText3
                 font.family: Theme.fontBody
                 font.pixelSize: Theme.fontSzLabel

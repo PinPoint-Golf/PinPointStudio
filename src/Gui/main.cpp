@@ -80,10 +80,10 @@ int main(int argc, char *argv[])
     eventBuffer.start();
 
     AppSettings              appSettings;
-    ImuManager              imuManager(&eventBuffer);
+    ImuManager              imuManager(&eventBuffer, &appSettings);
     TranscriptionController controller;
     TtsController           ttsController;
-    CameraManager           cameraManager(&eventBuffer);
+    CameraManager           cameraManager(&eventBuffer, &appSettings);
     FilmController          filmController;
     BufferController        bufferController(&eventBuffer);
     AthleteController       athleteController;

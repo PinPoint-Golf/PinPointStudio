@@ -82,7 +82,9 @@ class AppSettings : public QObject
     Q_PROPERTY(double      cameraPreroll       READ cameraPreroll       WRITE setCameraPreroll       NOTIFY cameraPrerollChanged)
     Q_PROPERTY(bool        cameraSyncEnabled   READ cameraSyncEnabled   WRITE setCameraSyncEnabled   NOTIFY cameraSyncEnabledChanged)
     Q_PROPERTY(QVariantMap cameraFixedInPlace  READ cameraFixedInPlace  WRITE setCameraFixedInPlace  NOTIFY cameraFixedInPlaceChanged)
+    Q_PROPERTY(QVariantMap cameraAlias         READ cameraAlias         WRITE setCameraAlias         NOTIFY cameraAliasChanged)
     Q_PROPERTY(QStringList imuExcluded            READ imuExcluded            WRITE setImuExcluded            NOTIFY imuExcludedChanged)
+    Q_PROPERTY(QVariantMap imuAlias               READ imuAlias               WRITE setImuAlias               NOTIFY imuAliasChanged)
     Q_PROPERTY(QVariantMap imuPlacement           READ imuPlacement           WRITE setImuPlacement           NOTIFY imuPlacementChanged)
     Q_PROPERTY(QVariantMap imuOutputRateHz        READ imuOutputRateHz        WRITE setImuOutputRateHz        NOTIFY imuOutputRateHzChanged)
     Q_PROPERTY(QVariantMap imuFusionMode          READ imuFusionMode          WRITE setImuFusionMode          NOTIFY imuFusionModeChanged)
@@ -147,6 +149,7 @@ public:
         m_cameraPreroll     = ppSettings().value(QStringLiteral("camera/preroll"),     1.0).toDouble();
         m_cameraSyncEnabled  = ppSettings().value(QStringLiteral("camera/syncEnabled"),    true).toBool();
         m_cameraFixedInPlace = ppSettings().value(QStringLiteral("camera/fixedInPlace"), QVariantMap{}).toMap();
+        m_cameraAlias        = ppSettings().value(QStringLiteral("camera/alias"),        QVariantMap{}).toMap();
 
         m_imuExcluded             = ppSettings().value(QStringLiteral("imu/excluded"),             QStringList{}).toStringList();
         m_imuPlacement            = ppSettings().value(QStringLiteral("imu/placement"),            QVariantMap{}).toMap();
@@ -157,6 +160,7 @@ public:
         m_imuAutoReconnect        = ppSettings().value(QStringLiteral("imu/autoReconnect"),        true).toBool();
         m_imuSaveCalibrationToFlash = ppSettings().value(QStringLiteral("imu/saveCalibrationToFlash"), false).toBool();
         m_imuDefaultFusionMode    = ppSettings().value(QStringLiteral("imu/defaultFusionMode"),    QStringLiteral("9axis")).toString();
+        m_imuAlias                = ppSettings().value(QStringLiteral("imu/alias"),                QVariantMap{}).toMap();
 
         m_sessionGoalsByType = ppSettings().value(QStringLiteral("session/goalsByType"), QVariantMap{}).toMap();
         m_lastSessionType    = ppSettings().value(QStringLiteral("session/lastType"), 0).toInt();
@@ -224,6 +228,7 @@ public:
     double      cameraPreroll()      const { return m_cameraPreroll; }
     bool        cameraSyncEnabled()  const { return m_cameraSyncEnabled; }
     QVariantMap cameraFixedInPlace() const { return m_cameraFixedInPlace; }
+    QVariantMap cameraAlias()        const { return m_cameraAlias; }
 
     QVariantMap sessionGoalsByType() const { return m_sessionGoalsByType; }
     int         lastSessionType()    const { return m_lastSessionType; }
@@ -248,6 +253,7 @@ public:
     bool        imuAutoReconnect()        const { return m_imuAutoReconnect; }
     bool        imuSaveCalibrationToFlash() const { return m_imuSaveCalibrationToFlash; }
     QString     imuDefaultFusionMode()    const { return m_imuDefaultFusionMode; }
+    QVariantMap imuAlias()               const { return m_imuAlias; }
 
     void setThemeIndex(int v)
     {
@@ -529,6 +535,14 @@ public:
         emit cameraFixedInPlaceChanged();
     }
 
+    void setCameraAlias(const QVariantMap &v)
+    {
+        if (m_cameraAlias == v) return;
+        m_cameraAlias = v;
+        ppSettings().setValue(QStringLiteral("camera/alias"), v);
+        emit cameraAliasChanged();
+    }
+
     void setImuExcluded(const QStringList &v)
     {
         if (m_imuExcluded == v) return;
@@ -599,6 +613,14 @@ public:
         m_imuDefaultFusionMode = v;
         ppSettings().setValue(QStringLiteral("imu/defaultFusionMode"), v);
         emit imuDefaultFusionModeChanged();
+    }
+
+    void setImuAlias(const QVariantMap &v)
+    {
+        if (m_imuAlias == v) return;
+        m_imuAlias = v;
+        ppSettings().setValue(QStringLiteral("imu/alias"), v);
+        emit imuAliasChanged();
     }
 
     void setSessionGoalsByType(const QVariantMap &v)
@@ -733,6 +755,7 @@ signals:
     void cameraPrerollChanged();
     void cameraSyncEnabledChanged();
     void cameraFixedInPlaceChanged();
+    void cameraAliasChanged();
     void imuExcludedChanged();
     void imuPlacementChanged();
     void imuOutputRateHzChanged();
@@ -742,6 +765,7 @@ signals:
     void imuAutoReconnectChanged();
     void imuSaveCalibrationToFlashChanged();
     void imuDefaultFusionModeChanged();
+    void imuAliasChanged();
     void sessionGoalsByTypeChanged();
     void lastSessionTypeChanged();
     void sessionNamingPatternChanged();
@@ -794,12 +818,14 @@ private:
     double      m_cameraPreroll     = 1.0;
     bool        m_cameraSyncEnabled = true;
     QVariantMap m_cameraFixedInPlace;
+    QVariantMap m_cameraAlias;
 
     QStringList m_imuExcluded;
     QVariantMap m_imuPlacement;
     QVariantMap m_imuOutputRateHz;
     QVariantMap m_imuFusionMode;
     QVariantMap m_imuMountOrientation;
+    QVariantMap m_imuAlias;
     bool        m_imuAutoConnect          = true;
     bool        m_imuAutoReconnect        = true;
     bool        m_imuSaveCalibrationToFlash = false;

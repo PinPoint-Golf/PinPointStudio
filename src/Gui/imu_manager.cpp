@@ -20,9 +20,10 @@
 
 #include "event_buffer.h"
 
-ImuManager::ImuManager(pinpoint::EventBuffer *buffer, QObject *parent)
+ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, QObject *parent)
     : QObject(parent)
     , m_eventBuffer(buffer)
+    , m_appSettings(appSettings)
 {
     // Start the async BLE scan.  Results arrive via deviceAdded and are
     // automatically reflected by imuList() / imuDeviceList() reading directly
@@ -34,6 +35,15 @@ ImuManager::ImuManager(pinpoint::EventBuffer *buffer, QObject *parent)
     connect(DeviceEnumerator::instance(), &DeviceEnumerator::deviceAdded,
             this, [this](const Device &dev) {
         if (dev.type != DeviceType::Imu) return;
+        // Seed alias for newly-seen device so it always has a value.
+        const QString imuKey = dev.description + QStringLiteral("|") + dev.id;
+        AppSettings  fallback;
+        AppSettings *s = m_appSettings ? m_appSettings : &fallback;
+        QVariantMap aliasMap = s->imuAlias();
+        if (!aliasMap.contains(imuKey)) {
+            aliasMap[imuKey] = QString(imuKey).replace(QLatin1Char('|'), QLatin1Char(' '));
+            s->setImuAlias(aliasMap);
+        }
         emit imuListChanged();
         emit imuDeviceListChanged();
         emit imuEnumeratedCountChanged();
@@ -68,16 +78,21 @@ ImuManager::~ImuManager()
 QVariantList ImuManager::imuList() const
 {
     const QList<Device> devs = DeviceEnumerator::instance()->devices(DeviceType::Imu);
+    AppSettings  fallback;
+    AppSettings *s = m_appSettings ? m_appSettings : &fallback;
+    const QVariantMap aliasMap = s->imuAlias();
     QVariantList list;
     for (int i = 0; i < devs.size(); ++i) {
         const Device &dev = devs[i];
         const ImuEntry &entry = m_selected.value(dev.id);
         const bool connected  = entry.instance && entry.instance->imuConnected();
         const bool connecting = entry.instance && entry.instance->busy() && !connected;
+        const QString imuKey  = dev.description + QStringLiteral("|") + dev.id;
         QVariantMap m;
         m[QStringLiteral("index")]       = i;
         m[QStringLiteral("id")]          = dev.id;
         m[QStringLiteral("description")] = dev.description;
+        m[QStringLiteral("alias")]       = aliasMap.value(imuKey).toString();
         m[QStringLiteral("transport")]   = (dev.imuTransport == ImuBase::Transport::Ble)
                                                ? QStringLiteral("BLE")
                                                : QStringLiteral("Serial");
@@ -92,14 +107,20 @@ QVariantList ImuManager::imuList() const
 QVariantList ImuManager::imuDeviceList() const
 {
     const QList<Device> devs = DeviceEnumerator::instance()->devices(DeviceType::Imu);
+    AppSettings  fallback;
+    AppSettings *s = m_appSettings ? m_appSettings : &fallback;
+    const QVariantMap aliasMap = s->imuAlias();
     QVariantList list;
     for (int i = 0; i < devs.size(); ++i) {
         const Device &dev = devs[i];
         const ImuCapabilities &cap = dev.imuCapabilities;
+        const QString imuKey = dev.description + QStringLiteral("|") + dev.id;
         QVariantMap entry;
         entry[QStringLiteral("index")]       = i;
         entry[QStringLiteral("id")]          = dev.id;
+        entry[QStringLiteral("imuKey")]      = imuKey;
         entry[QStringLiteral("description")] = dev.description;
+        entry[QStringLiteral("alias")]       = aliasMap.value(imuKey).toString();
         entry[QStringLiteral("transport")]   = (dev.imuTransport == ImuBase::Transport::Ble)
                                                    ? QStringLiteral("BLE")
                                                    : QStringLiteral("Serial");
@@ -284,4 +305,24 @@ ImuInstance *ImuManager::createInstance(const Device &device)
     });
 
     return inst;
+}
+
+void ImuManager::setImuAlias(const QString &key, const QString &alias)
+{
+    AppSettings  fallback;
+    AppSettings *s = m_appSettings ? m_appSettings : &fallback;
+    QVariantMap map = s->imuAlias();
+    const QString trimmed = alias.trimmed();
+    const QString current = map.value(key).toString();
+
+    const bool changed = trimmed.isEmpty() ? map.contains(key) : (current != trimmed);
+    if (!changed) return;
+
+    if (trimmed.isEmpty())
+        map.remove(key);
+    else
+        map[key] = trimmed;
+    s->setImuAlias(map);
+    emit imuListChanged();
+    emit imuDeviceListChanged();
 }

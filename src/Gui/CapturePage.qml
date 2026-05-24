@@ -88,7 +88,7 @@ Item {
                     Text {
                         id: imuChipLabel
                         anchors.centerIn: parent
-                        text: modelData.description
+                        text: modelData.alias || modelData.description
                         color: (modelData.selected && isConnected)
                                ? Theme.colorBg
                                : modelData.selected

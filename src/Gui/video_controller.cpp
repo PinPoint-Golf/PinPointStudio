@@ -18,6 +18,7 @@
 
 #include "video_controller.h"
 
+#include "app_settings.h"
 #include "event_buffer.h"
 #include "source_descriptor.h"
 #include <cstring>
@@ -94,6 +95,10 @@ VideoController::VideoController(const Device &device, pinpoint::EventBuffer *bu
     , m_deviceId(device.id)
     , m_deviceDescription(device.description)
     , m_deviceSerialNumber(device.capabilities.serialNumber)
+    , m_deviceAlias(AppSettings().cameraAlias().value(
+          device.description + QStringLiteral("|") +
+          (device.capabilities.serialNumber.isEmpty() ? device.id : device.capabilities.serialNumber)
+      ).toString())
     , m_videoInput(VideoInputFactory::create(device.backend))
     , m_eventBuffer(buffer)
 {
@@ -495,6 +500,15 @@ QString VideoController::poseBackendLabel()       const { return m_poseBackendLa
 int     VideoController::moveNetModel()           const { return m_moveNetModel; }
 QString VideoController::deviceDescription()      const { return m_deviceDescription; }
 QString VideoController::deviceSerialNumber()     const { return m_deviceSerialNumber; }
+QString VideoController::deviceAlias()            const { return m_deviceAlias; }
+
+void VideoController::setDeviceAlias(const QString &alias)
+{
+    if (m_deviceAlias == alias) return;
+    m_deviceAlias = alias;
+    emit deviceAliasChanged();
+}
+
 int     VideoController::perspective()            const { return m_perspective; }
 
 void VideoController::setPerspective(int p)

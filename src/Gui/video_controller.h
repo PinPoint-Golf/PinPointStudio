@@ -68,6 +68,7 @@ class VideoController : public QObject
     Q_PROPERTY(QVariantList poseKeypoints READ poseKeypoints NOTIFY poseKeypointsChanged)
     Q_PROPERTY(QString deviceDescription  READ deviceDescription  CONSTANT)
     Q_PROPERTY(QString deviceSerialNumber READ deviceSerialNumber CONSTANT)
+    Q_PROPERTY(QString deviceAlias        READ deviceAlias        NOTIFY deviceAliasChanged)
     Q_PROPERTY(int perspective READ perspective NOTIFY perspectiveChanged)
     Q_PROPERTY(QRectF roi     READ roi     NOTIFY roiChanged)
     Q_PROPERTY(QRectF cropRoi READ cropRoi NOTIFY cropRoiChanged)
@@ -107,6 +108,8 @@ public:
     QVariantList poseKeypoints() const;
     QString deviceDescription()   const;
     QString deviceSerialNumber()  const;
+    QString deviceAlias()         const;
+    void    setDeviceAlias(const QString &alias);
     int     perspective() const;
     QRectF  roi()          const;
     QRectF  cropRoi()      const;
@@ -166,6 +169,7 @@ signals:
     void ballAvgMsChanged();
     void frameSizeChanged();
     void isReplayingChanged();
+    void deviceAliasChanged();
 
 private slots:
     void onVideoFrame(const QVideoFrame &frame);
@@ -201,6 +205,7 @@ private:
     QString                m_deviceId;
     QString                m_deviceDescription;
     QString                m_deviceSerialNumber;
+    QString                m_deviceAlias;
 
     // Display-path throttle: at most one frame is ever queued to the main thread
     // at a time (shared between the QVideoFrame and RawVideoFrame paths, which are
