@@ -51,7 +51,7 @@ Item {
             // Title
             Text {
                 width:           parent.width
-                text:            qsTr("Welcome to Pinpoint")
+                text:            qsTr("Welcome to PinPoint Studio")
                 font.family:     Theme.fontDisplay
                 font.italic:     Theme.fontDisplayItalic
                 font.pixelSize:  Theme.fontSzDisplay

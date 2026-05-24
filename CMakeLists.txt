@@ -305,7 +305,7 @@ if(UNIX AND NOT APPLE)
     file(GENERATE
         OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/pinpoint.desktop"
         CONTENT "[Desktop Entry]
-Name=PinPoint
+Name=PinPoint Studio
 Exec=$<TARGET_FILE:PinPoint>
 Icon=pinpoint
 Type=Application

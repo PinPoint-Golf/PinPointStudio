@@ -27,7 +27,7 @@ ApplicationWindow {
     width:   appSettings.windowWidth
     height:  appSettings.windowHeight
     visible: true
-    title: qsTr("PinPoint")
+    title: qsTr("PinPoint Studio")
     color: Theme.colorBg
     font.family: Theme.fontBody
 
