@@ -60,13 +60,20 @@ public slots:
     // Update the search region. Safe to call via queued connection.
     void setRoi(QRectF roi);
 
+    // Tune detector parameters at runtime. Safe to call via queued connection.
+    // houghConf: HOUGH_GRADIENT_ALT confidence threshold [0.3, 1.0] (default 0.7)
+    // whiteSatCeil: HSV saturation upper bound for white-mask [20, 120] (default 50)
+    void setParams(double houghConf, int whiteSatCeil);
+
 signals:
     void ballDetected(const BallDetection &result);
 
 private:
-    // Only accessed on the detector's own thread (both detect() and setRoi()
-    // arrive via queued connections, so they are serialised by the event loop).
+    // Only accessed on the detector's own thread (all slots arrive via queued
+    // connections, so they are serialised by the event loop).
     QRectF m_roi;
+    double m_houghConf    = 0.7;
+    int    m_whiteSatCeil = 50;
 };
 
 #endif // HAVE_OPENCV

@@ -62,7 +62,7 @@ void BallDetector::detect(const cv::Mat &frame)
     cv::Mat hsv;
     cv::cvtColor(roiMat, hsv, cv::COLOR_BGR2HSV);
     cv::Mat whiteMask;
-    cv::inRange(hsv, cv::Scalar(0, 0, 170), cv::Scalar(180, 50, 255), whiteMask);
+    cv::inRange(hsv, cv::Scalar(0, 0, 170), cv::Scalar(180, m_whiteSatCeil, 255), whiteMask);
 
     // Morphological close fills dimple-texture gaps in the white mask.
     const cv::Mat closeKernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(5, 5));
@@ -88,7 +88,7 @@ void BallDetector::detect(const cv::Mat &frame)
                      /*dp=*/      1,
                      /*minDist=*/ minDistUp,
                      /*param1=*/  300,  // Canny high threshold
-                     /*param2=*/  0.7,  // confidence threshold [0,1]
+                     /*param2=*/  m_houghConf,
                      minRadiusUp,
                      maxRadiusUp);
 
@@ -136,6 +136,12 @@ void BallDetector::detect(const cv::Mat &frame)
 
     ppDebug() << "[BallDetector] strategy: blob" << cx << cy << "r=" << cr;
     emit ballDetected(BallDetection{true, cx, cy, cr, t.elapsed()});
+}
+
+void BallDetector::setParams(double houghConf, int whiteSatCeil)
+{
+    m_houghConf    = qBound(0.3, houghConf,    1.0);
+    m_whiteSatCeil = qBound(20,  whiteSatCeil, 120);
 }
 
 #endif // HAVE_OPENCV

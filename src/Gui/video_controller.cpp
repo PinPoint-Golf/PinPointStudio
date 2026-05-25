@@ -584,6 +584,37 @@ double VideoController::ballY()               const { return m_ballY; }
 double VideoController::ballRadius()          const { return m_ballRadius; }
 double VideoController::ballPresencePercent() const { return m_ballPresencePercent; }
 bool   VideoController::ballPresent()         const { return m_ballPresent; }
+double VideoController::ballHoughConf()       const { return m_ballHoughConf; }
+int    VideoController::ballWhiteSatCeil()    const { return m_ballWhiteSatCeil; }
+
+#ifdef HAVE_OPENCV
+void VideoController::setBallHoughConf(double v)
+{
+    v = qBound(0.3, v, 1.0);
+    if (qFuzzyCompare(v, m_ballHoughConf)) return;
+    m_ballHoughConf = v;
+    if (m_ballDetector)
+        QMetaObject::invokeMethod(m_ballDetector, [this]() {
+            m_ballDetector->setParams(m_ballHoughConf, m_ballWhiteSatCeil);
+        }, Qt::QueuedConnection);
+    emit ballHoughConfChanged();
+}
+
+void VideoController::setBallWhiteSatCeil(int v)
+{
+    v = qBound(20, v, 120);
+    if (v == m_ballWhiteSatCeil) return;
+    m_ballWhiteSatCeil = v;
+    if (m_ballDetector)
+        QMetaObject::invokeMethod(m_ballDetector, [this]() {
+            m_ballDetector->setParams(m_ballHoughConf, m_ballWhiteSatCeil);
+        }, Qt::QueuedConnection);
+    emit ballWhiteSatCeilChanged();
+}
+#else
+void VideoController::setBallHoughConf(double)    {}
+void VideoController::setBallWhiteSatCeil(int)    {}
+#endif
 
 #ifdef HAVE_OPENCV
 void VideoController::onBallDetected(const BallDetection &result)

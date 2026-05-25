@@ -79,6 +79,8 @@ class VideoController : public QObject
     Q_PROPERTY(double ballPresencePercent READ ballPresencePercent NOTIFY ballPresencePercentChanged)
     Q_PROPERTY(bool   ballPresent        READ ballPresent        NOTIFY ballPresentChanged)
     Q_PROPERTY(double ballAvgMs          READ ballAvgMs          NOTIFY ballAvgMsChanged)
+    Q_PROPERTY(double ballHoughConf    READ ballHoughConf    NOTIFY ballHoughConfChanged)
+    Q_PROPERTY(int    ballWhiteSatCeil READ ballWhiteSatCeil NOTIFY ballWhiteSatCeilChanged)
     Q_PROPERTY(int    frameWidth         READ frameWidth          NOTIFY frameSizeChanged)
     Q_PROPERTY(int    frameHeight        READ frameHeight         NOTIFY frameSizeChanged)
     Q_PROPERTY(double configuredFps     READ configuredFps       NOTIFY frameSizeChanged)
@@ -120,6 +122,8 @@ public:
     double  ballPresencePercent() const;
     bool    ballPresent()         const;
     double  ballAvgMs()           const;
+    double  ballHoughConf()       const;
+    int     ballWhiteSatCeil()    const;
     int     frameWidth()          const;
     int     frameHeight()         const;
     double  configuredFps()       const;
@@ -143,6 +147,8 @@ public:
     Q_INVOKABLE void selectMoveNetModel(int variant);
     Q_INVOKABLE void setRoi(QRectF roi);    // hitting area for ball detection
     Q_INVOKABLE void clearRoi();
+    Q_INVOKABLE void setBallHoughConf(double v);
+    Q_INVOKABLE void setBallWhiteSatCeil(int v);
     Q_INVOKABLE void setCropRoi(QRectF roi); // frame crop for storage / ring-buffer sizing
     Q_INVOKABLE void clearCropRoi();
 
@@ -167,6 +173,8 @@ signals:
     void ballPresencePercentChanged();
     void ballPresentChanged(bool present);
     void ballAvgMsChanged();
+    void ballHoughConfChanged();
+    void ballWhiteSatCeilChanged();
     void frameSizeChanged();
     void isReplayingChanged();
     void deviceAliasChanged();
@@ -241,6 +249,8 @@ private:
     double           m_ballPresencePercent  = 0.0;
     bool             m_ballPresent          = false;
     double           m_ballAvgMs            = 0.0;
+    double           m_ballHoughConf        = 0.7;
+    int              m_ballWhiteSatCeil     = 50;
     TingPlayer      *m_tingPlayer           = nullptr;
     bool             m_replaying            = false;
     // Capture-rate FPS: counted on the capture thread, sampled on a timer.

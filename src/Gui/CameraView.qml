@@ -607,6 +607,88 @@ Item {
                 }
             }
 
+            // ── Ball detector tuning sliders ─────────────────────────────────
+            RowLayout {
+                visible: root.roiIsSet
+                spacing: Theme.sp(12)
+
+                Label {
+                    text: qsTr("Hough")
+                    color: Theme.colorText3
+                    font.family: Theme.fontBody
+                    font.pixelSize: Theme.fontSzLabel
+                }
+                Slider {
+                    id: houghSlider
+                    from: 0.3; to: 1.0; stepSize: 0.05
+                    value: root.controller ? root.controller.ballHoughConf : 0.7
+                    implicitWidth: Theme.sp(100)
+                    onMoved: if (root.controller) root.controller.setBallHoughConf(value)
+                    background: Rectangle {
+                        x: houghSlider.leftPadding
+                        y: houghSlider.topPadding + houghSlider.availableHeight / 2 - height / 2
+                        width: houghSlider.availableWidth; height: Theme.sp(3); radius: Theme.sp(2)
+                        color: Theme.colorBg3
+                        Rectangle {
+                            width: houghSlider.visualPosition * parent.width
+                            height: parent.height; radius: parent.radius; color: Theme.colorWarn
+                        }
+                    }
+                    handle: Rectangle {
+                        x: houghSlider.leftPadding + houghSlider.visualPosition * (houghSlider.availableWidth - width)
+                        y: houghSlider.topPadding + houghSlider.availableHeight / 2 - height / 2
+                        width: Theme.sp(12); height: Theme.sp(12); radius: Theme.sp(6)
+                        color: Theme.colorWarn; border.color: Theme.colorSurface; border.width: 2
+                    }
+                }
+                Label {
+                    text: houghSlider.value.toFixed(2)
+                    color: Theme.colorText3
+                    font.family: Theme.fontData
+                    font.pixelSize: Theme.fontSzLabel
+                }
+
+                Item { width: Theme.sp(4) }
+
+                Label {
+                    text: qsTr("Sat")
+                    color: Theme.colorText3
+                    font.family: Theme.fontBody
+                    font.pixelSize: Theme.fontSzLabel
+                }
+                Slider {
+                    id: satSlider
+                    from: 20; to: 120; stepSize: 5
+                    value: root.controller ? root.controller.ballWhiteSatCeil : 50
+                    implicitWidth: Theme.sp(100)
+                    onMoved: if (root.controller) root.controller.setBallWhiteSatCeil(Math.round(value))
+                    background: Rectangle {
+                        x: satSlider.leftPadding
+                        y: satSlider.topPadding + satSlider.availableHeight / 2 - height / 2
+                        width: satSlider.availableWidth; height: Theme.sp(3); radius: Theme.sp(2)
+                        color: Theme.colorBg3
+                        Rectangle {
+                            width: satSlider.visualPosition * parent.width
+                            height: parent.height; radius: parent.radius; color: Theme.colorWarn
+                        }
+                    }
+                    handle: Rectangle {
+                        x: satSlider.leftPadding + satSlider.visualPosition * (satSlider.availableWidth - width)
+                        y: satSlider.topPadding + satSlider.availableHeight / 2 - height / 2
+                        width: Theme.sp(12); height: Theme.sp(12); radius: Theme.sp(6)
+                        color: Theme.colorWarn; border.color: Theme.colorSurface; border.width: 2
+                    }
+                }
+                Label {
+                    text: Math.round(satSlider.value)
+                    color: Theme.colorText3
+                    font.family: Theme.fontData
+                    font.pixelSize: Theme.fontSzLabel
+                }
+
+                Item { Layout.fillWidth: true }
+            }
+
             // ── ORT backend badge ─────────────────────────────────────────────
             Rectangle {
                 visible: root.controller.poseBackendLabel !== "" || root.controller.poseFps > 0
