@@ -163,6 +163,7 @@ qt_add_qml_module(PinPoint
         src/Gui/CapturePage.qml
         src/Gui/ImuVizView.qml
         src/Gui/ArmVizView.qml
+        src/Gui/BodyVizView.qml
         src/Gui/FilmPage.qml
         src/Gui/VideoPage.qml
         src/Gui/CameraView.qml
@@ -293,6 +294,13 @@ qt_add_resources(PinPoint "app_fonts"
         src/Resources/fonts/SpaceGrotesk-Variable.ttf
         src/Resources/fonts/SpaceMono-Regular.ttf
         src/Resources/fonts/SpaceMono-Bold.ttf
+)
+
+qt_add_resources(PinPoint "app_body"
+    PREFIX "/assets/body"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/body"
+    FILES
+        src/Resources/body/ybot.glb
 )
 
 # ── Linux: deploy icon + .desktop to user dirs on every build ────────────────

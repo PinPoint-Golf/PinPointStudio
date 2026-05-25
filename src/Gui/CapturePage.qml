@@ -257,6 +257,23 @@ Item {
                             radius: Theme.radius - 1
                         }
                     }
+
+                    TabButton {
+                        text: qsTr("Body")
+                        contentItem: Text {
+                            text: parent.text
+                            color: imuTabBar.currentIndex === 3 ? Theme.colorText : Theme.colorText3
+                            font.family:    Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody
+                            font.weight:    Font.Normal
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment:   Text.AlignVCenter
+                        }
+                        background: Rectangle {
+                            color:  imuTabBar.currentIndex === 3 ? Theme.colorBg3 : "transparent"
+                            radius: Theme.radius - 1
+                        }
+                    }
                 }
 
                 // ── Persistent 3D views ───────────────────────────────────────
@@ -299,6 +316,9 @@ Item {
 
                     // Arm viz tab — persistent View3D; reads imuManager.instances directly.
                     ArmVizView {}
+
+                    // Body viz tab — persistent View3D; Y Bot full-body model.
+                    BodyVizView {}
                 }
 
                 // ── Per-instance controls (Repeater, no View3D) ───────────────
