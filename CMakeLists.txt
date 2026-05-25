@@ -112,6 +112,7 @@ qt_add_executable(PinPoint
     src/Gui/athlete_controller.h       src/Gui/athlete_controller.cpp
     src/Gui/navigation_controller.h    src/Gui/navigation_controller.cpp
     src/Gui/resource_monitor_controller.h src/Gui/resource_monitor_controller.cpp
+    src/Gui/arm_bone_controller.h      src/Gui/arm_bone_controller.cpp
     src/IMU/imu_base.h        src/IMU/imu_base.cpp
     src/IMU/imu_capabilities.h
     src/IMU/imu_factory.h     src/IMU/imu_factory.cpp
@@ -301,6 +302,12 @@ qt_add_resources(PinPoint "app_body"
     BASE "${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/body"
     FILES
         src/Resources/body/ybot.glb
+        src/Resources/body/arm_LeftArm.glb
+        src/Resources/body/arm_LeftForeArm.glb
+        src/Resources/body/arm_LeftHand.glb
+        src/Resources/body/arm_RightArm.glb
+        src/Resources/body/arm_RightForeArm.glb
+        src/Resources/body/arm_RightHand.glb
 )
 
 # ── Linux: deploy icon + .desktop to user dirs on every build ────────────────

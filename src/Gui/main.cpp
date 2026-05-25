@@ -35,6 +35,7 @@
 #include "athlete_controller.h"
 #include "navigation_controller.h"
 #include "resource_monitor_controller.h"
+#include "arm_bone_controller.h"
 
 int main(int argc, char *argv[])
 {
@@ -89,6 +90,7 @@ int main(int argc, char *argv[])
     AthleteController       athleteController;
     NavigationController    navController(&athleteController);
     ResourceMonitorController resourceMonitor(&eventBuffer, &cameraManager, &imuManager);
+    ArmBoneController         armBoneController;
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("appSettings"),       &appSettings);
@@ -101,6 +103,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("filmController"),   &filmController);
     engine.rootContext()->setContextProperty(QStringLiteral("bufferController"), &bufferController);
     engine.rootContext()->setContextProperty(QStringLiteral("resourceMonitor"),  &resourceMonitor);
+    engine.rootContext()->setContextProperty(QStringLiteral("armBoneController"), &armBoneController);
 
     // Clean merger shutdown before Qt tears down its event loop.
     QObject::connect(&app, &QGuiApplication::aboutToQuit, [&eventBuffer]() {
