@@ -431,3 +431,31 @@ void ResourceMonitorController::clearLog()
     m_logSeq = PpMessageLog::instance()->currentSeq();
     emit snapshotChanged();
 }
+
+bool ResourceMonitorController::scanning() const { return m_scanning; }
+
+QString ResourceMonitorController::scanStatus() const
+{
+    if (m_scanning)              return tr("Scan in progress");
+    if (!m_lastScanTime.isEmpty()) return tr("Last scan at %1").arg(m_lastScanTime);
+    return QString();
+}
+
+void ResourceMonitorController::scanDevices()
+{
+    if (m_scanning) return;
+    m_scanning = true;
+    emit scanStatusChanged();
+
+    if (m_cameras) m_cameras->enumerate();
+
+    connect(DeviceEnumerator::instance(), &DeviceEnumerator::imuScanFinished,
+            this, [this]() {
+                m_scanning = false;
+                m_lastScanTime = QTime::currentTime().toString(QStringLiteral("HH:mm:ss"));
+                emit scanStatusChanged();
+                refresh();
+            }, static_cast<Qt::ConnectionType>(Qt::SingleShotConnection | Qt::QueuedConnection));
+
+    if (m_imu) m_imu->rescanImu();
+}

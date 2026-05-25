@@ -22,6 +22,7 @@
 #include <QObject>
 #include <QSet>
 #include <QStringList>
+#include <QTime>
 #include <QVariantList>
 
 #include "PpMessageLog.h"
@@ -46,6 +47,8 @@ class ResourceMonitorController : public QObject
     Q_PROPERTY(QString      totalEventsStr     READ totalEventsStr     NOTIFY snapshotChanged)
     Q_PROPERTY(QString      timelineEntriesStr READ timelineEntriesStr NOTIFY snapshotChanged)
     Q_PROPERTY(QVariantList messageLog         READ messageLog         NOTIFY snapshotChanged)
+    Q_PROPERTY(bool         scanning           READ scanning           NOTIFY scanStatusChanged)
+    Q_PROPERTY(QString      scanStatus         READ scanStatus         NOTIFY scanStatusChanged)
 
 public:
     explicit ResourceMonitorController(
@@ -66,12 +69,16 @@ public:
     QString      totalEventsStr()     const;
     QString      timelineEntriesStr() const;
     QVariantList messageLog()         const;
+    bool         scanning()           const;
+    QString      scanStatus()         const;
 
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void clearLog();
+    Q_INVOKABLE void scanDevices();
 
 signals:
     void snapshotChanged();
+    void scanStatusChanged();
 
 private:
     pinpoint::EventBuffer *m_buffer;
@@ -91,6 +98,9 @@ private:
     QVariantList   m_messageLog;
     QSet<QString>  m_activeWarnings;  // for stall edge-detection only
     int            m_logSeq = -1;     // last PpMessageLog seq fetched
+
+    bool           m_scanning = false;
+    QString        m_lastScanTime;
 
     static constexpr int kHistoryCount  = 15;
     static constexpr int kMaxLogEntries = 500;

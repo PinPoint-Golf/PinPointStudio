@@ -25,8 +25,6 @@ Item {
 
     signal navigateToSettings(int panelIndex)
 
-    property string snapshotAgeText: "refreshed just now"
-
     // Refresh data every 500ms, but only while this screen is visible.
     // StackLayout sets non-active children to visible: false, so running: visible
     // gates the timer automatically without any extra wiring.
@@ -34,11 +32,7 @@ Item {
         interval: 500
         running: visible
         repeat: true
-        onTriggered: {
-            resourceMonitor.refresh()
-            var age = Math.round(resourceMonitor.snapshotAgeMs / 1000)
-            snapshotAgeText = age <= 1 ? qsTr("refreshed just now") : qsTr("refreshed %1 s ago").arg(age)
-        }
+        onTriggered: resourceMonitor.refresh()
     }
 
     // ── Left column: Devices ──────────────────────────────────────────────────
@@ -74,13 +68,42 @@ Item {
                 }
             }
 
-            // Age text at bottom of devices column
-            Text {
-                text: root.snapshotAgeText  // set from JS; individual strings wrapped at assignment
-                font.family: Theme.fontData
-                font.pixelSize: Theme.sp(9)
-                color: Theme.colorText3
-                topPadding: Theme.sp(4)
+            // Scan controls at bottom of devices column
+            Item {
+                width: Theme.sp(280)
+                height: Theme.sp(28)
+
+                Text {
+                    anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                    text: resourceMonitor.scanStatus
+                    font.family: Theme.fontData
+                    font.pixelSize: Theme.sp(9)
+                    color: Theme.colorText3
+                }
+
+                Rectangle {
+                    id: scanBtn
+                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                    width: scanLbl.implicitWidth + Theme.sp(16)
+                    height: Theme.sp(18)
+                    radius: Theme.radius
+                    color: "transparent"
+                    border.width: 1
+                    border.color: resourceMonitor.scanning ? Theme.colorBorderMid : Theme.colorBorderStrong
+                    opacity: resourceMonitor.scanning ? 0.5 : 1.0
+
+                    Text {
+                        id: scanLbl
+                        anchors.centerIn: parent
+                        text: qsTr("Scan")
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.sp(10)
+                        color: resourceMonitor.scanning ? Theme.colorText3 : Theme.colorText2
+                    }
+
+                    TapHandler  { enabled: !resourceMonitor.scanning; onTapped: resourceMonitor.scanDevices() }
+                    HoverHandler { cursorShape: resourceMonitor.scanning ? Qt.ArrowCursor : Qt.PointingHandCursor }
+                }
             }
         }
     }
