@@ -55,7 +55,8 @@ Item {
                     border.color: modelData.selected
                                   ? Theme.colorAccent
                                   : Theme.colorBorderMid
-                    opacity: cameraManager.isRecording ? 0.5 : 1.0
+                    readonly property bool chipLocked: cameraManager.isRecording || cameraManager.isReplaying
+                    opacity: chipLocked ? 0.5 : 1.0
 
                     Text {
                         id: camChipLabel
@@ -68,11 +69,11 @@ Item {
                     }
 
                     TapHandler {
-                        enabled: !cameraManager.isRecording
+                        enabled: !parent.chipLocked
                         onTapped: cameraManager.setSelected(modelData.index, !modelData.selected)
                     }
                     HoverHandler {
-                        enabled: !cameraManager.isRecording
+                        enabled: !parent.chipLocked
                         cursorShape: Qt.PointingHandCursor
                     }
                 }
