@@ -60,7 +60,6 @@ public:
 
     virtual AccelData      accelData()      const = 0;
     virtual GyroData       gyroData()       const = 0;
-    virtual EulerAngles    eulerAngles()    const = 0;
     virtual MagData        magData()        const = 0;
     virtual QuaternionData quaternionData() const = 0;
 

@@ -45,9 +45,6 @@ class ImuInstance : public QObject
     Q_PROPERTY(float   accelX         READ accelX         NOTIFY accelChanged)
     Q_PROPERTY(float   accelY         READ accelY         NOTIFY accelChanged)
     Q_PROPERTY(float   accelZ         READ accelZ         NOTIFY accelChanged)
-    Q_PROPERTY(float   imuRoll        READ imuRoll        NOTIFY eulerChanged)
-    Q_PROPERTY(float   imuPitch       READ imuPitch       NOTIFY eulerChanged)
-    Q_PROPERTY(float   imuYaw         READ imuYaw         NOTIFY eulerChanged)
     Q_PROPERTY(int     outputRateHz   READ outputRateHz   NOTIFY outputRateHzChanged)
     Q_PROPERTY(double  dataRateHz     READ dataRateHz     NOTIFY dataRateHzChanged)
     Q_PROPERTY(int     batteryPercent READ batteryPercent NOTIFY batteryPercentChanged)
@@ -75,9 +72,6 @@ public:
     float   accelX()         const { return m_accelX; }
     float   accelY()         const { return m_accelY; }
     float   accelZ()         const { return m_accelZ; }
-    float   imuRoll()        const { return m_roll; }
-    float   imuPitch()       const { return m_pitch; }
-    float   imuYaw()         const { return m_yaw; }
     int     outputRateHz()   const { return m_outputRateHz; }
     double  dataRateHz()     const { return m_dataRateHz; }
     int     batteryPercent() const { return m_batteryPercent; }
@@ -97,7 +91,6 @@ signals:
     void imuConnectedChanged();
     void busyChanged();
     void quatChanged();
-    void eulerChanged();
     void accelChanged();
     void outputRateHzChanged();
     void dataRateHzChanged();
@@ -138,7 +131,6 @@ private:
 
     // IMU data
     float m_quatW = 1.0f, m_quatX = 0.0f, m_quatY = 0.0f, m_quatZ = 0.0f;
-    float m_roll  = 0.0f, m_pitch = 0.0f, m_yaw   = 0.0f;
     float m_accelX = 0.0f, m_accelY = 0.0f, m_accelZ = 0.0f;
     int   m_outputRateHz   = 100;
     int   m_batteryPercent = -1;

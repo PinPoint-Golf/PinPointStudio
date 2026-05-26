@@ -155,7 +155,6 @@ public:
 
     AccelData      accelData()      const override { return m_accel; }
     GyroData       gyroData()       const override { return m_gyro;  }
-    EulerAngles    eulerAngles()    const override { return m_euler; }
     MagData        magData()        const override { return m_mag;   }
     QuaternionData quaternionData() const override { return m_quat;  }
 
@@ -238,7 +237,6 @@ private:
     QByteArray     m_buffer;
     AccelData      m_accel;
     GyroData       m_gyro;
-    EulerAngles    m_euler;
     MagData        m_mag;
     QuaternionData m_quat;
 };

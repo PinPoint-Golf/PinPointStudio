@@ -65,9 +65,9 @@ public:
 
     const FormatDescriptor& formatOf(SourceId id) const noexcept;
 
-    // Linear interpolation between the two nearest IMU samples for imu_id.
-    // Byte-level interpolation — correct for packed float32 fields only.
-    // Returns false if insufficient data exists or out_bytes mismatches packet size.
+    // Interpolate between the two nearest ImuSample records for imu_id at target_us.
+    // Lerps accel/gyro linearly; slerps the quaternion along the shortest arc.
+    // out_bytes must equal sizeof(ImuSample). Returns false if data is insufficient.
     bool interpolateImu(SourceId imu_id, int64_t target_us,
                         std::byte* out, size_t out_bytes) const noexcept;
 

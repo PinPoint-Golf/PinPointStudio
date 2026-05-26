@@ -19,6 +19,7 @@
 #include "imu_instance.h"
 
 #include "event_buffer.h"
+#include "imu_sample.h"
 #include "source_descriptor.h"
 
 #include <QDateTime>
@@ -49,11 +50,9 @@ ImuInstance::ImuInstance(const Device &device,
         pinpoint::ImuFormat fmt{};
         fmt.device         = pinpoint::DeviceKind::IMU_WitMotion;
         fmt.sample_rate_hz = 100;
-        // BLE driver batches multiple frames per notification (typically 4×20 = 80 bytes,
-        // occasionally 5×20 = 100 bytes). Use 512 — the BLE ATT MTU ceiling — so no
-        // notification is ever dropped regardless of firmware batching behaviour.
-        fmt.packet_bytes   = 512;
-        fmt.packet_schema  = "wt9011dcl_ble_notification_v1";
+        // One decoded ImuSample per quaternion update — 40 bytes, quaternion-only rotation.
+        fmt.packet_bytes   = sizeof(pinpoint::ImuSample);
+        fmt.packet_schema  = "imu_sample_v1";
 
         desc.format.device            = pinpoint::DeviceKind::IMU_WitMotion;
         desc.format.format            = fmt;
@@ -107,7 +106,7 @@ ImuInstance::ImuInstance(const Device &device,
 
     connect(m_imu, &WT9011DCL_Base::accelUpdated,
             this, [this](const WT9011DCL_Base::AccelData &d) {
-        // Remap from sensor frame to display frame to match eulerToQuat:
+        // Remap from sensor frame to display/world frame:
         //   sensor X (Roll axis)  → display X  (unchanged)
         //   sensor Z (Yaw axis)   → display Y
         //   sensor Y (Pitch axis) → display Z, negated
@@ -115,7 +114,6 @@ ImuInstance::ImuInstance(const Device &device,
         m_accelY =  d.z;
         m_accelZ = -d.y;
         emit accelChanged();
-        onDataRecord();
     });
 
     connect(m_imu, &WT9011DCL_Base::batteryUpdated, this, [this](int percent) {
@@ -133,12 +131,6 @@ ImuInstance::ImuInstance(const Device &device,
         });
     });
 
-    connect(m_imu, &WT9011DCL_Base::eulerAnglesUpdated,
-            this, [this](const WT9011DCL_Base::EulerAngles &a) {
-        m_roll = a.roll; m_pitch = a.pitch; m_yaw = a.yaw;
-        emit eulerChanged();
-    });
-
     connect(m_imu, &WT9011DCL_Base::magUpdated,
             this, [this](const WT9011DCL_Base::MagData &d) {
         appendLog(timestamp()
@@ -149,29 +141,39 @@ ImuInstance::ImuInstance(const Device &device,
                 .arg(d.temperature, 5, 'f', 1));
     });
 
+    // Display update — queued to main thread, drives QML bindings.
     connect(m_imu, &WT9011DCL_Base::quaternionUpdated,
             this, [this](const WT9011DCL_Base::QuaternionData &q) {
         m_quatW = q.w; m_quatX = q.x; m_quatY = q.y; m_quatZ = q.z;
         emit quatChanged();
+        onDataRecord();
     });
 
-    // Publish raw IMU packets into the EventBuffer on the BLE notification thread.
-    // DirectConnection: signal fires on the BLE thread. Safe because stop() calls
-    // disconnect(rawPacketReady) before deregisterFromBuffer() — the producer is
-    // severed before ring memory is freed, matching the camera stopCapture() barrier.
+    // EventBuffer write — DirectConnection so the write happens on the BLE
+    // notification thread. Safe because stop() disconnects quaternionUpdated
+    // before deregisterFromBuffer(), severing the producer before ring memory
+    // is freed (same guarantee as the old rawPacketReady pattern).
+    // accelData()/gyroData() are current: dispatchCombinedPacket sets them
+    // before emitting quaternionUpdated.
     if (m_eventBuffer && m_imuSourceId != pinpoint::kInvalidSourceId) {
-        connect(m_imu, &WT9011DCL_Base::rawPacketReady,
-                this, [this](const QByteArray &data, qint64 ts) {
+        connect(m_imu, &WT9011DCL_Base::quaternionUpdated,
+                this, [this](const WT9011DCL_Base::QuaternionData &q) {
                     if (!m_eventBuffer->isCapturing()) return;
                     auto slot = m_eventBuffer->acquireWriteSlot(m_imuSourceId);
-                    if (!slot.valid) return;
-                    const size_t n = static_cast<size_t>(data.size());
-                    if (n <= slot.capacity) {
-                        std::memcpy(slot.data, data.constData(), n);
-                        *slot.bytes_written = static_cast<uint32_t>(n);
-                        *slot.timestamp_us  = static_cast<int64_t>(ts);
-                        m_eventBuffer->publish(m_imuSourceId, slot.sequence);
-                    }
+                    if (!slot.valid || slot.capacity < sizeof(pinpoint::ImuSample)) return;
+                    const auto a = m_imu->accelData();
+                    const auto g = m_imu->gyroData();
+                    pinpoint::ImuSample s;
+                    // Same display-frame remap as the accelUpdated handler:
+                    //   sensor X → display X, sensor Z → display Y, -sensor Y → display Z
+                    s.accel_x =  a.x; s.accel_y =  a.z; s.accel_z = -a.y;
+                    s.gyro_x  =  g.x; s.gyro_y  =  g.z; s.gyro_z  = -g.y;
+                    s.quat_w  =  q.w; s.quat_x  =  q.x;
+                    s.quat_y  =  q.y; s.quat_z  =  q.z;
+                    std::memcpy(slot.data, &s, sizeof(pinpoint::ImuSample));
+                    *slot.bytes_written = static_cast<uint32_t>(sizeof(pinpoint::ImuSample));
+                    *slot.timestamp_us  = static_cast<int64_t>(pinpoint::EventBuffer::nowMicros());
+                    m_eventBuffer->publish(m_imuSourceId, slot.sequence);
                 }, Qt::DirectConnection);
     }
 }
@@ -217,7 +219,7 @@ void ImuInstance::stop()
     m_retryCount     = 0;
     m_inConnectPhase = false;
     m_attemptingConn = false;
-    disconnect(m_imu, &WT9011DCL_Base::rawPacketReady, this, nullptr);
+    disconnect(m_imu, &WT9011DCL_Base::quaternionUpdated, this, nullptr);
     m_imu->disconnectFromDevice();
 }
 

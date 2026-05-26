@@ -18,8 +18,10 @@
 
 #include "swing_window.h"
 #include "event_buffer.h"
+#include "imu_sample.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 
 namespace pinpoint {
@@ -94,7 +96,7 @@ const FormatDescriptor& SwingWindow::formatOf(SourceId id) const noexcept {
 
 bool SwingWindow::interpolateImu(SourceId imu_id, int64_t target_us,
                                   std::byte* out, size_t out_bytes) const noexcept {
-    if (!out || out_bytes == 0) return false;
+    if (!out || out_bytes != sizeof(ImuSample)) return false;
 
     // Find the nearest entry before and after target_us for this source.
     const IndexEntry* prev = nullptr;
@@ -115,26 +117,52 @@ bool SwingWindow::interpolateImu(SourceId imu_id, int64_t target_us,
     SourceRing::ReadHandle next_h = payloadOf(*next);
 
     if (!prev_h.data || !next_h.data) return false;
-    if (prev_h.bytes != out_bytes || next_h.bytes != out_bytes) return false;
+    if (prev_h.bytes != sizeof(ImuSample) || next_h.bytes != sizeof(ImuSample)) return false;
 
     int64_t denom = next->timestamp_us - prev->timestamp_us;
     if (denom == 0) {
-        std::memcpy(out, prev_h.data, out_bytes);
+        std::memcpy(out, prev_h.data, sizeof(ImuSample));
         return true;
     }
 
-    // Byte-level linear interpolation. Correct for packed float32 fields only.
-    double t = static_cast<double>(target_us - prev->timestamp_us)
-             / static_cast<double>(denom);
+    float t = static_cast<float>(target_us - prev->timestamp_us)
+            / static_cast<float>(denom);
 
-    const auto* p = reinterpret_cast<const unsigned char*>(prev_h.data);
-    const auto* n = reinterpret_cast<const unsigned char*>(next_h.data);
-    auto*       o = reinterpret_cast<unsigned char*>(out);
+    const auto& p = *reinterpret_cast<const ImuSample*>(prev_h.data);
+    const auto& n = *reinterpret_cast<const ImuSample*>(next_h.data);
+    auto&       o = *reinterpret_cast<ImuSample*>(out);
 
-    for (size_t i = 0; i < out_bytes; ++i)
-        o[i] = static_cast<unsigned char>(
-            static_cast<double>(p[i]) + t * (static_cast<double>(n[i])
-                                             - static_cast<double>(p[i])));
+    // Linear interpolation for accel and gyro (linear quantities).
+    o.accel_x = p.accel_x + t * (n.accel_x - p.accel_x);
+    o.accel_y = p.accel_y + t * (n.accel_y - p.accel_y);
+    o.accel_z = p.accel_z + t * (n.accel_z - p.accel_z);
+    o.gyro_x  = p.gyro_x  + t * (n.gyro_x  - p.gyro_x);
+    o.gyro_y  = p.gyro_y  + t * (n.gyro_y  - p.gyro_y);
+    o.gyro_z  = p.gyro_z  + t * (n.gyro_z  - p.gyro_z);
+
+    // Spherical linear interpolation for the unit quaternion.
+    // Ensures the shortest-path arc is taken and the result stays normalised.
+    float pw = p.quat_w, px = p.quat_x, py = p.quat_y, pz = p.quat_z;
+    float nw = n.quat_w, nx = n.quat_x, ny = n.quat_y, nz = n.quat_z;
+
+    float dot = pw*nw + px*nx + py*ny + pz*nz;
+    if (dot < 0.0f) { nw=-nw; nx=-nx; ny=-ny; nz=-nz; dot=-dot; }
+
+    if (dot > 0.9995f) {
+        // Quaternions nearly identical — normalised lerp avoids acos instability.
+        float rw = pw + t*(nw-pw), rx = px + t*(nx-px);
+        float ry = py + t*(ny-py), rz = pz + t*(nz-pz);
+        float len = std::sqrt(rw*rw + rx*rx + ry*ry + rz*rz);
+        o.quat_w = rw/len; o.quat_x = rx/len;
+        o.quat_y = ry/len; o.quat_z = rz/len;
+    } else {
+        float theta0    = std::acos(dot);
+        float sinTheta0 = std::sin(theta0);
+        float s0 = std::sin((1.0f - t) * theta0) / sinTheta0;
+        float s1 = std::sin(t * theta0)           / sinTheta0;
+        o.quat_w = s0*pw + s1*nw; o.quat_x = s0*px + s1*nx;
+        o.quat_y = s0*py + s1*ny; o.quat_z = s0*pz + s1*nz;
+    }
 
     return prev_h.validate(*buffer_->sources_[imu_id]->ring)
         && next_h.validate(*buffer_->sources_[imu_id]->ring);

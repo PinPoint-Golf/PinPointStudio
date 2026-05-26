@@ -993,7 +993,7 @@ Item {
                             spacing: Theme.sp(4)
 
                             Text {
-                                text:                qsTr("EULER ANGLES")
+                                text:                qsTr("QUATERNION")
                                 font.family:         Theme.fontData
                                 font.pixelSize:      Theme.fontSzMicro
                                 font.letterSpacing:  Theme.trackingMicro
@@ -1006,7 +1006,7 @@ Item {
                                 spacing: Theme.sp(6)
 
                                 Repeater {
-                                    model: 3
+                                    model: 4
 
                                     delegate: Rectangle {
                                         required property int index
@@ -1027,7 +1027,7 @@ Item {
                                             spacing: Theme.sp(2)
 
                                             Text {
-                                                text: [qsTr("ROLL"), qsTr("PITCH"), qsTr("YAW")][index]
+                                                text: ["W", "X", "Y", "Z"][index]
                                                 font.family:         Theme.fontData
                                                 font.pixelSize:      Theme.fontSzMicro
                                                 font.letterSpacing:  Theme.trackingMicro
@@ -1036,9 +1036,10 @@ Item {
                                             }
                                             Text {
                                                 text: [
-                                                    (imuRow.inst ? imuRow.inst.imuRoll.toFixed(1)  : "0.0") + "°",
-                                                    (imuRow.inst ? imuRow.inst.imuPitch.toFixed(1) : "0.0") + "°",
-                                                    (imuRow.inst ? imuRow.inst.imuYaw.toFixed(1)   : "0.0") + "°"
+                                                    (imuRow.inst ? imuRow.inst.quatW.toFixed(4) : "1.0000"),
+                                                    (imuRow.inst ? imuRow.inst.quatX.toFixed(4) : "0.0000"),
+                                                    (imuRow.inst ? imuRow.inst.quatY.toFixed(4) : "0.0000"),
+                                                    (imuRow.inst ? imuRow.inst.quatZ.toFixed(4) : "0.0000")
                                                 ][index]
                                                 font.family:    Theme.fontData
                                                 font.pixelSize: Theme.fontSzHeading

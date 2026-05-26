@@ -223,16 +223,18 @@ void WT9011DCL_Base::dispatchCombinedPacket(const QByteArray &frame)
     m_gyro.z = le16(frame, 12) / 32768.0f * 2000.0f;
     emit gyroUpdated(m_gyro);
 
-    // Bytes 14-19: euler angles xyz (int16 LE, /32768 * 180 °)
+    // Bytes 14-19: euler angles xyz (int16 LE, /32768 * 180 °).
+    // Converted immediately to quaternion; Euler values are not stored.
     const qint16 roll  = le16(frame, 14);
     const qint16 pitch = le16(frame, 16);
     const qint16 yaw   = le16(frame, 18);
     if (roll || pitch || yaw) {
-        m_euler.roll  = roll  / 32768.0f * 180.0f;
-        m_euler.pitch = pitch / 32768.0f * 180.0f;
-        m_euler.yaw   = yaw   / 32768.0f * 180.0f;
-        emit eulerAnglesUpdated(m_euler);
-        m_quat = eulerToQuat(m_euler);
+        EulerAngles euler;
+        euler.roll  = roll  / 32768.0f * 180.0f;
+        euler.pitch = pitch / 32768.0f * 180.0f;
+        euler.yaw   = yaw   / 32768.0f * 180.0f;
+        emit eulerAnglesUpdated(euler);
+        m_quat = eulerToQuat(euler);
         emit quaternionUpdated(m_quat);
     }
 }
@@ -290,11 +292,12 @@ void WT9011DCL_Base::parseGyro(const QByteArray &d)
 
 void WT9011DCL_Base::parseEuler(const QByteArray &d)
 {
-    m_euler.roll  = le16(d, 0) / 32768.0f * 180.0f;
-    m_euler.pitch = le16(d, 2) / 32768.0f * 180.0f;
-    m_euler.yaw   = le16(d, 4) / 32768.0f * 180.0f;
-    emit eulerAnglesUpdated(m_euler);
-    m_quat = eulerToQuat(m_euler);
+    EulerAngles euler;
+    euler.roll  = le16(d, 0) / 32768.0f * 180.0f;
+    euler.pitch = le16(d, 2) / 32768.0f * 180.0f;
+    euler.yaw   = le16(d, 4) / 32768.0f * 180.0f;
+    emit eulerAnglesUpdated(euler);
+    m_quat = eulerToQuat(euler);
     emit quaternionUpdated(m_quat);
 }
 
