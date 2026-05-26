@@ -26,6 +26,7 @@
 #include "pp_debug.h"
 
 #include <onnxruntime_cxx_api.h>
+#include "ort_log.h"
 #include <opencv2/imgproc.hpp>
 
 // ---------------------------------------------------------------------------
@@ -33,7 +34,7 @@
 // ---------------------------------------------------------------------------
 
 struct PersonSegmenter::OrtState {
-    Ort::Env                     env  { ORT_LOGGING_LEVEL_WARNING, "Segmenter" };
+    Ort::Env                     env  { ORT_LOGGING_LEVEL_WARNING, "Segmenter", ppOrtLogCallback, nullptr };
     Ort::SessionOptions          opts;
     Ort::AllocatorWithDefaultOptions alloc;
     std::unique_ptr<Ort::Session>    session;

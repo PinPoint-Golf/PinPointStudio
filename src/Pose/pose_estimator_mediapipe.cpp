@@ -29,6 +29,7 @@
 #include "pp_debug.h"
 
 #include <onnxruntime_cxx_api.h>
+#include "ort_log.h"
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
 
@@ -65,7 +66,7 @@ static constexpr int kMpToMoveNet[PoseResult::kNumKeypoints] = {
 
 // ── OrtState ─────────────────────────────────────────────────────────────────
 struct PoseEstimatorMediaPipe::OrtState {
-    Ort::Env            env { ORT_LOGGING_LEVEL_WARNING, "MediaPipe" };
+    Ort::Env            env { ORT_LOGGING_LEVEL_WARNING, "MediaPipe", ppOrtLogCallback, nullptr };
     Ort::RunOptions     runOpts;
     Ort::AllocatorWithDefaultOptions allocator;
 

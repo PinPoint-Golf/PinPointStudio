@@ -28,6 +28,7 @@
 #include <QLibrary>
 
 #include <onnxruntime_cxx_api.h>
+#include "ort_log.h"
 #include <opencv2/imgproc.hpp>
 
 #ifdef WITH_COREML
@@ -36,7 +37,7 @@
 
 // All ORT state lives here so onnxruntime_cxx_api.h is not pulled in via the header.
 struct PoseEstimatorMoveNet::OrtState {
-    Ort::Env            env     { ORT_LOGGING_LEVEL_WARNING, "MoveNet" };
+    Ort::Env            env     { ORT_LOGGING_LEVEL_WARNING, "MoveNet", ppOrtLogCallback, nullptr };
     Ort::SessionOptions opts;
     Ort::RunOptions     runOpts;
     Ort::AllocatorWithDefaultOptions allocator;

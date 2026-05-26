@@ -28,6 +28,7 @@
 #include "pp_debug.h"
 
 #include <onnxruntime_cxx_api.h>
+#include "ort_log.h"
 #include <opencv2/imgproc.hpp>
 
 #ifdef WITH_COREML
@@ -48,7 +49,7 @@ static constexpr float kStd[3]  = { 0.229f, 0.224f, 0.225f };
 
 // All ORT state lives here so onnxruntime_cxx_api.h is not pulled in via the header.
 struct PoseEstimatorViTPose::OrtState {
-    Ort::Env            env     { ORT_LOGGING_LEVEL_WARNING, "ViTPose" };
+    Ort::Env            env     { ORT_LOGGING_LEVEL_WARNING, "ViTPose", ppOrtLogCallback, nullptr };
     Ort::SessionOptions opts;
     Ort::RunOptions     runOpts;
     Ort::AllocatorWithDefaultOptions allocator;

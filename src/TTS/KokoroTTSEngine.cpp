@@ -24,6 +24,7 @@
 
 #ifdef HAVE_ONNXRUNTIME
 #  include <onnxruntime_cxx_api.h>
+#  include "ort_log.h"
 #  ifdef WITH_COREML
 #    include <coreml_provider_factory.h>
 #  endif
@@ -31,7 +32,7 @@
 // All ONNX Runtime state is isolated in OrtState so its headers are only
 // pulled into this translation unit, not transitively via KokoroTTSEngine.h.
 struct KokoroTTSEngine::OrtState {
-    Ort::Env            env  { ORT_LOGGING_LEVEL_WARNING, "KokoroTTS" };
+    Ort::Env            env  { ORT_LOGGING_LEVEL_WARNING, "KokoroTTS", ppOrtLogCallback, nullptr };
     Ort::SessionOptions opts;
     Ort::RunOptions     runOpts;
     std::unique_ptr<Ort::Session> session;
