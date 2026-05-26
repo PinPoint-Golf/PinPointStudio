@@ -46,14 +46,19 @@ import PinPoint
 //   index 1 → forearm   (IMU on forearm near wrist)
 //   index 2 → upper arm (IMU on upper arm)
 //
-// Handedness:
-//   rightHanded = true  → Left arm driven  (lead arm for right-handed golfer)
-//   rightHanded = false → Right arm driven (lead arm for left-handed golfer)
+// Handedness — derived from athleteController.currentHandedness:
+//   "Right" (default) → Left arm driven  (lead arm for right-handed golfer)
+//   "Left"            → Right arm driven (lead arm for left-handed golfer)
 
 Item {
     id: root
 
-    property bool rightHanded: true
+    readonly property bool rightHanded: athleteController.currentHandedness !== "Left"
+
+    onRightHandedChanged: {
+        camera.position      = Qt.vector3d(rightHanded ? 0.60 : -0.60, 1.5, 1.2)
+        camera.eulerRotation = Qt.vector3d(-8, 0, 0)
+    }
 
     // ── Direct QtObject bindings to each IMU slot ─────────────────────────────
     // Hold the ImuInstance in a named QtObject property so rotation bindings can
@@ -103,17 +108,17 @@ Item {
             antialiasingQuality: SceneEnvironment.High
         }
 
-        // Camera framed to show both arms centred on shoulder height.
+        // Camera framed on the single lead arm.
         PerspectiveCamera {
             id: camera
-            position:      Qt.vector3d(0, 1.44, 2.0)
+            position:      Qt.vector3d(root.rightHanded ? 0.60 : -0.60, 1.5, 1.2)
             eulerRotation: Qt.vector3d(-8, 0, 0)
-            fieldOfView:   55
+            fieldOfView:   45
             clipNear:      0.01
             clipFar:       50.0
         }
 
-        Node { id: orbitOrigin; position: Qt.vector3d(0, 1.44, 0) }
+        Node { id: orbitOrigin; position: Qt.vector3d(root.rightHanded ? 0.60 : -0.60, 1.43, 0) }
 
         OrbitCameraController {
             anchors.fill: parent
@@ -200,36 +205,6 @@ Item {
             }
         }
 
-        // ── Inactive arm — opposite side, held in T-pose ──────────────────────
-        Node {
-            id: inactiveArmNode
-            position: root.rightHanded ? Qt.vector3d(-0.1876, 1.4356, -0.0617)
-                                       : Qt.vector3d( 0.1876, 1.4357, -0.0617)
-            rotation: root.rightHanded ? root.rightRestQuat : root.leftRestQuat
-
-            RuntimeLoader {
-                source: root.rightHanded ? "qrc:/assets/body/arm_RightArm.glb"
-                                         : "qrc:/assets/body/arm_LeftArm.glb"
-            }
-
-            Node {
-                position: Qt.vector3d(0, 0.274, 0)
-
-                RuntimeLoader {
-                    source: root.rightHanded ? "qrc:/assets/body/arm_RightForeArm.glb"
-                                             : "qrc:/assets/body/arm_LeftForeArm.glb"
-                }
-
-                Node {
-                    position: Qt.vector3d(0, 0.2761, 0)
-
-                    RuntimeLoader {
-                        source: root.rightHanded ? "qrc:/assets/body/arm_RightHand.glb"
-                                                 : "qrc:/assets/body/arm_LeftHand.glb"
-                    }
-                }
-            }
-        }
     }
 
     // ── Diagnostic overlay ── remove once animation is confirmed working ──────
@@ -290,17 +265,6 @@ Item {
                 }
             }
         }
-    }
-
-    // ── Handedness toggle ─────────────────────────────────────────────────────
-    Text {
-        anchors { top: parent.top; right: parent.right; margins: Theme.sp(10) }
-        text:           root.rightHanded ? qsTr("Right-handed") : qsTr("Left-handed")
-        color:          Theme.colorAccent
-        font.family:    Theme.fontBody
-        font.pixelSize: Theme.fontSzLabel
-        TapHandler  { onTapped: root.rightHanded = !root.rightHanded }
-        HoverHandler { cursorShape: Qt.PointingHandCursor }
     }
 
     // ── Orbit hint ────────────────────────────────────────────────────────────
