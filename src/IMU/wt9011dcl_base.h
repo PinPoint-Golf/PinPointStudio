@@ -20,6 +20,7 @@
 
 #include "imu_base.h"
 #include "imu_capabilities.h"
+#include <optional>
 
 // WT9011DCL (MPU9250) IMU protocol layer — transport-agnostic.
 //
@@ -149,6 +150,13 @@ public:
     // Used by concrete subclasses and by device enumeration code.
     static ImuCapabilities wt901Defaults();
 
+    // Gimbal lock gate — packets whose middle Euler angle exceeds this threshold
+    // are silently dropped in eulerToQuat() rather than producing a degenerate quaternion.
+    static constexpr float kGimbalLockThresholdDeg = 85.0f;
+
+    int  gimbalDropCount()      const { return m_gimbalDropCount; }
+    void resetGimbalDropCount()       { m_gimbalDropCount = 0; }
+
     // -----------------------------------------------------------------------
     // Latest cached values
     // -----------------------------------------------------------------------
@@ -161,9 +169,11 @@ public:
 protected:
     // Converts device Euler angles to a world-frame quaternion, applying any
     // axis remapping and frame corrections specific to the physical hardware.
-    // Default: standard ZYX (RPY) with no correction.
+    // Returns std::nullopt when the middle Euler angle is within kGimbalLockThresholdDeg
+    // of the ZYX singularity — callers must silently drop these packets.
+    // Default: standard ZYX (RPY), singularity at |pitch| >= threshold.
     // Override in device subclasses to match their mounting convention.
-    virtual QuaternionData eulerToQuat(const EulerAngles &e) const;
+    virtual std::optional<QuaternionData> eulerToQuat(const EulerAngles &e) const;
 
     // Subclasses call this whenever bytes arrive from the device.
     void receiveData(const QByteArray &data);
@@ -239,6 +249,7 @@ private:
     GyroData       m_gyro;
     MagData        m_mag;
     QuaternionData m_quat;
+    int            m_gimbalDropCount = 0;
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(WT9011DCL_Base::OutputFlags)

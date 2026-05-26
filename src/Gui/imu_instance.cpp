@@ -89,6 +89,16 @@ ImuInstance::ImuInstance(const Device &device,
         if (m_connected) m_imu->requestBattery();
     });
 
+    m_gimbalPollTimer.setInterval(kGimbalPollIntervalMs);
+    m_gimbalPollTimer.setSingleShot(false);
+    connect(&m_gimbalPollTimer, &QTimer::timeout, this, [this]() {
+        const int driverCount = m_imu->gimbalDropCount();
+        if (driverCount != m_gimbalDropCount) {
+            m_gimbalDropCount = driverCount;
+            emit gimbalDropCountChanged();
+        }
+    });
+
     connect(m_imu, &WT9011DCL_BLE::stateChanged,
             this,  &ImuInstance::onStateChanged);
 
@@ -183,6 +193,7 @@ ImuInstance::~ImuInstance()
     m_retryTimer.stop();
     m_logTimer.stop();
     m_batteryTimer.stop();
+    m_gimbalPollTimer.stop();
 }
 
 void ImuInstance::start()
@@ -287,6 +298,7 @@ void ImuInstance::onStateChanged(WT9011DCL_BLE::State s)
         m_retryCount     = 0;
         m_logTimer.stop();
         m_batteryTimer.stop();
+        m_gimbalPollTimer.stop();
         m_packetTimes.clear();
         if (m_dataRateHz != 0.0)    { m_dataRateHz = 0.0; emit dataRateHzChanged(); }
         if (m_batteryPercent != -1) { m_batteryPercent = -1; emit batteryPercentChanged(); }
@@ -328,7 +340,10 @@ void ImuInstance::onStateChanged(WT9011DCL_BLE::State s)
         m_recordsSinceLog = 0;
         m_batteryRetries  = 0;
         m_packetTimes.clear();
+        m_imu->resetGimbalDropCount();
+        if (m_gimbalDropCount != 0) { m_gimbalDropCount = 0; emit gimbalDropCountChanged(); }
         m_logTimer.start(kLogIntervalMs);
+        m_gimbalPollTimer.start();
         appendLog(timestamp() + "  IMU ready — receiving data");
         // Poke the device to start streaming.
         setOutputRateHz(m_outputRateHz);
@@ -383,6 +398,7 @@ void ImuInstance::onDataRecord()
         m_dataRateHz = hz;
         emit dataRateHzChanged();
     }
+
 }
 
 QString ImuInstance::timestamp()

@@ -71,19 +71,22 @@ ImuCapabilities WT9011DCL_Base::wt901Defaults()
 
 // Default Euler→quaternion: standard ZYX (RPY) convention.
 // Device subclasses override this to apply their mounting-specific mapping.
-WT9011DCL_Base::QuaternionData
+// Returns nullopt when |pitch| (the middle ZYX angle) is near the singularity.
+std::optional<WT9011DCL_Base::QuaternionData>
 WT9011DCL_Base::eulerToQuat(const EulerAngles &e) const
 {
+    if (std::abs(e.pitch) >= kGimbalLockThresholdDeg)
+        return std::nullopt;
     const float hx = qDegreesToRadians(e.roll)  * 0.5f;
     const float hy = qDegreesToRadians(e.pitch) * 0.5f;
     const float hz = qDegreesToRadians(e.yaw)   * 0.5f;
     const float cx = qCos(hx), sx = qSin(hx);
     const float cy = qCos(hy), sy = qSin(hy);
     const float cz = qCos(hz), sz = qSin(hz);
-    return { cx*cy*cz + sx*sy*sz,
-             sx*cy*cz - cx*sy*sz,
-             cx*sy*cz + sx*cy*sz,
-             cx*cy*sz - sx*sy*cz };
+    return QuaternionData{ cx*cy*cz + sx*sy*sz,
+                           sx*cy*cz - cx*sy*sz,
+                           cx*sy*cz + sx*cy*sz,
+                           cx*cy*sz - sx*sy*cz };
 }
 
 // ---------------------------------------------------------------------------
@@ -225,6 +228,7 @@ void WT9011DCL_Base::dispatchCombinedPacket(const QByteArray &frame)
 
     // Bytes 14-19: euler angles xyz (int16 LE, /32768 * 180 °).
     // Converted immediately to quaternion; Euler values are not stored.
+    // Packets near the ZYX gimbal lock singularity are silently dropped.
     const qint16 roll  = le16(frame, 14);
     const qint16 pitch = le16(frame, 16);
     const qint16 yaw   = le16(frame, 18);
@@ -233,8 +237,10 @@ void WT9011DCL_Base::dispatchCombinedPacket(const QByteArray &frame)
         euler.roll  = roll  / 32768.0f * 180.0f;
         euler.pitch = pitch / 32768.0f * 180.0f;
         euler.yaw   = yaw   / 32768.0f * 180.0f;
+        const auto q = eulerToQuat(euler);
+        if (!q) { ++m_gimbalDropCount; return; }
         emit eulerAnglesUpdated(euler);
-        m_quat = eulerToQuat(euler);
+        m_quat = *q;
         emit quaternionUpdated(m_quat);
     }
 }
@@ -296,8 +302,10 @@ void WT9011DCL_Base::parseEuler(const QByteArray &d)
     euler.roll  = le16(d, 0) / 32768.0f * 180.0f;
     euler.pitch = le16(d, 2) / 32768.0f * 180.0f;
     euler.yaw   = le16(d, 4) / 32768.0f * 180.0f;
+    const auto q = eulerToQuat(euler);
+    if (!q) { ++m_gimbalDropCount; return; }
     emit eulerAnglesUpdated(euler);
-    m_quat = eulerToQuat(euler);
+    m_quat = *q;
     emit quaternionUpdated(m_quat);
 }
 

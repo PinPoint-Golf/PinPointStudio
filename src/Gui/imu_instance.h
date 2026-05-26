@@ -47,7 +47,8 @@ class ImuInstance : public QObject
     Q_PROPERTY(float   accelZ         READ accelZ         NOTIFY accelChanged)
     Q_PROPERTY(int     outputRateHz   READ outputRateHz   NOTIFY outputRateHzChanged)
     Q_PROPERTY(double  dataRateHz     READ dataRateHz     NOTIFY dataRateHzChanged)
-    Q_PROPERTY(int     batteryPercent READ batteryPercent NOTIFY batteryPercentChanged)
+    Q_PROPERTY(int     batteryPercent  READ batteryPercent  NOTIFY batteryPercentChanged)
+    Q_PROPERTY(int     gimbalDropCount READ gimbalDropCount NOTIFY gimbalDropCountChanged)
     Q_PROPERTY(QString deviceDescription READ deviceDescription CONSTANT)
 
 public:
@@ -73,8 +74,9 @@ public:
     float   accelY()         const { return m_accelY; }
     float   accelZ()         const { return m_accelZ; }
     int     outputRateHz()   const { return m_outputRateHz; }
-    double  dataRateHz()     const { return m_dataRateHz; }
-    int     batteryPercent() const { return m_batteryPercent; }
+    double  dataRateHz()      const { return m_dataRateHz; }
+    int     batteryPercent()  const { return m_batteryPercent; }
+    int     gimbalDropCount() const { return m_gimbalDropCount; }
 
     // Lifecycle — called by ImuManager
     void start();                // begin BLE connection
@@ -95,6 +97,7 @@ signals:
     void outputRateHzChanged();
     void dataRateHzChanged();
     void batteryPercentChanged();
+    void gimbalDropCountChanged();
     void logEntryAdded(const QString &entry);
 
 private:
@@ -124,6 +127,11 @@ private:
     int    m_batteryRetries = 0;
     static constexpr int kMaxBatteryRetries = 3;
 
+    // Gimbal drop counter polling — fires while connected so the count updates
+    // even when all packets are being dropped (no quaternionUpdated to piggyback on).
+    QTimer m_gimbalPollTimer;
+    static constexpr int kGimbalPollIntervalMs = 200;
+
     // State
     QString m_stateLabel = QStringLiteral("Disconnected");
     bool    m_connected  = false;
@@ -133,7 +141,8 @@ private:
     float m_quatW = 1.0f, m_quatX = 0.0f, m_quatY = 0.0f, m_quatZ = 0.0f;
     float m_accelX = 0.0f, m_accelY = 0.0f, m_accelZ = 0.0f;
     int   m_outputRateHz   = 100;
-    int   m_batteryPercent = -1;
+    int   m_batteryPercent  = -1;
+    int   m_gimbalDropCount = 0;
 
     // Rolling 2-second data-rate window
     QList<qint64> m_packetTimes;

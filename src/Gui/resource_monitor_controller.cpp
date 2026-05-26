@@ -313,6 +313,10 @@ void ResourceMonitorController::refresh()
                 : QStringLiteral("—");
             dev[QStringLiteral("ringCapacityStr")]    = imuRingBytes > 0
                 ? fmtBytes(imuRingBytes) : QStringLiteral("—");
+            dev[QStringLiteral("gimbalDropCount")]    = imu.gimbalDropCount;
+            dev[QStringLiteral("gimbalDropCountStr")] = imu.gimbalDropCount > 0
+                ? QString::number(imu.gimbalDropCount)
+                : QStringLiteral("0");
             m_devices.append(dev);
         }
     }

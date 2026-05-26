@@ -90,6 +90,7 @@ public:
         pinpoint::SourceId sourceId       = pinpoint::kInvalidSourceId;
         double             dataRateHz     = 0.0;
         int                batteryPercent = -1;
+        int                gimbalDropCount = 0;
         bool               connected      = false;
         bool               busy           = false;
     };

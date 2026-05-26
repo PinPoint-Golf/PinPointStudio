@@ -258,11 +258,12 @@ ImuManager::ImuDeviceStats ImuManager::liveDeviceStats(const QString &deviceId) 
     ImuDeviceStats stats;
     const ImuEntry &e = m_selected.value(deviceId);
     if (e.selected && e.instance) {
-        stats.sourceId       = e.instance->sourceId();
-        stats.dataRateHz     = e.instance->dataRateHz();
-        stats.batteryPercent = e.instance->batteryPercent();
-        stats.connected      = e.instance->imuConnected();
-        stats.busy           = e.instance->busy();
+        stats.sourceId        = e.instance->sourceId();
+        stats.dataRateHz      = e.instance->dataRateHz();
+        stats.batteryPercent  = e.instance->batteryPercent();
+        stats.gimbalDropCount = e.instance->gimbalDropCount();
+        stats.connected       = e.instance->imuConnected();
+        stats.busy            = e.instance->busy();
     }
     return stats;
 }

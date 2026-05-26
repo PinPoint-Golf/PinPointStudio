@@ -188,6 +188,9 @@ Rectangle {
                       value: d.batteryStr,
                       cls: d.batteryPct >= 0 && d.batteryPct < 20 ? "warn"
                          : d.batteryPct > 60 ? "good" : "neutral" },
+                    { key: qsTr("Gimbal drops"),
+                      value: d.gimbalDropCountStr,
+                      cls: d.gimbalDropCount > 0 ? "warn" : "neutral" },
                     { key: qsTr("Events written"),
                       value: d.eventsWrittenStr,
                       cls: "neutral" },

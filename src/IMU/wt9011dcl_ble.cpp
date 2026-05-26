@@ -94,20 +94,25 @@ void WT9011DCL_BLE::initializeDevice()
 // ---------------------------------------------------------------------------
 
 // WT901BLE67 confirmed axis mapping: Roll→X, Yaw→Y, Pitch→Z (RYP order),
-// with pitch negated.
-WT9011DCL_Base::QuaternionData
+// with pitch negated. Gate on |pitch|, not |yaw|: the WT901 firmware uses
+// standard ZYX (R_z(yaw)*R_y(pitch)*R_x(roll)) internally, so pitch is the
+// device's middle angle and the singularity that produces garbage Euler output
+// is pitch = ±90°. Yaw is free to rotate without limit during normal motion.
+std::optional<WT9011DCL_Base::QuaternionData>
 WT9011DCL_BLE::eulerToQuat(const EulerAngles &e) const
 {
+    if (std::abs(e.pitch) >= kGimbalLockThresholdDeg)
+        return std::nullopt;
     const float hx = qDegreesToRadians( e.roll)  * 0.5f;  // R → X
     const float hy = qDegreesToRadians( e.yaw)   * 0.5f;  // Y → Y
     const float hz = qDegreesToRadians(-e.pitch) * 0.5f;  // P → Z, negated
     const float cx = qCos(hx), sx = qSin(hx);
     const float cy = qCos(hy), sy = qSin(hy);
     const float cz = qCos(hz), sz = qSin(hz);
-    return { cx*cy*cz + sx*sy*sz,
-             sx*cy*cz - cx*sy*sz,
-             cx*sy*cz + sx*cy*sz,
-             cx*cy*sz - sx*sy*cz };
+    return QuaternionData{ cx*cy*cz + sx*sy*sz,
+                           sx*cy*cz - cx*sy*sz,
+                           cx*sy*cz + sx*cy*sz,
+                           cx*cy*sz - sx*sy*cz };
 }
 
 // ---------------------------------------------------------------------------

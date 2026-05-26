@@ -986,6 +986,34 @@ Item {
                             }
                         }
 
+                        // ── Gimbal drop counter ───────────────────────────────
+                        RowLayout {
+                            Layout.fillWidth: true
+                            visible: imuRow.isConnected && imuRow.inst !== null
+                                     && imuRow.inst.gimbalDropCount > 0
+                            spacing: Theme.sp(6)
+
+                            Text {
+                                text:           qsTr("GIMBAL DROPS")
+                                font.family:    Theme.fontData
+                                font.pixelSize: Theme.fontSzMicro
+                                color:          Theme.colorText3
+                            }
+                            Text {
+                                text:           imuRow.inst ? imuRow.inst.gimbalDropCount : 0
+                                font.family:    Theme.fontData
+                                font.pixelSize: Theme.fontSzMicro
+                                color:          Theme.colorWarn
+                            }
+                            Text {
+                                text:           qsTr("packets dropped this session")
+                                font.family:    Theme.fontData
+                                font.pixelSize: Theme.fontSzMicro
+                                color:          Theme.colorText3
+                                Layout.fillWidth: true
+                            }
+                        }
+
                         // ── Euler angles ──────────────────────────────────────
                         ColumnLayout {
                             Layout.fillWidth:    true

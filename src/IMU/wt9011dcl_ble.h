@@ -94,7 +94,7 @@ public:
 
 protected:
     void writeToDevice(const QByteArray &data) override;
-    QuaternionData eulerToQuat(const EulerAngles &e) const override;
+    std::optional<QuaternionData> eulerToQuat(const EulerAngles &e) const override;
 
 private slots:
     void onDeviceDiscovered(const QBluetoothDeviceInfo &device);
