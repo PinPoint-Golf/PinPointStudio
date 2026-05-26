@@ -460,6 +460,29 @@ void CameraManager::setPerspective(QObject *rawController, int perspective)
     emit cameraListChanged();
 }
 
+void CameraManager::setIsMirrored(QObject *rawController, bool mirrored)
+{
+    auto *target = qobject_cast<VideoController *>(rawController);
+    if (!target)
+        return;
+
+    target->setIsMirrored(mirrored);
+
+    AppSettings  fallback;
+    AppSettings *ps = m_appSettings ? m_appSettings : &fallback;
+    QVariantMap map = ps->cameraIsMirrored();
+    for (const auto &cam : m_cameras) {
+        if (cam.controller == target) {
+            if (mirrored)
+                map[cameraKey(cam)] = true;
+            else
+                map.remove(cameraKey(cam));
+            break;
+        }
+    }
+    ps->setCameraIsMirrored(map);
+}
+
 // ---------------------------------------------------------------------------
 // Private
 // ---------------------------------------------------------------------------
@@ -526,6 +549,10 @@ VideoController *CameraManager::createController(const Device &device)
         if (p > 0)
             ctrl->setPerspective(p);
     }
+
+    const QVariantMap mirrorMap = cs->cameraIsMirrored();
+    if (mirrorMap.contains(key))
+        ctrl->setIsMirrored(mirrorMap.value(key).toBool());
 
     return ctrl;
 }

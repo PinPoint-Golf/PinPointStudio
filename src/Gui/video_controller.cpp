@@ -510,6 +510,7 @@ void VideoController::setDeviceAlias(const QString &alias)
 }
 
 int     VideoController::perspective()            const { return m_perspective; }
+bool    VideoController::isMirrored()             const { return m_isMirrored; }
 
 void VideoController::setPerspective(int p)
 {
@@ -517,6 +518,14 @@ void VideoController::setPerspective(int p)
         return;
     m_perspective = p;
     emit perspectiveChanged();
+}
+
+void VideoController::setIsMirrored(bool mirrored)
+{
+    if (m_isMirrored == mirrored)
+        return;
+    m_isMirrored = mirrored;
+    emit isMirroredChanged();
 }
 
 bool    VideoController::moveNetThunderAvailable() const

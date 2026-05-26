@@ -318,6 +318,7 @@ Item {
                     ArmVizView {}
 
                     // Body viz tab — persistent View3D; Y Bot full-body model.
+                    // poseSource wired later when pose adapter is plumbed here.
                     BodyVizView {}
                 }
 

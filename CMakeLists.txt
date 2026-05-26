@@ -204,6 +204,8 @@ qt_add_qml_module(PinPoint
     SOURCES
         src/Video/bayer_video_item.h
         src/Video/bayer_video_item.cpp
+        src/Gui/body_pose_adapter.h
+        src/Gui/body_pose_adapter.cpp
 )
 
 qt6_add_shaders(PinPoint "debayer_shaders"

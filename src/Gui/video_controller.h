@@ -69,7 +69,8 @@ class VideoController : public QObject
     Q_PROPERTY(QString deviceDescription  READ deviceDescription  CONSTANT)
     Q_PROPERTY(QString deviceSerialNumber READ deviceSerialNumber CONSTANT)
     Q_PROPERTY(QString deviceAlias        READ deviceAlias        NOTIFY deviceAliasChanged)
-    Q_PROPERTY(int perspective READ perspective NOTIFY perspectiveChanged)
+    Q_PROPERTY(int  perspective READ perspective NOTIFY perspectiveChanged)
+    Q_PROPERTY(bool isMirrored  READ isMirrored  NOTIFY isMirroredChanged)
     Q_PROPERTY(QRectF roi     READ roi     NOTIFY roiChanged)
     Q_PROPERTY(QRectF cropRoi READ cropRoi NOTIFY cropRoiChanged)
     Q_PROPERTY(bool   ballDetected       READ ballDetected       NOTIFY ballDetectedChanged)
@@ -113,6 +114,7 @@ public:
     QString deviceAlias()         const;
     void    setDeviceAlias(const QString &alias);
     int     perspective() const;
+    bool    isMirrored()  const;
     QRectF  roi()          const;
     QRectF  cropRoi()      const;
     bool    ballDetected()        const;
@@ -133,6 +135,7 @@ public:
     // Called by CameraManager only — not Q_INVOKABLE so QML cannot bypass.
     void stopCapture();       // Synchronously stops the capture thread; call before deregisterFromBuffer()
     void setPerspective(int p);
+    void setIsMirrored(bool mirrored);
     void deregisterFromBuffer();
     void setReplaying(bool replaying);
     void displayReplayFrame(const std::byte *data, size_t bytes, int w, int h, pinpoint::PixelFormat fmt);
@@ -167,6 +170,7 @@ signals:
     void moveNetModelChanged();
     void poseKeypointsChanged();
     void perspectiveChanged();
+    void isMirroredChanged();
     void roiChanged();
     void cropRoiChanged();
     void ballDetectedChanged();
@@ -264,6 +268,7 @@ private:
     int                m_moveNetModel       = 0;
     QVariantList       m_poseKeypoints;
     int                m_perspective        = 0;
+    bool               m_isMirrored         = false;
     QRectF             m_roi;
     QRectF             m_cropRoi;
     int                m_frameWidth  = 0;

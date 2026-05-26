@@ -59,8 +59,19 @@ import PinPoint
 Item {
     id: root
 
-    // Phase 2: uncomment to enable pose-driven animation.
-    // property QtObject poseSource: null
+    // Face-on VideoController — drives per-bone animation when non-null.
+    property QtObject poseSource: null
+
+    // true when the camera delivers a horizontally mirrored image (typical webcam).
+    // false for industrial cameras that deliver non-mirrored frames.
+    property bool mirroredSource: true
+
+    // BodyPoseAdapter converts keypoints → slerped per-bone quaternions at 60 Hz.
+    BodyPoseAdapter {
+        id: adapter
+        poseSource:     root.poseSource
+        mirroredSource: root.mirroredSource
+    }
 
     // Set true to show a small sphere at every joint pivot — useful for
     // verifying that parent-local offsets are correct.
@@ -102,11 +113,10 @@ Item {
         // Character is ~1.8 world units tall; orbit origin at mid-chest height.
         PerspectiveCamera {
             id: camera
-            position:      Qt.vector3d(0, 0.9, 3.5)
-            eulerRotation: Qt.vector3d(-5, 0, 0)
-            fieldOfView:   45
-            clipNear:      0.01
-            clipFar:       100.0
+            position:    Qt.vector3d(0, 0.9, 3.5)
+            fieldOfView: 45
+            clipNear:    0.01
+            clipFar:     100.0
         }
 
         Node { id: orbitOrigin; position: Qt.vector3d(0, 0.9, 0) }
@@ -142,6 +152,7 @@ Item {
         Node {
             id: hipsNode
             position: Qt.vector3d(0, 0.9979, 0)
+            rotation: adapter.hipsRotation
 
             JointMarker {}
             RuntimeLoader {
@@ -194,6 +205,8 @@ Item {
                             Node {
                                 id: headNode
                                 position: Qt.vector3d(0, 0.1032, 0.0314)
+                                visible:  adapter.headVisible
+                                rotation: adapter.headRotation
 
                                 JointMarker {}
                                 RuntimeLoader {
@@ -218,8 +231,8 @@ Item {
                             Node {
                                 id: leftArmNode
                                 position: Qt.vector3d(0, 0.1292, 0)
-                                // Negated to positive-w form; same rotation as (-0.9948, 0.0105, 0.0011, -0.1012)
-                                rotation: Qt.quaternion(0.9948, -0.0105, -0.0011, 0.1012)
+                                visible:  adapter.leftArmVisible
+                                rotation: adapter.leftArmRotation
 
                                 JointMarker {}
                                 RuntimeLoader {
@@ -230,6 +243,8 @@ Item {
                                 Node {
                                     id: leftForeArmNode
                                     position: Qt.vector3d(0, 0.274, 0)
+                                    visible:  adapter.leftForeArmVisible
+                                    rotation: adapter.leftForeArmRotation
 
                                     JointMarker {}
                                     RuntimeLoader {
@@ -240,6 +255,7 @@ Item {
                                     Node {
                                         id: leftHandNode
                                         position: Qt.vector3d(0, 0.2761, 0)
+                                        visible:  adapter.leftForeArmVisible
 
                                         JointMarker {}
                                         RuntimeLoader {
@@ -266,7 +282,8 @@ Item {
                             Node {
                                 id: rightArmNode
                                 position: Qt.vector3d(0, 0.1292, 0)
-                                rotation: Qt.quaternion(0.9948, -0.0105, 0.0011, -0.1011)
+                                visible:  adapter.rightArmVisible
+                                rotation: adapter.rightArmRotation
 
                                 JointMarker {}
                                 RuntimeLoader {
@@ -277,6 +294,8 @@ Item {
                                 Node {
                                     id: rightForeArmNode
                                     position: Qt.vector3d(0, 0.2741, 0)
+                                    visible:  adapter.rightForeArmVisible
+                                    rotation: adapter.rightForeArmRotation
 
                                     JointMarker {}
                                     RuntimeLoader {
@@ -287,6 +306,7 @@ Item {
                                     Node {
                                         id: rightHandNode
                                         position: Qt.vector3d(0, 0.2761, 0)
+                                        visible:  adapter.rightForeArmVisible
 
                                         JointMarker {}
                                         RuntimeLoader {
@@ -307,7 +327,8 @@ Item {
             Node {
                 id: leftUpLegNode
                 position: Qt.vector3d(0.0912, -0.0666, -0.0006)
-                rotation: Qt.quaternion(-0.0030, 0, -0.0064, 1.0000)
+                visible:  adapter.leftUpLegVisible
+                rotation: adapter.leftUpLegRotation
 
                 JointMarker {}
                 RuntimeLoader {
@@ -318,6 +339,8 @@ Item {
                 Node {
                     id: leftLegNode
                     position: Qt.vector3d(0, 0.4060, 0)
+                    visible:  adapter.leftLegVisible
+                    rotation: adapter.leftLegRotation
 
                     JointMarker {}
                     RuntimeLoader {
@@ -328,6 +351,7 @@ Item {
                     Node {
                         id: leftFootNode
                         position: Qt.vector3d(0, 0.4210, 0)
+                        visible:  adapter.poseSource === null
                         rotation: Qt.quaternion(0.8408, 0.5405, 0.0144, 0.0250)
 
                         JointMarker {}
@@ -343,7 +367,8 @@ Item {
             Node {
                 id: rightUpLegNode
                 position: Qt.vector3d(-0.0913, -0.0666, -0.0006)
-                rotation: Qt.quaternion(0.0031, 0, -0.0063, 1.0000)
+                visible:  adapter.rightUpLegVisible
+                rotation: adapter.rightUpLegRotation
 
                 JointMarker {}
                 RuntimeLoader {
@@ -354,6 +379,8 @@ Item {
                 Node {
                     id: rightLegNode
                     position: Qt.vector3d(0, 0.4060, 0)
+                    visible:  adapter.rightLegVisible
+                    rotation: adapter.rightLegRotation
 
                     JointMarker {}
                     RuntimeLoader {
@@ -364,6 +391,7 @@ Item {
                     Node {
                         id: rightFootNode
                         position: Qt.vector3d(0, 0.4210, 0)
+                        visible:  adapter.poseSource === null
                         rotation: Qt.quaternion(0.8408, 0.5406, -0.0144, -0.0250)
 
                         JointMarker {}

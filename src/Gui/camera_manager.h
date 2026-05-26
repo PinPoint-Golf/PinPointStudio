@@ -86,6 +86,7 @@ public:
     // Sets the perspective on one camera and clears it from any other camera
     // that currently has the same non-zero perspective value.
     Q_INVOKABLE void setPerspective(QObject *controller, int perspective);
+    Q_INVOKABLE void setIsMirrored(QObject *controller, bool mirrored);
 
     Q_INVOKABLE void setExcluded(int index, bool excluded);
     Q_INVOKABLE void setTargetFps(int index, double fps);

@@ -391,6 +391,58 @@ Item {
                 }
             }
 
+            // Mirrored toggle ─────────────────────────────────────────────────
+            ColumnLayout {
+                spacing: Theme.sp(4)
+                Layout.alignment: Qt.AlignTop
+
+                Text {
+                    text:           qsTr("IMAGE")
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    font.letterSpacing: Theme.trackingMicro
+                    font.capitalization: Font.AllUppercase
+                    color:          Theme.colorText3
+                }
+
+                Rectangle {
+                    id: mirrorChip
+                    width:  mirrorLabel.implicitWidth + Theme.sp(16)
+                    height: Theme.sp(24)
+                    radius: Theme.radius
+
+                    readonly property bool isMirrored: (appSettings.cameraIsMirrored[camData.cameraKey] === true)
+
+                    color:        isMirrored ? Theme.colorAccent : Theme.colorSurface
+                    border.width: 1
+                    border.color: isMirrored ? Theme.colorAccent : Theme.colorBorderMid
+
+                    Text {
+                        id: mirrorLabel
+                        anchors.centerIn: parent
+                        text:           qsTr("Mirrored")
+                        color:          mirrorChip.isMirrored ? Theme.colorBg : Theme.colorText2
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody2
+                        font.weight:    Font.Normal
+                    }
+
+                    TapHandler {
+                        onTapped: {
+                            var map = appSettings.cameraIsMirrored
+                            if (mirrorChip.isMirrored)
+                                delete map[camData.cameraKey]
+                            else
+                                map[camData.cameraKey] = true
+                            appSettings.cameraIsMirrored = map
+                            if (camRow.realController)
+                                cameraManager.setIsMirrored(camRow.realController, !mirrorChip.isMirrored)
+                        }
+                    }
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                }
+            }
+
             // Frame rate chips ────────────────────────────────────────────────
             ColumnLayout {
                 spacing: Theme.sp(4)

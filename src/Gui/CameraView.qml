@@ -36,6 +36,12 @@ Item {
 
     readonly property bool roiIsSet: controller && controller.roi.width > 0 && controller.roi.height > 0
 
+    // Video aspect ratio — used to centre the frame rect within the allocated slot.
+    // Defaults to 16:9 before the first frame arrives.
+    readonly property real videoAspect: (controller && controller.frameWidth > 0 && controller.frameHeight > 0)
+                                         ? controller.frameWidth / controller.frameHeight
+                                         : 16.0 / 9.0
+
     Component.onCompleted: {
         controller.setVideoSink(videoOut.videoSink)
         controller.setBayerItem(bayerView)
@@ -50,10 +56,19 @@ Item {
         spacing: Theme.sp(6)
 
         // ── Camera frame ──────────────────────────────────────────────────────
+        // The slot fills the space allocated by the parent RowLayout.
+        // frameRect is centred within the slot and locked to the video's
+        // aspect ratio so the image never stretches.
+        Item {
+            id: frameSlot
+            Layout.fillWidth:  true
+            Layout.fillHeight: true
+
         Rectangle {
             id: frameRect
-            Layout.fillWidth: true
-            Layout.fillHeight: true
+            anchors.centerIn: parent
+            width:  Math.min(frameSlot.width, frameSlot.height * root.videoAspect)
+            height: width / root.videoAspect
             color: Theme.colorBg2
             radius: Theme.radius
             border.width: 1
@@ -383,6 +398,7 @@ Item {
                 }
             }
         }
+        } // frameSlot
 
         // ── Per-camera stats + controls ───────────────────────────────────────
         RowLayout {
@@ -397,46 +413,6 @@ Item {
                 font.pixelSize: Theme.fontSzLabel
                 elide: Text.ElideRight
                 Layout.maximumWidth: 140
-            }
-
-            // ── Perspective selector ──────────────────────────────────────────
-            Row {
-                spacing: 0
-
-                Repeater {
-                    model: [
-                        { value: 1, label: qsTr("DTL"),     leftR: true,  rightR: false },
-                        { value: 2, label: qsTr("Face On"),  leftR: false, rightR: false },
-                        { value: 3, label: qsTr("Other"),    leftR: false, rightR: true  }
-                    ]
-                    delegate: Rectangle {
-                        readonly property bool active: root.controller.perspective === modelData.value
-                        height: Theme.sp(20)
-                        width: perspLabel.implicitWidth + Theme.sp(10)
-                        topLeftRadius:     modelData.leftR  ? Theme.radius : 0
-                        bottomLeftRadius:  modelData.leftR  ? Theme.radius : 0
-                        topRightRadius:    modelData.rightR ? Theme.radius : 0
-                        bottomRightRadius: modelData.rightR ? Theme.radius : 0
-                        color: active ? Theme.colorAccent : Theme.colorSurface
-                        border.width: 1
-                        border.color: active ? Theme.colorAccent : Theme.colorBorderMid
-                        Text {
-                            id: perspLabel
-                            anchors.centerIn: parent
-                            text: modelData.label
-                            color: active ? Theme.colorBg : Theme.colorText2
-                            font.family: Theme.fontBody
-                            font.pixelSize: Theme.fontSzLabel
-                            font.weight: Font.Normal
-                        }
-                        TapHandler {
-                            onTapped: cameraManager.setPerspective(
-                                root.controller,
-                                active ? 0 : modelData.value)
-                        }
-                        HoverHandler { cursorShape: Qt.PointingHandCursor }
-                    }
-                }
             }
 
             // ── ROI button ────────────────────────────────────────────────────
