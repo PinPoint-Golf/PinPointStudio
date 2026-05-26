@@ -218,15 +218,6 @@ Item {
 
             Item { Layout.fillWidth: true }
 
-            Label {
-                visible: cameraManager.bufferState !== "idle"
-                text: bufferController.totalEvents + " events"
-                color: Theme.colorText3
-                font.family: Theme.fontData
-                font.pixelSize: Theme.fontSzBody2
-                verticalAlignment: Text.AlignVCenter
-            }
-
             Repeater {
                 model: bufferController.sources
                 delegate: Label {
