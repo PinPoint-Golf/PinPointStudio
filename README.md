@@ -92,6 +92,7 @@ Every session belongs to an athlete. The athlete management flow is the entry po
 - **Camera backends** — UVC webcams, Aravis (GenICam industrial cameras), Spinnaker (Teledyne/FLIR).
 - **Spinnaker pipeline** — Raw Bayer bytes captured with no CPU demosaic on the hot path; a custom `QQuickRhiItem` runs a bilinear GPU Bayer demosaic shader at display rate while the pose estimator receives OpenCV-demosaiced frames at its already-throttled rate.
 - **Pose estimation** — MoveNet SinglePose Lightning and Thunder via ONNX Runtime — real-time skeleton overlay on each live feed, switchable per camera.
+- **Live body visualisation** — A full Y-bot 3D body model (`BodyVizView`) is shown alongside the camera feeds, driven in real time by the face-on camera's COCO 17-keypoint output at 60 Hz via `BodyPoseAdapter`. All 10 animated bones slerp smoothly between poses; individual limbs hide when the corresponding keypoints lack confidence. When pose is temporarily lost the model freezes in its last known position. Mirror-aware: a per-camera "Mirrored" setting flips the x-axis convention for webcams vs industrial cameras.
 - **Swing replay** — On ball-lost, the last 5 seconds of captured footage replay automatically at ¼ speed with a `REPLAY ¼×` overlay; a pulsing badge marks the replaying camera view. Ball detection drives buffer capture so the replay always covers the full swing.
 - **GPU acceleration** — CoreML (Apple Silicon), CUDA 12/13 (NVIDIA on Linux/Windows).
 
@@ -124,7 +125,7 @@ The Settings screen uses a sidebar navigation with full-text search (Ctrl/Cmd+F)
 | **General** | Active | Language, measurement units, session behaviour (auto-detect swing, AI coaching), update and diagnostics preferences |
 | **Appearance** | Active | Theme selector (8 options), font scale, UI density, reduce motion, pose overlay opacity |
 | **Displays** | Active | Main display placement, window geometry memory, secondary display output, post-shot content and delay, UI frame-rate cap, hardware acceleration |
-| **Cameras** | Active | Per-camera enable/disable, view assignment (Face-on / Down-the-line / Other), frame-rate chips, trigger mode (Free-run / HW sync), ROI crop with live preview; global pre-roll buffer and camera-sync toggle |
+| **Cameras** | Active | Per-camera enable/disable, view assignment (Face-on / Down-the-line / Other), mirrored image toggle, frame-rate chips, trigger mode (Free-run / HW sync), ROI crop with live preview; global pre-roll buffer and camera-sync toggle |
 | **IMUs** | Active | Per-device enable/disable, body placement assignment (A–D), output rate and fusion-mode chips, mount orientation, live test panel with 3D viz and Euler angles; global auto-connect, auto-reconnect, save-to-flash, and default fusion mode |
 | **Launch Monitor** | Placeholder | External launch monitor integration (not yet implemented) |
 | **Storage** | Active | Athlete library path, session folder naming, auto-save; video codec/resolution/quality/container; sensor data export format |
@@ -291,6 +292,7 @@ PinPoint reads and writes files in several locations. Platform paths shown for L
 | `camera/triggerMode` | _(empty map)_ | ✅ | Per-camera trigger mode; key → `"freerun"` or `"hwsync"` |
 | `camera/roi` | _(empty map)_ | ✅ | Per-camera ROI; key → normalised `{x, y, w, h}` rect |
 | `camera/perspective` | _(empty map)_ | ✅ | Per-camera view assignment; key → `0` (unassigned), `1` (down-the-line), `2` (face-on), `3` (other) |
+| `camera/isMirrored` | _(empty map)_ | ✅ | Per-camera mirror flag; key → `true` when the camera delivers a horizontally mirrored image (typical webcam); absent for non-mirrored industrial cameras. Controls x-axis convention in `BodyPoseAdapter`. |
 | `camera/fixedInPlace` | _(empty map)_ | 📋 | Per-camera wall-mount flag; read by session wizard but not yet by capture |
 | `camera/preroll` | `1.0` | 📋 | Pre-roll buffer in seconds (0.5 / 1.0 / 2.0); ring buffer still sized at fixed 5 s |
 | `camera/syncEnabled` | `true` | 📋 | Lock frame timing across all enabled cameras |
