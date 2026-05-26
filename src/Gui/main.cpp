@@ -24,6 +24,10 @@
 
 #include "pp_debug.h"
 #include "app_settings.h"
+#ifdef HAVE_OPENCV
+#  include <opencv2/core.hpp>
+#  include <opencv2/core/utils/logger.hpp>
+#endif
 #include "SecretsManager.h"
 #include "film_controller.h"
 #include "imu_manager.h"
@@ -40,6 +44,14 @@
 int main(int argc, char *argv[])
 {
     PinPointDebug::install();
+#ifdef HAVE_OPENCV
+    cv::utils::logging::setLogLevel(cv::utils::logging::LOG_LEVEL_WARNING);
+    cv::redirectError([](int status, const char *func, const char *msg,
+                         const char * /*file*/, int /*line*/, void *) -> int {
+        ppError() << "[OpenCV]" << (func ? func : "?") << "-" << (msg ? msg : "") << "(status" << status << ")";
+        return 0;
+    }, nullptr);
+#endif
     QGuiApplication app(argc, argv);
 
     // Load bundled fonts so Theme.qml family names resolve on all platforms.
