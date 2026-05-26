@@ -308,6 +308,19 @@ qt_add_resources(PinPoint "app_body"
         src/Resources/body/arm_RightArm.glb
         src/Resources/body/arm_RightForeArm.glb
         src/Resources/body/arm_RightHand.glb
+        src/Resources/body/body_Hips.glb
+        src/Resources/body/body_Spine.glb
+        src/Resources/body/body_Spine1.glb
+        src/Resources/body/body_Spine2.glb
+        src/Resources/body/body_Head.glb
+        src/Resources/body/body_LeftShoulder.glb
+        src/Resources/body/body_RightShoulder.glb
+        src/Resources/body/body_LeftUpLeg.glb
+        src/Resources/body/body_LeftLeg.glb
+        src/Resources/body/body_LeftFoot.glb
+        src/Resources/body/body_RightUpLeg.glb
+        src/Resources/body/body_RightLeg.glb
+        src/Resources/body/body_RightFoot.glb
 )
 
 # ── Linux: deploy icon + .desktop to user dirs on every build ────────────────

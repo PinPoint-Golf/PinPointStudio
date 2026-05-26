@@ -22,12 +22,72 @@ import QtQuick3D.Helpers
 import QtQuick3D.AssetUtils
 import PinPoint
 
-// BodyVizView — Y Bot full-body visualisation loaded from ybot.glb.
-// Drag to orbit, scroll to zoom. IMU linkage to be added later.
+// BodyVizView — full Y-bot body assembled from individual bone-local GLBs.
+//
+// Each segment is extracted from ybot.glb by tools/extract_body_segments.py,
+// which uses the GLTF inverse-bind matrices to place the joint at the origin
+// of each segment's local coordinate system.
+//
+// Kinematic chain (all positions are parent-local, rotations are rest-pose):
+//
+//   hipsNode       ← pelvis, world y≈1.0
+//     spineNode      (0, 0.099, -0.012)
+//       spine1Node   (0, 0.117, 0)
+//         spine2Node (0, 0.135, 0)
+//           neckNode   (0, 0.150, 0.009)  [no mesh — no distinct Y-bot neck]
+//             headNode (0, 0.103, 0.031)
+//           leftShoulderNode  (+0.061, 0.091, 0.008)
+//             leftArmNode     (0, 0.129, 0)
+//               leftForeArmNode  (0, 0.274, 0)
+//                 leftHandNode   (0, 0.276, 0)
+//           rightShoulderNode (mirror)
+//     leftUpLegNode  (+0.091, -0.067, 0)
+//       leftLegNode  (0, 0.406, 0)   [+Y is bone-local down — UpLeg is 180° around Z]
+//         leftFootNode (0, 0.421, 0)
+//     rightUpLegNode (mirror)
+//
+// Rest-pose quaternions are the local-space rotations read from the bind matrices
+// (see extract_body_segments.py diagnostic output for derivation).
+// Near-identity rotations (<0.1° deviation) are left at default (identity) to
+// avoid unnecessary computation.
+//
+// Phase 2 will add:
+//   property QtObject poseSource  — drives bone rotations from a VideoController
+//   BodyPoseAdapter               — 2D keypoints → per-bone quaternions
+//   60 Hz Timer                   — animates rotations via slerp
 
 Item {
     id: root
 
+    // Phase 2: uncomment to enable pose-driven animation.
+    // property QtObject poseSource: null
+
+    // Set true to show a small sphere at every joint pivot — useful for
+    // verifying that parent-local offsets are correct.
+    property bool showJoints: false
+
+    // ── Loading state ─────────────────────────────────────────────────────────
+    // Each RuntimeLoader reports Success (2), Loading (1), or Error (3).
+    // Tally successes so we can show a progress indicator until all 19 segments load.
+    property int loadedCount:  0
+    property int totalSegments: 19   // 13 body + 6 arm (LeftArm/ForeArm/Hand ×2)
+    readonly property bool fullyLoaded: loadedCount >= totalSegments
+
+    function onSegmentLoaded(status) {
+        if (status === RuntimeLoader.Success) loadedCount++
+    }
+
+    // ── Debug joint sphere component ──────────────────────────────────────────
+    component JointMarker: Model {
+        visible: root.showJoints
+        source:  "#Sphere"
+        scale:   Qt.vector3d(0.008, 0.008, 0.008)
+        materials: PrincipledMaterial { baseColor: "#FF4444"; metalness: 0; roughness: 0.5 }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 3D Scene
+    // ─────────────────────────────────────────────────────────────────────────
     View3D {
         anchors.fill: parent
 
@@ -39,14 +99,14 @@ Item {
         }
 
         // ── Camera ────────────────────────────────────────────────────────────
-        // Y Bot is ~1.7 world units tall (0.01 scale × 170 cm export).
-        // Orbit origin sits at chest height so the full body stays centred.
+        // Character is ~1.8 world units tall; orbit origin at mid-chest height.
         PerspectiveCamera {
             id: camera
             position:      Qt.vector3d(0, 0.9, 3.5)
             eulerRotation: Qt.vector3d(-5, 0, 0)
-            clipNear: 0.01
-            clipFar:  100.0
+            fieldOfView:   45
+            clipNear:      0.01
+            clipFar:       100.0
         }
 
         Node { id: orbitOrigin; position: Qt.vector3d(0, 0.9, 0) }
@@ -75,23 +135,265 @@ Item {
             quadraticFade: 0.8
         }
 
-        // ── Body model ────────────────────────────────────────────────────────
-        RuntimeLoader {
-            id: bodyLoader
-            source: "qrc:/assets/body/ybot.glb"
+        // ═════════════════════════════════════════════════════════════════════
+        // Kinematic chain root — Hips (pelvis)
+        // World position extracted from ybot.glb bind matrix.
+        // ═════════════════════════════════════════════════════════════════════
+        Node {
+            id: hipsNode
+            position: Qt.vector3d(0, 0.9979, 0)
+
+            JointMarker {}
+            RuntimeLoader {
+                source: "qrc:/assets/body/body_Hips.glb"
+                onStatusChanged: root.onSegmentLoaded(status)
+            }
+
+            // ── Spine chain ───────────────────────────────────────────────────
+            Node {
+                id: spineNode
+                position: Qt.vector3d(0, 0.0992, -0.0123)
+                rotation: Qt.quaternion(0.9982, -0.0607, 0, 0)
+
+                JointMarker {}
+                RuntimeLoader {
+                    source: "qrc:/assets/body/body_Spine.glb"
+                    onStatusChanged: root.onSegmentLoaded(status)
+                }
+
+                Node {
+                    id: spine1Node
+                    position: Qt.vector3d(0, 0.1173, 0)
+
+                    JointMarker {}
+                    RuntimeLoader {
+                        source: "qrc:/assets/body/body_Spine1.glb"
+                        onStatusChanged: root.onSegmentLoaded(status)
+                    }
+
+                    Node {
+                        id: spine2Node
+                        position: Qt.vector3d(0, 0.1346, 0)
+                        rotation: Qt.quaternion(0.9983, 0.0577, 0, 0)
+
+                        JointMarker {}
+                        RuntimeLoader {
+                            source: "qrc:/assets/body/body_Spine2.glb"
+                            onStatusChanged: root.onSegmentLoaded(status)
+                        }
+
+                        // ── Neck → Head ───────────────────────────────────────
+                        // No neck mesh — Y-bot has no distinct neck skin geometry.
+                        // The Node is kept for Phase 2 head animation.
+                        Node {
+                            id: neckNode
+                            position: Qt.vector3d(0, 0.1503, 0.0088)
+
+                            JointMarker {}
+
+                            Node {
+                                id: headNode
+                                position: Qt.vector3d(0, 0.1032, 0.0314)
+
+                                JointMarker {}
+                                RuntimeLoader {
+                                    source: "qrc:/assets/body/body_Head.glb"
+                                    onStatusChanged: root.onSegmentLoaded(status)
+                                }
+                            }
+                        }
+
+                        // ── Left shoulder → arm chain ─────────────────────────
+                        Node {
+                            id: leftShoulderNode
+                            position: Qt.vector3d(0.0611, 0.0911, 0.0076)
+                            rotation: Qt.quaternion(-0.4398, -0.4538, -0.5448, 0.5511)
+
+                            JointMarker {}
+                            RuntimeLoader {
+                                source: "qrc:/assets/body/body_LeftShoulder.glb"
+                                onStatusChanged: root.onSegmentLoaded(status)
+                            }
+
+                            Node {
+                                id: leftArmNode
+                                position: Qt.vector3d(0, 0.1292, 0)
+                                // Negated to positive-w form; same rotation as (-0.9948, 0.0105, 0.0011, -0.1012)
+                                rotation: Qt.quaternion(0.9948, -0.0105, -0.0011, 0.1012)
+
+                                JointMarker {}
+                                RuntimeLoader {
+                                    source: "qrc:/assets/body/arm_LeftArm.glb"
+                                    onStatusChanged: root.onSegmentLoaded(status)
+                                }
+
+                                Node {
+                                    id: leftForeArmNode
+                                    position: Qt.vector3d(0, 0.274, 0)
+
+                                    JointMarker {}
+                                    RuntimeLoader {
+                                        source: "qrc:/assets/body/arm_LeftForeArm.glb"
+                                        onStatusChanged: root.onSegmentLoaded(status)
+                                    }
+
+                                    Node {
+                                        id: leftHandNode
+                                        position: Qt.vector3d(0, 0.2761, 0)
+
+                                        JointMarker {}
+                                        RuntimeLoader {
+                                            source: "qrc:/assets/body/arm_LeftHand.glb"
+                                            onStatusChanged: root.onSegmentLoaded(status)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // ── Right shoulder → arm chain ────────────────────────
+                        Node {
+                            id: rightShoulderNode
+                            position: Qt.vector3d(-0.0611, 0.0911, 0.0076)
+                            rotation: Qt.quaternion(0.4398, 0.4538, -0.5448, 0.5511)
+
+                            JointMarker {}
+                            RuntimeLoader {
+                                source: "qrc:/assets/body/body_RightShoulder.glb"
+                                onStatusChanged: root.onSegmentLoaded(status)
+                            }
+
+                            Node {
+                                id: rightArmNode
+                                position: Qt.vector3d(0, 0.1292, 0)
+                                rotation: Qt.quaternion(0.9948, -0.0105, 0.0011, -0.1011)
+
+                                JointMarker {}
+                                RuntimeLoader {
+                                    source: "qrc:/assets/body/arm_RightArm.glb"
+                                    onStatusChanged: root.onSegmentLoaded(status)
+                                }
+
+                                Node {
+                                    id: rightForeArmNode
+                                    position: Qt.vector3d(0, 0.2741, 0)
+
+                                    JointMarker {}
+                                    RuntimeLoader {
+                                        source: "qrc:/assets/body/arm_RightForeArm.glb"
+                                        onStatusChanged: root.onSegmentLoaded(status)
+                                    }
+
+                                    Node {
+                                        id: rightHandNode
+                                        position: Qt.vector3d(0, 0.2761, 0)
+
+                                        JointMarker {}
+                                        RuntimeLoader {
+                                            source: "qrc:/assets/body/arm_RightHand.glb"
+                                            onStatusChanged: root.onSegmentLoaded(status)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Left leg chain ────────────────────────────────────────────────
+            // UpLeg rotation ≈ 180° around Z: bone-local +Y points world-down.
+            // Child positions are therefore along local +Y (= world -Y = downward).
+            Node {
+                id: leftUpLegNode
+                position: Qt.vector3d(0.0912, -0.0666, -0.0006)
+                rotation: Qt.quaternion(-0.0030, 0, -0.0064, 1.0000)
+
+                JointMarker {}
+                RuntimeLoader {
+                    source: "qrc:/assets/body/body_LeftUpLeg.glb"
+                    onStatusChanged: root.onSegmentLoaded(status)
+                }
+
+                Node {
+                    id: leftLegNode
+                    position: Qt.vector3d(0, 0.4060, 0)
+
+                    JointMarker {}
+                    RuntimeLoader {
+                        source: "qrc:/assets/body/body_LeftLeg.glb"
+                        onStatusChanged: root.onSegmentLoaded(status)
+                    }
+
+                    Node {
+                        id: leftFootNode
+                        position: Qt.vector3d(0, 0.4210, 0)
+                        rotation: Qt.quaternion(0.8408, 0.5405, 0.0144, 0.0250)
+
+                        JointMarker {}
+                        RuntimeLoader {
+                            source: "qrc:/assets/body/body_LeftFoot.glb"
+                            onStatusChanged: root.onSegmentLoaded(status)
+                        }
+                    }
+                }
+            }
+
+            // ── Right leg chain ───────────────────────────────────────────────
+            Node {
+                id: rightUpLegNode
+                position: Qt.vector3d(-0.0913, -0.0666, -0.0006)
+                rotation: Qt.quaternion(0.0031, 0, -0.0063, 1.0000)
+
+                JointMarker {}
+                RuntimeLoader {
+                    source: "qrc:/assets/body/body_RightUpLeg.glb"
+                    onStatusChanged: root.onSegmentLoaded(status)
+                }
+
+                Node {
+                    id: rightLegNode
+                    position: Qt.vector3d(0, 0.4060, 0)
+
+                    JointMarker {}
+                    RuntimeLoader {
+                        source: "qrc:/assets/body/body_RightLeg.glb"
+                        onStatusChanged: root.onSegmentLoaded(status)
+                    }
+
+                    Node {
+                        id: rightFootNode
+                        position: Qt.vector3d(0, 0.4210, 0)
+                        rotation: Qt.quaternion(0.8408, 0.5406, -0.0144, -0.0250)
+
+                        JointMarker {}
+                        RuntimeLoader {
+                            source: "qrc:/assets/body/body_RightFoot.glb"
+                            onStatusChanged: root.onSegmentLoaded(status)
+                        }
+                    }
+                }
+            }
         }
     }
 
-    // ── Status overlay — shown while loading or on error ──────────────────────
-    Text {
+    // ── Loading overlay ───────────────────────────────────────────────────────
+    Rectangle {
         anchors.centerIn: parent
-        visible: bodyLoader.status !== RuntimeLoader.Success
-        text: bodyLoader.status === RuntimeLoader.Loading ? qsTr("Loading…")
-            : bodyLoader.status === RuntimeLoader.Error   ? qsTr("Load error: ") + bodyLoader.errorString
-            : ""
-        color:          Theme.colorText3
-        font.family:    Theme.fontData
-        font.pixelSize: Theme.fontSzBody2
+        visible:  !root.fullyLoaded
+        width:    loadText.width + Theme.sp(24)
+        height:   loadText.height + Theme.sp(16)
+        color:    "#CC000000"
+        radius:   Theme.sp(6)
+
+        Text {
+            id: loadText
+            anchors.centerIn: parent
+            color:          Theme.colorText2
+            font.family:    Theme.fontData
+            font.pixelSize: Theme.fontSzBody2
+            text:           qsTr("Loading… %1 / %2").arg(root.loadedCount).arg(root.totalSegments)
+        }
     }
 
     // ── Orbit hint ────────────────────────────────────────────────────────────
