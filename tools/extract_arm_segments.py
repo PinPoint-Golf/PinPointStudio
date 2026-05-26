@@ -247,11 +247,8 @@ for bone_name in TARGET_BONES:
     idx_bytes = new_tris.flatten().astype(np.uint32).tobytes()
     bin_data  = pos_bytes + nrm_bytes + idx_bytes
 
-    # Blue for left arm segments, muted gray for right — QML swaps which set is
-    # "active" based on rightHanded, so the colour still matches the role when
-    # handedness is the default (right-handed → left arm is lead arm).
-    is_left = "Left" in bone_name
-    base_color = [0.29, 0.54, 0.89, 1.0] if is_left else [0.42, 0.42, 0.45, 1.0]
+    # Uniform body colour — matches all other body segments.
+    base_color = [0.38, 0.38, 0.42, 1.0]
 
     glb_json = {
         "asset": {"version": "2.0"},

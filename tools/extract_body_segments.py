@@ -96,19 +96,9 @@ PARENT = {
     "mixamorig:RightFoot":      "mixamorig:RightLeg",
 }
 
-# Segment colours (RGBA linear): left limbs = arm blue, right = arm gray,
-# torso = neutral body tone.
-SEGMENT_COLOR = {
-    "mixamorig:LeftShoulder":  [0.29, 0.54, 0.89, 1.0],
-    "mixamorig:LeftUpLeg":     [0.29, 0.54, 0.89, 1.0],
-    "mixamorig:LeftLeg":       [0.29, 0.54, 0.89, 1.0],
-    "mixamorig:LeftFoot":      [0.29, 0.54, 0.89, 1.0],
-    "mixamorig:RightShoulder": [0.42, 0.42, 0.45, 1.0],
-    "mixamorig:RightUpLeg":    [0.42, 0.42, 0.45, 1.0],
-    "mixamorig:RightLeg":      [0.42, 0.42, 0.45, 1.0],
-    "mixamorig:RightFoot":     [0.42, 0.42, 0.45, 1.0],
-}
-TORSO_COLOR = [0.28, 0.28, 0.31, 1.0]
+# Uniform body colour — all segments use the same neutral tone.
+SEGMENT_COLOR = {}
+TORSO_COLOR = [0.38, 0.38, 0.42, 1.0]
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
