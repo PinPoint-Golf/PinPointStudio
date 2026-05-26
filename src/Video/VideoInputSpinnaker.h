@@ -45,8 +45,9 @@ public:
 private:
     void captureLoop();
 
-    void *m_system    = nullptr; // Spinnaker::SystemPtr*
-    void *m_camera    = nullptr; // Spinnaker::CameraPtr*
+    void *m_system     = nullptr; // Spinnaker::SystemPtr*
+    void *m_camera     = nullptr; // Spinnaker::CameraPtr*
+    void *m_logHandler = nullptr; // SpinLogHandler* (Windows/HAVE_SPINNAKER only)
     bool  m_streaming = false;
     bool  m_abort     = false;
     int   m_bayerPattern = 0;   // RawVideoFrame::BayerPattern int, valid when Bayer format selected

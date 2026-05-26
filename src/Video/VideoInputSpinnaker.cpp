@@ -36,6 +36,19 @@
 using namespace Spinnaker;
 using namespace Spinnaker::GenApi;
 using namespace Spinnaker::GenICam;
+
+class SpinLogHandler : public LoggingEventHandler {
+public:
+    void OnLogEvent(LoggingEventDataPtr eventPtr) override {
+        const int pri = eventPtr->GetPriority();
+        if (pri <= SPINNAKER_LOG_LEVEL_ERROR)
+            ppError() << "[Spinnaker]" << eventPtr->GetCategoryName()
+                      << "-" << eventPtr->GetLogMessage();
+        else
+            ppWarn()  << "[Spinnaker]" << eventPtr->GetCategoryName()
+                      << "-" << eventPtr->GetLogMessage();
+    }
+};
 #endif
 
 VideoInputSpinnaker::VideoInputSpinnaker(QObject *parent)
@@ -57,6 +70,11 @@ bool VideoInputSpinnaker::start(const QString &deviceId)
     try {
         SystemPtr *system = new SystemPtr(System::GetInstance());
         m_system = system;
+
+        auto *logHandler = new SpinLogHandler();
+        (*system)->RegisterLoggingEventHandler(*logHandler);
+        (*system)->SetLoggingEventPriorityLevel(SPINNAKER_LOG_LEVEL_WARN);
+        m_logHandler = logHandler;
 
         CameraList camList = (*system)->GetCameras();
         unsigned int numCameras = camList.GetSize();
@@ -192,6 +210,13 @@ void VideoInputSpinnaker::stop()
 
     if (m_system) {
         SystemPtr *system = (SystemPtr*)m_system;
+        if (m_logHandler) {
+            try {
+                (*system)->UnregisterLoggingEventHandler(*(SpinLogHandler*)m_logHandler);
+            } catch (...) {}
+            delete (SpinLogHandler*)m_logHandler;
+            m_logHandler = nullptr;
+        }
         try {
             (*system)->ReleaseInstance();
         } catch (...) {}
