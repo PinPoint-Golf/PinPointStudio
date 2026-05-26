@@ -132,7 +132,7 @@ All written as: `FF AA [REG] [LO] [HI]`
 | 0x0000 | 9-axis fusion (gyro + accelerometer + magnetometer) |
 | 0x0001 | 6-axis fusion (gyro + accelerometer only, no magnetometer) |
 
-6-axis is preferred for fast dynamic motion (e.g. golf swing) where the magnetometer introduces latency and distortion.
+6-axis is preferred for fast dynamic motion (e.g. golf swing) where the magnetometer introduces latency and distortion. See [6-Axis vs 9-Axis Fusion Mode](#6-axis-vs-9-axis-fusion-mode) for the full picture including how to switch modes permanently and why quaternion polling is not used.
 
 ### RRATE Values (confirmed from protocol spec)
 
@@ -415,6 +415,77 @@ After this sequence, the device streams 0x61 combined frames at the configured r
 **Why no save:** Configuration is re-applied on every connect, so persisting to NVM would provide no benefit and would unnecessarily wear flash.
 
 **Why no unlock:** CALSW, ORIENT, AXIS6, and RRATE writes are accepted without unlock over BLE on this firmware.
+
+---
+
+## 6-Axis vs 9-Axis Fusion Mode
+
+The AXIS6 register (`0x24`) controls the sensor fusion algorithm running inside the device.
+
+| Value  | Mode   | Sensors used                         | Output                      |
+|--------|--------|--------------------------------------|-----------------------------|
+| 0x0001 | 6-axis | Gyroscope + accelerometer only       | Orientation (Euler / quat)  |
+| 0x0000 | 9-axis | Gyroscope + accelerometer + magnetometer | Orientation (Euler / quat) |
+
+**PinPoint uses 6-axis (0x0001).** For fast dynamic motion such as a golf swing the magnetometer introduces lag and is susceptible to distortion from the club shaft and nearby metal. 6-axis gyro-integration is more responsive and more accurate over the short duration of a swing.
+
+### Switching algorithm mode permanently
+
+To change the mode so it persists across power cycles, an explicit **Unlock → Write → Save** sequence is required. This differs from the PinPoint init sequence, which writes AXIS6 without unlock or save (transient, effective until power-off):
+
+```
+FF AA 69 88 B5   KEY    = 0xB588   unlock configuration registers
+FF AA 24 01 00   AXIS6  = 0x0001   set 6-axis mode  (use 0x0000 for 9-axis)
+FF AA 00 00 00   SAVE   = 0x0000   persist to NVM
+```
+
+The PinPoint driver does not save this setting — it re-applies AXIS6 on every connect, so NVM persistence provides no benefit and would unnecessarily wear flash.
+
+### Data output in each mode
+
+The 0x61 streaming frame (the BLE push data) always contains **Euler angles**, regardless of which fusion mode is selected. There is no mechanism to replace the Euler fields with quaternion fields in the 0x61 frame on the WT901BLE67 firmware.
+
+> **⚠ RSW register (0x02) does not help here.** Writing to RSW to select quaternion output (bit 7) disrupts the 0x61 combined-frame stream on BLE5 firmware without substituting it with 0x59 quaternion packets. The RSW approach was tested and found to silence the device. It must not be used.
+
+### Obtaining native quaternions — polling via READADDR
+
+Quaternion values are available as read-only registers `0x51–0x54` (Q0–Q3). They can be read on demand by writing to the READADDR register:
+
+**Command:** `FF AA 27 51 00`
+
+**Response:** 0x71 frame; starting register `0x51` is echoed at bytes [2:3]. Quaternion values follow at bytes [4:11]:
+
+```
+Bytes [4:5]   Q0 (W)   int16 LE → q0 / 32768.0
+Bytes [6:7]   Q1 (X)   int16 LE → q1 / 32768.0
+Bytes [8:9]   Q2 (Y)   int16 LE → q2 / 32768.0
+Bytes [10:11] Q3 (Z)   int16 LE → q3 / 32768.0
+```
+
+Parsing example:
+```cpp
+if (data[0] == 0x55 && data[1] == 0x71 && data[2] == 0x51) {
+    float q0 = (int16_t)(data[5] << 8 | data[4]) / 32768.0f;  // W
+    float q1 = (int16_t)(data[7] << 8 | data[6]) / 32768.0f;  // X
+    float q2 = (int16_t)(data[9] << 8 | data[8]) / 32768.0f;  // Y
+    float q3 = (int16_t)(data[11]<< 8 | data[10])/ 32768.0f;  // Z
+}
+```
+
+**PinPoint does not implement quaternion polling.** Each poll is a BLE round-trip (write + async notify response). Sustained at 100 Hz — the rate required for golf swing analysis — this would require a write every 10 ms and compete with the device's own streaming traffic, producing unreliable timing and significant BLE bus overhead. The 0x61 streaming frame already delivers data at a guaranteed 100 Hz; PinPoint converts the Euler fields to a quaternion in the driver (`eulerToQuat()`) immediately on receipt and discards the Euler representation. All code above the driver works exclusively in quaternion space.
+
+### Register summary
+
+| Register | Purpose         | Values                                        |
+|----------|-----------------|-----------------------------------------------|
+| `0x69`   | KEY (unlock)    | `0xB588` = unlock; required before NVM writes |
+| `0x00`   | SAVE            | `0x0000` = persist current config to NVM      |
+| `0x24`   | AXIS6 (algorithm) | `0x0000` = 9-axis, `0x0001` = 6-axis        |
+| `0x02`   | RSW (output)    | ⚠ do not use on WT901BLE67 BLE firmware       |
+| `0x51`   | q0 (W)          | Read-only quaternion register (poll via READADDR) |
+| `0x52`   | q1 (X)          | Read-only                                     |
+| `0x53`   | q2 (Y)          | Read-only                                     |
+| `0x54`   | q3 (Z)          | Read-only                                     |
 
 ---
 
