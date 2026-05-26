@@ -292,10 +292,8 @@ void ImuInstance::onStateChanged(WT9011DCL_BLE::State s)
 {
     switch (s) {
     case WT9011DCL_BLE::State::Disconnected:
-        setStateLabel(QStringLiteral("Disconnected"));
         m_attemptingConn = false;
         m_inConnectPhase = false;
-        m_retryCount     = 0;
         m_logTimer.stop();
         m_batteryTimer.stop();
         m_gimbalPollTimer.stop();
@@ -307,6 +305,20 @@ void ImuInstance::onStateChanged(WT9011DCL_BLE::State s)
             m_busy      = false;
             emit imuConnectedChanged();
             emit busyChanged();
+        }
+        // On Linux/BlueZ, QLowEnergyController fires both errorOccurred and
+        // disconnected when a connection fails. If the retry timer is already
+        // running we must NOT reset m_retryCount here — doing so would undo the
+        // kMaxRetries accounting and turn a one-shot retry into an infinite loop.
+        if (m_retryTimer.isActive()) {
+            const int remainSec = (m_retryTimer.remainingTime() + 999) / 1000;
+            appendLog(timestamp()
+                      + QStringLiteral("  BLE disconnected (post-error cleanup) — "
+                                       "retry %1/%2 still due in ~%3 s")
+                        .arg(m_retryCount).arg(kMaxRetries).arg(remainSec));
+        } else {
+            m_retryCount = 0;
+            setStateLabel(QStringLiteral("Disconnected"));
         }
         break;
 
@@ -373,6 +385,9 @@ void ImuInstance::onStateChanged(WT9011DCL_BLE::State s)
             m_retryCount     = 0;
             setStateLabel(QStringLiteral("Error"));
             if (m_busy) { m_busy = false; emit busyChanged(); }
+            appendLog(timestamp()
+                      + QStringLiteral("  Connection failed — all retries exhausted."
+                                       " Check device is powered on and within range."));
         }
         break;
     }

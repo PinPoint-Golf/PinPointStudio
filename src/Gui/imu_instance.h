@@ -49,7 +49,8 @@ class ImuInstance : public QObject
     Q_PROPERTY(double  dataRateHz     READ dataRateHz     NOTIFY dataRateHzChanged)
     Q_PROPERTY(int     batteryPercent  READ batteryPercent  NOTIFY batteryPercentChanged)
     Q_PROPERTY(int     gimbalDropCount READ gimbalDropCount NOTIFY gimbalDropCountChanged)
-    Q_PROPERTY(QString deviceDescription READ deviceDescription CONSTANT)
+    Q_PROPERTY(QString     deviceDescription READ deviceDescription CONSTANT)
+    Q_PROPERTY(QStringList logEntries        READ logEntries        CONSTANT)
 
 public:
     explicit ImuInstance(const Device &device,
@@ -60,6 +61,7 @@ public:
     // Identification (C++ callers and ResourceMonitor)
     QString            deviceId()          const { return m_deviceId; }
     QString            deviceDescription() const { return m_deviceDescription; }
+    QStringList        logEntries()        const { return m_logEntries; }
     pinpoint::SourceId sourceId()          const { return m_imuSourceId; }
 
     // State
@@ -154,7 +156,7 @@ private:
     int    m_recordsSinceLog = 0;
 
     static constexpr int kMaxRetries      = 1;
-    static constexpr int kRetryDelayMs    = 45'000;
+    static constexpr int kRetryDelayMs    = 30'000;
     static constexpr int kLogIntervalMs   = 10'000;
     static constexpr int kRollingWindowMs = 2'000;
 };

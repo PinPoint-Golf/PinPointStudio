@@ -30,8 +30,16 @@ Item {
     // ImuVizView and ArmVizView are persistent; only this binding changes.
     property QtObject firstInst: imuManager.instances.length > 0 ? imuManager.instances[0] : null
 
-    // Clear log when the active instance changes.
-    onFirstInstChanged: imuLogModel.clear()
+    // Clear log and backfill any entries already emitted before Connections wired.
+    onFirstInstChanged: {
+        imuLogModel.clear()
+        if (firstInst) {
+            var entries = firstInst.logEntries
+            for (var i = 0; i < entries.length; ++i)
+                imuLogModel.append({ "entry": entries[i] })
+            imuLogView.positionViewAtEnd()
+        }
+    }
 
     // Wire log entries from the active instance.
     Connections {
