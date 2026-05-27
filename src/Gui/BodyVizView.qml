@@ -77,6 +77,89 @@ Item {
     // verifying that parent-local offsets are correct.
     property bool showJoints: false
 
+    // ── Arm override properties — used by the calibration wizard step ─────────
+    // When false (default), arm rotations are driven by the BodyPoseAdapter.
+    // When true, the lead/trail arm rotations are overridden directly so the
+    // calibration screen can pose the body independently of camera input.
+
+    // true = left arm is lead arm (right-handed golfer), false = right arm is lead
+    property bool rightHanded: true
+
+    // Highlight the lead arm with a coloured overlay — used to indicate which
+    // arm the user should position during calibration.
+    property bool  highlightLeadArm: false
+    property color leadArmColor:     "#5B9BD5"
+
+    // Lead arm override (calibration phase 0 = arm-down, phase 2 = T-pose guide)
+    property bool       useLeadArmOverride:          false
+    property quaternion leadArmOverrideRotation:     Qt.quaternion(1, 0, 0, 0)
+    property quaternion leadForeArmOverrideRotation: Qt.quaternion(1, 0, 0, 0)
+
+    // Trail arm override — keeps the trail arm in a natural relaxed hang
+    // regardless of what the BodyPoseAdapter would otherwise compute.
+    property bool       useTrailArmOverride:          false
+    property quaternion trailArmOverrideRotation:     Qt.quaternion(1, 0, 0, 0)
+    property quaternion trailForeArmOverrideRotation: Qt.quaternion(1, 0, 0, 0)
+
+    // When true, animate leadArmOverrideRotation changes via slerp (1.5 s).
+    // Used by the calibration wizard to animate the guide from arm-down to T-pose.
+    // Implemented with NumberAnimation + JS slerp to avoid QuaternionAnimation,
+    // whose from/to properties shadow base-class members and generate Qt warnings.
+    property bool animateLeadArm:     false
+    property int  leadArmAnimDuration: 1500
+
+    // Internal slerp state — not part of the public API.
+    property quaternion _leadArmFrom: Qt.quaternion(1, 0, 0, 0)
+    property quaternion _leadArmTo:   Qt.quaternion(1, 0, 0, 0)
+    property real       _leadArmT:    1.0   // 0 → 1 driven by NumberAnimation
+
+    function _slerp(a, b, t) {
+        var dot = a.scalar*b.scalar + a.x*b.x + a.y*b.y + a.z*b.z
+        if (dot < 0) { b = Qt.quaternion(-b.scalar, -b.x, -b.y, -b.z); dot = -dot }
+        dot = Math.min(dot, 1.0)
+        if (dot > 0.9995) {
+            return Qt.quaternion(a.scalar + t*(b.scalar - a.scalar),
+                                 a.x      + t*(b.x      - a.x),
+                                 a.y      + t*(b.y      - a.y),
+                                 a.z      + t*(b.z      - a.z))
+        }
+        var theta0    = Math.acos(dot)
+        var theta     = theta0 * t
+        var sinTheta  = Math.sin(theta)
+        var sinTheta0 = Math.sin(theta0)
+        var s0 = Math.cos(theta) - dot * sinTheta / sinTheta0
+        var s1 = sinTheta / sinTheta0
+        return Qt.quaternion(s0*a.scalar + s1*b.scalar,
+                             s0*a.x      + s1*b.x,
+                             s0*a.y      + s1*b.y,
+                             s0*a.z      + s1*b.z)
+    }
+
+    function resetArmAnimation(fromQ) {
+        _leadArmAnim.stop()
+        _leadArmFrom = fromQ
+        _leadArmT    = 1.0
+    }
+
+    NumberAnimation {
+        id: _leadArmAnim
+        target:   root
+        property: "_leadArmT"
+        from:     0.0; to: 1.0
+        duration: root.leadArmAnimDuration
+        easing.type: Easing.InOutCubic
+    }
+
+    onLeadArmOverrideRotationChanged: {
+        if (!root.animateLeadArm) return
+        root._leadArmFrom = _leadArmT < 1.0
+            ? root._slerp(root._leadArmFrom, root._leadArmTo, root._leadArmT)
+            : root._leadArmFrom
+        root._leadArmTo = root.leadArmOverrideRotation
+        root._leadArmT  = 0.0
+        _leadArmAnim.restart()
+    }
+
     // ── Loading state ─────────────────────────────────────────────────────────
     // Each RuntimeLoader reports Success (2), Loading (1), or Error (3).
     // Tally successes so we can show a progress indicator until all 19 segments load.
@@ -99,12 +182,19 @@ Item {
     // ─────────────────────────────────────────────────────────────────────────
     // 3D Scene
     // ─────────────────────────────────────────────────────────────────────────
+    // QML Rectangle provides the background so its color exactly matches the
+    // surrounding UI — View3D's clearColor undergoes tonemapping that causes a
+    // visible mismatch when the 3D viewport is large (e.g. calibration panel).
+    Rectangle {
+        anchors.fill: parent
+        color: Theme.colorBg
+    }
+
     View3D {
         anchors.fill: parent
 
         environment: SceneEnvironment {
-            clearColor:          Theme.colorBg
-            backgroundMode:      SceneEnvironment.Color
+            backgroundMode:      SceneEnvironment.Transparent
             antialiasingMode:    SceneEnvironment.MSAA
             antialiasingQuality: SceneEnvironment.High
         }
@@ -232,24 +322,64 @@ Item {
                                 id: leftArmNode
                                 position: Qt.vector3d(0, 0.1292, 0)
                                 visible:  adapter.leftArmVisible
-                                rotation: adapter.leftArmRotation
+                                rotation: {
+                                    if (root.useLeadArmOverride && root.rightHanded) {
+                                        return root.animateLeadArm && root._leadArmT < 1.0
+                                            ? root._slerp(root._leadArmFrom, root._leadArmTo, root._leadArmT)
+                                            : root.leadArmOverrideRotation
+                                    }
+                                    if (root.useTrailArmOverride && !root.rightHanded) return root.trailArmOverrideRotation
+                                    return adapter.leftArmRotation
+                                }
 
                                 JointMarker {}
                                 RuntimeLoader {
                                     source: "qrc:/assets/body/arm_LeftArm.glb"
                                     onStatusChanged: root.onSegmentLoaded(status)
                                 }
+                                // Highlight overlay — upper arm segment (right-handed lead arm)
+                                Model {
+                                    visible: root.highlightLeadArm && root.rightHanded
+                                    source: "#Cylinder"
+                                    position: Qt.vector3d(0, 0.137, 0)
+                                    scale: Qt.vector3d(0.00025, 0.00274, 0.00025)
+                                    materials: PrincipledMaterial {
+                                        baseColor: root.leadArmColor
+                                        opacity: 0.45
+                                        alphaMode: PrincipledMaterial.Blend
+                                        metalness: 0.0
+                                        roughness: 0.5
+                                    }
+                                }
 
                                 Node {
                                     id: leftForeArmNode
                                     position: Qt.vector3d(0, 0.274, 0)
                                     visible:  adapter.leftForeArmVisible
-                                    rotation: adapter.leftForeArmRotation
+                                    rotation: {
+                                        if (root.useLeadArmOverride  &&  root.rightHanded) return root.leadForeArmOverrideRotation
+                                        if (root.useTrailArmOverride && !root.rightHanded) return root.trailForeArmOverrideRotation
+                                        return adapter.leftForeArmRotation
+                                    }
 
                                     JointMarker {}
                                     RuntimeLoader {
                                         source: "qrc:/assets/body/arm_LeftForeArm.glb"
                                         onStatusChanged: root.onSegmentLoaded(status)
+                                    }
+                                    // Highlight overlay — forearm segment
+                                    Model {
+                                        visible: root.highlightLeadArm && root.rightHanded
+                                        source: "#Cylinder"
+                                        position: Qt.vector3d(0, 0.138, 0)
+                                        scale: Qt.vector3d(0.00022, 0.002761, 0.00022)
+                                        materials: PrincipledMaterial {
+                                            baseColor: root.leadArmColor
+                                            opacity: 0.45
+                                            alphaMode: PrincipledMaterial.Blend
+                                            metalness: 0.0
+                                            roughness: 0.5
+                                        }
                                     }
 
                                     Node {
@@ -261,6 +391,20 @@ Item {
                                         RuntimeLoader {
                                             source: "qrc:/assets/body/arm_LeftHand.glb"
                                             onStatusChanged: root.onSegmentLoaded(status)
+                                        }
+                                        // Highlight overlay — hand segment
+                                        Model {
+                                            visible: root.highlightLeadArm && root.rightHanded
+                                            source: "#Sphere"
+                                            position: Qt.vector3d(0, 0.05, 0)
+                                            scale: Qt.vector3d(0.0005, 0.0007, 0.0004)
+                                            materials: PrincipledMaterial {
+                                                baseColor: root.leadArmColor
+                                                opacity: 0.45
+                                                alphaMode: PrincipledMaterial.Blend
+                                                metalness: 0.0
+                                                roughness: 0.5
+                                            }
                                         }
                                     }
                                 }
@@ -283,24 +427,64 @@ Item {
                                 id: rightArmNode
                                 position: Qt.vector3d(0, 0.1292, 0)
                                 visible:  adapter.rightArmVisible
-                                rotation: adapter.rightArmRotation
+                                rotation: {
+                                    if (root.useLeadArmOverride && !root.rightHanded) {
+                                        return root.animateLeadArm && root._leadArmT < 1.0
+                                            ? root._slerp(root._leadArmFrom, root._leadArmTo, root._leadArmT)
+                                            : root.leadArmOverrideRotation
+                                    }
+                                    if (root.useTrailArmOverride && root.rightHanded) return root.trailArmOverrideRotation
+                                    return adapter.rightArmRotation
+                                }
 
                                 JointMarker {}
                                 RuntimeLoader {
                                     source: "qrc:/assets/body/arm_RightArm.glb"
                                     onStatusChanged: root.onSegmentLoaded(status)
                                 }
+                                // Highlight overlay — upper arm segment (left-handed lead arm)
+                                Model {
+                                    visible: root.highlightLeadArm && !root.rightHanded
+                                    source: "#Cylinder"
+                                    position: Qt.vector3d(0, 0.137, 0)
+                                    scale: Qt.vector3d(0.00025, 0.00274, 0.00025)
+                                    materials: PrincipledMaterial {
+                                        baseColor: root.leadArmColor
+                                        opacity: 0.45
+                                        alphaMode: PrincipledMaterial.Blend
+                                        metalness: 0.0
+                                        roughness: 0.5
+                                    }
+                                }
 
                                 Node {
                                     id: rightForeArmNode
                                     position: Qt.vector3d(0, 0.2741, 0)
                                     visible:  adapter.rightForeArmVisible
-                                    rotation: adapter.rightForeArmRotation
+                                    rotation: {
+                                        if (root.useLeadArmOverride  && !root.rightHanded) return root.leadForeArmOverrideRotation
+                                        if (root.useTrailArmOverride &&  root.rightHanded) return root.trailForeArmOverrideRotation
+                                        return adapter.rightForeArmRotation
+                                    }
 
                                     JointMarker {}
                                     RuntimeLoader {
                                         source: "qrc:/assets/body/arm_RightForeArm.glb"
                                         onStatusChanged: root.onSegmentLoaded(status)
+                                    }
+                                    // Highlight overlay — forearm segment
+                                    Model {
+                                        visible: root.highlightLeadArm && !root.rightHanded
+                                        source: "#Cylinder"
+                                        position: Qt.vector3d(0, 0.138, 0)
+                                        scale: Qt.vector3d(0.00022, 0.002741, 0.00022)
+                                        materials: PrincipledMaterial {
+                                            baseColor: root.leadArmColor
+                                            opacity: 0.45
+                                            alphaMode: PrincipledMaterial.Blend
+                                            metalness: 0.0
+                                            roughness: 0.5
+                                        }
                                     }
 
                                     Node {
@@ -312,6 +496,20 @@ Item {
                                         RuntimeLoader {
                                             source: "qrc:/assets/body/arm_RightHand.glb"
                                             onStatusChanged: root.onSegmentLoaded(status)
+                                        }
+                                        // Highlight overlay — hand segment
+                                        Model {
+                                            visible: root.highlightLeadArm && !root.rightHanded
+                                            source: "#Sphere"
+                                            position: Qt.vector3d(0, 0.05, 0)
+                                            scale: Qt.vector3d(0.0005, 0.0007, 0.0004)
+                                            materials: PrincipledMaterial {
+                                                baseColor: root.leadArmColor
+                                                opacity: 0.45
+                                                alphaMode: PrincipledMaterial.Blend
+                                                metalness: 0.0
+                                                roughness: 0.5
+                                            }
                                         }
                                     }
                                 }

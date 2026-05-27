@@ -187,7 +187,7 @@ ApplicationWindow {
                                  ? (sessionWizard.currentStep > 0 || navController.canGoBack)
                                  : navController.canGoBack
                 forwardEnabled: navController.currentIndex === 10
-                                    ? sessionWizard.currentStep < 3
+                                    ? sessionWizard.currentStep < sessionWizard.lastStep
                                     : navController.canGoForward
 
                 onBackRequested: {
@@ -195,17 +195,25 @@ ApplicationWindow {
                         var arr = sessionWizard.stepStates.slice()
                         arr[sessionWizard.currentStep] = "pending"
                         sessionWizard.stepStates = arr
-                        sessionWizard.currentStep--
+                        // Skip back over Calibrate step for non-wrist sessions.
+                        if (sessionWizard.currentStep === 4 && !sessionWizard.hasCalibrateStep)
+                            sessionWizard.currentStep = 2
+                        else
+                            sessionWizard.currentStep--
                     } else {
                         navController.back()
                     }
                 }
                 onForwardRequested: {
-                    if (navController.currentIndex === 10 && sessionWizard.currentStep < 3) {
+                    if (navController.currentIndex === 10 && sessionWizard.currentStep < sessionWizard.lastStep) {
                         var arr = sessionWizard.stepStates.slice()
                         arr[sessionWizard.currentStep] = "done"
                         sessionWizard.stepStates = arr
-                        sessionWizard.currentStep++
+                        // Skip Calibrate step (index 3) for non-wrist sessions.
+                        if (sessionWizard.currentStep === 2 && !sessionWizard.hasCalibrateStep)
+                            sessionWizard.currentStep = 4
+                        else
+                            sessionWizard.currentStep++
                     } else {
                         navController.forward()
                     }
@@ -224,7 +232,7 @@ ApplicationWindow {
                     onStartSessionRequested: function(sessionTypeIndex) {
                         sessionWizard.sessionType = sessionTypeIndex
                         sessionWizard.currentStep = 0
-                        sessionWizard.stepStates  = ["pending", "pending", "pending", "pending"]
+                        sessionWizard.stepStates  = ["pending", "pending", "pending", "pending", "pending"]
                         navController.navigate(10)
                     }
                     onSystemRequested:        navController.navigate(8)

@@ -27,6 +27,7 @@
 #include <QFile>
 #include <QStandardPaths>
 #include <QTextStream>
+#include <QtMath>
 #include <chrono>
 #include <cstring>
 
@@ -156,6 +157,39 @@ ImuInstance::ImuInstance(const Device &device,
             this, [this](const WT9011DCL_Base::QuaternionData &q) {
         m_quatW = q.w; m_quatX = q.x; m_quatY = q.y; m_quatZ = q.z;
         emit quatChanged();
+
+        // Stability detection: compute angular velocity from successive quaternions.
+        // QElapsedTimer is not started until the first packet, so skip the first tick.
+        const qint64 dtMs = m_prevQuatTimer.isValid() ? m_prevQuatTimer.elapsed() : -1;
+        m_prevQuatTimer.restart();
+
+        if (dtMs >= 5 && dtMs < 500) {
+            const QQuaternion cur(q.w, q.x, q.y, q.z);
+            // |dot| of two unit quaternions = cos(half-angle). abs() for double-cover.
+            const float dot      = qBound(0.0f, qAbs(QQuaternion::dotProduct(m_prevQuat, cur)), 1.0f);
+            const float angleDeg = qRadiansToDegrees(2.0f * qAcos(dot));
+            const float velDps   = angleDeg / (dtMs * 0.001f);
+            m_prevQuat = cur;
+
+            if (qAbs(velDps - m_angularVelocityDps) > 0.5f) {
+                m_angularVelocityDps = velDps;
+                emit angularVelocityDpsChanged();
+            }
+
+            if (velDps > kStableThresholdDps) {
+                m_stableTimerRunning = false;
+                if (m_stable) { m_stable = false; emit stableChanged(); }
+            } else {
+                if (!m_stableTimerRunning) { m_stableTimer.restart(); m_stableTimerRunning = true; }
+                if (!m_stable && m_stableTimer.elapsed() >= kStableDurationMs) {
+                    m_stable = true;
+                    emit stableChanged();
+                }
+            }
+        } else {
+            m_prevQuat = QQuaternion(q.w, q.x, q.y, q.z);
+        }
+
         onDataRecord();
     });
 
@@ -267,6 +301,22 @@ QString ImuInstance::saveLog()
 
     appendLog(timestamp() + QStringLiteral("  Log saved to ") + path);
     return path;
+}
+
+void ImuInstance::setCalibration(const QQuaternion &armDown, const QQuaternion &tPose)
+{
+    m_calibArmDown  = armDown;
+    m_calibArmTPose = tPose;
+    m_calibrated    = true;
+    emit calibratedChanged();
+}
+
+void ImuInstance::clearCalibration()
+{
+    m_calibrated    = false;
+    m_calibArmDown  = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+    m_calibArmTPose = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+    emit calibratedChanged();
 }
 
 void ImuInstance::setOutputRateHz(int hz)

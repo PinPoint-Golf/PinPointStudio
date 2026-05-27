@@ -35,13 +35,97 @@ Item {
 
     function reopenAtCameras() {
         currentStep = 1
-        stepStates  = ["done", "pending", "pending", "pending"]
+        stepStates  = ["done", "pending", "pending", "pending", "pending"]
     }
 
     // ── Step state ────────────────────────────────────────────────────────────
 
     property int currentStep: 0
-    property var stepStates:  ["pending", "pending", "pending", "pending"]
+    // 5 entries: Goals(0) Cameras(1) IMUs(2) Calibrate(3) Ready(4).
+    // Step 3 is skipped in navigation for non-wrist sessions.
+    property var stepStates: ["pending", "pending", "pending", "pending", "pending"]
+
+    // True only for Wrist Motion (index 1) — inserts the Calibrate step.
+    readonly property bool hasCalibrateStep: sessionType === 1
+    // Terminal step index (Ready is always at 4; step 3 is skipped if !hasCalibrateStep).
+    readonly property int lastStep: 4
+
+    // ── Positional calibration state (Panel 3) ────────────────────────────────
+    // Captured reference quaternions from the lead-arm IMU.
+    property var  calibArmDownQuat:  null   // phase 0 — arm relaxed at side
+    property var  calibArmTPoseQuat: null   // phase 2 — arm raised to T-pose
+    property bool calibrationDone:   false
+
+    function _resetCalibration() {
+        if (calibPanel.leadImu) calibPanel.leadImu.clearCalibration()
+
+        introDoneTimer.stop()
+        introReadyTimer.stop()
+        phase1MinHoldTimer.stop()
+        phase1HoldTimer.stop()
+        captureTransitionTimer.stop()
+        raiseReadyTimer.stop()
+        calibPanel.calibPhase         = 0
+        calibPanel.phase1AccumMs      = 0
+        calibPanel.stableAccumMs      = 0
+        calibPanel.phaseProgress      = 0.0
+        calibPanel._animateLeadArm    = false
+        calibPanel._leadArmTarget     = calibPanel.leadArmDownQuat
+        calibPanel.calibrationFailed  = false
+        calibPanel._armDownCaptured   = false
+        calibPanel._phase1MinHoldDone = false
+        calibArmDownQuat              = null
+        calibArmTPoseQuat             = null
+        calibrationDone               = false
+    }
+
+    // Track the previous step so we know the direction of navigation.
+    property int _prevStep: -1
+
+    onCurrentStepChanged: {
+        var prev    = _prevStep
+        _prevStep   = currentStep
+
+        if (currentStep === 3) {
+            introDoneTimer.stop()
+            introReadyTimer.stop()
+            phase1MinHoldTimer.stop()
+            phase1HoldTimer.stop()
+            captureTransitionTimer.stop()
+            raiseReadyTimer.stop()
+
+            if (prev >= 3) {
+                // Navigating backward from step 4 — retain completed state.
+                calibPanel.calibPhase         = 2
+                calibPanel.phaseProgress      = 1.0
+                calibPanel._animateLeadArm    = false
+                calibPanel._leadArmTarget     = calibPanel.leadArmDownQuat
+                calibPanel._armDownCaptured   = true
+                calibPanel._phase1MinHoldDone = true
+            } else {
+                // Going forward to step 3 — if the lead IMU instance already
+                // has calibration from this session, restore; otherwise start fresh.
+                var imu = calibPanel.leadImu
+                if (imu !== null && imu.calibrated) {
+                    calibArmDownQuat              = imu.calibArmDown
+                    calibArmTPoseQuat             = imu.calibArmTPose
+                    calibPanel.calibPhase         = 2
+                    calibPanel.phase1AccumMs      = 0
+                    calibPanel.stableAccumMs      = 3000
+                    calibPanel.phaseProgress      = 1.0
+                    calibPanel._animateLeadArm    = false
+                    calibPanel._leadArmTarget     = calibPanel.leadArmDownQuat
+                    calibPanel.calibrationFailed  = false
+                    calibPanel._armDownCaptured   = true
+                    calibPanel._phase1MinHoldDone = true
+                    calibrationDone               = true
+                } else {
+                    _resetCalibration()
+                }
+
+            }
+        }
+    }
 
     // ── Session type data ─────────────────────────────────────────────────────
 
@@ -143,11 +227,6 @@ Item {
     property bool _todo_stereoCalibrationValid: false  // TODO: bind to real property
     property bool _todo_triangulationValid:     false  // TODO: bind to real property
 
-    // ── TODO stubs for IMU calibration (not yet implemented) ─────────────────
-
-    property bool _todo_calibrationComplete: false  // TODO: bind to real property
-    property bool _todo_calibrationRunning:  false  // TODO: bind to real property
-
     // ── IMU detail string when connected ──────────────────────────────────────
 
     readonly property string imuDetail: {
@@ -227,9 +306,8 @@ Item {
         return null
     }
 
-    // All required slots assigned and zero-g calibration complete.
+    // All required IMU slots assigned.
     readonly property bool imusOk: {
-        if (!_todo_calibrationComplete) return false
         var reqs      = root.curImuReqs
         var list      = imuManager.imuDeviceList
         var placement = appSettings.imuPlacement
@@ -238,6 +316,28 @@ Item {
             var found = false
             for (var j = 0; j < list.length; ++j)
                 if (placement[list[j].id] === reqs[i].slot) { found = true; break }
+            if (!found) return false
+        }
+        return reqs.some(function(r) { return r.required })
+    }
+
+    // True when every required IMU slot has a connected instance.
+    // Reactive: imuManager.instances fires instancesChanged() whenever any
+    // ImuInstance.imuConnected changes (see imu_manager.cpp lambda at createInstance).
+    readonly property bool imusAllConnected: {
+        var _dep = imuManager.instances   // reactive dependency
+        var reqs      = root.curImuReqs
+        var list      = imuManager.imuDeviceList
+        var placement = appSettings.imuPlacement
+        for (var i = 0; i < reqs.length; ++i) {
+            if (!reqs[i].required) continue
+            var found = false
+            for (var j = 0; j < list.length; ++j) {
+                if (placement[list[j].id] === reqs[i].slot) {
+                    var inst = imuManager.instanceFor(list[j].id)
+                    if (inst && inst.imuConnected) { found = true; break }
+                }
+            }
             if (!found) return false
         }
         return reqs.some(function(r) { return r.required })
@@ -288,8 +388,8 @@ Item {
                                             .arg(reqs[i].slot).arg(reqs[i].placement),
                                   panel: 4 })
             }
-            if (!_todo_calibrationComplete)
-                issues.push({ text: qsTr("Zero-g calibration not completed — place all sensors flat and still"), panel: -1 })
+            if (root.hasCalibrateStep && !root.calibrationDone)
+                issues.push({ text: qsTr("Sensor position calibration not completed — return to the Calibrate step"), panel: -1 })
         }
 
         return issues
@@ -415,13 +515,15 @@ Item {
                 spacing: 0
 
                 Repeater {
-                    model: [qsTr("Goals"), qsTr("Cameras"), qsTr("IMUs"), qsTr("Ready")]
+                    // 5 tabs always present; tab 3 (Calibrate) hidden for non-wrist sessions.
+                    model: [qsTr("Goals"), qsTr("Cameras"), qsTr("IMUs"), qsTr("Calibrate"), qsTr("Ready")]
 
                     delegate: Row {
                         id: tabRow
                         required property string modelData
                         required property int    index
                         spacing: 0
+                        visible: tabRow.index !== 3 || root.hasCalibrateStep
 
                         Item {
                             visible: tabRow.index > 0
@@ -544,7 +646,7 @@ Item {
 
                             StepIntro {
                                 width:   parent.width
-                                eyebrow: qsTr("STEP 1 OF 4 · GOALS")
+                                eyebrow: qsTr("STEP 1 OF %1 · GOALS").arg(root.hasCalibrateStep ? 5 : 4)
                                 heading: qsTr("What are you working on today?")
                                 body:    qsTr("Pick the areas you want to focus on this session. Pinpoint will highlight these metrics in the live view and lead with them in your summary. We've picked up where you left off — change anything you like and we'll remember it next time.")
                             }
@@ -645,7 +747,7 @@ Item {
 
                             StepIntro {
                                 width:   parent.width
-                                eyebrow: qsTr("STEP 2 OF 4 · CAMERAS")
+                                eyebrow: qsTr("STEP 2 OF %1 · CAMERAS").arg(root.hasCalibrateStep ? 5 : 4)
                                 heading: qsTr("Checking your cameras")
                                 body:    root.curType.optionalCamera
                                     ? qsTr("A face-on camera is optional for this session type. If you have one set up it will capture video alongside your IMU data, but you can start without it.")
@@ -731,14 +833,69 @@ Item {
                             anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.sp(32) }
                             spacing: Theme.sp(16)
 
+                            // ── Connect queue state ───────────────────────────
+                            property var  _connectQueue: []
+                            property int  _connectIdx:   0
+                            property bool _connecting:   false
+
+                            // Build the list of assigned-but-unconnected device indices
+                            // for the current session's required slots, then connect them
+                            // sequentially with a 2-second gap between each to give BlueZ
+                            // time to reset its GATT state.
+                            function startConnect() {
+                                var queue = []
+                                var reqs = root.curImuReqs
+                                var list = imuManager.imuDeviceList
+                                var placement = appSettings.imuPlacement
+                                for (var i = 0; i < reqs.length; ++i) {
+                                    for (var j = 0; j < list.length; ++j) {
+                                        if (placement[list[j].id] === reqs[i].slot) {
+                                            var inst = imuManager.instanceFor(list[j].id)
+                                            if (!inst || !inst.imuConnected)
+                                                queue.push(list[j].index)
+                                        }
+                                    }
+                                }
+                                if (queue.length === 0) return
+                                _connectQueue = queue
+                                _connectIdx   = 0
+                                _connecting   = true
+                                imuManager.setSelected(queue[0], true)
+                                _connectIdx   = 1
+                                if (_connectIdx < queue.length)
+                                    imuConnectTimer.start()
+                                else
+                                    _connecting = false
+                            }
+
+                            Timer {
+                                id: imuConnectTimer
+                                interval: 2000
+                                repeat:   false
+                                onTriggered: {
+                                    var queue = imusCol._connectQueue
+                                    var idx   = imusCol._connectIdx
+                                    if (idx < queue.length) {
+                                        imuManager.setSelected(queue[idx], true)
+                                        imusCol._connectIdx = idx + 1
+                                        if (imusCol._connectIdx < queue.length)
+                                            imuConnectTimer.restart()
+                                        else
+                                            imusCol._connecting = false
+                                    } else {
+                                        imusCol._connecting = false
+                                    }
+                                }
+                            }
+
                             StepIntro {
                                 width:   parent.width
-                                eyebrow: qsTr("STEP 3 OF 4 · MOTION SENSORS")
+                                eyebrow: qsTr("STEP 3 OF %1 · MOTION SENSORS").arg(root.hasCalibrateStep ? 5 : 4)
                                 heading: qsTr("Attaching your motion sensors")
                                 body:    qsTr("Switch each sensor on before stepping up. The positions below are specific to this session type — attach them in the right place and pair each one. Assign placements in Settings → IMUs if you haven't already.")
                             }
 
-                            // ── Scan header ───────────────────────────────────
+                            // ── Scan / Connect header ─────────────────────────
                             RowLayout {
                                 width: parent.width
                                 spacing: Theme.sp(8)
@@ -810,6 +967,62 @@ Item {
                                         }
                                     }
                                 }
+
+                                // Connect button — works through each found-but-unconnected
+                                // required sensor; 2-second gap between each to let BlueZ reset.
+                                Rectangle {
+                                    id: imuWizConnectBtn
+
+                                    readonly property bool canConnect: {
+                                        var _dep = imuManager.instances   // reactive
+                                        if (imusCol._connecting) return false
+                                        var reqs = root.curImuReqs
+                                        var list = imuManager.imuDeviceList
+                                        var placement = appSettings.imuPlacement
+                                        for (var i = 0; i < reqs.length; ++i) {
+                                            for (var j = 0; j < list.length; ++j) {
+                                                if (placement[list[j].id] === reqs[i].slot) {
+                                                    var inst = imuManager.instanceFor(list[j].id)
+                                                    if (!inst || !inst.imuConnected) return true
+                                                }
+                                            }
+                                        }
+                                        return false
+                                    }
+
+                                    implicitWidth:  imuWizConnMeasure.implicitWidth + Theme.sp(24)
+                                    implicitHeight: Theme.sp(28)
+                                    radius: Theme.radius
+                                    color:  imusCol._connecting ? Theme.colorAccentLight : "transparent"
+                                    border.width: 1
+                                    border.color: imusCol._connecting ? Theme.colorAccent : Theme.colorBorderStrong
+                                    opacity: canConnect ? 1.0 : 0.4
+                                    Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
+                                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+                                    Behavior on opacity      { NumberAnimation { duration: Theme.durationFast } }
+
+                                    Text {
+                                        id: imuWizConnMeasure
+                                        visible: false
+                                        text: qsTr("Connecting…")
+                                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2; font.weight: Font.Light
+                                    }
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text:           imusCol._connecting ? qsTr("Connecting…") : qsTr("Connect")
+                                        font.family:    Theme.fontBody
+                                        font.pixelSize: Theme.fontSzBody2
+                                        font.weight:    Font.Light
+                                        color:          imusCol._connecting ? Theme.colorAccent : Theme.colorText2
+                                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        enabled:      imuWizConnectBtn.canConnect
+                                        cursorShape:  Qt.PointingHandCursor
+                                        onClicked:    imusCol.startConnect()
+                                    }
+                                }
                             }
 
                             Column {
@@ -830,26 +1043,69 @@ Item {
                                         optional: !modelData.required
                                         label:    qsTr("IMU %1 — %2").arg(modelData.slot).arg(modelData.placement)
 
-                                        ok: {
+                                        // Resolved device for this slot (null = unassigned).
+                                        // imuManager.instances is a reactive dependency: any
+                                        // imuConnected change fires instancesChanged() which
+                                        // re-evaluates these bindings.
+                                        readonly property var _dev: {
+                                            var _dep = imuManager.instances
                                             var list      = imuManager.imuDeviceList
                                             var placement = appSettings.imuPlacement
                                             for (var i = 0; i < list.length; ++i)
-                                                if (placement[list[i].id] === modelData.slot) return true
-                                            return false
+                                                if (placement[list[i].id] === modelData.slot) return list[i]
+                                            return null
+                                        }
+
+                                        // Live instance — re-evaluated when imuManager.instances
+                                        // changes. Once non-null, QML tracks _inst.stateLabel and
+                                        // _inst.imuConnected directly for fine-grained reactivity.
+                                        property QtObject _inst: {
+                                            var _dep = imuManager.instances
+                                            return _dev ? imuManager.instanceFor(_dev.id) : null
+                                        }
+
+                                        // QML tracks these on _inst directly: stateLabelChanged()
+                                        // and imuConnectedChanged() on the instance update them.
+                                        readonly property string _stateLabel: _inst ? _inst.stateLabel    : ""
+                                        readonly property bool   _connected:  _inst ? _inst.imuConnected  : false
+
+                                        ok:   _connected
+                                        warn: _dev !== null && !_connected
+
+                                        // RHS chip: appears as soon as an instance exists and
+                                        // updates in real-time as the connection progresses.
+                                        chipText: {
+                                            if (!_inst) return ""
+                                            if (_connected) return qsTr("Connected")
+                                            if (_stateLabel === "Error" || _stateLabel === "Not found")
+                                                return qsTr("Connection Failed")
+                                            return qsTr("Connecting")
+                                        }
+                                        chipColor: {
+                                            if (!_inst) return "transparent"
+                                            if (_connected) return Theme.colorGoodLight
+                                            if (_stateLabel === "Error" || _stateLabel === "Not found")
+                                                return Theme.colorErrorLight
+                                            return Theme.colorWarnLight
+                                        }
+                                        chipTextColor: {
+                                            if (!_inst) return Theme.colorText3
+                                            if (_connected) return Theme.colorGood
+                                            if (_stateLabel === "Error" || _stateLabel === "Not found")
+                                                return Theme.colorError
+                                            return Theme.colorWarn
                                         }
 
                                         subOk: {
-                                            var list      = imuManager.imuDeviceList
-                                            var placement = appSettings.imuPlacement
-                                            for (var i = 0; i < list.length; ++i) {
-                                                if (placement[list[i].id] === modelData.slot) {
-                                                    var d = list[i]
-                                                    return [d.alias || d.description, d.transport, d.id]
-                                                               .filter(function(s){ return s && s !== "" })
-                                                               .join(" · ")
-                                                }
-                                            }
-                                            return ""
+                                            if (!_dev) return ""
+                                            return [_dev.alias || _dev.description, _dev.transport, _dev.id]
+                                                       .filter(function(s){ return s && s !== "" })
+                                                       .join(" · ")
+                                        }
+
+                                        subWarn: {
+                                            if (!_dev) return ""
+                                            return (_dev.alias || _dev.description) + qsTr(" — PRESS CONNECT")
                                         }
 
                                         subFail: {
@@ -865,54 +1121,6 @@ Item {
                                     }
                                 }
 
-                                // ── Calibration row (TODO: not yet implemented) ─
-                                Item {
-                                    width: parent.width; height: Theme.sp(52)
-                                    Rectangle {
-                                        anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
-                                        height: 1; color: Theme.colorBorder
-                                    }
-                                    RowLayout {
-                                        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
-                                        spacing: Theme.sp(10)
-                                        StatusCircle { ok: root._todo_calibrationComplete }
-                                        Column {
-                                            Layout.fillWidth: true
-                                            spacing: Theme.sp(2)
-                                            Text {
-                                                text:           qsTr("Zero-g calibration")
-                                                font.family:    Theme.fontBody
-                                                font.pixelSize: Theme.fontSzBody2
-                                                color:          Theme.colorText
-                                            }
-                                            Text {
-                                                width: parent.width
-                                                text:  root._todo_calibrationComplete
-                                                           ? qsTr("Calibrated")
-                                                           : qsTr("PLACE SENSOR FLAT AND STILL")  // TODO: trigger from controller
-                                                font.family:        Theme.fontData
-                                                font.pixelSize:     Theme.fontSzMicro
-                                                font.letterSpacing: Theme.trackingData
-                                                color: root._todo_calibrationComplete ? Theme.colorGood : Theme.colorWarn
-                                                elide: Text.ElideRight
-                                            }
-                                        }
-                                        Item {
-                                            width: Theme.sp(20); height: Theme.sp(20)
-                                            visible: root._todo_calibrationRunning && !root._todo_calibrationComplete
-                                            Text {
-                                                id: calSpinner
-                                                anchors.centerIn: parent
-                                                text: "↺"; font.pixelSize: Theme.sp(14); color: Theme.colorText3
-                                            }
-                                            RotationAnimator {
-                                                target: calSpinner; from: 0; to: 360
-                                                duration: 1200; loops: Animation.Infinite
-                                                running: root._todo_calibrationRunning && !root._todo_calibrationComplete && root.visible
-                                            }
-                                        }
-                                    }
-                                }
                             }
 
                             // Settings deep-link
@@ -930,7 +1138,403 @@ Item {
                         }
                     }
 
-                    // ── Panel 3: Ready ────────────────────────────────────────
+                    // ── Panel 3: Calibrate Sensors ───────────────────────────
+                    // Only reachable for Wrist Motion (hasCalibrateStep).
+                    // The panel fills the available height — no Flickable wrapper.
+
+                    Item {
+                        id: calibPanel
+
+                        // Fill the visible area of the Flickable viewport.
+                        implicitHeight: Math.max(Theme.sp(480), bodyStack.parent.parent.height - Theme.sp(80))
+
+                        // ── Calibration state machine ─────────────────────────
+                        // phase 0 — user holds lead arm straight down; wait for IMU stable
+                        // phase 1 — animated guide: arm moves from down → T-pose
+                        // phase 2 — user raises arm to T-pose; hold 3 s to capture
+
+                        property int  calibPhase:    0
+                        property real phaseProgress: 0.0   // 0–1 for phase 2 hold timer
+
+                        readonly property bool rightHanded: athleteController.currentHandedness !== "Left"
+
+                        // T-pose seed quaternions (match BodyPoseAdapter pre-seed values).
+                        readonly property quaternion tPoseQuat: calibPanel.rightHanded
+                            ? Qt.quaternion( 0.9948, -0.0105, -0.0011,  0.1012)   // left arm
+                            : Qt.quaternion( 0.9948, -0.0105,  0.0011, -0.1011)   // right arm
+
+                        // Arm-down: shoulder-local +Z = world -Y (verified by computing
+                        // shoulder.rotation * (0,0,1) for both left and right shoulders).
+                        // Rotating armNode's +Y to shoulder-local +Z = R_x(+90°) for both arms.
+                        // The mirror symmetry of the shoulder nodes means both use the same value.
+                        readonly property quaternion leadArmDownQuat:  Qt.quaternion(0.7071, 0.7071, 0, 0)
+                        readonly property quaternion trailArmDownQuat: Qt.quaternion(0.7071, 0.7071, 0, 0)
+
+                        // The lead-arm IMU: slot A = Wrist for Wrist Motion.
+                        // imuManager.instances is a required reactive dependency:
+                        // instanceFor() is a Q_INVOKABLE (not a property), so without it
+                        // this binding would not re-evaluate when the instance is created
+                        // by the Connect button on the previous step.
+                        readonly property QtObject leadImu: {
+                            var _dep      = imuManager.instances
+                            var placement = appSettings.imuPlacement
+                            var list      = imuManager.imuDeviceList
+                            for (var i = 0; i < list.length; ++i)
+                                if (placement[list[i].id] === "A")
+                                    return imuManager.instanceFor(list[i].id)
+                            return null
+                        }
+
+                        // Phase 2: accumulate stable hold duration (target 3 s).
+                        property real stableAccumMs: 0.0
+
+                        // Animation targets — driven imperatively by the phase timers below.
+                        property quaternion _leadArmTarget:  calibPanel.leadArmDownQuat
+                        property bool       _animateLeadArm: false
+                        // Set when arm-down is captured; prevents the phase-1 Connections
+                        // from re-triggering captureTransitionTimer during the raise animation.
+                        property bool _armDownCaptured: false
+                        // True only after phase1MinHoldTimer fires.  Prevents immediate
+                        // capture when the IMU was already stable before phase 1 started —
+                        // onStableChanged only fires on transitions, so a direct imu.stable
+                        // check at phase-start would capture without any conscious hold.
+                        property bool _phase1MinHoldDone: false
+
+                        // Set when the lead IMU disconnects mid-calibration.
+                        property bool calibrationFailed: false
+
+                        Connections {
+                            target:  calibPanel.leadImu
+                            enabled: calibPanel.calibPhase > 0 && !root.calibrationDone
+                            function onImuConnectedChanged() {
+                                var imu = calibPanel.leadImu
+                                if (imu && !imu.imuConnected)
+                                    calibPanel.calibrationFailed = true
+                            }
+                        }
+
+                        // Phase 2 hold timer — unchanged.
+                        Timer {
+                            id: stabilityHoldTimer
+                            interval: 100
+                            repeat:   true
+                            running:  calibPanel.calibPhase === 2
+                                      && !root.calibrationDone
+                                      && calibPanel.leadImu !== null
+                                      && calibPanel.leadImu.stable
+                            onTriggered: {
+                                calibPanel.stableAccumMs += interval
+                                calibPanel.phaseProgress = Math.min(calibPanel.stableAccumMs / 3000.0, 1.0)
+                                if (calibPanel.stableAccumMs >= 3000) {
+                                    var imu = calibPanel.leadImu
+                                    root.calibArmTPoseQuat = imu
+                                        ? Qt.quaternion(imu.quatW, imu.quatX, imu.quatY, imu.quatZ)
+                                        : null
+                                    root.calibrationDone = true  // stops timer via binding
+                                    if (imu && root.calibArmDownQuat)
+                                        imu.setCalibration(root.calibArmDownQuat, root.calibArmTPoseQuat)
+                                }
+                            }
+                        }
+
+                        // Phase 0: 3s after page load, play 3s rest→T-pose animation.
+                        Timer {
+                            id: introStartTimer
+                            interval: 3000
+                            repeat:   false
+                            running:  calibPanel.calibPhase === 0
+                            onTriggered: {
+                                calibBvv.resetArmAnimation(calibPanel.leadArmDownQuat)
+                                calibBvv.leadArmAnimDuration = 3000
+                                calibPanel._animateLeadArm   = true
+                                calibPanel._leadArmTarget    = calibPanel.tPoseQuat
+                                introDoneTimer.start()   // wait for up-animation
+                            }
+                        }
+
+                        // Up-animation done: lower arm back to rest at the same speed.
+                        Timer {
+                            id: introDoneTimer
+                            interval: 3000
+                            repeat:   false
+                            onTriggered: {
+                                // _leadArmFrom is still leadArmDownQuat from resetArmAnimation —
+                                // reset it to tPoseQuat so the return animation starts from the top.
+                                calibBvv.resetArmAnimation(calibPanel.tPoseQuat)
+                                calibBvv.leadArmAnimDuration = 3000
+                                calibPanel._leadArmTarget    = calibPanel.leadArmDownQuat
+                                introReadyTimer.start()   // 3s anim + 2s pause
+                            }
+                        }
+
+                        // Return animation + 2s pause complete: start phase 1.
+                        Timer {
+                            id: introReadyTimer
+                            interval: 5000   // 3000ms return anim + 2000ms pause
+                            repeat:   false
+                            onTriggered: {
+                                calibPanel._animateLeadArm    = false
+                                calibPanel._phase1MinHoldDone = false
+                                calibPanel.calibPhase         = 1
+                                phase1MinHoldTimer.start()
+                                // Do NOT check imu.stable here. onStableChanged only fires
+                                // on transitions, so if the IMU was already stable the signal
+                                // would never fire — but capturing immediately defeats the
+                                // purpose of phase 1.  phase1MinHoldTimer handles the
+                                // "already stable" check after a real minimum hold.
+                            }
+                        }
+
+                        // Phase 1 accumulator — same pattern as stabilityHoldTimer for phase 2.
+                        // The running condition is fully reactive: starts automatically when
+                        // the min-hold gate opens AND the IMU is stable, stops when the user
+                        // moves (resetting accumulation), and is gated by _armDownCaptured so
+                        // it can't re-trigger during the raise animation.
+                        // _phase1MinHoldDone is set after a 2s wait via phase1MinHoldTimer so
+                        // the timer cannot start the moment phase 1 begins (the IMU is already
+                        // stable from the intro — we need a genuine new hold window).
+                        property real phase1AccumMs: 0.0
+
+                        Timer {
+                            id: phase1MinHoldTimer
+                            interval: 2000
+                            repeat:   false
+                            onTriggered: calibPanel._phase1MinHoldDone = true
+                            // No capture here — phase1HoldTimer handles it reactively.
+                        }
+
+                        Timer {
+                            id: phase1HoldTimer
+                            interval: 100
+                            repeat:   true
+                            running:  calibPanel.calibPhase === 1
+                                      && calibPanel._phase1MinHoldDone
+                                      && !calibPanel._armDownCaptured
+                                      && calibPanel.leadImu !== null
+                                      && calibPanel.leadImu.stable
+                            onTriggered: {
+                                calibPanel.phase1AccumMs += interval
+                                if (calibPanel.phase1AccumMs >= 3000) {
+                                    var imu = calibPanel.leadImu
+                                    root.calibArmDownQuat = Qt.quaternion(imu.quatW, imu.quatX, imu.quatY, imu.quatZ)
+                                    calibPanel._armDownCaptured = true  // stops timer via binding; must be after quat capture
+                                    captureTransitionTimer.start()
+                                }
+                            }
+                        }
+
+                        // Phase 1 → raise: brief pause after arm-down captured, then play
+                        // the raise guide animation before starting T-pose capture.
+                        Timer {
+                            id: captureTransitionTimer
+                            interval: 800
+                            repeat:   false
+                            onTriggered: {
+                                calibBvv.resetArmAnimation(calibPanel.leadArmDownQuat)
+                                calibBvv.leadArmAnimDuration = 1500
+                                calibPanel._animateLeadArm   = true
+                                calibPanel._leadArmTarget    = calibPanel.tPoseQuat
+                                raiseReadyTimer.start()
+                            }
+                        }
+
+                        // Raise animation (1.5s) + 2s pause, then start T-pose capture.
+                        Timer {
+                            id: raiseReadyTimer
+                            interval: 3500   // 1500ms raise anim + 2000ms pause
+                            repeat:   false
+                            onTriggered: {
+                                calibPanel._animateLeadArm = false
+                                calibPanel.calibPhase      = 2
+                            }
+                        }
+
+                        RowLayout {
+                            anchors.fill:    parent
+                            anchors.margins: Theme.sp(8)
+                            spacing:         Theme.sp(12)
+
+                            // ── Left: full body 3D view ────────────────────────
+                            BodyVizView {
+                                id: calibBvv
+                                Layout.fillHeight:   true
+                                Layout.fillWidth:    true
+                                Layout.minimumWidth: Theme.sp(200)
+
+                                poseSource:       null   // no camera input during calibration
+                                rightHanded:      calibPanel.rightHanded
+                                highlightLeadArm: true
+                                leadArmColor:     Theme.colorAccent
+
+                                useLeadArmOverride:          true
+                                leadArmOverrideRotation:     calibPanel._leadArmTarget
+                                leadForeArmOverrideRotation: Qt.quaternion(1, 0, 0, 0)
+
+                                useTrailArmOverride:          true
+                                trailArmOverrideRotation:     calibPanel.trailArmDownQuat
+                                trailForeArmOverrideRotation: Qt.quaternion(1, 0, 0, 0)
+
+                                animateLeadArm: calibPanel._animateLeadArm
+                            }
+
+                            // ── Right: status column ───────────────────────────
+                            Column {
+                                Layout.preferredWidth: Theme.sp(180)
+                                Layout.fillHeight:     true
+                                spacing:               Theme.sp(16)
+                                Layout.topMargin:      Theme.sp(32)
+
+                                Text {
+                                    width:              parent.width
+                                    text:               qsTr("STEP 4 OF 5 · CALIBRATE")
+                                    font.family:        Theme.fontData
+                                    font.pixelSize:     Theme.fontSzMicro
+                                    font.letterSpacing: Theme.trackingMicro
+                                    color:              Theme.colorText3
+                                }
+
+                                Text {
+                                    width:          parent.width
+                                    text:           qsTr("Calibrate Sensors")
+                                    font.family:    Theme.fontDisplay
+                                    font.italic:    Theme.fontDisplayItalic
+                                    font.pixelSize: Math.min(Theme.sp(18), Theme.fontSzDisplay)
+                                    color:          Theme.colorText
+                                    wrapMode:       Text.WordWrap
+                                }
+
+                                // Calibration status badge
+                                Rectangle {
+                                    readonly property bool _complete: root.calibrationDone
+                                    readonly property bool _failed:   calibPanel.calibrationFailed && !root.calibrationDone
+
+                                    width:  statusBadgeLbl.implicitWidth + Theme.sp(16)
+                                    height: Theme.sp(22)
+                                    radius: Theme.sp(11)
+                                    color:  _complete ? Theme.colorGoodLight
+                                                      : (_failed ? Theme.colorErrorLight : Theme.colorBg3)
+                                    border.color: _complete ? Theme.colorGood
+                                                            : (_failed ? Theme.colorError : Theme.colorBorderMid)
+
+                                    Text {
+                                        id: statusBadgeLbl
+                                        anchors.centerIn: parent
+                                        text: parent._complete ? qsTr("Complete")
+                                                               : (parent._failed ? qsTr("Failed") : qsTr("Pending"))
+                                        font.family:    Theme.fontData
+                                        font.pixelSize: Theme.fontSzMicro
+                                        color: parent._complete ? Theme.colorGood
+                                                                : (parent._failed ? Theme.colorError : Theme.colorText3)
+                                    }
+                                }
+
+                                // Phase instruction
+                                Text {
+                                    width:      parent.width
+                                    wrapMode:   Text.WordWrap
+                                    lineHeight: 1.5
+                                    font.family:    Theme.fontBody
+                                    font.pixelSize: Theme.fontSzBody2
+                                    color:          Theme.colorText2
+                                    text: {
+                                        if (calibPanel.calibPhase === 0)
+                                            return qsTr("Watch the guide — this shows the T-pose position you'll hold next.")
+                                        if (calibPanel.calibPhase === 1) {
+                                            if (calibPanel._armDownCaptured)
+                                                return qsTr("Follow the guide and raise your arm out to shoulder height.")
+                                            return qsTr("Let your lead arm hang relaxed at your side and hold still.")
+                                        }
+                                        return qsTr("Hold your arm at shoulder height and keep it still for 3 seconds.")
+                                    }
+                                }
+
+                                // Stability progress bar
+                                Item {
+                                    width:  parent.width
+                                    height: Theme.sp(32)
+
+                                    Rectangle {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width:  parent.width
+                                        height: Theme.sp(4)
+                                        radius: Theme.sp(2)
+                                        color:  Theme.colorBg3
+
+                                        Rectangle {
+                                            id: progressFill
+                                            readonly property real fillFraction: {
+                                                if (root.calibrationDone)         return 1.0
+                                                if (calibPanel.calibPhase === 2)  return calibPanel.phaseProgress
+                                                if (calibPanel.calibPhase === 1 && !calibPanel._armDownCaptured)
+                                                    return Math.min(calibPanel.phase1AccumMs / 3000.0, 1.0)
+                                                return 0.0
+                                            }
+                                            width:  parent.width * fillFraction
+                                            height: parent.height
+                                            radius: parent.radius
+                                            color:  root.calibrationDone ? Theme.colorGood : Theme.colorAccent
+                                            Behavior on width { NumberAnimation { duration: 150 } }
+                                        }
+                                    }
+                                }
+
+                                // Status label
+                                Text {
+                                    readonly property bool _capturing:
+                                        (calibPanel.calibPhase === 1 && calibPanel.phase1AccumMs > 0 && !calibPanel._armDownCaptured)
+                                        || calibPanel.calibPhase === 2
+
+                                    width:      parent.width
+                                    wrapMode:   Text.WordWrap
+                                    font.family:        Theme.fontData
+                                    font.pixelSize:     _capturing ? Theme.fontSzHeading : Theme.fontSzMicro
+                                    font.bold:          _capturing
+                                    font.letterSpacing: Theme.trackingData
+                                    color: root.calibrationDone ? Theme.colorGood
+                                         : _capturing            ? Theme.colorAccent
+                                         :                         Theme.colorText3
+                                    text: {
+                                        if (root.calibrationDone)         return qsTr("CALIBRATION COMPLETE")
+                                        if (calibPanel.calibPhase === 0)  return qsTr("WATCH THE GUIDE")
+                                        if (calibPanel.calibPhase === 1) {
+                                            if (calibPanel._armDownCaptured) return qsTr("FOLLOW THE GUIDE")
+                                            var imu = calibPanel.leadImu
+                                            if (!imu || !imu.imuConnected) return qsTr("WAITING FOR SENSOR")
+                                            if (calibPanel.phase1AccumMs > 0) return qsTr("HOLD STILL — CAPTURING")
+                                            return qsTr("HOLD STILL")
+                                        }
+                                        return qsTr("HOLD STILL — CAPTURING")
+                                    }
+                                    Behavior on font.pixelSize { NumberAnimation { duration: Theme.durationNormal } }
+                                    Behavior on color           { ColorAnimation  { duration: Theme.durationNormal } }
+                                }
+
+                                // No-IMU warning
+                                Text {
+                                    width:      parent.width
+                                    visible:    calibPanel.leadImu === null
+                                    wrapMode:   Text.WordWrap
+                                    font.family:    Theme.fontBody
+                                    font.pixelSize: Theme.fontSzMicro
+                                    color:          Theme.colorWarn
+                                    text:           qsTr("No wrist sensor assigned to slot A. Return to the IMUs step to assign one.")
+                                }
+
+                                // Recalibrate button — hidden while still in the initial Pending state
+                                PpButton {
+                                    visible: calibPanel.calibPhase > 0
+                                             || root.calibrationDone
+                                             || calibPanel.calibrationFailed
+                                    label:   qsTr("↺  Recalibrate")
+                                    primary: false
+                                    onClicked: root._resetCalibration()
+                                }
+                            }
+                        }
+                    }
+
+                    // ── Panel 4: Ready ────────────────────────────────────────
+
 
                     Item {
                         implicitHeight: readyCol.implicitHeight + Theme.sp(32)
@@ -945,7 +1549,7 @@ Item {
                                 spacing: Theme.sp(8)
 
                                 Text {
-                                    text:               qsTr("STEP 4 OF 4 · READY")
+                                    text:               qsTr("STEP %1 OF %1 · READY").arg(root.hasCalibrateStep ? 5 : 4)
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingMicro
@@ -1161,9 +1765,14 @@ Item {
                                     : (!root.faceOnData ? qsTr("Face-on camera not assigned")
                                                         : qsTr("Down-the-line camera not assigned"))
                             }
-                            if (s === 2) return root.imusOk
-                                ? qsTr("All required sensors assigned")
-                                : qsTr("Some sensors not assigned — or skip to start without motion data")
+                            if (s === 2) return root.imusAllConnected
+                                ? qsTr("All required sensors connected")
+                                : root.imusOk
+                                    ? qsTr("All required sensors assigned — tap Connect to pair them")
+                                    : qsTr("Some sensors not assigned — or skip to start without motion data")
+                            if (s === 3) return root.calibrationDone
+                                ? qsTr("Calibration complete")
+                                : qsTr("Follow the guide to calibrate your sensors — or skip to continue without calibration")
                             return ""
                         }
                         font.family:        Theme.fontData
@@ -1172,7 +1781,8 @@ Item {
                         color: {
                             var s = root.currentStep
                             if (s === 1) return (root.camsOk || root.curType.optionalCamera) ? Theme.colorGood : Theme.colorWarn
-                            if (s === 2) return root.imusOk ? Theme.colorGood : Theme.colorWarn
+                            if (s === 2) return root.imusAllConnected ? Theme.colorGood : Theme.colorWarn
+                            if (s === 3) return root.calibrationDone ? Theme.colorGood : Theme.colorWarn
                             return Theme.colorText3
                         }
                         elide: Text.ElideRight
@@ -1187,7 +1797,11 @@ Item {
                             var arr = root.stepStates.slice()
                             arr[root.currentStep] = "pending"
                             root.stepStates = arr
-                            root.currentStep--
+                            // Skip back over Calibrate step for non-wrist sessions.
+                            if (root.currentStep === 4 && !root.hasCalibrateStep)
+                                root.currentStep = 2
+                            else
+                                root.currentStep--
                         }
                     }
 
@@ -1195,13 +1809,18 @@ Item {
                     PpButton {
                         visible: (root.currentStep === 1 && !root.camsOk && !root.curType.optionalCamera)
                                  || (root.currentStep === 2 && !root.imusOk)
+                                 || (root.currentStep === 3 && !root.calibrationDone)
                         label:   qsTr("Skip →")
                         primary: false
                         onClicked: {
                             var arr = root.stepStates.slice()
                             arr[root.currentStep] = "skipped"
                             root.stepStates = arr
-                            root.currentStep++
+                            // Skipping IMUs on non-wrist sessions jumps over Calibrate too.
+                            if (root.currentStep === 2 && !root.hasCalibrateStep)
+                                root.currentStep = 4
+                            else
+                                root.currentStep++
                         }
                     }
 
@@ -1210,14 +1829,25 @@ Item {
                         implicitWidth:  primaryLbl.implicitWidth + Theme.sp(28)
                         implicitHeight: Theme.sp(38)
                         radius: Theme.radius
-                        color: root.currentStep < 3
+                        color: root.currentStep < root.lastStep
                                    ? Theme.colorAccent
                                    : (root.fullyReady ? Theme.colorGood : Theme.colorWarn)
+                        // IMU step: dim until all required IMUs are connected (Skip handles bypass).
+                        // Calibrate step: dim until done (Skip handles bypass).
+                        // Uses primaryArea.pressed for press feedback — imperative opacity
+                        // assignments would destroy this binding on first press.
+                        opacity: {
+                            var blocked = (root.currentStep === 2 && !root.imusAllConnected)
+                                       || (root.currentStep === 3 && !root.calibrationDone)
+                            if (blocked) return 0.4
+                            return primaryArea.pressed ? 0.8 : 1.0
+                        }
+                        Behavior on opacity { NumberAnimation { duration: Theme.durationNormal } }
 
                         Text {
                             id: primaryLbl
                             anchors.centerIn: parent
-                            text: root.currentStep < 3
+                            text: root.currentStep < root.lastStep
                                       ? qsTr("Continue →")
                                       : (root.fullyReady ? qsTr("▶  Start session") : qsTr("▶  Start anyway"))
                             font.family:    Theme.fontBody
@@ -1226,16 +1856,21 @@ Item {
                         }
 
                         MouseArea {
+                            id: primaryArea
                             anchors.fill: parent
                             cursorShape:  Qt.PointingHandCursor
-                            onPressed:    parent.opacity = 0.8
-                            onReleased:   parent.opacity = 1.0
                             onClicked: {
-                                if (root.currentStep < 3) {
+                                if (root.currentStep < root.lastStep) {
+                                    if (root.currentStep === 2 && !root.imusAllConnected) return
+                                    if (root.currentStep === 3 && !root.calibrationDone)  return
                                     var arr = root.stepStates.slice()
                                     arr[root.currentStep] = "done"
                                     root.stepStates = arr
-                                    root.currentStep++
+                                    // Skip Calibrate step (index 3) for non-wrist sessions.
+                                    if (root.currentStep === 2 && !root.hasCalibrateStep)
+                                        root.currentStep = 4
+                                    else
+                                        root.currentStep++
                                 } else {
                                     var goals = root.selectedGoals.length > 0
                                                     ? root.selectedGoals
@@ -1291,11 +1926,17 @@ Item {
     }
 
     component StatusCircle: Rectangle {
-        property bool ok: false
+        property bool ok:    false
+        property bool warn:  false   // amber — found but not ready (e.g. assigned but not connected)
+        property bool error: false   // red   — hard failure (not found / not assigned)
         width: Theme.sp(17); height: Theme.sp(17); radius: Theme.sp(9)
-        color:        ok ? Theme.colorGoodLight  : "transparent"
+        color:        ok    ? Theme.colorGoodLight  :
+                      warn  ? Theme.colorWarnLight  :
+                      error ? Theme.colorErrorLight : "transparent"
         border.width: 1
-        border.color: ok ? Theme.colorGood : Theme.colorBorderMid
+        border.color: ok    ? Theme.colorGood  :
+                      warn  ? Theme.colorWarn  :
+                      error ? Theme.colorError : Theme.colorBorderMid
         Text {
             anchors.centerIn: parent
             visible:        parent.ok
@@ -1307,13 +1948,19 @@ Item {
 
     component CheckRow: Item {
         id: cr
-        property bool   ok:           false
-        property bool   optional:     false  // true = muted warn colour when not ok
-        property string label:        ""
-        property string subOk:        ""
-        property string subFail:      ""
-        property bool   showRecal:    false
-        property bool   recalEnabled: false
+        property bool   ok:            false
+        property bool   warn:          false  // amber — found but not connected/ready
+        property bool   optional:      false  // true = muted colour when hard-failing
+        property string label:         ""
+        property string subOk:         ""
+        property string subWarn:       ""    // shown when warn && !ok
+        property string subFail:       ""
+        property bool   showRecal:     false
+        property bool   recalEnabled:  false
+        // RHS status chip — shown when chipText is non-empty
+        property string chipText:      ""
+        property color  chipColor:     "transparent"
+        property color  chipTextColor: Theme.colorText3
         signal recalibrate()
 
         height: Theme.sp(52)
@@ -1327,7 +1974,11 @@ Item {
             anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
             spacing: Theme.sp(10)
 
-            StatusCircle { ok: cr.ok }
+            StatusCircle {
+                ok:    cr.ok
+                warn:  !cr.ok && cr.warn
+                error: !cr.ok && !cr.warn && !cr.optional
+            }
 
             Column {
                 Layout.fillWidth: true
@@ -1340,11 +1991,14 @@ Item {
                 }
                 Text {
                     width:              parent.width
-                    text:               cr.ok ? cr.subOk : cr.subFail
+                    text:               cr.ok ? cr.subOk : (cr.warn ? cr.subWarn : cr.subFail)
                     font.family:        Theme.fontData
                     font.pixelSize:     Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingData
-                    color:              cr.ok ? Theme.colorGood : (cr.optional ? Theme.colorText3 : Theme.colorWarn)
+                    color:              cr.ok   ? Theme.colorGood
+                                               : (cr.warn ? Theme.colorWarn
+                                                          : (cr.optional ? Theme.colorText3
+                                                                         : Theme.colorError))
                     elide:              Text.ElideRight
                 }
             }
@@ -1355,6 +2009,30 @@ Item {
                 primary:   false
                 enabled:   cr.recalEnabled
                 onClicked: cr.recalibrate()
+            }
+
+            // Status chip — e.g. "Connecting", "Connection Failed", "Connected"
+            Rectangle {
+                visible:        cr.chipText !== ""
+                implicitWidth:  chipLbl.implicitWidth + Theme.sp(14)
+                implicitHeight: Theme.sp(20)
+                radius:         Theme.sp(4)
+                color:          cr.chipColor
+                border.width:   1
+                border.color:   cr.chipTextColor
+                Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
+                Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                Text {
+                    id: chipLbl
+                    anchors.centerIn:   parent
+                    text:               cr.chipText
+                    font.family:        Theme.fontData
+                    font.pixelSize:     Theme.fontSzMicro
+                    font.letterSpacing: Theme.trackingData
+                    color:              cr.chipTextColor
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                }
             }
         }
     }

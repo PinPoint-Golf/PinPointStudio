@@ -18,8 +18,10 @@
 
 #pragma once
 
+#include <QElapsedTimer>
 #include <QList>
 #include <QObject>
+#include <QQuaternion>
 #include <QStringList>
 #include <QTimer>
 
@@ -49,8 +51,14 @@ class ImuInstance : public QObject
     Q_PROPERTY(double  dataRateHz     READ dataRateHz     NOTIFY dataRateHzChanged)
     Q_PROPERTY(int     batteryPercent  READ batteryPercent  NOTIFY batteryPercentChanged)
     Q_PROPERTY(int     gimbalDropCount READ gimbalDropCount NOTIFY gimbalDropCountChanged)
+    Q_PROPERTY(bool  stable             READ stable             NOTIFY stableChanged)
+    Q_PROPERTY(float angularVelocityDps READ angularVelocityDps NOTIFY angularVelocityDpsChanged)
+    Q_PROPERTY(QString     deviceId          READ deviceId          CONSTANT)
     Q_PROPERTY(QString     deviceDescription READ deviceDescription CONSTANT)
     Q_PROPERTY(QStringList logEntries        READ logEntries        CONSTANT)
+    Q_PROPERTY(bool        calibrated    READ calibrated    NOTIFY calibratedChanged)
+    Q_PROPERTY(QQuaternion calibArmDown  READ calibArmDown  NOTIFY calibratedChanged)
+    Q_PROPERTY(QQuaternion calibArmTPose READ calibArmTPose NOTIFY calibratedChanged)
 
 public:
     explicit ImuInstance(const Device &device,
@@ -75,10 +83,15 @@ public:
     float   accelX()         const { return m_accelX; }
     float   accelY()         const { return m_accelY; }
     float   accelZ()         const { return m_accelZ; }
-    int     outputRateHz()   const { return m_outputRateHz; }
-    double  dataRateHz()      const { return m_dataRateHz; }
-    int     batteryPercent()  const { return m_batteryPercent; }
-    int     gimbalDropCount() const { return m_gimbalDropCount; }
+    int     outputRateHz()      const { return m_outputRateHz; }
+    double  dataRateHz()        const { return m_dataRateHz; }
+    int     batteryPercent()    const { return m_batteryPercent; }
+    int     gimbalDropCount()   const { return m_gimbalDropCount; }
+    bool    stable()            const { return m_stable; }
+    float   angularVelocityDps() const { return m_angularVelocityDps; }
+    bool        calibrated()    const { return m_calibrated; }
+    QQuaternion calibArmDown()  const { return m_calibArmDown; }
+    QQuaternion calibArmTPose() const { return m_calibArmTPose; }
 
     // Lifecycle — called by ImuManager
     void start();                // begin BLE connection
@@ -89,6 +102,8 @@ public:
     Q_INVOKABLE void    zeroOrientation();
     Q_INVOKABLE QString saveLog();
     Q_INVOKABLE void    setOutputRateHz(int hz);
+    Q_INVOKABLE void    setCalibration(const QQuaternion &armDown, const QQuaternion &tPose);
+    Q_INVOKABLE void    clearCalibration();
 
 signals:
     void stateLabelChanged();
@@ -100,6 +115,9 @@ signals:
     void dataRateHzChanged();
     void batteryPercentChanged();
     void gimbalDropCountChanged();
+    void stableChanged();
+    void angularVelocityDpsChanged();
+    void calibratedChanged();
     void logEntryAdded(const QString &entry);
 
 private:
@@ -149,6 +167,22 @@ private:
     // Rolling 2-second data-rate window
     QList<qint64> m_packetTimes;
     double        m_dataRateHz = 0.0;
+
+    // Stability detection — computed on the main thread via the queued connection
+    bool          m_stable             = false;
+    float         m_angularVelocityDps = 0.0f;
+    QQuaternion   m_prevQuat           { 1.0f, 0.0f, 0.0f, 0.0f };
+    QElapsedTimer m_prevQuatTimer;   // elapsed since last quaternion packet
+    QElapsedTimer m_stableTimer;     // how long velocity has been below threshold
+    bool          m_stableTimerRunning = false;
+    static constexpr float kStableThresholdDps = 5.0f;
+    static constexpr int   kStableDurationMs   = 2000;
+
+    // Session calibration — arm-down and T-pose reference quaternions.
+    // Set by the session wizard; valid only for the life of this instance.
+    bool        m_calibrated    = false;
+    QQuaternion m_calibArmDown  { 1.0f, 0.0f, 0.0f, 0.0f };
+    QQuaternion m_calibArmTPose { 1.0f, 0.0f, 0.0f, 0.0f };
 
     // Log throttle — summary every 10 s
     QTimer m_logTimer;

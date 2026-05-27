@@ -74,7 +74,21 @@ The Home screen is the default landing page and the starting point for every ses
 
 - **Device readiness** — Each card shows a live `✓ / ⚠` status for cameras and IMUs independently. Cameras require at least the stated number to be enumerated; Wrist motion shows the camera as optional (amber tick when absent, green when present).
 - **Club selector** — Choose the club in play before starting; recorded with the session.
-- **Start session** — Enabled once device requirements are met; session begins on the first ball detected.
+- **Start session** — Opens the session wizard once device requirements are met.
+
+### Session wizard
+
+A five-step guided flow that prepares a session before recording begins. Steps are shown as a horizontal progress rail; Back/Continue navigation is available at each step.
+
+| Step | Name | Description |
+|---|---|---|
+| 0 | **Goals** | Confirm the session type and set an optional speed target for the session |
+| 1 | **Cameras** | Review discovered cameras; assign face-on / down-the-line / other perspective; toggle mirroring |
+| 2 | **IMUs** | Connect sensors; assign body placement slots (A–D); Continue is locked until all required IMUs are connected |
+| 3 | **Calibration** | Two-phase IMU calibration (see below); Continue is locked until calibration is complete |
+| 4 | **Ready** | Confirm the session summary; Start begins capture |
+
+Pressing Back from any step returns to the previous one. Navigating back to the Calibration step retains a completed calibration for the life of the current `ImuInstance`; starting a new wizard session with the same connected device also restores it. The **Recalibrate** button is always available to restart the sequence.
 
 ### Athlete management
 
@@ -103,6 +117,10 @@ Every session belongs to an athlete. The athlete management flow is the entry po
 - **Device chips** — One toggle chip per enumerated IMU at the top of the Play → IMU tab; tap to connect/disconnect. Devices appear as soon as the BLE scan finds them.
 - **3D orientation visualiser** — Labelled cube driven by the corrected quaternion; matches the physical device orientation in real time. The `ImuVizView` component is shared between the capture page (per-instance) and the settings test panel.
 - **Auto-initialisation** — Sets vertical mounting, 6-axis algorithm, 100 Hz output rate, and zeros orientation to current position on every connect.
+- **Two-phase session calibration** — The session wizard Calibration step captures two reference quaternions for the lead-arm IMU (slot A):
+  - *Phase 1 — arm at rest:* an animated guide demonstrates the resting position; once the IMU is stable for 3 cumulative seconds the arm-down quaternion is captured.
+  - *Phase 2 — T-pose:* the guide raises to T-pose; another 3-second stable hold captures the T-pose quaternion.
+  - Both quaternions are stored in memory on the `ImuInstance` for the duration of the session. They are not persisted to disk; reconnecting or deselecting the device clears them. The Recalibrate button restarts the sequence at any time.
 - **Zero button** — Re-zeroes orientation on demand for mid-session repositioning, per device.
 - **Rate selector** — Adjustable output rate per device (10 / 20 / 50 / 100 / 200 Hz).
 - **Live data rate** — 2-second rolling Hz average shown per device.

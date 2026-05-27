@@ -86,6 +86,7 @@ class AppSettings : public QObject
     Q_PROPERTY(QVariantMap cameraAlias         READ cameraAlias         WRITE setCameraAlias         NOTIFY cameraAliasChanged)
     Q_PROPERTY(QStringList imuExcluded            READ imuExcluded            WRITE setImuExcluded            NOTIFY imuExcludedChanged)
     Q_PROPERTY(QVariantMap imuAlias               READ imuAlias               WRITE setImuAlias               NOTIFY imuAliasChanged)
+    Q_PROPERTY(QVariantMap imuCalibration         READ imuCalibration         WRITE setImuCalibration         NOTIFY imuCalibrationChanged)
     Q_PROPERTY(QVariantMap imuPlacement           READ imuPlacement           WRITE setImuPlacement           NOTIFY imuPlacementChanged)
     Q_PROPERTY(QVariantMap imuOutputRateHz        READ imuOutputRateHz        WRITE setImuOutputRateHz        NOTIFY imuOutputRateHzChanged)
     Q_PROPERTY(QVariantMap imuFusionMode          READ imuFusionMode          WRITE setImuFusionMode          NOTIFY imuFusionModeChanged)
@@ -163,6 +164,7 @@ public:
         m_imuSaveCalibrationToFlash = ppSettings().value(QStringLiteral("imu/saveCalibrationToFlash"), false).toBool();
         m_imuDefaultFusionMode    = ppSettings().value(QStringLiteral("imu/defaultFusionMode"),    QStringLiteral("9axis")).toString();
         m_imuAlias                = ppSettings().value(QStringLiteral("imu/alias"),                QVariantMap{}).toMap();
+        m_imuCalibration          = ppSettings().value(QStringLiteral("imu/calibration"),          QVariantMap{}).toMap();
 
         m_sessionGoalsByType = ppSettings().value(QStringLiteral("session/goalsByType"), QVariantMap{}).toMap();
         m_lastSessionType    = ppSettings().value(QStringLiteral("session/lastType"), 0).toInt();
@@ -257,6 +259,7 @@ public:
     bool        imuSaveCalibrationToFlash() const { return m_imuSaveCalibrationToFlash; }
     QString     imuDefaultFusionMode()    const { return m_imuDefaultFusionMode; }
     QVariantMap imuAlias()               const { return m_imuAlias; }
+    QVariantMap imuCalibration()         const { return m_imuCalibration; }
 
     void setThemeIndex(int v)
     {
@@ -634,6 +637,14 @@ public:
         emit imuAliasChanged();
     }
 
+    void setImuCalibration(const QVariantMap &v)
+    {
+        if (m_imuCalibration == v) return;
+        m_imuCalibration = v;
+        ppSettings().setValue(QStringLiteral("imu/calibration"), v);
+        emit imuCalibrationChanged();
+    }
+
     void setSessionGoalsByType(const QVariantMap &v)
     {
         if (m_sessionGoalsByType == v) return;
@@ -778,6 +789,7 @@ signals:
     void imuSaveCalibrationToFlashChanged();
     void imuDefaultFusionModeChanged();
     void imuAliasChanged();
+    void imuCalibrationChanged();
     void sessionGoalsByTypeChanged();
     void lastSessionTypeChanged();
     void sessionNamingPatternChanged();
@@ -839,6 +851,7 @@ private:
     QVariantMap m_imuFusionMode;
     QVariantMap m_imuMountOrientation;
     QVariantMap m_imuAlias;
+    QVariantMap m_imuCalibration;
     bool        m_imuAutoConnect          = true;
     bool        m_imuAutoReconnect        = true;
     bool        m_imuSaveCalibrationToFlash = false;
