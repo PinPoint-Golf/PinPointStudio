@@ -57,6 +57,7 @@ public slots:
 
 signals:
     void transcriptChanged();
+    void transcriptionReceived(const QString &text);  // fires once per completed utterance
     void isListeningChanged();
     void sttBackendChanged();
     void cloudSttFallbackAvailableChanged();

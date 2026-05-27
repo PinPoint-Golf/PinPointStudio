@@ -171,6 +171,7 @@ void TranscriptionController::onTranscriptionReceived(const QString &text)
         m_transcript += QLatin1Char('\n');
     m_transcript += text;
     emit transcriptChanged();
+    emit transcriptionReceived(text);
 }
 
 void TranscriptionController::onAudioError(const QString &message)

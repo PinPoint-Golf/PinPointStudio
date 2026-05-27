@@ -40,6 +40,7 @@
 #include "navigation_controller.h"
 #include "resource_monitor_controller.h"
 #include "arm_bone_controller.h"
+#include "llm_controller.h"
 
 int main(int argc, char *argv[])
 {
@@ -96,6 +97,7 @@ int main(int argc, char *argv[])
     ImuManager              imuManager(&eventBuffer, &appSettings);
     TranscriptionController controller;
     TtsController           ttsController;
+    LlmController           llmController;
     CameraManager           cameraManager(&eventBuffer, &appSettings);
     FilmController          filmController;
     BufferController        bufferController(&eventBuffer);
@@ -104,6 +106,20 @@ int main(int argc, char *argv[])
     ResourceMonitorController resourceMonitor(&eventBuffer, &cameraManager, &imuManager);
     ArmBoneController         armBoneController;
 
+    // Voice input: completed STT transcription → coach chat (when voice input enabled).
+    QObject::connect(&controller, &TranscriptionController::transcriptionReceived,
+                     &llmController, [&llmController](const QString &text) {
+        if (llmController.voiceInputEnabled())
+            llmController.sendMessage(text);
+    });
+
+    // Voice output: completed LLM response → TTS (when voice output enabled).
+    QObject::connect(&llmController, &LlmController::responseReady,
+                     &ttsController, [&ttsController, &llmController](const QString &text) {
+        if (llmController.voiceOutputEnabled())
+            ttsController.speak(text);
+    });
+
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("appSettings"),       &appSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("athleteController"), &athleteController);
@@ -111,6 +127,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("imuManager"),       &imuManager);
     engine.rootContext()->setContextProperty(QStringLiteral("controller"),       &controller);
     engine.rootContext()->setContextProperty(QStringLiteral("ttsController"),    &ttsController);
+    engine.rootContext()->setContextProperty(QStringLiteral("llmController"),    &llmController);
     engine.rootContext()->setContextProperty(QStringLiteral("cameraManager"),    &cameraManager);
     engine.rootContext()->setContextProperty(QStringLiteral("filmController"),   &filmController);
     engine.rootContext()->setContextProperty(QStringLiteral("bufferController"), &bufferController);

@@ -148,9 +148,14 @@ qt_add_executable(PinPoint
     src/TTS/PhonemeTokenizer.h       src/TTS/PhonemeTokenizer.cpp
     src/TTS/TtsWorker.h              src/TTS/TtsWorker.cpp
     src/TTS/ModelDownloader.h        src/TTS/ModelDownloader.cpp
+    src/LLM/LlmEngine.h              src/LLM/LlmEngine.cpp
+    src/LLM/LocalLlmEngine.h         src/LLM/LocalLlmEngine.cpp
+    src/LLM/GeminiLlmEngine.h        src/LLM/GeminiLlmEngine.cpp
+    src/LLM/LlmWorker.h              src/LLM/LlmWorker.cpp
+    src/Gui/llm_controller.h         src/Gui/llm_controller.cpp
 )
 
-target_include_directories(PinPoint PRIVATE src/Gui src/IMU src/Audio src/Video src/Pose src/STT src/TTS src/Secrets src/Core src/Buffer)
+target_include_directories(PinPoint PRIVATE src/Gui src/IMU src/Audio src/Video src/Pose src/STT src/TTS src/LLM src/Secrets src/Core src/Buffer)
 
 set_source_files_properties(src/Gui/Theme.qml         PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set_source_files_properties(src/Gui/SettingsIndex.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
@@ -202,6 +207,7 @@ qt_add_qml_module(PinPoint
         src/Gui/HmDeviceRow.qml
         src/Gui/HmSessionTile.qml
         src/Gui/ScreenSessionWizard.qml
+        src/Gui/CoachPage.qml
     SOURCES
         src/Video/bayer_video_item.h
         src/Video/bayer_video_item.cpp
@@ -561,6 +567,79 @@ if(WITH_CUDA AND NOT APPLE)
 endif()
 list(JOIN _ort_ep_list "+" _ort_ep_str)
 message(STATUS "ONNX Runtime ${ORT_VERSION}: ${_ort_root} [EP=${_ort_ep_str}]")
+
+# ── ONNX Runtime GenAI (local LLM engine) ────────────────────────────────────
+# Separate from the main ORT download; ships its own bundled libonnxruntime.so
+# (different version) which coexists safely due to distinct sonames.
+option(WITH_ORTGENAI "Enable ONNX Runtime GenAI local LLM engine" ON)
+if(WITH_ORTGENAI)
+    set(ORTGENAI_VERSION "0.13.1")
+
+    if(WIN32)
+        if(WITH_CUDA)
+            set(_ortgenai_url "https://github.com/microsoft/onnxruntime-genai/releases/download/v${ORTGENAI_VERSION}/onnxruntime-genai-${ORTGENAI_VERSION}-win-x64-cuda.zip")
+        else()
+            set(_ortgenai_url "https://github.com/microsoft/onnxruntime-genai/releases/download/v${ORTGENAI_VERSION}/onnxruntime-genai-${ORTGENAI_VERSION}-win-x64.zip")
+        endif()
+    elseif(APPLE)
+        # No CUDA on macOS; CoreML acceleration is handled internally by ORT-GenAI.
+        set(_ortgenai_url "https://github.com/microsoft/onnxruntime-genai/releases/download/v${ORTGENAI_VERSION}/onnxruntime-genai-${ORTGENAI_VERSION}-osx-arm64.tar.gz")
+    else()  # Linux
+        if(WITH_CUDA)
+            set(_ortgenai_url "https://github.com/microsoft/onnxruntime-genai/releases/download/v${ORTGENAI_VERSION}/onnxruntime-genai-${ORTGENAI_VERSION}-linux-x64-cuda.tar.gz")
+        else()
+            set(_ortgenai_url "https://github.com/microsoft/onnxruntime-genai/releases/download/v${ORTGENAI_VERSION}/onnxruntime-genai-${ORTGENAI_VERSION}-linux-x64.tar.gz")
+        endif()
+    endif()
+
+    FetchContent_Declare(onnxruntime_genai URL "${_ortgenai_url}" DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+    FetchContent_MakeAvailable(onnxruntime_genai)
+
+    if(EXISTS "${onnxruntime_genai_SOURCE_DIR}/include/ort_genai.h")
+        set(_ortgenai_root "${onnxruntime_genai_SOURCE_DIR}")
+    else()
+        file(GLOB _ortgenai_candidates LIST_DIRECTORIES true "${onnxruntime_genai_SOURCE_DIR}/onnxruntime-genai-*")
+        if(_ortgenai_candidates)
+            list(GET _ortgenai_candidates 0 _ortgenai_root)
+        else()
+            set(_ortgenai_root "${onnxruntime_genai_SOURCE_DIR}")
+        endif()
+    endif()
+
+    target_include_directories(PinPoint PRIVATE "${_ortgenai_root}/include")
+    target_compile_definitions(PinPoint PRIVATE HAVE_ORTGENAI)
+
+    if(WIN32)
+        target_link_libraries(PinPoint PRIVATE "${_ortgenai_root}/lib/onnxruntime_genai.lib")
+        file(GLOB _ortgenai_dlls "${_ortgenai_root}/lib/onnxruntime_genai*.dll")
+        foreach(_dll ${_ortgenai_dlls})
+            add_custom_command(TARGET PinPoint POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dll}" "$<TARGET_FILE_DIR:PinPoint>"
+            )
+        endforeach()
+        foreach(_dll ${_ortgenai_dlls})
+            install(FILES "${_dll}" DESTINATION bin)
+        endforeach()
+    elseif(APPLE)
+        file(GLOB _ortgenai_dylib "${_ortgenai_root}/lib/libonnxruntime_genai*.dylib")
+        list(GET _ortgenai_dylib 0 _ortgenai_dylib_path)
+        target_link_libraries(PinPoint PRIVATE "${_ortgenai_dylib_path}")
+    else()  # Linux
+        target_link_libraries(PinPoint PRIVATE "${_ortgenai_root}/lib/libonnxruntime-genai.so")
+        # Deploy ORT-GenAI's bundled ORT alongside the app (distinct soname from main ORT).
+        file(GLOB _ortgenai_rt_libs "${_ortgenai_root}/lib/libonnxruntime*.so*")
+        foreach(_lib ${_ortgenai_rt_libs})
+            add_custom_command(TARGET PinPoint POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_lib}" "$<TARGET_FILE_DIR:PinPoint>"
+            )
+        endforeach()
+        foreach(_lib ${_ortgenai_rt_libs})
+            install(FILES "${_lib}" DESTINATION lib)
+        endforeach()
+    endif()
+
+    message(STATUS "ONNX Runtime GenAI ${ORTGENAI_VERSION}: ${_ortgenai_root}")
+endif()
 
 # ── MoveNet (pose estimation via ONNX Runtime) ────────────────────────────────
 # Downloads MoveNet Lightning (~9 MB, 192×192) and Thunder (~30 MB, 256×256)

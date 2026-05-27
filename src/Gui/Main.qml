@@ -240,7 +240,7 @@ ApplicationWindow {
                 VideoPage       {}                                         // 1 — Swing
                 ScreenPlaceholder { iconText: "⌖"; titleText: "Wrist"  }  // 2
                 ScreenPlaceholder { iconText: "⇅"; titleText: "GRF"    }  // 3
-                ScreenPlaceholder { iconText: "✦"; titleText: "Coach"  }  // 4
+                CoachPage {}                                               // 4 — AI coaching chat
                 PlayPage {}                                                // 5 — Play dev-hatch only
                 ScreenAthleteForm {                                        // 6 — new athlete form
                     onCancelled:       navController.navigate(0)
