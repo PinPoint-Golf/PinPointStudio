@@ -25,15 +25,6 @@ import PinPoint
 Item {
     id: videoPage
 
-    // Face-on camera (perspective === 2) — drives the live body visualisation.
-    readonly property QtObject faceOnController: {
-        var insts = cameraManager.instances
-        for (var i = 0; i < insts.length; ++i) {
-            if (insts[i] && insts[i].perspective === 2) return insts[i]
-        }
-        return null
-    }
-
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: Theme.sp(16)
@@ -90,10 +81,7 @@ Item {
             }
         }
 
-        // ── Camera views + body visualisation (equal slots) ──────────────────
-        // Each camera and the body viz occupies one equal slot in this row.
-        // CameraView internally centres the frame at the correct video aspect
-        // ratio within its slot so the image never stretches.
+        // ── Camera views ──────────────────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -127,17 +115,6 @@ Item {
                 }
             }
 
-            // Live body visualisation — one equal slot alongside the cameras.
-            // poseSource drives animation from the face-on camera's pose estimator;
-            // null when no face-on camera is configured (body renders in T-pose).
-            BodyVizView {
-                Layout.fillWidth:  true
-                Layout.fillHeight: true
-                visible:      videoPage.faceOnController !== null
-                poseSource:   videoPage.faceOnController
-                mirroredSource: videoPage.faceOnController !== null
-                              && videoPage.faceOnController.isMirrored
-            }
         }
 
         // ── Shared controls ───────────────────────────────────────────────────
