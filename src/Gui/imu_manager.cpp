@@ -297,6 +297,14 @@ ImuInstance *ImuManager::createInstance(const Device &device)
 {
     auto *inst = new ImuInstance(device, m_eventBuffer, this);
 
+    // Restore persisted output rate so it is applied from the very first
+    // initializeDevice() call rather than only after the State::Ready reinit.
+    AppSettings  fallback;
+    AppSettings *s = m_appSettings ? m_appSettings : &fallback;
+    const int savedRate = s->imuOutputRateHz().value(device.id, 100).toInt();
+    if (savedRate != 100)
+        inst->setOutputRateHz(savedRate);
+
     // Forward log entries to any QML log view listening to imuManager.
     connect(inst, &ImuInstance::logEntryAdded,
             this, &ImuManager::logEntryAdded);

@@ -346,10 +346,12 @@ void ImuInstance::setOutputRateHz(int hz)
     }
     m_outputRateHz = hz;
     emit outputRateHzChanged();
-    if (m_connected) {
-        m_imu->setOutputRate(rate);
+    // Always sync the driver's internal rate register so initializeDevice() uses
+    // the right value from the first connection. writeToDevice() is a no-op when
+    // disconnected so this is safe to call at any time.
+    m_imu->setOutputRate(rate);
+    if (m_connected)
         m_imu->reinitialize();
-    }
 }
 
 void ImuInstance::onStateChanged(WT9011DCL_BLE::State s)
