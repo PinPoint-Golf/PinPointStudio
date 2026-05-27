@@ -35,35 +35,40 @@ struct LocalLlmEngine::OrtGenAiState {
 
 // ---------------------------------------------------------------------------
 
+bool LocalLlmEngine::hasGpu()
+{
+#if defined(WITH_CUDA)
+#  if defined(Q_OS_LINUX)
+    return QFile::exists(QStringLiteral("/proc/driver/nvidia/version"));
+#  elif defined(Q_OS_WIN)
+    QLibrary nvcuda(QStringLiteral("nvcuda.dll"));
+    const bool ok = nvcuda.load();
+    if (ok) nvcuda.unload();
+    return ok;
+#  else
+    return false;
+#  endif
+#elif defined(WITH_COREML)
+    return true;  // CoreML always present on macOS ARM64
+#else
+    return false;
+#endif
+}
+
 LocalLlmEngine::LocalLlmEngine(QObject *parent)
     : LlmEngine(parent)
 {
-    // Probe for GPU at construction time, before model load.
-    // Same driver-file approach as KokoroTTSEngine so the hot-swap trigger
-    // fires at model-load rather than waiting for inference to be slow.
 #ifdef HAVE_ORTGENAI
     m_oga = std::make_unique<OrtGenAiState>();
 
-#if defined(WITH_CUDA)
-    // Check for NVIDIA driver before assuming CUDA is usable.
-#  if defined(Q_OS_LINUX)
-    const bool hasNvidiaDriver = QFile::exists(QStringLiteral("/proc/driver/nvidia/version"));
-#  elif defined(Q_OS_WIN)
-    QLibrary nvcuda(QStringLiteral("nvcuda.dll"));
-    const bool hasNvidiaDriver = nvcuda.load();
-    if (hasNvidiaDriver) nvcuda.unload();
-#  else
-    const bool hasNvidiaDriver = false;
-#  endif
-    if (hasNvidiaDriver)
+    if (hasGpu()) {
+#  if defined(WITH_CUDA)
         m_gpuBackend = QStringLiteral("CUDA");
-    else
-        ppInfo() << "[LocalLLM] No NVIDIA GPU detected — will run on CPU";
-#elif defined(WITH_COREML)
-    // CoreML is always available on macOS ARM64.
-    m_gpuBackend = QStringLiteral("CoreML");
-#endif
-    // No GPU path → m_gpuBackend stays empty; LlmController will hot-swap to Gemini.
+#  elif defined(WITH_COREML)
+        m_gpuBackend = QStringLiteral("CoreML");
+#  endif
+    }
+    // Empty m_gpuBackend → LlmController hot-swaps to Gemini at model-load time.
 #endif
 }
 

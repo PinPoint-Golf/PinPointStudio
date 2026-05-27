@@ -52,6 +52,11 @@ public:
     bool    isReady()     const override { return m_ready; }
     QString gpuBackend()  const override { return m_gpuBackend; }
 
+    // Returns true if a usable GPU accelerator is present at runtime.
+    // Probes the same driver files used in the constructor so callers can
+    // decide whether to download the local model before creating an engine.
+    static bool hasGpu();
+
 private:
     // Format conversation history into Phi-4-mini chat template string.
     static QString buildPrompt(const QVariantList &history, const QString &systemPrompt);

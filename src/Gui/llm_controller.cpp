@@ -81,15 +81,33 @@ LlmController::LlmController(QObject *parent)
     const QString geminiKey = SecretsManager::read(QStringLiteral("geminiApiKey"));
     m_cloudToggleAvailable  = !geminiKey.isEmpty();
 
-    auto *engine = new LocalLlmEngine;
-    m_worker     = new LlmWorker(engine);
+    const bool gpuAvailable = LocalLlmEngine::hasGpu();
+
+    LlmEngine *engine;
+    if (!gpuAvailable && !geminiKey.isEmpty()) {
+        // No GPU: go straight to Gemini — no point downloading a 4.9 GB model
+        // that would never be used.
+        ppInfo() << "[LlmController] No GPU detected — AI Coach will use Gemini cloud;"
+                 << "local model download skipped.";
+        m_usingCloudLlm = true;
+        engine = new GeminiLlmEngine(geminiKey);
+    } else if (!gpuAvailable) {
+        ppWarn() << "[LlmController] No GPU and no Gemini API key — AI Coach unavailable.";
+        engine = new LocalLlmEngine;  // will fail at load; coach stays in not-ready state
+    } else {
+        engine = new LocalLlmEngine;
+    }
+
+    m_worker = new LlmWorker(engine);
     m_worker->moveToThread(m_workerThread);
     connectWorkerSignals();
     m_workerThread->start();
 
-    if (modelFilesExist()) {
+    if (m_usingCloudLlm) {
         triggerModelLoad();
-    } else {
+    } else if (modelFilesExist()) {
+        triggerModelLoad();
+    } else if (gpuAvailable) {
         startDownload();
     }
 }
@@ -416,8 +434,10 @@ void LlmController::switchToLocal()
 
     if (modelFilesExist())
         triggerModelLoad();
-    else
+    else if (LocalLlmEngine::hasGpu())
         startDownload();
+    else
+        ppWarn() << "[LlmController] switchToLocal: no GPU — download skipped.";
 }
 
 QString LlmController::modelDataDir() const
