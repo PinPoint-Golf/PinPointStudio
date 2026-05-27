@@ -614,8 +614,8 @@ if(WITH_ORTGENAI)
     target_compile_definitions(PinPoint PRIVATE HAVE_ORTGENAI)
 
     if(WIN32)
-        target_link_libraries(PinPoint PRIVATE "${_ortgenai_root}/lib/onnxruntime_genai.lib")
-        file(GLOB _ortgenai_dlls "${_ortgenai_root}/lib/onnxruntime_genai*.dll")
+        target_link_libraries(PinPoint PRIVATE "${_ortgenai_root}/lib/onnxruntime-genai.lib")
+        file(GLOB _ortgenai_dlls "${_ortgenai_root}/lib/onnxruntime-genai*.dll")
         foreach(_dll ${_ortgenai_dlls})
             add_custom_command(TARGET PinPoint POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dll}" "$<TARGET_FILE_DIR:PinPoint>"
