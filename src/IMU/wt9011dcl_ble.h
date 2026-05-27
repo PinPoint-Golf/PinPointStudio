@@ -21,6 +21,7 @@
 #include "wt9011dcl_base.h"
 #include "ble_imu_transport.h"
 #include "imu_capabilities.h"
+#include <QBluetoothAddress>
 #include <QBluetoothDeviceInfo>
 
 // WT9011DCL driver — Bluetooth LE transport.
@@ -62,8 +63,10 @@ public:
     void scan(int durationMs = 10000) { m_transport->scan(durationMs); }
     void stopScan()                   { m_transport->stopScan(); }
 
-    void connectToDevice(const QBluetoothDeviceInfo &device) { m_transport->connectToDevice(device); }
-    void disconnectFromDevice()                               { m_transport->disconnectFromDevice(); }
+    void connectToDevice(const QBluetoothDeviceInfo &device,
+                         const QBluetoothAddress &localAdapter = QBluetoothAddress())
+    { m_transport->connectToDevice(device, localAdapter); }
+    void disconnectFromDevice() { m_transport->disconnectFromDevice(); }
 
 signals:
     void stateChanged(WT9011DCL_BLE::State state);

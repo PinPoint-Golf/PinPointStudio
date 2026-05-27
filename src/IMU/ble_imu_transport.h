@@ -19,6 +19,7 @@
 #pragma once
 
 #include <QObject>
+#include <QBluetoothAddress>
 #include <QBluetoothDeviceDiscoveryAgent>
 #include <QBluetoothDeviceInfo>
 #include <QBluetoothUuid>
@@ -82,7 +83,10 @@ public:
     void scan(int durationMs = 10000);
     void stopScan();
 
-    void connectToDevice(const QBluetoothDeviceInfo &device);
+    // localAdapter: the HCI adapter to use for scanning and GATT connection.
+    // Pass QBluetoothAddress() (null) to use the system default (single-adapter path).
+    void connectToDevice(const QBluetoothDeviceInfo &device,
+                         const QBluetoothAddress &localAdapter = QBluetoothAddress());
     void disconnectFromDevice();
 
     // Write raw bytes to the connected device.  Safe to call only when isReady().
@@ -153,5 +157,6 @@ private:
     QElapsedTimer            m_connectTimer;
 
     QBluetoothDeviceInfo m_pendingDevice;
+    QBluetoothAddress    m_localAdapter;
     bool                 m_waitingForScanConfirm = false;
 };

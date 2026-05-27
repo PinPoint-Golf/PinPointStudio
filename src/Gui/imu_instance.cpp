@@ -18,6 +18,7 @@
 
 #include "imu_instance.h"
 
+#include "ble_adapter_pool.h"
 #include "event_buffer.h"
 #include "imu_sample.h"
 #include "source_descriptor.h"
@@ -254,7 +255,20 @@ void ImuInstance::start()
     m_inConnectPhase = true;
     appendLog(timestamp() + QStringLiteral("  >>> Connecting to: ")
               + m_deviceDescription + QStringLiteral(" [") + m_deviceId + QStringLiteral("]"));
+
+#ifdef Q_OS_LINUX
+    // On Linux, assign adapters round-robin across connections so multiple IMUs
+    // can stream simultaneously without contending for the same HCI adapter.
+    // nextAdapter() returns null when only one adapter is present, which falls
+    // back to the default-adapter path inside BleImuTransport.
+    const QBluetoothAddress adapter = BleAdapterPool::instance()->nextAdapter();
+    if (!adapter.isNull())
+        appendLog(timestamp() + QStringLiteral("  BT adapter: ") + adapter.toString());
+    m_imu->connectToDevice(deviceInfo, adapter);
+#else
     m_imu->connectToDevice(deviceInfo);
+#endif
+
     if (!m_busy) { m_busy = true; emit busyChanged(); }
 }
 

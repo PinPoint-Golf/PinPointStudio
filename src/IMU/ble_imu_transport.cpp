@@ -66,7 +66,12 @@ void BleImuTransport::teardownController()
 void BleImuTransport::ensureScannerCreated()
 {
     if (m_scanner) return;
-    m_scanner = new QBluetoothDeviceDiscoveryAgent(this);
+#ifdef Q_OS_LINUX
+    if (!m_localAdapter.isNull())
+        m_scanner = new QBluetoothDeviceDiscoveryAgent(m_localAdapter, this);
+    else
+#endif
+        m_scanner = new QBluetoothDeviceDiscoveryAgent(this);
     connect(m_scanner, &QBluetoothDeviceDiscoveryAgent::deviceDiscovered,
             this,      &BleImuTransport::onDeviceDiscovered);
     connect(m_scanner, &QBluetoothDeviceDiscoveryAgent::finished,
@@ -138,10 +143,24 @@ void BleImuTransport::onScanError(QBluetoothDeviceDiscoveryAgent::Error error)
 // Connection
 // ---------------------------------------------------------------------------
 
-void BleImuTransport::connectToDevice(const QBluetoothDeviceInfo &device)
+void BleImuTransport::connectToDevice(const QBluetoothDeviceInfo &device,
+                                       const QBluetoothAddress &localAdapter)
 {
     setState(State::Connecting);
     teardownController();
+
+    // Reset the scanner if the adapter has changed (e.g. a retry was assigned a
+    // different adapter by BleAdapterPool). ensureScannerCreated() uses m_localAdapter,
+    // so it must be updated before the scanner is (re)created.
+    if (localAdapter != m_localAdapter) {
+        if (m_scanner) {
+            m_scanner->stop();
+            m_scanner->deleteLater();
+            m_scanner = nullptr;
+        }
+        m_localAdapter = localAdapter;
+    }
+
     m_pendingDevice = device;
 
 #ifdef Q_OS_LINUX
@@ -167,11 +186,19 @@ void BleImuTransport::doConnect()
 {
     // On Linux the scan is still active here — BlueZ cache is warm.
     // On other platforms stopScan() was already called before this.
-    m_controller = QLowEnergyController::createCentral(m_pendingDevice, this);
+#ifdef Q_OS_LINUX
+    if (!m_localAdapter.isNull())
+        m_controller = QLowEnergyController::createCentral(m_pendingDevice, m_localAdapter, this);
+    else
+#endif
+        m_controller = QLowEnergyController::createCentral(m_pendingDevice, this);
 
-    emit diagnosticInfo(QStringLiteral("Connecting to %1 (RSSI=%2 dBm)")
-                        .arg(m_pendingDevice.address().toString())
-                        .arg(m_pendingDevice.rssi()));
+    emit diagnosticInfo(
+        QStringLiteral("Connecting to %1 via adapter %2 (RSSI=%3 dBm)")
+            .arg(m_pendingDevice.address().toString())
+            .arg(m_localAdapter.isNull() ? QStringLiteral("default")
+                                         : m_localAdapter.toString())
+            .arg(m_pendingDevice.rssi()));
 
     m_connectTimer.start();
 

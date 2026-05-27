@@ -18,6 +18,7 @@
 
 #include "imu_manager.h"
 
+#include "ble_adapter_pool.h"
 #include "event_buffer.h"
 
 ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, QObject *parent)
@@ -25,6 +26,10 @@ ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, 
     , m_eventBuffer(buffer)
     , m_appSettings(appSettings)
 {
+    // Enumerate local BT adapters before scanning so multi-adapter discovery
+    // and round-robin connection assignment are both ready from the start.
+    BleAdapterPool::instance()->initialize();
+
     // Start the async BLE scan.  Results arrive via deviceAdded and are
     // automatically reflected by imuList() / imuDeviceList() reading directly
     // from DeviceEnumerator — no local list copy needed.

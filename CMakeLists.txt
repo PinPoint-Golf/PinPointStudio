@@ -118,6 +118,7 @@ qt_add_executable(PinPoint
     src/IMU/imu_factory.h     src/IMU/imu_factory.cpp
     src/IMU/wt9011dcl_base.h  src/IMU/wt9011dcl_base.cpp
     src/IMU/wt9011dcl.h       src/IMU/wt9011dcl.cpp
+    src/IMU/ble_adapter_pool.h  src/IMU/ble_adapter_pool.cpp
     src/IMU/ble_imu_transport.h src/IMU/ble_imu_transport.cpp
     src/IMU/wt9011dcl_ble.h   src/IMU/wt9011dcl_ble.cpp
     src/Audio/audio_processor_base.h src/Audio/audio_processor_base.cpp

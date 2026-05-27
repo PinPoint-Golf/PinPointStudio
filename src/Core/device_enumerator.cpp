@@ -17,10 +17,12 @@
  */
 
 #include "device_enumerator.h"
+#include "ble_adapter_pool.h"
 #include "wt9011dcl_base.h"
 #include "pp_debug.h"
 #include <QCoreApplication>
 
+#include <QBluetoothAddress>
 #include <QBluetoothDeviceDiscoveryAgent>
 #include <QBluetoothDeviceInfo>
 #include <QBluetoothUuid>
@@ -42,22 +44,17 @@ public:
 public slots:
     void start()
     {
-        m_agent = new QBluetoothDeviceDiscoveryAgent(this);
-        m_agent->setLowEnergyDiscoveryTimeout(kTimeoutMs);
-
-        connect(m_agent, &QBluetoothDeviceDiscoveryAgent::deviceDiscovered,
-                this,    &ImuBleScanner::onDeviceDiscovered);
-        connect(m_agent, &QBluetoothDeviceDiscoveryAgent::finished,
-                this,    &ImuBleScanner::onScanFinished);
-        connect(m_agent, &QBluetoothDeviceDiscoveryAgent::canceled,
-                this,    &ImuBleScanner::onScanFinished);
-        connect(m_agent,
-                QOverload<QBluetoothDeviceDiscoveryAgent::Error>::of(
-                    &QBluetoothDeviceDiscoveryAgent::errorOccurred),
-                this, &ImuBleScanner::onScanError);
-
-        ppInfo() << "[IMU] BLE scan started (timeout" << kTimeoutMs / 1000 << "s)";
-        m_agent->start(QBluetoothDeviceDiscoveryAgent::LowEnergyMethod);
+        // On Linux with multiple adapters, start one scan agent per adapter so
+        // devices in range of any adapter are discovered.  On single-adapter
+        // setups (or non-Linux), a single default-adapter agent is used.
+        const QList<QBluetoothAddress> adapterAddrs = BleAdapterPool::instance()->adapters();
+        if (adapterAddrs.size() > 1) {
+            for (const QBluetoothAddress &addr : adapterAddrs)
+                createAgent(addr);
+        } else {
+            createAgent(QBluetoothAddress()); // null → default constructor
+        }
+        m_pendingAgents = m_agents.size();
     }
 
 signals:
@@ -83,19 +80,51 @@ private slots:
 
     void onScanFinished()
     {
-        ppInfo() << "[IMU] BLE scan finished";
-        emit finished();
+        ppInfo() << "[IMU] BLE scan agent finished";
+        if (--m_pendingAgents <= 0) {
+            ppInfo() << "[IMU] All BLE scan agents finished";
+            emit finished();
+        }
     }
 
     void onScanError(QBluetoothDeviceDiscoveryAgent::Error error)
     {
+        auto *agent = qobject_cast<QBluetoothDeviceDiscoveryAgent *>(sender());
         ppWarn() << "[IMU] BLE scan error:" << error
-                 << (m_agent ? m_agent->errorString() : QString{});
-        emit finished();
+                 << (agent ? agent->errorString() : QString{});
+        if (--m_pendingAgents <= 0)
+            emit finished();
     }
 
 private:
-    QBluetoothDeviceDiscoveryAgent *m_agent = nullptr;
+    void createAgent(const QBluetoothAddress &addr)
+    {
+        QBluetoothDeviceDiscoveryAgent *agent =
+            addr.isNull() ? new QBluetoothDeviceDiscoveryAgent(this)
+                          : new QBluetoothDeviceDiscoveryAgent(addr, this);
+        agent->setLowEnergyDiscoveryTimeout(kTimeoutMs);
+
+        connect(agent, &QBluetoothDeviceDiscoveryAgent::deviceDiscovered,
+                this,  &ImuBleScanner::onDeviceDiscovered);
+        connect(agent, &QBluetoothDeviceDiscoveryAgent::finished,
+                this,  &ImuBleScanner::onScanFinished);
+        connect(agent, &QBluetoothDeviceDiscoveryAgent::canceled,
+                this,  &ImuBleScanner::onScanFinished);
+        connect(agent,
+                QOverload<QBluetoothDeviceDiscoveryAgent::Error>::of(
+                    &QBluetoothDeviceDiscoveryAgent::errorOccurred),
+                this, &ImuBleScanner::onScanError);
+
+        ppInfo() << "[IMU] BLE scan started on"
+                 << (addr.isNull() ? QStringLiteral("default adapter")
+                                   : addr.toString())
+                 << "(timeout" << kTimeoutMs / 1000 << "s)";
+        agent->start(QBluetoothDeviceDiscoveryAgent::LowEnergyMethod);
+        m_agents.append(agent);
+    }
+
+    QList<QBluetoothDeviceDiscoveryAgent *> m_agents;
+    int m_pendingAgents = 0;
     static constexpr int kTimeoutMs = 30'000;
 };
 
