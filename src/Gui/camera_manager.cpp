@@ -492,7 +492,7 @@ QObject *CameraManager::createPreviewController(int index)
     if (index < 0 || index >= m_cameras.size()) return nullptr;
 
     // nullptr buffer → no ring-buffer registration, no pose/throttle pipeline
-    auto *ctrl = new VideoController(m_cameras[index].device, nullptr, this);
+    auto *ctrl = new VideoController(m_cameras[index].device, nullptr, m_appSettings, this);
 
     const QString key = cameraKey(m_cameras[index]);
     AppSettings  rfallback;
@@ -519,7 +519,7 @@ void CameraManager::destroyPreviewController(QObject *ctrl)
 
 VideoController *CameraManager::createController(const Device &device)
 {
-    auto *ctrl = new VideoController(device, m_eventBuffer, this);
+    auto *ctrl = new VideoController(device, m_eventBuffer, m_appSettings, this);
     connect(ctrl, &VideoController::ballPresentChanged,
             this, &CameraManager::onCameraBallPresenceChanged);
 

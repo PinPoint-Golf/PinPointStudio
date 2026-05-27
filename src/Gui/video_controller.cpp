@@ -89,19 +89,25 @@ VideoController::VideoController(QObject *parent)
     setupPipeline();
 }
 
-VideoController::VideoController(const Device &device, pinpoint::EventBuffer *buffer, QObject *parent)
+VideoController::VideoController(const Device &device, pinpoint::EventBuffer *buffer,
+                                 AppSettings *appSettings, QObject *parent)
     : QObject(parent)
     , m_captureThread(new QThread(this))
     , m_deviceId(device.id)
     , m_deviceDescription(device.description)
     , m_deviceSerialNumber(device.capabilities.serialNumber)
-    , m_deviceAlias(AppSettings().cameraAlias().value(
-          device.description + QStringLiteral("|") +
-          (device.capabilities.serialNumber.isEmpty() ? device.id : device.capabilities.serialNumber)
-      ).toString())
     , m_videoInput(VideoInputFactory::create(device.backend))
     , m_eventBuffer(buffer)
 {
+    // Read the saved alias from the shared AppSettings instance owned by main().
+    // When no pointer is supplied (tests/tools) the alias is simply left empty.
+    if (appSettings) {
+        const QString key = device.description + QStringLiteral("|") +
+            (device.capabilities.serialNumber.isEmpty() ? device.id
+                                                         : device.capabilities.serialNumber);
+        m_deviceAlias = appSettings->cameraAlias().value(key).toString();
+    }
+
     // Register the source before EventBuffer::start() is called in main().
     // Capabilities were queried at enumeration time (VideoInputFactory::enumerateDevices)
     // and stored in the Device struct — use them directly without re-opening the camera.

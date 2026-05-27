@@ -36,6 +36,7 @@
 
 namespace pinpoint { class EventBuffer; }
 
+class AppSettings;
 class QThread;
 class QVideoFrame;
 class QVideoSink;
@@ -94,6 +95,7 @@ public:
     explicit VideoController(QObject *parent = nullptr);
     explicit VideoController(const Device &device,
                              pinpoint::EventBuffer *buffer = nullptr,
+                             AppSettings *appSettings = nullptr,
                              QObject *parent = nullptr);
     ~VideoController() override;
 
