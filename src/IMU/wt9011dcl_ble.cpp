@@ -160,25 +160,28 @@ void WT9011DCL_BLE::teardownController()
 // Scanning
 // ---------------------------------------------------------------------------
 
+void WT9011DCL_BLE::ensureScannerCreated()
+{
+    if (m_scanner) return;
+    m_scanner = new QBluetoothDeviceDiscoveryAgent(this);
+    connect(m_scanner, &QBluetoothDeviceDiscoveryAgent::deviceDiscovered,
+            this,      &WT9011DCL_BLE::onDeviceDiscovered);
+    connect(m_scanner, &QBluetoothDeviceDiscoveryAgent::finished,
+            this,      &WT9011DCL_BLE::onScanFinished);
+    connect(m_scanner, &QBluetoothDeviceDiscoveryAgent::canceled,
+            this,      &WT9011DCL_BLE::onScanFinished);
+    connect(m_scanner,
+            QOverload<QBluetoothDeviceDiscoveryAgent::Error>::of(
+                &QBluetoothDeviceDiscoveryAgent::errorOccurred),
+            this, &WT9011DCL_BLE::onScanError);
+}
+
 void WT9011DCL_BLE::scan(int durationMs)
 {
     if (m_state == State::Scanning)
         return;
 
-    if (!m_scanner) {
-        m_scanner = new QBluetoothDeviceDiscoveryAgent(this);
-        connect(m_scanner, &QBluetoothDeviceDiscoveryAgent::deviceDiscovered,
-                this,      &WT9011DCL_BLE::onDeviceDiscovered);
-        connect(m_scanner, &QBluetoothDeviceDiscoveryAgent::finished,
-                this,      &WT9011DCL_BLE::onScanFinished);
-        connect(m_scanner, &QBluetoothDeviceDiscoveryAgent::canceled,
-                this,      &WT9011DCL_BLE::onScanFinished);
-        connect(m_scanner,
-                QOverload<QBluetoothDeviceDiscoveryAgent::Error>::of(
-                    &QBluetoothDeviceDiscoveryAgent::errorOccurred),
-                this, &WT9011DCL_BLE::onScanError);
-    }
-
+    ensureScannerCreated();
     m_scanner->setLowEnergyDiscoveryTimeout(durationMs);
     setState(State::Scanning);
     m_scanner->start(QBluetoothDeviceDiscoveryAgent::LowEnergyMethod);
@@ -202,12 +205,32 @@ void WT9011DCL_BLE::onDeviceDiscovered(const QBluetoothDeviceInfo &device)
 
     if (hasServiceUuid || hasKnownName)
         emit deviceDiscovered(device);
+
+#ifdef Q_OS_LINUX
+    // If we are waiting for the target device to appear in the scan (connect phase),
+    // call doConnect() as soon as we see it — the scan is still active so the BlueZ
+    // advertising cache is warm at the moment connectToDevice() is issued.
+    if (m_waitingForScanConfirm && matchesPendingDevice(device)) {
+        m_waitingForScanConfirm = false;
+        emit diagnosticInfo(QStringLiteral("Target seen in scan — connecting now (scan still active)"));
+        doConnect();
+    }
+#endif
 }
 
 void WT9011DCL_BLE::onScanFinished()
 {
-    if (m_state == State::Scanning)
+    if (m_state == State::Scanning) {
         setState(State::Disconnected);
+#ifdef Q_OS_LINUX
+    } else if (m_waitingForScanConfirm) {
+        // Scan timed out (kConnectScanMs) before the target device was seen.
+        // Treat as a connection failure so ImuInstance's retry logic fires.
+        m_waitingForScanConfirm = false;
+        setState(State::Error);
+        emit errorOccurred(QStringLiteral("Device not found during connection scan — check device is powered on and advertising"));
+#endif
+    }
     emit scanFinished();
 }
 
@@ -224,17 +247,38 @@ void WT9011DCL_BLE::onScanError(QBluetoothDeviceDiscoveryAgent::Error error)
 
 void WT9011DCL_BLE::connectToDevice(const QBluetoothDeviceInfo &device)
 {
-    // Set Connecting *before* stopScan so that onScanFinished does not
-    // transition back through Disconnected and clear the busy/connected state.
     setState(State::Connecting);
-    stopScan();
     teardownController();
+    m_pendingDevice = device;
 
-    m_controller = QLowEnergyController::createCentral(device, this);
+#ifdef Q_OS_LINUX
+    // BlueZ 6.x requires an active HCI scan when connectToDevice() is called —
+    // the kernel's advertising cache expires quickly when no scan is running.
+    // Start a scan now; doConnect() is called from onDeviceDiscovered() once the
+    // target is confirmed in the cache, while the scan is still active.
+    m_waitingForScanConfirm = true;
+    ensureScannerCreated();
+    if (!m_scanner->isActive()) {
+        m_scanner->setLowEnergyDiscoveryTimeout(kConnectScanMs);
+        m_scanner->start(QBluetoothDeviceDiscoveryAgent::LowEnergyMethod);
+    }
+    emit diagnosticInfo(QStringLiteral("Scan started to warm BlueZ cache — will connect to %1 when seen")
+                        .arg(device.address().toString()));
+#else
+    stopScan();
+    doConnect();
+#endif
+}
+
+void WT9011DCL_BLE::doConnect()
+{
+    // On Linux the scan is still active here — BlueZ cache is warm.
+    // On other platforms stopScan() was already called before this.
+    m_controller = QLowEnergyController::createCentral(m_pendingDevice, this);
 
     emit diagnosticInfo(QStringLiteral("Connecting to %1 (RSSI=%2 dBm)")
-                        .arg(device.address().toString())
-                        .arg(device.rssi()));
+                        .arg(m_pendingDevice.address().toString())
+                        .arg(m_pendingDevice.rssi()));
 
     m_connectTimer.start();
 
@@ -254,6 +298,16 @@ void WT9011DCL_BLE::connectToDevice(const QBluetoothDeviceInfo &device)
     m_controller->connectToDevice();
 }
 
+bool WT9011DCL_BLE::matchesPendingDevice(const QBluetoothDeviceInfo &d) const
+{
+    if (!m_pendingDevice.isValid()) return false;
+    if (!d.address().isNull() && !m_pendingDevice.address().isNull())
+        return d.address() == m_pendingDevice.address();
+    if (!d.deviceUuid().isNull() && !m_pendingDevice.deviceUuid().isNull())
+        return d.deviceUuid() == m_pendingDevice.deviceUuid();
+    return false;
+}
+
 void WT9011DCL_BLE::disconnectFromDevice()
 {
     teardownController();
@@ -267,6 +321,9 @@ void WT9011DCL_BLE::disconnectFromDevice()
 
 void WT9011DCL_BLE::onControllerConnected()
 {
+    // HCI connection established — the scan is no longer needed. GATT service
+    // discovery proceeds over the L2CAP link and does not require advertising.
+    stopScan();
     emit diagnosticInfo(
         QStringLiteral("BLE link established in %1 ms — discovering services")
         .arg(m_connectTimer.elapsed()));
@@ -293,6 +350,7 @@ void WT9011DCL_BLE::onServiceDiscoveryFinished()
 
 void WT9011DCL_BLE::onControllerError(QLowEnergyController::Error error)
 {
+    stopScan();
     setState(State::Error);
     const QString errStr = m_controller ? m_controller->errorString()
                                         : QStringLiteral("(controller already torn down)");

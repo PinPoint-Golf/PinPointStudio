@@ -119,6 +119,20 @@ private:
     void enableNotifications();
     void initializeDevice();
 
+    // Lazy-initialises m_scanner and wires its signals without changing state.
+    // Called from both scan() and connectToDevice() so the scanner is always
+    // created exactly once regardless of which path is used first.
+    void ensureScannerCreated();
+
+    // Extracts the QLowEnergyController setup from connectToDevice() so it can
+    // be deferred until the target device is confirmed in the BlueZ cache.
+    void doConnect();
+
+    // Returns true if device matches the pending connection target (address or UUID).
+    bool matchesPendingDevice(const QBluetoothDeviceInfo &d) const;
+
+    static constexpr int kConnectScanMs = 10'000; // scan timeout during connect phase
+
     State      m_state = State::Disconnected;
     OutputRate m_rate  = OutputRate::Hz_100; // stored so initializeDevice re-applies it
 
@@ -129,4 +143,11 @@ private:
     QLowEnergyCharacteristic m_writeChar;
     QLowEnergyCharacteristic m_notifyChar;
     QElapsedTimer            m_connectTimer;
+
+    // Linux 6.x BlueZ requires an active scan when QLowEnergyController::connectToDevice()
+    // is called. m_pendingDevice stores the target; m_waitingForScanConfirm is true from
+    // connectToDevice() until onDeviceDiscovered() sees the target (confirming the BlueZ
+    // advertising cache is warm), at which point doConnect() is called.
+    QBluetoothDeviceInfo m_pendingDevice;
+    bool                 m_waitingForScanConfirm = false;
 };
