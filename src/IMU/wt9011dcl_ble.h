@@ -19,28 +19,22 @@
 #pragma once
 
 #include "wt9011dcl_base.h"
+#include "ble_imu_transport.h"
 #include "imu_capabilities.h"
-#include <QBluetoothDeviceDiscoveryAgent>
-#include <QElapsedTimer>
 #include <QBluetoothDeviceInfo>
-#include <QBluetoothUuid>
-#include <QLowEnergyController>
-#include <QLowEnergyService>
-#include <QLowEnergyCharacteristic>
 
-// WT9011DCL driver — Bluetooth BLE transport.
+// WT9011DCL driver — Bluetooth LE transport.
 //
-// The device exposes a custom BLE UART bridge service; the binary packet
-// protocol is identical to the UART version, only the transport differs.
+// Provides the WT901-specific layer on top of BleImuTransport: GATT UUID
+// configuration, device initialisation register sequence, axis-remapping
+// eulerToQuat() override, and capabilities declaration.
 //
-// BLE UUIDs (WITMOTION custom UART service):
-//   Service  : 0000ffe5-0000-1000-8000-00805f9b34fb
-//   Notify   : 0000ffe4-0000-1000-8000-00805f9b34fb  (device → host)
-//   Write    : 0000ffe9-0000-1000-8000-00805f9b34fb  (host → device)
+// The generic BLE connection state machine (scanning, GATT setup, Linux 6.x
+// scan-before-connect fix) lives entirely in BleImuTransport.
 //
 // Usage:
 //   WT9011DCL_BLE imu;
-//   connect(&imu, &WT9011DCL_BLE::deviceDiscovered, this, [&](auto &info){
+//   connect(&imu, &WT9011DCL_BLE::deviceDiscovered, &imu, [&](auto &info){
 //       imu.connectToDevice(info);
 //   });
 //   connect(&imu, &WT9011DCL_BLE::eulerAnglesUpdated, this, &MyClass::onAngles);
@@ -51,20 +45,9 @@ class WT9011DCL_BLE : public WT9011DCL_Base
     Q_OBJECT
 
 public:
-    enum class State {
-        Disconnected,
-        Scanning,
-        Connecting,
-        DiscoveringServices,
-        Ready,
-        Error,
-    };
-    Q_ENUM(State)
-
-    // Override these statics before scanning if your firmware uses different UUIDs.
-    static QBluetoothUuid ServiceUuid;
-    static QBluetoothUuid NotifyCharUuid;
-    static QBluetoothUuid WriteCharUuid;
+    // Re-export BleImuTransport::State under this class name so existing callers
+    // (ImuInstance, etc.) don't need to know about BleImuTransport.
+    using State = BleImuTransport::State;
 
     explicit WT9011DCL_BLE(QObject *parent = nullptr);
     ~WT9011DCL_BLE() override;
@@ -72,20 +55,20 @@ public:
     Transport       transport()    const override { return Transport::Ble; }
     ImuCapabilities capabilities() const override;
 
-    State state()   const { return m_state; }
-    bool  isReady() const { return m_state == State::Ready; }
+    State state()   const { return m_transport->state(); }
+    bool  isReady() const { return m_transport->isReady(); }
 
     // Scan for nearby BLE devices; durationMs=0 scans until stopScan().
-    void scan(int durationMs = 10000);
-    void stopScan();
+    void scan(int durationMs = 10000) { m_transport->scan(durationMs); }
+    void stopScan()                   { m_transport->stopScan(); }
 
-    void connectToDevice(const QBluetoothDeviceInfo &device);
-    void disconnectFromDevice();
+    void connectToDevice(const QBluetoothDeviceInfo &device) { m_transport->connectToDevice(device); }
+    void disconnectFromDevice()                               { m_transport->disconnectFromDevice(); }
 
 signals:
     void stateChanged(WT9011DCL_BLE::State state);
     void deviceDiscovered(const QBluetoothDeviceInfo &device);
-    void rawDeviceFound(const QBluetoothDeviceInfo &device);   // every BLE device seen
+    void rawDeviceFound(const QBluetoothDeviceInfo &device);
     void scanFinished();
 
 public:
@@ -96,58 +79,9 @@ protected:
     void writeToDevice(const QByteArray &data) override;
     std::optional<QuaternionData> eulerToQuat(const EulerAngles &e) const override;
 
-private slots:
-    void onDeviceDiscovered(const QBluetoothDeviceInfo &device);
-    void onScanFinished();
-    void onScanError(QBluetoothDeviceDiscoveryAgent::Error error);
-
-    void onControllerConnected();
-    void onControllerDisconnected();
-    void onServiceDiscovered(const QBluetoothUuid &uuid);
-    void onServiceDiscoveryFinished();
-    void onControllerError(QLowEnergyController::Error error);
-
-    void onServiceStateChanged(QLowEnergyService::ServiceState newState);
-    void onCharacteristicChanged(const QLowEnergyCharacteristic &c,
-                                 const QByteArray &value);
-    void onServiceError(QLowEnergyService::ServiceError error);
-
 private:
-    void setState(State s);
-    void teardownController();
-    void setupService();
-    void enableNotifications();
     void initializeDevice();
 
-    // Lazy-initialises m_scanner and wires its signals without changing state.
-    // Called from both scan() and connectToDevice() so the scanner is always
-    // created exactly once regardless of which path is used first.
-    void ensureScannerCreated();
-
-    // Extracts the QLowEnergyController setup from connectToDevice() so it can
-    // be deferred until the target device is confirmed in the BlueZ cache.
-    void doConnect();
-
-    // Returns true if device matches the pending connection target (address or UUID).
-    bool matchesPendingDevice(const QBluetoothDeviceInfo &d) const;
-
-    static constexpr int kConnectScanMs = 10'000; // scan timeout during connect phase
-
-    State      m_state = State::Disconnected;
-    OutputRate m_rate  = OutputRate::Hz_100; // stored so initializeDevice re-applies it
-
-    QBluetoothDeviceDiscoveryAgent *m_scanner    = nullptr;
-    QLowEnergyController           *m_controller = nullptr;
-    QLowEnergyService              *m_service    = nullptr;
-
-    QLowEnergyCharacteristic m_writeChar;
-    QLowEnergyCharacteristic m_notifyChar;
-    QElapsedTimer            m_connectTimer;
-
-    // Linux 6.x BlueZ requires an active scan when QLowEnergyController::connectToDevice()
-    // is called. m_pendingDevice stores the target; m_waitingForScanConfirm is true from
-    // connectToDevice() until onDeviceDiscovered() sees the target (confirming the BlueZ
-    // advertising cache is warm), at which point doConnect() is called.
-    QBluetoothDeviceInfo m_pendingDevice;
-    bool                 m_waitingForScanConfirm = false;
+    BleImuTransport *m_transport;
+    OutputRate       m_rate = OutputRate::Hz_100;
 };

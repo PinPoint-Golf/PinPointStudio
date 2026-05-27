@@ -31,9 +31,12 @@ struct ImuCapabilities;
 //
 // Class hierarchy:
 //   ImuBase
-//     └─ WT9011DCL_Base  (WitMotion packet protocol)
+//     └─ WT9011DCL_Base  (WitMotion packet protocol, transport-agnostic)
 //          ├─ WT9011DCL       (UART/serial transport)
-//          └─ WT9011DCL_BLE   (Bluetooth LE transport)
+//          └─ WT9011DCL_BLE   (WT901 BLE config; delegates connection to BleImuTransport)
+//
+//   BleImuTransport  (generic BLE state machine — scan, GATT, Linux fix;
+//                     owned by composition inside WT9011DCL_BLE)
 
 class ImuBase : public QObject
 {
