@@ -93,6 +93,7 @@ Item {
                     text:           qsTr("Welcome to Pinpoint")
                     font.family:    Theme.fontDisplay
                     font.italic:    Theme.fontDisplayItalic
+                    font.weight: Theme.fontDisplayWeight
                     font.pixelSize: Theme.fontSzDisplay
                     color:          Theme.colorText
                     wrapMode:       Text.WordWrap
@@ -105,7 +106,7 @@ Item {
                     text:           qsTr("An open-source workshop for understanding the golf swing — cameras, IMUs, and ground forces working together to show you what's actually happening.")
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody
-                    font.weight:    Font.Light
+                    font.weight:    Theme.fontBodyWeight
                     color:          Theme.colorText2
                     wrapMode:       Text.WordWrap
                     lineHeight:     1.7
@@ -126,7 +127,7 @@ Item {
                     text:           qsTr("Every session belongs to someone. That's usually you.")
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Font.Light
+                    font.weight:    Theme.fontBodyWeight
                     color:          Theme.colorText3
                 }
                 Item { width: 1; height: Theme.sp(16) }
@@ -198,7 +199,7 @@ Item {
                                     text:           modelData.desc
                                     font.family:    Theme.fontBody
                                     font.pixelSize: Theme.fontSzBody2
-                                    font.weight:    Font.Light
+                                    font.weight:    Theme.fontBodyWeight
                                     color:          Theme.colorText3
                                     wrapMode:       Text.WordWrap
                                     lineHeight:     1.4
@@ -222,7 +223,7 @@ Item {
                     text:                qsTr("Nothing connects to the cloud unless you configure it.")
                     font.family:         Theme.fontBody
                     font.pixelSize:      Theme.fontSzBody2
-                    font.weight:         Font.Light
+                    font.weight:         Theme.fontBodyWeight
                     color:               Theme.colorText3
                     horizontalAlignment: Text.AlignHCenter
                 }
@@ -265,6 +266,7 @@ Item {
                         text:           athleteController.currentName
                         font.family:    Theme.fontDisplay
                         font.italic:    Theme.fontDisplayItalic
+                        font.weight: Theme.fontDisplayWeight
                         font.pixelSize: Math.min(Theme.fontSzDisplay, 24)
                         color:          Theme.colorText
                         elide:          Text.ElideRight
@@ -445,7 +447,7 @@ Item {
                     text:           qsTr("No devices detected. Connect a camera or IMU to get started.")
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Font.Light
+                    font.weight:    Theme.fontBodyWeight
                     color:          Theme.colorText3
                 }
             }

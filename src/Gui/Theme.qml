@@ -196,7 +196,7 @@ QtObject {
     // ── Font family tokens ───────────────────────────────────────────────────
     // Falls back to the system default if the font file is not installed.
     readonly property string fontBody: {
-        if (aesthetic === "instrument") return "DM Sans"
+        if (aesthetic === "instrument") return "Georgia"
         if (aesthetic === "editorial")  return "Instrument Sans"
         if (aesthetic === "vector")     return "Space Grotesk"
         return "Geist"
@@ -208,7 +208,7 @@ QtObject {
         return "Geist Mono"
     }
     readonly property string fontDisplay: {
-        if (aesthetic === "instrument") return "DM Serif Display"
+        if (aesthetic === "instrument") return "Georgia"
         if (aesthetic === "editorial")  return "Playfair Display"
         if (aesthetic === "vector")     return "Space Mono"
         return "Geist"
@@ -218,6 +218,9 @@ QtObject {
     // same characters as flat monochrome glyphs and prevents that fallback.
     // On macOS, Apple Color Emoji does the same — Apple Symbols provides flat
     // monochrome glyphs for those codepoints and wins the font-selection race.
+    // Georgia (Instrument fontBody) has no Light variant — use Normal to avoid silent rounding.
+    readonly property int fontBodyWeight: aesthetic === "instrument" ? Font.Normal : Font.Light
+
     readonly property string fontSymbol: {
         if (Qt.platform.os === "windows") return "Segoe UI Symbol"
         if (Qt.platform.os === "osx")     return "Apple Symbols"
@@ -232,7 +235,8 @@ QtObject {
                  : 22
         return Math.round(base * fontScale)
     }
-    readonly property bool fontDisplayItalic: aesthetic !== "studio" && aesthetic !== "vector"
+    readonly property bool fontDisplayItalic: aesthetic === "editorial"
+    readonly property int  fontDisplayWeight: aesthetic === "instrument" ? Font.Bold : Font.Normal
 
     readonly property int  fontSzData:    Math.round(20 * fontScale)
     readonly property int  fontSzDataSm:  Math.round(13 * fontScale)

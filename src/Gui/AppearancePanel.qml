@@ -103,6 +103,7 @@ Item {
                 text: qsTr("Appearance")
                 font.family:  Theme.fontDisplay
                 font.italic:  Theme.fontDisplayItalic
+                font.weight: Theme.fontDisplayWeight
                 font.pixelSize: Theme.fontSzDisplay
                 color: Theme.colorText
             }
@@ -111,7 +112,7 @@ Item {
                 text: qsTr("Aesthetic, colour mode, type scale and interface behaviour.")
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody2
-                font.weight:    Font.Light
+                font.weight:    Theme.fontBodyWeight
                 color:          Theme.colorText3
                 wrapMode:       Text.WordWrap
                 Layout.fillWidth: true
@@ -432,6 +433,7 @@ Item {
                                 text:        "Pinpoint"
                                 font.family: Theme.fontDisplay
                                 font.italic: Theme.fontDisplayItalic
+                                font.weight: Theme.fontDisplayWeight
                                 font.pixelSize: Theme.fontSzBody
                                 color: Theme.colorText
                             }
@@ -522,6 +524,7 @@ Item {
                                         text:        modelData.value
                                         font.family: Theme.fontDisplay
                                         font.italic: Theme.fontDisplayItalic
+                                        font.weight: Theme.fontDisplayWeight
                                         font.pixelSize: Theme.fontSzHeading
                                         color: Theme.colorText
                                         Layout.alignment: Qt.AlignHCenter

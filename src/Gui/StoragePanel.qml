@@ -236,6 +236,7 @@ Item {
                 text:           qsTr("Storage")
                 font.family:    Theme.fontDisplay
                 font.italic:    Theme.fontDisplayItalic
+                font.weight: Theme.fontDisplayWeight
                 font.pixelSize: Theme.fontSzDisplay
                 color:          Theme.colorText
             }
@@ -244,7 +245,7 @@ Item {
                 text:             qsTr("Athlete library location, video recording format, and sensor data export. Retention and archiving policies are configured separately.")
                 font.family:      Theme.fontBody
                 font.pixelSize:   Theme.fontSzBody2
-                font.weight:      Font.Light
+                font.weight:      Theme.fontBodyWeight
                 color:            Theme.colorText3
                 wrapMode:         Text.WordWrap
                 Layout.fillWidth: true
@@ -494,7 +495,7 @@ Item {
 
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody2
-                        font.weight:    Font.Light
+                        font.weight:    Theme.fontBodyWeight
 
                         contentItem: Text {
                             leftPadding:       Theme.sp(10)
@@ -552,7 +553,7 @@ Item {
                                 text:              modelData
                                 font.family:       Theme.fontBody
                                 font.pixelSize:    Theme.fontSzBody2
-                                font.weight:       Font.Light
+                                font.weight:       Theme.fontBodyWeight
                                 color:             Theme.colorText
                                 verticalAlignment: Text.AlignVCenter
                             }

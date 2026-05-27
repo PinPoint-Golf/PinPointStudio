@@ -103,7 +103,7 @@ QtObject {
     // fontBody: primary UI font (menus, labels, body copy)
     // fontData: monospaced font for all numeric values, timestamps, status
     // fontDisplay: display font for headings/session titles
-    //              Instrument: DM Serif Display (italic)
+    //              Instrument: DM Serif Display (italic) — fontBody is Georgia (serif)
     //              Editorial:  Playfair Display (italic)
     //              Vector:     Space Mono (upright — no italic variant)
     //              Studio:     Geist (same as fontBody, no separate display font)
@@ -160,7 +160,7 @@ QtObject {
     property color goodLight:    Qt.rgba(30/255, 77/255, 58/255, 0.09)
     property color warn:         "#7A3B1E"
     property color warnLight:    Qt.rgba(122/255, 59/255, 30/255, 0.08)
-    property string fontBody:    "DM Sans"
+    property string fontBody:    "Georgia"
     property string fontData:    "DM Mono"
     property string fontDisplay: "DM Serif Display"
     property int railWidth:      56
@@ -302,6 +302,10 @@ FontLoader { id: flSpaceMonoBold;    source: "qrc:/fonts/SpaceMono-Bold.ttf" }
 Use `Font.Light` and `Font.Normal` only. Never use `Font.DemiBold` or `Font.Bold`
 in Pinpoint UI — it reads as too heavy against the ambient chrome.
 
+When setting weight on a `fontBody` element, use `Theme.fontBodyWeight` instead of
+`Font.Light` directly. Georgia (Instrument) has no Light variant; the token returns
+`Font.Normal` for Instrument and `Font.Light` for all other aesthetics.
+
 ---
 
 ## 5. TYPOGRAPHY SCALE
@@ -317,8 +321,8 @@ so the aesthetic switch can rescale without touching components.
 | `display` | Vector     | 24 | Normal | Space Mono (upright — no italic) |
 | `heading` | all        | 16 | Normal | fontBody |
 | `body`    | all        | 13 | Normal | fontBody |
-| `body2`   | all        | 12 | Light  | fontBody |
-| `label`   | all        | 11 | Light  | fontBody, uppercase, tracking +0.06em |
+| `body2`   | all        | 12 | `fontBodyWeight` | fontBody |
+| `label`   | all        | 11 | `fontBodyWeight` | fontBody, uppercase, tracking +0.06em |
 | `data`    | all        | 18–22 | Light | fontData |
 | `dataSm`  | all        | 13 | Light  | fontData |
 | `micro`   | all        | 10 | Normal | fontData, uppercase, tracking +0.07em |

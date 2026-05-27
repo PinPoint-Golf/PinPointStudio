@@ -330,7 +330,7 @@ Item {
 
                             font.family:    Theme.fontBody
                             font.pixelSize: Theme.fontSzBody2
-                            font.weight:    Font.Light
+                            font.weight:    Theme.fontBodyWeight
 
                             contentItem: Text {
                                 leftPadding: Theme.sp(10)
@@ -390,7 +390,7 @@ Item {
                                     text:  modelData
                                     font.family:    Theme.fontBody
                                     font.pixelSize: Theme.fontSzBody2
-                                    font.weight:    Font.Light
+                                    font.weight:    Theme.fontBodyWeight
                                     color: parent.enabled ? Theme.colorText : Theme.colorText3
                                     verticalAlignment: Text.AlignVCenter
                                 }
@@ -641,7 +641,7 @@ Item {
                             text:           qsTr("Test")
                             font.family:    Theme.fontBody
                             font.pixelSize: Theme.fontSzBody2
-                            font.weight:    Font.Light
+                            font.weight:    Theme.fontBodyWeight
                             color:          testBtn.active ? Theme.colorAccent : Theme.colorText2
                             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                         }
@@ -800,7 +800,7 @@ Item {
                             text:           qsTr("Disconnect")
                             font.family:    Theme.fontBody
                             font.pixelSize: Theme.fontSzBody2
-                            font.weight:    Font.Light
+                            font.weight:    Theme.fontBodyWeight
                         }
 
                         Text {
@@ -809,7 +809,7 @@ Item {
                             text:           connBtn.connected ? qsTr("Disconnect") : qsTr("Connect")
                             font.family:    Theme.fontBody
                             font.pixelSize: Theme.fontSzBody2
-                            font.weight:    Font.Light
+                            font.weight:    Theme.fontBodyWeight
                             color:          connBtn.connected ? Theme.colorWarn : Theme.colorAccent
                             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                         }
@@ -1113,7 +1113,7 @@ Item {
                                         text:           qsTr("Zero orientation")
                                         font.family:    Theme.fontBody
                                         font.pixelSize: Theme.fontSzBody2
-                                        font.weight:    Font.Light
+                                        font.weight:    Theme.fontBodyWeight
                                         color:          parent.parent.parent.enabled
                                                             ? Theme.colorText2 : Theme.colorText3
                                     }
@@ -1142,7 +1142,7 @@ Item {
                                         text:           qsTr("Calibrate mag")
                                         font.family:    Theme.fontBody
                                         font.pixelSize: Theme.fontSzBody2
-                                        font.weight:    Font.Light
+                                        font.weight:    Theme.fontBodyWeight
                                         color:          Theme.colorText3
                                     }
                                     // TODO: imuManager.calibrateMagnetometer() — not implemented yet
@@ -1165,7 +1165,7 @@ Item {
                                         text:           qsTr("Save to flash")
                                         font.family:    Theme.fontBody
                                         font.pixelSize: Theme.fontSzBody2
-                                        font.weight:    Font.Light
+                                        font.weight:    Theme.fontBodyWeight
                                         color:          Theme.colorText3
                                     }
                                     // TODO: imuManager.saveConfigToFlash() — not implemented yet
@@ -1246,6 +1246,7 @@ Item {
                 text:           qsTr("IMUs")
                 font.family:    Theme.fontDisplay
                 font.italic:    Theme.fontDisplayItalic
+                font.weight: Theme.fontDisplayWeight
                 font.pixelSize: Theme.fontSzDisplay
                 color:          Theme.colorText
             }
@@ -1254,7 +1255,7 @@ Item {
                 text: qsTr("All enumerated IMU devices are listed below. Assign each to a body placement, configure the output rate, and use the Test panel to verify orientation before a session.")
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody2
-                font.weight:    Font.Light
+                font.weight:    Theme.fontBodyWeight
                 color:          Theme.colorText3
                 wrapMode:       Text.WordWrap
                 Layout.fillWidth: true
@@ -1295,7 +1296,7 @@ Item {
                         text:           qsTr("Scanning…")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody2
-                        font.weight:    Font.Light
+                        font.weight:    Theme.fontBodyWeight
                     }
 
                     Text {
@@ -1304,7 +1305,7 @@ Item {
                         text:           scanBtn.scanning ? qsTr("Scanning…") : qsTr("Scan")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody2
-                        font.weight:    Font.Light
+                        font.weight:    Theme.fontBodyWeight
                         color:          scanBtn.scanning ? Theme.colorAccent : Theme.colorText2
                         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                     }
@@ -1354,7 +1355,7 @@ Item {
                     text:           qsTr("No IMU devices found. Click Scan to search for BLE devices.")
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Font.Light
+                    font.weight:    Theme.fontBodyWeight
                     font.italic:    true
                     color:          Theme.colorText3
                     Layout.fillWidth: true

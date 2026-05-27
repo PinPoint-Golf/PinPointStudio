@@ -57,6 +57,10 @@ int main(int argc, char *argv[])
 
     // Load bundled fonts so Theme.qml family names resolve on all platforms.
     const QStringList fontResources = {
+        ":/fonts/Georgia.ttf",
+        ":/fonts/Georgiab.ttf",
+        ":/fonts/Georgiai.ttf",
+        ":/fonts/Georgiaz.ttf",
         ":/fonts/DMSans-Variable.ttf",
         ":/fonts/DMSans-Italic-Variable.ttf",
         ":/fonts/DMMono-Regular.ttf",

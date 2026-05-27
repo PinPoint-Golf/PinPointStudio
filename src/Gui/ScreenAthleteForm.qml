@@ -83,6 +83,7 @@ Item {
                 text:            qsTr("New athlete")
                 font.family:     Theme.fontDisplay
                 font.italic:     Theme.fontDisplayItalic
+                font.weight: Theme.fontDisplayWeight
                 font.pixelSize:  Theme.fontSzDisplay
                 color:           Theme.colorText
                 bottomPadding:   6
@@ -92,7 +93,7 @@ Item {
                 text:           qsTr("Only the first two fields are required. The rest sharpen analysis and personalise coaching output.")
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody2
-                font.weight:    Font.Light
+                font.weight:    Theme.fontBodyWeight
                 color:          Theme.colorText3
                 wrapMode:       Text.WordWrap
                 lineHeight:     1.5

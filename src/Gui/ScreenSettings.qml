@@ -137,7 +137,7 @@ Item {
                             placeholderTextColor: Theme.colorText3
                             font.family:    Theme.fontBody
                             font.pixelSize: Theme.fontSzBody2
-                            font.weight:    Font.Light
+                            font.weight:    Theme.fontBodyWeight
                             color:          Theme.colorText
                             background:     null
                             onTextChanged: root.searchQuery = text.toLowerCase()
@@ -202,7 +202,7 @@ Item {
                                         text:                 modelData.sectionHead
                                         font.family:          Theme.fontBody
                                         font.pixelSize:       Theme.fontSzMicro
-                                        font.weight:          Font.Light
+                                        font.weight:          Theme.fontBodyWeight
                                         font.letterSpacing:   Theme.trackingMicro
                                         font.capitalization:  Font.AllUppercase
                                         color:                Theme.colorText3
@@ -264,7 +264,7 @@ Item {
                                         text:           modelData.label
                                         font.family:    Theme.fontBody
                                         font.pixelSize: Theme.fontSzBody2
-                                        font.weight:    navItem.isActive ? Font.Normal : Font.Light
+                                        font.weight:    navItem.isActive ? Font.Normal : Theme.fontBodyWeight
                                         color: navItem.isActive ? Theme.colorAccent
                                                                 : (navItem.hovered ? Theme.colorText : Theme.colorText2)
                                         elide: Text.ElideRight

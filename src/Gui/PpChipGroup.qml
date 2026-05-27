@@ -49,7 +49,7 @@ Row {
                 text:           modelData
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody
-                font.weight:    modelData === root.selected ? Font.Normal : Font.Light
+                font.weight:    modelData === root.selected ? Font.Normal : Theme.fontBodyWeight
                 color:          modelData === root.selected ? Theme.colorAccent : Theme.colorText2
             }
 

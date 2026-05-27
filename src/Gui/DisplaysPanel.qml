@@ -127,6 +127,7 @@ Item {
                 text: qsTr("Displays")
                 font.family:    Theme.fontDisplay
                 font.italic:    Theme.fontDisplayItalic
+                font.weight: Theme.fontDisplayWeight
                 font.pixelSize: Theme.fontSzDisplay
                 color: Theme.colorText
             }
@@ -135,7 +136,7 @@ Item {
                 text: qsTr("Configure which monitors Pinpoint uses and how post-shot content is presented.")
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody2
-                font.weight:    Font.Light
+                font.weight:    Theme.fontBodyWeight
                 color:          Theme.colorText3
                 wrapMode:       Text.WordWrap
                 Layout.fillWidth: true
@@ -335,7 +336,7 @@ Item {
 
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Font.Light
+                    font.weight:    Theme.fontBodyWeight
 
                     contentItem: Text {
                         leftPadding: Theme.sp(10)
@@ -393,7 +394,7 @@ Item {
                             text:           modelData
                             font.family:    Theme.fontBody
                             font.pixelSize: Theme.fontSzBody2
-                            font.weight:    Font.Light
+                            font.weight:    Theme.fontBodyWeight
                             color:          Theme.colorText
                             verticalAlignment: Text.AlignVCenter
                         }
@@ -574,7 +575,7 @@ Item {
 
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Font.Light
+                    font.weight:    Theme.fontBodyWeight
 
                     contentItem: Text {
                         leftPadding: Theme.sp(10)
@@ -632,7 +633,7 @@ Item {
                             text:           modelData
                             font.family:    Theme.fontBody
                             font.pixelSize: Theme.fontSzBody2
-                            font.weight:    Font.Light
+                            font.weight:    Theme.fontBodyWeight
                             color:          Theme.colorText
                             verticalAlignment: Text.AlignVCenter
                         }

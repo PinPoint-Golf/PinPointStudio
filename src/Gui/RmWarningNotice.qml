@@ -63,7 +63,7 @@ Rectangle {
                 width: parent.width
                 font.family: Theme.fontBody
                 font.pixelSize: Theme.fontSzBody2
-                font.weight: Font.Light
+                font.weight: Theme.fontBodyWeight
                 color: Theme.colorText2
             }
         }

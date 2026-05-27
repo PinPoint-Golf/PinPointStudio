@@ -319,7 +319,7 @@ Item {
 
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Font.Light
+                    font.weight:    Theme.fontBodyWeight
 
                     contentItem: Text {
                         leftPadding: Theme.sp(10)
@@ -379,7 +379,7 @@ Item {
                             text:           modelData
                             font.family:    Theme.fontBody
                             font.pixelSize: Theme.fontSzBody2
-                            font.weight:    Font.Light
+                            font.weight:    Theme.fontBodyWeight
                             color:          parent.enabled ? Theme.colorText : Theme.colorText3
                             verticalAlignment: Text.AlignVCenter
                         }
@@ -662,7 +662,7 @@ Item {
                         text:           qsTr("Set crop")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody2
-                        font.weight:    Font.Light
+                        font.weight:    Theme.fontBodyWeight
                         color:          camRow.roiOpen ? Theme.colorAccent : Theme.colorText2
                         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                     }
@@ -1349,7 +1349,7 @@ Item {
                                             text:           modelData.label
                                             font.family:    Theme.fontBody
                                             font.pixelSize: Theme.fontSzBody2
-                                            font.weight:    Font.Light
+                                            font.weight:    Theme.fontBodyWeight
                                             color:          Theme.colorText2
                                         }
 
@@ -1563,7 +1563,7 @@ Item {
                                     text:           qsTr("Reset to full frame")
                                     font.family:    Theme.fontBody
                                     font.pixelSize: Theme.fontSzBody2
-                                    font.weight:    Font.Light
+                                    font.weight:    Theme.fontBodyWeight
                                     color:          Theme.colorText2
                                 }
 
@@ -1678,6 +1678,7 @@ Item {
                 text: qsTr("Cameras")
                 font.family:  Theme.fontDisplay
                 font.italic:  Theme.fontDisplayItalic
+                font.weight: Theme.fontDisplayWeight
                 font.pixelSize: Theme.fontSzDisplay
                 color: Theme.colorText
             }
@@ -1686,7 +1687,7 @@ Item {
                 text: qsTr("All detected cameras are listed below. Enable each device, assign it to a view, configure capture parameters, and optionally define a crop region to reduce frame storage and ring buffer size.")
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody2
-                font.weight:    Font.Light
+                font.weight:    Theme.fontBodyWeight
                 color:          Theme.colorText3
                 wrapMode:       Text.WordWrap
                 Layout.fillWidth: true
@@ -1734,7 +1735,7 @@ Item {
                     text:    qsTr("No cameras detected. Connect a camera and click Refresh.")
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Font.Light
+                    font.weight:    Theme.fontBodyWeight
                     font.italic:    true
                     color:          Theme.colorText3
                     Layout.fillWidth: true

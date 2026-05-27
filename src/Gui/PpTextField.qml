@@ -34,7 +34,7 @@ TextField {
 
     font.family:    Theme.fontBody
     font.pixelSize: Theme.fontSzBody
-    font.weight:    Font.Light
+    font.weight:    Theme.fontBodyWeight
     color:          Theme.colorText
 
     placeholderTextColor: Theme.colorText3

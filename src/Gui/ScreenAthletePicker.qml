@@ -68,6 +68,7 @@ Item {
                 text:           qsTr("Choose athlete")
                 font.family:    Theme.fontDisplay
                 font.italic:    Theme.fontDisplayItalic
+                font.weight: Theme.fontDisplayWeight
                 font.pixelSize: Theme.fontSzDisplay
                 color:          Theme.colorText
                 bottomPadding:  Theme.sp(24)

@@ -151,7 +151,7 @@ Item {
                     text: qsTr("Scanning…")
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Font.Light
+                    font.weight:    Theme.fontBodyWeight
                 }
 
                 Text {
@@ -159,7 +159,7 @@ Item {
                     text:           scanChip.scanning ? qsTr("Scanning…") : qsTr("Scan")
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Font.Light
+                    font.weight:    Theme.fontBodyWeight
                     color:          scanChip.scanning ? Theme.colorAccent : Theme.colorText2
                     Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                 }

@@ -745,7 +745,7 @@ Item {
                             wrapMode: TextEdit.WordWrap
                             font.family: Theme.fontBody
                             font.pixelSize: Theme.fontSzBody2
-                            font.weight: Font.Light
+                            font.weight: Theme.fontBodyWeight
                             color: Theme.colorText2
                             readOnly: true
                             selectByMouse: true

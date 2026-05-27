@@ -217,7 +217,7 @@ Rectangle {
                     text: modelData.key
                     font.family: Theme.fontBody
                     font.pixelSize: Theme.sp(11)
-                    font.weight: Font.Light
+                    font.weight: Theme.fontBodyWeight
                     color: Theme.colorText3
                     anchors.verticalCenter: parent.verticalCenter
                 }

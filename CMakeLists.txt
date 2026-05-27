@@ -291,6 +291,10 @@ qt_add_resources(PinPoint "app_fonts"
     PREFIX "/fonts"
     BASE "src/Resources/fonts"
     FILES
+        src/Resources/fonts/Georgia.ttf
+        src/Resources/fonts/Georgiab.ttf
+        src/Resources/fonts/Georgiai.ttf
+        src/Resources/fonts/Georgiaz.ttf
         src/Resources/fonts/DMSans-Variable.ttf
         src/Resources/fonts/DMSans-Italic-Variable.ttf
         src/Resources/fonts/DMMono-Regular.ttf

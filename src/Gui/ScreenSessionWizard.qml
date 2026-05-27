@@ -447,6 +447,7 @@ Item {
                             text:           root.curType.name
                             font.family:    Theme.fontDisplay
                             font.italic:    Theme.fontDisplayItalic
+                            font.weight: Theme.fontDisplayWeight
                             font.pixelSize: Math.min(Theme.sp(22), Theme.fontSzDisplay)
                             color:          Theme.colorText
                             anchors.verticalCenter: parent.verticalCenter
@@ -457,7 +458,7 @@ Item {
                         width:          parent.width
                         text:           qsTr("Before you step up, let's make sure everything is ready. We'll confirm your goals, check your cameras, and connect your sensors — it only takes a moment.")
                         font.family:    Theme.fontBody
-                        font.weight:    Font.Light
+                        font.weight:    Theme.fontBodyWeight
                         font.pixelSize: Theme.fontSzBody2
                         color:          Theme.colorText2
                         wrapMode:       Text.WordWrap
@@ -934,14 +935,14 @@ Item {
                                         id: imuWizScanMeasure
                                         visible: false
                                         text: qsTr("Scanning…")
-                                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2; font.weight: Font.Light
+                                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2; font.weight: Theme.fontBodyWeight
                                     }
                                     Text {
                                         anchors.centerIn: parent
                                         text:           imuWizScanBtn.scanning ? qsTr("Scanning…") : qsTr("Scan")
                                         font.family:    Theme.fontBody
                                         font.pixelSize: Theme.fontSzBody2
-                                        font.weight:    Font.Light
+                                        font.weight:    Theme.fontBodyWeight
                                         color:          imuWizScanBtn.scanning ? Theme.colorAccent : Theme.colorText2
                                         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                                     }
@@ -1005,14 +1006,14 @@ Item {
                                         id: imuWizConnMeasure
                                         visible: false
                                         text: qsTr("Connecting…")
-                                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2; font.weight: Font.Light
+                                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2; font.weight: Theme.fontBodyWeight
                                     }
                                     Text {
                                         anchors.centerIn: parent
                                         text:           imusCol._connecting ? qsTr("Connecting…") : qsTr("Connect")
                                         font.family:    Theme.fontBody
                                         font.pixelSize: Theme.fontSzBody2
-                                        font.weight:    Font.Light
+                                        font.weight:    Theme.fontBodyWeight
                                         color:          imusCol._connecting ? Theme.colorAccent : Theme.colorText2
                                         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                                     }
@@ -1398,6 +1399,7 @@ Item {
                                     text:           qsTr("Calibrate Sensors")
                                     font.family:    Theme.fontDisplay
                                     font.italic:    Theme.fontDisplayItalic
+                                    font.weight: Theme.fontDisplayWeight
                                     font.pixelSize: Math.min(Theme.sp(18), Theme.fontSzDisplay)
                                     color:          Theme.colorText
                                     wrapMode:       Text.WordWrap
@@ -1562,6 +1564,7 @@ Item {
                                                         : qsTr("Not quite ready")
                                     font.family:    Theme.fontDisplay
                                     font.italic:    Theme.fontDisplayItalic
+                                    font.weight: Theme.fontDisplayWeight
                                     font.pixelSize: Math.min(Theme.sp(22), Theme.fontSzDisplay)
                                     color:          root.fullyReady ? Theme.colorText : Theme.colorWarn
                                     wrapMode:       Text.WordWrap
@@ -1572,7 +1575,7 @@ Item {
                                         ? qsTr("Everything checked out. The moment you take your address and make your first swing, Pinpoint starts capturing. There's nothing else to press.")
                                         : qsTr("A few things couldn't be confirmed before this session. You can use ← Back to sort them out, or start anyway — Pinpoint will capture what it can, though some analysis may be limited or missing from your results.")
                                     font.family:    Theme.fontBody
-                                    font.weight:    Font.Light
+                                    font.weight:    Theme.fontBodyWeight
                                     font.pixelSize: Theme.fontSzBody2
                                     color:          Theme.colorText2
                                     wrapMode:       Text.WordWrap
@@ -1611,7 +1614,7 @@ Item {
                                                 width:          parent.width
                                                 text:           modelData.text
                                                 font.family:    Theme.fontBody
-                                                font.weight:    Font.Light
+                                                font.weight:    Theme.fontBodyWeight
                                                 font.pixelSize: Theme.fontSzBody2
                                                 color:          Theme.colorText2
                                                 wrapMode:       Text.WordWrap
@@ -1715,7 +1718,7 @@ Item {
                                               ? qsTr("Everything's set up and ready to go. Step up when you like — Pinpoint will start capturing the moment you take your address.")
                                               : qsTr("Starting with an incomplete setup is fine — partial data is often still useful. For the full picture though, it's worth coming back once the hardware is sorted. Your results will thank you for it.")
                                     font.family:    Theme.fontBody
-                                    font.weight:    Font.Light
+                                    font.weight:    Theme.fontBodyWeight
                                     font.pixelSize: Theme.fontSzBody2
                                     color:          root.fullyReady ? Theme.colorGood : Theme.colorWarn
                                     wrapMode:       Text.WordWrap
@@ -1905,6 +1908,7 @@ Item {
             text:           heading
             font.family:    Theme.fontDisplay
             font.italic:    Theme.fontDisplayItalic
+            font.weight: Theme.fontDisplayWeight
             font.pixelSize: Math.min(Theme.sp(20), Theme.fontSzDisplay)
             color:          Theme.colorText
             wrapMode:       Text.WordWrap
@@ -1913,7 +1917,7 @@ Item {
             width:          parent.width
             text:           body
             font.family:    Theme.fontBody
-            font.weight:    Font.Light
+            font.weight:    Theme.fontBodyWeight
             font.pixelSize: Theme.fontSzBody2
             color:          Theme.colorText2
             wrapMode:       Text.WordWrap
