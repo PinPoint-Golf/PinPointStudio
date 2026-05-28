@@ -260,6 +260,9 @@ QtObject {
         return 52
     }
     readonly property int sidenavWidth:    sp(275)
+    function contentWidth(availableWidth) {
+        return Math.max(Math.round(availableWidth * 0.7), sp(800))
+    }
     readonly property int headerHeight:    40
     readonly property int carouselHeight:  120
     readonly property int statusBarHeight: 36

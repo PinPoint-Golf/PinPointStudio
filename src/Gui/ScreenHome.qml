@@ -65,7 +65,7 @@ Item {
         Column {
             id: mainCol
             anchors.horizontalCenter: parent.horizontalCenter
-            width:   Math.min(parent.width - 80, Math.round(580 * Theme.fontScale))
+            width:   Theme.contentWidth(parent.width)
             spacing: 0
 
             Item { width: 1; height: Theme.sp(48) }

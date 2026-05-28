@@ -51,7 +51,7 @@ Item {
         Column {
             id: contentCol
             anchors.horizontalCenter: parent.horizontalCenter
-            width:   Math.min(760, parent.width - 48)
+            width:   Theme.contentWidth(parent.width)
             spacing: 0
             y:       32
 

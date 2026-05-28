@@ -404,8 +404,7 @@ Item {
 
     readonly property bool fullyReady: readinessIssues.length === 0
 
-    // Max content width — centred on wider screens like other pages
-    readonly property int contentWidth: Math.min(width - Theme.sp(80), Theme.sp(600))
+    readonly property int contentWidth: Theme.contentWidth(width)
 
     onVisibleChanged: {
         if (visible) {
