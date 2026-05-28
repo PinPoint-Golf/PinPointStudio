@@ -68,6 +68,8 @@ Item {
         calibPanel.calibPhase         = 0
         calibPanel.phase1AccumMs      = 0
         calibPanel.stableAccumMs      = 0
+        calibPanel._phase1Samples     = []
+        calibPanel._phase2Samples     = []
         calibPanel.phaseProgress      = 0.0
         calibPanel._animateLeadArm    = false
         calibPanel._leadArmTarget     = calibPanel.leadArmDownQuat
@@ -1189,6 +1191,41 @@ Item {
                         // Phase 2: accumulate stable hold duration (target 3 s).
                         property real stableAccumMs: 0.0
 
+                        // Quaternion samples accumulated during each 3 s capture window.
+                        property var _phase1Samples: []
+                        property var _phase2Samples: []
+
+                        function _quatSlerp(a, b, t) {
+                            var dot = a.scalar * b.scalar + a.x * b.x + a.y * b.y + a.z * b.z
+                            if (dot < 0) { b = Qt.quaternion(-b.scalar, -b.x, -b.y, -b.z); dot = -dot }
+                            if (dot > 0.9995) {
+                                var r = Qt.quaternion(a.scalar + t * (b.scalar - a.scalar),
+                                                      a.x     + t * (b.x     - a.x),
+                                                      a.y     + t * (b.y     - a.y),
+                                                      a.z     + t * (b.z     - a.z))
+                                var len = Math.sqrt(r.scalar*r.scalar + r.x*r.x + r.y*r.y + r.z*r.z)
+                                return Qt.quaternion(r.scalar/len, r.x/len, r.y/len, r.z/len)
+                            }
+                            var theta0    = Math.acos(dot)
+                            var sinTheta0 = Math.sin(theta0)
+                            var s0 = Math.sin((1 - t) * theta0) / sinTheta0
+                            var s1 = Math.sin(      t * theta0) / sinTheta0
+                            return Qt.quaternion(s0 * a.scalar + s1 * b.scalar,
+                                                 s0 * a.x     + s1 * b.x,
+                                                 s0 * a.y     + s1 * b.y,
+                                                 s0 * a.z     + s1 * b.z)
+                        }
+
+                        // Iterative slerp mean: slerp(acc, samples[i], 1/(i+1)) converges to
+                        // the uniform spherical mean when all samples cluster near each other.
+                        function _slerpAverage(samples) {
+                            if (samples.length === 0) return Qt.quaternion(1, 0, 0, 0)
+                            var acc = samples[0]
+                            for (var i = 1; i < samples.length; i++)
+                                acc = _quatSlerp(acc, samples[i], 1.0 / (i + 1))
+                            return acc
+                        }
+
                         // Animation targets — driven imperatively by the phase timers below.
                         property quaternion _leadArmTarget:  calibPanel.leadArmDownQuat
                         property bool       _animateLeadArm: false
@@ -1224,14 +1261,15 @@ Item {
                                       && calibPanel.leadImu !== null
                                       && calibPanel.leadImu.stable
                             onTriggered: {
+                                var imu = calibPanel.leadImu
+                                if (imu)
+                                    calibPanel._phase2Samples = calibPanel._phase2Samples.concat(
+                                        [Qt.quaternion(imu.quatW, imu.quatX, imu.quatY, imu.quatZ)])
                                 calibPanel.stableAccumMs += interval
                                 calibPanel.phaseProgress = Math.min(calibPanel.stableAccumMs / 3000.0, 1.0)
                                 if (calibPanel.stableAccumMs >= 3000) {
-                                    var imu = calibPanel.leadImu
-                                    root.calibArmTPoseQuat = imu
-                                        ? Qt.quaternion(imu.quatW, imu.quatX, imu.quatY, imu.quatZ)
-                                        : null
-                                    root.calibrationDone = true  // stops timer via binding
+                                    root.calibArmTPoseQuat = calibPanel._slerpAverage(calibPanel._phase2Samples)
+                                    root.calibrationDone   = true  // stops timer via binding
                                     if (imu && root.calibArmDownQuat)
                                         imu.setCalibration(root.calibArmDownQuat, root.calibArmTPoseQuat)
                                 }
@@ -1314,10 +1352,13 @@ Item {
                                       && calibPanel.leadImu !== null
                                       && calibPanel.leadImu.stable
                             onTriggered: {
+                                var imu = calibPanel.leadImu
+                                if (imu)
+                                    calibPanel._phase1Samples = calibPanel._phase1Samples.concat(
+                                        [Qt.quaternion(imu.quatW, imu.quatX, imu.quatY, imu.quatZ)])
                                 calibPanel.phase1AccumMs += interval
                                 if (calibPanel.phase1AccumMs >= 3000) {
-                                    var imu = calibPanel.leadImu
-                                    root.calibArmDownQuat = Qt.quaternion(imu.quatW, imu.quatX, imu.quatY, imu.quatZ)
+                                    root.calibArmDownQuat       = calibPanel._slerpAverage(calibPanel._phase1Samples)
                                     calibPanel._armDownCaptured = true  // stops timer via binding; must be after quat capture
                                     captureTransitionTimer.start()
                                 }
