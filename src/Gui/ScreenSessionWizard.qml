@@ -56,6 +56,10 @@ Item {
     property var  calibArmTPoseQuat: null   // phase 2 — arm raised to T-pose
     property bool calibrationDone:   false
 
+    onCalibrationDoneChanged: if (calibrationDone) calibCompleteTing.play()
+
+    TingPlayer { id: calibCompleteTing; frequency: 4186.0 }  // C8 — two octaves above the ball ting
+
     function _resetCalibration() {
         if (calibPanel.leadImu) calibPanel.leadImu.clearCalibration()
 
@@ -1521,35 +1525,60 @@ Item {
                                     }
                                 }
 
-                                // Status label
-                                Text {
-                                    readonly property bool _capturing:
-                                        (calibPanel.calibPhase === 1 && calibPanel.phase1AccumMs > 0 && !calibPanel._armDownCaptured)
-                                        || calibPanel.calibPhase === 2
+                                // Status label (checkmark circle + text)
+                                Row {
+                                    width:   parent.width
+                                    spacing: Theme.sp(6)
 
-                                    width:      parent.width
-                                    wrapMode:   Text.WordWrap
-                                    font.family:        Theme.fontData
-                                    font.pixelSize:     _capturing ? Theme.fontSzHeading : Theme.fontSzMicro
-                                    font.bold:          _capturing
-                                    font.letterSpacing: Theme.trackingData
-                                    color: root.calibrationDone ? Theme.colorGood
-                                         : _capturing            ? Theme.colorAccent
-                                         :                         Theme.colorText3
-                                    text: {
-                                        if (root.calibrationDone)         return qsTr("CALIBRATION COMPLETE")
-                                        if (calibPanel.calibPhase === 0)  return qsTr("WATCH THE GUIDE")
-                                        if (calibPanel.calibPhase === 1) {
-                                            if (calibPanel._armDownCaptured) return qsTr("FOLLOW THE GUIDE")
-                                            var imu = calibPanel.leadImu
-                                            if (!imu || !imu.imuConnected) return qsTr("WAITING FOR SENSOR")
-                                            if (calibPanel.phase1AccumMs > 0) return qsTr("HOLD STILL — CAPTURING")
-                                            return qsTr("HOLD STILL")
+                                    Rectangle {
+                                        visible:              root.calibrationDone
+                                        width:                Theme.sp(16)
+                                        height:               Theme.sp(16)
+                                        radius:               width / 2
+                                        color:                "transparent"
+                                        border.color:         Theme.colorGood
+                                        border.width:         Theme.sp(1.5)
+                                        y:                    (statusLbl.implicitHeight - height) / 2
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text:             "✓"
+                                            color:            Theme.colorGood
+                                            font.pixelSize:   Theme.sp(9)
+                                            font.bold:        true
                                         }
-                                        return qsTr("HOLD STILL — CAPTURING")
                                     }
-                                    Behavior on font.pixelSize { NumberAnimation { duration: Theme.durationNormal } }
-                                    Behavior on color           { ColorAnimation  { duration: Theme.durationNormal } }
+
+                                    Text {
+                                        id: statusLbl
+                                        readonly property bool _capturing:
+                                            (calibPanel.calibPhase === 1 && calibPanel.phase1AccumMs > 0 && !calibPanel._armDownCaptured)
+                                            || calibPanel.calibPhase === 2
+
+                                        width:              parent.width - (root.calibrationDone ? Theme.sp(22) : 0)
+                                        wrapMode:           Text.WordWrap
+                                        font.family:        Theme.fontData
+                                        font.pixelSize:     _capturing ? Theme.fontSzHeading : Theme.fontSzMicro
+                                        font.bold:          _capturing
+                                        font.letterSpacing: Theme.trackingData
+                                        color: root.calibrationDone ? Theme.colorGood
+                                             : _capturing            ? Theme.colorAccent
+                                             :                         Theme.colorText3
+                                        text: {
+                                            if (root.calibrationDone)         return qsTr("CALIBRATION COMPLETE")
+                                            if (calibPanel.calibPhase === 0)  return qsTr("WATCH THE GUIDE")
+                                            if (calibPanel.calibPhase === 1) {
+                                                if (calibPanel._armDownCaptured) return qsTr("FOLLOW THE GUIDE")
+                                                var imu = calibPanel.leadImu
+                                                if (!imu || !imu.imuConnected) return qsTr("WAITING FOR SENSOR")
+                                                if (calibPanel.phase1AccumMs > 0) return qsTr("HOLD STILL — CAPTURING")
+                                                return qsTr("HOLD STILL")
+                                            }
+                                            return qsTr("HOLD STILL — CAPTURING")
+                                        }
+                                        Behavior on font.pixelSize { NumberAnimation { duration: Theme.durationNormal } }
+                                        Behavior on color           { ColorAnimation  { duration: Theme.durationNormal } }
+                                    }
                                 }
 
                                 // No-IMU warning

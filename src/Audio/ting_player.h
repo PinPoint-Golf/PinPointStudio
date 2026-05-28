@@ -20,6 +20,7 @@
 
 #include <QByteArray>
 #include <QObject>
+#include <QtQml/qqml.h>
 
 class QAudioSink;
 class QBuffer;
@@ -27,20 +28,27 @@ class QBuffer;
 // Plays a short synthesised ting tone on the default audio output.
 // The tone is pre-rendered at construction time; play() is safe to call
 // from the main thread at any time.  If already playing, the call is ignored.
+// frequency defaults to C6 (1046.5 Hz); set to C8 (4186 Hz) for a high ting.
 class TingPlayer : public QObject
 {
     Q_OBJECT
+    QML_ELEMENT
+    Q_PROPERTY(double frequency READ frequency WRITE setFrequency)
 
 public:
     explicit TingPlayer(QObject *parent = nullptr);
     ~TingPlayer() override;
 
-    void play();
+    double frequency() const { return m_frequency; }
+    void   setFrequency(double hz);
+
+    Q_INVOKABLE void play();
 
 private:
-    static QByteArray synthesize();
+    static QByteArray synthesize(double freq);
 
-    const QByteArray m_pcm;
-    QAudioSink      *m_sink = nullptr;
-    QBuffer         *m_buf  = nullptr;
+    double      m_frequency = 1046.5;   // C6
+    QByteArray  m_pcm;
+    QAudioSink *m_sink = nullptr;
+    QBuffer    *m_buf  = nullptr;
 };

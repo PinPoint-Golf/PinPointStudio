@@ -28,7 +28,7 @@
 
 TingPlayer::TingPlayer(QObject *parent)
     : QObject(parent)
-    , m_pcm(synthesize())
+    , m_pcm(synthesize(m_frequency))
 {}
 
 TingPlayer::~TingPlayer()
@@ -76,13 +76,20 @@ void TingPlayer::play()
     m_sink->start(m_buf);
 }
 
-// Synthesises a soft ting: C6 (1046.5 Hz) sine wave with a short linear
-// attack and an exponential decay, 44100 Hz / 16-bit mono / 600 ms.
-QByteArray TingPlayer::synthesize()
+void TingPlayer::setFrequency(double hz)
+{
+    if (qFuzzyCompare(hz, m_frequency))
+        return;
+    m_frequency = hz;
+    m_pcm = synthesize(hz);
+}
+
+// Synthesises a soft ting: sine wave with a short linear attack and an
+// exponential decay, 44100 Hz / 16-bit mono / 600 ms.
+QByteArray TingPlayer::synthesize(double freq)
 {
     constexpr int    kSampleRate  = 44100;
     constexpr double kDuration    = 0.6;          // seconds
-    constexpr double kFreq        = 1046.5;        // C6
     constexpr double kDecay       = 5.0;           // natural units per second
     constexpr int    kAttackMs    = 5;             // linear attack duration
     constexpr double kAmplitude   = 0.70 * 32767.0;
@@ -97,7 +104,7 @@ QByteArray TingPlayer::synthesize()
         const double t      = static_cast<double>(i) / kSampleRate;
         const double attack = (i < attackSamps) ? static_cast<double>(i) / attackSamps : 1.0;
         const double env    = attack * std::exp(-kDecay * t);
-        const double s      = kAmplitude * env * std::sin(2.0 * M_PI * kFreq * t);
+        const double s      = kAmplitude * env * std::sin(2.0 * M_PI * freq * t);
         out[i] = static_cast<int16_t>(std::clamp(s, -32767.0, 32767.0));
     }
 

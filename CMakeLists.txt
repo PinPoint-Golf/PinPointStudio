@@ -127,7 +127,6 @@ qt_add_executable(PinPoint
     src/Audio/audio_output_base.h    src/Audio/audio_output_base.cpp
     src/Audio/audio_output.h         src/Audio/audio_output.cpp
     src/Audio/audio_stream_saver.h   src/Audio/audio_stream_saver.cpp
-    src/Audio/ting_player.h          src/Audio/ting_player.cpp
     src/Video/camera_capabilities.h
     src/Video/video_input_base.h           src/Video/video_input_base.cpp
     src/Video/video_input.h                src/Video/video_input.cpp
@@ -210,6 +209,8 @@ qt_add_qml_module(PinPoint
         src/Gui/ScreenSessionWizard.qml
         src/Gui/CoachPage.qml
     SOURCES
+        src/Audio/ting_player.h
+        src/Audio/ting_player.cpp
         src/Video/bayer_video_item.h
         src/Video/bayer_video_item.cpp
         src/Gui/body_pose_adapter.h
