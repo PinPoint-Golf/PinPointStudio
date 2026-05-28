@@ -59,6 +59,7 @@ class ImuInstance : public QObject
     Q_PROPERTY(bool        calibrated    READ calibrated    NOTIFY calibratedChanged)
     Q_PROPERTY(QQuaternion calibArmDown  READ calibArmDown  NOTIFY calibratedChanged)
     Q_PROPERTY(QQuaternion calibArmTPose READ calibArmTPose NOTIFY calibratedChanged)
+    Q_PROPERTY(QQuaternion calibTransform READ calibTransform NOTIFY calibratedChanged)
 
 public:
     explicit ImuInstance(const Device &device,
@@ -92,6 +93,7 @@ public:
     bool        calibrated()    const { return m_calibrated; }
     QQuaternion calibArmDown()  const { return m_calibArmDown; }
     QQuaternion calibArmTPose() const { return m_calibArmTPose; }
+    QQuaternion calibTransform() const { return m_calibTransform; }
 
     // Lifecycle — called by ImuManager
     void start();                // begin BLE connection
@@ -102,7 +104,7 @@ public:
     Q_INVOKABLE void    zeroOrientation();
     Q_INVOKABLE QString saveLog();
     Q_INVOKABLE void    setOutputRateHz(int hz);
-    Q_INVOKABLE void    setCalibration(const QQuaternion &armDown, const QQuaternion &tPose);
+    Q_INVOKABLE void    setCalibration(const QQuaternion &armDown, const QQuaternion &tPose, bool rightHanded);
     Q_INVOKABLE void    clearCalibration();
 
 signals:
@@ -183,6 +185,9 @@ private:
     bool        m_calibrated    = false;
     QQuaternion m_calibArmDown  { 1.0f, 0.0f, 0.0f, 0.0f };
     QQuaternion m_calibArmTPose { 1.0f, 0.0f, 0.0f, 0.0f };
+    // Derived from setCalibration() — maps raw sensor quaternion to anatomical world frame.
+    // Identity until calibrated.
+    QQuaternion m_calibTransform { 1.0f, 0.0f, 0.0f, 0.0f };
 
     // Log throttle — summary every 10 s
     QTimer m_logTimer;

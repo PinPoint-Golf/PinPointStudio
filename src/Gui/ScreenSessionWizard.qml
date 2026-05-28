@@ -35,20 +35,21 @@ Item {
 
     function reopenAtCameras() {
         currentStep = 1
-        stepStates  = ["done", "pending", "pending", "pending", "pending"]
+        stepStates  = ["done", "pending", "pending", "pending", "pending", "pending"]
     }
 
     // ── Step state ────────────────────────────────────────────────────────────
 
     property int currentStep: 0
-    // 5 entries: Goals(0) Cameras(1) IMUs(2) Calibrate(3) Ready(4).
-    // Step 3 is skipped in navigation for non-wrist sessions.
-    property var stepStates: ["pending", "pending", "pending", "pending", "pending"]
+    // 6 entries: Goals(0) Cameras(1) IMUs(2) Calibrate(3) Confirm(4) Ready(5).
+    // Steps 3 and 4 are skipped in navigation for non-wrist sessions.
+    property var stepStates: ["pending", "pending", "pending", "pending", "pending", "pending"]
 
-    // True only for Wrist Motion (index 1) — inserts the Calibrate step.
+    // True only for Wrist Motion (index 1) — inserts the Calibrate + Confirm steps.
     readonly property bool hasCalibrateStep: sessionType === 1
-    // Terminal step index (Ready is always at 4; step 3 is skipped if !hasCalibrateStep).
-    readonly property int lastStep: 4
+    // Terminal step index: 5 for wrist (Goals/Cameras/IMUs/Calibrate/Confirm/Ready),
+    // 4 for all other session types (Goals/Cameras/IMUs/Ready).
+    readonly property int lastStep: hasCalibrateStep ? 5 : 4
 
     // ── Positional calibration state (Panel 3) ────────────────────────────────
     // Captured reference quaternions from the lead-arm IMU.
@@ -522,15 +523,15 @@ Item {
                 spacing: 0
 
                 Repeater {
-                    // 5 tabs always present; tab 3 (Calibrate) hidden for non-wrist sessions.
-                    model: [qsTr("Goals"), qsTr("Cameras"), qsTr("IMUs"), qsTr("Calibrate"), qsTr("Ready")]
+                    // 6 tabs always present; tabs 3 (Calibrate) and 4 (Confirm) hidden for non-wrist sessions.
+                    model: [qsTr("Goals"), qsTr("Cameras"), qsTr("IMUs"), qsTr("Calibrate"), qsTr("Confirm"), qsTr("Ready")]
 
                     delegate: Row {
                         id: tabRow
                         required property string modelData
                         required property int    index
                         spacing: 0
-                        visible: tabRow.index !== 3 || root.hasCalibrateStep
+                        visible: (tabRow.index !== 3 && tabRow.index !== 4) || root.hasCalibrateStep
 
                         Item {
                             visible: tabRow.index > 0
@@ -1276,7 +1277,7 @@ Item {
                                     root.calibArmTPoseQuat = calibPanel._slerpAverage(calibPanel._phase2Samples)
                                     root.calibrationDone   = true  // stops timer via binding
                                     if (imu && root.calibArmDownQuat)
-                                        imu.setCalibration(root.calibArmDownQuat, root.calibArmTPoseQuat)
+                                        imu.setCalibration(root.calibArmDownQuat, root.calibArmTPoseQuat, calibPanel.rightHanded)
                                 }
                             }
                         }
@@ -1610,7 +1611,62 @@ Item {
                         }
                     }
 
-                    // ── Panel 4: Ready ────────────────────────────────────────
+                    // ── Panel 4: Confirm Tracking ─────────────────────────────
+                    // Only reachable for wrist motion sessions (hasCalibrateStep).
+
+                    Item {
+                        implicitHeight: Math.max(Theme.sp(480), bodyStack.parent.parent.height - Theme.sp(80))
+
+                        ColumnLayout {
+                            anchors.fill:    parent
+                            anchors.margins: Theme.sp(8)
+                            spacing:         Theme.sp(12)
+
+                            Column {
+                                Layout.fillWidth: true
+                                Layout.topMargin: Theme.sp(32)
+                                spacing:          Theme.sp(8)
+
+                                Text {
+                                    text:               qsTr("STEP 4 OF 5 · CONFIRM TRACKING")
+                                    font.family:        Theme.fontData
+                                    font.pixelSize:     Theme.fontSzMicro
+                                    font.letterSpacing: Theme.trackingMicro
+                                    color:              Theme.colorText3
+                                }
+
+                                Text {
+                                    width:          parent.width
+                                    text:           qsTr("Check your sensor")
+                                    font.family:    Theme.fontDisplay
+                                    font.italic:    Theme.fontDisplayItalic
+                                    font.weight:    Theme.fontDisplayWeight
+                                    font.pixelSize: Math.min(Theme.sp(22), Theme.fontSzDisplay)
+                                    color:          Theme.colorText
+                                    wrapMode:       Text.WordWrap
+                                }
+
+                                Text {
+                                    width:          parent.width
+                                    text:           qsTr("Move your arm slowly in all directions. The 3D model should track your movement precisely. If it doesn't, go back and recalibrate.")
+                                    font.family:    Theme.fontBody
+                                    font.weight:    Theme.fontBodyWeight
+                                    font.pixelSize: Theme.fontSzBody2
+                                    color:          Theme.colorText2
+                                    lineHeight:     1.65
+                                    wrapMode:       Text.WordWrap
+                                }
+                            }
+
+                            ArmVizView {
+                                id: confirmArmViz
+                                Layout.fillWidth:  true
+                                Layout.fillHeight: true
+                            }
+                        }
+                    }
+
+                    // ── Panel 5: Ready ────────────────────────────────────────
 
 
                     Item {
@@ -1626,7 +1682,7 @@ Item {
                                 spacing: Theme.sp(8)
 
                                 Text {
-                                    text:               qsTr("STEP %1 OF %1 · READY").arg(root.hasCalibrateStep ? 5 : 4)
+                                    text:               qsTr("STEP %1 OF %1 · READY").arg(root.lastStep)
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingMicro
@@ -1875,8 +1931,8 @@ Item {
                             var arr = root.stepStates.slice()
                             arr[root.currentStep] = "pending"
                             root.stepStates = arr
-                            // Skip back over Calibrate step for non-wrist sessions.
-                            if (root.currentStep === 4 && !root.hasCalibrateStep)
+                            // Skip back over Calibrate + Confirm steps for non-wrist sessions.
+                            if (root.currentStep === 5 && !root.hasCalibrateStep)
                                 root.currentStep = 2
                             else
                                 root.currentStep--
@@ -1894,9 +1950,9 @@ Item {
                             var arr = root.stepStates.slice()
                             arr[root.currentStep] = "skipped"
                             root.stepStates = arr
-                            // Skipping IMUs on non-wrist sessions jumps over Calibrate too.
+                            // Skipping IMUs on non-wrist sessions jumps over Calibrate + Confirm too.
                             if (root.currentStep === 2 && !root.hasCalibrateStep)
-                                root.currentStep = 4
+                                root.currentStep = 5
                             else
                                 root.currentStep++
                         }
@@ -1944,9 +2000,9 @@ Item {
                                     var arr = root.stepStates.slice()
                                     arr[root.currentStep] = "done"
                                     root.stepStates = arr
-                                    // Skip Calibrate step (index 3) for non-wrist sessions.
+                                    // Skip Calibrate + Confirm steps (indices 3 and 4) for non-wrist sessions.
                                     if (root.currentStep === 2 && !root.hasCalibrateStep)
-                                        root.currentStep = 4
+                                        root.currentStep = 5
                                     else
                                         root.currentStep++
                                 } else {

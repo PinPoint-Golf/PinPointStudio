@@ -317,19 +317,35 @@ QString ImuInstance::saveLog()
     return path;
 }
 
-void ImuInstance::setCalibration(const QQuaternion &armDown, const QQuaternion &tPose)
+void ImuInstance::setCalibration(const QQuaternion &armDown,
+                                 const QQuaternion &tPose,
+                                 bool rightHanded)
 {
     m_calibArmDown  = armDown;
     m_calibArmTPose = tPose;
-    m_calibrated    = true;
+
+    // Anatomical target for the arm-down pose depends on which arm is the lead arm.
+    // Left arm  (right-handed golfer): 180° about world Z → (w=0, x=0, y=0, z=1)
+    // Right arm (left-handed golfer):  180° about world X → (w=0, x=1, y=0, z=0)
+    const QQuaternion target = rightHanded
+        ? QQuaternion(0.0f, 0.0f, 0.0f, 1.0f)
+        : QQuaternion(0.0f, 1.0f, 0.0f, 0.0f);
+
+    // q_cal maps raw sensor space to anatomical world frame.
+    // At runtime: q_segment = q_cal * q_raw
+    m_calibTransform = armDown.conjugated() * target;
+    m_calibTransform.normalize();
+
+    m_calibrated = true;
     emit calibratedChanged();
 }
 
 void ImuInstance::clearCalibration()
 {
-    m_calibrated    = false;
-    m_calibArmDown  = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
-    m_calibArmTPose = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+    m_calibrated     = false;
+    m_calibArmDown   = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+    m_calibArmTPose  = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+    m_calibTransform = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
     emit calibratedChanged();
 }
 
