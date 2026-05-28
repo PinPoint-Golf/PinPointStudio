@@ -1255,12 +1255,13 @@ Item {
                             }
                         }
 
-                        // Phase 2 hold timer — unchanged.
+                        // Phase 2 hold timer.
                         Timer {
                             id: stabilityHoldTimer
                             interval: 100
                             repeat:   true
-                            running:  calibPanel.calibPhase === 2
+                            running:  root.currentStep === 3
+                                      && calibPanel.calibPhase === 2
                                       && !root.calibrationDone
                                       && calibPanel.leadImu !== null
                                       && calibPanel.leadImu.stable
@@ -1281,11 +1282,14 @@ Item {
                         }
 
                         // Phase 0: 3s after page load, play 3s rest→T-pose animation.
+                        // Guard on currentStep === 3: calibPanel lives in a StackLayout so it
+                        // is instantiated at app startup — without this guard the intro fires
+                        // immediately and the entire capture chain runs in the background.
                         Timer {
                             id: introStartTimer
                             interval: 3000
                             repeat:   false
-                            running:  calibPanel.calibPhase === 0
+                            running:  calibPanel.calibPhase === 0 && root.currentStep === 3
                             onTriggered: {
                                 calibBvv.resetArmAnimation(calibPanel.leadArmDownQuat)
                                 calibBvv.leadArmAnimDuration = 3000
@@ -1350,7 +1354,8 @@ Item {
                             id: phase1HoldTimer
                             interval: 100
                             repeat:   true
-                            running:  calibPanel.calibPhase === 1
+                            running:  root.currentStep === 3
+                                      && calibPanel.calibPhase === 1
                                       && calibPanel._phase1MinHoldDone
                                       && !calibPanel._armDownCaptured
                                       && calibPanel.leadImu !== null
