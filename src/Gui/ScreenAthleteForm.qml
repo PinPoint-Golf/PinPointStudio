@@ -44,7 +44,7 @@ Item {
         const hv = parseFloat(heightField.text) || 0.0
         const wv = parseFloat(weightField.text) || 0.0
         const hcp = parseFloat(handicapField.text)
-        const handicap = isNaN(hcp) ? -1.0 : hcp
+        const handicap = isNaN(hcp) ? -999.0 : hcp
         const speed = parseFloat(speedField.text) || 0.0
 
         return athleteController.createAthlete(

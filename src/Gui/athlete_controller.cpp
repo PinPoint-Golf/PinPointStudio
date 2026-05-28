@@ -82,7 +82,7 @@ void AthleteController::reload()
         m[QStringLiteral("heightUnit")]    = s.value(kHeightUnit,   QStringLiteral("ft")).toString();
         m[QStringLiteral("weightValue")]   = s.value(kWeightValue,  0.0).toDouble();
         m[QStringLiteral("weightUnit")]    = s.value(kWeightUnit,   QStringLiteral("lb")).toString();
-        m[QStringLiteral("handicap")]      = s.value(kHandicap,     -1.0).toDouble();
+        m[QStringLiteral("handicap")]      = s.value(kHandicap,     -999.0).toDouble();
         m[QStringLiteral("primaryClub")]   = s.value(kPrimaryClub,  QStringLiteral("Driver")).toString();
         m[QStringLiteral("speedTarget")]   = s.value(kSpeedTarget,  0.0).toDouble();
         m[QStringLiteral("notes")]         = s.value(kNotes,        QString()).toString();

@@ -276,8 +276,7 @@ Item {
                         width: parent.width
                         text: {
                             var m   = root.athMap
-                            var hcp = (m.handicap !== undefined && m.handicap >= 0)
-                                          ? m.handicap + " hcp" : "no hcp"
+                            var hcp = Theme.formatHandicap(m.handicap)
                             var sc  = (m.sessionCount !== undefined)
                                           ? m.sessionCount + " sessions" : "0 sessions"
                             return athleteController.currentHandedness + " · " + hcp + " · " + sc
@@ -327,8 +326,8 @@ Item {
 
                 GridLayout {
                     columns:       2
-                    columnSpacing: Theme.sp(8)
-                    rowSpacing:    Theme.sp(8)
+                    columnSpacing: Theme.sp(20)
+                    rowSpacing:    Theme.sp(20)
                     width:         parent.width
 
                     Repeater {

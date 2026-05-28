@@ -91,9 +91,7 @@ Rectangle {
             elide:          Text.ElideRight
             text: {
                 const hand = (athleteData.handedness || "R")[0] + "H"
-                const hcp  = (athleteData.handicap >= 0)
-                                 ? (Math.round(athleteData.handicap) + " hcp")
-                                 : "no hcp"
+                const hcp  = Theme.formatHandicap(athleteData.handicap)
                 const sess = (athleteData.sessionCount || 0) + " sessions"
                 return hand + " · " + hcp + " · " + sess
             }

@@ -263,6 +263,16 @@ QtObject {
     function contentWidth(availableWidth) {
         return Math.max(Math.round(availableWidth * 0.7), sp(800))
     }
+
+    // Golf handicap display helper.
+    // h <= -99 is the "not set" sentinel (stored as -999.0); undefined/NaN also treated as not set.
+    // Negative values that are not the sentinel are plus handicaps: -2 → "+2 hcp".
+    function formatHandicap(h) {
+        if (h === undefined || h === null || isNaN(h) || h <= -99) return qsTr("no hcp")
+        if (h === 0) return qsTr("Scratch")
+        if (h > 0)   return Math.round(h) + " hcp"
+        return "+" + Math.round(-h) + " hcp"
+    }
     readonly property int headerHeight:    40
     readonly property int carouselHeight:  120
     readonly property int statusBarHeight: 36

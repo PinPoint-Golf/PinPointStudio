@@ -103,9 +103,7 @@ Item {
             width:          Theme.sp(60)
             horizontalAlignment: Text.AlignRight
             anchors.verticalCenter: parent.verticalCenter
-            text:           (athleteData.handicap >= 0)
-                                ? Math.round(athleteData.handicap) + " hcp"
-                                : "—"
+            text:           Theme.formatHandicap(athleteData.handicap)
             font.family:    Theme.fontData
             font.pixelSize: Theme.sp(10)
             color:          Theme.colorText3

@@ -52,7 +52,7 @@ public:
         const QString &heightUnit  = QStringLiteral("ft"),
         double         weightValue = 0.0,
         const QString &weightUnit  = QStringLiteral("lb"),
-        double         handicap    = -1.0,
+        double         handicap    = -999.0,
         const QString &primaryClub = QStringLiteral("Driver"),
         double         speedTarget = 0.0,
         const QString &notes       = QString()
