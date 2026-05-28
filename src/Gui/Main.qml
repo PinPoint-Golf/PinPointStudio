@@ -237,10 +237,10 @@ ApplicationWindow {
                     }
                     onSystemRequested:        navController.navigate(8)
                 }
-                VideoPage       {}                                         // 1 — Swing
+                ScreenPlaceholder { iconText: "◑"; titleText: "Swing" }   // 1
                 ScreenPlaceholder { iconText: "⌖"; titleText: "Wrist"  }  // 2
                 ScreenPlaceholder { iconText: "⇅"; titleText: "GRF"    }  // 3
-                CoachPage {}                                               // 4 — AI coaching chat
+                ScreenPlaceholder { iconText: "✦"; titleText: "Coach" }  // 4
                 PlayPage {}                                                // 5 — Play dev-hatch only
                 ScreenAthleteForm {                                        // 6 — new athlete form
                     onCancelled:       navController.navigate(0)
