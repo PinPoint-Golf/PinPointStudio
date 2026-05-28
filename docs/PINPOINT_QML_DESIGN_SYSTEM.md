@@ -114,6 +114,9 @@ QtObject {
     // ── Spacing & geometry tokens ────────────────────────────────────────────
     readonly property int railWidth:     _t.railWidth      // px
     readonly property int sidenavWidth:  _t.sidenavWidth   // all secondary side panels (settings, athletes, etc.)
+    // Content column width helper — use on every centred single-column screen.
+    // Returns 70% of availableWidth, floored at sp(800).
+    function contentWidth(availableWidth) { ... }
     readonly property int headerHeight:  40                 // fixed across all aesthetics
     readonly property int carouselHeight: _t.carouselHeight
     readonly property int statusBarHeight: _t.statusBarHeight
@@ -1019,6 +1022,9 @@ These rules are absolute. Do not break them regardless of expediency.
 - **Never hardcode a secondary side-panel width** — always use `Theme.sidenavWidth`
   (275 sp). Every secondary navigation panel (settings, athletes, or any future screen
   with a side rail) must bind to this token so all sidebars remain the same width.
+- **Never hardcode a centred content column width** — always use `Theme.contentWidth(parent.width)`
+  (70% of available width, floored at sp(800)). Every single-column form or wizard screen
+  must use this helper so the column scales consistently with the window.
 
 ---
 
