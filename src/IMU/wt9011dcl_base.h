@@ -20,6 +20,7 @@
 
 #include "imu_base.h"
 #include "imu_capabilities.h"
+#include "orientation_filter.h"
 #include <optional>
 
 // WT9011DCL (MPU9250) IMU protocol layer — transport-agnostic.
@@ -120,7 +121,10 @@ public:
     // Calibration
     // -----------------------------------------------------------------------
 
-    // Keep device flat and still; call endCalibration() after ~5 s.
+    // CALSW=0x01: 6-POINT accel/gyro bias calibration — the device must be placed
+    // on all six faces in sequence, NOT just held flat. PinPoint does NOT perform
+    // this (a flat-still + SAVE attempt corrupted sensors); bias calibration is
+    // done in the official WitMotion app only. See docs/IMU_AXIS_REFERENCE.md.
     void startAccelGyroCalibration();
 
     // Rotate through all orientations for ~30 s; call endCalibration() when done.
@@ -156,6 +160,11 @@ public:
 
     int  gimbalDropCount()      const { return m_gimbalDropCount; }
     void resetGimbalDropCount()       { m_gimbalDropCount = 0; }
+
+    // Orientation for the 0x61 combined frame is fused locally from raw gyro+accel
+    // (Madgwick 6-axis) rather than taken from the device's non-rigid Euler output.
+    // Call on (re)connection so tracking re-seeds from the current pose.
+    void resetOrientationFilter()     { m_fusion.reset(); m_lastFusionUs = 0; }
 
     // -----------------------------------------------------------------------
     // Latest cached values
@@ -195,6 +204,7 @@ protected:
         RegHzOffset = 0x0D,
         RegOrient   = 0x23, // Installation direction: 0x00=horizontal, 0x01=vertical
         RegAxis6    = 0x24, // Fusion algorithm: 0x00=9-axis (mag), 0x01=6-axis (gyro only)
+        RegReadAddr = 0x27, // Register read trigger — send target address as LO byte
         RegVBat     = 0x64, // Battery voltage — confirmed from WitmotionSDK Bwt901bleProcessor.cs
     };
 
@@ -250,6 +260,10 @@ private:
     MagData        m_mag;
     QuaternionData m_quat;
     int            m_gimbalDropCount = 0;
+
+    // Local orientation fusion for the 0x61 combined frame (see dispatchCombinedPacket).
+    MadgwickFilter m_fusion;
+    qint64         m_lastFusionUs = 0;
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(WT9011DCL_Base::OutputFlags)

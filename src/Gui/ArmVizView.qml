@@ -113,12 +113,22 @@ Item {
     // Conjugate = inverse for unit quaternions.
     function quatInv(q) { return Qt.quaternion(q.scalar, -q.x, -q.y, -q.z) }
 
-    // Apply calibration transform to a raw IMU quaternion if the instance is calibrated.
-    // q_segment = calibTransform * q_raw
-    // Returns q_raw unchanged if uncalibrated or instance is null.
+    // Map a raw IMU quaternion to the segment's anatomical orientation.
+    // Prefers the functional calibration (q_anat = A·q_raw·M, computed in C++ and
+    // exposed as anatQuat — identity at the reference pose). Falls back to the
+    // legacy single-factor calibTransform, then to raw if uncalibrated.
     // IMPORTANT: QML quaternion uses .scalar for W — .w returns undefined.
     function quatApplyCalib(imuInst, raw) {
-        if (!imuInst || !imuInst.calibrated) return raw
+        // Uncalibrated or absent segments sit at REST (identity contribution) rather
+        // than passing through raw sensor data — otherwise an uncalibrated upper-arm
+        // or hand sensor drives its segment to an arbitrary orientation (the
+        // "zig-zag"/collapse). Only a calibrated segment moves.
+        if (!imuInst) return Qt.quaternion(1, 0, 0, 0)
+        if (imuInst.anatCalibrated) {
+            var a = imuInst.anatQuat
+            return Qt.quaternion(a.scalar, a.x, a.y, a.z)
+        }
+        if (!imuInst.calibrated) return Qt.quaternion(1, 0, 0, 0)
         var cal = Qt.quaternion(imuInst.calibTransform.scalar,
                                 imuInst.calibTransform.x,
                                 imuInst.calibTransform.y,
@@ -126,13 +136,18 @@ Item {
         return quatMul(cal, raw)
     }
 
-    // Bone rest-pose world quaternion derived from the ybot.glb inverse-bind
-    // matrices.  Maps bone-local Y (= arm length direction) to world ±X so the
-    // segment appears in T-pose when the IMU reports identity.
-    //   Left arm:  Qt.quaternion( 0.5,  0.5,  0.5, -0.5)  → Y maps to +X
-    //   Right arm: Qt.quaternion( 0.5,  0.5, -0.5,  0.5)  → Y maps to -X
-    readonly property quaternion leftRestQuat:  Qt.quaternion( 0.5,  0.5,  0.5, -0.5)
-    readonly property quaternion rightRestQuat: Qt.quaternion( 0.5,  0.5, -0.5,  0.5)
+    // Bone rest-pose quaternion: the world orientation of the segment when its
+    // input quaternion is identity (the arm-down reference, where anatQuat == I).
+    // The segment must hang straight down (world -Y).
+    //
+    // Solved numerically (Wahba fit) so the anatomical frame renders to the correct
+    // model-world directions at the validated verify poses: arm-down → world -Y,
+    // abduction → world -X (to the side), flexion → world -Z (forward; the avatar
+    // faces -Z, away from the camera). This R0 maps the fixed anatomical frame to
+    // the model world, so it is a reusable model constant, not session-specific.
+    // (Right arm not yet re-derived — the lead arm for a right-handed athlete is the left.)
+    readonly property quaternion leftRestQuat:  Qt.quaternion(0.0004, 0.9742, -0.0629, -0.2166)
+    readonly property quaternion rightRestQuat: Qt.quaternion(0.7071, -0.7071, 0, 0)
 
     // ─────────────────────────────────────────────────────────────────────────
     // 3D Scene

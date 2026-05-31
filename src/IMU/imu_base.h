@@ -66,8 +66,14 @@ public:
     virtual MagData        magData()        const = 0;
     virtual QuaternionData quaternionData() const = 0;
 
-    virtual void reinitialize()   {}
-    virtual void requestBattery() {}
+    virtual void reinitialize()      {}
+    virtual void requestBattery()    {}
+
+    // Zero the sensor's orientation reference to the current physical pose.
+    // Implementations send device-specific commands and emit zeroingConfirmed()
+    // when the device acknowledges. Default no-op for devices without zeroing
+    // support — ImuInstance's 30 s timeout will fire and emit zeroingFailed().
+    virtual void zeroToCurrentPose() {}
 
 signals:
     void connected();
@@ -82,6 +88,7 @@ signals:
     void quaternionUpdated(const ImuBase::QuaternionData &quat);
     void batteryUpdated(int percent);
     void batteryReadRetry();
+    void zeroingConfirmed(); // device confirmed zeroing was applied
 
     void rawPacketReady(const QByteArray &data, qint64 timestamp_us);
 };

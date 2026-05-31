@@ -110,34 +110,65 @@ void WT9011DCL_BLE::setOutputRate(OutputRate rate)
 
 void WT9011DCL_BLE::initializeDevice()
 {
-    // Vertical installation — device is mounted on a club shaft, not lying flat.
+    // Re-seed local orientation fusion from the current pose on every (re)connect
+    // and rate change, so it never starts from a stale quaternion.
+    resetOrientationFilter();
+
+    // Vertical installation: device mounted on wrist/forearm, not lying flat.
     sendCommand(RegOrient, 0x0001);
 
-    // 6-axis algorithm (gyro integration only, no magnetometer).
+    // 6-axis fusion: gyro + accelerometer only. No magnetometer — faster response
+    // and more accurate over the short duration of a golf swing.
     sendCommand(RegAxis6, 0x0001);
 
-    // Set output rate — defaults to 100Hz, updated whenever setOutputRate() is called.
+    // Output rate — defaults to 100 Hz, updated by setOutputRate().
     sendCommand(RegRRate, static_cast<quint16>(m_rate));
 
-    // Zero roll and pitch to the current physical orientation.
+    // Verify ORIENT and AXIS6 were accepted. Responses arrive asynchronously via
+    // dispatchReadResponse() and are logged via diagnosticInfo(). This guarantees
+    // every device comes up in the same known state (vertical mount + 6-axis),
+    // runtime-only — we never SAVE to the device's flash.
+    readRegisters(RegOrient, 0);
+    readRegisters(RegAxis6, 0);
+
+    // NOTE: CALSW zeroing (0x0008, 0x0004) is intentionally NOT done here.
+    // The sensor zero is set at calibration time (arm-down pose) via
+    // zeroToCurrentPose(), which is called from ImuInstance::setCalibration().
+    // This ensures the reference frame is set at a known anatomical position
+    // rather than at the arbitrary moment of BLE connection.
+}
+
+void WT9011DCL_BLE::zeroToCurrentPose()
+{
+    // Zero roll and pitch to the device's current physical orientation.
     sendCommand(RegCalSw, 0x0008);
 
-    // Zero yaw heading.
+    // Zero yaw heading to the current orientation.
     sendCommand(RegCalSw, 0x0004);
 
     // Return CALSW to normal working mode.
     sendCommand(RegCalSw, 0x0000);
+
+    // Request a read of RegCalSw as a pipeline fence.  The device processes
+    // BLE writes in order; when the 0x71 response arrives in
+    // dispatchReadResponse() all three CALSW writes above have been delivered.
+    // If the device does not respond, ImuInstance's settle timer confirms after
+    // 500 ms as a fallback.
+    readRegisters(RegCalSw, 0);
 }
 
 // ---------------------------------------------------------------------------
 // Orientation correction
 // ---------------------------------------------------------------------------
 
-// WT901BLE67 confirmed axis mapping: Roll→X, Yaw→Y, Pitch→Z (RYP order),
-// with pitch negated. Gate on |pitch|, not |yaw|: the WT901 firmware uses
-// standard ZYX (R_z(yaw)*R_y(pitch)*R_x(roll)) internally, so pitch is the
-// device's middle angle and the singularity that produces garbage Euler output
-// is pitch = ±90°. Yaw is free to rotate without limit during normal motion.
+// LEGACY / UNUSED for the 0x61 combined frame. Orientation now comes from our own
+// Madgwick 6-axis fusion of raw gyro+accel (orientation_filter.h), because the
+// device's on-board Euler output proved non-rigid. This override is retained only
+// for the old 0x55/0x53 serial packet path and is not on the WT901BLE67 hot path.
+// See docs/IMU_AXIS_REFERENCE.md.
+//
+// (Historical note — axis mapping it attempted: Roll→X, Yaw→Y, Pitch→Z, pitch
+// negated; gated on |pitch| as the ZYX middle-angle singularity.)
 std::optional<WT9011DCL_BLE::QuaternionData>
 WT9011DCL_BLE::eulerToQuat(const EulerAngles &e) const
 {

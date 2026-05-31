@@ -78,6 +78,11 @@ public:
     void reinitialize() override { initializeDevice(); }
     void setOutputRate(OutputRate rate) override;
 
+    // Zeros roll, pitch, and yaw to the device's current physical orientation.
+    // Call this at calibration time (arm-down pose), not at connect time.
+    // Separate from initializeDevice() so the zero is applied at a known pose.
+    void zeroToCurrentPose() override;
+
 protected:
     void writeToDevice(const QByteArray &data) override;
     std::optional<QuaternionData> eulerToQuat(const EulerAngles &e) const override;

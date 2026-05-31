@@ -17,6 +17,7 @@
  */
 
 #include "wt9011dcl_base.h"
+#include "pp_debug.h"
 #include "event_buffer.h"
 #include <QtMath>
 
@@ -116,7 +117,7 @@ void WT9011DCL_Base::readRegisters(quint8 regAddr, quint8 regCount)
     QByteArray cmd(5, Qt::Uninitialized);
     cmd[0] = 0xFF;
     cmd[1] = 0xAA;
-    cmd[2] = 0x27;
+    cmd[2] = static_cast<char>(RegReadAddr);
     cmd[3] = static_cast<char>(regAddr);
     cmd[4] = static_cast<char>(regCount);
     writeToDevice(cmd);
@@ -227,22 +228,39 @@ void WT9011DCL_Base::dispatchCombinedPacket(const QByteArray &frame)
     emit gyroUpdated(m_gyro);
 
     // Bytes 14-19: euler angles xyz (int16 LE, /32768 * 180 °).
-    // Converted immediately to quaternion; Euler values are not stored.
-    // Packets near the ZYX gimbal lock singularity are silently dropped.
+    //
+    // Orientation is fused locally from the raw gyro + accel above (Madgwick
+    // 6-axis), NOT taken from these device Euler angles. The device's on-board
+    // Euler output proved non-rigid: reconstructing a quaternion from it (any axis
+    // convention) reproduces joint rotation axes ~15-50 deg off the truth and
+    // gimbal-locks near pitch = +-90, whereas the raw gyro+accel are faithful.
+    // The Euler values are still emitted for display labels only (see CLAUDE.md:
+    // Euler is acceptable solely for human-readable UI, never for computation).
     const qint16 roll  = le16(frame, 14);
     const qint16 pitch = le16(frame, 16);
     const qint16 yaw   = le16(frame, 18);
-    if (roll || pitch || yaw) {
-        EulerAngles euler;
-        euler.roll  = roll  / 32768.0f * 180.0f;
-        euler.pitch = pitch / 32768.0f * 180.0f;
-        euler.yaw   = yaw   / 32768.0f * 180.0f;
-        const auto q = eulerToQuat(euler);
-        if (!q) { ++m_gimbalDropCount; return; }
-        emit eulerAnglesUpdated(euler);
-        m_quat = *q;
-        emit quaternionUpdated(m_quat);
-    }
+    EulerAngles euler;
+    euler.roll  = roll  / 32768.0f * 180.0f;
+    euler.pitch = pitch / 32768.0f * 180.0f;
+    euler.yaw   = yaw   / 32768.0f * 180.0f;
+    emit eulerAnglesUpdated(euler);   // display labels only
+
+    // Per-sample dt from the software clock; clamp to absorb BLE stalls/gaps.
+    const qint64 nowUs = static_cast<qint64>(pinpoint::EventBuffer::nowMicros());
+    float dt = (m_lastFusionUs != 0) ? (nowUs - m_lastFusionUs) * 1e-6f : 0.01f;
+    m_lastFusionUs = nowUs;
+    if (dt < 0.0005f) dt = 0.0005f;
+    if (dt > 0.05f)   dt = 0.05f;
+
+    if (!m_fusion.initialized())
+        m_fusion.initFromAccel(m_accel.x, m_accel.y, m_accel.z);
+    m_fusion.update(m_accel.x, m_accel.y, m_accel.z,
+                    qDegreesToRadians(m_gyro.x),
+                    qDegreesToRadians(m_gyro.y),
+                    qDegreesToRadians(m_gyro.z), dt);
+
+    m_quat = QuaternionData{ m_fusion.w(), m_fusion.x(), m_fusion.y(), m_fusion.z() };
+    emit quaternionUpdated(m_quat);
 }
 
 bool WT9011DCL_Base::verifyChecksum(const QByteArray &packet) const
@@ -340,9 +358,48 @@ void WT9011DCL_Base::dispatchReadResponse(const QByteArray &frame)
     const quint8 startReg = static_cast<quint8>(frame[2]);
     const qint16 raw      = le16(frame, 4);
 
-    emit diagnosticInfo(QStringLiteral("[batt] 0x71: startReg=0x%1 raw=%2")
+    emit diagnosticInfo(QStringLiteral("[0x71] startReg=0x%1 raw=%2")
                         .arg(startReg, 2, 16, QLatin1Char('0'))
                         .arg(raw));
+
+    if (startReg == RegCalSw) {
+        ppWarn() << "[IMU] zeroing fence response: RegCalSw readback=0x"
+                 << Qt::hex << raw << Qt::dec
+                 << "— hardware ACK received, zero confirmed";
+        emit diagnosticInfo(QStringLiteral("[calsw] readback=0x%1 — hardware ACK received")
+                            .arg(static_cast<quint16>(raw), 4, 16, QLatin1Char('0')));
+        emit zeroingConfirmed();
+        return;
+    }
+
+    if (startReg == RegOrient) {
+        // Verify that vertical installation (0x0001) was accepted.
+        if (raw == 0x0001) {
+            emit diagnosticInfo(QStringLiteral(
+                "[orient] ORIENT=0x0001 confirmed — vertical installation active"));
+        } else {
+            emit diagnosticInfo(QStringLiteral(
+                "[orient] WARNING: ORIENT readback=0x%1 — expected 0x0001 (vertical). "
+                "Euler output may be in the wrong frame.")
+                .arg(raw, 4, 16, QLatin1Char('0')));
+        }
+        return;
+    }
+
+    if (startReg == RegAxis6) {
+        // Verify that 6-axis fusion (0x0001) was accepted, so every device comes
+        // up in the same known algorithm state (gyro+accel only, no magnetometer).
+        if (raw == 0x0001) {
+            emit diagnosticInfo(QStringLiteral(
+                "[axis6] AXIS6=0x0001 confirmed — 6-axis fusion active"));
+        } else {
+            emit diagnosticInfo(QStringLiteral(
+                "[axis6] WARNING: AXIS6 readback=0x%1 — expected 0x0001 (6-axis). "
+                "Device may be in 9-axis (magnetometer) mode.")
+                .arg(raw, 4, 16, QLatin1Char('0')));
+        }
+        return;
+    }
 
     if (startReg != RegVBat)
         return;

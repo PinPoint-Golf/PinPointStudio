@@ -18,8 +18,10 @@
 
 #include "imu_instance.h"
 
+#include "pp_debug.h"
 #include "ble_adapter_pool.h"
 #include "event_buffer.h"
+#include "imu_calibration.h"
 #include "imu_sample.h"
 #include "source_descriptor.h"
 
@@ -29,6 +31,7 @@
 #include <QStandardPaths>
 #include <QTextStream>
 #include <QtMath>
+#include <cmath>
 #include <chrono>
 #include <cstring>
 
@@ -64,6 +67,46 @@ ImuInstance::ImuInstance(const Device &device,
 
         m_imuSourceId = m_eventBuffer->registerSource(desc);
     }
+
+    // Soft confirmation — fires 500 ms after zeroToCurrentPose() is sent.
+    // 500 ms = 50 BLE frames at 100 Hz; enough for the device to process CALSW writes.
+    // Used as a fallback when the device does not respond to the RegCalSw fence read.
+    m_zeroSettleTimer.setSingleShot(true);
+    connect(&m_zeroSettleTimer, &QTimer::timeout, this, [this]() {
+        if (!m_zeroing) return;  // hardware ACK already fired
+        m_zeroConfirmTimer.stop();
+        m_zeroing = false;
+        emit zeroingChanged();
+        emit zeroingConfirmed();
+        const QString msg = timestamp() + "  Zeroing confirmed (settle timer — no hardware ACK received).";
+        ppWarn() << "[ImuInstance]" << m_deviceDescription << "— zeroing confirmed via settle timer (device did not ACK RegCalSw read)";
+        appendLog(msg);
+    });
+
+    m_zeroConfirmTimer.setSingleShot(true);
+    connect(&m_zeroConfirmTimer, &QTimer::timeout, this, [this]() {
+        if (!m_zeroing) return;
+        m_zeroSettleTimer.stop();
+        ppError() << "[ImuInstance]" << m_deviceDescription << "— zero confirmation timed out after 30 s";
+        appendLog(timestamp() + "  ERROR: zeroing timed out after 30 s — tap Recalibrate.");
+        m_zeroing = false;
+        emit zeroingChanged();
+        emit zeroingFailed();
+    });
+
+    // Hardware confirmation — fires when the device responds to the RegCalSw fence read.
+    // Takes precedence over the settle timer; cancels it so settle does not double-fire.
+    connect(m_imu, &ImuBase::zeroingConfirmed, this, [this]() {
+        if (!m_zeroing) return;
+        m_zeroSettleTimer.stop();
+        m_zeroConfirmTimer.stop();
+        m_zeroing = false;
+        emit zeroingChanged();
+        emit zeroingConfirmed();
+        const QString msg = timestamp() + "  Zeroing confirmed (hardware ACK — RegCalSw readback received).";
+        ppWarn() << "[ImuInstance]" << m_deviceDescription << "— zeroing confirmed via hardware ACK";
+        appendLog(msg);
+    });
 
     m_retryTimer.setSingleShot(true);
     connect(&m_retryTimer, &QTimer::timeout, this, [this]() {
@@ -153,14 +196,42 @@ ImuInstance::ImuInstance(const Device &device,
                 .arg(d.temperature, 5, 'f', 1));
     });
 
+    connect(m_imu, &WT9011DCL_Base::eulerAnglesUpdated,
+            this, [this](const WT9011DCL_Base::EulerAngles &e) {
+        m_eulerRoll  = e.roll;
+        m_eulerPitch = e.pitch;
+        m_eulerYaw   = e.yaw;
+    });
+
     // Display update — queued to main thread, drives QML bindings.
     connect(m_imu, &WT9011DCL_Base::quaternionUpdated,
             this, [this](const WT9011DCL_Base::QuaternionData &q) {
         m_quatW = q.w; m_quatX = q.x; m_quatY = q.y; m_quatZ = q.z;
+        // Anatomical orientation for all consumers (computed before quatChanged so
+        // the anatQuat property is current when bindings re-evaluate).
+        if (m_anatCalibrated)
+            m_anatQuat = m_alignA * QQuaternion(q.w, q.x, q.y, q.z) * m_mountM;
+        else
+            m_anatQuat = QQuaternion(q.w, q.x, q.y, q.z);
         emit quatChanged();
 
-        // Stability detection: compute angular velocity from successive quaternions.
-        // QElapsedTimer is not started until the first packet, so skip the first tick.
+        // TEMP (calibration diagnostics — remove before commit): raw packet stream.
+        // m_eulerRoll/Pitch/Yaw were just set by the eulerAnglesUpdated slot, which
+        // is connected before this one so fires first for the same packet.
+        if (m_rawDump) {
+            const auto a = m_imu->accelData();
+            const auto g = m_imu->gyroData();
+            m_rawDumpLines.append(
+                QStringLiteral("euler=(%1,%2,%3) accel=(%4,%5,%6) gyro=(%7,%8,%9) qraw=(%10,%11,%12,%13)")
+                    .arg(m_eulerRoll, 0, 'f', 4).arg(m_eulerPitch, 0, 'f', 4).arg(m_eulerYaw, 0, 'f', 4)
+                    .arg(a.x, 0, 'f', 5).arg(a.y, 0, 'f', 5).arg(a.z, 0, 'f', 5)
+                    .arg(g.x, 0, 'f', 4).arg(g.y, 0, 'f', 4).arg(g.z, 0, 'f', 4)
+                    .arg(q.w, 0, 'f', 6).arg(q.x, 0, 'f', 6).arg(q.y, 0, 'f', 6).arg(q.z, 0, 'f', 6));
+        }
+
+        // Angular velocity from successive quaternions, for the Calibrate step's
+        // stillness-gated capture. QElapsedTimer is not started until the first
+        // packet, so skip the first tick.
         const qint64 dtMs = m_prevQuatTimer.isValid() ? m_prevQuatTimer.elapsed() : -1;
         m_prevQuatTimer.restart();
 
@@ -175,17 +246,6 @@ ImuInstance::ImuInstance(const Device &device,
             if (qAbs(velDps - m_angularVelocityDps) > 0.5f) {
                 m_angularVelocityDps = velDps;
                 emit angularVelocityDpsChanged();
-            }
-
-            if (velDps > kStableThresholdDps) {
-                m_stableTimerRunning = false;
-                if (m_stable) { m_stable = false; emit stableChanged(); }
-            } else {
-                if (!m_stableTimerRunning) { m_stableTimer.restart(); m_stableTimerRunning = true; }
-                if (!m_stable && m_stableTimer.elapsed() >= kStableDurationMs) {
-                    m_stable = true;
-                    emit stableChanged();
-                }
             }
         } else {
             m_prevQuat = QQuaternion(q.w, q.x, q.y, q.z);
@@ -225,6 +285,8 @@ ImuInstance::ImuInstance(const Device &device,
 
 ImuInstance::~ImuInstance()
 {
+    m_zeroSettleTimer.stop();
+    m_zeroConfirmTimer.stop();
     m_retryTimer.stop();
     m_logTimer.stop();
     m_batteryTimer.stop();
@@ -290,11 +352,32 @@ void ImuInstance::deregisterFromBuffer()
     }
 }
 
+void ImuInstance::beginZeroing()
+{
+    if (!m_connected || !m_imu || m_zeroing) return;
+    const QString msg = timestamp() + "  Zeroing sequence started — sending CALSW commands + RegCalSw fence read.";
+    ppWarn() << "[ImuInstance]" << m_deviceDescription << "— zeroing started";
+    appendLog(msg);
+    m_zeroing = true;
+    emit zeroingChanged();
+    m_imu->zeroToCurrentPose();           // CALSW × 3 + readRegisters(RegCalSw, 0)
+    m_zeroSettleTimer.start(500);         // fallback: confirm after 500 ms if no hardware ACK
+    m_zeroConfirmTimer.start(30'000);     // absolute 30 s deadline
+}
+
 void ImuInstance::zeroOrientation()
 {
     if (!m_connected) return;
     appendLog(timestamp() + "  Zeroing orientation…");
     m_imu->reinitialize();
+    m_imu->zeroToCurrentPose();   // reinitialize() no longer zeros; must call explicitly
+
+    // Reinitialising changes the device configuration. If calibration was
+    // previously set, it is now invalid — the user must recalibrate.
+    if (m_calibrated) {
+        appendLog(timestamp() + "  Calibration cleared — recalibration required.");
+        clearCalibration();
+    }
 }
 
 QString ImuInstance::saveLog()
@@ -317,24 +400,105 @@ QString ImuInstance::saveLog()
     return path;
 }
 
-void ImuInstance::setCalibration(const QQuaternion &armDown,
-                                 const QQuaternion &tPose,
-                                 bool rightHanded)
+// TEMP (calibration diagnostics — remove before commit).
+// Appends one flushed line to ~/pinpoint_imu_diag.log. `payload` carries the
+// QML-side slerp-averaged values; here we also log the driver's instantaneous
+// RAW accelerometer (gravity vector, sensor hardware frame) and RAW quaternion
+// (eulerToQuat output) so the offline solve can relate the two frames.
+void ImuInstance::logDiag(const QString &tag, const QString &payload)
+{
+    const QString path = QDir(QStandardPaths::writableLocation(QStandardPaths::HomeLocation))
+                             .filePath(QStringLiteral("pinpoint_imu_diag.log"));
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+        ppWarn() << "[ImuInstance] logDiag: cannot open" << path;
+        return;
+    }
+
+    const auto a = m_imu ? m_imu->accelData()      : WT9011DCL_Base::AccelData{};
+    const auto g = m_imu ? m_imu->gyroData()       : WT9011DCL_Base::GyroData{};
+    const auto q = m_imu ? m_imu->quaternionData() : WT9011DCL_Base::QuaternionData{};
+
+    QTextStream out(&f);
+    out << timestamp()
+        << "  dev=" << m_deviceId
+        << "  tag=" << tag.leftJustified(10, QLatin1Char(' '))
+        << "  euler=(" << QString::number(m_eulerRoll, 'f', 4) << ',' << QString::number(m_eulerPitch, 'f', 4)
+                << ',' << QString::number(m_eulerYaw, 'f', 4) << ')'
+        << "  qraw=("  << QString::number(q.w, 'f', 6) << ',' << QString::number(q.x, 'f', 6)
+                << ',' << QString::number(q.y, 'f', 6) << ',' << QString::number(q.z, 'f', 6) << ')'
+        << "  accel=(" << QString::number(a.x, 'f', 4) << ',' << QString::number(a.y, 'f', 4)
+                << ',' << QString::number(a.z, 'f', 4) << ")g"
+        << "  gyro=(" << QString::number(g.x, 'f', 3) << ',' << QString::number(g.y, 'f', 3)
+                << ',' << QString::number(g.z, 'f', 3) << ')'
+        << "  anatcal=" << (m_anatCalibrated ? '1' : '0')
+        << "  anatquat=(" << QString::number(m_anatQuat.scalar(), 'f', 6) << ',' << QString::number(m_anatQuat.x(), 'f', 6)
+                << ',' << QString::number(m_anatQuat.y(), 'f', 6) << ',' << QString::number(m_anatQuat.z(), 'f', 6) << ')'
+        << "  " << payload
+        << '\n';
+    out.flush();
+
+    appendLog(timestamp() + QStringLiteral("  [diag] ") + tag + QStringLiteral("  ") + payload);
+}
+
+// TEMP (calibration diagnostics — remove before commit).
+void ImuInstance::beginRawDump(const QString &tag)
+{
+    m_rawDumpTag = tag;
+    m_rawDumpLines.clear();
+    m_rawDump = true;
+}
+
+void ImuInstance::endRawDump()
+{
+    m_rawDump = false;
+    const QString path = QDir(QStandardPaths::writableLocation(QStandardPaths::HomeLocation))
+                             .filePath(QStringLiteral("pinpoint_imu_raw.log"));
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+        ppWarn() << "[ImuInstance] endRawDump: cannot open" << path;
+        return;
+    }
+    QTextStream out(&f);
+    out << "# BEGIN " << m_rawDumpTag << "  dev=" << m_deviceId
+        << "  samples=" << m_rawDumpLines.size() << '\n';
+    for (const QString &line : std::as_const(m_rawDumpLines))
+        out << line << '\n';
+    out << "# END " << m_rawDumpTag << '\n';
+    out.flush();
+    m_rawDumpLines.clear();
+}
+
+void ImuInstance::setCalibration(const QQuaternion &armDown, const QQuaternion &tPose)
 {
     m_calibArmDown  = armDown;
     m_calibArmTPose = tPose;
 
-    // Anatomical target for the arm-down pose depends on which arm is the lead arm.
-    // Left arm  (right-handed golfer): 180° about world Z → (w=0, x=0, y=0, z=1)
-    // Right arm (left-handed golfer):  180° about world X → (w=0, x=1, y=0, z=0)
-    const QQuaternion target = rightHanded
-        ? QQuaternion(0.0f, 0.0f, 0.0f, 1.0f)
-        : QQuaternion(0.0f, 1.0f, 0.0f, 0.0f);
-
-    // q_cal maps raw sensor space to anatomical world frame.
-    // At runtime: q_segment = q_cal * q_raw
-    m_calibTransform = armDown.conjugated() * target;
+    // The sensor reports quaternions relative to an arbitrary power-on origin,
+    // not an absolute world frame. Use the arm-down pose as the session reference:
+    //
+    //   q_cal = conjugate(q_arm_down)
+    //
+    // At runtime:  q_relative = q_cal * q_raw = conjugate(q_arm_down) * q_raw
+    //
+    // When the arm is in arm-down position q_raw ≈ q_arm_down, so q_relative ≈
+    // identity — the model arm hangs straight down regardless of power-on offset.
+    m_calibTransform = armDown.conjugated();
     m_calibTransform.normalize();
+
+    // Validation: compute the relative rotation between arm-down and T-pose and
+    // check that it is approximately 90° of rotation. This catches cases where
+    // the calibration sequence was performed incorrectly (e.g. arm not raised
+    // to horizontal, or poses captured in the wrong order).
+    //
+    // angle = 2 * acos(|dot(q_arm_down, q_t_pose)|)
+    const float dot      = qBound(-1.0f, qAbs(QQuaternion::dotProduct(armDown, tPose)), 1.0f);
+    const float angleDeg = qRadiansToDegrees(2.0f * qAcos(dot));
+    m_calibrationAngleValid = (angleDeg >= 60.0f && angleDeg <= 120.0f);
+    if (!m_calibrationAngleValid) {
+        qWarning() << "ImuInstance::setCalibration: arm-down→T-pose angle is"
+                   << angleDeg << "° — expected ~90°. Calibration may be inaccurate.";
+    }
 
     m_calibrated = true;
     emit calibratedChanged();
@@ -342,11 +506,135 @@ void ImuInstance::setCalibration(const QQuaternion &armDown,
 
 void ImuInstance::clearCalibration()
 {
-    m_calibrated     = false;
+    m_calibrated            = false;
+    m_calibrationAngleValid = true;
     m_calibArmDown   = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
     m_calibArmTPose  = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
     m_calibTransform = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
     emit calibratedChanged();
+}
+
+void ImuInstance::setFunctionalCalibration(const QQuaternion &refRaw,
+                                           const QVector3D   &gravityDownSensor,
+                                           const QVector3D   &longAxisSensor,
+                                           const QVector3D   &flexAxisSensor,
+                                           bool               handMount)
+{
+    const imu_calibration::Alignment a =
+        imu_calibration::solveSegment(refRaw, gravityDownSensor, longAxisSensor, flexAxisSensor);
+
+    m_alignA         = a.A;
+    m_mountM         = a.M;
+    m_anatCalibrated = true;
+
+    // Mis-mount check: angle between the solved mounting and the expected nominal.
+    // δM = M_solved * conj(M_nominal); rotation angle = 2*acos(|w|).
+    const QQuaternion nominal = handMount ? imu_calibration::nominalHandMount()
+                                          : imu_calibration::nominalArmMount();
+    const QQuaternion dM = (a.M * nominal.conjugated()).normalized();
+    m_mountDeviationDeg = qRadiansToDegrees(2.0 * std::acos(qBound(0.0, std::abs((double)dM.scalar()), 1.0)));
+
+    ppWarn() << "[ImuInstance]" << m_deviceDescription
+             << "— functional calibration: axis angle" << a.axisAngleDeg
+             << "deg, mount deviation" << m_mountDeviationDeg << "deg, valid" << a.valid;
+    appendLog(timestamp() + QStringLiteral("  Precise calibration set (axis angle %1°, mount Δ %2°%3).")
+                                .arg(a.axisAngleDeg, 0, 'f', 1)
+                                .arg(m_mountDeviationDeg, 0, 'f', 1)
+                                .arg(m_mountDeviationDeg > 15.0 ? QStringLiteral(" — CHECK SEATING")
+                                   : (!a.valid ? QStringLiteral(" — axis POOR") : QString())));
+
+    emit anatCalibratedChanged();
+    emit quatChanged();   // refresh anatQuat consumers
+}
+
+void ImuInstance::setNominalCalibration(const QQuaternion &refRaw, bool handMount)
+{
+    // M is the known strap-enforced mounting; A places the reference pose at
+    // identity so anatQuat = A * q_raw * M is identity at arm-down. The hand sensor
+    // seats 90 deg about the long axis differently from forearm/upper-arm.
+    m_mountM = handMount ? imu_calibration::nominalHandMount()
+                         : imu_calibration::nominalArmMount();
+    m_alignA = (refRaw * m_mountM).conjugated().normalized();
+    m_anatCalibrated    = true;
+    m_mountDeviationDeg = 0.0;   // nominal = no fine-tune applied
+
+    // Gravity-direction (flip) check: express the current arm-down accelerometer
+    // reading in the anatomical body frame (M^-1 * accel). At arm-down it must be
+    // ~ anatomical "up" (0,-1,0); a flipped / upside-down mount points it elsewhere
+    // (phi/mount-deviation is blind to this). Caller treats a large value as a
+    // mount FAIL (re-seat). Assumes the sensor is held at the arm-down pose.
+    if (m_imu) {
+        const auto a = m_imu->accelData();
+        QVector3D acc(a.x, a.y, a.z);
+        if (acc.lengthSquared() > 1e-6f) {
+            const QVector3D gBody = m_mountM.conjugated().rotatedVector(acc.normalized());
+            const float dot = qBound(-1.0f, QVector3D::dotProduct(gBody, QVector3D(0.0f, -1.0f, 0.0f)), 1.0f);
+            m_mountGravityErrorDeg = qRadiansToDegrees(std::acos(dot));
+        }
+    }
+
+    ppWarn() << "[ImuInstance]" << m_deviceDescription << "— nominal (quick) calibration set; gravity error"
+             << m_mountGravityErrorDeg << "deg";
+    appendLog(timestamp() + QStringLiteral("  Nominal calibration set (mandated mount, arm-down reference); gravity Δ %1°%2.")
+                                .arg(m_mountGravityErrorDeg, 0, 'f', 1)
+                                .arg(m_mountGravityErrorDeg > 25.0 ? QStringLiteral(" — MOUNT FLIPPED?") : QString()));
+
+    emit anatCalibratedChanged();
+    emit quatChanged();
+}
+
+void ImuInstance::refineMountAboutLongAxis(const QQuaternion &refRaw, double phiDeg, bool handMount)
+{
+    // M' = M_nominal * Ry(phi)  (Ry about the anatomical long axis +Y); then A'
+    // re-anchors so anatQuat(refRaw) stays identity. Derived as a similarity
+    // transform: a mounting error about the long axis shows up as the abducted
+    // pose's rotation axis being rotated about Y; phi nulls it.
+    const QQuaternion nominal = handMount ? imu_calibration::nominalHandMount()
+                                          : imu_calibration::nominalArmMount();
+
+    // Safety guard: a genuine strap-slop correction is small. A large |phi| means
+    // the second pose didn't isolate a clean long-axis rotation for this segment
+    // (e.g. the user's arm wasn't rigid), so trust the validated nominal instead
+    // of applying a corrupting correction.
+    if (std::abs(phiDeg) > 25.0) {
+        m_mountM = nominal;
+        m_alignA = (refRaw * m_mountM).conjugated().normalized();
+        m_anatCalibrated    = true;
+        m_mountDeviationDeg = std::abs(phiDeg);
+        ppWarn() << "[ImuInstance]" << m_deviceDescription
+                 << "— precise refine REJECTED (phi" << phiDeg << "deg too large); kept nominal";
+        appendLog(timestamp() + QStringLiteral("  Precise refine rejected (Δ %1° too large) — kept nominal.")
+                                    .arg(phiDeg, 0, 'f', 1));
+        emit anatCalibratedChanged();
+        emit quatChanged();
+        return;
+    }
+
+    const float h = static_cast<float>(qDegreesToRadians(phiDeg) * 0.5);
+    const QQuaternion Ry(std::cos(h), 0.0f, std::sin(h), 0.0f);
+
+    m_mountM = (nominal * Ry).normalized();
+    m_alignA = (refRaw * m_mountM).conjugated().normalized();
+    m_anatCalibrated   = true;
+    m_mountDeviationDeg = std::abs(phiDeg);
+
+    ppWarn() << "[ImuInstance]" << m_deviceDescription
+             << "— precise refine: long-axis correction" << phiDeg << "deg";
+    appendLog(timestamp() + QStringLiteral("  Precise refine: long-axis Δ %1°%2.")
+                                .arg(phiDeg, 0, 'f', 1)
+                                .arg(std::abs(phiDeg) > 15.0 ? QStringLiteral(" — CHECK SEATING") : QString()));
+
+    emit anatCalibratedChanged();
+    emit quatChanged();
+}
+
+void ImuInstance::clearFunctionalCalibration()
+{
+    m_anatCalibrated = false;
+    m_alignA = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+    m_mountM = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+    emit anatCalibratedChanged();
+    emit quatChanged();
 }
 
 void ImuInstance::setOutputRateHz(int hz)

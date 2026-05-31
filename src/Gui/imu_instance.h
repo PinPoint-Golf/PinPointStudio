@@ -24,6 +24,7 @@
 #include <QQuaternion>
 #include <QStringList>
 #include <QTimer>
+#include <QVector3D>
 
 #include "device_enumerator.h"
 #include "types.h"
@@ -44,6 +45,9 @@ class ImuInstance : public QObject
     Q_PROPERTY(float   quatX          READ quatX          NOTIFY quatChanged)
     Q_PROPERTY(float   quatY          READ quatY          NOTIFY quatChanged)
     Q_PROPERTY(float   quatZ          READ quatZ          NOTIFY quatChanged)
+    Q_PROPERTY(float   eulerRoll      READ eulerRoll      NOTIFY quatChanged)
+    Q_PROPERTY(float   eulerPitch     READ eulerPitch     NOTIFY quatChanged)
+    Q_PROPERTY(float   eulerYaw       READ eulerYaw       NOTIFY quatChanged)
     Q_PROPERTY(float   accelX         READ accelX         NOTIFY accelChanged)
     Q_PROPERTY(float   accelY         READ accelY         NOTIFY accelChanged)
     Q_PROPERTY(float   accelZ         READ accelZ         NOTIFY accelChanged)
@@ -51,15 +55,28 @@ class ImuInstance : public QObject
     Q_PROPERTY(double  dataRateHz     READ dataRateHz     NOTIFY dataRateHzChanged)
     Q_PROPERTY(int     batteryPercent  READ batteryPercent  NOTIFY batteryPercentChanged)
     Q_PROPERTY(int     gimbalDropCount READ gimbalDropCount NOTIFY gimbalDropCountChanged)
-    Q_PROPERTY(bool  stable             READ stable             NOTIFY stableChanged)
     Q_PROPERTY(float angularVelocityDps READ angularVelocityDps NOTIFY angularVelocityDpsChanged)
     Q_PROPERTY(QString     deviceId          READ deviceId          CONSTANT)
     Q_PROPERTY(QString     deviceDescription READ deviceDescription CONSTANT)
     Q_PROPERTY(QStringList logEntries        READ logEntries        CONSTANT)
-    Q_PROPERTY(bool        calibrated    READ calibrated    NOTIFY calibratedChanged)
-    Q_PROPERTY(QQuaternion calibArmDown  READ calibArmDown  NOTIFY calibratedChanged)
-    Q_PROPERTY(QQuaternion calibArmTPose READ calibArmTPose NOTIFY calibratedChanged)
-    Q_PROPERTY(QQuaternion calibTransform READ calibTransform NOTIFY calibratedChanged)
+    Q_PROPERTY(bool        calibrated         READ calibrated         NOTIFY calibratedChanged)
+    Q_PROPERTY(QQuaternion calibArmDown       READ calibArmDown       NOTIFY calibratedChanged)
+    Q_PROPERTY(QQuaternion calibArmTPose      READ calibArmTPose      NOTIFY calibratedChanged)
+    Q_PROPERTY(QQuaternion calibTransform     READ calibTransform     NOTIFY calibratedChanged)
+    Q_PROPERTY(bool        calibrationAngleValid READ calibrationAngleValid NOTIFY calibratedChanged)
+    Q_PROPERTY(bool zeroing READ zeroing NOTIFY zeroingChanged)
+    // Anatomical orientation q_anat = A * q_raw * M (see imu_calibration.h). The
+    // single transform all consumers use; identity-passthrough until calibrated.
+    Q_PROPERTY(QQuaternion anatQuat       READ anatQuat       NOTIFY quatChanged)
+    Q_PROPERTY(bool        anatCalibrated READ anatCalibrated NOTIFY anatCalibratedChanged)
+    // Angle between the solved mounting and the expected nominal (precise mode);
+    // a large value means the sensor is mis-seated. 0 until a functional solve.
+    Q_PROPERTY(double      mountDeviationDeg READ mountDeviationDeg NOTIFY anatCalibratedChanged)
+    // Gravity-direction check at arm-down: angle between M^-1*(arm-down accel) and
+    // anatomical "up" (0,-1,0). Large means the sensor is flipped / upside-down
+    // (which the long-axis-rotation deviation above is blind to). Set by
+    // setNominalCalibration. 0 until calibrated.
+    Q_PROPERTY(double      mountGravityErrorDeg READ mountGravityErrorDeg NOTIFY anatCalibratedChanged)
 
 public:
     explicit ImuInstance(const Device &device,
@@ -81,6 +98,9 @@ public:
     float   quatX()          const { return m_quatX; }
     float   quatY()          const { return m_quatY; }
     float   quatZ()          const { return m_quatZ; }
+    float   eulerRoll()      const { return m_eulerRoll;  }
+    float   eulerPitch()     const { return m_eulerPitch; }
+    float   eulerYaw()       const { return m_eulerYaw;   }
     float   accelX()         const { return m_accelX; }
     float   accelY()         const { return m_accelY; }
     float   accelZ()         const { return m_accelZ; }
@@ -88,12 +108,19 @@ public:
     double  dataRateHz()        const { return m_dataRateHz; }
     int     batteryPercent()    const { return m_batteryPercent; }
     int     gimbalDropCount()   const { return m_gimbalDropCount; }
-    bool    stable()            const { return m_stable; }
     float   angularVelocityDps() const { return m_angularVelocityDps; }
-    bool        calibrated()    const { return m_calibrated; }
+    bool        calibrated()          const { return m_calibrated; }
+    bool        calibrationAngleValid() const { return m_calibrationAngleValid; }
+    bool        zeroing()       const { return m_zeroing; }
     QQuaternion calibArmDown()  const { return m_calibArmDown; }
     QQuaternion calibArmTPose() const { return m_calibArmTPose; }
     QQuaternion calibTransform() const { return m_calibTransform; }
+    QQuaternion anatQuat()      const { return m_anatQuat; }
+    bool        anatCalibrated() const { return m_anatCalibrated; }
+    double      mountDeviationDeg() const { return m_mountDeviationDeg; }
+    double      mountGravityErrorDeg() const { return m_mountGravityErrorDeg; }
+    QQuaternion alignA()        const { return m_alignA; }   // session-metadata accessors
+    QQuaternion mountM()        const { return m_mountM; }
 
     // Lifecycle — called by ImuManager
     void start();                // begin BLE connection
@@ -104,8 +131,43 @@ public:
     Q_INVOKABLE void    zeroOrientation();
     Q_INVOKABLE QString saveLog();
     Q_INVOKABLE void    setOutputRateHz(int hz);
-    Q_INVOKABLE void    setCalibration(const QQuaternion &armDown, const QQuaternion &tPose, bool rightHanded);
+    Q_INVOKABLE void    setCalibration(const QQuaternion &armDown, const QQuaternion &tPose);
     Q_INVOKABLE void    clearCalibration();
+
+    // Functional anatomical calibration (see imu_calibration.h). Derives A and M
+    // from the arm-down reference plus the forearm long axis (twist swing) and
+    // elbow flexion axis (elbow swing), all in the sensor frame.
+    Q_INVOKABLE void    setFunctionalCalibration(const QQuaternion &refRaw,
+                                                 const QVector3D   &gravityDownSensor,
+                                                 const QVector3D   &longAxisSensor,
+                                                 const QVector3D   &flexAxisSensor,
+                                                 bool               handMount = false);
+    Q_INVOKABLE void    clearFunctionalCalibration();
+
+    // Mandated-mount calibration ("quick" mode): the mounting M is the known
+    // nominal (imu_calibration::nominalArmMount), so a single arm-down reference
+    // is enough — A aligns the reference pose to identity. δM fine-tune (precise
+    // mode) comes later.
+    Q_INVOKABLE void    setNominalCalibration(const QQuaternion &refRaw, bool handMount = false);
+
+    // Precise refinement (δM fine-tune): apply a small rotation about the segment
+    // long axis to the nominal mounting, correcting strap-slop. phiDeg is computed
+    // by the caller from a second pose (arm abducted) — see ScreenSessionWizard.
+    // Keeps the validated nominal; bounded → cannot flip the frame.
+    Q_INVOKABLE void    refineMountAboutLongAxis(const QQuaternion &refRaw,
+                                                 double phiDeg, bool handMount = false);
+    Q_INVOKABLE void    beginZeroing();
+
+    // TEMP (calibration diagnostics — remove before commit): append one flushed
+    // line to ~/pinpoint_imu_diag.log with the QML-supplied payload plus the
+    // driver's instantaneous RAW euler + accel + gyro + quaternion (sensor frame).
+    Q_INVOKABLE void    logDiag(const QString &tag, const QString &payload);
+
+    // TEMP (calibration diagnostics — remove before commit): stream every packet's
+    // RAW euler + accel + gyro + quaternion to ~/pinpoint_imu_raw.log between
+    // begin/end, so the faithful euler→quat convention can be solved offline.
+    Q_INVOKABLE void    beginRawDump(const QString &tag);
+    Q_INVOKABLE void    endRawDump();
 
 signals:
     void stateLabelChanged();
@@ -117,9 +179,12 @@ signals:
     void dataRateHzChanged();
     void batteryPercentChanged();
     void gimbalDropCountChanged();
-    void stableChanged();
     void angularVelocityDpsChanged();
     void calibratedChanged();
+    void anatCalibratedChanged();
+    void zeroingChanged();
+    void zeroingConfirmed();
+    void zeroingFailed();
     void logEntryAdded(const QString &entry);
 
 private:
@@ -162,6 +227,10 @@ private:
     // IMU data
     float m_quatW = 1.0f, m_quatX = 0.0f, m_quatY = 0.0f, m_quatZ = 0.0f;
     float m_accelX = 0.0f, m_accelY = 0.0f, m_accelZ = 0.0f;
+    // Most recent Euler angles from the device — diagnostic use only.
+    float m_eulerRoll  = 0.0f;
+    float m_eulerPitch = 0.0f;
+    float m_eulerYaw   = 0.0f;
     int   m_outputRateHz   = 100;
     int   m_batteryPercent  = -1;
     int   m_gimbalDropCount = 0;
@@ -170,24 +239,41 @@ private:
     QList<qint64> m_packetTimes;
     double        m_dataRateHz = 0.0;
 
-    // Stability detection — computed on the main thread via the queued connection
-    bool          m_stable             = false;
+    // Angular-velocity estimate — computed on the main thread via the queued
+    // connection from successive quaternions. Consumed by the wizard Calibrate
+    // step for stillness-gated capture (ScreenSessionWizard.qml).
     float         m_angularVelocityDps = 0.0f;
     QQuaternion   m_prevQuat           { 1.0f, 0.0f, 0.0f, 0.0f };
     QElapsedTimer m_prevQuatTimer;   // elapsed since last quaternion packet
-    QElapsedTimer m_stableTimer;     // how long velocity has been below threshold
-    bool          m_stableTimerRunning = false;
-    static constexpr float kStableThresholdDps = 5.0f;
-    static constexpr int   kStableDurationMs   = 2000;
+
+    // TEMP (calibration diagnostics — remove before commit): raw packet streaming.
+    bool        m_rawDump = false;
+    QString     m_rawDumpTag;
+    QStringList m_rawDumpLines;
+
+    // Zeroing confirmation — settle-timer approach (no hardware ACK on WT901)
+    // Future devices that emit ImuBase::zeroingConfirmed() take precedence over settle.
+    QTimer m_zeroSettleTimer;   // 500 ms single-shot: soft confirmation (50 frames at 100 Hz)
+    QTimer m_zeroConfirmTimer;  // 30 s single-shot: overall deadline / failure
+    bool   m_zeroing = false;
 
     // Session calibration — arm-down and T-pose reference quaternions.
     // Set by the session wizard; valid only for the life of this instance.
-    bool        m_calibrated    = false;
+    bool        m_calibrated             = false;
+    bool        m_calibrationAngleValid  = true;
     QQuaternion m_calibArmDown  { 1.0f, 0.0f, 0.0f, 0.0f };
     QQuaternion m_calibArmTPose { 1.0f, 0.0f, 0.0f, 0.0f };
     // Derived from setCalibration() — maps raw sensor quaternion to anatomical world frame.
     // Identity until calibrated.
     QQuaternion m_calibTransform { 1.0f, 0.0f, 0.0f, 0.0f };
+
+    // Functional anatomical calibration: q_anat = A * q_raw * M (see imu_calibration.h).
+    bool        m_anatCalibrated = false;
+    QQuaternion m_alignA  { 1.0f, 0.0f, 0.0f, 0.0f };   // fusion-world -> anatomical-world
+    QQuaternion m_mountM  { 1.0f, 0.0f, 0.0f, 0.0f };   // anatomical-body -> sensor-body
+    QQuaternion m_anatQuat{ 1.0f, 0.0f, 0.0f, 0.0f };   // cached A * q_raw * M
+    double      m_mountDeviationDeg = 0.0;              // |solved M vs nominal| (precise mode)
+    double      m_mountGravityErrorDeg = 0.0;          // arm-down gravity vs anatomical up (flip check)
 
     // Log throttle — summary every 10 s
     QTimer m_logTimer;
