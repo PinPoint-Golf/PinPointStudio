@@ -46,14 +46,27 @@ void BleImuTransport::setState(State s)
 
 void BleImuTransport::teardownController()
 {
+    // On Windows/WinRT, QLowEnergyController::disconnectFromDevice() emits
+    // disconnected() *synchronously*, which re-enters this function via
+    // onControllerDisconnected(). (On Linux/BlueZ the signal is async, so the
+    // re-entry sees null members and no-ops.) Guard against re-entrancy two ways:
+    //   1. Disconnect the object's signals before acting, severing the
+    //      disconnected -> onControllerDisconnected -> teardownController wire.
+    //   2. Move each member to a local and null the member *before* calling into
+    //      the object, so any re-entry sees null and bails while we finish the
+    //      teardown via our private local handle.
     if (m_service) {
-        m_service->deleteLater();
+        QLowEnergyService *service = m_service;
         m_service = nullptr;
+        disconnect(service, nullptr, this, nullptr);
+        service->deleteLater();
     }
     if (m_controller) {
-        m_controller->disconnectFromDevice();
-        m_controller->deleteLater();
+        QLowEnergyController *controller = m_controller;
         m_controller = nullptr;
+        disconnect(controller, nullptr, this, nullptr);
+        controller->disconnectFromDevice();
+        controller->deleteLater();
     }
     m_writeChar  = QLowEnergyCharacteristic{};
     m_notifyChar = QLowEnergyCharacteristic{};
