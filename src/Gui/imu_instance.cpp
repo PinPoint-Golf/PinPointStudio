@@ -215,7 +215,7 @@ ImuInstance::ImuInstance(const Device &device,
             m_anatQuat = QQuaternion(q.w, q.x, q.y, q.z);
         emit quatChanged();
 
-        // TEMP (calibration diagnostics — remove before commit): raw packet stream.
+        // Raw packet stream (beginRawDump/endRawDump diagnostic; off by default).
         // m_eulerRoll/Pitch/Yaw were just set by the eulerAnglesUpdated slot, which
         // is connected before this one so fires first for the same packet.
         if (m_rawDump) {
@@ -400,7 +400,7 @@ QString ImuInstance::saveLog()
     return path;
 }
 
-// TEMP (calibration diagnostics — remove before commit).
+// Diagnostic logger (retained dev tool).
 // Appends one flushed line to ~/pinpoint_imu_diag.log. `payload` carries the
 // QML-side slerp-averaged values; here we also log the driver's instantaneous
 // RAW accelerometer (gravity vector, sensor hardware frame) and RAW quaternion
@@ -441,7 +441,7 @@ void ImuInstance::logDiag(const QString &tag, const QString &payload)
     appendLog(timestamp() + QStringLiteral("  [diag] ") + tag + QStringLiteral("  ") + payload);
 }
 
-// TEMP (calibration diagnostics — remove before commit).
+// Raw packet streaming (retained dev tool) — see header.
 void ImuInstance::beginRawDump(const QString &tag)
 {
     m_rawDumpTag = tag;

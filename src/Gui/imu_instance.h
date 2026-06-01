@@ -158,14 +158,15 @@ public:
                                                  double phiDeg, bool handMount = false);
     Q_INVOKABLE void    beginZeroing();
 
-    // TEMP (calibration diagnostics — remove before commit): append one flushed
-    // line to ~/pinpoint_imu_diag.log with the QML-supplied payload plus the
-    // driver's instantaneous RAW euler + accel + gyro + quaternion (sensor frame).
+    // Diagnostic logging facility (retained dev tool, no production callers; off
+    // unless invoked). Used for log-driven viz/IMU debugging — e.g. capturing
+    // anatQuat at known poses to re-derive render constants offline.
+    // logDiag: append one flushed line to ~/pinpoint_imu_diag.log with the
+    // QML-supplied payload plus the instantaneous RAW euler/accel/gyro/quaternion.
     Q_INVOKABLE void    logDiag(const QString &tag, const QString &payload);
 
-    // TEMP (calibration diagnostics — remove before commit): stream every packet's
-    // RAW euler + accel + gyro + quaternion to ~/pinpoint_imu_raw.log between
-    // begin/end, so the faithful euler→quat convention can be solved offline.
+    // beginRawDump/endRawDump: stream every packet's RAW euler/accel/gyro/quaternion
+    // to ~/pinpoint_imu_raw.log between begin/end, for offline analysis.
     Q_INVOKABLE void    beginRawDump(const QString &tag);
     Q_INVOKABLE void    endRawDump();
 
@@ -246,7 +247,7 @@ private:
     QQuaternion   m_prevQuat           { 1.0f, 0.0f, 0.0f, 0.0f };
     QElapsedTimer m_prevQuatTimer;   // elapsed since last quaternion packet
 
-    // TEMP (calibration diagnostics — remove before commit): raw packet streaming.
+    // Raw packet streaming state for beginRawDump/endRawDump (off by default).
     bool        m_rawDump = false;
     QString     m_rawDumpTag;
     QStringList m_rawDumpLines;
