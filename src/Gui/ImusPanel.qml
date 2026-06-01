@@ -1389,6 +1389,76 @@ Item {
                     Layout.alignment: Qt.AlignVCenter
                 }
             }
+
+            PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
+
+            // ── Orientation fusion (global) ────────────────────────────────
+            Text {
+                text:                qsTr("ORIENTATION FUSION")
+                font.family:         Theme.fontBody
+                font.pixelSize:      Theme.fontSzMicro
+                font.letterSpacing:  Theme.trackingMicro
+                font.capitalization: Font.AllUppercase
+                color:               Theme.colorText3
+            }
+
+            ColumnLayout {
+                Layout.fillWidth:  true
+                Layout.leftMargin: Theme.sp(26)
+                spacing:           Theme.sp(6)
+
+                RowLayout {
+                    spacing: Theme.sp(8)
+
+                    Repeater {
+                        model: [ { key: "Madgwick", label: qsTr("Madgwick Filter") },
+                                 { key: "ESKF",     label: qsTr("Error State Kalman Filter (ESKF)") } ]
+
+                        delegate: Rectangle {
+                            id: fusionSeg
+                            required property var modelData
+                            readonly property bool active:
+                                appSettings.imuOrientationFilter === modelData.key
+
+                            implicitWidth: segLabel.implicitWidth + Theme.sp(28)
+                            height:        Theme.sp(30)
+                            radius:        Theme.radius
+                            color:         active ? Theme.colorAccentLight : "transparent"
+                            border.width:  1
+                            border.color:  active ? Theme.colorAccent : Theme.colorBorderStrong
+                            Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
+                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                            Text {
+                                id: segLabel
+                                anchors.centerIn: parent
+                                text:           fusionSeg.modelData.label
+                                font.family:    Theme.fontBody
+                                font.pixelSize: Theme.fontSzBody2
+                                font.weight:    Theme.fontBodyWeight
+                                color:          fusionSeg.active ? Theme.colorAccent : Theme.colorText2
+                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape:  Qt.PointingHandCursor
+                                onClicked:    imuManager.setOrientationFilter(fusionSeg.modelData.key)
+                            }
+                        }
+                    }
+                }
+
+                Text {
+                    text: qsTr("Software sensor-fusion algorithm used to derive orientation from the raw gyroscope + accelerometer. Applies to all IMUs and takes effect immediately.")
+                    font.family:    Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody2
+                    font.weight:    Theme.fontBodyWeight
+                    color:          Theme.colorText3
+                    wrapMode:       Text.WordWrap
+                    Layout.fillWidth: true
+                }
+            }
         }
     }
 }

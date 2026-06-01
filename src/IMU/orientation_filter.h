@@ -20,6 +20,8 @@
 
 #include <cmath>
 
+#include "iorientation_filter.h"
+
 // Madgwick 6-axis (IMU: gyroscope + accelerometer) orientation filter.
 //
 // Why this exists: the WT901BLE67 streams an on-board fused orientation as Euler
@@ -40,7 +42,7 @@
 //
 // Header-only and free of Qt/UI dependencies so it can be unit-tested in
 // isolation and reused by other IMU drivers.
-class MadgwickFilter
+class MadgwickFilter : public IOrientationFilter
 {
 public:
     explicit MadgwickFilter(float beta = 0.05f) : m_beta(beta) {}
@@ -48,16 +50,17 @@ public:
     // Filter gain: higher trusts the accelerometer more (better gravity tracking,
     // more sensitive to linear-acceleration noise during fast motion); lower
     // trusts the gyro more. ~0.03-0.1 is typical for consumer MEMS.
+    // Madgwick-specific extra — not part of the IOrientationFilter interface.
     void  setBeta(float beta) { m_beta = beta; }
     float beta() const        { return m_beta; }
 
-    bool  initialized() const { return m_initialized; }
-    void  reset() { m_q[0] = 1.0f; m_q[1] = m_q[2] = m_q[3] = 0.0f; m_initialized = false; }
+    bool  initialized() const override { return m_initialized; }
+    void  reset() override { m_q[0] = 1.0f; m_q[1] = m_q[2] = m_q[3] = 0.0f; m_initialized = false; }
 
     // Seed orientation from a single gravity (accelerometer) sample so tracking
     // starts with correct roll/pitch (yaw arbitrary). Units of ax/ay/az are
     // irrelevant — the vector is normalised internally.
-    void initFromAccel(float ax, float ay, float az)
+    void initFromAccel(float ax, float ay, float az) override
     {
         const float n = std::sqrt(ax * ax + ay * ay + az * az);
         if (n < 1e-6f) { reset(); m_initialized = true; return; }
@@ -77,7 +80,7 @@ public:
     }
 
     // One filter step. gx/gy/gz in rad/s; ax/ay/az any consistent units; dt in seconds.
-    void update(float ax, float ay, float az, float gx, float gy, float gz, float dt)
+    void update(float ax, float ay, float az, float gx, float gy, float gz, float dt) override
     {
         float q0 = m_q[0], q1 = m_q[1], q2 = m_q[2], q3 = m_q[3];
 
@@ -118,10 +121,12 @@ public:
         m_q[0] = q0; m_q[1] = q1; m_q[2] = q2; m_q[3] = q3;
     }
 
-    float w() const { return m_q[0]; }
-    float x() const { return m_q[1]; }
-    float y() const { return m_q[2]; }
-    float z() const { return m_q[3]; }
+    float w() const override { return m_q[0]; }
+    float x() const override { return m_q[1]; }
+    float y() const override { return m_q[2]; }
+    float z() const override { return m_q[3]; }
+
+    const char *name() const override { return "Madgwick"; }
 
 private:
     float m_q[4]        = { 1.0f, 0.0f, 0.0f, 0.0f };

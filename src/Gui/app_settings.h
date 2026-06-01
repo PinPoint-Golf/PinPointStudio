@@ -95,6 +95,10 @@ class AppSettings : public QObject
     Q_PROPERTY(bool        imuAutoReconnect       READ imuAutoReconnect       WRITE setImuAutoReconnect       NOTIFY imuAutoReconnectChanged)
     Q_PROPERTY(bool        imuSaveCalibrationToFlash READ imuSaveCalibrationToFlash WRITE setImuSaveCalibrationToFlash NOTIFY imuSaveCalibrationToFlashChanged)
     Q_PROPERTY(QString     imuDefaultFusionMode   READ imuDefaultFusionMode   WRITE setImuDefaultFusionMode   NOTIFY imuDefaultFusionModeChanged)
+    // Software orientation-fusion algorithm: "Madgwick" (default) or "ESKF".
+    // Distinct from imuFusionMode/imuDefaultFusionMode (the device's 6/9-axis
+    // magnetometer mode). See iorientation_filter.h.
+    Q_PROPERTY(QString     imuOrientationFilter   READ imuOrientationFilter   WRITE setImuOrientationFilter   NOTIFY imuOrientationFilterChanged)
     Q_PROPERTY(QVariantMap sessionGoalsByType READ sessionGoalsByType WRITE setSessionGoalsByType NOTIFY sessionGoalsByTypeChanged)
     Q_PROPERTY(int         lastSessionType   READ lastSessionType   WRITE setLastSessionType   NOTIFY lastSessionTypeChanged)
 
@@ -163,6 +167,7 @@ public:
         m_imuAutoReconnect        = ppSettings().value(QStringLiteral("imu/autoReconnect"),        true).toBool();
         m_imuSaveCalibrationToFlash = ppSettings().value(QStringLiteral("imu/saveCalibrationToFlash"), false).toBool();
         m_imuDefaultFusionMode    = ppSettings().value(QStringLiteral("imu/defaultFusionMode"),    QStringLiteral("9axis")).toString();
+        m_imuOrientationFilter    = ppSettings().value(QStringLiteral("imu/orientationFilter"),    QStringLiteral("Madgwick")).toString();
         m_imuAlias                = ppSettings().value(QStringLiteral("imu/alias"),                QVariantMap{}).toMap();
         m_imuCalibration          = ppSettings().value(QStringLiteral("imu/calibration"),          QVariantMap{}).toMap();
 
@@ -258,6 +263,7 @@ public:
     bool        imuAutoReconnect()        const { return m_imuAutoReconnect; }
     bool        imuSaveCalibrationToFlash() const { return m_imuSaveCalibrationToFlash; }
     QString     imuDefaultFusionMode()    const { return m_imuDefaultFusionMode; }
+    QString     imuOrientationFilter()    const { return m_imuOrientationFilter; }
     QVariantMap imuAlias()               const { return m_imuAlias; }
     QVariantMap imuCalibration()         const { return m_imuCalibration; }
 
@@ -629,6 +635,14 @@ public:
         emit imuDefaultFusionModeChanged();
     }
 
+    void setImuOrientationFilter(const QString &v)
+    {
+        if (m_imuOrientationFilter == v) return;
+        m_imuOrientationFilter = v;
+        ppSettings().setValue(QStringLiteral("imu/orientationFilter"), v);
+        emit imuOrientationFilterChanged();
+    }
+
     void setImuAlias(const QVariantMap &v)
     {
         if (m_imuAlias == v) return;
@@ -788,6 +802,7 @@ signals:
     void imuAutoReconnectChanged();
     void imuSaveCalibrationToFlashChanged();
     void imuDefaultFusionModeChanged();
+    void imuOrientationFilterChanged();
     void imuAliasChanged();
     void imuCalibrationChanged();
     void sessionGoalsByTypeChanged();
@@ -856,6 +871,7 @@ private:
     bool        m_imuAutoReconnect        = true;
     bool        m_imuSaveCalibrationToFlash = false;
     QString     m_imuDefaultFusionMode    = QStringLiteral("9axis");
+    QString     m_imuOrientationFilter    = QStringLiteral("Madgwick");
 
     QVariantMap m_sessionGoalsByType;
     int         m_lastSessionType = 0;

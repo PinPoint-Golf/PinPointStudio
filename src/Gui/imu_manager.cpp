@@ -289,6 +289,18 @@ void ImuManager::zeroAll()
         if (entry.instance) entry.instance->zeroOrientation();
 }
 
+void ImuManager::setOrientationFilter(const QString &name)
+{
+    AppSettings  fallback;
+    AppSettings *s = m_appSettings ? m_appSettings : &fallback;
+    s->setImuOrientationFilter(name);
+
+    const OrientationFilterType type =
+        orientationFilterFromString(name.toUtf8().constData());
+    for (const auto &entry : m_selected)
+        if (entry.instance) entry.instance->setOrientationFilter(type);
+}
+
 // ---------------------------------------------------------------------------
 // Private
 // ---------------------------------------------------------------------------
@@ -304,6 +316,11 @@ ImuInstance *ImuManager::createInstance(const Device &device)
     const int savedRate = s->imuOutputRateHz().value(device.id, 100).toInt();
     if (savedRate != 100)
         inst->setOutputRateHz(savedRate);
+
+    // Apply the persisted orientation-fusion algorithm so it is in effect from the
+    // first packet (the deferred swap in the driver picks it up on connect).
+    inst->setOrientationFilter(
+        orientationFilterFromString(s->imuOrientationFilter().toUtf8().constData()));
 
     // Forward log entries to any QML log view listening to imuManager.
     connect(inst, &ImuInstance::logEntryAdded,

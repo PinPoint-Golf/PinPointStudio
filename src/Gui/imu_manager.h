@@ -81,6 +81,10 @@ public:
     // Pass empty alias to revert to default (device description).
     Q_INVOKABLE void setImuAlias(const QString &key, const QString &alias);
 
+    // Select the local orientation-fusion algorithm ("Madgwick" / "ESKF") for all
+    // IMUs: persists to AppSettings and pushes the change to every live instance.
+    Q_INVOKABLE void setOrientationFilter(const QString &name);
+
     // Returns the live ImuInstance QObject* for deviceId, or nullptr if not selected.
     Q_INVOKABLE QObject *instanceFor(const QString &deviceId) const;
 

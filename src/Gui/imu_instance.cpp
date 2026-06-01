@@ -352,6 +352,12 @@ void ImuInstance::deregisterFromBuffer()
     }
 }
 
+void ImuInstance::setOrientationFilter(OrientationFilterType type)
+{
+    if (m_imu)
+        m_imu->setOrientationFilter(type);
+}
+
 void ImuInstance::beginZeroing()
 {
     if (!m_connected || !m_imu || m_zeroing) return;

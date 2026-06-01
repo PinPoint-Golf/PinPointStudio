@@ -20,7 +20,9 @@
 
 #include "imu_base.h"
 #include "imu_capabilities.h"
-#include "orientation_filter.h"
+#include "iorientation_filter.h"
+#include <atomic>
+#include <memory>
 #include <optional>
 
 // WT9011DCL (MPU9250) IMU protocol layer — transport-agnostic.
@@ -162,9 +164,23 @@ public:
     void resetGimbalDropCount()       { m_gimbalDropCount = 0; }
 
     // Orientation for the 0x61 combined frame is fused locally from raw gyro+accel
-    // (Madgwick 6-axis) rather than taken from the device's non-rigid Euler output.
-    // Call on (re)connection so tracking re-seeds from the current pose.
-    void resetOrientationFilter()     { m_fusion.reset(); m_lastFusionUs = 0; }
+    // rather than taken from the device's non-rigid Euler output. Call on
+    // (re)connection so tracking re-seeds from the current pose.
+    void resetOrientationFilter()     { if (m_fusion) m_fusion->reset(); m_lastFusionUs = 0; }
+
+    // Select the local fusion algorithm (Madgwick or ESKF). Thread-safe: the
+    // actual filter object is rebuilt on the packet-consumer thread at the start
+    // of the next combined frame (see applyPendingFilterSwap), so the BLE/main
+    // thread can call this at any time without locking the hot fusion path.
+    void setOrientationFilter(OrientationFilterType type)
+    {
+        m_pendingFilterType.store(type, std::memory_order_relaxed);
+        m_filterSwapPending.store(true, std::memory_order_release);
+    }
+    OrientationFilterType orientationFilterType() const
+    {
+        return m_pendingFilterType.load(std::memory_order_relaxed);
+    }
 
     // -----------------------------------------------------------------------
     // Latest cached values
@@ -235,6 +251,10 @@ private:
     void dispatchPacket(const QByteArray &packet);
     void dispatchCombinedPacket(const QByteArray &frame);
 
+    // Rebuilds m_fusion if a setOrientationFilter() request is pending. Called at
+    // the top of dispatchCombinedPacket so the swap happens on the consumer thread.
+    void applyPendingFilterSwap();
+
     void parseAccel(const QByteArray &d);
     void parseGyro(const QByteArray &d);
     void parseEuler(const QByteArray &d);
@@ -262,8 +282,11 @@ private:
     int            m_gimbalDropCount = 0;
 
     // Local orientation fusion for the 0x61 combined frame (see dispatchCombinedPacket).
-    MadgwickFilter m_fusion;
-    qint64         m_lastFusionUs = 0;
+    // Owned/used only on the packet-consumer thread; swapped via applyPendingFilterSwap().
+    std::unique_ptr<IOrientationFilter> m_fusion;
+    std::atomic<OrientationFilterType>  m_pendingFilterType{ OrientationFilterType::Madgwick };
+    std::atomic<bool>                   m_filterSwapPending{ false };
+    qint64                              m_lastFusionUs = 0;
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(WT9011DCL_Base::OutputFlags)

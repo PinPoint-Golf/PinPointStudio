@@ -127,6 +127,10 @@ public:
     void stop();                 // disconnect and cancel any retry
     void deregisterFromBuffer(); // call while EventBuffer is paused
 
+    // Select the local orientation-fusion algorithm (Madgwick / ESKF). Forwards
+    // to the device driver, which applies the swap on its packet-consumer thread.
+    void setOrientationFilter(OrientationFilterType type);
+
     // QML-invokable per-device actions
     Q_INVOKABLE void    zeroOrientation();
     Q_INVOKABLE QString saveLog();

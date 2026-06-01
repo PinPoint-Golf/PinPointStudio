@@ -96,6 +96,24 @@ set(LIBSAMPLERATE_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(BUILD_TESTING          OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(libsamplerate)
 
+# Eigen 3 (header-only) — required by the vendored ESKF orientation filter
+# (third_party/imu_ekf). We only need the headers; EXCLUDE_FROM_ALL plus the
+# disabled build options below keep Eigen's own tests/BLAS/doc targets out of
+# the build. Fallback for offline builds: vendor the Eigen/ header tree under
+# third_party/eigen/ and point the include path there instead.
+set(EIGEN_BUILD_DOC       OFF CACHE BOOL "" FORCE)
+set(EIGEN_BUILD_TESTING   OFF CACHE BOOL "" FORCE)
+set(EIGEN_BUILD_PKGCONFIG OFF CACHE BOOL "" FORCE)
+set(BUILD_TESTING         OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+  eigen
+  GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
+  GIT_TAG        3.4.0
+  GIT_SHALLOW    TRUE
+  EXCLUDE_FROM_ALL
+)
+FetchContent_MakeAvailable(eigen)
+
 # EventBuffer library — lock-free ring-buffer capture store
 add_subdirectory(src/Buffer)
 
@@ -115,7 +133,9 @@ qt_add_executable(PinPoint
     src/Gui/arm_bone_controller.h      src/Gui/arm_bone_controller.cpp
     src/IMU/imu_base.h        src/IMU/imu_base.cpp
     src/IMU/imu_capabilities.h
+    src/IMU/iorientation_filter.h
     src/IMU/orientation_filter.h
+    src/IMU/eskf_orientation_filter.h  src/IMU/eskf_orientation_filter.cpp
     src/IMU/imu_calibration.h
     src/IMU/imu_factory.h     src/IMU/imu_factory.cpp
     src/IMU/wt9011dcl_base.h  src/IMU/wt9011dcl_base.cpp
@@ -423,6 +443,12 @@ target_include_directories(PinPoint PRIVATE
     ${whisper_SOURCE_DIR}/include
     ${whisper_SOURCE_DIR}/ggml/include
     ${libsamplerate_SOURCE_DIR}/include
+    # ESKF orientation filter: Eigen + the vendored hobbeshunter/IMU_EKF headers.
+    # imu_ekf_compat must precede imu_ekf so the vendored Arduino-style
+    # <Eigen.h>/<Wire.h> includes resolve to our desktop shims.
+    ${eigen_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imu_ekf_compat
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imu_ekf
 )
 
 # FFmpeg log suppression — pp_debug.cpp uses dlsym() at runtime to call
