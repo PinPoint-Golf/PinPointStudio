@@ -181,7 +181,6 @@ qt_add_qml_module(PinPoint
         src/Gui/PpDivider.qml
         src/Gui/PpHeader.qml
         src/Gui/PlayPage.qml
-        src/Gui/ScreenWelcome.qml
         src/Gui/ScreenPlaceholder.qml
         src/Gui/ScreenAthleteForm.qml
         src/Gui/ScreenAthletePicker.qml
@@ -206,8 +205,6 @@ qt_add_qml_module(PinPoint
         src/Gui/StoragePanel.qml
         src/Gui/SettingsIndex.qml
         src/Gui/HmTypeCard.qml
-        src/Gui/HmDeviceRow.qml
-        src/Gui/HmSessionTile.qml
         src/Gui/ScreenSessionWizard.qml
         src/Gui/CoachPage.qml
     SOURCES
