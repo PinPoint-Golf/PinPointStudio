@@ -146,8 +146,57 @@ Item {
     // faces -Z, away from the camera). This R0 maps the fixed anatomical frame to
     // the model world, so it is a reusable model constant, not session-specific.
     // (Right arm not yet re-derived — the lead arm for a right-handed athlete is the left.)
-    readonly property quaternion leftRestQuat:  Qt.quaternion(0.0004, 0.9742, -0.0629, -0.2166)
+    // Corrected 2026-06-01 with the world-axis gizmo: the previous value rendered
+    // both motions ~45° off about vertical (abduction landed 45° behind +X, flexion
+    // midway between +X and +Z). R0_new = R(−45°,Y)·R0_old → abduction → +X (lateral),
+    // flexion → +Z (anterior), arm hangs −Y. (Verified against the logged poses.)
+    // Residual back-of-hand roll is handled by restRollDeg.
+    readonly property quaternion leftRestQuat:  Qt.quaternion(0.0237, -0.983, 0.0583, -0.1727)
     readonly property quaternion rightRestQuat: Qt.quaternion(0.7071, -0.7071, 0, 0)
+
+    // Constant roll about each segment's long axis (bone-local +Y), correcting the
+    // rendered rest FACING. The IMUs all share the strap convention, so at the
+    // arm-down reference every segment is rolled by the same amount about its long
+    // axis; one correction applies to all. Applied as a POST-multiply on each
+    // segment's world orientation (W = R0·anat·rollFix), with the relative joints
+    // conjugated by rollFix so motion planes are unchanged — only the roll shifts.
+    // Long-axis roll bringing the back-of-hand (sensor face) onto +X (lateral).
+    // −99° balances rest (~5° off) and flexion (~8°) — derived from the logged poses
+    // against the corrected leftRestQuat. (Flexion can't go below ~7° by roll alone:
+    // a flex pose carries unavoidable upper-arm rotation.)
+    property real restRollDeg: -99
+    readonly property quaternion rollFix: {
+        var h = root.restRollDeg * Math.PI / 360.0   // half-angle
+        return Qt.quaternion(Math.cos(h), 0, Math.sin(h), 0)   // about local +Y
+    }
+    readonly property quaternion rollFixInv: Qt.quaternion(root.rollFix.scalar, 0, -root.rollFix.y, 0)
+
+    // Diagnostic orientation marker — a bright tab offset toward the segment's
+    // local +Z (anatomical anterior) near its distal end. Because it sits OFF the
+    // long axis it orbits visibly as the bone rolls, exposing roll on the otherwise
+    // rotationally-symmetric arm segments. Add/remove via `showOrientationTabs`.
+    property bool showOrientationTabs: true
+    component OrientationTab: Node {
+        id: tabRoot
+        property real  along:    0.20            // distance up the bone (local +Y)
+        property color tabColor: Theme.colorImuA
+        property real  tabScale: 0.0006
+        // Which local face the marker sits on. Empirically: +Z = palm (medial),
+        // +X = posterior; the IMU straps on the back/outer face = opposite the palm
+        // = local -Z (watch-like, away from the thigh). Tunable while we confirm.
+        property vector3d tabDir: Qt.vector3d(0, 0, -1)
+        visible: root.showOrientationTabs
+        y: along
+        Model {
+            source:    "#Sphere"
+            scale:     Qt.vector3d(tabRoot.tabScale, tabRoot.tabScale, tabRoot.tabScale)
+            position:  Qt.vector3d(tabRoot.tabDir.x * 0.05, tabRoot.tabDir.y * 0.05, tabRoot.tabDir.z * 0.05)
+            materials: PrincipledMaterial {
+                baseColor: tabRoot.tabColor       // id-qualified — `parent.tabColor` silently failed → white
+                lighting:  PrincipledMaterial.NoLighting
+            }
+        }
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // 3D Scene
@@ -214,13 +263,16 @@ Item {
                     ? Qt.quaternion(root.imuSlotC.quatW, root.imuSlotC.quatX, root.imuSlotC.quatY, root.imuSlotC.quatZ)
                     : Qt.quaternion(1, 0, 0, 0)
                 var ua = root.quatApplyCalib(root.imuSlotC, raw)
-                return root.quatMul(root.rightHanded ? root.leftRestQuat : root.rightRestQuat, ua)
+                // W_upper = R0 · ua · rollFix
+                var w = root.quatMul(root.rightHanded ? root.leftRestQuat : root.rightRestQuat, ua)
+                return root.quatMul(w, root.rollFix)
             }
 
             RuntimeLoader {
                 source: root.rightHanded ? "qrc:/assets/body/arm_LeftArm.glb"
                                          : "qrc:/assets/body/arm_RightArm.glb"
             }
+            OrientationTab { along: 0.22; tabColor: Theme.colorImuC }   // upper arm = slot C — green
 
             Node {
                 position: Qt.vector3d(0, 0.274, 0)
@@ -234,13 +286,16 @@ Item {
                         : Qt.quaternion(1, 0, 0, 0)
                     var ua = root.quatApplyCalib(root.imuSlotC, rawUa)
                     var fa = root.quatApplyCalib(root.imuSlotA, rawFa)
-                    return root.quatMul(root.quatInv(ua), fa)
+                    // rollFix⁻¹ · (ua⁻¹·fa) · rollFix  — keeps W_fore = R0·fa·rollFix
+                    var rel = root.quatMul(root.quatInv(ua), fa)
+                    return root.quatMul(root.rollFixInv, root.quatMul(rel, root.rollFix))
                 }
 
                 RuntimeLoader {
                     source: root.rightHanded ? "qrc:/assets/body/arm_LeftForeArm.glb"
                                              : "qrc:/assets/body/arm_RightForeArm.glb"
                 }
+                OrientationTab { along: 0.22; tabColor: Theme.colorImuA }   // forearm = slot A — red
 
                 Node {
                     position: Qt.vector3d(0, 0.2761, 0)
@@ -254,42 +309,47 @@ Item {
                             : Qt.quaternion(1, 0, 0, 0)
                         var fa = root.quatApplyCalib(root.imuSlotA, rawFa)
                         var ha = root.quatApplyCalib(root.imuSlotB, rawHa)
-                        return root.quatMul(root.quatInv(fa), ha)
+                        // rollFix⁻¹ · (fa⁻¹·ha) · rollFix  — keeps W_hand = R0·ha·rollFix
+                        var rel = root.quatMul(root.quatInv(fa), ha)
+                        return root.quatMul(root.rollFixInv, root.quatMul(rel, root.rollFix))
                     }
 
                     RuntimeLoader {
                         source: root.rightHanded ? "qrc:/assets/body/arm_LeftHand.glb"
                                                  : "qrc:/assets/body/arm_RightHand.glb"
                     }
+                    OrientationTab { along: 0.10; tabColor: Theme.colorImuB }   // hand = slot B — yellow
                 }
             }
         }
 
-    }
-
-    // ── Diagnostic overlay ── remove once animation is confirmed working ──────
-    Rectangle {
-        anchors { top: parent.top; left: parent.left; margins: Theme.sp(6) }
-        width: diagText.width + Theme.sp(12); height: diagText.height + Theme.sp(8)
-        color: "#AA000000"; radius: Theme.sp(4)
-        Text {
-            id: diagText
-            anchors.centerIn: parent
-            color: "white"; font.pixelSize: 11; font.family: Theme.fontBody
-            text: {
-                var n = imuManager.instances.length
-                var w = root.imuSlotA ? root.imuSlotA.quatW.toFixed(4) : "—"
-                var x = root.imuSlotA ? root.imuSlotA.quatX.toFixed(4) : "—"
-                var y = root.imuSlotA ? root.imuSlotA.quatY.toFixed(4) : "—"
-                var z = root.imuSlotA ? root.imuSlotA.quatZ.toFixed(4) : "—"
-                var nr = armNode.rotation
-                var nw = nr.scalar.toFixed(4)
-                var nx = nr.x.toFixed(4)
-                return "instances: " + n + "  slotA: " + (root.imuSlotA ? "ok" : "NULL") +
-                       "\nimu  W:" + w + " X:" + x + " Y:" + y + " Z:" + z +
-                       "\nnode W:" + nw + " X:" + nx + " …"
+        // ── World-axis reference ──────────────────────────────────────────────
+        // Fixed in the scene (orbits only with the camera), so orientation reports
+        // are unambiguous at any view angle. A ball sits at the +tip of each world
+        // axis: +X = red, +Y = green, +Z = blue (the origin end is the body).
+        Node {
+            position: Qt.vector3d(root.rightHanded ? 0.58 : -0.58, 1.05, 0.30)
+            Model {   // +X
+                source: "#Sphere"; position: Qt.vector3d(0.13, 0, 0)
+                scale: Qt.vector3d(0.0004, 0.0004, 0.0004)
+                materials: PrincipledMaterial { baseColor: Theme.colorImuA; lighting: PrincipledMaterial.NoLighting }
+            }
+            Model {   // +Y
+                source: "#Sphere"; position: Qt.vector3d(0, 0.13, 0)
+                scale: Qt.vector3d(0.0004, 0.0004, 0.0004)
+                materials: PrincipledMaterial { baseColor: Theme.colorImuC; lighting: PrincipledMaterial.NoLighting }
+            }
+            Model {   // +Z
+                source: "#Sphere"; position: Qt.vector3d(0, 0, 0.13)
+                scale: Qt.vector3d(0.0004, 0.0004, 0.0004)
+                materials: PrincipledMaterial { baseColor: Theme.colorImuD; lighting: PrincipledMaterial.NoLighting }
+            }
+            Model {   // origin
+                source: "#Sphere"; scale: Qt.vector3d(0.0003, 0.0003, 0.0003)
+                materials: PrincipledMaterial { baseColor: Theme.colorText; lighting: PrincipledMaterial.NoLighting }
             }
         }
+
     }
 
     // ── IMU assignment legend ─────────────────────────────────────────────────

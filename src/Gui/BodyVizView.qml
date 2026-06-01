@@ -90,6 +90,29 @@ Item {
     property bool  highlightLeadArm: false
     property color leadArmColor:     "#5B9BD5"
 
+    // Sensor-mount orientation markers on the lead-arm segments — a bright ball on
+    // each bone's local +Z face, indicating where the IMU is mounted and exposing
+    // bone roll. Mirrors ArmVizView's OrientationTab; sized 50% smaller here.
+    property bool showOrientationTabs: true
+    component OrientationTab: Node {
+        id: tabRoot
+        property real  along:    0.20
+        property color tabColor: Theme.colorImuA
+        property real  tabScale: 0.0003          // 50% of ArmVizView's 0.0006
+        property vector3d tabDir: Qt.vector3d(0, 0, -1)   // -Z = back/outer face = sensor mount
+        visible: root.showOrientationTabs && root.highlightLeadArm && root.rightHanded
+        y: along
+        Model {
+            source:    "#Sphere"
+            scale:     Qt.vector3d(tabRoot.tabScale, tabRoot.tabScale, tabRoot.tabScale)
+            position:  Qt.vector3d(tabRoot.tabDir.x * 0.05, tabRoot.tabDir.y * 0.05, tabRoot.tabDir.z * 0.05)
+            materials: PrincipledMaterial {
+                baseColor: tabRoot.tabColor
+                lighting:  PrincipledMaterial.NoLighting
+            }
+        }
+    }
+
     // Lead arm override (calibration phase 0 = arm-down, phase 2 = T-pose guide)
     property bool       useLeadArmOverride:          false
     property quaternion leadArmOverrideRotation:     Qt.quaternion(1, 0, 0, 0)
@@ -333,6 +356,7 @@ Item {
                                 }
 
                                 JointMarker {}
+                                OrientationTab { along: 0.22; tabColor: Theme.colorImuC }   // upper arm = slot C — green
                                 RuntimeLoader {
                                     source: "qrc:/assets/body/arm_LeftArm.glb"
                                     onStatusChanged: root.onSegmentLoaded(status)
@@ -363,6 +387,7 @@ Item {
                                     }
 
                                     JointMarker {}
+                                    OrientationTab { along: 0.22; tabColor: Theme.colorImuA }   // forearm = slot A — red
                                     RuntimeLoader {
                                         source: "qrc:/assets/body/arm_LeftForeArm.glb"
                                         onStatusChanged: root.onSegmentLoaded(status)
@@ -388,6 +413,7 @@ Item {
                                         visible:  adapter.leftForeArmVisible
 
                                         JointMarker {}
+                                        OrientationTab { along: 0.10; tabColor: Theme.colorImuB }   // hand = slot B — yellow
                                         RuntimeLoader {
                                             source: "qrc:/assets/body/arm_LeftHand.glb"
                                             onStatusChanged: root.onSegmentLoaded(status)

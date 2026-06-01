@@ -193,6 +193,15 @@ QtObject {
         return dark ? "#14ff5555" : "#0fcc2000"
     }
 
+    // IMU device-identity colours — A/B/C/D. Fixed hues (red / yellow / green /
+    // blue) so a given sensor's colour is consistent across all aesthetics; only
+    // brightness shifts for dark vs light backgrounds. Used by the 3D orientation
+    // markers and IMU-related UI.
+    readonly property color colorImuA: dark ? "#FF3B30" : "#D32F2F"   // red
+    readonly property color colorImuB: dark ? "#FFD60A" : "#E0A400"   // yellow
+    readonly property color colorImuC: dark ? "#34C759" : "#2E9E4F"   // green
+    readonly property color colorImuD: dark ? "#3399FF" : "#0A6CFF"   // blue
+
     // ── Font family tokens ───────────────────────────────────────────────────
     // Falls back to the system default if the font file is not installed.
     readonly property string fontBody: {

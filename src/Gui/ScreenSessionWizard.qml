@@ -62,6 +62,11 @@ Item {
     // per-session choice and must not write back to appSettings.
     property var sessionImuExcluded: []
 
+    // Set by the Confirm-Tracking "Recalibrate" link before navigating back to
+    // the Calibrate step, so onCurrentStepChanged forces a fresh calibration
+    // instead of retaining the previous "complete" state (backward navigation).
+    property bool _forceRecalibrate: false
+
     // True only for Wrist Motion (index 1) — enables the Calibrate + Confirm steps.
     readonly property bool hasCalibrateStep: sessionType === 1
     // Terminal step index: Ready for wrist; for non-wrist Calibrate/Confirm are
@@ -129,6 +134,15 @@ Item {
             phase1HoldTimer.stop()
             captureTransitionTimer.stop()
             raiseReadyTimer.stop()
+
+            // "Recalibrate" from Confirm Tracking: force a fresh run regardless
+            // of navigation direction (otherwise the backward-nav branch below
+            // would restore the previous "complete" state).
+            if (root._forceRecalibrate) {
+                root._forceRecalibrate = false
+                _resetCalibration()
+                return
+            }
 
             if (prev >= root.stepCalibrate) {
                 // Navigating backward from a later step — retain completed state.
@@ -1822,106 +1836,6 @@ Item {
                                     primary: false
                                     onClicked: root._resetCalibration()
                                 }
-
-                                // ── Calibration diagnostic display ───────────────────────────────────
-                                // Visible only after calibration completes. Remove once axis mapping is confirmed.
-                                Column {
-                                    visible: root.calibrationDone
-                                    width:   parent.width
-                                    spacing: Theme.sp(6)
-
-                                    Rectangle {
-                                        width:  parent.width
-                                        height: diagContent.implicitHeight + Theme.sp(16)
-                                        color:  Theme.colorBg2
-                                        radius: Theme.radius
-                                        border.width: 1
-                                        border.color: Theme.colorBorderMid
-
-                                        Column {
-                                            id: diagContent
-                                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.sp(10) }
-                                            spacing: Theme.sp(4)
-
-                                            Text {
-                                                text:               "CALIBRATION DIAGNOSTIC"
-                                                font.family:        Theme.fontData
-                                                font.pixelSize:     Theme.fontSzMicro
-                                                font.letterSpacing: Theme.trackingMicro
-                                                color:              Theme.colorText3
-                                            }
-
-                                            component DiagRow: Row {
-                                                required property string label
-                                                required property string value
-                                                width: parent.width
-                                                spacing: Theme.sp(8)
-                                                Text {
-                                                    text:           label
-                                                    font.family:    Theme.fontData
-                                                    font.pixelSize: Theme.fontSzMicro
-                                                    color:          Theme.colorText3
-                                                    width:          Theme.sp(80)
-                                                }
-                                                Text {
-                                                    text:           value
-                                                    font.family:    Theme.fontData
-                                                    font.pixelSize: Theme.fontSzMicro
-                                                    color:          Theme.colorText2
-                                                    wrapMode:       Text.WordWrap
-                                                    width:          parent.width - Theme.sp(80) - Theme.sp(8)
-                                                }
-                                            }
-
-                                            DiagRow {
-                                                label: "ARM-DOWN E"
-                                                value: root.calibArmDownEuler
-                                                    ? ("R " + root.calibArmDownEuler.roll.toFixed(1)
-                                                     + "  P " + root.calibArmDownEuler.pitch.toFixed(1)
-                                                     + "  Y " + root.calibArmDownEuler.yaw.toFixed(1))
-                                                    : "—"
-                                            }
-                                            DiagRow {
-                                                label: "ARM-DOWN Q"
-                                                value: root.calibArmDownQuat
-                                                    ? ("w" + root.calibArmDownQuat.scalar.toFixed(3)
-                                                     + " x" + root.calibArmDownQuat.x.toFixed(3)
-                                                     + " y" + root.calibArmDownQuat.y.toFixed(3)
-                                                     + " z" + root.calibArmDownQuat.z.toFixed(3))
-                                                    : "—"
-                                            }
-                                            DiagRow {
-                                                label: "T-POSE E"
-                                                value: root.calibArmTPoseEuler
-                                                    ? ("R " + root.calibArmTPoseEuler.roll.toFixed(1)
-                                                     + "  P " + root.calibArmTPoseEuler.pitch.toFixed(1)
-                                                     + "  Y " + root.calibArmTPoseEuler.yaw.toFixed(1))
-                                                    : "—"
-                                            }
-                                            DiagRow {
-                                                label: "T-POSE Q"
-                                                value: root.calibArmTPoseQuat
-                                                    ? ("w" + root.calibArmTPoseQuat.scalar.toFixed(3)
-                                                     + " x" + root.calibArmTPoseQuat.x.toFixed(3)
-                                                     + " y" + root.calibArmTPoseQuat.y.toFixed(3)
-                                                     + " z" + root.calibArmTPoseQuat.z.toFixed(3))
-                                                    : "—"
-                                            }
-                                            DiagRow {
-                                                label: "CAL XFORM"
-                                                value: {
-                                                    var imu = calibPanel.leadImu
-                                                    if (!imu || !imu.calibrated) return "—"
-                                                    var ct = imu.calibTransform
-                                                    return ("w" + ct.scalar.toFixed(3)
-                                                          + " x" + ct.x.toFixed(3)
-                                                          + " y" + ct.y.toFixed(3)
-                                                          + " z" + ct.z.toFixed(3))
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
                             }
                         }
                     }
@@ -1973,501 +1887,49 @@ Item {
                                 }
                             }
 
-                            // ── TEMP calibration diagnostic capture (remove before commit) ──
-                            // Code-led, log-driven, user-paced. One static REFERENCE hold (gravity)
-                            // then FUNCTIONAL swings: the joint axis is extracted by PCA over the
-                            // incremental quaternion rotations across the whole movement (robust to
-                            // imprecise angles). Results written to ~/pinpoint_imu_diag.log via
-                            // ImuInstance::logDiag(). Slot A (calibPanel.leadImu) only.
-                            Item {
-                                id: diagWrap
+                            // Live tracking — the arm avatar is driven entirely by the
+                            // calibrated sensors (anatQuat), resolved per slot inside
+                            // ArmVizView. Move your arm and confirm the model follows.
+                            ArmVizView {
+                                id: confirmArmViz
                                 Layout.fillWidth:  true
                                 Layout.fillHeight: true
+                            }
 
-                                // Per-segment calibration. REFERENCE captures every sensor's arm-down
-                                // pose at once; each functional swing isolates one joint axis for one
-                                // sensor. The long axis comes from gravity at the reference (the segment
-                                // hangs vertical), and one perpendicular flex swing completes the frame.
-                                // Steps whose sensor isn't present are skipped automatically.
-                                readonly property var diagSteps: [
-                                    { tag: "REFERENCE", slot: "ALL", kind: "static", dur: 3000,
-                                      prompt: qsTr("Whole arm hanging straight down, relaxed, palm toward your thigh. Stand still while it captures.") },
-                                    { tag: "FOREARM TWIST", slot: "A", kind: "func", dur: 6000,
-                                      prompt: qsTr("Wrist sensor: twist your forearm palm-in ↔ palm-out, repeatedly. Keep your elbow tucked and still.") },
-                                    { tag: "ELBOW BEND", slot: "A", kind: "func", dur: 6000,
-                                      prompt: qsTr("Wrist sensor: bend and straighten your elbow repeatedly. Keep your upper arm still at your side.") },
-                                    { tag: "SHOULDER RAISE", slot: "C", kind: "func", dur: 6000,
-                                      prompt: qsTr("Upper-arm sensor: keeping your arm straight, raise it forward and lower it, repeatedly. Don't twist the forearm.") },
-                                    { tag: "WRIST WAVE", slot: "B", kind: "func", dur: 6000,
-                                      prompt: qsTr("Hand sensor: bend your wrist up and down (wave) repeatedly, keeping your forearm still.") }
-                                ]
-                                property bool   diagActive: false
-                                property int    stepIndex:  0
-                                property string phase:      "idle"   // idle | ready | capture | done
-                                property real   elapsedMs:  0
-                                property var    samples:    []
-                                property var    _scat:      [0,0,0,0,0,0]  // symmetric 3x3: 00,01,02,11,12,22
-                                property var    _funcPrev:  null
-                                property var    _funcStart: null
-                                property int    _funcCount: 0
-                                // Per-segment captured inputs (sensor frame), fed to the solver.
-                                property var    refA: null;  property var refB: null;  property var refC: null
-                                property var    twistA: null; property var elbowA: null
-                                property var    flexC: null;  property var flexB: null
+                            // Recalibrate affordance — returns to the Calibrate step and forces
+                            // a fresh capture (root._forceRecalibrate), used when tracking looks
+                            // wrong. Calibration itself happens there, not on this screen.
+                            Row {
+                                Layout.fillWidth:    true
+                                Layout.bottomMargin: Theme.sp(8)
+                                spacing:             Theme.sp(6)
 
-                                // Slot B/C instance resolvers (slot A is calibPanel.leadImu).
-                                readonly property QtObject slotB: {
-                                    var _dep = imuManager.instances; var p = appSettings.imuPlacement
-                                    var list = imuManager.imuDeviceList
-                                    for (var i = 0; i < list.length; ++i)
-                                        if (p[list[i].id] === "B") return imuManager.instanceFor(list[i].id)
-                                    return null
+                                Text {
+                                    text:           qsTr("Not tracking your movement?")
+                                    font.family:    Theme.fontBody
+                                    font.pixelSize: Theme.fontSzBody2
+                                    color:          Theme.colorText3
+                                    anchors.verticalCenter: parent.verticalCenter
                                 }
-                                readonly property QtObject slotC: {
-                                    var _dep = imuManager.instances; var p = appSettings.imuPlacement
-                                    var list = imuManager.imuDeviceList
-                                    for (var i = 0; i < list.length; ++i)
-                                        if (p[list[i].id] === "C") return imuManager.instanceFor(list[i].id)
-                                    return null
-                                }
-                                function _instForSlot(slot) {
-                                    if (slot === "B") return slotB
-                                    if (slot === "C") return slotC
-                                    return calibPanel.leadImu   // "A" and "ALL"
-                                }
-                                // The sensor sampled during the current step.
-                                readonly property QtObject activeInst: _instForSlot(diagSteps[stepIndex].slot)
-
-                                function _qMul(a, b) {
-                                    return Qt.quaternion(
-                                        a.scalar*b.scalar - a.x*b.x - a.y*b.y - a.z*b.z,
-                                        a.scalar*b.x + a.x*b.scalar + a.y*b.z - a.z*b.y,
-                                        a.scalar*b.y - a.x*b.z + a.y*b.scalar + a.z*b.x,
-                                        a.scalar*b.z + a.x*b.y - a.y*b.x + a.z*b.scalar)
-                                }
-                                function _qConj(q) { return Qt.quaternion(q.scalar, -q.x, -q.y, -q.z) }
-                                function _fmtQ(q) {
-                                    return "(" + q.scalar.toFixed(6) + "," + q.x.toFixed(6)
-                                         + "," + q.y.toFixed(6) + "," + q.z.toFixed(6) + ")"
-                                }
-                                function _axisAngle(q) {
-                                    var w = Math.max(-1, Math.min(1, q.scalar))
-                                    var ang = 2 * Math.acos(w) * 180 / Math.PI
-                                    var s = Math.sqrt(Math.max(0, 1 - w*w))
-                                    if (s < 1e-6) return { ax: 1, ay: 0, az: 0, ang: ang }
-                                    return { ax: q.x/s, ay: q.y/s, az: q.z/s, ang: ang }
-                                }
-                                function _vnorm(v) {
-                                    var n = Math.sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2])
-                                    return n > 1e-9 ? [v[0]/n, v[1]/n, v[2]/n] : [1,0,0]
-                                }
-                                function _rotate(q, v) {
-                                    var r = _qMul(_qMul(q, Qt.quaternion(0, v[0], v[1], v[2])), _qConj(q))
-                                    return [r.x, r.y, r.z]
-                                }
-                                function _scatAdd(a, w) {
-                                    var s = _scat
-                                    s[0]+=w*a[0]*a[0]; s[1]+=w*a[0]*a[1]; s[2]+=w*a[0]*a[2]
-                                    s[3]+=w*a[1]*a[1]; s[4]+=w*a[1]*a[2]; s[5]+=w*a[2]*a[2]
-                                    _scat = s
-                                }
-                                function _dominantEig() {
-                                    var s = _scat
-                                    function mv(v) {
-                                        return [ s[0]*v[0]+s[1]*v[1]+s[2]*v[2],
-                                                 s[1]*v[0]+s[3]*v[1]+s[4]*v[2],
-                                                 s[2]*v[0]+s[4]*v[1]+s[5]*v[2] ]
-                                    }
-                                    var starts = [[1,0,0],[0,1,0],[0,0,1]]
-                                    var bestV = [1,0,0], bestL = -1
-                                    for (var k = 0; k < starts.length; ++k) {
-                                        var v = _vnorm(starts[k])
-                                        for (var i = 0; i < 80; ++i) v = _vnorm(mv(v))
-                                        var m = mv(v)
-                                        var l = v[0]*m[0] + v[1]*m[1] + v[2]*m[2]
-                                        if (l > bestL) { bestL = l; bestV = v }
-                                    }
-                                    var trace = s[0] + s[3] + s[5]
-                                    return { axis: bestV, quality: trace > 1e-9 ? bestL/trace : 0 }
-                                }
-
-                                function _startDiag() {
-                                    diagActive = true
-                                    refA = refB = refC = twistA = elbowA = flexC = flexB = null
-                                    stepIndex = 0; _beginReady()
-                                }
-
-                                // Quick (mandated-mount) calibration: with the strap enforcing the sensor
-                                // orientation, M is the known nominal — one arm-down reference per sensor
-                                // is enough. Hold the whole arm straight down and still, then tap.
-                                // Numeric verification: log every sensor's anatQuat (and the relative
-                                // wrist/elbow joint rotations) for a held pose, so calibration can be
-                                // assessed from the log rather than by eye.
-                                function _logAnat(tag) {
-                                    function fq(i) {
-                                        if (!i) return "—"
-                                        var q = i.anatQuat
-                                        return "(" + q.scalar.toFixed(5) + "," + q.x.toFixed(5)
-                                             + "," + q.y.toFixed(5) + "," + q.z.toFixed(5) + ")"
-                                    }
-                                    var imu = calibPanel.leadImu
-                                    if (!imu) return
-                                    imu.logDiag("ANAT_" + tag,
-                                        "fa=" + fq(calibPanel.leadImu) + " ha=" + fq(slotB) + " ua=" + fq(slotC))
-                                }
-
-                                function _quickCalibrate() {
-                                    // All three sensors share the SAME strap convention, so they share the
-                                    // SAME nominal mounting (handMount=false for all). The earlier separate
-                                    // hand nominal was derived circularly from a possibly-unclean wrist
-                                    // swing; the independent abduction test exposed it (82° inconsistency).
-                                    var segs = [[calibPanel.leadImu, false], [slotB, false], [slotC, false]]
-                                    for (var i = 0; i < segs.length; ++i) {
-                                        var inst = segs[i][0]
-                                        if (inst && inst.imuConnected)
-                                            inst.setNominalCalibration(
-                                                Qt.quaternion(inst.quatW, inst.quatX, inst.quatY, inst.quatZ),
-                                                segs[i][1])
-                                    }
-                                }
-
-                                // Precise (δM fine-tune) — small bounded correction, keeps the validated
-                                // nominal (does NOT re-solve M). Two poses: (1) arm down → Quick calibrate
-                                // baseline; (2) arm abducted to the side → the anatomical orientation
-                                // should be a pure rotation about anatomical Z (anterior). The observed
-                                // axis's deviation about the long axis (Y) gives phi = atan2(mx, mz),
-                                // applied via refineMountAboutLongAxis. Bounded → cannot flip the frame.
-                                property string preciseStage: "idle"   // idle | got-down
-                                property bool   preciseComplete: false
-                                property var    pdA: null; property var pdB: null; property var pdC: null
-
-                                // Small Y-rotation that brings the abducted-pose rotation axis onto Z.
-                                function _phiFromAbduction(inst) {
-                                    var q = inst.anatQuat
-                                    var w = Math.min(1, Math.abs(q.scalar))
-                                    var s = Math.sqrt(Math.max(0, 1 - w*w))
-                                    if (s < 1e-4) return 0                       // ~no rotation captured
-                                    var sg = q.scalar >= 0 ? 1 : -1
-                                    var mx = sg*q.x/s, mz = sg*q.z/s             // axis components
-                                    var pp = Math.atan2(mx, mz)                  // → +Z
-                                    var pm = Math.atan2(-mx, -mz)                // → -Z
-                                    var phi = Math.abs(pp) <= Math.abs(pm) ? pp : pm   // smallest correction
-                                    return phi * 180 / Math.PI
-                                }
-                                function _preciseCapture() {
-                                    var segs = [[calibPanel.leadImu, false], [slotB, false], [slotC, false]]
-                                    if (preciseStage === "idle") {
-                                        // Pose 1: quick-calibrate baseline + remember the down reference.
-                                        preciseComplete = false
-                                        pdA = _curQuat(calibPanel.leadImu); pdB = _curQuat(slotB); pdC = _curQuat(slotC)
-                                        for (var i = 0; i < segs.length; ++i) {
-                                            var inst = segs[i][0]
-                                            if (inst && inst.imuConnected)
-                                                inst.setNominalCalibration(_curQuat(inst), segs[i][1])
+                                Text {
+                                    id:             recalLink
+                                    text:           qsTr("Recalibrate")
+                                    font.family:    Theme.fontBody
+                                    font.weight:    Theme.fontBodyWeight
+                                    font.pixelSize: Theme.fontSzBody2
+                                    color:          Theme.colorAccent
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape:  Qt.PointingHandCursor
+                                        onClicked: {
+                                            var arr = root.stepStates.slice()
+                                            arr[root.stepCalibrate] = "pending"
+                                            arr[root.stepConfirm]   = "pending"
+                                            root.stepStates = arr
+                                            root._forceRecalibrate = true
+                                            root.currentStep = root.stepCalibrate
                                         }
-                                        preciseStage = "got-down"
-                                        return
-                                    }
-                                    // Pose 2 (abducted): DIAGNOSTIC FIRST (assumption-free), then refine.
-                                    // For each sensor log: the raw down→abduction rotation axis IN THE SENSOR
-                                    // FRAME (ground truth — which sensor axis abduction is physically about,
-                                    // no anatomical/nominal assumption), the abduction angle, the nominal-frame
-                                    // anatQuat axis, and the φ the old method derives. This shows directly
-                                    // whether the assumed orientation matches reality.
-                                    var refs = [pdA, pdB, pdC]
-                                    var names = ["forearm(A)", "hand(B)", "upper(C)"]
-                                    for (var j = 0; j < segs.length; ++j) {
-                                        var s2 = segs[j][0]
-                                        if (!(s2 && s2.imuConnected && refs[j])) continue
-                                        // raw abduction axis in the sensor frame
-                                        var abdRaw = _curQuat(s2)
-                                        var relRaw = _qMul(_qConj(refs[j]), abdRaw)
-                                        var ar = _axisAngle(relRaw)
-                                        // nominal-frame anatQuat axis (pre-refine) + the φ it yields
-                                        var aq = s2.anatQuat
-                                        var aw = Math.min(1, Math.abs(aq.scalar)); var as_ = Math.sqrt(Math.max(0,1-aw*aw))
-                                        var asg = aq.scalar >= 0 ? 1 : -1
-                                        var ax = as_>1e-4 ? asg*aq.x/as_ : 0, ay = as_>1e-4 ? asg*aq.y/as_ : 0, az = as_>1e-4 ? asg*aq.z/as_ : 0
-                                        var phi = _phiFromAbduction(s2)
-                                        s2.logDiag("PRECISE_DBG",
-                                            names[j] + " rawAbdAxis_sensor=(" + ar.ax.toFixed(3) + "," + ar.ay.toFixed(3) + "," + ar.az.toFixed(3) + ")"
-                                            + " ang=" + ar.ang.toFixed(1)
-                                            + " anatAxis=(" + ax.toFixed(3) + "," + ay.toFixed(3) + "," + az.toFixed(3) + ")"
-                                            + " phi=" + phi.toFixed(1))
-                                        s2.refineMountAboutLongAxis(refs[j], phi, segs[j][1])
-                                    }
-                                    preciseStage = "idle"
-                                    preciseComplete = true
-                                    // Write the gate result to the log (no screenshot needed). PASS requires
-                                    // BOTH the long-axis fine-tune (φ) small AND the gravity/flip check small.
-                                    var imuL = calibPanel.leadImu
-                                    if (imuL) {
-                                        function d(i){ return i ? i.mountDeviationDeg.toFixed(1) : "—" }
-                                        function g(i){ return i ? i.mountGravityErrorDeg.toFixed(1) : "—" }
-                                        function verdict(i){
-                                            if (!i || !i.imuConnected) return "—"
-                                            return (i.mountDeviationDeg <= 15 && i.mountGravityErrorDeg <= 25) ? "PASS" : "FAIL"
-                                        }
-                                        imuL.logDiag("PRECISE_DONE",
-                                            "forearm[strapΔ=" + d(calibPanel.leadImu) + " gravΔ=" + g(calibPanel.leadImu) + " " + verdict(calibPanel.leadImu) + "]"
-                                            + " hand[strapΔ=" + d(slotB) + " gravΔ=" + g(slotB) + " " + verdict(slotB) + "]"
-                                            + " upper[strapΔ=" + d(slotC) + " gravΔ=" + g(slotC) + " " + verdict(slotC) + "]")
-                                    }
-                                }
-                                function _beginReady() {
-                                    // Skip steps whose sensor isn't connected.
-                                    while (stepIndex < diagSteps.length && diagSteps[stepIndex].slot !== "ALL"
-                                           && !_instForSlot(diagSteps[stepIndex].slot))
-                                        stepIndex += 1
-                                    if (stepIndex >= diagSteps.length) { phase = "done"; diagActive = false; return }
-                                    phase = "ready"
-                                }
-                                function _beginCapture() {
-                                    phase = "capture"; elapsedMs = 0; samples = []
-                                    _scat = [0,0,0,0,0,0]; _funcPrev = null; _funcStart = null; _funcCount = 0
-                                    if (activeInst) activeInst.beginRawDump(diagSteps[stepIndex].tag)
-                                    captureClock.restart()
-                                }
-                                function _sample() {
-                                    var imu = activeInst
-                                    if (!imu || !imu.imuConnected) return
-                                    var kind = diagSteps[stepIndex].kind
-                                    var cur = Qt.quaternion(imu.quatW, imu.quatX, imu.quatY, imu.quatZ)
-                                    if (kind === "static") {
-                                        var s = samples; s.push(cur); samples = s
-                                        return
-                                    }
-                                    // functional: PCA over incremental rotation axes, referenced to start frame
-                                    if (!_funcPrev) { _funcStart = cur; _funcPrev = cur; return }
-                                    var dq = _qMul(_qConj(_funcPrev), cur)
-                                    var aa = _axisAngle(dq)
-                                    if (aa.ang > 0.05 && aa.ang < 30) {
-                                        var rref = _qMul(_qConj(_funcStart), _funcPrev)
-                                        var axb  = _rotate(rref, [aa.ax, aa.ay, aa.az])
-                                        _scatAdd(axb, aa.ang)
-                                        _funcCount += 1
-                                    }
-                                    _funcPrev = cur
-                                }
-                                function _curQuat(inst) {
-                                    return inst ? Qt.quaternion(inst.quatW, inst.quatX, inst.quatY, inst.quatZ) : null
-                                }
-                                function _finish() {
-                                    var imu = activeInst
-                                    var st  = diagSteps[stepIndex]
-                                    if (imu) imu.endRawDump()
-                                    var payload
-                                    if (st.kind === "static") {
-                                        // REFERENCE: snapshot every present sensor's arm-down quaternion,
-                                        // plus its raw accel (gravity) so each segment's frame can be
-                                        // verified offline.
-                                        refA = _curQuat(calibPanel.leadImu)
-                                        refB = _curQuat(slotB)
-                                        refC = _curQuat(slotC)
-                                        payload = "refA=" + (refA ? _fmtQ(refA) : "—")
-                                                + " refB=" + (refB ? _fmtQ(refB) : "—")
-                                                + " refC=" + (refC ? _fmtQ(refC) : "—")
-                                    } else {
-                                        var e = _dominantEig()
-                                        if (st.tag === "FOREARM TWIST") twistA = e.axis
-                                        if (st.tag === "ELBOW BEND")   { elbowA = e.axis; _applySegment("A") }
-                                        if (st.tag === "SHOULDER RAISE") { flexC = e.axis; _applySegment("C") }
-                                        if (st.tag === "WRIST WAVE")     { flexB = e.axis; _applySegment("B") }
-                                        payload = "funcaxis=(" + e.axis[0].toFixed(4) + "," + e.axis[1].toFixed(4)
-                                                + "," + e.axis[2].toFixed(4) + ") quality=" + e.quality.toFixed(3)
-                                                + " samples=" + _funcCount
-                                    }
-                                    if (imu) imu.logDiag(st.tag, payload)
-                                    if (stepIndex + 1 < diagSteps.length) { stepIndex += 1; _beginReady() }
-                                    else { phase = "done"; diagActive = false }
-                                }
-
-                                // Feed a segment's reference + functional axes to its sensor's solver
-                                // (ImuInstance::setFunctionalCalibration), making its anatQuat live.
-                                // Long axis: forearm uses the twist axis; hand/upper-arm use gravity at
-                                // the reference (the segment hangs vertical). Madgwick world up is +Z, so
-                                // world DOWN is -Z expressed in the sensor frame at the reference pose.
-                                function _applySegment(slot) {
-                                    var inst, ref, longAx, flexAx
-                                    if (slot === "A") { inst = calibPanel.leadImu; ref = refA; flexAx = elbowA; }
-                                    else if (slot === "C") { inst = slotC; ref = refC; flexAx = flexC; }
-                                    else if (slot === "B") { inst = slotB; ref = refB; flexAx = flexB; }
-                                    if (!inst || !ref || !flexAx) return
-                                    var down = _rotate(_qConj(ref), [0, 0, -1])
-                                    longAx = (slot === "A" && twistA) ? twistA : down   // gravity for B/C
-                                    inst.setFunctionalCalibration(ref,
-                                        Qt.vector3d(down[0], down[1], down[2]),
-                                        Qt.vector3d(longAx[0], longAx[1], longAx[2]),
-                                        Qt.vector3d(flexAx[0], flexAx[1], flexAx[2]))
-                                }
-
-                                Timer {
-                                    id: captureClock
-                                    interval: 50; repeat: true
-                                    running: diagWrap.phase === "capture" && root.currentStep === root.stepConfirm
-                                    onTriggered: {
-                                        diagWrap.elapsedMs += 50
-                                        if (diagWrap.elapsedMs >= diagWrap.diagSteps[diagWrap.stepIndex].dur) {
-                                            stop(); diagWrap._finish()
-                                        }
-                                    }
-                                }
-                                Connections {
-                                    target:  diagWrap.activeInst
-                                    enabled: diagWrap.phase === "capture" && root.currentStep === root.stepConfirm
-                                    function onQuatChanged() { diagWrap._sample() }
-                                }
-
-                                ArmVizView {
-                                    id: confirmArmViz
-                                    anchors.fill: parent
-                                }
-
-                                Rectangle {
-                                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                                    height:  diagCol.implicitHeight + Theme.sp(24)
-                                    color:   "#CC000000"
-
-                                    Column {
-                                        id: diagCol
-                                        anchors { left: parent.left; right: parent.right
-                                                  verticalCenter: parent.verticalCenter; margins: Theme.sp(16) }
-                                        spacing: Theme.sp(10)
-
-                                        Text {
-                                            width:    parent.width
-                                            wrapMode: Text.WordWrap
-                                            color:    "white"
-                                            font.family:    Theme.fontBody
-                                            font.pixelSize: Theme.fontSzBody2
-                                            lineHeight:     1.4
-                                            text: {
-                                                if (diagWrap.phase === "idle")
-                                                    return qsTr("Mount sensors per the strap convention. Hold your whole arm straight down and still, then tap Quick calibrate. (Characterise runs the full swing capture — only needed to set the nominal.)")
-                                                if (diagWrap.phase === "done")
-                                                    return qsTr("Calibration applied — move your arm; the model should now track it. Tap to recapture.")
-                                                var st = diagWrap.diagSteps[diagWrap.stepIndex]
-                                                var head = qsTr("Step %1 of %2 · %3").arg(diagWrap.stepIndex + 1).arg(diagWrap.diagSteps.length).arg(st.tag)
-                                                if (diagWrap.phase === "ready")
-                                                    return head + "\n" + st.prompt + "\n" + qsTr("Tap Start when you're in position, then begin moving.")
-                                                var pct = Math.round(diagWrap.elapsedMs / st.dur * 100)
-                                                var verb = st.kind === "static" ? qsTr("Hold still")
-                                                         : st.kind === "tumble" ? qsTr("Keep rotating through orientations")
-                                                                                : qsTr("Keep moving")
-                                                return head + "\n" + st.prompt + "\n" + qsTr("%1 — capturing… %2%").arg(verb).arg(pct)
-                                            }
-                                        }
-
-                                        Row {
-                                            spacing: Theme.sp(10)
-
-                                            // Quick (mandated-mount) calibration — the primary path.
-                                            Rectangle {
-                                                visible: diagWrap.phase === "idle" || diagWrap.phase === "done"
-                                                width:   quickTxt.implicitWidth + Theme.sp(24)
-                                                height:  quickTxt.implicitHeight + Theme.sp(12)
-                                                radius:  Theme.sp(4)
-                                                color:   Theme.colorAccent
-                                                Text {
-                                                    id: quickTxt
-                                                    anchors.centerIn: parent
-                                                    color: "white"
-                                                    font.family:    Theme.fontBody
-                                                    font.pixelSize: Theme.fontSzLabel
-                                                    text: qsTr("Quick calibrate (arm down)")
-                                                }
-                                                TapHandler { onTapped: diagWrap._quickCalibrate() }
-                                            }
-
-                                            // Precise (δM fine-tune) — two poses: arm down, then abduct.
-                                            Rectangle {
-                                                visible: diagWrap.phase === "idle" || diagWrap.phase === "done"
-                                                width:   precTxt.implicitWidth + Theme.sp(24)
-                                                height:  precTxt.implicitHeight + Theme.sp(12)
-                                                radius:  Theme.sp(4)
-                                                color:   diagWrap.preciseStage === "got-down" ? Theme.colorGood : "#55FFFFFF"
-                                                Text {
-                                                    id: precTxt
-                                                    anchors.centerIn: parent
-                                                    color: "white"
-                                                    font.family:    Theme.fontBody
-                                                    font.pixelSize: Theme.fontSzLabel
-                                                    text: diagWrap.preciseStage === "got-down"
-                                                              ? qsTr("…now raise arm to the SIDE, tap")
-                                                              : qsTr("Precise: 1) arm down, tap")
-                                                }
-                                                TapHandler { onTapped: diagWrap._preciseCapture() }
-                                            }
-
-                                            // Full swing capture — only for characterising the nominal.
-                                            Rectangle {
-                                                visible: diagWrap.phase !== "capture"
-                                                width:   startTxt.implicitWidth + Theme.sp(24)
-                                                height:  startTxt.implicitHeight + Theme.sp(12)
-                                                radius:  Theme.sp(4)
-                                                color:   diagWrap.phase === "ready" ? Theme.colorAccent : "#44FFFFFF"
-                                                Text {
-                                                    id: startTxt
-                                                    anchors.centerIn: parent
-                                                    color: "white"
-                                                    font.family:    Theme.fontBody
-                                                    font.pixelSize: Theme.fontSzLabel
-                                                    text: diagWrap.phase === "ready"
-                                                              ? qsTr("Start: %1").arg(diagWrap.diagSteps[diagWrap.stepIndex].tag)
-                                                              : (diagWrap.phase === "done" ? qsTr("Characterise again")
-                                                                                           : qsTr("Characterise (swings)"))
-                                                }
-                                                TapHandler {
-                                                    onTapped: {
-                                                        if (diagWrap.phase === "ready") diagWrap._beginCapture()
-                                                        else                            diagWrap._startDiag()
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        // Precise-calibration completion + per-sensor strap-slop readout.
-                                        Text {
-                                            visible: diagWrap.preciseComplete
-                                                     && (diagWrap.phase === "idle" || diagWrap.phase === "done")
-                                            color: {
-                                                function d(i){ return i ? i.mountDeviationDeg : 0 }
-                                                var mx = Math.max(d(calibPanel.leadImu), d(diagWrap.slotB), d(diagWrap.slotC))
-                                                return mx > 15 ? Theme.colorWarn : Theme.colorGood
-                                            }
-                                            font.family:    Theme.fontBody
-                                            font.pixelSize: Theme.fontSzLabel
-                                            text: {
-                                                function d(i){ return i ? i.mountDeviationDeg.toFixed(1) : "—" }
-                                                return qsTr("✓ Precise calibration complete — strap Δ: forearm %1° · hand %2° · upper %3°")
-                                                    .arg(d(calibPanel.leadImu)).arg(d(diagWrap.slotB)).arg(d(diagWrap.slotC))
-                                            }
-                                        }
-
-                                        // Numeric verification — log all sensors' anatQuat for a held pose.
-                                        Row {
-                                            spacing: Theme.sp(8)
-                                            visible: diagWrap.phase === "idle" || diagWrap.phase === "done"
-                                            Repeater {
-                                                model: ["NEUTRAL", "ABDUCT", "WRIST_FLEX", "WRIST_EXT"]
-                                                delegate: Rectangle {
-                                                    required property string modelData
-                                                    width:  vTxt.implicitWidth + Theme.sp(16)
-                                                    height: vTxt.implicitHeight + Theme.sp(10)
-                                                    radius: Theme.sp(4)
-                                                    color:  "#33FFFFFF"
-                                                    Text {
-                                                        id: vTxt
-                                                        anchors.centerIn: parent
-                                                        color: "white"; font.family: Theme.fontBody
-                                                        font.pixelSize: Theme.fontSzLabel
-                                                        text: qsTr("Log ") + modelData
-                                                    }
-                                                    TapHandler { onTapped: diagWrap._logAnat(modelData) }
-                                                }
-                                            }
-                                        }
-
                                     }
                                 }
                             }
