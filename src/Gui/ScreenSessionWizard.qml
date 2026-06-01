@@ -56,6 +56,12 @@ Item {
     // 6 entries, indexed by the named step constants above.
     property var stepStates: ["pending", "pending", "pending", "pending", "pending", "pending"]
 
+    // Per-session IMU exclusion (device ids that won't be connected this session).
+    // Seeded from appSettings.imuExcluded each time the wizard opens (see
+    // onVisibleChanged), but the wizard toggle edits THIS list only — it is a
+    // per-session choice and must not write back to appSettings.
+    property var sessionImuExcluded: []
+
     // True only for Wrist Motion (index 1) — enables the Calibrate + Confirm steps.
     readonly property bool hasCalibrateStep: sessionType === 1
     // Terminal step index: Ready for wrist; for non-wrist Calibrate/Confirm are
@@ -434,6 +440,8 @@ Item {
             var saved = appSettings.sessionGoalsByType[sessionType.toString()]
             selectedGoals   = (saved && saved.length > 0) ? saved.slice() : []
             goalsInteracted = false
+            // Snapshot the persisted exclusions as this session's starting point.
+            sessionImuExcluded = appSettings.imuExcluded.slice()
         }
     }
 
@@ -879,9 +887,11 @@ Item {
                                 var reqs = root.curImuReqs
                                 var list = imuManager.imuDeviceList
                                 var placement = appSettings.imuPlacement
+                                var excluded  = root.sessionImuExcluded
                                 for (var i = 0; i < reqs.length; ++i) {
                                     for (var j = 0; j < list.length; ++j) {
-                                        if (placement[list[j].id] === reqs[i].slot) {
+                                        if (placement[list[j].id] === reqs[i].slot
+                                                && excluded.indexOf(list[j].id) < 0) {
                                             var inst = imuManager.instanceFor(list[j].id)
                                             if (!inst || !inst.imuConnected)
                                                 queue.push(list[j].index)
@@ -1011,9 +1021,11 @@ Item {
                                         var reqs = root.curImuReqs
                                         var list = imuManager.imuDeviceList
                                         var placement = appSettings.imuPlacement
+                                        var excluded  = root.sessionImuExcluded
                                         for (var i = 0; i < reqs.length; ++i) {
                                             for (var j = 0; j < list.length; ++j) {
-                                                if (placement[list[j].id] === reqs[i].slot) {
+                                                if (placement[list[j].id] === reqs[i].slot
+                                                        && excluded.indexOf(list[j].id) < 0) {
                                                     var inst = imuManager.instanceFor(list[j].id)
                                                     if (!inst || !inst.imuConnected) return true
                                                 }
@@ -1101,13 +1113,40 @@ Item {
                                         readonly property string _stateLabel: _inst ? _inst.stateLabel    : ""
                                         readonly property bool   _connected:  _inst ? _inst.imuConnected  : false
 
-                                        ok:   _connected
-                                        warn: _dev !== null && !_connected
+                                        // Excluded = disabled for connection THIS SESSION only.
+                                        // Seeded from appSettings.imuExcluded at wizard open, but the
+                                        // toggle edits root.sessionImuExcluded — it never writes back
+                                        // to settings (per-session choice).
+                                        readonly property bool _excluded:
+                                            _dev !== null && root.sessionImuExcluded.indexOf(_dev.id) >= 0
+
+                                        disabled:      _excluded
+                                        subDisabled:   _dev
+                                            ? qsTr("%1 · DISABLED — WON'T CONNECT").arg(_dev.alias || _dev.description)
+                                            : qsTr("DISABLED — WON'T CONNECT")
+                                        // Toggle shown once a device is assigned to this slot.
+                                        showToggle:    _dev !== null
+                                        toggleChecked: !_excluded
+                                        onToggled: (v) => {
+                                            if (!_dev) return
+                                            var list = root.sessionImuExcluded.slice()
+                                            var idx  = list.indexOf(_dev.id)
+                                            if (!v && idx < 0)  list.push(_dev.id)     // disable → exclude
+                                            if ( v && idx >= 0) list.splice(idx, 1)    // enable  → include
+                                            root.sessionImuExcluded = list
+                                            // Disabling a device that is selected/connected must
+                                            // actually disconnect it so it leaves the session.
+                                            if (!v) imuManager.setSelected(_dev.index, false)
+                                        }
+
+                                        ok:   !_excluded && _connected
+                                        warn: !_excluded && _dev !== null && !_connected
 
                                         // RHS chip: appears as soon as an instance exists and
                                         // updates in real-time as the connection progresses.
+                                        // Suppressed while excluded (the dimmed row + toggle say it all).
                                         chipText: {
-                                            if (!_inst) return ""
+                                            if (_excluded || !_inst) return ""
                                             if (_connected) return qsTr("Connected")
                                             if (_stateLabel === "Error" || _stateLabel === "Not found")
                                                 return qsTr("Connection Failed")
@@ -2829,6 +2868,36 @@ Item {
         }
     }
 
+    // Small on/off toggle — mirrors the TogglePill in ImusPanel.qml so the
+    // wizard's per-IMU enable switch looks and behaves identically to Settings.
+    component TogglePill: Rectangle {
+        id: pill
+        property bool checked: false
+        signal toggled(bool value)
+
+        width:  Theme.sp(34)
+        height: Theme.sp(18)
+        radius: Theme.sp(9)
+        color:  pill.checked ? Theme.colorAccent : Theme.colorBg3
+        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+        Rectangle {
+            width:  Theme.sp(12)
+            height: Theme.sp(12)
+            radius: Theme.sp(6)
+            color:  "white"
+            anchors.verticalCenter: parent.verticalCenter
+            x: pill.checked ? parent.width - width - Theme.sp(3) : Theme.sp(3)
+            Behavior on x { NumberAnimation { duration: 120 } }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            cursorShape:  Qt.PointingHandCursor
+            onClicked:    pill.toggled(!pill.checked)
+        }
+    }
+
     component StatusCircle: Rectangle {
         property bool ok:    false
         property bool warn:  false   // amber — found but not ready (e.g. assigned but not connected)
@@ -2861,6 +2930,13 @@ Item {
         property string subFail:       ""
         property bool   showRecal:     false
         property bool   recalEnabled:  false
+        // Disabled state — muted/greyed, neutral circle, shows subDisabled.
+        property bool   disabled:      false
+        property string subDisabled:   ""
+        // Optional on/off toggle on the right (e.g. enable an IMU for connection).
+        property bool   showToggle:    false
+        property bool   toggleChecked: true
+        signal toggled(bool value)
         // RHS status chip — shown when chipText is non-empty
         property string chipText:      ""
         property color  chipColor:     "transparent"
@@ -2879,14 +2955,16 @@ Item {
             spacing: Theme.sp(10)
 
             StatusCircle {
-                ok:    cr.ok
-                warn:  !cr.ok && cr.warn
-                error: !cr.ok && !cr.warn && !cr.optional
+                opacity: cr.disabled ? 0.45 : 1.0
+                ok:    !cr.disabled && cr.ok
+                warn:  !cr.disabled && !cr.ok && cr.warn
+                error: !cr.disabled && !cr.ok && !cr.warn && !cr.optional
             }
 
             Column {
                 Layout.fillWidth: true
                 spacing: Theme.sp(2)
+                opacity: cr.disabled ? 0.45 : 1.0
                 Text {
                     text:           cr.label
                     font.family:    Theme.fontBody
@@ -2895,15 +2973,36 @@ Item {
                 }
                 Text {
                     width:              parent.width
-                    text:               cr.ok ? cr.subOk : (cr.warn ? cr.subWarn : cr.subFail)
+                    text:               cr.disabled ? cr.subDisabled
+                                                     : (cr.ok ? cr.subOk : (cr.warn ? cr.subWarn : cr.subFail))
                     font.family:        Theme.fontData
                     font.pixelSize:     Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingData
-                    color:              cr.ok   ? Theme.colorGood
+                    color:              cr.disabled ? Theme.colorText3
+                                               : (cr.ok   ? Theme.colorGood
                                                : (cr.warn ? Theme.colorWarn
                                                           : (cr.optional ? Theme.colorText3
-                                                                         : Theme.colorError))
+                                                                         : Theme.colorError)))
                     elide:              Text.ElideRight
+                }
+            }
+
+            // Per-row enable toggle (e.g. include/exclude an IMU for connection).
+            Row {
+                visible:          cr.showToggle
+                spacing:          Theme.sp(6)
+                Layout.alignment: Qt.AlignVCenter
+                Text {
+                    text:           qsTr("Enable")
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    color:          Theme.colorText3
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                TogglePill {
+                    checked:                cr.toggleChecked
+                    anchors.verticalCenter: parent.verticalCenter
+                    onToggled:              (v) => cr.toggled(v)
                 }
             }
 
