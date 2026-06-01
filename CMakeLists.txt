@@ -1630,6 +1630,13 @@ endif()
 
 if(MSVC)
     target_compile_definitions(PinPoint PRIVATE _CRT_SECURE_NO_WARNINGS)
+    # M_PI and friends: MSVC only exposes them from <cmath>/<math.h> when
+    # _USE_MATH_DEFINES is defined *before* that header is first included. The
+    # vendored imu_ekf sources (third_party/imu_ekf) rely on M_PI, but by the
+    # time their <Eigen.h> compat shim defines it, MSVC's <memory> has already
+    # pulled in <cmath> and set its include guard. Define it on the command
+    # line so it is in effect before any header is parsed.
+    target_compile_definitions(PinPoint PRIVATE _USE_MATH_DEFINES)
 endif()
 
 install(TARGETS PinPoint
