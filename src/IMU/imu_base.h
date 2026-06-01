@@ -22,6 +22,11 @@
 #include <QByteArray>
 #include <QList>
 
+#include <atomic>
+#include <memory>
+
+#include "iorientation_filter.h"
+
 struct ImuCapabilities;
 
 // Abstract base class for all IMU devices, transport-agnostic.
@@ -75,6 +80,35 @@ public:
     // support — ImuInstance's 30 s timeout will fire and emit zeroingFailed().
     virtual void zeroToCurrentPose() {}
 
+    // -----------------------------------------------------------------------
+    // Local orientation fusion — shared by all device types.
+    //
+    // Devices whose native orientation output is unreliable (e.g. the WT901's
+    // non-rigid Euler stream) fuse orientation locally from raw gyro + accel:
+    // the driver calls fuseRawImu() from its packet handler. The fusion
+    // algorithm (Madgwick / ESKF) is selectable at runtime — see
+    // iorientation_filter.h. A device that trusts its hardware quaternion simply
+    // never calls fuseRawImu() and reports the native value instead.
+    // -----------------------------------------------------------------------
+
+    // Select the fusion algorithm. Thread-safe: the filter object is rebuilt on
+    // the packet-consumer thread at the next fuseRawImu() call (see
+    // applyPendingFilterSwap), so any thread may call this without locking the
+    // hot fusion path.
+    void setOrientationFilter(OrientationFilterType type)
+    {
+        m_pendingFilterType.store(type, std::memory_order_relaxed);
+        m_filterSwapPending.store(true, std::memory_order_release);
+    }
+    OrientationFilterType orientationFilterType() const
+    {
+        return m_pendingFilterType.load(std::memory_order_relaxed);
+    }
+
+    // Re-seed the filter (drops orientation state and dt history) so tracking
+    // restarts from the current pose. Call on (re)connection.
+    void resetOrientationFilter() { if (m_fusion) m_fusion->reset(); m_lastFusionUs = 0; }
+
 signals:
     void connected();
     void disconnected();
@@ -91,4 +125,25 @@ signals:
     void zeroingConfirmed(); // device confirmed zeroing was applied
 
     void rawPacketReady(const QByteArray &data, qint64 timestamp_us);
+
+protected:
+    // Feed one raw IMU sample to the active orientation filter and return the
+    // fused quaternion (sensor body frame). Accel in any consistent units (g for
+    // the WT901); gyro in rad/s. dt is computed internally from a software clock
+    // (clamped to absorb transport stalls). Applies any pending filter swap and
+    // seeds from gravity on the first call. Drivers call this from their packet
+    // handler, then store/emit the result.
+    QuaternionData fuseRawImu(float ax, float ay, float az,
+                              float gxRad, float gyRad, float gzRad);
+
+private:
+    // Rebuilds m_fusion if a setOrientationFilter() request is pending. Called by
+    // fuseRawImu() so the swap happens on the packet-consumer thread.
+    void applyPendingFilterSwap();
+
+    // Owned/used only on the packet-consumer thread; swapped via the atomics below.
+    std::unique_ptr<IOrientationFilter> m_fusion;
+    std::atomic<OrientationFilterType>  m_pendingFilterType{ OrientationFilterType::Madgwick };
+    std::atomic<bool>                   m_filterSwapPending{ false };
+    qint64                              m_lastFusionUs = 0;
 };

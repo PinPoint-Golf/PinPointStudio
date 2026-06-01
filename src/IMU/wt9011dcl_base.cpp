@@ -19,29 +19,11 @@
 #include "wt9011dcl_base.h"
 #include "pp_debug.h"
 #include "event_buffer.h"
-#include "orientation_filter.h"        // MadgwickFilter (concrete)
-#include "eskf_orientation_filter.h"   // EskfOrientationFilter (concrete)
 #include <QtMath>
 
 WT9011DCL_Base::WT9011DCL_Base(QObject *parent)
     : ImuBase(parent)
-    , m_fusion(std::make_unique<MadgwickFilter>())   // default; swappable at runtime
 {}
-
-void WT9011DCL_Base::applyPendingFilterSwap()
-{
-    if (!m_filterSwapPending.exchange(false, std::memory_order_acquire))
-        return;
-    switch (m_pendingFilterType.load(std::memory_order_relaxed)) {
-    case OrientationFilterType::Eskf:
-        m_fusion = std::make_unique<EskfOrientationFilter>();
-        break;
-    case OrientationFilterType::Madgwick:
-        m_fusion = std::make_unique<MadgwickFilter>();
-        break;
-    }
-    m_lastFusionUs = 0;   // re-seed dt and (via uninitialised filter) orientation
-}
 
 // ---------------------------------------------------------------------------
 // Capabilities
@@ -263,25 +245,12 @@ void WT9011DCL_Base::dispatchCombinedPacket(const QByteArray &frame)
     euler.yaw   = yaw   / 32768.0f * 180.0f;
     emit eulerAnglesUpdated(euler);   // display labels only
 
-    // Apply any pending runtime filter swap before touching m_fusion (this runs
-    // on the packet-consumer thread, so the swap is race-free).
-    applyPendingFilterSwap();
-
-    // Per-sample dt from the software clock; clamp to absorb BLE stalls/gaps.
-    const qint64 nowUs = static_cast<qint64>(pinpoint::EventBuffer::nowMicros());
-    float dt = (m_lastFusionUs != 0) ? (nowUs - m_lastFusionUs) * 1e-6f : 0.01f;
-    m_lastFusionUs = nowUs;
-    if (dt < 0.0005f) dt = 0.0005f;
-    if (dt > 0.05f)   dt = 0.05f;
-
-    if (!m_fusion->initialized())
-        m_fusion->initFromAccel(m_accel.x, m_accel.y, m_accel.z);
-    m_fusion->update(m_accel.x, m_accel.y, m_accel.z,
-                     qDegreesToRadians(m_gyro.x),
-                     qDegreesToRadians(m_gyro.y),
-                     qDegreesToRadians(m_gyro.z), dt);
-
-    m_quat = QuaternionData{ m_fusion->w(), m_fusion->x(), m_fusion->y(), m_fusion->z() };
+    // Fuse orientation locally from the raw gyro+accel (ImuBase, shared across
+    // device types). Gyro converted deg/s -> rad/s to match the filter contract.
+    m_quat = fuseRawImu(m_accel.x, m_accel.y, m_accel.z,
+                        qDegreesToRadians(m_gyro.x),
+                        qDegreesToRadians(m_gyro.y),
+                        qDegreesToRadians(m_gyro.z));
     emit quaternionUpdated(m_quat);
 }
 
