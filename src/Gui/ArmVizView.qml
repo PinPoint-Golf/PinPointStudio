@@ -323,33 +323,6 @@ Item {
             }
         }
 
-        // ── World-axis reference ──────────────────────────────────────────────
-        // Fixed in the scene (orbits only with the camera), so orientation reports
-        // are unambiguous at any view angle. A ball sits at the +tip of each world
-        // axis: +X = red, +Y = green, +Z = blue (the origin end is the body).
-        Node {
-            position: Qt.vector3d(root.rightHanded ? 0.58 : -0.58, 1.05, 0.30)
-            Model {   // +X
-                source: "#Sphere"; position: Qt.vector3d(0.13, 0, 0)
-                scale: Qt.vector3d(0.0004, 0.0004, 0.0004)
-                materials: PrincipledMaterial { baseColor: Theme.colorImuA; lighting: PrincipledMaterial.NoLighting }
-            }
-            Model {   // +Y
-                source: "#Sphere"; position: Qt.vector3d(0, 0.13, 0)
-                scale: Qt.vector3d(0.0004, 0.0004, 0.0004)
-                materials: PrincipledMaterial { baseColor: Theme.colorImuC; lighting: PrincipledMaterial.NoLighting }
-            }
-            Model {   // +Z
-                source: "#Sphere"; position: Qt.vector3d(0, 0, 0.13)
-                scale: Qt.vector3d(0.0004, 0.0004, 0.0004)
-                materials: PrincipledMaterial { baseColor: Theme.colorImuD; lighting: PrincipledMaterial.NoLighting }
-            }
-            Model {   // origin
-                source: "#Sphere"; scale: Qt.vector3d(0.0003, 0.0003, 0.0003)
-                materials: PrincipledMaterial { baseColor: Theme.colorText; lighting: PrincipledMaterial.NoLighting }
-            }
-        }
-
     }
 
     // ── IMU assignment legend ─────────────────────────────────────────────────
