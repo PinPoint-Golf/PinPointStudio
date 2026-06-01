@@ -892,6 +892,28 @@ Item {
                             property int  _connectIdx:   0
                             property bool _connecting:   false
 
+                            // True when at least one enabled, assigned sensor is not yet
+                            // connected — i.e. there is something for "Connect" to do.
+                            // Drives the wizard footer button (Connect ↔ Continue).
+                            readonly property bool canConnect: {
+                                var _dep = imuManager.instances   // reactive
+                                if (_connecting) return false
+                                var reqs = root.curImuReqs
+                                var list = imuManager.imuDeviceList
+                                var placement = appSettings.imuPlacement
+                                var excluded  = root.sessionImuExcluded
+                                for (var i = 0; i < reqs.length; ++i) {
+                                    for (var j = 0; j < list.length; ++j) {
+                                        if (placement[list[j].id] === reqs[i].slot
+                                                && excluded.indexOf(list[j].id) < 0) {
+                                            var inst = imuManager.instanceFor(list[j].id)
+                                            if (!inst || !inst.imuConnected) return true
+                                        }
+                                    }
+                                }
+                                return false
+                            }
+
                             // Build the list of assigned-but-unconnected device indices
                             // for the current session's required slots, then connect them
                             // sequentially with a 2-second gap between each to give BlueZ
@@ -1024,63 +1046,6 @@ Item {
                                     }
                                 }
 
-                                // Connect button — works through each found-but-unconnected
-                                // required sensor; 2-second gap between each to let BlueZ reset.
-                                Rectangle {
-                                    id: imuWizConnectBtn
-
-                                    readonly property bool canConnect: {
-                                        var _dep = imuManager.instances   // reactive
-                                        if (imusCol._connecting) return false
-                                        var reqs = root.curImuReqs
-                                        var list = imuManager.imuDeviceList
-                                        var placement = appSettings.imuPlacement
-                                        var excluded  = root.sessionImuExcluded
-                                        for (var i = 0; i < reqs.length; ++i) {
-                                            for (var j = 0; j < list.length; ++j) {
-                                                if (placement[list[j].id] === reqs[i].slot
-                                                        && excluded.indexOf(list[j].id) < 0) {
-                                                    var inst = imuManager.instanceFor(list[j].id)
-                                                    if (!inst || !inst.imuConnected) return true
-                                                }
-                                            }
-                                        }
-                                        return false
-                                    }
-
-                                    implicitWidth:  imuWizConnMeasure.implicitWidth + Theme.sp(24)
-                                    implicitHeight: Theme.sp(28)
-                                    radius: Theme.radius
-                                    color:  imusCol._connecting ? Theme.colorAccentLight : "transparent"
-                                    border.width: 1
-                                    border.color: imusCol._connecting ? Theme.colorAccent : Theme.colorBorderStrong
-                                    opacity: canConnect ? 1.0 : 0.4
-                                    Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
-                                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-                                    Behavior on opacity      { NumberAnimation { duration: Theme.durationFast } }
-
-                                    Text {
-                                        id: imuWizConnMeasure
-                                        visible: false
-                                        text: qsTr("Connecting…")
-                                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2; font.weight: Theme.fontBodyWeight
-                                    }
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text:           imusCol._connecting ? qsTr("Connecting…") : qsTr("Connect")
-                                        font.family:    Theme.fontBody
-                                        font.pixelSize: Theme.fontSzBody2
-                                        font.weight:    Theme.fontBodyWeight
-                                        color:          imusCol._connecting ? Theme.colorAccent : Theme.colorText2
-                                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                                    }
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        enabled:      imuWizConnectBtn.canConnect
-                                        cursorShape:  Qt.PointingHandCursor
-                                        onClicked:    imusCol.startConnect()
-                                    }
-                                }
                             }
 
                             Column {
@@ -2230,19 +2195,31 @@ Item {
 
                     // Primary action
                     Rectangle {
+                        id: primaryBtn
+                        // IMU step: the primary button doubles as "Connect" until every
+                        // ENABLED sensor is connected, then becomes "Continue". Keeps the
+                        // bottom-right button the single "keep progressing" control.
+                        // "Ready to continue" = required slots all connected AND nothing
+                        // enabled left to connect (imusCol.canConnect false). Using
+                        // canConnect — not just imusAllConnected — means re-enabling an
+                        // optional sensor mid-page correctly reverts the button to "Connect".
+                        readonly property bool imuConnectMode:
+                            root.currentStep === root.stepImus
+                            && !(root.imusAllConnected && !imusCol.canConnect)
+
                         implicitWidth:  primaryLbl.implicitWidth + Theme.sp(28)
                         implicitHeight: Theme.sp(38)
                         radius: Theme.radius
                         color: root.currentStep < root.lastStep
                                    ? Theme.colorAccent
                                    : (root.fullyReady ? Theme.colorGood : Theme.colorWarn)
-                        // IMU step: dim until all required IMUs are connected (Skip handles bypass).
-                        // Calibrate step: dim until done (Skip handles bypass).
+                        // Dim only when there's nothing actionable: Calibrate not done, or
+                        // IMU connect-mode with nothing left to connect (and not mid-connect).
                         // Uses primaryArea.pressed for press feedback — imperative opacity
                         // assignments would destroy this binding on first press.
                         opacity: {
-                            var blocked = (root.currentStep === root.stepImus && !root.imusAllConnected)
-                                       || (root.currentStep === root.stepCalibrate && !root.calibrationDone)
+                            var blocked = (root.currentStep === root.stepCalibrate && !root.calibrationDone)
+                                       || (primaryBtn.imuConnectMode && !imusCol.canConnect && !imusCol._connecting)
                             if (blocked) return 0.4
                             return primaryArea.pressed ? 0.8 : 1.0
                         }
@@ -2251,9 +2228,11 @@ Item {
                         Text {
                             id: primaryLbl
                             anchors.centerIn: parent
-                            text: root.currentStep < root.lastStep
-                                      ? qsTr("Continue →")
-                                      : (root.fullyReady ? qsTr("▶  Start session") : qsTr("▶  Start anyway"))
+                            text: primaryBtn.imuConnectMode
+                                      ? (imusCol._connecting ? qsTr("Connecting…") : qsTr("Connect"))
+                                      : (root.currentStep < root.lastStep
+                                            ? qsTr("Continue →")
+                                            : (root.fullyReady ? qsTr("▶  Start session") : qsTr("▶  Start anyway")))
                             font.family:    Theme.fontBody
                             font.pixelSize: Theme.fontSzBody
                             color: Theme.dark ? Theme.colorBg : "#FFFFFF"
@@ -2264,8 +2243,12 @@ Item {
                             anchors.fill: parent
                             cursorShape:  Qt.PointingHandCursor
                             onClicked: {
+                                // IMU connect-mode: trigger connection instead of advancing.
+                                if (primaryBtn.imuConnectMode) {
+                                    if (!imusCol._connecting && imusCol.canConnect) imusCol.startConnect()
+                                    return
+                                }
                                 if (root.currentStep < root.lastStep) {
-                                    if (root.currentStep === root.stepImus && !root.imusAllConnected) return
                                     if (root.currentStep === root.stepCalibrate && !root.calibrationDone)  return
                                     var arr = root.stepStates.slice()
                                     arr[root.currentStep] = "done"
