@@ -603,6 +603,12 @@ message(STATUS "ONNX Runtime ${ORT_VERSION}: ${_ort_root} [EP=${_ort_ep_str}]")
 # Separate from the main ORT download; ships its own bundled libonnxruntime.so
 # (different version) which coexists safely due to distinct sonames.
 option(WITH_ORTGENAI "Enable ONNX Runtime GenAI local LLM engine" ON)
+if(APPLE AND NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64" AND WITH_ORTGENAI)
+    # ORT-GenAI dropped Intel macOS prebuilts after v0.11.4; v0.13.x is arm64-only.
+    # LocalLlmEngine falls back to Gemini when built without HAVE_ORTGENAI.
+    message(STATUS "ONNX Runtime GenAI: no Intel macOS prebuilt — disabling (local LLM falls back to Gemini)")
+    set(WITH_ORTGENAI OFF CACHE BOOL "" FORCE)
+endif()
 if(WITH_ORTGENAI)
     set(ORTGENAI_VERSION "0.13.1")
 
@@ -652,7 +658,7 @@ if(WITH_ORTGENAI)
             install(FILES "${_dll}" DESTINATION bin)
         endforeach()
     elseif(APPLE)
-        file(GLOB _ortgenai_dylib "${_ortgenai_root}/lib/libonnxruntime_genai*.dylib")
+        file(GLOB _ortgenai_dylib "${_ortgenai_root}/lib/libonnxruntime-genai*.dylib")
         list(GET _ortgenai_dylib 0 _ortgenai_dylib_path)
         target_link_libraries(PinPoint PRIVATE "${_ortgenai_dylib_path}")
     else()  # Linux
