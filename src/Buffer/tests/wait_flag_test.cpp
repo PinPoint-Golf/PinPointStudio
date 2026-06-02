@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 #include <atomic>
 #include <chrono>
+#include <future>
 #include <thread>
 #include <vector>
 
@@ -111,4 +112,60 @@ TEST(WaitFlag, MultipleWaiters) {
     for (auto& t : threads) t.join();
 
     EXPECT_EQ(woke.load(), THREADS);
+}
+
+// ===========================================================================
+// Untimed wait() — the pause-gate primitive.
+//
+// wait() is UNTIMED: a broken impl HANGS rather than fails. Every test below
+// runs the waiter on std::async and asserts fut.wait_for(deadline) == ready, so
+// a lost wakeup surfaces as a test failure (and timeout) instead of wedging
+// ctest forever.
+// ===========================================================================
+
+// wait() returns immediately when value_ already differs from expected.
+TEST(WaitFlag, WaitReturnsImmediatelyWhenDiffers) {
+    WaitFlag f;
+    f.store(5);
+
+    auto fut = std::async(std::launch::async, [&] { f.wait(0); });
+    EXPECT_EQ(fut.wait_for(1s), std::future_status::ready);
+}
+
+// wait() parks, then wakes on store()+notifyAll().
+TEST(WaitFlag, WaitWakesOnNotify) {
+    WaitFlag f;
+    f.store(0);
+
+    auto fut = std::async(std::launch::async, [&] { f.wait(0); });
+
+    std::this_thread::sleep_for(20ms); // let the waiter park
+    f.store(1);
+    f.notifyAll();
+
+    EXPECT_EQ(fut.wait_for(2s), std::future_status::ready);
+}
+
+// THE key test for the Apple seq_cst/waiters_ handshake: store()+notifyAll()
+// racing the waiter as it parks must never be lost. On Linux this exercises the
+// futex path (TSAN-clean by construction); built under macOS TSAN it stresses
+// the condition_variable handshake where a botched ordering would hang.
+TEST(WaitFlag, WaitNoLostWakeupUnderRace) {
+    constexpr int kIters = 20000;
+    for (int i = 0; i < kIters; ++i) {
+        WaitFlag f; // fresh: value_ starts at 0
+        std::atomic<bool> armed{false};
+
+        auto fut = std::async(std::launch::async, [&] {
+            armed.store(true, std::memory_order_release);
+            f.wait(0); // race: may park just as the notify below lands
+        });
+
+        while (!armed.load(std::memory_order_acquire)) { /* spin to the park */ }
+        f.store(1);
+        f.notifyAll();
+
+        ASSERT_EQ(fut.wait_for(2s), std::future_status::ready)
+            << "lost wakeup at iteration " << i;
+    }
 }

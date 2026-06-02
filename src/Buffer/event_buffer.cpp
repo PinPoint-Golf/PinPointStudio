@@ -460,11 +460,17 @@ void EventBuffer::mergerLoop() {
             drainAll();
             drained_.store(true, std::memory_order_release);
 
-            // Block until resumed or stopped.
+            // Block until resumed or stopped — untimed, no polling.
             while (draining_.load(std::memory_order_acquire)
                    && running_.load(std::memory_order_acquire)) {
-                index_wait_.waitFor(index_wait_.load(),
-                                    std::chrono::microseconds(1000));
+                uint64_t gen = control_wait_.load();
+                // Re-check the predicate AFTER sampling gen so a resume()/stop()
+                // that lands in this window has already bumped gen, making the
+                // wait() below return immediately (no lost wakeup).
+                if (!draining_.load(std::memory_order_acquire)
+                    || !running_.load(std::memory_order_acquire))
+                    break;
+                control_wait_.wait(gen);
             }
 
             // Fresh capture session — reset merger state.
@@ -659,11 +665,17 @@ void EventBuffer::resume() {
 
     source_published_.store(0);
 
-    // Wake the merger so it exits the draining-wait block.
+    // Reset the index-append signal for the fresh capture session.
     index_wait_.store(0);
     index_wait_.notifyAll();
 
     state_.store(BufferState::Capturing, std::memory_order_release);
+
+    // Wake the merger out of its paused block — MUST be last, so the woken
+    // merger observes fully-committed state (draining_ cleared, capturing_ set,
+    // state_ == Capturing) and not a torn mid-resume view.
+    control_wait_.store(control_wait_.load() + 1);
+    control_wait_.notifyAll();
 }
 
 void EventBuffer::stop() {
@@ -671,6 +683,10 @@ void EventBuffer::stop() {
         pause();
 
     running_.store(false, std::memory_order_release);
+    // Wake the merger whether it is parked on the pause gate (control_wait_) or
+    // on the normal-path cold timeout (index_wait_/source_published_).
+    control_wait_.store(control_wait_.load() + 1);
+    control_wait_.notifyAll();
     index_wait_.notifyAll();
 
     if (merger_thread_.joinable())

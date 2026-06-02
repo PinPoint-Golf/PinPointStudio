@@ -256,6 +256,38 @@ TEST(EventBuffer, MultiCycle) {
 }
 
 // ---------------------------------------------------------------------------
+// ResumeWakesParkedMerger — regression for the control_wait_ pause-gate wiring.
+//
+// Unlike MultiCycle (which resumes immediately and never proves the merger
+// actually parked), this pauses then sleeps 200ms so the merger is genuinely
+// blocked in control_wait_.wait() — not merely between poll iterations. resume()
+// must wake it, and the trailing stop() doubles as a deadlock check: a parked
+// merger that stop() failed to wake would hang join() and time out ctest.
+// ---------------------------------------------------------------------------
+
+TEST(EventBuffer, ResumeWakesParkedMerger) {
+    EventBuffer buf(zeroReorder());
+    SourceId id = buf.registerSource(makeImu());
+
+    buf.start();
+    buf.pause();
+
+    // Long enough that the merger has drained and is parked on the pause gate,
+    // not spinning between timed-poll iterations.
+    std::this_thread::sleep_for(200ms);
+
+    buf.resume();
+
+    // Post-resume the rings and timeline are reset; new events must flow.
+    writeEvents(buf, id, 50, 500'000LL, 5000LL);
+    std::this_thread::sleep_for(100ms); // let the woken merger drain
+
+    EXPECT_GT(buf.snapshot(INT64_MIN, INT64_MAX).size(), 0u);
+
+    buf.stop(); // hangs join()/ctest if stop() failed to wake the parked merger
+}
+
+// ---------------------------------------------------------------------------
 // acquireReadHandle cross-source
 // ---------------------------------------------------------------------------
 

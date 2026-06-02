@@ -69,12 +69,33 @@ uint64_t WaitFlag::waitFor(uint64_t expected,
     return value_.load(std::memory_order_acquire);
 }
 
+// Untimed park. Timer coalescing only afflicts *timed* waits, so an untimed
+// cv_.wait() blocks efficiently and wakes promptly on signal — the constraint
+// that forced waitFor() onto the spin/yield path does not apply here.
+void WaitFlag::wait(uint64_t expected) noexcept {
+    std::unique_lock<std::mutex> lk(mtx_);
+    waiters_.fetch_add(1, std::memory_order_seq_cst);
+    cv_.wait(lk, [&] {
+        return value_.load(std::memory_order_seq_cst) != expected;
+    });
+    waiters_.fetch_sub(1, std::memory_order_relaxed);
+}
+
 void WaitFlag::store(uint64_t v) noexcept {
-    value_.store(v, std::memory_order_release);
+    // seq_cst (was release): the fast-path notifyAll() below must not miss a
+    // 0→1 waiter transition that races a store(). With store, waiters_.load,
+    // waiters_.fetch_add and the predicate value_.load all seq_cst, a single
+    // total order guarantees no lost wakeup (see notifyAll()). On arm64 this is
+    // the same STLR the release store already emitted — essentially free.
+    value_.store(v, std::memory_order_seq_cst);
 }
 
 void WaitFlag::notifyAll() noexcept {
-    // Spin loop polls value_ directly — no condition variable to notify.
+    // Hot path (no parked waiter): one seq_cst load + branch, no mutex — same
+    // cost class as the old no-op. Cold path (pause gate parked): lock+notify.
+    if (waiters_.load(std::memory_order_seq_cst) == 0) return;
+    { std::lock_guard<std::mutex> lk(mtx_); } // barrier: waiter fully parked in
+    cv_.notify_all();                         // cv_.wait() before we signal it
 }
 
 // ---- Windows: WaitOnAddress / WakeByAddressAll -----------------------------
@@ -92,6 +113,17 @@ uint64_t WaitFlag::waitFor(uint64_t expected,
         reinterpret_cast<volatile void*>(&value_),
         &expected, sizeof(expected), ms);
     return value_.load(std::memory_order_acquire);
+}
+
+void WaitFlag::wait(uint64_t expected) noexcept {
+    // INFINITE timeout: park until WakeByAddressAll() and value_ has changed.
+    // WaitOnAddress may wake spuriously, so re-check value_ in the loop.
+    uint64_t current = value_.load(std::memory_order_acquire);
+    while (current == expected) {
+        WaitOnAddress(reinterpret_cast<volatile void*>(&value_),
+                      &expected, sizeof(expected), INFINITE);
+        current = value_.load(std::memory_order_acquire);
+    }
 }
 
 void WaitFlag::store(uint64_t v) noexcept {
@@ -126,6 +158,13 @@ uint64_t WaitFlag::waitFor(uint64_t expected,
         if (current != expected) return current;
     }
     return value_.load(std::memory_order_acquire);
+}
+
+void WaitFlag::wait(uint64_t expected) noexcept {
+    // std::atomic::wait is futex-backed: blocks while value_ == expected and
+    // wakes on notify_all(). libstdc++ tracks its own waiter count, so a
+    // hot-path notifyAll() with no parked waiter stays cheap (no syscall).
+    value_.wait(expected, std::memory_order_acquire);
 }
 
 void WaitFlag::store(uint64_t v) noexcept {

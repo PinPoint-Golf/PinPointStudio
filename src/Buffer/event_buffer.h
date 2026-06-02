@@ -222,6 +222,12 @@ private:
     WaitFlag      index_wait_;
     alignas(64) WaitFlag source_published_; // signalled by every publish(); merger cold-path waits on this
 
+    // Generation counter bumped by resume()/stop() to wake the merger out of its
+    // paused block via an untimed wait() (no polling while paused). Deliberately
+    // NOT index_wait_: that flag's value means "last appended index seq", and
+    // overloading it would force a parked waiter onto a hot-path instance.
+    WaitFlag      control_wait_;
+
     alignas(64) std::atomic<bool>        capturing_{false};
     std::atomic<BufferState>             state_{BufferState::Idle};
     std::atomic<bool>                    running_{false};

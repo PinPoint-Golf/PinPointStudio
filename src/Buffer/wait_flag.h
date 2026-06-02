@@ -41,6 +41,12 @@ public:
     uint64_t waitFor(uint64_t expected,
                      std::chrono::microseconds timeout) noexcept;
 
+    // Block indefinitely until value_ differs from 'expected' and a notifyAll()
+    // arrives. No timeout, no polling. COLD PATH ONLY (the pause gate) — never
+    // call on the capture/merge hot path. Unlike waitFor() this parks the thread
+    // (futex / WaitOnAddress / condition_variable) instead of spinning.
+    void     wait(uint64_t expected) noexcept;
+
     void     store(uint64_t v) noexcept;
     uint64_t load()            const noexcept;
     void     notifyAll()       noexcept;
@@ -49,6 +55,11 @@ private:
     alignas(64) std::atomic<uint64_t> value_{0};
 
 #if defined(PINPOINT_PLATFORM_APPLE)
+    // The untimed wait() cannot spin forever, so Apple needs a real condition
+    // variable. waiters_ keeps notifyAll() ~free on the hot path: with nobody
+    // parked in wait() it is a single atomic load + branch (no mutex), so the
+    // spin-only behaviour of source_published_ / index_wait_ is preserved.
+    std::atomic<uint32_t>           waiters_{0};
     mutable std::mutex              mtx_;
     mutable std::condition_variable cv_;
 #endif
