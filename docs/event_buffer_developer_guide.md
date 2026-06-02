@@ -426,7 +426,8 @@ entry to elevate its scheduling priority (see Section 13).
 1. Sets `capturing_ = false` — producers see `slot.valid = false` on their next
    callback and discard it. No blocking on the capture threads.
 2. Signals the merger to drain: the merger emits all pending events from its
-   reorder heap into the index, then quiesces.
+   reorder heap into the index, then parks untimed on `control_wait_` (see §13.1a)
+   — it consumes no CPU while paused, waking only on `resume()`/`stop()`.
 3. Waits up to `pause_drain_timeout_ms` (default 20ms) for the merger to confirm
    it has drained. Logs a warning if this times out.
 4. Rings are now frozen — no writes, no overwrites. Safe to read from any thread.
@@ -438,8 +439,10 @@ entry to elevate its scheduling priority (see Section 13).
 
 1. If `resume_clear_rings` is true (default): resets each ring's write position
    to zero and clears the `TimelineIndex`. The next swing gets a clean slate.
-2. Wakes the merger thread.
-3. Sets `capturing_ = true` — producers begin writing immediately on the next callback.
+2. Sets `capturing_ = true` — producers begin writing immediately on the next callback.
+3. Wakes the merger out of its paused park: bumps `control_wait_` and notifies —
+   done **last**, after the state transition is fully committed, so the woken
+   merger never observes a torn mid-resume view.
 
 Existing `Subscription` instances see a gap in sequence numbers after `resume()`.
 This is expected — subscriptions that span a resume are invalidated. Live consumers
@@ -447,8 +450,10 @@ This is expected — subscriptions that span a resume are invalidated. Live cons
 
 ### `stop()` — Capturing or Paused → Idle
 
-If Capturing, internally calls `pause()` first. Then signals the merger to exit
-and joins its thread. The buffer returns to Idle. Called once on app exit via
+If Capturing, internally calls `pause()` first. Then clears `running_` and wakes
+the merger — bumping `control_wait_` (in case it is parked on the pause gate) as
+well as `index_wait_` (the normal-path cold timeout) — and joins its thread. The
+buffer returns to Idle. Called once on app exit via
 `QObject::connect(&app, &QGuiApplication::aboutToQuit, ...)` in `main.cpp`.
 `~EventBuffer()` calls `stop()` as a safety net.
 
@@ -860,8 +865,36 @@ Darwin timer coalescing. The trade-off is slightly higher CPU usage during idle
 periods — acceptable because the merger is genuinely busy most of the time when
 the buffer is Capturing.
 
-The Apple `WaitFlag` no longer uses `condition_variable` at all; `mtx_` and `cv_`
-members remain in the struct definition but are unused, kept for ABI stability.
+On Apple the **timed** `waitFor()` above still avoids `condition_variable`
+entirely — the spin+yield loop is all the merger's hot cold-path uses. But the
+struct's `mtx_`/`cv_` members are no longer dead: they back the **untimed**
+`wait()` primitive described next (Apple also gains a `waiters_` counter).
+
+### 13.1a `WaitFlag::wait()` — the untimed pause gate
+
+`waitFor()` polls, which is right for the hot cold-path (the merger is busy most
+of the time while Capturing) but wrong while **Paused**: there the merger has
+nothing to do and must not burn CPU. Before this primitive existed, the paused
+merger looped on `waitFor(..., 1000µs)` against a flag that never changed while
+paused — so the timeout was the only thing ending each wait and it re-armed
+immediately, a continuous poll (a full core on macOS, ~20k wakeups/s on Linux).
+
+`WaitFlag::wait(expected)` blocks **indefinitely** until the value differs from
+`expected` and a `notifyAll()` arrives — no timeout, no polling. Timer coalescing
+only afflicts *timed* waits, so the constraint that forced `waitFor()` onto
+spin/yield does not apply here:
+
+- **Linux**: `std::atomic::wait` (futex-backed) — parks while `value_ == expected`.
+- **Windows**: `WaitOnAddress(..., INFINITE)` in a spurious-wakeup re-check loop.
+- **Apple**: a real `condition_variable` (`cv_`/`mtx_`). To keep the hot-path
+  `notifyAll()` as cheap as the old no-op, a `seq_cst` `waiters_` counter gates
+  it: with nobody parked, `notifyAll()` is a single atomic load + branch (no
+  mutex). `store()` is promoted to `seq_cst` so a `0→1` waiter transition racing
+  a `store()` can never be lost (no missed wakeup).
+
+`EventBuffer::control_wait_` is a dedicated generation flag the merger parks on
+while paused; `resume()`/`stop()` bump it and `notifyAll()` to wake the merger
+(see §7). **Cold-path only** — never call `wait()` on the capture/merge hot path.
 
 ### 13.2 `ThreadPolicy` — priority elevation per platform
 
@@ -1047,8 +1080,11 @@ src/Buffer/
     ├── source_ring_test.cpp        SPSC stress, overrun, seqlock correctness
     ├── adversarial_fuzz_test.cpp   Producer/consumer race timing
     ├── timeline_index_test.cpp     Append, read, snapshot, reset
-    ├── wait_flag_test.cpp          Timeout accuracy, wakeup latency
-    ├── event_buffer_test.cpp       End-to-end, lifecycle, multi-cycle
+    ├── wait_flag_test.cpp          Timeout accuracy, wakeup latency; untimed
+    │                               wait() — immediate-return, wake-on-notify,
+    │                               and no-lost-wakeup-under-race (Apple handshake)
+    ├── event_buffer_test.cpp       End-to-end, lifecycle, multi-cycle;
+    │                               ResumeWakesParkedMerger (pause-gate park/wake)
     ├── swing_window_test.cpp       Payload access, lifetime, freeze semantics
     ├── watchdog_test.cpp           Stall detection, recovery
     ├── thread_policy_test.cpp      Priority elevation, thread-local description
