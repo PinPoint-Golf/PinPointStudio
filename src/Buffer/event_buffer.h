@@ -34,7 +34,9 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 namespace pinpoint {
@@ -150,8 +152,24 @@ public:
             uint64_t    bounds_violations;
             uint64_t    monotonicity_violations;
             bool        stalled;
+            // Session-lifetime totals (folded history + current ring counters).
+            // Unlike the *_total/written fields above, these survive ring resets
+            // (pause→resume clears) and source deregistration, keyed by identifier.
+            uint64_t    lifetime_bytes_written;
+            uint64_t    lifetime_events_written;
+            uint64_t    lifetime_events_overwritten;
         };
-        std::vector<SourceInfo> sources;
+        // Session-lifetime totals for sources that have been folded down — i.e.
+        // every source seen this session, including ones since deregistered.
+        // Keyed by SourceDescriptor::identifier (stable per physical device).
+        struct LifetimeInfo {
+            std::string identifier;
+            uint64_t    bytes_written;
+            uint64_t    events_written;
+            uint64_t    events_overwritten;
+        };
+        std::vector<SourceInfo>   sources;
+        std::vector<LifetimeInfo> lifetime;
         uint64_t                timeline_entries;
         BufferState             state;
         int64_t                 snapshot_timestamp_us;
@@ -171,6 +189,23 @@ private:
         uint64_t                next_seq = 0; // next ring sequence to drain
         std::atomic<bool>       stalled{false};
     };
+
+    // Session-lifetime byte/event totals, keyed by SourceDescriptor::identifier.
+    // Survives ring resets (resume clears the rings) and source deregistration,
+    // so the resource monitor can show stats for a device's whole session rather
+    // than only since the last resume. Mutated only on the control plane
+    // (resume()/deregisterSource(), both serialized with the buffer Paused) and
+    // read in diagnostics(); never touched on the lock-free producer hot path.
+    struct LifetimeCounters {
+        uint64_t bytes_written      = 0;
+        uint64_t events_written     = 0;
+        uint64_t events_overwritten = 0;
+    };
+    std::unordered_map<std::string, LifetimeCounters> lifetime_;
+
+    // Fold a source's current ring counters into lifetime_ before the ring is
+    // reset or destroyed. No-op for sources with an empty identifier.
+    void foldLifetime(const SourceSlot &slot);
 
     EventBufferConfig config_;
 

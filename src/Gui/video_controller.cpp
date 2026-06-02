@@ -116,7 +116,12 @@ VideoController::VideoController(const Device &device, pinpoint::EventBuffer *bu
 
         pinpoint::SourceDescriptor desc;
         desc.name       = device.description.toStdString();
-        desc.identifier = device.capabilities.serialNumber.toStdString();
+        // Stable per-device key (serial when present, else device id) so the
+        // EventBuffer can keep session-lifetime stats keyed by identifier even
+        // for UVC webcams that report no serial number. Mirrors ImuInstance.
+        desc.identifier = (device.capabilities.serialNumber.isEmpty()
+                           ? device.id
+                           : device.capabilities.serialNumber).toStdString();
 
         pinpoint::CameraFormat cfmt{};
 

@@ -157,6 +157,15 @@ SourceId EventBuffer::registerSource(SourceDescriptor desc) {
     return id;
 }
 
+void EventBuffer::foldLifetime(const SourceSlot &slot) {
+    if (slot.desc.identifier.empty() || !slot.ring) return;
+    const auto &s = slot.ring->stats();
+    auto &L = lifetime_[slot.desc.identifier];
+    L.bytes_written      += s.bytes_written_total.load(std::memory_order_relaxed);
+    L.events_written     += s.events_written.load(std::memory_order_relaxed);
+    L.events_overwritten += s.events_overwritten.load(std::memory_order_relaxed);
+}
+
 void EventBuffer::deregisterSource(SourceId id) {
     assert(state_.load(std::memory_order_acquire) == BufferState::Paused
            && "deregisterSource requires Paused state");
@@ -166,6 +175,10 @@ void EventBuffer::deregisterSource(SourceId id) {
 
     int idx = findSlotIndex(id);
     if (idx < 0) return;  // already deregistered or invalid — no-op
+
+    // Preserve this source's totals for the rest of the session before the ring
+    // (and its stats) are freed, so the resource monitor keeps showing them.
+    if (sources_[id]) foldLifetime(*sources_[id]);
 
     // Destroy the unique_ptr — frees ring memory via AlignedDeleter.
     sources_[id].reset();
@@ -543,7 +556,21 @@ EventBuffer::DiagnosticsSnapshot EventBuffer::diagnostics() const {
         info.bounds_violations       = s.bounds_violations.load(std::memory_order_relaxed);
         info.monotonicity_violations = s.monotonicity_violations.load(std::memory_order_relaxed);
         info.stalled                 = src.stalled.load(std::memory_order_acquire);
+        // Lifetime = folded history (if this identifier has been reset before)
+        // plus the current ring counters.
+        LifetimeCounters base{};
+        if (auto it = lifetime_.find(src.desc.identifier); it != lifetime_.end())
+            base = it->second;
+        info.lifetime_bytes_written      = base.bytes_written      + info.bytes_written_total;
+        info.lifetime_events_written     = base.events_written     + info.events_written;
+        info.lifetime_events_overwritten = base.events_overwritten + info.events_overwritten;
         snap.sources.push_back(std::move(info));
+    }
+    // Folded totals for every identifier seen this session — covers sources that
+    // have since been deregistered (no live SourceInfo above).
+    for (const auto &[ident, L] : lifetime_) {
+        snap.lifetime.push_back(DiagnosticsSnapshot::LifetimeInfo{
+            ident, L.bytes_written, L.events_written, L.events_overwritten});
     }
     return snap;
 }
@@ -613,6 +640,10 @@ void EventBuffer::resume() {
     if (config_.resume_clear_rings) {
         for (size_t i = 0; i < slot_hwm_; ++i) {
             if (!sources_[i]) continue;
+            // Fold pre-reset totals into the session lifetime before clearing,
+            // otherwise every pause→resume (e.g. each swing-replay cycle) would
+            // silently discard the counters the resource monitor reports.
+            foldLifetime(*sources_[i]);
             sources_[i]->ring->reset();
             sources_[i]->next_seq = 0;
         }

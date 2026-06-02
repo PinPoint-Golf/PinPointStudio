@@ -129,6 +129,18 @@ void ResourceMonitorController::refresh()
         return nullptr;
     };
 
+    // Session-lifetime totals for a device whose source is no longer registered
+    // (deselected). Keyed by the same identifier the source was registered with
+    // (serial-or-device-id for cameras, serial-or-id for IMUs).
+    auto findLifetimeByIdent = [this](const QString &ident)
+        -> const pinpoint::EventBuffer::DiagnosticsSnapshot::LifetimeInfo*
+    {
+        const std::string key = ident.toStdString();
+        for (const auto &lt : m_snapshot.lifetime)
+            if (lt.identifier == key) return &lt;
+        return nullptr;
+    };
+
     // Camera entries — one per enumerated device, mirrors the IMU pattern.
     {
         const QList<Device> camDevices =
@@ -172,9 +184,18 @@ void ResourceMonitorController::refresh()
             else if (cam.recording)                camStatus = QStringLiteral("streaming");
             else                                   camStatus = QStringLiteral("ready");
 
-            quint64 evW  = srcInfo ? quint64(srcInfo->events_written)      : 0;
-            quint64 byW  = srcInfo ? quint64(srcInfo->bytes_written_total)  : 0;
-            quint64 evOW = srcInfo ? quint64(srcInfo->events_overwritten)   : 0;
+            // Events/bytes are session-lifetime totals so the card keeps showing
+            // them after the camera is deselected (source deregistered) and
+            // across pause→resume ring clears. Live source → folded+current;
+            // deselected → folded total looked up by the device's identifier.
+            const QString camIdent = sn.isEmpty() ? camDev.id : sn;
+            const auto *camLife = srcInfo ? nullptr : findLifetimeByIdent(camIdent);
+            quint64 evW  = srcInfo  ? quint64(srcInfo->lifetime_events_written)
+                         : camLife  ? quint64(camLife->events_written)      : 0;
+            quint64 byW  = srcInfo  ? quint64(srcInfo->lifetime_bytes_written)
+                         : camLife  ? quint64(camLife->bytes_written)       : 0;
+            quint64 evOW = srcInfo  ? quint64(srcInfo->lifetime_events_overwritten)
+                         : camLife  ? quint64(camLife->events_overwritten)  : 0;
             double  fill = srcInfo && srcInfo->slot_count > 0
                 ? std::min(1.0, double(srcInfo->events_written) / double(srcInfo->slot_count))
                 : 0.0;
@@ -263,9 +284,18 @@ void ResourceMonitorController::refresh()
 
             double  imuRate      = imu.dataRateHz;
             int     batPct       = imu.batteryPercent;
-            quint64 imuEW        = imuSrc ? quint64(imuSrc->events_written)      : 0;
-            quint64 imuBW        = imuSrc ? quint64(imuSrc->bytes_written_total)  : 0;
-            quint64 imuOW        = imuSrc ? quint64(imuSrc->events_overwritten)   : 0;
+            // Session-lifetime totals (see camera section) — keyed by the same
+            // serial-or-device-id identifier ImuInstance registers the source with.
+            const QString imuIdent = imuDev.imuCapabilities.serialNumber.isEmpty()
+                ? imuDev.id
+                : imuDev.imuCapabilities.serialNumber;
+            const auto *imuLife = imuSrc ? nullptr : findLifetimeByIdent(imuIdent);
+            quint64 imuEW = imuSrc  ? quint64(imuSrc->lifetime_events_written)
+                          : imuLife ? quint64(imuLife->events_written)      : 0;
+            quint64 imuBW = imuSrc  ? quint64(imuSrc->lifetime_bytes_written)
+                          : imuLife ? quint64(imuLife->bytes_written)       : 0;
+            quint64 imuOW = imuSrc  ? quint64(imuSrc->lifetime_events_overwritten)
+                          : imuLife ? quint64(imuLife->events_overwritten)  : 0;
             quint64 imuRingBytes = imuSrc
                 ? quint64(m_buffer->getSlotCapacity(imuSrc->id)) * quint64(imuSrc->slot_count)
                 : 0;
