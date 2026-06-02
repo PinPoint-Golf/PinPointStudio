@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include <atomic>
+
 #include "video_input_base.h"
 
 // Private implementation — defined only in VideoInputApple.mm so that
@@ -55,4 +57,10 @@ public:
 
 private:
     VideoInputApplePrivate *d = nullptr;
+
+    // Dimensions of the most recently delivered frame (ground truth for the
+    // negotiated capture size). Written on the AVFoundation delivery thread,
+    // read by queryCapabilities() on the capture thread — hence atomic.
+    std::atomic<int> m_activeWidth{0};
+    std::atomic<int> m_activeHeight{0};
 };

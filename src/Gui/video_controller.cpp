@@ -159,6 +159,16 @@ VideoController::VideoController(const Device &device, pinpoint::EventBuffer *bu
             }
             maxBpp = std::max(maxBpp, bpp);
         }
+        // Ring slot capacity must be predicted before any frame exists. The
+        // AVFoundation backend converts every frame to 32-bpp ARGB32, which the
+        // enumerated (NV12/YUYV) capabilities under-report — floor the worst case at
+        // 4 bytes/pixel so a delivered frame always fits. This is a capacity bound
+        // only; the actual pixel format and resolution are stamped from the first
+        // real frame in updateBufferDescriptor(), not guessed here.
+        // (Regression guard for 90d92a0, which moved slot sizing off the live
+        // VideoInputApple::queryCapabilities() onto the enumerated Qt capabilities.)
+        if (device.backend == VideoInputFactory::Backend::AppleAVFoundation)
+            maxBpp = std::max(maxBpp, 4);
         cfmt.max_payload_bytes     = cfmt.width * cfmt.height * static_cast<uint32_t>(maxBpp);
         cfmt.typical_payload_bytes = cfmt.max_payload_bytes;
 
@@ -902,6 +912,12 @@ void VideoController::drainDisplayFrame()
         }
     }
     onVideoFrame(f);
+
+    // Stamp the buffer descriptor's pixel format + resolution from the first real
+    // frame (the sink now holds it). Single source of truth; cheap no-op after the
+    // first successful stamp.
+    if (f.isValid() && !m_bufferDescriptorStamped)
+        updateBufferDescriptor();
 }
 
 void VideoController::drainRawFrame()
@@ -1016,6 +1032,33 @@ static QVideoFrameFormat::PixelFormat toQtPixelFormat(pinpoint::PixelFormat fmt)
     }
 }
 
+// Inverse of toQtPixelFormat: derive the buffer pixel format from an actual
+// delivered frame. This is the single source of truth for what the backend
+// produces — the descriptor is stamped from the frame itself (see
+// updateBufferDescriptor), so no backend hardcodes its format. All 32-bit packed
+// RGB variants map to BGRA32: replay reconstructs them as Format_BGRA8888 and
+// the stored bytes already carry the correct channel order.
+static pinpoint::PixelFormat pinpointFromQtFormat(QVideoFrameFormat::PixelFormat fmt)
+{
+    switch (fmt) {
+    case QVideoFrameFormat::Format_NV12:                    return pinpoint::PixelFormat::NV12;
+    case QVideoFrameFormat::Format_YUYV:                    return pinpoint::PixelFormat::YUYV;
+    case QVideoFrameFormat::Format_UYVY:                    return pinpoint::PixelFormat::UYVY;
+    case QVideoFrameFormat::Format_YUV420P:                 return pinpoint::PixelFormat::YUV420P;
+    case QVideoFrameFormat::Format_ARGB8888:
+    case QVideoFrameFormat::Format_ARGB8888_Premultiplied:
+    case QVideoFrameFormat::Format_XRGB8888:
+    case QVideoFrameFormat::Format_BGRA8888:
+    case QVideoFrameFormat::Format_BGRA8888_Premultiplied:
+    case QVideoFrameFormat::Format_BGRX8888:
+    case QVideoFrameFormat::Format_ABGR8888:
+    case QVideoFrameFormat::Format_XBGR8888:
+    case QVideoFrameFormat::Format_RGBA8888:
+    case QVideoFrameFormat::Format_RGBX8888:                return pinpoint::PixelFormat::BGRA32;
+    default:                                                return pinpoint::PixelFormat::Unknown;
+    }
+}
+
 pinpoint::SourceId VideoController::sourceId() const { return m_sourceId; }
 bool               VideoController::isReplaying() const { return m_replaying; }
 
@@ -1086,19 +1129,31 @@ void VideoController::displayReplayFrame(const std::byte *data, size_t bytes,
 }
 
 // ---------------------------------------------------------------------------
-// EventBuffer descriptor registration (called once on first Active state)
+// EventBuffer descriptor correction (stamped once from the first real frame)
 // ---------------------------------------------------------------------------
 
+// Correct the source descriptor's pixel format and resolution to match the
+// frame the backend is actually delivering. The frame is the single source of
+// truth: its surfaceFormat()/dimensions are exactly how the bytes published into
+// the ring are laid out, so swing replay decodes with the same format/size it was
+// stored with — no per-backend hardcoding, and robust to any future format.
+//
+// Called from drainDisplayFrame() once the first real frame has reached the sink.
+// The ring slot was already sized conservatively at registerSource(); this only
+// updates metadata (updateSourceFormat does not touch ring memory).
 void VideoController::updateBufferDescriptor()
 {
     if (!m_eventBuffer || m_sourceId == pinpoint::kInvalidSourceId) return;
-    if (!m_videoInput || !m_videoInput->isActive()) return;
+    if (m_bufferDescriptorStamped) return;
 
-    // queryCapabilities() returns accurate values for all backends once the
-    // camera is active — no Qt-specific format mapping needed here.
-    const CameraCapabilities caps = m_videoInput->queryCapabilities();
-    const PixelFormat        &pf  = caps.pixelFormat.defaultFormat;
-    const Resolution         &res = caps.resolution.defaultResolution;
+    const QVideoFrame f = m_videoSink ? m_videoSink->videoFrame() : QVideoFrame();
+    if (!f.isValid()) return;  // no real frame yet — never stamp a guess
+
+    const QVideoFrameFormat   sf  = f.surfaceFormat();
+    const pinpoint::PixelFormat pixfmt = pinpointFromQtFormat(sf.pixelFormat());
+    const int w = f.width();
+    const int h = f.height();
+    if (w <= 0 || h <= 0 || pixfmt == pinpoint::PixelFormat::Unknown) return;
 
     const auto backend = VideoInputFactory::backendType(m_videoInput);
     pinpoint::FormatDescriptor fd;
@@ -1110,23 +1165,23 @@ void VideoController::updateBufferDescriptor()
                    : pinpoint::DeviceKind::Camera_UVC);
 
     pinpoint::CameraFormat cfmt{};
-    cfmt.pixel_format = bufferPixelFormat(pf.encoding);
-    cfmt.width        = static_cast<uint32_t>(res.width  > 0 ? res.width  : 1920);
-    cfmt.height       = static_cast<uint32_t>(res.height > 0 ? res.height : 1080);
-    const int bpp     = pf.bitsPerPixel > 0 ? pf.bitsPerPixel : 16;
-    cfmt.max_payload_bytes     = cfmt.width * cfmt.height * static_cast<uint32_t>(bpp) / 8;
+    cfmt.pixel_format = pixfmt;
+    cfmt.width        = static_cast<uint32_t>(w);
+    cfmt.height       = static_cast<uint32_t>(h);
+    cfmt.max_payload_bytes     = static_cast<uint32_t>(w) * static_cast<uint32_t>(h) * 4u;
     cfmt.typical_payload_bytes = cfmt.max_payload_bytes;
-    const double fps           = caps.frameRate.range.defaultValue > 0.0
-                                 ? caps.frameRate.range.defaultValue : 30.0;
+    const double fps           = sf.streamFrameRate() > 0.0 ? sf.streamFrameRate() : 30.0;
     cfmt.fps_numerator   = static_cast<uint32_t>(fps * 1000.0);
     cfmt.fps_denominator = 1000;
     fd.format = cfmt;
 
-    ppInfo() << "[VideoController] camera active:" << m_deviceDescription
-             << cfmt.width << "x" << cfmt.height << "@" << fps << "fps"
-             << "fmt:" << pf.nativeKey;
-
     m_eventBuffer->updateSourceFormat(m_sourceId, fd);
+    m_bufferDescriptorStamped = true;
+
+    ppInfo() << "[VideoController] buffer descriptor stamped from frame:"
+             << m_deviceDescription << w << "x" << h << "@" << fps << "fps"
+             << "qtFmt:" << static_cast<int>(sf.pixelFormat())
+             << "-> pinpointFmt:" << static_cast<int>(pixfmt);
 }
 
 // ---------------------------------------------------------------------------
@@ -1161,6 +1216,21 @@ void VideoController::publishFrameToBuffer(const QVideoFrame &frame)
         *slot.bytes_written = static_cast<uint32_t>(totalBytes);
         *slot.timestamp_us  = pinpoint::EventBuffer::nowMicros();
         m_eventBuffer->publish(m_sourceId, slot.sequence);
+    } else if (slot.valid) {
+        // We acquired a slot but the frame won't be published into it — the slot is
+        // left uncommitted (odd generation), which the merger can never drain, so no
+        // frames reach the timeline index and swing replay captures nothing. The
+        // usual cause is the ring slot being sized smaller than the delivered frame
+        // (e.g. capacity sized for the enumerated NV12/YUYV format while the macOS
+        // AVFoundation backend delivers 32-bpp ARGB32). Log once: at the capture rate
+        // this would otherwise flood the bounded log and bury every other entry.
+        if (!m_publishDropLogged.exchange(true, std::memory_order_relaxed)) {
+            ppError() << "[VideoController] dropping every frame from the event buffer:"
+                      << totalBytes << "byte frame does not fit the" << slot.capacity
+                      << "byte ring slot (planes:" << mutable_frame.planeCount()
+                      << "). No data will be captured and swing replay will be empty."
+                      << "This is logged once per session.";
+        }
     }
 
     mutable_frame.unmap();

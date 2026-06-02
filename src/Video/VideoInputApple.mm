@@ -235,6 +235,10 @@ QVideoFrameFormat VideoInputApple::frameFormat() const
 
 void VideoInputApple::onFrameCaptured(const QVideoFrame &frame)
 {
+    // Cache the delivered size so queryCapabilities() can report the true
+    // negotiated resolution (used to size/decode buffered frames for replay).
+    m_activeWidth.store(frame.width(),  std::memory_order_relaxed);
+    m_activeHeight.store(frame.height(), std::memory_order_relaxed);
     emit videoFrameReady(frame);
 }
 
@@ -385,6 +389,22 @@ CameraCapabilities VideoInputApple::queryCapabilities() const
             { "Custom", "Custom", device.exposureMode == AVCaptureExposureModeCustom }
         };
     }
+
+    // The sample-buffer delegate converts every frame to 32-bit ARGB32 (BGRA byte
+    // order) regardless of the camera's native (NV12/YUYV) format. Report that as
+    // the delivered/default format so updateBufferDescriptor() sizes the ring slot
+    // and stamps the descriptor correctly — swing replay decodes buffered frames
+    // using this pixel format and resolution.
+    PixelFormat delivered;
+    delivered.encoding     = PixelEncoding::BGR8;
+    delivered.bitsPerPixel = 32;
+    delivered.nativeKey    = QStringLiteral("BGRA");
+    caps.pixelFormat.defaultFormat = delivered;
+
+    const int aw = m_activeWidth.load(std::memory_order_relaxed);
+    const int ah = m_activeHeight.load(std::memory_order_relaxed);
+    if (aw > 0 && ah > 0)
+        caps.resolution.defaultResolution = Resolution{ aw, ah };
 
     return caps;
 }

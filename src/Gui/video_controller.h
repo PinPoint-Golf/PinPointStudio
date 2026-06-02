@@ -226,6 +226,15 @@ private:
     // mutually exclusive per camera type).
     std::atomic<bool>      m_displayFramePending{false};
 
+    // Latched after the first time publishFrameToBuffer() drops a frame that won't
+    // fit the ring slot, so the error is logged once rather than every frame (which
+    // would flood the bounded log at the capture rate and hide everything else).
+    std::atomic<bool>      m_publishDropLogged{false};
+
+    // Set once the source descriptor's pixel format + resolution have been stamped
+    // from the first real delivered frame (main-thread only — see drainDisplayFrame).
+    bool                   m_bufferDescriptorStamped = false;
+
     QMutex                 m_latestFrameMutex;
     QVideoFrame            m_latestDisplayFrame;
 
