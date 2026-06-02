@@ -427,7 +427,9 @@ entry to elevate its scheduling priority (see Section 13).
    callback and discard it. No blocking on the capture threads.
 2. Signals the merger to drain: the merger emits all pending events from its
    reorder heap into the index, then parks untimed on `control_wait_` (see §13.1a)
-   — it consumes no CPU while paused, waking only on `resume()`/`stop()`.
+   — it consumes no CPU while paused, waking only on `resume()`/`stop()`. On
+   Windows, entering the park also drops the global 1ms timer resolution back to
+   the system default (see §13.1b).
 3. Waits up to `pause_drain_timeout_ms` (default 20ms) for the merger to confirm
    it has drained. Logs a warning if this times out.
 4. Rings are now frozen — no writes, no overwrites. Safe to read from any thread.
@@ -442,7 +444,8 @@ entry to elevate its scheduling priority (see Section 13).
 2. Sets `capturing_ = true` — producers begin writing immediately on the next callback.
 3. Wakes the merger out of its paused park: bumps `control_wait_` and notifies —
    done **last**, after the state transition is fully committed, so the woken
-   merger never observes a torn mid-resume view.
+   merger never observes a torn mid-resume view. On its next normal-path iteration
+   the merger re-raises the Windows 1ms timer resolution (see §13.1b).
 
 Existing `Subscription` instances see a gap in sequence numbers after `resume()`.
 This is expected — subscriptions that span a resume are invalidated. Live consumers
@@ -452,8 +455,9 @@ This is expected — subscriptions that span a resume are invalidated. Live cons
 
 If Capturing, internally calls `pause()` first. Then clears `running_` and wakes
 the merger — bumping `control_wait_` (in case it is parked on the pause gate) as
-well as `index_wait_` (the normal-path cold timeout) — and joins its thread. The
-buffer returns to Idle. Called once on app exit via
+well as `index_wait_` (the normal-path cold timeout) — and joins its thread. On
+exit the merger balances any outstanding Windows `timeBeginPeriod` (see §13.1b).
+The buffer returns to Idle. Called once on app exit via
 `QObject::connect(&app, &QGuiApplication::aboutToQuit, ...)` in `main.cpp`.
 `~EventBuffer()` calls `stop()` as a safety net.
 
@@ -895,6 +899,41 @@ spin/yield does not apply here:
 `EventBuffer::control_wait_` is a dedicated generation flag the merger parks on
 while paused; `resume()`/`stop()` bump it and `notifyAll()` to wake the merger
 (see §7). **Cold-path only** — never call `wait()` on the capture/merge hot path.
+
+### 13.1b Windows timer resolution — scoped to capturing periods (Windows only)
+
+The default Windows timer resolution is ~15.6ms. The merger raises it to 1ms via
+`timeBeginPeriod(1)` so that its sub-millisecond cold-path `waitFor()` timeouts
+and the 5ms reorder window behave as intended (without it, a 200µs wait sleeps
+~15ms). `timeBeginPeriod` is **process-wide**: it raises the whole machine's
+scheduler tick rate, which increases idle power draw and defeats CPU power-state
+coalescing for as long as it is held.
+
+The high-resolution timer is only needed on the **normal (hot) path**, where the
+merger is draining and emitting events. While **Paused** the merger is parked
+untimed on `control_wait_` (§13.1a) and needs no fine granularity. So the merger
+brackets the resolution around capturing periods rather than its whole lifetime:
+
+- **Raise** on the normal path (idempotent — a no-op if already raised).
+- **Lower** in the draining branch, immediately after it sets `drained_` and
+  before it parks on `control_wait_` — so the paused process runs at the system
+  default resolution.
+- **Balance on exit:** a final lower after the run loop covers `stop()` while on
+  the normal path, so no `timeBeginPeriod` is ever leaked.
+
+`timeBeginPeriod`/`timeEndPeriod` are reference-counted per-process, so every
+begin **must** have exactly one matching end. A merger-local `bool hires_active`
+guards the pair so calls are balanced and never doubled. They fire only on the
+`Capturing ⇄ Paused` edges, never per merge iteration — rapid pause/resume cycles
+(swing replay) just toggle them, which is cheap relative to a pause. All of this
+is `#if defined(PINPOINT_PLATFORM_WINDOWS)`-guarded; on Linux/macOS the
+raise/lower helpers are no-ops and there is no behavioural change.
+
+> **Manual validation** (no automated assertion exists — the buffer tests do not
+> probe global timer resolution): use `ClockRes`, `NtQueryTimerResolution`, or
+> `powercfg /energy` to confirm the resolution sits at the system default while
+> the buffer is Paused and rises to 1ms only while Capturing, and that it returns
+> to its pre-`start()` value after `stop()` (no leaked `timeBeginPeriod`).
 
 ### 13.2 `ThreadPolicy` — priority elevation per platform
 

@@ -334,8 +334,23 @@ SwingWindow EventBuffer::captureSwingWindow(
 // ---------------------------------------------------------------------------
 
 void EventBuffer::mergerLoop() {
+    // On Windows, raise the global 1 ms timer resolution only while actively
+    // capturing (normal path), not for the whole thread lifetime. While paused
+    // the merger parks on control_wait_ and has no need for fine granularity, so
+    // we drop back to the system default to avoid the system-wide idle power cost
+    // of holding timeBeginPeriod(1). hires_active tracks the begin/end balance;
+    // every timeBeginPeriod must have exactly one matching timeEndPeriod.
+    bool hires_active = false;
 #if defined(PINPOINT_PLATFORM_WINDOWS)
-    timeBeginPeriod(1);
+    auto raiseTimerRes = [&] {
+        if (!hires_active) { timeBeginPeriod(1); hires_active = true; }
+    };
+    auto lowerTimerRes = [&] {
+        if (hires_active) { timeEndPeriod(1); hires_active = false; }
+    };
+#else
+    auto raiseTimerRes = [&] { (void)hires_active; };
+    auto lowerTimerRes = [&] {};
 #endif
 
     ThreadPolicy::apply(ThreadRole::Merger);
@@ -460,6 +475,9 @@ void EventBuffer::mergerLoop() {
             drainAll();
             drained_.store(true, std::memory_order_release);
 
+            // Entering the paused park — drop back to default timer resolution.
+            lowerTimerRes();
+
             // Block until resumed or stopped — untimed, no polling.
             while (draining_.load(std::memory_order_acquire)
                    && running_.load(std::memory_order_acquire)) {
@@ -479,6 +497,9 @@ void EventBuffer::mergerLoop() {
         }
 
         // --- Normal path ---
+        // Actively capturing: ensure 1 ms timer resolution (no-op if already on).
+        raiseTimerRes();
+
         bool any_progress  = drainSources();
         int64_t safe_until = computeSafe();
         any_progress      |= emitReady(safe_until);
@@ -496,9 +517,9 @@ void EventBuffer::mergerLoop() {
         }
     }
 
-#if defined(PINPOINT_PLATFORM_WINDOWS)
-    timeEndPeriod(1);
-#endif
+    // Balance any outstanding timeBeginPeriod on thread exit (e.g. stop() while
+    // on the normal path). No-op if we exited from the paused park.
+    lowerTimerRes();
 }
 
 void EventBuffer::maybeRunWatchdog() {

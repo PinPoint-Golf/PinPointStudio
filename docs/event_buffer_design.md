@@ -1,8 +1,8 @@
 # Pinpoint Central Event Buffer — Design Document
 
-**Version**: 6 (Final)
+**Version**: 7 (Final)
 **Status**: Implementation Specification — Locked
-**Supersedes**: v1, v2, v3, v4, v5
+**Supersedes**: v1, v2, v3, v4, v5, v6
 
 ---
 
@@ -16,6 +16,7 @@
 | v4 | Performance/security/robustness review. Incorporated Rec-1,2,3,6,8,9,10,11,13,15,16. Desktop-first defaults locked. Lock-free on Linux/Windows; condition_variable fallback on macOS (accepted). Crash forensics deferred. |
 | v5 | Application lifecycle design. Added `BufferState` formal state machine, `pause()`/`resume()` API, `SwingWindow` protected time-range view, `WriteSlot::valid` flag in producer protocol, lifecycle section (Section 20), updated architectural decisions and open configuration parameters. |
 | v6 | Dynamic source registration. Lifted Idle-only registration constraint; added `deregisterSource()` with immediate memory release; sparse slot array with `slot_hwm_` / `active_sources_`; `SwingWindow` live-flag safety; buffer lifetime = app lifetime; `start()` valid with zero sources; `pause()`/`resume()` as the capture gate; `startAll()`/`stopAll()` control camera pipelines only. |
+| v7 | Merger power efficiency. Paused merger parks untimed on `control_wait_` (no poll/spin) instead of a re-arming timed wait; Windows 1ms timer resolution (`timeBeginPeriod`) scoped to capturing periods only and dropped to the system default while Paused, balanced via a merger-local `hires_active` flag (§7.2). |
 
 ---
 
@@ -658,14 +659,29 @@ public:
 
 ```cpp
 void EventBuffer::mergerLoop() {
-#if PINPOINT_PLATFORM_WINDOWS
-    timeBeginPeriod(1);   // 1ms timer resolution; timeEndPeriod in RAII guard
-#endif
+    // Windows 1ms timer resolution is held only while actively capturing, not
+    // for the whole thread lifetime. hires_active tracks the begin/end balance.
+    bool hires_active = false;
+    auto raiseTimerRes = [&] { /* timeBeginPeriod(1) if !hires_active (Windows) */ };
+    auto lowerTimerRes = [&] { /* timeEndPeriod(1)   if  hires_active (Windows) */ };
 
     MergerState state;
     constexpr int SPIN_ITERATIONS = 64;   // ~10µs of spinning before sleeping
 
     while (running_.load(std::memory_order_acquire)) {
+
+        // Draining path (pause() signalled): flush, then park untimed.
+        if (draining_.load(std::memory_order_acquire)) {
+            drainAll(state);
+            drained_.store(true, std::memory_order_release);
+            lowerTimerRes();                     // drop to default res while paused
+            control_wait_.wait(/* until resume()/stop() */);
+            state = MergerState{};               // fresh capture session
+            continue;
+        }
+
+        // Normal (capturing) path — ensure 1ms timer resolution.
+        raiseTimerRes();
 
         // 1. Poll each source ring for new events since last drain
         bool any_progress = drainSources(state);
@@ -691,16 +707,26 @@ void EventBuffer::mergerLoop() {
         }
     }
 
-#if PINPOINT_PLATFORM_WINDOWS
-    timeEndPeriod(1);
-#endif
+    lowerTimerRes();   // balance any outstanding begin on thread exit
 }
 ```
 
 > **Why `timeBeginPeriod(1)` on Windows**: The default Windows timer resolution is 15.6ms.
 > Without raising it, `sleep_for(200µs)` actually sleeps ~15ms, making the 5ms reorder
 > window meaningless. `timeBeginPeriod(1)` gives 1ms granularity, enough for our purposes,
-> without requiring admin rights. The call is process-wide and reversed on stop().
+> without requiring admin rights.
+>
+> **Scoped to capturing periods only**: `timeBeginPeriod` is *process-wide* and raises the
+> system-wide scheduler tick rate, increasing idle power draw and defeating CPU power-state
+> coalescing for as long as it is held. The high-resolution timer is only needed on the
+> normal (hot) path while draining/emitting events. While **paused** the merger parks
+> untimed on `control_wait_` (see §13.1a in the developer guide) and has no use for fine
+> granularity, so the resolution is dropped back to the system default on entering the
+> paused park and re-raised when capture resumes. Begin/end calls are reference-counted
+> per-process and must balance exactly: a local `hires_active` flag pairs every
+> `timeBeginPeriod` with one `timeEndPeriod`, including on the `stop()`/thread-exit path.
+> The calls fire only on `Capturing ⇄ Paused` edges, never per merge iteration; rapid
+> pause/resume cycles (swing replay) just toggle them, which is cheap relative to a pause.
 
 ### 7.3 `safe_emit_until` Computation
 
@@ -1234,7 +1260,8 @@ builds and are no-ops in release.
 3. Waits for in-flight `publish()` calls to complete — spin on a per-source in-flight counter
    (or simply wait one full expected-interarrival cycle per source).
 4. Signals merger to drain: sets `draining_ = true`; merger runs until its reorder heap is
-   empty, then sets `drained_` and blocks on `WaitFlag`.
+   empty, sets `drained_`, drops the Windows timer resolution back to the system default
+   (see §7.2), then parks untimed on `control_wait_`.
 5. Waits for `drained_` with `pause_drain_timeout_ms` timeout. Logs warning if timeout exceeded.
 6. Sets `state_` to `Paused`. Rings are now frozen — no producer writes, merger quiesced.
 7. **DMA queues remain registered.** No kernel calls. Camera hardware keeps running (frames
@@ -1249,14 +1276,15 @@ builds and are no-ops in release.
    (gap in sequence numbers) — this is expected and correct.
 3. Clears the `TimelineIndex` write position (new swing, clean timeline).
 4. Sets `capturing_.store(true, memory_order_release)`.
-5. Signals merger to resume (clears `draining_`).
+5. Signals merger to resume (clears `draining_`, bumps `control_wait_` to unpark it). On the
+   next normal-path iteration the merger re-raises the Windows 1ms timer resolution (see §7.2).
 6. Sets `state_` to `Capturing`.
 
 **`stop()` — Capturing|Paused → Idle**
 
 1. If `Capturing`: calls `pause()` internally first (cleanly quiesces).
 2. Sets `running_.store(false)` and wakes merger via `WaitFlag`.
-3. Joins merger thread.
+3. Joins merger thread — which balances any outstanding `timeBeginPeriod` on exit (see §7.2).
 4. Sets `state_` to `Idle`.
 5. **Does not stop CaptureSource instances** — those are owned by the caller and must be
    stopped separately before `EventBuffer` is destroyed. `~EventBuffer()` asserts no
