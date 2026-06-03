@@ -324,11 +324,9 @@ Item {
                 }
                 Item { width: 1; height: Theme.sp(16) }
 
-                GridLayout {
-                    columns:       2
-                    columnSpacing: Theme.sp(20)
-                    rowSpacing:    Theme.sp(20)
-                    width:         parent.width
+                Row {
+                    spacing: Theme.sp(20)
+                    width:   parent.width
 
                     Repeater {
                         model: [
@@ -340,8 +338,8 @@ Item {
 
                         delegate: HmTypeCard {
                             required property var modelData
-                            Layout.fillWidth:  true
-                            Layout.fillHeight: true
+                            width:           (parent.width - 3 * Theme.sp(20)) / 4
+                            height:          width * 1.6
                             iconText:        modelData.icon
                             typeName:        modelData.name
                             description:     modelData.desc

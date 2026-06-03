@@ -46,7 +46,7 @@ Rectangle {
 
     Column {
         id: contentCol
-        anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.sp(12) }
+        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: Theme.sp(12) }
         spacing: 0
 
         Item { width: 1; height: Theme.sp(4) }
