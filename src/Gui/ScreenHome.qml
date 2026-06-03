@@ -363,6 +363,10 @@ Item {
                             imusCount:       imuManager.imuEnumeratedCount
                             isSelected:      root.selectedType === modelData.idx
                             onClicked:       root.selectedType = modelData.idx
+                            onDoubleClicked: {
+                                root.selectedType = modelData.idx
+                                root.startSessionRequested(modelData.idx)
+                            }
                         }
                     }
                 }

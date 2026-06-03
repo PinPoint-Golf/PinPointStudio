@@ -38,6 +38,7 @@ Rectangle {
     property bool   isSelected:       false
 
     signal clicked()
+    signal doubleClicked()
 
     implicitHeight: contentCol.implicitHeight + Theme.sp(24)
     radius: Theme.radiusLg
@@ -190,6 +191,7 @@ Rectangle {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape:  Qt.PointingHandCursor
-        onClicked:    root.clicked()
+        onClicked:       root.clicked()
+        onDoubleClicked: root.doubleClicked()
     }
 }
