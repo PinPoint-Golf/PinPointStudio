@@ -17,7 +17,7 @@
  */
 
 import QtQuick
-import PinPoint
+import PinPointStudio
 
 Item {
     property string iconText:  ""

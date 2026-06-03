@@ -407,14 +407,14 @@ QString ImuInstance::saveLog()
 }
 
 // Diagnostic logger (retained dev tool).
-// Appends one flushed line to ~/pinpoint_imu_diag.log. `payload` carries the
+// Appends one flushed line to ~/pinpointstudio_imu_diag.log. `payload` carries the
 // QML-side slerp-averaged values; here we also log the driver's instantaneous
 // RAW accelerometer (gravity vector, sensor hardware frame) and RAW quaternion
 // (eulerToQuat output) so the offline solve can relate the two frames.
 void ImuInstance::logDiag(const QString &tag, const QString &payload)
 {
     const QString path = QDir(QStandardPaths::writableLocation(QStandardPaths::HomeLocation))
-                             .filePath(QStringLiteral("pinpoint_imu_diag.log"));
+                             .filePath(QStringLiteral("pinpointstudio_imu_diag.log"));
     QFile f(path);
     if (!f.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
         ppWarn() << "[ImuInstance] logDiag: cannot open" << path;
@@ -459,7 +459,7 @@ void ImuInstance::endRawDump()
 {
     m_rawDump = false;
     const QString path = QDir(QStandardPaths::writableLocation(QStandardPaths::HomeLocation))
-                             .filePath(QStringLiteral("pinpoint_imu_raw.log"));
+                             .filePath(QStringLiteral("pinpointstudio_imu_raw.log"));
     QFile f(path);
     if (!f.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
         ppWarn() << "[ImuInstance] endRawDump: cannot open" << path;

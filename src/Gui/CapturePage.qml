@@ -21,7 +21,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Controls.Basic
 import QtQuick3D.Helpers
-import PinPoint
+import PinPointStudio
 
 Item {
     id: capturePage

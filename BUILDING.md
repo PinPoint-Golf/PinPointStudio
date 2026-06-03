@@ -1,6 +1,6 @@
-# Building PinPoint
+# Building PinPoint Studio
 
-This document outlines the dependencies and steps required to build PinPoint from source on Linux, macOS, and Windows.
+This document outlines the dependencies and steps required to build PinPoint Studio from source on Linux, macOS, and Windows.
 
 ## General Requirements
 
@@ -12,7 +12,7 @@ This document outlines the dependencies and steps required to build PinPoint fro
 
 ## Linux
 
-PinPoint uses `pkg-config` to locate system libraries.
+PinPoint Studio uses `pkg-config` to locate system libraries.
 
 ### 1. Install Build Essentials
 ```bash

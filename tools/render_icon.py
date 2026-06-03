@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 tools/render_icon.py
-Render assets/icons/pinpoint.svg into all platform icon formats.
+Render assets/icons/pinpointstudio.svg into all platform icon formats.
 
 Usage:
     pip install cairosvg Pillow
@@ -20,7 +20,7 @@ except ImportError:
     sys.exit("Missing dependencies. Run: pip install cairosvg Pillow")
 
 ROOT    = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SVG     = os.path.join(ROOT, "src", "Resources", "icons", "pinpoint.svg")
+SVG     = os.path.join(ROOT, "src", "Resources", "icons", "pinpointstudio.svg")
 OUT_DIR = os.path.join(ROOT, "src", "Resources", "icons")
 
 
@@ -33,7 +33,7 @@ def save_pngs(sizes):
     images = {}
     for s in sizes:
         img = render_png(s)
-        path = os.path.join(OUT_DIR, f"pinpoint_{s}.png")
+        path = os.path.join(OUT_DIR, f"pinpointstudio_{s}.png")
         img.save(path)
         images[s] = img
         print(f"  PNG {s:4}x{s} -> {path}")
@@ -42,7 +42,7 @@ def save_pngs(sizes):
 
 def save_ico(images, sizes):
     """Write a proper ICO with each size embedded as a PNG chunk."""
-    path = os.path.join(OUT_DIR, "pinpoint.ico")
+    path = os.path.join(OUT_DIR, "pinpointstudio.ico")
     blobs = []
     for s in sizes:
         buf = io.BytesIO()
@@ -70,7 +70,7 @@ def save_ico(images, sizes):
 
 def save_icns(images):
     """Write a macOS .icns using Pillow."""
-    path  = os.path.join(OUT_DIR, "PinPoint.icns")
+    path  = os.path.join(OUT_DIR, "PinPointStudio.icns")
     sizes = [16, 32, 64, 128, 256, 512, 1024]
     imgs  = []
     for s in sizes:

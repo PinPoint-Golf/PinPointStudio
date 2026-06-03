@@ -1,4 +1,4 @@
-# STT Audit — PinPoint
+# STT Audit — PinPoint Studio
 
 Audit date: 2026-04-29  
 Branch: main (commit 7cccb49)
@@ -110,7 +110,7 @@ File: `CMakeLists.txt` (single file at project root, no subdirectory CMakeLists)
 
 | Aspect | Finding |
 |--------|---------|
-| Target name | `PinPoint` |
+| Target name | `PinPointStudio` |
 | `cmake_minimum_required` | 3.16 |
 | C++ standard | Not set explicitly; `qt_standard_project_setup(REQUIRES 6.10)` governs it (Qt 6.10 default is **C++17**) |
 | Dependency management | `find_package(Qt6 ...)` only — **no FetchContent, vcpkg, Conan, or vendor directories** |
@@ -154,7 +154,7 @@ There is no libsamplerate, Qt Multimedia resampler, or custom resampler in the c
 | Model | Size | Notes |
 |-------|------|-------|
 | `ggml-base.en.bin` | ~74 MB | Fastest; lower accuracy |
-| **`ggml-small.en.bin`** | **~150 MB** | **Recommended for PinPoint — good balance of speed and accuracy** |
+| **`ggml-small.en.bin`** | **~150 MB** | **Recommended for PinPoint Studio — good balance of speed and accuracy** |
 | `ggml-medium.en.bin` | ~460 MB | Highest accuracy; slow on CPU without GPU acceleration |
 
 Download the recommended model:
@@ -177,8 +177,8 @@ Platform-specific paths for priority 2:
 
 | Platform | Path |
 |----------|------|
-| Linux | `~/.local/share/PinPoint/models/` |
-| macOS | `~/Library/Application Support/PinPoint/models/` |
-| Windows | `%APPDATA%\PinPoint\models\` |
+| Linux | `~/.local/share/PinPointStudio/models/` |
+| macOS | `~/Library/Application Support/PinPointStudio/models/` |
+| Windows | `%APPDATA%\PinPointStudio\models\` |
 
 If no path resolves to an existing file, `WhisperProcessor` emits `modelNotFound(QStringList searchedPaths)` so the UI can prompt the user to download or locate a model.

@@ -61,7 +61,7 @@ void AudioStreamSaver::openFile(const QAudioFormat &format)
         dir = QDir::homePath();
 
     const QString ts   = QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss"));
-    const QString path = QDir(dir).filePath(QStringLiteral("pinpoint_audio_%1.wav").arg(ts));
+    const QString path = QDir(dir).filePath(QStringLiteral("pinpointstudio_audio_%1.wav").arg(ts));
 
     m_file.setFileName(path);
     if (!m_file.open(QIODevice::WriteOnly)) {

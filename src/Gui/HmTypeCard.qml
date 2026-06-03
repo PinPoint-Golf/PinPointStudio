@@ -18,7 +18,7 @@
 
 import QtQuick
 import QtQuick.Effects
-import PinPoint
+import PinPointStudio
 
 Rectangle {
     id: root

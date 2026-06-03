@@ -8,14 +8,14 @@ PinPoint Studio is a free, open source and cross-platform desktop application fo
 
 The app is currently in active prototyping. The core capture and analysis pipeline is functional; the coaching and session-history layers are in development.
 
-![PinPoint — Editorial light](docs/aesthetic/home.png)
+![PinPoint Studio — Editorial light](docs/aesthetic/home.png)
 
 The long term goal is to exploit computer vision and wearables to analyse golf movements and mechanistically determine your kinematic sequence aka Lateral-Rock-Twist-Jump, extract key golf swing metrics like X-Factor and tilt, working with the full swing or specialist shots such as pitching and in the sand, wrist angles to examine cupping, cocking and flipping, estimated ground forces to support the kinematic sequence analysis. 
 
 Our ambition is to be a platform that can be used by golfers, coaches and researchers to improve everyone's golfing ability and understanding of the golf swing.
 
 ## Documentation
-- [Building Instructions](BUILDING.md) — How to resolve dependencies and build PinPoint.
+- [Building Instructions](BUILDING.md) — How to resolve dependencies and build PinPoint Studio.
 - [UX Design](docs/pinpoint-ux-design.md) — UI structure, navigation, and interaction design rationale.
 - [User Personas](docs/PERSONAS.md) — Definitions of the three primary user archetypes (club golfer, coach, researcher).
 - [Persona UX Assessment](docs/pinpoint-persona-assessment.md) — UX evaluation against three user archetypes; identifies gaps and design priorities.
@@ -246,10 +246,10 @@ Built with **Qt 6.11** and **C++20**.
 
 ## Local files
 
-PinPoint reads and writes files in several locations. Platform paths shown for Linux; macOS and Windows equivalents are noted in brackets.
+PinPoint Studio reads and writes files in several locations. Platform paths shown for Linux; macOS and Windows equivalents are noted in brackets.
 
 ### Application data directory
-`~/.local/share/PinPoint/` (macOS: `~/Library/Application Support/PinPoint/`, Windows: `%APPDATA%\PinPoint\`)
+`~/.local/share/PinPointStudio/` (macOS: `~/Library/Application Support/PinPointStudio/`, Windows: `%APPDATA%\PinPointStudio\`)
 
 | Path | What | When |
 |---|---|---|

@@ -18,7 +18,7 @@
 
 import QtQuick
 import QtQuick.Controls
-import PinPoint
+import PinPointStudio
 
 Item {
     id: root

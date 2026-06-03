@@ -49,7 +49,7 @@ PpLogStream::~PpLogStream()
 }
 
 // ── Qt message handler ────────────────────────────────────────────────────────
-// Pinpoint messages bypass this via PpLogStream. This handler suppresses
+// PinPoint Studio messages bypass this via PpLogStream. This handler suppresses
 // high-volume Qt framework categories and routes Qt warnings/errors into
 // PpMessageLog so they appear in the resource monitor's application log.
 

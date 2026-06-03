@@ -18,7 +18,7 @@
 #
 # espeak-include originally exposes include/compat via INTERFACE_INCLUDE_DIRECTORIES.
 # That directory shadows system headers (<wctype.h>, <endian.h>) in consumers like
-# PinPoint, causing compilation failures.
+# PinPoint Studio, causing compilation failures.
 #
 # Strategy:
 #   FILE1  src/CMakeLists.txt

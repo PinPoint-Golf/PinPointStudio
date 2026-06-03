@@ -80,8 +80,8 @@ int main(int argc, char *argv[])
             ppWarn() << "[Fonts] failed to load" << path;
     }
 
-    app.setWindowIcon(QIcon(":/icons/pinpoint_256.png"));
-    app.setDesktopFileName(QStringLiteral("pinpoint"));
+    app.setWindowIcon(QIcon(":/icons/pinpointstudio_256.png"));
+    app.setDesktopFileName(QStringLiteral("pinpointstudio"));
     SecretsManager::initializeDefaults();
 
     // EventBuffer declared first — destroyed last (stack unwinds in reverse).
@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
         []() { QCoreApplication::exit(-1); },
         Qt::QueuedConnection);
 
-    engine.loadFromModule("PinPoint", "Main");
+    engine.loadFromModule("PinPointStudio", "Main");
 
     return QCoreApplication::exec();
 }

@@ -18,7 +18,7 @@
 
 pragma Singleton
 import QtQuick
-import PinPoint
+import PinPointStudio
 
 // Full-text search index for all settings panels.
 //

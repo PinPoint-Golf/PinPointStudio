@@ -20,7 +20,7 @@ import QtQuick
 import QtQuick3D
 import QtQuick3D.Helpers
 import QtQuick3D.AssetUtils
-import PinPoint
+import PinPointStudio
 
 // ArmVizView — rigid Y-bot arm segments driven by IMU quaternions.
 //

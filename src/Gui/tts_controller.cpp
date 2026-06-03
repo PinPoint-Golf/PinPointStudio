@@ -423,9 +423,9 @@ void TtsController::setDownloadStatus(const QString &status)
 
 // Model files are stored in the platform-standard app data directory so they
 // survive across rebuilds and are not bundled inside the executable package.
-//   Linux:   ~/.local/share/PinPoint/models/kokoro/
-//   macOS:   ~/Library/Application Support/PinPoint/models/kokoro/
-//   Windows: %APPDATA%/PinPoint/models/kokoro/
+//   Linux:   ~/.local/share/PinPointStudio/models/kokoro/
+//   macOS:   ~/Library/Application Support/PinPointStudio/models/kokoro/
+//   Windows: %APPDATA%/PinPointStudio/models/kokoro/
 
 QString TtsController::modelDataDir() const
 {

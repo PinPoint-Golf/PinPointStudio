@@ -266,9 +266,9 @@ QStringList STTProcessor::modelCandidates(const QString &filename) const
     if (!settingsOverride.isEmpty())
         candidates << settingsOverride;
 
-    // 2. Platform app-data directory  (Linux: ~/.local/share/PinPoint/models/
-    //                                   macOS: ~/Library/Application Support/PinPoint/models/
-    //                                 Windows: %APPDATA%\PinPoint\models\)
+    // 2. Platform app-data directory  (Linux: ~/.local/share/PinPointStudio/models/
+    //                                   macOS: ~/Library/Application Support/PinPointStudio/models/
+    //                                 Windows: %APPDATA%\PinPointStudio\models\)
     candidates << QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
                   + QStringLiteral("/models/whisper/") + filename;
 

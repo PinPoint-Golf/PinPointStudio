@@ -16,7 +16,7 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-project(PinPoint VERSION 0.1 LANGUAGES CXX)
+project(PinPointStudio VERSION 0.1 LANGUAGES CXX)
 
 # Qt GuiPrivate is used for QRhi (public API since Qt 6.6, accessed via GuiPrivate includes).
 set(QT_NO_PRIVATE_MODULE_WARNING ON)
@@ -117,10 +117,10 @@ FetchContent_MakeAvailable(eigen)
 # EventBuffer library — lock-free ring-buffer capture store
 add_subdirectory(src/Buffer)
 
-qt_add_executable(PinPoint
+qt_add_executable(PinPointStudio
     src/Gui/main.cpp
-    $<$<BOOL:${APPLE}>:${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/icons/PinPoint.icns>
-    $<$<BOOL:${WIN32}>:${CMAKE_CURRENT_SOURCE_DIR}/PinPoint.rc>
+    $<$<BOOL:${APPLE}>:${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/icons/PinPointStudio.icns>
+    $<$<BOOL:${WIN32}>:${CMAKE_CURRENT_SOURCE_DIR}/PinPointStudio.rc>
     src/Gui/app_settings.h             src/Gui/app_settings.cpp
     src/Gui/imu_manager.h              src/Gui/imu_manager.cpp
     src/Gui/imu_instance.h             src/Gui/imu_instance.cpp
@@ -177,14 +177,14 @@ qt_add_executable(PinPoint
     src/Gui/llm_controller.h         src/Gui/llm_controller.cpp
 )
 
-target_include_directories(PinPoint PRIVATE src/Gui src/IMU src/Audio src/Video src/Pose src/STT src/TTS src/LLM src/Secrets src/Core src/Buffer)
+target_include_directories(PinPointStudio PRIVATE src/Gui src/IMU src/Audio src/Video src/Pose src/STT src/TTS src/LLM src/Secrets src/Core src/Buffer)
 
 set_source_files_properties(src/Gui/Theme.qml         PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set_source_files_properties(src/Gui/SettingsIndex.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
-qt_add_qml_module(PinPoint
-    URI PinPoint
-    OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/qml/PinPoint
+qt_add_qml_module(PinPointStudio
+    URI PinPointStudio
+    OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/qml/PinPointStudio
     QML_FILES
         src/Gui/Theme.qml
         src/Gui/Main.qml
@@ -236,7 +236,7 @@ qt_add_qml_module(PinPoint
         src/Gui/body_pose_adapter.cpp
 )
 
-qt6_add_shaders(PinPoint "debayer_shaders"
+qt6_add_shaders(PinPointStudio "debayer_shaders"
     BATCHABLE
     PRECOMPILE
     PREFIX "/shaders"
@@ -245,7 +245,7 @@ qt6_add_shaders(PinPoint "debayer_shaders"
         "src/Shaders/debayer.frag"
 )
 
-qt6_add_shaders(PinPoint "bayer_demosaic_shaders"
+qt6_add_shaders(PinPointStudio "bayer_demosaic_shaders"
     PRECOMPILE
     OPTIMIZED
     PREFIX "/shaders"
@@ -254,11 +254,11 @@ qt6_add_shaders(PinPoint "bayer_demosaic_shaders"
         "src/Shaders/bayer_demosaic.frag"
 )
 
-target_compile_definitions(PinPoint PRIVATE
-    QT_APPLICATION_NAME="PinPoint"
+target_compile_definitions(PinPointStudio PRIVATE
+    QT_APPLICATION_NAME="PinPointStudio"
 )
 
-# ── PinPoint debug level ──────────────────────────────────────────────────────
+# ── PinPointStudio debug level ──────────────────────────────────────────────────────
 # Controls pp_debug.h verbosity at compile time:
 #   0 = silent   1 = warnings+errors only (default for all builds)
 #   2 = startup info + warnings/errors    (pass -DPINPOINT_DEBUG_LEVEL=2)
@@ -266,10 +266,10 @@ target_compile_definitions(PinPoint PRIVATE
 if(NOT DEFINED PINPOINT_DEBUG_LEVEL)
     set(PINPOINT_DEBUG_LEVEL 1)
 endif()
-message(STATUS "PinPoint debug level: ${PINPOINT_DEBUG_LEVEL}")
-target_compile_definitions(PinPoint PRIVATE PINPOINT_DEBUG_LEVEL=${PINPOINT_DEBUG_LEVEL})
+message(STATUS "PinPointStudio debug level: ${PINPOINT_DEBUG_LEVEL}")
+target_compile_definitions(PinPointStudio PRIVATE PINPOINT_DEBUG_LEVEL=${PINPOINT_DEBUG_LEVEL})
 
-target_sources(PinPoint PRIVATE
+target_sources(PinPointStudio PRIVATE
     src/Core/pp_debug.h
     src/Core/pp_debug.cpp
     src/Core/pp_settings.h
@@ -279,16 +279,16 @@ target_sources(PinPoint PRIVATE
 
 # ── Application icon ─────────────────────────────────────────────────────────
 if(APPLE)
-    set(MACOSX_BUNDLE_ICON_FILE PinPoint)
+    set(MACOSX_BUNDLE_ICON_FILE PinPointStudio)
     set_source_files_properties(
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/icons/PinPoint.icns"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/icons/PinPointStudio.icns"
         PROPERTIES MACOSX_PACKAGE_LOCATION "Resources"
     )
 endif()
 
-set_target_properties(PinPoint PROPERTIES
+set_target_properties(PinPointStudio PROPERTIES
     MACOSX_BUNDLE TRUE
-    MACOSX_BUNDLE_ICON_FILE PinPoint
+    MACOSX_BUNDLE_ICON_FILE PinPointStudio
     WIN32_EXECUTABLE TRUE
 )
 
@@ -302,13 +302,13 @@ configure_file(
 )
 
 
-qt_add_resources(PinPoint "app_icons"
+qt_add_resources(PinPointStudio "app_icons"
     PREFIX "/icons"
     FILES
-        src/Resources/icons/pinpoint_256.png
+        src/Resources/icons/pinpointstudio_256.png
 )
 
-qt_add_resources(PinPoint "app_fonts"
+qt_add_resources(PinPointStudio "app_fonts"
     PREFIX "/fonts"
     BASE "src/Resources/fonts"
     FILES
@@ -331,7 +331,7 @@ qt_add_resources(PinPoint "app_fonts"
         src/Resources/fonts/SpaceMono-Bold.ttf
 )
 
-qt_add_resources(PinPoint "app_tiles"
+qt_add_resources(PinPointStudio "app_tiles"
     PREFIX "/assets/tiles"
     BASE "${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/tiles"
     FILES
@@ -341,7 +341,7 @@ qt_add_resources(PinPoint "app_tiles"
         src/Resources/tiles/coach.png
 )
 
-qt_add_resources(PinPoint "app_body"
+qt_add_resources(PinPointStudio "app_body"
     PREFIX "/assets/body"
     BASE "${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/body"
     FILES
@@ -375,38 +375,38 @@ if(UNIX AND NOT APPLE)
     set(_xdg_apps_dir "$ENV{HOME}/.local/share/applications")
 
     file(GENERATE
-        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/pinpoint.desktop"
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/pinpointstudio.desktop"
         CONTENT "[Desktop Entry]
 Name=PinPoint Studio
-Exec=$<TARGET_FILE:PinPoint>
-Icon=pinpoint
+Exec=$<TARGET_FILE:PinPointStudio>
+Icon=pinpointstudio
 Type=Application
 Terminal=false
 Categories=Sports;
-StartupWMClass=PinPoint
+StartupWMClass=PinPointStudio
 "
     )
 
-    add_custom_command(TARGET PinPoint POST_BUILD
+    add_custom_command(TARGET PinPointStudio POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "${_xdg_icon_dir}"
         COMMAND ${CMAKE_COMMAND} -E copy
-            "${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/icons/pinpoint_256.png"
-            "${_xdg_icon_dir}/pinpoint.png"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/icons/pinpointstudio_256.png"
+            "${_xdg_icon_dir}/pinpointstudio.png"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${_xdg_apps_dir}"
         COMMAND ${CMAKE_COMMAND} -E copy
-            "${CMAKE_CURRENT_BINARY_DIR}/pinpoint.desktop"
-            "${_xdg_apps_dir}/pinpoint.desktop"
-        COMMENT "Registering PinPoint icon and launcher in user dirs"
+            "${CMAKE_CURRENT_BINARY_DIR}/pinpointstudio.desktop"
+            "${_xdg_apps_dir}/pinpointstudio.desktop"
+        COMMENT "Registering PinPointStudio icon and launcher in user dirs"
     )
 endif()
 
-target_link_libraries(PinPoint
+target_link_libraries(PinPointStudio
     PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::Quick3D Qt6::SerialPort Qt6::Bluetooth Qt6::Multimedia Qt6::Network Qt6::WebSockets Qt6::Concurrent Qt6::GuiPrivate
             pinpoint_buffer
 )
 
 
-target_sources(PinPoint PRIVATE
+target_sources(PinPointStudio PRIVATE
     src/Audio/AudioConverter.h
     src/Audio/AudioConverter.cpp
     src/STT/STTBackend.h
@@ -422,7 +422,7 @@ target_sources(PinPoint PRIVATE
     src/STT/STTWorker.cpp
 )
 
-target_sources(PinPoint PRIVATE
+target_sources(PinPointStudio PRIVATE
     src/Secrets/SecretsManager.h
     src/Secrets/SecretsManager.cpp
 )
@@ -441,15 +441,15 @@ message(STATUS "Azure STT: key supplied via AZURE_STT_API_KEY env var or shared 
 set(ASSEMBLYAI_API_KEY "" CACHE STRING
     "AssemblyAI API key — written to QSettings on first run, not needed after that")
 if(ASSEMBLYAI_API_KEY)
-    target_compile_definitions(PinPoint PRIVATE
+    target_compile_definitions(PinPointStudio PRIVATE
         ASSEMBLYAI_API_KEY_DEFAULT="${ASSEMBLYAI_API_KEY}")
     message(STATUS "AssemblyAI: API key provided (will be seeded to QSettings on first run)")
 else()
     message(STATUS "AssemblyAI: no API key configured")
 endif()
 
-target_link_libraries(PinPoint PRIVATE whisper samplerate)
-target_include_directories(PinPoint PRIVATE
+target_link_libraries(PinPointStudio PRIVATE whisper samplerate)
+target_include_directories(PinPointStudio PRIVATE
     ${whisper_SOURCE_DIR}/include
     ${whisper_SOURCE_DIR}/ggml/include
     ${libsamplerate_SOURCE_DIR}/include
@@ -466,8 +466,8 @@ target_include_directories(PinPoint PRIVATE
 # No link against system libavutil needed; dlsym resolves the symbol from
 # Qt Multimedia's transitive dependency, which is loaded before main() runs.
 if(UNIX)
-    target_link_libraries(PinPoint PRIVATE dl)
-    target_compile_definitions(PinPoint PRIVATE PP_HAS_DLSYM)
+    target_link_libraries(PinPointStudio PRIVATE dl)
+    target_compile_definitions(PinPointStudio PRIVATE PP_HAS_DLSYM)
     message(STATUS "FFmpeg log suppression: via dlsym (UNIX)")
 endif()
 
@@ -541,29 +541,29 @@ else()
     list(GET _ort_candidates 0 _ort_root)
 endif()
 
-target_include_directories(PinPoint PRIVATE "${_ort_root}/include")
-target_compile_definitions(PinPoint PRIVATE HAVE_ONNXRUNTIME)
+target_include_directories(PinPointStudio PRIVATE "${_ort_root}/include")
+target_compile_definitions(PinPointStudio PRIVATE HAVE_ONNXRUNTIME)
 
 # Propagate each EP flag to C++ only on platforms where it is supported.
 if(WITH_COREML AND APPLE AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
-    target_compile_definitions(PinPoint PRIVATE WITH_COREML)
+    target_compile_definitions(PinPointStudio PRIVATE WITH_COREML)
 endif()
 if(WITH_CUDA AND NOT APPLE)
-    target_compile_definitions(PinPoint PRIVATE WITH_CUDA)
+    target_compile_definitions(PinPointStudio PRIVATE WITH_CUDA)
 endif()
 
 # DirectML NuGet was discontinued after ORT 1.24; standard Windows zip is CPU-only
 # from ORT 1.20+. No WITH_DIRECTML define on Windows — CUDA EP covers GPU on this platform.
 
 if(WIN32)
-    target_link_libraries(PinPoint PRIVATE "${_ort_root}/lib/onnxruntime.lib")
+    target_link_libraries(PinPointStudio PRIVATE "${_ort_root}/lib/onnxruntime.lib")
     # Collect all ORT DLLs (main + any provider DLLs present in the package).
     file(GLOB _ort_all_dlls "${_ort_root}/lib/onnxruntime*.dll")
     # POST_BUILD: copy DLLs next to the executable so they are found at runtime
     # during development builds (install() rules only run on cmake --install).
     foreach(_dll ${_ort_all_dlls})
-        add_custom_command(TARGET PinPoint POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dll}" "$<TARGET_FILE_DIR:PinPoint>"
+        add_custom_command(TARGET PinPointStudio POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dll}" "$<TARGET_FILE_DIR:PinPointStudio>"
         )
     endforeach()
     foreach(_dll ${_ort_all_dlls})
@@ -572,9 +572,9 @@ if(WIN32)
 elseif(APPLE)
     file(GLOB _ort_dylib "${_ort_root}/lib/libonnxruntime*.dylib")
     list(GET _ort_dylib 0 _ort_dylib_path)
-    target_link_libraries(PinPoint PRIVATE "${_ort_dylib_path}")
+    target_link_libraries(PinPointStudio PRIVATE "${_ort_dylib_path}")
 else()
-    target_link_libraries(PinPoint PRIVATE "${_ort_root}/lib/libonnxruntime.so")
+    target_link_libraries(PinPointStudio PRIVATE "${_ort_root}/lib/libonnxruntime.so")
 endif()
 
 # cuDNN: the NVIDIA Windows installer places DLLs under a versioned subdirectory
@@ -584,8 +584,8 @@ if(WIN32 AND WITH_CUDA)
         "C:/Program Files/NVIDIA/CUDNN/*/bin/${CUDAToolkit_VERSION_MAJOR}.*/x64/cudnn*.dll")
     if(_cudnn_dlls)
         foreach(_dll ${_cudnn_dlls})
-            add_custom_command(TARGET PinPoint POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dll}" "$<TARGET_FILE_DIR:PinPoint>"
+            add_custom_command(TARGET PinPointStudio POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dll}" "$<TARGET_FILE_DIR:PinPointStudio>"
             )
         endforeach()
         foreach(_dll ${_cudnn_dlls})
@@ -653,15 +653,15 @@ if(WITH_ORTGENAI)
         endif()
     endif()
 
-    target_include_directories(PinPoint PRIVATE "${_ortgenai_root}/include")
-    target_compile_definitions(PinPoint PRIVATE HAVE_ORTGENAI)
+    target_include_directories(PinPointStudio PRIVATE "${_ortgenai_root}/include")
+    target_compile_definitions(PinPointStudio PRIVATE HAVE_ORTGENAI)
 
     if(WIN32)
-        target_link_libraries(PinPoint PRIVATE "${_ortgenai_root}/lib/onnxruntime-genai.lib")
+        target_link_libraries(PinPointStudio PRIVATE "${_ortgenai_root}/lib/onnxruntime-genai.lib")
         file(GLOB _ortgenai_dlls "${_ortgenai_root}/lib/onnxruntime-genai*.dll")
         foreach(_dll ${_ortgenai_dlls})
-            add_custom_command(TARGET PinPoint POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dll}" "$<TARGET_FILE_DIR:PinPoint>"
+            add_custom_command(TARGET PinPointStudio POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dll}" "$<TARGET_FILE_DIR:PinPointStudio>"
             )
         endforeach()
         foreach(_dll ${_ortgenai_dlls})
@@ -670,14 +670,14 @@ if(WITH_ORTGENAI)
     elseif(APPLE)
         file(GLOB _ortgenai_dylib "${_ortgenai_root}/lib/libonnxruntime-genai*.dylib")
         list(GET _ortgenai_dylib 0 _ortgenai_dylib_path)
-        target_link_libraries(PinPoint PRIVATE "${_ortgenai_dylib_path}")
+        target_link_libraries(PinPointStudio PRIVATE "${_ortgenai_dylib_path}")
     else()  # Linux
-        target_link_libraries(PinPoint PRIVATE "${_ortgenai_root}/lib/libonnxruntime-genai.so")
+        target_link_libraries(PinPointStudio PRIVATE "${_ortgenai_root}/lib/libonnxruntime-genai.so")
         # Deploy ORT-GenAI's bundled ORT alongside the app (distinct soname from main ORT).
         file(GLOB _ortgenai_rt_libs "${_ortgenai_root}/lib/libonnxruntime*.so*")
         foreach(_lib ${_ortgenai_rt_libs})
-            add_custom_command(TARGET PinPoint POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_lib}" "$<TARGET_FILE_DIR:PinPoint>"
+            add_custom_command(TARGET PinPointStudio POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_lib}" "$<TARGET_FILE_DIR:PinPointStudio>"
             )
         endforeach()
         foreach(_lib ${_ortgenai_rt_libs})
@@ -747,14 +747,14 @@ endif()
 # ── Enable pose estimation if Lightning is available ─────────────────────────
 if(EXISTS "${_movenet_lightning_path}")
     message(STATUS "MoveNet Lightning: model ready (${_movenet_lightning_path})")
-    target_compile_definitions(PinPoint PRIVATE
+    target_compile_definitions(PinPointStudio PRIVATE
         HAVE_MOVENET
         MOVENET_LIGHTNING_FILE="${_movenet_lightning_file}"
     )
 
     if(EXISTS "${_movenet_thunder_path}")
         message(STATUS "MoveNet Thunder:   model ready (${_movenet_thunder_path})")
-        target_compile_definitions(PinPoint PRIVATE
+        target_compile_definitions(PinPointStudio PRIVATE
             HAVE_MOVENET_THUNDER
             MOVENET_THUNDER_FILE="${_movenet_thunder_file}"
         )
@@ -764,36 +764,36 @@ if(EXISTS "${_movenet_lightning_path}")
 
     # Copy model(s) into the platform-appropriate location alongside the executable.
     if(APPLE)
-        add_custom_command(TARGET PinPoint POST_BUILD
+        add_custom_command(TARGET PinPointStudio POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E make_directory
-                "$<TARGET_BUNDLE_CONTENT_DIR:PinPoint>/Resources/models"
+                "$<TARGET_BUNDLE_CONTENT_DIR:PinPointStudio>/Resources/models"
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${_movenet_lightning_path}"
-                "$<TARGET_BUNDLE_CONTENT_DIR:PinPoint>/Resources/models/${_movenet_lightning_file}"
+                "$<TARGET_BUNDLE_CONTENT_DIR:PinPointStudio>/Resources/models/${_movenet_lightning_file}"
             COMMENT "Bundling MoveNet Lightning model into app"
         )
         if(EXISTS "${_movenet_thunder_path}")
-            add_custom_command(TARGET PinPoint POST_BUILD
+            add_custom_command(TARGET PinPointStudio POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
                     "${_movenet_thunder_path}"
-                    "$<TARGET_BUNDLE_CONTENT_DIR:PinPoint>/Resources/models/${_movenet_thunder_file}"
+                    "$<TARGET_BUNDLE_CONTENT_DIR:PinPointStudio>/Resources/models/${_movenet_thunder_file}"
                 COMMENT "Bundling MoveNet Thunder model into app"
             )
         endif()
     else()
-        add_custom_command(TARGET PinPoint POST_BUILD
+        add_custom_command(TARGET PinPointStudio POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E make_directory
-                "$<TARGET_FILE_DIR:PinPoint>/models"
+                "$<TARGET_FILE_DIR:PinPointStudio>/models"
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${_movenet_lightning_path}"
-                "$<TARGET_FILE_DIR:PinPoint>/models/${_movenet_lightning_file}"
+                "$<TARGET_FILE_DIR:PinPointStudio>/models/${_movenet_lightning_file}"
             COMMENT "Copying MoveNet Lightning model to output directory"
         )
         if(EXISTS "${_movenet_thunder_path}")
-            add_custom_command(TARGET PinPoint POST_BUILD
+            add_custom_command(TARGET PinPointStudio POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
                     "${_movenet_thunder_path}"
-                    "$<TARGET_FILE_DIR:PinPoint>/models/${_movenet_thunder_file}"
+                    "$<TARGET_FILE_DIR:PinPointStudio>/models/${_movenet_thunder_file}"
                 COMMENT "Copying MoveNet Thunder model to output directory"
             )
         endif()
@@ -1097,30 +1097,30 @@ endif() # NOT EXISTS both models
 
 if(EXISTS "${_mediapipe_detector_path}" AND EXISTS "${_mediapipe_landmark_path}")
     message(STATUS "MediaPipe Pose: models ready")
-    target_compile_definitions(PinPoint PRIVATE
+    target_compile_definitions(PinPointStudio PRIVATE
         HAVE_MEDIAPIPE
         MEDIAPIPE_DETECTOR_FILE="${_mediapipe_detector_file}"
         MEDIAPIPE_LANDMARK_FILE="${_mediapipe_landmark_file}"
     )
 
     if(APPLE)
-        add_custom_command(TARGET PinPoint POST_BUILD
+        add_custom_command(TARGET PinPointStudio POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${_mediapipe_detector_path}"
-                "$<TARGET_BUNDLE_CONTENT_DIR:PinPoint>/Resources/models/${_mediapipe_detector_file}"
+                "$<TARGET_BUNDLE_CONTENT_DIR:PinPointStudio>/Resources/models/${_mediapipe_detector_file}"
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${_mediapipe_landmark_path}"
-                "$<TARGET_BUNDLE_CONTENT_DIR:PinPoint>/Resources/models/${_mediapipe_landmark_file}"
+                "$<TARGET_BUNDLE_CONTENT_DIR:PinPointStudio>/Resources/models/${_mediapipe_landmark_file}"
             COMMENT "Bundling MediaPipe Pose models into app"
         )
     else()
-        add_custom_command(TARGET PinPoint POST_BUILD
+        add_custom_command(TARGET PinPointStudio POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${_mediapipe_detector_path}"
-                "$<TARGET_FILE_DIR:PinPoint>/models/${_mediapipe_detector_file}"
+                "$<TARGET_FILE_DIR:PinPointStudio>/models/${_mediapipe_detector_file}"
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${_mediapipe_landmark_path}"
-                "$<TARGET_FILE_DIR:PinPoint>/models/${_mediapipe_landmark_file}"
+                "$<TARGET_FILE_DIR:PinPointStudio>/models/${_mediapipe_landmark_file}"
             COMMENT "Copying MediaPipe Pose models to output directory"
         )
     endif()
@@ -1159,27 +1159,27 @@ endif()
 
 if(EXISTS "${_seg_model_path}")
     message(STATUS "Segmenter: model ready (${_seg_model_path})")
-    target_compile_definitions(PinPoint PRIVATE
+    target_compile_definitions(PinPointStudio PRIVATE
         HAVE_SEGMENTER
         SEGMENTER_MODEL_FILE="${_seg_model_file}"
     )
     if(APPLE)
-        add_custom_command(TARGET PinPoint POST_BUILD
+        add_custom_command(TARGET PinPointStudio POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${_seg_model_path}"
-                "$<TARGET_BUNDLE_CONTENT_DIR:PinPoint>/Resources/models/${_seg_model_file}"
+                "$<TARGET_BUNDLE_CONTENT_DIR:PinPointStudio>/Resources/models/${_seg_model_file}"
             COMMENT "Bundling segmenter model into app"
         )
     else()
-        add_custom_command(TARGET PinPoint POST_BUILD
+        add_custom_command(TARGET PinPointStudio POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${_seg_model_path}"
-                "$<TARGET_FILE_DIR:PinPoint>/models/${_seg_model_file}"
+                "$<TARGET_FILE_DIR:PinPointStudio>/models/${_seg_model_file}"
             COMMENT "Copying segmenter model to output directory"
         )
     endif()
     if(EXISTS "${_movenet_lightning_path}")
-        target_sources(PinPoint PRIVATE
+        target_sources(PinPointStudio PRIVATE
             src/Pose/person_segmenter.h
             src/Pose/person_segmenter.cpp
         )
@@ -1222,22 +1222,22 @@ if(WITH_VITPOSE)
 
     if(EXISTS "${_vitpose_model_path}")
         message(STATUS "ViTPose: model ready (${_vitpose_model_path})")
-        target_compile_definitions(PinPoint PRIVATE
+        target_compile_definitions(PinPointStudio PRIVATE
             HAVE_VITPOSE
             VITPOSE_MODEL_FILE="${_vitpose_model_file}"
         )
         if(APPLE)
-            add_custom_command(TARGET PinPoint POST_BUILD
+            add_custom_command(TARGET PinPointStudio POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
                     "${_vitpose_model_path}"
-                    "$<TARGET_BUNDLE_CONTENT_DIR:PinPoint>/Resources/models/${_vitpose_model_file}"
+                    "$<TARGET_BUNDLE_CONTENT_DIR:PinPointStudio>/Resources/models/${_vitpose_model_file}"
                 COMMENT "Bundling ViTPose model into app"
             )
         else()
-            add_custom_command(TARGET PinPoint POST_BUILD
+            add_custom_command(TARGET PinPointStudio POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
                     "${_vitpose_model_path}"
-                    "$<TARGET_FILE_DIR:PinPoint>/models/${_vitpose_model_file}"
+                    "$<TARGET_FILE_DIR:PinPointStudio>/models/${_vitpose_model_file}"
                 COMMENT "Copying ViTPose model to output directory"
             )
         endif()
@@ -1275,12 +1275,12 @@ endif()
 
 if(EXISTS "${_whisper_model_path}")
     message(STATUS "Whisper: model ready (${_whisper_model_path})")
-    add_custom_command(TARGET PinPoint POST_BUILD
+    add_custom_command(TARGET PinPointStudio POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory
-            "$<TARGET_FILE_DIR:PinPoint>/models/whisper"
+            "$<TARGET_FILE_DIR:PinPointStudio>/models/whisper"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${_whisper_model_path}"
-            "$<TARGET_FILE_DIR:PinPoint>/models/whisper/${_whisper_model_file}"
+            "$<TARGET_FILE_DIR:PinPointStudio>/models/whisper/${_whisper_model_file}"
         COMMENT "Copying Whisper model to output directory"
     )
     install(FILES "${_whisper_model_path}"
@@ -1328,18 +1328,18 @@ endif()
 
 if(EXISTS "${_ytdlp_path}")
     message(STATUS "yt-dlp: ready (${_ytdlp_path})")
-    target_compile_definitions(PinPoint PRIVATE
+    target_compile_definitions(PinPointStudio PRIVATE
         HAVE_YTDLP
         YTDLP_BINARY_NAME="${_ytdlp_name}"
     )
-    add_custom_command(TARGET PinPoint POST_BUILD
+    add_custom_command(TARGET PinPointStudio POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${_ytdlp_path}" "$<TARGET_FILE_DIR:PinPoint>/${_ytdlp_name}"
+            "${_ytdlp_path}" "$<TARGET_FILE_DIR:PinPointStudio>/${_ytdlp_name}"
         COMMENT "Copying yt-dlp to output directory"
     )
     if(NOT WIN32)
-        add_custom_command(TARGET PinPoint POST_BUILD
-            COMMAND chmod +x "$<TARGET_FILE_DIR:PinPoint>/${_ytdlp_name}"
+        add_custom_command(TARGET PinPointStudio POST_BUILD
+            COMMAND chmod +x "$<TARGET_FILE_DIR:PinPointStudio>/${_ytdlp_name}"
             COMMENT "Setting yt-dlp executable bit"
         )
     endif()
@@ -1372,15 +1372,15 @@ if(NOT ESPEAK_FOUND AND APPLE)
 endif()
 
 if(ESPEAK_FOUND)
-    target_include_directories(PinPoint PRIVATE ${ESPEAK_INCLUDE_DIRS})
-    target_link_libraries(PinPoint PRIVATE ${ESPEAK_LIBRARIES})
-    target_link_directories(PinPoint PRIVATE ${ESPEAK_LIBRARY_DIRS})
-    target_compile_definitions(PinPoint PRIVATE HAVE_ESPEAK_NG)
+    target_include_directories(PinPointStudio PRIVATE ${ESPEAK_INCLUDE_DIRS})
+    target_link_libraries(PinPointStudio PRIVATE ${ESPEAK_LIBRARIES})
+    target_link_directories(PinPointStudio PRIVATE ${ESPEAK_LIBRARY_DIRS})
+    target_compile_definitions(PinPointStudio PRIVATE HAVE_ESPEAK_NG)
     message(STATUS "espeak-ng ${ESPEAK_VERSION}: system")
 else()
     # 1.52.0 is the first espeak-ng release with a CMake build system.
     # PATCH_COMMAND changes the espeak-include link from PUBLIC to PRIVATE so
-    # its compat/ shim directory does not leak into PinPoint's include path and
+    # its compat/ shim directory does not leak into PinPointStudio's include path and
     # shadow system <wctype.h> on macOS.
     # EXCLUDE_FROM_ALL limits compilation to the library target only.
     FetchContent_Declare(
@@ -1398,30 +1398,30 @@ else()
     )
     set(ESPEAK_BUILD_MANPAGES OFF CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(espeak_ng)
-    target_link_libraries(PinPoint PRIVATE espeak-ng)
-    target_include_directories(PinPoint PRIVATE "${espeak_ng_SOURCE_DIR}/src/include")
-    target_compile_definitions(PinPoint PRIVATE HAVE_ESPEAK_NG)
+    target_link_libraries(PinPointStudio PRIVATE espeak-ng)
+    target_include_directories(PinPointStudio PRIVATE "${espeak_ng_SOURCE_DIR}/src/include")
+    target_compile_definitions(PinPointStudio PRIVATE HAVE_ESPEAK_NG)
 
     # espeak-ng's own `data` target (defined in cmake/data.cmake) compiles the
     # phoneme tables and language dictionaries using espeak-ng-bin as a
     # build-time tool.  Depending on it directly avoids cross-directory
     # custom-command scoping issues.
-    add_dependencies(PinPoint data)
+    add_dependencies(PinPointStudio data)
 
     if(APPLE)
         # Bundle the compiled data (+ lang/ and voices/ copied at configure time
         # by data.cmake) into the macOS app so espeak_Initialize can find it.
-        add_custom_command(TARGET PinPoint POST_BUILD
+        add_custom_command(TARGET PinPointStudio POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${espeak_ng_BINARY_DIR}/espeak-ng-data"
-                "$<TARGET_BUNDLE_CONTENT_DIR:PinPoint>/Resources/espeak-ng-data"
+                "$<TARGET_BUNDLE_CONTENT_DIR:PinPointStudio>/Resources/espeak-ng-data"
             COMMENT "Bundling espeak-ng data into app"
         )
     else()
         # On Linux (and Windows) building from source, the compiled-in PKGDATADIR
         # won't match the build tree.  Pass the actual build-dir path so
         # espeak_Initialize can find the phoneme tables at runtime.
-        target_compile_definitions(PinPoint PRIVATE
+        target_compile_definitions(PinPointStudio PRIVATE
             ESPEAK_DATA_PATH="${espeak_ng_BINARY_DIR}")
     endif()
 
@@ -1464,19 +1464,19 @@ endif()
 
 if(ARAVIS_FOUND)
     message(STATUS "Aravis ${ARAVIS_VERSION}: found")
-    target_compile_definitions(PinPoint PRIVATE HAVE_ARAVIS)
-    target_include_directories(PinPoint PRIVATE ${ARAVIS_INCLUDE_DIRS})
-    target_link_libraries(PinPoint PRIVATE ${ARAVIS_LIBRARIES})
+    target_compile_definitions(PinPointStudio PRIVATE HAVE_ARAVIS)
+    target_include_directories(PinPointStudio PRIVATE ${ARAVIS_INCLUDE_DIRS})
+    target_link_libraries(PinPointStudio PRIVATE ${ARAVIS_LIBRARIES})
     if(ARAVIS_LIBRARY_DIRS)
-        target_link_directories(PinPoint PRIVATE ${ARAVIS_LIBRARY_DIRS})
+        target_link_directories(PinPointStudio PRIVATE ${ARAVIS_LIBRARY_DIRS})
     endif()
     
     # Aravis depends on GLib, GObject, and GIO. pkg-config usually handles this,
     # but for manual/brew fallbacks we need to ensure they are available.
     if(PkgConfig_FOUND)
         pkg_check_modules(GLIB REQUIRED glib-2.0 gobject-2.0 gio-2.0)
-        target_include_directories(PinPoint PRIVATE ${GLIB_INCLUDE_DIRS})
-        target_link_libraries(PinPoint PRIVATE ${GLIB_LIBRARIES})
+        target_include_directories(PinPointStudio PRIVATE ${GLIB_INCLUDE_DIRS})
+        target_link_libraries(PinPointStudio PRIVATE ${GLIB_LIBRARIES})
     endif()
 else()
     message(STATUS "Aravis 0.8: not found (industrial camera support disabled)")
@@ -1490,11 +1490,11 @@ if(WIN32)
 
     if(SPINNAKER_INCLUDE_DIRS AND SPINNAKER_LIBRARIES)
         message(STATUS "Spinnaker: found at ${SPINNAKER_ROOT}")
-        target_compile_definitions(PinPoint PRIVATE HAVE_SPINNAKER)
-        target_include_directories(PinPoint PRIVATE ${SPINNAKER_INCLUDE_DIRS})
-        target_link_libraries(PinPoint PRIVATE ${SPINNAKER_LIBRARIES})
+        target_compile_definitions(PinPointStudio PRIVATE HAVE_SPINNAKER)
+        target_include_directories(PinPointStudio PRIVATE ${SPINNAKER_INCLUDE_DIRS})
+        target_link_libraries(PinPointStudio PRIVATE ${SPINNAKER_LIBRARIES})
         
-        target_sources(PinPoint PRIVATE
+        target_sources(PinPointStudio PRIVATE
             src/Video/VideoInputSpinnaker.h
             src/Video/VideoInputSpinnaker.cpp
         )
@@ -1502,8 +1502,8 @@ if(WIN32)
         # Copy Spinnaker DLLs to output directory for development
         file(GLOB _spinnaker_dlls "${SPINNAKER_ROOT}/bin64/vs2015/*.dll")
         foreach(_dll ${_spinnaker_dlls})
-            add_custom_command(TARGET PinPoint POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dll}" "$<TARGET_FILE_DIR:PinPoint>"
+            add_custom_command(TARGET PinPointStudio POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dll}" "$<TARGET_FILE_DIR:PinPointStudio>"
             )
         endforeach()
     else()
@@ -1525,9 +1525,9 @@ if(UNIX AND NOT APPLE)
     endif()
     if(UDEV_FOUND)
         message(STATUS "libudev: found (V4L2 camera serial number lookup enabled)")
-        target_compile_definitions(PinPoint PRIVATE HAVE_LIBUDEV)
-        target_include_directories(PinPoint PRIVATE ${UDEV_INCLUDE_DIRS})
-        target_link_libraries(PinPoint PRIVATE ${UDEV_LIBRARIES})
+        target_compile_definitions(PinPointStudio PRIVATE HAVE_LIBUDEV)
+        target_include_directories(PinPointStudio PRIVATE ${UDEV_INCLUDE_DIRS})
+        target_link_libraries(PinPointStudio PRIVATE ${UDEV_LIBRARIES})
     else()
         message(STATUS "libudev: not found (V4L2 cameras will use device path as identifier)")
     endif()
@@ -1535,7 +1535,7 @@ endif()
 
 if(WIN32)
     # cfgmgr32: device tree traversal to extract USB serial numbers for Qt Multimedia cameras.
-    target_link_libraries(PinPoint PRIVATE cfgmgr32)
+    target_link_libraries(PinPointStudio PRIVATE cfgmgr32)
 endif()
 
 # ── OpenCV ───────────────────────────────────────────────────────────────────
@@ -1566,10 +1566,10 @@ if(OpenCV_VERSION VERSION_LESS "3.0")
     message(FATAL_ERROR "OpenCV 3.0 or higher is required (found ${OpenCV_VERSION})")
 endif()
 message(STATUS "OpenCV ${OpenCV_VERSION}: found")
-target_compile_definitions(PinPoint PRIVATE HAVE_OPENCV)
-target_include_directories(PinPoint PRIVATE ${OpenCV_INCLUDE_DIRS})
-target_link_libraries(PinPoint PRIVATE ${OpenCV_LIBS})
-target_sources(PinPoint PRIVATE
+target_compile_definitions(PinPointStudio PRIVATE HAVE_OPENCV)
+target_include_directories(PinPointStudio PRIVATE ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(PinPointStudio PRIVATE ${OpenCV_LIBS})
+target_sources(PinPointStudio PRIVATE
     src/Video/video_preprocessor_opencv.h
     src/Video/video_preprocessor_opencv.cpp
     src/Video/video_overlay_pose.h
@@ -1580,7 +1580,7 @@ target_sources(PinPoint PRIVATE
     src/Pose/ball_detector.cpp
 )
 if(EXISTS "${_movenet_lightning_path}")
-    target_sources(PinPoint PRIVATE
+    target_sources(PinPointStudio PRIVATE
         src/Pose/pose_estimator_movenet.h
         src/Pose/pose_estimator_movenet.cpp
     )
@@ -1588,7 +1588,7 @@ if(EXISTS "${_movenet_lightning_path}")
 endif()
 
 if(WITH_MEDIAPIPE AND EXISTS "${_mediapipe_detector_path}" AND EXISTS "${_mediapipe_landmark_path}")
-    target_sources(PinPoint PRIVATE
+    target_sources(PinPointStudio PRIVATE
         src/Pose/pose_estimator_mediapipe.h
         src/Pose/pose_estimator_mediapipe.cpp
     )
@@ -1596,7 +1596,7 @@ if(WITH_MEDIAPIPE AND EXISTS "${_mediapipe_detector_path}" AND EXISTS "${_mediap
 endif()
 
 if(WITH_VITPOSE AND EXISTS "${_vitpose_model_path}")
-    target_sources(PinPoint PRIVATE
+    target_sources(PinPointStudio PRIVATE
         src/Pose/pose_estimator_vitpose.h
         src/Pose/pose_estimator_vitpose.cpp
     )
@@ -1607,9 +1607,9 @@ if(APPLE)
     # The Bluetooth permission plugin is a static library that must be explicitly
     # imported; without this, checkPermission(QBluetoothPermission{}) always
     # returns Denied even when the OS has granted access.
-    qt_import_plugins(PinPoint INCLUDE Qt6::QDarwinBluetoothPermissionPlugin)
+    qt_import_plugins(PinPointStudio INCLUDE Qt6::QDarwinBluetoothPermissionPlugin)
 
-    target_sources(PinPoint PRIVATE
+    target_sources(PinPointStudio PRIVATE
         src/Gui/macos_permissions.h
         src/Gui/macos_permissions.mm
         src/STT/STTBackendApple.h
@@ -1617,19 +1617,19 @@ if(APPLE)
         src/Video/VideoInputApple.h
         src/Video/VideoInputApple.mm
     )
-    add_custom_command(TARGET PinPoint POST_BUILD
+    add_custom_command(TARGET PinPointStudio POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
             "${CMAKE_CURRENT_BINARY_DIR}/Info.plist"
-            "$<TARGET_BUNDLE_CONTENT_DIR:PinPoint>/Info.plist"
+            "$<TARGET_BUNDLE_CONTENT_DIR:PinPointStudio>/Info.plist"
         COMMENT "Installing Info.plist into bundle"
     )
-    add_custom_command(TARGET PinPoint POST_BUILD
+    add_custom_command(TARGET PinPointStudio POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/icons/PinPoint.icns"
-            "$<TARGET_BUNDLE_CONTENT_DIR:PinPoint>/Resources/PinPoint.icns"
-        COMMENT "Installing PinPoint.icns into app bundle"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/icons/PinPointStudio.icns"
+            "$<TARGET_BUNDLE_CONTENT_DIR:PinPointStudio>/Resources/PinPointStudio.icns"
+        COMMENT "Installing PinPointStudio.icns into app bundle"
     )
-    target_link_libraries(PinPoint PRIVATE
+    target_link_libraries(PinPointStudio PRIVATE
         "-framework AVFoundation"
         "-framework CoreMedia"
         "-framework CoreVideo"
@@ -1640,22 +1640,22 @@ endif()
 
 if(UNIX AND NOT APPLE)
     find_package(Threads REQUIRED)
-    target_link_libraries(PinPoint PRIVATE Threads::Threads)
+    target_link_libraries(PinPointStudio PRIVATE Threads::Threads)
 
 endif()
 
 if(MSVC)
-    target_compile_definitions(PinPoint PRIVATE _CRT_SECURE_NO_WARNINGS)
+    target_compile_definitions(PinPointStudio PRIVATE _CRT_SECURE_NO_WARNINGS)
     # M_PI and friends: MSVC only exposes them from <cmath>/<math.h> when
     # _USE_MATH_DEFINES is defined *before* that header is first included. The
     # vendored imu_ekf sources (third_party/imu_ekf) rely on M_PI, but by the
     # time their <Eigen.h> compat shim defines it, MSVC's <memory> has already
     # pulled in <cmath> and set its include guard. Define it on the command
     # line so it is in effect before any header is parsed.
-    target_compile_definitions(PinPoint PRIVATE _USE_MATH_DEFINES)
+    target_compile_definitions(PinPointStudio PRIVATE _USE_MATH_DEFINES)
 endif()
 
-install(TARGETS PinPoint
+install(TARGETS PinPointStudio
     BUNDLE DESTINATION .
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -1665,13 +1665,13 @@ install(TARGETS PinPoint
 if(UNIX AND NOT APPLE)
     foreach(_sz 16 32 48 64 128 256)
         install(FILES
-            "${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/icons/pinpoint_${_sz}.png"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/icons/pinpointstudio_${_sz}.png"
             DESTINATION "share/icons/hicolor/${_sz}x${_sz}/apps"
-            RENAME "pinpoint.png"
+            RENAME "pinpointstudio.png"
         )
     endforeach()
     install(FILES
-        "${CMAKE_CURRENT_SOURCE_DIR}/PinPoint.desktop"
+        "${CMAKE_CURRENT_SOURCE_DIR}/PinPointStudio.desktop"
         DESTINATION "share/applications"
     )
 endif()

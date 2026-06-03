@@ -4,7 +4,7 @@ This guide explains how to attach the motion sensors (IMUs) and run the short
 calibration that a **Wrist Motion** session needs. Calibration takes under a
 minute and only has to be done once per session, when you put the sensors on.
 
-It teaches PinPoint exactly how each sensor is sitting on your arm, so the on-screen
+It teaches PinPoint Studio exactly how each sensor is sitting on your arm, so the on-screen
 3D model moves the way your arm actually moves — and it double-checks that every
 sensor is strapped on correctly before you start.
 
@@ -21,7 +21,7 @@ sensor is strapped on correctly before you start.
 A **face-on camera is optional** for a Wrist Motion session and is **not** required
 for calibration — the calibration uses the sensors alone.
 
-> **Which arm?** PinPoint calibrates your **lead arm** — for a right-handed golfer
+> **Which arm?** PinPoint Studio calibrates your **lead arm** — for a right-handed golfer
 > that's the **left** arm (set your handedness on your athlete profile). Put the
 > sensors on that arm.
 
@@ -62,7 +62,7 @@ button in the **bottom-right corner is always the one that moves you forward.**
 ### 2 · Calibrate
 
 An avatar demonstrates the two poses first. Then you hold each pose in turn while
-PinPoint captures it — **a progress bar fills while you hold still, and resets if
+PinPoint Studio captures it — **a progress bar fills while you hold still, and resets if
 you move**, so just relax and keep steady.
 
 1. **Arm down** — let your lead arm hang relaxed at your side, palm toward your

@@ -17,7 +17,7 @@
  */
 
 import QtQuick
-import PinPoint
+import PinPointStudio
 
 Rectangle {
     property int orientation: Qt.Horizontal

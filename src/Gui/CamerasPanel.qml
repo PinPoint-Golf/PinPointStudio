@@ -20,7 +20,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls.Basic
 import QtMultimedia
-import PinPoint
+import PinPointStudio
 
 Item {
     id: root

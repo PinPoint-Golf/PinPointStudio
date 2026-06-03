@@ -18,7 +18,7 @@
 
 import QtQuick
 import QtQuick.Controls.Basic
-import PinPoint
+import PinPointStudio
 
 TextField {
     id: root

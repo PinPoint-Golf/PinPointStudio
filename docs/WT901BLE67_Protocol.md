@@ -2,7 +2,7 @@
 
 **Authority:** WitmotionSDK C# source (`Bwt901bleProcessor.cs`, `Bwt901bleResolver.cs`, `BWT901BLE.cs`)  
 **Secondary:** WIT Standard Communication Protocol PDF  
-**Implementation:** PinPoint `src/IMU/wt9011dcl_base.cpp`, `wt9011dcl_ble.cpp`
+**Implementation:** PinPoint Studio `src/IMU/wt9011dcl_base.cpp`, `wt9011dcl_ble.cpp`
 
 Where the SDK and protocol doc disagree, the SDK is correct. Confirmed discrepancies are called out explicitly.
 
@@ -48,7 +48,7 @@ Send unlock immediately before any configuration write. The device does not requ
 
 To persist configuration changes to NVM: `FF AA 00 00 00`
 
-PinPoint does **not** save after zeroing — the transient state is intentional so the device reverts to hardware defaults on next power-on.
+PinPoint Studio does **not** save after zeroing — the transient state is intentional so the device reverts to hardware defaults on next power-on.
 
 ---
 
@@ -56,7 +56,7 @@ PinPoint does **not** save after zeroing — the transient state is intentional 
 
 All written as: `FF AA [REG] [LO] [HI]`
 
-| Hex  | Dec | Name        | Description                     | Values used in PinPoint          |
+| Hex  | Dec | Name        | Description                     | Values used in PinPoint Studio          |
 |------|-----|-------------|----------------------------------|----------------------------------|
 | 0x00 | 0   | SAVE        | Save to NVM / reboot/reset      | `0x0000` = save                  |
 | 0x01 | 1   | CALSW       | Calibration mode                | see CALSW values below           |
@@ -397,7 +397,7 @@ The device may return raw = 0 briefly after connection (ADC not ready). Retry af
 
 ---
 
-## PinPoint Initialisation Sequence
+## PinPoint Studio Initialisation Sequence
 
 Sent on every connect and on every `reinitialize()` call (rate change, zero button). No unlock or save is used — settings are intentionally transient.
 
@@ -427,11 +427,11 @@ The AXIS6 register (`0x24`) controls the sensor fusion algorithm running inside 
 | 0x0001 | 6-axis | Gyroscope + accelerometer only       | Orientation (Euler / quat)  |
 | 0x0000 | 9-axis | Gyroscope + accelerometer + magnetometer | Orientation (Euler / quat) |
 
-**PinPoint uses 6-axis (0x0001).** For fast dynamic motion such as a golf swing the magnetometer introduces lag and is susceptible to distortion from the club shaft and nearby metal. 6-axis gyro-integration is more responsive and more accurate over the short duration of a swing.
+**PinPoint Studio uses 6-axis (0x0001).** For fast dynamic motion such as a golf swing the magnetometer introduces lag and is susceptible to distortion from the club shaft and nearby metal. 6-axis gyro-integration is more responsive and more accurate over the short duration of a swing.
 
 ### Switching algorithm mode permanently
 
-To change the mode so it persists across power cycles, an explicit **Unlock → Write → Save** sequence is required. This differs from the PinPoint init sequence, which writes AXIS6 without unlock or save (transient, effective until power-off):
+To change the mode so it persists across power cycles, an explicit **Unlock → Write → Save** sequence is required. This differs from the PinPoint Studio init sequence, which writes AXIS6 without unlock or save (transient, effective until power-off):
 
 ```
 FF AA 69 88 B5   KEY    = 0xB588   unlock configuration registers
@@ -439,7 +439,7 @@ FF AA 24 01 00   AXIS6  = 0x0001   set 6-axis mode  (use 0x0000 for 9-axis)
 FF AA 00 00 00   SAVE   = 0x0000   persist to NVM
 ```
 
-The PinPoint driver does not save this setting — it re-applies AXIS6 on every connect, so NVM persistence provides no benefit and would unnecessarily wear flash.
+The PinPoint Studio driver does not save this setting — it re-applies AXIS6 on every connect, so NVM persistence provides no benefit and would unnecessarily wear flash.
 
 ### Data output in each mode
 
@@ -472,7 +472,7 @@ if (data[0] == 0x55 && data[1] == 0x71 && data[2] == 0x51) {
 }
 ```
 
-**PinPoint does not implement quaternion polling.** Each poll is a BLE round-trip (write + async notify response). Sustained at 100 Hz — the rate required for golf swing analysis — this would require a write every 10 ms and compete with the device's own streaming traffic, producing unreliable timing and significant BLE bus overhead. The 0x61 streaming frame already delivers data at a guaranteed 100 Hz; PinPoint converts the Euler fields to a quaternion in the driver (`eulerToQuat()`) immediately on receipt and discards the Euler representation. All code above the driver works exclusively in quaternion space.
+**PinPoint Studio does not implement quaternion polling.** Each poll is a BLE round-trip (write + async notify response). Sustained at 100 Hz — the rate required for golf swing analysis — this would require a write every 10 ms and compete with the device's own streaming traffic, producing unreliable timing and significant BLE bus overhead. The 0x61 streaming frame already delivers data at a guaranteed 100 Hz; PinPoint Studio converts the Euler fields to a quaternion in the driver (`eulerToQuat()`) immediately on receipt and discards the Euler representation. All code above the driver works exclusively in quaternion space.
 
 ### Register summary
 

@@ -18,7 +18,7 @@
 
 import QtQuick
 import QtQuick3D
-import PinPoint
+import PinPointStudio
 
 View3D {
     id: root

@@ -20,7 +20,7 @@
 
 #include <QSettings>
 
-// Returns a QSettings instance pointing to the single canonical PinPoint
+// Returns a QSettings instance pointing to the single canonical PinPoint Studio
 // settings file.  All modules must use this instead of QSettings() so that
 // every key lands in the same file regardless of whether QCoreApplication
 // organisation/name have been set.

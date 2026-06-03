@@ -30,7 +30,7 @@
 // determined from the QAudioFormat carried by the first buffer.
 //
 // File location: Desktop (falls back to home directory).
-// File name:     pinpoint_audio_<yyyyMMdd_HHmmss>.wav
+// File name:     pinpointstudio_audio_<yyyyMMdd_HHmmss>.wav
 class AudioStreamSaver : public QObject
 {
     Q_OBJECT

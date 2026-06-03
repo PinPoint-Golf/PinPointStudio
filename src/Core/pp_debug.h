@@ -22,7 +22,7 @@
 #include <optional>
 
 // PINPOINT_DEBUG_LEVEL controls in-app output verbosity.
-//   0 = silent (no PinPoint output at all)
+//   0 = silent (no PinPoint Studio output at all)
 //   1 = warnings + errors only          (default — clean release output)
 //   2 = startup info + warnings/errors  (development default)
 //   3 = verbose debug + all of the above

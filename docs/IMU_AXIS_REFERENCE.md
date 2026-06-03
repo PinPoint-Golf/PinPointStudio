@@ -1,6 +1,6 @@
 # WT901BLE67 IMU — Axis Reference & Known State
 
-**Authoritative reference** for the Witmotion WT901BLE67 sensors used by PinPoint: the enforced connect
+**Authoritative reference** for the Witmotion WT901BLE67 sensors used by PinPoint Studio: the enforced connect
 state, the sensor→case axis mapping, the orientation-fusion convention, and the cross-device consistency
 result. Established from first-principles desk characterization (6 cube faces + 3 gyro spins) on all three
 physical units (2026-05-30). When in doubt about an axis or convention, this file wins over inline comments.
@@ -18,7 +18,7 @@ Every device is forced into one known state on **each** connect, in `WT9011DCL_B
 These are **runtime-only — we never `SAVE` to the device's flash.** The device's persisted (flash) config is
 the **WitMotion app's** domain (e.g. accel/gyro bias `CALSW=0x01` is a 6-point calibration done in that app,
 documented in the user manual — never performed in-app; a flat-still + SAVE attempt corrupted sensors once).
-So a unit's saved config may differ (one shipped 9-axis), but at runtime PinPoint always overrides to
+So a unit's saved config may differ (one shipped 9-axis), but at runtime PinPoint Studio always overrides to
 vertical + 6-axis, and now confirms both via readback.
 
 ## 2. Sensor → case axis map (intrinsic to the device)

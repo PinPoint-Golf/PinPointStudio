@@ -1,9 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=PinPoint
-GenericName=Golf Swing Analyser
-Comment=Full kinematic golf swing analysis
-Exec=/home/markl/Projects/PinPoint/build/Desktop_Qt_6_11_0-Debug/PinPoint
-Icon=pinpoint
-Categories=Sports;Science;
-StartupWMClass=PinPoint
