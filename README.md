@@ -8,7 +8,7 @@ PinPoint Studio is a free, open source and cross-platform desktop application fo
 
 The app is currently in active prototyping. The core capture and analysis pipeline is functional; the coaching and session-history layers are in development.
 
-![PinPoint — Editorial light](docs/aesthetic/editorial_opening_light.png)
+![PinPoint — Editorial light](docs/aesthetic/home.png)
 
 The long term goal is to exploit computer vision and wearables to analyse golf movements and mechanistically determine your kinematic sequence aka Lateral-Rock-Twist-Jump, extract key golf swing metrics like X-Factor and tilt, working with the full swing or specialist shots such as pitching and in the sand, wrist angles to examine cupping, cocking and flipping, estimated ground forces to support the kinematic sequence analysis. 
 
