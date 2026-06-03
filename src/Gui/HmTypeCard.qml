@@ -121,6 +121,10 @@ Rectangle {
                 anchors.left:           parent.left
                 anchors.verticalCenter: parent.verticalCenter
                 text:           root.iconText
+                // Pin the symbol font so Windows' Segoe UI Emoji doesn't hijack
+                // these codepoints into oversized colour glyphs (empty on Linux →
+                // system default, preserving the already-correct rendering there).
+                font.family:    Theme.fontSymbol
                 font.pixelSize: root.iconSize
                 color:          Theme.colorText2
             }
