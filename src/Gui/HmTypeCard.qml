@@ -17,12 +17,15 @@
  */
 
 import QtQuick
+import QtQuick.Effects
 import PinPoint
 
 Rectangle {
     id: root
 
+    property string imageSource:    ""
     property string iconText:       ""
+    property real   iconSize:       Theme.sp(32)
     property string typeName:       ""
     property string description:    ""
     property int    camerasRequired:  2
@@ -44,6 +47,45 @@ Rectangle {
                 : hoverArea.containsMouse ? Theme.colorAccentMid
                 : Theme.colorBorderMid
 
+    // Square illustration at the top of the tile, drawn at 50% opacity and
+    // masked to the card's rounded top corners (square bottom edge).
+    Image {
+        id: tileImage
+        anchors { left: parent.left; right: parent.right; top: parent.top }
+        height:   width
+        source:   root.imageSource
+        visible:  false                 // shown via tileImageMasked
+        fillMode: Image.PreserveAspectFit
+        smooth:   true
+        mipmap:   true
+        asynchronous: true
+        layer.enabled: true
+    }
+
+    Item {
+        id: tileImageMask
+        anchors.fill: tileImage
+        visible: false
+        layer.enabled: true
+
+        // Rounded top corners…
+        Rectangle { anchors.fill: parent; radius: Theme.radiusLg }
+        // …squared-off bottom (overrides the lower rounded corners).
+        Rectangle {
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+            height: parent.height / 2
+        }
+    }
+
+    MultiEffect {
+        anchors.fill: tileImage
+        source:      tileImage
+        maskEnabled: true
+        maskSource:  tileImageMask
+        opacity:     Theme.dark ? 0.5 : 0.75   // lighter themes need more presence
+        visible:     root.imageSource !== ""
+    }
+
     Column {
         id: contentCol
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: Theme.sp(12) }
@@ -51,10 +93,20 @@ Rectangle {
 
         Item { width: 1; height: Theme.sp(4) }
 
-        Text {
-            text:           root.iconText
-            font.pixelSize: Theme.sp(32)
-            color:          Theme.colorText2
+        // Fixed-height icon slot: the glyph is vertically centred and sized
+        // per-icon (iconSize) so different Unicode symbols share a common
+        // visual height and a consistent gap to the title across tiles.
+        Item {
+            width:  parent.width
+            height: Theme.sp(36)
+
+            Text {
+                anchors.left:           parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                text:           root.iconText
+                font.pixelSize: root.iconSize
+                color:          Theme.colorText2
+            }
         }
 
         Item { width: 1; height: Theme.sp(4) }
@@ -71,14 +123,18 @@ Rectangle {
         Item { width: 1; height: Theme.sp(4) }
 
         Text {
-            width:          parent.width
-            text:           root.description
-            font.family:    Theme.fontBody
-            font.pixelSize: Theme.fontSzBody2
-            font.weight:    Font.Normal
-            color:          Theme.colorText3
-            wrapMode:       Text.Wrap
-            visible:        root.description !== ""
+            width:             parent.width
+            height:            Theme.sp(66)        // fixed reserve so icon/title align across tiles
+            text:              root.description
+            font.family:       Theme.fontBody
+            font.pixelSize:    Theme.fontSzBody2
+            font.weight:       Font.Normal
+            color:             Theme.colorText3
+            wrapMode:          Text.Wrap
+            maximumLineCount:  4
+            elide:             Text.ElideRight
+            verticalAlignment: Text.AlignTop
+            visible:           root.description !== ""
         }
 
         Item { width: 1; height: Theme.sp(6) }

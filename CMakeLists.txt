@@ -331,6 +331,16 @@ qt_add_resources(PinPoint "app_fonts"
         src/Resources/fonts/SpaceMono-Bold.ttf
 )
 
+qt_add_resources(PinPoint "app_tiles"
+    PREFIX "/assets/tiles"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/tiles"
+    FILES
+        src/Resources/tiles/golfswing.png
+        src/Resources/tiles/grip.png
+        src/Resources/tiles/feet.png
+        src/Resources/tiles/coach.png
+)
+
 qt_add_resources(PinPoint "app_body"
     PREFIX "/assets/body"
     BASE "${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/body"
