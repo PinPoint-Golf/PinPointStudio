@@ -78,12 +78,28 @@ Rectangle {
     }
 
     MultiEffect {
+        id: tileImageMasked
         anchors.fill: tileImage
         source:      tileImage
         maskEnabled: true
         maskSource:  tileImageMask
-        opacity:     Theme.dark ? 0.5 : 0.75   // lighter themes need more presence
         visible:     root.imageSource !== ""
+
+        // Dormant → backlit: a selected tile lights up — its illustration rises
+        // to near-full presence with a touch of added brightness and saturation,
+        // as though the artwork is back-lit. Hover gives a gentler preview lift.
+        // Behaviors animate the transition so selection feels like switching on.
+        opacity: root.isSelected            ? (Theme.dark ? 0.95 : 1.0)
+               : hoverArea.containsMouse    ? (Theme.dark ? 0.66 : 0.86)
+               :                              (Theme.dark ? 0.5  : 0.75)   // lighter themes need more presence
+        brightness: root.isSelected         ? 0.22
+                  : hoverArea.containsMouse  ? 0.08
+                  :                            0.0
+        saturation: root.isSelected ? 0.15 : 0.0
+
+        Behavior on opacity    { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+        Behavior on brightness { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+        Behavior on saturation { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
     }
 
     Column {
@@ -115,7 +131,7 @@ Rectangle {
             width:          parent.width
             text:           root.typeName
             font.family:    Theme.fontBody
-            font.pixelSize: Theme.fontSzBody
+            font.pixelSize: Math.round(Theme.fontSzBody * 1.5)
             font.weight:    Font.Normal
             color:          Theme.colorText
         }
