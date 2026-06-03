@@ -240,7 +240,7 @@ Built with **Qt 6.11** and **C++20**.
 | GPU acceleration | Vulkan, CUDA 12 + 13, CoreML (Apple Silicon) |
 | Image processing | OpenCV 3.0+ |
 | IMU | Witmotion WT901BLE67 via Qt Bluetooth LE |
-| Athlete data | QSettings (INI format, `~/.config/Pinpoint/Pinpoint.ini`) |
+| Athlete data | QSettings (INI format, `~/.config/PinPointStudio/PinPointStudio.ini`) |
 
 ---
 
@@ -258,7 +258,9 @@ PinPoint Studio reads and writes files in several locations. Platform paths show
 | `film-cache/<video_id>.mp4` | Downloaded YouTube videos | Written by yt-dlp on demand; never auto-deleted |
 
 ### Application settings
-`~/.config/Pinpoint/Pinpoint.ini` (macOS: `~/Library/Preferences/Pinpoint.plist`, Windows: Registry `HKCU\Software\Pinpoint`)
+`~/.config/PinPointStudio/PinPointStudio.ini` (macOS: `~/Library/Preferences/com.PinPointStudio.PinPointStudio.plist`, Windows: `%APPDATA%\PinPointStudio\PinPointStudio.ini`)
+
+The app forces `QSettings::IniFormat` (see `src/Core/pp_settings.h`), so on Windows settings are an INI file, **not** registry keys.
 
 **Status key** — ✅ wired (read by app code; drives behaviour) · ⚙️ live (applied interactively but not restored on next startup/reconnect) · 📋 planned (persisted; not yet consumed outside settings)
 

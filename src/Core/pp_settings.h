@@ -27,5 +27,5 @@
 inline QSettings ppSettings()
 {
     return QSettings(QSettings::IniFormat, QSettings::UserScope,
-                     QStringLiteral("Pinpoint"), QStringLiteral("Pinpoint"));
+                     QStringLiteral("PinPointStudio"), QStringLiteral("PinPointStudio"));
 }
