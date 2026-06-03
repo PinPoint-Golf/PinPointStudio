@@ -107,7 +107,6 @@ Every session belongs to an athlete. The athlete management flow is the entry po
 - **Camera backends** — UVC webcams, Aravis (GenICam industrial cameras), Spinnaker (Teledyne/FLIR).
 - **Spinnaker pipeline** — Raw Bayer bytes captured with no CPU demosaic on the hot path; a custom `QQuickRhiItem` runs a bilinear GPU Bayer demosaic shader at display rate while the pose estimator receives OpenCV-demosaiced frames at its already-throttled rate.
 - **Pose estimation** — MoveNet SinglePose Lightning and Thunder via ONNX Runtime — real-time skeleton overlay on each live feed, switchable per camera.
-- **Live body visualisation** — A full Y-bot 3D body model (`BodyVizView`) is shown alongside the camera feeds, driven in real time by the face-on camera's COCO 17-keypoint output at 60 Hz via `BodyPoseAdapter`. All 10 animated bones slerp smoothly between poses; individual limbs hide when the corresponding keypoints lack confidence. When pose is temporarily lost the model freezes in its last known position. Mirror-aware: a per-camera "Mirrored" setting flips the x-axis convention for webcams vs industrial cameras.
 - **Swing replay** — On ball-lost, the last 5 seconds of captured footage replay automatically at ¼ speed with a `REPLAY ¼×` overlay; a pulsing badge marks the replaying camera view. Ball detection drives buffer capture so the replay always covers the full swing.
 - **GPU acceleration** — CoreML (Apple Silicon), CUDA 12/13 (NVIDIA on Linux/Windows).
 
@@ -118,6 +117,7 @@ Every session belongs to an athlete. The athlete management flow is the entry po
 - **Device chips** — One toggle chip per enumerated IMU at the top of the Play → IMU tab; tap to connect/disconnect. Devices appear as soon as the BLE scan finds them.
 - **3D orientation visualiser** — Labelled cube driven by the corrected quaternion; matches the physical device orientation in real time. The `ImuVizView` component is shared between the capture page (per-instance) and the settings test panel.
 - **Auto-initialisation** — Sets vertical mounting, 6-axis algorithm, 100 Hz output rate, and zeros orientation to current position on every connect.
+- **Orientation fusion** — Orientation is re-derived on-host from the raw gyroscope + accelerometer stream by a selectable software filter (Madgwick or ESKF), used by the wrist-kinematics calibration path. Chosen globally in Settings → IMUs and applied to all connected devices immediately.
 - **Two-phase session calibration** — The session wizard Calibration step captures two reference quaternions for the lead-arm IMU (slot A):
   - *Phase 1 — arm at rest:* an animated guide demonstrates the resting position; once the IMU is stable for 3 cumulative seconds the arm-down quaternion is captured.
   - *Phase 2 — T-pose:* the guide raises to T-pose; another 3-second stable hold captures the T-pose quaternion.
@@ -145,7 +145,7 @@ The Settings screen uses a sidebar navigation with full-text search (Ctrl/Cmd+F)
 | **Appearance** | Active | Theme selector (8 options), font scale, UI density, reduce motion, pose overlay opacity |
 | **Displays** | Active | Main display placement, window geometry memory, secondary display output, post-shot content and delay, UI frame-rate cap, hardware acceleration |
 | **Cameras** | Active | Per-camera enable/disable, view assignment (Face-on / Down-the-line / Other), mirrored image toggle, frame-rate chips, trigger mode (Free-run / HW sync), ROI crop with live preview; global pre-roll buffer and camera-sync toggle |
-| **IMUs** | Active | Per-device enable/disable, body placement assignment (A–D), output rate and fusion-mode chips, mount orientation, live test panel with 3D viz and Euler angles; global auto-connect, auto-reconnect, save-to-flash, and default fusion mode |
+| **IMUs** | Active | Per-device enable/disable, body placement assignment (A–D), output rate chips, save-to-flash, live test panel with 3D viz and Euler angles; global auto-connect, auto-reconnect, save-calibration-to-flash, and orientation-fusion algorithm (Madgwick / ESKF) |
 | **Launch Monitor** | Placeholder | External launch monitor integration (not yet implemented) |
 | **Storage** | Active | Athlete library path, session folder naming, auto-save; video codec/resolution/quality/container; sensor data export format |
 | **Archiving** | Placeholder | Session archive path and retention policy (not yet implemented) |
@@ -321,11 +321,12 @@ PinPoint reads and writes files in several locations. Platform paths shown for L
 | Key | Default | Status | What |
 |---|---|---|---|
 | `imu/excluded` | _(empty list)_ | ✅ | MAC addresses of IMUs excluded from the device list and auto-connect |
-| `imu/defaultFusionMode` | `"9axis"` | ✅ | Fallback fusion algorithm shown in per-device chips when no override is set |
+| `imu/orientationFilter` | `"Madgwick"` | ✅ | Global software orientation-fusion filter (`"Madgwick"` or `"ESKF"`); applied to all connected IMUs immediately |
 | `imu/outputRateHz` | _(empty map)_ | ⚙️ | Per-device output rate; applied immediately when chip is tapped, not restored on reconnect |
-| `imu/fusionMode` | _(empty map)_ | ⚙️ | Per-device fusion algorithm; applied immediately when chip is tapped, not restored on reconnect |
 | `imu/placement` | _(empty map)_ | ✅ | Per-device body placement; read by session wizard and resource monitor |
-| `imu/mountOrientation` | _(empty map)_ | 📋 | Per-device mount; key → `"horizontal"` or `"vertical"` |
+| `imu/defaultFusionMode` | `"9axis"` | 📋 | Unused — backing key for the removed per-device fusion chips; superseded by `imu/orientationFilter` |
+| `imu/fusionMode` | _(empty map)_ | 📋 | Unused — backing key for the removed per-device fusion chips |
+| `imu/mountOrientation` | _(empty map)_ | 📋 | Unused — backing key for the removed per-device mount chips; connect always forces vertical mount |
 | `imu/autoConnect` | `true` | 📋 | Connect all enabled IMUs automatically before recording begins |
 | `imu/autoReconnect` | `true` | 📋 | Attempt reconnect if the BLE link drops during a session |
 | `imu/saveCalibrationToFlash` | `false` | 📋 | Persist zero-orientation and mag calibration to device flash |
