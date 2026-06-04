@@ -1629,6 +1629,28 @@ if(APPLE)
             "$<TARGET_BUNDLE_CONTENT_DIR:PinPointStudio>/Resources/PinPointStudio.icns"
         COMMENT "Installing PinPointStudio.icns into app bundle"
     )
+
+    # The POST_BUILD copy above only fires when the executable actually
+    # relinks.  Qt's bundle finalisation regenerates Contents/Info.plist with
+    # its own (wrong) CFBundleIdentifier, and on an incremental build where
+    # only Info.plist.in changed — no source relink — that stale, Qt-generated
+    # plist survives.  This is the perennial "bundle id / usage strings don't
+    # update until a clean build" bug.
+    #
+    # A custom target with no output is *always* considered out of date, so it
+    # runs on every build invocation.  Making it part of ALL and depending on
+    # the app target guarantees it executes as the final step, after Qt has
+    # finalised the bundle, force-copying the configured plist in last so the
+    # bundle's Info.plist can never go stale.  (configure_file() above re-runs
+    # CMake automatically when Info.plist.in changes, refreshing the source.)
+    add_custom_target(PinPointStudio_force_plist ALL
+        COMMAND ${CMAKE_COMMAND} -E copy
+            "${CMAKE_CURRENT_BINARY_DIR}/Info.plist"
+            "$<TARGET_BUNDLE_CONTENT_DIR:PinPointStudio>/Info.plist"
+        COMMENT "Force-installing Info.plist into bundle (runs every build)"
+        VERBATIM
+    )
+    add_dependencies(PinPointStudio_force_plist PinPointStudio)
     target_link_libraries(PinPointStudio PRIVATE
         "-framework AVFoundation"
         "-framework CoreMedia"
