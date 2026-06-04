@@ -1,5 +1,5 @@
 <p align="left">
-    <img src="src/Resources/icons/pinpoint_1024.png" width="150" />
+    <img src="src/Resources/icons/pinpointstudio_1024.png" width="150" />
   </p>
 
 # PinPoint Studio
