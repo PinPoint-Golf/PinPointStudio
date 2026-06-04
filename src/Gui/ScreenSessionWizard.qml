@@ -75,6 +75,11 @@ Item {
     // Total visible steps for the "STEP x OF N" eyebrows.
     readonly property int totalSteps: hasCalibrateStep ? 5 : 4
 
+    // The Calibrate / Confirm steps host a full 3D visualisation that should use
+    // the entire viewport width, unlike the text-led steps which are clamped to a
+    // comfortable reading column (Theme.contentWidth).
+    readonly property bool isVizStep: currentStep === stepCalibrate || currentStep === stepConfirm
+
     // ── Positional calibration state (Panel 3) ────────────────────────────────
     // Captured reference quaternions from the lead-arm IMU.
     property var  calibArmDownQuat:  null   // phase 0 — arm relaxed at side
@@ -674,13 +679,18 @@ Item {
             Layout.fillWidth:  true
             Layout.fillHeight: true
             contentWidth:  width
-            contentHeight: bodyPanel.implicitHeight + Theme.sp(40)
+            // Viz steps fill the viewport exactly (no scroll padding); text-led
+            // steps add a little bottom breathing room. The Math.max keeps content
+            // scrollable if it ever exceeds the viewport (e.g. a very short window).
+            contentHeight: Math.max(height, bodyPanel.implicitHeight + (root.isVizStep ? 0 : Theme.sp(40)))
             clip:          true
 
             Item {
                 id: bodyPanel
                 anchors.horizontalCenter: parent.horizontalCenter
-                width:          root.contentWidth
+                // Viz steps span the full viewport; text-led steps stay in the
+                // centred reading column.
+                width:          root.isVizStep ? parent.width : root.contentWidth
                 implicitHeight: bodyStack.implicitHeight
 
                 StackLayout {
@@ -1195,8 +1205,12 @@ Item {
                     Item {
                         id: calibPanel
 
-                        // Fill the visible area of the Flickable viewport.
-                        implicitHeight: Math.max(Theme.sp(480), bodyStack.parent.parent.height - Theme.sp(80))
+                        // Fill the visible area of the Flickable viewport. Gated on
+                        // the active step so this panel's full-viewport height does
+                        // not inflate the StackLayout (and thus contentHeight) on the
+                        // text-led steps — StackLayout.implicitHeight is the max over
+                        // all children.
+                        implicitHeight: root.isVizStep ? Math.max(Theme.sp(480), bodyStack.parent.parent.height) : 0
 
                         // ── Calibration state machine ─────────────────────────
                         // phase 0 — user holds lead arm straight down; wait for IMU stable
@@ -1809,7 +1823,9 @@ Item {
                     // Only reachable for wrist motion sessions (hasCalibrateStep).
 
                     Item {
-                        implicitHeight: Math.max(Theme.sp(480), bodyStack.parent.parent.height - Theme.sp(80))
+                        // Gated on the active step so this panel's full-viewport
+                        // height does not inflate the StackLayout on other steps.
+                        implicitHeight: root.isVizStep ? Math.max(Theme.sp(480), bodyStack.parent.parent.height) : 0
 
                         ColumnLayout {
                             anchors.fill:    parent
@@ -1817,9 +1833,10 @@ Item {
                             spacing:         Theme.sp(12)
 
                             Column {
-                                Layout.fillWidth: true
-                                Layout.topMargin: Theme.sp(32)
-                                spacing:          Theme.sp(8)
+                                Layout.fillWidth:    true
+                                Layout.maximumWidth: root.contentWidth
+                                Layout.topMargin:    Theme.sp(32)
+                                spacing:             Theme.sp(8)
 
                                 Text {
                                     text:               qsTr("STEP 4 OF %1 · CONFIRM TRACKING").arg(root.totalSteps)

@@ -58,9 +58,20 @@ Item {
 
     readonly property bool rightHanded: athleteController.currentHandedness !== "Left"
 
+    // Framing target: the middle of the forearm in the arm-down rest pose.
+    // Shoulder sits at y≈1.436; the arm hangs straight down so the forearm spans
+    // elbow (y≈1.162) → wrist (y≈0.886), giving a midpoint at y≈1.024. x/z follow
+    // the shoulder joint. The camera looks straight on (-Z) at this point.
+    readonly property vector3d armCenter: Qt.vector3d(rightHanded ? 0.1876 : -0.1876, 1.024, -0.062)
+
+    // Distance pulls the whole arm (shoulder → hand) into frame with a small
+    // margin, matching the breathing room BodyVizView leaves. With a 45° vertical
+    // FOV this shows ±~0.50 m about armCenter — shoulder lands just inside the top.
+    readonly property real camDistance: 1.2
+
     onRightHandedChanged: {
-        camera.position      = Qt.vector3d(rightHanded ? 0.60 : -0.60, 1.5, 1.2)
-        camera.eulerRotation = Qt.vector3d(-8, 0, 0)
+        camera.position      = Qt.vector3d(root.armCenter.x, root.armCenter.y, root.armCenter.z + root.camDistance)
+        camera.eulerRotation = Qt.vector3d(0, 0, 0)
     }
 
     // ── Per-slot IMU bindings ─────────────────────────────────────────────────
@@ -215,14 +226,14 @@ Item {
         // Camera framed on the single lead arm.
         PerspectiveCamera {
             id: camera
-            position:      Qt.vector3d(root.rightHanded ? 0.60 : -0.60, 1.5, 1.2)
-            eulerRotation: Qt.vector3d(-8, 0, 0)
+            position:      Qt.vector3d(root.armCenter.x, root.armCenter.y, root.armCenter.z + root.camDistance)
+            eulerRotation: Qt.vector3d(0, 0, 0)
             fieldOfView:   45
             clipNear:      0.01
             clipFar:       50.0
         }
 
-        Node { id: orbitOrigin; position: Qt.vector3d(root.rightHanded ? 0.60 : -0.60, 1.43, 0) }
+        Node { id: orbitOrigin; position: root.armCenter }
 
         OrbitCameraController {
             anchors.fill: parent
