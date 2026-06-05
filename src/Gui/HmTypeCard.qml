@@ -25,7 +25,9 @@ Rectangle {
 
     property string imageSource:    ""
     property string iconText:       ""
-    property real   iconSize:       Theme.sp(32)
+    // Per-glyph compensation so different Unicode symbols share a common
+    // visual size (platform-aware, see Theme.symbolScale).
+    property real   iconSize:       Math.round(Theme.sp(32) * Theme.symbolScale(iconText))
     property string typeName:       ""
     property string description:    ""
     property int    camerasRequired:  2

@@ -66,7 +66,10 @@ Item {
             Text {
                 anchors.centerIn: parent
                 text:            root.iconText
-                font.pixelSize:  Theme.sp(21)
+                // Per-glyph compensation so all rail icons share a common
+                // visual size despite differing ink heights (platform-aware,
+                // see Theme.symbolScale).
+                font.pixelSize:  Math.round(Theme.sp(21) * Theme.symbolScale(root.iconText))
                 font.family:     Theme.fontSymbol
                 color: {
                     if (root.isActive) return Theme.colorAccent

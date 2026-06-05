@@ -253,6 +253,32 @@ QtObject {
         return ""
     }
 
+    // Per-glyph size compensation for symbol icons (rail buttons, home tiles).
+    // At equal pixelSize the symbol glyphs have very different ink heights, so
+    // they look mismatched side by side. The ratios are platform-specific
+    // because fontSymbol resolves to a different font on each OS:
+    //   Linux   — fontconfig fallback chain: most glyphs come from DejaVu Sans
+    //             (ink height 75–78% of em) but ⌂ is small (60%) and ⌖ comes
+    //             from FreeSerif as a thin crosshair (60%, reads even smaller).
+    //             Factors measured via QFontMetricsF::tightBoundingRect and
+    //             cross-checked against the hand-tuned home-tile sizes.
+    //   Windows — Segoe UI Symbol: internally consistent metrics, identity
+    //             until tuned on a Windows machine.
+    //   macOS   — Apple Symbols: internally consistent metrics, identity
+    //             until tuned on a Mac.
+    // Factors are relative to the geometric-shape glyphs (◑ ▶ ◈) = 1.0; any
+    // glyph absent from the active table renders unscaled.
+    readonly property var symbolScaleLinux:   ({ "⌂": 1.30, "⌖": 1.47, "⇅": 1.06, "✦": 1.03, "⚙": 1.04 })
+    readonly property var symbolScaleWindows: ({ })
+    readonly property var symbolScaleMac:     ({ })
+    function symbolScale(glyph) {
+        var table = Qt.platform.os === "windows" ? symbolScaleWindows
+                  : Qt.platform.os === "osx"     ? symbolScaleMac
+                  :                                symbolScaleLinux
+        var s = table[glyph]
+        return s === undefined ? 1.0 : s
+    }
+
     // ── Typography scale tokens ──────────────────────────────────────────────
     readonly property int  fontSzDisplay: {
         var base = aesthetic === "instrument" ? 26
