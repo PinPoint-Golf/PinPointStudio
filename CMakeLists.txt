@@ -1611,6 +1611,63 @@ if(WITH_VITPOSE AND EXISTS "${_vitpose_model_path}")
     message(STATUS "ViTPose-B pose estimator: enabled")
 endif()
 
+# ── FFmpeg (swing export encoder) ────────────────────────────────────────────
+# Real link dependency on libavcodec/libavformat/libavutil/libswscale for the
+# swing export H.264 encoder.  Distinct from the dlsym-based log suppression in
+# pp_debug.cpp, which targets Qt Multimedia's *bundled* libavutil and needs no
+# link.  GPL builds of FFmpeg (libx264) are fine: the project is GPLv2+.
+# macOS: inject Homebrew prefix so pkg-config can locate the .pc files
+if(APPLE)
+    execute_process(
+        COMMAND brew --prefix ffmpeg
+        OUTPUT_VARIABLE _brew_ffmpeg
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE _brew_ffmpeg_result
+    )
+    if(_brew_ffmpeg_result EQUAL 0 AND EXISTS "${_brew_ffmpeg}")
+        set(ENV{PKG_CONFIG_PATH} "${_brew_ffmpeg}/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
+    endif()
+endif()
+
+# Windows: probe common install locations; user can override with -DFFMPEG_DIR=
+if(WIN32 AND NOT FFMPEG_DIR)
+    file(GLOB _ffmpeg_candidates LIST_DIRECTORIES true "C:/ffmpeg" "C:/tools/ffmpeg")
+    if(_ffmpeg_candidates)
+        list(GET _ffmpeg_candidates 0 FFMPEG_DIR)
+    endif()
+endif()
+if(WIN32 AND FFMPEG_DIR)
+    set(ENV{PKG_CONFIG_PATH} "${FFMPEG_DIR}/lib/pkgconfig;$ENV{PKG_CONFIG_PATH}")
+endif()
+
+# Export module sources are always compiled; the FFmpeg-backed encoder is added
+# only when the libraries are found.  Without FFmpeg the app still builds and
+# runs — makeVideoEncoder() returns nullptr and swing export is disabled.
+target_sources(PinPointStudio PRIVATE
+    src/Export/video_encoder.h
+    src/Export/video_encoder.cpp
+    src/Export/swing_paths.h
+    src/Export/swing_paths.cpp
+    src/Export/swing_exporter.h
+    src/Export/swing_exporter.cpp
+)
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+    pkg_check_modules(FFMPEG IMPORTED_TARGET libavcodec libavformat libavutil libswscale)
+endif()
+if(FFMPEG_FOUND)
+    target_compile_definitions(PinPointStudio PRIVATE HAVE_FFMPEG)
+    target_link_libraries(PinPointStudio PRIVATE PkgConfig::FFMPEG)
+    target_sources(PinPointStudio PRIVATE
+        src/Export/ffmpeg_h264_encoder.h
+        src/Export/ffmpeg_h264_encoder.cpp
+    )
+    message(STATUS "FFmpeg ${FFMPEG_libavcodec_VERSION}: found — swing export enabled")
+else()
+    message(STATUS "FFmpeg: not found — swing export disabled")
+endif()
+
 if(APPLE)
     # The Bluetooth permission plugin is a static library that must be explicitly
     # imported; without this, checkPermission(QBluetoothPermission{}) always

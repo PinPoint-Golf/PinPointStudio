@@ -19,6 +19,7 @@
 #pragma once
 
 #include <QElapsedTimer>
+#include <QFutureWatcher>
 #include <QList>
 #include <QObject>
 #include <QRectF>
@@ -30,9 +31,12 @@
 #include "device_enumerator.h"
 #include "swing_window.h"
 #include "app_settings.h"
+#include "../Export/swing_exporter.h"
+#include "../Export/swing_paths.h"
 #include "../Video/camera_capabilities.h"
 
 namespace pinpoint { class EventBuffer; }
+class AthleteController;
 class VideoController;
 
 class CameraManager : public QObject
@@ -75,6 +79,10 @@ public:
     };
     CameraDeviceStats liveDeviceStats(const QString &deviceId) const;
 
+    // Metadata source for swing exports (athlete name/uuid/handedness).
+    // Optional — exports fall back to empty fields when unset.
+    void setAthleteController(AthleteController *controller) { m_athleteController = controller; }
+
     Q_INVOKABLE void setSelected(int index, bool selected);
     Q_INVOKABLE void startAll();
     Q_INVOKABLE void stopAll();
@@ -104,6 +112,8 @@ signals:
     void isRecordingChanged();
     void bufferStateChanged();
     void isReplayingChanged();
+    void swingSaved(const QString &path);
+    void swingSaveFailed(const QString &error);
 
 private:
     struct CameraEntry {
@@ -159,11 +169,24 @@ private:
     QTimer                              *m_replayTimer      = nullptr;
     std::vector<ReplayTrack>             m_replayTracks;
 
+    // Swing export. The worker borrows &*m_swingWindow, so the window may only
+    // be destroyed once BOTH replay and the save are finished — see
+    // maybeFinishSwing() for the join.
+    QFutureWatcher<pinpoint::SwingExportResult> m_swingSaveWatcher;
+    bool                 m_swingSaveInFlight = false;  // worker still reading the window
+    bool                 m_swingAutoResume   = true;   // cleared by stopAll()/stopReplay(false)
+    AthleteController   *m_athleteController = nullptr;
+    pinpoint::SwingPaths m_swingPaths;
+
     VideoController *createController(const Device &device);
     void startReplay();
     void stopReplay(bool autoResume = true);
+    void startSwingSave();
+    pinpoint::SwingExportJob buildSwingExportJob();
+    void maybeFinishSwing();
 
 private slots:
     void onCameraBallPresenceChanged(bool present);
     void onReplayTick();
+    void onSwingSaveFinished();
 };

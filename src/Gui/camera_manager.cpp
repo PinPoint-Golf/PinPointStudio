@@ -21,7 +21,11 @@
 #include "video_controller.h"
 #include "video_input_factory.h"
 #include "event_buffer.h"
+#include "athlete_controller.h"
+#include "../Core/pp_debug.h"
 #include "../Video/camera_capabilities.h"
+#include <QSet>
+#include <QtConcurrent/QtConcurrentRun>
 #include <algorithm>
 
 CameraManager::CameraManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, QObject *parent)
@@ -66,10 +70,22 @@ CameraManager::CameraManager(pinpoint::EventBuffer *buffer, AppSettings *appSett
     }
     if (aliasDirty)
         s->setCameraAlias(aliasMap);
+
+    // Swing-save completion is delivered on this (UI) thread, strictly after
+    // the worker lambda has returned — the join in maybeFinishSwing() relies
+    // on that ordering to destroy the SwingWindow safely.
+    connect(&m_swingSaveWatcher, &QFutureWatcher<pinpoint::SwingExportResult>::finished,
+            this, &CameraManager::onSwingSaveFinished);
 }
 
 CameraManager::~CameraManager()
 {
+    // A swing save borrows &*m_swingWindow; abandoning the worker would be a
+    // use-after-free. Block until it returns, then drop the window.
+    if (m_swingSaveInFlight)
+        m_swingSaveWatcher.waitForFinished();
+    m_swingWindow.reset();
+
     // Stop all capture threads first so no frame events can be posted to the
     // main thread after we free ring memory or delete the controllers.
     for (auto &cam : m_cameras) {
@@ -235,6 +251,16 @@ void CameraManager::setSelected(int index, bool selected)
 
     m_cameras[index].selected = selected;
 
+    // deregisterSource() asserts that no SwingWindow is live (and a swing-save
+    // worker reads ring memory through it). Tear down replay and block on any
+    // in-flight save before touching source registration.
+    if (m_replaying)
+        stopReplay(false);
+    if (m_swingSaveInFlight)
+        m_swingSaveWatcher.waitForFinished();   // delivers onSwingSaveFinished later,
+    m_swingSaveInFlight = false;                // but the worker has returned now
+    m_swingWindow.reset();
+
     // Snapshot buffer state before touching anything.
     bool wasCapturing = m_eventBuffer &&
                         m_eventBuffer->state() == pinpoint::BufferState::Capturing;
@@ -308,6 +334,7 @@ void CameraManager::startAll()
 void CameraManager::stopAll()
 {
     if (!m_recording) return;
+    m_swingAutoResume = false; // a save finishing after this must not resume either
     if (m_replaying)
         stopReplay(false); // tear down replay without resuming the buffer
     for (auto &cam : m_cameras) {
@@ -332,6 +359,12 @@ void CameraManager::pauseBuffer()
 
 void CameraManager::resumeBuffer()
 {
+    // Hard backstop: the SwingWindow (and any swing-save worker reading through
+    // it) is only valid while the buffer stays Paused. All resume paths funnel
+    // through here — including QML — so a live window always blocks resumption;
+    // maybeFinishSwing() re-evaluates the ball condition once the window dies.
+    if (m_swingWindow)
+        return;
     if (m_eventBuffer && m_eventBuffer->state() == pinpoint::BufferState::Paused) {
         m_eventBuffer->resume();
         emit bufferStateChanged();
@@ -588,6 +621,11 @@ void CameraManager::startReplay()
     if (!m_eventBuffer || m_eventBuffer->state() != pinpoint::BufferState::Paused)
         return;
 
+    // Never capture over a live window: the previous swing's save may still be
+    // reading it, and EventBuffer asserts a single live SwingWindow.
+    if (m_swingWindow)
+        return;
+
     auto window = m_eventBuffer->captureSwingWindow(std::chrono::milliseconds(5000));
 
     m_replayTracks.clear();
@@ -608,6 +646,7 @@ void CameraManager::startReplay()
         return; // nothing captured — stay paused, wait for next ball detection
 
     m_swingWindow.emplace(std::move(window));
+    m_swingAutoResume = true;   // fresh swing cycle: clear any stale stopAll() veto
 
     // Anchor to the actual first/last captured entry so replay starts immediately
     // rather than waiting for the (potentially empty) leading portion of the window.
@@ -634,6 +673,141 @@ void CameraManager::startReplay()
     m_replayTimer->setInterval(16); // ~60 Hz drive
     connect(m_replayTimer, &QTimer::timeout, this, &CameraManager::onReplayTick);
     m_replayTimer->start();
+
+    // Save the swing to disk concurrently with the replay. The worker streams
+    // directly out of the frozen window; the buffer stays Paused (and the
+    // window alive) until both replay and save have finished.
+    startSwingSave();
+}
+
+void CameraManager::startSwingSave()
+{
+    pinpoint::SwingExportJob job = buildSwingExportJob();
+    if (job.swingDir.isEmpty()) {
+        ppWarn() << "[SwingExport] could not allocate a swing directory — not saving";
+        return;
+    }
+    if (job.cameras.empty()) {
+        ppWarn() << "[SwingExport] no exportable cameras — not saving";
+        return;
+    }
+
+    // The optional's storage is stable; the window is destroyed only in
+    // maybeFinishSwing(), strictly after the worker has returned.
+    const pinpoint::SwingWindow *win = &*m_swingWindow;
+    m_swingSaveInFlight = true;
+    ppInfo() << "[SwingExport] saving swing to" << job.swingDir;
+    m_swingSaveWatcher.setFuture(QtConcurrent::run(
+        [job = std::move(job), win] { return pinpoint::SwingExporter::run(*win, job); }));
+}
+
+pinpoint::SwingExportJob CameraManager::buildSwingExportJob()
+{
+    AppSettings  fallback;
+    AppSettings *s = m_appSettings ? m_appSettings : &fallback;
+
+    pinpoint::SwingExportJob job;
+
+    // CRF from videoQuality (storage/videoQuality).
+    const QString quality = s->videoQuality();
+    job.crf = quality == QLatin1String("low")      ? 28
+            : quality == QLatin1String("high")     ? 18
+            : quality == QLatin1String("lossless") ? 0
+                                                   : 23;   // "medium"
+    job.codec   = s->videoCodec();
+    job.saveImu = s->saveImuStreams();
+
+    if (m_athleteController) {
+        job.athleteName = m_athleteController->currentName();
+        job.athleteUuid = m_athleteController->currentUuid();
+        job.handedness  = m_athleteController->currentHandedness();
+    }
+
+    // Wallclock anchor: right now, wallclock ~= monotonic endTimestampUs().
+    job.wallclockAnchorUtc = QDateTime::currentDateTimeUtc();
+
+    // Cameras: every replay track, with its alias resolved and sanitised.
+    // Filename = alias, falling back to device description, then serial.
+    const QVariantMap aliasMap = s->cameraAlias();
+    QSet<QString> usedNames;
+    for (const auto &track : m_replayTracks) {
+        const CameraEntry *entry = nullptr;
+        for (const auto &cam : m_cameras) {
+            if (cam.controller == track.ctrl) { entry = &cam; break; }
+        }
+        if (!entry) continue;
+
+        QString alias = aliasMap.value(cameraKey(*entry)).toString().trimmed();
+        if (alias.isEmpty()) alias = entry->device.description;
+        if (alias.isEmpty()) alias = QStringLiteral("camera-%1")
+                                         .arg(entry->device.capabilities.serialNumber);
+
+        QString base = pinpoint::SwingPaths::sanitise(alias);
+        QString name = base;
+        for (int n = 2; usedNames.contains(name); ++n)
+            name = base + QStringLiteral("-%1").arg(n);
+        usedNames.insert(name);
+
+        pinpoint::SwingExportCamera cam;
+        cam.sourceId = track.sourceId;
+        cam.alias    = name;
+        cam.fileName = name + QStringLiteral(".mp4");
+        job.cameras.push_back(std::move(cam));
+    }
+
+    // IMU aliases keyed by the same identifier the sources registered with
+    // (serial when present, else device id — mirrors ImuInstance).
+    const QVariantMap imuAliases = s->imuAlias();
+    const QList<Device> imus = DeviceEnumerator::instance()->devices(DeviceType::Imu);
+    for (const Device &dev : imus) {
+        const QString serial = dev.imuCapabilities.serialNumber.isEmpty()
+                                   ? dev.id
+                                   : dev.imuCapabilities.serialNumber;
+        const QString imuKey = dev.description + QStringLiteral("|") + dev.id;
+        const QString alias  = imuAliases.value(imuKey).toString().trimmed();
+        if (!alias.isEmpty())
+            job.imuAliasBySerial.insert(serial, alias);
+    }
+
+    const auto alloc = m_swingPaths.allocateSwingDir(s->athleteLibraryPath(),
+                                                     job.athleteName,
+                                                     job.athleteUuid);
+    job.swingDir   = alloc.swingDir;
+    job.swingId    = alloc.swingId;
+    job.swingIndex = alloc.swingIndex;
+    job.sessionId  = alloc.sessionId;
+    return job;
+}
+
+void CameraManager::onSwingSaveFinished()
+{
+    m_swingSaveInFlight = false;
+    const pinpoint::SwingExportResult result = m_swingSaveWatcher.result();
+    if (result.ok) {
+        ppInfo() << "[SwingExport] swing saved:" << result.swingDir;
+        emit swingSaved(result.swingDir);
+    } else {
+        ppError() << "[SwingExport] swing save failed:" << result.error;
+        emit swingSaveFailed(result.error);
+    }
+    maybeFinishSwing();   // failure joins identically — the buffer must resume
+}
+
+void CameraManager::maybeFinishSwing()
+{
+    // The window must outlive both readers: the replay (UI thread) and the
+    // save worker. Whichever finishes last lands here and completes the swing.
+    if (m_replaying || m_swingSaveInFlight)
+        return;
+    if (!m_swingWindow)
+        return;   // already finished (idempotent)
+
+    m_swingWindow.reset();   // safe: worker has returned, replay has stopped
+
+    // Ball condition is evaluated now — not at stopReplay() time — so a ball
+    // re-appearing (or leaving) during a long save is handled correctly.
+    if (m_swingAutoResume && m_recording && m_ballPresentCount > 0)
+        resumeBuffer();
 }
 
 void CameraManager::onReplayTick()
@@ -689,13 +863,15 @@ void CameraManager::stopReplay(bool autoResume)
         track.ctrl->setReplaying(false);
     m_replayTracks.clear();
 
-    m_swingWindow.reset(); // must be destroyed before any resume()
     m_replaying = false;
+    if (!autoResume)
+        m_swingAutoResume = false;   // sticky veto: stopAll() path must not resume
     emit isReplayingChanged();
     emit bufferStateChanged();
 
-    if (autoResume && m_recording && m_ballPresentCount > 0)
-        resumeBuffer();
+    // Window destruction and the resume decision are deferred to the join:
+    // a swing save may still be reading the window on the worker thread.
+    maybeFinishSwing();
 }
 
 void CameraManager::setCameraAlias(const QString &key, const QString &alias)

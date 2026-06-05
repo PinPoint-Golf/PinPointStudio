@@ -109,6 +109,7 @@ int main(int argc, char *argv[])
     AthleteController       athleteController;
     NavigationController    navController(&athleteController);
     ResourceMonitorController resourceMonitor(&eventBuffer, &cameraManager, &imuManager);
+    cameraManager.setAthleteController(&athleteController);   // swing export metadata
     ArmBoneController         armBoneController;
     SessionController         sessionController;
 

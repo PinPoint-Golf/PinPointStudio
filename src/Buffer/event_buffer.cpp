@@ -145,6 +145,11 @@ SourceId EventBuffer::registerSource(SourceDescriptor desc) {
     }
 
     desc.id = id;
+    // Normalise: expose the registrar's device identifier (serial or opaque id)
+    // through FormatDescriptor so window readers (formatOf) can attribute data
+    // to a physical device without access to the SourceDescriptor.
+    if (desc.format.device_serial.empty())
+        desc.format.device_serial = desc.identifier;
     size_t slot_count = desc.computeSlotCount();
     size_t slot_bytes = desc.computeSlotBytes();
 
