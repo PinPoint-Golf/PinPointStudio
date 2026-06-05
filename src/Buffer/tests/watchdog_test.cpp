@@ -38,9 +38,10 @@ using namespace std::chrono_literals;
 //   watchdog_interval_ms = 10ms
 static EventBufferConfig watchdogConfig() {
     EventBufferConfig cfg;
-    cfg.reorder_window_us    = 0;
-    cfg.watchdog_interval_ms = 10;
-    cfg.stall_threshold_mult = 5;
+    cfg.reorder_window_us       = 0;
+    cfg.watchdog_interval_ms    = 10;
+    cfg.stall_threshold_mult    = 5;
+    cfg.stall_threshold_min_us  = 0;    // disable the 1s floor for fast tests
     return cfg;
 }
 
@@ -243,6 +244,32 @@ TEST(Watchdog, StallClearsAfterRecovery) {
 
     EXPECT_EQ(countStalledMarkers(all, id), 1)
         << "Expected exactly one SourceStalled marker, got more";
+}
+
+// ---------------------------------------------------------------------------
+// Test: stall_threshold_min_us floor suppresses gaps shorter than the floor
+// ---------------------------------------------------------------------------
+
+TEST(Watchdog, MinThresholdFloorSuppressesShortGaps) {
+    EventBufferConfig cfg = watchdogConfig();
+    cfg.stall_threshold_min_us = 200000;    // 200ms floor (mult gives only 25ms)
+    EventBuffer buf(cfg);
+    SourceId id = buf.registerSource(makeImu200());
+    buf.start();
+
+    writeRecentEvents(buf, id, 5);
+
+    // Wait well past the 25ms mult-based threshold but under the 200ms floor.
+    std::this_thread::sleep_for(100ms);
+    EXPECT_TRUE(buf.stalledSources().empty())
+        << "Source flagged stalled before the min-threshold floor elapsed";
+
+    // Wait past the floor — now the stall must be flagged.
+    std::this_thread::sleep_for(200ms);
+    EXPECT_FALSE(buf.stalledSources().empty())
+        << "Source not flagged stalled after the min-threshold floor elapsed";
+
+    buf.stop();
 }
 
 // ---------------------------------------------------------------------------

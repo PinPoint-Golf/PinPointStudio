@@ -541,9 +541,10 @@ void EventBuffer::maybeRunWatchdog() {
                               .load(std::memory_order_relaxed);
         if (last_ts == 0) continue;
 
-        int64_t threshold_us =
+        int64_t threshold_us = std::max(
             static_cast<int64_t>(src.desc.expected_interarrival_us.count())
-            * static_cast<int64_t>(config_.stall_threshold_mult);
+                * static_cast<int64_t>(config_.stall_threshold_mult),
+            static_cast<int64_t>(config_.stall_threshold_min_us));
 
         bool silent = (now_us - last_ts) > threshold_us;
 

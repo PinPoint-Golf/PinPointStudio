@@ -362,9 +362,12 @@ void ResourceMonitorController::refresh()
         QString name = QString::fromStdString(src.name);
         if (src.stalled) {
             int64_t stalledMs = (m_snapshot.snapshot_timestamp_us - src.last_write_timestamp_us) / 1000;
+            // events_written is a lifetime counter; the ring holds at most
+            // slot_count entries (older ones are overwritten), so clamp.
             int fillPct = int(std::round(
                 src.slot_count > 0
-                    ? double(src.events_written) / double(src.slot_count) * 100.0
+                    ? double(std::min<uint64_t>(src.events_written, src.slot_count))
+                          / double(src.slot_count) * 100.0
                     : 0.0));
             QString msg = QStringLiteral("%1 stalled — no events for %2 ms, ring %3% full")
                               .arg(name).arg(stalledMs).arg(fillPct);

@@ -26,6 +26,10 @@ struct EventBufferConfig {
     uint32_t reorder_window_us        = 5000;   // 5ms reorder window
     uint32_t watchdog_interval_ms     = 10;
     uint32_t stall_threshold_mult     = 5;
+    // Floor on the stall threshold: a source is only flagged stalled after at
+    // least this long with no events, regardless of its expected rate. Brief
+    // BLE/USB delivery hiccups well under a second are normal and self-heal.
+    uint32_t stall_threshold_min_us   = 1000000; // 1 s
     uint32_t timeline_index_capacity  = 8192;   // must be power of 2
     uint32_t merger_spin_iterations   = 64;
     // On macOS/iOS, this is the yield budget per merger iteration rather than
