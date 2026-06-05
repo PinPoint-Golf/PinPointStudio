@@ -262,14 +262,20 @@ QtObject {
     //             from FreeSerif as a thin crosshair (60%, reads even smaller).
     //             Factors measured via QFontMetricsF::tightBoundingRect and
     //             cross-checked against the hand-tuned home-tile sizes.
-    //   Windows — Segoe UI Symbol: internally consistent metrics, identity
-    //             until tuned on a Windows machine.
+    //   Windows — Segoe UI Symbol: a single pinned font with no fallback (all
+    //             eight glyphs resolve in-font), but its ink heights still span
+    //             0.677–0.785 em — even the geometric shapes disagree (▶ is the
+    //             tallest, ◈ among the smallest), so identity left them visibly
+    //             mismatched. Factors normalise every glyph to the geometric-
+    //             shape mean ink height, measured on-device via
+    //             QFontMetricsF::tightBoundingRect and cross-checked by render.
     //   macOS   — Apple Symbols: internally consistent metrics, identity
     //             until tuned on a Mac.
-    // Factors are relative to the geometric-shape glyphs (◑ ▶ ◈) = 1.0; any
-    // glyph absent from the active table renders unscaled.
+    // Factors are relative to the geometric-shape glyphs (◑ ▶ ◈) = 1.0 (their
+    // mean, where the shapes themselves differ); any glyph absent from the
+    // active table renders unscaled.
     readonly property var symbolScaleLinux:   ({ "⌂": 1.30, "⌖": 1.47, "⇅": 1.06, "✦": 1.03, "⚙": 1.04 })
-    readonly property var symbolScaleWindows: ({ })
+    readonly property var symbolScaleWindows: ({ "◑": 1.02, "▶": 0.94, "◈": 1.05, "⌂": 1.03, "⌖": 1.05, "⇅": 1.09, "✦": 1.05 })
     readonly property var symbolScaleMac:     ({ })
     function symbolScale(glyph) {
         var table = Qt.platform.os === "windows" ? symbolScaleWindows
