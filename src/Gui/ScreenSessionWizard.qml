@@ -80,50 +80,11 @@ Item {
     // comfortable reading column (Theme.contentWidth).
     readonly property bool isVizStep: currentStep === stepCalibrate || currentStep === stepConfirm
 
-    // ── Positional calibration state (Panel 3) ────────────────────────────────
-    // Captured reference quaternions from the lead-arm IMU.
-    property var  calibArmDownQuat:  null   // phase 0 — arm relaxed at side
-    property var  calibArmTPoseQuat: null   // phase 2 — arm raised to T-pose
-    property bool calibrationDone:   false
-    // Diagnostic — Euler angles at each calibration capture (cleared by _resetCalibration)
-    property var calibArmDownEuler:  null   // { roll, pitch, yaw } at arm-down capture
-    property var calibArmTPoseEuler: null   // { roll, pitch, yaw } at T-pose capture
-
-    onCalibrationDoneChanged: if (calibrationDone) calibCompleteTing.play()
-
-    TingPlayer { id: calibCompleteTing; frequency: 4186.0 }  // C8 — two octaves above the ball ting
-
-    function _resetCalibration() {
-        if (calibPanel.leadImu) calibPanel.leadImu.clearCalibration()
-
-        introDoneTimer.stop()
-        introReadyTimer.stop()
-        phase1MinHoldTimer.stop()
-        phase1HoldTimer.stop()
-        captureTransitionTimer.stop()
-        raiseReadyTimer.stop()
-        calibPanel.calibPhase         = 0
-        calibPanel.phase1AccumMs      = 0
-        calibPanel.stableAccumMs      = 0
-        calibPanel._phase1Samples     = []
-        calibPanel._phase2Samples     = []
-        calibPanel.phaseProgress      = 0.0
-        calibPanel._animateLeadArm    = false
-        calibPanel._leadArmTarget     = calibPanel.leadArmDownQuat
-        calibPanel.calibrationFailed  = false
-        calibPanel._armDownCaptured   = false
-        calibPanel._phase1MinHoldDone = false
-        calibPanel.mountFailed        = false
-        calibPanel.mountFailMsg       = ""
-        calibPanel._refA              = null
-        calibPanel._refB              = null
-        calibPanel._refC              = null
-        calibArmDownQuat              = null
-        calibArmTPoseQuat             = null
-        calibrationDone               = false
-        calibArmDownEuler             = null
-        calibArmTPoseEuler            = null
-    }
+    // ── Positional calibration (Panel 3) ──────────────────────────────────────
+    // The calibration state machine, timers, helpers, BodyVizView guide, status
+    // column and completion ting now live in ImuCalibrationFlow.qml (calibFlow,
+    // hosted by Panel 3). The wizard reads calibFlow.calibrationDone for gating
+    // and drives it via begin() / showCompleted() from onCurrentStepChanged.
 
     // Track the previous step so we know the direction of navigation.
     property int _prevStep: -1
@@ -133,51 +94,26 @@ Item {
         _prevStep   = currentStep
 
         if (currentStep === root.stepCalibrate) {
-            introDoneTimer.stop()
-            introReadyTimer.stop()
-            phase1MinHoldTimer.stop()
-            phase1HoldTimer.stop()
-            captureTransitionTimer.stop()
-            raiseReadyTimer.stop()
-
             // "Recalibrate" from Confirm Tracking: force a fresh run regardless
-            // of navigation direction (otherwise the backward-nav branch below
-            // would restore the previous "complete" state).
+            // of navigation direction (otherwise the restore branch below would
+            // restore the previous "complete" state).
             if (root._forceRecalibrate) {
                 root._forceRecalibrate = false
-                _resetCalibration()
+                calibFlow.begin()
                 return
             }
 
             if (prev >= root.stepCalibrate) {
                 // Navigating backward from a later step — retain completed state.
-                calibPanel.calibPhase         = 2
-                calibPanel.phaseProgress      = 1.0
-                calibPanel._animateLeadArm    = false
-                calibPanel._leadArmTarget     = calibPanel.leadArmDownQuat
-                calibPanel._armDownCaptured   = true
-                calibPanel._phase1MinHoldDone = true
+                calibFlow.showCompleted()
             } else {
                 // Going forward to the Calibrate step — if the lead IMU instance
                 // already has calibration from this session, restore; else start fresh.
-                var imu = calibPanel.leadImu
-                if (imu !== null && imu.calibrated) {
-                    calibArmDownQuat              = imu.calibArmDown
-                    calibArmTPoseQuat             = imu.calibArmTPose
-                    calibPanel.calibPhase         = 2
-                    calibPanel.phase1AccumMs      = 0
-                    calibPanel.stableAccumMs      = calibPanel._captureHoldMs
-                    calibPanel.phaseProgress      = 1.0
-                    calibPanel._animateLeadArm    = false
-                    calibPanel._leadArmTarget     = calibPanel.leadArmDownQuat
-                    calibPanel.calibrationFailed  = false
-                    calibPanel._armDownCaptured   = true
-                    calibPanel._phase1MinHoldDone = true
-                    calibrationDone               = true
-                } else {
-                    _resetCalibration()
-                }
-
+                var imu = calibFlow.leadImu
+                if (imu !== null && imu.calibrated)
+                    calibFlow.showCompleted()
+                else
+                    calibFlow.begin()
             }
         }
     }
@@ -443,7 +379,7 @@ Item {
                                             .arg(reqs[i].slot).arg(reqs[i].placement),
                                   panel: 4 })
             }
-            if (root.hasCalibrateStep && !root.calibrationDone)
+            if (root.hasCalibrateStep && !calibFlow.calibrationDone)
                 issues.push({ text: qsTr("Sensor position calibration not completed — return to the Calibrate step"), panel: -1 })
         }
 
@@ -1203,619 +1139,20 @@ Item {
                     // The panel fills the available height — no Flickable wrapper.
 
                     Item {
-                        id: calibPanel
-
-                        // Fill the visible area of the Flickable viewport. Gated on
-                        // the active step so this panel's full-viewport height does
-                        // not inflate the StackLayout (and thus contentHeight) on the
-                        // text-led steps — StackLayout.implicitHeight is the max over
-                        // all children.
+                        // Panel 3 hosts the extracted calibration flow (full
+                        // layout). Fill the visible viewport height, gated on the
+                        // active step so the full-viewport height does not inflate
+                        // the StackLayout on the text-led steps.
                         implicitHeight: root.isVizStep ? Math.max(Theme.sp(480), bodyStack.parent.parent.height) : 0
 
-                        // ── Calibration state machine ─────────────────────────
-                        // phase 0 — user holds lead arm straight down; wait for IMU stable
-                        // phase 1 — animated guide: arm moves from down → T-pose
-                        // phase 2 — user raises arm to T-pose; hold 3 s to capture
-
-                        property int  calibPhase:    0
-                        property real phaseProgress: 0.0   // 0–1 for phase 2 hold timer
-
-                        readonly property bool rightHanded: athleteController.currentHandedness !== "Left"
-
-                        // T-pose seed quaternions (match BodyPoseAdapter pre-seed values).
-                        readonly property quaternion tPoseQuat: calibPanel.rightHanded
-                            ? Qt.quaternion( 0.9948, -0.0105, -0.0011,  0.1012)   // left arm
-                            : Qt.quaternion( 0.9948, -0.0105,  0.0011, -0.1011)   // right arm
-
-                        // Arm-down: shoulder-local +Z = world -Y (verified by computing
-                        // shoulder.rotation * (0,0,1) for both left and right shoulders).
-                        // Rotating armNode's +Y to shoulder-local +Z = R_x(+90°) for both arms.
-                        // The mirror symmetry of the shoulder nodes means both use the same value.
-                        readonly property quaternion leadArmDownQuat:  Qt.quaternion(0.7071, 0.7071, 0, 0)
-                        readonly property quaternion trailArmDownQuat: Qt.quaternion(0.7071, 0.7071, 0, 0)
-
-                        // The lead-arm IMU: slot A = Wrist for Wrist Motion.
-                        // imuManager.instances is a required reactive dependency:
-                        // instanceFor() is a Q_INVOKABLE (not a property), so without it
-                        // this binding would not re-evaluate when the instance is created
-                        // by the Connect button on the previous step.
-                        readonly property QtObject leadImu: {
-                            var _dep      = imuManager.instances
-                            var placement = appSettings.imuPlacement
-                            var list      = imuManager.imuDeviceList
-                            for (var i = 0; i < list.length; ++i)
-                                if (placement[list[i].id] === "A")
-                                    return imuManager.instanceFor(list[i].id)
-                            return null
-                        }
-                        // Hand (B) and upper-arm (C) are OPTIONAL for the Wrist session. The precise
-                        // calibration + mount check run on whatever is connected (A is the anchor).
-                        readonly property QtObject slotB: {
-                            var _dep = imuManager.instances; var p = appSettings.imuPlacement
-                            var list = imuManager.imuDeviceList
-                            for (var i = 0; i < list.length; ++i)
-                                if (p[list[i].id] === "B") return imuManager.instanceFor(list[i].id)
-                            return null
-                        }
-                        readonly property QtObject slotC: {
-                            var _dep = imuManager.instances; var p = appSettings.imuPlacement
-                            var list = imuManager.imuDeviceList
-                            for (var i = 0; i < list.length; ++i)
-                                if (p[list[i].id] === "C") return imuManager.instanceFor(list[i].id)
-                            return null
-                        }
-                        function _connectedSegs() {
-                            // [instance, armDownRef] for every connected segment; A always first.
-                            var out = []
-                            if (leadImu && leadImu.imuConnected) out.push([leadImu, _refA])
-                            if (slotB   && slotB.imuConnected)   out.push([slotB,   _refB])
-                            if (slotC   && slotC.imuConnected)   out.push([slotC,   _refC])
-                            return out
-                        }
-                        function _curQuat(i) { return i ? Qt.quaternion(i.quatW, i.quatX, i.quatY, i.quatZ) : null }
-                        // Small Y-rotation bringing the abducted-pose anatomical axis onto Z (= φ).
-                        function _phiFromAbduction(inst) {
-                            var q = inst.anatQuat
-                            var w = Math.min(1, Math.abs(q.scalar))
-                            var s = Math.sqrt(Math.max(0, 1 - w*w))
-                            if (s < 1e-4) return 0
-                            var sg = q.scalar >= 0 ? 1 : -1
-                            var mx = sg*q.x/s, mz = sg*q.z/s
-                            var pp = Math.atan2(mx, mz), pm = Math.atan2(-mx, -mz)
-                            var phi = Math.abs(pp) <= Math.abs(pm) ? pp : pm
-                            return phi * 180 / Math.PI
-                        }
-                        // Per-sensor arm-down reference quaternions (captured at phase-1 completion).
-                        property var _refA: null
-                        property var _refB: null
-                        property var _refC: null
-                        // Mount validation outcome (set at phase-2 completion).
-                        property bool   mountFailed: false
-                        property string mountFailMsg: ""
-
-                        // Phase 2: accumulate stable hold duration (target _captureHoldMs).
-                        property real stableAccumMs: 0.0
-
-                        // Stillness-gated capture tuning. Both capture phases (arm-down and
-                        // abduction) watch the IMU's instantaneous angular velocity and only
-                        // accumulate samples while the arm is held still; any motion above the
-                        // threshold resets the hold. The threshold is deliberately forgiving:
-                        // an arm held out at shoulder height sways/tremors more than a few °/s
-                        // (an earlier, tighter gate never settled → capture stalled), but stays
-                        // comfortably below mid-motion (30–100°/s+).
-                        readonly property real _stillThreshDps: 15.0   // deg/s — held-still ceiling
-                        readonly property real _captureHoldMs:  2000   // ms of continuous stillness
-
-                        // Quaternion samples accumulated during each stillness-held capture window.
-                        property var _phase1Samples: []
-                        property var _phase2Samples: []
-
-                        function _quatSlerp(a, b, t) {
-                            var dot = a.scalar * b.scalar + a.x * b.x + a.y * b.y + a.z * b.z
-                            if (dot < 0) { b = Qt.quaternion(-b.scalar, -b.x, -b.y, -b.z); dot = -dot }
-                            if (dot > 0.9995) {
-                                var r = Qt.quaternion(a.scalar + t * (b.scalar - a.scalar),
-                                                      a.x     + t * (b.x     - a.x),
-                                                      a.y     + t * (b.y     - a.y),
-                                                      a.z     + t * (b.z     - a.z))
-                                var len = Math.sqrt(r.scalar*r.scalar + r.x*r.x + r.y*r.y + r.z*r.z)
-                                return Qt.quaternion(r.scalar/len, r.x/len, r.y/len, r.z/len)
-                            }
-                            var theta0    = Math.acos(dot)
-                            var sinTheta0 = Math.sin(theta0)
-                            var s0 = Math.sin((1 - t) * theta0) / sinTheta0
-                            var s1 = Math.sin(      t * theta0) / sinTheta0
-                            return Qt.quaternion(s0 * a.scalar + s1 * b.scalar,
-                                                 s0 * a.x     + s1 * b.x,
-                                                 s0 * a.y     + s1 * b.y,
-                                                 s0 * a.z     + s1 * b.z)
-                        }
-
-                        // Iterative slerp mean: slerp(acc, samples[i], 1/(i+1)) converges to
-                        // the uniform spherical mean when all samples cluster near each other.
-                        function _slerpAverage(samples) {
-                            if (samples.length === 0) return Qt.quaternion(1, 0, 0, 0)
-                            var acc = samples[0]
-                            for (var i = 1; i < samples.length; i++)
-                                acc = _quatSlerp(acc, samples[i], 1.0 / (i + 1))
-                            return acc
-                        }
-
-                        // Animation targets — driven imperatively by the phase timers below.
-                        property quaternion _leadArmTarget:  calibPanel.leadArmDownQuat
-                        property bool       _animateLeadArm: false
-                        // Set when arm-down is captured; prevents the phase-1 Connections
-                        // from re-triggering captureTransitionTimer during the raise animation.
-                        property bool _armDownCaptured: false
-                        // True only after phase1MinHoldTimer fires — gives the user a 2s settle
-                        // window after phase 1 begins before the stillness-gated capture starts.
-                        property bool _phase1MinHoldDone: false
-
-                        // Set when the lead IMU disconnects mid-calibration.
-                        property bool   calibrationFailed: false
-
-                        Connections {
-                            target:  calibPanel.leadImu
-                            enabled: calibPanel.calibPhase > 0 && !root.calibrationDone
-                            function onImuConnectedChanged() {
-                                var imu = calibPanel.leadImu
-                                if (imu && !imu.imuConnected)
-                                    calibPanel.calibrationFailed = true
-                            }
-                        }
-
-                        // Phase 2 hold timer.
-                        Timer {
-                            id: stabilityHoldTimer
-                            interval: 100
-                            repeat:   true
-                            running:  root.currentStep === root.stepCalibrate
-                                      && calibPanel.calibPhase === 2
-                                      && !root.calibrationDone
-                                      && !calibPanel.mountFailed
-                                      && calibPanel.leadImu !== null
-                            onTriggered: {
-                                var imu = calibPanel.leadImu
-                                if (!imu) return
-                                // Stillness-gated: only accumulate while the arm is held still;
-                                // motion resets the hold so the captured pose is genuinely static.
-                                if (imu.angularVelocityDps > calibPanel._stillThreshDps) {
-                                    calibPanel._phase2Samples = []
-                                    calibPanel.stableAccumMs  = 0
-                                    calibPanel.phaseProgress  = 0.0
-                                    return
-                                }
-                                calibPanel._phase2Samples = calibPanel._phase2Samples.concat(
-                                    [Qt.quaternion(imu.quatW, imu.quatX, imu.quatY, imu.quatZ)])
-                                calibPanel.stableAccumMs += interval
-                                calibPanel.phaseProgress = Math.min(calibPanel.stableAccumMs / calibPanel._captureHoldMs, 1.0)
-                                if (calibPanel.stableAccumMs >= calibPanel._captureHoldMs) {
-                                    root.calibArmTPoseQuat = calibPanel._slerpAverage(calibPanel._phase2Samples)
-
-                                    // Abduction refinement + mount validation for EVERY connected segment.
-                                    // Each sensor: refine its mounting about the long axis by φ (from the
-                                    // abducted-pose anatomical orientation), then evaluate the two-part gate
-                                    //   gravity check (gravΔ ≤ 25°, catches flip/upside-down) AND
-                                    //   long-axis deviation (φ/strapΔ ≤ 15°, catches strap rotation).
-                                    // PASS requires ALL connected segments to pass; any FAIL → re-seat.
-                                    var segs = calibPanel._connectedSegs()
-                                    var allPass = segs.length > 0
-                                    var failNames = []
-                                    var nameFor = function(inst) {
-                                        return inst === calibPanel.leadImu ? qsTr("forearm")
-                                             : inst === calibPanel.slotB    ? qsTr("hand")
-                                             : qsTr("upper arm")
-                                    }
-                                    for (var k = 0; k < segs.length; ++k) {
-                                        var s2 = segs[k][0], ref = segs[k][1]
-                                        if (!ref) continue
-                                        s2.refineMountAboutLongAxis(ref, calibPanel._phiFromAbduction(s2), false)
-                                        var ok = s2.mountDeviationDeg <= 15.0 && s2.mountGravityErrorDeg <= 25.0
-                                        if (!ok) { allPass = false; failNames.push(nameFor(s2)) }
-                                    }
-
-                                    if (allPass) {
-                                        calibPanel.mountFailed = false
-                                        calibPanel.mountFailMsg = ""
-                                        root.calibrationDone = true
-                                    } else {
-                                        calibPanel.mountFailed = true
-                                        calibPanel.mountFailMsg = qsTr("Sensor mounted incorrectly (%1) — re-seat per the strap guide and tap Recalibrate.")
-                                            .arg(failNames.join(", "))
-                                        // Leave calibrationDone false; user must Recalibrate.
-                                    }
-                                }
-                            }
-                        }
-
-                        // Phase 0: 3s after page load, play 3s rest→T-pose animation.
-                        // Guard on the Calibrate step: calibPanel lives in a StackLayout so it
-                        // is instantiated at app startup — without this guard the intro fires
-                        // immediately and the entire capture chain runs in the background.
-                        Timer {
-                            id: introStartTimer
-                            interval: 3000
-                            repeat:   false
-                            running:  calibPanel.calibPhase === 0 && root.currentStep === root.stepCalibrate
-                            onTriggered: {
-                                calibBvv.resetArmAnimation(calibPanel.leadArmDownQuat)
-                                calibBvv.leadArmAnimDuration = 3000
-                                calibPanel._animateLeadArm   = true
-                                calibPanel._leadArmTarget    = calibPanel.tPoseQuat
-                                introDoneTimer.start()   // wait for up-animation
-                            }
-                        }
-
-                        // Up-animation done: lower arm back to rest at the same speed.
-                        Timer {
-                            id: introDoneTimer
-                            interval: 3000
-                            repeat:   false
-                            onTriggered: {
-                                // _leadArmFrom is still leadArmDownQuat from resetArmAnimation —
-                                // reset it to tPoseQuat so the return animation starts from the top.
-                                calibBvv.resetArmAnimation(calibPanel.tPoseQuat)
-                                calibBvv.leadArmAnimDuration = 3000
-                                calibPanel._leadArmTarget    = calibPanel.leadArmDownQuat
-                                introReadyTimer.start()   // 3s anim + 2s pause
-                            }
-                        }
-
-                        // Return animation + 2s pause complete: start phase 1.
-                        Timer {
-                            id: introReadyTimer
-                            interval: 5000   // 3000ms return anim + 2000ms pause
-                            repeat:   false
-                            onTriggered: {
-                                calibPanel._animateLeadArm    = false
-                                calibPanel._phase1MinHoldDone = false
-                                calibPanel.calibPhase         = 1
-                                phase1MinHoldTimer.start()
-                                // No hardware zeroing — orientation comes from our own Madgwick
-                                // fusion (device angle-zeroing is vestigial); the arm-down pose is
-                                // captured directly by phase1HoldTimer once the IMU is stable.
-                            }
-                        }
-
-                        // Phase 1 accumulator — same stillness-gated pattern as stabilityHoldTimer
-                        // (phase 2). The timer runs for the whole phase; each tick decides whether
-                        // to accumulate (arm held still) or reset the hold (arm moving), watching
-                        // imu.angularVelocityDps. _armDownCaptured gates it off once captured so it
-                        // can't re-trigger during the raise animation. _phase1MinHoldDone (set 2s
-                        // after phase 1 begins via phase1MinHoldTimer) gives the user a settle
-                        // window before the still-watch starts.
-                        property real phase1AccumMs: 0.0
-
-                        Timer {
-                            id: phase1MinHoldTimer
-                            interval: 2000
-                            repeat:   false
-                            onTriggered: calibPanel._phase1MinHoldDone = true
-                            // No capture here — phase1HoldTimer handles it reactively.
-                        }
-
-                        Timer {
-                            id: phase1HoldTimer
-                            interval: 100
-                            repeat:   true
-                            running:  root.currentStep === root.stepCalibrate
-                                      && calibPanel.calibPhase === 1
-                                      && calibPanel._phase1MinHoldDone
-                                      && !calibPanel._armDownCaptured
-                                      && calibPanel.leadImu !== null
-                            onTriggered: {
-                                var imu = calibPanel.leadImu
-                                if (!imu) return
-                                // Stillness-gated: only accumulate while the arm is held still;
-                                // motion resets the hold so the captured pose is genuinely static.
-                                if (imu.angularVelocityDps > calibPanel._stillThreshDps) {
-                                    calibPanel._phase1Samples = []
-                                    calibPanel.phase1AccumMs  = 0
-                                    return
-                                }
-                                calibPanel._phase1Samples = calibPanel._phase1Samples.concat(
-                                    [Qt.quaternion(imu.quatW, imu.quatX, imu.quatY, imu.quatZ)])
-                                calibPanel.phase1AccumMs += interval
-                                if (calibPanel.phase1AccumMs >= calibPanel._captureHoldMs) {
-                                    root.calibArmDownQuat = calibPanel._slerpAverage(calibPanel._phase1Samples)
-                                    // Quick-calibrate EVERY connected segment at arm-down: sets A so
-                                    // anatQuat=identity here, with the fixed nominal mounting M, and runs
-                                    // the gravity (flip) check. Each sensor's arm-down reference is stored
-                                    // for the phase-2 abduction refinement. All segments share the strap
-                                    // convention → handMount=false for all.
-                                    calibPanel._refA = calibPanel._curQuat(calibPanel.leadImu)
-                                    calibPanel._refB = calibPanel._curQuat(calibPanel.slotB)
-                                    calibPanel._refC = calibPanel._curQuat(calibPanel.slotC)
-                                    if (calibPanel.leadImu && calibPanel.leadImu.imuConnected)
-                                        calibPanel.leadImu.setNominalCalibration(calibPanel._refA, false)
-                                    if (calibPanel.slotB && calibPanel.slotB.imuConnected)
-                                        calibPanel.slotB.setNominalCalibration(calibPanel._refB, false)
-                                    if (calibPanel.slotC && calibPanel.slotC.imuConnected)
-                                        calibPanel.slotC.setNominalCalibration(calibPanel._refC, false)
-                                    calibPanel._armDownCaptured = true  // stops timer via binding; must be after quat capture
-                                    captureTransitionTimer.start()
-                                }
-                            }
-                        }
-
-                        // Phase 1 → raise: brief pause after arm-down captured, then play
-                        // the raise guide animation before starting T-pose capture.
-                        Timer {
-                            id: captureTransitionTimer
-                            interval: 800
-                            repeat:   false
-                            onTriggered: {
-                                calibBvv.resetArmAnimation(calibPanel.leadArmDownQuat)
-                                calibBvv.leadArmAnimDuration = 1500
-                                calibPanel._animateLeadArm   = true
-                                calibPanel._leadArmTarget    = calibPanel.tPoseQuat
-                                raiseReadyTimer.start()
-                            }
-                        }
-
-                        // Raise animation (1.5s) + 2s pause, then start T-pose capture.
-                        Timer {
-                            id: raiseReadyTimer
-                            interval: 3500   // 1500ms raise anim + 2000ms pause
-                            repeat:   false
-                            onTriggered: {
-                                calibPanel._animateLeadArm = false
-                                calibPanel.calibPhase      = 2
-                            }
-                        }
-
-                        RowLayout {
-                            anchors.fill:    parent
-                            anchors.margins: Theme.sp(8)
-                            spacing:         Theme.sp(12)
-
-                            // ── Left: full body 3D view ────────────────────────
-                            BodyVizView {
-                                id: calibBvv
-                                Layout.fillHeight:   true
-                                Layout.fillWidth:    true
-                                Layout.minimumWidth: Theme.sp(200)
-
-                                poseSource:       null   // no camera input during calibration
-                                rightHanded:      calibPanel.rightHanded
-                                highlightLeadArm: true
-                                leadArmColor:     Theme.colorAccent
-
-                                useLeadArmOverride:          true
-                                leadArmOverrideRotation:     calibPanel._leadArmTarget
-                                leadForeArmOverrideRotation: Qt.quaternion(1, 0, 0, 0)
-
-                                useTrailArmOverride:          true
-                                trailArmOverrideRotation:     calibPanel.trailArmDownQuat
-                                trailForeArmOverrideRotation: Qt.quaternion(1, 0, 0, 0)
-
-                                animateLeadArm: calibPanel._animateLeadArm
-                            }
-
-                            // ── Right: status column ───────────────────────────
-                            Column {
-                                Layout.preferredWidth: Theme.sp(180)
-                                Layout.fillHeight:     true
-                                spacing:               Theme.sp(16)
-                                Layout.topMargin:      Theme.sp(32)
-
-                                Text {
-                                    width:              parent.width
-                                    text:               qsTr("STEP 4 OF %1 · CALIBRATE").arg(root.totalSteps)
-                                    font.family:        Theme.fontData
-                                    font.pixelSize:     Theme.fontSzMicro
-                                    font.letterSpacing: Theme.trackingMicro
-                                    color:              Theme.colorText3
-                                }
-
-                                Text {
-                                    width:          parent.width
-                                    text:           qsTr("Calibrate Sensors")
-                                    font.family:    Theme.fontDisplay
-                                    font.italic:    Theme.fontDisplayItalic
-                                    font.weight: Theme.fontDisplayWeight
-                                    font.pixelSize: Math.min(Theme.sp(18), Theme.fontSzDisplay)
-                                    color:          Theme.colorText
-                                    wrapMode:       Text.WordWrap
-                                }
-
-                                // Calibration status badge
-                                // Priority (highest first): Complete > Calibrating > Failed > Pending
-                                Rectangle {
-                                    readonly property bool _complete:    root.calibrationDone
-                                    // Active during capture phases (arm-down + T-pose)
-                                    readonly property bool _calibrating: calibPanel.calibPhase >= 1
-                                                                         && !root.calibrationDone
-                                    readonly property bool _failed:      (calibPanel.calibrationFailed || calibPanel.mountFailed) && !root.calibrationDone
-
-                                    width:  statusBadgeLbl.implicitWidth + Theme.sp(16)
-                                    height: Theme.sp(22)
-                                    radius: Theme.sp(11)
-                                    color: _complete    ? Theme.colorGoodLight
-                                         : _calibrating ? Theme.colorAccentLight
-                                         : _failed      ? Theme.colorErrorLight
-                                         :                Theme.colorBg3
-                                    border.color: _complete    ? Theme.colorGood
-                                                : _calibrating ? Theme.colorAccent
-                                                : _failed      ? Theme.colorError
-                                                :                Theme.colorBorderMid
-
-                                    Text {
-                                        id: statusBadgeLbl
-                                        anchors.centerIn: parent
-                                        text: parent._complete    ? qsTr("Complete")
-                                            : parent._calibrating ? qsTr("Calibrating")
-                                            : parent._failed      ? qsTr("Failed")
-                                            :                       qsTr("Pending")
-                                        font.family:    Theme.fontData
-                                        font.pixelSize: Theme.fontSzMicro
-                                        color: parent._complete    ? Theme.colorGood
-                                             : parent._calibrating ? Theme.colorAccent
-                                             : parent._failed      ? Theme.colorError
-                                             :                       Theme.colorText3
-                                    }
-                                }
-
-                                // Phase instruction
-                                Text {
-                                    width:      parent.width
-                                    wrapMode:   Text.WordWrap
-                                    lineHeight: 1.5
-                                    font.family:    Theme.fontBody
-                                    font.pixelSize: Theme.fontSzBody2
-                                    color:          Theme.colorText2
-                                    text: {
-                                        if (calibPanel.calibPhase === 0)
-                                            return qsTr("Watch the guide — this shows the T-pose position you'll hold next.")
-                                        if (calibPanel.calibPhase === 1) {
-                                            if (calibPanel._armDownCaptured)
-                                                return qsTr("Follow the guide and raise your arm out to shoulder height.")
-                                            return qsTr("Let your lead arm hang relaxed at your side and hold still.")
-                                        }
-                                        return qsTr("Hold your arm at shoulder height and keep it still — the bar fills while you hold steady.")
-                                    }
-                                }
-
-                                // Stability progress bar
-                                Item {
-                                    width:  parent.width
-                                    height: Theme.sp(32)
-
-                                    Rectangle {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        width:  parent.width
-                                        height: Theme.sp(4)
-                                        radius: Theme.sp(2)
-                                        color:  Theme.colorBg3
-
-                                        Rectangle {
-                                            id: progressFill
-                                            readonly property real fillFraction: {
-                                                if (root.calibrationDone)         return 1.0
-                                                if (calibPanel.calibPhase === 2)  return calibPanel.phaseProgress
-                                                if (calibPanel.calibPhase === 1 && !calibPanel._armDownCaptured)
-                                                    return Math.min(calibPanel.phase1AccumMs / calibPanel._captureHoldMs, 1.0)
-                                                return 0.0
-                                            }
-                                            width:  parent.width * fillFraction
-                                            height: parent.height
-                                            radius: parent.radius
-                                            color:  root.calibrationDone ? Theme.colorGood : Theme.colorAccent
-                                            Behavior on width { NumberAnimation { duration: 150 } }
-                                        }
-                                    }
-                                }
-
-                                // Status label (checkmark circle + text)
-                                Row {
-                                    width:   parent.width
-                                    spacing: Theme.sp(6)
-
-                                    Rectangle {
-                                        visible:              root.calibrationDone
-                                        width:                Theme.sp(16)
-                                        height:               Theme.sp(16)
-                                        radius:               width / 2
-                                        color:                "transparent"
-                                        border.color:         Theme.colorGood
-                                        border.width:         Theme.sp(1.5)
-                                        y:                    (statusLbl.implicitHeight - height) / 2
-
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text:             "✓"
-                                            color:            Theme.colorGood
-                                            font.pixelSize:   Theme.sp(9)
-                                            font.bold:        true
-                                        }
-                                    }
-
-                                    Text {
-                                        id: statusLbl
-                                        readonly property bool _capturing:
-                                            (calibPanel.calibPhase === 1 && calibPanel.phase1AccumMs > 0 && !calibPanel._armDownCaptured)
-                                            || calibPanel.calibPhase === 2
-
-                                        width:              parent.width - (root.calibrationDone ? Theme.sp(22) : 0)
-                                        wrapMode:           Text.WordWrap
-                                        font.family:        Theme.fontData
-                                        font.pixelSize:     _capturing ? Theme.fontSzHeading : Theme.fontSzMicro
-                                        font.bold:          _capturing
-                                        font.letterSpacing: Theme.trackingData
-                                        color: root.calibrationDone ? Theme.colorGood
-                                             : _capturing            ? Theme.colorAccent
-                                             :                         Theme.colorText3
-                                        text: {
-                                            if (root.calibrationDone)        return qsTr("CALIBRATION COMPLETE")
-                                            if (calibPanel.calibPhase === 0)     return qsTr("WATCH THE GUIDE")
-                                            if (calibPanel.calibPhase === 1) {
-                                                if (calibPanel._armDownCaptured) return qsTr("FOLLOW THE GUIDE")
-                                                var imu = calibPanel.leadImu
-                                                if (!imu || !imu.imuConnected)   return qsTr("WAITING FOR SENSOR")
-                                                if (calibPanel.phase1AccumMs > 0) return qsTr("HOLD STILL — CAPTURING")
-                                                return qsTr("HOLD STILL")
-                                            }
-                                            return qsTr("HOLD STILL — CAPTURING")
-                                        }
-                                        Behavior on font.pixelSize { NumberAnimation { duration: Theme.durationNormal } }
-                                        Behavior on color           { ColorAnimation  { duration: Theme.durationNormal } }
-                                    }
-                                }
-
-                                // Calibration angle warning — shown when arm-down→T-pose
-                                // angle was outside the expected ~90° range
-                                Text {
-                                    readonly property bool _show: {
-                                        var imu = calibPanel.leadImu
-                                        return root.calibrationDone
-                                            && imu !== null
-                                            && imu.calibrated
-                                            && !imu.calibrationAngleValid
-                                    }
-                                    visible:    _show
-                                    width:      parent.width
-                                    wrapMode:   Text.WordWrap
-                                    lineHeight: 1.5
-                                    font.family:    Theme.fontBody
-                                    font.pixelSize: Theme.fontSzMicro
-                                    color:          Theme.colorWarn
-                                    text:           qsTr("The arm positions didn't look quite right — the angle between arm-down and T-pose was much less than expected. For best results, make sure your arm is fully raised to shoulder height during the T-pose step, then tap Recalibrate.")
-                                }
-
-                                // No-IMU warning
-                                Text {
-                                    width:      parent.width
-                                    visible:    calibPanel.leadImu === null
-                                    wrapMode:   Text.WordWrap
-                                    font.family:    Theme.fontBody
-                                    font.pixelSize: Theme.fontSzMicro
-                                    color:          Theme.colorWarn
-                                    text:           qsTr("No wrist sensor assigned to slot A. Return to the IMUs step to assign one.")
-                                }
-
-                                // Mount-validation failure — a sensor is mounted wrong (flip / bad seat).
-                                Text {
-                                    width:      parent.width
-                                    visible:    calibPanel.mountFailed && !root.calibrationDone
-                                    wrapMode:   Text.WordWrap
-                                    lineHeight: 1.5
-                                    font.family:    Theme.fontBody
-                                    font.pixelSize: Theme.fontSzMicro
-                                    color:          Theme.colorError
-                                    text:           calibPanel.mountFailMsg
-                                }
-
-                                // Recalibrate button — hidden while still in the initial Pending state
-                                PpButton {
-                                    visible: calibPanel.calibPhase > 0
-                                             || root.calibrationDone
-                                             || calibPanel.calibrationFailed
-                                             || calibPanel.mountFailed
-                                    label:   qsTr("↺  Recalibrate")
-                                    primary: false
-                                    onClicked: root._resetCalibration()
-                                }
-                            }
+                        ImuCalibrationFlow {
+                            id: calibFlow
+                            anchors.fill: parent
+                            layoutMode:   "full"
+                            showHeader:   true
+                            stepLabel:    qsTr("STEP 4 OF %1 · CALIBRATE").arg(root.totalSteps)
+                            // The wizard advances via the footer; nothing required here.
+                            onCompleted: {}
                         }
                     }
 
@@ -2156,7 +1493,7 @@ Item {
                                 : root.imusOk
                                     ? qsTr("All required sensors assigned — tap Connect to pair them")
                                     : qsTr("Some sensors not assigned — or skip to start without motion data")
-                            if (s === root.stepCalibrate) return root.calibrationDone
+                            if (s === root.stepCalibrate) return calibFlow.calibrationDone
                                 ? qsTr("Calibration complete")
                                 : qsTr("Follow the guide to calibrate your sensors — or skip to continue without calibration")
                             return ""
@@ -2168,7 +1505,7 @@ Item {
                             var s = root.currentStep
                             if (s === root.stepCameras) return (root.camsOk || root.curType.optionalCamera) ? Theme.colorGood : Theme.colorWarn
                             if (s === root.stepImus)    return root.imusAllConnected ? Theme.colorGood : Theme.colorWarn
-                            if (s === root.stepCalibrate) return root.calibrationDone ? Theme.colorGood : Theme.colorWarn
+                            if (s === root.stepCalibrate) return calibFlow.calibrationDone ? Theme.colorGood : Theme.colorWarn
                             return Theme.colorText3
                         }
                         elide: Text.ElideRight
@@ -2195,7 +1532,7 @@ Item {
                     PpButton {
                         visible: (root.currentStep === root.stepCameras && !root.camsOk && !root.curType.optionalCamera)
                                  || (root.currentStep === root.stepImus && !root.imusAllConnected)
-                                 || (root.currentStep === root.stepCalibrate && !root.calibrationDone)
+                                 || (root.currentStep === root.stepCalibrate && !calibFlow.calibrationDone)
                         label:   qsTr("Skip →")
                         primary: false
                         onClicked: {
@@ -2235,7 +1572,7 @@ Item {
                         // Uses primaryArea.pressed for press feedback — imperative opacity
                         // assignments would destroy this binding on first press.
                         opacity: {
-                            var blocked = (root.currentStep === root.stepCalibrate && !root.calibrationDone)
+                            var blocked = (root.currentStep === root.stepCalibrate && !calibFlow.calibrationDone)
                                        || (primaryBtn.imuConnectMode && !imusCol.canConnect && !imusCol._connecting)
                             if (blocked) return 0.4
                             return primaryArea.pressed ? 0.8 : 1.0
@@ -2266,7 +1603,7 @@ Item {
                                     return
                                 }
                                 if (root.currentStep < root.lastStep) {
-                                    if (root.currentStep === root.stepCalibrate && !root.calibrationDone)  return
+                                    if (root.currentStep === root.stepCalibrate && !calibFlow.calibrationDone)  return
                                     var arr = root.stepStates.slice()
                                     arr[root.currentStep] = "done"
                                     root.stepStates = arr

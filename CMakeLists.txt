@@ -131,6 +131,7 @@ qt_add_executable(PinPointStudio
     src/Gui/navigation_controller.h    src/Gui/navigation_controller.cpp
     src/Gui/resource_monitor_controller.h src/Gui/resource_monitor_controller.cpp
     src/Gui/arm_bone_controller.h      src/Gui/arm_bone_controller.cpp
+    src/Gui/session_controller.h       src/Gui/session_controller.cpp
     src/IMU/imu_base.h        src/IMU/imu_base.cpp
     src/IMU/imu_capabilities.h
     src/IMU/iorientation_filter.h
@@ -227,6 +228,13 @@ qt_add_qml_module(PinPointStudio
         src/Gui/HmTypeCard.qml
         src/Gui/ScreenSessionWizard.qml
         src/Gui/CoachPage.qml
+        src/Gui/PpSessionToolbar.qml
+        src/Gui/PpCameraPanel.qml
+        src/Gui/PpImuPanel.qml
+        src/Gui/ScreenWrist.qml
+        src/Gui/ScreenSessionMode.qml
+        src/Gui/ImuCalibrationFlow.qml
+        src/Gui/CameraCalibrationFlow.qml
     SOURCES
         src/Audio/ting_player.h
         src/Audio/ting_player.cpp

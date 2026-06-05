@@ -25,6 +25,10 @@ Rectangle {
     property string label:       ""
     property bool   primary:     false
     property bool   destructive: false
+    // Bold amber call-to-action fill (the Theme.colorAttention framing). Filled,
+    // like `primary`, but in the attention hue — used for the main action the user
+    // should take next (e.g. Cancel during in-panel calibration).
+    property bool   attention:   false
 
     signal clicked()
 
@@ -33,8 +37,10 @@ Rectangle {
     radius:         Theme.radius
     opacity:        root.enabled ? 1.0 : 0.4
 
-    color:        primary ? Theme.colorAccent : (destructive ? Theme.colorWarnLight : "transparent")
-    border.width: primary ? 0 : 1
+    color:        primary    ? Theme.colorAccent
+                : attention   ? Theme.colorAttention
+                : (destructive ? Theme.colorWarnLight : "transparent")
+    border.width: (primary || attention) ? 0 : 1
     border.color: destructive ? Theme.colorWarn : Theme.colorBorderStrong
 
     Text {
@@ -43,7 +49,7 @@ Rectangle {
         text:           root.label
         font.family:    Theme.fontBody
         font.pixelSize: Theme.fontSzBody
-        color:          primary
+        color:          (primary || attention)
                             ? (Theme.dark ? Theme.colorBg : "#FFFFFF")
                             : (destructive ? Theme.colorWarn : Theme.colorText)
     }

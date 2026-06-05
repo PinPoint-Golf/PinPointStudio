@@ -193,6 +193,23 @@ QtObject {
         return dark ? "#14ff5555" : "#0fcc2000"
     }
 
+    // Attention (call-to-action framing — draws the eye to a row/control that
+    // needs the user to act, e.g. an uncalibrated sensor). Distinct from colorWarn
+    // (orange-red caution) and colorError (red failure): this is a confident amber
+    // "do this next" frame. Strong variant = border/text, Light variant = fill.
+    readonly property color colorAttention: {
+        if (aesthetic === "instrument") return dark ? "#E8B54A" : "#9A6B12"
+        if (aesthetic === "editorial")  return dark ? "#E6C25A" : "#8A6A14"
+        if (aesthetic === "vector")     return dark ? "#FFD60A" : "#B58900"
+        return dark ? "#F5C451" : "#9C6F12"
+    }
+    readonly property color colorAttentionLight: {
+        if (aesthetic === "instrument") return dark ? "#17e8b54a" : "#149a6b12"
+        if (aesthetic === "editorial")  return dark ? "#12e6c25a" : "#0f8a6a14"
+        if (aesthetic === "vector")     return dark ? "#14ffd60a" : "#0fb58900"
+        return dark ? "#14f5c451" : "#0f9c6f12"
+    }
+
     // IMU device-identity colours — A/B/C/D. Fixed hues (red / yellow / green /
     // blue) so a given sensor's colour is consistent across all aesthetics; only
     // brightness shifts for dark vs light backgrounds. Used by the 3D orientation
