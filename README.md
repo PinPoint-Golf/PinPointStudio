@@ -42,6 +42,8 @@ The interface uses a left-side navigation rail with an athlete avatar at the top
 
 Wrist, GRF, and Coach redirect to the Welcome screen until at least one athlete has been created.
 
+All four mode screens (Swing, Wrist, GRF, Coach) carry a persistent **session toolbar** — clock, Capture control, and Cameras/IMUs device pills with in-panel device management and calibration. See [Session toolbar](#session-toolbar).
+
 Three utility buttons sit at the bottom of the rail:
 
 | Button | Description |
@@ -90,6 +92,18 @@ A five-step guided flow that prepares a session before recording begins. Steps a
 | 4 | **Ready** | Confirm the session summary; Start begins capture |
 
 Pressing Back from any step returns to the previous one. Navigating back to the Calibration step retains a completed calibration for the life of the current `ImuInstance`; starting a new wizard session with the same connected device also restores it. The **Recalibrate** button is always available to restart the sequence.
+
+### Session toolbar
+
+A persistent toolbar pinned to the top of every mode screen (Swing, Wrist, GRF, Coach), built as a single reusable component shared across all four. It carries the session clock, one global capture control, and two device pills.
+
+- **Capture** — anchored at the far left with the session clock alongside it. Toggles the EventBuffer capture gate (`pauseBuffer` / `resumeBuffer`) and starts the session clock on first capture.
+- **Device pills** — Cameras and IMUs, each with a connected-count badge and aggregate state. A pill turns amber and reads **"calibrate"** when a connected device still needs calibration, and stays that way until calibration succeeds.
+- **Drop-down panels** — Tapping a pill opens a panel beneath it with a scoped action row (**Scan / Connect / Calibrate**) and a per-device list. Opening one panel closes the other; click-away or Esc dismisses.
+  - **Per-device enable toggles** — Session-local enable/disable per camera and IMU, seeded from the Settings-level exclusion list but never written back (global enablement stays owned by the Settings screen). Connect connects every enabled, not-yet-connected device; disabling a connected device disconnects it.
+  - **IMU rows** — Live connection-state LED (grey idle · flashing grey/green connecting · green connected · red failed), battery and data-rate, and the configured body placement.
+  - **Camera rows** — Live preview thumbnail when connected, plus perspective, serial, and interface.
+- **In-panel calibration** — The Calibrate action runs the calibration flow *inside* the panel; it never opens the full-screen wizard or leaves the mode screen. The IMU flow is the exact same state machine as the session wizard's Calibration step — extracted into a shared `ImuCalibrationFlow` component rendered compactly — so calibration is single-sourced. The Calibrate action and pill stay framed in call-to-action amber until calibration is *successful* (mount validation passes). Camera (stereo) calibration is a placeholder pending the calibration pipeline.
 
 ### Athlete management
 
@@ -314,7 +328,7 @@ The app forces `QSettings::IniFormat` (see `src/Core/pp_settings.h`), so on Wind
 | `camera/roi` | _(empty map)_ | ✅ | Per-camera ROI; key → normalised `{x, y, w, h}` rect |
 | `camera/perspective` | _(empty map)_ | ✅ | Per-camera view assignment; key → `0` (unassigned), `1` (down-the-line), `2` (face-on), `3` (other) |
 | `camera/isMirrored` | _(empty map)_ | ✅ | Per-camera mirror flag; key → `true` when the camera delivers a horizontally mirrored image (typical webcam); absent for non-mirrored industrial cameras. Controls x-axis convention in `BodyPoseAdapter`. |
-| `camera/fixedInPlace` | _(empty map)_ | 📋 | Per-camera wall-mount flag; read by session wizard but not yet by capture |
+| `camera/fixedInPlace` | _(empty map)_ | ✅ | Per-camera wall-mount flag; a non-fixed connected camera drives the session toolbar's "calibrate" attention. Read by the session wizard and toolbar; not yet by capture |
 | `camera/preroll` | `1.0` | 📋 | Pre-roll buffer in seconds (0.5 / 1.0 / 2.0); ring buffer still sized at fixed 5 s |
 | `camera/syncEnabled` | `true` | 📋 | Lock frame timing across all enabled cameras |
 
