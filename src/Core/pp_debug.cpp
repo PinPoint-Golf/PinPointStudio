@@ -26,7 +26,9 @@
 #include <dlfcn.h>
 #endif
 
+#include <QMediaPlayer>
 #include <QMessageLogContext>
+#include <cstdarg>
 #include <cstdio>
 
 // ── PpLogStream ───────────────────────────────────────────────────────────────
@@ -98,6 +100,77 @@ static void ppMessageHandler(QtMsgType type, const QMessageLogContext &ctx, cons
 
 static void silentLogCallback(ggml_log_level, const char *, void *) {}
 
+#ifdef PP_HAS_DLSYM
+// ── FFmpeg av_log capture ─────────────────────────────────────────────────────
+// Routes libavutil log output (e.g. the "Input #0, mov,mp4,..." stream dumps
+// printed when Qt Multimedia opens a media file) into PpMessageLog instead of
+// stderr.  Numeric constants mirror libavutil/log.h — no header dependency.
+
+static constexpr int kAvLogError   = 16;
+static constexpr int kAvLogWarning = 24;
+static constexpr int kAvLogInfo    = 32;
+
+static void ffmpegLogCallback(void *, int level, const char *fmt, va_list vl)
+{
+    // Custom callbacks receive every message regardless of av_log_set_level —
+    // filter here.  Drop verbose/debug/trace.
+    if (level > kAvLogInfo)
+        return;
+
+    char chunk[1024];
+    vsnprintf(chunk, sizeof chunk, fmt, vl);
+
+    // av_log emits partial lines (the stream dump is built from many calls) —
+    // accumulate per thread and flush one PpMessageLog entry per full line.
+    thread_local QString pending;
+    pending += QString::fromUtf8(chunk);
+
+    qsizetype nl;
+    while ((nl = pending.indexOf(QLatin1Char('\n'))) >= 0) {
+        const QString line = pending.first(nl).trimmed();
+        pending.remove(0, nl + 1);
+        if (line.isEmpty())
+            continue;
+
+        QtMsgType type = QtInfoMsg;
+        if      (level <= kAvLogError)   type = QtCriticalMsg;
+        else if (level <= kAvLogWarning) type = QtWarningMsg;
+        PpMessageLog::instance()->append(type, QStringLiteral("[FFmpeg] ") + line);
+    }
+}
+
+// Install ffmpegLogCallback on every loaded libavutil instance.  TWO instances
+// coexist: the app binary links the system copy (.so.60, via the swing-export
+// encoder) which is loaded before main(), while Qt Multimedia's FFmpeg plugin
+// links the Qt-bundled copy (.so.59).  The callback pointer lives in static
+// storage inside each instance, so both must be set — do not stop at the
+// first one found.
+static void installAvLogCallbackOnAllInstances()
+{
+    using SetCb = void(*)(void(*)(void *, int, const char *, va_list));
+    static const char * const kLibs[] = {
+        "libavutil.so.59",      // Qt 6.7–6.11
+        "libavutil.so.58",      // Qt 6.4–6.6
+        "libavutil.so.60",      // system
+        "libavutil.so",
+        "libavutil.59.dylib",   // macOS Qt bundle
+        "libavutil.58.dylib",
+        "libavutil.dylib",
+        nullptr
+    };
+
+    for (int i = 0; kLibs[i]; ++i) {
+        // Only instances that are already loaded — RTLD_NOLOAD never loads.
+        void *h = dlopen(kLibs[i], RTLD_LAZY | RTLD_NOLOAD);
+        if (!h)
+            continue;
+        if (auto fn = reinterpret_cast<SetCb>(dlsym(h, "av_log_set_callback")))
+            fn(&ffmpegLogCallback);
+        dlclose(h);   // balance the RTLD_NOLOAD refcount; instance stays loaded
+    }
+}
+#endif
+
 void PinPointDebug::install()
 {
     qInstallMessageHandler(ppMessageHandler);
@@ -105,47 +178,26 @@ void PinPointDebug::install()
     whisper_log_set(silentLogCallback, nullptr);
     ggml_log_set(silentLogCallback, nullptr);
 
-    // Suppress FFmpeg's av_log output (Qt Multimedia's bundled FFmpeg prints
-    // "Input #0, mov,mp4,..." at AV_LOG_INFO when opening media files).
-    //
-    // Qt bundles its own libavutil (e.g. .so.59) — separate instance from the
-    // system package (.so.60), so dlsym(RTLD_DEFAULT,...) hits the wrong one.
-    // Strategy: explicitly dlopen the versioned SONAME.  The binary RUNPATH
-    // includes Qt's lib dir, so the correct file is found.  The dynamic
-    // linker's load cache means the FFmpeg media plugin (loaded lazily later)
-    // reuses this same instance and inherits the log level we set here.
-    // AV_LOG_WARNING = 24  (numeric constant — no header dependency needed).
-#if defined(PP_HAS_DLSYM) && PINPOINT_DEBUG_LEVEL < 3
-    {
-        using Fn = void(*)(int);
-        static const char * const kLibs[] = {
-            "libavutil.so.59",   // Qt 6.7–6.11
-            "libavutil.so.58",   // Qt 6.4–6.6
-            "libavutil.so.60",   // system (fallback)
-            "libavutil.so",
-            nullptr
-        };
+    // Capture FFmpeg's av_log output into PpMessageLog.  This early pass only
+    // reaches instances already loaded before main() (the system libavutil
+    // linked by the swing-export encoder).  The Qt-bundled instance is handled
+    // by installFfmpegLogCapture() once QGuiApplication exists.
+#ifdef PP_HAS_DLSYM
+    installAvLogCallbackOnAllInstances();
+#endif
+}
 
-        bool done = false;
+void PinPointDebug::installFfmpegLogCapture()
+{
+#ifdef PP_HAS_DLSYM
+    // Force the Qt Multimedia FFmpeg plugin to load NOW.  Its integration
+    // constructor (setupFFmpegLogger in qffmpegmediaintegration.cpp)
+    // unconditionally calls av_log_set_callback — without QT_FFMPEG_DEBUG set,
+    // its callback delegates to av_log_default_callback, i.e. raw stderr.
+    // Constructing a throwaway QMediaPlayer creates the integration
+    // deterministically; afterwards our capture callback wins the race.
+    { QMediaPlayer probe; }
 
-        for (int i = 0; !done && kLibs[i]; ++i) {
-            if (void *h = dlopen(kLibs[i], RTLD_LAZY | RTLD_NOLOAD)) {
-                if (auto fn = reinterpret_cast<Fn>(dlsym(h, "av_log_set_level")))
-                    fn(24);
-                dlclose(h);
-                done = true;
-            }
-        }
-
-        if (!done) {
-            for (int i = 0; !done && kLibs[i]; ++i) {
-                if (void *h = dlopen(kLibs[i], RTLD_LAZY)) {
-                    if (auto fn = reinterpret_cast<Fn>(dlsym(h, "av_log_set_level")))
-                        fn(24);
-                    done = true;
-                }
-            }
-        }
-    }
+    installAvLogCallbackOnAllInstances();
 #endif
 }

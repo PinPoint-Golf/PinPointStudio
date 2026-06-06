@@ -56,6 +56,11 @@ int main(int argc, char *argv[])
 #endif
     QGuiApplication app(argc, argv);
 
+    // Must run after the app object exists: loads the Qt Multimedia FFmpeg
+    // plugin (which clobbers any earlier av_log callback) and re-installs the
+    // FFmpeg → PpMessageLog capture on top of it.
+    PinPointDebug::installFfmpegLogCapture();
+
     // Load bundled fonts so Theme.qml family names resolve on all platforms.
     const QStringList fontResources = {
         ":/fonts/Georgia.ttf",

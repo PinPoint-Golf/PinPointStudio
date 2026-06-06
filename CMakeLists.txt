@@ -469,14 +469,14 @@ target_include_directories(PinPointStudio PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imu_ekf
 )
 
-# FFmpeg log suppression — pp_debug.cpp uses dlsym() at runtime to call
-# av_log_set_level() on Qt's bundled libavutil (not the system package).
-# No link against system libavutil needed; dlsym resolves the symbol from
-# Qt Multimedia's transitive dependency, which is loaded before main() runs.
+# FFmpeg log capture — pp_debug.cpp uses dlopen()/dlsym() at runtime to call
+# av_log_set_callback() on every loaded libavutil instance (Qt's bundled copy
+# and the system package), routing FFmpeg log lines into the in-app message
+# log.  No compile-time FFmpeg header/link dependency needed for this.
 if(UNIX)
     target_link_libraries(PinPointStudio PRIVATE dl)
     target_compile_definitions(PinPointStudio PRIVATE PP_HAS_DLSYM)
-    message(STATUS "FFmpeg log suppression: via dlsym (UNIX)")
+    message(STATUS "FFmpeg log capture: via dlsym (UNIX)")
 endif()
 
 # ── ONNX Runtime (auto-fetched prebuilt) ─────────────────────────────────────

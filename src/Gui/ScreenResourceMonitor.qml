@@ -432,8 +432,9 @@ Item {
                 width: parent.width - 40
                 spacing: 0
 
-                // Active severity filters — reassign (don't mutate) to trigger reactivity
-                property var    activeFilters: ({"INFO": true, "WARN": true, "ERROR": true, "FATAL": true})
+                // Active severity filters — reassign (don't mutate) to trigger reactivity.
+                // INFO starts off: FFmpeg capture makes it noisy; opt in via the chip.
+                property var    activeFilters: ({"INFO": false, "WARN": true, "ERROR": true, "FATAL": true})
                 property string textFilter:    ""
 
                 function toggleFilter(sev) {
