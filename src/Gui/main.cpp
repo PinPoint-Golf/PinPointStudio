@@ -42,6 +42,7 @@
 #include "arm_bone_controller.h"
 #include "llm_controller.h"
 #include "session_controller.h"
+#include "shot_list_model.h"
 
 int main(int argc, char *argv[])
 {
@@ -117,6 +118,7 @@ int main(int argc, char *argv[])
     cameraManager.setAthleteController(&athleteController);   // swing export metadata
     ArmBoneController         armBoneController;
     SessionController         sessionController;
+    ShotListModel             shotModel;
 
     // Voice input: completed STT transcription → coach chat (when voice input enabled).
     QObject::connect(&controller, &TranscriptionController::transcriptionReceived,
@@ -146,6 +148,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("resourceMonitor"),  &resourceMonitor);
     engine.rootContext()->setContextProperty(QStringLiteral("armBoneController"), &armBoneController);
     engine.rootContext()->setContextProperty(QStringLiteral("sessionController"), &sessionController);
+    engine.rootContext()->setContextProperty(QStringLiteral("shotModel"),         &shotModel);
 
     // Clean merger shutdown before Qt tears down its event loop.
     QObject::connect(&app, &QGuiApplication::aboutToQuit, [&eventBuffer]() {

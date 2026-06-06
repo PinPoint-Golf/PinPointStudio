@@ -331,8 +331,30 @@ QtObject {
         if (h > 0)   return Math.round(h) + " hcp"
         return "+" + Math.round(-h) + " hcp"
     }
+
+    // Shot-quality presentation helpers (PpQualityPill, PpShotFilter).
+    // Quartile → quality colour ramp (red → rust → amber → green).
+    function qualityColor(score) {
+        if (score < 25) return colorError
+        if (score < 50) return colorWarn
+        if (score < 75) return colorAttention
+        return colorGood
+    }
+    function qualityColorLight(score) {   // unselected filter-chip tint
+        if (score < 25) return colorErrorLight
+        if (score < 50) return colorWarnLight
+        if (score < 75) return colorAttentionLight
+        return colorGoodLight
+    }
+    // Band ranges for the filter chips, low→high.
+    readonly property var qualityBands: [
+        { lo: 0,  hi: 24,  label: "0–24"   },
+        { lo: 25, hi: 49,  label: "25–49"  },
+        { lo: 50, hi: 74,  label: "50–74"  },
+        { lo: 75, hi: 100, label: "75–100" }
+    ]
     readonly property int headerHeight:    40
-    readonly property int carouselHeight:  120
+    readonly property int carouselHeight:  sp(122)
     readonly property int statusBarHeight: 36
     readonly property int radius: {
         if (aesthetic === "instrument") return 6

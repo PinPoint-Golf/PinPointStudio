@@ -23,6 +23,8 @@ Rectangle {
     id: root
 
     property string label:       ""
+    // Optional leading glyph rendered in the symbol font (e.g. "▶" on Replay).
+    property string glyph:       ""
     property bool   primary:     false
     property bool   destructive: false
     // Bold amber call-to-action fill (the Theme.colorAttention framing). Filled,
@@ -32,7 +34,7 @@ Rectangle {
 
     signal clicked()
 
-    implicitWidth:  btnLabel.implicitWidth + Theme.sp(24)
+    implicitWidth:  btnContent.implicitWidth + Theme.sp(24)
     implicitHeight: Theme.sp(34)
     radius:         Theme.radius
     opacity:        root.enabled ? 1.0 : 0.4
@@ -43,15 +45,30 @@ Rectangle {
     border.width: (primary || attention) ? 0 : 1
     border.color: destructive ? Theme.colorWarn : Theme.colorBorderStrong
 
-    Text {
-        id: btnLabel
+    readonly property color contentColor: (primary || attention)
+                                              ? (Theme.dark ? Theme.colorBg : "#FFFFFF")
+                                              : (destructive ? Theme.colorWarn : Theme.colorText)
+
+    Row {
+        id: btnContent
         anchors.centerIn: parent
-        text:           root.label
-        font.family:    Theme.fontBody
-        font.pixelSize: Theme.fontSzBody
-        color:          (primary || attention)
-                            ? (Theme.dark ? Theme.colorBg : "#FFFFFF")
-                            : (destructive ? Theme.colorWarn : Theme.colorText)
+        spacing: Theme.sp(7)
+
+        Text {
+            visible:        root.glyph !== ""
+            anchors.verticalCenter: parent.verticalCenter
+            text:           root.glyph
+            font.family:    Theme.fontSymbol
+            font.pixelSize: Math.round(Theme.fontSzBody * Theme.symbolScale(root.glyph))
+            color:          root.contentColor
+        }
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text:           root.label
+            font.family:    Theme.fontBody
+            font.pixelSize: Theme.fontSzBody
+            color:          root.contentColor
+        }
     }
 
     MouseArea {

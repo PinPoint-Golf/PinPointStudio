@@ -41,5 +41,13 @@ Item {
             Layout.fillWidth: true; Layout.fillHeight: true
             ScreenPlaceholder { anchors.fill: parent; iconText: "⌖"; titleText: qsTr("Wrist") }
         }
+
+        // Session-shot carousel — keys mirror the Wrist goal vocabulary
+        // (goalDefsByType[1]); the stub model supplies placeholder values.
+        PpShotCarousel {
+            Layout.fillWidth: true
+            metricKeys: ["wristAngleTop", "impactConditions", "trailWristExtension", "transition"]
+            traceLabel: qsTr("LEAD-WRIST FLEXION · ADDRESS → IMPACT")
+        }
     }
 }
