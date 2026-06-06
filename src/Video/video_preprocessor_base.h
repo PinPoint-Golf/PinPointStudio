@@ -50,7 +50,7 @@ public slots:
 signals:
     // Rolling average preprocessing time in milliseconds, emitted each frame
     // once the measurement window is warm.  Crosses to the main thread via
-    // Qt::QueuedConnection — connect in VideoController.
+    // Qt::QueuedConnection — connect in CameraInstance.
     void preprocessStatsUpdated(double avgMs);
 
     // Rolling average camera arrival rate in fps, emitted each frame once

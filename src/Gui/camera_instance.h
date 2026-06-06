@@ -19,12 +19,15 @@
 #pragma once
 
 #include <QElapsedTimer>
+#include <QList>
 #include <QMutex>
 #include <QObject>
+#include <QPointer>
 #include <QRectF>
 #include <QTimer>
 #include <QVariantList>
 #include <QVideoFrame>
+#include <QVideoSink>
 #include <array>
 #include <atomic>
 #include <deque>
@@ -50,7 +53,7 @@ class BayerVideoItem;
 class FrameThrottle;
 #endif
 
-class VideoController : public QObject
+class CameraInstance : public QObject
 {
     Q_OBJECT
 
@@ -67,6 +70,11 @@ class VideoController : public QObject
     Q_PROPERTY(int moveNetModel READ moveNetModel NOTIFY moveNetModelChanged)
     Q_PROPERTY(bool moveNetThunderAvailable READ moveNetThunderAvailable CONSTANT)
     Q_PROPERTY(QVariantList poseKeypoints READ poseKeypoints NOTIFY poseKeypointsChanged)
+    // Per-method pipeline enables — each gates inference inside its consumer
+    // (estimatePose / detect early-out that still releases the FrameThrottle),
+    // so they can be configured independently per rail screen.
+    Q_PROPERTY(bool poseEnabled READ poseEnabled WRITE setPoseEnabled NOTIFY poseEnabledChanged)
+    Q_PROPERTY(bool ballEnabled READ ballEnabled WRITE setBallEnabled NOTIFY ballEnabledChanged)
     Q_PROPERTY(QString deviceDescription  READ deviceDescription  CONSTANT)
     Q_PROPERTY(QString deviceSerialNumber READ deviceSerialNumber CONSTANT)
     Q_PROPERTY(QString deviceAlias        READ deviceAlias        NOTIFY deviceAliasChanged)
@@ -89,15 +97,15 @@ class VideoController : public QObject
     Q_PROPERTY(bool   isReplaying       READ isReplaying         NOTIFY isReplayingChanged)
 
 public:
-    // Perspective values — matches the selector in CameraView.qml.
+    // Perspective values — matches the perspective badge in PpCameraFrame.qml.
     enum Perspective { None = 0, DownTheLine = 1, FaceOn = 2, Other = 3 };
 
-    explicit VideoController(QObject *parent = nullptr);
-    explicit VideoController(const Device &device,
+    explicit CameraInstance(QObject *parent = nullptr);
+    explicit CameraInstance(const Device &device,
                              pinpoint::EventBuffer *buffer = nullptr,
                              AppSettings *appSettings = nullptr,
                              QObject *parent = nullptr);
-    ~VideoController() override;
+    ~CameraInstance() override;
 
     bool   isRecording() const;
     bool   isAravis() const;
@@ -111,6 +119,10 @@ public:
     int     moveNetModel() const;
     bool    moveNetThunderAvailable() const;
     QVariantList poseKeypoints() const;
+    bool    poseEnabled() const;
+    void    setPoseEnabled(bool on);
+    bool    ballEnabled() const;
+    void    setBallEnabled(bool on);
     QString deviceDescription()   const;
     QString deviceSerialNumber()  const;
     QString deviceAlias()         const;
@@ -142,9 +154,17 @@ public:
     void setReplaying(bool replaying);
     void displayReplayFrame(const std::byte *data, size_t bytes, int w, int h, pinpoint::PixelFormat fmt);
 
-    Q_INVOKABLE void setVideoSink(QVideoSink *sink);
+    // View subscription — the instance is the video source and PUBLISHES every
+    // display/replay frame to all subscribed views. Any number of views may
+    // subscribe (QVideoFrame is implicitly shared, so fan-out is just a loop of
+    // handle assignments); destroyed sinks are dropped automatically (QPointer).
+    // Main-thread only (all publishing happens on the main-thread drain paths).
+    Q_INVOKABLE void addVideoSink(QVideoSink *sink);
+    Q_INVOKABLE void removeVideoSink(QVideoSink *sink);
+    Q_INVOKABLE void addBayerItem(QObject *item);
+    Q_INVOKABLE void removeBayerItem(QObject *item);
+
     Q_INVOKABLE void setSettingsSink(QVideoSink *sink);
-    Q_INVOKABLE void setBayerItem(QObject *item);
     Q_INVOKABLE void startRecording();
     Q_INVOKABLE void stopRecording();
     Q_INVOKABLE void startPreview();  // start camera without ring-buffer capture (settings preview)
@@ -171,6 +191,8 @@ signals:
     void poseBackendLabelChanged();
     void moveNetModelChanged();
     void poseKeypointsChanged();
+    void poseEnabledChanged();
+    void ballEnabledChanged();
     void perspectiveChanged();
     void isMirroredChanged();
     void roiChanged();
@@ -210,9 +232,15 @@ private:
 
     QThread               *m_captureThread   = nullptr;
     VideoInputBase        *m_videoInput       = nullptr;
-    QVideoSink            *m_videoSink         = nullptr;
+    // Subscribed views (publish/subscribe — see addVideoSink). QPointer so a
+    // view destroyed without unsubscribing is pruned on the next publish.
+    QList<QPointer<QVideoSink>>     m_videoSinks;
+    QList<QPointer<BayerVideoItem>> m_bayerItems;
     QVideoSink            *m_settingsSink      = nullptr;
-    BayerVideoItem        *m_bayerItem        = nullptr;
+    // Most recent frame delivered to the views — ground truth for
+    // updateBufferDescriptor() (the subscriber list may be empty, so the
+    // format can no longer be read back from "the" sink).
+    QVideoFrame            m_lastDeliveredFrame;
     bool                   m_recording        = false;
     bool                   m_previewing       = false;
     std::atomic<bool>      m_previewOnly{false}; // true = camera running but pipeline suppressed
@@ -278,6 +306,8 @@ private:
     QString            m_poseBackendLabel;
     int                m_moveNetModel       = 0;
     QVariantList       m_poseKeypoints;
+    bool               m_poseEnabled        = true;
+    bool               m_ballEnabled        = true;
     int                m_perspective        = 0;
     bool               m_isMirrored         = false;
     QRectF             m_roi;

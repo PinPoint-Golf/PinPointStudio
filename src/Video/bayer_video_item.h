@@ -28,12 +28,13 @@ class BayerVideoItemRenderer;
 // QQuickRhiItem that displays raw Bayer frames via a GPU bilinear demosaic shader.
 //
 // Usage from C++:
-//   controller->setBayerItem(bayerView);   // called once from QML
-//   controller calls updateFrame() on the main thread for each display-rate frame
+//   instance->addBayerItem(bayerView);   // view subscribes (see CameraInstance)
+//   the instance calls updateFrame() on the main thread for each display-rate frame
 //
 // Usage from QML:
 //   BayerVideoItem { id: bayerView; anchors.fill: parent }
-//   Component.onCompleted: controller.setBayerItem(bayerView)
+//   Component.onCompleted: instance.addBayerItem(bayerView)
+//   Component.onDestruction: instance.removeBayerItem(bayerView)
 
 class BayerVideoItem : public QQuickRhiItem
 {

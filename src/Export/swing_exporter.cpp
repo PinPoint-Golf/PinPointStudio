@@ -47,7 +47,7 @@ struct DemosaicPlan {
     const char* tag  = "none";  // recorded in swing.json processing.demosaic
 };
 
-// Mirrors the live-view mapping (video_controller.cpp PixelFormat->BayerPattern,
+// Mirrors the live-view mapping (camera_instance.cpp PixelFormat->BayerPattern,
 // raw_video_frame.cpp pattern->COLOR_Bayer{RGGB,BGGR,GRBG,GBRG}2BGR) so export
 // colour matches the on-screen image exactly.  The _EA (edge-aware) variants
 // share the same pattern naming — better quality, irrelevant cost off the hot

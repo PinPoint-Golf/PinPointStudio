@@ -31,7 +31,7 @@
 //           overlay,    &VideoOverlayBase::overlayFrame,
 //           Qt::QueuedConnection);
 //   connect(overlay, &VideoOverlayBase::frameReady,
-//           controller, &VideoController::onAnnotatedFrame,
+//           controller, &CameraInstance::onAnnotatedFrame,
 //           Qt::QueuedConnection);
 
 class VideoOverlayBase : public QObject

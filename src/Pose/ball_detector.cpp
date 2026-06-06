@@ -38,6 +38,11 @@ void BallDetector::setRoi(QRectF roi)
 
 void BallDetector::detect(const cv::Mat &frame)
 {
+    if (!isEnabled()) {     // disabled by method — release the throttle, keep ball state
+        emit detectionSkipped();
+        return;
+    }
+
     if (m_roi.isEmpty() || frame.empty()) {
         emit ballDetected(BallDetection{});
         return;

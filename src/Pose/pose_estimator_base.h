@@ -23,6 +23,7 @@
 #include <QObject>
 #include <opencv2/core.hpp>
 #include <array>
+#include <atomic>
 
 // MoveNet output keypoint order (17 joints).
 enum class PoseJoint {
@@ -75,6 +76,13 @@ public:
     explicit PoseEstimatorBase(QObject *parent = nullptr);
     ~PoseEstimatorBase() override = default;
 
+    // Thread-safe master enable — callable directly from any thread (atomic).
+    // When disabled, estimatePose() implementations MUST early-out and still
+    // emit estimationDone() so the FrameThrottle busy/done protocol stays
+    // balanced (the ball detector shares the same throttle, consumerCount=2).
+    void setEnabled(bool on) { m_enabled.store(on, std::memory_order_relaxed); }
+    bool isEnabled() const   { return m_enabled.load(std::memory_order_relaxed); }
+
 public slots:
     // Receives a BGR CV_8UC3 frame from VideoPreprocessorOpenCV.
     virtual void estimatePose(const cv::Mat &frame) = 0;
@@ -98,6 +106,9 @@ signals:
     // Rolling average inference time and throughput FPS, emitted each frame
     // once the 30-sample measurement window is warm.
     void poseStatsUpdated(double avgMs, double fps);
+
+private:
+    std::atomic<bool> m_enabled{true};
 };
 
 #endif // HAVE_OPENCV

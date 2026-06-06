@@ -18,7 +18,7 @@
 
 #include "camera_manager.h"
 
-#include "video_controller.h"
+#include "camera_instance.h"
 #include "video_input_factory.h"
 #include "event_buffer.h"
 #include "athlete_controller.h"
@@ -51,6 +51,10 @@ CameraManager::CameraManager(pinpoint::EventBuffer *buffer, AppSettings *appSett
     const QStringList excluded    = s->cameraExcluded();
     const QVariantMap targetFps   = s->cameraTargetFps();
     const QVariantMap triggerMode = s->cameraTriggerMode();
+
+    // Per-session enablement starts as a copy of the global exclusion list;
+    // session edits never flow back to settings.
+    m_sessionExcluded = excluded;
 
     // Seed alias for any newly-seen device so it always has a value.
     QVariantMap aliasMap   = s->cameraAlias();
@@ -145,9 +149,10 @@ QVariantList CameraManager::cameraList() const
         entry[QStringLiteral("roiSupported")] = cap.roi.supported;
         entry[QStringLiteral("hwTrigger")]   = cap.trigger.hasHardwareInput;
         entry[QStringLiteral("enabled")]     = !cam.excluded;
+        entry[QStringLiteral("sessionEnabled")] = !m_sessionExcluded.contains(key);
         entry[QStringLiteral("perspective")] = perspMap.value(key, 0).toInt();
 
-        // --- Ring buffer sizing fields (mirror VideoController's allocation logic) ---
+        // --- Ring buffer sizing fields (mirror CameraInstance's allocation logic) ---
         // Slot width/height: largest supported resolution, not just the default.
         int slotW = 0, slotH = 0;
         for (const Resolution &r : cap.resolution.presets) {
@@ -201,7 +206,7 @@ QVariantList CameraManager::instances() const
     return list;
 }
 
-VideoController *CameraManager::controllerFor(const QString &deviceId) const
+CameraInstance *CameraManager::instanceFor(const QString &deviceId) const
 {
     for (const auto &cam : m_cameras)
         if (cam.device.id == deviceId && cam.controller)
@@ -276,7 +281,7 @@ void CameraManager::setSelected(int index, bool selected)
         if (m_recording && m_cameras[index].controller)
             m_cameras[index].controller->startRecording();
     } else {
-        VideoController *ctrl = m_cameras[index].controller;
+        CameraInstance *ctrl = m_cameras[index].controller;
         m_cameras[index].controller = nullptr;
         if (ctrl) {
             // Stop the capture thread synchronously before freeing ring memory.
@@ -428,6 +433,19 @@ void CameraManager::setExcluded(int index, bool excluded)
 
     m_cameras[index].excluded = excluded;
 
+    // Keep the session list consistent with a global change made mid-session:
+    // globally disabling a camera disables it for this session too, and vice versa.
+    const QString sessionKey = cameraKey(m_cameras[index]);
+    if (!sessionKey.isEmpty()) {
+        if (excluded && !m_sessionExcluded.contains(sessionKey)) {
+            m_sessionExcluded.append(sessionKey);
+            emit sessionCameraExcludedChanged();
+        } else if (!excluded && m_sessionExcluded.contains(sessionKey)) {
+            m_sessionExcluded.removeAll(sessionKey);
+            emit sessionCameraExcludedChanged();
+        }
+    }
+
     if (excluded && m_cameras[index].selected) {
         setSelected(index, false);
     } else if (!excluded && !m_cameras[index].selected) {
@@ -450,11 +468,62 @@ void CameraManager::setExcluded(int index, bool excluded)
     emit cameraListChanged();
 }
 
+QStringList CameraManager::sessionCameraExcluded() const
+{
+    return m_sessionExcluded;
+}
+
+void CameraManager::setSessionCameraEnabled(const QString &cameraKey, bool on)
+{
+    if (cameraKey.isEmpty())
+        return;
+    const bool excluded = m_sessionExcluded.contains(cameraKey);
+    if (on != excluded)
+        return;   // already in the requested state
+
+    if (on)
+        m_sessionExcluded.removeAll(cameraKey);
+    else
+        m_sessionExcluded.append(cameraKey);
+
+    // Disabling a connected camera disconnects it; enabling never auto-connects
+    // (Connect in the toolbar panel does that explicitly).
+    if (!on) {
+        for (int i = 0; i < m_cameras.size(); ++i) {
+            if (CameraManager::cameraKey(m_cameras[i]) == cameraKey) {
+                if (m_cameras[i].selected)
+                    setSelected(i, false);
+                break;
+            }
+        }
+    }
+
+    emit sessionCameraExcludedChanged();
+    emit cameraListChanged();
+}
+
+bool CameraManager::livePoseEnabled() const
+{
+    return m_livePoseEnabled;
+}
+
+void CameraManager::setLivePoseEnabled(bool on)
+{
+    if (m_livePoseEnabled == on)
+        return;
+    m_livePoseEnabled = on;
+    for (auto &cam : m_cameras) {
+        if (cam.controller)
+            cam.controller->setPoseEnabled(on);
+    }
+    emit livePoseEnabledChanged();
+}
+
 void CameraManager::setTargetFps(int index, double fps)
 {
     if (index < 0 || index >= m_cameras.size()) return;
     m_cameras[index].targetFps = fps;
-    // TODO: apply to live VideoController when setFps() is implemented
+    // TODO: apply to live CameraInstance when setFps() is implemented
 }
 
 void CameraManager::setTriggerMode(int index, const QString &mode)
@@ -465,7 +534,7 @@ void CameraManager::setTriggerMode(int index, const QString &mode)
 
 void CameraManager::setPerspective(QObject *rawController, int perspective)
 {
-    auto *target = qobject_cast<VideoController *>(rawController);
+    auto *target = qobject_cast<CameraInstance *>(rawController);
     if (!target)
         return;
 
@@ -495,7 +564,7 @@ void CameraManager::setPerspective(QObject *rawController, int perspective)
 
 void CameraManager::setIsMirrored(QObject *rawController, bool mirrored)
 {
-    auto *target = qobject_cast<VideoController *>(rawController);
+    auto *target = qobject_cast<CameraInstance *>(rawController);
     if (!target)
         return;
 
@@ -520,12 +589,12 @@ void CameraManager::setIsMirrored(QObject *rawController, bool mirrored)
 // Private
 // ---------------------------------------------------------------------------
 
-QObject *CameraManager::createPreviewController(int index)
+QObject *CameraManager::createPreviewInstance(int index)
 {
     if (index < 0 || index >= m_cameras.size()) return nullptr;
 
     // nullptr buffer → no ring-buffer registration, no pose/throttle pipeline
-    auto *ctrl = new VideoController(m_cameras[index].device, nullptr, m_appSettings, this);
+    auto *ctrl = new CameraInstance(m_cameras[index].device, nullptr, m_appSettings, this);
 
     const QString key = cameraKey(m_cameras[index]);
     AppSettings  rfallback;
@@ -545,16 +614,19 @@ QObject *CameraManager::createPreviewController(int index)
     return ctrl;
 }
 
-void CameraManager::destroyPreviewController(QObject *ctrl)
+void CameraManager::destroyPreviewInstance(QObject *ctrl)
 {
     if (ctrl) ctrl->deleteLater();
 }
 
-VideoController *CameraManager::createController(const Device &device)
+CameraInstance *CameraManager::createController(const Device &device)
 {
-    auto *ctrl = new VideoController(device, m_eventBuffer, m_appSettings, this);
-    connect(ctrl, &VideoController::ballPresentChanged,
+    auto *ctrl = new CameraInstance(device, m_eventBuffer, m_appSettings, this);
+    connect(ctrl, &CameraInstance::ballPresentChanged,
             this, &CameraManager::onCameraBallPresenceChanged);
+
+    // Apply the session-wide pipeline configuration to the new instance.
+    ctrl->setPoseEnabled(m_livePoseEnabled);
 
     // Restore persisted ROI and perspective for this device.
     const QString key = device.description + QStringLiteral("|")
@@ -893,7 +965,7 @@ void CameraManager::setCameraAlias(const QString &key, const QString &alias)
         map[key] = trimmed;
     s->setCameraAlias(map);
 
-    // Push the new alias to any live controller so CameraView.qml updates immediately.
+    // Push the new alias to any live controller so PpCameraFrame.qml updates immediately.
     for (const auto &cam : m_cameras) {
         if (cameraKey(cam) == key && cam.controller)
             cam.controller->setDeviceAlias(trimmed);

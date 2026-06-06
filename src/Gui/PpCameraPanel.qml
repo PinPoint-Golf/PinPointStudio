@@ -18,25 +18,24 @@
 
 // Camera device panel for the session toolbar. Same shell + mode pattern as the
 // IMU panel:
-//   "list"      — Scan / Connect / Calibrate actions + camera rows. Each connected
-//                 camera shows a live preview thumbnail and a per-camera enable
-//                 toggle (session-local, mirrors the IMU panel). Calibrate is
-//                 attention-framed once a camera is connected that is not "fixed in
-//                 place" (appSettings.cameraFixedInPlace) — i.e. needs stereo cal.
+//   "list"      — Scan / Connect / Calibrate actions, an all-cameras "Live pose"
+//                 toggle, and the camera rows with a per-camera enable toggle
+//                 (session-local, owned by CameraManager so the per-screen video
+//                 tiles share it). Connect starts the full capture pipeline on
+//                 every enabled camera — the screens' video tiles stream from it.
+//                 Calibrate is attention-framed once a camera is connected that is
+//                 not "fixed in place" (appSettings.cameraFixedInPlace) — i.e.
+//                 needs stereo cal.
 //   "calibrate" — hosts CameraCalibrationFlow (a STUB for now) compactly in-panel.
 // The attention frame wraps the WHOLE panel while calibrating.
 
 import QtQuick
 import QtQuick.Layouts
-import QtMultimedia
 import PinPointStudio
 
 Item {
     id: root
     property string mode:   "list"        // "list" | "calibrate"
-    // True while the hosting popup is open — gates the live preview thumbnails so
-    // they only stream (via the controller's settings sink) when visible.
-    property bool   active: false
 
     implicitWidth:  Theme.sp(380)
     implicitHeight: mode === "calibrate"
@@ -54,30 +53,23 @@ Item {
         return false
     }
 
-    // ── Per-session camera enablement (mirrors the IMU panel) ──────────────────
-    // Seeded from appSettings.cameraExcluded but the toggle edits THIS local list
-    // only — never writes back to settings (global enablement is owned by Settings).
-    // Keyed by cameraKey (the same id cameraExcluded uses).
+    // Per-session camera enablement lives in CameraManager
+    // (cameraManager.sessionCameraExcluded) so the per-screen video tiles and
+    // every toolbar instance share one list. Seeded from appSettings.cameraExcluded
+    // at startup; never written back to settings (global enablement is owned by
+    // Settings).
     // TODO: persist a real per-session selection carried over from the start wizard.
-    property var sessionCameraExcluded: []
-    Component.onCompleted: sessionCameraExcluded = appSettings.cameraExcluded.slice()
 
-    function setCameraEnabled(camKey, camIndex, on) {
-        var list = sessionCameraExcluded.slice()
-        var idx  = list.indexOf(camKey)
-        if (!on && idx < 0)  list.push(camKey)
-        if ( on && idx >= 0) list.splice(idx, 1)
-        sessionCameraExcluded = list
-        if (!on) cameraManager.setSelected(camIndex, false)
-    }
-
-    // Connect every enabled, not-yet-selected camera.
+    // Connect every session-enabled, not-yet-selected camera, then start the
+    // capture pipeline so the visible video tiles stream (same path as the Play
+    // capture tab — pose/ball pipeline, ring buffer, swing replay).
     function startConnect() {
         var list = cameraManager.cameraList
-        var excluded = sessionCameraExcluded
         for (var i = 0; i < list.length; ++i)
-            if (excluded.indexOf(list[i].cameraKey) < 0 && !list[i].selected)
+            if (list[i].sessionEnabled && !list[i].selected)
                 cameraManager.setSelected(list[i].index, true)
+        if (!cameraManager.isRecording && cameraManager.anySelected)
+            cameraManager.startAll()
     }
 
     // ── Header ──────────────────────────────────────────────────────────────
@@ -140,19 +132,51 @@ Item {
         }
         Rectangle { width: parent.width; height: 1; color: Theme.colorBorder }
 
+        // All-cameras live pose-estimation toggle. Session-wide: gates pose
+        // inference itself (not just the overlay) on every connected camera.
+        Item {
+            width: parent.width; height: Theme.sp(44)
+            RowLayout {
+                anchors { fill: parent; leftMargin: Theme.sp(15); rightMargin: Theme.sp(15) }
+                spacing: Theme.sp(11)
+                Column {
+                    Layout.fillWidth: true; spacing: Theme.sp(2)
+                    Text {
+                        text: qsTr("Live pose detection")
+                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                        color: Theme.colorText
+                    }
+                    Text {
+                        text: qsTr("all cameras")
+                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                        font.letterSpacing: Theme.trackingData; color: Theme.colorText3
+                    }
+                }
+                TogglePill {
+                    Layout.alignment: Qt.AlignVCenter
+                    checked: cameraManager.livePoseEnabled
+                    onToggled: (v) => cameraManager.livePoseEnabled = v
+                }
+            }
+            Rectangle {
+                anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
+                height: 1; color: Theme.colorBorder
+            }
+        }
+
         Repeater {
             model: cameraManager.cameraList
             delegate: CamRow {
                 required property var modelData
                 width: listCol.width
                 camKey:   modelData.cameraKey
-                camIndex: modelData.index
                 camName: modelData.alias && modelData.alias !== "" ? modelData.alias
                                                                    : modelData.description
                 serial: modelData.serialNumber
                 perspective: modelData.perspective    // 2 = face-on, 1 = down-the-line
                 iface:  modelData.interface
                 selected: modelData.selected
+                deviceEnabled: modelData.sessionEnabled
             }
         }
     }
@@ -202,45 +226,51 @@ Item {
                     onClicked: parent.triggered() }
     }
 
+    component TogglePill: Rectangle {
+        property bool checked: false
+        signal toggled(bool value)
+        width:  Theme.sp(34)
+        height: Theme.sp(18)
+        radius: Theme.sp(9)
+        color:  checked ? Theme.colorAccent : Theme.colorBg3
+        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+        Rectangle {
+            width:  Theme.sp(12)
+            height: Theme.sp(12)
+            radius: Theme.sp(6)
+            color:  "white"
+            anchors.verticalCenter: parent.verticalCenter
+            x: parent.checked ? parent.width - width - Theme.sp(3) : Theme.sp(3)
+            Behavior on x { NumberAnimation { duration: 120 } }
+        }
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: parent.toggled(!parent.checked)
+        }
+    }
+
     component CamRow: Item {
         id: camRow
         property string camKey:   ""
-        property int    camIndex: -1
         property string camName:  ""
         property int    perspective: 0
         property string serial: ""; property string iface: ""; property bool selected: false
+        property bool   deviceEnabled: true   // session enablement, from cameraList
 
         // Live controller for this camera (reactive on cameraManager.instances).
-        readonly property var realController: {
+        readonly property var realInstance: {
             var insts = cameraManager.instances
             for (var i = 0; i < insts.length; ++i)
                 if (insts[i].deviceSerialNumber === serial) return insts[i]
             return null
         }
-        readonly property bool connected:     realController !== null
-        readonly property bool deviceEnabled: root.sessionCameraExcluded.indexOf(camKey) < 0
+        readonly property bool connected: realInstance !== null
 
         readonly property string perspLabel: perspective === 2 ? qsTr("Face-on")
                                             : perspective === 1 ? qsTr("Down-the-line")
                                             : qsTr("Unassigned")
         height: Theme.sp(60)
-
-        // ── Live preview lifecycle ──────────────────────────────────────────
-        // The controller forwards frames to its settings sink (works while it is
-        // recording — startPreview() no-ops the device open in that case). Bound
-        // only while the panel is active (popup open) and the camera is connected.
-        property var _boundCtrl: null
-        function _syncPreview() {
-            var c = (realController !== null && root.active) ? realController : null
-            if (_boundCtrl === c) return
-            if (_boundCtrl) { _boundCtrl.setSettingsSink(null); _boundCtrl.stopPreview() }
-            _boundCtrl = c
-            if (c) { c.setSettingsSink(thumbOut.videoSink); c.startPreview() }
-        }
-        onRealControllerChanged: _syncPreview()
-        Component.onCompleted:   _syncPreview()
-        Component.onDestruction: { if (_boundCtrl) { _boundCtrl.setSettingsSink(null); _boundCtrl.stopPreview() } }
-        Connections { target: root; function onActiveChanged() { camRow._syncPreview() } }
 
         Rectangle {  // row hairline
             anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
@@ -251,28 +281,12 @@ Item {
             anchors { fill: parent; leftMargin: Theme.sp(15); rightMargin: Theme.sp(15) }
             spacing: Theme.sp(11)
 
-            // Status dot when not connected …
+            // Status dot — good when connected, muted otherwise.
             Rectangle {
-                visible: !connected
                 Layout.preferredWidth: Theme.sp(8); Layout.preferredHeight: Theme.sp(8)
                 radius: Theme.sp(4)
                 opacity: deviceEnabled ? 1.0 : 0.45
-                color: Theme.colorText3
-            }
-            // … live preview thumbnail when connected.
-            Rectangle {
-                visible: connected
-                opacity: deviceEnabled ? 1.0 : 0.45
-                Layout.preferredWidth:  Theme.sp(72)
-                Layout.preferredHeight: Theme.sp(40)
-                radius: Theme.sp(4); clip: true
-                color: Theme.colorBg
-                border.width: 1; border.color: Theme.colorBorderStrong
-                VideoOutput {
-                    id: thumbOut
-                    anchors.fill: parent; anchors.margins: 1
-                    fillMode: VideoOutput.PreserveAspectFit
-                }
+                color: connected ? Theme.colorGood : Theme.colorText3
             }
 
             Column {
@@ -292,29 +306,11 @@ Item {
                 }
             }
 
-            // Enable toggle — session-local; matches the standard app toggle.
-            Rectangle {
-                id: enableToggle
+            // Enable toggle — session-local; disabling also disconnects.
+            TogglePill {
                 Layout.alignment: Qt.AlignVCenter
-                width:  Theme.sp(34)
-                height: Theme.sp(18)
-                radius: Theme.sp(9)
-                color:  deviceEnabled ? Theme.colorAccent : Theme.colorBg3
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                Rectangle {
-                    width:  Theme.sp(12)
-                    height: Theme.sp(12)
-                    radius: Theme.sp(6)
-                    color:  "white"
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: deviceEnabled ? parent.width - width - Theme.sp(3) : Theme.sp(3)
-                    Behavior on x { NumberAnimation { duration: 120 } }
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.setCameraEnabled(camKey, camIndex, !deviceEnabled)
-                }
+                checked: camRow.deviceEnabled
+                onToggled: (v) => cameraManager.setSessionCameraEnabled(camRow.camKey, v)
             }
         }
     }

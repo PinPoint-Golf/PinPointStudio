@@ -62,7 +62,7 @@ void VideoInputFactory::enumerateDevices()
 
 #ifdef HAVE_ARAVIS
     // Aravis: open each device briefly to read its GenICam parameters, then
-    // release — capabilities are stored in the Device struct so VideoController
+    // release — capabilities are stored in the Device struct so CameraInstance
     // never needs to re-open a camera just for format discovery.
     arv_update_device_list();
     unsigned int nAravis = arv_get_n_devices();

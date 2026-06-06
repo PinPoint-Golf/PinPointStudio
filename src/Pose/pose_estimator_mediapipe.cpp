@@ -903,6 +903,11 @@ PoseResult PoseEstimatorMediaPipe::runLandmarks(const cv::Mat &frame,
 
 void PoseEstimatorMediaPipe::estimatePose(const cv::Mat &frame)
 {
+    if (!isEnabled()) {     // disabled by method — release the throttle, skip inference
+        emit estimationDone();
+        return;
+    }
+
     if (!m_ready || frame.empty()) {
         emit estimationDone();
         return;

@@ -16,12 +16,13 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#include "video_controller.h"
+#include "camera_instance.h"
 
 #include "app_settings.h"
 #include "event_buffer.h"
 #include "source_descriptor.h"
 #include <cstring>
+#include <utility>
 #include <QVideoFrameFormat>
 #include <QVideoSink>
 
@@ -81,7 +82,7 @@ static pinpoint::PixelFormat bufferPixelFormat(PixelEncoding enc)
 // Constructors / destructor
 // ---------------------------------------------------------------------------
 
-VideoController::VideoController(QObject *parent)
+CameraInstance::CameraInstance(QObject *parent)
     : QObject(parent)
     , m_captureThread(new QThread(this))
     , m_videoInput(VideoInputFactory::create(VideoInputFactory::Backend::Auto))
@@ -89,7 +90,7 @@ VideoController::VideoController(QObject *parent)
     setupPipeline();
 }
 
-VideoController::VideoController(const Device &device, pinpoint::EventBuffer *buffer,
+CameraInstance::CameraInstance(const Device &device, pinpoint::EventBuffer *buffer,
                                  AppSettings *appSettings, QObject *parent)
     : QObject(parent)
     , m_captureThread(new QThread(this))
@@ -207,7 +208,7 @@ VideoController::VideoController(const Device &device, pinpoint::EventBuffer *bu
             std::chrono::microseconds(static_cast<int64_t>(1'000'000.0 / fps));
         desc.sync_source              = pinpoint::SyncSource::SoftwareTimestamp;
 
-        ppInfo() << "[VideoController] registering buffer source:"
+        ppInfo() << "[CameraInstance] registering buffer source:"
                  << device.description
                  << (device.capabilities.serialNumber.isEmpty()
                      ? QString() : "(" + device.capabilities.serialNumber + ")")
@@ -225,14 +226,14 @@ VideoController::VideoController(const Device &device, pinpoint::EventBuffer *bu
     setupPipeline();
 }
 
-void VideoController::deregisterFromBuffer()
+void CameraInstance::deregisterFromBuffer()
 {
     if (!m_eventBuffer || m_sourceId == pinpoint::kInvalidSourceId) return;
     m_eventBuffer->deregisterSource(m_sourceId);
     m_sourceId = pinpoint::kInvalidSourceId;
 }
 
-void VideoController::setupPipeline()
+void CameraInstance::setupPipeline()
 {
     // Set to false to disable the entire preprocessor/pose/throttle pipeline
     // for capture-rate diagnostics.  Flip back to true to restore.
@@ -250,7 +251,7 @@ void VideoController::setupPipeline()
         m_preprocessor = new VideoPreprocessorOpenCV();
         m_preprocessor->moveToThread(m_preprocessThread);
         connect(m_preprocessor, &VideoPreprocessorBase::preprocessStatsUpdated,
-                this, &VideoController::onPreprocessStats, Qt::QueuedConnection);
+                this, &CameraInstance::onPreprocessStats, Qt::QueuedConnection);
         m_preprocessThread->start();
 
         auto *cvPP = qobject_cast<VideoPreprocessorOpenCV *>(m_preprocessor);
@@ -263,9 +264,9 @@ void VideoController::setupPipeline()
         m_poseEstimator->moveToThread(m_poseThread);
         connect(m_poseThread, &QThread::started, mn, &PoseEstimatorMoveNet::load);
         connect(m_poseEstimator, &PoseEstimatorBase::poseStatsUpdated,
-                this, &VideoController::onPoseStats, Qt::QueuedConnection);
+                this, &CameraInstance::onPoseStats, Qt::QueuedConnection);
         connect(m_poseEstimator, &PoseEstimatorBase::poseBackendReady,
-                this, &VideoController::onPoseBackendReady, Qt::QueuedConnection);
+                this, &CameraInstance::onPoseBackendReady, Qt::QueuedConnection);
 
         m_frameThrottle = new FrameThrottle();
         m_frameThrottle->setSkipFactor(2);
@@ -278,7 +279,7 @@ void VideoController::setupPipeline()
         connect(m_poseEstimator, &PoseEstimatorBase::estimationDone,
                 m_frameThrottle, &FrameThrottle::clearRawBusy, Qt::DirectConnection);
         connect(m_poseEstimator, &PoseEstimatorBase::poseEstimated,
-                this, &VideoController::onPoseEstimated, Qt::QueuedConnection);
+                this, &CameraInstance::onPoseEstimated, Qt::QueuedConnection);
         m_poseThread->start();
 #endif // HAVE_MOVENET && HAVE_ONNXRUNTIME
 
@@ -292,13 +293,15 @@ void VideoController::setupPipeline()
         connect(cvPP, &VideoPreprocessorOpenCV::framePreprocessed,
                 m_ballDetector, &BallDetector::detect, Qt::QueuedConnection);
         connect(m_ballDetector, &BallDetector::ballDetected,
-                this, &VideoController::onBallDetected, Qt::QueuedConnection);
+                this, &CameraInstance::onBallDetected, Qt::QueuedConnection);
         connect(m_ballDetector, &BallDetector::ballDetected,
+                m_frameThrottle, &FrameThrottle::clearBusy, Qt::DirectConnection);
+        connect(m_ballDetector, &BallDetector::detectionSkipped,
                 m_frameThrottle, &FrameThrottle::clearBusy, Qt::DirectConnection);
 
         // Forward ROI changes to the detector thread.  The lambda captures the
         // current roi value on the main thread before posting it to the detector.
-        connect(this, &VideoController::roiChanged, this, [this]() {
+        connect(this, &CameraInstance::roiChanged, this, [this]() {
             QMetaObject::invokeMethod(m_ballDetector, "setRoi",
                 Qt::QueuedConnection, Q_ARG(QRectF, m_roi));
         }, Qt::DirectConnection);
@@ -363,7 +366,7 @@ void VideoController::setupPipeline()
     m_fpsSampleTimer->start();
 }
 
-void VideoController::stopCapture()
+void CameraInstance::stopCapture()
 {
     if (m_captureThread->isRunning()) {
         QMetaObject::invokeMethod(m_videoInput, [this]() {
@@ -375,7 +378,7 @@ void VideoController::stopCapture()
     }
 }
 
-VideoController::~VideoController()
+CameraInstance::~CameraInstance()
 {
     // Shutdown in pipeline order so no stage receives frames after it is torn down.
 
@@ -426,7 +429,7 @@ VideoController::~VideoController()
 // Helpers
 // ---------------------------------------------------------------------------
 
-void VideoController::connectVideoInput()
+void CameraInstance::connectVideoInput()
 {
     // Standard QVideoFrame display path — used by Qt Multimedia and Aravis.
     // DirectConnection so only the freshest frame is ever queued to the main thread.
@@ -445,7 +448,7 @@ void VideoController::connectVideoInput()
                     m_latestDisplayFrame = frame;
                 }
                 if (!m_displayFramePending.exchange(true, std::memory_order_acq_rel)) {
-                    QMetaObject::invokeMethod(this, &VideoController::drainDisplayFrame,
+                    QMetaObject::invokeMethod(this, &CameraInstance::drainDisplayFrame,
                                              Qt::QueuedConnection);
                 }
             }, Qt::DirectConnection);
@@ -467,13 +470,13 @@ void VideoController::connectVideoInput()
                     m_latestRawFrame = frame;
                 }
                 if (!m_displayFramePending.exchange(true, std::memory_order_acq_rel)) {
-                    QMetaObject::invokeMethod(this, &VideoController::drainRawFrame,
+                    QMetaObject::invokeMethod(this, &CameraInstance::drainRawFrame,
                                              Qt::QueuedConnection);
                 }
             }, Qt::DirectConnection);
 
     connect(m_videoInput, &VideoInputBase::errorOccurred,
-            this, &VideoController::onVideoError);
+            this, &CameraInstance::onVideoError);
 
 #ifdef HAVE_OPENCV
     if (m_frameThrottle) {
@@ -505,35 +508,35 @@ void VideoController::connectVideoInput()
 // Properties
 // ---------------------------------------------------------------------------
 
-bool   VideoController::isRecording()    const { return m_recording; }
-bool   VideoController::isAravis()       const { return VideoInputFactory::backendType(m_videoInput) == VideoInputFactory::Backend::Aravis; }
-bool   VideoController::isSpinnaker()    const { return VideoInputFactory::backendType(m_videoInput) == VideoInputFactory::Backend::Spinnaker; }
-bool   VideoController::needsDebayer()   const { return isSpinnaker() && m_videoInput->emitsRawBayer(); }
-double  VideoController::preprocessAvgMs()        const { return m_preprocessAvgMs; }
-double  VideoController::cameraFps()              const { return m_cameraFps; }
-int     VideoController::frameWidth()             const { return m_frameWidth; }
-int     VideoController::frameHeight()            const { return m_frameHeight; }
-double  VideoController::configuredFps()          const { return m_configuredFps; }
-double  VideoController::poseAvgMs()              const { return m_poseAvgMs; }
-double  VideoController::poseFps()                const { return m_poseFps; }
-double  VideoController::ballAvgMs()              const { return m_ballAvgMs; }
-QString VideoController::poseBackendLabel()       const { return m_poseBackendLabel; }
-int     VideoController::moveNetModel()           const { return m_moveNetModel; }
-QString VideoController::deviceDescription()      const { return m_deviceDescription; }
-QString VideoController::deviceSerialNumber()     const { return m_deviceSerialNumber; }
-QString VideoController::deviceAlias()            const { return m_deviceAlias; }
+bool   CameraInstance::isRecording()    const { return m_recording; }
+bool   CameraInstance::isAravis()       const { return VideoInputFactory::backendType(m_videoInput) == VideoInputFactory::Backend::Aravis; }
+bool   CameraInstance::isSpinnaker()    const { return VideoInputFactory::backendType(m_videoInput) == VideoInputFactory::Backend::Spinnaker; }
+bool   CameraInstance::needsDebayer()   const { return isSpinnaker() && m_videoInput->emitsRawBayer(); }
+double  CameraInstance::preprocessAvgMs()        const { return m_preprocessAvgMs; }
+double  CameraInstance::cameraFps()              const { return m_cameraFps; }
+int     CameraInstance::frameWidth()             const { return m_frameWidth; }
+int     CameraInstance::frameHeight()            const { return m_frameHeight; }
+double  CameraInstance::configuredFps()          const { return m_configuredFps; }
+double  CameraInstance::poseAvgMs()              const { return m_poseAvgMs; }
+double  CameraInstance::poseFps()                const { return m_poseFps; }
+double  CameraInstance::ballAvgMs()              const { return m_ballAvgMs; }
+QString CameraInstance::poseBackendLabel()       const { return m_poseBackendLabel; }
+int     CameraInstance::moveNetModel()           const { return m_moveNetModel; }
+QString CameraInstance::deviceDescription()      const { return m_deviceDescription; }
+QString CameraInstance::deviceSerialNumber()     const { return m_deviceSerialNumber; }
+QString CameraInstance::deviceAlias()            const { return m_deviceAlias; }
 
-void VideoController::setDeviceAlias(const QString &alias)
+void CameraInstance::setDeviceAlias(const QString &alias)
 {
     if (m_deviceAlias == alias) return;
     m_deviceAlias = alias;
     emit deviceAliasChanged();
 }
 
-int     VideoController::perspective()            const { return m_perspective; }
-bool    VideoController::isMirrored()             const { return m_isMirrored; }
+int     CameraInstance::perspective()            const { return m_perspective; }
+bool    CameraInstance::isMirrored()             const { return m_isMirrored; }
 
-void VideoController::setPerspective(int p)
+void CameraInstance::setPerspective(int p)
 {
     if (m_perspective == p)
         return;
@@ -541,7 +544,7 @@ void VideoController::setPerspective(int p)
     emit perspectiveChanged();
 }
 
-void VideoController::setIsMirrored(bool mirrored)
+void CameraInstance::setIsMirrored(bool mirrored)
 {
     if (m_isMirrored == mirrored)
         return;
@@ -549,7 +552,7 @@ void VideoController::setIsMirrored(bool mirrored)
     emit isMirroredChanged();
 }
 
-bool    VideoController::moveNetThunderAvailable() const
+bool    CameraInstance::moveNetThunderAvailable() const
 {
 #if defined(HAVE_OPENCV) && defined(HAVE_MOVENET) && defined(HAVE_ONNXRUNTIME)
     return PoseEstimatorMoveNet::isVariantAvailable(PoseEstimatorMoveNet::ModelVariant::Thunder);
@@ -558,11 +561,43 @@ bool    VideoController::moveNetThunderAvailable() const
 #endif
 }
 
-QVariantList VideoController::poseKeypoints() const { return m_poseKeypoints; }
+QVariantList CameraInstance::poseKeypoints() const { return m_poseKeypoints; }
 
-QRectF VideoController::roi() const { return m_roi; }
+bool CameraInstance::poseEnabled() const { return m_poseEnabled; }
 
-void VideoController::setRoi(QRectF roi)
+void CameraInstance::setPoseEnabled(bool on)
+{
+    if (m_poseEnabled == on)
+        return;
+    m_poseEnabled = on;
+#ifdef HAVE_OPENCV
+    if (m_poseEstimator)
+        m_poseEstimator->setEnabled(on);   // atomic — safe to call cross-thread
+#endif
+    if (!on && !m_poseKeypoints.isEmpty()) {
+        m_poseKeypoints.clear();
+        emit poseKeypointsChanged();       // empty overlays immediately
+    }
+    emit poseEnabledChanged();
+}
+
+bool CameraInstance::ballEnabled() const { return m_ballEnabled; }
+
+void CameraInstance::setBallEnabled(bool on)
+{
+    if (m_ballEnabled == on)
+        return;
+    m_ballEnabled = on;
+#ifdef HAVE_OPENCV
+    if (m_ballDetector)
+        m_ballDetector->setEnabled(on);    // atomic — safe to call cross-thread
+#endif
+    emit ballEnabledChanged();
+}
+
+QRectF CameraInstance::roi() const { return m_roi; }
+
+void CameraInstance::setRoi(QRectF roi)
 {
     roi = roi.normalized().intersected(QRectF(0.0, 0.0, 1.0, 1.0));
     if (roi.isEmpty() || m_roi == roi)
@@ -571,7 +606,7 @@ void VideoController::setRoi(QRectF roi)
     emit roiChanged();
 }
 
-void VideoController::clearRoi()
+void CameraInstance::clearRoi()
 {
     if (m_roi.isEmpty())
         return;
@@ -591,9 +626,9 @@ void VideoController::clearRoi()
     }
 }
 
-QRectF VideoController::cropRoi() const { return m_cropRoi; }
+QRectF CameraInstance::cropRoi() const { return m_cropRoi; }
 
-void VideoController::setCropRoi(QRectF roi)
+void CameraInstance::setCropRoi(QRectF roi)
 {
     roi = roi.normalized().intersected(QRectF(0.0, 0.0, 1.0, 1.0));
     if (m_cropRoi == roi) return;
@@ -601,24 +636,24 @@ void VideoController::setCropRoi(QRectF roi)
     emit cropRoiChanged();
 }
 
-void VideoController::clearCropRoi()
+void CameraInstance::clearCropRoi()
 {
     if (m_cropRoi.isEmpty()) return;
     m_cropRoi = QRectF();
     emit cropRoiChanged();
 }
 
-bool   VideoController::ballDetected()        const { return m_ballDetected; }
-double VideoController::ballX()               const { return m_ballX; }
-double VideoController::ballY()               const { return m_ballY; }
-double VideoController::ballRadius()          const { return m_ballRadius; }
-double VideoController::ballPresencePercent() const { return m_ballPresencePercent; }
-bool   VideoController::ballPresent()         const { return m_ballPresent; }
-double VideoController::ballHoughConf()       const { return m_ballHoughConf; }
-int    VideoController::ballWhiteSatCeil()    const { return m_ballWhiteSatCeil; }
+bool   CameraInstance::ballDetected()        const { return m_ballDetected; }
+double CameraInstance::ballX()               const { return m_ballX; }
+double CameraInstance::ballY()               const { return m_ballY; }
+double CameraInstance::ballRadius()          const { return m_ballRadius; }
+double CameraInstance::ballPresencePercent() const { return m_ballPresencePercent; }
+bool   CameraInstance::ballPresent()         const { return m_ballPresent; }
+double CameraInstance::ballHoughConf()       const { return m_ballHoughConf; }
+int    CameraInstance::ballWhiteSatCeil()    const { return m_ballWhiteSatCeil; }
 
 #ifdef HAVE_OPENCV
-void VideoController::setBallHoughConf(double v)
+void CameraInstance::setBallHoughConf(double v)
 {
     v = qBound(0.3, v, 1.0);
     if (qFuzzyCompare(v, m_ballHoughConf)) return;
@@ -630,7 +665,7 @@ void VideoController::setBallHoughConf(double v)
     emit ballHoughConfChanged();
 }
 
-void VideoController::setBallWhiteSatCeil(int v)
+void CameraInstance::setBallWhiteSatCeil(int v)
 {
     v = qBound(20, v, 120);
     if (v == m_ballWhiteSatCeil) return;
@@ -642,14 +677,18 @@ void VideoController::setBallWhiteSatCeil(int v)
     emit ballWhiteSatCeilChanged();
 }
 #else
-void VideoController::setBallHoughConf(double)    {}
-void VideoController::setBallWhiteSatCeil(int)    {}
+void CameraInstance::setBallHoughConf(double)    {}
+void CameraInstance::setBallWhiteSatCeil(int)    {}
 #endif
 
 #ifdef HAVE_OPENCV
-void VideoController::onBallDetected(const BallDetection &result)
+void CameraInstance::onBallDetected(const BallDetection &result)
 {
     if (m_replaying) return;
+
+    // Drop results already in flight when the detector was disabled — a stale
+    // found=false event here could fire a spurious ball-lost transition.
+    if (!m_ballEnabled) return;
 
     // EMA of detection latency — only when detect() actually ran (detectMs > 0).
     if (result.detectMs > 0) {
@@ -700,28 +739,49 @@ void VideoController::onBallDetected(const BallDetection &result)
 }
 #endif
 
-VideoPreprocessorBase *VideoController::preprocessor() const { return m_preprocessor; }
+VideoPreprocessorBase *CameraInstance::preprocessor() const { return m_preprocessor; }
 
-void VideoController::setVideoSink(QVideoSink *sink)
+// ---------------------------------------------------------------------------
+// View subscription — publish/subscribe fan-out
+// ---------------------------------------------------------------------------
+
+void CameraInstance::addVideoSink(QVideoSink *sink)
 {
-    m_videoSink = sink;
+    if (!sink || m_videoSinks.contains(sink))
+        return;
+    m_videoSinks.append(sink);
 }
 
-void VideoController::setSettingsSink(QVideoSink *sink)
+void CameraInstance::removeVideoSink(QVideoSink *sink)
+{
+    m_videoSinks.removeAll(sink);
+    m_videoSinks.removeAll(nullptr);
+}
+
+void CameraInstance::addBayerItem(QObject *item)
+{
+    auto *bayer = qobject_cast<BayerVideoItem *>(item);
+    if (item && !bayer) {
+        ppError() << "[CameraInstance] addBayerItem: cast failed — item is" << item->metaObject()->className();
+        return;
+    }
+    if (!bayer || m_bayerItems.contains(bayer))
+        return;
+    m_bayerItems.append(bayer);
+}
+
+void CameraInstance::removeBayerItem(QObject *item)
+{
+    m_bayerItems.removeAll(qobject_cast<BayerVideoItem *>(item));
+    m_bayerItems.removeAll(nullptr);
+}
+
+void CameraInstance::setSettingsSink(QVideoSink *sink)
 {
     m_settingsSink = sink;
 }
 
-void VideoController::setBayerItem(QObject *item)
-{
-    m_bayerItem = qobject_cast<BayerVideoItem *>(item);
-    if (item && !m_bayerItem)
-        ppError() << "[VideoController] setBayerItem: cast failed — item is" << item->metaObject()->className();
-    else
-        ppDebug() << "[VideoController] setBayerItem:" << (m_bayerItem ? "ok" : "null");
-}
-
-void VideoController::selectMoveNetModel(int variant)
+void CameraInstance::selectMoveNetModel(int variant)
 {
 #if defined(HAVE_OPENCV) && defined(HAVE_ONNXRUNTIME)
     if (variant == m_moveNetModel || !m_poseThread)
@@ -748,7 +808,7 @@ void VideoController::selectMoveNetModel(int variant)
 // Recording control
 // ---------------------------------------------------------------------------
 
-void VideoController::startPreview()
+void CameraInstance::startPreview()
 {
     if (m_previewing || !m_captureThread->isRunning()) return;
     m_previewing = true;
@@ -764,7 +824,7 @@ void VideoController::startPreview()
     }, Qt::QueuedConnection);
 }
 
-void VideoController::stopPreview()
+void CameraInstance::stopPreview()
 {
     if (!m_previewing) return;
     m_previewing = false;
@@ -775,7 +835,7 @@ void VideoController::stopPreview()
     }, Qt::QueuedConnection);
 }
 
-void VideoController::startRecording()
+void CameraInstance::startRecording()
 {
     if (m_recording || !m_captureThread->isRunning())
         return;
@@ -785,7 +845,7 @@ void VideoController::startRecording()
     requestCameraPermission([self](bool granted) {
         QMetaObject::invokeMethod(self, [self, granted]() {
             if (!granted) {
-                ppError() << "[VideoController] Camera permission denied."
+                ppError() << "[CameraInstance] Camera permission denied."
                            << "Grant access in System Settings → Privacy & Security → Camera.";
                 return;
             }
@@ -813,7 +873,7 @@ void VideoController::startRecording()
 
         if (m_deviceId.isEmpty()) {
             // Auto-mode only: fall back from industrial camera to Qt Multimedia webcam.
-            ppError() << "[VideoController] Failed to start primary video input. Attempting fallback...";
+            ppError() << "[CameraInstance] Failed to start primary video input. Attempting fallback...";
             VideoInputFactory::Backend currentBackend = VideoInputFactory::backendType(m_videoInput);
             if (currentBackend == VideoInputFactory::Backend::Aravis ||
                 currentBackend == VideoInputFactory::Backend::Spinnaker)
@@ -842,7 +902,7 @@ void VideoController::startRecording()
                 }, Qt::QueuedConnection);
             }
         } else {
-            ppError() << "[VideoController] Failed to start camera:" << m_deviceDescription;
+            ppError() << "[CameraInstance] Failed to start camera:" << m_deviceDescription;
             QMetaObject::invokeMethod(this, [this]() {
                 m_recording = false;
                 emit isRecordingChanged();
@@ -852,7 +912,7 @@ void VideoController::startRecording()
 #endif
 }
 
-void VideoController::stopRecording()
+void CameraInstance::stopRecording()
 {
     if (!m_recording)
         return;
@@ -889,7 +949,7 @@ void VideoController::stopRecording()
 // Slots
 // ---------------------------------------------------------------------------
 
-void VideoController::drainDisplayFrame()
+void CameraInstance::drainDisplayFrame()
 {
     // Reset pending flag BEFORE consuming the frame so that any videoFrameReady
     // arriving in this window can schedule a fresh drain (prevents frames getting
@@ -916,16 +976,17 @@ void VideoController::drainDisplayFrame()
             emit frameSizeChanged();
         }
     }
+    if (f.isValid())
+        m_lastDeliveredFrame = f;   // ground truth for updateBufferDescriptor()
     onVideoFrame(f);
 
     // Stamp the buffer descriptor's pixel format + resolution from the first real
-    // frame (the sink now holds it). Single source of truth; cheap no-op after the
-    // first successful stamp.
+    // frame. Single source of truth; cheap no-op after the first successful stamp.
     if (f.isValid() && !m_bufferDescriptorStamped)
         updateBufferDescriptor();
 }
 
-void VideoController::drainRawFrame()
+void CameraInstance::drainRawFrame()
 {
     // Same ordering as drainDisplayFrame: reset pending flag first.
     m_displayFramePending.store(false, std::memory_order_release);
@@ -942,14 +1003,15 @@ void VideoController::drainRawFrame()
 
     static bool logged = false;
     if (!logged) {
-        ppDebug() << "[VideoController] first raw Bayer frame:" << raw.width << "x" << raw.height
+        ppDebug() << "[CameraInstance] first raw Bayer frame:" << raw.width << "x" << raw.height
                  << "pattern" << static_cast<int>(raw.pattern)
-                 << "bayerItem" << (m_bayerItem ? "set" : "NULL");
+                 << "bayerItems" << m_bayerItems.size();
         logged = true;
     }
 
-    if (m_bayerItem)
-        m_bayerItem->updateFrame(raw);
+    m_bayerItems.removeAll(nullptr);
+    for (const auto &item : std::as_const(m_bayerItems))
+        item->updateFrame(raw);
 
     // Deliver greyscale Y8 preview to the settings sink (Bayer pattern as luma).
     if (m_settingsSink && !raw.isNull()) {
@@ -967,18 +1029,29 @@ void VideoController::drainRawFrame()
     }
 }
 
-void VideoController::onVideoFrame(const QVideoFrame &frame)
+void CameraInstance::onVideoFrame(const QVideoFrame &frame)
 {
-    if (m_videoSink && frame.isValid())
-        m_videoSink->setVideoFrame(frame);
-    if (m_settingsSink && frame.isValid())
+    if (!frame.isValid())
+        return;
+    // Publish to every subscribed view. QVideoFrame is implicitly shared —
+    // each setVideoFrame() is a handle assignment, not a copy. Prune sinks
+    // that were destroyed without unsubscribing (QPointer nulls them).
+    m_videoSinks.removeAll(nullptr);
+    for (const auto &sink : std::as_const(m_videoSinks))
+        sink->setVideoFrame(frame);
+    if (m_settingsSink)
         m_settingsSink->setVideoFrame(frame);
 }
 
 #ifdef HAVE_OPENCV
-void VideoController::onPoseEstimated(const PoseResult &result)
+void CameraInstance::onPoseEstimated(const PoseResult &result)
 {
     if (m_replaying) return;
+
+    // A result can already be in flight (queued from the pose thread) when
+    // setPoseEnabled(false) clears the keypoints — dropping it here stops the
+    // last skeleton from reappearing and freezing on screen.
+    if (!m_poseEnabled) return;
 
     QVariantList kps;
     kps.reserve(PoseResult::kNumKeypoints);
@@ -994,12 +1067,12 @@ void VideoController::onPoseEstimated(const PoseResult &result)
 }
 #endif
 
-void VideoController::onVideoError(const QString &message)
+void CameraInstance::onVideoError(const QString &message)
 {
     ppWarn() << "[Video]" << message;
 }
 
-void VideoController::onPreprocessStats(double avgMs)
+void CameraInstance::onPreprocessStats(double avgMs)
 {
     if (qFuzzyCompare(m_preprocessAvgMs, avgMs))
         return;
@@ -1007,13 +1080,13 @@ void VideoController::onPreprocessStats(double avgMs)
     emit preprocessAvgMsChanged();
 }
 
-void VideoController::onPoseStats(double avgMs, double fps)
+void CameraInstance::onPoseStats(double avgMs, double fps)
 {
     if (!qFuzzyCompare(m_poseAvgMs, avgMs)) { m_poseAvgMs = avgMs; emit poseAvgMsChanged(); }
     if (!qFuzzyCompare(m_poseFps,   fps))   { m_poseFps   = fps;   emit poseFpsChanged();   }
 }
 
-void VideoController::onPoseBackendReady(const QString &label)
+void CameraInstance::onPoseBackendReady(const QString &label)
 {
     if (m_poseBackendLabel == label)
         return;
@@ -1064,10 +1137,10 @@ static pinpoint::PixelFormat pinpointFromQtFormat(QVideoFrameFormat::PixelFormat
     }
 }
 
-pinpoint::SourceId VideoController::sourceId() const { return m_sourceId; }
-bool               VideoController::isReplaying() const { return m_replaying; }
+pinpoint::SourceId CameraInstance::sourceId() const { return m_sourceId; }
+bool               CameraInstance::isReplaying() const { return m_replaying; }
 
-void VideoController::setReplaying(bool replaying)
+void CameraInstance::setReplaying(bool replaying)
 {
     if (m_replaying == replaying) return;
     m_replaying = replaying;
@@ -1078,7 +1151,7 @@ void VideoController::setReplaying(bool replaying)
     emit isReplayingChanged();
 }
 
-void VideoController::displayReplayFrame(const std::byte *data, size_t bytes,
+void CameraInstance::displayReplayFrame(const std::byte *data, size_t bytes,
                                           int w, int h, pinpoint::PixelFormat fmt)
 {
     if (!data || bytes == 0) return;
@@ -1092,7 +1165,8 @@ void VideoController::displayReplayFrame(const std::byte *data, size_t bytes,
                           fmt == pinpoint::PixelFormat::BayerGB16);
 
     if (isBayer) {
-        if (!m_bayerItem) return;
+        m_bayerItems.removeAll(nullptr);
+        if (m_bayerItems.isEmpty()) return;
         RawVideoFrame raw;
         raw.width   = w;
         raw.height  = h;
@@ -1106,9 +1180,11 @@ void VideoController::displayReplayFrame(const std::byte *data, size_t bytes,
                     : RawVideoFrame::BayerPattern::RG;
         raw.data    = QByteArray(reinterpret_cast<const char *>(data),
                                  static_cast<qsizetype>(bytes));
-        m_bayerItem->updateFrame(raw);
+        for (const auto &item : std::as_const(m_bayerItems))
+            item->updateFrame(raw);
     } else {
-        if (!m_videoSink) return;
+        m_videoSinks.removeAll(nullptr);
+        if (m_videoSinks.isEmpty()) return;
         const auto qtFmt = toQtPixelFormat(fmt);
         if (qtFmt == QVideoFrameFormat::Format_Invalid) return;
 
@@ -1129,7 +1205,8 @@ void VideoController::displayReplayFrame(const std::byte *data, size_t bytes,
         }
 
         replayFrame.unmap();
-        m_videoSink->setVideoFrame(replayFrame);
+        for (const auto &sink : std::as_const(m_videoSinks))
+            sink->setVideoFrame(replayFrame);
     }
 }
 
@@ -1143,15 +1220,16 @@ void VideoController::displayReplayFrame(const std::byte *data, size_t bytes,
 // the ring are laid out, so swing replay decodes with the same format/size it was
 // stored with — no per-backend hardcoding, and robust to any future format.
 //
-// Called from drainDisplayFrame() once the first real frame has reached the sink.
+// Called from drainDisplayFrame() once the first real frame has been delivered
+// (held in m_lastDeliveredFrame — the subscriber list may legitimately be empty).
 // The ring slot was already sized conservatively at registerSource(); this only
 // updates metadata (updateSourceFormat does not touch ring memory).
-void VideoController::updateBufferDescriptor()
+void CameraInstance::updateBufferDescriptor()
 {
     if (!m_eventBuffer || m_sourceId == pinpoint::kInvalidSourceId) return;
     if (m_bufferDescriptorStamped) return;
 
-    const QVideoFrame f = m_videoSink ? m_videoSink->videoFrame() : QVideoFrame();
+    const QVideoFrame f = m_lastDeliveredFrame;
     if (!f.isValid()) return;  // no real frame yet — never stamp a guess
 
     const QVideoFrameFormat   sf  = f.surfaceFormat();
@@ -1183,7 +1261,7 @@ void VideoController::updateBufferDescriptor()
     m_eventBuffer->updateSourceFormat(m_sourceId, fd);
     m_bufferDescriptorStamped = true;
 
-    ppInfo() << "[VideoController] buffer descriptor stamped from frame:"
+    ppInfo() << "[CameraInstance] buffer descriptor stamped from frame:"
              << m_deviceDescription << w << "x" << h << "@" << fps << "fps"
              << "qtFmt:" << static_cast<int>(sf.pixelFormat())
              << "-> pinpointFmt:" << static_cast<int>(pixfmt);
@@ -1193,7 +1271,7 @@ void VideoController::updateBufferDescriptor()
 // EventBuffer publish helpers (called on the capture thread via DirectConnection)
 // ---------------------------------------------------------------------------
 
-void VideoController::publishFrameToBuffer(const QVideoFrame &frame)
+void CameraInstance::publishFrameToBuffer(const QVideoFrame &frame)
 {
     if (!frame.isValid())
         return;
@@ -1230,7 +1308,7 @@ void VideoController::publishFrameToBuffer(const QVideoFrame &frame)
         // AVFoundation backend delivers 32-bpp ARGB32). Log once: at the capture rate
         // this would otherwise flood the bounded log and bury every other entry.
         if (!m_publishDropLogged.exchange(true, std::memory_order_relaxed)) {
-            ppError() << "[VideoController] dropping every frame from the event buffer:"
+            ppError() << "[CameraInstance] dropping every frame from the event buffer:"
                       << totalBytes << "byte frame does not fit the" << slot.capacity
                       << "byte ring slot (planes:" << mutable_frame.planeCount()
                       << "). No data will be captured and swing replay will be empty."
@@ -1241,7 +1319,7 @@ void VideoController::publishFrameToBuffer(const QVideoFrame &frame)
     mutable_frame.unmap();
 }
 
-void VideoController::publishRawFrameToBuffer(const RawVideoFrame &frame)
+void CameraInstance::publishRawFrameToBuffer(const RawVideoFrame &frame)
 {
     if (frame.isNull())
         return;

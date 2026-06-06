@@ -22,6 +22,7 @@
 
 #include <QObject>
 #include <QRectF>
+#include <atomic>
 #include <opencv2/core.hpp>
 
 struct BallDetection {
@@ -52,6 +53,13 @@ class BallDetector : public QObject
 public:
     explicit BallDetector(QObject *parent = nullptr);
 
+    // Thread-safe master enable — callable directly from any thread (atomic).
+    // When disabled, detect() emits detectionSkipped() instead of ballDetected()
+    // so the FrameThrottle is released without touching ball-present state
+    // (a found=false ballDetected here would fire a spurious ball-lost replay).
+    void setEnabled(bool on) { m_enabled.store(on, std::memory_order_relaxed); }
+    bool isEnabled() const   { return m_enabled.load(std::memory_order_relaxed); }
+
 public slots:
     // Receives a BGR CV_8UC3 frame from VideoPreprocessorOpenCV.
     // No-op when no ROI is set.
@@ -68,7 +76,13 @@ public slots:
 signals:
     void ballDetected(const BallDetection &result);
 
+    // Emitted instead of ballDetected() when the detector is disabled —
+    // FrameThrottle connects this to clearBusy() alongside ballDetected().
+    void detectionSkipped();
+
 private:
+    std::atomic<bool> m_enabled{true};
+
     // Only accessed on the detector's own thread (all slots arrive via queued
     // connections, so they are serialised by the event loop).
     QRectF m_roi;

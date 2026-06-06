@@ -67,8 +67,8 @@ Item {
 
         property var camData: ({})  // one entry from cameraManager.cameraList
 
-        // The selected VideoController for this camera (null when not selected).
-        readonly property var realController: {
+        // The selected CameraInstance for this camera (null when not selected).
+        readonly property var realInstance: {
             var instances = cameraManager.instances
             for (var i = 0; i < instances.length; ++i) {
                 if (instances[i].deviceSerialNumber === camData.serialNumber)
@@ -77,12 +77,12 @@ Item {
             return null
         }
 
-        // Lightweight preview-only controller created on-demand by the crop panel.
-        property var localPreviewCtrl: null
+        // Lightweight preview-only instance created on-demand by the crop panel.
+        property var localPreviewInstance: null
 
-        // Effective controller: real (selected) controller when available,
-        // otherwise the local preview-only controller.
-        readonly property var controller: realController !== null ? realController : localPreviewCtrl
+        // Effective instance: real (selected) instance when available,
+        // otherwise the local preview-only instance.
+        readonly property var instance: realInstance !== null ? realInstance : localPreviewInstance
 
         readonly property bool roiOpen: root.openRoiIndex === camData.index
 
@@ -91,8 +91,8 @@ Item {
         readonly property double currentFps: {
             var stored = appSettings.cameraTargetFps[camData.cameraKey]
             if (stored !== undefined && stored > 0) return stored
-            if (camRow.controller && camRow.controller.configuredFps > 0)
-                return camRow.controller.configuredFps
+            if (camRow.instance && camRow.instance.configuredFps > 0)
+                return camRow.instance.configuredFps
             return camData.maxFps > 0 ? camData.maxFps : 30
         }
 
@@ -142,7 +142,7 @@ Item {
                 width:  Theme.sp(6)
                 height: Theme.sp(6)
                 radius: Theme.sp(3)
-                color: camRow.realController && camRow.realController.isRecording
+                color: camRow.realInstance && camRow.realInstance.isRecording
                             ? Theme.colorGood
                             : (camData.enabled ? Theme.colorWarn : Theme.colorText3)
                 Layout.alignment: Qt.AlignVCenter
@@ -313,8 +313,8 @@ Item {
                         if (p > 0) map[camData.cameraKey] = p
                         else delete map[camData.cameraKey]
                         appSettings.cameraPerspective = map
-                        if (camRow.realController)
-                            cameraManager.setPerspective(camRow.realController, p)
+                        if (camRow.realInstance)
+                            cameraManager.setPerspective(camRow.realInstance, p)
                     }
 
                     font.family:    Theme.fontBody
@@ -435,8 +435,8 @@ Item {
                             else
                                 map[camData.cameraKey] = true
                             appSettings.cameraIsMirrored = map
-                            if (camRow.realController)
-                                cameraManager.setIsMirrored(camRow.realController, !mirrorChip.isMirrored)
+                            if (camRow.realInstance)
+                                cameraManager.setIsMirrored(camRow.realInstance, !mirrorChip.isMirrored)
                         }
                     }
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
@@ -676,12 +676,12 @@ Item {
                             } else {
                                 root.openRoiIndex = camData.index
                                 // Apply default ROI if not yet set
-                                if (camRow.controller) {
-                                    var r = camRow.controller.cropRoi
+                                if (camRow.instance) {
+                                    var r = camRow.instance.cropRoi
                                     if (r.width <= 0 || r.height <= 0) {
                                         var dw = 0.4
                                         var dx = (1.0 - dw) / 2.0
-                                        camRow.controller.setCropRoi(Qt.rect(dx, 0.0, dw, 1.0))
+                                        camRow.instance.setCropRoi(Qt.rect(dx, 0.0, dw, 1.0))
                                     }
                                 }
                             }
@@ -809,13 +809,13 @@ Item {
                             radius: 2
                             clip: true
 
-                            // ── ROI box pixel positions (bound to controller.cropRoi) ──
-                            readonly property real rX: camRow.controller ? camRow.controller.cropRoi.x      * previewRect.width  : 0
-                            readonly property real rY: camRow.controller ? camRow.controller.cropRoi.y      * previewRect.height : 0
-                            readonly property real rW: camRow.controller && camRow.controller.cropRoi.width  > 0
-                                                           ? camRow.controller.cropRoi.width  * previewRect.width  : previewRect.width
-                            readonly property real rH: camRow.controller && camRow.controller.cropRoi.height > 0
-                                                           ? camRow.controller.cropRoi.height * previewRect.height : previewRect.height
+                            // ── ROI box pixel positions (bound to instance.cropRoi) ──
+                            readonly property real rX: camRow.instance ? camRow.instance.cropRoi.x      * previewRect.width  : 0
+                            readonly property real rY: camRow.instance ? camRow.instance.cropRoi.y      * previewRect.height : 0
+                            readonly property real rW: camRow.instance && camRow.instance.cropRoi.width  > 0
+                                                           ? camRow.instance.cropRoi.width  * previewRect.width  : previewRect.width
+                            readonly property real rH: camRow.instance && camRow.instance.cropRoi.height > 0
+                                                           ? camRow.instance.cropRoi.height * previewRect.height : previewRect.height
 
                             // ── Unified drag state ────────────────────────────
                             property string roiDragMode: "none" // none|move|tl|tr|bl|br
@@ -833,12 +833,12 @@ Item {
                             }
 
                             // Persist ROI changes directly to AppSettings whenever the
-                            // controller's cropRoi changes (drag, numeric field, preset).
+                            // instance's cropRoi changes (drag, numeric field, preset).
                             Connections {
-                                target: camRow.controller
+                                target: camRow.instance
                                 function onCropRoiChanged() {
                                     if (!camData.cameraKey) return
-                                    var roi = camRow.controller.cropRoi
+                                    var roi = camRow.instance.cropRoi
                                     var map = appSettings.cameraRoi
                                     if (roi.width > 0 && roi.height > 0)
                                         map[camData.cameraKey] = { x: roi.x, y: roi.y, w: roi.width, h: roi.height }
@@ -849,33 +849,33 @@ Item {
                             }
 
                             // Wire/clear the settings sink and start/stop preview with the panel.
-                            // When no real (selected) controller exists, a lightweight preview-only
-                            // controller is created on demand (no event buffer, no pose pipeline).
+                            // When no real (selected) instance exists, a lightweight preview-only
+                            // instance is created on demand (no event buffer, no pose pipeline).
                             Connections {
                                 target: camRow
                                 function onRoiOpenChanged() {
                                     if (camRow.roiOpen) {
-                                        if (!camRow.realController && !camRow.localPreviewCtrl)
-                                            camRow.localPreviewCtrl = cameraManager.createPreviewController(camData.index)
-                                        if (!camRow.controller) return
-                                        camRow.controller.setSettingsSink(settingsVideoOutput.videoSink)
-                                        camRow.controller.startPreview()
+                                        if (!camRow.realInstance && !camRow.localPreviewInstance)
+                                            camRow.localPreviewInstance = cameraManager.createPreviewInstance(camData.index)
+                                        if (!camRow.instance) return
+                                        camRow.instance.setSettingsSink(settingsVideoOutput.videoSink)
+                                        camRow.instance.startPreview()
                                     } else {
-                                        if (camRow.controller) {
-                                            camRow.controller.setSettingsSink(null)
-                                            camRow.controller.stopPreview()
+                                        if (camRow.instance) {
+                                            camRow.instance.setSettingsSink(null)
+                                            camRow.instance.stopPreview()
                                         }
-                                        if (camRow.localPreviewCtrl) {
-                                            cameraManager.destroyPreviewController(camRow.localPreviewCtrl)
-                                            camRow.localPreviewCtrl = null
+                                        if (camRow.localPreviewInstance) {
+                                            cameraManager.destroyPreviewInstance(camRow.localPreviewInstance)
+                                            camRow.localPreviewInstance = null
                                         }
                                     }
                                 }
                             }
 
                             // ── Overlay shades around the ROI ─────────────────
-                            readonly property bool hasRoi: camRow.controller
-                                                        && camRow.controller.cropRoi.width > 0
+                            readonly property bool hasRoi: camRow.instance
+                                                        && camRow.instance.cropRoi.width > 0
 
                             Rectangle {   // left
                                 x: 0; y: 0
@@ -975,8 +975,8 @@ Item {
                                     previewRect.roiDragMode   = hitZone(mouse.x, mouse.y)
                                     previewRect.roiDragStartX = mouse.x
                                     previewRect.roiDragStartY = mouse.y
-                                    if (camRow.controller && previewRect.hasRoi) {
-                                        var r = camRow.controller.cropRoi
+                                    if (camRow.instance && previewRect.hasRoi) {
+                                        var r = camRow.instance.cropRoi
                                         previewRect.roiOrigX = r.x
                                         previewRect.roiOrigY = r.y
                                         previewRect.roiOrigW = r.width
@@ -986,7 +986,7 @@ Item {
 
                                 onPositionChanged: (mouse) => {
                                     if (previewRect.roiDragMode === "none") return
-                                    if (!camRow.controller) return
+                                    if (!camRow.instance) return
                                     // All deltas are computed from press-start in normalised coords
                                     var dx = (mouse.x - previewRect.roiDragStartX) / previewRect.width
                                     var dy = (mouse.y - previewRect.roiDragStartY) / previewRect.height
@@ -997,31 +997,31 @@ Item {
                                     case "move":
                                         nx = Math.max(0, Math.min(1.0 - ow, ox + dx))
                                         ny = Math.max(0, Math.min(1.0 - oh, oy + dy))
-                                        camRow.controller.setCropRoi(Qt.rect(nx, ny, ow, oh))
+                                        camRow.instance.setCropRoi(Qt.rect(nx, ny, ow, oh))
                                         break
                                     case "tl":
                                         nx = Math.max(0,   Math.min(ox + ow - 0.02, ox + dx))
                                         ny = Math.max(0,   Math.min(oy + oh - 0.02, oy + dy))
                                         nw = Math.max(0.02, ow - (nx - ox))
                                         nh = Math.max(0.02, oh - (ny - oy))
-                                        camRow.controller.setCropRoi(Qt.rect(nx, ny, nw, nh))
+                                        camRow.instance.setCropRoi(Qt.rect(nx, ny, nw, nh))
                                         break
                                     case "tr":
                                         ny = Math.max(0,   Math.min(oy + oh - 0.02, oy + dy))
                                         nw = Math.max(0.02, Math.min(1.0 - ox, ow + dx))
                                         nh = Math.max(0.02, oh - (ny - oy))
-                                        camRow.controller.setCropRoi(Qt.rect(ox, ny, nw, nh))
+                                        camRow.instance.setCropRoi(Qt.rect(ox, ny, nw, nh))
                                         break
                                     case "bl":
                                         nx = Math.max(0,   Math.min(ox + ow - 0.02, ox + dx))
                                         nw = Math.max(0.02, ow - (nx - ox))
                                         nh = Math.max(0.02, Math.min(1.0 - oy, oh + dy))
-                                        camRow.controller.setCropRoi(Qt.rect(nx, oy, nw, nh))
+                                        camRow.instance.setCropRoi(Qt.rect(nx, oy, nw, nh))
                                         break
                                     case "br":
                                         nw = Math.max(0.02, Math.min(1.0 - ox, ow + dx))
                                         nh = Math.max(0.02, Math.min(1.0 - oy, oh + dy))
-                                        camRow.controller.setCropRoi(Qt.rect(ox, oy, nw, nh))
+                                        camRow.instance.setCropRoi(Qt.rect(ox, oy, nw, nh))
                                         break
                                     }
                                 }
@@ -1069,8 +1069,8 @@ Item {
                                 anchors.topMargin:   Theme.sp(8)
                                 anchors.rightMargin: Theme.sp(8)
                                 readonly property double displayFps: {
-                                    if (camRow.controller && camRow.controller.configuredFps > 0)
-                                        return camRow.controller.configuredFps
+                                    if (camRow.instance && camRow.instance.configuredFps > 0)
+                                        return camRow.instance.configuredFps
                                     return camData.maxFps > 0 ? camData.maxFps : 0
                                 }
                                 visible: displayFps > 0
@@ -1113,9 +1113,9 @@ Item {
 
                                 Text {
                                     text: {
-                                        if (!camRow.controller || camRow.controller.cropRoi.width <= 0)
+                                        if (!camRow.instance || camRow.instance.cropRoi.width <= 0)
                                             return ""
-                                        var r  = camRow.controller.cropRoi
+                                        var r  = camRow.instance.cropRoi
                                         var rw = Math.round(r.width  * (camData.maxWidth  || 0))
                                         var rh = Math.round(r.height * (camData.maxHeight || 0))
                                         return rw + " × " + rh + " px (ROI)"
@@ -1174,13 +1174,13 @@ Item {
                                         font.family:    Theme.fontData
                                         font.pixelSize: Theme.fontSzBody2
                                         color:          Theme.colorText
-                                        text: camRow.controller ? Math.round(camRow.controller.cropRoi.x * (camData.maxWidth || 0)).toString() : "0"
+                                        text: camRow.instance ? Math.round(camRow.instance.cropRoi.x * (camData.maxWidth || 0)).toString() : "0"
                                         onEditingFinished: {
-                                            if (!camRow.controller) return
+                                            if (!camRow.instance) return
                                             var val = parseInt(text) || 0
-                                            var r   = camRow.controller.cropRoi
+                                            var r   = camRow.instance.cropRoi
                                             var nx  = Math.max(0, Math.min(1.0 - r.width, val / (camData.maxWidth || 1)))
-                                            camRow.controller.setCropRoi(Qt.rect(nx, r.y, r.width, r.height))
+                                            camRow.instance.setCropRoi(Qt.rect(nx, r.y, r.width, r.height))
                                         }
                                     }
                                 }
@@ -1209,13 +1209,13 @@ Item {
                                         font.family:    Theme.fontData
                                         font.pixelSize: Theme.fontSzBody2
                                         color:          Theme.colorText
-                                        text: camRow.controller ? Math.round(camRow.controller.cropRoi.y * (camData.maxHeight || 0)).toString() : "0"
+                                        text: camRow.instance ? Math.round(camRow.instance.cropRoi.y * (camData.maxHeight || 0)).toString() : "0"
                                         onEditingFinished: {
-                                            if (!camRow.controller) return
+                                            if (!camRow.instance) return
                                             var val = parseInt(text) || 0
-                                            var r   = camRow.controller.cropRoi
+                                            var r   = camRow.instance.cropRoi
                                             var ny  = Math.max(0, Math.min(1.0 - r.height, val / (camData.maxHeight || 1)))
-                                            camRow.controller.setCropRoi(Qt.rect(r.x, ny, r.width, r.height))
+                                            camRow.instance.setCropRoi(Qt.rect(r.x, ny, r.width, r.height))
                                         }
                                     }
                                 }
@@ -1262,13 +1262,13 @@ Item {
                                         font.family:    Theme.fontData
                                         font.pixelSize: Theme.fontSzBody2
                                         color:          Theme.colorText
-                                        text: camRow.controller ? Math.round(camRow.controller.cropRoi.width  * (camData.maxWidth  || 0)).toString() : (camData.maxWidth  || 0).toString()
+                                        text: camRow.instance ? Math.round(camRow.instance.cropRoi.width  * (camData.maxWidth  || 0)).toString() : (camData.maxWidth  || 0).toString()
                                         onEditingFinished: {
-                                            if (!camRow.controller) return
+                                            if (!camRow.instance) return
                                             var val = parseInt(text) || (camData.maxWidth || 0)
-                                            var r   = camRow.controller.cropRoi
+                                            var r   = camRow.instance.cropRoi
                                             var nw  = Math.max(0.01, Math.min(1.0 - r.x, val / (camData.maxWidth || 1)))
-                                            camRow.controller.setCropRoi(Qt.rect(r.x, r.y, nw, r.height))
+                                            camRow.instance.setCropRoi(Qt.rect(r.x, r.y, nw, r.height))
                                         }
                                     }
                                 }
@@ -1297,13 +1297,13 @@ Item {
                                         font.family:    Theme.fontData
                                         font.pixelSize: Theme.fontSzBody2
                                         color:          Theme.colorText
-                                        text: camRow.controller ? Math.round(camRow.controller.cropRoi.height * (camData.maxHeight || 0)).toString() : (camData.maxHeight || 0).toString()
+                                        text: camRow.instance ? Math.round(camRow.instance.cropRoi.height * (camData.maxHeight || 0)).toString() : (camData.maxHeight || 0).toString()
                                         onEditingFinished: {
-                                            if (!camRow.controller) return
+                                            if (!camRow.instance) return
                                             var val = parseInt(text) || (camData.maxHeight || 0)
-                                            var r   = camRow.controller.cropRoi
+                                            var r   = camRow.instance.cropRoi
                                             var nh  = Math.max(0.01, Math.min(1.0 - r.y, val / (camData.maxHeight || 1)))
-                                            camRow.controller.setCropRoi(Qt.rect(r.x, r.y, r.width, nh))
+                                            camRow.instance.setCropRoi(Qt.rect(r.x, r.y, r.width, nh))
                                         }
                                     }
                                 }
@@ -1357,20 +1357,20 @@ Item {
                                             anchors.fill: parent
                                             cursorShape:  Qt.PointingHandCursor
                                             onClicked: {
-                                                if (!camRow.controller) return
+                                                if (!camRow.instance) return
                                                 switch (modelData.action) {
                                                 case "full":
-                                                    camRow.controller.setCropRoi(Qt.rect(0, 0, 1, 1))
+                                                    camRow.instance.setCropRoi(Qt.rect(0, 0, 1, 1))
                                                     break
                                                 case "default":
-                                                    camRow.controller.setCropRoi(Qt.rect(0.3, 0, 0.4, 1.0))
+                                                    camRow.instance.setCropRoi(Qt.rect(0.3, 0, 0.4, 1.0))
                                                     break
                                                 case "16:9": {
                                                     var mw = camData.maxWidth  || 1
                                                     var mh = camData.maxHeight || 1
                                                     var h  = mw * 9.0 / 16.0 / mh
                                                     var y  = (1.0 - h) / 2.0
-                                                    camRow.controller.setCropRoi(Qt.rect(0, y, 1.0, h))
+                                                    camRow.instance.setCropRoi(Qt.rect(0, y, 1.0, h))
                                                     break
                                                 }
                                                 }
@@ -1391,7 +1391,7 @@ Item {
                             border.color: Theme.colorBorderStrong
                             radius: Theme.radius
 
-                            // Slot sizing matches VideoController's ring buffer allocation exactly.
+                            // Slot sizing matches CameraInstance's ring buffer allocation exactly.
                             // slotBytesPerPixel = worst-case BPP (min 2), slotWidth/Height = max resolution.
                             readonly property int  slotBpp:   camData.slotBytesPerPixel || 2
                             readonly property int  slotW:     camData.slotWidth  || camData.maxWidth  || 0
@@ -1403,11 +1403,11 @@ Item {
                             readonly property real fullBytes: slotBytes  // slot = full frame at worst-case BPP
 
                             // ROI crop dimensions (normalised → pixels using default resolution for display).
-                            readonly property real roiCropW:  camRow.controller && camRow.controller.cropRoi.width  > 0
-                                                                ? camRow.controller.cropRoi.width  * (camData.maxWidth  || 0)
+                            readonly property real roiCropW:  camRow.instance && camRow.instance.cropRoi.width  > 0
+                                                                ? camRow.instance.cropRoi.width  * (camData.maxWidth  || 0)
                                                                 : (camData.maxWidth  || 0)
-                            readonly property real roiCropH:  camRow.controller && camRow.controller.cropRoi.height > 0
-                                                                ? camRow.controller.cropRoi.height * (camData.maxHeight || 0)
+                            readonly property real roiCropH:  camRow.instance && camRow.instance.cropRoi.height > 0
+                                                                ? camRow.instance.cropRoi.height * (camData.maxHeight || 0)
                                                                 : (camData.maxHeight || 0)
                             // ROI bytes uses the slot BPP so the saving is relative to the allocated slot.
                             readonly property real roiBytes:  roiCropW * roiCropH * slotBpp
@@ -1571,8 +1571,8 @@ Item {
                                     anchors.fill: parent
                                     cursorShape:  Qt.PointingHandCursor
                                     onClicked: {
-                                        if (camRow.controller)
-                                            camRow.controller.setCropRoi(Qt.rect(0, 0, 1, 1))
+                                        if (camRow.instance)
+                                            camRow.instance.setCropRoi(Qt.rect(0, 0, 1, 1))
                                     }
                                 }
                             }

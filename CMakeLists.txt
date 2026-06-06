@@ -161,7 +161,7 @@ qt_add_executable(PinPointStudio
     src/Pose/pose_estimator_base.h        src/Pose/pose_estimator_base.cpp
     src/Core/device_enumerator.h           src/Core/device_enumerator.cpp
     src/Video/VideoInputAravis.h           src/Video/VideoInputAravis.cpp
-    src/Gui/video_controller.h             src/Gui/video_controller.cpp
+    src/Gui/camera_instance.h             src/Gui/camera_instance.cpp
     src/Gui/camera_manager.h               src/Gui/camera_manager.cpp
     src/Gui/buffer_controller.h            src/Gui/buffer_controller.cpp
     src/STT/stt_processor.h          src/STT/stt_processor.cpp
@@ -197,7 +197,7 @@ qt_add_qml_module(PinPointStudio
         src/Gui/BodyVizView.qml
         src/Gui/FilmPage.qml
         src/Gui/VideoPage.qml
-        src/Gui/CameraView.qml
+        src/Gui/PpCameraFrame.qml
         src/Gui/PpRail.qml
         src/Gui/PpRailButton.qml
         src/Gui/PpDivider.qml

@@ -22,12 +22,12 @@
 #include <QQuaternion>
 #include <QTimer>
 
-// BodyPoseAdapter — converts 17 COCO keypoints from a face-on VideoController
+// BodyPoseAdapter — converts 17 COCO keypoints from a face-on CameraInstance
 // into per-bone parent-local quaternions for BodyVizView's kinematic chain.
 //
 // Design contract:
 //   poseSource   — any QObject exposing poseKeypoints (QVariantList) and
-//                  poseKeypointsChanged() signal (VideoController satisfies this).
+//                  poseKeypointsChanged() signal (CameraInstance satisfies this).
 //   active       — true when both hip keypoints and both shoulder keypoints
 //                  meet the confidence threshold; BodyVizView falls back to
 //                  rest-pose quaternions when false.

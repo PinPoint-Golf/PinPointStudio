@@ -205,7 +205,7 @@ Item {
             color: Theme.colorSurface; radius: Theme.radiusLg
             border.width: 1; border.color: Theme.colorBorderStrong
         }
-        contentItem: PpCameraPanel { active: camPopup.visible }
+        contentItem: PpCameraPanel {}
     }
 
     Popup {

@@ -50,8 +50,8 @@ ring that overwrites from the oldest end.
 ┌──────────────────────────────────────────────────────────────────────┐
 │  Pinpoint Application                                                │
 │                                                                      │
-│  [VideoController]  ──publish──►  ┌─────────────────┐               │
-│  [VideoController]  ──publish──►  │   EventBuffer   │               │
+│  [CameraInstance]  ──publish──►  ┌─────────────────┐               │
+│  [CameraInstance]  ──publish──►  │   EventBuffer   │               │
 │  [ImuController]    ──publish──►  │  (src/Buffer/)  │               │
 │                                   └────────┬────────┘               │
 │                                            │                        │
@@ -257,7 +257,7 @@ systems do not fully return freed memory to the system on `free()`. Keep rings w
 buffer.deregisterSource(id);
 ```
 
-This is called automatically by `VideoController::deregisterFromBuffer()` when
+This is called automatically by `CameraInstance::deregisterFromBuffer()` when
 `CameraManager::setSelected(index, false)` is called.
 
 ### `activeSourceCount()`
@@ -310,7 +310,7 @@ bytes = 256 × (1920 × 1080) = 256 × 2,073,600 ≈ 531 MB per camera
 
 Register with accurate dimensions — over-estimating `fps_numerator` doubles the
 slot count and wastes memory. The Pinpoint integration calls
-`VideoController::updateBufferDescriptor()` once the camera starts and reports its
+`CameraInstance::updateBufferDescriptor()` once the camera starts and reports its
 actual format, so registrations use real values rather than guesses.
 
 ---

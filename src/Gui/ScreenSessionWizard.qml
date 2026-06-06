@@ -246,7 +246,7 @@ Item {
     readonly property var curImuReqs: imuRequirements[sessionType]
 
     // Find the cameraList entry assigned to a given perspective.
-    // perspective: 2 = face-on, 1 = down-the-line (matches VideoController convention).
+    // perspective: 2 = face-on, 1 = down-the-line (matches CameraInstance convention).
     // Reads directly from cameraList which now includes the persisted perspective field,
     // so this works whether or not cameras are currently selected.
     readonly property var faceOnData: {

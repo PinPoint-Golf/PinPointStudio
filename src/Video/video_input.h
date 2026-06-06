@@ -50,7 +50,7 @@ public:
 
     // Build full capabilities from a QCameraDevice without opening a connection.
     // Called by VideoInputFactory::enumerateDevices() so capabilities are stored
-    // in the Device struct before any VideoController is created.
+    // in the Device struct before any CameraInstance is created.
     static CameraCapabilities capabilitiesFor(const QCameraDevice &dev);
 
     // -----------------------------------------------------------------------

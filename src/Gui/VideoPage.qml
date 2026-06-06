@@ -89,10 +89,13 @@ Item {
 
             Repeater {
                 model: cameraManager.instances
-                delegate: CameraView {
+                delegate: PpCameraFrame {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    controller: modelData
+                    instance: modelData
+                    displayName: modelData.deviceAlias !== "" ? modelData.deviceAlias
+                                                              : modelData.deviceDescription
+                    roiEditable: true
                 }
             }
 

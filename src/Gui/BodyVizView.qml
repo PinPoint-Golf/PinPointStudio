@@ -52,14 +52,14 @@ import PinPointStudio
 // avoid unnecessary computation.
 //
 // Phase 2 will add:
-//   property QtObject poseSource  — drives bone rotations from a VideoController
+//   property QtObject poseSource  — drives bone rotations from a CameraInstance
 //   BodyPoseAdapter               — 2D keypoints → per-bone quaternions
 //   60 Hz Timer                   — animates rotations via slerp
 
 Item {
     id: root
 
-    // Face-on VideoController — drives per-bone animation when non-null.
+    // Face-on CameraInstance — drives per-bone animation when non-null.
     property QtObject poseSource: null
 
     // true when the camera delivers a horizontally mirrored image (typical webcam).

@@ -191,7 +191,7 @@ parallelism is a possible future option):
 
 The OpenCV `COLOR_Bayer*` constants are offset from the sensor pattern naming —
 getting this wrong swaps colour channels. The exporter's mapping **mirrors the
-live-view path** (`video_controller.cpp` PixelFormat→BayerPattern,
+live-view path** (`camera_instance.cpp` PixelFormat→BayerPattern,
 `raw_video_frame.cpp` pattern→cvtColor code) so exported colour is identical to
 what the user saw on screen:
 
@@ -621,7 +621,7 @@ count); only `-count_frames` or an actual decode reveals it.
 The OpenCV `COLOR_Bayer*` constants do not match the sensor pattern names
 one-to-one. The exporter's table mirrors the live-view mapping deliberately — if
 exported colours ever diverge from the on-screen image, compare against
-`video_controller.cpp`'s PixelFormat→pattern switch before touching the exporter.
+`camera_instance.cpp`'s PixelFormat→pattern switch before touching the exporter.
 
 ### Blocking the UI thread on the watcher outside teardown
 

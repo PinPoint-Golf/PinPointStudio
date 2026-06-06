@@ -37,7 +37,7 @@
 
 namespace pinpoint { class EventBuffer; }
 class AthleteController;
-class VideoController;
+class CameraInstance;
 
 class CameraManager : public QObject
 {
@@ -49,6 +49,14 @@ class CameraManager : public QObject
     Q_PROPERTY(bool anySelected         READ anySelected NOTIFY instancesChanged)
     Q_PROPERTY(QString bufferState      READ bufferState NOTIFY bufferStateChanged)
     Q_PROPERTY(bool isReplaying         READ isReplaying NOTIFY isReplayingChanged)
+    // Per-session camera enablement (cameraKey list). Seeded from
+    // AppSettings::cameraExcluded at startup but NEVER written back — global
+    // enablement is owned by Settings. Shared by every toolbar camera panel
+    // and the per-screen video tile rows (all screens stay alive in the
+    // StackLayout, so this state cannot live in a panel instance).
+    Q_PROPERTY(QStringList sessionCameraExcluded READ sessionCameraExcluded NOTIFY sessionCameraExcludedChanged)
+    // All-cameras live pose-estimation toggle (session-wide, not persisted).
+    Q_PROPERTY(bool livePoseEnabled READ livePoseEnabled WRITE setLivePoseEnabled NOTIFY livePoseEnabledChanged)
 
 public:
     explicit CameraManager(pinpoint::EventBuffer *buffer = nullptr,
@@ -62,13 +70,16 @@ public:
     bool anySelected()        const;
     QString bufferState()     const;
     bool isReplaying()        const;
+    QStringList sessionCameraExcluded() const;
+    bool livePoseEnabled()    const;
+    void setLivePoseEnabled(bool on);
 
-    // Returns the live VideoController for a given device ID, or nullptr when
+    // Returns the live CameraInstance for a given device ID, or nullptr when
     // the device is enumerated but not selected.  Mirrors ImuManager::instanceFor().
-    VideoController *controllerFor(const QString &deviceId) const;
+    CameraInstance *instanceFor(const QString &deviceId) const;
 
     // Snapshot of live per-device stats for monitoring purposes.
-    // Avoids exposing VideoController to callers that only need metrics.
+    // Avoids exposing CameraInstance to callers that only need metrics.
     struct CameraDeviceStats {
         pinpoint::SourceId sourceId  = pinpoint::kInvalidSourceId;
         double             fps       = 0.0;
@@ -97,14 +108,15 @@ public:
     Q_INVOKABLE void setIsMirrored(QObject *controller, bool mirrored);
 
     Q_INVOKABLE void setExcluded(int index, bool excluded);
+    Q_INVOKABLE void setSessionCameraEnabled(const QString &cameraKey, bool on);
     Q_INVOKABLE void setTargetFps(int index, double fps);
     Q_INVOKABLE void setTriggerMode(int index, const QString &mode);
 
-    // Creates a lightweight preview-only VideoController (no event buffer, no pose
+    // Creates a lightweight preview-only CameraInstance (no event buffer, no pose
     // pipeline) for use in the settings panel crop UI.  The returned object is owned
-    // by this CameraManager and must be released via destroyPreviewController() when done.
-    Q_INVOKABLE QObject *createPreviewController(int index);
-    Q_INVOKABLE void     destroyPreviewController(QObject *ctrl);
+    // by this CameraManager and must be released via destroyPreviewInstance() when done.
+    Q_INVOKABLE QObject *createPreviewInstance(int index);
+    Q_INVOKABLE void     destroyPreviewInstance(QObject *ctrl);
 
 signals:
     void cameraListChanged();
@@ -112,6 +124,8 @@ signals:
     void isRecordingChanged();
     void bufferStateChanged();
     void isReplayingChanged();
+    void sessionCameraExcludedChanged();
+    void livePoseEnabledChanged();
     void swingSaved(const QString &path);
     void swingSaveFailed(const QString &error);
 
@@ -119,7 +133,7 @@ private:
     struct CameraEntry {
         Device device;
         bool selected = false;
-        VideoController *controller = nullptr;
+        CameraInstance *controller = nullptr;
         bool excluded = false;
         double targetFps = 0.0;
         QString triggerMode = QStringLiteral("freerun");
@@ -150,13 +164,15 @@ private:
     }
 
     struct ReplayTrack {
-        VideoController                   *ctrl      = nullptr;
+        CameraInstance                   *ctrl      = nullptr;
         pinpoint::SourceId                 sourceId  = pinpoint::kInvalidSourceId;
         std::vector<pinpoint::IndexEntry>  entries;
         size_t                             idx       = 0;
     };
 
     QList<CameraEntry>                   m_cameras;
+    QStringList                          m_sessionExcluded;
+    bool                                 m_livePoseEnabled  = true;
     bool                                 m_recording        = false;
     int                                  m_ballPresentCount = 0;
     pinpoint::EventBuffer               *m_eventBuffer      = nullptr;
@@ -178,7 +194,7 @@ private:
     AthleteController   *m_athleteController = nullptr;
     pinpoint::SwingPaths m_swingPaths;
 
-    VideoController *createController(const Device &device);
+    CameraInstance *createController(const Device &device);
     void startReplay();
     void stopReplay(bool autoResume = true);
     void startSwingSave();

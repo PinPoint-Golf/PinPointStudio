@@ -17,9 +17,11 @@
  */
 
 // Wrist Motion screen (contentStack index 2). Hosts the persistent session
-// toolbar at the top; the wrist body content arrives in a later prompt. The
-// toolbar's device panels run calibration entirely in-panel, so this screen
-// neither exposes nor routes any calibrate request.
+// toolbar at the top and one video tile per session-enabled camera (toggle a
+// camera off in the toolbar's camera panel and its tile disappears; Connect
+// in the panel starts the streams). The toolbar's device panels run
+// calibration entirely in-panel, so this screen neither exposes nor routes
+// any calibrate request.
 
 import QtQuick
 import QtQuick.Layouts
@@ -36,10 +38,60 @@ Item {
             Layout.fillWidth: true
         }
 
-        // Body — wrist content arrives in a later prompt.
+        // Body — one video tile per session-enabled camera, side by side.
+        // Tiles appear on entry as dim "Not connected" placeholders and stream
+        // once the toolbar panel's Connect starts the capture pipeline.
         Item {
             Layout.fillWidth: true; Layout.fillHeight: true
-            ScreenPlaceholder { anchors.fill: parent; iconText: "⌖"; titleText: qsTr("Wrist") }
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.margins: Theme.sp(12)
+                spacing: Theme.sp(8)
+
+                Repeater {
+                    model: cameraManager.cameraList.filter(function(c) { return c.sessionEnabled })
+                    delegate: PpCameraFrame {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        // Reactive instance lookup (same pattern as the panel's
+                        // CamRow) — non-null once the camera is connected.
+                        instance: {
+                            var insts = cameraManager.instances
+                            for (var i = 0; i < insts.length; ++i)
+                                if (insts[i].deviceSerialNumber === modelData.serialNumber)
+                                    return insts[i]
+                            return null
+                        }
+                        displayName: modelData.alias !== "" ? modelData.alias
+                                                            : modelData.description
+                        // Wrist screen: skeleton overlay only — no hitting-area
+                        // / ball chrome here (other rail screens enable theirs).
+                        showHittingArea: false
+                    }
+                }
+            }
+
+            // Muted empty state when every camera is toggled off (or none found).
+            Column {
+                anchors.centerIn: parent
+                spacing: Theme.sp(6)
+                visible: cameraManager.cameraList.filter(function(c) { return c.sessionEnabled }).length === 0
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: qsTr("No cameras enabled")
+                    color: Theme.colorText2
+                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
+                }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: qsTr("Enable cameras in the toolbar's Cameras panel")
+                    color: Theme.colorText3
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                    font.letterSpacing: Theme.trackingData
+                }
+            }
         }
 
         // Session-shot carousel — keys mirror the Wrist goal vocabulary
