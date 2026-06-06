@@ -50,9 +50,9 @@ ring that overwrites from the oldest end.
 ┌──────────────────────────────────────────────────────────────────────┐
 │  Pinpoint Application                                                │
 │                                                                      │
-│  [CameraInstance]  ──publish──►  ┌─────────────────┐               │
-│  [CameraInstance]  ──publish──►  │   EventBuffer   │               │
-│  [ImuController]    ──publish──►  │  (src/Buffer/)  │               │
+│  [CameraInstance]  ──publish──►   ┌─────────────────┐               │
+│  [CameraInstance]  ──publish──►   │   EventBuffer   │               │
+│  [ImuInstance]     ──publish──►   │  (src/Buffer/)  │               │
 │                                   └────────┬────────┘               │
 │                                            │                        │
 │              ┌─────────────────────────────┤                        │
@@ -90,10 +90,17 @@ ring that overwrites from the oldest end.
 8. **App exit**: `aboutToQuit` fires `EventBuffer::stop()`, joining the merger thread.
    `~EventBuffer()` frees any remaining source rings.
 
-The buffer is invisible to QML. The `CameraManager` and `ImuController` in
-`src/Gui/` own the integration. The `BufferController` exposes diagnostic
-properties to QML. Analysis consumers (swing analyser, scorer, replay) are not
-yet implemented and will interact with `SwingWindow` directly from C++.
+The buffer is invisible to QML. The managers (`CameraManager`, `ImuManager`) own
+the buffer *state machine* (pause/resume sequencing, swing-window capture and
+replay orchestration), while the per-device instances (`CameraInstance`,
+`ImuInstance`) own the *data path*: each registers its own source on selection,
+publishes raw bytes from its capture/BLE thread, and deregisters on deselection.
+Note that the EventBuffer is a third, independent consumer of camera frames —
+separate from both the pose/ball pipeline and the view fan-out (`CameraInstance`
+publishes display frames to subscribed `QVideoSink`s; that path never touches the
+ring). The `BufferController` exposes diagnostic properties to QML. Analysis
+consumers (swing analyser, scorer) are not yet implemented and will interact
+with `SwingWindow` directly from C++.
 
 ---
 

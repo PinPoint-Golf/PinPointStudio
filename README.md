@@ -37,7 +37,7 @@ The interface uses a left-side navigation rail with an athlete avatar at the top
 |---|---|---|
 | **Home** | Active | Session type selection, device readiness, club selector, and Start button |
 | **Swing** | Active | Multi-camera capture, pose estimation, and ¼-speed swing replay |
-| **Wrist** | Placeholder | IMU-based wrist kinematics (requires an athlete) |
+| **Wrist** | In development | Live video tile per session-enabled camera (skeleton overlay, ¼-speed replay) + session-shot carousel; IMU wrist kinematics to come (requires an athlete) |
 | **GRF** | Placeholder | Ground reaction force analysis (requires an athlete) |
 | **Coach** | Placeholder | AI coaching output (requires an athlete) |
 
@@ -101,9 +101,10 @@ A persistent toolbar pinned to the top of every mode screen (Swing, Wrist, GRF, 
 - **Capture** — anchored at the far left with the session clock alongside it. Toggles the EventBuffer capture gate (`pauseBuffer` / `resumeBuffer`) and starts the session clock on first capture.
 - **Device pills** — Cameras and IMUs, each with a connected-count badge and aggregate state. A pill turns amber and reads **"calibrate"** when a connected device still needs calibration, and stays that way until calibration succeeds.
 - **Drop-down panels** — Tapping a pill opens a panel beneath it with a scoped action row (**Scan / Connect / Calibrate**) and a per-device list. Opening one panel closes the other; click-away or Esc dismisses.
-  - **Per-device enable toggles** — Session-local enable/disable per camera and IMU, seeded from the Settings-level exclusion list but never written back (global enablement stays owned by the Settings screen). Connect connects every enabled, not-yet-connected device; disabling a connected device disconnects it.
+  - **Per-device enable toggles** — Session-local enable/disable per camera and IMU, seeded from the Settings-level exclusion list but never written back (global enablement stays owned by the Settings screen). Camera session enablement lives in `CameraManager` so every toolbar and mode screen shares one list — the mode screens show a video tile per session-enabled camera, and toggling a camera off removes its tile. Connect connects every enabled, not-yet-connected device and starts the camera capture pipeline (the screens' video tiles stream from it); disabling a connected device disconnects it.
+  - **Live pose toggle** — An all-cameras switch in the camera panel that gates pose inference itself (not just the overlay); ball detection and swing replay are unaffected.
   - **IMU rows** — Live connection-state LED (grey idle · flashing grey/green connecting · green connected · red failed), battery and data-rate, and the configured body placement.
-  - **Camera rows** — Live preview thumbnail when connected, plus perspective, serial, and interface.
+  - **Camera rows** — Connection-state dot, perspective, serial, and interface.
 - **In-panel calibration** — The Calibrate action runs the calibration flow *inside* the panel; it never opens the full-screen wizard or leaves the mode screen. The IMU flow is the exact same state machine as the session wizard's Calibration step — extracted into a shared `ImuCalibrationFlow` component rendered compactly — so calibration is single-sourced. The Calibrate action and pill stay framed in call-to-action amber until calibration is *successful* (mount validation passes). Camera (stereo) calibration is a placeholder pending the calibration pipeline.
 
 ### Athlete management
@@ -118,7 +119,8 @@ Every session belongs to an athlete. The athlete management flow is the entry po
 
 ### Swing — multi-camera video analysis
 
-- **Multi-camera support** — Select any combination of discovered cameras; each gets its own side-by-side view with independent pose estimation, stats, and model selector. Start/Stop controls all cameras simultaneously.
+- **Multi-camera support** — Select any combination of discovered cameras; each gets its own side-by-side view with independent pose estimation. Start/Stop controls all cameras simultaneously.
+- **Shared video view** — Every screen renders cameras through one component (`PpCameraFrame`) with per-screen configurable overlays (skeleton, hitting area, badges). Each `CameraInstance` *publishes* its frames to all subscribed views — any number of views can show the same camera at once, across screens.
 - **Camera backends** — UVC webcams, Aravis (GenICam industrial cameras), Spinnaker (Teledyne/FLIR).
 - **Spinnaker pipeline** — Raw Bayer bytes captured with no CPU demosaic on the hot path; a custom `QQuickRhiItem` runs a bilinear GPU Bayer demosaic shader at display rate while the pose estimator receives OpenCV-demosaiced frames at its already-throttled rate.
 - **Pose estimation** — MoveNet SinglePose Lightning and Thunder via ONNX Runtime — real-time skeleton overlay on each live feed, switchable per camera.
@@ -190,9 +192,9 @@ Enumerated → Selected → Recording → Deselected
 
 | Stage | Camera | IMU |
 |---|---|---|
-| **Enumerated** | `VideoInputFactory::enumerateDevices()` at `CameraManager` construction. Device appears in `cameraList`; no `VideoController` exists. | `DeviceEnumerator::scanImu()` starts async BLE scan at `ImuManager` construction. Device appears in `imuList` as discovered; no `ImuInstance` exists. |
-| **Selected** | User taps chip → `CameraManager::setSelected(i, true)` → `VideoController` constructed → `EventBuffer::registerSource()`. | User taps chip → `ImuManager::setSelected(i, true)` → `ImuInstance` constructed → `EventBuffer::registerSource()`, then `start()` begins the async BLE connection. |
-| **Recording** | `CameraManager::startAll()` → `VideoController::startRecording()` on each selected controller. Buffer transitions to Capturing once a ball is detected. | IMU writes data continuously once the BLE connection is established; the EventBuffer's Capturing/Paused state gates whether the merger reads from the ring. |
+| **Enumerated** | `VideoInputFactory::enumerateDevices()` at `CameraManager` construction. Device appears in `cameraList`; no `CameraInstance` exists. | `DeviceEnumerator::scanImu()` starts async BLE scan at `ImuManager` construction. Device appears in `imuList` as discovered; no `ImuInstance` exists. |
+| **Selected** | User taps chip → `CameraManager::setSelected(i, true)` → `CameraInstance` constructed → `EventBuffer::registerSource()`. | User taps chip → `ImuManager::setSelected(i, true)` → `ImuInstance` constructed → `EventBuffer::registerSource()`, then `start()` begins the async BLE connection. |
+| **Recording** | `CameraManager::startAll()` → `CameraInstance::startRecording()` on each selected instance. Buffer transitions to Capturing once a ball is detected. | IMU writes data continuously once the BLE connection is established; the EventBuffer's Capturing/Paused state gates whether the merger reads from the ring. |
 | **Deselected** | User taps chip → `CameraManager::setSelected(i, false)` → `stopRecording()` if active → `deregisterFromBuffer()` → `deleteLater()`. | User taps chip → `ImuManager::setSelected(i, false)` → `stop()` (BLE disconnect) → `deregisterFromBuffer()` → deferred `deleteLater()`. |
 
 ### Invariants
