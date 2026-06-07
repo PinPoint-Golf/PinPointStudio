@@ -32,6 +32,17 @@ Item {
     // When true, only System and Settings are interactive; all other buttons are muted.
     property bool locked: false
 
+    // Active-session lock: the rail/stack index of the running session type
+    // (-1 = no session). While set, every mode button except this index is
+    // muted (System/Settings stay interactive). Visual affordance only — the
+    // enforcement lives in NavigationController::blockedDuringSession().
+    property int sessionLockIndex: -1
+
+    // Shared mute rule for the mode buttons (Home/Swing/Wrist/GRF/Coach/Play).
+    function _modeMuted(idx) {
+        return locked || (sessionLockIndex >= 0 && sessionLockIndex !== idx)
+    }
+
     // Emitted whenever a nav button is pressed; caller sets contentStack.currentIndex
     signal pageRequested(int index)
 
@@ -99,8 +110,10 @@ Item {
 
             MouseArea {
                 anchors.fill: parent
-                enabled:      !root.locked
-                cursorShape:  root.locked ? Qt.ArrowCursor : Qt.PointingHandCursor
+                // Athlete picker (index 7) is unreachable while the wizard is
+                // open or a session is active.
+                enabled:      !root.locked && root.sessionLockIndex < 0
+                cursorShape:  enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                 onClicked:    root.avatarClicked()
             }
         }
@@ -120,7 +133,7 @@ Item {
             iconText:  "⌂"
             labelText: qsTr("Home")
             isActive:  root.currentPageIndex === 0
-            isMuted:   root.locked
+            isMuted:   root._modeMuted(0)
             onClicked: root.pageRequested(0)
         }
 
@@ -131,7 +144,7 @@ Item {
             iconText:  "◑"
             labelText: qsTr("Swing")
             isActive:  root.currentPageIndex === 1
-            isMuted:   root.locked
+            isMuted:   root._modeMuted(1)
             onClicked: root.pageRequested(1)
         }
 
@@ -142,7 +155,7 @@ Item {
             iconText:  "⌖"
             labelText: qsTr("Wrist")
             isActive:  root.currentPageIndex === 2
-            isMuted:   root.locked
+            isMuted:   root._modeMuted(2)
             onClicked: root.pageRequested(2)
         }
 
@@ -153,7 +166,7 @@ Item {
             iconText:  "⇅"
             labelText: qsTr("GRF")
             isActive:  root.currentPageIndex === 3
-            isMuted:   root.locked
+            isMuted:   root._modeMuted(3)
             onClicked: root.pageRequested(3)
         }
 
@@ -164,7 +177,7 @@ Item {
             iconText:  "✦"
             labelText: qsTr("Coach")
             isActive:  root.currentPageIndex === 4
-            isMuted:   root.locked
+            isMuted:   root._modeMuted(4)
             onClicked: root.pageRequested(4)
         }
 
@@ -184,7 +197,7 @@ Item {
             iconText:  "▶"
             labelText: qsTr("Play")
             isActive:  root.currentPageIndex === 5
-            isMuted:   root.locked
+            isMuted:   root._modeMuted(5)
             onClicked: root.pageRequested(5)
         }
 

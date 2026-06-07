@@ -36,6 +36,7 @@ Item {
 
         PpSessionToolbar {
             Layout.fillWidth: true
+            sessionType: 1   // SessionController::Type::Wrist
         }
 
         // Body — one video tile per session-enabled camera, side by side.

@@ -34,6 +34,7 @@ enum class DeviceKind {
     IMU_WitMotion,
     IMU_Bosch,
     IMU_Custom,
+    Marker_App,      // application-generated marker events (e.g. shot impact)
 };
 
 enum class PixelFormat {

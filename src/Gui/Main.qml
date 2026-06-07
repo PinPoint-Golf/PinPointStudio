@@ -149,6 +149,11 @@ ApplicationWindow {
             // user stays in the setup flow. System and Settings remain accessible
             // and use navigate() (not navigateRail()) to preserve wizard in history.
             locked: navController.currentIndex === 10
+            // While a session is active, mute everything except the active
+            // session type's button (System/Settings stay interactive).
+            // NavigationController enforces the same rule on every nav path.
+            sessionLockIndex: navController.sessionLocked
+                                  ? sessionController.activeSessionType + 1 : -1
 
             onPageRequested: function(index) {
                 if (navController.currentIndex === 10)
@@ -237,10 +242,10 @@ ApplicationWindow {
                     }
                     onSystemRequested:        navController.navigate(8)
                 }
-                ScreenSessionMode { iconText: "◑"; titleText: qsTr("Swing") }   // 1
-                ScreenWrist {}                                                   // 2 — Wrist Motion
-                ScreenSessionMode { iconText: "⇅"; titleText: qsTr("GRF")   }   // 3
-                ScreenSessionMode { iconText: "✦"; titleText: qsTr("Coach") }   // 4
+                ScreenSessionMode { iconText: "◑"; titleText: qsTr("Swing"); sessionType: 0 }   // 1
+                ScreenWrist {}                                                                   // 2 — Wrist Motion (sessionType 1)
+                ScreenSessionMode { iconText: "⇅"; titleText: qsTr("GRF");   sessionType: 2 }   // 3
+                ScreenSessionMode { iconText: "✦"; titleText: qsTr("Coach"); sessionType: 3 }   // 4
                 PlayPage {}                                                // 5 — Play dev-hatch only
                 ScreenAthleteForm {                                        // 6 — new athlete form
                     onCancelled:       navController.navigate(0)
@@ -266,7 +271,11 @@ ApplicationWindow {
                         map[type.toString()] = goals
                         appSettings.sessionGoalsByType = map
                         appSettings.lastSessionType    = type
+                        // Navigate first: once start(type) runs, navigation is
+                        // locked to this very screen (plus System/Settings).
                         navController.navigateRail(sessionWizard.sessionTypes[type].railIndex)
+                        sessionController.start(type)   // session active → rail locks
+                        cameraManager.startCapture()    // buffer capturing → SHOT arms
                     }
                     onNavigateToSettings: function(panelIndex) {
                         settingsScreen.activeNavIndex = panelIndex

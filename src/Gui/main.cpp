@@ -43,6 +43,7 @@
 #include "arm_bone_controller.h"
 #include "llm_controller.h"
 #include "session_controller.h"
+#include "shot_controller.h"
 #include "shot_list_model.h"
 
 int main(int argc, char *argv[])
@@ -114,11 +115,15 @@ int main(int argc, char *argv[])
     FilmController          filmController;
     BufferController        bufferController(&eventBuffer);
     AthleteController       athleteController;
-    NavigationController    navController(&athleteController);
+    SessionController       sessionController;
+    NavigationController    navController(&athleteController, &sessionController);
     ResourceMonitorController resourceMonitor(&eventBuffer, &cameraManager, &imuManager);
     cameraManager.setAthleteController(&athleteController);   // swing export metadata
     ArmBoneController         armBoneController;
-    SessionController         sessionController;
+    // Registers the shot-marker EventBuffer source; registering a first source
+    // auto-resumes the buffer, so restore the user capture intent right after.
+    ShotController            shotController(&eventBuffer, &sessionController);
+    cameraManager.applyCaptureIntent();
     ShotListModel             shotModel;
     ClipboardHelper           clipboardHelper;
 
@@ -128,6 +133,12 @@ int main(int argc, char *argv[])
     // state — stays correct and notifies.
     QObject::connect(&imuManager, &ImuManager::bufferStateChanged,
                      &cameraManager, &CameraManager::applyCaptureIntent);
+
+    // Shot trigger arms/disarms with the buffer state. bufferStateChanged is
+    // the single always-notified buffer-state signal (IMU-caused transitions
+    // are forwarded through applyCaptureIntent above).
+    QObject::connect(&cameraManager, &CameraManager::bufferStateChanged,
+                     &shotController, &ShotController::reevaluateArmed);
 
     // Voice input: completed STT transcription → coach chat (when voice input enabled).
     QObject::connect(&controller, &TranscriptionController::transcriptionReceived,
@@ -157,6 +168,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("resourceMonitor"),  &resourceMonitor);
     engine.rootContext()->setContextProperty(QStringLiteral("armBoneController"), &armBoneController);
     engine.rootContext()->setContextProperty(QStringLiteral("sessionController"), &sessionController);
+    engine.rootContext()->setContextProperty(QStringLiteral("shotController"),    &shotController);
     engine.rootContext()->setContextProperty(QStringLiteral("shotModel"),         &shotModel);
     engine.rootContext()->setContextProperty(QStringLiteral("clipboard"),         &clipboardHelper);
 

@@ -21,22 +21,29 @@
 #include <QObject>
 
 class AthleteController;
+class SessionController;
 
 class NavigationController : public QObject
 {
     Q_OBJECT
 
-    Q_PROPERTY(int  currentIndex READ currentIndex NOTIFY currentIndexChanged)
-    Q_PROPERTY(bool canGoBack    READ canGoBack    NOTIFY historyChanged)
-    Q_PROPERTY(bool canGoForward READ canGoForward NOTIFY historyChanged)
+    Q_PROPERTY(int  currentIndex  READ currentIndex  NOTIFY currentIndexChanged)
+    Q_PROPERTY(bool canGoBack     READ canGoBack     NOTIFY historyChanged)
+    Q_PROPERTY(bool canGoForward  READ canGoForward  NOTIFY historyChanged)
+    // True while a session is active (clock running with a session type set).
+    // Every navigation path is then locked to System (8), Settings (9) and the
+    // active session type's screen — enforced here, visualised in PpRail.
+    Q_PROPERTY(bool sessionLocked READ sessionLocked NOTIFY sessionLockedChanged)
 
 public:
     explicit NavigationController(AthleteController *athletes,
+                                  SessionController *session,
                                   QObject           *parent = nullptr);
 
-    int  currentIndex() const;
-    bool canGoBack()    const;
-    bool canGoForward() const;
+    int  currentIndex()  const;
+    bool canGoBack()     const;
+    bool canGoForward()  const;
+    bool sessionLocked() const;
 
     Q_INVOKABLE void navigate(int index);
     Q_INVOKABLE void navigateRail(int index);
@@ -47,12 +54,15 @@ public:
 signals:
     void currentIndexChanged();
     void historyChanged();
+    void sessionLockedChanged();
 
 private:
     void push(int index);
     void setCurrentIndex(int index);
+    bool blockedDuringSession(int index) const;
 
     AthleteController *m_athletes;
+    SessionController *m_session;
 
     int        m_current  = 0;
     QList<int> m_back;

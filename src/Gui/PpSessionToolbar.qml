@@ -32,6 +32,11 @@ Item {
 
     implicitHeight: Theme.sp(60)
 
+    // Session type of the hosting screen (SessionController::Type, 0–3).
+    // Set by ScreenSessionMode / ScreenWrist; passed to sessionController.start()
+    // so the session lock knows which type owns the running session.
+    property int sessionType: -1
+
     // Live capture truth — mirrors the actual EventBuffer state (same source as
     // the Resource Monitor). cameraManager.bufferState notifies on every net
     // transition, including those caused by IMU register/deregister (forwarded
@@ -124,7 +129,7 @@ Item {
                     if (root.captureLive) {
                         cameraManager.stopCapture()
                     } else {
-                        if (!sessionController.running) sessionController.start()
+                        if (!sessionController.running) sessionController.start(root.sessionType)
                         cameraManager.startCapture()
                     }
                 }
@@ -157,6 +162,156 @@ Item {
                     text: sessionController.elapsedLabel
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzData
                     color: Theme.colorText
+                }
+            }
+        }
+
+        // ── End Session (groups with the session controls) ──────────────────
+        // Ghost button, only while a session is running. Confirmed via a small
+        // anchored popup — the session clock can't be resumed once ended.
+        Rectangle {
+            id: endBtn
+            visible: sessionController.running
+            Layout.alignment: Qt.AlignVCenter
+            implicitWidth: endLbl.implicitWidth + Theme.sp(24)
+            implicitHeight: Theme.sp(40)
+            radius: Theme.radius
+            color: endMa.containsMouse ? Theme.colorBg2 : "transparent"
+            border.width: 1
+            border.color: Theme.colorBorderMid
+            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+            Text {
+                id: endLbl
+                anchors.centerIn: parent
+                text: qsTr("End Session")
+                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                color: Theme.colorText2
+            }
+            MouseArea {
+                id: endMa
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: endPopup.opened ? endPopup.close() : endPopup.open()
+            }
+
+            Popup {
+                id: endPopup
+                y: endBtn.height + Theme.sp(10)
+                x: 0
+                padding: Theme.sp(14)
+                margins: Theme.sp(8)
+                closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+                background: Rectangle {
+                    color: Theme.colorSurface; radius: Theme.radiusLg
+                    border.width: 1; border.color: Theme.colorBorderStrong
+                }
+                contentItem: Column {
+                    spacing: Theme.sp(10)
+                    Text {
+                        text: qsTr("End session?")
+                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
+                        color: Theme.colorText
+                    }
+                    Row {
+                        spacing: Theme.sp(8)
+                        Rectangle {
+                            width: confirmLbl.implicitWidth + Theme.sp(20)
+                            height: Theme.sp(30); radius: Theme.radius
+                            color: confirmMa.containsMouse ? Theme.colorErrorLight : "transparent"
+                            border.width: 1; border.color: Theme.colorError
+                            Text {
+                                id: confirmLbl
+                                anchors.centerIn: parent; text: qsTr("End")
+                                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                                color: Theme.colorError
+                            }
+                            MouseArea {
+                                id: confirmMa
+                                anchors.fill: parent; hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    endPopup.close()
+                                    cameraManager.stopCapture()
+                                    sessionController.endSession()
+                                }
+                            }
+                        }
+                        Rectangle {
+                            width: cancelLbl.implicitWidth + Theme.sp(20)
+                            height: Theme.sp(30); radius: Theme.radius
+                            color: cancelMa.containsMouse ? Theme.colorBg3 : Theme.colorBg2
+                            border.width: 1; border.color: Theme.colorBorderMid
+                            Text {
+                                id: cancelLbl
+                                anchors.centerIn: parent; text: qsTr("Cancel")
+                                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                                color: Theme.colorText2
+                            }
+                            MouseArea {
+                                id: cancelMa
+                                anchors.fill: parent; hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: endPopup.close()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Item { Layout.fillWidth: true }   // centre the SHOT button
+
+        // ── SHOT (manual shot trigger) — centred between timer and pills ────
+        // Armed only while the buffer is capturing; the central
+        // shotController.triggerShot() gate matches, so a disarmed click is a
+        // no-op even if the binding lags.
+        Rectangle {
+            id: shotBtn
+            Layout.alignment: Qt.AlignVCenter
+            implicitWidth: shotLbl.implicitWidth + Theme.sp(28)
+            implicitHeight: Theme.sp(40)
+            radius: Theme.radius
+            color: shotMa.containsMouse && shotController.armed ? Theme.colorBg3
+                                                                : Theme.colorBg2
+            border.width: 1
+            border.color: Theme.colorBorderMid
+            opacity: shotController.armed ? 1.0 : 0.35
+            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+            Text {
+                id: shotLbl
+                anchors.centerIn: parent
+                text: qsTr("SHOT")
+                font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody
+                font.letterSpacing: Theme.trackingMicro
+                color: Theme.colorText
+            }
+
+            // Brief accent flash on fire.
+            SequentialAnimation {
+                id: shotFlash
+                ColorAnimation {
+                    target: shotBtn; property: "border.color"
+                    to: Theme.colorAccent; duration: Theme.durationFast
+                }
+                ColorAnimation {
+                    target: shotBtn; property: "border.color"
+                    to: Theme.colorBorderMid; duration: Theme.durationSlow
+                }
+            }
+
+            MouseArea {
+                id: shotMa
+                anchors.fill: parent
+                hoverEnabled: true
+                enabled: shotController.armed
+                cursorShape: shotController.armed ? Qt.PointingHandCursor
+                                                  : Qt.ArrowCursor
+                onClicked: {
+                    shotController.triggerShot()
+                    if (!Theme.reduceMotion) shotFlash.restart()
                 }
             }
         }

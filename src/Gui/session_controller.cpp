@@ -17,6 +17,7 @@
  */
 
 #include "session_controller.h"
+#include "pp_debug.h"
 
 SessionController::SessionController(QObject *parent) : QObject(parent)
 {
@@ -25,12 +26,39 @@ SessionController::SessionController(QObject *parent) : QObject(parent)
     connect(&m_ticker, &QTimer::timeout, this, &SessionController::tick);
 }
 
-void SessionController::start()
+void SessionController::start(int sessionType)
 {
+    const Type type = static_cast<Type>(sessionType);
+
+    // Single-active-session invariant: a running session owns the clock; a
+    // start for a different type is refused (the UI gating makes this
+    // unreachable, but the invariant lives here, not in the UI).
+    if (m_running && type != m_sessionType) {
+        ppWarn() << "[SessionController] start refused — session type"
+                 << static_cast<int>(m_sessionType) << "already active, requested"
+                 << sessionType;
+        return;
+    }
+
+    if (type != m_sessionType) {
+        m_sessionType = type;
+        emit activeSessionTypeChanged();
+    }
     m_clock.restart();
     if (!m_running) { m_running = true; emit runningChanged(); }
     tick();
     m_ticker.start();
+}
+
+void SessionController::endSession()
+{
+    m_ticker.stop();
+    if (m_running) { m_running = false; emit runningChanged(); }
+    if (m_sessionType != Type::None) {
+        m_sessionType = Type::None;
+        emit activeSessionTypeChanged();
+    }
+    // m_label keeps the final duration; the next start() restarts the clock.
 }
 
 void SessionController::stop()

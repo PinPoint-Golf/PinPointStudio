@@ -23,34 +23,49 @@
 #include <QString>
 #include <QTimer>
 
-// Owns the live session clock shown in the session toolbar. Timing only —
-// capture state lives on CameraManager (user intent via startCapture()/
-// stopCapture(); QML truth via the bufferState property).
+// Owns the live session clock shown in the session toolbar AND the active
+// session type. Capture state lives on CameraManager (user intent via
+// startCapture()/stopCapture(); QML truth via the bufferState property).
+//
+// A session is *active* while the clock is running; start(type) sets which
+// session type owns it. The single-active-session invariant is enforced here:
+// start() with a different type while running is refused. Navigation gating
+// derives from (running && activeSessionType >= 0) in NavigationController.
 class SessionController : public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(bool    running      READ running      NOTIFY runningChanged)
-    Q_PROPERTY(QString elapsedLabel READ elapsedLabel NOTIFY elapsedLabelChanged)
+    Q_PROPERTY(bool    running           READ running           NOTIFY runningChanged)
+    Q_PROPERTY(QString elapsedLabel      READ elapsedLabel      NOTIFY elapsedLabelChanged)
+    Q_PROPERTY(int     activeSessionType READ activeSessionType NOTIFY activeSessionTypeChanged)
 
 public:
+    // Matches the QML session-type indices (ScreenSessionWizard.sessionTypes
+    // order; rail/stack index = type + 1).
+    enum class Type { None = -1, Swing = 0, Wrist = 1, Grf = 2, Coach = 3 };
+    Q_ENUM(Type)
+
     explicit SessionController(QObject *parent = nullptr);
 
-    bool    running()      const { return m_running; }
-    QString elapsedLabel() const { return m_label; }
+    bool    running()           const { return m_running; }
+    QString elapsedLabel()      const { return m_label; }
+    int     activeSessionType() const { return static_cast<int>(m_sessionType); }
 
-    Q_INVOKABLE void start();   // begin/refresh the session clock
-    Q_INVOKABLE void stop();    // freeze the clock
+    Q_INVOKABLE void start(int sessionType);  // begin a session of this type + start the clock
+    Q_INVOKABLE void endSession();             // stop the clock + clear the type (unlocks navigation)
+    Q_INVOKABLE void stop();    // freeze the clock (type untouched)
     Q_INVOKABLE void reset();   // back to 00:00:00, stopped
 
 signals:
     void runningChanged();
     void elapsedLabelChanged();
+    void activeSessionTypeChanged();
 
 private:
     void tick();
 
     QElapsedTimer m_clock;
     QTimer        m_ticker;
-    bool          m_running   = false;
-    QString       m_label     = QStringLiteral("00:00:00");
+    bool          m_running     = false;
+    Type          m_sessionType = Type::None;
+    QString       m_label       = QStringLiteral("00:00:00");
 };

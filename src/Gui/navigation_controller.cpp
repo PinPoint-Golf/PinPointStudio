@@ -18,15 +18,38 @@
 
 #include "navigation_controller.h"
 #include "athlete_controller.h"
+#include "session_controller.h"
 
-NavigationController::NavigationController(AthleteController *athletes, QObject *parent)
-    : QObject(parent), m_athletes(athletes)
+NavigationController::NavigationController(AthleteController *athletes,
+                                           SessionController *session,
+                                           QObject           *parent)
+    : QObject(parent), m_athletes(athletes), m_session(session)
 {
+    if (m_session) {
+        connect(m_session, &SessionController::runningChanged,
+                this, &NavigationController::sessionLockedChanged);
+        connect(m_session, &SessionController::activeSessionTypeChanged,
+                this, &NavigationController::sessionLockedChanged);
+    }
 }
 
 int  NavigationController::currentIndex() const { return m_current; }
 bool NavigationController::canGoBack()    const { return !m_back.isEmpty(); }
 bool NavigationController::canGoForward() const { return !m_forward.isEmpty(); }
+
+bool NavigationController::sessionLocked() const
+{
+    return m_session && m_session->running() && m_session->activeSessionType() >= 0;
+}
+
+// While a session is active, the only reachable screens are System (8),
+// Settings (9) and the active session type's own screen (type + 1).
+bool NavigationController::blockedDuringSession(int index) const
+{
+    if (!sessionLocked()) return false;
+    return index != 8 && index != 9
+        && index != m_session->activeSessionType() + 1;
+}
 
 void NavigationController::navigate(int index) { push(index); }
 
@@ -39,6 +62,7 @@ void NavigationController::navigateRail(int index)
 
 void NavigationController::navigateHome()
 {
+    if (blockedDuringSession(0)) return;
     m_back.clear();
     m_forward.clear();
     setCurrentIndex(0);
@@ -47,6 +71,7 @@ void NavigationController::navigateHome()
 void NavigationController::back()
 {
     if (m_back.isEmpty()) return;
+    if (blockedDuringSession(m_back.last())) return;   // history kept intact
     m_forward.append(m_current);
     setCurrentIndex(m_back.takeLast());
 }
@@ -54,6 +79,7 @@ void NavigationController::back()
 void NavigationController::forward()
 {
     if (m_forward.isEmpty()) return;
+    if (blockedDuringSession(m_forward.last())) return;
     m_back.append(m_current);
     setCurrentIndex(m_forward.takeLast());
 }
@@ -64,6 +90,8 @@ void NavigationController::push(int index)
             && m_athletes->athletes().isEmpty()) {
         index = 0;
     }
+
+    if (blockedDuringSession(index)) return;
 
     if (index == m_current) return;
 

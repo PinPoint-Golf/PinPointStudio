@@ -29,6 +29,8 @@ Item {
     id: root
     property string iconText:  ""
     property string titleText: ""
+    // SessionController::Type of this screen (set per instance in Main.qml).
+    property int sessionType: -1
 
     ColumnLayout {
         anchors.fill: parent
@@ -36,6 +38,7 @@ Item {
 
         PpSessionToolbar {
             Layout.fillWidth: true
+            sessionType: root.sessionType
         }
 
         Item {
