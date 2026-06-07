@@ -1680,6 +1680,25 @@ if(FFMPEG_FOUND)
         src/Export/ffmpeg_h264_encoder.h
         src/Export/ffmpeg_h264_encoder.cpp
     )
+    if(WIN32)
+        # POST_BUILD: copy the linked FFmpeg DLLs (and swresample, a runtime
+        # dependency of avcodec) next to the executable, same as ORT above.
+        # FFMPEG_LIBDIR is only set for single-module pkg_check_modules calls;
+        # FFMPEG_LIBRARY_DIRS is the one populated for multi-module checks.
+        list(GET FFMPEG_LIBRARY_DIRS 0 _ffmpeg_libdir)
+        file(GLOB _ffmpeg_dlls
+            "${_ffmpeg_libdir}/../bin/avcodec-*.dll"
+            "${_ffmpeg_libdir}/../bin/avformat-*.dll"
+            "${_ffmpeg_libdir}/../bin/avutil-*.dll"
+            "${_ffmpeg_libdir}/../bin/swscale-*.dll"
+            "${_ffmpeg_libdir}/../bin/swresample-*.dll")
+        foreach(_dll ${_ffmpeg_dlls})
+            add_custom_command(TARGET PinPointStudio POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dll}" "$<TARGET_FILE_DIR:PinPointStudio>"
+            )
+            install(FILES "${_dll}" DESTINATION bin)
+        endforeach()
+    endif()
     message(STATUS "FFmpeg ${FFMPEG_libavcodec_VERSION}: found — swing export enabled")
 else()
     message(STATUS "FFmpeg: not found — swing export disabled")
