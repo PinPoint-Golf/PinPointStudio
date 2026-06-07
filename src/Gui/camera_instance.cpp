@@ -1109,6 +1109,11 @@ void CameraInstance::drainRawFrame()
         m_latestRawFrame = RawVideoFrame();
     }
 
+    // Keep the buffer descriptor in sync with the delivered raw frames even
+    // while replaying — payloads keep being published during replay.
+    if (!raw.isNull())
+        stampBufferDescriptorFromRaw(raw);
+
     if (m_replaying || raw.isNull())  // suppress live feed during replay
         return;
 
@@ -1394,6 +1399,56 @@ void CameraInstance::updateBufferDescriptor()
     ppInfo() << "[CameraInstance] buffer descriptor stamped from frame:"
              << m_deviceDescription << w << "x" << h << "@" << fps << "fps"
              << "qtFmt:" << static_cast<int>(sf.pixelFormat())
+             << "-> pinpointFmt:" << static_cast<int>(pixfmt);
+}
+
+// Raw-Bayer counterpart of updateBufferDescriptor(). The Spinnaker raw path
+// never delivers a QVideoFrame, so the descriptor would otherwise keep the
+// registration-time dimensions — which differ from the delivered frames once
+// the ROI is applied in start(), making swing export/replay decode every
+// payload with the wrong width (or skip them all as too short). Re-stamps if
+// the delivered dims/pattern ever change so the descriptor always matches the
+// payloads being published. Called from drainRawFrame() (main thread).
+void CameraInstance::stampBufferDescriptorFromRaw(const RawVideoFrame &raw)
+{
+    if (!m_eventBuffer || m_sourceId == pinpoint::kInvalidSourceId) return;
+    if (raw.width == m_stampedRawWidth && raw.height == m_stampedRawHeight
+        && raw.pattern == m_stampedRawPattern)
+        return;
+
+    pinpoint::PixelFormat pixfmt;
+    switch (raw.pattern) {
+    case RawVideoFrame::BayerPattern::RG: pixfmt = pinpoint::PixelFormat::BayerRG8; break;
+    case RawVideoFrame::BayerPattern::BG: pixfmt = pinpoint::PixelFormat::BayerBG8; break;
+    case RawVideoFrame::BayerPattern::GR: pixfmt = pinpoint::PixelFormat::BayerGR8; break;
+    case RawVideoFrame::BayerPattern::GB: pixfmt = pinpoint::PixelFormat::BayerGB8; break;
+    default: return;
+    }
+
+    pinpoint::FormatDescriptor fd;
+    fd.device = pinpoint::DeviceKind::Camera_GenICam;   // raw Bayer is GenICam-only
+
+    pinpoint::CameraFormat cfmt{};
+    cfmt.pixel_format = pixfmt;
+    cfmt.width        = static_cast<uint32_t>(raw.width);
+    cfmt.height       = static_cast<uint32_t>(raw.height);
+    // Payloads are packed 8-bit Bayer (stride == width — see raw_video_frame.h).
+    cfmt.max_payload_bytes     = cfmt.width * cfmt.height;
+    cfmt.typical_payload_bytes = cfmt.max_payload_bytes;
+    const double fps = m_configuredFps > 0.0 ? m_configuredFps : 30.0;
+    cfmt.fps_numerator   = static_cast<uint32_t>(fps * 1000.0);
+    cfmt.fps_denominator = 1000;
+    fd.format = cfmt;
+
+    m_eventBuffer->updateSourceFormat(m_sourceId, fd);
+    m_bufferDescriptorStamped = true;   // suppress the QVideoFrame-path stamp
+    m_stampedRawWidth   = raw.width;
+    m_stampedRawHeight  = raw.height;
+    m_stampedRawPattern = raw.pattern;
+
+    ppInfo() << "[CameraInstance] buffer descriptor stamped from raw frame:"
+             << m_deviceDescription << raw.width << "x" << raw.height
+             << "@" << fps << "fps pattern:" << static_cast<int>(raw.pattern)
              << "-> pinpointFmt:" << static_cast<int>(pixfmt);
 }
 

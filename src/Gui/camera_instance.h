@@ -230,6 +230,7 @@ private:
     void setupPipeline();
     void connectVideoInput();
     void updateBufferDescriptor();
+    void stampBufferDescriptorFromRaw(const RawVideoFrame &raw);
     void publishFrameToBuffer(const QVideoFrame &frame);
     void publishRawFrameToBuffer(const RawVideoFrame &frame);
 
@@ -268,6 +269,11 @@ private:
     // Set once the source descriptor's pixel format + resolution have been stamped
     // from the first real delivered frame (main-thread only — see drainDisplayFrame).
     bool                   m_bufferDescriptorStamped = false;
+    // Dims/pattern last stamped via the raw Bayer path, so a changed ROI re-stamps
+    // (main-thread only — see drainRawFrame).
+    int                    m_stampedRawWidth  = 0;
+    int                    m_stampedRawHeight = 0;
+    RawVideoFrame::BayerPattern m_stampedRawPattern = RawVideoFrame::BayerPattern::RG;
 
     QMutex                 m_latestFrameMutex;
     QVideoFrame            m_latestDisplayFrame;
