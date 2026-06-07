@@ -36,6 +36,10 @@ Item {
     signal fullscreenToggleRequested()
     signal backRequested()
     signal forwardRequested()
+    // Close button pressed — Main.qml routes this through window.close() so it
+    // shares the onClosing interception (session-active confirm) with the WM
+    // close. Never call Qt.quit() here: it bypasses onClosing entirely.
+    signal closeRequested()
 
     implicitHeight: Theme.headerHeight
 
@@ -249,7 +253,7 @@ Item {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape:  Qt.PointingHandCursor
-                onClicked:    Qt.quit()
+                onClicked:    root.closeRequested()
             }
         }
 

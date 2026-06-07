@@ -109,6 +109,126 @@ ApplicationWindow {
     Shortcut { sequence: "F11";         onActivated: root.toggleFullscreen() }
     Shortcut { sequence: "Meta+Ctrl+F"; onActivated: root.toggleFullscreen() }
 
+    // ── Close interception while a session is active ─────────────────────────
+    // Covers the WM close button and the header ✕ (routed through root.close()
+    // via PpHeader.closeRequested — Qt.quit() would bypass onClosing). Known
+    // gap: macOS Cmd+Q / app-menu Quit doesn't pass through onClosing.
+    property bool _quitConfirmed: false
+    onClosing: (close) => {
+        if (sessionController.running && !root._quitConfirmed) {
+            close.accepted = false
+            closeConfirm.open()
+        }
+    }
+
+    Popup {
+        id: closeConfirm
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        modal: true
+        dim: true
+        closePolicy: Popup.CloseOnEscape          // Esc = cancel (safe default)
+        padding: Theme.sp(20)
+        width: Math.min(Theme.sp(420), root.width - Theme.sp(48))
+
+        background: Rectangle {
+            color: Theme.colorSurface
+            radius: Theme.radiusLg
+            border.width: 1
+            border.color: Theme.colorAttention    // attention framing — interrupts a live session
+        }
+
+        contentItem: Column {
+            spacing: Theme.sp(12)
+
+            Text {
+                width: parent.width
+                text: qsTr("Session in progress")
+                font.family: Theme.fontDisplay
+                font.italic: Theme.fontDisplayItalic
+                font.weight: Theme.fontDisplayWeight
+                font.pixelSize: Math.min(Theme.sp(20), Theme.fontSzDisplay)
+                color: Theme.colorAttention
+                wrapMode: Text.WordWrap
+            }
+            Text {
+                width: parent.width
+                text: {
+                    var t = sessionController.activeSessionType
+                    var name = (t >= 0 && t + 1 < root.screenNames.length)
+                                   ? root.screenNames[t + 1] : qsTr("current")
+                    return qsTr("You're still mid-session — closing now will end your %1 session and stop capture. Close PinPoint Studio?").arg(name)
+                }
+                font.family: Theme.fontBody
+                font.weight: Theme.fontBodyWeight
+                font.pixelSize: Theme.fontSzBody2
+                color: Theme.colorText2
+                wrapMode: Text.WordWrap
+                lineHeight: 1.5
+            }
+
+            Item { width: 1; height: Theme.sp(4) }
+
+            Row {
+                anchors.right: parent.right
+                spacing: Theme.sp(8)
+
+                // End session & close — attention-styled primary
+                Rectangle {
+                    width: confirmCloseLbl.implicitWidth + Theme.sp(24)
+                    height: Theme.sp(32); radius: Theme.radius
+                    color: confirmCloseMa.containsMouse ? Theme.colorAttentionLight : "transparent"
+                    border.width: 1; border.color: Theme.colorAttention
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    Text {
+                        id: confirmCloseLbl
+                        anchors.centerIn: parent
+                        text: qsTr("End session & close")
+                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                        color: Theme.colorAttention
+                    }
+                    MouseArea {
+                        id: confirmCloseMa
+                        anchors.fill: parent; hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            closeConfirm.close()
+                            // Session-level teardown; the deeper shutdown (swing-save
+                            // wait, capture-thread barriers, merger stop) runs in the
+                            // controller destructors and the aboutToQuit hook.
+                            cameraManager.stopCapture()
+                            sessionController.endSession()
+                            root._quitConfirmed = true
+                            root.close()
+                        }
+                    }
+                }
+
+                // Cancel — neutral; the close was already rejected
+                Rectangle {
+                    width: cancelCloseLbl.implicitWidth + Theme.sp(24)
+                    height: Theme.sp(32); radius: Theme.radius
+                    color: cancelCloseMa.containsMouse ? Theme.colorBg3 : Theme.colorBg2
+                    border.width: 1; border.color: Theme.colorBorderMid
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    Text {
+                        id: cancelCloseLbl
+                        anchors.centerIn: parent
+                        text: qsTr("Cancel")
+                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                        color: Theme.colorText2
+                    }
+                    MouseArea {
+                        id: cancelCloseMa
+                        anchors.fill: parent; hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: closeConfirm.close()
+                    }
+                }
+            }
+        }
+    }
+
     // Commit any in-progress text-field edit before the screen changes.
     // StackLayout keeps all screens alive (not destroyed on switch), so items in
     // hidden screens retain activeFocus and onActiveFocusChanged never fires.
@@ -186,6 +306,9 @@ ApplicationWindow {
                 showVersionPill: navController.currentIndex === 9
                 isFullscreen: root.visibility === Window.FullScreen
                 onFullscreenToggleRequested: root.toggleFullscreen()
+                // Route through window.close() so the session-active confirm
+                // (onClosing) intercepts the in-app ✕ too.
+                onCloseRequested: root.close()
 
                 // When on the wizard, ‹/› navigate steps; otherwise delegate to navController.
                 backEnabled: navController.currentIndex === 10
