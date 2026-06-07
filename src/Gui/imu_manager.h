@@ -111,6 +111,11 @@ signals:
     void instancesChanged();
     void imuEnumeratedCountChanged();
     void imuDeviceListChanged();
+    // EventBuffer state may have changed (source register/deregister can pause
+    // or auto-resume the shared buffer). Forwarded to
+    // CameraManager::applyCaptureIntent in main() — the QML-facing buffer state
+    // lives on CameraManager.
+    void bufferStateChanged();
     // Aggregated log entries forwarded from all active instances.
     void logEntryAdded(const QString &entry);
 

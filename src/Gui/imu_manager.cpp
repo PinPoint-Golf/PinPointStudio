@@ -222,6 +222,9 @@ void ImuManager::setSelected(int index, bool selected)
         if (wasCapturing) m_eventBuffer->resume();
         emit imuListChanged();
         emit instancesChanged();
+        // registerSource() may have silently auto-resumed the buffer (first
+        // source); let CameraManager re-apply the user capture intent.
+        emit bufferStateChanged();
     } else {
         ImuInstance *inst = entry.instance;
         entry.instance = nullptr;
@@ -241,6 +244,8 @@ void ImuManager::setSelected(int index, bool selected)
         } else {
             emit instancesChanged();
         }
+        // deregisterSource() auto-pauses when the last source is removed.
+        emit bufferStateChanged();
         return;
     }
 }

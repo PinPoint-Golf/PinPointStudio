@@ -32,6 +32,12 @@ Item {
 
     implicitHeight: Theme.sp(60)
 
+    // Live capture truth — mirrors the actual EventBuffer state (same source as
+    // the Resource Monitor). cameraManager.bufferState notifies on every net
+    // transition, including those caused by IMU register/deregister (forwarded
+    // via applyCaptureIntent in main.cpp).
+    readonly property bool captureLive: cameraManager.bufferState === "capturing"
+
     // ── Aggregate device state (drives pill badges + colours) ───────────────
     readonly property int  camTotal:     cameraManager.cameraList.length
     readonly property int  camConnected: cameraManager.instances.length
@@ -90,8 +96,8 @@ Item {
             implicitWidth: captureLbl.implicitWidth + Theme.sp(28)
             implicitHeight: Theme.sp(40)
             radius: Theme.radius
-            color: sessionController.capturing ? Theme.colorErrorLight : Theme.colorAccent
-            border.width: sessionController.capturing ? 1 : 0
+            color: root.captureLive ? Theme.colorErrorLight : Theme.colorAccent
+            border.width: root.captureLive ? 1 : 0
             border.color: Theme.colorError
             Row {
                 id: captureLbl
@@ -100,14 +106,14 @@ Item {
                 Rectangle {
                     width: Theme.sp(9); height: Theme.sp(9); radius: Theme.sp(4.5)
                     anchors.verticalCenter: parent.verticalCenter
-                    color: sessionController.capturing ? Theme.colorError
-                                                       : (Theme.dark ? Theme.colorBg : "#FFFFFF")
+                    color: root.captureLive ? Theme.colorError
+                                            : (Theme.dark ? Theme.colorBg : "#FFFFFF")
                 }
                 Text {
-                    text: sessionController.capturing ? qsTr("Stop") : qsTr("Capture")
+                    text: root.captureLive ? qsTr("Stop") : qsTr("Capture")
                     font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
-                    color: sessionController.capturing ? Theme.colorError
-                                                       : (Theme.dark ? Theme.colorBg : "#FFFFFF")
+                    color: root.captureLive ? Theme.colorError
+                                            : (Theme.dark ? Theme.colorBg : "#FFFFFF")
                     anchors.verticalCenter: parent.verticalCenter
                 }
             }
@@ -115,13 +121,11 @@ Item {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
-                    if (sessionController.capturing) {
-                        cameraManager.pauseBuffer()
-                        sessionController.capturing = false
+                    if (root.captureLive) {
+                        cameraManager.stopCapture()
                     } else {
                         if (!sessionController.running) sessionController.start()
-                        cameraManager.resumeBuffer()
-                        sessionController.capturing = true
+                        cameraManager.startCapture()
                     }
                 }
             }
@@ -141,9 +145,9 @@ Item {
                 Rectangle {
                     width: Theme.sp(8); height: Theme.sp(8); radius: Theme.sp(4)
                     anchors.verticalCenter: parent.verticalCenter
-                    color: sessionController.capturing ? Theme.colorError : Theme.colorText3
+                    color: root.captureLive ? Theme.colorError : Theme.colorText3
                     SequentialAnimation on opacity {
-                        running: sessionController.capturing && !Theme.reduceMotion
+                        running: root.captureLive && !Theme.reduceMotion
                         loops: Animation.Infinite
                         NumberAnimation { to: 0.3; duration: Theme.durationSlow }
                         NumberAnimation { to: 1.0; duration: Theme.durationSlow }

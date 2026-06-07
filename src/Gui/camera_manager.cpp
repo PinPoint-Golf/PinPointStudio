@@ -297,7 +297,7 @@ void CameraManager::setSelected(int index, bool selected)
     // worker reads ring memory through it). Tear down replay and block on any
     // in-flight save before touching source registration.
     if (m_replaying)
-        stopReplay(false);
+        stopReplay();
     if (m_swingSaveInFlight)
         m_swingSaveWatcher.waitForFinished();   // delivers onSwingSaveFinished later,
     m_swingSaveInFlight = false;                // but the worker has returned now
@@ -337,9 +337,10 @@ void CameraManager::setSelected(int index, bool selected)
         }
     }
 
-    // Resume only if ball detection currently warrants it; don't blindly restore.
-    if (wasCapturing && m_recording && m_ballPresentCount > 0)
-        m_eventBuffer->resume();
+    // Restore the buffer to the user's capture intent. This also corrects the
+    // EventBuffer's silent first-source auto-resume inside registerSource():
+    // intent off → re-paused immediately; intent on → capture continues.
+    applyCaptureIntent();
 
     emit cameraListChanged();
     emit instancesChanged();
@@ -351,44 +352,26 @@ void CameraManager::startAll()
     m_recording = true;
     emit isRecordingChanged();
 
-    // Pause the buffer so ball detection drives capture: resume fires on first ball.
-    pauseBuffer();
-    m_ballPresentCount = 0;
-
+    // Starts the camera recording pipelines only. Buffer state is owned by the
+    // user capture intent (startCapture()/stopCapture()) — starting recording
+    // neither pauses nor resumes the ring.
     for (auto &cam : m_cameras) {
         if (cam.selected && cam.controller)
             cam.controller->startRecording();
     }
-
-    // Sync with current detector state: ballPresentChanged() only fires on a
-    // transition, so if a ball was already present before recording started the
-    // signal won't fire again and m_ballPresentCount would stay 0.
-    for (auto &cam : m_cameras) {
-        if (cam.selected && cam.controller && cam.controller->ballPresent())
-            ++m_ballPresentCount;
-    }
-    if (m_ballPresentCount > 0)
-        resumeBuffer();
-
-    emit bufferStateChanged();
 }
 
 void CameraManager::stopAll()
 {
     if (!m_recording) return;
-    m_swingAutoResume = false; // a save finishing after this must not resume either
     if (m_replaying)
-        stopReplay(false); // tear down replay without resuming the buffer
+        stopReplay();
     for (auto &cam : m_cameras) {
         if (cam.selected && cam.controller)
             cam.controller->stopRecording();
     }
     m_recording = false;
-    m_ballPresentCount = 0;
     emit isRecordingChanged();
-    // Pause the buffer to freeze any captured swing data for analysis.
-    pauseBuffer();
-    emit bufferStateChanged();
 }
 
 void CameraManager::pauseBuffer()
@@ -411,6 +394,34 @@ void CameraManager::resumeBuffer()
         m_eventBuffer->resume();
         emit bufferStateChanged();
     }
+}
+
+void CameraManager::startCapture()
+{
+    m_captureUserEnabled = true;
+    applyCaptureIntent();
+}
+
+void CameraManager::stopCapture()
+{
+    m_captureUserEnabled = false;
+    applyCaptureIntent();
+}
+
+void CameraManager::applyCaptureIntent()
+{
+    // Funnels through the wrappers: pauseBuffer() no-ops unless Capturing,
+    // resumeBuffer() no-ops unless Paused, is blocked while a SwingWindow is
+    // live, and stays paused when no sources are registered (the buffer's
+    // no_source_paused_ contract).
+    if (m_captureUserEnabled)
+        resumeBuffer();
+    else
+        pauseBuffer();
+    // Unconditional: callers invoke this after register/deregister, where the
+    // buffer may have auto-resumed/auto-paused without a wrapper transition —
+    // guarantee QML re-reads bufferState regardless.
+    emit bufferStateChanged();
 }
 
 bool CameraManager::isReplaying() const { return m_replaying; }
@@ -669,8 +680,8 @@ void CameraManager::destroyPreviewInstance(QObject *ctrl)
 CameraInstance *CameraManager::createController(const Device &device)
 {
     auto *ctrl = new CameraInstance(device, m_eventBuffer, m_appSettings, this);
-    connect(ctrl, &CameraInstance::ballPresentChanged,
-            this, &CameraManager::onCameraBallPresenceChanged);
+    // Ball presence is signal-only: CameraInstance::ballPresentChanged feeds the
+    // QML overlays (and future shot detection) but never touches buffer state.
 
     // Apply the session-wide pipeline configuration to the new instance.
     ctrl->setPoseEnabled(m_livePoseEnabled);
@@ -709,32 +720,6 @@ CameraInstance *CameraManager::createController(const Device &device)
     return ctrl;
 }
 
-void CameraManager::onCameraBallPresenceChanged(bool present)
-{
-    if (present)
-        ++m_ballPresentCount;
-    else
-        --m_ballPresentCount;
-
-    if (m_ballPresentCount < 0)
-        m_ballPresentCount = 0;
-
-    if (!m_recording)
-        return;
-
-    if (m_ballPresentCount > 0) {
-        if (!m_replaying)
-            resumeBuffer();
-        // else: ball re-appeared during replay; resumeBuffer() fires in stopReplay()
-    } else {
-        if (!m_replaying) {
-            pauseBuffer();
-            startReplay();
-        }
-        // else: already replaying, ignore further ball-lost signals
-    }
-}
-
 void CameraManager::startReplay()
 {
     if (!m_eventBuffer || m_eventBuffer->state() != pinpoint::BufferState::Paused)
@@ -765,7 +750,6 @@ void CameraManager::startReplay()
         return; // nothing captured — stay paused, wait for next ball detection
 
     m_swingWindow.emplace(std::move(window));
-    m_swingAutoResume = true;   // fresh swing cycle: clear any stale stopAll() veto
 
     // Anchor to the actual first/last captured entry so replay starts immediately
     // rather than waiting for the (potentially empty) leading portion of the window.
@@ -923,10 +907,9 @@ void CameraManager::maybeFinishSwing()
 
     m_swingWindow.reset();   // safe: worker has returned, replay has stopped
 
-    // Ball condition is evaluated now — not at stopReplay() time — so a ball
-    // re-appearing (or leaving) during a long save is handled correctly.
-    if (m_swingAutoResume && m_recording && m_ballPresentCount > 0)
-        resumeBuffer();
+    // The window held the buffer Paused; now that it is gone, return the buffer
+    // to whatever the user last chose (Capture/Stop).
+    applyCaptureIntent();
 }
 
 void CameraManager::onReplayTick()
@@ -968,7 +951,7 @@ void CameraManager::onReplayTick()
     }
 }
 
-void CameraManager::stopReplay(bool autoResume)
+void CameraManager::stopReplay()
 {
     if (!m_replaying) return;
 
@@ -983,8 +966,6 @@ void CameraManager::stopReplay(bool autoResume)
     m_replayTracks.clear();
 
     m_replaying = false;
-    if (!autoResume)
-        m_swingAutoResume = false;   // sticky veto: stopAll() path must not resume
     emit isReplayingChanged();
     emit bufferStateChanged();
 

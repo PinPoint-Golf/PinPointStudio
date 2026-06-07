@@ -122,6 +122,13 @@ int main(int argc, char *argv[])
     ShotListModel             shotModel;
     ClipboardHelper           clipboardHelper;
 
+    // IMU source register/deregister can change the shared EventBuffer state
+    // (first-source auto-resume / last-source auto-pause). Re-apply the user
+    // capture intent so cameraManager.bufferState — the QML-facing buffer
+    // state — stays correct and notifies.
+    QObject::connect(&imuManager, &ImuManager::bufferStateChanged,
+                     &cameraManager, &CameraManager::applyCaptureIntent);
+
     // Voice input: completed STT transcription → coach chat (when voice input enabled).
     QObject::connect(&controller, &TranscriptionController::transcriptionReceived,
                      &llmController, [&llmController](const QString &text) {

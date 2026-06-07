@@ -102,6 +102,20 @@ public:
     Q_INVOKABLE void resumeBuffer();
     Q_INVOKABLE void enumerate();
 
+    // Session-global capture intent (toolbar Capture/Stop). The EventBuffer
+    // captures iff the user enabled capture (and sources exist) — device
+    // connect/disconnect, start/stop and ball detection never change the net
+    // buffer state.
+    Q_INVOKABLE void startCapture();   // intent = on,  resume the buffer
+    Q_INVOKABLE void stopCapture();    // intent = off, pause the buffer
+
+public slots:
+    // Re-applies the user capture intent to the buffer. Connected to
+    // ImuManager::bufferStateChanged in main() so IMU register/deregister
+    // (and the buffer's first-source auto-resume) can't leave the buffer in a
+    // state the user didn't ask for.
+    void applyCaptureIntent();
+
     // Sets the perspective on one camera and clears it from any other camera
     // that currently has the same non-zero perspective value.
     Q_INVOKABLE void setPerspective(QObject *controller, int perspective);
@@ -174,7 +188,7 @@ private:
     QStringList                          m_sessionExcluded;
     bool                                 m_livePoseEnabled  = true;
     bool                                 m_recording        = false;
-    int                                  m_ballPresentCount = 0;
+    bool                                 m_captureUserEnabled = false;  // toolbar Capture/Stop
     pinpoint::EventBuffer               *m_eventBuffer      = nullptr;
     AppSettings                         *m_appSettings      = nullptr;
     bool                                 m_replaying        = false;
@@ -190,19 +204,21 @@ private:
     // maybeFinishSwing() for the join.
     QFutureWatcher<pinpoint::SwingExportResult> m_swingSaveWatcher;
     bool                 m_swingSaveInFlight = false;  // worker still reading the window
-    bool                 m_swingAutoResume   = true;   // cleared by stopAll()/stopReplay(false)
     AthleteController   *m_athleteController = nullptr;
     pinpoint::SwingPaths m_swingPaths;
 
     CameraInstance *createController(const Device &device);
+    // Swing replay/save machinery. Currently DORMANT: ball detection no longer
+    // triggers it (ball presence is signal-only); startReplay() awaits a future
+    // explicit trigger. Teardown paths (stopReplay/maybeFinishSwing) stay live
+    // for safety.
     void startReplay();
-    void stopReplay(bool autoResume = true);
+    void stopReplay();
     void startSwingSave();
     pinpoint::SwingExportJob buildSwingExportJob();
     void maybeFinishSwing();
 
 private slots:
-    void onCameraBallPresenceChanged(bool present);
     void onReplayTick();
     void onSwingSaveFinished();
 };

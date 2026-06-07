@@ -25,13 +25,6 @@ SessionController::SessionController(QObject *parent) : QObject(parent)
     connect(&m_ticker, &QTimer::timeout, this, &SessionController::tick);
 }
 
-void SessionController::setCapturing(bool c)
-{
-    if (m_capturing == c) return;
-    m_capturing = c;
-    emit capturingChanged();
-}
-
 void SessionController::start()
 {
     m_clock.restart();
