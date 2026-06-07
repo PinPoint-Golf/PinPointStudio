@@ -43,6 +43,19 @@ using namespace Spinnaker::GenICam;
 class SpinLogHandler : public LoggingEventHandler {
 public:
     void OnLogEvent(LoggingEventDataPtr eventPtr) override {
+        // Suppress known-benign SDK-internal noise that fires on every
+        // connect/disconnect cycle:
+        //  - GCRegisterEvent / RegisterEventHandler NOT_IMPLEMENTED (-1003):
+        //    the GenTL producer does not implement some optional event types,
+        //    yet the SDK retries registration on every Init/BeginAcquisition.
+        //  - GetNextImage abort (-1012): the normal result of EndAcquisition()
+        //    interrupting a blocking GetNextImage(); the capture loop already
+        //    suppresses its own copy of this error.
+        const QString msg = QString::fromLocal8Bit(eventPtr->GetLogMessage());
+        if (msg.contains(QLatin1String("-1003")) && msg.contains(QLatin1String("RegisterEvent")))
+            return;
+        if (msg.contains(QLatin1String("-1012")) && msg.contains(QLatin1String("aborted")))
+            return;
         const int pri = eventPtr->GetPriority();
         if (pri <= SPINNAKER_LOG_LEVEL_ERROR)
             ppError() << "[Spinnaker]" << eventPtr->GetCategoryName()
@@ -84,8 +97,16 @@ static void applySpinnakerRoi(INodeMap &nodeMap, const QRectF &crop)
         // Offsets to minimum first so a stale ROI never clamps Width/Height max.
         if (IsAvailable(ox) && IsWritable(ox)) ox->SetValue(ox->GetMin());
         if (IsAvailable(oy) && IsWritable(oy)) oy->SetValue(oy->GetMin());
-        const int64_t sensorW = w->GetMax();
-        const int64_t sensorH = h->GetMax();
+
+        // True sensor dims come from WidthMax/HeightMax — Width's own max is
+        // WidthMax - OffsetX, so it under-reports whenever a stale offset is
+        // still programmed (e.g. the offset nodes above were not writable).
+        CIntegerPtr wMaxNode = nodeMap.GetNode("WidthMax");
+        CIntegerPtr hMaxNode = nodeMap.GetNode("HeightMax");
+        const int64_t sensorW = (IsAvailable(wMaxNode) && IsReadable(wMaxNode))
+                                    ? wMaxNode->GetValue() : w->GetMax();
+        const int64_t sensorH = (IsAvailable(hMaxNode) && IsReadable(hMaxNode))
+                                    ? hMaxNode->GetValue() : h->GetMax();
 
         int64_t rw = sensorW, rh = sensorH;
         if (pp_crop::cropIsActive(crop)) {
@@ -259,6 +280,10 @@ bool VideoInputSpinnaker::start(const QString &deviceId)
         return true;
     } catch (Spinnaker::Exception &e) {
         emit errorOccurred(tr("Spinnaker error: %1").arg(e.what()));
+        // Release any partially-acquired camera/system handles. A zombie
+        // m_camera would DeInit the device long after another instance has
+        // taken ownership of it (stop() skips DeInit while it is streaming).
+        stop();
         return false;
     }
 #else
@@ -279,7 +304,26 @@ void VideoInputSpinnaker::stop()
                 (*camera)->EndAcquisition();
                 m_streaming = false;
             }
-            (*camera)->DeInit();
+            // If the device is still streaming here, it belongs to ANOTHER
+            // VideoInputSpinnaker instance — a stale handle's teardown raced
+            // a reconnect (e.g. the settings crop-editor preview). Leave the
+            // device alone: DeInit would fail with -1004, and the full-frame
+            // restore below would clobber the new owner's crop ROI.
+            if (!(*camera)->IsStreaming()) {
+                // Leave the camera at full frame. The ROI nodes are retained
+                // across connections (and across app runs while the camera
+                // stays powered), and a stale crop poisons every later
+                // Width/Height GetMax() read — capability queries would
+                // under-report the sensor size, shrinking the next session's
+                // crop sizing.
+                try {
+                    applySpinnakerRoi((*camera)->GetNodeMap(), QRectF());
+                } catch (...) {}
+                (*camera)->DeInit();
+            } else {
+                ppDebug() << "[VideoInputSpinnaker] device streaming under another"
+                          << "handle — skipping ROI restore / DeInit";
+            }
         } catch (...) {}
         delete camera;
         m_camera = nullptr;
@@ -411,10 +455,20 @@ CameraCapabilities VideoInputSpinnaker::queryCapabilities() const
         CIntegerPtr ptrHeight = nodeMap.GetNode("Height");
         if (IsAvailable(ptrWidth) && IsReadable(ptrWidth) &&
             IsAvailable(ptrHeight) && IsReadable(ptrHeight)) {
+            // Range max must be the TRUE sensor dims (WidthMax/HeightMax):
+            // Width's own max is WidthMax - OffsetX, so it under-reports
+            // while a crop ROI is programmed — and downstream slot/crop
+            // sizing uses the range max as the sensor size.
+            CIntegerPtr ptrWMax = nodeMap.GetNode("WidthMax");
+            CIntegerPtr ptrHMax = nodeMap.GetNode("HeightMax");
+            const int sensorW = (IsAvailable(ptrWMax) && IsReadable(ptrWMax))
+                                    ? (int)ptrWMax->GetValue() : (int)ptrWidth->GetMax();
+            const int sensorH = (IsAvailable(ptrHMax) && IsReadable(ptrHMax))
+                                    ? (int)ptrHMax->GetValue() : (int)ptrHeight->GetMax();
             caps.resolution.kind     = CapabilityKind::Range;
             caps.resolution.writable = IsWritable(ptrWidth);
-            caps.resolution.widthRange  = { (int)ptrWidth->GetMin(),  (int)ptrWidth->GetMax(),  (int)ptrWidth->GetInc(),  (int)ptrWidth->GetValue()  };
-            caps.resolution.heightRange = { (int)ptrHeight->GetMin(), (int)ptrHeight->GetMax(), (int)ptrHeight->GetInc(), (int)ptrHeight->GetValue() };
+            caps.resolution.widthRange  = { (int)ptrWidth->GetMin(),  sensorW, (int)ptrWidth->GetInc(),  (int)ptrWidth->GetValue()  };
+            caps.resolution.heightRange = { (int)ptrHeight->GetMin(), sensorH, (int)ptrHeight->GetInc(), (int)ptrHeight->GetValue() };
             caps.resolution.defaultResolution = { (int)ptrWidth->GetValue(), (int)ptrHeight->GetValue() };
         }
 

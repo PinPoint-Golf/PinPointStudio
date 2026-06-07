@@ -59,12 +59,17 @@ Item {
     readonly property bool roiIsSet: instance !== null
                                      && instance.roi.width > 0 && instance.roi.height > 0
 
+    // Pre-connect placeholder aspect — hosts with a camera-list entry pass
+    // its crop-aware initialWidth/initialHeight so a disconnected tile
+    // already opens at the aspect the stream will have once connected.
+    property real placeholderAspect: 16.0 / 9.0
+
     // Video aspect ratio — used to centre the frame rect within the allocated
-    // slot. Defaults to 16:9 before the first frame arrives.
+    // slot. Falls back to placeholderAspect while no instance/frame exists.
     readonly property real videoAspect: (instance && instance.frameWidth > 0
                                                      && instance.frameHeight > 0)
                                          ? instance.frameWidth / instance.frameHeight
-                                         : 16.0 / 9.0
+                                         : placeholderAspect
 
     // ── Frame subscription ───────────────────────────────────────────────────
     // The CameraInstance publishes every display/replay frame to all subscribed

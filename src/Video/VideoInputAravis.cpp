@@ -69,6 +69,16 @@ bool VideoInputAravis::start(const QString &deviceId)
     // DOWN to the device increments so a delivered frame never exceeds the
     // ring slot sized from the same (ceil'd) crop fraction upstream.
     {
+        // The camera retains the previous ROI across connections, and the
+        // Width/Height bounds are offset-dependent (max = WidthMax - OffsetX)
+        // — reset the offsets BEFORE reading bounds, or the region would
+        // compound-shrink on every connect.
+        ArvDevice *arvDev = arv_camera_get_device(cam);
+        if (arvDev) {
+            arv_device_set_integer_feature_value(arvDev, "OffsetX", 0, nullptr);
+            arv_device_set_integer_feature_value(arvDev, "OffsetY", 0, nullptr);
+        }
+
         gint wMin = 0, wMax = 0, hMin = 0, hMax = 0;
         arv_camera_get_width_bounds (cam, &wMin, &wMax, nullptr);
         arv_camera_get_height_bounds(cam, &hMin, &hMax, nullptr);
@@ -83,8 +93,18 @@ bool VideoInputAravis::start(const QString &deviceId)
             rx = snapDown(qBound(gint(0), gint(std::lround(m_cropRegion.x() * wMax)), gint(wMax - rw)), wInc);
             ry = snapDown(qBound(gint(0), gint(std::lround(m_cropRegion.y() * hMax)), gint(hMax - rh)), hInc);
         }
+        // Size first, then offsets: arv_camera_set_region writes the offsets
+        // before the size, which can trip the OffsetX <= WidthMax - Width
+        // constraint while the previous (larger) width is still programmed.
         GError *regionErr = nullptr;
-        arv_camera_set_region(cam, rx, ry, rw, rh, &regionErr);
+        if (arvDev) {
+            if (!regionErr) arv_device_set_integer_feature_value(arvDev, "Width",   rw, &regionErr);
+            if (!regionErr) arv_device_set_integer_feature_value(arvDev, "Height",  rh, &regionErr);
+            if (!regionErr) arv_device_set_integer_feature_value(arvDev, "OffsetX", rx, &regionErr);
+            if (!regionErr) arv_device_set_integer_feature_value(arvDev, "OffsetY", ry, &regionErr);
+        } else {
+            arv_camera_set_region(cam, rx, ry, rw, rh, &regionErr);
+        }
         if (regionErr) {
             ppWarn() << "[VideoInputAravis] set_region failed:" << regionErr->message
                      << "- using full sensor; software crop will engage";
@@ -144,6 +164,21 @@ void VideoInputAravis::stop()
     }
 
     if (m_camera) {
+        // Leave the camera at full frame: the ROI is retained across
+        // connections, and a stale crop poisons later bounds reads (the
+        // Width/Height max is offset-dependent — see start()).
+        ArvCamera *cam = (ArvCamera*)m_camera;
+        ArvDevice *arvDev = arv_camera_get_device(cam);
+        if (arvDev) {
+            arv_device_set_integer_feature_value(arvDev, "OffsetX", 0, nullptr);
+            arv_device_set_integer_feature_value(arvDev, "OffsetY", 0, nullptr);
+        }
+        gint wMin = 0, wMax = 0, hMin = 0, hMax = 0;
+        arv_camera_get_width_bounds (cam, &wMin, &wMax, nullptr);
+        arv_camera_get_height_bounds(cam, &hMin, &hMax, nullptr);
+        if (wMax > 0 && hMax > 0)
+            arv_camera_set_region(cam, 0, 0, wMax, hMax, nullptr);
+
         g_object_unref(m_camera);
         m_camera = nullptr;
     }
@@ -220,6 +255,20 @@ CameraCapabilities VideoInputAravis::queryCapabilities() const
                 hInc = arv_camera_get_height_increment(cam, nullptr);
                 gint curW, curH;
                 arv_camera_get_region(cam, nullptr, nullptr, &curW, &curH, nullptr);
+                // Width/Height bounds are offset-dependent (max = WidthMax -
+                // OffsetX) — prefer the WidthMax/HeightMax features so the
+                // range max reports the full (binned) sensor even while a
+                // crop ROI is active.
+                ArvDevice *arvDev = arv_camera_get_device(cam);
+                if (arvDev) {
+                    GError *mErr = nullptr;
+                    gint64 wm = arv_device_get_integer_feature_value(arvDev, "WidthMax", &mErr);
+                    if (!mErr && wm > 0) wMax = (gint)wm;
+                    g_clear_error(&mErr);
+                    gint64 hm = arv_device_get_integer_feature_value(arvDev, "HeightMax", &mErr);
+                    if (!mErr && hm > 0) hMax = (gint)hm;
+                    g_clear_error(&mErr);
+                }
                 caps.resolution.kind     = CapabilityKind::Range;
                 caps.resolution.writable = true;
                 caps.resolution.widthRange  = { wMin, wMax, wInc, curW };

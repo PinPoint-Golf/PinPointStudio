@@ -62,6 +62,13 @@ Item {
                         // within whatever it gets.
                         Layout.fillWidth: false
                         Layout.preferredWidth: height * videoAspect
+                        // Disconnected placeholders open at the crop-aware
+                        // aspect (persisted crop × sensor) instead of 16:9,
+                        // so the tile doesn't resize when the stream starts.
+                        placeholderAspect: (modelData.initialWidth > 0
+                                            && modelData.initialHeight > 0)
+                                           ? modelData.initialWidth / modelData.initialHeight
+                                           : 16.0 / 9.0
                         // Reactive instance lookup (same pattern as the panel's
                         // CamRow) — non-null once the camera is connected.
                         instance: {

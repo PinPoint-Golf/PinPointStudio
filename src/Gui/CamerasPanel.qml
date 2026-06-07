@@ -683,17 +683,26 @@ Item {
                             // and the crop only applies at connect — so stop
                             // any capture and disconnect this camera before
                             // opening. NOTE: setSelected() rebuilds the
-                            // Repeater delegates; everything after it must
-                            // only touch objects that outlive this row
-                            // (root, cropToast) or copies (camData).
-                            var wasActive = cameraManager.isRecording || camData.selected
-                            if (cameraManager.isRecording)
-                                cameraManager.stopAll()
-                            if (camData.selected)
-                                cameraManager.setSelected(camData.index, false)
+                            // Repeater delegates SYNCHRONOUSLY, destroying
+                            // this delegate's QML context mid-handler — after
+                            // that, every unqualified name lookup throws a
+                            // ReferenceError, even for objects that outlive
+                            // the row. Snapshot everything into JS locals
+                            // FIRST; locals survive context destruction.
+                            var mgr         = cameraManager
+                            var toast       = cropToast
+                            var panelRoot   = root
+                            var idx         = camData.index
+                            var wasSelected = camData.selected
+                            var wasActive   = mgr.isRecording || wasSelected
+                            var notice      = qsTr("Capture stopped — crop editing previews the full sensor")
+                            if (mgr.isRecording)
+                                mgr.stopAll()
+                            if (wasSelected)
+                                mgr.setSelected(idx, false)
                             if (wasActive)
-                                cropToast.show(qsTr("Capture stopped — crop editing previews the full sensor"))
-                            root.openRoiIndex = camData.index
+                                toast.show(notice)
+                            panelRoot.openRoiIndex = idx
                         }
                     }
                 }

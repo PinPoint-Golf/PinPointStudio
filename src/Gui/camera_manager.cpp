@@ -24,6 +24,7 @@
 #include "athlete_controller.h"
 #include "../Core/pp_debug.h"
 #include "../Video/camera_capabilities.h"
+#include "../Video/frame_crop.h"
 #include <QSet>
 #include <QtConcurrent/QtConcurrentRun>
 #include <algorithm>
@@ -80,6 +81,13 @@ CameraManager::CameraManager(pinpoint::EventBuffer *buffer, AppSettings *appSett
     // on that ordering to destroy the SwingWindow safely.
     connect(&m_swingSaveWatcher, &QFutureWatcher<pinpoint::SwingExportResult>::finished,
             this, &CameraManager::onSwingSaveFinished);
+
+    // cameraList() derives initialWidth/initialHeight from the persisted
+    // crop, so a crop edit must refresh the list — disconnected placeholder
+    // tiles resize to the new crop immediately, not on the next reconnect.
+    if (m_appSettings)
+        connect(m_appSettings, &AppSettings::cameraRoiChanged,
+                this, &CameraManager::cameraListChanged);
 }
 
 CameraManager::~CameraManager()
@@ -125,6 +133,7 @@ QVariantList CameraManager::cameraList() const
     AppSettings *s = m_appSettings ? m_appSettings : &fallback;
     const QVariantMap perspMap  = s->cameraPerspective();
     const QVariantMap aliasMap  = s->cameraAlias();
+    const QVariantMap roiMap    = s->cameraRoi();
 
     QVariantList list;
     for (int i = 0; i < m_cameras.size(); ++i) {
@@ -153,6 +162,25 @@ QVariantList CameraManager::cameraList() const
         }
         entry[QStringLiteral("maxWidth")]    = sensorW;
         entry[QStringLiteral("maxHeight")]   = sensorH;
+        // Initial (pre-connect) frame dims: the persisted crop applied to the
+        // full sensor — mirrors CameraInstance's constructor seeding so a
+        // disconnected placeholder tile already opens at the aspect the
+        // stream will actually have once connected.
+        int initW = sensorW, initH = sensorH;
+        if (roiMap.contains(key) && sensorW > 0 && sensorH > 0) {
+            const QVariantMap r = roiMap.value(key).toMap();
+            const QRectF roi(r.value(QStringLiteral("x")).toDouble(),
+                             r.value(QStringLiteral("y")).toDouble(),
+                             r.value(QStringLiteral("w")).toDouble(),
+                             r.value(QStringLiteral("h")).toDouble());
+            if (pp_crop::cropIsActive(roi)) {
+                const QRect c = pp_crop::snapCropRect(
+                    roi.intersected(QRectF(0.0, 0.0, 1.0, 1.0)), sensorW, sensorH);
+                if (!c.isEmpty()) { initW = c.width(); initH = c.height(); }
+            }
+        }
+        entry[QStringLiteral("initialWidth")]  = initW;
+        entry[QStringLiteral("initialHeight")] = initH;
         entry[QStringLiteral("pixelFormat")] = cap.pixelFormat.defaultFormat.nativeKey;
         entry[QStringLiteral("bitsPerPixel")] = cap.pixelFormat.defaultFormat.bitsPerPixel;
         entry[QStringLiteral("maxFps")]      = cap.frameRate.range.max;
@@ -625,7 +653,17 @@ QObject *CameraManager::createPreviewInstance(int index)
 
 void CameraManager::destroyPreviewInstance(QObject *ctrl)
 {
-    if (ctrl) ctrl->deleteLater();
+    auto *inst = qobject_cast<CameraInstance *>(ctrl);
+    if (!inst) return;
+    // Stop the capture thread synchronously BEFORE deleteLater — same
+    // rationale as the controller teardown in setSelected (stale queued
+    // frame events firing on a freed object), plus one more: it serializes
+    // the preview's camera release ahead of any reconnect that follows this
+    // call. Otherwise a stale Spinnaker handle can DeInit the device after a
+    // new instance has begun streaming it (-1004), or worse, deinitialize it
+    // mid-start under the new owner.
+    inst->stopCapture();
+    inst->deleteLater();
 }
 
 CameraInstance *CameraManager::createController(const Device &device)

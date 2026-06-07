@@ -99,6 +99,19 @@ void VideoInputFactory::enumerateDevices()
             arv_camera_get_height_bounds(cam, &hMin, &hMax, nullptr);
             wInc = arv_camera_get_width_increment(cam, nullptr);
             hInc = arv_camera_get_height_increment(cam, nullptr);
+            // Width/Height bounds are offset-dependent (max = WidthMax -
+            // OffsetX) and the camera retains the last ROI across
+            // connections — prefer the WidthMax/HeightMax features, which
+            // always report the full (binned) sensor.
+            if (arvDev) {
+                GError *mErr = nullptr;
+                gint64 wm = arv_device_get_integer_feature_value(arvDev, "WidthMax", &mErr);
+                if (!mErr && wm > 0) wMax = (gint)wm;
+                g_clear_error(&mErr);
+                gint64 hm = arv_device_get_integer_feature_value(arvDev, "HeightMax", &mErr);
+                if (!mErr && hm > 0) hMax = (gint)hm;
+                g_clear_error(&mErr);
+            }
             caps.resolution.kind     = CapabilityKind::Range;
             caps.resolution.writable = true;
             caps.resolution.widthRange  = { wMin, wMax, wInc, curW };
@@ -223,10 +236,23 @@ void VideoInputFactory::enumerateDevices()
                 CIntegerPtr ptrH = nodeMap.GetNode("Height");
                 if (IsAvailable(ptrW) && IsReadable(ptrW) &&
                     IsAvailable(ptrH) && IsReadable(ptrH)) {
+                    // Range max must be the TRUE sensor dims (WidthMax/
+                    // HeightMax): Width's own max is WidthMax - OffsetX, so
+                    // it under-reports while a crop ROI is still programmed
+                    // in the camera (ROI nodes are retained across app runs
+                    // while the camera stays powered). CameraInstance sizes
+                    // ring slots and the expected crop from this range max —
+                    // a stale value here compounds the crop every connect.
+                    CIntegerPtr ptrWMax = nodeMap.GetNode("WidthMax");
+                    CIntegerPtr ptrHMax = nodeMap.GetNode("HeightMax");
+                    const int sensorW = (IsAvailable(ptrWMax) && IsReadable(ptrWMax))
+                                            ? (int)ptrWMax->GetValue() : (int)ptrW->GetMax();
+                    const int sensorH = (IsAvailable(ptrHMax) && IsReadable(ptrHMax))
+                                            ? (int)ptrHMax->GetValue() : (int)ptrH->GetMax();
                     caps.resolution.kind     = CapabilityKind::Range;
                     caps.resolution.writable = IsWritable(ptrW);
-                    caps.resolution.widthRange  = { (int)ptrW->GetMin(), (int)ptrW->GetMax(), (int)ptrW->GetInc(), (int)ptrW->GetValue() };
-                    caps.resolution.heightRange = { (int)ptrH->GetMin(), (int)ptrH->GetMax(), (int)ptrH->GetInc(), (int)ptrH->GetValue() };
+                    caps.resolution.widthRange  = { (int)ptrW->GetMin(), sensorW, (int)ptrW->GetInc(), (int)ptrW->GetValue() };
+                    caps.resolution.heightRange = { (int)ptrH->GetMin(), sensorH, (int)ptrH->GetInc(), (int)ptrH->GetValue() };
                     caps.resolution.defaultResolution = { (int)ptrW->GetValue(), (int)ptrH->GetValue() };
                 }
 
