@@ -25,10 +25,6 @@
 #include <cstring>
 
 namespace {
-// Ignore re-triggers inside this window — placeholder until the shot
-// processor adds a real busy state.
-constexpr qint64 kDebounceMs = 500;
-
 const char *sourceName(ShotController::Source s)
 {
     return QMetaEnum::fromType<ShotController::Source>()
@@ -73,7 +69,15 @@ ShotController::ShotController(pinpoint::EventBuffer *buffer,
 
 bool ShotController::armed() const
 {
-    return m_buffer && m_buffer->isCapturing();
+    return m_buffer && m_buffer->isCapturing() && !m_processorBusy;
+}
+
+void ShotController::setProcessorBusy(bool busy)
+{
+    if (m_processorBusy == busy)
+        return;
+    m_processorBusy = busy;
+    reevaluateArmed();
 }
 
 void ShotController::reevaluateArmed()
@@ -88,15 +92,10 @@ void ShotController::reevaluateArmed()
 void ShotController::triggerShot(Source source, qint64 timestampUs)
 {
     if (!armed()) {
-        ppDebug() << "[ShotController] trigger ignored (not capturing) — source"
+        ppDebug() << "[ShotController] trigger ignored (not capturing or busy) — source"
                   << sourceName(source);
         return;
     }
-    if (m_sinceLastShot.isValid() && m_sinceLastShot.elapsed() < kDebounceMs) {
-        ppDebug() << "[ShotController] trigger debounced — source" << sourceName(source);
-        return;
-    }
-    m_sinceLastShot.restart();
 
     const qint64 impactUs = timestampUs >= 0 ? timestampUs
                                              : pinpoint::EventBuffer::nowMicros();

@@ -32,9 +32,8 @@
 // flagged rows from every carousel.  Nothing is removed from disk — the
 // on-disk purge belongs to the Resource Monitor's future "empty trash".
 //
-// The constructor seeds placeholder shots matching the design mockups so the
-// carousel renders immediately; real capture wiring (addShot from the swing
-// detector) arrives in a later prompt.
+// Shots arrive via ShotProcessor::maybeJoin() → addShot() at the
+// analysis+export join of each detected shot.
 
 class ShotListModel : public QAbstractListModel
 {
@@ -61,7 +60,7 @@ public:
         MetricsRole,
     };
 
-    explicit ShotListModel(QObject *parent = nullptr);
+    explicit ShotListModel(QObject *parent = nullptr);   // starts empty
 
     int                    rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant               data(const QModelIndex &index, int role) const override;
@@ -70,8 +69,8 @@ public:
     int lastTrashedId() const { return m_lastTrashedId; }
     int activeCount()   const;
 
-    // Capture wiring entry point (later prompt) — appends a shot with the next
-    // ordinal and a fresh id.
+    // ShotProcessor's entry point — prepends a shot (newest first) with the
+    // next ordinal and a fresh id.
     void addShot(const QString &timestampLabel, const QString &club, bool hasVideo,
                  const QUrl &thumbnailSource, const QVariantList &tracePoints,
                  int score, const QVariantMap &metrics);
@@ -106,7 +105,6 @@ private:
     };
 
     int rowForId(int id) const;
-    void seedStubShots();
 
     QVector<Shot> m_shots;
     int           m_nextId = 1;

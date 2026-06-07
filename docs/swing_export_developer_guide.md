@@ -1,9 +1,22 @@
 # Pinpoint Swing Export — Developer Guide
 
 **Audience**: Developers working on or integrating with the Pinpoint application
-**Location**: `src/Export/` (plus integration in `src/Gui/camera_manager.{h,cpp}`)
+**Location**: `src/Export/` (plus integration in `src/Gui/shot_processor.{h,cpp}`)
 **Language**: C++20, Qt 6
 **Status**: v1 — video + IMU streams implemented; pose/metrics/launch-monitor streams are schema-ready but not produced
+
+> **⚠ Ownership moved (2026-06):** the swing machinery described below as living in
+> `CameraManager` (window capture, replay, `startSwingSave()`, `buildSwingExportJob()`,
+> `maybeFinishSwing()`, the resume gating) has **migrated to `ShotProcessor`**
+> (`src/Gui/shot_processor.{h,cpp}`), which drives it from
+> `ShotController::shotDetected` and runs a per-session-type `ShotAnalyzer`
+> concurrently with the export. The join is now `maybeJoin()`/`finishShot()`;
+> the teardown stop-barrier is `ShotProcessor::finishNowBlocking()`; resume
+> gating keys off `EventBuffer::swingWindowLive()`. The exporter also writes an
+> impact thumbnail (`thumb.jpg`, via `QImage::save` — see CLAUDE.md for the
+> libjpeg-clash rationale) and handles NV12/YUV420P. The invariants and
+> pipeline mechanics below are otherwise unchanged — read `CameraManager` as
+> `ShotProcessor` where the text touches window lifetime.
 
 ---
 

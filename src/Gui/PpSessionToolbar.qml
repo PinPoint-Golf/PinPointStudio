@@ -263,6 +263,38 @@ Item {
 
         Item { Layout.fillWidth: true }   // centre the SHOT button
 
+        // ── Analysing indicator — visible while the shot processor works ────
+        // (post-roll + analysis + export; hidden again once the replay runs,
+        // which has its own REPLAY badge on the camera frames).
+        Row {
+            Layout.alignment: Qt.AlignVCenter
+            spacing: Theme.sp(6)
+            visible: shotProcessor.busy && !shotProcessor.isReplaying
+
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                width: Theme.sp(8); height: Theme.sp(8); radius: Theme.sp(4)
+                color: Theme.colorAccent
+
+                SequentialAnimation on opacity {
+                    running: shotProcessor.busy && !shotProcessor.isReplaying
+                             && !Theme.reduceMotion
+                    loops: Animation.Infinite
+                    NumberAnimation { to: 0.3; duration: Theme.durationSlow }
+                    NumberAnimation { to: 1.0; duration: Theme.durationSlow }
+                }
+            }
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: qsTr("ANALYSING")
+                font.family: Theme.fontData
+                font.pixelSize: Theme.fontSzMicro
+                font.letterSpacing: Theme.trackingMicro
+                color: Theme.colorText3
+            }
+        }
+
         // ── SHOT (manual shot trigger) — centred between timer and pills ────
         // Armed only while the buffer is capturing; the central
         // shotController.triggerShot() gate matches, so a disarmed click is a

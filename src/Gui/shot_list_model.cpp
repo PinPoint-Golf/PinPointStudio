@@ -18,78 +18,9 @@
 
 #include "shot_list_model.h"
 
-#include <QPointF>
-#include <cmath>
-
-namespace {
-
-// Deterministic pseudo-random wrist trace, normalised to 0..1 — mirrors the
-// mockup spark generator so each stub shot gets a distinct but stable curve.
-QVariantList stubTracePoints(int seed)
-{
-    QVariantList pts;
-    double y = 0.6;
-    for (int i = 0; i <= 12; ++i) {
-        const double noise = double((seed * 9301 + i * 49297) % 233280) / 233280.0 - 0.5;
-        y += (std::sin(i * 1.2 + seed) * 0.5 + noise) * 0.16;
-        y = std::clamp(y, 0.16, 0.84);
-        pts.append(QPointF(i / 12.0, y));
-    }
-    return pts;
-}
-
-// Placeholder wrist metrics — keys mirror the Wrist goal vocabulary used by
-// ScreenWrist's metricKeys; labels/values match the design mockups.
-QVariantMap stubWristMetrics()
-{
-    auto metric = [](const QString &label, const QString &value) {
-        return QVariantMap{ { QStringLiteral("label"), label },
-                            { QStringLiteral("value"), value } };
-    };
-    return QVariantMap{
-        { QStringLiteral("impactConditions"),    metric(QStringLiteral("Lead wrist · impact"), QStringLiteral("12° flex"))  },
-        { QStringLiteral("wristAngleTop"),       metric(QStringLiteral("Wrist @ top"),         QStringLiteral("Cupped 7°")) },
-        { QStringLiteral("trailWristExtension"), metric(QStringLiteral("Trail wrist"),         QStringLiteral("Retained"))  },
-        { QStringLiteral("transition"),          metric(QStringLiteral("Transition"),          QStringLiteral("−4°→+11°")) },
-    };
-}
-
-} // namespace
-
 ShotListModel::ShotListModel(QObject *parent)
     : QAbstractListModel(parent)
 {
-    seedStubShots();
-}
-
-void ShotListModel::seedStubShots()
-{
-    // Mockup data: ordinals 7→1 (newest first), scores spanning all four
-    // quality bands, two IMU-only shots (#4 and #1).
-    struct Seed { int ordinal; const char *time; int score; int rating; bool hasVideo; };
-    static const Seed seeds[] = {
-        { 7, "12:03:48", 82, 3, true  },
-        { 6, "11:58:12", 68, 4, true  },
-        { 5, "11:52:31", 41, 2, true  },
-        { 4, "11:47:05", 73, 3, false },
-        { 3, "11:41:44", 55, 0, true  },
-        { 2, "11:36:20", 88, 5, true  },
-        { 1, "11:30:02", 23, 1, false },
-    };
-
-    for (const Seed &s : seeds) {
-        Shot shot;
-        shot.id             = m_nextId++;
-        shot.ordinal        = s.ordinal;
-        shot.timestampLabel = QString::fromLatin1(s.time);
-        shot.club           = QStringLiteral("DRIVER");
-        shot.hasVideo       = s.hasVideo;
-        shot.tracePoints    = stubTracePoints(s.ordinal);
-        shot.score          = s.score;
-        shot.rating         = s.rating;
-        shot.metrics        = stubWristMetrics();
-        m_shots.append(shot);
-    }
 }
 
 int ShotListModel::rowCount(const QModelIndex &parent) const

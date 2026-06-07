@@ -18,26 +18,20 @@
 
 #pragma once
 
-#include <QElapsedTimer>
-#include <QFutureWatcher>
 #include <QList>
 #include <QObject>
 #include <QRectF>
-#include <QTimer>
 #include <QVariantList>
-#include <optional>
 #include <vector>
 
 #include "device_enumerator.h"
-#include "swing_window.h"
 #include "app_settings.h"
-#include "../Export/swing_exporter.h"
-#include "../Export/swing_paths.h"
+#include "../Buffer/types.h"
 #include "../Video/camera_capabilities.h"
 
 namespace pinpoint { class EventBuffer; }
-class AthleteController;
 class CameraInstance;
+class ShotProcessor;
 
 class CameraManager : public QObject
 {
@@ -48,7 +42,6 @@ class CameraManager : public QObject
     Q_PROPERTY(bool isRecording         READ isRecording NOTIFY isRecordingChanged)
     Q_PROPERTY(bool anySelected         READ anySelected NOTIFY instancesChanged)
     Q_PROPERTY(QString bufferState      READ bufferState NOTIFY bufferStateChanged)
-    Q_PROPERTY(bool isReplaying         READ isReplaying NOTIFY isReplayingChanged)
     // Per-session camera enablement (cameraKey list). Seeded from
     // AppSettings::cameraExcluded at startup but NEVER written back — global
     // enablement is owned by Settings. Shared by every toolbar camera panel
@@ -69,7 +62,6 @@ public:
     bool isRecording()        const;
     bool anySelected()        const;
     QString bufferState()     const;
-    bool isReplaying()        const;
     QStringList sessionCameraExcluded() const;
     bool livePoseEnabled()    const;
     void setLivePoseEnabled(bool on);
@@ -90,9 +82,14 @@ public:
     };
     CameraDeviceStats liveDeviceStats(const QString &deviceId) const;
 
-    // Metadata source for swing exports (athlete name/uuid/handedness).
-    // Optional — exports fall back to empty fields when unset.
-    void setAthleteController(AthleteController *controller) { m_athleteController = controller; }
+    // The shot processor owns the SwingWindow lifecycle. CameraManager calls
+    // finishNowBlocking() on it before any source deregistration (camera
+    // deselect, destruction) — the teardown stop-barrier.
+    void setShotProcessor(ShotProcessor *p) { m_shotProcessor = p; }
+
+    // Selected cameras with a live controller — the shot processor builds its
+    // replay tracks and export job from these.
+    std::vector<CameraInstance *> liveCameraInstances() const;
 
     Q_INVOKABLE void setSelected(int index, bool selected);
     Q_INVOKABLE void startAll();
@@ -137,11 +134,8 @@ signals:
     void instancesChanged();
     void isRecordingChanged();
     void bufferStateChanged();
-    void isReplayingChanged();
     void sessionCameraExcludedChanged();
     void livePoseEnabledChanged();
-    void swingSaved(const QString &path);
-    void swingSaveFailed(const QString &error);
 
 private:
     struct CameraEntry {
@@ -177,13 +171,6 @@ private:
         }
     }
 
-    struct ReplayTrack {
-        CameraInstance                   *ctrl      = nullptr;
-        pinpoint::SourceId                 sourceId  = pinpoint::kInvalidSourceId;
-        std::vector<pinpoint::IndexEntry>  entries;
-        size_t                             idx       = 0;
-    };
-
     QList<CameraEntry>                   m_cameras;
     QStringList                          m_sessionExcluded;
     bool                                 m_livePoseEnabled  = true;
@@ -191,34 +178,7 @@ private:
     bool                                 m_captureUserEnabled = false;  // toolbar Capture/Stop
     pinpoint::EventBuffer               *m_eventBuffer      = nullptr;
     AppSettings                         *m_appSettings      = nullptr;
-    bool                                 m_replaying        = false;
-    std::optional<pinpoint::SwingWindow> m_swingWindow;
-    int64_t                              m_replayWindowStartUs = 0;
-    int64_t                              m_replayWindowEndUs   = 0;
-    QElapsedTimer                        m_replayElapsed;
-    QTimer                              *m_replayTimer      = nullptr;
-    std::vector<ReplayTrack>             m_replayTracks;
-
-    // Swing export. The worker borrows &*m_swingWindow, so the window may only
-    // be destroyed once BOTH replay and the save are finished — see
-    // maybeFinishSwing() for the join.
-    QFutureWatcher<pinpoint::SwingExportResult> m_swingSaveWatcher;
-    bool                 m_swingSaveInFlight = false;  // worker still reading the window
-    AthleteController   *m_athleteController = nullptr;
-    pinpoint::SwingPaths m_swingPaths;
+    ShotProcessor                       *m_shotProcessor    = nullptr;
 
     CameraInstance *createController(const Device &device);
-    // Swing replay/save machinery. Currently DORMANT: ball detection no longer
-    // triggers it (ball presence is signal-only); startReplay() awaits a future
-    // explicit trigger. Teardown paths (stopReplay/maybeFinishSwing) stay live
-    // for safety.
-    void startReplay();
-    void stopReplay();
-    void startSwingSave();
-    pinpoint::SwingExportJob buildSwingExportJob();
-    void maybeFinishSwing();
-
-private slots:
-    void onReplayTick();
-    void onSwingSaveFinished();
 };

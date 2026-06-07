@@ -18,7 +18,6 @@
 
 #pragma once
 
-#include <QElapsedTimer>
 #include <QObject>
 
 #include "event_buffer.h"
@@ -27,9 +26,8 @@ class SessionController;
 
 // Central application-level shot trigger. Every shot source — the toolbar
 // SHOT button today; IMU impact, pose, and ball detection later — calls
-// triggerShot(). shotDetected is the single signal the future shot
-// processor (buffer freeze → shot window → export → session processor)
-// will be driven from.
+// triggerShot(). shotDetected is the single signal ShotProcessor (post-roll
+// → buffer freeze → shot window → analysis ∥ export → replay) is driven from.
 //
 // On every accepted trigger a shot-marker event is written into the
 // EventBuffer (source "shot_controller", schema "shot_marker_v1") so the
@@ -58,7 +56,8 @@ public:
                             SessionController     *session,
                             QObject               *parent = nullptr);
 
-    // True while the buffer is capturing — the only state a shot can fire in.
+    // True while the buffer is capturing AND the shot processor is idle — the
+    // only state a shot can fire in. Every source inherits the gate.
     bool armed() const;
 
     // timestampUs: precise impact instant in EventBuffer::nowMicros() domain
@@ -72,6 +71,10 @@ public slots:
     // buffer-state signal) so the armed property tracks every net transition.
     void reevaluateArmed();
 
+    // Connected to ShotProcessor::busyChanged in main.cpp — disarms the
+    // trigger for the whole post-roll → processing → replay pipeline.
+    void setProcessorBusy(bool busy);
+
 signals:
     // sessionType: SessionController::Type active at the moment of the shot
     // (-1 = none — unreachable through the UI, where capture implies a session).
@@ -84,6 +87,6 @@ private:
     pinpoint::EventBuffer *m_buffer   = nullptr;
     SessionController     *m_session  = nullptr;
     pinpoint::SourceId     m_sourceId = pinpoint::kInvalidSourceId;
-    QElapsedTimer          m_sinceLastShot;
+    bool                   m_processorBusy = false;
     bool                   m_lastArmed = false;
 };

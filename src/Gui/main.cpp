@@ -45,6 +45,7 @@
 #include "session_controller.h"
 #include "shot_controller.h"
 #include "shot_list_model.h"
+#include "shot_processor.h"
 
 int main(int argc, char *argv[])
 {
@@ -118,13 +119,19 @@ int main(int argc, char *argv[])
     SessionController       sessionController;
     NavigationController    navController(&athleteController, &sessionController);
     ResourceMonitorController resourceMonitor(&eventBuffer, &cameraManager, &imuManager);
-    cameraManager.setAthleteController(&athleteController);   // swing export metadata
     ArmBoneController         armBoneController;
     // Registers the shot-marker EventBuffer source; registering a first source
     // auto-resumes the buffer, so restore the user capture intent right after.
     ShotController            shotController(&eventBuffer, &sessionController);
     cameraManager.applyCaptureIntent();
     ShotListModel             shotModel;
+    // Declared after cameraManager so it is destroyed FIRST: ~ShotProcessor
+    // joins the shot workers and destroys the SwingWindow before
+    // ~CameraManager deregisters sources and ~EventBuffer frees ring memory.
+    ShotProcessor             shotProcessor(&eventBuffer, &cameraManager, &appSettings,
+                                            &athleteController, &sessionController,
+                                            &shotModel);
+    cameraManager.setShotProcessor(&shotProcessor);   // teardown stop-barrier
     ClipboardHelper           clipboardHelper;
 
     // IMU source register/deregister can change the shared EventBuffer state
@@ -139,6 +146,16 @@ int main(int argc, char *argv[])
     // are forwarded through applyCaptureIntent above).
     QObject::connect(&cameraManager, &CameraManager::bufferStateChanged,
                      &shotController, &ShotController::reevaluateArmed);
+
+    // Detected shots drive the processor pipeline (post-roll → window capture
+    // → analysis ∥ export → carousel → replay); the processor's busy state
+    // disarms the trigger for the whole pipeline.
+    QObject::connect(&shotController, &ShotController::shotDetected,
+                     &shotProcessor,  &ShotProcessor::onShotDetected);
+    QObject::connect(&shotProcessor,  &ShotProcessor::busyChanged,
+                     &shotController, [&shotController, &shotProcessor] {
+        shotController.setProcessorBusy(shotProcessor.busy());
+    });
 
     // Voice input: completed STT transcription → coach chat (when voice input enabled).
     QObject::connect(&controller, &TranscriptionController::transcriptionReceived,
@@ -169,6 +186,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("armBoneController"), &armBoneController);
     engine.rootContext()->setContextProperty(QStringLiteral("sessionController"), &sessionController);
     engine.rootContext()->setContextProperty(QStringLiteral("shotController"),    &shotController);
+    engine.rootContext()->setContextProperty(QStringLiteral("shotProcessor"),     &shotProcessor);
     engine.rootContext()->setContextProperty(QStringLiteral("shotModel"),         &shotModel);
     engine.rootContext()->setContextProperty(QStringLiteral("clipboard"),         &clipboardHelper);
 

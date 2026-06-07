@@ -57,12 +57,19 @@ struct SwingExportJob {
     // UTC instant snapshotted on the UI thread right after the window was
     // captured — at that moment wallclock ~= monotonic endTimestampUs().
     QDateTime wallclockAnchorUtc;
+
+    // Impact thumbnail (thumb.jpg in the swing dir): the frame nearest this
+    // instant from the designated camera (face-on, else the first exported
+    // stream as a fallback). -1 disables thumbnail extraction.
+    SourceId thumbnailSourceId    = kInvalidSourceId;
+    int64_t  thumbnailTimestampUs = -1;
 };
 
 struct SwingExportResult {
     bool    ok = false;
     QString swingDir;
     QString error;
+    QString thumbnailPath;   // absolute path to thumb.jpg; empty if none written
 };
 
 // Stateless worker entry point.  Runs on a worker thread; the window must stay

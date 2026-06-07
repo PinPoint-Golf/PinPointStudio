@@ -1,0 +1,73 @@
+/*
+ * Copyright (c) 2026 Mark Liversedge (liversedge@gmail.com)
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc., 51
+ * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
+#pragma once
+
+#include <QString>
+#include <QVariantList>
+#include <QVariantMap>
+#include <memory>
+#include <vector>
+
+#include "types.h"
+
+namespace pinpoint { class SwingWindow; }
+
+// Value-type analysis job — everything is resolved on the UI thread before the
+// job is handed to the worker (same rule as SwingExportJob): the worker must
+// never touch AppSettings or controllers.
+struct ShotAnalysisJob {
+    int     sessionType = -1;   // SessionController::Type (Swing 0, Wrist 1, GRF 2, Coach 3)
+    int     shotSource  = 0;    // ShotController::Source as int (avoids a Gui header dep)
+    qint64  impactUs    = -1;   // impact instant, EventBuffer::nowMicros() domain
+
+    std::vector<pinpoint::SourceId> cameraSources;  // exported cameras, face-on first
+    std::vector<pinpoint::SourceId> imuSources;     // IMU sources present in the window
+    pinpoint::SourceId markerSourceId = pinpoint::kInvalidSourceId;  // shot_marker_v1 source
+};
+
+// Result shapes mirror the ShotListModel roles so the join can hand them to
+// addShot() unmodified: metrics is key → { label, value }, tracePoints is a
+// normalised (0..1) QPointF list.
+struct ShotAnalysisResult {
+    bool         ok = false;
+    int          score = 0;        // 0–100 quality
+    QVariantMap  metrics;
+    QVariantList tracePoints;
+    QString      error;
+};
+
+// Abstract per-session-type shot analyzer. analyze() runs on a QtConcurrent
+// worker thread while the EventBuffer is Paused; it may only read the frozen
+// SwingWindow (const methods, zero-copy) and the job values. It runs
+// concurrently with the swing export over the same window — both are pure
+// readers of frozen ring memory.
+class ShotAnalyzer
+{
+public:
+    virtual ~ShotAnalyzer() = default;
+    virtual ShotAnalysisResult analyze(const pinpoint::SwingWindow &window,
+                                       const ShotAnalysisJob &job) = 0;
+};
+
+// Factory keyed by SessionController::Type. Unknown / -1 falls back to the
+// generic stub. Never returns nullptr.
+//
+// v1 ships stub analyzers that return immediately with placeholder
+// score/metrics/trace — the real per-type analysis pipelines are future work.
+std::unique_ptr<ShotAnalyzer> makeShotAnalyzer(int sessionType);

@@ -19,9 +19,11 @@
 #include "swing_exporter.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
 #include <variant>
 
+#include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -45,6 +47,11 @@ struct DemosaicPlan {
     int  matType     = 0;       // cv::Mat element type of the raw payload
     int  cvtCode     = -1;      // cv::cvtColor code; -1 = passthrough (already BGR)
     const char* tag  = "none";  // recorded in swing.json processing.demosaic
+    // Raw Mat rows = height * rowsNum / rowsDen. Planar YUV 4:2:0 payloads
+    // (NV12/I420 — Y plane followed by chroma, stored contiguously by
+    // CameraInstance::publishFrameToBuffer) are 3/2 image-height rows tall.
+    int  rowsNum     = 1;
+    int  rowsDen     = 1;
 };
 
 // Mirrors the live-view mapping (camera_instance.cpp PixelFormat->BayerPattern,
@@ -64,6 +71,8 @@ DemosaicPlan demosaicPlanFor(PixelFormat fmt)
     case PixelFormat::YUV422:
     case PixelFormat::YUYV:     return {true, CV_8UC2, cv::COLOR_YUV2BGR_YUYV,     "none"};
     case PixelFormat::UYVY:     return {true, CV_8UC2, cv::COLOR_YUV2BGR_UYVY,     "none"};
+    case PixelFormat::NV12:     return {true, CV_8UC1, cv::COLOR_YUV2BGR_NV12,     "none", 3, 2};
+    case PixelFormat::YUV420P:  return {true, CV_8UC1, cv::COLOR_YUV2BGR_I420,     "none", 3, 2};
     default:                    return {};   // MJPEG, H264_NAL, 12/16-bit: unsupported in v1
     }
 }
@@ -103,6 +112,77 @@ QJsonArray toJsonTimestamps(const std::vector<int64_t>& tUs)
     for (int64_t t : tUs)
         a.append(static_cast<qint64>(t));
     return a;
+}
+
+// Demosaics the frame nearest impactUs from one camera and writes it as
+// thumb.jpg (≤480 px wide) in the swing dir.  One small frame off the hot
+// path — the extra demosaic is irrelevant next to the encode loop.  Returns
+// the absolute entry timestamp used, or -1 when nothing could be written
+// (no frames, unsupported format, short payload, imwrite failure).
+int64_t writeThumbnail(const SwingWindow& window, SourceId sid,
+                       int64_t impactUs, const QString& thumbPath)
+{
+    const auto entries = window.entriesFor(sid);
+    if (entries.empty())
+        return -1;
+
+    const FormatDescriptor& fd = window.formatOf(sid);
+    const auto* cfmt = std::get_if<CameraFormat>(&fd.format);
+    if (!cfmt)
+        return -1;
+    const DemosaicPlan plan = demosaicPlanFor(cfmt->pixel_format);
+    if (!plan.supported)
+        return -1;
+
+    // Entry nearest impact — clamps naturally to the captured range when a
+    // backdated impact timestamp falls outside it.
+    const IndexEntry* best = &entries.front();
+    for (const IndexEntry& e : entries) {
+        if (std::llabs(e.timestamp_us - impactUs) < std::llabs(best->timestamp_us - impactUs))
+            best = &e;
+    }
+
+    const int srcW    = static_cast<int>(cfmt->width);
+    const int srcH    = static_cast<int>(cfmt->height);
+    const int rawRows = srcH * plan.rowsNum / plan.rowsDen;
+    const size_t bpp      = static_cast<size_t>(CV_ELEM_SIZE(plan.matType));
+    const size_t stride   = cfmt->plane_strides[0] ? cfmt->plane_strides[0]
+                                                   : static_cast<size_t>(srcW) * bpp;
+    const size_t minBytes = stride * static_cast<size_t>(rawRows);
+
+    const SourceRing::ReadHandle handle = window.payloadOf(*best);
+    if (!handle.data || handle.bytes < minBytes)
+        return -1;
+
+    const cv::Mat raw(rawRows, srcW, plan.matType,
+                      const_cast<std::byte*>(handle.data), stride);
+    cv::Mat bgr;
+    if (plan.cvtCode >= 0)
+        cv::cvtColor(raw, bgr, plan.cvtCode);
+    else
+        bgr = raw;
+
+    // Downscale for cheap carousel I/O; never upscale.
+    constexpr int kMaxThumbWidth = 480;
+    cv::Mat thumb;
+    if (bgr.cols > kMaxThumbWidth) {
+        const double scale = double(kMaxThumbWidth) / bgr.cols;
+        cv::resize(bgr, thumb, cv::Size(), scale, scale, cv::INTER_AREA);
+    } else {
+        thumb = bgr;
+    }
+
+    // Save via Qt, NOT cv::imwrite: OpenCV's imgcodecs resolves libjpeg symbols
+    // against whichever libjpeg generation loaded first in this multi-FFmpeg
+    // process, and a mismatched jpeg_error_mgr layout turns its error-handler
+    // longjmp into a crash. QImage uses Qt's own (self-consistent) JPEG handler.
+    const QImage img(thumb.data, thumb.cols, thumb.rows,
+                     static_cast<qsizetype>(thumb.step), QImage::Format_BGR888);
+    if (!img.save(thumbPath, "JPG", 85)) {
+        ppWarn() << "[SwingExport] failed to write thumbnail" << thumbPath;
+        return -1;
+    }
+    return best->timestamp_us;
 }
 
 } // namespace
@@ -185,10 +265,11 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
         rec.demosaicTag = plan.tag;
         rec.tUs.reserve(entries.size());
 
+        const int    rawRows  = srcH * plan.rowsNum / plan.rowsDen;
         const size_t bpp      = static_cast<size_t>(CV_ELEM_SIZE(plan.matType));
         const size_t stride   = cfmt->plane_strides[0] ? cfmt->plane_strides[0]
                                                        : static_cast<size_t>(srcW) * bpp;
-        const size_t minBytes = stride * static_cast<size_t>(srcH);
+        const size_t minBytes = stride * static_cast<size_t>(rawRows);
 
         for (const IndexEntry& e : entries) {
             const SourceRing::ReadHandle handle = window.payloadOf(e);
@@ -197,7 +278,7 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
                 continue;
 
             // Zero-copy wrap of the frozen ring payload (stable while Paused).
-            const cv::Mat raw(srcH, srcW, plan.matType,
+            const cv::Mat raw(rawRows, srcW, plan.matType,
                               const_cast<std::byte*>(handle.data), stride);
             if (plan.cvtCode >= 0)
                 cv::cvtColor(raw, bgr, plan.cvtCode);
@@ -220,6 +301,30 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
 
         ppInfo() << "[SwingExport]" << cam.fileName << ":" << rec.tUs.size() << "frames";
         videoStreams.push_back(std::move(rec));
+    }
+
+    // ── Impact thumbnail ──────────────────────────────────────────────────
+    // Prefer the designated camera (face-on); fall back to the other exported
+    // streams in order. A missing thumbnail never fails the export.
+    int64_t thumbTsUs = -1;
+    if (job.thumbnailTimestampUs >= 0) {
+        std::vector<SourceId> tryOrder;
+        if (job.thumbnailSourceId != kInvalidSourceId)
+            tryOrder.push_back(job.thumbnailSourceId);
+        for (const VideoStreamRecord& rec : videoStreams)
+            if (std::find(tryOrder.begin(), tryOrder.end(), rec.cam->sourceId) == tryOrder.end())
+                tryOrder.push_back(rec.cam->sourceId);
+
+        const QString thumbPath = job.swingDir + QStringLiteral("/thumb.jpg");
+        for (SourceId sid : tryOrder) {
+            thumbTsUs = writeThumbnail(window, sid, job.thumbnailTimestampUs, thumbPath);
+            if (thumbTsUs >= 0) {
+                result.thumbnailPath = thumbPath;
+                break;
+            }
+        }
+        if (result.thumbnailPath.isEmpty())
+            ppWarn() << "[SwingExport] no thumbnail written for" << job.swingId;
     }
 
     // ── swing.json ────────────────────────────────────────────────────────
@@ -331,6 +436,13 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
         {QStringLiteral("start_us"), 0},
         {QStringLiteral("end_us"),   static_cast<qint64>(durationUs)},
     };
+    if (!result.thumbnailPath.isEmpty()) {
+        // Additive — readers ignore unknown keys by contract.
+        root[QStringLiteral("thumbnail")] = QJsonObject{
+            {QStringLiteral("file"), QStringLiteral("thumb.jpg")},
+            {QStringLiteral("t_us"), static_cast<qint64>(thumbTsUs - t0)},
+        };
+    }
     root[QStringLiteral("streams")] = streams;
 
     const QString jsonPath = job.swingDir + QStringLiteral("/swing.json");

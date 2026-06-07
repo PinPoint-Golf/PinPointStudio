@@ -125,6 +125,10 @@ public:
     // sources. Cleared when resume() succeeds. Use this to distinguish the
     // "waiting for first device" state from a deliberate swing-analysis pause.
     bool        isWaitingForSources() const noexcept { return no_source_paused_; }
+    // True while a SwingWindow captured from this buffer is live anywhere in
+    // the app. Resume/deregister gating in the GUI layer keys off this —
+    // window ownership lives in ShotProcessor, not CameraManager.
+    bool        swingWindowLive() const noexcept { return swing_window_live_.load(std::memory_order_acquire); }
 
     // Update the format metadata for an already-registered source.
     // Safe to call in any state — touches only the descriptor, not ring memory.

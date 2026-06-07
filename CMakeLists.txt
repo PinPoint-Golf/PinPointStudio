@@ -135,6 +135,7 @@ qt_add_executable(PinPointStudio
     src/Gui/session_controller.h       src/Gui/session_controller.cpp
     src/Gui/shot_controller.h          src/Gui/shot_controller.cpp
     src/Gui/shot_list_model.h          src/Gui/shot_list_model.cpp
+    src/Gui/shot_processor.h           src/Gui/shot_processor.cpp
     src/IMU/imu_base.h        src/IMU/imu_base.cpp
     src/IMU/imu_capabilities.h
     src/IMU/iorientation_filter.h
@@ -1665,6 +1666,8 @@ target_sources(PinPointStudio PRIVATE
     src/Export/swing_paths.cpp
     src/Export/swing_exporter.h
     src/Export/swing_exporter.cpp
+    src/Analysis/shot_analyzer.h
+    src/Analysis/shot_analyzer.cpp
 )
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)

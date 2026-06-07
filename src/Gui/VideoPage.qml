@@ -56,7 +56,7 @@ Item {
                     border.color: modelData.selected
                                   ? Theme.colorAccent
                                   : Theme.colorBorderMid
-                    readonly property bool chipLocked: cameraManager.isRecording || cameraManager.isReplaying
+                    readonly property bool chipLocked: cameraManager.isRecording || shotProcessor.isReplaying
                     opacity: chipLocked ? 0.5 : 1.0
 
                     Text {
