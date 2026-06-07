@@ -5,8 +5,10 @@ This document outlines the dependencies and steps required to build PinPoint Stu
 ## General Requirements
 
 - **CMake**: 3.16 or higher (3.24+ recommended — `DOWNLOAD_EXTRACT_TIMESTAMP` support).
-- **Qt 6.11**: Quick, QuickControls2, Quick3D, SerialPort, Bluetooth, Multimedia, Network, WebSockets, Concurrent, ShaderTools.
+- **Qt 6.11**: Quick, QuickControls2, Quick3D, SerialPort, Bluetooth, Multimedia, Network, WebSockets, Concurrent, ShaderTools, GuiPrivate (for the RHI Bayer-demosaic video item).
 - **C++ Compiler**: C++17/20 capable — GCC 9+, Clang 10+, or MSVC 2022.
+- **OpenCV**: 3.0+ (required on all platforms — pose preprocessing, swing export demosaic).
+- **FFmpeg** (optional): libavcodec/libavformat/libavutil/libswscale dev libraries with **libx264**, located via `pkg-config`. Powers the swing-export H.264/MP4 encoder. Without it the app still builds and runs, but swing video export is disabled. GPL FFmpeg builds are fine — the project is GPLv2+.
 
 ---
 
@@ -36,6 +38,9 @@ sudo apt install libudev-dev
 
 # Pose estimation and video pre-processing
 sudo apt install libopencv-dev
+
+# Swing video export (H.264 via libx264) — optional but recommended
+sudo apt install libavcodec-dev libavformat-dev libavutil-dev libswscale-dev
 
 # Optional: espeak-ng (built from source if absent)
 sudo apt install libespeak-ng-dev
@@ -70,8 +75,9 @@ Dependencies are best managed via [Homebrew](https://brew.sh/).
 
 ### 1. Install Dependencies
 ```bash
-brew install cmake espeak-ng aravis opencv
+brew install cmake espeak-ng aravis opencv ffmpeg
 ```
+CMake injects the Homebrew prefix into `PKG_CONFIG_PATH` automatically, so `ffmpeg` is found without any extra configuration.
 
 ### 2. Install Qt 6.11
 Use the [Qt Online Installer](https://www.qt.io/download-qt-installer) or:
@@ -133,6 +139,19 @@ Set the `ARAVIS_ROOT` environment variable to your Aravis installation directory
 ### 6. OpenCV (Required, 3.0+)
 Download from [opencv.org](https://opencv.org/releases/). CMake probes `C:\opencv\build` and `C:\tools\opencv\build` automatically. For a custom location: `-DOpenCV_DIR=C:\path\to\opencv\build`.
 
+### 7. FFmpeg (Optional — swing video export)
+The swing-export H.264 encoder needs FFmpeg dev libraries with **libx264**, found via `pkg-config`:
+
+1. **pkg-config**: install one if not present, e.g. `choco install pkgconfiglite` (or [pkgconf](https://github.com/pkgconf/pkgconf)). It must be on PATH at configure time.
+2. **FFmpeg**: download a `win64-gpl-shared` build from [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds/releases) (e.g. `ffmpeg-n7.1-latest-win64-gpl-shared-7.1.zip`) and extract it so that `C:\ffmpeg\lib\pkgconfig` exists. CMake probes `C:\ffmpeg` and `C:\tools\ffmpeg`; for a custom location pass `-DFFMPEG_DIR=`. The BtbN shared builds include MSVC import libraries and relocatable `.pc` files — no patching needed. The **gpl** variant is required for libx264 (the project is GPLv2+, so GPL FFmpeg is fine).
+
+The linked FFmpeg DLLs (`avcodec`, `avformat`, `avutil`, `swscale`, `swresample`) are copied next to the executable at POST_BUILD. If FFmpeg was installed after a previous configure, clear the cached probe before reconfiguring:
+```
+cmake -U "FFMPEG*" -U "__pkg_config_checked_FFMPEG" <builddir>
+```
+
+> **windeployqt caveat:** Qt Multimedia bundles its own LGPL FFmpeg with the **same DLL names** (`avcodec-61.dll`, …) but *without* libx264. Running `windeployqt` overwrites the copied DLLs and breaks swing export ("libx264 encoder not available"). After deploying, re-copy the five DLLs from `C:\ffmpeg\bin` over the deployed ones — Qt Multimedia works fine against the GPL build (same ABI, superset of features).
+
 ---
 
 ## Build Instructions
@@ -154,9 +173,11 @@ The following are fetched at `cmake ..` time — no manual steps required:
 | Dependency | What | Cached size | Condition |
 |---|---|---|---|
 | ONNX Runtime 1.26.0 | Prebuilt shared library (platform/CUDA matched) | ~10–80 MB | Always |
+| ONNX Runtime GenAI 0.13.1 | Prebuilt shared library (local LLM engine; CUDA or CPU variant) | ~10–60 MB | `WITH_ORTGENAI=ON` (default; auto-off on Intel macOS) |
 | whisper.cpp v1.7.2 | Built from source | — | Always |
 | espeak-ng 1.52.0 | Built from source | — | Only if not found on system |
 | libsamplerate 0.2.2 | Built from source | — | Always |
+| Eigen 3.4.0 | Header-only (IMU EKF) | ~few MB | Always |
 | `ggml-base.en.bin` | Whisper STT model (Hugging Face) | ~148 MB | Always |
 | MoveNet Lightning | ONNX pose model (Hugging Face) | ~9 MB | Always |
 | MoveNet Thunder | ONNX pose model (Hugging Face) | ~30 MB | Always |
@@ -165,6 +186,8 @@ The following are fetched at `cmake ..` time — no manual steps required:
 | yt-dlp | Platform binary for YouTube download | ~15 MB | Always |
 
 If a download fails, the affected feature is disabled but the rest of the build continues normally. Re-run CMake to retry failed downloads.
+
+> **Not downloaded at build time:** the local LLM model (Phi-4-mini) is fetched by the app itself on first run — into the per-user app-data directory, and only when a compatible GPU is present.
 
 ---
 
@@ -176,6 +199,9 @@ If a download fails, the affected feature is disabled but the rest of the build 
 | Kokoro TTS (ORT) | CUDA | CUDA | CUDA | CPU | CoreML | CPU |
 | MoveNet pose (ORT) | CUDA | CUDA | CUDA | CPU | CoreML | CPU |
 | Person segmenter (ORT) | CUDA | CUDA | CUDA | CPU | CoreML | CPU |
+| Local LLM (ORT GenAI) | CUDA | CUDA | CUDA | Gemini cloud¹ | built-in | Gemini cloud¹ |
+
+¹ Without a local GPU (or on Intel macOS, where ORT GenAI has no prebuilt) the app skips the local Phi-4-mini download and uses the Gemini cloud backend instead.
 
 Vulkan is preferred over CUDA for Whisper because it works across GPU vendors (NVIDIA, AMD, Intel Arc) without needing the CUDA Toolkit. The Intel ANV Vulkan driver covers integrated graphics on Linux (UHD, Iris, Xe); Intel Arc discrete cards also work via Vulkan.
 
@@ -191,8 +217,11 @@ ORT on Linux with Intel integrated graphics runs on CPU — see the note above o
 | `-DWITH_COREML=ON/OFF` | ON | Enable CoreML EP on macOS ARM64 |
 | `-DWITH_VITPOSE=ON/OFF` | ON | Download and build ViTPose-B wholebody pose estimator (~330 MB model) |
 | `-DWITH_MEDIAPIPE=ON/OFF` | OFF | Build MediaPipe BlazePose estimator (requires Python + `qai-hub-models`) |
+| `-DWITH_ORTGENAI=ON/OFF` | ON | ONNX Runtime GenAI local LLM engine (auto-off on Intel macOS — falls back to Gemini cloud) |
+| `-DPINPOINT_DEBUG_LEVEL=<n>` | 1 | Log verbosity (2 = startup info + warnings/errors) |
 | `-DASSEMBLYAI_API_KEY=<key>` | — | Seed AssemblyAI API key into settings at build time |
 | `-DOpenCV_DIR=<path>` | — | Path to OpenCV CMake config (Windows, non-standard location) |
+| `-DFFMPEG_DIR=<path>` | — | FFmpeg root for swing export (Windows, non-standard location; must contain `lib/pkgconfig`) |
 
 ---
 
