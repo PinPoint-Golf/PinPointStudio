@@ -193,7 +193,7 @@ Item {
                 camName: modelData.alias && modelData.alias !== "" ? modelData.alias
                                                                    : modelData.description
                 serial: modelData.serialNumber
-                perspective: modelData.perspective    // 2 = face-on, 1 = down-the-line
+                perspective: modelData.perspective    // CameraInstance.Perspective value
                 iface:  modelData.interface
                 selected: modelData.selected
                 deviceEnabled: modelData.sessionEnabled
@@ -287,8 +287,8 @@ Item {
         }
         readonly property bool connected: realInstance !== null
 
-        readonly property string perspLabel: perspective === 2 ? qsTr("Face-on")
-                                            : perspective === 1 ? qsTr("Down-the-line")
+        readonly property string perspLabel: perspective === CameraInstance.FaceOn ? qsTr("Face-on")
+                                            : perspective === CameraInstance.DownTheLine ? qsTr("Down-the-line")
                                             : qsTr("Unassigned")
         height: Theme.sp(60)
 

@@ -23,6 +23,7 @@
 #include <QMutex>
 #include <QObject>
 #include <QPointer>
+#include <QQmlEngine>
 #include <QRectF>
 #include <QTimer>
 #include <QVariantList>
@@ -56,6 +57,8 @@ class FrameThrottle;
 class CameraInstance : public QObject
 {
     Q_OBJECT
+    QML_ELEMENT
+    QML_UNCREATABLE("CameraInstance is created by CameraManager")
 
     Q_PROPERTY(bool isRecording READ isRecording NOTIFY isRecordingChanged)
     Q_PROPERTY(bool isAravis READ isAravis NOTIFY isAravisChanged)
@@ -98,7 +101,10 @@ class CameraInstance : public QObject
 
 public:
     // Perspective values — matches the perspective badge in PpCameraFrame.qml.
+    // Registered with QML (CameraInstance.FaceOn etc.) — use the enum names in
+    // QML, never the raw integers.
     enum Perspective { None = 0, DownTheLine = 1, FaceOn = 2, Other = 3 };
+    Q_ENUM(Perspective)
 
     explicit CameraInstance(QObject *parent = nullptr);
     explicit CameraInstance(const Device &device,

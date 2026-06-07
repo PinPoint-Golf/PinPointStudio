@@ -30,31 +30,41 @@ Item {
 
     signal cancelled()
     signal sessionStartRequested(int sessionType, var goals)
-    signal recalibrateRequested()
-    signal navigateToSettings(int panelIndex)   // 3 = Cameras, 4 = IMUs
+    signal cameraRecalibrateRequested()
+    signal navigateToSettings(int panelIndex)   // settingsPanelCameras / settingsPanelImus
 
-    function reopenAtCameras() {
-        currentStep = root.stepCameras
-        stepStates  = ["done", "pending", "pending", "pending", "pending", "pending"]
+    // ScreenSettings sub-panel indices for navigateToSettings.
+    readonly property int settingsPanelCameras: 3
+    readonly property int settingsPanelImus:    4
+
+    // Re-entry point after an external stereo calibration completes (see the
+    // cameraRecalibrateRequested handler in Main.qml).
+    function reopenAtTriangulate() {
+        currentStep = stepTriangulate
+        stepStates  = ["done", "done", "pending", "pending", "pending", "pending", "pending"]
     }
 
     // ── Step state ────────────────────────────────────────────────────────────
 
     // Named step indices (panels live in a StackLayout at these indices). Use
     // these everywhere instead of hardcoded numbers so the wizard stays robust.
-    //   Goals(0) Cameras(1) IMUs(2) Calibrate(3) Confirm(4) Ready(5)
-    // Calibrate + Confirm are wrist-only (hasCalibrateStep); all others run every
-    // session. (Zero-G / gyro-bias is performed in the WitMotion app, not here.)
-    readonly property int stepGoals:     0
-    readonly property int stepCameras:   1
-    readonly property int stepImus:      2
-    readonly property int stepCalibrate: 3
-    readonly property int stepConfirm:   4
-    readonly property int stepReady:     5
+    //   Goals(0) Cameras(1) Triangulate(2) IMUs(3) Calibrate(4) Confirm(5) Ready(6)
+    // Triangulate appears only once both camera perspectives are connected
+    // (hasTriangulateStep); Calibrate + Confirm are wrist-only (hasCalibrateStep);
+    // all others run every session. (Zero-G / gyro-bias is performed in the
+    // WitMotion app, not here.)
+    readonly property int stepGoals:       0
+    readonly property int stepCameras:     1
+    readonly property int stepTriangulate: 2
+    readonly property int stepImus:        3
+    readonly property int stepCalibrate:   4
+    readonly property int stepConfirm:     5
+    readonly property int stepReady:       6
+    readonly property int stepCount:       7
 
     property int currentStep: 0
-    // 6 entries, indexed by the named step constants above.
-    property var stepStates: ["pending", "pending", "pending", "pending", "pending", "pending"]
+    // stepCount entries, indexed by the named step constants above.
+    property var stepStates: ["pending", "pending", "pending", "pending", "pending", "pending", "pending"]
 
     // Per-session IMU exclusion lives in ImuManager (imuManager.sessionImuExcluded)
     // so the wizard and every toolbar IMU panel share one list — same pattern as
@@ -62,17 +72,95 @@ Item {
     // (see onVisibleChanged); never written back to settings (per-session choice).
 
     // Set by the Confirm-Tracking "Recalibrate" link before navigating back to
-    // the Calibrate step, so onCurrentStepChanged forces a fresh calibration
+    // the Calibrate step, so onCurrentStepChanged forces a fresh IMU calibration
     // instead of retaining the previous "complete" state (backward navigation).
-    property bool _forceRecalibrate: false
+    property bool _forceImuRecalibrate: false
 
-    // True only for Wrist Motion (index 1) — enables the Calibrate + Confirm steps.
-    readonly property bool hasCalibrateStep: sessionType === 1
-    // Terminal step index: Ready for wrist; for non-wrist Calibrate/Confirm are
-    // skipped so the display count is 4.
-    readonly property int lastStep: hasCalibrateStep ? stepReady : 4
-    // Total visible steps for the "STEP x OF N" eyebrows.
-    readonly property int totalSteps: hasCalibrateStep ? 5 : 4
+    // True only for Wrist Motion — enables the Calibrate + Confirm steps.
+    readonly property bool hasCalibrateStep: sessionType === SessionController.Wrist
+
+    // True once both a face-on AND a down-the-line camera are connected — only
+    // then is there a camera pair to triangulate. Dynamic by design: the step
+    // appears the moment the second perspective connects, whether via the
+    // wizard's Connect or the toolbar camera panel.
+    readonly property bool hasTriangulateStep: {
+        var fo = false, dtl = false
+        var list = cameraManager.cameraList
+        for (var i = 0; i < list.length; ++i) {
+            if (!list[i].selected) continue
+            if (list[i].perspective === CameraInstance.FaceOn)          fo  = true
+            else if (list[i].perspective === CameraInstance.DownTheLine) dtl = true
+        }
+        return fo && dtl
+    }
+
+    // Ordered indices of the steps visible for the current session type and
+    // camera state — the single source of truth for navigation (goNext/goBack),
+    // the tab strip, and the "STEP x OF N" numbering.
+    readonly property var visibleSteps: {
+        var s = [stepGoals, stepCameras]
+        if (hasTriangulateStep) s.push(stepTriangulate)
+        s.push(stepImus)
+        if (hasCalibrateStep) { s.push(stepCalibrate); s.push(stepConfirm) }
+        s.push(stepReady)
+        return s
+    }
+
+    // Display number per step index, for the "STEP x OF N" eyebrows and tab pips.
+    readonly property var stepNumbers: {
+        var nums = [], vs = visibleSteps
+        for (var i = 0; i < vs.length; ++i) nums[vs[i]] = i + 1
+        return nums
+    }
+
+    // Terminal step index and total visible steps for the "STEP x OF N" eyebrows.
+    readonly property int lastStep:   stepReady
+    readonly property int totalSteps: visibleSteps.length
+
+    // Index of the visible step preceding idx (tab-strip connector lines).
+    function prevVisibleStep(idx) {
+        var vs = visibleSteps, p = stepGoals
+        for (var i = 0; i < vs.length; ++i) {
+            if (vs[i] >= idx) break
+            p = vs[i]
+        }
+        return p
+    }
+
+    // Mark the current step and advance to the next visible step.
+    // mark: "done" | "skipped". Completing an unfinished Calibrate step is
+    // blocked (Skip is the explicit way past it) — keeps the toolbar ‹/›
+    // arrows consistent with the wizard footer.
+    function goNext(mark) {
+        if (currentStep >= lastStep) return
+        if (currentStep === stepCalibrate && mark === "done" && !calibFlow.calibrationDone) return
+        var arr = stepStates.slice()
+        arr[currentStep] = mark
+        stepStates = arr
+        var vs = visibleSteps
+        for (var i = 0; i < vs.length; ++i)
+            if (vs[i] > currentStep) { currentStep = vs[i]; return }
+    }
+
+    // Step back to the previous visible step, resetting the current one.
+    function goBack() {
+        if (currentStep <= 0) return
+        var arr = stepStates.slice()
+        arr[currentStep] = "pending"
+        stepStates = arr
+        var vs = visibleSteps
+        for (var i = vs.length - 1; i >= 0; --i)
+            if (vs[i] < currentStep) { currentStep = vs[i]; return }
+    }
+
+    // Fresh wizard for a new session of the given type (ScreenHome entry point).
+    function reset(type) {
+        sessionType = type
+        currentStep = stepGoals
+        var arr = []
+        for (var i = 0; i < stepCount; ++i) arr.push("pending")
+        stepStates = arr
+    }
 
     // The Calibrate / Confirm steps host a full 3D visualisation that should use
     // the entire viewport width, unlike the text-led steps which are clamped to a
@@ -93,11 +181,11 @@ Item {
         _prevStep   = currentStep
 
         if (currentStep === root.stepCalibrate) {
-            // "Recalibrate" from Confirm Tracking: force a fresh run regardless
-            // of navigation direction (otherwise the restore branch below would
-            // restore the previous "complete" state).
-            if (root._forceRecalibrate) {
-                root._forceRecalibrate = false
+            // "Recalibrate" from Confirm Tracking: force a fresh IMU calibration
+            // regardless of navigation direction (otherwise the restore branch
+            // below would restore the previous "complete" state).
+            if (root._forceImuRecalibrate) {
+                root._forceImuRecalibrate = false
                 calibFlow.begin()
                 return
             }
@@ -244,23 +332,30 @@ Item {
     readonly property var curType:    sessionTypes[sessionType]
     readonly property var curImuReqs: imuRequirements[sessionType]
 
-    // Find the cameraList entry assigned to a given perspective.
-    // perspective: 2 = face-on, 1 = down-the-line (matches CameraInstance convention).
-    // Reads directly from cameraList which now includes the persisted perspective field,
-    // so this works whether or not cameras are currently selected.
-    readonly property var faceOnData: {
-        var list = cameraManager.cameraList
+    // All cameraList entries assigned to a given perspective — any number of
+    // cameras may share one (e.g. two face-on cameras). Reads directly from
+    // cameraList which includes the persisted perspective field, so this works
+    // whether or not cameras are currently selected.
+    readonly property var faceOnList: {
+        var out = [], list = cameraManager.cameraList
         for (var i = 0; i < list.length; ++i)
-            if (list[i].perspective === 2) return list[i]
-        return null
+            if (list[i].perspective === CameraInstance.FaceOn) out.push(list[i])
+        return out
     }
 
-    readonly property var dtlData: {
-        var list = cameraManager.cameraList
+    readonly property var dtlList: {
+        var out = [], list = cameraManager.cameraList
         for (var i = 0; i < list.length; ++i)
-            if (list[i].perspective === 1) return list[i]
-        return null
+            if (list[i].perspective === CameraInstance.DownTheLine) out.push(list[i])
+        return out
     }
+
+    // Every available camera participates in this session — capture is not
+    // limited by view assignment. Perspective only gates the ANALYSIS minimums
+    // (camsAllConnected: ≥1 face-on, plus ≥1 down-the-line for two-camera
+    // session types — requiredCameras is a MINIMUM, not a maximum) and the
+    // Triangulate step.
+    readonly property var sessionCamList: cameraManager.cameraList
 
     function camDetail(d) {
         if (!d) return ""
@@ -270,32 +365,32 @@ Item {
         return [d.alias || d.description, sn, ifc, res].filter(function(s){ return s !== "" }).join(" · ")
     }
 
-    // True when at least one of the session's cameras is marked fixed in place —
-    // in that case stereo calibration and triangulation become optional steps.
+    // True when at least one of the triangulation pair's cameras (face-on or
+    // down-the-line — unassigned cameras don't triangulate) is marked fixed in
+    // place — stereo calibration and triangulation become optional steps then.
     readonly property bool anyFixedCamera: {
         var fixed = appSettings.cameraFixedInPlace
-        if (faceOnData && fixed[faceOnData.cameraKey]) return true
-        if (dtlData    && fixed[dtlData.cameraKey])    return true
+        var cams  = faceOnList.concat(dtlList)
+        for (var i = 0; i < cams.length; ++i)
+            if (fixed[cams[i].cameraKey]) return true
         return false
     }
 
-    // Assignment requirements met: face-on always; DTL + stereo validity for
-    // two-camera sessions (Wrist Motion needs only the face-on camera).
-    readonly property bool camsOk: {
-        if (!faceOnData) return false
-        if (curType.requiredCameras === 2) {
-            if (!dtlData) return false
-            if (!anyFixedCamera && (!_todo_stereoCalibrationValid || !_todo_triangulationValid)) return false
-        }
-        return true
-    }
-
-    // Every required camera is assigned AND connected. Reactive via cameraList
-    // (selection changes fire cameraListChanged). Mirrors imusAllConnected.
+    // Every ENABLED session camera is connected AND the session minimum is met
+    // (≥1 face-on connected; ≥1 down-the-line too for two-camera sessions).
+    // Reactive via cameraList (selection changes fire cameraListChanged).
+    // Mirrors imusAllConnected.
     readonly property bool camsAllConnected: {
-        if (!faceOnData || !faceOnData.selected) return false
-        if (curType.requiredCameras === 2
-                && (!dtlData || !dtlData.selected)) return false
+        var cams = sessionCamList
+        var fo = 0, dtl = 0
+        for (var i = 0; i < cams.length; ++i) {
+            if (!cams[i].sessionEnabled) continue
+            if (!cams[i].selected) return false
+            if (cams[i].perspective === CameraInstance.FaceOn)           ++fo
+            else if (cams[i].perspective === CameraInstance.DownTheLine) ++dtl
+        }
+        if (fo === 0) return false
+        if (curType.requiredCameras === 2 && dtl === 0) return false
         return true
     }
 
@@ -346,48 +441,53 @@ Item {
         return reqs.some(function(r) { return r.required })
     }
 
-    readonly property bool anySkipped: stepStates[1] === "skipped" || stepStates[2] === "skipped"
-
     // Every unmet requirement — drives the Ready panel content.
     // Reactive: re-evaluates when hardware state, step states, or placements change.
     // Each entry: { text: string, panel: int }
     // panel >= 0 renders a clickable "→ Open … settings" link that navigates
-    // to that Settings sub-panel (3 = Cameras, 4 = IMUs) and returns here via ‹.
-    // panel = -1 means the issue has no actionable settings link.
+    // to that Settings sub-panel (settingsPanelCameras / settingsPanelImus)
+    // and returns here via ‹. panel = -1 means no actionable settings link.
     readonly property var readinessIssues: {
         var issues = []
 
         // Camera requirements — session capture starts on wizard completion, so
-        // a required camera that is assigned but disabled/unconnected is an
-        // issue too, not just a missing assignment.
-        if (stepStates[1] === "skipped") {
+        // a camera that is assigned but disabled/unconnected is an issue too,
+        // not just a missing assignment. Per-perspective ladder: assigned →
+        // enabled → connected; several cameras may share a perspective, the
+        // minimum is one connected each.
+        if (stepStates[stepCameras] === "skipped") {
             issues.push({ text: qsTr("Cameras skipped — no video will be captured this session"), panel: -1 })
         } else {
-            if (!faceOnData)
-                issues.push({ text: qsTr("Face-on camera not assigned"), panel: 3 })
-            else if (!faceOnData.sessionEnabled)
-                issues.push({ text: qsTr("Face-on camera disabled for this session"), panel: -1 })
-            else if (!faceOnData.selected)
-                issues.push({ text: qsTr("Face-on camera not connected — press Connect in the cameras step"), panel: -1 })
-            if (curType.requiredCameras === 2) {
-                if (!dtlData)
-                    issues.push({ text: qsTr("Down-the-line camera not assigned"), panel: 3 })
-                else if (!dtlData.sessionEnabled)
-                    issues.push({ text: qsTr("Down-the-line camera disabled for this session"), panel: -1 })
-                else if (!dtlData.selected)
-                    issues.push({ text: qsTr("Down-the-line camera not connected — press Connect in the cameras step"), panel: -1 })
-                // Calibration and triangulation are only required when cameras are not fixed in place
-                if (!anyFixedCamera) {
-                    if (!_todo_stereoCalibrationValid)
-                        issues.push({ text: qsTr("Stereo calibration not confirmed — use Recalibrate in the cameras step"), panel: -1 })
-                    if (!_todo_triangulationValid)
-                        issues.push({ text: qsTr("Triangulation not confirmed"), panel: -1 })
-                }
+            // View-assignment minimums — analysis needs ≥1 face-on (+ ≥1
+            // down-the-line for two-camera session types).
+            if (faceOnList.length === 0)
+                issues.push({ text: qsTr("Face-on camera not assigned"), panel: settingsPanelCameras })
+            if (curType.requiredCameras === 2 && dtlList.length === 0)
+                issues.push({ text: qsTr("Down-the-line camera not assigned"), panel: settingsPanelCameras })
+            // Connection — every enabled camera should be streaming by now.
+            var cams = sessionCamList
+            var anyEnabled = false
+            for (var c = 0; c < cams.length; ++c) {
+                if (!cams[c].sessionEnabled) continue
+                anyEnabled = true
+                if (!cams[c].selected)
+                    issues.push({ text: qsTr("%1 not connected — press Connect in the cameras step")
+                                            .arg(cams[c].alias || cams[c].description), panel: -1 })
+            }
+            if (cams.length > 0 && !anyEnabled)
+                issues.push({ text: qsTr("All cameras disabled for this session"), panel: -1 })
+            // Pair checks only matter once there is a camera pair to triangulate,
+            // and only when the cameras are not fixed in place.
+            if (hasTriangulateStep && !anyFixedCamera) {
+                if (!_todo_stereoCalibrationValid)
+                    issues.push({ text: qsTr("Stereo calibration not confirmed — use Recalibrate in the triangulation step"), panel: -1 })
+                if (!_todo_triangulationValid)
+                    issues.push({ text: qsTr("Triangulation not confirmed"), panel: -1 })
             }
         }
 
         // IMU requirements — one entry per unassigned required slot, plus calibration
-        if (stepStates[2] === "skipped") {
+        if (stepStates[stepImus] === "skipped") {
             issues.push({ text: qsTr("Motion sensors skipped — no movement data will be captured"), panel: -1 })
         } else {
             var reqs      = curImuReqs
@@ -401,7 +501,7 @@ Item {
                 if (!found)
                     issues.push({ text: qsTr("IMU %1 — %2 not assigned")
                                             .arg(reqs[i].slot).arg(reqs[i].placement),
-                                  panel: 4 })
+                                  panel: settingsPanelImus })
             }
             if (root.hasCalibrateStep && !calibFlow.calibrationDone)
                 issues.push({ text: qsTr("Sensor position calibration not completed — return to the Calibrate step"), panel: -1 })
@@ -541,17 +641,17 @@ Item {
                 spacing: 0
 
                 Repeater {
-                    // 6 tabs always present; the Calibrate + Confirm tabs are hidden
-                    // for non-wrist sessions. Indices match the named step constants.
-                    model: [qsTr("Goals"), qsTr("Cameras"), qsTr("IMUs"), qsTr("Calibrate"), qsTr("Confirm"), qsTr("Ready")]
+                    // stepCount tabs always present; conditional steps (Triangulate,
+                    // Calibrate, Confirm) hide via visibleSteps. Indices match the
+                    // named step constants.
+                    model: [qsTr("Goals"), qsTr("Cameras"), qsTr("Triangulate"), qsTr("IMUs"), qsTr("Calibrate"), qsTr("Confirm"), qsTr("Ready")]
 
                     delegate: Row {
                         id: tabRow
                         required property string modelData
                         required property int    index
                         spacing: 0
-                        visible: (tabRow.index !== root.stepCalibrate && tabRow.index !== root.stepConfirm)
-                                 || root.hasCalibrateStep
+                        visible: root.visibleSteps.indexOf(tabRow.index) !== -1
 
                         Item {
                             visible: tabRow.index > 0
@@ -562,7 +662,7 @@ Item {
                                 anchors.left:  parent.left
                                 anchors.right: parent.right
                                 height: 1
-                                color: root.stepStates[tabRow.index - 1] === "done"
+                                color: root.stepStates[root.prevVisibleStep(tabRow.index)] === "done"
                                            ? Theme.colorGood : Theme.colorBorderMid
                                 Behavior on color { ColorAnimation { duration: Theme.durationNormal } }
                             }
@@ -607,7 +707,8 @@ Item {
                                         var s = parent.parent.pipState
                                         if (s === "done")    return "✓"
                                         if (s === "skipped") return "⚠"
-                                        return (tabRow.index + 1).toString()
+                                        // Hidden tabs have no number — they're invisible anyway.
+                                        return String(root.stepNumbers[tabRow.index] || "")
                                     }
                                     font.family:    Theme.fontData
                                     font.pixelSize: Theme.fontSzMicro
@@ -679,7 +780,7 @@ Item {
 
                             StepIntro {
                                 width:   parent.width
-                                eyebrow: qsTr("STEP 1 OF %1 · GOALS").arg(root.totalSteps)
+                                eyebrow: qsTr("STEP %1 OF %2 · GOALS").arg(root.stepNumbers[root.stepGoals]).arg(root.totalSteps)
                                 heading: qsTr("What are you working on today?")
                                 body:    qsTr("Pick the areas you want to focus on this session. Pinpoint will highlight these metrics in the live view and lead with them in your summary. We've picked up where you left off — change anything you like and we'll remember it next time.")
                             }
@@ -784,10 +885,9 @@ Item {
                             // Reactive via cameraList: selection AND session-enablement
                             // changes both fire cameraListChanged.
                             readonly property bool canConnect: {
-                                var rows = [root.faceOnData]
-                                if (root.curType.requiredCameras === 2) rows.push(root.dtlData)
-                                for (var i = 0; i < rows.length; ++i)
-                                    if (rows[i] && rows[i].sessionEnabled && !rows[i].selected)
+                                var cams = root.sessionCamList
+                                for (var i = 0; i < cams.length; ++i)
+                                    if (cams[i].sessionEnabled && !cams[i].selected)
                                         return true
                                 return false
                             }
@@ -797,22 +897,44 @@ Item {
                             // (same path as PpCameraPanel's Connect). Cameras connect
                             // synchronously — no paced queue needed (that's a BLE thing).
                             function startConnect() {
-                                var rows = [root.faceOnData]
-                                if (root.curType.requiredCameras === 2) rows.push(root.dtlData)
-                                for (var i = 0; i < rows.length; ++i)
-                                    if (rows[i] && rows[i].sessionEnabled && !rows[i].selected)
-                                        cameraManager.setSelected(rows[i].index, true)
+                                var cams = root.sessionCamList
+                                for (var i = 0; i < cams.length; ++i)
+                                    if (cams[i].sessionEnabled && !cams[i].selected)
+                                        cameraManager.setSelected(cams[i].index, true)
                                 if (!cameraManager.isRecording && cameraManager.anySelected)
                                     cameraManager.startAll()
                             }
 
+                            // One row per available camera — capture is not limited by
+                            // view assignment. Grouped face-on, down-the-line, then
+                            // unassigned/other. A placeholder row appears for any
+                            // REQUIRED view with no assignment so the "ASSIGN IN
+                            // SETTINGS" failure state still shows.
+                            readonly property var camRows: {
+                                var rows = []
+                                var fo = root.faceOnList, dtl = root.dtlList
+                                if (fo.length === 0) rows.push({ persp: CameraInstance.FaceOn, data: null })
+                                for (var i = 0; i < fo.length; ++i)
+                                    rows.push({ persp: CameraInstance.FaceOn, data: fo[i] })
+                                if (root.curType.requiredCameras === 2 && dtl.length === 0)
+                                    rows.push({ persp: CameraInstance.DownTheLine, data: null })
+                                for (var j = 0; j < dtl.length; ++j)
+                                    rows.push({ persp: CameraInstance.DownTheLine, data: dtl[j] })
+                                var list = cameraManager.cameraList
+                                for (var k = 0; k < list.length; ++k)
+                                    if (list[k].perspective !== CameraInstance.FaceOn
+                                            && list[k].perspective !== CameraInstance.DownTheLine)
+                                        rows.push({ persp: list[k].perspective, data: list[k] })
+                                return rows
+                            }
+
                             StepIntro {
                                 width:   parent.width
-                                eyebrow: qsTr("STEP 2 OF %1 · CAMERAS").arg(root.totalSteps)
+                                eyebrow: qsTr("STEP %1 OF %2 · CAMERAS").arg(root.stepNumbers[root.stepCameras]).arg(root.totalSteps)
                                 heading: qsTr("Connecting your cameras")
                                 body:    root.curType.requiredCameras === 1
-                                    ? qsTr("This session uses a single face-on camera to capture video alongside your IMU data. Enable and connect it below — once its preview is streaming you're ready to continue.")
-                                    : qsTr("This session uses two cameras — face-on and down the line — to reconstruct your movement in 3D. Both need to be connected and stereo-calibrated before we start. If your setup hasn't moved since last time, you're good to go.")
+                                    ? qsTr("Every connected camera records this session alongside your IMU data. Enable and connect the cameras below — analysis uses the face-on view, so make sure at least one camera is assigned to it.")
+                                    : qsTr("Every connected camera records this session. Analysis needs two views — face-on and down the line — to reconstruct your movement in 3D; triangulation follows once both are streaming.")
                             }
 
                             Column {
@@ -822,23 +944,32 @@ Item {
                                 // Per-camera rows — same pattern as the IMU slot rows:
                                 // enable toggle (manager-owned session enablement), live
                                 // status chip, and a streaming thumbnail once connected.
+                                // One row per assigned camera; perspectives can repeat.
                                 Repeater {
-                                    model: root.curType.requiredCameras === 2
-                                               ? [{ persp: 2 }, { persp: 1 }]
-                                               : [{ persp: 2 }]
+                                    model: camsCol.camRows
 
                                     delegate: CheckRow {
                                         required property var modelData
 
                                         width: parent.width
-                                        label: modelData.persp === 2 ? qsTr("Face-on camera")
-                                                                     : qsTr("Down-the-line camera")
 
-                                        // cameraList entry assigned this perspective (null =
-                                        // unassigned). Reactive: cameraListChanged fires on
-                                        // selection and session-enablement changes.
-                                        readonly property var _data:
-                                            modelData.persp === 2 ? root.faceOnData : root.dtlData
+                                        // cameraList entry for this row (null = placeholder
+                                        // for a required, unassigned view). Reactive:
+                                        // cameraListChanged fires on selection and
+                                        // session-enablement changes.
+                                        readonly property var _data: modelData.data
+
+                                        label: {
+                                            if (!_data)
+                                                return modelData.persp === CameraInstance.FaceOn
+                                                    ? qsTr("Face-on camera") : qsTr("Down-the-line camera")
+                                            var name = _data.alias || _data.description
+                                            if (modelData.persp === CameraInstance.FaceOn)
+                                                return qsTr("Face-on camera — %1").arg(name)
+                                            if (modelData.persp === CameraInstance.DownTheLine)
+                                                return qsTr("Down-the-line camera — %1").arg(name)
+                                            return qsTr("Camera — %1").arg(name)
+                                        }
 
                                         // Live instance for the thumbnail — reactive on
                                         // cameraManager.instances (PpCameraPanel pattern).
@@ -873,11 +1004,16 @@ Item {
                                         ok:   _enabled && _connected
                                         warn: _enabled && !_connected
 
-                                        subOk:   root.camDetail(_data)
+                                        // Unassigned cameras record fine — nudge that analysis
+                                        // won't use them until a view is assigned ("Other" is
+                                        // a deliberate assignment, no nudge).
+                                        subOk:   modelData.persp === CameraInstance.None
+                                                 ? root.camDetail(_data) + qsTr(" · NO VIEW ASSIGNED")
+                                                 : root.camDetail(_data)
                                         subWarn: _data
                                             ? (_data.alias || _data.description) + qsTr(" — PRESS CONNECT")
                                             : ""
-                                        subFail: modelData.persp === 2
+                                        subFail: modelData.persp === CameraInstance.FaceOn
                                             ? qsTr("NOT FOUND — ASSIGN FACE-ON PERSPECTIVE IN SETTINGS → CAMERAS")
                                             : qsTr("NOT FOUND — ASSIGN DOWN-THE-LINE PERSPECTIVE IN SETTINGS → CAMERAS")
 
@@ -890,32 +1026,6 @@ Item {
                                     }
                                 }
 
-                                // Stereo calibration and triangulation: two-camera sessions only
-                                CheckRow {
-                                    visible:      root.curType.requiredCameras === 2
-                                    width:        parent.width
-                                    ok:           root._todo_stereoCalibrationValid
-                                    optional:     root.anyFixedCamera
-                                    label:        qsTr("Stereo calibration")
-                                    subOk:        qsTr("Calibration valid")
-                                    subFail:      root.anyFixedCamera
-                                                      ? qsTr("OPTIONAL — CAMERAS ARE FIXED IN PLACE")
-                                                      : qsTr("CALIBRATION NEEDED")
-                                    showRecal:    true
-                                    recalEnabled: root.faceOnData !== null && root.dtlData !== null
-                                    onRecalibrate: root.recalibrateRequested()
-                                }
-                                CheckRow {
-                                    visible:  root.curType.requiredCameras === 2
-                                    width:    parent.width
-                                    ok:       root._todo_triangulationValid
-                                    optional: root.anyFixedCamera
-                                    label:    qsTr("Triangulation")
-                                    subOk:    qsTr("Baseline confirmed")
-                                    subFail:  root.anyFixedCamera
-                                                  ? qsTr("OPTIONAL — CAMERAS ARE FIXED IN PLACE")
-                                                  : qsTr("NOT CONFIRMED")
-                                }
                             }
 
                             // Settings deep-link
@@ -927,13 +1037,74 @@ Item {
                                 MouseArea {
                                     anchors.fill: parent
                                     cursorShape:  Qt.PointingHandCursor
-                                    onClicked:    root.navigateToSettings(3)
+                                    onClicked:    root.navigateToSettings(root.settingsPanelCameras)
                                 }
                             }
                         }
                     }
 
-                    // ── Panel 2: IMUs ─────────────────────────────────────────
+                    // ── Panel 2: Triangulate ──────────────────────────────────
+                    // Only reachable when both camera perspectives are connected
+                    // (hasTriangulateStep). Hosts the same stereo-calibration
+                    // STUB PpCameraPanel's calibrate mode uses; the real ChArUco
+                    // capture flow drops in here when the pipeline lands (TODO).
+
+                    Item {
+                        implicitHeight: triangulateCol.implicitHeight + Theme.sp(32)
+
+                        Column {
+                            id: triangulateCol
+                            anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.sp(32) }
+                            spacing: Theme.sp(16)
+
+                            StepIntro {
+                                width:   parent.width
+                                eyebrow: qsTr("STEP %1 OF %2 · TRIANGULATION").arg(root.stepNumbers[root.stepTriangulate] || "").arg(root.totalSteps)
+                                heading: qsTr("Triangulating your cameras")
+                                body:    qsTr("With a face-on and a down-the-line camera connected, Pinpoint can reconstruct your movement in 3D. Stereo calibration solves where the cameras sit relative to each other; triangulation confirms the result. If your setup hasn't moved since last time, you're good to go.")
+                            }
+
+                            Column {
+                                width: parent.width
+                                spacing: 0
+
+                                CheckRow {
+                                    width:        parent.width
+                                    ok:           root._todo_stereoCalibrationValid
+                                    optional:     root.anyFixedCamera
+                                    label:        qsTr("Stereo calibration")
+                                    subOk:        qsTr("Calibration valid")
+                                    subFail:      root.anyFixedCamera
+                                                      ? qsTr("OPTIONAL — CAMERAS ARE FIXED IN PLACE")
+                                                      : qsTr("CALIBRATION NEEDED")
+                                    showRecal:    true
+                                    recalEnabled: root.faceOnList.length > 0 && root.dtlList.length > 0
+                                    onRecalibrate: root.cameraRecalibrateRequested()
+                                }
+                                CheckRow {
+                                    width:    parent.width
+                                    ok:       root._todo_triangulationValid
+                                    optional: root.anyFixedCamera
+                                    label:    qsTr("Triangulation")
+                                    subOk:    qsTr("Baseline confirmed")
+                                    subFail:  root.anyFixedCamera
+                                                  ? qsTr("OPTIONAL — CAMERAS ARE FIXED IN PLACE")
+                                                  : qsTr("NOT CONFIRMED")
+                                }
+                            }
+
+                            // Stereo calibration flow — in-panel STUB until the
+                            // real pipeline lands; shared with PpCameraPanel.
+                            CameraCalibrationFlow {
+                                width:  parent.width
+                                height: Theme.sp(300)
+                                layoutMode: "full"
+                                showHeader: false
+                            }
+                        }
+                    }
+
+                    // ── Panel 3: IMUs ─────────────────────────────────────────
 
                     Item {
                         implicitHeight: imusCol.implicitHeight + Theme.sp(32)
@@ -1022,7 +1193,7 @@ Item {
 
                             StepIntro {
                                 width:   parent.width
-                                eyebrow: qsTr("STEP 3 OF %1 · MOTION SENSORS").arg(root.totalSteps)
+                                eyebrow: qsTr("STEP %1 OF %2 · MOTION SENSORS").arg(root.stepNumbers[root.stepImus]).arg(root.totalSteps)
                                 heading: qsTr("Attaching your motion sensors")
                                 body:    qsTr("Switch each sensor on before stepping up. The positions below are specific to this session type — attach them in the right place and pair each one. Assign placements in Settings → IMUs if you haven't already.")
                             }
@@ -1231,18 +1402,18 @@ Item {
                                 MouseArea {
                                     anchors.fill: parent
                                     cursorShape:  Qt.PointingHandCursor
-                                    onClicked:    root.navigateToSettings(4)
+                                    onClicked:    root.navigateToSettings(root.settingsPanelImus)
                                 }
                             }
                         }
                     }
 
-                    // ── Panel 3: Calibrate Sensors ───────────────────────────
+                    // ── Panel 4: Calibrate Sensors ───────────────────────────
                     // Only reachable for Wrist Motion (hasCalibrateStep).
                     // The panel fills the available height — no Flickable wrapper.
 
                     Item {
-                        // Panel 3 hosts the extracted calibration flow (full
+                        // Panel 4 hosts the extracted calibration flow (full
                         // layout). Fill the visible viewport height, gated on the
                         // active step so the full-viewport height does not inflate
                         // the StackLayout on the text-led steps.
@@ -1253,13 +1424,13 @@ Item {
                             anchors.fill: parent
                             layoutMode:   "full"
                             showHeader:   true
-                            stepLabel:    qsTr("STEP 4 OF %1 · CALIBRATE").arg(root.totalSteps)
+                            stepLabel:    qsTr("STEP %1 OF %2 · CALIBRATE").arg(root.stepNumbers[root.stepCalibrate] || "").arg(root.totalSteps)
                             // The wizard advances via the footer; nothing required here.
                             onCompleted: {}
                         }
                     }
 
-                    // ── Panel 4: Confirm Tracking ─────────────────────────────
+                    // ── Panel 5: Confirm Tracking ─────────────────────────────
                     // Only reachable for wrist motion sessions (hasCalibrateStep).
 
                     Item {
@@ -1279,7 +1450,7 @@ Item {
                                 spacing:             Theme.sp(8)
 
                                 Text {
-                                    text:               qsTr("STEP 4 OF %1 · CONFIRM TRACKING").arg(root.totalSteps)
+                                    text:               qsTr("STEP %1 OF %2 · CONFIRM TRACKING").arg(root.stepNumbers[root.stepConfirm] || "").arg(root.totalSteps)
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingMicro
@@ -1319,8 +1490,8 @@ Item {
                             }
 
                             // Recalibrate affordance — returns to the Calibrate step and forces
-                            // a fresh capture (root._forceRecalibrate), used when tracking looks
-                            // wrong. Calibration itself happens there, not on this screen.
+                            // a fresh IMU capture (root._forceImuRecalibrate), used when tracking
+                            // looks wrong. Calibration itself happens there, not on this screen.
                             Row {
                                 Layout.fillWidth:    true
                                 Layout.bottomMargin: Theme.sp(8)
@@ -1349,7 +1520,7 @@ Item {
                                             arr[root.stepCalibrate] = "pending"
                                             arr[root.stepConfirm]   = "pending"
                                             root.stepStates = arr
-                                            root._forceRecalibrate = true
+                                            root._forceImuRecalibrate = true
                                             root.currentStep = root.stepCalibrate
                                         }
                                     }
@@ -1358,7 +1529,7 @@ Item {
                         }
                     }
 
-                    // ── Panel 5: Ready ────────────────────────────────────────
+                    // ── Panel 6: Ready ────────────────────────────────────────
 
 
                     Item {
@@ -1374,7 +1545,7 @@ Item {
                                 spacing: Theme.sp(8)
 
                                 Text {
-                                    text:               qsTr("STEP %1 OF %1 · READY").arg(root.totalSteps)
+                                    text:               qsTr("STEP %1 OF %2 · READY").arg(root.stepNumbers[root.stepReady]).arg(root.totalSteps)
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingMicro
@@ -1446,7 +1617,7 @@ Item {
 
                                             Text {
                                                 visible:        modelData.panel >= 0
-                                                text:           modelData.panel === 3
+                                                text:           modelData.panel === root.settingsPanelCameras
                                                                     ? qsTr("→ Open camera settings")
                                                                     : qsTr("→ Open IMU settings")
                                                 font.family:    Theme.fontBody
@@ -1493,29 +1664,47 @@ Item {
                                     SummaryRow {
                                         width: parent.width
                                         rowLabel: qsTr("Cameras")
-                                        good: root.stepStates[1] !== "skipped" && root.camsAllConnected
+                                        good: root.stepStates[root.stepCameras] !== "skipped" && root.camsAllConnected
                                         rowValue: {
-                                            if (root.stepStates[1] === "skipped")
+                                            if (root.stepStates[root.stepCameras] === "skipped")
                                                 return qsTr("Skipped — no video capture")
-                                            if (root.camsAllConnected)
-                                                return root.curType.requiredCameras === 2
-                                                    ? qsTr("Face-on + down-the-line connected")
-                                                    : qsTr("Face-on connected")
-                                            if (!root.faceOnData)
-                                                return root.curType.requiredCameras === 2 && !root.dtlData
-                                                    ? qsTr("Neither camera assigned")
+                                            if (root.camsAllConnected) {
+                                                var cams = root.sessionCamList, n = 0
+                                                for (var i = 0; i < cams.length; ++i)
+                                                    if (cams[i].sessionEnabled && cams[i].selected) ++n
+                                                return n === 1 ? qsTr("1 camera connected")
+                                                               : qsTr("%1 cameras connected").arg(n)
+                                            }
+                                            if (root.faceOnList.length === 0)
+                                                return root.curType.requiredCameras === 2 && root.dtlList.length === 0
+                                                    ? qsTr("Neither camera view assigned")
                                                     : qsTr("Face-on camera not assigned")
-                                            if (root.curType.requiredCameras === 2 && !root.dtlData)
+                                            if (root.curType.requiredCameras === 2 && root.dtlList.length === 0)
                                                 return qsTr("Down-the-line camera not assigned")
                                             return qsTr("Not connected — press Connect in the cameras step")
                                         }
+                                    }
+                                    Rectangle {
+                                        visible: root.hasTriangulateStep
+                                        width: parent.width; height: 1; color: Theme.colorBorderMid
+                                    }
+                                    SummaryRow {
+                                        visible: root.hasTriangulateStep
+                                        width: parent.width
+                                        rowLabel: qsTr("Triangulation")
+                                        good: root._todo_triangulationValid || root.anyFixedCamera
+                                        rowValue: root._todo_triangulationValid
+                                                      ? qsTr("Baseline confirmed")
+                                                      : root.anyFixedCamera
+                                                          ? qsTr("Optional — cameras fixed in place")
+                                                          : qsTr("Not confirmed")
                                     }
                                     Rectangle { width: parent.width; height: 1; color: Theme.colorBorderMid }
                                     SummaryRow {
                                         width: parent.width
                                         rowLabel: qsTr("IMUs")
-                                        good: root.stepStates[2] !== "skipped" && root.imusOk
-                                        rowValue: root.stepStates[2] === "skipped"
+                                        good: root.stepStates[root.stepImus] !== "skipped" && root.imusOk
+                                        rowValue: root.stepStates[root.stepImus] === "skipped"
                                                       ? qsTr("Skipped — no motion data")
                                                       : root.imusOk
                                                           ? qsTr("%1 sensors assigned").arg(root.curImuReqs.filter(function(r){ return r.required }).length)
@@ -1575,7 +1764,7 @@ Item {
                         Layout.fillWidth: true
                         text: {
                             var s = root.currentStep
-                            if (s === 0) {
+                            if (s === root.stepGoals) {
                                 var n = root.selectedGoals.length
                                 if (n === 0) return qsTr("No goals selected — defaulting to %1").arg(root.curGoalDefs[0].name)
                                 return n === 1 ? qsTr("1 goal selected") : qsTr("%1 goals selected").arg(n)
@@ -1585,11 +1774,16 @@ Item {
                                     return qsTr("All cameras connected")
                                 if (camsCol.canConnect)
                                     return qsTr("Cameras assigned — tap Connect to start them")
-                                return !root.faceOnData ? qsTr("Face-on camera not assigned")
-                                     : (root.curType.requiredCameras === 2 && !root.dtlData)
+                                return root.faceOnList.length === 0 ? qsTr("Face-on camera not assigned")
+                                     : (root.curType.requiredCameras === 2 && root.dtlList.length === 0)
                                            ? qsTr("Down-the-line camera not assigned")
                                            : qsTr("Camera disabled — enable it to capture video this session")
                             }
+                            if (s === root.stepTriangulate) return root._todo_triangulationValid
+                                ? qsTr("Triangulation confirmed")
+                                : root.anyFixedCamera
+                                    ? qsTr("Optional — cameras are fixed in place")
+                                    : qsTr("Stereo calibration isn't available yet — skip to continue")
                             if (s === root.stepImus) return root.imusAllConnected
                                 ? qsTr("All required sensors connected")
                                 : root.imusOk
@@ -1606,6 +1800,9 @@ Item {
                         color: {
                             var s = root.currentStep
                             if (s === root.stepCameras) return root.camsAllConnected ? Theme.colorGood : Theme.colorWarn
+                            if (s === root.stepTriangulate)
+                                return (root._todo_triangulationValid || root.anyFixedCamera)
+                                           ? Theme.colorGood : Theme.colorWarn
                             if (s === root.stepImus)    return root.imusAllConnected ? Theme.colorGood : Theme.colorWarn
                             if (s === root.stepCalibrate) return calibFlow.calibrationDone ? Theme.colorGood : Theme.colorWarn
                             return Theme.colorText3
@@ -1618,35 +1815,18 @@ Item {
                         visible: root.currentStep > 0
                         label:   qsTr("← Back")
                         primary: false
-                        onClicked: {
-                            var arr = root.stepStates.slice()
-                            arr[root.currentStep] = "pending"
-                            root.stepStates = arr
-                            // Skip back over Calibrate + Confirm (Ready → IMUs) for non-wrist sessions.
-                            if (root.currentStep === root.stepReady && !root.hasCalibrateStep)
-                                root.currentStep = root.stepImus
-                            else
-                                root.currentStep--
-                        }
+                        onClicked: root.goBack()
                     }
 
                     // Skip →
                     PpButton {
                         visible: (root.currentStep === root.stepCameras && !root.camsAllConnected)
+                                 || (root.currentStep === root.stepTriangulate && !root._todo_triangulationValid)
                                  || (root.currentStep === root.stepImus && !root.imusAllConnected)
                                  || (root.currentStep === root.stepCalibrate && !calibFlow.calibrationDone)
                         label:   qsTr("Skip →")
                         primary: false
-                        onClicked: {
-                            var arr = root.stepStates.slice()
-                            arr[root.currentStep] = "skipped"
-                            root.stepStates = arr
-                            // Skipping IMUs on non-wrist sessions jumps over Calibrate + Confirm to Ready.
-                            if (root.currentStep === root.stepImus && !root.hasCalibrateStep)
-                                root.currentStep = root.stepReady
-                            else
-                                root.currentStep++
-                        }
+                        onClicked: root.goNext("skipped")
                     }
 
                     // Primary action
@@ -1718,15 +1898,8 @@ Item {
                                     return
                                 }
                                 if (root.currentStep < root.lastStep) {
-                                    if (root.currentStep === root.stepCalibrate && !calibFlow.calibrationDone)  return
-                                    var arr = root.stepStates.slice()
-                                    arr[root.currentStep] = "done"
-                                    root.stepStates = arr
-                                    // Non-wrist sessions skip Calibrate + Confirm (IMUs → Ready).
-                                    if (root.currentStep === root.stepImus && !root.hasCalibrateStep)
-                                        root.currentStep = root.stepReady
-                                    else
-                                        root.currentStep++
+                                    // goNext gates an incomplete Calibrate step internally.
+                                    root.goNext("done")
                                 } else {
                                     var goals = root.selectedGoals.length > 0
                                                     ? root.selectedGoals

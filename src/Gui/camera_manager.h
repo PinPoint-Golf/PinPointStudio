@@ -116,8 +116,8 @@ public slots:
     // state the user didn't ask for.
     void applyCaptureIntent();
 
-    // Sets the perspective on one camera and clears it from any other camera
-    // that currently has the same non-zero perspective value.
+    // Sets the perspective on one camera. Any number of cameras may share a
+    // perspective (e.g. two face-on cameras in one session).
     Q_INVOKABLE void setPerspective(QObject *controller, int perspective);
     Q_INVOKABLE void setIsMirrored(QObject *controller, bool mirrored);
 

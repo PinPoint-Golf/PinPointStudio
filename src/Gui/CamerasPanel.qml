@@ -271,26 +271,16 @@ Item {
                     id: viewCombo
                     implicitWidth: Theme.sp(168)
 
-                    // perspective: None=0, DownTheLine=1, FaceOn=2, Other=3
+                    // Any number of cameras may share a perspective (e.g. two
+                    // face-on cameras in one session).
                     readonly property var viewOptions: [
-                        { label: qsTr("— Unassigned —"), perspective: 0 },
-                        { label: qsTr("Face-on"),         perspective: 2 },
-                        { label: qsTr("Down-the-line"),   perspective: 1 },
-                        { label: qsTr("Other"),           perspective: 3 }
+                        { label: qsTr("— Unassigned —"), perspective: CameraInstance.None },
+                        { label: qsTr("Face-on"),         perspective: CameraInstance.FaceOn },
+                        { label: qsTr("Down-the-line"),   perspective: CameraInstance.DownTheLine },
+                        { label: qsTr("Other"),           perspective: CameraInstance.Other }
                     ]
 
                     model: viewOptions.map(function(o) { return o.label })
-
-                    function perspectiveTakenBy(p) {
-                        if (p === 0) return false
-                        var insts = cameraManager.instances
-                        for (var i = 0; i < insts.length; ++i) {
-                            if (insts[i].deviceSerialNumber !== camData.serialNumber
-                                && insts[i].perspective === p)
-                                return true
-                        }
-                        return false
-                    }
 
                     Component.onCompleted: {
                         var p = appSettings.cameraPerspective[camData.cameraKey] || 0
@@ -314,7 +304,7 @@ Item {
                     onActivated: (idx) => {
                         var p = viewOptions[idx].perspective
                         var map = appSettings.cameraPerspective
-                        if (p > 0) map[camData.cameraKey] = p
+                        if (p !== CameraInstance.None) map[camData.cameraKey] = p
                         else delete map[camData.cameraKey]
                         appSettings.cameraPerspective = map
                         if (camRow.realInstance)
@@ -375,8 +365,6 @@ Item {
 
                         width: viewCombo.width
                         highlighted: viewCombo.highlightedIndex === index
-
-                        enabled: !viewCombo.perspectiveTakenBy(viewCombo.viewOptions[index].perspective)
 
                         contentItem: Text {
                             leftPadding: Theme.sp(10)

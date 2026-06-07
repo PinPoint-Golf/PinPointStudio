@@ -177,7 +177,8 @@ Item {
         // ── Perspective badge (top-left overlay) ──────────────────────────
         Rectangle {
             visible: root.showPerspectiveBadge
-                     && root.instance !== null && root.instance.perspective > 0
+                     && root.instance !== null
+                     && root.instance.perspective !== CameraInstance.None
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.margins: Theme.sp(8)
@@ -192,8 +193,8 @@ Item {
                 id: perspBadgeText
                 anchors.centerIn: parent
                 text: !root.instance ? ""
-                    : root.instance.perspective === 1 ? "DTL"
-                    : root.instance.perspective === 2 ? "Face On"
+                    : root.instance.perspective === CameraInstance.DownTheLine ? "DTL"
+                    : root.instance.perspective === CameraInstance.FaceOn ? "Face On"
                     : "Other"
                 color: Theme.colorAccent
                 font.family: Theme.fontData

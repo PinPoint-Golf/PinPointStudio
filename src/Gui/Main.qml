@@ -241,19 +241,34 @@ ApplicationWindow {
         }
     }
 
+    // Named StackLayout/navController indices — keep in sync with screenNames
+    // and the ScreenXxx order in contentStack below. Session screens sit at
+    // sessionType + 1 (see SessionController::Type).
+    readonly property int screenHome:       0
+    readonly property int screenSwing:      1
+    readonly property int screenWrist:      2
+    readonly property int screenGrf:        3
+    readonly property int screenCoach:      4
+    readonly property int screenPlay:       5
+    readonly property int screenNewAthlete: 6
+    readonly property int screenAthletes:   7
+    readonly property int screenSystem:     8
+    readonly property int screenSettings:   9
+    readonly property int screenWizard:     10
+
     // Maps StackLayout index → header screen name
     readonly property var screenNames: [
-        qsTr("Home"),             // 0
-        qsTr("Swing"),            // 1
-        qsTr("Wrist"),            // 2
-        qsTr("Ground forces"),    // 3
-        qsTr("Coach"),            // 4
-        qsTr("Play"),             // 5
-        qsTr("New athlete"),      // 6
-        qsTr("Athletes"),         // 7
-        qsTr("System resources"), // 8
-        qsTr("Settings"),         // 9
-        qsTr("New session")       // 10
+        qsTr("Home"),             // screenHome
+        qsTr("Swing"),            // screenSwing
+        qsTr("Wrist"),            // screenWrist
+        qsTr("Ground forces"),    // screenGrf
+        qsTr("Coach"),            // screenCoach
+        qsTr("Play"),             // screenPlay
+        qsTr("New athlete"),      // screenNewAthlete
+        qsTr("Athletes"),         // screenAthletes
+        qsTr("System resources"), // screenSystem
+        qsTr("Settings"),         // screenSettings
+        qsTr("New session")       // screenWizard
     ]
 
     RowLayout {
@@ -268,7 +283,7 @@ ApplicationWindow {
             // Lock all session and home buttons while the wizard is open so the
             // user stays in the setup flow. System and Settings remain accessible
             // and use navigate() (not navigateRail()) to preserve wizard in history.
-            locked: navController.currentIndex === 10
+            locked: navController.currentIndex === root.screenWizard
             // While a session is active, mute everything except the active
             // session type's button (System/Settings stay interactive).
             // NavigationController enforces the same rule on every nav path.
@@ -276,20 +291,20 @@ ApplicationWindow {
                                   ? sessionController.activeSessionType + 1 : -1
 
             onPageRequested: function(index) {
-                if (navController.currentIndex === 10)
+                if (navController.currentIndex === root.screenWizard)
                     navController.navigate(index)   // preserves wizard in back-history
                 else
                     navController.navigateRail(index)
             }
             onAvatarClicked: {
-                if (navController.currentIndex !== 10)
-                    navController.navigateRail(7)
+                if (navController.currentIndex !== root.screenWizard)
+                    navController.navigateRail(root.screenAthletes)
             }
             onSystemClicked: {
-                if (navController.currentIndex === 10)
-                    navController.navigate(8)       // preserves wizard in back-history
+                if (navController.currentIndex === root.screenWizard)
+                    navController.navigate(root.screenSystem)   // preserves wizard in back-history
                 else
-                    navController.navigateRail(8)
+                    navController.navigateRail(root.screenSystem)
             }
         }
 
@@ -303,48 +318,34 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 screenName: navController.currentIndex < screenNames.length
                             ? screenNames[navController.currentIndex] : ""
-                showVersionPill: navController.currentIndex === 9
+                showVersionPill: navController.currentIndex === root.screenSettings
                 isFullscreen: root.visibility === Window.FullScreen
                 onFullscreenToggleRequested: root.toggleFullscreen()
                 // Route through window.close() so the session-active confirm
                 // (onClosing) intercepts the in-app ✕ too.
                 onCloseRequested: root.close()
 
-                // When on the wizard, ‹/› navigate steps; otherwise delegate to navController.
-                backEnabled: navController.currentIndex === 10
+                // When on the wizard, ‹/› navigate steps; otherwise delegate to
+                // navController. Step skipping (Triangulate/Calibrate/Confirm)
+                // lives in the wizard's goBack()/goNext() — single source of truth.
+                backEnabled: navController.currentIndex === root.screenWizard
                                  ? (sessionWizard.currentStep > 0 || navController.canGoBack)
                                  : navController.canGoBack
-                forwardEnabled: navController.currentIndex === 10
+                forwardEnabled: navController.currentIndex === root.screenWizard
                                     ? sessionWizard.currentStep < sessionWizard.lastStep
                                     : navController.canGoForward
 
                 onBackRequested: {
-                    if (navController.currentIndex === 10 && sessionWizard.currentStep > 0) {
-                        var arr = sessionWizard.stepStates.slice()
-                        arr[sessionWizard.currentStep] = "pending"
-                        sessionWizard.stepStates = arr
-                        // Skip back over Calibrate step for non-wrist sessions.
-                        if (sessionWizard.currentStep === 4 && !sessionWizard.hasCalibrateStep)
-                            sessionWizard.currentStep = 2
-                        else
-                            sessionWizard.currentStep--
-                    } else {
+                    if (navController.currentIndex === root.screenWizard && sessionWizard.currentStep > 0)
+                        sessionWizard.goBack()
+                    else
                         navController.back()
-                    }
                 }
                 onForwardRequested: {
-                    if (navController.currentIndex === 10 && sessionWizard.currentStep < sessionWizard.lastStep) {
-                        var arr = sessionWizard.stepStates.slice()
-                        arr[sessionWizard.currentStep] = "done"
-                        sessionWizard.stepStates = arr
-                        // Skip Calibrate step (index 3) for non-wrist sessions.
-                        if (sessionWizard.currentStep === 2 && !sessionWizard.hasCalibrateStep)
-                            sessionWizard.currentStep = 4
-                        else
-                            sessionWizard.currentStep++
-                    } else {
+                    if (navController.currentIndex === root.screenWizard && sessionWizard.currentStep < sessionWizard.lastStep)
+                        sessionWizard.goNext("done")
+                    else
                         navController.forward()
-                    }
                 }
             }
 
@@ -354,41 +355,39 @@ ApplicationWindow {
                 Layout.fillHeight: true
                 currentIndex: navController.currentIndex
 
-                ScreenHome {                                               // 0 — home / default
-                    onAddAthleteRequested:    navController.navigate(6)
-                    onAthletePickerRequested: navController.navigate(7)
+                ScreenHome {                                               // screenHome — home / default
+                    onAddAthleteRequested:    navController.navigate(root.screenNewAthlete)
+                    onAthletePickerRequested: navController.navigate(root.screenAthletes)
                     onStartSessionRequested: function(sessionTypeIndex) {
-                        sessionWizard.sessionType = sessionTypeIndex
-                        sessionWizard.currentStep = 0
-                        sessionWizard.stepStates  = ["pending", "pending", "pending", "pending", "pending"]
-                        navController.navigate(10)
+                        sessionWizard.reset(sessionTypeIndex)
+                        navController.navigate(root.screenWizard)
                     }
-                    onSystemRequested:        navController.navigate(8)
+                    onSystemRequested:        navController.navigate(root.screenSystem)
                 }
-                ScreenSessionMode { iconText: "◑"; titleText: qsTr("Swing"); sessionType: 0 }   // 1
-                ScreenWrist {}                                                                   // 2 — Wrist Motion (sessionType 1)
-                ScreenSessionMode { iconText: "⇅"; titleText: qsTr("GRF");   sessionType: 2 }   // 3
-                ScreenSessionMode { iconText: "✦"; titleText: qsTr("Coach"); sessionType: 3 }   // 4
-                PlayPage {}                                                // 5 — Play dev-hatch only
-                ScreenAthleteForm {                                        // 6 — new athlete form
-                    onCancelled:       navController.navigate(0)
-                    onSaved:           navController.navigate(7)
-                    onSavedAndStarted: navController.navigate(7)
+                ScreenSessionMode { iconText: "◑"; titleText: qsTr("Swing"); sessionType: 0 }   // screenSwing
+                ScreenWrist {}                                             // screenWrist — Wrist Motion (sessionType 1)
+                ScreenSessionMode { iconText: "⇅"; titleText: qsTr("GRF");   sessionType: 2 }   // screenGrf
+                ScreenSessionMode { iconText: "✦"; titleText: qsTr("Coach"); sessionType: 3 }   // screenCoach
+                PlayPage {}                                                // screenPlay — dev-hatch only
+                ScreenAthleteForm {                                        // screenNewAthlete — new athlete form
+                    onCancelled:       navController.navigate(root.screenHome)
+                    onSaved:           navController.navigate(root.screenAthletes)
+                    onSavedAndStarted: navController.navigate(root.screenAthletes)
                 }
-                ScreenAthletePicker {                                      // 7 — athlete picker
-                    onAthleteSelected:     navController.navigate(0)
-                    onNewAthleteRequested: navController.navigate(6)
+                ScreenAthletePicker {                                      // screenAthletes — athlete picker
+                    onAthleteSelected:     navController.navigate(root.screenHome)
+                    onNewAthleteRequested: navController.navigate(root.screenNewAthlete)
                 }
-                ScreenResourceMonitor {                                    // 8 — system resource monitor
+                ScreenResourceMonitor {                                    // screenSystem — system resource monitor
                     onNavigateToSettings: function(panelIndex) {
                         settingsScreen.activeNavIndex = panelIndex
-                        navController.navigate(9)
+                        navController.navigate(root.screenSettings)
                     }
                 }
-                ScreenSettings { id: settingsScreen }                      // 9 — settings
-                ScreenSessionWizard {                                      // 10 — session setup wizard
+                ScreenSettings { id: settingsScreen }                      // screenSettings — settings
+                ScreenSessionWizard {                                      // screenWizard — session setup wizard
                     id: sessionWizard
-                    onCancelled: navController.navigate(0)
+                    onCancelled: navController.navigate(root.screenHome)
                     onSessionStartRequested: function(type, goals) {
                         var map = appSettings.sessionGoalsByType
                         map[type.toString()] = goals
@@ -402,12 +401,13 @@ ApplicationWindow {
                     }
                     onNavigateToSettings: function(panelIndex) {
                         settingsScreen.activeNavIndex = panelIndex
-                        navController.navigate(9)
+                        navController.navigate(root.screenSettings)
                     }
-                    onRecalibrateRequested: {
-                        // TODO: navigate to ScreenCalibration (separate prompt).
-                        // When calibration completes, call sessionWizard.reopenAtCameras()
-                        // and navController.navigate(10).
+                    onCameraRecalibrateRequested: {
+                        // TODO: navigate to the stereo calibration screen when the
+                        // pipeline lands. When calibration completes, call
+                        // sessionWizard.reopenAtTriangulate() and
+                        // navController.navigate(root.screenWizard).
                     }
                 }
             }

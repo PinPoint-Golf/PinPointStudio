@@ -586,26 +586,8 @@ void CameraManager::setPerspective(QObject *rawController, int perspective)
     if (!target)
         return;
 
-    // Clear this perspective from every other camera that currently holds it,
-    // and remove it from AppSettings so the cleared camera doesn't re-acquire
-    // the view on next startup.
-    if (perspective > 0) {
-        AppSettings  pfallback;
-        AppSettings *ps = m_appSettings ? m_appSettings : &pfallback;
-        QVariantMap map = ps->cameraPerspective();
-        bool changed = false;
-        for (auto &cam : m_cameras) {
-            if (cam.controller && cam.controller != target
-                && cam.controller->perspective() == perspective)
-            {
-                cam.controller->setPerspective(0);
-                map.remove(cameraKey(cam));
-                changed = true;
-            }
-        }
-        if (changed) ps->setCameraPerspective(map);
-    }
-
+    // Any number of cameras may share a perspective (e.g. two face-on cameras
+    // in one session) — assignment is per-camera, nothing is cleared.
     target->setPerspective(perspective);
     emit cameraListChanged();
 }

@@ -20,6 +20,7 @@
 
 #include <QElapsedTimer>
 #include <QObject>
+#include <QQmlEngine>
 #include <QString>
 #include <QTimer>
 
@@ -34,13 +35,17 @@
 class SessionController : public QObject
 {
     Q_OBJECT
+    QML_ELEMENT
+    QML_UNCREATABLE("SessionController is a context property; the type exists for enum access")
     Q_PROPERTY(bool    running           READ running           NOTIFY runningChanged)
     Q_PROPERTY(QString elapsedLabel      READ elapsedLabel      NOTIFY elapsedLabelChanged)
     Q_PROPERTY(int     activeSessionType READ activeSessionType NOTIFY activeSessionTypeChanged)
 
 public:
     // Matches the QML session-type indices (ScreenSessionWizard.sessionTypes
-    // order; rail/stack index = type + 1).
+    // order; rail/stack index = type + 1). Registered with QML
+    // (SessionController.Wrist etc.) — use the enum names in QML, never the
+    // raw integers.
     enum class Type { None = -1, Swing = 0, Wrist = 1, Grf = 2, Coach = 3 };
     Q_ENUM(Type)
 
