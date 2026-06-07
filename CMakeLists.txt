@@ -158,6 +158,7 @@ qt_add_executable(PinPointStudio
     src/Video/video_preprocessor_base.h   src/Video/video_preprocessor_base.cpp
     src/Video/video_overlay_base.h        src/Video/video_overlay_base.cpp
     src/Video/raw_video_frame.h            src/Video/raw_video_frame.cpp
+    src/Video/frame_crop.h                 src/Video/frame_crop.cpp
     src/Pose/pose_estimator_base.h        src/Pose/pose_estimator_base.cpp
     src/Core/device_enumerator.h           src/Core/device_enumerator.cpp
     src/Video/VideoInputAravis.h           src/Video/VideoInputAravis.cpp

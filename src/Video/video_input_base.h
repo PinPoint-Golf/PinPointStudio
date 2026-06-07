@@ -19,6 +19,7 @@
 #pragma once
 
 #include <QObject>
+#include <QRectF>
 #include <QVideoFrameFormat>
 #include "raw_video_frame.h"
 #include "camera_capabilities.h"
@@ -75,6 +76,17 @@ public:
     // queryCapabilities() can enumerate that device's formats without opening
     // a live camera handle.  Default is a no-op; VideoInput overrides it.
     virtual void prepareDevice(const QString &) {}
+
+    // True when the backend can apply a sensor ROI in hardware at start()
+    // (GenICam region / offset+size nodes). Backends returning false are
+    // cropped in software by CameraInstance as frames arrive.
+    virtual bool supportsHardwareCrop() const { return false; }
+
+    // Prime a normalized (0..1) crop region to be applied on the NEXT
+    // start(). An empty or unit rect means full sensor. Must be called on
+    // the object's thread — CameraInstance invokes it inside the queued
+    // start lambda. Default is a no-op (software-cropped backends).
+    virtual void setCropRegion(const QRectF &) {}
 
     // Query what this camera can do. Returns a default-constructed
     // CameraCapabilities (all fields Unavailable / zero) if the camera has

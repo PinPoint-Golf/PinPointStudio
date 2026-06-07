@@ -315,4 +315,16 @@ private:
     int                m_frameWidth  = 0;
     int                m_frameHeight = 0;
     double             m_configuredFps = 0.0;
+
+    // Crop state frozen at construction ("applies at connect" — capture
+    // instances are recreated per connect). Read on the capture thread and
+    // never mutated afterwards, so no locking is needed. m_cropRoi above
+    // remains the live UI/persistence value and may diverge until the next
+    // connect.
+    QRectF             m_activeCropRoi;          // empty when no crop configured
+    bool               m_cropEnabled        = false; // crop set AND buffer-backed instance
+    int                m_sensorWidth        = 0;     // full-sensor dims used for slot sizing
+    int                m_sensorHeight       = 0;
+    int                m_expectedCropWidth  = 0;     // ceil16(crop x sensor); 0 = no crop
+    int                m_expectedCropHeight = 0;
 };

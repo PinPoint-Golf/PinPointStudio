@@ -232,25 +232,29 @@ void ResourceMonitorController::refresh()
                 ? QString::number(fw) + QStringLiteral(" × ") + QString::number(fh)
                 : QStringLiteral("—");
             {
-                // cropRoi is a normalized QRectF (0.0–1.0). Multiply by frame
-                // dimensions to get pixel size. When no capture controller is active,
-                // fall back to the persisted AppSettings value so the row still shows
-                // for cameras that are configured but not currently selected.
-                QRectF cr = cam.cropRoi;
-                if (cr.isEmpty()) {
+                // The crop is applied at connect, so a live controller's
+                // frameWidth/frameHeight already ARE the cropped dimensions —
+                // multiplying by the normalized crop again would double-
+                // discount. When no capture controller is active, fall back
+                // to the persisted AppSettings value (as percentages — the
+                // sensor dims aren't known here) so the row still shows for
+                // cameras that are configured but not currently selected.
+                QString cropStr = QStringLiteral("—");
+                if (!cam.cropRoi.isEmpty() && fw > 0 && fh > 0) {
+                    cropStr = QString::number(fw) + QStringLiteral(" × ")
+                            + QString::number(fh);
+                } else {
                     const QVariantMap roiMap = appSettings.cameraRoi();
                     if (roiMap.contains(camKey)) {
                         const QVariantMap r = roiMap.value(camKey).toMap();
                         double w = r.value(QStringLiteral("w")).toDouble();
                         double h = r.value(QStringLiteral("h")).toDouble();
                         if (w > 0 && h > 0)
-                            cr = QRectF(r.value(QStringLiteral("x")).toDouble(),
-                                        r.value(QStringLiteral("y")).toDouble(), w, h);
+                            cropStr = QString::number(qRound(w * 100)) + QStringLiteral("% × ")
+                                    + QString::number(qRound(h * 100)) + QStringLiteral("%");
                     }
                 }
-                dev[QStringLiteral("cropStr")] = (!cr.isEmpty() && fw > 0 && fh > 0)
-                    ? QString::number(qRound(cr.width() * fw)) + QStringLiteral(" × ") + QString::number(qRound(cr.height() * fh))
-                    : QStringLiteral("—");
+                dev[QStringLiteral("cropStr")] = cropStr;
             }
             m_devices.append(dev);
         }

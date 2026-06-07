@@ -105,6 +105,13 @@ void VideoInputFactory::enumerateDevices()
             caps.resolution.heightRange = { hMin, hMax, hInc, curH };
             caps.resolution.defaultResolution = { curW, curH };
 
+            // Hardware ROI via arv_camera_set_region (applied in start()).
+            caps.roi.supported    = true;
+            caps.roi.widthRange   = caps.resolution.widthRange;
+            caps.roi.heightRange  = caps.resolution.heightRange;
+            caps.roi.offsetXRange = { 0, wMax, wInc, 0 };
+            caps.roi.offsetYRange = { 0, hMax, hInc, 0 };
+
             guint nFormats = 0;
             const char **fmts = arv_camera_dup_available_pixel_formats_as_strings(cam, &nFormats, nullptr);
             if (fmts) {

@@ -29,6 +29,8 @@ Rectangle {
 
     property string message: ""
     property string glyph:   "🗑"
+    // Hide the UNDO action for purely informational notices.
+    property bool   showUndo: true
 
     signal undoClicked()
 
@@ -85,10 +87,12 @@ Rectangle {
             width: 1; height: Theme.sp(18)
             color: Theme.colorBg
             opacity: 0.25
+            visible: root.showUndo
         }
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
+            visible:        root.showUndo
             text:           qsTr("UNDO")
             font.family:    Theme.fontData
             font.pixelSize: Theme.fontSzBody2

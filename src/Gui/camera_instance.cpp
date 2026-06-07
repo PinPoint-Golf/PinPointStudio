@@ -31,6 +31,7 @@
 #include "video_input_factory.h"
 #include "video_preprocessor_base.h"
 #include "bayer_video_item.h"
+#include "frame_crop.h"
 #ifdef HAVE_OPENCV
 #include "video_preprocessor_opencv.h"
 #include "frame_throttle.h"
@@ -47,6 +48,8 @@
 #include <QCoreApplication>
 #include <QMetaObject>
 #include "pp_debug.h"
+#include <algorithm>
+#include <cmath>
 #include <QThread>
 #include <QTimer>
 #include <QVideoFrame>
@@ -107,6 +110,21 @@ CameraInstance::CameraInstance(const Device &device, pinpoint::EventBuffer *buff
             (device.capabilities.serialNumber.isEmpty() ? device.id
                                                          : device.capabilities.serialNumber);
         m_deviceAlias = appSettings->cameraAlias().value(key).toString();
+
+        // Persisted crop must be known BEFORE the EventBuffer registration
+        // below so the ring slots are sized for the cropped frame. Loaded for
+        // preview instances too (the crop editor reads cropRoi), but only
+        // buffer-backed instances ever apply it (m_cropEnabled below).
+        const QVariantMap roiMap = appSettings->cameraRoi();
+        if (roiMap.contains(key)) {
+            const QVariantMap r = roiMap.value(key).toMap();
+            const QRectF roi(r.value(QStringLiteral("x")).toDouble(),
+                             r.value(QStringLiteral("y")).toDouble(),
+                             r.value(QStringLiteral("w")).toDouble(),
+                             r.value(QStringLiteral("h")).toDouble());
+            if (pp_crop::cropIsActive(roi))
+                m_cropRoi = roi.intersected(QRectF(0.0, 0.0, 1.0, 1.0));
+        }
     }
 
     // Register the source before EventBuffer::start() is called in main().
@@ -143,10 +161,51 @@ CameraInstance::CameraInstance(const Device &device, pinpoint::EventBuffer *buff
         for (const Resolution &r : caps.resolution.presets) {
             if (r.width * r.height > w * h) { w = r.width; h = r.height; }
         }
+        // GenICam cameras report a Range, not presets, and their
+        // defaultResolution is the CURRENT region (possibly a stale crop from
+        // a previous run) — use the range maximum, i.e. the full sensor.
+        if (w == 0 && caps.resolution.kind == CapabilityKind::Range) {
+            w = caps.resolution.widthRange.max;
+            h = caps.resolution.heightRange.max;
+        }
         if (w == 0) { w = caps.resolution.defaultResolution.width;
                       h = caps.resolution.defaultResolution.height; }
-        cfmt.width  = static_cast<uint32_t>(w > 0 ? w : 1920);
-        cfmt.height = static_cast<uint32_t>(h > 0 ? h : 1080);
+        if (w <= 0) { w = 1920; h = 1080; }
+        m_sensorWidth  = w;
+        m_sensorHeight = h;
+
+        // Crop-aware slot dims: rounded UP to 16 so both the hardware ROI
+        // (which snaps DOWN to device increments) and the software crop
+        // (snapped down to even) always fit the slot.
+        int slotW = w, slotH = h;
+        if (pp_crop::cropIsActive(m_cropRoi)) {
+            auto ceil16 = [](int v) { return (v + 15) & ~15; };
+            slotW = std::clamp(ceil16(int(std::ceil(w * m_cropRoi.width()))),  16, w);
+            slotH = std::clamp(ceil16(int(std::ceil(h * m_cropRoi.height()))), 16, h);
+            m_expectedCropWidth  = slotW;
+            m_expectedCropHeight = slotH;
+            m_activeCropRoi      = m_cropRoi;
+            m_cropEnabled        = true;
+        }
+        cfmt.width  = static_cast<uint32_t>(slotW);
+        cfmt.height = static_cast<uint32_t>(slotH);
+
+        // Seed the displayed frame size so tiles have the right aspect from
+        // the moment the camera is selected, before any frame arrives. Use
+        // the exact expected crop rect (not the ceil16 slot dims); delivered
+        // frames remain the authority and override on any mismatch. No emit:
+        // no bindings exist during construction.
+        if (m_cropEnabled) {
+            const QRect seed = pp_crop::snapCropRect(m_activeCropRoi,
+                                                     m_sensorWidth, m_sensorHeight);
+            if (!seed.isEmpty()) {
+                m_frameWidth  = seed.width();
+                m_frameHeight = seed.height();
+            }
+        } else {
+            m_frameWidth  = m_sensorWidth;
+            m_frameHeight = m_sensorHeight;
+        }
 
         // --- Slot payload: worst-case bytes per pixel across all supported formats ---
         int maxBpp = 2; // NV12/YUYV baseline
@@ -334,12 +393,24 @@ void CameraInstance::setupPipeline()
                             int w     = caps.resolution.defaultResolution.width;
                             int h     = caps.resolution.defaultResolution.height;
                             double fps = caps.frameRate.range.defaultValue;
-                            if (w > 0 && h > 0) {
-                                m_frameWidth    = w;
-                                m_frameHeight   = h;
-                                m_configuredFps = fps;
+                            // Capability dims are the camera's DELIVERY size —
+                            // pre-crop for software-cropped backends (the
+                            // backend's internal sink sees raw camera frames).
+                            // Only seed when no frame has arrived yet, crop-
+                            // adjusted so the tile aspect is right pre-first-
+                            // frame; delivered frames in drainDisplayFrame /
+                            // drainRawFrame are the authority and override.
+                            if (w > 0 && h > 0 && m_frameWidth == 0) {
+                                if (m_cropEnabled) {
+                                    const QRect r = pp_crop::snapCropRect(m_activeCropRoi, w, h);
+                                    if (!r.isEmpty()) { w = r.width(); h = r.height(); }
+                                }
+                                m_frameWidth  = w;
+                                m_frameHeight = h;
                                 emit frameSizeChanged();
                             }
+                            if (fps > 0)
+                                m_configuredFps = fps;
                             updateBufferDescriptor();
                         });
                     }, Qt::QueuedConnection);
@@ -431,48 +502,88 @@ CameraInstance::~CameraInstance()
 
 void CameraInstance::connectVideoInput()
 {
+    // Captured by value per backend instance: re-evaluated when the
+    // auto-fallback path swaps in a QtMultimedia backend and reconnects.
+    const bool hwCrop = m_videoInput->supportsHardwareCrop();
+
     // Standard QVideoFrame display path — used by Qt Multimedia and Aravis.
-    // DirectConnection so only the freshest frame is ever queued to the main thread.
+    // DirectConnection so only the freshest frame is ever queued to the main
+    // thread. The software crop runs ONCE here, upstream of every consumer
+    // (buffer, display, pose throttle), so all downstream sizing — descriptor
+    // stamping, replay, tile aspect — follows the cropped frame automatically.
     connect(m_videoInput, &VideoInputBase::videoFrameReady,
-            this, [this](const QVideoFrame &frame) {
+            this, [this, hwCrop](const QVideoFrame &frame) {
                 m_frameCaptureCount.fetch_add(1, std::memory_order_relaxed);
+
+                // Software crop: engages when a crop is configured, the
+                // pipeline is live (not preview-only), and either the backend
+                // has no hardware ROI or the frame arrived larger than the
+                // expected hardware-cropped size (hardware ROI failed).
+                // Hardware snapping rounds DOWN and the expected dims round
+                // UP (ceil16), so a hardware-cropped frame never double-crops.
+                QVideoFrame f = frame;
+                if (m_cropEnabled && !m_previewOnly.load(std::memory_order_relaxed)
+                        && (!hwCrop || frame.width()  > m_expectedCropWidth
+                                    || frame.height() > m_expectedCropHeight)) {
+                    f = pp_crop::cropVideoFrame(frame, m_activeCropRoi);
+                }
 
                 // EventBuffer publish (zero-copy into pre-allocated ring slot)
                 if (m_eventBuffer && m_sourceId != pinpoint::kInvalidSourceId
                         && m_eventBuffer->isCapturing()) {
-                    publishFrameToBuffer(frame);
+                    publishFrameToBuffer(f);
                 }
 
                 {
                     QMutexLocker lk(&m_latestFrameMutex);
-                    m_latestDisplayFrame = frame;
+                    m_latestDisplayFrame = f;
                 }
                 if (!m_displayFramePending.exchange(true, std::memory_order_acq_rel)) {
                     QMetaObject::invokeMethod(this, &CameraInstance::drainDisplayFrame,
                                              Qt::QueuedConnection);
                 }
+
+#ifdef HAVE_OPENCV
+                // Pose/ball throttle path — suppressed in preview-only mode
+                // so the inference pipeline never runs.
+                if (m_frameThrottle && !m_previewOnly.load(std::memory_order_relaxed))
+                    m_frameThrottle->offer(f);
+#endif
             }, Qt::DirectConnection);
 
     // Raw Bayer display path — used by Spinnaker (and future Bayer backends).
     // Replaces the QVideoFrame path for cameras that emit rawVideoFrameReady.
     connect(m_videoInput, &VideoInputBase::rawVideoFrameReady,
-            this, [this](const RawVideoFrame &frame) {
+            this, [this, hwCrop](const RawVideoFrame &frame) {
                 m_frameCaptureCount.fetch_add(1, std::memory_order_relaxed);
+
+                // Software crop fallback — same rule as the QVideoFrame path.
+                RawVideoFrame f = frame;
+                if (m_cropEnabled && !m_previewOnly.load(std::memory_order_relaxed)
+                        && (!hwCrop || frame.width  > m_expectedCropWidth
+                                    || frame.height > m_expectedCropHeight)) {
+                    f = pp_crop::cropRawFrame(frame, m_activeCropRoi);
+                }
 
                 // EventBuffer publish for raw Bayer frames
                 if (m_eventBuffer && m_sourceId != pinpoint::kInvalidSourceId
                         && m_eventBuffer->isCapturing()) {
-                    publishRawFrameToBuffer(frame);
+                    publishRawFrameToBuffer(f);
                 }
 
                 {
                     QMutexLocker lk(&m_latestRawFrameMutex);
-                    m_latestRawFrame = frame;
+                    m_latestRawFrame = f;
                 }
                 if (!m_displayFramePending.exchange(true, std::memory_order_acq_rel)) {
                     QMetaObject::invokeMethod(this, &CameraInstance::drainRawFrame,
                                              Qt::QueuedConnection);
                 }
+
+#ifdef HAVE_OPENCV
+                if (m_frameThrottle && !m_previewOnly.load(std::memory_order_relaxed))
+                    m_frameThrottle->offerRaw(f);
+#endif
             }, Qt::DirectConnection);
 
     connect(m_videoInput, &VideoInputBase::errorOccurred,
@@ -480,23 +591,9 @@ void CameraInstance::connectVideoInput()
 
 #ifdef HAVE_OPENCV
     if (m_frameThrottle) {
-        // QVideoFrame throttle path (Qt Multimedia, Aravis).
-        // Suppressed in preview-only mode so the pose/ball pipeline never runs.
-        connect(m_videoInput, &VideoInputBase::videoFrameReady,
-                this, [this](const QVideoFrame &frame) {
-                    if (!m_previewOnly.load(std::memory_order_relaxed))
-                        m_frameThrottle->offer(frame);
-                }, Qt::DirectConnection);
         connect(m_frameThrottle, &FrameThrottle::frameReady,
                 m_preprocessor, &VideoPreprocessorBase::processFrame,
                 Qt::QueuedConnection);
-
-        // Raw Bayer throttle path (Spinnaker).
-        connect(m_videoInput, &VideoInputBase::rawVideoFrameReady,
-                this, [this](const RawVideoFrame &frame) {
-                    if (!m_previewOnly.load(std::memory_order_relaxed))
-                        m_frameThrottle->offerRaw(frame);
-                }, Qt::DirectConnection);
         connect(m_frameThrottle, &FrameThrottle::rawFrameReady,
                 m_preprocessor, &VideoPreprocessorBase::processRawFrame,
                 Qt::QueuedConnection);
@@ -815,6 +912,10 @@ void CameraInstance::startPreview()
     if (m_recording) return; // camera already running; pipeline already active
     m_previewOnly.store(true, std::memory_order_relaxed);
     QMetaObject::invokeMethod(m_videoInput, [this]() {
+        // Preview is always full sensor — the settings crop editor needs the
+        // uncropped view to drag-select against. The crop applies on capture
+        // connections only (startRecording).
+        m_videoInput->setCropRegion(QRectF());
         if (!m_videoInput->start(m_deviceId)) {
             QMetaObject::invokeMethod(this, [this]() {
                 m_previewing = false;
@@ -850,6 +951,7 @@ void CameraInstance::startRecording()
                 return;
             }
             QMetaObject::invokeMethod(self->m_videoInput, [self]() {
+                self->m_videoInput->setCropRegion(self->m_activeCropRoi);
                 self->m_videoInput->start(self->m_deviceId);
             }, Qt::QueuedConnection);
             self->m_recording = true;
@@ -862,12 +964,18 @@ void CameraInstance::startRecording()
     emit isRecordingChanged();
 
     if (m_previewing) {
-        // Camera already running — promote to full recording by enabling the pipeline.
+        // Camera already running — promote to full recording by enabling the
+        // pipeline. Accepted limitation: the device was started uncropped
+        // (preview is full sensor), so until the next real connect the crop
+        // is applied by the software fallback rather than hardware ROI.
         m_previewOnly.store(false, std::memory_order_relaxed);
         return;
     }
 
     QMetaObject::invokeMethod(m_videoInput, [this]() {
+        // Prime the hardware ROI (no-op for software-cropped backends) with
+        // the ctor-frozen crop before starting the device.
+        m_videoInput->setCropRegion(m_activeCropRoi);
         if (m_videoInput->start(m_deviceId))
             return;
 
@@ -886,6 +994,9 @@ void CameraInstance::startRecording()
                     emit isAravisChanged();
                     emit isSpinnakerChanged();
                     emit needsDebayerChanged();
+                    // No setCropRegion needed: the QtMultimedia fallback has
+                    // no hardware ROI and the software crop engages via the
+                    // !supportsHardwareCrop() check in connectVideoInput().
                     QMetaObject::invokeMethod(m_videoInput, [this]() {
                         if (!m_videoInput->start()) {
                             QMetaObject::invokeMethod(this, [this]() {
@@ -966,15 +1077,15 @@ void CameraInstance::drainDisplayFrame()
     if (m_replaying)  // replay frames are pushed directly; suppress live feed
         return;
 
-    // Fallback: populate frame size from the actual pixel dimensions if the
-    // capabilities query hasn't delivered a result yet.
-    if (f.isValid() && m_frameWidth == 0) {
-        int w = f.width(), h = f.height();
-        if (w > 0 && h > 0) {
-            m_frameWidth  = w;
-            m_frameHeight = h;
-            emit frameSizeChanged();
-        }
+    // The delivered frame is the authority on the displayed size — it carries
+    // the cropped dimensions when a crop is active, whereas the capabilities
+    // query reports the camera's (pre-crop) delivery size. Always correct any
+    // mismatch so tile aspect/layout follows what is actually shown.
+    if (f.isValid() && f.width() > 0 && f.height() > 0
+        && (f.width() != m_frameWidth || f.height() != m_frameHeight)) {
+        m_frameWidth  = f.width();
+        m_frameHeight = f.height();
+        emit frameSizeChanged();
     }
     if (f.isValid())
         m_lastDeliveredFrame = f;   // ground truth for updateBufferDescriptor()
@@ -1000,6 +1111,15 @@ void CameraInstance::drainRawFrame()
 
     if (m_replaying || raw.isNull())  // suppress live feed during replay
         return;
+
+    // Delivered raw frame is the authority on the displayed size (cropped
+    // dims when a crop is active) — same rule as drainDisplayFrame.
+    if (raw.width > 0 && raw.height > 0
+        && (raw.width != m_frameWidth || raw.height != m_frameHeight)) {
+        m_frameWidth  = raw.width;
+        m_frameHeight = raw.height;
+        emit frameSizeChanged();
+    }
 
     static bool logged = false;
     if (!logged) {
@@ -1155,6 +1275,16 @@ void CameraInstance::displayReplayFrame(const std::byte *data, size_t bytes,
                                           int w, int h, pinpoint::PixelFormat fmt)
 {
     if (!data || bytes == 0) return;
+
+    // The replayed frame is what's visible — keep the reported frame size in
+    // sync so tile aspect/layout follows the replay (dims come from the
+    // stored descriptor, i.e. the cropped capture size). Runs on the main
+    // thread (invoked from CameraManager's replay timer).
+    if (w > 0 && h > 0 && (w != m_frameWidth || h != m_frameHeight)) {
+        m_frameWidth  = w;
+        m_frameHeight = h;
+        emit frameSizeChanged();
+    }
 
     const bool isBayer = (fmt == pinpoint::PixelFormat::BayerRG8  ||
                           fmt == pinpoint::PixelFormat::BayerRG12 ||

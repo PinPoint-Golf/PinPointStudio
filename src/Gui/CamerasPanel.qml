@@ -80,9 +80,13 @@ Item {
         // Lightweight preview-only instance created on-demand by the crop panel.
         property var localPreviewInstance: null
 
-        // Effective instance: real (selected) instance when available,
-        // otherwise the local preview-only instance.
-        readonly property var instance: realInstance !== null ? realInstance : localPreviewInstance
+        // Effective instance. While the crop editor is open the camera is
+        // guaranteed disconnected (the open flow stops capture and deselects
+        // it), so the editor always binds to the full-sensor preview-only
+        // instance — a camera reconnected elsewhere can't hijack the editor.
+        readonly property var instance: roiOpen ? localPreviewInstance
+                                                : (realInstance !== null ? realInstance
+                                                                         : localPreviewInstance)
 
         readonly property bool roiOpen: root.openRoiIndex === camData.index
 
@@ -673,18 +677,23 @@ Item {
                         onClicked: {
                             if (camRow.roiOpen) {
                                 root.openRoiIndex = -1
-                            } else {
-                                root.openRoiIndex = camData.index
-                                // Apply default ROI if not yet set
-                                if (camRow.instance) {
-                                    var r = camRow.instance.cropRoi
-                                    if (r.width <= 0 || r.height <= 0) {
-                                        var dw = 0.4
-                                        var dx = (1.0 - dw) / 2.0
-                                        camRow.instance.setCropRoi(Qt.rect(dx, 0.0, dw, 1.0))
-                                    }
-                                }
+                                return
                             }
+                            // The crop editor must preview the FULL sensor,
+                            // and the crop only applies at connect — so stop
+                            // any capture and disconnect this camera before
+                            // opening. NOTE: setSelected() rebuilds the
+                            // Repeater delegates; everything after it must
+                            // only touch objects that outlive this row
+                            // (root, cropToast) or copies (camData).
+                            var wasActive = cameraManager.isRecording || camData.selected
+                            if (cameraManager.isRecording)
+                                cameraManager.stopAll()
+                            if (camData.selected)
+                                cameraManager.setSelected(camData.index, false)
+                            if (wasActive)
+                                cropToast.show(qsTr("Capture stopped — crop editing previews the full sensor"))
+                            root.openRoiIndex = camData.index
                         }
                     }
                 }
@@ -848,29 +857,46 @@ Item {
                                 }
                             }
 
-                            // Wire/clear the settings sink and start/stop preview with the panel.
-                            // When no real (selected) instance exists, a lightweight preview-only
-                            // instance is created on demand (no event buffer, no pose pipeline).
+                            // Wire/clear the settings sink and start/stop the full-sensor
+                            // preview-only instance (no event buffer, no pose pipeline, no
+                            // crop) with the panel. A plain function — not just Connections —
+                            // because opening the panel deselects the camera, which rebuilds
+                            // every Repeater delegate: the rebuilt row is created with
+                            // roiOpen already true, so onRoiOpenChanged never fires and
+                            // Component.onCompleted must run the same wiring.
+                            function syncRoiPreview() {
+                                if (camRow.roiOpen) {
+                                    if (!camRow.localPreviewInstance)
+                                        camRow.localPreviewInstance = cameraManager.createPreviewInstance(camData.index)
+                                    var inst = camRow.localPreviewInstance
+                                    if (!inst) return
+                                    // Seed a default crop the first time the editor opens
+                                    var r = inst.cropRoi
+                                    if (r.width <= 0 || r.height <= 0)
+                                        inst.setCropRoi(Qt.rect(0.3, 0.0, 0.4, 1.0))
+                                    inst.setSettingsSink(settingsVideoOutput.videoSink)
+                                    inst.startPreview()
+                                } else if (camRow.localPreviewInstance) {
+                                    camRow.localPreviewInstance.setSettingsSink(null)
+                                    camRow.localPreviewInstance.stopPreview()
+                                    cameraManager.destroyPreviewInstance(camRow.localPreviewInstance)
+                                    camRow.localPreviewInstance = null
+                                }
+                            }
+
+                            Component.onCompleted: syncRoiPreview()
+                            Component.onDestruction: {
+                                if (camRow.localPreviewInstance) {
+                                    camRow.localPreviewInstance.setSettingsSink(null)
+                                    camRow.localPreviewInstance.stopPreview()
+                                    cameraManager.destroyPreviewInstance(camRow.localPreviewInstance)
+                                    camRow.localPreviewInstance = null
+                                }
+                            }
+
                             Connections {
                                 target: camRow
-                                function onRoiOpenChanged() {
-                                    if (camRow.roiOpen) {
-                                        if (!camRow.realInstance && !camRow.localPreviewInstance)
-                                            camRow.localPreviewInstance = cameraManager.createPreviewInstance(camData.index)
-                                        if (!camRow.instance) return
-                                        camRow.instance.setSettingsSink(settingsVideoOutput.videoSink)
-                                        camRow.instance.startPreview()
-                                    } else {
-                                        if (camRow.instance) {
-                                            camRow.instance.setSettingsSink(null)
-                                            camRow.instance.stopPreview()
-                                        }
-                                        if (camRow.localPreviewInstance) {
-                                            cameraManager.destroyPreviewInstance(camRow.localPreviewInstance)
-                                            camRow.localPreviewInstance = null
-                                        }
-                                    }
-                                }
+                                function onRoiOpenChanged() { previewRect.syncRoiPreview() }
                             }
 
                             // ── Overlay shades around the ROI ─────────────────
@@ -1544,6 +1570,17 @@ Item {
                             }
                         }
 
+                        // How the crop is applied
+                        Text {
+                            text: qsTr("Crop is applied when the camera connects — in hardware where the sensor supports it, otherwise on arriving frames. The preview always shows the full sensor; changes take effect on the next connect.")
+                            font.family:    Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            font.italic:    true
+                            color:          Theme.colorText3
+                            wrapMode:       Text.WordWrap
+                            Layout.fillWidth: true
+                        }
+
                         // Reset / done buttons
                         RowLayout {
                             Layout.fillWidth: true
@@ -1647,6 +1684,19 @@ Item {
             var target = findChild(contentCol, lastHighlightId)
             if (target) target.searchHighlight = false
         }
+    }
+
+    // Informational notice shown when opening the crop editor stops an
+    // active capture / disconnects the camera. Lives on the panel root so it
+    // survives the Repeater delegate rebuild triggered by setSelected().
+    PpToast {
+        id: cropToast
+        showUndo: false
+        glyph: "⚠"
+        z: 1000
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: Theme.sp(24)
     }
 
     // Main scroll view

@@ -42,6 +42,10 @@ public:
     QVideoFrameFormat frameFormat() const override;
     CameraCapabilities queryCapabilities() const override;
 
+    // GenICam region (ROI) is applied in hardware on the next start().
+    bool supportsHardwareCrop() const override { return true; }
+    void setCropRegion(const QRectF &norm) override { m_cropRegion = norm; }
+
 private:
     void captureLoop();
 
@@ -49,4 +53,5 @@ private:
     void *m_stream    = nullptr; // ArvStream*
     bool  m_streaming = false;
     bool  m_abort     = false;
+    QRectF m_cropRegion;         // normalized crop; empty = full sensor
 };

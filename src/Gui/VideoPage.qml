@@ -90,13 +90,24 @@ Item {
             Repeater {
                 model: cameraManager.instances
                 delegate: PpCameraFrame {
-                    Layout.fillWidth: true
                     Layout.fillHeight: true
+                    // Hug the video: width follows the (cropped) frame aspect
+                    // at full row height — a narrow crop frees horizontal
+                    // space instead of letterboxing inside an equal share.
+                    Layout.fillWidth: false
+                    Layout.preferredWidth: height * videoAspect
                     instance: modelData
                     displayName: modelData.deviceAlias !== "" ? modelData.deviceAlias
                                                               : modelData.deviceDescription
                     roiEditable: true
                 }
+            }
+
+            // Tiles pack left; the remainder is reserved for future
+            // charts/graphs. Hidden when the placeholder below fills the row.
+            Item {
+                visible: cameraManager.instances.length > 0
+                Layout.fillWidth: true
             }
 
             // Placeholder shown when no camera is selected.

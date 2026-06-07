@@ -42,6 +42,10 @@ public:
     bool              emitsRawBayer() const override { return m_emitRaw; }
     CameraCapabilities queryCapabilities() const override;
 
+    // GenICam OffsetX/OffsetY/Width/Height nodes applied on the next start().
+    bool supportsHardwareCrop() const override { return true; }
+    void setCropRegion(const QRectF &norm) override { m_cropRegion = norm; }
+
 private:
     void captureLoop();
 
@@ -52,4 +56,5 @@ private:
     bool  m_abort     = false;
     int   m_bayerPattern = 0;   // RawVideoFrame::BayerPattern int, valid when Bayer format selected
     bool  m_emitRaw      = false; // true when camera runs a Bayer pixel format
+    QRectF m_cropRegion;          // normalized crop; empty = full sensor
 };

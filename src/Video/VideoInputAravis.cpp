@@ -24,10 +24,13 @@
 #endif
 
 #include "VideoInputAravis.h"
+#include "frame_crop.h"
 #include <QVideoFrame>
 #include <QDateTime>
 #include "pp_debug.h"
 #include <QtConcurrent>
+#include <algorithm>
+#include <cmath>
 
 VideoInputAravis::VideoInputAravis(QObject *parent)
     : VideoInputBase(parent)
@@ -61,7 +64,37 @@ bool VideoInputAravis::start(const QString &deviceId)
 
     // Configure camera (typical high-speed defaults)
     ArvCamera *cam = (ArvCamera*)m_camera;
-    arv_camera_set_region(cam, 0, 0, 1280, 720, nullptr); // Default 720p
+
+    // Hardware ROI: full sensor by default, or the primed crop region snapped
+    // DOWN to the device increments so a delivered frame never exceeds the
+    // ring slot sized from the same (ceil'd) crop fraction upstream.
+    {
+        gint wMin = 0, wMax = 0, hMin = 0, hMax = 0;
+        arv_camera_get_width_bounds (cam, &wMin, &wMax, nullptr);
+        arv_camera_get_height_bounds(cam, &hMin, &hMax, nullptr);
+        const gint wInc = std::max(1, arv_camera_get_width_increment (cam, nullptr));
+        const gint hInc = std::max(1, arv_camera_get_height_increment(cam, nullptr));
+
+        gint rx = 0, ry = 0, rw = wMax, rh = hMax;
+        if (pp_crop::cropIsActive(m_cropRegion) && wMax > 0 && hMax > 0) {
+            auto snapDown = [](gint v, gint inc) { return (v / inc) * inc; };
+            rw = qBound(wMin, snapDown(gint(std::lround(m_cropRegion.width()  * wMax)), wInc), wMax);
+            rh = qBound(hMin, snapDown(gint(std::lround(m_cropRegion.height() * hMax)), hInc), hMax);
+            rx = snapDown(qBound(gint(0), gint(std::lround(m_cropRegion.x() * wMax)), gint(wMax - rw)), wInc);
+            ry = snapDown(qBound(gint(0), gint(std::lround(m_cropRegion.y() * hMax)), gint(hMax - rh)), hInc);
+        }
+        GError *regionErr = nullptr;
+        arv_camera_set_region(cam, rx, ry, rw, rh, &regionErr);
+        if (regionErr) {
+            ppWarn() << "[VideoInputAravis] set_region failed:" << regionErr->message
+                     << "- using full sensor; software crop will engage";
+            g_clear_error(&regionErr);
+            arv_camera_set_region(cam, 0, 0, wMax, hMax, nullptr);
+        } else {
+            ppInfo() << "[VideoInputAravis] region" << rw << "x" << rh
+                     << "at" << rx << "," << ry;
+        }
+    }
     arv_camera_set_frame_rate(cam, 60.0, nullptr);        // Target 60 FPS
     arv_camera_set_pixel_format(cam, ARV_PIXEL_FORMAT_MONO_8, nullptr); // Raw Bayer or Mono
 
@@ -192,6 +225,13 @@ CameraCapabilities VideoInputAravis::queryCapabilities() const
                 caps.resolution.widthRange  = { wMin, wMax, wInc, curW };
                 caps.resolution.heightRange = { hMin, hMax, hInc, curH };
                 caps.resolution.defaultResolution = { curW, curH };
+
+                // Hardware ROI via arv_camera_set_region (applied in start()).
+                caps.roi.supported    = true;
+                caps.roi.widthRange   = caps.resolution.widthRange;
+                caps.roi.heightRange  = caps.resolution.heightRange;
+                caps.roi.offsetXRange = { 0, wMax, wInc, 0 };
+                caps.roi.offsetYRange = { 0, hMax, hInc, 0 };
             }
         }
         g_clear_error(&err);

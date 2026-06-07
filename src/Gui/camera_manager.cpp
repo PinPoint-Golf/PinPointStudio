@@ -141,8 +141,18 @@ QVariantList CameraManager::cameraList() const
         entry[QStringLiteral("serialNumber")] = cap.serialNumber;
         entry[QStringLiteral("cameraKey")]   = key;
         entry[QStringLiteral("interface")]   = interfaceString(cap.connectionInterface);
-        entry[QStringLiteral("maxWidth")]    = cap.resolution.defaultResolution.width;
-        entry[QStringLiteral("maxHeight")]   = cap.resolution.defaultResolution.height;
+        // Full-sensor dims: GenICam cameras report a Range whose
+        // defaultResolution is the CURRENT region (possibly a stale crop) —
+        // the crop editor's pixel fields must reference the range maximum.
+        int sensorW = cap.resolution.defaultResolution.width;
+        int sensorH = cap.resolution.defaultResolution.height;
+        if (cap.resolution.kind == CapabilityKind::Range
+            && cap.resolution.widthRange.max > 0) {
+            sensorW = cap.resolution.widthRange.max;
+            sensorH = cap.resolution.heightRange.max;
+        }
+        entry[QStringLiteral("maxWidth")]    = sensorW;
+        entry[QStringLiteral("maxHeight")]   = sensorH;
         entry[QStringLiteral("pixelFormat")] = cap.pixelFormat.defaultFormat.nativeKey;
         entry[QStringLiteral("bitsPerPixel")] = cap.pixelFormat.defaultFormat.bitsPerPixel;
         entry[QStringLiteral("maxFps")]      = cap.frameRate.range.max;
@@ -158,8 +168,7 @@ QVariantList CameraManager::cameraList() const
         for (const Resolution &r : cap.resolution.presets) {
             if (r.width * r.height > slotW * slotH) { slotW = r.width; slotH = r.height; }
         }
-        if (slotW == 0) { slotW = cap.resolution.defaultResolution.width;
-                          slotH = cap.resolution.defaultResolution.height; }
+        if (slotW == 0) { slotW = sensorW; slotH = sensorH; } // Range max / default
         if (slotW == 0) { slotW = 1920; slotH = 1080; }
 
         // Slot BPP: worst-case across all supported formats, minimum 2 bytes/pixel.

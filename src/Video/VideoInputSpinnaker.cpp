@@ -26,11 +26,14 @@
 #endif
 
 #include "VideoInputSpinnaker.h"
+#include "frame_crop.h"
 #include "raw_video_frame.h"
 #include <QVideoFrame>
 #include <QDateTime>
 #include "pp_debug.h"
 #include <QtConcurrent>
+#include <algorithm>
+#include <cmath>
 
 #ifdef HAVE_SPINNAKER
 using namespace Spinnaker;
@@ -49,6 +52,77 @@ public:
                       << "-" << eventPtr->GetLogMessage();
     }
 };
+
+// Apply the normalized crop region (or full sensor when inactive) via the
+// GenICam Width/Height/OffsetX/OffsetY nodes. Must run before
+// BeginAcquisition() — the nodes are read-only while streaming. Values are
+// snapped DOWN to the node increments so a delivered frame never exceeds the
+// ring slot sized from the same (ceil'd) crop fraction upstream; FLIR
+// increments are even on Bayer sensors, so the CFA phase is preserved.
+// On failure the full frame is restored best-effort and the software crop in
+// CameraInstance engages (frames arrive larger than the expected crop size).
+static void applySpinnakerRoi(INodeMap &nodeMap, const QRectF &crop)
+{
+    try {
+        CIntegerPtr w  = nodeMap.GetNode("Width");
+        CIntegerPtr h  = nodeMap.GetNode("Height");
+        CIntegerPtr ox = nodeMap.GetNode("OffsetX");
+        CIntegerPtr oy = nodeMap.GetNode("OffsetY");
+        if (!IsAvailable(w) || !IsWritable(w) || !IsAvailable(h) || !IsWritable(h)) {
+            if (pp_crop::cropIsActive(crop))
+                ppWarn() << "[VideoInputSpinnaker] Width/Height nodes not writable;"
+                         << "software crop will engage";
+            return;
+        }
+
+        auto snapDown = [](int64_t v, int64_t inc, int64_t lo, int64_t hi) {
+            inc = std::max<int64_t>(1, inc);
+            v   = std::clamp(v, lo, hi);
+            return lo + ((v - lo) / inc) * inc;
+        };
+
+        // Offsets to minimum first so a stale ROI never clamps Width/Height max.
+        if (IsAvailable(ox) && IsWritable(ox)) ox->SetValue(ox->GetMin());
+        if (IsAvailable(oy) && IsWritable(oy)) oy->SetValue(oy->GetMin());
+        const int64_t sensorW = w->GetMax();
+        const int64_t sensorH = h->GetMax();
+
+        int64_t rw = sensorW, rh = sensorH;
+        if (pp_crop::cropIsActive(crop)) {
+            rw = snapDown(int64_t(std::llround(crop.width()  * sensorW)),
+                          w->GetInc(), w->GetMin(), sensorW);
+            rh = snapDown(int64_t(std::llround(crop.height() * sensorH)),
+                          h->GetInc(), h->GetMin(), sensorH);
+        }
+        // GenICam ordering: shrink Width/Height FIRST, then move the offsets
+        // (their GetMax() grows to sensor - size once the size is reduced).
+        w->SetValue(rw);
+        h->SetValue(rh);
+        if (pp_crop::cropIsActive(crop)) {
+            if (IsAvailable(ox) && IsWritable(ox))
+                ox->SetValue(snapDown(int64_t(std::llround(crop.x() * sensorW)),
+                                      ox->GetInc(), ox->GetMin(), ox->GetMax()));
+            if (IsAvailable(oy) && IsWritable(oy))
+                oy->SetValue(snapDown(int64_t(std::llround(crop.y() * sensorH)),
+                                      oy->GetInc(), oy->GetMin(), oy->GetMax()));
+            ppInfo() << "[VideoInputSpinnaker] ROI applied:"
+                     << qlonglong(rw) << "x" << qlonglong(rh);
+        }
+    } catch (Spinnaker::Exception &e) {
+        ppWarn() << "[VideoInputSpinnaker] ROI set failed:" << e.what()
+                 << "- full frame; software crop will engage";
+        try { // restore full frame best-effort so capture still works
+            CIntegerPtr w  = nodeMap.GetNode("Width");
+            CIntegerPtr h  = nodeMap.GetNode("Height");
+            CIntegerPtr ox = nodeMap.GetNode("OffsetX");
+            CIntegerPtr oy = nodeMap.GetNode("OffsetY");
+            if (IsAvailable(ox) && IsWritable(ox)) ox->SetValue(ox->GetMin());
+            if (IsAvailable(oy) && IsWritable(oy)) oy->SetValue(oy->GetMin());
+            if (IsAvailable(w)  && IsWritable(w))  w->SetValue(w->GetMax());
+            if (IsAvailable(h)  && IsWritable(h))  h->SetValue(h->GetMax());
+        } catch (...) {}
+    }
+}
 #endif
 
 VideoInputSpinnaker::VideoInputSpinnaker(QObject *parent)
@@ -151,6 +225,9 @@ bool VideoInputSpinnaker::start(const QString &deviceId)
                 }
             }
         }
+
+        // Hardware ROI (or full sensor) — must precede BeginAcquisition().
+        applySpinnakerRoi(nodeMap, m_cropRegion);
 
         // Increase the image buffer pool. StreamBufferCount lives in the
         // TL Stream node map (transport layer), NOT the device node map.

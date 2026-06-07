@@ -53,8 +53,15 @@ Item {
                     model: cameraManager.cameraList.filter(function(c) { return c.sessionEnabled })
                     delegate: PpCameraFrame {
                         required property var modelData
-                        Layout.fillWidth: true
                         Layout.fillHeight: true
+                        // Hug the video: width follows the (cropped) frame
+                        // aspect at full row height, so a narrow crop frees
+                        // horizontal space instead of letterboxing. The
+                        // layout may shrink below preferred when several
+                        // cameras compete — the inner frameRect aspect-fits
+                        // within whatever it gets.
+                        Layout.fillWidth: false
+                        Layout.preferredWidth: height * videoAspect
                         // Reactive instance lookup (same pattern as the panel's
                         // CamRow) — non-null once the camera is connected.
                         instance: {
@@ -71,6 +78,10 @@ Item {
                         showHittingArea: false
                     }
                 }
+
+                // Tiles pack left; the remainder is reserved for future
+                // charts/graphs so adding them won't reflow the videos.
+                Item { Layout.fillWidth: true }
             }
 
             // Muted empty state when every camera is toggled off (or none found).
