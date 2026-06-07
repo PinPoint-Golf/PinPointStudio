@@ -19,8 +19,9 @@ PinPoint Studio uses `pkg-config` to locate system libraries.
 ### 1. Install Build Essentials
 ```bash
 sudo apt update
-sudo apt install build-essential cmake pkg-config
+sudo apt install build-essential cmake pkg-config git
 ```
+`git` is required at configure time — CMake clones whisper.cpp, libsamplerate, Eigen, and (if absent on the system) espeak-ng via FetchContent.
 
 ### 2. Install Qt 6.11
 Use the [Qt Online Installer](https://www.qt.io/download-qt-installer). Select the following modules:
@@ -31,7 +32,7 @@ Use the [Qt Online Installer](https://www.qt.io/download-qt-installer). Select t
 ### 3. System Dependencies
 ```bash
 # Industrial camera support (Aravis v0.8.x)
-sudo apt install libglib2.0-dev libaravis-0.8-dev
+sudo apt install libglib2.0-dev libaravis-dev
 
 # Camera device identifier lookup (USB serial numbers for V4L2 cameras)
 sudo apt install libudev-dev
@@ -51,8 +52,9 @@ sudo apt install libespeak-ng-dev
 #### Whisper (STT)
 - **Vulkan** (recommended — works on NVIDIA, AMD, Intel):
   ```bash
-  sudo apt install libvulkan-dev shaderc
+  sudo apt install libvulkan-dev glslc
   ```
+  `glslc` is the shader compiler ggml's Vulkan backend invokes at build time (CMake's `Vulkan_GLSLC_EXECUTABLE`).
 - **CUDA**: Install the [CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit). Vulkan is preferred and checked first; CUDA is the fallback when Vulkan headers are absent.
 
 #### ONNX Runtime (TTS / pose estimation)
