@@ -80,6 +80,37 @@ Item {
         if (!on) imuManager.setSelected(devIndex, false)
     }
 
+    // True when at least one IMU is session-enabled and every enabled one is
+    // *actually* connected (live instance with imuConnected — not merely
+    // selected/pending) — drives the Connect ⇄ Disconnect action toggle.
+    readonly property bool allConnected: {
+        var _dep = imuManager.instances
+        var list = imuManager.imuDeviceList
+        var excluded = sessionImuExcluded
+        var enabled = 0
+        for (var i = 0; i < list.length; ++i) {
+            if (excluded.indexOf(list[i].id) >= 0) continue
+            ++enabled
+            var inst = imuManager.instanceFor(list[i].id)
+            if (!inst || !inst.imuConnected) return false
+        }
+        return enabled > 0
+    }
+
+    // Disconnect every connected device (enabled or not), cancelling any
+    // in-flight paced-connect queue first so it can't reconnect afterwards.
+    // Disconnects are immediate — the 2 s BlueZ gap only matters between
+    // *connection* attempts.
+    function disconnectAll() {
+        imuConnectTimer.stop()
+        _connecting   = false
+        _connectQueue = []
+        var list = imuManager.imuDeviceList
+        for (var i = 0; i < list.length; ++i)
+            if (imuManager.instanceFor(list[i].id) !== null)
+                imuManager.setSelected(list[i].index, false)
+    }
+
     // Paced connect of every enabled, not-yet-connected device. Sequential with a
     // 2 s gap so BlueZ can reset its GATT state between connections (wizard pattern).
     property var  _connectQueue: []
@@ -177,8 +208,12 @@ Item {
                 onTriggered: imuManager.rescanImu()
             }
             ScopedAction {
-                glyph: "⇄"; label: qsTr("Connect")
-                onTriggered: if (!root._connecting) root.startConnect()
+                glyph: "⇄"
+                label: root.allConnected ? qsTr("Disconnect") : qsTr("Connect")
+                onTriggered: {
+                    if (root.allConnected)          root.disconnectAll()
+                    else if (!root._connecting)     root.startConnect()
+                }
             }
             ScopedAction {
                 glyph: "◳"; label: qsTr("Calibrate")

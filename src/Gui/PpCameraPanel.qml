@@ -60,6 +60,16 @@ Item {
     // Settings).
     // TODO: persist a real per-session selection carried over from the start wizard.
 
+    // True when at least one camera is session-enabled and every enabled one is
+    // connected — drives the Connect ⇄ Disconnect action toggle.
+    readonly property bool allConnected: {
+        var list = cameraManager.cameraList
+        var enabled = 0
+        for (var i = 0; i < list.length; ++i)
+            if (list[i].sessionEnabled) { ++enabled; if (!list[i].selected) return false }
+        return enabled > 0
+    }
+
     // Connect every session-enabled, not-yet-selected camera, then start the
     // capture pipeline so the visible video tiles stream (same path as the Play
     // capture tab — pose/ball pipeline, ring buffer, swing replay).
@@ -70,6 +80,15 @@ Item {
                 cameraManager.setSelected(list[i].index, true)
         if (!cameraManager.isRecording && cameraManager.anySelected)
             cameraManager.startAll()
+    }
+
+    // Disconnect every connected camera (enabled or not). Stop the recording
+    // session first so isRecording doesn't stay true with zero instances.
+    function disconnectAll() {
+        if (cameraManager.isRecording) cameraManager.stopAll()
+        var list = cameraManager.cameraList
+        for (var i = 0; i < list.length; ++i)
+            if (list[i].selected) cameraManager.setSelected(list[i].index, false)
     }
 
     // ── Header ──────────────────────────────────────────────────────────────
@@ -121,8 +140,9 @@ Item {
             width: parent.width; padding: Theme.sp(12); spacing: Theme.sp(8)
             ScopedAction { glyph: "⟳"; label: qsTr("Scan");    onTriggered: cameraManager.enumerate() }
             ScopedAction {
-                glyph: "⇄"; label: qsTr("Connect")
-                onTriggered: root.startConnect()
+                glyph: "⇄"
+                label: root.allConnected ? qsTr("Disconnect") : qsTr("Connect")
+                onTriggered: root.allConnected ? root.disconnectAll() : root.startConnect()
             }
             ScopedAction {
                 glyph: "◳"; label: qsTr("Calibrate")
