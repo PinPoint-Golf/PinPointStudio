@@ -122,13 +122,13 @@ Item {
 
     readonly property var sessionTypes: [
         { icon: "◑", name: qsTr("Swing Analysis"),
-          requiredCameras: 2, optionalCamera: false, requiredImus: 3, railIndex: 1 },
+          requiredCameras: 2, requiredImus: 3, railIndex: 1 },
         { icon: "⌖", name: qsTr("Wrist Motion"),
-          requiredCameras: 0, optionalCamera: true,  requiredImus: 2, railIndex: 2 },
+          requiredCameras: 1, requiredImus: 2, railIndex: 2 },
         { icon: "⇅", name: qsTr("Ground Forces"),
-          requiredCameras: 2, optionalCamera: false, requiredImus: 3, railIndex: 3 },
+          requiredCameras: 2, requiredImus: 3, railIndex: 3 },
         { icon: "✦", name: qsTr("AI Coach"),
-          requiredCameras: 2, optionalCamera: false, requiredImus: 3, railIndex: 4 }
+          requiredCameras: 2, requiredImus: 3, railIndex: 4 }
     ]
 
     // ── IMU placement requirements per session type ───────────────────────────
@@ -280,10 +280,23 @@ Item {
         return false
     }
 
+    // Assignment requirements met: face-on always; DTL + stereo validity for
+    // two-camera sessions (Wrist Motion needs only the face-on camera).
     readonly property bool camsOk: {
-        if (curType.optionalCamera) return true
-        if (!faceOnData || !dtlData) return false
-        if (!anyFixedCamera && (!_todo_stereoCalibrationValid || !_todo_triangulationValid)) return false
+        if (!faceOnData) return false
+        if (curType.requiredCameras === 2) {
+            if (!dtlData) return false
+            if (!anyFixedCamera && (!_todo_stereoCalibrationValid || !_todo_triangulationValid)) return false
+        }
+        return true
+    }
+
+    // Every required camera is assigned AND connected. Reactive via cameraList
+    // (selection changes fire cameraListChanged). Mirrors imusAllConnected.
+    readonly property bool camsAllConnected: {
+        if (!faceOnData || !faceOnData.selected) return false
+        if (curType.requiredCameras === 2
+                && (!dtlData || !dtlData.selected)) return false
         return true
     }
 
@@ -345,20 +358,32 @@ Item {
     readonly property var readinessIssues: {
         var issues = []
 
-        // Camera requirements
+        // Camera requirements — session capture starts on wizard completion, so
+        // a required camera that is assigned but disabled/unconnected is an
+        // issue too, not just a missing assignment.
         if (stepStates[1] === "skipped") {
             issues.push({ text: qsTr("Cameras skipped — no video will be captured this session"), panel: -1 })
-        } else if (!curType.optionalCamera) {
+        } else {
             if (!faceOnData)
                 issues.push({ text: qsTr("Face-on camera not assigned"), panel: 3 })
-            if (!dtlData)
-                issues.push({ text: qsTr("Down-the-line camera not assigned"), panel: 3 })
-            // Calibration and triangulation are only required when cameras are not fixed in place
-            if (!anyFixedCamera) {
-                if (!_todo_stereoCalibrationValid)
-                    issues.push({ text: qsTr("Stereo calibration not confirmed — use Recalibrate in the cameras step"), panel: -1 })
-                if (!_todo_triangulationValid)
-                    issues.push({ text: qsTr("Triangulation not confirmed"), panel: -1 })
+            else if (!faceOnData.sessionEnabled)
+                issues.push({ text: qsTr("Face-on camera disabled for this session"), panel: -1 })
+            else if (!faceOnData.selected)
+                issues.push({ text: qsTr("Face-on camera not connected — press Connect in the cameras step"), panel: -1 })
+            if (curType.requiredCameras === 2) {
+                if (!dtlData)
+                    issues.push({ text: qsTr("Down-the-line camera not assigned"), panel: 3 })
+                else if (!dtlData.sessionEnabled)
+                    issues.push({ text: qsTr("Down-the-line camera disabled for this session"), panel: -1 })
+                else if (!dtlData.selected)
+                    issues.push({ text: qsTr("Down-the-line camera not connected — press Connect in the cameras step"), panel: -1 })
+                // Calibration and triangulation are only required when cameras are not fixed in place
+                if (!anyFixedCamera) {
+                    if (!_todo_stereoCalibrationValid)
+                        issues.push({ text: qsTr("Stereo calibration not confirmed — use Recalibrate in the cameras step"), panel: -1 })
+                    if (!_todo_triangulationValid)
+                        issues.push({ text: qsTr("Triangulation not confirmed"), panel: -1 })
+                }
             }
         }
 
@@ -397,6 +422,14 @@ Item {
             goalsInteracted = false
             // Snapshot the persisted exclusions as this session's starting point.
             sessionImuExcluded = appSettings.imuExcluded.slice()
+            // Cameras: session enablement is manager-owned (shared with the
+            // toolbar panel and video tiles). A new session inherits the global
+            // enablement afresh — setSessionCameraEnabled(key, false) also
+            // disconnects a connected camera.
+            var camList = cameraManager.cameraList
+            for (var i = 0; i < camList.length; ++i)
+                cameraManager.setSessionCameraEnabled(camList[i].cameraKey,
+                    appSettings.cameraExcluded.indexOf(camList[i].cameraKey) < 0)
         }
     }
 
@@ -745,44 +778,121 @@ Item {
                             anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.sp(32) }
                             spacing: Theme.sp(16)
 
+                            // True when at least one enabled, assigned camera is not yet
+                            // connected — i.e. there is something for "Connect" to do.
+                            // Drives the wizard footer button (Connect ↔ Continue).
+                            // Reactive via cameraList: selection AND session-enablement
+                            // changes both fire cameraListChanged.
+                            readonly property bool canConnect: {
+                                var rows = [root.faceOnData]
+                                if (root.curType.requiredCameras === 2) rows.push(root.dtlData)
+                                for (var i = 0; i < rows.length; ++i)
+                                    if (rows[i] && rows[i].sessionEnabled && !rows[i].selected)
+                                        return true
+                                return false
+                            }
+
+                            // Connect every enabled, not-yet-selected session camera, then
+                            // start the capture pipelines so the row thumbnails stream
+                            // (same path as PpCameraPanel's Connect). Cameras connect
+                            // synchronously — no paced queue needed (that's a BLE thing).
+                            function startConnect() {
+                                var rows = [root.faceOnData]
+                                if (root.curType.requiredCameras === 2) rows.push(root.dtlData)
+                                for (var i = 0; i < rows.length; ++i)
+                                    if (rows[i] && rows[i].sessionEnabled && !rows[i].selected)
+                                        cameraManager.setSelected(rows[i].index, true)
+                                if (!cameraManager.isRecording && cameraManager.anySelected)
+                                    cameraManager.startAll()
+                            }
+
                             StepIntro {
                                 width:   parent.width
                                 eyebrow: qsTr("STEP 2 OF %1 · CAMERAS").arg(root.totalSteps)
-                                heading: qsTr("Checking your cameras")
-                                body:    root.curType.optionalCamera
-                                    ? qsTr("A face-on camera is optional for this session type. If you have one set up it will capture video alongside your IMU data, but you can start without it.")
-                                    : qsTr("This session uses two cameras — face-on and down the line — to reconstruct your movement in 3D. Both need to be detected and stereo-calibrated before we start. If your setup hasn't moved since last time, you're good to go.")
+                                heading: qsTr("Connecting your cameras")
+                                body:    root.curType.requiredCameras === 1
+                                    ? qsTr("This session uses a single face-on camera to capture video alongside your IMU data. Enable and connect it below — once its preview is streaming you're ready to continue.")
+                                    : qsTr("This session uses two cameras — face-on and down the line — to reconstruct your movement in 3D. Both need to be connected and stereo-calibrated before we start. If your setup hasn't moved since last time, you're good to go.")
                             }
 
                             Column {
                                 width: parent.width
                                 spacing: 0
 
-                                // Face-on: always shown; optional for Wrist Motion
-                                CheckRow {
-                                    width:    parent.width
-                                    ok:       root.faceOnData !== null
-                                    optional: root.curType.optionalCamera
-                                    label:    qsTr("Face-on camera")
-                                    subOk:    root.camDetail(root.faceOnData)
-                                    subFail:  root.curType.optionalCamera
-                                                  ? qsTr("OPTIONAL — ASSIGN FACE-ON PERSPECTIVE IN SETTINGS → CAMERAS")
-                                                  : qsTr("NOT FOUND — ASSIGN FACE-ON PERSPECTIVE IN SETTINGS → CAMERAS")
-                                }
+                                // Per-camera rows — same pattern as the IMU slot rows:
+                                // enable toggle (manager-owned session enablement), live
+                                // status chip, and a streaming thumbnail once connected.
+                                Repeater {
+                                    model: root.curType.requiredCameras === 2
+                                               ? [{ persp: 2 }, { persp: 1 }]
+                                               : [{ persp: 2 }]
 
-                                // Down-the-line: only needed when two cameras are required
-                                CheckRow {
-                                    visible: !root.curType.optionalCamera
-                                    width:   parent.width
-                                    ok:      root.dtlData !== null
-                                    label:   qsTr("Down-the-line camera")
-                                    subOk:   root.camDetail(root.dtlData)
-                                    subFail: qsTr("NOT FOUND — ASSIGN DOWN-THE-LINE PERSPECTIVE IN SETTINGS → CAMERAS")
+                                    delegate: CheckRow {
+                                        required property var modelData
+
+                                        width: parent.width
+                                        label: modelData.persp === 2 ? qsTr("Face-on camera")
+                                                                     : qsTr("Down-the-line camera")
+
+                                        // cameraList entry assigned this perspective (null =
+                                        // unassigned). Reactive: cameraListChanged fires on
+                                        // selection and session-enablement changes.
+                                        readonly property var _data:
+                                            modelData.persp === 2 ? root.faceOnData : root.dtlData
+
+                                        // Live instance for the thumbnail — reactive on
+                                        // cameraManager.instances (PpCameraPanel pattern).
+                                        readonly property QtObject _inst: {
+                                            var insts = cameraManager.instances
+                                            if (!_data) return null
+                                            for (var i = 0; i < insts.length; ++i)
+                                                if (insts[i].deviceSerialNumber === _data.serialNumber)
+                                                    return insts[i]
+                                            return null
+                                        }
+
+                                        readonly property bool _enabled:
+                                            _data !== null && _data.sessionEnabled
+                                        readonly property bool _connected:
+                                            _data !== null && _data.selected
+
+                                        // Session-local enable toggle — manager-owned so the
+                                        // toolbar panel and video tiles share it. Disabling a
+                                        // connected camera also disconnects it (C++ side).
+                                        showToggle:    _data !== null
+                                        toggleChecked: _enabled
+                                        onToggled: (v) => {
+                                            if (_data) cameraManager.setSessionCameraEnabled(_data.cameraKey, v)
+                                        }
+
+                                        disabled:    _data !== null && !_enabled
+                                        subDisabled: _data
+                                            ? qsTr("%1 · DISABLED — WON'T CONNECT").arg(_data.alias || _data.description)
+                                            : ""
+
+                                        ok:   _enabled && _connected
+                                        warn: _enabled && !_connected
+
+                                        subOk:   root.camDetail(_data)
+                                        subWarn: _data
+                                            ? (_data.alias || _data.description) + qsTr(" — PRESS CONNECT")
+                                            : ""
+                                        subFail: modelData.persp === 2
+                                            ? qsTr("NOT FOUND — ASSIGN FACE-ON PERSPECTIVE IN SETTINGS → CAMERAS")
+                                            : qsTr("NOT FOUND — ASSIGN DOWN-THE-LINE PERSPECTIVE IN SETTINGS → CAMERAS")
+
+                                        chipText:      !_enabled ? "" : (_connected ? qsTr("Connected") : "")
+                                        chipColor:     Theme.colorGoodLight
+                                        chipTextColor: Theme.colorGood
+
+                                        // Streaming thumbnail once the instance exists.
+                                        thumbInstance: _inst
+                                    }
                                 }
 
                                 // Stereo calibration and triangulation: two-camera sessions only
                                 CheckRow {
-                                    visible:      !root.curType.optionalCamera
+                                    visible:      root.curType.requiredCameras === 2
                                     width:        parent.width
                                     ok:           root._todo_stereoCalibrationValid
                                     optional:     root.anyFixedCamera
@@ -796,7 +906,7 @@ Item {
                                     onRecalibrate: root.recalibrateRequested()
                                 }
                                 CheckRow {
-                                    visible:  !root.curType.optionalCamera
+                                    visible:  root.curType.requiredCameras === 2
                                     width:    parent.width
                                     ok:       root._todo_triangulationValid
                                     optional: root.anyFixedCamera
@@ -1390,22 +1500,21 @@ Item {
                                     SummaryRow {
                                         width: parent.width
                                         rowLabel: qsTr("Cameras")
-                                        good: root.stepStates[1] !== "skipped"
-                                                  && (root.curType.optionalCamera || root.camsOk)
+                                        good: root.stepStates[1] !== "skipped" && root.camsAllConnected
                                         rowValue: {
                                             if (root.stepStates[1] === "skipped")
                                                 return qsTr("Skipped — no video capture")
-                                            if (root.curType.optionalCamera)
-                                                return root.faceOnData !== null
-                                                    ? qsTr("Face-on detected · optional")
-                                                    : qsTr("Not assigned — optional for this session")
-                                            if (!root.faceOnData && !root.dtlData)
-                                                return qsTr("Neither camera assigned")
+                                            if (root.camsAllConnected)
+                                                return root.curType.requiredCameras === 2
+                                                    ? qsTr("Face-on + down-the-line connected")
+                                                    : qsTr("Face-on connected")
                                             if (!root.faceOnData)
-                                                return qsTr("Face-on camera not assigned")
-                                            if (!root.dtlData)
+                                                return root.curType.requiredCameras === 2 && !root.dtlData
+                                                    ? qsTr("Neither camera assigned")
+                                                    : qsTr("Face-on camera not assigned")
+                                            if (root.curType.requiredCameras === 2 && !root.dtlData)
                                                 return qsTr("Down-the-line camera not assigned")
-                                            return qsTr("Face-on + down-the-line detected")
+                                            return qsTr("Not connected — press Connect in the cameras step")
                                         }
                                     }
                                     Rectangle { width: parent.width; height: 1; color: Theme.colorBorderMid }
@@ -1478,15 +1587,15 @@ Item {
                                 if (n === 0) return qsTr("No goals selected — defaulting to %1").arg(root.curGoalDefs[0].name)
                                 return n === 1 ? qsTr("1 goal selected") : qsTr("%1 goals selected").arg(n)
                             }
-                            if (s === 1) {
-                                if (root.curType.optionalCamera)
-                                    return root.faceOnData !== null
-                                        ? qsTr("Face-on camera detected · optional for this session")
-                                        : qsTr("No camera detected — optional for this session")
-                                return root.camsOk
-                                    ? qsTr("Face-on and down-the-line cameras detected · calibration valid")
-                                    : (!root.faceOnData ? qsTr("Face-on camera not assigned")
-                                                        : qsTr("Down-the-line camera not assigned"))
+                            if (s === root.stepCameras) {
+                                if (root.camsAllConnected)
+                                    return qsTr("All cameras connected")
+                                if (camsCol.canConnect)
+                                    return qsTr("Cameras assigned — tap Connect to start them")
+                                return !root.faceOnData ? qsTr("Face-on camera not assigned")
+                                     : (root.curType.requiredCameras === 2 && !root.dtlData)
+                                           ? qsTr("Down-the-line camera not assigned")
+                                           : qsTr("Camera disabled — enable it to capture video this session")
                             }
                             if (s === root.stepImus) return root.imusAllConnected
                                 ? qsTr("All required sensors connected")
@@ -1503,7 +1612,7 @@ Item {
                         font.letterSpacing: Theme.trackingData
                         color: {
                             var s = root.currentStep
-                            if (s === root.stepCameras) return (root.camsOk || root.curType.optionalCamera) ? Theme.colorGood : Theme.colorWarn
+                            if (s === root.stepCameras) return root.camsAllConnected ? Theme.colorGood : Theme.colorWarn
                             if (s === root.stepImus)    return root.imusAllConnected ? Theme.colorGood : Theme.colorWarn
                             if (s === root.stepCalibrate) return calibFlow.calibrationDone ? Theme.colorGood : Theme.colorWarn
                             return Theme.colorText3
@@ -1530,7 +1639,7 @@ Item {
 
                     // Skip →
                     PpButton {
-                        visible: (root.currentStep === root.stepCameras && !root.camsOk && !root.curType.optionalCamera)
+                        visible: (root.currentStep === root.stepCameras && !root.camsAllConnected)
                                  || (root.currentStep === root.stepImus && !root.imusAllConnected)
                                  || (root.currentStep === root.stepCalibrate && !calibFlow.calibrationDone)
                         label:   qsTr("Skip →")
@@ -1561,6 +1670,12 @@ Item {
                             root.currentStep === root.stepImus
                             && !(root.imusAllConnected && !imusCol.canConnect)
 
+                        // Cameras step: same Connect ↔ Continue pattern. Cameras
+                        // connect synchronously, so there is no "Connecting…"
+                        // phase — the mode is simply "something left to connect".
+                        readonly property bool camConnectMode:
+                            root.currentStep === root.stepCameras && camsCol.canConnect
+
                         implicitWidth:  primaryLbl.implicitWidth + Theme.sp(28)
                         implicitHeight: Theme.sp(38)
                         radius: Theme.radius
@@ -1582,7 +1697,9 @@ Item {
                         Text {
                             id: primaryLbl
                             anchors.centerIn: parent
-                            text: primaryBtn.imuConnectMode
+                            text: primaryBtn.camConnectMode
+                                      ? qsTr("Connect")
+                                      : primaryBtn.imuConnectMode
                                       ? (imusCol._connecting ? qsTr("Connecting…") : qsTr("Connect"))
                                       : (root.currentStep < root.lastStep
                                             ? qsTr("Continue →")
@@ -1597,6 +1714,11 @@ Item {
                             anchors.fill: parent
                             cursorShape:  Qt.PointingHandCursor
                             onClicked: {
+                                // Camera connect-mode: connect instead of advancing.
+                                if (primaryBtn.camConnectMode) {
+                                    camsCol.startConnect()
+                                    return
+                                }
                                 // IMU connect-mode: trigger connection instead of advancing.
                                 if (primaryBtn.imuConnectMode) {
                                     if (!imusCol._connecting && imusCol.canConnect) imusCol.startConnect()
@@ -1741,8 +1863,11 @@ Item {
         property color  chipColor:     "transparent"
         property color  chipTextColor: Theme.colorText3
         signal recalibrate()
+        // Live camera thumbnail (wizard camera rows) — the row grows to fit it.
+        property QtObject thumbInstance: null
 
-        height: Theme.sp(52)
+        height: thumbInstance !== null ? Theme.sp(76) : Theme.sp(52)
+        Behavior on height { NumberAnimation { duration: Theme.durationFast } }
 
         Rectangle {
             anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
@@ -1783,6 +1908,26 @@ Item {
                                                           : (cr.optional ? Theme.colorText3
                                                                          : Theme.colorError)))
                     elide:              Text.ElideRight
+                }
+            }
+
+            // Live thumbnail preview — streams as soon as the camera connects.
+            // All overlays off; PpCameraFrame handles the RGB/Bayer split and
+            // the subscribe/unsubscribe lifecycle. Loader-gated so the many
+            // non-camera CheckRows don't each carry a video item.
+            Loader {
+                active:  cr.thumbInstance !== null
+                visible: active
+                Layout.preferredWidth:  Theme.sp(108)
+                Layout.preferredHeight: Theme.sp(62)
+                Layout.alignment:       Qt.AlignVCenter
+                sourceComponent: PpCameraFrame {
+                    instance: cr.thumbInstance
+                    showPoseOverlay:      false
+                    showHittingArea:      false
+                    showPerspectiveBadge: false
+                    showStatsOverlay:     false
+                    showReplayBadge:      false
                 }
             }
 
