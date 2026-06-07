@@ -22,6 +22,11 @@
 #include "imu_manager.h"
 #include "pp_debug.h"
 
+#include <QDateTime>
+#include <QDir>
+#include <QFile>
+#include <QTextStream>
+
 #include <cmath>
 
 ResourceMonitorController::ResourceMonitorController(
@@ -471,6 +476,36 @@ void ResourceMonitorController::clearLog()
     m_activeWarnings.clear();
     m_logSeq = PpMessageLog::instance()->currentSeq();
     emit snapshotChanged();
+}
+
+// Write the current message log to a timestamped text file in the user's
+// home directory.  Returns the full path on success, an empty string on
+// failure.  Entries are written oldest-first (m_messageLog is newest-first).
+QString ResourceMonitorController::exportLog() const
+{
+    const QDateTime now = QDateTime::currentDateTime();
+    const QString   ts  = now.toString(QStringLiteral("yyyyMMdd_HHmmss"));
+    const QString   path =
+        QDir(QDir::homePath()).filePath(QStringLiteral("PinPointStudio_log_%1.txt").arg(ts));
+
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        ppError() << "[ResourceMonitor] Cannot open log export file for writing:" << path;
+        return QString();
+    }
+
+    QTextStream out(&file);
+    out << "PinPointStudio message log — exported "
+        << now.toString(QStringLiteral("yyyy-MM-dd HH:mm:ss")) << "\n\n";
+
+    for (auto it = m_messageLog.crbegin(); it != m_messageLog.crend(); ++it) {
+        const QVariantMap row = it->toMap();
+        out << row.value(QStringLiteral("timestamp")).toString() << "  "
+            << row.value(QStringLiteral("severity")).toString().leftJustified(5) << "  "
+            << row.value(QStringLiteral("message")).toString() << "\n";
+    }
+
+    return path;
 }
 
 bool ResourceMonitorController::scanning() const { return m_scanning; }

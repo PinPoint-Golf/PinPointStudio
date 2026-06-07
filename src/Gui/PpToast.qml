@@ -16,10 +16,11 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Transient undo snackbar — inverted fill (colorText) with light text so it
+// Transient snackbar — elevated surface fill with a strong border so it
 // reads as a floating notice on any theme. Auto-hides on a Timer; the UNDO
 // action is the host's to wire (it restores via the model invokable). Soft
-// delete is reversible, so this replaces a modal confirm.
+// delete is reversible, so this replaces a modal confirm. Hosts can also set
+// copyText to expose a copy-to-clipboard action.
 
 import QtQuick
 import PinPointStudio
@@ -31,6 +32,8 @@ Rectangle {
     property string glyph:   "🗑"
     // Hide the UNDO action for purely informational notices.
     property bool   showUndo: true
+    // When non-empty, a copy icon copies this text to the clipboard on tap.
+    property string copyText: ""
 
     signal undoClicked()
 
@@ -44,17 +47,13 @@ Rectangle {
     implicitWidth:  toastRow.implicitWidth + Theme.sp(30)
     implicitHeight: Theme.sp(40)
     radius: Theme.radiusLg
-    color:  Theme.colorText
-
-    // UNDO must stay legible on the inverted (dark-on-light-theme) fill — the
-    // raw accent is too dark there, so lighten it; dark themes invert the fill
-    // to a light surface where the plain accent already reads.
-    readonly property color undoColor: Theme.dark ? Theme.colorAccent
-                                                  : Qt.lighter(Theme.colorAccent, 1.9)
+    color:  Theme.colorBg3
+    border.width: 1
+    border.color: Theme.colorBorderStrong
 
     Timer {
         id: hideTimer
-        interval: Theme.durationSlow * 14
+        interval: Theme.durationSlow * 21
         onTriggered: root.visible = false
     }
 
@@ -71,22 +70,50 @@ Rectangle {
                 text:           root.glyph
                 font.family:    Theme.fontSymbol
                 font.pixelSize: Theme.fontSzBody
-                color:          Theme.colorBg3
+                color:          Theme.colorText2
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text:           root.message
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody
-                color:          Theme.colorBg
+                color:          Theme.colorText
+            }
+        }
+
+        Rectangle {   // hairline separator before the copy action
+            anchors.verticalCenter: parent.verticalCenter
+            width: 1; height: Theme.sp(18)
+            color: Theme.colorBorderStrong
+            visible: root.copyText.length > 0
+        }
+
+        Text {        // copy-to-clipboard action; flashes a check as feedback
+            anchors.verticalCenter: parent.verticalCenter
+            visible:        root.copyText.length > 0
+            text:           copyConfirm.running ? "✓" : "⧉"
+            font.family:    Theme.fontSymbol
+            font.pixelSize: Theme.fontSzBody
+            color:          copyConfirm.running ? Theme.colorGood : Theme.colorAccent
+
+            Timer { id: copyConfirm; interval: 1200 }
+
+            MouseArea {
+                anchors.fill:    parent
+                anchors.margins: -Theme.sp(6)
+                cursorShape:     Qt.PointingHandCursor
+                onClicked: {
+                    clipboard.setText(root.copyText)
+                    copyConfirm.restart()
+                    hideTimer.restart()   // give the user time to see the confirmation
+                }
             }
         }
 
         Rectangle {   // hairline separator before the action
             anchors.verticalCenter: parent.verticalCenter
             width: 1; height: Theme.sp(18)
-            color: Theme.colorBg
-            opacity: 0.25
+            color: Theme.colorBorderStrong
             visible: root.showUndo
         }
 
@@ -97,7 +124,7 @@ Rectangle {
             font.family:    Theme.fontData
             font.pixelSize: Theme.fontSzBody2
             font.letterSpacing: Theme.trackingLabel
-            color:          root.undoColor
+            color:          Theme.colorAccent
 
             MouseArea {
                 anchors.fill:    parent

@@ -74,6 +74,7 @@ public:
 
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void clearLog();
+    Q_INVOKABLE QString exportLog() const;
     Q_INVOKABLE void scanDevices();
 
 signals:

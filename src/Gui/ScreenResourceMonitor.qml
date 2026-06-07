@@ -513,6 +513,38 @@ Item {
                         HoverHandler { cursorShape: Qt.PointingHandCursor }
                     }
 
+                    // Export button — writes the log to a text file in the home directory
+                    Rectangle {
+                        id: exportBtn
+                        visible: resourceMonitor.messageLog.length > 0
+                        anchors { right: clearBtn.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
+                        width: exportLbl.implicitWidth + Theme.sp(16)
+                        height: Theme.sp(18)
+                        radius: Theme.radius
+                        color: "transparent"
+                        border.width: 1
+                        border.color: Theme.colorBorderMid
+
+                        Text {
+                            id: exportLbl
+                            anchors.centerIn: parent
+                            text: qsTr("Export")
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.sp(10)
+                            color: Theme.colorText3
+                        }
+
+                        TapHandler {
+                            onTapped: {
+                                var path = resourceMonitor.exportLog()
+                                exportToast.copyText = path   // empty on failure → copy icon hidden
+                                if (path.length > 0) exportToast.show(qsTr("Log exported to %1").arg(path))
+                                else                 exportToast.show(qsTr("Log export failed"))
+                            }
+                        }
+                        HoverHandler { cursorShape: Qt.PointingHandCursor }
+                    }
+
                     // Inline text filter box
                     Rectangle {
                         id: filterBox
@@ -562,7 +594,7 @@ Item {
                     Row {
                         id: filterChips
                         visible: resourceMonitor.messageLog.length > 0
-                        anchors { right: clearBtn.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
+                        anchors { right: exportBtn.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
                         spacing: Theme.sp(4)
 
                         Repeater {
@@ -759,5 +791,15 @@ Item {
 
             Item { height: Theme.sp(16) }
         }
+    }
+
+    // Informational toast for log export — no UNDO action.
+    PpToast {
+        id: exportToast
+        showUndo: false
+        glyph: "💾"
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: Theme.sp(24)
     }
 }

@@ -39,6 +39,7 @@
 #include "athlete_controller.h"
 #include "navigation_controller.h"
 #include "resource_monitor_controller.h"
+#include "clipboard_helper.h"
 #include "arm_bone_controller.h"
 #include "llm_controller.h"
 #include "session_controller.h"
@@ -119,6 +120,7 @@ int main(int argc, char *argv[])
     ArmBoneController         armBoneController;
     SessionController         sessionController;
     ShotListModel             shotModel;
+    ClipboardHelper           clipboardHelper;
 
     // Voice input: completed STT transcription → coach chat (when voice input enabled).
     QObject::connect(&controller, &TranscriptionController::transcriptionReceived,
@@ -149,6 +151,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("armBoneController"), &armBoneController);
     engine.rootContext()->setContextProperty(QStringLiteral("sessionController"), &sessionController);
     engine.rootContext()->setContextProperty(QStringLiteral("shotModel"),         &shotModel);
+    engine.rootContext()->setContextProperty(QStringLiteral("clipboard"),         &clipboardHelper);
 
     // Clean merger shutdown before Qt tears down its event loop.
     QObject::connect(&app, &QGuiApplication::aboutToQuit, [&eventBuffer]() {

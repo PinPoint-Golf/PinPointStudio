@@ -130,6 +130,7 @@ qt_add_executable(PinPointStudio
     src/Gui/athlete_controller.h       src/Gui/athlete_controller.cpp
     src/Gui/navigation_controller.h    src/Gui/navigation_controller.cpp
     src/Gui/resource_monitor_controller.h src/Gui/resource_monitor_controller.cpp
+    src/Gui/clipboard_helper.h
     src/Gui/arm_bone_controller.h      src/Gui/arm_bone_controller.cpp
     src/Gui/session_controller.h       src/Gui/session_controller.cpp
     src/Gui/shot_list_model.h          src/Gui/shot_list_model.cpp
