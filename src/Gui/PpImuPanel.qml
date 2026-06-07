@@ -57,28 +57,13 @@ Item {
         return false
     }
 
-    // ── Per-session IMU enablement (mirrors the wizard) ────────────────────────
-    // Seeded from appSettings.imuExcluded so the panel reflects the saved
-    // enablement, but the per-row toggle edits THIS local list only — it never
-    // writes back to settings (global enablement is owned by the Settings screen).
-    // A device id present here is disabled and won't be connected this session.
-    // TODO: persist a real per-session selection (e.g. carried over from the start
-    // session wizard) instead of seeding from global settings each launch.
-    property var sessionImuExcluded: []
-    Component.onCompleted: sessionImuExcluded = appSettings.imuExcluded.slice()
-
-    function isEnabled(devId) { return sessionImuExcluded.indexOf(devId) < 0 }
-
-    // Toggle a device's session enablement. Disabling a connected device also
-    // disconnects it so it actually leaves the session (as the wizard does).
-    function setDeviceEnabled(devId, devIndex, on) {
-        var list = sessionImuExcluded.slice()
-        var idx  = list.indexOf(devId)
-        if (!on && idx < 0)  list.push(devId)      // disable → exclude
-        if ( on && idx >= 0) list.splice(idx, 1)   // enable  → include
-        sessionImuExcluded = list
-        if (!on) imuManager.setSelected(devIndex, false)
-    }
+    // ── Per-session IMU enablement ─────────────────────────────────────────────
+    // Manager-owned (imuManager.sessionImuExcluded / setSessionImuEnabled) so the
+    // start wizard and every toolbar panel instance share ONE list — same pattern
+    // as cameras. Seeded from appSettings.imuExcluded at startup and re-seeded by
+    // the wizard on open; never written back to settings (global enablement is
+    // owned by the Settings screen). The per-device state is read from the
+    // sessionEnabled field on imuDeviceList entries.
 
     // True when at least one IMU is session-enabled and every enabled one is
     // *actually* connected (live instance with imuConnected — not merely
@@ -86,10 +71,9 @@ Item {
     readonly property bool allConnected: {
         var _dep = imuManager.instances
         var list = imuManager.imuDeviceList
-        var excluded = sessionImuExcluded
         var enabled = 0
         for (var i = 0; i < list.length; ++i) {
-            if (excluded.indexOf(list[i].id) >= 0) continue
+            if (!list[i].sessionEnabled) continue
             ++enabled
             var inst = imuManager.instanceFor(list[i].id)
             if (!inst || !inst.imuConnected) return false
@@ -119,9 +103,8 @@ Item {
     function startConnect() {
         var queue = []
         var list = imuManager.imuDeviceList
-        var excluded = sessionImuExcluded
         for (var j = 0; j < list.length; ++j) {
-            if (excluded.indexOf(list[j].id) < 0) {
+            if (list[j].sessionEnabled) {
                 var inst = imuManager.instanceFor(list[j].id)
                 if (!inst || !inst.imuConnected) queue.push(list[j].index)
             }
@@ -233,6 +216,7 @@ Item {
                 devIndex: modelData.index
                 devName: modelData.alias && modelData.alias !== "" ? modelData.alias
                                                                    : modelData.description
+                deviceEnabled: modelData.sessionEnabled
                 placement: {
                     var p = appSettings.imuPlacement
                     return p[modelData.id] ? p[modelData.id] : ""
@@ -313,8 +297,9 @@ Item {
         readonly property bool failed:  inst !== null && !connected
                                         && (stateLabel === "Error" || stateLabel === "Not found")
         readonly property bool pending: inst !== null && !connected && !failed
-        // Session enablement (reactive on root.sessionImuExcluded).
-        readonly property bool deviceEnabled: root.sessionImuExcluded.indexOf(devId) < 0
+        // Session enablement — set from the imuDeviceList entry (manager-owned;
+        // the Repeater model rebinds on imuDeviceListChanged).
+        property bool deviceEnabled: true
 
         height: Theme.sp(56)
 
@@ -418,7 +403,8 @@ Item {
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: root.setDeviceEnabled(devId, devIndex, !deviceEnabled)
+                    // Manager-owned; disabling a connected device also disconnects it.
+                    onClicked: imuManager.setSessionImuEnabled(devId, !deviceEnabled)
                 }
             }
         }

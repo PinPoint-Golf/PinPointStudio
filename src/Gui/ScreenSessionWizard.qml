@@ -56,11 +56,10 @@ Item {
     // 6 entries, indexed by the named step constants above.
     property var stepStates: ["pending", "pending", "pending", "pending", "pending", "pending"]
 
-    // Per-session IMU exclusion (device ids that won't be connected this session).
-    // Seeded from appSettings.imuExcluded each time the wizard opens (see
-    // onVisibleChanged), but the wizard toggle edits THIS list only — it is a
-    // per-session choice and must not write back to appSettings.
-    property var sessionImuExcluded: []
+    // Per-session IMU exclusion lives in ImuManager (imuManager.sessionImuExcluded)
+    // so the wizard and every toolbar IMU panel share one list — same pattern as
+    // cameras. Re-seeded from appSettings.imuExcluded each time the wizard opens
+    // (see onVisibleChanged); never written back to settings (per-session choice).
 
     // Set by the Confirm-Tracking "Recalibrate" link before navigating back to
     // the Calibrate step, so onCurrentStepChanged forces a fresh calibration
@@ -420,16 +419,17 @@ Item {
             var saved = appSettings.sessionGoalsByType[sessionType.toString()]
             selectedGoals   = (saved && saved.length > 0) ? saved.slice() : []
             goalsInteracted = false
-            // Snapshot the persisted exclusions as this session's starting point.
-            sessionImuExcluded = appSettings.imuExcluded.slice()
-            // Cameras: session enablement is manager-owned (shared with the
-            // toolbar panel and video tiles). A new session inherits the global
-            // enablement afresh — setSessionCameraEnabled(key, false) also
-            // disconnects a connected camera.
+            // Session enablement is manager-owned (shared with the toolbar
+            // panels and video tiles). A new session inherits the global
+            // enablement afresh — disabling also disconnects a connected device.
             var camList = cameraManager.cameraList
             for (var i = 0; i < camList.length; ++i)
                 cameraManager.setSessionCameraEnabled(camList[i].cameraKey,
                     appSettings.cameraExcluded.indexOf(camList[i].cameraKey) < 0)
+            var devList = imuManager.imuDeviceList
+            for (var j = 0; j < devList.length; ++j)
+                imuManager.setSessionImuEnabled(devList[j].id,
+                    appSettings.imuExcluded.indexOf(devList[j].id) < 0)
         }
     }
 
@@ -957,11 +957,10 @@ Item {
                                 var reqs = root.curImuReqs
                                 var list = imuManager.imuDeviceList
                                 var placement = appSettings.imuPlacement
-                                var excluded  = root.sessionImuExcluded
                                 for (var i = 0; i < reqs.length; ++i) {
                                     for (var j = 0; j < list.length; ++j) {
                                         if (placement[list[j].id] === reqs[i].slot
-                                                && excluded.indexOf(list[j].id) < 0) {
+                                                && list[j].sessionEnabled) {
                                             var inst = imuManager.instanceFor(list[j].id)
                                             if (!inst || !inst.imuConnected) return true
                                         }
@@ -979,11 +978,10 @@ Item {
                                 var reqs = root.curImuReqs
                                 var list = imuManager.imuDeviceList
                                 var placement = appSettings.imuPlacement
-                                var excluded  = root.sessionImuExcluded
                                 for (var i = 0; i < reqs.length; ++i) {
                                     for (var j = 0; j < list.length; ++j) {
                                         if (placement[list[j].id] === reqs[i].slot
-                                                && excluded.indexOf(list[j].id) < 0) {
+                                                && list[j].sessionEnabled) {
                                             var inst = imuManager.instanceFor(list[j].id)
                                             if (!inst || !inst.imuConnected)
                                                 queue.push(list[j].index)
@@ -1149,11 +1147,12 @@ Item {
                                         readonly property bool   _connected:  _inst ? _inst.imuConnected  : false
 
                                         // Excluded = disabled for connection THIS SESSION only.
-                                        // Seeded from appSettings.imuExcluded at wizard open, but the
-                                        // toggle edits root.sessionImuExcluded — it never writes back
-                                        // to settings (per-session choice).
+                                        // Manager-owned (imuManager.sessionImuExcluded) so the
+                                        // toolbar IMU panels share it; never written back to
+                                        // settings (per-session choice). Reactive via the
+                                        // sessionEnabled field on the imuDeviceList entry.
                                         readonly property bool _excluded:
-                                            _dev !== null && root.sessionImuExcluded.indexOf(_dev.id) >= 0
+                                            _dev !== null && !_dev.sessionEnabled
 
                                         disabled:      _excluded
                                         subDisabled:   _dev
@@ -1163,15 +1162,9 @@ Item {
                                         showToggle:    _dev !== null
                                         toggleChecked: !_excluded
                                         onToggled: (v) => {
-                                            if (!_dev) return
-                                            var list = root.sessionImuExcluded.slice()
-                                            var idx  = list.indexOf(_dev.id)
-                                            if (!v && idx < 0)  list.push(_dev.id)     // disable → exclude
-                                            if ( v && idx >= 0) list.splice(idx, 1)    // enable  → include
-                                            root.sessionImuExcluded = list
-                                            // Disabling a device that is selected/connected must
-                                            // actually disconnect it so it leaves the session.
-                                            if (!v) imuManager.setSelected(_dev.index, false)
+                                            // Disabling a selected/connected device also
+                                            // disconnects it (manager side).
+                                            if (_dev) imuManager.setSessionImuEnabled(_dev.id, v)
                                         }
 
                                         ok:   !_excluded && _connected

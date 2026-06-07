@@ -53,6 +53,13 @@ class ImuManager : public QObject
     // ── Aggregate state (any connected / count) ───────────────────────────
     Q_PROPERTY(bool imuConnected READ imuConnected NOTIFY instancesChanged)
     Q_PROPERTY(int  imuCount     READ imuCount     NOTIFY instancesChanged)
+    // ── Per-session IMU enablement (device ids excluded this session) ──────
+    // Mirrors CameraManager::sessionCameraExcluded: manager-owned so the start
+    // wizard, every toolbar IMU panel and the device rows share ONE list.
+    // Seeded from AppSettings::imuExcluded at startup (and re-seeded by the
+    // wizard on open); NEVER written back — global enablement is owned by the
+    // Settings screen.
+    Q_PROPERTY(QStringList sessionImuExcluded READ sessionImuExcluded NOTIFY sessionImuExcludedChanged)
 
 public:
     explicit ImuManager(pinpoint::EventBuffer *buffer = nullptr,
@@ -73,6 +80,12 @@ public:
     // Toggle selection (= connect/disconnect + EventBuffer register/deregister).
     // index is the position in DeviceEnumerator::devices(DeviceType::Imu).
     Q_INVOKABLE void setSelected(int index, bool selected);
+
+    QStringList sessionImuExcluded() const;
+
+    // Per-session enablement toggle. Disabling a selected/connected device also
+    // disconnects it; enabling never auto-connects (Connect does that).
+    Q_INVOKABLE void setSessionImuEnabled(const QString &deviceId, bool on);
 
     // Trigger a new BLE scan to find devices.
     Q_INVOKABLE void rescanImu();
@@ -111,6 +124,7 @@ signals:
     void instancesChanged();
     void imuEnumeratedCountChanged();
     void imuDeviceListChanged();
+    void sessionImuExcludedChanged();
     // EventBuffer state may have changed (source register/deregister can pause
     // or auto-resume the shared buffer). Forwarded to
     // CameraManager::applyCaptureIntent in main() — the QML-facing buffer state
@@ -130,4 +144,11 @@ private:
     pinpoint::EventBuffer      *m_eventBuffer  = nullptr;
     AppSettings                *m_appSettings  = nullptr;
     QMap<QString, ImuEntry>     m_selected;    // keyed by device id
+
+    // Per-session exclusion (device ids). Seeded from AppSettings::imuExcluded;
+    // m_lastGlobalExcluded snapshots the global list so mid-session Settings
+    // changes can be diffed into the session list (CameraManager::setExcluded
+    // does the same sync for cameras).
+    QStringList m_sessionExcluded;
+    QStringList m_lastGlobalExcluded;
 };

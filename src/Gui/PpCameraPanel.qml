@@ -54,11 +54,11 @@ Item {
     }
 
     // Per-session camera enablement lives in CameraManager
-    // (cameraManager.sessionCameraExcluded) so the per-screen video tiles and
-    // every toolbar instance share one list. Seeded from appSettings.cameraExcluded
-    // at startup; never written back to settings (global enablement is owned by
-    // Settings).
-    // TODO: persist a real per-session selection carried over from the start wizard.
+    // (cameraManager.sessionCameraExcluded) so the per-screen video tiles,
+    // every toolbar instance AND the start-session wizard share one list.
+    // Seeded from appSettings.cameraExcluded at startup, re-seeded by the
+    // wizard on open; never written back to settings (global enablement is
+    // owned by Settings).
 
     // True when at least one camera is session-enabled and every enabled one is
     // connected — drives the Connect ⇄ Disconnect action toggle.

@@ -30,6 +30,31 @@ ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, 
     // and round-robin connection assignment are both ready from the start.
     BleAdapterPool::instance()->initialize();
 
+    // Seed the per-session exclusion list from the persisted global enablement
+    // (mirrors CameraManager). Track the global list so mid-session Settings
+    // changes can be diffed into the session list below.
+    {
+        AppSettings  fallback;
+        AppSettings *s = m_appSettings ? m_appSettings : &fallback;
+        m_sessionExcluded     = s->imuExcluded();
+        m_lastGlobalExcluded  = m_sessionExcluded;
+    }
+    if (m_appSettings) {
+        // Keep the session list consistent with global changes made mid-session
+        // in Settings → IMUs: globally disabling a device disables it for this
+        // session too (and disconnects it), and vice versa. Deliberate session
+        // overrides of UNCHANGED devices are preserved (diff-based).
+        connect(m_appSettings, &AppSettings::imuExcludedChanged, this, [this]() {
+            const QStringList now  = m_appSettings->imuExcluded();
+            const QStringList prev = m_lastGlobalExcluded;
+            for (const QString &id : now)
+                if (!prev.contains(id)) setSessionImuEnabled(id, false);
+            for (const QString &id : prev)
+                if (!now.contains(id)) setSessionImuEnabled(id, true);
+            m_lastGlobalExcluded = now;
+        });
+    }
+
     // Start the async BLE scan.  Results arrive via deviceAdded and are
     // automatically reflected by imuList() / imuDeviceList() reading directly
     // from DeviceEnumerator — no local list copy needed.
@@ -152,9 +177,38 @@ QVariantList ImuManager::imuDeviceList() const
         entry[QStringLiteral("supportsMagCalibration")]      = cap.supportsMagCalibration;
         entry[QStringLiteral("supportsAccelGyroCalibration")] = cap.supportsAccelGyroCalibration;
         entry[QStringLiteral("supportsConfigPersistence")]   = cap.supportsConfigPersistence;
+        entry[QStringLiteral("sessionEnabled")] = !m_sessionExcluded.contains(dev.id);
         list.append(entry);
     }
     return list;
+}
+
+QStringList ImuManager::sessionImuExcluded() const
+{
+    return m_sessionExcluded;
+}
+
+void ImuManager::setSessionImuEnabled(const QString &deviceId, bool on)
+{
+    if (deviceId.isEmpty()) return;
+    const bool excluded = m_sessionExcluded.contains(deviceId);
+    if (on != excluded) return;   // already in the requested state
+
+    if (on)
+        m_sessionExcluded.removeAll(deviceId);
+    else
+        m_sessionExcluded.append(deviceId);
+
+    // Disabling a selected/connected device must actually disconnect it so it
+    // leaves the session. Enabling never auto-connects — Connect does that.
+    if (!on && m_selected.value(deviceId).selected) {
+        const QList<Device> devs = DeviceEnumerator::instance()->devices(DeviceType::Imu);
+        for (int i = 0; i < devs.size(); ++i)
+            if (devs[i].id == deviceId) { setSelected(i, false); break; }
+    }
+
+    emit sessionImuExcludedChanged();
+    emit imuDeviceListChanged();
 }
 
 QVariantList ImuManager::instances() const
