@@ -294,6 +294,16 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
             rec.tUs.push_back(e.timestamp_us - t0);
         }
 
+        // Every payload skipped (size/descriptor mismatch) would otherwise
+        // "succeed" with an empty MP4 — fail loudly instead so the UI surfaces
+        // it (the toast on swingSaveFailed) rather than a blank swing.
+        if (rec.tUs.empty()) {
+            result.error = QStringLiteral("0 frames written for %1 — all %2 buffered "
+                                          "payloads skipped (payload/descriptor mismatch?)")
+                               .arg(cam.fileName).arg(entries.size());
+            return result;
+        }
+
         if (!encoder->finish()) {
             result.error = QStringLiteral("failed to finalise %1").arg(cam.fileName);
             return result;

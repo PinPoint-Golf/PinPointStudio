@@ -413,4 +413,24 @@ ApplicationWindow {
             }
         }
     }
+
+    // ── Swing-save failure toast ─────────────────────────────────────────────
+    // Window-level overlay so a failed export surfaces on whatever screen is
+    // active (the error is otherwise only visible in the message log). The
+    // copy action carries the full error for bug reports.
+    PpToast {
+        id: saveErrorToast
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: parent.height - height - Theme.sp(24)
+        z: 100
+        glyph: "⚠"
+        showUndo: false
+    }
+    Connections {
+        target: shotProcessor
+        function onSwingSaveFailed(error) {
+            saveErrorToast.copyText = error
+            saveErrorToast.show(qsTr("Swing save failed — %1").arg(error))
+        }
+    }
 }
