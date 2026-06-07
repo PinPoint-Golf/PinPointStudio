@@ -109,6 +109,14 @@ ApplicationWindow {
     Shortcut { sequence: "F11";         onActivated: root.toggleFullscreen() }
     Shortcut { sequence: "Meta+Ctrl+F"; onActivated: root.toggleFullscreen() }
 
+    // ESC skips the post-shot replay — inert otherwise (enabled gating keeps
+    // Esc free for popups/text fields when no replay is running).
+    Shortcut {
+        sequence: "Esc"
+        enabled: shotProcessor.isReplaying
+        onActivated: shotProcessor.cancelReplay()
+    }
+
     // ── Close interception while a session is active ─────────────────────────
     // Covers the WM close button and the header ✕ (routed through root.close()
     // via PpHeader.closeRequested — Qt.quit() would bypass onClosing). Known

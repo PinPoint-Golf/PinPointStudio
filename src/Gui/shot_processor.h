@@ -81,6 +81,11 @@ public:
     bool    busy()        const { return m_state != State::Idle; }
     bool    isReplaying() const { return m_state == State::Replaying; }
 
+    // User-initiated skip (ESC). Only meaningful mid-replay: the shot is
+    // already on the carousel and saved by the time the replay runs, so
+    // cancelling is just the normal end-of-replay path taken early.
+    Q_INVOKABLE void cancelReplay();
+
     // Teardown stop-barrier (camera deselect, destructors). Cancels any pending
     // post-roll, stops replay, BLOCKS until both workers return, destroys the
     // window. Deliberately does not touch buffer state — the caller owns the

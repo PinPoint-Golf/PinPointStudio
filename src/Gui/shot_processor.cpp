@@ -507,6 +507,14 @@ void ShotProcessor::onReplayTick()
     }
 }
 
+void ShotProcessor::cancelReplay()
+{
+    if (m_state != State::Replaying)
+        return;
+    ppInfo() << "[ShotProcessor] replay cancelled by user";
+    stopReplay(true);   // normal end-of-replay path, taken early
+}
+
 void ShotProcessor::stopReplay(bool thenFinish)
 {
     if (m_replayTimer) {

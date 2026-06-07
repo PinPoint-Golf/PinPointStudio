@@ -435,6 +435,16 @@ Item {
                     font.family: Theme.fontData
                     font.pixelSize: Theme.fontSzLabel
                 }
+
+                // Muted skip hint — ESC cancels the replay (Main.qml Shortcut).
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("ESC")
+                    color: Theme.colorText3
+                    font.family: Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    font.letterSpacing: Theme.trackingMicro
+                }
             }
 
             SequentialAnimation on opacity {
