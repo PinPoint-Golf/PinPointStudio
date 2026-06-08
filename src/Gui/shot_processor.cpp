@@ -64,6 +64,39 @@ int postRollMsFor(ShotController::Source s)
 // The entire trailing ring — every source's window_duration is 5 s.
 constexpr std::chrono::milliseconds kWindowDuration{5000};
 
+// Convert the analyzer's rich SwingAnalysis into QML-friendly data for the shot's
+// analysisDetail role (the future scrubbable metric graph reads series + phases).
+QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
+{
+    using namespace pinpoint::analysis;
+    QVariantList series;
+    for (const MetricSeries &m : a.series) {
+        QVariantList ts, vs, samples;
+        for (const int64_t t : m.t_us) ts.append(static_cast<qlonglong>(t));
+        for (const double v : m.value) vs.append(v);
+        for (const PhaseSample &ps : m.phaseSamples)
+            samples.append(QVariantMap{ { QStringLiteral("phase"), int(ps.phase) },
+                                        { QStringLiteral("t_us"),  static_cast<qlonglong>(ps.t_us) },
+                                        { QStringLiteral("value"), ps.value },
+                                        { QStringLiteral("band"),  ps.band } });
+        series.append(QVariantMap{ { QStringLiteral("key"),   m.key },
+                                   { QStringLiteral("label"), m.label },
+                                   { QStringLiteral("unit"),  m.unit },
+                                   { QStringLiteral("t_us"),  ts },
+                                   { QStringLiteral("value"), vs },
+                                   { QStringLiteral("phaseSamples"), samples } });
+    }
+    QVariantList phases;
+    for (const PhaseEvent &e : a.phases)
+        phases.append(QVariantMap{ { QStringLiteral("phase"), int(e.phase) },
+                                   { QStringLiteral("t_us"),  static_cast<qlonglong>(e.t_us) },
+                                   { QStringLiteral("conf"),  e.conf } });
+    return QVariantMap{ { QStringLiteral("tier"),    a.tier },
+                        { QStringLiteral("overall"), a.score.overall },
+                        { QStringLiteral("series"),  series },
+                        { QStringLiteral("phases"),  phases } };
+}
+
 // Map a placement slot ("A"/"B"/"C") to an anatomical SegmentRole per session
 // type. Wrist (1): A=forearm, B=hand, C=upper arm. Other types resolve as their
 // analyzers land — Unknown until then (the binding's A/M are still captured).
@@ -457,7 +490,10 @@ void ShotProcessor::maybeJoin()
                              thumbUrl,
                              analysisOk ? m_analysisResult.tracePoints : QVariantList{},
                              analysisOk ? m_analysisResult.score : 0,
-                             analysisOk ? m_analysisResult.metrics : QVariantMap{});
+                             analysisOk ? m_analysisResult.metrics : QVariantMap{},
+                             (analysisOk && m_analysisResult.detail)
+                                 ? toAnalysisDetail(*m_analysisResult.detail)
+                                 : QVariantMap{});
     }
 
     if (analysisOk && exportOk)

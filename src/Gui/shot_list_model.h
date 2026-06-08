@@ -58,6 +58,7 @@ public:
         NoteRole,
         TrashedRole,
         MetricsRole,
+        AnalysisDetailRole,
     };
 
     explicit ShotListModel(QObject *parent = nullptr);   // starts empty
@@ -73,7 +74,8 @@ public:
     // next ordinal and a fresh id.
     void addShot(const QString &timestampLabel, const QString &club, bool hasVideo,
                  const QUrl &thumbnailSource, const QVariantList &tracePoints,
-                 int score, const QVariantMap &metrics);
+                 int score, const QVariantMap &metrics,
+                 const QVariantMap &analysisDetail = {});
 
     Q_INVOKABLE void setRating(int id, int n);
     Q_INVOKABLE void setNote(int id, const QString &text);
@@ -102,6 +104,7 @@ private:
         QString      note;
         bool         trashed = false;
         QVariantMap  metrics;         // key → { label, value }
+        QVariantMap  analysisDetail;  // { tier, overall, series:[…], phases:[…] } for the graph
     };
 
     int rowForId(int id) const;

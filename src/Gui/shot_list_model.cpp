@@ -46,6 +46,7 @@ QVariant ShotListModel::data(const QModelIndex &index, int role) const
     case NoteRole:            return s.note;
     case TrashedRole:         return s.trashed;
     case MetricsRole:         return s.metrics;
+    case AnalysisDetailRole:  return s.analysisDetail;
     default:                  return {};
     }
 }
@@ -65,6 +66,7 @@ QHash<int, QByteArray> ShotListModel::roleNames() const
         { NoteRole,            "note"            },
         { TrashedRole,         "trashed"         },
         { MetricsRole,         "metrics"         },
+        { AnalysisDetailRole,  "analysisDetail"  },
     };
 }
 
@@ -88,7 +90,8 @@ int ShotListModel::rowForId(int id) const
 void ShotListModel::addShot(const QString &timestampLabel, const QString &club,
                             bool hasVideo, const QUrl &thumbnailSource,
                             const QVariantList &tracePoints, int score,
-                            const QVariantMap &metrics)
+                            const QVariantMap &metrics,
+                            const QVariantMap &analysisDetail)
 {
     int maxOrdinal = 0;
     for (const Shot &s : m_shots)
@@ -104,6 +107,7 @@ void ShotListModel::addShot(const QString &timestampLabel, const QString &club,
     shot.tracePoints     = tracePoints;
     shot.score           = score;
     shot.metrics         = metrics;
+    shot.analysisDetail  = analysisDetail;
 
     // Newest first, matching the mockup's right-of-cap ordering.
     beginInsertRows(QModelIndex(), 0, 0);
