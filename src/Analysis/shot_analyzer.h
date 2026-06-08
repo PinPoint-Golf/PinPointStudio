@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "types.h"
+#include "swing_analysis.h"
 
 namespace pinpoint { class SwingWindow; }
 
@@ -39,6 +40,14 @@ struct ShotAnalysisJob {
     std::vector<pinpoint::SourceId> cameraSources;  // exported cameras, face-on first
     std::vector<pinpoint::SourceId> imuSources;     // IMU sources present in the window
     pinpoint::SourceId markerSourceId = pinpoint::kInvalidSourceId;  // shot_marker_v1 source
+
+    // Resolved IMU -> anatomical-segment bindings (placement slot + the live
+    // calibration A/M snapshot), filled on the UI thread — the worker cannot
+    // read the live ImuInstance. Empty when no IMU is bound.
+    std::vector<pinpoint::analysis::ImuSegmentBinding> imuBindings;
+    int     handedness = 0;     // 0 unknown, 1 right, 2 left (lead-arm sign)
+    QString swingDir;           // swing folder for persistence (set at the join)
+    bool    calibValid = false; // IMU sensor-to-segment calibration fresh (<30 min)
 };
 
 // Result shapes mirror the ShotListModel roles so the join can hand them to
@@ -50,6 +59,10 @@ struct ShotAnalysisResult {
     QVariantMap  metrics;
     QVariantList tracePoints;
     QString      error;
+
+    // Rich analyzed-swing detail (skeleton/series/score/faults). Null for the
+    // stub analyzers; folded into swing.json's "analysis" object at the join.
+    std::shared_ptr<pinpoint::analysis::SwingAnalysis> detail;
 };
 
 // Abstract per-session-type shot analyzer. analyze() runs on a QtConcurrent

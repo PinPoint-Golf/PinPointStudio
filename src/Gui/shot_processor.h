@@ -36,6 +36,7 @@ class AppSettings;
 class AthleteController;
 class CameraInstance;
 class CameraManager;
+class ImuManager;
 class SessionController;
 class ShotListModel;
 
@@ -70,6 +71,7 @@ public:
 
     ShotProcessor(pinpoint::EventBuffer *buffer,
                   CameraManager         *cameraManager,
+                  ImuManager            *imuManager,
                   AppSettings           *appSettings,
                   AthleteController     *athleteController,
                   SessionController     *sessionController,
@@ -134,6 +136,7 @@ private:
     // Dependencies — UI-thread only; workers see value-type jobs.
     pinpoint::EventBuffer *m_buffer        = nullptr;
     CameraManager         *m_cameraManager = nullptr;
+    ImuManager            *m_imuManager    = nullptr;
     AppSettings           *m_appSettings   = nullptr;
     AthleteController     *m_athlete       = nullptr;
     SessionController     *m_session       = nullptr;

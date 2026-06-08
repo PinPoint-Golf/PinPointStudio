@@ -233,7 +233,7 @@ Item {
         ],
         // 1 — Wrist Motion
         [
-            { slot: "A", placement: qsTr("Wrist"),        required: true  },
+            { slot: "A", placement: qsTr("Forearm"),      required: true  },
             { slot: "B", placement: qsTr("Hand"),         required: true  },
             { slot: "C", placement: qsTr("Upper arm"),    required: false }
         ],

@@ -128,9 +128,9 @@ int main(int argc, char *argv[])
     // Declared after cameraManager so it is destroyed FIRST: ~ShotProcessor
     // joins the shot workers and destroys the SwingWindow before
     // ~CameraManager deregisters sources and ~EventBuffer frees ring memory.
-    ShotProcessor             shotProcessor(&eventBuffer, &cameraManager, &appSettings,
-                                            &athleteController, &sessionController,
-                                            &shotModel);
+    ShotProcessor             shotProcessor(&eventBuffer, &cameraManager, &imuManager,
+                                            &appSettings, &athleteController,
+                                            &sessionController, &shotModel);
     cameraManager.setShotProcessor(&shotProcessor);   // teardown stop-barrier
     ClipboardHelper           clipboardHelper;
 

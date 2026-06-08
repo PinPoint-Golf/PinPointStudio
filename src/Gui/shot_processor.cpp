@@ -24,8 +24,11 @@
 #include "camera_manager.h"
 #include "device_enumerator.h"
 #include "event_buffer.h"
+#include "imu_instance.h"
+#include "imu_manager.h"
 #include "session_controller.h"
 #include "shot_list_model.h"
+#include "../Analysis/swing_analysis.h"
 #include "../Core/pp_debug.h"
 
 #include <QDateTime>
@@ -61,10 +64,25 @@ int postRollMsFor(ShotController::Source s)
 // The entire trailing ring — every source's window_duration is 5 s.
 constexpr std::chrono::milliseconds kWindowDuration{5000};
 
+// Map a placement slot ("A"/"B"/"C") to an anatomical SegmentRole per session
+// type. Wrist (1): A=forearm, B=hand, C=upper arm. Other types resolve as their
+// analyzers land — Unknown until then (the binding's A/M are still captured).
+pinpoint::analysis::SegmentRole segmentRoleForSlot(int sessionType, const QString &slot)
+{
+    using R = pinpoint::analysis::SegmentRole;
+    if (sessionType == 1) {            // Wrist Motion
+        if (slot == QLatin1String("A")) return R::LeadForearm;
+        if (slot == QLatin1String("B")) return R::LeadHand;
+        if (slot == QLatin1String("C")) return R::LeadUpperArm;
+    }
+    return R::Unknown;
+}
+
 } // namespace
 
 ShotProcessor::ShotProcessor(pinpoint::EventBuffer *buffer,
                              CameraManager         *cameraManager,
+                             ImuManager            *imuManager,
                              AppSettings           *appSettings,
                              AthleteController     *athleteController,
                              SessionController     *sessionController,
@@ -73,6 +91,7 @@ ShotProcessor::ShotProcessor(pinpoint::EventBuffer *buffer,
     : QObject(parent)
     , m_buffer(buffer)
     , m_cameraManager(cameraManager)
+    , m_imuManager(imuManager)
     , m_appSettings(appSettings)
     , m_athlete(athleteController)
     , m_session(sessionController)
@@ -237,6 +256,30 @@ void ShotProcessor::startAnalysis()
             job.markerSourceId = e.source_id;
         else if (std::holds_alternative<pinpoint::ImuFormat>(fd.format))
             job.imuSources.push_back(e.source_id);
+    }
+
+    // Athlete handedness (lead-arm sign) and IMU -> segment bindings, resolved
+    // here on the UI thread — the worker can read neither the athlete controller
+    // nor the live ImuInstance calibration (alignA/mountM are session-lifetime).
+    const QString hand = m_athlete ? m_athlete->currentHandedness() : QString();
+    job.handedness = hand.compare(QLatin1String("Left"),  Qt::CaseInsensitive) == 0 ? 2
+                   : hand.compare(QLatin1String("Right"), Qt::CaseInsensitive) == 0 ? 1 : 0;
+    if (m_imuManager) {
+        const QVariantMap placement = m_appSettings ? m_appSettings->imuPlacement() : QVariantMap{};
+        const QVariantList insts = m_imuManager->instances();
+        for (const QVariant &v : insts) {
+            auto *imu = qobject_cast<ImuInstance *>(v.value<QObject *>());
+            if (!imu) continue;
+            const pinpoint::SourceId sid = imu->sourceId();
+            if (std::find(job.imuSources.begin(), job.imuSources.end(), sid) == job.imuSources.end())
+                continue;   // this IMU is not a source in the captured window
+            pinpoint::analysis::ImuSegmentBinding b;
+            b.source = sid;
+            b.role   = segmentRoleForSlot(m_sessionType, placement.value(imu->deviceId()).toString());
+            b.alignA = imu->alignA();
+            b.mountM = imu->mountM();
+            job.imuBindings.push_back(b);
+        }
     }
 
     const pinpoint::SwingWindow *win = &*m_swingWindow;   // stable optional storage

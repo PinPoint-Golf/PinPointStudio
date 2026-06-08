@@ -1666,6 +1666,7 @@ target_sources(PinPointStudio PRIVATE
     src/Export/swing_paths.cpp
     src/Export/swing_exporter.h
     src/Export/swing_exporter.cpp
+    src/Analysis/swing_analysis.h
     src/Analysis/shot_analyzer.h
     src/Analysis/shot_analyzer.cpp
 )

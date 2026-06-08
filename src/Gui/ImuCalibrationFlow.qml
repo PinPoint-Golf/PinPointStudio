@@ -447,8 +447,10 @@ Item {
                 // Quick-calibrate EVERY connected segment at arm-down: sets A so
                 // anatQuat=identity here, with the fixed nominal mounting M, and runs
                 // the gravity (flip) check. Each sensor's arm-down reference is stored
-                // for the phase-2 abduction refinement. All segments share the strap
-                // convention → handMount=false for all.
+                // for the phase-2 abduction refinement. The hand, forearm and upper-arm
+                // sensors are mounted COPLANAR (same strap orientation), so all three share
+                // the arm nominal mount → handMount=false for all. (nominalHandMount() is a
+                // non-coplanar dorsal placement we do not use.)
                 d._refA = d._curQuat(d.leadImu)
                 d._refB = d._curQuat(d.slotB)
                 d._refC = d._curQuat(d.slotC)

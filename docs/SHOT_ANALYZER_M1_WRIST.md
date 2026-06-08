@@ -21,7 +21,7 @@ This is the **single best return on one camera** in the whole product. Every oth
 | Wizard slot | Placement label | `SegmentRole` | Mount constant | Required |
 |---|---|---|---|---|
 | **A** | Forearm (wrist anchor) | `LeadForearm` | `nominalArmMount()` | yes |
-| **B** | Hand (back of glove) | `LeadHand` | `nominalHandMount()` | yes |
+| **B** | Hand (back of glove) | `LeadHand` | `nominalArmMount()` (coplanar) | yes |
 | **C** | Upper arm | `LeadUpperArm` | `nominalArmMount()` | **optional — pronation/elbow degrade if absent** |
 
 > **Wizard reconciliation.** `ScreenSessionWizard.qml` keeps Wrist `requiredImus:2` with slot C (upper arm) `required:false`. Forearm + hand alone fully determine **wrist FE/RUD** (the headline metrics); the upper-arm IMU is needed *only* for **forearm pronation/supination** and the IMU **elbow flexion** term, so it stays optional and those two **degrade gracefully when slot C is absent** (suppressed / flagged `estimated`, never faked — and `leadArmFlexion` falls back to the camera 2D elbow angle). The only wizard change is the slot-A *display label* (the existing `"Wrist"` string → `"Forearm"`); the authoritative binding to `SegmentRole` happens once in C++ (below).
@@ -53,14 +53,14 @@ Each IMU registers a `DeviceKind::IMU_WitMotion` source, schema `imu_sample_v1`,
 
 ### Goal
 
-One **constant** unit quaternion `alignA` (`A_seg`) per IMU such that `q_segment(t) = A · q_raw(t) · M`, with `M` = the fixed strap mount (`nominalArmMount` / `nominalHandMount`) and `A` chosen so the segment reads its rest orientation at the captured reference pose. Joint angles are then relative quaternions (§4) and are immune to the shared yaw datum.
+One **constant** unit quaternion `alignA` (`A_seg`) per IMU such that `q_segment(t) = A · q_raw(t) · M`, with `M` = the fixed strap mount and `A` chosen so the segment reads its rest orientation at the captured reference pose. The hand, forearm and upper-arm sensors are mounted **coplanar** (same strap orientation), so all three share `nominalArmMount()`. Joint angles are then relative quaternions (§4) and are immune to the shared yaw datum.
 
 ### Procedure (golfer-friendly, ~8 s — extends the existing two-pose flow)
 
-The codebase already ships a validated two-pose flow in `ImuCalibrationFlow.qml` driving `ImuInstance` calibration methods. M1 keeps it and fixes two bugs:
+The codebase already ships a validated two-pose flow in `ImuCalibrationFlow.qml` driving `ImuInstance` calibration methods. M1 reuses it unchanged:
 
 1. **Arm-down (static, ~2 s).** Stillness-gated (≤15 °/s, slerp-averaged). For each connected slot call `setNominalCalibration(refRaw, handMount)` — `M = nominal`, `A = conj(refRaw·M)` so `anatQuat == identity` at arm-down. Gravity flip-check sets `mountGravityErrorDeg`.
-   * **Confirmed bug fix:** `ImuCalibrationFlow.qml:458` calibrates the **hand** (slot B) with `handMount=false` — the "strap convention" comment at `:447-451` wrongly lumps the glove sensor with the arm straps. The hand IMU is **dorsal (back of glove)**, so slot B must pass **`handMount=true`** to use `nominalHandMount()`, not `nominalArmMount()`; otherwise wrist FE/RUD inherit a constant offset **and** FE↔RUD cross-talk.
+   * **Mounting (no change needed — coplanar sensors).** The hand, forearm and upper-arm IMUs sit **coplanar** — the same strap orientation on all three — so the hand uses `nominalArmMount()` exactly like the arm sensors (`handMount=false`), which is what `ImuCalibrationFlow.qml` already passes for every slot. `nominalHandMount()` describes a *non-coplanar dorsal* placement this rig does **not** use; do not switch slot B to it. The arm-down gravity-flip gate (`mountGravityErrorDeg ≤ 25°`) is the empirical check that the chosen mount is right.
 2. **Abduction (functional, ~3 s).** Raise the arm to ~horizontal; `refineMountAboutLongAxis(refRaw, phiDeg, handMount)` sets `M = nominal·Ry(φ)`, `|φ|≤25°`, re-anchors `A`, and sets `mountDeviationDeg`. **Two-gate accept** (both required): `mountDeviationDeg ≤ 15°` (strap rotation) **AND** `mountGravityErrorDeg ≤ 25°` (flip). One gate alone is insufficient — gravity catches flips that `φ` is blind to.
 
 For deeper accuracy, `setFunctionalCalibration(refRaw, gravityDown, longAxis, flexAxis)` runs the full `imu_calibration::solveSegment()` (Seel-style functional axes): build `e_y = long`, `e_x = flex` (Gram-Schmidt), `e_z = e_x×e_y`, `M = fromAxes(...)`, `A = conj(refRaw·M)`; `axisAngleDeg` near 90° gates quality. This is the path to upgrade the abduction gate to a true elbow-flex / pro-sup sweep later.
@@ -71,7 +71,7 @@ The on-device `CALSW` "set angle reference"/"zero heading" (`WT9011DCL_BLE::zero
 
 ### Validity & wizard (session-only, 30-min drift timeout)
 
-`A`/`M` live on the live `ImuInstance` and are **session-only — never persisted across app restart or device reconnect.** 6-axis fusion has no absolute heading reference, so a stored calibration goes stale as yaw drifts; rather than save a frame that will be wrong on reload, M1 stamps each calibration with a monotonic capture time and treats it as **valid for 30 minutes**. After expiry — or any reconnect — `calibrationValid` flips false and the UI prompts a re-calibrate before the next shot is accepted. **Do not wire the dead `AppSettings::imuCalibration` map** (key `imu/calibration`, zero callers): cross-restart persistence is explicitly out of scope because it would resurrect a drifted, wrong anatomical frame. The job carries a per-binding `calibAgeMs` / `calibValid` so the worker lowers confidence (or `WristAnalyzer` refuses the shot) when calibration is stale. The wizard already exposes the step: `hasCalibrateStep == (sessionType === Wrist)` enables **Calibrate (step 4) + Confirm (step 5)** in `ScreenSessionWizard.qml`; `calibFlow.calibrationDone` gates completion. M1 fixes the `handMount`/label bugs, adds the capture-time stamp + 30-min expiry, and prompts re-cal when stale.
+`A`/`M` live on the live `ImuInstance` and are **session-only — never persisted across app restart or device reconnect.** 6-axis fusion has no absolute heading reference, so a stored calibration goes stale as yaw drifts; rather than save a frame that will be wrong on reload, M1 stamps each calibration with a monotonic capture time and treats it as **valid for 30 minutes**. After expiry — or any reconnect — `calibrationValid` flips false and the UI prompts a re-calibrate before the next shot is accepted. **Do not wire the dead `AppSettings::imuCalibration` map** (key `imu/calibration`, zero callers): cross-restart persistence is explicitly out of scope because it would resurrect a drifted, wrong anatomical frame. The job carries a per-binding `calibAgeMs` / `calibValid` so the worker lowers confidence (or `WristAnalyzer` refuses the shot) when calibration is stale. The wizard already exposes the step: `hasCalibrateStep == (sessionType === Wrist)` enables **Calibrate (step 4) + Confirm (step 5)** in `ScreenSessionWizard.qml`; `calibFlow.calibrationDone` gates completion. M1 leaves the mount handling unchanged (coplanar sensors → `handMount=false` for all, as today), adds the capture-time stamp + 30-min expiry, and prompts re-cal when stale.
 
 ---
 
@@ -285,7 +285,7 @@ The playhead `╳` moves with the replay frame; the phase chip row and x-axis ti
 6. `src/Analysis/metrics/metric_extractor.{h,cpp}` — the §4 wrist/forearm/elbow extraction → `MetricSeries`; **guards `forearmPronation` / IMU-elbow on the `LeadUpperArm` binding being present** (else degrade per §4).
 7. `src/Analysis/phase/phase_segmenter.{h,cpp}` — Address/Top/Impact from IMU dynamics + `job.impactUs`.
 8. `src/Analysis/score/swing_scorer.{h,cpp}` — one-sided bands + geometric mean → `ScoreBreakdown`.
-9. `src/Gui/ImuCalibrationFlow.qml` — **fix `handMount=true` for slot B**; fix `nameFor()` label.
+9. `src/Gui/ImuCalibrationFlow.qml` — **no mounting change** (coplanar sensors already calibrate correctly with `handMount=false` for all slots; `nameFor()` already labels slot A "forearm").
 10. `src/Gui/ScreenSessionWizard.qml` — relabel Wrist slot A `"Wrist"`→`"Forearm"`; **keep `requiredImus:2`, slot C optional** (pronation/elbow degrade when absent).
 11. `src/Gui/ScreenWrist.qml` — `metricKeys` → the four real IDs.
 12. `src/Gui/imu_instance.{h,cpp}` — stamp each calibration with a capture time; expose `calibrationValid` (≤ 30 min, invalidated on reconnect) + `calibAgeMs`. **Do not** persist to `AppSettings::imuCalibration` — calibration is session-only by design.
@@ -306,7 +306,7 @@ The playhead `╳` moves with the replay frame; the phase chip row and x-axis ti
 ## 10. Risks & open questions (3-IMU lead-arm rig)
 
 * **Soft-tissue artifact (forearm/upper-arm straps).** Skin/strap motion under downswing acceleration biases pronation more than any math error. Mitigate with tight straps and a static-pose recheck; warn if a re-check disagrees with stored `A`.
-* **Glove / hand IMU mounting.** `nominalHandMount()` is a *dorsal* numerically-solved constant, not a long-axis rotation of the arm nominal — sensitive to where on the glove back it sits. The `handMount=true` fix is mandatory; consider a hand-specific functional check.
+* **Glove / hand IMU mounting.** The hand sensor is mounted **coplanar** with the forearm/upper-arm sensors, so it uses `nominalArmMount()` — *not* the non-coplanar `nominalHandMount()`. The residual risk is strap rotation / soft-tissue motion on the glove back; the arm-down gravity-flip gate (`mountGravityErrorDeg ≤ 25°`) catches a mis-seat.
 * **Calibration repeatability.** Two-pose static accuracy is the floor (~6–8° elbow). Non-expert golfers produce sloppy sweeps; gate on the existing stillness + two-gate (15°/25°) accept, and PCA-reject functional sweeps where one gyro axis doesn't dominate. **Resolved:** calibration is **session-only with a 30-min validity window** — a re-strap or >30 min of drift ⇒ re-calibrate; no cross-restart/reconnect persistence (it would resurrect a drifted frame).
 * **Heading drift (6-axis, no magnetometer).** Tilt is gravity-bounded; about-vertical yaw drifts and **only cancels in relative quaternions if all three IMUs share one drift datum** — they do (common gravity-seeded world). the **30-min calibration timeout is exactly this mid-session re-reference**; differential bias between sensors within the window is the residual risk.
 * **Elbow hyperextension / singularity.** Near-straight impact pushes the elbow swing toward the 180° swing-twist singularity — the cross-product fallback is mandatory, and `leadArmFlexion` near 180° must not wrap.
