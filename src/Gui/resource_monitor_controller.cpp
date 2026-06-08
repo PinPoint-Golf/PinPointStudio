@@ -99,15 +99,21 @@ void ResourceMonitorController::refresh()
         double fill = src.slot_count > 0
             ? std::min(1.0, double(src.events_written) / double(src.slot_count))
             : 0.0;
-        quint64 overwritten = quint64(src.events_overwritten);
+        // Cumulative counters use the LIFETIME totals (folded pre-reset history +
+        // current ring) so they survive each resume()/ring->reset() — i.e. every
+        // shot-replay cycle. Matches the camera/IMU device rows below. The shot
+        // marker source is only shown here (it is not a DeviceEnumerator device),
+        // so without this its count zeroed on every replay. ringFill stays on the
+        // raw events_written — it reflects CURRENT ring occupancy, not lifetime.
+        quint64 overwritten = quint64(src.lifetime_events_overwritten);
         int64_t maxIa = src.max_inter_arrival_us;
         const QString srcAlias = sourceAliases.value(src.id, QString::fromStdString(src.name));
         QVariantMap m;
         m[QStringLiteral("name")]               = srcAlias;
         m[QStringLiteral("identifier")]         = QString::fromStdString(src.identifier);
-        m[QStringLiteral("eventsWritten")]       = quint64(src.events_written);
+        m[QStringLiteral("eventsWritten")]       = quint64(src.lifetime_events_written);
         m[QStringLiteral("eventsOverwritten")]   = overwritten;
-        m[QStringLiteral("bytesWritten")]        = quint64(src.bytes_written_total);
+        m[QStringLiteral("bytesWritten")]        = quint64(src.lifetime_bytes_written);
         m[QStringLiteral("slotCount")]           = quint64(src.slot_count);
         m[QStringLiteral("stalled")]             = src.stalled;
         m[QStringLiteral("maxInterArrivalUs")]   = qint64(maxIa);
@@ -115,9 +121,9 @@ void ResourceMonitorController::refresh()
         m[QStringLiteral("monoViolations")]      = quint64(src.monotonicity_violations);
         m[QStringLiteral("ringFillFraction")]    = fill;
         // Pre-formatted strings for QML (no JS formatting needed)
-        m[QStringLiteral("eventsWrittenStr")]    = fmtCount(quint64(src.events_written));
+        m[QStringLiteral("eventsWrittenStr")]    = fmtCount(quint64(src.lifetime_events_written));
         m[QStringLiteral("eventsOverwrittenStr")]= overwritten > 0 ? QString::number(overwritten) : QStringLiteral("—");
-        m[QStringLiteral("bytesWrittenStr")]     = fmtBytes(quint64(src.bytes_written_total));
+        m[QStringLiteral("bytesWrittenStr")]     = fmtBytes(quint64(src.lifetime_bytes_written));
         m[QStringLiteral("maxInterArrivalStr")]  = fmtInterArrival(maxIa);
         m_sources.append(m);
     }
@@ -432,9 +438,11 @@ QString ResourceMonitorController::bufferState() const
 
 quint64 ResourceMonitorController::totalEvents() const
 {
+    // Lifetime totals (folded history + current ring) so the headline count does
+    // not dip on every resume()/ring->reset() — i.e. each shot-replay cycle.
     quint64 total = 0;
     for (const auto &src : m_snapshot.sources)
-        total += src.events_written;
+        total += src.lifetime_events_written;
     return total;
 }
 
