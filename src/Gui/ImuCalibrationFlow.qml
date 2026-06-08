@@ -529,7 +529,7 @@ Item {
             }
 
             Column {
-                Layout.preferredWidth: Theme.sp(180)
+                Layout.preferredWidth: Theme.sp(360)
                 Layout.fillHeight:     true
                 spacing:               Theme.sp(16)
                 Layout.topMargin:      Theme.sp(32)
