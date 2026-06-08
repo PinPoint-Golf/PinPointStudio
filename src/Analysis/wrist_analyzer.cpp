@@ -26,6 +26,7 @@
 #include "fusion/imu_vision_fuser.h"
 #include "metrics/metric_extractor.h"
 #include "phase/phase_segmenter.h"
+#include "score/swing_scorer.h"
 #include "swing_window.h"
 #include "../Core/pp_debug.h"
 
@@ -103,41 +104,6 @@ QVariantList buildTrace(const std::vector<MetricSeries> &series,
     return out;
 }
 
-// Provisional first-pass score (the proper multi-metric SwingScorer is the next
-// increment). Tolerance-band sub-scores at Impact + weighted geometric mean. Signs
-// are provisional until locked on "check your sensors", so the bands are lenient.
-double bandScore(double value, double mu, double sigma)
-{
-    const double z = std::abs(value - mu) / sigma;
-    if (z <= 1.0) return 100.0;
-    if (z >= 3.0) return 1.0;
-    const double t = (z - 1.0) / 2.0;
-    return std::max(1.0, 100.0 * (1.0 - t * t));
-}
-
-ScoreBreakdown scoreWrist(const std::vector<MetricSeries> &series)
-{
-    struct Band { const char *key; double mu, sigma, weight; };
-    static const Band kBands[] = {
-        { "leadWristFlexExt", 15.0, 18.0, 0.5 },   // a flat-to-flexed lead wrist at impact
-        { "leadArmFlexion",    5.0, 15.0, 0.3 },   // near-straight lead arm
-        { "forearmPronation",  0.0, 30.0, 0.2 },   // square-ish through impact
-    };
-    ScoreBreakdown sb;
-    double wsum = 0.0, lnsum = 0.0;
-    for (const Band &b : kBands) {
-        const MetricSeries *m = find(series, QString::fromLatin1(b.key));
-        if (!m) continue;
-        const double v  = phaseValue(*m, Phase::Impact);
-        const double ss = bandScore(v, b.mu, b.sigma);
-        sb.metrics.push_back(ScoredMetric{ m->key, v, b.mu, b.sigma, false, ss, QString(), Phase::Impact, b.weight });
-        wsum  += b.weight;
-        lnsum += b.weight * std::log(std::max(ss, 1.0));
-    }
-    sb.overall = wsum > 0.0 ? int(std::lround(std::exp(lnsum / wsum))) : 0;
-    return sb;
-}
-
 } // namespace
 
 ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
@@ -165,7 +131,7 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
     detail->series = series;
     detail->phases = phases;
     detail->tier   = static_cast<int>(ReconstructionTier::Mono3DPlusImu);
-    detail->score  = scoreWrist(series);
+    detail->score  = SwingScorer::score(series, job.sessionType);
 
     r.metrics     = buildMetricsMap(series);
     r.tracePoints = buildTrace(series, phases);
