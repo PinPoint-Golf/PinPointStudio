@@ -124,6 +124,8 @@ double flexRad  = 2.0 * std::atan2(QVector3D(eSwing.x(),eSwing.y(),eSwing.z()).l
 
 **Left-arm (lead) sign mirroring:** for the lead = left arm, flip the X and Z anatomical-axis signs (or negate FE/RUD/pron as needed) so flexion/pronation/ulnar stay **positive**, matching the right-arm convention and the existing `mirroredSource` handling. Without it, bow↔cup inverts.
 
+**Axis assignment is correct; absolute signs are verified on "check your sensors".** The FE/RUD/pron axis mapping matches the `imu_calibration` frame (flexion about X, deviation about Z, axial about Y) and is cross-talk-free — verified exactly by `wrist_angles_test.cpp` (the original spec read FE from Z / RUD from X, i.e. swapped; corrected to an XZY Tait-Bryan extraction so the axial roll drops out exactly). What is **not** yet pinned is the **sign** of each channel (which physical direction is +flexion / +ulnar / +pronation). That is confirmed by the user on the session-start wizard's **"check your sensors" page** (shown *after* calibration): the live FE/RUD/pronation readouts there let them verify and flip the signs. Until then the math is sign-consistent but the physical labelling is provisional.
+
 **No upper-arm IMU (slot C absent — the optional case).** `q_upperarm` is unavailable, so `forearmPronation` is **suppressed** (omitted, or emitted `estimated`) and `leadArmFlexion` falls back to the camera 2D elbow angle (§5). Wrist FE/RUD are **unaffected** — they need only the forearm + hand IMUs. `WristAnalyzer` branches on whether the `LeadUpperArm` binding is present.
 
 ### Outputs
