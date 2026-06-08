@@ -128,15 +128,22 @@ public:
         m_windowX         = ppSettings().value(QStringLiteral("ui/windowX"),         -1).toInt();
         m_windowY         = ppSettings().value(QStringLiteral("ui/windowY"),         -1).toInt();
 
-        m_language                  = ppSettings().value(QStringLiteral("general/language"),                  QStringLiteral("en_GB")).toString();
-        m_units                     = ppSettings().value(QStringLiteral("general/units"),                     QStringLiteral("mph")).toString();
-        m_athleteLibraryPath        = ppSettings().value(QStringLiteral("general/athleteLibraryPath"),        QStringLiteral("")).toString();
-        m_autoSaveSession           = ppSettings().value(QStringLiteral("general/autoSaveSession"),           true).toBool();
-        m_autoDetectSwing           = ppSettings().value(QStringLiteral("general/autoDetectSwing"),           true).toBool();
-        m_swingDetectionSensitivity = ppSettings().value(QStringLiteral("general/swingDetectionSensitivity"), QStringLiteral("Medium")).toString();
-        m_aiCoachingOnSessionEnd    = ppSettings().value(QStringLiteral("general/aiCoachingOnSessionEnd"),    true).toBool();
-        m_checkForUpdates           = ppSettings().value(QStringLiteral("general/checkForUpdates"),           true).toBool();
-        m_sendDiagnostics           = ppSettings().value(QStringLiteral("general/sendDiagnostics"),           false).toBool();
+        // NOTE: these keys use the capitalised "General/" group on purpose. QSettings
+        // serialises any "General/..." key to the INI's [%General] section (to keep it
+        // out of the reserved [General] section used for top-level keys). It always
+        // un-escapes [%General] back to the canonical capital "General" on the next
+        // launch — so a lowercase "general/..." key is written but read back as
+        // "General/...", and never round-trips. Writing "General/..." matches what
+        // Qt reads back, so values persist across restarts.
+        m_language                  = ppSettings().value(QStringLiteral("General/language"),                  QStringLiteral("en_GB")).toString();
+        m_units                     = ppSettings().value(QStringLiteral("General/units"),                     QStringLiteral("mph")).toString();
+        m_athleteLibraryPath        = ppSettings().value(QStringLiteral("General/athleteLibraryPath"),        QStringLiteral("")).toString();
+        m_autoSaveSession           = ppSettings().value(QStringLiteral("General/autoSaveSession"),           true).toBool();
+        m_autoDetectSwing           = ppSettings().value(QStringLiteral("General/autoDetectSwing"),           true).toBool();
+        m_swingDetectionSensitivity = ppSettings().value(QStringLiteral("General/swingDetectionSensitivity"), QStringLiteral("Medium")).toString();
+        m_aiCoachingOnSessionEnd    = ppSettings().value(QStringLiteral("General/aiCoachingOnSessionEnd"),    true).toBool();
+        m_checkForUpdates           = ppSettings().value(QStringLiteral("General/checkForUpdates"),           true).toBool();
+        m_sendDiagnostics           = ppSettings().value(QStringLiteral("General/sendDiagnostics"),           false).toBool();
 
         m_mainDisplayMode        = ppSettings().value(QStringLiteral("display/mainDisplayMode"),        QStringLiteral("primary")).toString();
         m_rememberWindowGeometry = ppSettings().value(QStringLiteral("display/rememberWindowGeometry"), true).toBool();
@@ -351,7 +358,7 @@ public:
     {
         if (m_language == v) return;
         m_language = v;
-        ppSettings().setValue(QStringLiteral("general/language"), v);
+        ppSettings().setValue(QStringLiteral("General/language"), v);
         emit languageChanged();
     }
 
@@ -359,7 +366,7 @@ public:
     {
         if (m_units == v) return;
         m_units = v;
-        ppSettings().setValue(QStringLiteral("general/units"), v);
+        ppSettings().setValue(QStringLiteral("General/units"), v);
         emit unitsChanged();
     }
 
@@ -367,7 +374,7 @@ public:
     {
         if (m_athleteLibraryPath == v) return;
         m_athleteLibraryPath = v;
-        ppSettings().setValue(QStringLiteral("general/athleteLibraryPath"), v);
+        ppSettings().setValue(QStringLiteral("General/athleteLibraryPath"), v);
         emit athleteLibraryPathChanged();
     }
 
@@ -375,7 +382,7 @@ public:
     {
         if (m_autoSaveSession == v) return;
         m_autoSaveSession = v;
-        ppSettings().setValue(QStringLiteral("general/autoSaveSession"), v);
+        ppSettings().setValue(QStringLiteral("General/autoSaveSession"), v);
         emit autoSaveSessionChanged();
     }
 
@@ -383,7 +390,7 @@ public:
     {
         if (m_autoDetectSwing == v) return;
         m_autoDetectSwing = v;
-        ppSettings().setValue(QStringLiteral("general/autoDetectSwing"), v);
+        ppSettings().setValue(QStringLiteral("General/autoDetectSwing"), v);
         emit autoDetectSwingChanged();
     }
 
@@ -391,7 +398,7 @@ public:
     {
         if (m_swingDetectionSensitivity == v) return;
         m_swingDetectionSensitivity = v;
-        ppSettings().setValue(QStringLiteral("general/swingDetectionSensitivity"), v);
+        ppSettings().setValue(QStringLiteral("General/swingDetectionSensitivity"), v);
         emit swingDetectionSensitivityChanged();
     }
 
@@ -399,7 +406,7 @@ public:
     {
         if (m_aiCoachingOnSessionEnd == v) return;
         m_aiCoachingOnSessionEnd = v;
-        ppSettings().setValue(QStringLiteral("general/aiCoachingOnSessionEnd"), v);
+        ppSettings().setValue(QStringLiteral("General/aiCoachingOnSessionEnd"), v);
         emit aiCoachingOnSessionEndChanged();
     }
 
@@ -407,7 +414,7 @@ public:
     {
         if (m_checkForUpdates == v) return;
         m_checkForUpdates = v;
-        ppSettings().setValue(QStringLiteral("general/checkForUpdates"), v);
+        ppSettings().setValue(QStringLiteral("General/checkForUpdates"), v);
         emit checkForUpdatesChanged();
     }
 
@@ -415,7 +422,7 @@ public:
     {
         if (m_sendDiagnostics == v) return;
         m_sendDiagnostics = v;
-        ppSettings().setValue(QStringLiteral("general/sendDiagnostics"), v);
+        ppSettings().setValue(QStringLiteral("General/sendDiagnostics"), v);
         emit sendDiagnosticsChanged();
     }
 

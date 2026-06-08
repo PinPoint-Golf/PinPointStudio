@@ -321,7 +321,7 @@ Item {
                         onClicked: folderDialog.open()
                     }
                     PpButton {
-                        label:     qsTr("Reveal")
+                        label:     qsTr("Open")
                         enabled:   appSettings.athleteLibraryPath.length > 0
                         onClicked: Qt.openUrlExternally("file://" + appSettings.athleteLibraryPath)
                     }
@@ -330,7 +330,8 @@ Item {
 
             // Disk usage bar
             Rectangle {
-                Layout.fillWidth: true
+                Layout.fillWidth:  true
+                Layout.leftMargin: Theme.sp(26)
                 implicitHeight:   diskContent.implicitHeight + Theme.sp(24)
                 color:            Theme.colorBg2
                 border.width:     1
