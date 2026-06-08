@@ -75,7 +75,7 @@ Item {
             id: tick
             required property var modelData
             readonly property bool isImpact: tick.modelData.phase === 5   // Phase::Impact
-            visible: root._hasData && tick.modelData.t_us >= root.startUs && tick.modelData.t_us <= root.endUs
+            visible: root._hasData && tick.modelData.t_us >= root._axisStart && tick.modelData.t_us <= root._axisEnd
             x: root.xForT(tick.modelData.t_us)
             width: 1; height: root.height
 
