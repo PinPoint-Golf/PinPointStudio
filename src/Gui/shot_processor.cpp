@@ -538,6 +538,10 @@ void ShotProcessor::startReplay()
         track.ctrl->setReplaying(true);
     }
 
+    m_replayPositionUs = m_replayWindowStartUs;   // playhead at the window start
+    emit replaySpanChanged();
+    emit replayPositionChanged();
+
     setState(State::Replaying);
 
     m_replayElapsed.start();
@@ -553,6 +557,13 @@ void ShotProcessor::onReplayTick()
     const int64_t realElapsedUs   = m_replayElapsed.elapsed() * 1000LL;
     const int64_t virtualTimeUs   = realElapsedUs / 4;
     const int64_t footageDuration = m_replayWindowEndUs - m_replayWindowStartUs;
+
+    // Publish the playhead (window µs) — the graph and video both follow this one clock.
+    const int64_t pos = m_replayWindowStartUs + virtualTimeUs;
+    if (pos != m_replayPositionUs) {
+        m_replayPositionUs = pos;
+        emit replayPositionChanged();
+    }
 
     if (virtualTimeUs >= footageDuration) {
         stopReplay(true);

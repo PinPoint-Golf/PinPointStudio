@@ -247,6 +247,7 @@ qt_add_qml_module(PinPointStudio
         src/Gui/PpQualityPill.qml
         src/Gui/PpStarRating.qml
         src/Gui/PpTrace.qml
+        src/Gui/PpMetricGraph.qml
         src/Gui/PpToast.qml
     SOURCES
         src/Audio/ting_player.h

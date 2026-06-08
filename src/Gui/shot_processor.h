@@ -65,6 +65,13 @@ class ShotProcessor : public QObject
     Q_PROPERTY(QString state       READ stateName   NOTIFY stateChanged)
     Q_PROPERTY(bool    busy        READ busy        NOTIFY busyChanged)
     Q_PROPERTY(bool    isReplaying READ isReplaying NOTIFY isReplayingChanged)
+    // Replay playhead — the single source of truth both the video tile and the
+    // synced metric graph bind to. EventBuffer::nowMicros() domain, == MetricSeries
+    // t_us, so no conversion. Position fires per ~60 Hz tick; span/impact on start.
+    Q_PROPERTY(qint64  replayPositionUs READ replayPositionUs NOTIFY replayPositionChanged)
+    Q_PROPERTY(qint64  replayStartUs    READ replayStartUs    NOTIFY replaySpanChanged)
+    Q_PROPERTY(qint64  replayEndUs      READ replayEndUs      NOTIFY replaySpanChanged)
+    Q_PROPERTY(qint64  replayImpactUs   READ replayImpactUs   NOTIFY replaySpanChanged)
 
 public:
     enum class State { Idle, PostRoll, Processing, Replaying };
@@ -82,6 +89,10 @@ public:
     QString stateName()   const;
     bool    busy()        const { return m_state != State::Idle; }
     bool    isReplaying() const { return m_state == State::Replaying; }
+    qint64  replayPositionUs() const { return m_replayPositionUs; }
+    qint64  replayStartUs()    const { return m_replayWindowStartUs; }
+    qint64  replayEndUs()      const { return m_replayWindowEndUs; }
+    qint64  replayImpactUs()   const { return m_impactUs; }
 
     // User-initiated skip (ESC). Only meaningful mid-replay: the shot is
     // already on the carousel and saved by the time the replay runs, so
@@ -101,6 +112,8 @@ signals:
     void stateChanged();
     void busyChanged();
     void isReplayingChanged();
+    void replayPositionChanged();
+    void replaySpanChanged();
     void shotProcessed(const QString &swingDir);   // analysis+export join reached, all ok
     void shotFailed(const QString &error);
     void swingSaved(const QString &path);
@@ -156,6 +169,7 @@ private:
     std::vector<ReplayTrack> m_replayTracks;
     int64_t       m_replayWindowStartUs = 0;
     int64_t       m_replayWindowEndUs   = 0;
+    int64_t       m_replayPositionUs    = 0;   // published playhead (window µs)
     QElapsedTimer m_replayElapsed;
     QTimer       *m_replayTimer = nullptr;
 
