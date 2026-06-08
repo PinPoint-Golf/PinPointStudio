@@ -17,6 +17,7 @@
  */
 
 #include "shot_analyzer.h"
+#include "wrist_analyzer.h"
 
 #include <QPointF>
 #include <algorithm>
@@ -41,22 +42,6 @@ QVariantList stubTracePoints(int seed)
         pts.append(QPointF(i / 12.0, y));
     }
     return pts;
-}
-
-// Placeholder wrist metrics — keys mirror the Wrist goal vocabulary used by
-// ScreenWrist's metricKeys; labels/values match the design mockups.
-QVariantMap stubWristMetrics()
-{
-    auto metric = [](const QString &label, const QString &value) {
-        return QVariantMap{ { QStringLiteral("label"), label },
-                            { QStringLiteral("value"), value } };
-    };
-    return QVariantMap{
-        { QStringLiteral("impactConditions"),    metric(QStringLiteral("Lead wrist · impact"), QStringLiteral("12° flex"))  },
-        { QStringLiteral("wristAngleTop"),       metric(QStringLiteral("Wrist @ top"),         QStringLiteral("Cupped 7°")) },
-        { QStringLiteral("trailWristExtension"), metric(QStringLiteral("Trail wrist"),         QStringLiteral("Retained"))  },
-        { QStringLiteral("transition"),          metric(QStringLiteral("Transition"),          QStringLiteral("−4°→+11°")) },
-    };
 }
 
 // Shared stub behaviour: an immediate, deterministic placeholder result.
@@ -88,16 +73,6 @@ public:
     }
 };
 
-class WristStubAnalyzer : public ShotAnalyzer
-{
-public:
-    ShotAnalysisResult analyze(const pinpoint::SwingWindow &window,
-                               const ShotAnalysisJob &job) override
-    {
-        return stubResult(window, job, stubWristMetrics());
-    }
-};
-
 class GrfStubAnalyzer : public ShotAnalyzer
 {
 public:
@@ -123,7 +98,7 @@ public:
 std::unique_ptr<ShotAnalyzer> makeShotAnalyzer(int sessionType)
 {
     switch (sessionType) {
-    case 1:  return std::make_unique<WristStubAnalyzer>();   // Wrist
+    case 1:  return std::make_unique<WristAnalyzer>();       // Wrist (real M1 analysis)
     case 2:  return std::make_unique<GrfStubAnalyzer>();     // GRF
     case 3:  return std::make_unique<CoachStubAnalyzer>();   // Coach
     case 0:                                                  // Swing

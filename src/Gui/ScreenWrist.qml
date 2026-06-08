@@ -117,7 +117,7 @@ Item {
         // (goalDefsByType[1]); the stub model supplies placeholder values.
         PpShotCarousel {
             Layout.fillWidth: true
-            metricKeys: ["wristAngleTop", "impactConditions", "trailWristExtension", "transition"]
+            metricKeys: ["leadWristFlexExt", "leadWristRadUln", "forearmPronation", "leadArmFlexion"]
             traceLabel: qsTr("LEAD-WRIST FLEXION · ADDRESS → IMPACT")
         }
     }

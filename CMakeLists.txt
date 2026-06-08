@@ -1674,6 +1674,8 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/fusion/imu_vision_fuser.cpp
     src/Analysis/phase/phase_segmenter.h
     src/Analysis/phase/phase_segmenter.cpp
+    src/Analysis/wrist_analyzer.h
+    src/Analysis/wrist_analyzer.cpp
     src/Analysis/shot_analyzer.h
     src/Analysis/shot_analyzer.cpp
 )
