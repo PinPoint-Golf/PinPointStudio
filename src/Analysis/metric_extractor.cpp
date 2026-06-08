@@ -95,10 +95,10 @@ std::vector<MetricSeries> MetricExtractor::extract(const FusedStreams &s,
             rud[i] = radToDeg(wa.rudRad);
         }
         out.push_back(buildSeries(QStringLiteral("leadWristFlexExt"),
-                                  QStringLiteral("Lead-wrist flex/ext"), QStringLiteral("°"),
+                                  QStringLiteral("Lead wrist (bow/cup)"), QStringLiteral("°"),
                                   grid, std::move(fe), phases));
         out.push_back(buildSeries(QStringLiteral("leadWristRadUln"),
-                                  QStringLiteral("Lead-wrist radial/ulnar"), QStringLiteral("°"),
+                                  QStringLiteral("Lead wrist hinge"), QStringLiteral("°"),
                                   grid, std::move(rud), phases));
     }
 
@@ -115,10 +115,10 @@ std::vector<MetricSeries> MetricExtractor::extract(const FusedStreams &s,
             elbow[i] = radToDeg(ef.flexRad);
         }
         out.push_back(buildSeries(QStringLiteral("forearmPronation"),
-                                  QStringLiteral("Lead forearm pronation"), QStringLiteral("°"),
+                                  QStringLiteral("Lead forearm roll"), QStringLiteral("°"),
                                   grid, std::move(pron), phases));
         out.push_back(buildSeries(QStringLiteral("leadArmFlexion"),
-                                  QStringLiteral("Lead elbow flexion"), QStringLiteral("°"),
+                                  QStringLiteral("Lead arm (elbow)"), QStringLiteral("°"),
                                   grid, std::move(elbow), phases));
     }
 

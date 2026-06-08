@@ -76,14 +76,14 @@ int main()
     // 4. Weakest-link: one catastrophic metric drags overall far below the arithmetic mean.
     {
         std::vector<MetricSeries> s = {
-            metric("leadWristFlexExt", 15.0),   // 100
-            metric("leadWristRadUln",  60.0),   // z=4 -> ~1 (catastrophic)
+            metric("leadWristFlexExt", -30.0),  // far below mu (one-sided) -> ~1 (catastrophic)
+            metric("leadWristRadUln",   0.0),   // 100
             metric("forearmPronation",  0.0),   // 100
             metric("leadArmFlexion",    5.0),   // 100
         };
         ScoreBreakdown b = SwingScorer::score(s, 1);
-        // arithmetic mean would be ~75; geometric (weakest-link) must be much lower.
-        check(b.overall < 50, "weakest-link drags overall below arithmetic mean", b.overall, -999);
+        // arithmetic mean ~55; geometric (weakest-link) must be far lower.
+        check(b.overall < 30, "weakest-link drags overall far below arithmetic mean", b.overall, -999);
         check(b.perRegion.value(QStringLiteral("wrist")) < b.perRegion.value(QStringLiteral("arm")),
               "wrist region (with the fault) scores below arm region");
     }

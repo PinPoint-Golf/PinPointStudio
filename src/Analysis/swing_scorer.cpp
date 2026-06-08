@@ -38,13 +38,17 @@ struct ScoreBand {
     const char *region;
 };
 
-// PROVISIONAL Wrist (session type 1) bands — HackMotion-shaped, to be tuned once the
-// FE/RUD/pronation signs are locked on the "check your sensors" page.
+// PROVISIONAL Wrist (session type 1) bands — see docs/WRISTMETRICS.md for the evidence.
+// flex/ext (bow/cup) is weighted HIGHEST: it drives clubhead speed more than the other
+// axes (Sweeney forward-kinematic model). radial/ulnar (hinge) is down-weighted — it is
+// the weakest IMU axis and a secondary speed contributor (Buchanan/Zhang handicap study:
+// high-HCP golfers carry ~7 deg more deviation at impact). Centres/signs are confirmed on
+// the wizard "check your sensors" page; the math/aggregation are correct regardless.
 constexpr ScoreBand kWristBands[] = {
-    { "leadWristFlexExt", Phase::Impact, 15.0, 12.0, +1, 0.40, "wrist"   },
-    { "leadWristRadUln",  Phase::Impact,  0.0, 15.0,  0, 0.20, "wrist"   },
-    { "forearmPronation", Phase::Impact,  0.0, 25.0,  0, 0.20, "forearm" },
-    { "leadArmFlexion",   Phase::Impact,  5.0, 12.0, -1, 0.20, "arm"     },
+    { "leadWristFlexExt", Phase::Impact, 15.0, 12.0, +1, 0.45, "wrist"   },  // bow/cup — speed driver; cupping penalised
+    { "leadWristRadUln",  Phase::Impact,  0.0, 12.0,  0, 0.15, "wrist"   },  // hinge — weak IMU axis, low weight
+    { "forearmPronation", Phase::Impact,  0.0, 25.0,  0, 0.20, "forearm" },  // roll — no published benchmark
+    { "leadArmFlexion",   Phase::Impact,  5.0, 12.0, -1, 0.20, "arm"     },  // near-straight lead arm
 };
 
 std::vector<ScoreBand> bandsFor(int sessionType)

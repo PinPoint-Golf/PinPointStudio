@@ -42,6 +42,12 @@
 // if needed, flip the signs. Flip points: the `leftArm` mirror below plus a per-channel
 // sign once that page is wired. The decomposition math (cross-talk isolation, magnitude,
 // singularity) is correct regardless of the final sign labelling.
+//
+// CHOSEN CONVENTION (PinPoint = ISB + golf coaching; docs/WRISTMETRICS.md):
+//   +flexion  = "bowed"   (lead wrist bowed toward the ground — the impact goal)
+//   +deviation= "ulnar"   (wrist "hinge"/cock)
+//   +pronation= "roll"    (forearm pronation)
+// User-facing names: bow/cup, hinge, roll.
 
 namespace pinpoint::analysis {
 
