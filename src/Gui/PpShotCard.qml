@@ -45,6 +45,7 @@ Rectangle {
     property bool selected: false
 
     signal tapped()
+    signal rated(int newValue)
 
     // Overlays sit on imagery, so the scrim is always dark with light content
     // regardless of theme — the same reasoning as the "#FFFFFF" pill-text
@@ -124,9 +125,10 @@ Rectangle {
         score: card.score
     }
 
-    Rectangle {   // bottom gradient scrim carrying the read-only stars
+    Rectangle {   // bottom gradient scrim carrying the (clickable) stars
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
         height: Theme.sp(23)
+        z: 1   // lift the star hit-areas above the full-card MouseArea below
         gradient: Gradient {
             GradientStop { position: 0.0; color: "transparent" }
             GradientStop { position: 1.0; color: card.scrimColor }
@@ -134,9 +136,11 @@ Rectangle {
         PpStarRating {
             anchors { left: parent.left; bottom: parent.bottom
                       leftMargin: Theme.sp(7); bottomMargin: Theme.sp(7) }
-            value:    card.rating
-            starSize: Math.round(Theme.fontSzMicro * 1.5)
-            offColor: Qt.rgba(1, 1, 1, 0.45)   // off-stars over media scrim
+            value:       card.rating
+            starSize:    Math.round(Theme.fontSzMicro * 1.5)
+            offColor:    Qt.rgba(1, 1, 1, 0.45)   // off-stars over media scrim
+            interactive: true                     // tap to rate without opening the panel
+            onRated:     card.rated(newValue)
         }
     }
 

@@ -286,6 +286,7 @@ Item {
                     root.selectedCard   = cardDelegate
                     panelPopup.open()
                 }
+                onRated: (n) => shotModel.setRating(shotId, n)
             }
         }
     }
