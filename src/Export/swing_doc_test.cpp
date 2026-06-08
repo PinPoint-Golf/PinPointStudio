@@ -5,7 +5,12 @@
 //       -L$QT/lib -lQt6Gui -lQt6Core -Wl,-rpath,$QT/lib && /tmp/sd_test
 
 #include "swing_doc.h"
+#include "swing_paths.h"
 #include "../Analysis/swing_analysis.h"
+
+// Stub — avoids linking swing_paths.cpp (which pulls in the PpLogStream logging deps).
+// SwingDocReader::latestSessionDir() (the only sanitise() user) isn't exercised here.
+QString pinpoint::SwingPaths::sanitise(const QString &raw) { return raw; }
 
 #include <QDir>
 #include <QFile>
@@ -35,6 +40,9 @@ int main()
                                                        {QStringLiteral("id"), QStringLiteral("swing_0007")} };
     manifest[QStringLiteral("streams")] = QJsonArray{ QJsonObject{ {QStringLiteral("kind"), QStringLiteral("video")},
                                                                    {QStringLiteral("alias"), QStringLiteral("face-on")} } };
+    manifest[QStringLiteral("clock")]   = QJsonObject{ {QStringLiteral("wallclock"), QStringLiteral("2026-06-08T16:00:00.000")} };
+    manifest[QStringLiteral("thumbnail")] = QJsonObject{ {QStringLiteral("file"), QStringLiteral("thumb.jpg")},
+                                                         {QStringLiteral("t_us"), static_cast<qint64>(10000)} };
 
     SwingAnalysis a;
     a.tier          = int(ReconstructionTier::Mono3DPlusImu);
@@ -74,6 +82,22 @@ int main()
     check(m0[QStringLiteral("phaseSamples")].toArray().size() == 1, "phaseSamples");
     check(an[QStringLiteral("phases")].toArray().size() == 1, "phases array");
     check(static_cast<qint64>(an[QStringLiteral("phases")].toArray().at(0).toObject()[QStringLiteral("t_us")].toDouble()) == 1010000, "phase t_us preserved");
+
+    std::printf("\n=== reader round-trip ===\n");
+    {
+        const PersistedShot ps = SwingDocReader::readSwingJson(dir);
+        check(ps.ok, "read ok");
+        check(ps.ordinal == 7, "ordinal == 7");
+        check(ps.hasVideo, "hasVideo true");
+        check(!ps.thumbnailPath.isEmpty(), "thumbnail path resolved");
+        check(ps.timestampLabel == QStringLiteral("16:00:00"), "timestamp from wallclock");
+        check(ps.score == 82, "score == 82");
+        const QVariantMap fe = ps.metrics.value(QStringLiteral("leadWristFlexExt")).toMap();
+        check(fe.value(QStringLiteral("value")).toString() == QStringLiteral("-8°"), "flat metric value -8 deg");
+        check(ps.analysisDetail.value(QStringLiteral("overall")).toInt() == 82, "analysisDetail.overall");
+        check(ps.analysisDetail.value(QStringLiteral("series")).toList().size() == 1, "analysisDetail.series len 1");
+        check(ps.analysisDetail.value(QStringLiteral("phases")).toList().size() == 1, "analysisDetail.phases len 1");
+    }
 
     std::printf("\n=== raw-only write (analysis == nullptr) ===\n");
     SwingDocWriter::writeSwingJson(dir, manifest, nullptr);

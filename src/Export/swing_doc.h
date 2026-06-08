@@ -20,6 +20,8 @@
 
 #include <QJsonObject>
 #include <QString>
+#include <QStringList>
+#include <QVariantMap>
 
 namespace pinpoint::analysis { struct SwingAnalysis; }
 
@@ -38,6 +40,33 @@ public:
     static bool writeSwingJson(const QString &swingDir, const QJsonObject &rawManifest,
                                const analysis::SwingAnalysis *analysis,
                                QString *error = nullptr);
+};
+
+// A reloaded shot — everything ShotListModel::addPersistedShot needs to rebuild a
+// carousel row from a swing.json on disk. The flat metrics + analysisDetail are
+// reconstructed into the same shapes ShotProcessor produces live.
+struct PersistedShot {
+    bool        ok = false;
+    QString     swingDir;
+    int         ordinal = 0;
+    QString     timestampLabel;     // hh:mm:ss from clock.wallclock
+    QString     club;
+    bool        hasVideo = false;
+    QString     thumbnailPath;      // absolute, empty if none
+    int         score = 0;
+    QVariantMap metrics;            // key -> { label, value } at Impact
+    QVariantMap analysisDetail;     // { tier, overall, series, phases } for the graph
+};
+
+// Reads the single unified swing.json back into reloadable shots.
+class SwingDocReader {
+public:
+    static PersistedShot readSwingJson(const QString &swingDir);
+    // swing_*/ directories under sessionDir, ascending (swing_0001 .. swing_NNNN).
+    static QStringList findSwingDirs(const QString &sessionDir);
+    // Most recent session dir for an athlete (YYYY-MM-DD_session-NN sorts chronologically);
+    // empty if the library/athlete has none.
+    static QString latestSessionDir(const QString &libraryRoot, const QString &athleteName);
 };
 
 } // namespace pinpoint

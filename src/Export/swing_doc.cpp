@@ -18,10 +18,15 @@
 
 #include "swing_doc.h"
 
+#include <QDateTime>
+#include <QDir>
+#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QSaveFile>
+#include <cmath>
 
+#include "swing_paths.h"
 #include "../Analysis/swing_analysis.h"
 
 namespace pinpoint {
@@ -88,6 +93,95 @@ bool SwingDocWriter::writeSwingJson(const QString &swingDir, const QJsonObject &
         return false;
     }
     return true;
+}
+
+// ── reader ──────────────────────────────────────────────────────────────────
+
+PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
+{
+    PersistedShot ps;
+    ps.swingDir = swingDir;
+
+    QFile f(swingDir + QStringLiteral("/swing.json"));
+    if (!f.open(QIODevice::ReadOnly))
+        return ps;
+    QJsonParseError pe;
+    const QJsonObject root = QJsonDocument::fromJson(f.readAll(), &pe).object();
+    if (pe.error != QJsonParseError::NoError || root.isEmpty())
+        return ps;
+
+    ps.ordinal = root[QStringLiteral("swing")].toObject()[QStringLiteral("index")].toInt();
+    ps.club    = QStringLiteral("DRIVER");   // club isn't persisted yet
+
+    const QString wc = root[QStringLiteral("clock")].toObject()[QStringLiteral("wallclock")].toString();
+    const QDateTime dt = QDateTime::fromString(wc, Qt::ISODateWithMs);
+    ps.timestampLabel = dt.isValid() ? dt.toLocalTime().toString(QStringLiteral("hh:mm:ss")) : wc;
+
+    for (const QJsonValue &v : root[QStringLiteral("streams")].toArray())
+        if (v.toObject()[QStringLiteral("kind")].toString() == QLatin1String("video")) { ps.hasVideo = true; break; }
+
+    const QJsonObject thumb = root[QStringLiteral("thumbnail")].toObject();
+    if (!thumb.isEmpty())
+        ps.thumbnailPath = swingDir + QStringLiteral("/")
+                         + thumb[QStringLiteral("file")].toString(QStringLiteral("thumb.jpg"));
+
+    if (root.contains(QStringLiteral("analysis"))) {
+        const QJsonObject an = root[QStringLiteral("analysis")].toObject();
+        ps.score = an[QStringLiteral("score")].toInt();
+
+        // analysisDetail in the live QML-role shape (metrics→series, score→overall).
+        ps.analysisDetail = QVariantMap{
+            { QStringLiteral("tier"),    an[QStringLiteral("tier")].toInt() },
+            { QStringLiteral("overall"), an[QStringLiteral("score")].toInt() },
+            { QStringLiteral("series"),  an[QStringLiteral("metrics")].toArray().toVariantList() },
+            { QStringLiteral("phases"),  an[QStringLiteral("phases")].toArray().toVariantList() },
+        };
+
+        // Flat metrics: each metric's value at Impact (Phase::Impact == 5), signed degrees.
+        QVariantMap metrics;
+        for (const QJsonValue &mv : an[QStringLiteral("metrics")].toArray()) {
+            const QJsonObject m = mv.toObject();
+            bool found = false;
+            double impact = 0.0;
+            for (const QJsonValue &sv : m[QStringLiteral("phaseSamples")].toArray()) {
+                const QJsonObject s = sv.toObject();
+                if (s[QStringLiteral("phase")].toInt() == 5) { impact = s[QStringLiteral("value")].toDouble(); found = true; break; }
+            }
+            if (!found)
+                continue;
+            const long r = std::lround(impact);
+            const QString val = (r > 0 ? QStringLiteral("+") : QString()) + QString::number(r) + QStringLiteral("°");
+            metrics.insert(m[QStringLiteral("key")].toString(),
+                           QVariantMap{ { QStringLiteral("label"), m[QStringLiteral("label")].toString() },
+                                        { QStringLiteral("value"), val } });
+        }
+        ps.metrics = metrics;
+    }
+
+    ps.ok = true;
+    return ps;
+}
+
+QStringList SwingDocReader::findSwingDirs(const QString &sessionDir)
+{
+    QDir d(sessionDir);
+    QStringList out;
+    for (const QString &name : d.entryList(QStringList{ QStringLiteral("swing_*") },
+                                           QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name))
+        out.append(sessionDir + QStringLiteral("/") + name);
+    return out;
+}
+
+QString SwingDocReader::latestSessionDir(const QString &libraryRoot, const QString &athleteName)
+{
+    if (libraryRoot.isEmpty() || athleteName.isEmpty())
+        return {};
+    const QString athleteDir = libraryRoot + QStringLiteral("/") + SwingPaths::sanitise(athleteName);
+    QDir d(athleteDir);
+    const QStringList sessions = d.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    if (sessions.isEmpty())
+        return {};
+    return athleteDir + QStringLiteral("/") + sessions.last();   // last sorts to newest
 }
 
 } // namespace pinpoint

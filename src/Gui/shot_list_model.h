@@ -77,6 +77,12 @@ public:
                  int score, const QVariantMap &metrics,
                  const QVariantMap &analysisDetail = {});
 
+    // Reload a shot from disk (SwingDocReader): uses the stored ordinal and links the
+    // row to its swingDir. rating/note aren't persisted yet, so they start cleared.
+    void addPersistedShot(const QString &swingDir, int ordinal, const QString &timestampLabel,
+                          const QString &club, bool hasVideo, const QUrl &thumbnailSource,
+                          int score, const QVariantMap &metrics, const QVariantMap &analysisDetail);
+
     Q_INVOKABLE void setRating(int id, int n);
     Q_INVOKABLE void setNote(int id, const QString &text);
     Q_INVOKABLE void moveToTrash(int id);
@@ -105,6 +111,7 @@ private:
         bool         trashed = false;
         QVariantMap  metrics;         // key → { label, value }
         QVariantMap  analysisDetail;  // { tier, overall, series:[…], phases:[…] } for the graph
+        QString      swingDir;        // on-disk folder, for reloaded shots (replay-from-MP4 later)
     };
 
     int rowForId(int id) const;

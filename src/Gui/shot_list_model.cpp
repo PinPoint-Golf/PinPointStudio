@@ -116,6 +116,30 @@ void ShotListModel::addShot(const QString &timestampLabel, const QString &club,
     emit activeCountChanged();
 }
 
+void ShotListModel::addPersistedShot(const QString &swingDir, int ordinal,
+                                     const QString &timestampLabel, const QString &club,
+                                     bool hasVideo, const QUrl &thumbnailSource, int score,
+                                     const QVariantMap &metrics, const QVariantMap &analysisDetail)
+{
+    Shot shot;
+    shot.id              = m_nextId++;
+    shot.ordinal         = ordinal;          // preserve the on-disk swing index
+    shot.swingDir        = swingDir;
+    shot.timestampLabel  = timestampLabel;
+    shot.club            = club;
+    shot.hasVideo        = hasVideo;
+    shot.thumbnailSource = thumbnailSource;
+    shot.score           = score;
+    shot.metrics         = metrics;
+    shot.analysisDetail  = analysisDetail;
+
+    // Prepend (newest first); callers reload ascending so the highest ordinal lands first.
+    beginInsertRows(QModelIndex(), 0, 0);
+    m_shots.prepend(shot);
+    endInsertRows();
+    emit activeCountChanged();
+}
+
 void ShotListModel::setRating(int id, int n)
 {
     const int row = rowForId(id);
