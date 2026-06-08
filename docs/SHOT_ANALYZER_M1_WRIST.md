@@ -45,7 +45,7 @@ Each IMU registers a `DeviceKind::IMU_WitMotion` source, schema `imu_sample_v1`,
 
 ### Face-on camera
 
-`PoseRunner` (design layer 1) re-runs body pose (today MoveNet COCO-17) over the exported face-on frames → 2D shoulder/elbow/wrist. `job.cameraSources` is face-on-first. **Handedness:** lead arm = **left** for a right-handed golfer (`AthleteController::currentHandedness`). The face-on webcam path uses `mirroredSource = true` (mirror-flips the x component, per `BodyPoseAdapter`); the analyzer must honor handedness when choosing which COCO joints are the *lead* shoulder/elbow/wrist and when applying ISB left-arm sign mirroring (§4).
+`PoseRunner` (design layer 1) re-runs body pose over the exported face-on frames → 2D shoulder/elbow/wrist, using the already-wired `PoseEstimatorViTPose` upgraded to **ViTPose-L/H** (accuracy-first — the analyzer is offline; the live path's MoveNet is the speed-tier fallback). `job.cameraSources` is face-on-first. **Handedness:** lead arm = **left** for a right-handed golfer (`AthleteController::currentHandedness`). The face-on webcam path uses `mirroredSource = true` (mirror-flips the x component, per `BodyPoseAdapter`); the analyzer must honor handedness when choosing which COCO joints are the *lead* shoulder/elbow/wrist and when applying ISB left-arm sign mirroring (§4).
 
 ---
 
@@ -145,7 +145,7 @@ The face-on 2D skeleton is **complementary, never authoritative** for joint angl
 
 ## 6. Metrics & scoring
 
-`MetricExtractor` reads each metric at its **matched phase event** from `PhaseSegmenter` (anchored on `job.impactUs`; Top via lead-hand angular-velocity reversal; Address re-anchored at the pre-roll start). All angles are **relative to Address**.
+`MetricExtractor` reads each metric at its **matched phase event** from `PhaseSegmenter` (anchored on `job.impactUs`; Top via lead-hand angular-velocity reversal; Address re-anchored at the pre-roll start). All angles are **relative to Address**. Each metric is a **per-frame time series** over the window plus labelled samples at every key swing point (Address…Finish); the data model lives in the design doc's *Metric time series & key-swing-point sampling* section, and **§7 (Replay-synchronized graphing)** specifies how it scrubs in lockstep with the replay.
 
 | Metric key | Formula | Phase(s) | Ideal / Tour band (HackMotion) | Band shape |
 |---|---|---|---|---|
@@ -162,7 +162,118 @@ The face-on 2D skeleton is **complementary, never authoritative** for joint angl
 
 ---
 
-## 7. Implementation plan
+## 7. Replay-synchronized graphing
+
+The coaching centerpiece: a metric graph whose **playhead scrubs in lockstep with the ¼× on-screen swing replay**. The replay already drives the video tiles (`CameraInstance::displayReplayFrame`, `camera_instance.cpp:1279`); this section adds the *one shared clock* both surfaces bind to, the graph component, the interaction model, the QML wiring, and the staged rollout. **The single missing primitive is a published replay position** — everything else builds on it.
+
+### 1. Single source of truth — `ShotProcessor::replayPositionUs`
+
+Today the replay position exists only as a discarded local: `virtualTimeUs = (m_replayElapsed.elapsed()*1000)/4` in `onReplayTick()` (`shot_processor.cpp:475`). QML can observe only `isReplaying` (bool, `shot_processor.h:66`) — no position. **ADD** the position as the binding target both the video and graph share:
+
+```cpp
+// shot_processor.h — ADD
+Q_PROPERTY(qint64 replayPositionUs READ replayPositionUs NOTIFY replayPositionChanged)
+Q_PROPERTY(qint64 replayStartUs    READ replayStartUs    NOTIFY replaySpanChanged)
+Q_PROPERTY(qint64 replayEndUs      READ replayEndUs      NOTIFY replaySpanChanged)
+Q_PROPERTY(qint64 replayImpactUs   READ replayImpactUs   NOTIFY replaySpanChanged)
+```
+
+Backed by `m_replayWindowStartUs`/`m_replayWindowEndUs` (`shot_processor.h:154-155`) and `m_impactUs` (`:146`) — all already in the `EventBuffer::nowMicros()` µs domain, **identical to `MetricSeries::t_us` and `job.impactUs`**, so no conversion is ever needed. In `onReplayTick()`, after computing `virtualTimeUs`, assign and notify:
+
+```cpp
+const int64_t pos = m_replayWindowStartUs + virtualTimeUs;   // absolute window µs
+if (pos != m_replayPositionUs) { m_replayPositionUs = pos; emit replayPositionChanged(); }
+```
+
+This fires on the **UI thread** (the timer is a child of `ShotProcessor`), so direct QML binding is safe — no queued marshalling. The graph playhead binds `playheadUs: shotProcessor.replayPositionUs`; the video tile already follows the *same* `onReplayTick`, so the two stay frame-accurate **because they derive from one clock**. Span/impact properties give the graph its x-extent and the impact anchor. Reset `m_replayPositionUs = m_replayWindowStartUs` and emit span on `startReplay()` so QML can pre-layout the axis.
+
+> **Lockstep rule:** never give the graph its own timer. Both surfaces seek by timestamp off `replayPositionUs`. Two independent timers are *the* drift failure mode.
+
+### 2. Graph component — `PpMetricGraph` (Shape, not QtCharts)
+
+QtCharts/QtGraphs are **not in the build** (`CMakeLists.txt` Qt6 COMPONENTS — no Charts/Graphs). The only 2D primitives are `QtQuick.Shapes` (as `PpTrace.qml` uses) and `Canvas` (the `PpCameraFrame` skeleton overlay). Build a new **`src/Gui/PpMetricGraph.qml`** on `Shape`/`ShapePath` — GPU, declarative, theme-tokened, consistent with `PpTrace`. Layers, back to front:
+
+1. **Ideal band** — `Rectangle` (half-alpha `Theme.colorOk`) spanning the y-range `[bandLo,bandHi]`, x-clipped to the scored-phase span (Top→Impact). One-sided metrics shade only the fault side.
+2. **Zero line** — a hairline at the 0° flat-wrist reference (`Theme.colorBorderMid`); never auto-scaled away.
+3. **Curve** — `Shape{ShapePath{PathPolyline}}` mapping each `(t_us−impactUs, value)` to item coords with the graph's own min/max scaling (NOT pre-normalised — this is the real-units detail chart, unlike the card sparkline). Optionally coloured by band at the scoring phase.
+4. **Phase ticks** — a `Repeater` over `phaseEvents` drawing vertical lines at `xForT(t_us)`, short labels (`Theme.fontSzMicro`, `Theme.colorText3`); **Impact most prominent** (accent, full height); low-confidence phases dashed/faded.
+5. **Playhead** — a vertical accent line at `xForT(playheadUs)`, bound to `shotProcessor.replayPositionUs`.
+
+`xForT(t) = (t − replayStartUs) / (replayEndUs − replayStartUs) * width`; clamp (impact can fall just outside the captured span). The graph reads its data from the new `SeriesRole`/`PhasesRole` (see the design doc's *Metric time series* §3), not the lossy `tracePoints`.
+
+### 3. Interaction model
+
+| Gesture | Behaviour | Status |
+|---|---|---|
+| Auto-play on arrival | ¼× linear playback drives `replayPositionUs` → playhead + video | **Exists** (current replay) |
+| **Value-at-playhead readout** | Large live numeric interpolated between bracketing `value[]` samples; shows phase name when on a marker; sign flipped to HackMotion at the label | ADD (QML-only) |
+| **Drag-to-scrub graph → seek video** | Pointer x → `setPlayhead(us)`; the replay seeks the nearest frame | **ADD — needs replay SEEK** |
+| **Tap-a-phase-to-jump** | Tap a phase tick/chip → `setPlayhead(phaseEvent.t_us)` + pause | ADD (needs seek) |
+| **Loop-a-phase** | Clamp/wrap `playheadUs` between two `PhaseEvent`s at ¼× | Later |
+
+**Replay is linear-only today** — position derives from `m_replayElapsed` wall-clock; there is no settable target (`shot_processor.cpp:471-508`). Drag/tap/loop all require **adding seek**:
+
+```cpp
+// shot_processor.h — ADD
+Q_INVOKABLE void setReplayPaused(bool);              // freeze the clock
+Q_INVOKABLE void setReplayPositionUs(qint64 us);     // scrub target (window µs)
+```
+
+Implementation: store `m_replayPaused` and a `m_seekTargetUs`. When paused/seeking, `onReplayTick()` reads `m_seekTargetUs` (clamped to the span) **instead of** `m_replayElapsed`; it still runs the per-track `track.idx` advance + `displayReplayFrame` so the video follows. First user touch flips `m_replayPaused = true`. Re-render `displayReplayFrame` only on a nearest-entry **change** (the existing advance loop already detects this), so a fast drag doesn't decode every intermediate frame. *MVP ships without seek — auto-play + synced playhead only.*
+
+> **Persistence caveat:** the live `SwingWindow` is destroyed at `finishShot()`. A *persistent* scrubber on a re-opened carousel shot must drive the video from the **exported MP4** (`QMediaPlayer.setPosition`) and the graph from the reloaded `swing.json` `analysis.metrics[].series` (`SwingDocReader::readSwingJson()`) — the live ring is gone. On-arrival auto-replay still uses the live frozen window.
+
+### 4. QML wiring — ScreenWrist.qml / PpShotPanel
+
+- **`ShotProcessor` is already the `shotProcessor` context property.** `PpMetricGraph` binds `playheadUs: shotProcessor.replayPositionUs`, `startUs/endUs/impactUs` from the new span properties, and `series`/`phaseEvents` from the panel's new props.
+- **`PpShotPanel.qml` (`:42-50,147-174`)** — add props `metricSeries`, `phaseEvents`, `playheadUs`; **replace the static `PpTrace` block** (the 58 px sparkline) with `PpMetricGraph` when `metricSeries` is non-empty (keep `PpTrace` as the no-data fallback). The existing `replayRequested(mode)`/`faceOnRequested()` signals (`:42-43`) bubble to the host.
+- **`ScreenWrist.qml`** — bind `PpShotCarousel`'s panel `metricSeries`/`phaseEvents` from the new `SeriesRole`/`PhasesRole`; reconcile `metricKeys` to the real M1 IDs `[leadWristFlexExt, leadWristRadUln, forearmPronation, leadArmFlexion]` (see §6; `ScreenWrist.qml:120`). **Wire the currently-unwired** `PpShotCarousel.onReplayRequested` → `shotProcessor` (today `ScreenWrist.qml:118` instantiates the carousel but never connects replay). The reserved right-hand area (`ScreenWrist.qml:90-92`) hosts the live `PpMetricGraph` during `shotProcessor.isReplaying`.
+
+### 5. Detail layout (ASCII mockup)
+
+```
+┌──────────────────────────── WRIST · SHOT 14 · 09:42:17 ───────────────── 87 ┐
+│ ┌───────────── REPLAY ¼× ─────────────┐  LEAD-WRIST FLEX / EXT      −18° EXT │
+│ │                                     │  ┌──────────────────────────────────┐│
+│ │        face-on replay tile          │ +30│                    ╱╲           ││
+│ │     (CameraInstance frames)         │    │       band▒▒▒▒▒▒▒▒▒╱  ╲▒▒▒      ││
+│ │                                     │  0°├────────zero────────╳─────╲──────┤│  ← playhead ╳
+│ │                                     │    │        ╱╲_________╱        ╲_    ││
+│ └─────────────────────────────────────┘ −30│___╱                         ╲__││
+│   ▶ ⏸  ⏮ frame ⏭        ↻ loop          └──┴───┬────┬───┬────┬───┬───┬────┬─┘│
+│                                             ADR  TKW TOP TRN  IMP REL  FIN  │
+│ [Address][Takeaway][Top][Transition][●Impact][Release][Finish]  ← tap to jump│
+│ ─────────────────────────────────────────────────────────────────────────── │
+│  FLEX/EXT −18° EXT  ·  RAD/ULN +4°  ·  PRONATION 12°  ·  LEAD-ARM 7°         │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+The playhead `╳` moves with the replay frame; the phase chip row and x-axis ticks share the impact-relative axis; the value strip mirrors `phaseSamples` at the playhead.
+
+### MVP vs later
+
+- **MVP:** `replayPositionUs`/span/impact properties added + emitted from `onReplayTick`; single `leadWristFlexExt` curve in `PpMetricGraph` with phase ticks, impact anchor, ideal-band shading, zero line; **read-only auto-play** playhead synced to the replay; value-at-playhead readout. No seek.
+- **Later:** `setReplayPaused`/`setReplayPositionUs` seek → drag-to-scrub + tap-phase-to-jump + frame-step; persistent MP4-backed scrubber on re-opened shots; same-unit multi-metric overlay (FE + RUD with a legend); loop-a-phase; impact-aligned multi-shot ghost comparison.
+
+## 8. Persistence — one `swing.json`, folded at the join
+
+`WristAnalyzer::analyze()` returns its `SwingAnalysis` by value (no disk I/O). There is **no `analysis.json`** — the wrist score breakdown, the per-metric `MetricSeries` (wrist-angle / lag time series with `t_us`/`value`), the swing-phase intervals and `PhaseSamples` are folded **inline** into `swing.json`'s additive `"analysis"` object at the join, by a single GUI-thread writer.
+
+**What `maybeJoin()` writes.** Once both `m_exportOutcome` and `m_analysisOutcome` resolve, `ShotProcessor::maybeJoin()` calls `SwingDocWriter::writeSwingJson(m_swingDir, m_exportManifest, &m_analysisResult, m_thumbnailTusOffset)` exactly once, atomically (`QSaveFile`). The export worker has already returned its raw manifest (`SwingExportResult.manifest`) and written the MP4s + `thumb.jpg`; the wrist analysis is a value copy that survives `SwingWindow` destruction. No two workers write the file — the analyzer writes nothing, the exporter writes only media.
+
+**The persistent scrubber** reads back from this one document: video from the exported MP4 (top-level `streams[]`) and the graph from the reloaded `analysis.metrics[].series` — both rehydrated by `SwingDocReader::readSwingJson()`.
+
+**New / changed files for M1:**
+
+| File | Change |
+|---|---|
+| `src/Export/swing_doc.{h,cpp}` | **New.** `SwingDocWriter::writeSwingJson(dir, rawManifest, const SwingAnalysis*, thumbTusOffset)` (atomic compose+write) and `SwingDocReader::readSwingJson(dir)`. Replaces the never-built `analysis_io.{h,cpp}`. |
+| `src/Export/swing_exporter.{h,cpp}` | `run()` no longer writes `swing.json`; it returns the assembled manifest in `SwingExportResult.manifest` (`QJsonObject`) + `thumbnailTusOffset`. Media writes (`run()` MP4 + `writeThumbnail()`) unchanged. |
+| `src/Analysis/swing_analysis.h` | **New.** `SwingAnalysis`, `MetricSeries`, `PhaseSamples`, `ScoreBreakdown` structs (referenced by `WristAnalyzer` and `writeSwingJson`). |
+| `src/Gui/shot_processor.{h,cpp}` | `onSwingSaveFinished()` stashes `m_exportManifest`/`m_thumbnailTusOffset`; `maybeJoin()` calls `writeSwingJson()` before `addShot()`. |
+| `src/Gui/shot_list_model.{h,cpp}` | `addPersistedShot(swingDir, ..., rating, note, trashed)` for reload. |
+
+## 9. Implementation plan
 
 **New / changed files (reuse committed names):**
 
@@ -182,7 +293,7 @@ The face-on 2D skeleton is **complementary, never authoritative** for joint angl
 
 **Sequencing:** (1) types + job widen + resolver (no behavior change, stub still runs) → (2) `ImuVisionFuser` orientation slice + unit tests on `q_anat` → (3) `MetricExtractor` angle math + held-angle test → (4) `PhaseSegmenter` → (5) `WristAnalyzer` wires layers, dispatch flip → (6) `SwingScorer` bands → (7) calibration bug-fixes + 30-min session-validity stamp + wizard slot-A relabel → (8) `ScreenWrist` keys + `BodyPoseAdapter` offline viz.
 
-**Dependencies:** `imu_calibration.h`, `SwingWindow`/`ImuSample`, `AppSettings`, `ImuInstance` A/M accessors — all present. **No new ONNX** (RTMW-l hand-crop cross-check is deferred; MoveNet COCO-17 suffices for placement + elbow).
+**Dependencies:** `imu_calibration.h`, `SwingWindow`/`ImuSample`, `AppSettings`, `ImuInstance` A/M accessors — all present. **Pose model:** the already-wired `PoseEstimatorViTPose`, upgraded to **ViTPose-L** for the offline analyzer (accuracy over the live path's MoveNet — only the ONNX model file changes). M1 needs only the 17 COCO body joints for placement + the elbow cross-check (wrist angles come from the IMUs); the same ViTPose-wholebody model's channels 91–132 give an optional hand cross-check with no extra download.
 
 **Exit criteria / validation:**
 * **Held known angle:** arm in a jig at a fixed elbow angle (e.g. 90°) → `q_upperarm⁻¹·q_forearm` decoded elbow flexion within **±5°**; report **RMSE and offset** (high correlation can hide a constant offset).
@@ -192,7 +303,7 @@ The face-on 2D skeleton is **complementary, never authoritative** for joint angl
 
 ---
 
-## 8. Risks & open questions (3-IMU lead-arm rig)
+## 10. Risks & open questions (3-IMU lead-arm rig)
 
 * **Soft-tissue artifact (forearm/upper-arm straps).** Skin/strap motion under downswing acceleration biases pronation more than any math error. Mitigate with tight straps and a static-pose recheck; warn if a re-check disagrees with stored `A`.
 * **Glove / hand IMU mounting.** `nominalHandMount()` is a *dorsal* numerically-solved constant, not a long-axis rotation of the arm nominal — sensitive to where on the glove back it sits. The `handMount=true` fix is mandatory; consider a hand-specific functional check.

@@ -57,6 +57,11 @@ sequenced build-out.*
 - [Metrics & Scoring](#metrics-scoring)
   - [A) Metric catalog](#a-metric-catalog)
   - [B) Scoring model](#b-scoring-model)
+- [Metric time series & key-swing-point sampling](#metric-time-series-key-swing-point-sampling)
+  - [1. Data model — TimeGrid, MetricSeries, PhaseSample](#1-data-model-timegrid-metricseries-phasesample)
+  - [2. Time axis, units, sign, ideal band](#2-time-axis-units-sign-ideal-band)
+  - [3. Persistence — unified swing.json (folded at the join)](#3-persistence-unified-swingjson-folded-at-the-join)
+  - [4. Downsampling — card sparkline vs detail graph](#4-downsampling-card-sparkline-vs-detail-graph)
 - [Implementation Plan](#implementation-plan)
   - [M0 — Plumbing & persistence skeleton (no biomechanics yet)](#m0-plumbing-persistence-skeleton-no-biomechanics-yet)
   - [M1 — Monocular skeleton + IMU orientation metrics + banded score](#m1-monocular-skeleton-imu-orientation-metrics-banded-score-angles2d-mono3dimu)
@@ -88,7 +93,7 @@ All new code lives under `src/Analysis/` in namespace `pinpoint::analysis`. The 
 | # | Layer name | Module dir | Responsibility |
 |---|-----------|-----------|----------------|
 | 0 | **Decode** (`FrameDecoder`) | `src/Analysis/decode/` | Zero-copy `cv::Mat` wrap + demosaic of each `payloadOf()` slot, reusing `SwingExporter`'s demosaic table (NV12/YUV420P/BGRA32/Bayer8). |
-| 1 | **Detection** (`PoseRunner`, `ClubBallTracker`) | `src/Analysis/detect/` | Re-run pose (RTMPose-m body, RTMW-l hands on lead-arm crop) + club/ball keypoints per decoded frame, per camera, via ONNX Runtime. |
+| 1 | **Detection** (`PoseRunner`, `ClubBallTracker`) | `src/Analysis/detect/` | Re-run pose (**ViTPose-L/H** body via the already-wired `PoseEstimatorViTPose`; its whole-body 133-kpt also supplies hands) + club/ball keypoints per decoded frame, per camera, via ONNX Runtime. Accuracy-first — the analyzer is offline; the live 60 Hz path keeps MoveNet/RTMPose. |
 | 2 | **Reconstruction** (`Triangulator`) | `src/Analysis/recon/` | Confidence-weighted DLT (Eigen SVD) of matched 2D keypoints into metric 3D using injected camera calibration; single-view ray∩bone-sphere fallback. |
 | 3 | **Fusion** (`ImuVisionFuser`) | `src/Analysis/fusion/` | Apply per-source anatomical transform `q_anat = A·q_raw·M`; fill occluded shaft/wrist segments from IMU orientation; Kabsch yaw alignment of IMU world → camera world. |
 | 4 | **Cleanup** (`TrackSmoother`) | `src/Analysis/cleanup/` | Per-joint constant-acceleration Kalman + Rauch–Tung–Striebel backward smoother over the whole window (offline → future samples available). |
@@ -114,9 +119,9 @@ std::vector<ImuSegmentBinding>  imuBindings;     // resolves placement A/B/C →
 int   handedness = 0;  QString club;  QString athleteUuid;  QString swingDir;  bool cameraFixedInPlace = false;
 ```
 
-`CameraCalib` is populated from new `AppSettings::cameraIntrinsics`/`cameraExtrinsics` maps (keyed on `cameraKey = description|serial`); `ImuSegmentBinding` resolves `AppSettings::imuPlacement` + the live `ImuInstance::alignA()/mountM()` snapshot. `swingDir` lets the analyzer write `analysis.json` next to the exporter's `swing.json`.
+`CameraCalib` is populated from new `AppSettings::cameraIntrinsics`/`cameraExtrinsics` maps (keyed on `cameraKey = description|serial`); `ImuSegmentBinding` resolves `AppSettings::imuPlacement` + the live `ImuInstance::alignA()/mountM()` snapshot. `swingDir` is where the single unified `swing.json` (raw manifest + inline analysis) is written at the join.
 
-**Extending the result.** `ShotAnalysisResult` keeps `ok/score/metrics/tracePoints` (unchanged `ShotListModel::addShot` path — fully backward compatible) and gains an opaque-to-old-readers `std::shared_ptr<SwingAnalysis> detail`. `SwingAnalysis` carries the rich output (skeleton timeline, metric series, score breakdown, faults, phase timeline). `ShotProcessor::maybeJoin()` continues to call `addShot()` with the flat fields; a new optional role `analysisDetail` on `ShotListModel::Shot` holds the pointer for the detail UI. **Persistence:** `SwingScorer`/`SkeletonSolver` results are serialized to `<swingDir>/analysis.json` (schema `pinpoint.analysis/1`) by the analyzer; `swing.json` gains an *additive* `"analysis": { "file": "analysis.json", "score": N }` block (readers ignore unknown keys — the additive contract holds). On reopen, a loader reads `analysis.json` so score/metrics survive restart.
+**Extending the result.** `ShotAnalysisResult` keeps `ok/score/metrics/tracePoints` (unchanged `ShotListModel::addShot` path — fully backward compatible) and gains an opaque-to-old-readers `std::shared_ptr<SwingAnalysis> detail`. `SwingAnalysis` carries the rich output (skeleton timeline, metric series, score breakdown, faults, phase timeline). `ShotProcessor::maybeJoin()` continues to call `addShot()` with the flat fields; a new optional role `analysisDetail` on `ShotListModel::Shot` holds the pointer for the detail UI. **Persistence:** there is **no separate `analysis.json`** — the analyzer's `SwingAnalysis` is folded **inline** into `swing.json` under an additive `"analysis"` object, written **once** at `ShotProcessor::maybeJoin()` (the GUI-thread barrier where both workers have completed). See *Persistence — unified `swing.json`* under Metrics & Scoring for the single-writer mechanism.
 
 ### Canonical intermediate data structures
 
@@ -232,7 +237,7 @@ camera for club path" vs. "add a club sensor for clubhead speed").
 All four analyzers share layers 0–5; they differ in metric tables, scoring weights, and which sources matter:
 
 - **SwingAnalyzer (0):** full body 3D. Pelvis/thorax rotation + velocity, **X-factor & X-factor-stretch**, kinematic-sequence efficiency, sway/thrust/lift, side-bend, tempo; club track drives swing-plane (SVD) and hand-path attack/path proxies. Heaviest tier.
-- **WristAnalyzer (1):** single face-on camera + lead-wrist/hand IMU dominant. Lead-wrist flexion/extension and radial/ulnar deviation, forearm pronation/supination from `q_forearm⁻¹·q_hand` swing-twist; one-sided scoring bands (cupping penalized). Runs the `Mono3D+IMU` tier with RTMW hand keypoints as a vision cross-check.
+- **WristAnalyzer (1):** single face-on camera + lead-wrist/hand IMU dominant. Lead-wrist flexion/extension and radial/ulnar deviation, forearm pronation/supination from `q_forearm⁻¹·q_hand` swing-twist; one-sided scoring bands (cupping penalized). Runs the `Mono3D+IMU` tier with ViTPose-wholebody hand keypoints (channels 91–132) as a vision cross-check.
 - **GrfAnalyzer (2):** lead/trail-thigh + lumbar IMUs + cameras; weight-shift/sway and ground-contact timing from pelvis translation and feet keypoints. **No force-plate source exists** — GRF is estimated kinematically and clearly labelled as such until a force source is added.
 - **CoachAnalyzer (3):** thorax/lumbar/T12 same as Swing but tuned weights and a DTW shape-similarity sub-score against a stored reference swing for over-the-top/casting path faults; emphasizes ranked faults over a single number.
 
@@ -315,9 +320,9 @@ solve → reproj-gate → persist, mirroring `ImuCalibrationFlow`. On the UI thr
 
 All models stay behind `PoseEstimatorBase`-style subclasses reusing the existing ORT EP cascade (CoreML→CUDA→DirectML→CPU), the pimpl `OrtState`, and `IntraOpNumThreads(1)` (to avoid contending with the exporter's x264 encode). Every subclass must honor the throttle-balance contract on all paths (the offline path bypasses `FrameThrottle`, but keep the `estimationDone()` discipline if reused live). All weights are Apache/MIT/BSD — **explicitly reject AGPL Ultralytics YOLO and CC-BY-NC GolfDB/SwingNet weights**.
 
-**Body (MVP):** RTMPose-m (256×192, COCO-17), top-down. A golfer is frame-stable, so run one RTMDet-nano (or reuse `PersonSegmenter`) box at clip start and reuse it across the window. Affine-warp the box to 192×256, run ORT, decode SimCC: outputs are two 1D vectors `simcc_x[1,K,W*r]`, `simcc_y[1,K,H*r]` — `argmax` each, divide by `split_ratio=2.0`, `score = min(max_x,max_y)`, then map back through the inverse affine. (This is **not** heatmap parsing — the MoveNet/ViTPose decode path fails silently on SimCC.) Fill the 17-slot `PoseResult` (normalized y/x/score) unchanged.
+**Body (MVP): ViTPose-L** (or **ViTPose-H** for maximum accuracy), top-down — already implemented as `PoseEstimatorViTPose` (currently the ViTPose-B-wholebody model; upgrade the variant). **Accuracy over speed by design:** the analyzer runs offline on a frozen window with a generous latency budget, so prefer ViTPose-L/H (~78–79 AP) over the speed-tier RTMPose-m (~75–76 AP); RTMPose/MoveNet stay on the live 60 Hz path only. A golfer is frame-stable, so run one person box (RTMDet-nano or reuse `PersonSegmenter`) at clip start and reuse it across the window; affine-warp the crop with a proper **letterbox** (*not* MoveNet's distorting square resize, which biases joint geometry), run ORT, and decode the heatmaps (argmax + sub-pixel/DARK refine) via the existing ViTPose decode path. Fill the 17-slot `PoseResult` (normalized y/x/score) unchanged. Favour the higher 384×288 input for motion-blurred downswing frames.
 
-**Hands/wrist (MVP for Wrist type):** RTMW-l (384×288, 133-kpt wholebody) on a lead-arm crop, consuming channels 91–132 (21 lead-hand landmarks). The forearm vector (elbow→wrist) vs hand vector (wrist→middle-MCP) yields wrist hinge. Use **new sibling result structs** with `Q_DECLARE_METATYPE` — never overload the 17-slot `PoseResult` (BodyPoseAdapter reads it by index).
+**Hands/wrist (camera cross-check, optional):** no separate model — the **same ViTPose-wholebody** network already emits 133 keypoints; channels 91–132 are the 21 lead-hand landmarks, currently discarded at `pose_estimator_vitpose.cpp:241`. Expose them via **new sibling result structs** with `Q_DECLARE_METATYPE` (never overload the 17-slot `PoseResult` — `BodyPoseAdapter` reads it by index) to get a camera-side hand cross-check for free. The forearm vector (elbow→wrist) vs hand vector (wrist→middle-MCP) yields a wrist-hinge sanity check — but for the Wrist session the IMU is authoritative, so this is only a cross-check, never the source.
 
 **Club/ball (deferred):** a small custom 3–4-point shaft/clubhead keypoint model (RTMPose-tiny head retrained on self-captured, license-clean frames) seeded/validated by classical `cv::HoughLinesP`/LSD shaft-line fitting in a wrist-anchored ROI (robust through motion blur). Ball: `cv::HoughCircles`/blob on the teed-ball ROI. Until trained, club metrics are emitted as lead-hand-path approximations and clearly labelled.
 
@@ -391,7 +396,7 @@ Notation: `R_seg` = a segment's right-handed anatomical frame (built per the arc
 | `tempoBackswing` | Address→Top duration. | any (phase events) | — | s | ~0.75–0.85 (TPI 0.847±0.111) |
 | `tempoRatio` | `tempoBackswing / downswingTime` (Top→Impact). | any (phase events) | — | ratio | ~3:1 (tour 2.2–3.0:1) |
 
-\* Wrist flex/ext is **only trustworthy from the IMU** — COCO-17 lacks knuckle/thumb keypoints, so even with two cameras the camera term is a weak cross-check (RTMW hand crop) and the IMU quaternion is authoritative. † `faceAngle` is gated behind club tracking; until then it is suppressed or exposed as a forearm+wrist proxy clearly labelled `estimated`.
+\* Wrist flex/ext is **only trustworthy from the IMU** — COCO-17 lacks knuckle/thumb keypoints, so even with two cameras the camera term is a weak cross-check (ViTPose-wholebody hand keypoints) and the IMU quaternion is authoritative. † `faceAngle` is gated behind club tracking; until then it is suppressed or exposed as a forearm+wrist proxy clearly labelled `estimated`.
 
 #### Single-camera (face-on) viability — per-metric reframe
 
@@ -537,7 +542,98 @@ struct ScoreBreakdown {
 };
 ```
 
-`ScoreBreakdown` and the `std::vector<Fault>` live inside `SwingAnalysis` (the `ShotAnalysisResult::detail` shared_ptr); `overall` is copied into the flat `ShotAnalysisResult::score` for the unchanged `addShot()` path, and serialized to `analysis.json` (schema `pinpoint.analysis/1`) for cross-restart persistence. **Validation gates:** reproduce SPI pro-vs-amateur separation (AUC ~0.97) on the rotational-velocity sub-scores, and check `overall` correlates with coach ratings (DMSM reached κ≈0.71) before the score is trusted in the UI.
+`ScoreBreakdown` and the `std::vector<Fault>` live inside `SwingAnalysis` (the `ShotAnalysisResult::detail` shared_ptr); `overall` is copied into the flat `ShotAnalysisResult::score` for the unchanged `addShot()` path, and folded inline into `swing.json`'s additive `"analysis"` object at `maybeJoin()` for cross-restart persistence. **Validation gates:** reproduce SPI pro-vs-amateur separation (AUC ~0.97) on the rotational-velocity sub-scores, and check `overall` correlates with coach ratings (DMSM reached κ≈0.71) before the score is trusted in the UI.
+
+## Metric time series & key-swing-point sampling
+
+Every biomechanics metric is **two things at once**: a *continuous per-frame curve* over the swing window's master timeline, and a *sparse set of labelled samples* at each key swing point. The graph needs both — the curve to draw the line, the phase samples to place markers, pin checkpoint readouts, and drive scoring. Both live in the committed `pinpoint::analysis` structs (`docs/SHOT_ANALYZER_DESIGN.md:146-161`); this subsection makes them buildable and persistent. None of it exists in code yet — `src/Analysis/swing_analysis.{h,cpp}` is **to be ADDED**; `ShotAnalysisResult` (`src/Analysis/shot_analyzer.h:47-53`) today carries only `score`/`metrics`/`tracePoints`.
+
+### 1. Data model — TimeGrid, MetricSeries, PhaseSample
+
+**Master clock (`TimeGrid`).** All streams are resampled onto one ascending `std::vector<int64_t> t_us` (`TimeGrid`, design line 128) built by the analyzer worker. Cadence rule:
+
+- **Primary grid = the face-on camera-frame timeline** (each frame's `IndexEntry::timestamp_us`, `src/Buffer/types.h:56-57`). This guarantees one curve sample per displayed/replayed frame, so the playhead lands exactly on a series sample with no interpolation — and it tolerates variable capture rate (the same nearest-preceding model the replay uses, `shot_processor.cpp:484-492`).
+- **Fallback grid = fixed 200 Hz** when no usable camera stream exists (IMU-only Wrist shots): `t_us = startUs + k·5000` across `[SwingWindow::startTimestampUs(), endTimestampUs()]` (`src/Buffer/swing_window.h:47-48`). 200 Hz over-samples the 100 Hz IMU so the curve is smooth and phase peak-finding is precise.
+
+**IMU 100 Hz → wrist angles → grid.** The WT901 delivers quaternions at 100 Hz. The analyzer reads them via `SwingWindow::interpolateImu(SourceId, target_us, …)` (`src/Buffer/swing_window.h`), which slerps between the two bracketing in-window samples (no extrapolation, per the quaternions-only rule — never lerp Euler). For each grid `t_us` it interpolates the lead-wrist and lead-forearm quaternions, applies the swing-twist decomposition (M1 §4), and emits the scalar angle. Result: one `MetricSeries::value[i]` per `TimeGrid` index.
+
+**Extend `MetricSeries` with phase samples** (the curve alone has no markers):
+
+```cpp
+namespace pinpoint::analysis {
+
+struct PhaseSample {                 // ADD — a labelled point on one metric's curve
+    Phase   phase;                   // Address … Finish (design line 150)
+    int64_t t_us;                    // == the PhaseEvent t_us for this phase
+    double  value;                   // metric value sampled at t_us (grid-interpolated)
+    QString band;                    // "green"/"yellow"/"red" at scored phases, else ""
+};
+
+struct MetricSeries {                // EXTEND the committed struct (design line 146)
+    QString key, label, unit;
+    std::vector<int64_t> t_us;       // == the shared TimeGrid
+    std::vector<double>  value;      // one per t_us — the continuous curve
+    std::vector<PhaseSample> phaseSamples;   // ADD — sparse, ≤8 markers
+    std::optional<double> bandLo, bandHi;    // ADD — ideal/tour band (unit-space), for shaded plot
+    bool flexPositive = true;        // ADD — canonical sign flag (see §2)
+};
+
+}   // namespace
+```
+
+The **`PhaseEvent` timeline is shared across all metrics** — it is computed once per shot (`std::vector<PhaseEvent> SwingAnalysis::phases`, design line 158) by the PhaseSegmenter, and each metric's `phaseSamples` simply samples its own curve at those eight `t_us`. So all curves' markers line up vertically on a common x-axis. Impact is the hard anchor: `PhaseEvent{Phase::Impact, job.impactUs}` taken verbatim from the ShotMarker (`ShotAnalysisJob::impactUs`, `shot_analyzer.h:37`), never re-derived. The other seven phases are segmenter output (Butterworth/SG-filtered peak-finding, design line 356); low-confidence phases are flagged so QML can fade their ticks.
+
+### 2. Time axis, units, sign, ideal band
+
+- **Impact-relative time axis.** Plot x as `t_us − job.impactUs`, so **impact = 0**, backswing negative, follow-through positive. This makes the playhead, phase ticks, and (later) multi-shot overlay trivially correct, and matches impact-normalised comparison conventions. Store absolute `t_us` in `MetricSeries`; subtract at render time.
+- **Units** carried per-series in `MetricSeries::unit` ("°", "°/s", "m"). The y-axis labels and the value-at-playhead readout read it directly; never overlay different-unit metrics on one axis.
+- **Sign convention (canonical, stored).** The M1 internal convention is **flexion +, extension −** (`flexPositive = true`). HackMotion-trained coaches expect the opposite (extension/cupping up). The fix: **store the canonical M1 sign in `value[]`** and flip *only at the QML readout/axis label* — never re-sign the stored series (it would invert scoring). `flexPositive` documents the stored polarity so the chart knows which way to flip.
+- **Ideal/tour band (optional).** `bandLo`/`bandHi` (unit-space, one-sided allowed: leave one `nullopt`) drive a semi-transparent shaded region drawn **only across the scored phases** (Top, Impact for Wrist), not the full axis. For one-sided metrics (cupping = fault, bowed = fine) shade only the fault side, matching `SwingScorer`'s good-side clamp.
+
+### 3. Persistence — unified `swing.json` (folded at the join)
+
+The full series + phase markers must survive replay-window destruction (`finishShot()` destroys `m_swingWindow`, `shot_processor.cpp:537-548`) **and** app restart — persisted in the **single** `swing.json` document, never a separate file.
+
+**One document, one writer, written once.** Raw manifest and derived analysis live in the same `swing.json` (schema bumped **`pinpoint.swing/1` → `pinpoint.swing/2`**; the additive `"analysis"` object is the only new content, so `/1` readers stay forward-compatible). Because the exporter and analyzer run concurrently over the frozen window, **neither writes the file**:
+
+- `SwingExporter::run()` writes **media only** (MP4s, `thumb.jpg`) and **returns** its already-assembled raw manifest by value in `SwingExportResult.manifest` (`QJsonObject`) — the JSON tree it builds in memory (`swing_exporter.cpp:341-456`) is handed out instead of written (the `QSaveFile` block at `:458-468` is deleted).
+- `ShotAnalyzer::analyze()` stays pure-return (`ShotAnalysisResult`), touching no disk.
+
+The single authoritative write happens on the **GUI thread** at `ShotProcessor::maybeJoin()` (`shot_processor.cpp:395-435`) — the existing barrier that runs only after **both** `QFutureWatcher`s resolve. There, `SwingDocWriter::writeSwingJson(swingDir, m_exportManifest, analysisOk ? &result : nullptr, thumbTusOffset)` composes raw + derived into one tree and commits **atomically** (`QSaveFile` temp + `commit()` rename). **No parallel-write race is possible** — the analyzer writes nothing, the exporter writes only media, and the lone `swing.json` write is serial on the GUI thread after both workers have delivered.
+
+The analyzer's `SwingAnalysis` is serialised **inline** under `"analysis"` (no `{file}` indirection):
+
+```jsonc
+{ "schema": "pinpoint.swing/2",
+  "swing": {...}, "athlete": {...}, "clock": {...}, "window": {...},
+  "thumbnail": { "file": "thumb.jpg", "t_us": ... },
+  "streams": [ /* raw video/imu entries — UNCHANGED from /1 */ ],
+  "analysis": {                                  // additive, present iff analysis ok
+    "schema": "pinpoint.analysis/2",             // versions the embedded block
+    "impactUs": 172834905123,                    // x-axis zero
+    "timeGrid": [ /* ascending t_us */ ],
+    "phases": [ {"phase":"Top","t_us":172834700000,"conf":0.82}, ... ],
+    "metrics": [ { "key":"leadWristFlexExt", "label":"Lead-Wrist Flex/Ext", "unit":"°",
+                   "flexPositive": true, "bandLo": -5, "bandHi": 5,
+                   "value": [ /* one per timeGrid index */ ],
+                   "phaseSamples": [ {"phase":"Impact","t_us":172834905123,"value":-18.4,"band":"green"}, ... ] } ],
+    "score": { /* ScoreBreakdown */ } } }
+```
+
+**Degradation (always write what is available).** `addShot()` is unconditional, so `writeSwingJson()` writes whatever exists: export ok + analysis ok -> raw + `"analysis"`; export ok + analysis fail -> raw only (`"analysis"` omitted); export fail + analysis ok -> a minimal header synthesised from `SwingExportJob` values + `"analysis"`, `streams: []`; both fail -> nothing written. **Teardown caveat:** `finishNowBlocking()` bypasses `maybeJoin()`, so an interrupted shot persists nothing unless `finishNowBlocking()` itself calls `writeSwingJson()` with the results in hand.
+
+**Reload.** One reader, `SwingDocReader::readSwingJson(dir)`, rehydrates **both** raw and derived from the single document (media paths + thumbnail from the top level; score/metrics/series from `"analysis"`), feeding a new `ShotListModel::addPersistedShot(swingDir, ..., rating, note, trashed)`. *(Reload is future work; the unified document makes it one read, not two.)*
+
+**In-memory → QML** — widen `ShotAnalysisResult` with `std::shared_ptr<SwingAnalysis> detail` (design line 156), forward it through `ShotProcessor::maybeJoin()` → `ShotListModel::addShot()` (`shot_processor.cpp:411-417`), and add a **`SeriesRole`** to `ShotListModel::Roles` (`src/Gui/shot_list_model.h:48-61`) that exposes the metrics as a `QVariantList` of typed maps `{key,label,unit,t_us,value,phaseSamples,bandLo,bandHi,flexPositive}` plus a `PhasesRole` (`[{phase,t_us,conf}]`). Register `Q_DECLARE_METATYPE(std::shared_ptr<SwingAnalysis>)`. This is **distinct from the existing `TracePointsRole`** (`shot_list_model.h`), which stays the lossy normalised 0..1 sparkline for the card.
+
+### 4. Downsampling — card sparkline vs detail graph
+
+- **Detail graph** consumes the **full `value[]`** at native grid density (~120–200 pts over 5 s — cheap for a `Shape` `PathPolyline`). No downsampling; the playhead must land on real samples.
+- **Card sparkline** keeps the existing `TracePointsRole` (normalised 0..1, `PpTrace.qml`). The analyzer derives it once by **LTTB-downsampling the primary metric to ~24 points** then normalising t and value into 0..1 (y down). This is backward-compatible — `PpShotCard`/`PpTrace` are unchanged — and decouples the tiny card glyph from the heavy detail series.
+
+---
+
+> See **SHOT_ANALYZER_M1_WRIST.md → Replay-synchronized graphing** for how these series drive the lockstep detail view.
 
 ## Implementation Plan
 
@@ -545,21 +641,21 @@ This plan takes the team from the four stub analyzers in `src/Analysis/shot_anal
 
 ### M0 — Plumbing & persistence skeleton (no biomechanics yet)
 
-**Goal / outcome.** The result struct, job struct, on-disk `analysis.json`, and module scaffold exist and round-trip; the carousel score now *persists across restart*. No new math, but the seam every later phase plugs into is locked.
+**Goal / outcome.** The result struct, job struct, the unified `swing.json` writer/reader, and module scaffold exist and round-trip; the carousel score now *persists across restart* in the single document. No new math, but the seam every later phase plugs into is locked.
 
 **New files / classes.**
 - `src/Analysis/biomech_analyzer.{h,cpp}` — `BiomechAnalyzer` base owning the (initially empty) layer pipeline; `SwingAnalyzer`/`WristAnalyzer`/`GrfAnalyzer`/`CoachAnalyzer` derive from it.
 - `src/Analysis/swing_analysis.{h,cpp}` — the canonical intermediate structs (`SkeletonTimeline`, `MetricSeries`, `ScoreBreakdown`, `Fault`, `SwingAnalysis`, `ReconstructionTier`), `Q_DECLARE_METATYPE(std::shared_ptr<SwingAnalysis>)`.
-- `src/Analysis/analysis_io.{h,cpp}` — `writeAnalysisJson(swingDir, SwingAnalysis)` / `loadAnalysisJson(swingDir)` for schema `pinpoint.analysis/1`.
+- `src/Export/swing_doc.{h,cpp}` — `SwingDocWriter::writeSwingJson(swingDir, rawManifest, const SwingAnalysis*, thumbTusOffset)` + `SwingDocReader::readSwingJson(swingDir)` for the single unified document (**replaces** the never-built `analysis_io`/`analysis.json`).
 
 **Changes to existing files.**
 - `src/Analysis/shot_analyzer.h` — widen `ShotAnalysisJob` (add `cameraCalib`, `imuBindings`, `handedness`, `club`, `athleteUuid`, `swingDir`, `cameraFixedInPlace`); add `std::shared_ptr<SwingAnalysis> detail` to `ShotAnalysisResult`; `makeShotAnalyzer()` returns the new classes (still producing the old stub `score`/`metrics` so the carousel is unchanged).
-- `src/Gui/shot_processor.cpp` — in `startAnalysis()` populate the new job fields on the UI thread (read `AppSettings`, `ImuInstance::alignA()/mountM()`, `SwingPaths` swingDir); in `maybeJoin()` keep calling `addShot()` with the flat fields and forward `result.detail`.
-- `src/Gui/shot_list_model.{h,cpp}` — add an `analysisDetail` role holding the pointer; on app start, a `swing.json` reader rehydrates `score`/`metrics` from the additive `"analysis"` block.
-- `src/Export/swing_exporter.cpp` — emit the additive `"analysis": { "file": "analysis.json", "score": N }` block (written by the analyzer; exporter only reserves the key).
+- `src/Gui/shot_processor.{h,cpp}` — in `startAnalysis()` populate the new job fields on the UI thread (read `AppSettings`, `ImuInstance::alignA()/mountM()`, `SwingPaths` swingDir); `onSwingSaveFinished()` stashes the exporter's returned `m_exportManifest`; `maybeJoin()` calls `SwingDocWriter::writeSwingJson()` once (both done) **then** `addShot()` with the flat fields + `result.detail`.
+- `src/Gui/shot_list_model.{h,cpp}` — add an `analysisDetail` role holding the pointer + an `addPersistedShot(swingDir, ...)` entry; on app start, `SwingDocReader::readSwingJson()` rehydrates `score`/`metrics` from the single `swing.json`'s `"analysis"` object.
+- `src/Export/swing_exporter.{h,cpp}` — `run()` no longer writes `swing.json`; it writes **media only** and returns the assembled raw manifest in `SwingExportResult.manifest` (`QJsonObject`) + `thumbnailTusOffset`.
 - `CMakeLists.txt` — add the new `src/Analysis/**` sources to the target. Eigen is already on the include path (`${eigen_SOURCE_DIR}`, line 482) — **no CMake dependency change**.
 
-**Exit criteria.** A manual SHOT writes `analysis.json`; restarting the app shows the same score on the carousel card. Unit test: serialize→deserialize a populated `SwingAnalysis` is lossless.
+**Exit criteria.** A manual SHOT writes one `swing.json` containing both the raw manifest and the `"analysis"` block; restarting the app shows the same score on the carousel card. Unit test: serialize→deserialize a populated `SwingAnalysis` round-trips losslessly through `swing_doc`.
 
 ### M1 — Monocular skeleton + IMU orientation metrics + banded score (`Angles2D` → `Mono3D+IMU`)
 
@@ -572,7 +668,7 @@ immediately; the Wrist session scores for real.
 - `src/Analysis/decode/frame_decoder.{h,cpp}` — `FrameDecoder`, zero-copy `cv::Mat` wrap +
   demosaic, factored out of `swing_exporter.cpp`'s demosaic table.
 - `src/Analysis/detect/pose_runner.{h,cpp}` — `PoseRunner` reusing the `PoseEstimatorBase` ORT EP
-  cascade, run **offline** per decoded frame (no `FrameThrottle`); RTMPose-m/ViTPose-body weights.
+  cascade, run **offline** per decoded frame (no `FrameThrottle`). Use the already-wired `PoseEstimatorViTPose` and **upgrade the model to ViTPose-L/H** — the analyzer is offline, so favour accuracy over the live path's MoveNet.
 - `src/Analysis/phase/phase_segmenter.{h,cpp}` — `PhaseSegmenter` anchored on `job.impactUs`,
   detecting Top/Transition from **IMU angular-velocity zero-crossings** (sharper than 2D) with a
   2D keypoint-velocity fallback when no IMU.
@@ -593,8 +689,9 @@ camera calibration required for the IMU metrics**. Per-shot heading re-zero (Kab
 shared) for heading-dependent metrics; inclination metrics are **not** re-zeroed (drift-free).
 `ScreenWrist.qml` metric keys populated from real values.
 
-**New dependency.** RTMPose-m ONNX (Apache-2.0); RTMW-l hand ONNX (Apache-2.0) for the Wrist crop.
-Mirror the ViTPose download/copy block.
+**New dependency.** **ViTPose-L (or -H) ONNX** (Apache-2.0) — `PoseEstimatorViTPose` already exists
+(ViTPose-B); add the larger variant through the existing `HAVE_VITPOSE` download/copy block. No
+separate hand model: the same whole-body network's channels 91–132 supply the optional hand cross-check.
 
 **Exit criteria.** Wrist FE/RUD within HackMotion-plausible bands on a hand-checked clip; X-factor
 inside published tour bands on a pro reference; tempo within ±10 %; faults panel empty but
@@ -707,7 +804,7 @@ validated against `mirroredSource`/handedness; occluded segments stay IMU-recons
 - `src/Analysis/score/dtw_similarity.{h,cpp}` — phase-anchored, body-scale-normalized, Sakoe-Chiba-banded multivariate DTW shape sub-score against a stored reference swing (`CoachAnalyzer` especially: over-the-top/casting).
 - Reference-swing storage under the athlete library (`athleteLibraryPath`); a "set as reference" action in the shot detail UI.
 
-**Changes.** `SwingScorer` adds the DTW term + per-region/per-phase aggregation; `analysis.json` carries the full `ScoreBreakdown` + faults. Detail UI (QML) reads `analysisDetail`.
+**Changes.** `SwingScorer` adds the DTW term + per-region/per-phase aggregation; `swing.json`'s `"analysis"` object carries the full `ScoreBreakdown` + faults. Detail UI (QML) reads `analysisDetail`.
 
 **New dependency.** **DTW_cpp** (MIT, single header) dropped into `src/Analysis/score/` — add the Sakoe-Chiba band ourselves; no CMake change.
 
@@ -729,13 +826,13 @@ validated against `mirroredSource`/handedness; occluded segments stay IMU-recons
 |---|---|---|---|---|
 | Eigen 3.4 | M0 | DLT SVD, Kalman/RTS, Kabsch, quaternion math | MPL-2.0 | **Already fetched** (`${eigen_SOURCE_DIR}`) — no change |
 | OpenCV calib3d/objdetect | M2 | ChArUco, calibrate/solvePnP, undistort/triangulate | Apache-2.0 | **Already linked** |
-| RTMPose-m ONNX | M1 | Offline 2D body keypoints | Apache-2.0 | `file(DOWNLOAD)` + `HAVE_RTMPOSE`, POST_BUILD copy (mirror ViTPose block) |
-| RTMW-l / DWPose ONNX | **M1** | Lead-hand 133-kpt (wrist angle) | Apache-2.0 | Same download/copy pattern, lead-arm crop |
+| **ViTPose-L/H ONNX** | M1 | Offline 2D body keypoints — accuracy-first (analyzer is offline) | Apache-2.0 | `PoseEstimatorViTPose` already wired (ViTPose-B); swap to the larger variant via the existing `HAVE_VITPOSE` download/copy block |
+| ViTPose-wholebody hands | M1 (optional) | Lead-hand 133-kpt camera cross-check | Apache-2.0 | **Same** ViTPose model — expose discarded channels 91–132; no separate model or download |
 | MotionBERT ONNX | **M2** | Single-camera metric lift (`Mono3D+IMU`) | Apache-2.0 | Self-exported fixed-243-frame, GPU EP, `WITH_FUSION` |
 | Ceres Solver | M4 | IK solve + extrinsic bundle adjustment | BSD-3 | `find_package(Ceres)`, CPU, `WITH_FUSION` |
 | DTW_cpp | M5 | Reference-swing shape similarity | MIT | Single header into `src/Analysis/score/` |
 
-**Explicitly rejected (licensing):** Ultralytics YOLOv8/v11 (AGPL-3.0, incompatible), GolfDB/SwingNet weights and Roboflow golf datasets (CC-BY-NC, non-commercial). MediaPipe is Apache-2.0 but adds a second runtime — RTMW keeps everything on ONNX Runtime.
+**Explicitly rejected (licensing):** Ultralytics YOLOv8/v11 (AGPL-3.0, incompatible), GolfDB/SwingNet weights and Roboflow golf datasets (CC-BY-NC, non-commercial). MediaPipe is Apache-2.0 but adds a second runtime — ViTPose keeps everything on ONNX Runtime.
 
 ### Validation strategy
 
