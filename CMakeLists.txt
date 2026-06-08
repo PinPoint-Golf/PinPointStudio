@@ -1670,15 +1670,15 @@ target_sources(PinPointStudio PRIVATE
     src/Export/swing_doc.h
     src/Export/swing_doc.cpp
     src/Analysis/swing_analysis.h
-    src/Analysis/metrics/wrist_angles.h
-    src/Analysis/metrics/metric_extractor.h
-    src/Analysis/metrics/metric_extractor.cpp
-    src/Analysis/fusion/imu_vision_fuser.h
-    src/Analysis/fusion/imu_vision_fuser.cpp
-    src/Analysis/phase/phase_segmenter.h
-    src/Analysis/phase/phase_segmenter.cpp
-    src/Analysis/score/swing_scorer.h
-    src/Analysis/score/swing_scorer.cpp
+    src/Analysis/wrist_angles.h
+    src/Analysis/metric_extractor.h
+    src/Analysis/metric_extractor.cpp
+    src/Analysis/imu_vision_fuser.h
+    src/Analysis/imu_vision_fuser.cpp
+    src/Analysis/phase_segmenter.h
+    src/Analysis/phase_segmenter.cpp
+    src/Analysis/swing_scorer.h
+    src/Analysis/swing_scorer.cpp
     src/Analysis/wrist_analyzer.h
     src/Analysis/wrist_analyzer.cpp
     src/Analysis/shot_analyzer.h

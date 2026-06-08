@@ -2,12 +2,12 @@
 // Pure (no SwingWindow). Build:
 //   QT=~/Qt/6.11.0/gcc_64
 //   g++ -std=c++17 -fPIC -I$QT/include -I$QT/include/QtCore -I$QT/include/QtGui -Isrc/Buffer \
-//       src/Analysis/metrics/pipeline_test.cpp \
-//       src/Analysis/phase/phase_segmenter.cpp src/Analysis/metrics/metric_extractor.cpp \
+//       src/Analysis/tests/pipeline_test.cpp \
+//       src/Analysis/phase_segmenter.cpp src/Analysis/metric_extractor.cpp \
 //       -o /tmp/pl_test -L$QT/lib -lQt6Gui -lQt6Core -Wl,-rpath,$QT/lib && /tmp/pl_test
 
-#include "../phase/phase_segmenter.h"
-#include "metric_extractor.h"
+#include "../phase_segmenter.h"
+#include "../metric_extractor.h"
 
 #include <QQuaternion>
 #include <QVector3D>

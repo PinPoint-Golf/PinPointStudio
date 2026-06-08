@@ -18,25 +18,25 @@
 
 #pragma once
 
-#include <cstdint>
 #include <vector>
 
-#include "../fusion/imu_vision_fuser.h"   // FusedStreams
-#include "../swing_analysis.h"            // Phase, PhaseEvent
+#include "swing_analysis.h"   // MetricSeries, ScoreBreakdown
 
 namespace pinpoint::analysis {
 
-// First-pass swing-phase segmentation from the fused IMU streams (M1). Emits
-// Address / Top / Impact / Finish:
-//   * Impact = the hard ShotMarker anchor passed in (clamped to the grid).
-//   * Address = settle just before sustained lead-hand motion onset.
-//   * Top = the lead-hand orientation FURTHEST from Address (backswing apex) —
-//           far more robust than angular-velocity valley hunting.
-// Pure over FusedStreams (unit-testable). A learned event detector (toe-up /
-// parallel P-positions) is deferred; this heuristic is the always-available base.
-class PhaseSegmenter {
+// Transparent, non-compensatory swing scorer (design: SHOT_ANALYZER_DESIGN.md
+// "B) Scoring model"). Each metric is read at its scoring phase and mapped to a
+// 0..100 sub-score against a reference band (deadband + bounded falloff, one-sided
+// where a fault is directional); sub-scores aggregate by a WEIGHTED GEOMETRIC mean
+// (weakest-link — one severe fault can't be averaged away) into per-region, per-phase,
+// and overall scores.
+//
+// Reference bands are a versioned table per session type. The wrist bands are
+// PROVISIONAL pending the FE/RUD/pronation sign-lock on the "check your sensors"
+// wizard page (see wrist_angles.h) — the band centres/directions, not the math.
+class SwingScorer {
 public:
-    static std::vector<PhaseEvent> segment(const FusedStreams &streams, int64_t impactUs);
+    static ScoreBreakdown score(const std::vector<MetricSeries> &series, int sessionType);
 };
 
 } // namespace pinpoint::analysis

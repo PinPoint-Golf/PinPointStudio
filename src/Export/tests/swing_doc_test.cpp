@@ -1,12 +1,12 @@
 // Standalone test for SwingDocWriter. Build:
 //   QT=~/Qt/6.11.0/gcc_64
 //   g++ -std=c++17 -fPIC -I$QT/include -I$QT/include/QtCore -I$QT/include/QtGui -Isrc/Buffer \
-//       src/Export/swing_doc_test.cpp src/Export/swing_doc.cpp -o /tmp/sd_test \
+//       src/Export/tests/swing_doc_test.cpp src/Export/swing_doc.cpp -o /tmp/sd_test \
 //       -L$QT/lib -lQt6Gui -lQt6Core -Wl,-rpath,$QT/lib && /tmp/sd_test
 
-#include "swing_doc.h"
-#include "swing_paths.h"
-#include "../Analysis/swing_analysis.h"
+#include "../swing_doc.h"
+#include "../swing_paths.h"
+#include "../../Analysis/swing_analysis.h"
 
 // Stub — avoids linking swing_paths.cpp (which pulls in the PpLogStream logging deps).
 // SwingDocReader::latestSessionDir() (the only sanitise() user) isn't exercised here.

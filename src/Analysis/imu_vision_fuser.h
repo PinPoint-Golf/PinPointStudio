@@ -22,7 +22,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "../swing_analysis.h"   // SegmentRole, ImuSegmentBinding
+#include "swing_analysis.h"   // SegmentRole, ImuSegmentBinding
 
 namespace pinpoint { class SwingWindow; }
 

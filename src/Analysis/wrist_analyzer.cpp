@@ -23,10 +23,10 @@
 #include <algorithm>
 #include <cmath>
 
-#include "fusion/imu_vision_fuser.h"
-#include "metrics/metric_extractor.h"
-#include "phase/phase_segmenter.h"
-#include "score/swing_scorer.h"
+#include "imu_vision_fuser.h"
+#include "metric_extractor.h"
+#include "phase_segmenter.h"
+#include "swing_scorer.h"
 #include "swing_window.h"
 #include "../Core/pp_debug.h"
 

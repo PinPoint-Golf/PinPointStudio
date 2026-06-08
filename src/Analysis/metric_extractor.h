@@ -20,8 +20,8 @@
 
 #include <vector>
 
-#include "../fusion/imu_vision_fuser.h"   // FusedStreams
-#include "../swing_analysis.h"            // MetricSeries, PhaseEvent
+#include "imu_vision_fuser.h"   // FusedStreams
+#include "swing_analysis.h"            // MetricSeries, PhaseEvent
 
 namespace pinpoint::analysis {
 

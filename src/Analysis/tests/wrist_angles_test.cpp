@@ -2,14 +2,14 @@
 // Build (no app/CMake needed — Qt Gui only):
 //   QT=~/Qt/6.11.0/gcc_64
 //   g++ -std=c++17 -fPIC -I$QT/include -I$QT/include/QtCore -I$QT/include/QtGui \
-//       src/Analysis/metrics/wrist_angles_test.cpp -o /tmp/wa_test \
+//       src/Analysis/tests/wrist_angles_test.cpp -o /tmp/wa_test \
 //       -L$QT/lib -lQt6Gui -lQt6Core -Wl,-rpath,$QT/lib && /tmp/wa_test
 //
 // Verifies the decomposition MATH (axial isolation, magnitude, singularity,
 // mirroring) with hard asserts, and DIAGNOSES the FE/RUD axis+sign mapping vs the
 // imu_calibration anatomical frame (X=flexion, Y=long, Z=deviation) as report lines.
 
-#include "wrist_angles.h"
+#include "../wrist_angles.h"
 
 #include <QQuaternion>
 #include <QVector3D>

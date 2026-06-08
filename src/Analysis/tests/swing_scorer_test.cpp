@@ -1,13 +1,13 @@
 // Standalone test for SwingScorer. Build:
 //   QT=~/Qt/6.11.0/gcc_64
 //   g++ -std=c++17 -fPIC -I$QT/include -I$QT/include/QtCore -I$QT/include/QtGui -Isrc/Buffer \
-//       src/Analysis/score/swing_scorer_test.cpp src/Analysis/score/swing_scorer.cpp \
+//       src/Analysis/tests/swing_scorer_test.cpp src/Analysis/swing_scorer.cpp \
 //       -o /tmp/ss_test -L$QT/lib -lQt6Gui -lQt6Core -Wl,-rpath,$QT/lib && /tmp/ss_test
 //
 // Verifies the sign-independent scoring MACHINERY: deadband, bounded falloff,
 // one-sided clamp, and weighted-geometric-mean aggregation (weakest-link).
 
-#include "swing_scorer.h"
+#include "../swing_scorer.h"
 
 #include <cstdio>
 
