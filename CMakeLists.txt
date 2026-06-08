@@ -1667,6 +1667,9 @@ target_sources(PinPointStudio PRIVATE
     src/Export/swing_exporter.h
     src/Export/swing_exporter.cpp
     src/Analysis/swing_analysis.h
+    src/Analysis/metrics/wrist_angles.h
+    src/Analysis/fusion/imu_vision_fuser.h
+    src/Analysis/fusion/imu_vision_fuser.cpp
     src/Analysis/shot_analyzer.h
     src/Analysis/shot_analyzer.cpp
 )
