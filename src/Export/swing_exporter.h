@@ -20,6 +20,7 @@
 
 #include <QDateTime>
 #include <QHash>
+#include <QJsonObject>
 #include <QString>
 #include <vector>
 
@@ -66,10 +67,12 @@ struct SwingExportJob {
 };
 
 struct SwingExportResult {
-    bool    ok = false;
-    QString swingDir;
-    QString error;
-    QString thumbnailPath;   // absolute path to thumb.jpg; empty if none written
+    bool        ok = false;
+    QString     swingDir;
+    QString     error;
+    QString     thumbnailPath;   // absolute path to thumb.jpg; empty if none written
+    QJsonObject manifest;        // the raw pinpoint.swing tree (no "analysis"); the GUI
+                                 // thread writes the unified swing.json at the join.
 };
 
 // Stateless worker entry point.  Runs on a worker thread; the window must stay

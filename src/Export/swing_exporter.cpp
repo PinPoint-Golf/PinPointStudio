@@ -455,19 +455,12 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
     }
     root[QStringLiteral("streams")] = streams;
 
-    const QString jsonPath = job.swingDir + QStringLiteral("/swing.json");
-    QSaveFile file(jsonPath);
-    if (!file.open(QIODevice::WriteOnly)) {
-        result.error = QStringLiteral("cannot write %1: %2").arg(jsonPath, file.errorString());
-        return result;
-    }
-    file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
-    if (!file.commit()) {
-        result.error = QStringLiteral("failed to commit %1: %2").arg(jsonPath, file.errorString());
-        return result;
-    }
-
-    result.ok = true;
+    // swing.json is NOT written here. The worker returns its raw manifest and the GUI
+    // thread writes ONE unified swing.json (raw + the analyzer's "analysis" block) at the
+    // join — ShotProcessor::maybeJoin() -> SwingDocWriter::writeSwingJson(). The media
+    // (MP4s + thumb.jpg) above are still written on this worker.
+    result.manifest = root;
+    result.ok       = true;
     return result;
 }
 

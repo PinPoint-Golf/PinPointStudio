@@ -185,5 +185,6 @@ private:
     ShotAnalysisResult m_analysisResult;
     QString m_swingDir;          // cached from the export job for the join
     QString m_thumbnailPath;     // from SwingExportResult
+    QJsonObject m_exportManifest; // raw manifest from the exporter, for the unified write
     pinpoint::SwingPaths m_swingPaths;   // per-app-run session-folder cache
 };

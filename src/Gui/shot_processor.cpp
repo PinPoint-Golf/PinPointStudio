@@ -29,6 +29,7 @@
 #include "session_controller.h"
 #include "shot_list_model.h"
 #include "../Analysis/swing_analysis.h"
+#include "../Export/swing_doc.h"
 #include "../Core/pp_debug.h"
 
 #include <QDateTime>
@@ -456,9 +457,10 @@ void ShotProcessor::onSwingSaveFinished()
     m_swingSaveInFlight = false;
     const pinpoint::SwingExportResult result = m_swingSaveWatcher.result();
     if (result.ok) {
-        ppInfo() << "[SwingExport] swing saved:" << result.swingDir;
-        m_exportOutcome = Outcome::Succeeded;
-        m_thumbnailPath = result.thumbnailPath;
+        ppInfo() << "[SwingExport] media saved:" << result.swingDir;
+        m_exportOutcome  = Outcome::Succeeded;
+        m_thumbnailPath  = result.thumbnailPath;
+        m_exportManifest = result.manifest;   // unified swing.json written at the join
         emit swingSaved(result.swingDir);
     } else {
         ppError() << "[SwingExport] swing save failed:" << result.error;
@@ -477,6 +479,21 @@ void ShotProcessor::maybeJoin()
 
     const bool analysisOk = m_analysisOutcome == Outcome::Succeeded;
     const bool exportOk   = m_exportOutcome   == Outcome::Succeeded;
+
+    // The ONE unified swing.json (raw manifest + inline "analysis"), written here on the
+    // GUI thread now that both workers have finished — no parallel-write race (the workers
+    // wrote only media + returned values). Export-failed shots have no dir/manifest.
+    if (exportOk) {
+        QString werr;
+        if (!pinpoint::SwingDocWriter::writeSwingJson(
+                m_swingDir, m_exportManifest,
+                analysisOk && m_analysisResult.detail ? m_analysisResult.detail.get() : nullptr,
+                &werr))
+            ppError() << "[SwingDoc]" << werr;
+        else
+            ppInfo() << "[SwingDoc] wrote" << m_swingDir + QStringLiteral("/swing.json")
+                     << (analysisOk ? "(with analysis)" : "(raw only)");
+    }
 
     // The shot happened — it always lands on the carousel, with whatever the
     // pipeline produced. Club is a stub until club selection exists.
