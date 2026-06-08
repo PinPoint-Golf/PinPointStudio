@@ -342,6 +342,7 @@ Item {
             note:           root.selectedCard ? root.selectedCard.note           : ""
             tracePoints:    root.selectedCard ? root.selectedCard.tracePoints    : []
             metrics:        root.selectedCard ? root.selectedCard.metrics        : ({})
+            analysisDetail: root.selectedCard ? root.selectedCard.analysisDetail : ({})
             metricKeys:     root.metricKeys
             traceLabel:     root.traceLabel
 

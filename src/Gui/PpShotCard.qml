@@ -41,6 +41,7 @@ Rectangle {
     required property int    rating
     required property string note
     required property var    metrics
+    required property var    analysisDetail
 
     property bool selected: false
 

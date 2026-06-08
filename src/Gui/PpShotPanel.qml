@@ -43,6 +43,16 @@ Item {
     property var    metrics:        ({})
     property var    metricKeys:     []
     property string traceLabel:     ""
+    property var    analysisDetail: ({})
+
+    // The lead-wrist FE series out of analysisDetail.series, or null → fall back to
+    // the normalised tracePoints sparkline (stub / no-IMU shots).
+    readonly property var _feSeries: {
+        const s = (analysisDetail && analysisDetail.series) ? analysisDetail.series : []
+        for (let i = 0; i < s.length; ++i)
+            if (s[i].key === "leadWristFlexExt") return s[i]
+        return null
+    }
 
     signal replayRequested(string mode)
     signal faceOnRequested()
@@ -165,7 +175,20 @@ Item {
                     font.letterSpacing: Theme.trackingLabel
                     color:          Theme.colorText3
                 }
-                PpTrace {
+                PpMetricGraph {        // real per-frame curve + phase ticks + replay playhead
+                    visible: panel._feSeries !== null
+                    width:  parent.width
+                    height: Theme.sp(74)
+                    series:       panel._feSeries || ({})
+                    phases:       (panel.analysisDetail && panel.analysisDetail.phases) ? panel.analysisDetail.phases : []
+                    startUs:      shotProcessor.isReplaying ? shotProcessor.replayStartUs : 0
+                    endUs:        shotProcessor.isReplaying ? shotProcessor.replayEndUs   : 0
+                    impactUs:     shotProcessor.replayImpactUs
+                    playheadUs:   shotProcessor.replayPositionUs
+                    showPlayhead: shotProcessor.isReplaying
+                }
+                PpTrace {              // sparkline fallback when there's no analysis series
+                    visible: panel._feSeries === null
                     width:  parent.width
                     height: Theme.sp(58)
                     points: panel.tracePoints

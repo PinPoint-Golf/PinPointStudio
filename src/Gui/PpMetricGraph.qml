@@ -43,7 +43,11 @@ Item {
 
     readonly property var  _t: (series && series.t_us)  ? series.t_us  : []
     readonly property var  _v: (series && series.value) ? series.value : []
-    readonly property bool _hasData: _t.length > 1 && _v.length === _t.length && (endUs > startUs)
+    readonly property bool _hasData: _t.length > 1 && _v.length === _t.length
+    // Axis extent: an explicit span (live replay) if given, else the series' own range
+    // (static review). The playhead maps onto the same axis.
+    readonly property real _axisStart: (startUs > 0 && endUs > startUs) ? startUs : (_t.length ? _t[0] : 0)
+    readonly property real _axisEnd:   (startUs > 0 && endUs > startUs) ? endUs   : (_t.length ? _t[_t.length - 1] : 1)
 
     readonly property real _vmin: _hasData ? Math.min.apply(null, _v) : 0
     readonly property real _vmax: _hasData ? Math.max.apply(null, _v) : 1
@@ -51,7 +55,7 @@ Item {
     readonly property real _lo:   _vmin - _pad
     readonly property real _hi:   _vmax + _pad
 
-    function xForT(t) { return (endUs > startUs) ? (t - startUs) / (endUs - startUs) * width : 0 }
+    function xForT(t) { return (_axisEnd > _axisStart) ? (t - _axisStart) / (_axisEnd - _axisStart) * width : 0 }
     function yForV(v) { return (_hi > _lo) ? height - (v - _lo) / (_hi - _lo) * height : height / 2 }
     function _phaseTag(p) { return ["ADR", "TKW", "TOP", "TRN", "DWN", "IMP", "REL", "FIN"][p] || "" }
 
