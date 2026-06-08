@@ -42,8 +42,9 @@ bool NavigationController::sessionLocked() const
     return m_session && m_session->running() && m_session->activeSessionType() >= 0;
 }
 
-// While a session is active, the only reachable screens are System (8),
-// Settings (9) and the active session type's own screen (type + 1).
+// While a session is active, the only reachable screens are the Resource
+// Monitor (8, reached from within Settings), Settings (9) and the active
+// session type's own screen (type + 1).
 bool NavigationController::blockedDuringSession(int index) const
 {
     if (!sessionLocked()) return false;

@@ -29,6 +29,11 @@ Item {
     property int    activeNavIndex: 0
     property string searchQuery:    ""
 
+    // Emitted by the pinned bottom actions; Main.qml jumps to the Developer
+    // / Resource Monitor screens (each its own screen — back returns here).
+    signal developerRequested()
+    signal resourceMonitorRequested()
+
     // ── Full-text search ──────────────────────────────────────────────────────
 
     readonly property bool isSearching: root.searchQuery.trim().length >= 2
@@ -158,9 +163,12 @@ Item {
                 }
 
                 // ── Nav list — hidden while searching ────────────────────────
+                // Reserve sp(46) top (search field) + sp(92) bottom (the two
+                // pinned actions: Developer + Resource Monitor) so neither
+                // overlaps the nav rows.
                 Item {
                     width:   parent.width
-                    height:  root.isSearching ? 0 : parent.height - Theme.sp(46)
+                    height:  root.isSearching ? 0 : parent.height - Theme.sp(46) - Theme.sp(92)
                     clip:    true
                     visible: !root.isSearching
                     Behavior on height { NumberAnimation { duration: Theme.durationFast } }
@@ -300,7 +308,7 @@ Item {
                 // ── Search results — shown while searching ────────────────────
                 Item {
                     width:   parent.width
-                    height:  root.isSearching ? parent.height - Theme.sp(46) : 0
+                    height:  root.isSearching ? parent.height - Theme.sp(46) - Theme.sp(92) : 0
                     clip:    true
                     visible: root.isSearching
                     Behavior on height { NumberAnimation { duration: Theme.durationFast } }
@@ -382,6 +390,133 @@ Item {
                                 onClicked:    root.navigateToResult(modelData)
                             }
                         }
+                    }
+                }
+            }
+
+            // ── Pinned bottom actions: Developer + Resource Monitor ──────────
+            // Not panels: each jumps to its own screen (Main.qml navigate);
+            // the header back arrow returns here.
+            Column {
+                id: pinnedActions
+                anchors.left:   parent.left
+                anchors.right:  parent.right
+                anchors.bottom: parent.bottom
+                spacing: 0
+
+                // Developer (index 5) — blocked while a session is locked
+                Item {
+                    id: devNav
+                    width:  parent.width
+                    height: Theme.sp(46)
+
+                    readonly property bool hovered: devArea.containsMouse
+
+                    Rectangle {
+                        anchors { top: parent.top; left: parent.left; right: parent.right }
+                        height:  1
+                        color:   Theme.colorBorderMid
+                        opacity: Theme.borderOpacityNormal
+                    }
+
+                    Rectangle {
+                        anchors.fill:      parent
+                        anchors.topMargin: 1
+                        color: devNav.hovered ? Theme.colorBg2 : "transparent"
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    }
+
+                    Text {
+                        id: devIcon
+                        anchors.left:           parent.left
+                        anchors.leftMargin:     Theme.sp(16)
+                        anchors.verticalCenter: parent.verticalCenter
+                        text:           "▸"
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzBody
+                        color: devNav.hovered ? Theme.colorText2 : Theme.colorText3
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    }
+
+                    Text {
+                        anchors.left:           devIcon.right
+                        anchors.leftMargin:     Theme.sp(10)
+                        anchors.right:          parent.right
+                        anchors.rightMargin:    Theme.sp(10)
+                        anchors.verticalCenter: parent.verticalCenter
+                        text:           qsTr("Developer")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody2
+                        font.weight:    Theme.fontBodyWeight
+                        color: devNav.hovered ? Theme.colorText : Theme.colorText2
+                        elide: Text.ElideRight
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    }
+
+                    MouseArea {
+                        id: devArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape:  Qt.PointingHandCursor
+                        onClicked:    root.developerRequested()
+                    }
+                }
+
+                // Resource Monitor (index 8)
+                Item {
+                    id: rmNav
+                    width:  parent.width
+                    height: Theme.sp(46)
+
+                    readonly property bool hovered: rmArea.containsMouse
+
+                    Rectangle {
+                        anchors { top: parent.top; left: parent.left; right: parent.right }
+                        height:  1
+                        color:   Theme.colorBorderMid
+                        opacity: Theme.borderOpacityNormal
+                    }
+
+                    Rectangle {
+                        anchors.fill:      parent
+                        anchors.topMargin: 1
+                        color: rmNav.hovered ? Theme.colorBg2 : "transparent"
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    }
+
+                    Text {
+                        id: rmIcon
+                        anchors.left:           parent.left
+                        anchors.leftMargin:     Theme.sp(16)
+                        anchors.verticalCenter: parent.verticalCenter
+                        text:           "◈"
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzBody
+                        color: rmNav.hovered ? Theme.colorText2 : Theme.colorText3
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    }
+
+                    Text {
+                        anchors.left:           rmIcon.right
+                        anchors.leftMargin:     Theme.sp(10)
+                        anchors.right:          parent.right
+                        anchors.rightMargin:    Theme.sp(10)
+                        anchors.verticalCenter: parent.verticalCenter
+                        text:           qsTr("Resource Monitor")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody2
+                        font.weight:    Theme.fontBodyWeight
+                        color: rmNav.hovered ? Theme.colorText : Theme.colorText2
+                        elide: Text.ElideRight
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    }
+
+                    MouseArea {
+                        id: rmArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape:  Qt.PointingHandCursor
+                        onClicked:    root.resourceMonitorRequested()
                     }
                 }
             }

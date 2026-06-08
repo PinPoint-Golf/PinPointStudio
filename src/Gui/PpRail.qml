@@ -43,14 +43,16 @@ Item {
         return locked || (sessionLockIndex >= 0 && sessionLockIndex !== idx)
     }
 
+    // True whenever the rail is locked (wizard open or a session active) — i.e.
+    // some buttons are muted. Enabled buttons tint amber (attention) in this
+    // state and revert to the standard scheme once everything is interactive.
+    readonly property bool anyLocked: locked || (sessionLockIndex >= 0)
+
     // Emitted whenever a nav button is pressed; caller sets contentStack.currentIndex
     signal pageRequested(int index)
 
     // Emitted when the athlete avatar is clicked
     signal avatarClicked()
-
-    // Emitted when the System button is clicked
-    signal systemClicked()
 
     // Background — Instrument uses colorBg2; Studio and Editorial use colorBg
     Rectangle {
@@ -134,6 +136,7 @@ Item {
             labelText: qsTr("Home")
             isActive:  root.currentPageIndex === 0
             isMuted:   root._modeMuted(0)
+            attention: root.anyLocked
             onClicked: root.pageRequested(0)
         }
 
@@ -145,6 +148,7 @@ Item {
             labelText: qsTr("Swing")
             isActive:  root.currentPageIndex === 1
             isMuted:   root._modeMuted(1)
+            attention: root.anyLocked
             onClicked: root.pageRequested(1)
         }
 
@@ -156,6 +160,7 @@ Item {
             labelText: qsTr("Wrist")
             isActive:  root.currentPageIndex === 2
             isMuted:   root._modeMuted(2)
+            attention: root.anyLocked
             onClicked: root.pageRequested(2)
         }
 
@@ -167,6 +172,7 @@ Item {
             labelText: qsTr("GRF")
             isActive:  root.currentPageIndex === 3
             isMuted:   root._modeMuted(3)
+            attention: root.anyLocked
             onClicked: root.pageRequested(3)
         }
 
@@ -178,47 +184,31 @@ Item {
             labelText: qsTr("Coach")
             isActive:  root.currentPageIndex === 4
             isMuted:   root._modeMuted(4)
+            attention: root.anyLocked
             onClicked: root.pageRequested(4)
         }
 
         // ── Spacer ────────────────────────────────────────────────────────────
         Item { Layout.fillHeight: true; Layout.fillWidth: true }
 
-        // ── Bottom section: Play dev-hatch + Settings ─────────────────────────
+        // ── Bottom section: Settings ──────────────────────────────────────────
         PpDivider {
             Layout.preferredWidth: Theme.sp(24)
             Layout.alignment: Qt.AlignHCenter
         }
         Item { Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true }
 
-        // Play — dev hatch to existing app tabs (index 5); lights up when there
-        PpRailButton {
-            Layout.alignment: Qt.AlignHCenter
-            iconText:  "▶"
-            labelText: qsTr("Play")
-            isActive:  root.currentPageIndex === 5
-            isMuted:   root._modeMuted(5)
-            onClicked: root.pageRequested(5)
-        }
-
-        Item { Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true }
-
-        // System and Settings always active — allowed during wizard
-        PpRailButton {
-            Layout.alignment: Qt.AlignHCenter
-            iconText:  "◈"
-            labelText: qsTr("System")
-            isActive:  root.currentPageIndex === 8
-            onClicked: root.systemClicked()
-        }
-
-        Item { Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true }
-
+        // Settings always active — allowed during wizard. Stays highlighted on
+        // the Developer (5) and Resource Monitor (8) screens, which now live
+        // under Settings.
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
             iconText:  "⚙"
             labelText: qsTr("Settings")
             isActive:  root.currentPageIndex === 9
+                       || root.currentPageIndex === 8
+                       || root.currentPageIndex === 5
+            attention: root.anyLocked
             onClicked: root.pageRequested(9)
         }
 

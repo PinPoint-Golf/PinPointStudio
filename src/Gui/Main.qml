@@ -271,10 +271,10 @@ ApplicationWindow {
         qsTr("Wrist"),            // screenWrist
         qsTr("Ground forces"),    // screenGrf
         qsTr("Coach"),            // screenCoach
-        qsTr("Play"),             // screenPlay
+        qsTr("Developer"),        // screenPlay
         qsTr("New athlete"),      // screenNewAthlete
         qsTr("Athletes"),         // screenAthletes
-        qsTr("System resources"), // screenSystem
+        qsTr("Resource Monitor"), // screenSystem
         qsTr("Settings"),         // screenSettings
         qsTr("New session")       // screenWizard
     ]
@@ -307,12 +307,6 @@ ApplicationWindow {
             onAvatarClicked: {
                 if (navController.currentIndex !== root.screenWizard)
                     navController.navigateRail(root.screenAthletes)
-            }
-            onSystemClicked: {
-                if (navController.currentIndex === root.screenWizard)
-                    navController.navigate(root.screenSystem)   // preserves wizard in back-history
-                else
-                    navController.navigateRail(root.screenSystem)
             }
         }
 
@@ -370,7 +364,6 @@ ApplicationWindow {
                         sessionWizard.reset(sessionTypeIndex)
                         navController.navigate(root.screenWizard)
                     }
-                    onSystemRequested:        navController.navigate(root.screenSystem)
                 }
                 ScreenSessionMode { iconText: "◑"; titleText: qsTr("Swing"); sessionType: 0 }   // screenSwing
                 ScreenWrist {}                                             // screenWrist — Wrist Motion (sessionType 1)
@@ -392,7 +385,11 @@ ApplicationWindow {
                         navController.navigate(root.screenSettings)
                     }
                 }
-                ScreenSettings { id: settingsScreen }                      // screenSettings — settings
+                ScreenSettings {                                           // screenSettings — settings
+                    id: settingsScreen
+                    onDeveloperRequested:       navController.navigate(root.screenPlay)
+                    onResourceMonitorRequested: navController.navigate(root.screenSystem)
+                }
                 ScreenSessionWizard {                                      // screenWizard — session setup wizard
                     id: sessionWizard
                     onCancelled: navController.navigate(root.screenHome)

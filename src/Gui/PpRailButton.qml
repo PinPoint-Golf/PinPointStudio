@@ -26,6 +26,11 @@ Item {
     property string labelText: ""
     property bool   isActive:  false
     property bool   isMuted:   false
+    // When the rail is locked, enabled (non-muted) buttons tint their glyph and
+    // label with the attention colour to draw the eye to what's still clickable.
+    property bool   attention: false
+
+    readonly property bool _attn: attention && !isMuted
 
     signal clicked()
 
@@ -72,12 +77,15 @@ Item {
                 font.pixelSize:  Math.round(Theme.sp(21) * Theme.symbolScale(root.iconText))
                 font.family:     Theme.fontSymbol
                 color: {
-                    if (root.isActive) return Theme.colorAccent
+                    if (root.isActive) return root._attn ? Theme.colorAttention : Theme.colorAccent
                     if (!root.isMuted && mouseArea.containsMouse) return Theme.colorText2
-                    return Theme.colorText3
+                    return root._attn ? Theme.colorAttention : Theme.colorText3
                 }
                 Behavior on opacity {
                     NumberAnimation { duration: Theme.durationFast }
+                }
+                Behavior on color {
+                    ColorAnimation { duration: Theme.durationFast }
                 }
             }
         }
@@ -91,9 +99,12 @@ Item {
             font.pixelSize:         Theme.sp(8)
             font.letterSpacing:     Theme.trackingMicro
             color: {
-                if (root.isActive) return Theme.colorAccent
+                if (root.isActive) return root._attn ? Theme.colorAttention : Theme.colorAccent
                 if (!root.isMuted && mouseArea.containsMouse) return Theme.colorText2
-                return Theme.colorText3
+                return root._attn ? Theme.colorAttention : Theme.colorText3
+            }
+            Behavior on color {
+                ColorAnimation { duration: Theme.durationFast }
             }
         }
     }

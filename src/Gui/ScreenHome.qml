@@ -26,7 +26,6 @@ Item {
     signal addAthleteRequested()
     signal athletePickerRequested()
     signal startSessionRequested(int sessionTypeIndex)
-    signal systemRequested()
 
     property int    selectedType: 0
     property string selectedClub: "Driver"
@@ -431,20 +430,6 @@ Item {
                     font.pixelSize:     Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro
                     color:              Theme.colorText3
-                }
-
-                Text {
-                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                    text:           qsTr("System resources →")
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    color:          Theme.colorAccent
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape:  Qt.PointingHandCursor
-                        onClicked:    root.systemRequested()
-                    }
                 }
             }
             Item { width: 1; height: 12 }
