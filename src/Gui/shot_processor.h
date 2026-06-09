@@ -22,6 +22,7 @@
 #include <QFutureWatcher>
 #include <QObject>
 #include <QTimer>
+#include <QVariantMap>
 #include <optional>
 #include <vector>
 
@@ -72,6 +73,9 @@ class ShotProcessor : public QObject
     Q_PROPERTY(qint64  replayStartUs    READ replayStartUs    NOTIFY replaySpanChanged)
     Q_PROPERTY(qint64  replayEndUs      READ replayEndUs      NOTIFY replaySpanChanged)
     Q_PROPERTY(qint64  replayImpactUs   READ replayImpactUs   NOTIFY replaySpanChanged)
+    // The analyzed swing detail of the shot currently replaying — the ScreenWrist
+    // in-replay graph binds to it (same shape as ShotListModel's analysisDetail role).
+    Q_PROPERTY(QVariantMap replayAnalysisDetail READ replayAnalysisDetail NOTIFY replayAnalysisDetailChanged)
 
 public:
     enum class State { Idle, PostRoll, Processing, Replaying };
@@ -93,6 +97,7 @@ public:
     qint64  replayStartUs()    const { return m_replayWindowStartUs; }
     qint64  replayEndUs()      const { return m_replayWindowEndUs; }
     qint64  replayImpactUs()   const { return m_impactUs; }
+    QVariantMap replayAnalysisDetail() const { return m_replayAnalysisDetail; }
 
     // User-initiated skip (ESC). Only meaningful mid-replay: the shot is
     // already on the carousel and saved by the time the replay runs, so
@@ -114,6 +119,7 @@ signals:
     void isReplayingChanged();
     void replayPositionChanged();
     void replaySpanChanged();
+    void replayAnalysisDetailChanged();
     void shotProcessed(const QString &swingDir);   // analysis+export join reached, all ok
     void shotFailed(const QString &error);
     void swingSaved(const QString &path);
@@ -170,6 +176,7 @@ private:
     int64_t       m_replayWindowStartUs = 0;
     int64_t       m_replayWindowEndUs   = 0;
     int64_t       m_replayPositionUs    = 0;   // published playhead (window µs)
+    QVariantMap   m_replayAnalysisDetail;      // detail of the shot being replayed
     QElapsedTimer m_replayElapsed;
     QTimer       *m_replayTimer = nullptr;
 

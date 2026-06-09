@@ -30,6 +30,11 @@ import PinPointStudio
 Item {
     id: root
 
+    // Series of the shot currently replaying — feeds the in-replay graph.
+    readonly property var _replaySeries:
+        (shotProcessor.replayAnalysisDetail && shotProcessor.replayAnalysisDetail.series)
+        ? shotProcessor.replayAnalysisDetail.series : []
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -87,9 +92,27 @@ Item {
                     }
                 }
 
-                // Tiles pack left; the remainder is reserved for future
-                // charts/graphs so adding them won't reflow the videos.
-                Item { Layout.fillWidth: true }
+                // Tiles pack left; the remainder hosts the in-replay metric graph
+                // (scrub-with-video), shown only during the ¼× replay so it never
+                // reflows the videos in the live view.
+                Item {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+
+                    PpMetricGraph {
+                        anchors.fill: parent
+                        anchors.margins: Theme.sp(8)
+                        visible:      shotProcessor.isReplaying && root._replaySeries.length > 0
+                        seriesList:   root._replaySeries
+                        phases:       (shotProcessor.replayAnalysisDetail && shotProcessor.replayAnalysisDetail.phases)
+                                          ? shotProcessor.replayAnalysisDetail.phases : []
+                        startUs:      shotProcessor.replayStartUs
+                        endUs:        shotProcessor.replayEndUs
+                        impactUs:     shotProcessor.replayImpactUs
+                        playheadUs:   shotProcessor.replayPositionUs
+                        showPlayhead: true
+                    }
+                }
             }
 
             // Muted empty state when every camera is toggled off (or none found).

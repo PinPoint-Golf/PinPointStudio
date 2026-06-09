@@ -43,6 +43,6 @@ independently committable. Phase 1 shifts curves/scores to absolute — worth a 
 sanity-check after.
 
 ## Status
-- [ ] Phase 1 — neutral-relative primary + scalar Δ
-- [ ] Phase 2 — multi-metric overlay + filter chips
-- [ ] Phase 3 — in-replay graph in ScreenWrist
+- [x] Phase 1 — neutral-relative primary + scalar Δ
+- [x] Phase 2 — multi-metric overlay + filter chips
+- [x] Phase 3 — in-replay graph in ScreenWrist (live render needs a real shot)

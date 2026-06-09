@@ -497,6 +497,13 @@ void ShotProcessor::maybeJoin()
 
     // The shot happened — it always lands on the carousel, with whatever the
     // pipeline produced. Club is a stub until club selection exists.
+    // Publish the analyzed detail of the shot about to replay (the ScreenWrist in-replay
+    // graph binds to it) before addShot, so it's ready when REPLAYING begins.
+    m_replayAnalysisDetail = (analysisOk && m_analysisResult.detail)
+                                 ? toAnalysisDetail(*m_analysisResult.detail)
+                                 : QVariantMap{};
+    emit replayAnalysisDetailChanged();
+
     if (m_shotModel) {
         const QUrl thumbUrl = m_thumbnailPath.isEmpty()
                                   ? QUrl()
@@ -508,9 +515,7 @@ void ShotProcessor::maybeJoin()
                              analysisOk ? m_analysisResult.tracePoints : QVariantList{},
                              analysisOk ? m_analysisResult.score : 0,
                              analysisOk ? m_analysisResult.metrics : QVariantMap{},
-                             (analysisOk && m_analysisResult.detail)
-                                 ? toAnalysisDetail(*m_analysisResult.detail)
-                                 : QVariantMap{});
+                             m_replayAnalysisDetail);
     }
 
     if (analysisOk && exportOk)
