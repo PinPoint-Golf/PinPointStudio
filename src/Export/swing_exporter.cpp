@@ -19,20 +19,25 @@
 #include "swing_exporter.h"
 
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <variant>
 
+#include <QFile>
 #include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSaveFile>
+#include <QTextStream>
 
 #include <opencv2/imgproc.hpp>
 
 #include "format_descriptor.h"
 #include "imu_sample.h"
+#include "swing_paths.h"
 #include "swing_window.h"
 #include "video_encoder.h"
 #include "../Core/pp_debug.h"
@@ -112,6 +117,33 @@ QJsonArray toJsonTimestamps(const std::vector<int64_t>& tUs)
     for (int64_t t : tUs)
         a.append(static_cast<qint64>(t));
     return a;
+}
+
+// Export-time target size for a source frame, honoring AppSettings
+// videoResolutionMode. Preserves aspect, forces even dims (libx264/yuv420p), and
+// NEVER upscales — mirroring the exporter's "crop, never pad" rule (we don't
+// invent pixels). "1080p"/"4k" fit to that many scan lines; "half" halves both
+// axes; "native"/unknown keep the (even-cropped) source.
+void exportTargetSize(int srcW, int srcH, const QString& mode, int& outW, int& outH)
+{
+    const int evenW = srcW & ~1;
+    const int evenH = srcH & ~1;
+
+    if (mode == QLatin1String("half")) {
+        outW = (srcW / 2) & ~1;
+        outH = (srcH / 2) & ~1;
+        return;
+    }
+
+    int targetH = 0;
+    if (mode == QLatin1String("1080p"))    targetH = 1080;
+    else if (mode == QLatin1String("4k"))  targetH = 2160;
+    else { outW = evenW; outH = evenH; return; }   // "native" / unknown
+
+    if (targetH >= srcH) { outW = evenW; outH = evenH; return; }   // never upscale
+    const double scale = static_cast<double>(targetH) / static_cast<double>(srcH);
+    outW = static_cast<int>(std::lround(srcW * scale)) & ~1;
+    outH = targetH & ~1;
 }
 
 // Demosaics the frame nearest impactUs from one camera and writes it as
@@ -199,13 +231,19 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
         const CameraFormat*      fmt = nullptr;
         QString serial;
         const char* demosaicTag = "none";
+        int     outW = 0;          // encoded dimensions (post-downscale)
+        int     outH = 0;
+        QString rawFile;           // "<alias>.raw" sidecar; empty when not saved
+        size_t  rawStride = 0;     // plane-0 stride of the raw payload
+        size_t  rawFrameBytes = 0; // bytes per raw frame written
         std::vector<int64_t> tUs;
     };
     std::vector<VideoStreamRecord> videoStreams;
 
     // ── Per-camera encode (sequential — lowest peak RAM; per-camera
     //    parallelism is a possible future option) ──────────────────────────
-    cv::Mat bgr;   // single reused BGR scratch across all cameras
+    cv::Mat bgr;      // single reused BGR scratch across all cameras
+    cv::Mat scaled;   // reused downscale scratch (only used when resizing)
     for (const SwingExportCamera& cam : job.cameras) {
         const auto entries = window.entriesFor(cam.sourceId);
         if (entries.empty()) {
@@ -229,15 +267,21 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
             continue;
         }
 
-        const int srcW = static_cast<int>(cfmt->width);
-        const int srcH = static_cast<int>(cfmt->height);
-        const int outW = srcW & ~1;   // libx264/yuv420p needs even dims: crop,
-        const int outH = srcH & ~1;   // never pad (padding invents pixels)
-        if (outW <= 0 || outH <= 0) {
+        const int srcW  = static_cast<int>(cfmt->width);
+        const int srcH  = static_cast<int>(cfmt->height);
+        const int cropW = srcW & ~1;   // even crop of the source (no padding —
+        const int cropH = srcH & ~1;   // libx264/yuv420p needs even dims)
+        if (cropW <= 0 || cropH <= 0) {
             ppWarn() << "[SwingExport] degenerate dimensions for" << cam.alias << "— skipping";
             continue;
         }
-        const cv::Rect cropRect(0, 0, outW, outH);
+        const cv::Rect cropRect(0, 0, cropW, cropH);
+
+        // Honor videoResolutionMode as an export-time downscale (never upscale).
+        int outW = cropW, outH = cropH;
+        exportTargetSize(srcW, srcH, job.resolutionMode, outW, outH);
+        if (outW <= 0 || outH <= 0) { outW = cropW; outH = cropH; }
+        const bool needResize = (outW != cropW) || (outH != cropH);
 
         auto encoder = makeVideoEncoder(job.codec.toStdString());
         if (!encoder) {
@@ -263,6 +307,8 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
         rec.fmt         = cfmt;
         rec.serial      = QString::fromStdString(fd.device_serial);
         rec.demosaicTag = plan.tag;
+        rec.outW        = outW;
+        rec.outH        = outH;
         rec.tUs.reserve(entries.size());
 
         const int    rawRows  = srcH * plan.rowsNum / plan.rowsDen;
@@ -270,6 +316,22 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
         const size_t stride   = cfmt->plane_strides[0] ? cfmt->plane_strides[0]
                                                        : static_cast<size_t>(srcW) * bpp;
         const size_t minBytes = stride * static_cast<size_t>(rawRows);
+
+        // Optional raw-payload sidecar (saveRawFrames): the undecoded sensor
+        // bytes for every encoded frame, concatenated into one "<alias>.raw".
+        QFile rawSink;
+        if (job.saveRaw) {
+            const QString rawName = cam.alias + QStringLiteral(".raw");
+            rawSink.setFileName(job.swingDir + QLatin1Char('/') + rawName);
+            if (rawSink.open(QIODevice::WriteOnly)) {
+                rec.rawFile       = rawName;
+                rec.rawStride     = stride;
+                rec.rawFrameBytes = minBytes;
+            } else {
+                ppWarn() << "[SwingExport] could not open raw sidecar" << rawName
+                         << "— continuing without raw frames";
+            }
+        }
 
         for (const IndexEntry& e : entries) {
             const SourceRing::ReadHandle handle = window.payloadOf(e);
@@ -280,6 +342,13 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
             // Zero-copy wrap of the frozen ring payload (stable while Paused).
             const cv::Mat raw(rawRows, srcW, plan.matType,
                               const_cast<std::byte*>(handle.data), stride);
+
+            // Raw sidecar mirrors the encoded frame set exactly (same guard), so
+            // raw frame i corresponds to encoded frame i and t_us[i].
+            if (rawSink.isOpen())
+                rawSink.write(reinterpret_cast<const char*>(handle.data),
+                              static_cast<qint64>(minBytes));
+
             if (plan.cvtCode >= 0)
                 cv::cvtColor(raw, bgr, plan.cvtCode);
             else
@@ -287,12 +356,22 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
 
             // TODO(restorer): frame restoration hook
 
-            if (!encoder->writeBgr(bgr(cropRect))) {
+            const cv::Mat cropped = bgr(cropRect);   // header only — no copy
+            bool encOk;
+            if (needResize) {
+                cv::resize(cropped, scaled, cv::Size(outW, outH), 0, 0, cv::INTER_AREA);
+                encOk = encoder->writeBgr(scaled);
+            } else {
+                encOk = encoder->writeBgr(cropped);
+            }
+            if (!encOk) {
                 result.error = QStringLiteral("encode failed for %1").arg(cam.fileName);
                 return result;
             }
             rec.tUs.push_back(e.timestamp_us - t0);
         }
+        if (rawSink.isOpen())
+            rawSink.close();
 
         // Every payload skipped (size/descriptor mismatch) would otherwise
         // "succeed" with an empty MP4 — fail loudly instead so the UI surfaces
@@ -351,6 +430,25 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
             {QStringLiteral("width"),       static_cast<int>(rec.fmt->width)},
             {QStringLiteral("height"),      static_cast<int>(rec.fmt->height)},
         };
+        // Encoded (post-downscale) dimensions — equal to source when native.
+        s[QStringLiteral("encoded")] = QJsonObject{
+            {QStringLiteral("width"),  rec.outW},
+            {QStringLiteral("height"), rec.outH},
+        };
+        // Raw sidecar (saveRawFrames) — enough metadata to reconstruct the
+        // undecoded payloads: one frame is `frameBytes` long at `stride`, same
+        // pixelFormat/dimensions as the source, `count` frames matching t_us.
+        if (!rec.rawFile.isEmpty()) {
+            s[QStringLiteral("raw")] = QJsonObject{
+                {QStringLiteral("file"),        rec.rawFile},
+                {QStringLiteral("pixelFormat"), pixelFormatName(rec.fmt->pixel_format)},
+                {QStringLiteral("width"),       static_cast<int>(rec.fmt->width)},
+                {QStringLiteral("height"),      static_cast<int>(rec.fmt->height)},
+                {QStringLiteral("stride"),      static_cast<qint64>(rec.rawStride)},
+                {QStringLiteral("frameBytes"),  static_cast<qint64>(rec.rawFrameBytes)},
+                {QStringLiteral("count"),       static_cast<qint64>(rec.tUs.size())},
+            };
+        }
         s[QStringLiteral("capture")] = QJsonObject{
             {QStringLiteral("fps_num"), static_cast<int>(rec.fmt->fps_numerator)},
             {QStringLiteral("fps_den"), static_cast<int>(rec.fmt->fps_denominator)},
@@ -378,23 +476,28 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
                 imuIds.push_back(e.source_id);
         }
 
+        // imuDataFormat: "json" inlines samples in swing.json; "csv"/"binary"
+        // write an "imu_<alias>.<ext>" sidecar and reference it instead.
+        const bool imuCsv = job.imuFormat == QLatin1String("csv");
+        const bool imuBin = job.imuFormat == QLatin1String("binary");
+
         for (SourceId sid : imuIds) {
             const FormatDescriptor& fd = window.formatOf(sid);
             const QString serial = QString::fromStdString(fd.device_serial);
             const QString alias  = job.imuAliasBySerial.value(serial, serial);
 
             std::vector<int64_t> tUs;
-            QJsonArray data;
+            std::vector<std::array<float, 10>> rows;   // accel3, gyro3, quat4(wxyz)
             for (const IndexEntry& e : window.entriesFor(sid)) {
                 const SourceRing::ReadHandle handle = window.payloadOf(e);
                 if (!handle.data || handle.bytes < sizeof(ImuSample))
                     continue;
                 ImuSample sample;                                    // alignment-safe
                 std::memcpy(&sample, handle.data, sizeof(ImuSample));
-                data.append(QJsonArray{sample.accel_x, sample.accel_y, sample.accel_z,
-                                       sample.gyro_x,  sample.gyro_y,  sample.gyro_z,
-                                       sample.quat_w,  sample.quat_x,
-                                       sample.quat_y,  sample.quat_z});
+                rows.push_back({sample.accel_x, sample.accel_y, sample.accel_z,
+                                sample.gyro_x,  sample.gyro_y,  sample.gyro_z,
+                                sample.quat_w,  sample.quat_x,
+                                sample.quat_y,  sample.quat_z});
                 tUs.push_back(e.timestamp_us - t0);
             }
             if (tUs.empty())
@@ -410,9 +513,96 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
                 {QStringLiteral("gyro"),  QStringLiteral("deg/s")},
                 {QStringLiteral("quat"),  QStringLiteral("wxyz")},
             };
-            s[QStringLiteral("samples")] = QJsonObject{
-                {QStringLiteral("count"), static_cast<qint64>(tUs.size())},
-                {QStringLiteral("t_us"),  toJsonTimestamps(tUs)},
+
+            // Inline-JSON samples object (also the fallback if a sidecar fails).
+            auto inlineSamples = [&]() -> QJsonObject {
+                QJsonArray data;
+                for (const auto& r : rows)
+                    data.append(QJsonArray{r[0], r[1], r[2], r[3], r[4],
+                                           r[5], r[6], r[7], r[8], r[9]});
+                return QJsonObject{
+                    {QStringLiteral("count"), static_cast<qint64>(tUs.size())},
+                    {QStringLiteral("t_us"),  toJsonTimestamps(tUs)},
+                    {QStringLiteral("data"),  data},
+                };
+            };
+
+            if (imuCsv || imuBin) {
+                const QString fileName = QStringLiteral("imu_") + SwingPaths::sanitise(alias)
+                                       + (imuCsv ? QStringLiteral(".csv") : QStringLiteral(".bin"));
+                const QString path = job.swingDir + QLatin1Char('/') + fileName;
+                bool wrote = false;
+                QFile f(path);
+                if (imuCsv) {
+                    if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                        QTextStream out(&f);
+                        out << "t_us,accel_x,accel_y,accel_z,gyro_x,gyro_y,gyro_z,"
+                               "quat_w,quat_x,quat_y,quat_z\n";
+                        for (size_t i = 0; i < tUs.size(); ++i) {
+                            out << static_cast<qint64>(tUs[i]);
+                            for (float v : rows[i]) out << ',' << v;
+                            out << '\n';
+                        }
+                        wrote = true;
+                    }
+                } else {   // binary: little-endian i64 t_us + 10×f32 per record
+                    if (f.open(QIODevice::WriteOnly)) {
+                        for (size_t i = 0; i < tUs.size(); ++i) {
+                            const qint64 t = static_cast<qint64>(tUs[i]);
+                            f.write(reinterpret_cast<const char*>(&t), sizeof(t));
+                            f.write(reinterpret_cast<const char*>(rows[i].data()),
+                                    static_cast<qint64>(sizeof(float) * rows[i].size()));
+                        }
+                        wrote = true;
+                    }
+                }
+                if (wrote) {
+                    s[QStringLiteral("samples")] = QJsonObject{
+                        {QStringLiteral("count"),  static_cast<qint64>(tUs.size())},
+                        {QStringLiteral("file"),   fileName},
+                        {QStringLiteral("format"), job.imuFormat},
+                        {QStringLiteral("record"), imuBin
+                             ? QStringLiteral("le: i64 t_us, f32[10] accel3,gyro3,quat4")
+                             : QStringLiteral("t_us,accel3,gyro3,quat4")},
+                    };
+                } else {
+                    ppWarn() << "[SwingExport] could not write IMU sidecar" << path
+                             << "— falling back to inline JSON";
+                    s[QStringLiteral("samples")] = inlineSamples();
+                }
+            } else {
+                s[QStringLiteral("samples")] = inlineSamples();
+            }
+            streams.append(s);
+        }
+    }
+
+    // ── Pose streams ────────────────────────────────────────────────────────
+    // Serialise pre-computed 2D pose IF the job carries any. The exporter never
+    // runs pose estimation itself — `poseStreams` is populated upstream (by a
+    // future pose producer) and is empty today, so this normally writes nothing.
+    if (job.savePose) {
+        constexpr int kKpStride = 51;   // 17 COCO keypoints × (y, x, score)
+        for (const SwingPoseStream& p : job.poseStreams) {
+            if (p.tUs.empty())
+                continue;
+            QJsonArray data;
+            for (size_t f = 0; f < p.tUs.size(); ++f) {
+                QJsonArray frame;
+                const size_t base = f * static_cast<size_t>(kKpStride);
+                for (int k = 0; k < kKpStride && base + k < p.keypoints.size(); ++k)
+                    frame.append(p.keypoints[base + k]);
+                data.append(frame);
+            }
+            QJsonObject s;
+            s[QStringLiteral("kind")]   = QStringLiteral("pose");
+            s[QStringLiteral("alias")]  = p.alias;
+            s[QStringLiteral("schema")] = QStringLiteral("pose_movenet_v1");
+            s[QStringLiteral("source")] = QJsonObject{{QStringLiteral("serial"), p.serial}};
+            s[QStringLiteral("layout")] = QStringLiteral("coco17:y,x,score");
+            s[QStringLiteral("frames")] = QJsonObject{
+                {QStringLiteral("count"), static_cast<qint64>(p.tUs.size())},
+                {QStringLiteral("t_us"),  toJsonTimestamps(p.tUs)},
                 {QStringLiteral("data"),  data},
             };
             streams.append(s);

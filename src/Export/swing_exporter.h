@@ -38,6 +38,20 @@ struct SwingExportCamera {
     QString  fileName;     // "<alias>.mp4"
 };
 
+// One camera's 2D pose series for the swing window, resolved on the UI thread.
+// The swing exporter only *serialises* whatever is present here — it does NOT
+// run pose estimation. There is no producer yet (pose buffering / the analyzer
+// pose pipeline are a separate scope), so this is normally empty and nothing is
+// written; the plumbing is in place for when a producer lands.
+struct SwingPoseStream {
+    QString alias;                 // camera label (matches the video stream alias)
+    QString serial;                // camera serial, for cross-stream correlation
+    std::vector<int64_t> tUs;      // per-frame timestamps, window-relative (us)
+    // 17 COCO keypoints per frame as (y, x, score) normalised 0..1, flattened to
+    // 51 floats per frame; size MUST be tUs.size() * 51.
+    std::vector<float> keypoints;
+};
+
 // Self-contained job description.  Everything that touches QSettings or
 // controllers is resolved on the UI thread; the worker sees only values.
 struct SwingExportJob {
@@ -47,10 +61,23 @@ struct SwingExportJob {
 
     std::vector<SwingExportCamera> cameras;
     QHash<QString, QString> imuAliasBySerial;  // device serial/id -> alias
+    std::vector<SwingPoseStream> poseStreams;  // pose to serialise (empty today)
 
     QString codec = QStringLiteral("h264");  // AppSettings videoCodec -> factory key
     int  crf     = 23;     // from AppSettings videoQuality
     bool saveImu = true;   // AppSettings saveImuStreams
+
+    // AppSettings videoResolutionMode — export-time downscale (never upscale):
+    // "native" (source), "half" (½), "1080p" / "4k" (fit to that line count).
+    QString resolutionMode = QStringLiteral("native");
+    // AppSettings saveRawFrames — also dump the undecoded sensor payloads to an
+    // "<alias>.raw" sidecar (single concatenated blob) per camera.
+    bool    saveRaw = false;
+    // AppSettings imuDataFormat — "json" (inline in swing.json), "csv", or
+    // "binary"; csv/binary write an "imu_<alias>.<ext>" sidecar instead.
+    QString imuFormat = QStringLiteral("json");
+    // AppSettings savePoseKeypoints — gate for serialising poseStreams (above).
+    bool    savePose = true;
 
     QString athleteName, athleteUuid, handedness;
     QString sessionId;     // session folder name, e.g. "2026-06-05_session-01"

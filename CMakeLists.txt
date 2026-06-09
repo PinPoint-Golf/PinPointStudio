@@ -1694,8 +1694,8 @@ if(FFMPEG_FOUND)
     target_compile_definitions(PinPointStudio PRIVATE HAVE_FFMPEG)
     target_link_libraries(PinPointStudio PRIVATE PkgConfig::FFMPEG)
     target_sources(PinPointStudio PRIVATE
-        src/Export/ffmpeg_h264_encoder.h
-        src/Export/ffmpeg_h264_encoder.cpp
+        src/Export/ffmpeg_video_encoder.h
+        src/Export/ffmpeg_video_encoder.cpp
     )
     if(WIN32)
         # POST_BUILD: copy the linked FFmpeg DLLs (and swresample, a runtime

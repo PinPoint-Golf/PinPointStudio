@@ -19,7 +19,7 @@
 #include "video_encoder.h"
 
 #ifdef HAVE_FFMPEG
-#include "ffmpeg_h264_encoder.h"
+#include "ffmpeg_video_encoder.h"
 #endif
 
 namespace pinpoint {
@@ -27,12 +27,17 @@ namespace pinpoint {
 std::unique_ptr<IVideoEncoder> makeVideoEncoder(const std::string& codec)
 {
 #ifdef HAVE_FFMPEG
-    if (codec == "h264")
-        return std::make_unique<FfmpegH264Encoder>();
+    // AppSettings storage/videoCodec key -> libavcodec encoder name. H.264 and
+    // H.265 are the supported cross-platform set; anything else (incl. a stale
+    // "prores"/"raw" setting from an older build) falls back to H.264 so a swing
+    // is never lost to an unsupported codec selection.
+    if (codec == "h265")
+        return std::make_unique<FfmpegVideoEncoder>("libx265");
+    return std::make_unique<FfmpegVideoEncoder>("libx264");
 #else
     (void)codec;
+    return nullptr; // built without FFmpeg
 #endif
-    return nullptr; // unknown codec, or built without FFmpeg
 }
 
 } // namespace pinpoint

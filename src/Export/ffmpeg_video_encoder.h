@@ -18,10 +18,12 @@
 
 #pragma once
 
+#include <string>
+
 #include "video_encoder.h"
 
 // libav types are forward-declared so this header parses without the FFmpeg
-// dev headers; only ffmpeg_h264_encoder.cpp includes them.
+// dev headers; only ffmpeg_video_encoder.cpp includes them.
 struct AVFormatContext;
 struct AVCodecContext;
 struct AVStream;
@@ -31,16 +33,19 @@ struct SwsContext;
 
 namespace pinpoint {
 
-// H.264/MP4 encoder backed by libx264 via libavcodec/libavformat.
-// Output: yuv420p, profile High, BT.709 (limited range), +faststart,
-// time_base {1, out_fps} with sequential pts — i.e. fixed-rate slow motion.
-class FfmpegH264Encoder final : public IVideoEncoder {
+// H.264 / H.265 encoder backed by libx264 / libx265 via libavcodec/libavformat.
+// The libav encoder is selected by name at construction (e.g. "libx264",
+// "libx265"); the container muxer is guessed from the output path extension
+// (mp4/mov/mkv all carry either codec). Output: yuv420p, BT.709 (limited range),
+// +faststart, time_base {1, out_fps} with sequential pts — fixed-rate slow motion.
+class FfmpegVideoEncoder final : public IVideoEncoder {
 public:
-    FfmpegH264Encoder() = default;
-    ~FfmpegH264Encoder() override;
+    // codecName is a libavcodec encoder name (default "libx264").
+    explicit FfmpegVideoEncoder(std::string codecName = "libx264");
+    ~FfmpegVideoEncoder() override;
 
-    FfmpegH264Encoder(const FfmpegH264Encoder&)            = delete;
-    FfmpegH264Encoder& operator=(const FfmpegH264Encoder&) = delete;
+    FfmpegVideoEncoder(const FfmpegVideoEncoder&)            = delete;
+    FfmpegVideoEncoder& operator=(const FfmpegVideoEncoder&) = delete;
 
     bool open(const VideoEncoderConfig& cfg) override;
     bool writeBgr(const cv::Mat& bgr) override;
@@ -49,6 +54,8 @@ public:
 private:
     bool drainPackets(bool flushing);
     void cleanup();   // idempotent; safe mid-encode
+
+    std::string m_codecName;               // libavcodec encoder name
 
     AVFormatContext* m_fmt    = nullptr;
     AVCodecContext*  m_enc    = nullptr;

@@ -114,6 +114,18 @@ pinpoint::analysis::SegmentRole segmentRoleForSlot(int sessionType, const QStrin
     return R::Unknown;
 }
 
+// Human label for a SessionController::Type, used in session-folder naming.
+QString sessionTypeLabel(int sessionType)
+{
+    switch (sessionType) {
+    case 0:  return QStringLiteral("Swing");
+    case 1:  return QStringLiteral("Wrist");
+    case 2:  return QStringLiteral("GRF");
+    case 3:  return QStringLiteral("Coach");
+    default: return QString();
+    }
+}
+
 } // namespace
 
 ShotProcessor::ShotProcessor(pinpoint::EventBuffer *buffer,
@@ -371,6 +383,21 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
                                                    : 23;   // "medium"
     job.codec   = s->videoCodec();
     job.saveImu = s->saveImuStreams();
+    job.resolutionMode = s->videoResolutionMode();
+    job.saveRaw        = s->saveRawFrames();
+    job.imuFormat      = s->imuDataFormat();
+    job.savePose       = s->savePoseKeypoints();
+    // job.poseStreams intentionally left empty: pose production (analyzer / pose
+    // buffering) is a separate scope. The exporter serialises whatever is here,
+    // so this is forward-compatible — populate it upstream once a producer lands.
+
+    // Container extension drives the FFmpeg muxer (avformat guesses from the
+    // output path). mp4/mov/mkv all carry H.264/H.265; fall back to mp4 for
+    // anything else so a stale setting can never break the export.
+    QString container = s->videoContainer().toLower();
+    if (container != QLatin1String("mp4") && container != QLatin1String("mov")
+        && container != QLatin1String("mkv"))
+        container = QStringLiteral("mp4");
 
     if (m_athlete) {
         job.athleteName = m_athlete->currentName();
@@ -400,7 +427,7 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         pinpoint::SwingExportCamera cam;
         cam.sourceId = track.sourceId;
         cam.alias    = name;
-        cam.fileName = name + QStringLiteral(".mp4");
+        cam.fileName = name + QLatin1Char('.') + container;
         job.cameras.push_back(std::move(cam));
     }
 
@@ -430,7 +457,9 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
 
     const auto alloc = m_swingPaths.allocateSwingDir(s->athleteLibraryPath(),
                                                      job.athleteName,
-                                                     job.athleteUuid);
+                                                     job.athleteUuid,
+                                                     s->sessionNamingPattern(),
+                                                     sessionTypeLabel(m_sessionType));
     job.swingDir   = alloc.swingDir;
     job.swingId    = alloc.swingId;
     job.swingIndex = alloc.swingIndex;

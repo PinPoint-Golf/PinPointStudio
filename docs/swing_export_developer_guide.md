@@ -3,7 +3,7 @@
 **Audience**: Developers working on or integrating with the Pinpoint application
 **Location**: `src/Export/` (plus integration in `src/Gui/shot_processor.{h,cpp}`)
 **Language**: C++20, Qt 6
-**Status**: v1 — video + IMU streams implemented; pose/metrics/launch-monitor streams are schema-ready but not produced
+**Status**: v1 — video + IMU streams implemented (codec h264/h265, container mp4/mov/mkv, export-time downscale, optional raw-payload sidecar, IMU json/csv/binary, pattern-based session-folder naming). Pose streams are serialised **if present on the job** but no producer exists yet; metrics/launch-monitor streams are schema-ready but not produced
 
 > **⚠ Ownership moved (2026-06):** the swing machinery described below as living in
 > `CameraManager` (window capture, replay, `startSwingSave()`, `buildSwingExportJob()`,
@@ -29,7 +29,7 @@
 5. [Resume Gating — the CameraManager Join](#5-resume-gating--the-cameramanager-join)
 6. [The `swing.json` Sidecar](#6-the-swingjson-sidecar)
 7. [On-Disk Layout — `SwingPaths`](#7-on-disk-layout--swingpaths)
-8. [The Encoder — `IVideoEncoder` / `FfmpegH264Encoder`](#8-the-encoder--ivideoencoder--ffmpegh264encoder)
+8. [The Encoder — `IVideoEncoder` / `FfmpegVideoEncoder`](#8-the-encoder--ivideoencoder--ffmpegvideoencoder)
 9. [Configuration — AppSettings Keys](#9-configuration--appsettings-keys)
 10. [Threading Model](#10-threading-model)
 11. [Build System — FFmpeg Detection](#11-build-system--ffmpeg-detection)
@@ -148,9 +148,11 @@ class IVideoEncoder {
 std::unique_ptr<IVideoEncoder> makeVideoEncoder(const std::string& codec);
 ```
 
-`"h264"` → `FfmpegH264Encoder` when built with `HAVE_FFMPEG`; anything else (or a
-no-FFmpeg build) → `nullptr`, and the save fails gracefully with a logged error.
-`video_encoder.cpp` is the **only** file in the module with `HAVE_FFMPEG` ifdefs.
+`"h264"` → `FfmpegVideoEncoder("libx264")`, `"h265"` → `FfmpegVideoEncoder("libx265")`
+when built with `HAVE_FFMPEG`; any other key falls back to H.264 (so a stale
+`prores`/`raw` setting never loses a swing). A no-FFmpeg build → `nullptr`, and the
+save fails gracefully with a logged error. `video_encoder.cpp` is the **only** file
+in the module with `HAVE_FFMPEG` ifdefs.
 
 ### The borrowed window
 
@@ -413,11 +415,13 @@ Camera filename collisions are deduped `-2`, `-3`, … in `buildSwingExportJob()
 
 ---
 
-## 8. The Encoder — `IVideoEncoder` / `FfmpegH264Encoder`
+## 8. The Encoder — `IVideoEncoder` / `FfmpegVideoEncoder`
 
 ### Output contract
 
-- Container MP4, codec **libx264**, `AV_PIX_FMT_YUV420P`, profile High.
+- Container from the file extension (`mp4`/`mov`/`mkv`), codec **libx264** or
+  **libx265** (selected by name at construction), `AV_PIX_FMT_YUV420P`. `profile
+  High` is set for libx264 only (libx265 rejects that profile name).
 - Colour tagged **BT.709, limited range** (`color_primaries`/`color_trc`/
   `colorspace = BT709`, `color_range = MPEG`), and the BGR→YUV conversion uses
   matching ITU-709 coefficients via `sws_setColorspaceDetails` — tags and pixels
@@ -433,7 +437,7 @@ Camera filename collisions are deduped `-2`, `-3`, … in `buildSwingExportJob()
 ### Lifecycle
 
 `open()` follows the canonical libav sequence (`avformat_alloc_output_context2` →
-`avcodec_find_encoder_by_name("libx264")` → `avformat_new_stream` →
+`avcodec_find_encoder_by_name(m_codecName)` → `avformat_new_stream` →
 `avcodec_alloc_context3` → `avcodec_open2` → `avcodec_parameters_from_context` →
 `avio_open` → `avformat_write_header`). One `AVFrame` and one `AVPacket` are
 allocated once and reused for every frame. Every libav return code is checked; any
@@ -461,7 +465,7 @@ exactly one time-base tick, stamping the duration explicitly is always correct.
 
 ### Header hygiene
 
-`ffmpeg_h264_encoder.h` **forward-declares** the libav types (`AVFormatContext`
+`ffmpeg_video_encoder.h` **forward-declares** the libav types (`AVFormatContext`
 etc.) and includes no FFmpeg headers — only the `.cpp` does (inside
 `extern "C"`). The header therefore parses in any TU regardless of whether FFmpeg
 dev headers are installed.
@@ -475,12 +479,15 @@ The exporter reuses existing keys — **do not invent parallel settings**.
 | Key | Used as |
 |---|---|
 | `general/athleteLibraryPath` | Library root for `SwingPaths` |
-| `storage/videoCodec` | Factory key (`"h264"` → `FfmpegH264Encoder`) |
+| `storage/sessionNamingPattern` | Composes the session-folder name (`date`/athlete/session-type tokens) in `SwingPaths::allocateSwingDir` |
+| `storage/videoCodec` | Factory key (`"h264"` → libx264, `"h265"` → libx265; other → h264 fallback). `FfmpegVideoEncoder` |
 | `storage/videoQuality` | CRF: `low`=28, `medium`=23, `high`=18, `lossless`=0 |
-| `storage/videoContainer` | `"mp4"` (informational in v1 — the encoder writes MP4) |
-| `storage/videoResolutionMode` | `"native"` in v1 — encode at source resolution |
+| `storage/videoContainer` | `mp4`/`mov`/`mkv` — sets the clip file extension; the muxer is guessed from it |
+| `storage/videoResolutionMode` | `native`/`half`/`1080p`/`4k` — export-time downscale, never upscales |
 | `storage/saveImuStreams` | Gates the IMU streams in `swing.json` |
-| `storage/saveRawFrames` | **Off and unhandled in v1** |
+| `storage/imuDataFormat` | `json` (inline) / `csv` / `binary` — csv/binary write an `imu_<alias>.<ext>` sidecar |
+| `storage/saveRawFrames` | Dumps undecoded sensor payloads to an `<alias>.raw` sidecar (+ a `raw` block per video stream) |
+| `storage/savePoseKeypoints` | Gates serialising `kind:"pose"` streams — the exporter only *writes* pose carried on the job; no producer yet (empty today) |
 | `camera/alias` (`cameraAlias()` map) | MP4 filenames, keyed by `cameraKey()` |
 | `imu/alias` (`imuAlias()` map) | IMU stream aliases, matched by serial/device-id |
 
@@ -537,7 +544,7 @@ the project is GPLv2+.
   libswscale-dev`).
 
 `video_encoder.*`, `swing_paths.*`, `swing_exporter.*` are **always compiled**;
-only `ffmpeg_h264_encoder.*` and the `HAVE_FFMPEG` define are conditional. Without
+only `ffmpeg_video_encoder.*` and the `HAVE_FFMPEG` define are conditional. Without
 FFmpeg the app builds and runs normally — `makeVideoEncoder()` returns `nullptr`
 and each save fails fast with a logged "no encoder available".
 
@@ -569,7 +576,7 @@ schema version for additive changes — readers ignore unknown kinds by contract
 
 1. Implement `IVideoEncoder` in a new `src/Export/<name>_encoder.{h,cpp}`.
 2. Add its factory key in `video_encoder.cpp`.
-3. Gate compilation in CMake the same way `ffmpeg_h264_encoder` is gated.
+3. Gate compilation in CMake the same way `ffmpeg_video_encoder` is gated.
 The exporter and `CameraManager` need no changes — codec selection already flows
 from `storage/videoCodec`.
 
@@ -588,9 +595,9 @@ encoder per worker. Bound the pool and measure peak RSS first.
 
 ### Not yet handled (v1 scope)
 
-`saveRawFrames`, 12/16-bit Bayer, `MJPEG`/`H264_NAL` passthrough, wiring the
-session-folder name to `storage/sessionNamingPattern`, any UI beyond the two
-status signals.
+12/16-bit Bayer, `MJPEG`/`H264_NAL` passthrough, an actual **pose producer**
+(the exporter serialises `poseStreams` but nothing fills them yet), launch-monitor
+streams, any UI beyond the two status signals.
 
 ---
 
@@ -660,8 +667,8 @@ src/Export/
 │                               makeVideoEncoder() declaration. No libav includes.
 ├── video_encoder.cpp           Factory — the only file with HAVE_FFMPEG ifdefs
 │
-├── ffmpeg_h264_encoder.h       Concrete encoder; libav types forward-declared
-├── ffmpeg_h264_encoder.cpp     libav call sequence, BT.709 sws, RAII cleanup,
+├── ffmpeg_video_encoder.h       Concrete encoder; libav types forward-declared
+├── ffmpeg_video_encoder.cpp     libav call sequence, BT.709 sws, RAII cleanup,
 │                               the pkt->duration fix (§8)
 │
 ├── swing_paths.h               SwingPaths — session/swing dir allocation + cache

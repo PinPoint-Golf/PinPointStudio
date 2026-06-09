@@ -39,7 +39,7 @@ struct VideoEncoderConfig {
     // these short swing clips.
     int gop     = 10;
     std::string preset = "medium";
-    std::string path;            // output .mp4
+    std::string path;            // output file; extension (.mp4/.mov/.mkv) selects the muxer
 };
 
 // Abstract encoder. Codec backends are product-specific; obtain a concrete
@@ -52,8 +52,9 @@ public:
     virtual bool finish() = 0;                       // flush + write trailer
 };
 
-// Factory keyed by AppSettings storage/videoCodec. "h264" -> FfmpegH264Encoder
-// (when built with HAVE_FFMPEG); unknown codecs / no-FFmpeg builds -> nullptr.
+// Factory keyed by AppSettings storage/videoCodec: "h264" -> libx264,
+// "h265" -> libx265 (when built with HAVE_FFMPEG). Any other key falls back to
+// H.264; no-FFmpeg builds return nullptr.
 std::unique_ptr<IVideoEncoder> makeVideoEncoder(const std::string& codec);
 
 } // namespace pinpoint

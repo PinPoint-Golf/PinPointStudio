@@ -184,6 +184,10 @@ public:
         m_sessionNamingPattern  = ppSettings().value(QStringLiteral("storage/sessionNamingPattern"),  QStringLiteral("date-name-type")).toString();
         m_videoResolutionMode   = ppSettings().value(QStringLiteral("storage/videoResolutionMode"),   QStringLiteral("native")).toString();
         m_videoCodec            = ppSettings().value(QStringLiteral("storage/videoCodec"),            QStringLiteral("h264")).toString();
+        // Codecs were rationalised to the cross-platform set; coerce a persisted
+        // retired value ("prores"/"raw") so the UI selection and exporter agree.
+        if (m_videoCodec != QLatin1String("h264") && m_videoCodec != QLatin1String("h265"))
+            m_videoCodec = QStringLiteral("h264");
         m_videoQuality          = ppSettings().value(QStringLiteral("storage/videoQuality"),          QStringLiteral("medium")).toString();
         m_videoContainer        = ppSettings().value(QStringLiteral("storage/videoContainer"),        QStringLiteral("mp4")).toString();
         m_saveRawFrames         = ppSettings().value(QStringLiteral("storage/saveRawFrames"),         false).toBool();

@@ -16,7 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "ffmpeg_h264_encoder.h"
+#include "ffmpeg_video_encoder.h"
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -42,12 +42,17 @@ QString avErrorString(int errnum)
 
 } // namespace
 
-FfmpegH264Encoder::~FfmpegH264Encoder()
+FfmpegVideoEncoder::FfmpegVideoEncoder(std::string codecName)
+    : m_codecName(std::move(codecName))
+{
+}
+
+FfmpegVideoEncoder::~FfmpegVideoEncoder()
 {
     cleanup();
 }
 
-bool FfmpegH264Encoder::open(const VideoEncoderConfig& cfg)
+bool FfmpegVideoEncoder::open(const VideoEncoderConfig& cfg)
 {
     if (m_fmt) {
         ppError() << "[SwingExport] encoder already open";
@@ -72,9 +77,10 @@ bool FfmpegH264Encoder::open(const VideoEncoderConfig& cfg)
         return false;
     }
 
-    const AVCodec* codec = avcodec_find_encoder_by_name("libx264");
+    const AVCodec* codec = avcodec_find_encoder_by_name(m_codecName.c_str());
     if (!codec) {
-        ppError() << "[SwingExport] libx264 encoder not available in this FFmpeg build";
+        ppError() << "[SwingExport]" << QString::fromStdString(m_codecName)
+                  << "encoder not available in this FFmpeg build";
         cleanup();
         return false;
     }
@@ -110,9 +116,12 @@ bool FfmpegH264Encoder::open(const VideoEncoderConfig& cfg)
     m_enc->colorspace      = AVCOL_SPC_BT709;
     m_enc->color_range     = AVCOL_RANGE_MPEG;
 
-    av_opt_set(m_enc->priv_data, "preset",  cfg.preset.c_str(), 0);
-    av_opt_set(m_enc->priv_data, "crf",     std::to_string(cfg.crf).c_str(), 0);
-    av_opt_set(m_enc->priv_data, "profile", "high", 0);
+    // preset + crf are honored by both libx264 and libx265. "profile=high" is an
+    // x264 profile name; libx265 rejects it, so only set it for x264.
+    av_opt_set(m_enc->priv_data, "preset", cfg.preset.c_str(), 0);
+    av_opt_set(m_enc->priv_data, "crf",    std::to_string(cfg.crf).c_str(), 0);
+    if (m_codecName == "libx264")
+        av_opt_set(m_enc->priv_data, "profile", "high", 0);
 
     if (m_fmt->oformat->flags & AVFMT_GLOBALHEADER)
         m_enc->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
@@ -192,7 +201,7 @@ bool FfmpegH264Encoder::open(const VideoEncoderConfig& cfg)
     return true;
 }
 
-bool FfmpegH264Encoder::writeBgr(const cv::Mat& bgr)
+bool FfmpegVideoEncoder::writeBgr(const cv::Mat& bgr)
 {
     if (!m_fmt || !m_enc || m_finished) {
         ppError() << "[SwingExport] writeBgr on closed encoder";
@@ -226,7 +235,7 @@ bool FfmpegH264Encoder::writeBgr(const cv::Mat& bgr)
     return drainPackets(false);
 }
 
-bool FfmpegH264Encoder::finish()
+bool FfmpegVideoEncoder::finish()
 {
     if (!m_fmt || !m_enc || m_finished)
         return false;
@@ -254,7 +263,7 @@ bool FfmpegH264Encoder::finish()
     return true;
 }
 
-bool FfmpegH264Encoder::drainPackets(bool flushing)
+bool FfmpegVideoEncoder::drainPackets(bool flushing)
 {
     for (;;) {
         int rc = avcodec_receive_packet(m_enc, m_pkt);
@@ -284,7 +293,7 @@ bool FfmpegH264Encoder::drainPackets(bool flushing)
     }
 }
 
-void FfmpegH264Encoder::cleanup()
+void FfmpegVideoEncoder::cleanup()
 {
     // Idempotent: callable from any failure point and from the destructor.
     // If the header was written but the trailer wasn't (mid-encode failure),

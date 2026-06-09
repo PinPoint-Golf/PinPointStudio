@@ -55,10 +55,8 @@ Item {
     // ── Estimated size helpers ────────────────────────────────────────────────
 
     readonly property real codecMultiplier: (({
-        "h264":   1.0,
-        "h265":   0.6,
-        "prores": 6.0,
-        "raw":    20.0
+        "h264": 1.0,
+        "h265": 0.6
     })[appSettings.videoCodec]) || 1.0
 
     readonly property real qualityMultiplier: (({
@@ -136,10 +134,8 @@ Item {
     ]
 
     readonly property var codecOptions: [
-        { label: qsTr("H.264"),              value: "h264"   },
-        { label: qsTr("H.265"),              value: "h265"   },
-        { label: qsTr("ProRes"),             value: "prores" },
-        { label: qsTr("RAW (uncompressed)"), value: "raw"    }
+        { label: qsTr("H.264"), value: "h264" },
+        { label: qsTr("H.265"), value: "h265" }
     ]
 
     readonly property var qualityOptions: [
@@ -162,10 +158,8 @@ Item {
     ]
 
     readonly property var codecDescriptions: ({
-        "h264":   qsTr("H.264 offers excellent compatibility and small file sizes. Recommended for most studio environments."),
-        "h265":   qsTr("H.265 reduces file size by ~40% vs H.264 at equivalent quality. Requires hardware decode for smooth playback on older machines."),
-        "prores": qsTr("Apple ProRes is a professional editing codec. Files are large but offer frame-accurate editing without re-encode. macOS only."),
-        "raw":    qsTr("Uncompressed RAW stores every pixel at full bit depth. Files are very large but preserve all sensor data for reprocessing.")
+        "h264": qsTr("H.264 offers excellent compatibility and small file sizes. Recommended for most studio environments."),
+        "h265": qsTr("H.265 reduces file size by ~40% vs H.264 at equivalent quality. Requires hardware decode for smooth playback on older machines.")
     })
 
     // ── Search scroll-to support ──────────────────────────────────────────────
