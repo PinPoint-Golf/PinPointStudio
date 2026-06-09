@@ -40,7 +40,6 @@
 #include "navigation_controller.h"
 #include "resource_monitor_controller.h"
 #include "clipboard_helper.h"
-#include "arm_bone_controller.h"
 #include "llm_controller.h"
 #include "session_controller.h"
 #include "shot_controller.h"
@@ -124,7 +123,6 @@ int main(int argc, char *argv[])
     SessionController       sessionController;
     NavigationController    navController(&athleteController, &sessionController);
     ResourceMonitorController resourceMonitor(&eventBuffer, &cameraManager, &imuManager);
-    ArmBoneController         armBoneController;
     // Registers the shot-marker EventBuffer source; registering a first source
     // auto-resumes the buffer, so restore the user capture intent right after.
     ShotController            shotController(&eventBuffer, &sessionController);
@@ -211,7 +209,6 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("filmController"),   &filmController);
     engine.rootContext()->setContextProperty(QStringLiteral("bufferController"), &bufferController);
     engine.rootContext()->setContextProperty(QStringLiteral("resourceMonitor"),  &resourceMonitor);
-    engine.rootContext()->setContextProperty(QStringLiteral("armBoneController"), &armBoneController);
     engine.rootContext()->setContextProperty(QStringLiteral("sessionController"), &sessionController);
     engine.rootContext()->setContextProperty(QStringLiteral("shotController"),    &shotController);
     engine.rootContext()->setContextProperty(QStringLiteral("shotProcessor"),     &shotProcessor);

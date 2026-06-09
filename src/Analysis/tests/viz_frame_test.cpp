@@ -4,10 +4,9 @@
 //   * worldToScene() basis change (viz_frame.h) — Rx(-90°) world↔scene.
 //   * ArmVizView per-segment world orientation  W = R0 · q_anat · rollFix
 //     (ArmVizView.qml: leftRestQuat/rightRestQuat=R0, restRollDeg=-99 → rollFix).
-//   * The exact decomposition R0 = worldToScene() · restOffset that 2.2 will make
-//     explicit (and the fact that the left-handed R0 IS the pure basis change).
-//   * ArmBoneController's bone-local chain parentWorld⁻¹ · boneWorld
-//     (arm_bone_controller.cpp:186-191).
+//   * The explicit decomposition R0 = worldToScene() · restOffset (now in ArmVizView,
+//     Phase 2.2) reproduces the legacy hand-tuned R0 — i.e. the avatar is unchanged.
+//     (The left-handed R0 IS the pure basis change.)
 //
 // Qt's QQuaternion::operator* is the Hamilton product, identical to ArmVizView.qml's
 // quatMul, so the chains are replicated faithfully. The frozen W / local-rotation
@@ -116,25 +115,6 @@ int main()
         checkQuat("W rest (right-handed)", wRestR, QQuaternion( 0.05972f, -0.76973f,  0.01984f,  0.63532f), 1e-3f);
         checkQuat("W flex (right-handed)", wFlexR, QQuaternion( 0.28018f, -0.72904f,  0.15041f,  0.60618f), 1e-3f);
         checkQuat("W rest (left-handed)",  wRestL, QQuaternion( 0.45922f, -0.45922f, -0.53768f,  0.53768f), 1e-3f);
-    }
-
-    // -- D. ArmBoneController bone-local chain: localRot = parentWorld⁻¹ · boneWorld --
-    std::printf("\n-- D. ArmBoneController parentWorld⁻¹·boneWorld --\n");
-    {
-        const QQuaternion shoulderRest = QQuaternion::fromAxisAndAngle(1, 0, 0, 5);
-        const QQuaternion upperWorld   = QQuaternion::fromAxisAndAngle(0, 0, 1, 20);
-        const QQuaternion foreWorld    = QQuaternion::fromAxisAndAngle(0, 0, 1, 35);
-        const QQuaternion handWorld    = (QQuaternion::fromAxisAndAngle(0, 0, 1, 35)
-                                          * QQuaternion::fromAxisAndAngle(1, 0, 0, 12)).normalized();
-        const QQuaternion armLocal  = shoulderRest.inverted() * upperWorld;
-        const QQuaternion foreLocal = upperWorld.inverted()   * foreWorld;
-        const QQuaternion handLocal = foreWorld.inverted()    * handWorld;
-        std::printf("  [DIAG] armLocal  = (%.5f,%.5f,%.5f,%.5f)\n", armLocal.scalar(), armLocal.x(), armLocal.y(), armLocal.z());
-        std::printf("  [DIAG] foreLocal = (%.5f,%.5f,%.5f,%.5f)\n", foreLocal.scalar(), foreLocal.x(), foreLocal.y(), foreLocal.z());
-        std::printf("  [DIAG] handLocal = (%.5f,%.5f,%.5f,%.5f)\n", handLocal.scalar(), handLocal.x(), handLocal.y(), handLocal.z());
-        checkQuat("arm local",  armLocal,  QQuaternion(0.98387f, -0.04296f, 0.00757f, 0.17348f), 1e-3f);
-        checkQuat("fore local", foreLocal, QQuaternion(0.99144f,  0.00000f, 0.00000f, 0.13053f), 1e-3f);
-        checkQuat("hand local", handLocal, QQuaternion(0.99452f,  0.10453f, 0.00000f, 0.00000f), 1e-3f);
     }
 
     std::printf("\n=== %s (%d assert failures) ===\n",
