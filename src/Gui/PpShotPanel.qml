@@ -45,13 +45,13 @@ Item {
     property string traceLabel:     ""
     property var    analysisDetail: ({})
 
-    // The lead-wrist FE series out of analysisDetail.series, or null → fall back to
+    // All analysis metric series; the multi-metric graph overlays them, else fall back to
     // the normalised tracePoints sparkline (stub / no-IMU shots).
-    readonly property var _feSeries: {
-        const s = (analysisDetail && analysisDetail.series) ? analysisDetail.series : []
-        for (let i = 0; i < s.length; ++i)
-            if (s[i].key === "leadWristFlexExt") return s[i]
-        return null
+    readonly property var _series: (analysisDetail && analysisDetail.series) ? analysisDetail.series : []
+    readonly property bool _hasSeries: {
+        for (let i = 0; i < _series.length; ++i)
+            if (_series[i].t_us && _series[i].t_us.length > 1) return true
+        return false
     }
 
     signal replayRequested(string mode)
@@ -175,11 +175,11 @@ Item {
                     font.letterSpacing: Theme.trackingLabel
                     color:          Theme.colorText3
                 }
-                PpMetricGraph {        // real per-frame curve + phase ticks + replay playhead
-                    visible: panel._feSeries !== null
+                PpMetricGraph {        // overlaid metric curves + filter chips + replay playhead
+                    visible: panel._hasSeries
                     width:  parent.width
-                    height: Theme.sp(74)
-                    series:       panel._feSeries || ({})
+                    height: Theme.sp(96)
+                    seriesList:   panel._series
                     phases:       (panel.analysisDetail && panel.analysisDetail.phases) ? panel.analysisDetail.phases : []
                     startUs:      shotProcessor.isReplaying ? shotProcessor.replayStartUs : 0
                     endUs:        shotProcessor.isReplaying ? shotProcessor.replayEndUs   : 0
@@ -188,7 +188,7 @@ Item {
                     showPlayhead: shotProcessor.isReplaying
                 }
                 PpTrace {              // sparkline fallback when there's no analysis series
-                    visible: panel._feSeries === null
+                    visible: !panel._hasSeries
                     width:  parent.width
                     height: Theme.sp(58)
                     points: panel.tracePoints
