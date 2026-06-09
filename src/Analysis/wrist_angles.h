@@ -30,9 +30,17 @@
 // Qt-Gui-only so it is unit-testable without the app / SwingWindow.
 //
 // ANATOMICAL BODY FRAME (from imu_calibration::solveSegment): per segment,
-//   +Y = long axis (distal / elbow→wrist),  +X = flexion axis,  +Z = e_x × e_y.
-// Wrist DOFs in the forearm→hand relative rotation: flexion about X, radial/ulnar
-// deviation about Z, axial (hand-vs-forearm roll) about Y.
+//   +Y = long axis (distal / elbow→wrist),  +X = flexion axis (medio-lateral),
+//   +Z = e_x × e_y.  These are SEGMENT-frame axis NAMES.
+//
+// ⚠ Do NOT conflate those segment-axis names with the axes the wrist DOFs are READ
+// ON. The joint angles are extracted from the forearm→hand RELATIVE-rotation matrix
+// (see wristFlexExtDeviation below, lines ~117-119), and in THAT decomposition:
+// flexion/extension is read about Z, radial/ulnar deviation about X, and axial
+// (hand-vs-forearm roll) drops out about Y. The flexion/deviation Z↔X assignment vs.
+// the segment-axis names is deliberate and hardware-locked (2026-06; see the SIGN/AXIS
+// STATUS note below and line 118) — an earlier "flexion about X" form had the two
+// swapped, so do not "restore" it.
 //
 // SIGN/AXIS STATUS — hardware-locked 2026-06 for the lead (left) arm against
 // ~/pinpoint_wrist_log.csv (captured live on the wizard "check your sensors" page). In
