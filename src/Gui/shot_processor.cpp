@@ -33,6 +33,8 @@
 #include "../Core/pp_debug.h"
 
 #include <QDateTime>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QSet>
 #include <QTime>
 #include <QUrl>
@@ -328,18 +330,22 @@ void ShotProcessor::startAnalysis()
 void ShotProcessor::startSwingSave()
 {
     pinpoint::SwingExportJob job = buildSwingExportJob();
+    // Cache the job + dir up front: even when there is nothing to encode (no
+    // cameras, or an encode failure), an analysis-only swing.json is written
+    // from these at the join so the shot still survives a restart.
+    m_swingDir  = job.swingDir;
+    m_exportJob = job;
+
     if (job.swingDir.isEmpty()) {
         ppWarn() << "[SwingExport] could not allocate a swing directory — not saving";
         m_exportOutcome = Outcome::Skipped;
         return;
     }
     if (job.cameras.empty()) {
-        ppWarn() << "[SwingExport] no exportable cameras — not saving";
+        ppWarn() << "[SwingExport] no exportable cameras — analysis-only swing";
         m_exportOutcome = Outcome::Skipped;
         return;
     }
-
-    m_swingDir = job.swingDir;
 
     // The optional's storage is stable; the window is destroyed only in
     // finishShot()/finishNowBlocking(), strictly after the worker has returned.
@@ -432,6 +438,40 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
     return job;
 }
 
+QJsonObject ShotProcessor::buildSynthManifest() const
+{
+    // Mirrors the exporter's header exactly (swing_exporter.cpp), minus the
+    // media streams — so a reloaded analysis-only shot is indistinguishable
+    // from an exported one apart from hasVideo=false. writeSwingJson stamps the
+    // schema and appends the "analysis" block.
+    const int64_t t0         = m_swingWindow->startTimestampUs();
+    const int64_t durationUs = m_swingWindow->endTimestampUs() - t0;
+    const QDateTime wallclock = m_exportJob.wallclockAnchorUtc.addMSecs(-durationUs / 1000);
+
+    QJsonObject root;
+    root[QStringLiteral("swing")] = QJsonObject{
+        { QStringLiteral("index"), m_exportJob.swingIndex },
+        { QStringLiteral("id"),    m_exportJob.swingId },
+    };
+    root[QStringLiteral("athlete")] = QJsonObject{
+        { QStringLiteral("name"),       m_exportJob.athleteName },
+        { QStringLiteral("uuid"),       m_exportJob.athleteUuid },
+        { QStringLiteral("handedness"), m_exportJob.handedness },
+    };
+    root[QStringLiteral("session")] = QJsonObject{{ QStringLiteral("dir"), m_exportJob.sessionId }};
+    root[QStringLiteral("clock")] = QJsonObject{
+        { QStringLiteral("t0_us"),     static_cast<qint64>(t0) },
+        { QStringLiteral("unit"),      QStringLiteral("us") },
+        { QStringLiteral("wallclock"), wallclock.toString(Qt::ISODateWithMs) },
+    };
+    root[QStringLiteral("window")] = QJsonObject{
+        { QStringLiteral("start_us"), 0 },
+        { QStringLiteral("end_us"),   static_cast<qint64>(durationUs) },
+    };
+    root[QStringLiteral("streams")] = QJsonArray{};   // analysis-only — no media
+    return root;
+}
+
 // ---------------------------------------------------------------------------
 // Worker completion → join
 // ---------------------------------------------------------------------------
@@ -482,17 +522,33 @@ void ShotProcessor::maybeJoin()
 
     // The ONE unified swing.json (raw manifest + inline "analysis"), written here on the
     // GUI thread now that both workers have finished — no parallel-write race (the workers
-    // wrote only media + returned values). Export-failed shots have no dir/manifest.
+    // wrote only media + returned values). savedSwingDir is set only when a swing.json was
+    // actually written, so the carousel row links to a real file (rating/note write-through,
+    // reload) and an unwritten shot stays in-memory only.
+    QString savedSwingDir;
     if (exportOk) {
         QString werr;
-        if (!pinpoint::SwingDocWriter::writeSwingJson(
+        if (pinpoint::SwingDocWriter::writeSwingJson(
                 m_swingDir, m_exportManifest,
                 analysisOk && m_analysisResult.detail ? m_analysisResult.detail.get() : nullptr,
-                &werr))
-            ppError() << "[SwingDoc]" << werr;
-        else
+                &werr)) {
+            savedSwingDir = m_swingDir;
             ppInfo() << "[SwingDoc] wrote" << m_swingDir + QStringLiteral("/swing.json")
                      << (analysisOk ? "(with analysis)" : "(raw only)");
+        } else {
+            ppError() << "[SwingDoc]" << werr;
+        }
+    } else if (analysisOk && m_analysisResult.detail && !m_swingDir.isEmpty()) {
+        // Degraded persist: export failed/skipped but analysis succeeded — write a
+        // minimal, analysis-only swing.json so the shot reloads after a restart.
+        QString werr;
+        if (pinpoint::SwingDocWriter::writeSwingJson(
+                m_swingDir, buildSynthManifest(), m_analysisResult.detail.get(), &werr)) {
+            savedSwingDir = m_swingDir;
+            ppInfo() << "[SwingDoc] wrote analysis-only" << m_swingDir + QStringLiteral("/swing.json");
+        } else {
+            ppError() << "[SwingDoc] (degraded)" << werr;
+        }
     }
 
     // The shot happened — it always lands on the carousel, with whatever the
@@ -508,7 +564,8 @@ void ShotProcessor::maybeJoin()
         const QUrl thumbUrl = m_thumbnailPath.isEmpty()
                                   ? QUrl()
                                   : QUrl::fromLocalFile(m_thumbnailPath);
-        m_shotModel->addShot(m_timestampLabel,
+        m_shotModel->addShot(savedSwingDir,
+                             m_timestampLabel,
                              QStringLiteral("DRIVER"),
                              exportOk,
                              thumbUrl,

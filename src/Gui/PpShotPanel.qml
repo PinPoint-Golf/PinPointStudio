@@ -27,6 +27,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import QtMultimedia
 import PinPointStudio
 
 Item {
@@ -44,6 +45,17 @@ Item {
     property var    metricKeys:     []
     property string traceLabel:     ""
     property var    analysisDetail: ({})
+    property string swingDir:       ""
+    property bool   hasVideo:       false
+
+    // A shot can be replayed from disk once its media + swing.json exist on disk
+    // (swingDir set, and it actually has video — analysis-only shots don't).
+    // True while THIS shot is the one the disk replay is driving.
+    readonly property bool canReplay:     panel.swingDir !== "" && panel.hasVideo
+    // The inline (in-panel) replay surface is active only when the replay targets
+    // the panel — a popped-out replay (target "screen") renders on the rail body.
+    readonly property bool _diskReplaying: shotReplay.active && shotReplay.shotId === panel.shotId
+                                           && shotReplay.target === "panel"
 
     // All analysis metric series; the multi-metric graph overlays them, else fall back to
     // the normalised tracePoints sparkline (stub / no-IMU shots).
@@ -55,6 +67,7 @@ Item {
     }
 
     signal replayRequested(string mode)
+    signal popOutRequested()
     signal faceOnRequested()
     signal exportRequested()
     signal trashRequested()
@@ -65,7 +78,13 @@ Item {
     // The note field is deliberately unbound: its text is seeded per shot and
     // committed back via shotModel.setNote on focus loss / close, so typing
     // never fights a model binding.
-    onShotIdChanged: noteArea.text = panel.note
+    onShotIdChanged: {
+        noteArea.text = panel.note
+        // An inline replay belongs to the previously selected shot; a popped-out
+        // screen replay is independent of the panel and keeps running.
+        if (shotReplay.target === "panel")
+            shotReplay.stop()
+    }
     Component.onCompleted: noteArea.text = panel.note
 
     function commitNote() {
@@ -175,20 +194,99 @@ Item {
                     font.letterSpacing: Theme.trackingLabel
                     color:          Theme.colorText3
                 }
-                PpMetricGraph {        // overlaid metric curves + filter chips + replay playhead
-                    visible: panel._hasSeries
-                    width:  parent.width
-                    height: Theme.sp(96)
-                    seriesList:   panel._series
-                    phases:       (panel.analysisDetail && panel.analysisDetail.phases) ? panel.analysisDetail.phases : []
-                    startUs:      shotProcessor.isReplaying ? shotProcessor.replayStartUs : 0
-                    endUs:        shotProcessor.isReplaying ? shotProcessor.replayEndUs   : 0
-                    impactUs:     shotProcessor.replayImpactUs
-                    playheadUs:   shotProcessor.replayPositionUs
-                    showPlayhead: shotProcessor.isReplaying
+                // ── Disk-backed replay video (shown only while replaying) ──────
+                // One VideoOutput per recorded camera (face-on + DTL), side by
+                // side. The controller drives every player from a single capture-
+                // time clock, so all cameras stay in sync. Sinks bind after start()
+                // sets streamCount — setVideoSink rebinds the live players.
+                Rectangle {
+                    id: replayBox
+                    width:   parent.width
+                    readonly property int n: Math.max(1, shotReplay.streamCount)
+                    height:  panel._diskReplaying ? Math.round(width / replayBox.n * 9 / 16) : 0
+                    visible: panel._diskReplaying
+                    clip:    true
+                    radius:  Theme.radius
+                    color:   "#000000"
+
+                    Row {
+                        anchors.fill: parent
+                        spacing: 1
+                        Repeater {
+                            // Bind sinks only while THIS (panel) surface drives the
+                            // replay, so a popped-out screen replay keeps them.
+                            model: panel._diskReplaying ? shotReplay.streamCount : 0
+                            delegate: VideoOutput {
+                                required property int index
+                                width:  (replayBox.width - (replayBox.n - 1)) / replayBox.n
+                                height: replayBox.height
+                                fillMode: VideoOutput.PreserveAspectFit
+                                Component.onCompleted: shotReplay.setVideoSink(index, videoSink)
+                            }
+                        }
+                    }
+
+                    // Click the video to play/pause — no on-video icon.
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: shotReplay.togglePlay()
+                    }
                 }
+
+                Item { height: panel._diskReplaying ? Theme.sp(4) : 0; width: 1 }
+
+                PpMetricGraph {        // overlaid metric curves + filter chips + replay playhead
+                    visible: panel._hasSeries || panel._diskReplaying
+                    width:  parent.width
+                    height: panel._diskReplaying ? Theme.sp(76) : Theme.sp(96)
+                    seriesList:   (panel._diskReplaying && shotReplay.analysisDetail && shotReplay.analysisDetail.series)
+                                      ? shotReplay.analysisDetail.series : panel._series
+                    phases:       panel._diskReplaying
+                                      ? ((shotReplay.analysisDetail && shotReplay.analysisDetail.phases) ? shotReplay.analysisDetail.phases : [])
+                                      : ((panel.analysisDetail && panel.analysisDetail.phases) ? panel.analysisDetail.phases : [])
+                    startUs:      panel._diskReplaying ? shotReplay.startUs : 0
+                    endUs:        panel._diskReplaying ? shotReplay.endUs   : 0
+                    impactUs:     panel._diskReplaying ? shotReplay.impactUs : 0
+                    playheadUs:   panel._diskReplaying ? shotReplay.positionUs : 0
+                    showPlayhead: panel._diskReplaying
+                }
+
+                // Scrub bar — drag to seek; tracks the playhead while replaying.
+                Slider {
+                    id: scrub
+                    visible: panel._diskReplaying
+                    width:   parent.width
+                    height:  panel._diskReplaying ? implicitHeight : 0
+                    from: 0; to: 1
+                    Binding {
+                        target: scrub; property: "value"; when: !scrub.pressed
+                        value: shotReplay.endUs > shotReplay.startUs
+                                   ? (shotReplay.positionUs - shotReplay.startUs) / (shotReplay.endUs - shotReplay.startUs)
+                                   : 0
+                    }
+                    onMoved: shotReplay.seekToFraction(value)
+
+                    background: Rectangle {
+                        x: scrub.leftPadding
+                        y: scrub.topPadding + scrub.availableHeight / 2 - height / 2
+                        width: scrub.availableWidth; height: Theme.sp(3); radius: height / 2
+                        color: Theme.colorBorderMid
+                        Rectangle {
+                            width: scrub.visualPosition * parent.width; height: parent.height
+                            radius: height / 2; color: Theme.colorAccent
+                        }
+                    }
+                    handle: Rectangle {
+                        x: scrub.leftPadding + scrub.visualPosition * (scrub.availableWidth - width)
+                        y: scrub.topPadding + scrub.availableHeight / 2 - height / 2
+                        width: Theme.sp(11); height: Theme.sp(11); radius: width / 2
+                        color: Theme.colorAccent
+                    }
+                }
+
                 PpTrace {              // sparkline fallback when there's no analysis series
-                    visible: !panel._hasSeries
+                    visible: !panel._hasSeries && !panel._diskReplaying
                     width:  parent.width
                     height: Theme.sp(58)
                     points: panel.tracePoints
@@ -259,13 +357,34 @@ Item {
 
             PpButton {
                 primary: true
-                glyph:   "▶"
-                label:   qsTr("Replay")
-                onClicked: panel.replayRequested("normal")
+                glyph:   panel._diskReplaying ? "■" : "▶"
+                label:   panel._diskReplaying ? qsTr("Stop") : qsTr("Replay")
+                enabled: panel.canReplay
+                onClicked: {
+                    if (panel._diskReplaying) { shotReplay.stop(); return }
+                    shotReplay.start(panel.shotId, panel.swingDir, "normal")
+                    panel.replayRequested("normal")
+                }
             }
             PpButton {
                 label: qsTr("½× Slow")
-                onClicked: panel.replayRequested("slow")
+                enabled: panel.canReplay
+                onClicked: {
+                    shotReplay.start(panel.shotId, panel.swingDir, "slow")
+                    panel.replayRequested("slow")
+                }
+            }
+            PpButton {
+                glyph: "⤢"
+                label: qsTr("Pop out")
+                enabled: panel.canReplay
+                // Replay on the big interactive main-screen stage, then close the
+                // popup. The carousel's onClosed leaves screen-targeted replays
+                // running (only panel ones stop on close).
+                onClicked: {
+                    shotReplay.start(panel.shotId, panel.swingDir, "normal", "screen")
+                    panel.popOutRequested()
+                }
             }
             PpButton {
                 glyph: "◑"

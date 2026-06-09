@@ -246,6 +246,7 @@ ApplicationWindow {
         target: navController
         function onCurrentIndexChanged() {
             root.contentItem.forceActiveFocus()
+            shotReplay.stop()   // leaving a screen ends any disk-backed replay
         }
     }
 

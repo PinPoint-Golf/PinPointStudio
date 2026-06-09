@@ -42,6 +42,7 @@ Rectangle {
     required property string note
     required property var    metrics
     required property var    analysisDetail
+    required property string swingDir
 
     property bool selected: false
 

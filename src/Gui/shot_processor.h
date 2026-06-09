@@ -146,6 +146,10 @@ private:
     void startAnalysis();
     void startSwingSave();
     pinpoint::SwingExportJob buildSwingExportJob();
+    // Minimal raw header (athlete/session/clock/window, no streams) synthesised
+    // from the cached export job + the live window — used to persist an
+    // analysis-only swing.json when the media export failed or was skipped.
+    QJsonObject buildSynthManifest() const;
     void maybeJoin();
     void startReplay();
     void stopReplay(bool thenFinish);
@@ -191,6 +195,7 @@ private:
     Outcome m_analysisOutcome   = Outcome::Pending;
     ShotAnalysisResult m_analysisResult;
     QString m_swingDir;          // cached from the export job for the join
+    pinpoint::SwingExportJob m_exportJob;  // cached job — synth header on export fail/skip
     QString m_thumbnailPath;     // from SwingExportResult
     QJsonObject m_exportManifest; // raw manifest from the exporter, for the unified write
     pinpoint::SwingPaths m_swingPaths;   // per-app-run session-folder cache

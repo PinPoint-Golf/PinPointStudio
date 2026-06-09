@@ -24,6 +24,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QSaveFile>
+#include <algorithm>
 #include <cmath>
 
 #include "swing_paths.h"
@@ -95,6 +96,43 @@ bool SwingDocWriter::writeSwingJson(const QString &swingDir, const QJsonObject &
     return true;
 }
 
+bool SwingDocWriter::updateReview(const QString &swingDir, int rating, const QString &note,
+                                  QString *error)
+{
+    const QString path = swingDir + QStringLiteral("/swing.json");
+
+    QFile in(path);
+    if (!in.open(QIODevice::ReadOnly)) {
+        if (error) *error = QStringLiteral("cannot read %1: %2").arg(path, in.errorString());
+        return false;
+    }
+    QJsonParseError pe;
+    QJsonObject root = QJsonDocument::fromJson(in.readAll(), &pe).object();
+    in.close();
+    if (pe.error != QJsonParseError::NoError) {
+        if (error) *error = QStringLiteral("cannot parse %1: %2").arg(path, pe.errorString());
+        return false;
+    }
+
+    // Additive "review" block — additive, readers ignore unknown keys.
+    root[QStringLiteral("review")] = QJsonObject{
+        { QStringLiteral("rating"), std::clamp(rating, 0, 5) },
+        { QStringLiteral("note"),   note },
+    };
+
+    QSaveFile out(path);
+    if (!out.open(QIODevice::WriteOnly)) {
+        if (error) *error = QStringLiteral("cannot write %1: %2").arg(path, out.errorString());
+        return false;
+    }
+    out.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+    if (!out.commit()) {
+        if (error) *error = QStringLiteral("failed to commit %1: %2").arg(path, out.errorString());
+        return false;
+    }
+    return true;
+}
+
 // ── reader ──────────────────────────────────────────────────────────────────
 
 PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
@@ -156,6 +194,13 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
                                         { QStringLiteral("value"), val } });
         }
         ps.metrics = metrics;
+    }
+
+    // User review (rating/note) — written through by updateReview after edits.
+    if (root.contains(QStringLiteral("review"))) {
+        const QJsonObject rv = root[QStringLiteral("review")].toObject();
+        ps.rating = std::clamp(rv[QStringLiteral("rating")].toInt(), 0, 5);
+        ps.note   = rv[QStringLiteral("note")].toString();
     }
 
     ps.ok = true;

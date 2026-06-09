@@ -40,6 +40,15 @@ public:
     static bool writeSwingJson(const QString &swingDir, const QJsonObject &rawManifest,
                                const analysis::SwingAnalysis *analysis,
                                QString *error = nullptr);
+
+    // Write-through of the user's review (rating 0–5, free-text note) into an
+    // existing <swingDir>/swing.json: reads the doc, replaces the additive
+    // "review" block, atomic rewrite (QSaveFile). Called from the shot model's
+    // setRating/setNote so edits survive a restart. Returns false (and sets
+    // *error) if the doc can't be read or rewritten — a shot whose swing.json
+    // was never written (e.g. export failed) simply fails here harmlessly.
+    static bool updateReview(const QString &swingDir, int rating, const QString &note,
+                             QString *error = nullptr);
 };
 
 // A reloaded shot — everything ShotListModel::addPersistedShot needs to rebuild a
@@ -54,6 +63,8 @@ struct PersistedShot {
     bool        hasVideo = false;
     QString     thumbnailPath;      // absolute, empty if none
     int         score = 0;
+    int         rating = 0;         // 0–5 user stars (from the "review" block)
+    QString     note;               // free-text user note (from the "review" block)
     QVariantMap metrics;            // key -> { label, value } at Impact
     QVariantMap analysisDetail;     // { tier, overall, series, phases } for the graph
 };

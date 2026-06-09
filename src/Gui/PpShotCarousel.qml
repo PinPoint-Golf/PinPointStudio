@@ -326,6 +326,10 @@ Item {
             }
         }
         onClosed: {
+            // Closing the panel ends an inline replay, but a popped-out (screen)
+            // replay keeps running on the rail body with its own controls.
+            if (shotReplay.target === "panel")
+                shotReplay.stop()
             shotPanel.commitNote()
             root.selectedShotId = -1
             root.selectedCard   = null
@@ -343,10 +347,13 @@ Item {
             tracePoints:    root.selectedCard ? root.selectedCard.tracePoints    : []
             metrics:        root.selectedCard ? root.selectedCard.metrics        : ({})
             analysisDetail: root.selectedCard ? root.selectedCard.analysisDetail : ({})
+            swingDir:       root.selectedCard ? root.selectedCard.swingDir       : ""
+            hasVideo:       root.selectedCard ? root.selectedCard.hasVideo       : false
             metricKeys:     root.metricKeys
             traceLabel:     root.traceLabel
 
             onReplayRequested: (mode) => root.replayRequested(shotPanel.shotId, mode)
+            onPopOutRequested: panelPopup.close()   // screen replay keeps running (see onClosed)
             onFaceOnRequested: root.faceOnRequested(shotPanel.shotId)
             onExportRequested: {
                 root.exportRequested(shotPanel.shotId)

@@ -134,6 +134,15 @@ Item {
                     font.letterSpacing: Theme.trackingData
                 }
             }
+
+            // Disk-backed replay popped out from the review panel — a large,
+            // interactive surface overlaying the live tiles (scrub back and
+            // forth, frame-step, speed) until the user closes it.
+            PpReplayStage {
+                anchors.fill: parent
+                z: 10
+                visible: shotReplay.active && shotReplay.target === "screen"
+            }
         }
 
         // Session-shot carousel — keys mirror the Wrist goal vocabulary

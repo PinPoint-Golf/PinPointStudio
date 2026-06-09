@@ -98,6 +98,12 @@ bool FfmpegH264Encoder::open(const VideoEncoderConfig& cfg)
     m_enc->pix_fmt   = AV_PIX_FMT_YUV420P;
     m_enc->time_base = AVRational{1, cfg.out_fps};
 
+    // Frequent keyframes + no B-frames → frame-accurate seeks decode only a few
+    // frames, so replay scrubbing stays responsive (the x264 default keyint of
+    // ~250 makes a short swing one GOP, forcing a decode from frame 0 per seek).
+    m_enc->gop_size     = cfg.gop > 0 ? cfg.gop : 10;
+    m_enc->max_b_frames = 0;
+
     // Tag colour as BT.709, limited range (the sws conversion below matches).
     m_enc->color_primaries = AVCOL_PRI_BT709;
     m_enc->color_trc       = AVCOL_TRC_BT709;

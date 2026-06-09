@@ -33,6 +33,11 @@ struct VideoEncoderConfig {
     int height = 0;
     int out_fps = 30;            // fixed slow-mo playback rate; all frames kept
     int crf     = 23;            // from AppSettings videoQuality
+    // Keyframe interval (frames). Small GOP → fast, responsive frame-accurate
+    // seeking for replay scrubbing (a large GOP forces decode from a distant
+    // keyframe on every seek). ~3 keyframes/sec at 30 fps; modest size cost on
+    // these short swing clips.
+    int gop     = 10;
     std::string preset = "medium";
     std::string path;            // output .mp4
 };

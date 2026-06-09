@@ -47,6 +47,7 @@
 #include "shot_list_model.h"
 #include "../Export/swing_doc.h"
 #include "shot_processor.h"
+#include "shot_replay_controller.h"
 #include "live_wrist_angles.h"
 
 int main(int argc, char *argv[])
@@ -143,7 +144,7 @@ int main(int argc, char *argv[])
             shotModel.addPersistedShot(ps.swingDir, ps.ordinal, ps.timestampLabel, ps.club,
                 ps.hasVideo,
                 ps.thumbnailPath.isEmpty() ? QUrl() : QUrl::fromLocalFile(ps.thumbnailPath),
-                ps.score, ps.metrics, ps.analysisDetail);
+                ps.score, ps.rating, ps.note, ps.metrics, ps.analysisDetail);
             ++restored;
         }
         if (restored)
@@ -156,6 +157,9 @@ int main(int argc, char *argv[])
                                             &appSettings, &athleteController,
                                             &sessionController, &shotModel);
     cameraManager.setShotProcessor(&shotProcessor);   // teardown stop-barrier
+    // Disk-backed replay of saved shots (MP4 + swing.json) — independent of the
+    // live SwingWindow that ShotProcessor owns for the just-captured shot.
+    ShotReplayController      shotReplay;
     ClipboardHelper           clipboardHelper;
 
     // IMU source register/deregister can change the shared EventBuffer state
@@ -211,6 +215,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("sessionController"), &sessionController);
     engine.rootContext()->setContextProperty(QStringLiteral("shotController"),    &shotController);
     engine.rootContext()->setContextProperty(QStringLiteral("shotProcessor"),     &shotProcessor);
+    engine.rootContext()->setContextProperty(QStringLiteral("shotReplay"),        &shotReplay);
     engine.rootContext()->setContextProperty(QStringLiteral("shotModel"),         &shotModel);
     engine.rootContext()->setContextProperty(QStringLiteral("liveWrist"),         &liveWrist);
     engine.rootContext()->setContextProperty(QStringLiteral("clipboard"),         &clipboardHelper);

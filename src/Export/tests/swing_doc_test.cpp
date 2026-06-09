@@ -97,6 +97,36 @@ int main()
         check(ps.analysisDetail.value(QStringLiteral("phases")).toList().size() == 1, "analysisDetail.phases len 1");
     }
 
+    std::printf("\n=== review write-through round-trip ===\n");
+    {
+        QString rerr;
+        check(SwingDocWriter::updateReview(dir, 4, QStringLiteral("nice tempo"), &rerr),
+              "updateReview ok");
+        // The review block lands without disturbing the raw/analysis blocks.
+        QFile fr(dir + QStringLiteral("/swing.json"));
+        if (!fr.open(QIODevice::ReadOnly)) return 1;
+        const QJsonObject r = QJsonDocument::fromJson(fr.readAll()).object();
+        check(r.contains(QStringLiteral("analysis")), "analysis block survives review write");
+        const QJsonObject rv = r[QStringLiteral("review")].toObject();
+        check(rv[QStringLiteral("rating")].toInt() == 4, "review.rating == 4");
+        check(rv[QStringLiteral("note")].toString() == QStringLiteral("nice tempo"), "review.note");
+
+        const PersistedShot ps = SwingDocReader::readSwingJson(dir);
+        check(ps.rating == 4, "reader rating == 4");
+        check(ps.note == QStringLiteral("nice tempo"), "reader note");
+
+        // Rewriting replaces (does not append) the review block; clamps rating.
+        check(SwingDocWriter::updateReview(dir, 9, QStringLiteral("re-rated"), nullptr),
+              "updateReview rewrite ok");
+        const PersistedShot ps2 = SwingDocReader::readSwingJson(dir);
+        check(ps2.rating == 5, "reader rating clamped to 5");
+        check(ps2.note == QStringLiteral("re-rated"), "reader note rewritten");
+
+        // No swing.json → updateReview fails harmlessly (returns false).
+        check(!SwingDocWriter::updateReview(QStringLiteral("/tmp/swingdoc_test_nope"), 3, QString(), nullptr),
+              "updateReview on missing doc returns false");
+    }
+
     std::printf("\n=== raw-only write (analysis == nullptr) ===\n");
     SwingDocWriter::writeSwingJson(dir, manifest, nullptr);
     QFile f2(dir + QStringLiteral("/swing.json"));

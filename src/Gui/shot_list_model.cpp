@@ -18,6 +18,9 @@
 
 #include "shot_list_model.h"
 
+#include "../Export/swing_doc.h"
+#include "../Core/pp_debug.h"
+
 ShotListModel::ShotListModel(QObject *parent)
     : QAbstractListModel(parent)
 {
@@ -47,6 +50,7 @@ QVariant ShotListModel::data(const QModelIndex &index, int role) const
     case TrashedRole:         return s.trashed;
     case MetricsRole:         return s.metrics;
     case AnalysisDetailRole:  return s.analysisDetail;
+    case SwingDirRole:        return s.swingDir;
     default:                  return {};
     }
 }
@@ -67,6 +71,7 @@ QHash<int, QByteArray> ShotListModel::roleNames() const
         { TrashedRole,         "trashed"         },
         { MetricsRole,         "metrics"         },
         { AnalysisDetailRole,  "analysisDetail"  },
+        { SwingDirRole,        "swingDir"        },
     };
 }
 
@@ -87,8 +92,8 @@ int ShotListModel::rowForId(int id) const
     return -1;
 }
 
-void ShotListModel::addShot(const QString &timestampLabel, const QString &club,
-                            bool hasVideo, const QUrl &thumbnailSource,
+void ShotListModel::addShot(const QString &swingDir, const QString &timestampLabel,
+                            const QString &club, bool hasVideo, const QUrl &thumbnailSource,
                             const QVariantList &tracePoints, int score,
                             const QVariantMap &metrics,
                             const QVariantMap &analysisDetail)
@@ -100,6 +105,7 @@ void ShotListModel::addShot(const QString &timestampLabel, const QString &club,
     Shot shot;
     shot.id              = m_nextId++;
     shot.ordinal         = maxOrdinal + 1;
+    shot.swingDir        = swingDir;
     shot.timestampLabel  = timestampLabel;
     shot.club            = club;
     shot.hasVideo        = hasVideo;
@@ -119,6 +125,7 @@ void ShotListModel::addShot(const QString &timestampLabel, const QString &club,
 void ShotListModel::addPersistedShot(const QString &swingDir, int ordinal,
                                      const QString &timestampLabel, const QString &club,
                                      bool hasVideo, const QUrl &thumbnailSource, int score,
+                                     int rating, const QString &note,
                                      const QVariantMap &metrics, const QVariantMap &analysisDetail)
 {
     Shot shot;
@@ -130,6 +137,8 @@ void ShotListModel::addPersistedShot(const QString &swingDir, int ordinal,
     shot.hasVideo        = hasVideo;
     shot.thumbnailSource = thumbnailSource;
     shot.score           = score;
+    shot.rating          = rating;           // restored from the "review" block
+    shot.note            = note;
     shot.metrics         = metrics;
     shot.analysisDetail  = analysisDetail;
 
@@ -138,6 +147,19 @@ void ShotListModel::addPersistedShot(const QString &swingDir, int ordinal,
     m_shots.prepend(shot);
     endInsertRows();
     emit activeCountChanged();
+}
+
+// Persist the row's review (rating + note) to its swing.json, if it has one on
+// disk. A row with no swingDir (export produced no directory) is in-memory only
+// and silently skips the write-through.
+void ShotListModel::persistReview(int row)
+{
+    const Shot &s = m_shots.at(row);
+    if (s.swingDir.isEmpty())
+        return;
+    QString err;
+    if (!pinpoint::SwingDocWriter::updateReview(s.swingDir, s.rating, s.note, &err))
+        ppWarn() << "[ShotListModel] review write-through failed:" << err;
 }
 
 void ShotListModel::setRating(int id, int n)
@@ -150,6 +172,7 @@ void ShotListModel::setRating(int id, int n)
         return;
     m_shots[row].rating = n;
     emit dataChanged(index(row), index(row), { RatingRole });
+    persistReview(row);
 }
 
 void ShotListModel::setNote(int id, const QString &text)
@@ -159,6 +182,7 @@ void ShotListModel::setNote(int id, const QString &text)
         return;
     m_shots[row].note = text;
     emit dataChanged(index(row), index(row), { NoteRole });
+    persistReview(row);
 }
 
 void ShotListModel::moveToTrash(int id)

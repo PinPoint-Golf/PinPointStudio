@@ -59,6 +59,7 @@ public:
         TrashedRole,
         MetricsRole,
         AnalysisDetailRole,
+        SwingDirRole,
     };
 
     explicit ShotListModel(QObject *parent = nullptr);   // starts empty
@@ -71,17 +72,20 @@ public:
     int activeCount()   const;
 
     // ShotProcessor's entry point — prepends a shot (newest first) with the
-    // next ordinal and a fresh id.
-    void addShot(const QString &timestampLabel, const QString &club, bool hasVideo,
-                 const QUrl &thumbnailSource, const QVariantList &tracePoints,
+    // next ordinal and a fresh id. swingDir links the row to its on-disk folder
+    // so rating/note edits write through to swing.json (empty when the export
+    // produced no directory).
+    void addShot(const QString &swingDir, const QString &timestampLabel, const QString &club,
+                 bool hasVideo, const QUrl &thumbnailSource, const QVariantList &tracePoints,
                  int score, const QVariantMap &metrics,
                  const QVariantMap &analysisDetail = {});
 
     // Reload a shot from disk (SwingDocReader): uses the stored ordinal and links the
-    // row to its swingDir. rating/note aren't persisted yet, so they start cleared.
+    // row to its swingDir; rating/note are restored from the persisted "review" block.
     void addPersistedShot(const QString &swingDir, int ordinal, const QString &timestampLabel,
                           const QString &club, bool hasVideo, const QUrl &thumbnailSource,
-                          int score, const QVariantMap &metrics, const QVariantMap &analysisDetail);
+                          int score, int rating, const QString &note,
+                          const QVariantMap &metrics, const QVariantMap &analysisDetail);
 
     Q_INVOKABLE void setRating(int id, int n);
     Q_INVOKABLE void setNote(int id, const QString &text);
@@ -114,7 +118,8 @@ private:
         QString      swingDir;        // on-disk folder, for reloaded shots (replay-from-MP4 later)
     };
 
-    int rowForId(int id) const;
+    int  rowForId(int id) const;
+    void persistReview(int row);   // write-through rating/note to swing.json
 
     QVector<Shot> m_shots;
     int           m_nextId = 1;
