@@ -45,6 +45,10 @@ pp_add_test(live_wrist_angles_test  live_wrist_angles_test.cpp)
 # Stored IMU sample frame — makeImuSample (= the exported swing.json vector frame).
 pp_add_test(imu_sample_test  imu_sample_test.cpp)
 
+# Viz binding chains: worldToScene() basis change + ArmVizView/ArmBoneController
+# rendered-bone math (header-only: src/Gui/viz_frame.h).
+pp_add_test(viz_frame_test  viz_frame_test.cpp)
+
 # Phase segmenter + metric extractor over a synthetic swing.
 pp_add_test(pipeline_test      pipeline_test.cpp
                                ${ANALYSIS}/phase_segmenter.cpp
