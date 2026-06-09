@@ -313,3 +313,60 @@ The playhead `╳` moves with the replay frame; the phase chip row and x-axis ti
 * **Heading drift (6-axis, no magnetometer).** Tilt is gravity-bounded; about-vertical yaw drifts and **only cancels in relative quaternions if all three IMUs share one drift datum** — they do (common gravity-seeded world). the **30-min calibration timeout is exactly this mid-session re-reference**; differential bias between sensors within the window is the residual risk.
 * **Elbow hyperextension / singularity.** Near-straight impact pushes the elbow swing toward the 180° swing-twist singularity — the cross-product fallback is mandatory, and `leadArmFlexion` near 180° must not wrap.
 * **Camera cross-check degradation.** Face-on 2D elbow angle is valid only in the frontal plane; as the arm swings out of plane the cross-check tolerance must widen or suspend — never let a stale camera disagreement override the IMU value.
+
+---
+
+## 11. Tidy-up & follow-up — session-restart checklist
+
+> **M1 is functionally complete and on `main`** (analysis engine → scorer → unified
+> persistence + reload → replay-synced multi-metric graphs → live check-sensors overlay +
+> hardware sign-lock). This is the punch-list to resume from; each item names the file(s).
+> Cross-ref: `docs/SHOT_ANALYZER_DESIGN.md` → "Implementation notes (as-built, M1)".
+
+### A. Verify on hardware (next swing)
+- [ ] In-replay graph scrubs beside the video in `ScreenWrist` (Phase 3 is compile-verified only).
+- [ ] Scores/curves read as **absolute posture** (the neutral-relative reference change) — sanity vs feel.
+- [ ] Roll/pronation with the **upper-arm IMU** connected (slot C).
+- [ ] Re-confirm bow/cup · hinge · roll directions on the check-sensors overlay.
+
+### B. Sign / heading correctness
+- [ ] **FE↔RUD cross-talk (~10–15°).** Observed on hardware and **contradicts §10's "heading
+  cancels cleanly"** claim — the no-magnetometer yaw is effectively unobservable *between*
+  sensors (`src/IMU/imu_base.h`). Decide a mitigation: mag-aided shared North, a
+  kinematic-chain heading constraint, or accept-and-flag. Documented in `wrist_angles.h`.
+- [ ] **Right-arm (left-handed golfer) sign.** `wristFlexExtDeviation` / `forearmPronElbowFlex`
+  are currently `Q_UNUSED(leftArm)` (no mirror; only the **left lead arm** is hardware-verified).
+  Verify on a left-handed rig; the removed capture scaffolding is in git history (commit before
+  `d99c9ba`) if you need to re-log a `~/pinpoint_wrist_log.csv`.
+- [ ] **(Bigger) ROS/ENU frame contract** at the IMU boundary + **9-axis mag fusion** — the
+  decoupling + shared-heading rearchitecting we agreed to do *after* a working model (now). Ref
+  `witmotion_IMU_ros`. Note Qt `QQuaternion` is `(w,x,y,z)` vs ROS `(x,y,z,w)`.
+
+### C. Scorer
+- [ ] Finalize `kWristBands` centres/σ in `swing_scorer.cpp` from real-swing data — currently
+  **provisional** (on the correct channels post sign-lock). No public quartile source (`WRISTMETRICS.md`).
+
+### D. Deferred persistence set ("another set of updates")
+- [ ] **Rating/note persistence** into `swing.json` (reloaded shots come back cleared).
+- [ ] **MP4-backed replay** for reloaded shots (`QMediaPlayer.setPosition`); live replay only
+  works for fresh shots (it drives off the frozen `SwingWindow`).
+- [ ] **Export-fail degraded `swing.json` header** (unified write only runs when export succeeds).
+
+### E. Metric / series
+- [ ] **Exact quaternion-referenced Δ-from-address curve** (currently scalar; `wristRel` /
+  `elbowRel` kept in `wrist_angles.h` for this).
+- [ ] Keep live (`LiveWristAngles`) and shot (`MetricExtractor`) in lockstep — both
+  neutral-relative now; any future reference change must touch both.
+
+### F. Polish
+- [ ] `PpMetricGraph` accent-tick colour clash (Impact tick shares the Bow/cup curve colour);
+  palette refinement.
+- [ ] Overlay placement/sizing — first-pass heights on the check-sensors overlay and the
+  `ScreenWrist` in-replay graph (`Theme.sp(96)` panel graph, `sp(8)` margins).
+
+### G. Tests / hygiene
+- [ ] Standalone tests (`src/Analysis/tests/`, `src/Export/tests/`) are g++-built ad hoc —
+  consider a CMake test target like `src/Buffer/tests`.
+
+### H. M2 hooks
+- [ ] ViTPose offline pose path (wired as `PoseEstimatorViTPose`) → monocular metric lift (M2).

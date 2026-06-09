@@ -73,6 +73,7 @@ sequenced build-out.*
   - [New-dependencies summary](#new-dependencies-summary)
   - [Validation strategy](#validation-strategy)
   - [Risks & open questions](#risks-open-questions)
+- [Implementation notes (as-built, M1)](#implementation-notes-as-built-m1)
 - [Appendix A — Codebase integration map](#appendix-a-codebase-integration-map)
 - [Appendix B — Research bibliography](#appendix-b-research-bibliography)
 
@@ -852,6 +853,85 @@ validated against `mirroredSource`/handedness; occluded segments stay IMU-recons
 5. **Cross-platform GPU.** ONNX has no Vulkan EP — a Vulkan-only Linux box (AMD/Intel, no CUDA) falls back to CPU for the analyzer. Verify the CPU latency budget there; never trust `#ifdef WITH_CUDA` for the runtime decision.
 6. **Temporal sync.** Software-timestamp-only; 1 ms skew = 45 mm clubhead error. The IMU impact instant is the gold-standard common clock; sub-frame camera offset must be estimated (M3 angular-velocity cross-correlation) before any club/ball metric is trusted.
 7. **No force-plate for GRF.** `GrfAnalyzer` estimates ground reaction kinematically and must label outputs as estimates until a force source is added.
+
+---
+
+## Implementation notes (as-built, M1)
+
+> As-built status after **M1 (Wrist Motion)** — what shipped, decisions taken along the way,
+> and what was deferred. M1 is on `main` (analysis engine → scorer → unified persistence +
+> reload → replay-synced multi-metric graphs → live check-sensors overlay + hardware
+> sign-lock). Companions: `docs/SHOT_ANALYZER_M1_WRIST.md` (§11 = tidy-up checklist) and
+> `docs/WRISTMETRICS.md` (sign/axis/naming + norms). `docs/SHOT_ANALYZER_VIZ.md` covers the
+> graph work.
+>
+> **Scope:** M1 is the **IMU-orientation** path only. Pose/triangulation layers (1, 2, 4, 5)
+> and camera metric calibration are **M2+**, unimplemented — so "monocular skeleton" below is
+> as-built IMU-orientation-only.
+
+### Architecture & data pipeline — as-built
+- **Layers implemented:** 3 (`ImuVisionFuser`) and 6 (`PhaseSegmenter`). 1/2/4/5 not in M1.
+- **Canonical structures** (`src/Analysis/swing_analysis.h`): `SegmentRole`,
+  `ImuSegmentBinding {SourceId, role, alignA, mountM}`, `ReconstructionTier`,
+  `Phase`/`PhaseEvent`/`PhaseSample`, `MetricSeries`, `ScoredMetric`, `ScoreBreakdown`,
+  `SwingAnalysis`. **Decision:** `MetricSeries.value` is **neutral-relative (absolute posture
+  vs the calibration neutral)**, with the Address phase-sample carried so a scalar
+  Δ-from-address is derived in the UI.
+- **Seam:** `ShotAnalyzer` ABC + `makeShotAnalyzer(sessionType)`; `WristAnalyzer` for type 1.
+  Runs as a `QtConcurrent` worker ∥ `SwingExporter` over the frozen `SwingWindow`.
+- **Tier:** `Mono3DPlusImu` (IMU orientation, no triangulation). **Decision (single-camera-
+  first):** degrade gracefully — no hard M2 triangulation gate.
+- **Source-layout decision:** `src/Analysis` is **flat**; standalone tests in
+  `src/Analysis/tests/`. The `src/Analysis/<layer>/` paths in this doc are logical, not literal.
+
+### Algorithms — as-built
+- **§3 `ImuVisionFuser`** — implemented: `q_anat = alignA·qRaw·mountM`, 200 Hz
+  intersected-coverage grid. **IMU-only** today (no camera-fusion term yet).
+- **§6 `PhaseSegmenter`** — implemented (Address = motion onset, Top = lead-hand furthest
+  from Address, Impact = marker anchor, Finish). Heuristic; full P-system detection deferred.
+- **Sign/axis lock (key correction):** wrist flexion/extension is rotation about **Z**,
+  radial/ulnar deviation about **X** (the original spec was right; a transient "XZY" form had
+  them swapped). `wristFlexExtDeviation` uses ZXY extraction; **hardware-locked** against a
+  live capture, signs correct for the lead/left arm with **no left/right mirror**.
+  **Deferred:** ~10–15° FE↔RUD cross-talk from the no-magnetometer **yaw being unobservable**
+  between two sensors (`src/IMU/imu_base.h`); right-arm sign unverified.
+- **§0 / layers 1, 2, 4, 5** — M2+.
+
+### Metrics & scoring — as-built
+- **Catalog (M1 wrist):** `leadWristFlexExt` (bow/cup), `leadWristRadUln` (hinge),
+  `forearmPronation` (roll), `leadArmFlexion` (elbow). **Decision:** coaching names + ISB signs
+  (`docs/WRISTMETRICS.md`); shared `wristMetricLabel()` used by analyzer + live readout.
+- **Reference-frame decision:** **neutral/absolute primary** — unifies the live readout with
+  shot analysis, and **fixed a scorer reference mismatch** (it now grades the absolute impact
+  posture against the absolute bands, not the address-delta).
+- **§B `SwingScorer`** — implemented: deadband + bounded falloff, one-sided where directional,
+  **weighted geometric mean** (weakest-link) → overall + per-region + per-phase, R/Y/G bands.
+  **Deferred:** band **centres are provisional** (correct channels, untuned — need real-swing
+  distributions; no public quartile source).
+
+### Metric time series & sampling — as-built
+- **Persistence decision:** ONE unified `swing.json` (`schema pinpoint.swing/2`, additive
+  inline `analysis` block) written **once at the analyzer∥exporter join** by `SwingDocWriter`
+  — exporter returns its raw manifest, analyzer is pure-return; no parallel-write race, no
+  separate `analysis.json`. **Reload** (`SwingDocReader` + `addPersistedShot`) is **read-only**.
+- **Graphs decision:** `PpMetricGraph` overlays **all four** curves on a shared degree axis
+  with **filter chips** (legend + live value + scalar Δ-from-address); shown in the review
+  panel **and** live in `ScreenWrist` during replay (`ShotProcessor::replayAnalysisDetail` +
+  `replayPositionUs`), scrubbing with the ¼× video. `PpTrace` is the no-analysis fallback.
+  **Deferred:** exact quaternion-referenced Δ curve (`wristRel`/`elbowRel` retained for it).
+
+### Implementation Plan — status
+- **M0** (plumbing/persistence): done.
+- **M1**: **functionally complete** as the IMU-orientation path (engine, sign-lock, scorer,
+  unified persistence + reload, replay-synced multi-metric graphs, live overlay). Tidy-ups in
+  `M1_WRIST.md §11`.
+- **M2–M6**: not started.
+
+### Cross-cutting deferred / follow-up
+Reload set (rating/note, MP4 replay, export-fail header) · FE↔RUD cross-talk & shared-heading
+(mag / kinematic / ROS-ENU frame contract) · right-arm sign · scorer band finalization · exact
+Δ curve · ViTPose offline pose path (M2) · decouple the analyzer from the WT9011 quaternion
+convention.
 
 ---
 
