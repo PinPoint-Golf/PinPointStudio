@@ -378,20 +378,20 @@ The app forces `QSettings::IniFormat` (see `src/Core/pp_settings.h`), so on Wind
 | `session/goalsByType` | _(empty map)_ | ✅ | Per-session-type speed goals; key → target mph value |
 | `session/lastType` | `0` | ✅ | Index of the last-used session type; pre-selects on next wizard open |
 
-**Storage** — recording pipeline not yet built; all keys persisted for future use
+**Storage** — honored by the swing exporter (each shot writes one `swing.json` + per-camera clips into the session folder); see the [Swing Export Developer Guide](docs/swing_export_developer_guide.md)
 
 | Key | Default | Status | What |
 |---|---|---|---|
-| `storage/sessionNamingPattern` | `"date-name-type"` | 📋 | Folder name format (`"date-name-type"`, `"date-type-name"`, `"name-date-type"`, `"date-only"`) |
-| `storage/videoResolutionMode` | `"native"` | 📋 | Recording resolution (`"4k"`, `"1080p"`, `"native"`, `"half"`) |
-| `storage/videoCodec` | `"h264"` | 📋 | Encoding codec (`"h264"`, `"h265"`, `"prores"`, `"raw"`) |
-| `storage/videoQuality` | `"medium"` | 📋 | Encoding quality (`"low"`, `"medium"`, `"high"`, `"lossless"`); ignored when codec is `"raw"` |
-| `storage/videoContainer` | `"mp4"` | 📋 | Container format (`"mp4"`, `"mov"`, `"mkv"`) |
-| `storage/saveRawFrames` | `false` | 📋 | Save unprocessed Bayer frames alongside encoded clips |
-| `storage/savePoseKeypoints` | `true` | 📋 | Save MoveNet skeleton data as JSON per clip |
-| `storage/saveImuStreams` | `true` | 📋 | Save full IMU quaternion/accelerometer data |
-| `storage/imuDataFormat` | `"json"` | 📋 | IMU export format (`"json"`, `"csv"`, `"binary"`) |
-| `storage/saveLaunchMonitorData` | `true` | 📋 | Save ball-flight data from connected launch monitor |
+| `storage/sessionNamingPattern` | `"date-name-type"` | ✅ | Session-folder name format (`"date-name-type"`, `"date-type-name"`, `"name-date-type"`, `"date-only"`); composed by `SwingPaths` |
+| `storage/videoResolutionMode` | `"native"` | ✅ | Export-time resolution (`"4k"`, `"1080p"`, `"native"`, `"half"`); downscale only — never upscales |
+| `storage/videoCodec` | `"h264"` | ✅ | Encoding codec (`"h264"` → libx264, `"h265"` → libx265); a legacy `"prores"`/`"raw"` value is coerced to `"h264"` on load |
+| `storage/videoQuality` | `"medium"` | ✅ | Encoding quality → CRF (`"low"`=28, `"medium"`=23, `"high"`=18, `"lossless"`=0) |
+| `storage/videoContainer` | `"mp4"` | ✅ | Container / clip extension (`"mp4"`, `"mov"`, `"mkv"`); selects the muxer |
+| `storage/saveRawFrames` | `false` | ✅ | Also dump undecoded sensor payloads to an `<alias>.raw` sidecar per camera |
+| `storage/savePoseKeypoints` | `true` | ✅ | Gate is wired — the exporter serialises pose streams when present, but no pose producer exists yet, so nothing is written today |
+| `storage/saveImuStreams` | `true` | ✅ | Embed IMU quaternion/accelerometer streams in `swing.json` |
+| `storage/imuDataFormat` | `"json"` | ✅ | IMU export format (`"json"` inline, or `"csv"`/`"binary"` sidecar) |
+| `storage/saveLaunchMonitorData` | `true` | 📋 | Save ball-flight data from a connected launch monitor (no launch-monitor source yet) |
 
 **Athletes** — one group per athlete, keyed by UUID (`athletes/<uuid>/…`)
 
