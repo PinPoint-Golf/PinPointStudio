@@ -149,6 +149,19 @@ void ShotListModel::addPersistedShot(const QString &swingDir, int ordinal,
     emit activeCountChanged();
 }
 
+void ShotListModel::clear()
+{
+    if (m_shots.isEmpty())
+        return;
+    beginResetModel();
+    m_shots.clear();
+    m_lastTrashBatch.clear();
+    m_lastTrashedId = -1;
+    endResetModel();
+    emit lastTrashedIdChanged();
+    emit activeCountChanged();
+}
+
 // Persist the row's review (rating + note) to its swing.json, if it has one on
 // disk. A row with no swingDir (export produced no directory) is in-memory only
 // and silently skips the write-through.

@@ -100,9 +100,82 @@ Item {
         anchors { fill: parent; leftMargin: Theme.sp(16); rightMargin: Theme.sp(14) }
         spacing: Theme.sp(12)
 
+        // ── Review strip — replaces the whole capture cluster while a saved ──
+        // session is loaded (device pills stay; see the !reviewActive gates on
+        // captureBtn / clock / End / SHOT below).
+        Rectangle {
+            id: reviewStrip
+            visible: sessionReviewController.reviewActive
+            Layout.alignment: Qt.AlignVCenter
+            implicitWidth:  reviewRow.implicitWidth + Theme.sp(28)
+            implicitHeight: Theme.sp(40)
+            radius: Theme.radius
+            color: Theme.colorAccentLight
+            border.width: 1; border.color: Theme.colorAccentMid
+
+            Row {
+                id: reviewRow
+                anchors.centerIn: parent
+                spacing: Theme.sp(10)
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("REVIEWING")
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorAccent
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: sessionReviewController.activeDayLabel
+                          + (sessionReviewController.activeTimeLabel
+                                 ? " · " + sessionReviewController.activeTimeLabel : "")
+                          + (sessionReviewController.activeClubMix
+                                 ? " — " + sessionReviewController.activeClubMix : "")
+                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
+                    color: Theme.colorText
+                }
+            }
+        }
+
+        // ── Resume live session — leaves review, back to the live model ─────
+        Rectangle {
+            id: resumeBtn
+            visible: sessionReviewController.reviewActive
+            Layout.alignment: Qt.AlignVCenter
+            implicitWidth:  resumeRow.implicitWidth + Theme.sp(24)
+            implicitHeight: Theme.sp(32)
+            radius: Theme.radius
+            color: resumeMa.containsMouse ? Theme.colorBg3 : Theme.colorBg2
+            border.width: 1; border.color: Theme.colorBorderMid
+            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+            Row {
+                id: resumeRow
+                anchors.centerIn: parent
+                spacing: Theme.sp(7)
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Theme.sp(7); height: Theme.sp(7); radius: Theme.sp(3.5)
+                    color: Theme.colorError
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("Resume live session")
+                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                    color: Theme.colorText2
+                }
+            }
+            MouseArea {
+                id: resumeMa
+                anchors.fill: parent; hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: sessionReviewController.resumeLive()
+            }
+        }
+
         // ── Capture (session-global) — far left, always first ───────────────
         Rectangle {
             id: captureBtn
+            visible: !sessionReviewController.reviewActive
             Layout.alignment: Qt.AlignVCenter
             implicitWidth: captureLbl.implicitWidth + Theme.sp(28)
             implicitHeight: Theme.sp(40)
@@ -144,6 +217,7 @@ Item {
 
         // ── Session clock (alongside Capture, to its right) ─────────────────
         Column {
+            visible: !sessionReviewController.reviewActive
             spacing: Theme.sp(2)
             Layout.alignment: Qt.AlignVCenter
             Text {
@@ -177,7 +251,7 @@ Item {
         // anchored popup — the session clock can't be resumed once ended.
         Rectangle {
             id: endBtn
-            visible: sessionController.running
+            visible: sessionController.running && !sessionReviewController.reviewActive
             Layout.alignment: Qt.AlignVCenter
             implicitWidth: endLbl.implicitWidth + Theme.sp(24)
             implicitHeight: Theme.sp(40)
@@ -267,7 +341,10 @@ Item {
             }
         }
 
-        Item { Layout.fillWidth: true }   // centre the SHOT button
+        Item {   // centre the SHOT button (live only)
+            Layout.fillWidth: true
+            visible: !sessionReviewController.reviewActive
+        }
 
         // ── Analysing indicator — visible while the shot processor works ────
         // (post-roll + analysis + export; hidden again once the replay runs,
@@ -276,6 +353,7 @@ Item {
             Layout.alignment: Qt.AlignVCenter
             spacing: Theme.sp(6)
             visible: shotProcessor.busy && !shotProcessor.isReplaying
+                     && !sessionReviewController.reviewActive
 
             Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
@@ -307,6 +385,7 @@ Item {
         // no-op even if the binding lags.
         Rectangle {
             id: shotBtn
+            visible: !sessionReviewController.reviewActive
             Layout.alignment: Qt.AlignVCenter
             implicitWidth: shotLbl.implicitWidth + Theme.sp(28)
             implicitHeight: Theme.sp(40)

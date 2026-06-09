@@ -42,6 +42,7 @@
 #include "clipboard_helper.h"
 #include "llm_controller.h"
 #include "session_controller.h"
+#include "session_review_controller.h"
 #include "shot_controller.h"
 #include "shot_list_model.h"
 #include "../Export/swing_doc.h"
@@ -148,6 +149,22 @@ int main(int argc, char *argv[])
         if (restored)
             ppInfo() << "[Reload] restored" << restored << "shots from" << sessionDir;
     }
+    // Session review: enumerate saved sessions + load one into a private shot
+    // model. Constructed after the reload above so its synthesized live-session
+    // row reflects the just-restored shots.
+    SessionReviewController   sessionReviewController(&shotModel, &appSettings,
+                                                      &athleteController);
+    // Entering review stops live capture (which disarms the shot trigger via the
+    // buffer state) and explicitly gates ShotController; the session/clock keep
+    // running so resumeLive() returns to the same live session. Capture is NOT
+    // auto-resumed on resumeLive — the user presses Capture again.
+    QObject::connect(&sessionReviewController, &SessionReviewController::reviewActiveChanged,
+                     [&sessionReviewController, &shotController, &cameraManager] {
+        const bool review = sessionReviewController.reviewActive();
+        shotController.setReviewActive(review);
+        if (review)
+            cameraManager.stopCapture();
+    });
     // Declared after cameraManager so it is destroyed FIRST: ~ShotProcessor
     // joins the shot workers and destroys the SwingWindow before
     // ~CameraManager deregisters sources and ~EventBuffer frees ring memory.
@@ -158,6 +175,14 @@ int main(int argc, char *argv[])
     // Disk-backed replay of saved shots (MP4 + swing.json) — independent of the
     // live SwingWindow that ShotProcessor owns for the just-captured shot.
     ShotReplayController      shotReplay;
+    // Any review-state transition tears down an on-screen disk replay, so the
+    // previous shot's replay stage + metric graph don't linger over the newly
+    // selected (or resumed-live) session. reviewActiveChanged fires on every
+    // loadSession()/resumeLive() — including session→session while already in
+    // review — so this covers entering review, switching sessions, and resuming
+    // live. stop() is idempotent (no-ops when nothing is replaying).
+    QObject::connect(&sessionReviewController, &SessionReviewController::reviewActiveChanged,
+                     &shotReplay, &ShotReplayController::stop);
     ClipboardHelper           clipboardHelper;
 
     // IMU source register/deregister can change the shared EventBuffer state
@@ -210,6 +235,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("bufferController"), &bufferController);
     engine.rootContext()->setContextProperty(QStringLiteral("resourceMonitor"),  &resourceMonitor);
     engine.rootContext()->setContextProperty(QStringLiteral("sessionController"), &sessionController);
+    engine.rootContext()->setContextProperty(QStringLiteral("sessionReviewController"), &sessionReviewController);
     engine.rootContext()->setContextProperty(QStringLiteral("shotController"),    &shotController);
     engine.rootContext()->setContextProperty(QStringLiteral("shotProcessor"),     &shotProcessor);
     engine.rootContext()->setContextProperty(QStringLiteral("shotReplay"),        &shotReplay);

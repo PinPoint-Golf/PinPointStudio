@@ -58,6 +58,9 @@ pp_add_test(pipeline_test      pipeline_test.cpp
 pp_add_test(swing_scorer_test  swing_scorer_test.cpp
                                ${ANALYSIS}/swing_scorer.cpp)
 
+# Session-metadata aggregation for the review drawer (header-only: src/Gui/session_summary.h).
+pp_add_test(session_summary_test  session_summary_test.cpp)
+
 # Unified swing.json writer/reader round-trip (Export subsystem).
 pp_add_test(swing_doc_test     ${SRC}/Export/tests/swing_doc_test.cpp
                                ${SRC}/Export/swing_doc.cpp)

@@ -87,6 +87,11 @@ public:
                           int score, int rating, const QString &note,
                           const QVariantMap &metrics, const QVariantMap &analysisDetail);
 
+    // Drop every row (model reset). Used by SessionReviewController when swapping
+    // the loaded session into its private review instance; the live shotModel
+    // never calls this.
+    void clear();
+
     Q_INVOKABLE void setRating(int id, int n);
     Q_INVOKABLE void setNote(int id, const QString &text);
     Q_INVOKABLE void moveToTrash(int id);

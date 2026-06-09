@@ -75,6 +75,12 @@ public slots:
     // trigger for the whole post-roll → processing → replay pipeline.
     void setProcessorBusy(bool busy);
 
+    // Connected to SessionReviewController::reviewActiveChanged in main.cpp.
+    // Entering review already stops live capture (which disarms via the buffer
+    // state); this is the explicit belt-and-braces gate so no shot source can
+    // fire while a saved session is loaded.
+    void setReviewActive(bool active);
+
 signals:
     // sessionType: SessionController::Type active at the moment of the shot
     // (-1 = none — unreachable through the UI, where capture implies a session).
@@ -88,5 +94,6 @@ private:
     SessionController     *m_session  = nullptr;
     pinpoint::SourceId     m_sourceId = pinpoint::kInvalidSourceId;
     bool                   m_processorBusy = false;
+    bool                   m_reviewActive  = false;
     bool                   m_lastArmed = false;
 };

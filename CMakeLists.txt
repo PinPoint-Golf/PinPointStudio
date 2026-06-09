@@ -132,6 +132,9 @@ qt_add_executable(PinPointStudio
     src/Gui/resource_monitor_controller.h src/Gui/resource_monitor_controller.cpp
     src/Gui/clipboard_helper.h
     src/Gui/session_controller.h       src/Gui/session_controller.cpp
+    src/Gui/session_review_controller.h src/Gui/session_review_controller.cpp
+    src/Gui/session_list_model.h       src/Gui/session_list_model.cpp
+    src/Gui/session_summary.h
     src/Gui/shot_controller.h          src/Gui/shot_controller.cpp
     src/Gui/shot_list_model.h          src/Gui/shot_list_model.cpp
     src/Gui/shot_processor.h           src/Gui/shot_processor.cpp
@@ -243,6 +246,7 @@ qt_add_qml_module(PinPointStudio
         src/Gui/CameraCalibrationFlow.qml
         src/Gui/PpShotCarousel.qml
         src/Gui/PpShotCard.qml
+        src/Gui/PpSessionDrawer.qml
         src/Gui/PpShotPanel.qml
         src/Gui/PpShotFilter.qml
         src/Gui/PpQualityPill.qml

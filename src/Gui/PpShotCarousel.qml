@@ -45,6 +45,14 @@ Item {
     property int  selectedShotId: -1
     property Item selectedCard:   null   // live delegate; nulled by QML when it is destroyed
 
+    // The carousel shows the live shotModel normally, or a loaded past session's
+    // private model while reviewing. Both are ShotListModel (identical roles +
+    // mutation invokables), so the filter proxy, cards and panel work unchanged;
+    // every mutation routes through activeModel so trash/rating hit the right one.
+    readonly property bool reviewing: sessionReviewController.reviewActive
+    readonly property var  activeModel: reviewing ? sessionReviewController.shots
+                                                  : shotModel
+
     // Selected card's visual x within the carousel — tracks list scrolling.
     readonly property real selectedCardX:
         selectedCard ? railCol.x + strip.x + selectedCard.x - strip.contentX : 0
@@ -56,7 +64,7 @@ Item {
 
     ShotFilterProxyModel {
         id: filterProxy
-        sourceModel: shotModel
+        sourceModel: root.activeModel
     }
 
     Rectangle {   // rail background
@@ -75,10 +83,75 @@ Item {
                   topMargin: Theme.sp(7);   bottomMargin: Theme.sp(8) }
         spacing: Theme.sp(7)
 
-        // ── Filter combo + bulk-action menu ──────────────────────────────────
+        // ── Session chip + filter combo + bulk-action menu ───────────────────
         RowLayout {
             Layout.alignment: Qt.AlignLeft
             spacing: Theme.sp(4)
+
+            Rectangle {   // session chooser chip — live name or loaded-session label
+                id: sessChip
+                Layout.alignment: Qt.AlignVCenter
+                implicitWidth:  sessRow.implicitWidth + Theme.sp(20)
+                implicitHeight: Theme.sp(22)
+                radius: Theme.radius
+                color:  "transparent"
+                border.width: 1
+                border.color: sessionsPopup.opened || sessMa.containsMouse
+                                  ? Theme.colorBorderMid : "transparent"
+                Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                Row {
+                    id: sessRow
+                    anchors.centerIn: parent
+                    spacing: Theme.sp(7)
+
+                    Rectangle {   // live dot — only in live mode
+                        visible: !root.reviewing
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: Theme.sp(7); height: Theme.sp(7); radius: Theme.sp(3.5)
+                        color: Theme.colorError
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: root.reviewing
+                                  ? (sessionReviewController.activeDayLabel
+                                     + (sessionReviewController.activeTimeLabel
+                                            ? " · " + sessionReviewController.activeTimeLabel : "")
+                                     + qsTr(" · %1 shots").arg(sessionReviewController.activeShotCount))
+                                  : qsTr("LIVE · %1 shots").arg(shotModel.activeCount)
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzBody2
+                        color:          Theme.colorText
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text:           "▾"
+                        font.family:    Theme.fontSymbol
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText3
+                    }
+                }
+                MouseArea {
+                    id: sessMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape:  Qt.PointingHandCursor
+                    onClicked: {
+                        if (sessionsPopup.opened) {
+                            sessionsPopup.close()
+                        } else {
+                            sessionReviewController.refresh()   // re-enumerate disk + live
+                            sessionsPopup.open()
+                        }
+                    }
+                }
+            }
+
+            Rectangle {   // hairline between the session chip and the filter pill
+                Layout.alignment: Qt.AlignVCenter
+                implicitWidth: 1; implicitHeight: Theme.sp(14)
+                color: Theme.colorBorderMid; opacity: Theme.borderOpacityNormal
+            }
 
             Rectangle {   // "N shots" / "N of M shots" when filtered
                 id: filterPill
@@ -258,7 +331,7 @@ Item {
                                     const ids = filterProxy.visibleShotIds()
                                     bulkMenu.close()
                                     panelPopup.close()
-                                    shotModel.moveAllToTrash(ids)
+                                    root.activeModel.moveAllToTrash(ids)
                                     toast.show(qsTr("%1 shots moved to trash").arg(ids.length))
                                 }
                             }
@@ -286,7 +359,7 @@ Item {
                     root.selectedCard   = cardDelegate
                     panelPopup.open()
                 }
-                onRated: (n) => shotModel.setRating(shotId, n)
+                onRated: (n) => root.activeModel.setRating(shotId, n)
             }
         }
     }
@@ -364,7 +437,7 @@ Item {
                 const trashedId      = shotPanel.shotId
                 shotPanel.commitNote()
                 panelPopup.close()
-                shotModel.moveToTrash(trashedId)
+                root.activeModel.moveToTrash(trashedId)
                 toast.show(qsTr("Shot #%1 moved to trash").arg(trashedOrdinal))
             }
         }
@@ -386,11 +459,43 @@ Item {
         contentItem: PpShotFilter { proxy: filterProxy }
     }
 
+    // ── Sessions drawer — rises above the carousel, never reaches the toolbar ─
+    Popup {
+        id: sessionsPopup
+        parent: root
+        x: 0
+        // ~⅓ of the carousel width, clamped — wide enough to stay readable on a
+        // narrow window, capped so it neither sprawls nor spans the whole strip.
+        width: Math.round(Math.max(Theme.sp(420),
+                                   Math.min(root.width / 3, Theme.sp(560))))
+        y: -height - Theme.sp(10)
+
+        // Clamp so the top stays below the toolbar. Window height (the overlay)
+        // minus the header, toolbar and this carousel leaves the body band; the
+        // drawer fills it less small gaps. Fits content when sessions are few.
+        readonly property real _winH: Overlay.overlay ? Overlay.overlay.height : Theme.sp(600)
+        readonly property real _bodyH: _winH - Theme.headerHeight - Theme.sp(60) - root.height
+        height: Math.max(Theme.sp(120),
+                         Math.min(sessDrawer.implicitHeight, _bodyH - Theme.sp(20)))
+
+        padding: 0
+        margins: Theme.sp(8)
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        background: Rectangle {
+            color: Theme.colorSurface; radius: Theme.radiusLg
+            border.width: 1; border.color: Theme.colorBorderStrong
+        }
+        contentItem: PpSessionDrawer {
+            id: sessDrawer
+            onCloseRequested: sessionsPopup.close()
+        }
+    }
+
     // ── Undo toast ───────────────────────────────────────────────────────────
     PpToast {
         id: toast
         anchors.horizontalCenter: parent.horizontalCenter
         y: -height - Theme.sp(14)
-        onUndoClicked: shotModel.restoreLastTrashed()
+        onUndoClicked: root.activeModel.restoreLastTrashed()
     }
 }

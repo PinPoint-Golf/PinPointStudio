@@ -1,0 +1,260 @@
+/*
+ * Copyright (c) 2026 Mark Liversedge (liversedge@gmail.com)
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc., 51
+ * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
+// Session chooser drawer — the body of the "CHOOSE A SESSION" popup raised from
+// the carousel's session chip. Lists every session on disk for the current
+// athlete plus the synthesized live session (pinned first, flagged isLive), via
+// sessionReviewController.sessionsModel. Selecting a row enters review
+// (loadSession) or returns to live (resumeLive); the host popup closes on the
+// emitted closeRequested(). Hosted as a Popup contentItem, so it reports its
+// natural size through implicitHeight and the popup clamps it below the toolbar.
+
+import QtQuick
+import QtQuick.Controls.Basic
+import QtQuick.Layouts
+import PinPointStudio
+
+Item {
+    id: drawer
+
+    // Raised when a row is chosen (or the ✕ tapped) — the host popup closes.
+    signal closeRequested()
+
+    // Natural content height the host popup uses to size itself (it clamps this
+    // so the drawer never reaches the toolbar). list.contentHeight is independent
+    // of the view's own height, so there is no binding loop with the popup.
+    implicitWidth:  Theme.sp(440)
+    implicitHeight: headerRow.implicitHeight + Theme.sp(26)
+                    + Math.max(list.contentHeight, Theme.sp(52))
+
+    ColumnLayout {
+        anchors.fill: parent
+        spacing: 0
+
+        // ── Header ──────────────────────────────────────────────────────────
+        RowLayout {
+            id: headerRow
+            Layout.fillWidth: true
+            Layout.leftMargin:   Theme.sp(18)
+            Layout.rightMargin:  Theme.sp(16)
+            Layout.topMargin:    Theme.sp(13)
+            Layout.bottomMargin: Theme.sp(13)
+
+            Text {
+                text: qsTr("CHOOSE A SESSION")
+                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                font.letterSpacing: Theme.trackingLabel; color: Theme.colorText3
+            }
+            Item { Layout.fillWidth: true }
+            Item {   // ✕ close (padded hit area)
+                Layout.preferredWidth:  Theme.sp(20)
+                Layout.preferredHeight: Theme.sp(20)
+                Text {
+                    anchors.centerIn: parent
+                    text: "✕"
+                    font.family: Theme.fontSymbol; font.pixelSize: Theme.fontSzBody2
+                    color: closeMa.containsMouse ? Theme.colorText2 : Theme.colorText3
+                }
+                MouseArea {
+                    id: closeMa
+                    anchors.fill: parent; anchors.margins: -Theme.sp(6)
+                    hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                    onClicked: drawer.closeRequested()
+                }
+            }
+        }
+        Rectangle {
+            Layout.fillWidth: true
+            height: 1; color: Theme.colorBorderMid; opacity: Theme.borderOpacityNormal
+        }
+
+        // ── Session rows ────────────────────────────────────────────────────
+        ListView {
+            id: list
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            clip: true
+            model: sessionReviewController.sessionsModel
+            boundsBehavior: Flickable.StopAtBounds
+            topMargin:    Theme.sp(6)
+            bottomMargin: Theme.sp(6)
+            leftMargin:   Theme.sp(8)
+            rightMargin:  Theme.sp(8)
+            delegate: sessionRow
+
+            // Quiet invitation when there is no saved history yet — the live row
+            // is always present (count 1), so "no saved sessions" means count ≤ 1.
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: Theme.sp(16)
+                visible: list.count <= 1
+                text: qsTr("No saved sessions yet")
+                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                color: Theme.colorText3
+            }
+        }
+    }
+
+    // ── Row delegate ────────────────────────────────────────────────────────
+    Component {
+        id: sessionRow
+
+        Rectangle {
+            id: rowBg
+
+            required property int    index
+            required property string sessionId
+            required property string dayLabel
+            required property string timeLabel
+            required property string clubMix
+            required property int    shotCount
+            required property string lengthLabel
+            required property int    avgQuality
+            required property bool   isLive
+            required property var    previewThumbs
+
+            width:  ListView.view.width - Theme.sp(16)
+            x:      Theme.sp(8)
+            height: Theme.sp(58)
+            radius: Theme.radius
+            color:  isLive ? Theme.colorAccentLight
+                  : rowMa.containsMouse ? Theme.colorBg : "transparent"
+            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin:  Theme.sp(12)
+                anchors.rightMargin: Theme.sp(12)
+                spacing: Theme.sp(12)
+
+                // Mini film-strip preview (thumbnail → ◑ placeholder, same idiom
+                // as PpShotCard until real thumbnails are extracted).
+                Row {
+                    Layout.alignment: Qt.AlignVCenter
+                    spacing: Theme.sp(2)
+                    Repeater {
+                        model: 4
+                        delegate: Rectangle {
+                            required property int index
+                            readonly property string thumb:
+                                (rowBg.previewThumbs && index < rowBg.previewThumbs.length)
+                                    ? rowBg.previewThumbs[index] : ""
+                            width: Theme.sp(26); height: Theme.sp(16); radius: Theme.sp(3)
+                            color: Theme.colorBg3
+                            clip: true
+                            Image {
+                                anchors.fill: parent
+                                visible: parent.thumb !== ""
+                                source: parent.thumb
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                            }
+                            Text {
+                                anchors.centerIn: parent
+                                visible: parent.thumb === ""
+                                text: "◑"
+                                font.family: Theme.fontSymbol
+                                font.pixelSize: Math.round(Theme.sp(11) * Theme.symbolScale("◑"))
+                                color: Theme.colorText3
+                            }
+                        }
+                    }
+                }
+
+                // Title + club mix — both elide so a long label never clips the
+                // stats at the narrow (~⅓) drawer width.
+                Column {
+                    Layout.fillWidth: true
+                    spacing: Theme.sp(3)
+                    Row {
+                        width: parent.width
+                        spacing: Theme.sp(7)
+                        Rectangle {
+                            visible: rowBg.isLive
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: Theme.sp(7); height: Theme.sp(7); radius: Theme.sp(3.5)
+                            color: Theme.colorError
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            // Row drops the dot when not live; subtract dot+spacing only then.
+                            width: parent.width - (rowBg.isLive ? Theme.sp(14) : 0)
+                            elide: Text.ElideRight
+                            text: rowBg.dayLabel
+                                  + (rowBg.timeLabel ? " · " + rowBg.timeLabel : "")
+                                  + (rowBg.isLive ? qsTr(" · live") : "")
+                            font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
+                            color: Theme.colorText
+                        }
+                    }
+                    Text {
+                        visible: rowBg.clubMix !== ""
+                        width: parent.width
+                        text: rowBg.clubMix
+                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
+                        color: Theme.colorText3
+                        elide: Text.ElideRight
+                    }
+                }
+
+                // Right-aligned stats: shots / length / avg quality.
+                Stat { value: rowBg.shotCount;                    unit: qsTr("shots") }
+                Stat { value: rowBg.lengthLabel || "—";           unit: qsTr("length") }
+                Stat { value: rowBg.avgQuality; unit: qsTr("avg q")
+                       valueColor: Theme.qualityColor(rowBg.avgQuality) }
+            }
+
+            MouseArea {
+                id: rowMa
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                    if (rowBg.isLive) sessionReviewController.resumeLive()
+                    else              sessionReviewController.loadSession(rowBg.sessionId)
+                    drawer.closeRequested()
+                }
+            }
+        }
+    }
+
+    // ── One right-aligned stat (number over micro label) ─────────────────────
+    component Stat: Column {
+        property string value: ""
+        property string unit:  ""
+        property color  valueColor: Theme.colorText
+
+        Layout.alignment: Qt.AlignVCenter
+        Layout.preferredWidth: Theme.sp(54)
+        spacing: Theme.sp(1)
+
+        Text {
+            anchors.right: parent.right
+            text: value
+            font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm
+            color: valueColor
+        }
+        Text {
+            anchors.right: parent.right
+            text: unit
+            font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+            font.letterSpacing: Theme.trackingLabel; color: Theme.colorText3
+        }
+    }
+}

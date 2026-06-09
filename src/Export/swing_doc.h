@@ -59,6 +59,7 @@ struct PersistedShot {
     QString     swingDir;
     int         ordinal = 0;
     QString     timestampLabel;     // hh:mm:ss from clock.wallclock
+    qint64      wallclockMs = 0;    // absolute instant from clock.wallclock (epoch ms; 0 = unknown)
     QString     club;
     bool        hasVideo = false;
     QString     thumbnailPath;      // absolute, empty if none
@@ -79,6 +80,9 @@ public:
     // (folder names embed the naming pattern, so a name sort isn't reliable);
     // empty if the library/athlete has none.
     static QString latestSessionDir(const QString &libraryRoot, const QString &athleteName);
+    // All session dirs for an athlete, most-recently-modified first (same recency
+    // basis as latestSessionDir). Empty list if the library/athlete has none.
+    static QStringList sessionDirs(const QString &libraryRoot, const QString &athleteName);
 };
 
 } // namespace pinpoint

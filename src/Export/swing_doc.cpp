@@ -155,6 +155,7 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
     const QString wc = root[QStringLiteral("clock")].toObject()[QStringLiteral("wallclock")].toString();
     const QDateTime dt = QDateTime::fromString(wc, Qt::ISODateWithMs);
     ps.timestampLabel = dt.isValid() ? dt.toLocalTime().toString(QStringLiteral("hh:mm:ss")) : wc;
+    ps.wallclockMs    = dt.isValid() ? dt.toMSecsSinceEpoch() : 0;
 
     // Only video presence is reconstructed here. imu / pose streams and the raw
     // sidecar are not parsed on reload yet — see the "Reload & replay consumer
@@ -239,6 +240,25 @@ QString SwingDocReader::latestSessionDir(const QString &libraryRoot, const QStri
         if (fi.lastModified() > newest->lastModified())
             newest = &fi;
     return newest->absoluteFilePath();
+}
+
+QStringList SwingDocReader::sessionDirs(const QString &libraryRoot, const QString &athleteName)
+{
+    if (libraryRoot.isEmpty() || athleteName.isEmpty())
+        return {};
+    const QString athleteDir = libraryRoot + QStringLiteral("/") + SwingPaths::sanitise(athleteName);
+    QFileInfoList sessions =
+        QDir(athleteDir).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+    // Most-recently-modified first — same recency basis as latestSessionDir(),
+    // since the naming pattern means a plain name sort doesn't track recency.
+    std::sort(sessions.begin(), sessions.end(), [](const QFileInfo &a, const QFileInfo &b) {
+        return a.lastModified() > b.lastModified();
+    });
+    QStringList out;
+    out.reserve(sessions.size());
+    for (const QFileInfo &fi : sessions)
+        out.append(fi.absoluteFilePath());
+    return out;
 }
 
 } // namespace pinpoint

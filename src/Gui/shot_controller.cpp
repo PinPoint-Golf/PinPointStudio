@@ -69,7 +69,7 @@ ShotController::ShotController(pinpoint::EventBuffer *buffer,
 
 bool ShotController::armed() const
 {
-    return m_buffer && m_buffer->isCapturing() && !m_processorBusy;
+    return m_buffer && m_buffer->isCapturing() && !m_processorBusy && !m_reviewActive;
 }
 
 void ShotController::setProcessorBusy(bool busy)
@@ -77,6 +77,14 @@ void ShotController::setProcessorBusy(bool busy)
     if (m_processorBusy == busy)
         return;
     m_processorBusy = busy;
+    reevaluateArmed();
+}
+
+void ShotController::setReviewActive(bool active)
+{
+    if (m_reviewActive == active)
+        return;
+    m_reviewActive = active;
     reevaluateArmed();
 }
 
