@@ -108,6 +108,10 @@ signals:
     void positionChanged();
     void spanChanged();
     void modeChanged();
+    // A stream failed to decode (e.g. an H.265/MKV clip the platform media
+    // backend can't play). Carries a human-readable reason for the UI to show
+    // instead of a silent black surface.
+    void replayFailed(const QString &error);
 
 private slots:
     void onTick();

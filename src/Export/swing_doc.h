@@ -75,7 +75,8 @@ public:
     static PersistedShot readSwingJson(const QString &swingDir);
     // swing_*/ directories under sessionDir, ascending (swing_0001 .. swing_NNNN).
     static QStringList findSwingDirs(const QString &sessionDir);
-    // Most recent session dir for an athlete (YYYY-MM-DD_session-NN sorts chronologically);
+    // Most recent session dir for an athlete, by directory modification time
+    // (folder names embed the naming pattern, so a name sort isn't reliable);
     // empty if the library/athlete has none.
     static QString latestSessionDir(const QString &libraryRoot, const QString &athleteName);
 };

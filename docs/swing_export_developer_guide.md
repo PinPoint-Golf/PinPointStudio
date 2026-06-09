@@ -371,6 +371,35 @@ no real-time timing (it plays at a fixed 30 fps).
 > attribute data to a physical device without access to the descriptor. This was
 > added for the exporter and applies to every source.
 
+### Reload & replay — consumer contract
+
+Two readers consume `swing.json` from disk: `SwingDocReader::readSwingJson()`
+(carousel reload at startup) and `ShotReplayController` (disk-backed playback).
+Both are deliberately **forward-compatible** — they select streams by `kind` and
+ignore unknown keys — so the additive blocks below cause no breakage when absent
+and no parsing when present-but-unconsumed:
+
+- **Container** — replay feeds `QMediaPlayer` the `file` field verbatim, so
+  `mp4`/`mov`/`mkv` all work. `errorOccurred`/`InvalidMedia` are surfaced
+  (`replayFailed`) rather than rendering a silent black frame.
+- **`encoded` block / downscale** — transparent: `VideoOutput` sizes from the
+  decoded frame; no reader reads stream dimensions.
+- **`raw` block + `<alias>.raw` sidecar** — **not consumed yet.** A future
+  "view raw / reprocess" reader reconstructs frames from
+  `pixelFormat`/`width`/`height`/`stride`/`frameBytes`/`count`.
+- **IMU streams (`kind:"imu"`)** — **not consumed yet.** When an IMU-reload
+  consumer is added it MUST branch on `samples.format`: inline `data` for
+  `json`, else load the `imu_<alias>.csv`/`.bin` sidecar named by `file`
+  (binary record = LE `i64 t_us` + `f32[10]` accel3/gyro3/quat4).
+- **Pose streams (`kind:"pose"`, `pose_movenet_v1`)** — **not consumed yet.**
+  The basis for a future skeleton-overlay-on-replay: per-frame `frames.data`
+  holds 51 floats (`layout: coco17:y,x,score`, normalised 0..1) against
+  `frames.t_us`. Empty today (no producer).
+
+`latestSessionDir()` selects the most recent session by directory mtime, not by
+name — session folder names now embed the naming-pattern tokens, so a name sort
+no longer tracks recency.
+
 ---
 
 ## 7. On-Disk Layout — `SwingPaths`

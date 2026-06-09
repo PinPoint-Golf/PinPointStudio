@@ -80,7 +80,7 @@ struct SwingExportJob {
     bool    savePose = true;
 
     QString athleteName, athleteUuid, handedness;
-    QString sessionId;     // session folder name, e.g. "2026-06-05_session-01"
+    QString sessionId;     // session folder name, e.g. "2026-06-05_Mark-Liversedge_Swing_01"
 
     // UTC instant snapshotted on the UI thread right after the window was
     // captured — at that moment wallclock ~= monotonic endTimestampUs().

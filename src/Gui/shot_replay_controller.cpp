@@ -193,12 +193,33 @@ bool ShotReplayController::start(int shotId, const QString &swingDir, const QStr
         st.player = new QMediaPlayer(this);
         if (int(i) < m_sinks.size() && m_sinks[int(i)])
             st.player->setVideoSink(m_sinks[int(i)]);
+
+        // Surface decode failures instead of silently rendering black. The
+        // exporter can now emit H.265 in mp4/mov/mkv; Qt's FFmpeg media backend
+        // handles all of them, but a build/platform without that codec would
+        // otherwise fail invisibly while the playhead kept ticking.
+        const QString fileLabel = pending[i].file;
+        connect(st.player, &QMediaPlayer::errorOccurred, this,
+                [this, fileLabel](QMediaPlayer::Error err, const QString &msg) {
+                    if (err == QMediaPlayer::NoError)
+                        return;
+                    ppWarn() << "[ShotReplay] media error for" << fileLabel << ":" << msg;
+                    emit replayFailed(msg.isEmpty() ? fileLabel : msg);
+                });
+
         st.player->setSource(QUrl::fromLocalFile(swingDir + QStringLiteral("/") + pending[i].file));
         if (i == 0)
             connect(st.player, &QMediaPlayer::mediaStatusChanged, this,
                     [this](QMediaPlayer::MediaStatus s) {
-                        if (s == QMediaPlayer::EndOfMedia)
+                        if (s == QMediaPlayer::EndOfMedia) {
                             setPlaying(false);
+                        } else if (s == QMediaPlayer::InvalidMedia) {
+                            ppWarn() << "[ShotReplay] master stream is invalid media — cannot replay";
+                            emit replayFailed(QStringLiteral("unsupported or corrupt video"));
+                            // Defer teardown out of the player's own callback.
+                            QMetaObject::invokeMethod(this, [this] { stop(); },
+                                                      Qt::QueuedConnection);
+                        }
                     });
         m_streams.push_back(std::move(st));
     }

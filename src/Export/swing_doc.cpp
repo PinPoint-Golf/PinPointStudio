@@ -21,6 +21,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QSaveFile>
@@ -155,6 +156,10 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
     const QDateTime dt = QDateTime::fromString(wc, Qt::ISODateWithMs);
     ps.timestampLabel = dt.isValid() ? dt.toLocalTime().toString(QStringLiteral("hh:mm:ss")) : wc;
 
+    // Only video presence is reconstructed here. imu / pose streams and the raw
+    // sidecar are not parsed on reload yet — see the "Reload & replay consumer
+    // contract" in docs/swing_export_developer_guide.md for the shapes a future
+    // consumer must honor (IMU json/csv/binary, pose coco17, raw reconstruction).
     for (const QJsonValue &v : root[QStringLiteral("streams")].toArray())
         if (v.toObject()[QStringLiteral("kind")].toString() == QLatin1String("video")) { ps.hasVideo = true; break; }
 
@@ -222,11 +227,18 @@ QString SwingDocReader::latestSessionDir(const QString &libraryRoot, const QStri
     if (libraryRoot.isEmpty() || athleteName.isEmpty())
         return {};
     const QString athleteDir = libraryRoot + QStringLiteral("/") + SwingPaths::sanitise(athleteName);
-    QDir d(athleteDir);
-    const QStringList sessions = d.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    const QFileInfoList sessions =
+        QDir(athleteDir).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
     if (sessions.isEmpty())
         return {};
-    return athleteDir + QStringLiteral("/") + sessions.last();   // last sorts to newest
+    // Pick the most recently modified session dir. Folder names now embed the
+    // naming pattern's tokens (date / athlete / session-type), so a plain name
+    // sort no longer tracks recency when several session types share one day.
+    const QFileInfo *newest = &sessions.first();
+    for (const QFileInfo &fi : sessions)
+        if (fi.lastModified() > newest->lastModified())
+            newest = &fi;
+    return newest->absoluteFilePath();
 }
 
 } // namespace pinpoint
