@@ -162,8 +162,18 @@ Item {
     // midway between +X and +Z). R0_new = R(−45°,Y)·R0_old → abduction → +X (lateral),
     // flexion → +Z (anterior), arm hangs −Y. (Verified against the logged poses.)
     // Residual back-of-hand roll is handled by restRollDeg.
-    readonly property quaternion leftRestQuat:  Qt.quaternion(0.0237, -0.983, 0.0583, -0.1727)
-    readonly property quaternion rightRestQuat: Qt.quaternion(0.7071, -0.7071, 0, 0)
+    // R0 is factored EXPLICITLY into the shared world→scene BASIS CHANGE composed with a
+    // per-GLB REST OFFSET (the part that makes each segment hang). Canonical basis change:
+    // pinpoint::viz::worldToScene() (src/Gui/viz_frame.h), a fixed Rx(-90°); viz_frame_test
+    // pins that worldToScene·restOffset reproduces the old hand-tuned R0 constants, so the
+    // avatar is unchanged. (docs/IMU_FRAME_CONTRACT.md §6; IMU_REARCHITECTURE.md §3.4c.)
+    //   left-handed lead  → restOffset = identity → R0 IS the pure basis change.
+    //   right-handed lead → restOffset is the back-of-hand/forearm GLB rest rotation.
+    readonly property quaternion worldToScene:    Qt.quaternion(0.70710678, -0.70710678, 0, 0)
+    readonly property quaternion leftRestOffset:  Qt.quaternion(0.71184, -0.67833, 0.16334, -0.08089)
+    readonly property quaternion rightRestOffset: Qt.quaternion(1, 0, 0, 0)
+    readonly property quaternion leftRestQuat:  quatMul(worldToScene, leftRestOffset)
+    readonly property quaternion rightRestQuat: quatMul(worldToScene, rightRestOffset)
 
     // Constant roll about each segment's long axis (bone-local +Y), correcting the
     // rendered rest FACING. The IMUs all share the strap convention, so at the

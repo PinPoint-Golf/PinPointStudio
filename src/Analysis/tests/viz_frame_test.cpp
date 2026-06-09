@@ -56,9 +56,11 @@ static void checkQuat(const char *label, const QQuaternion &g, const QQuaternion
     if (!ok) ++g_fail;
 }
 
-// ArmVizView constants (verbatim).
-static const QQuaternion kLeftRest (0.0237f, -0.983f, 0.0583f, -0.1727f);  // R0, right-handed lead
-static const QQuaternion kRightRest(0.7071f, -0.7071f, 0.0f, 0.0f);         // R0, left-handed lead
+// ArmVizView R0, post-Phase-2.2: R0 = worldToScene() · restOffset (verbatim QML constants).
+static const QQuaternion kLeftRestOffset (0.71184f, -0.67833f, 0.16334f, -0.08089f);
+static const QQuaternion kRightRestOffset(1.0f, 0.0f, 0.0f, 0.0f);          // left-handed: basis change only
+static const QQuaternion kLeftRest  = (worldToScene() * kLeftRestOffset).normalized();   // R0, right-handed lead
+static const QQuaternion kRightRest = (worldToScene() * kRightRestOffset).normalized();  // R0, left-handed lead
 static QQuaternion rollFix()
 {
     const double h = -99.0 * M_PI / 360.0;                  // restRollDeg=-99, half-angle
@@ -83,18 +85,15 @@ int main()
         checkVec("world +X → scene +X", C.rotatedVector(QVector3D(1, 0, 0)), QVector3D(1, 0, 0), 1e-4f);
     }
 
-    // -- B. R0 decomposition (the 2.2 target): R0 = worldToScene() · restOffset --
+    // -- B. R0 = worldToScene() · restOffset reproduces the original hand-tuned R0 --
     std::printf("\n-- B. R0 = worldToScene() · restOffset --\n");
     {
-        // Left-handed lead: R0 IS the pure basis change (no per-GLB rest offset).
-        checkQuat("rightRest == worldToScene()", kRightRest, worldToScene(), 1e-3f);
-
-        // Right-handed lead: restOffset = worldToScene()⁻¹ · leftRestQuat is non-trivial;
-        // recomposing must reproduce leftRestQuat exactly (so 2.2 can store restOffset).
-        const QQuaternion restOffset = worldToScene().conjugated() * kLeftRest;
-        std::printf("  [DIAG] right-handed restOffset = (%.5f, %.5f, %.5f, %.5f)\n",
-                    restOffset.scalar(), restOffset.x(), restOffset.y(), restOffset.z());
-        checkQuat("worldToScene()·restOffset == leftRest", worldToScene() * restOffset, kLeftRest, 1e-4f);
+        // Right-handed lead: the composition reproduces the legacy hand-tuned leftRestQuat
+        // (so the avatar is unchanged by the explicit factoring).
+        checkQuat("R0(right) ≈ legacy leftRestQuat", kLeftRest,
+                  QQuaternion(0.0237f, -0.983f, 0.0583f, -0.1727f), 1e-3f);
+        // Left-handed lead: R0 IS the pure basis change (restOffset == identity).
+        checkQuat("R0(left)  == worldToScene()", kRightRest, worldToScene(), 1e-4f);
     }
 
     // -- C. ArmVizView per-segment world orientation W = R0·anat·rollFix (FROZEN) --
