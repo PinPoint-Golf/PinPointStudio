@@ -601,29 +601,11 @@ Item {
                     }
                 }
 
-                Rectangle {
+                PpButton {
                     id: closeBtn
                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                    width: Theme.sp(28); height: Theme.sp(28)
-                    radius: Theme.sp(14)
-                    color: closeMa.containsMouse ? Theme.colorBg2 : "transparent"
-                    border.width: 1
-                    border.color: closeMa.containsMouse ? Theme.colorBorderStrong : "transparent"
-
-                    Text {
-                        anchors.centerIn: parent
-                        text:           "✕"
-                        font.pixelSize: Theme.sp(13)
-                        color:          closeMa.containsMouse ? Theme.colorText : Theme.colorText3
-                    }
-
-                    MouseArea {
-                        id: closeMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape:  Qt.PointingHandCursor
-                        onClicked:    root.cancelled()
-                    }
+                    label:     qsTr("Cancel")
+                    onClicked: root.cancelled()
                 }
             }
         }

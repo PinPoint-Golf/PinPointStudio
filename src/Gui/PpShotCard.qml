@@ -142,7 +142,7 @@ Rectangle {
             starSize:    Math.round(Theme.fontSzMicro * 1.5)
             offColor:    Qt.rgba(1, 1, 1, 0.45)   // off-stars over media scrim
             interactive: true                     // tap to rate without opening the panel
-            onRated:     card.rated(newValue)
+            onRated:     (newValue) => card.rated(newValue)
         }
     }
 
