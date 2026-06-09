@@ -1,8 +1,6 @@
-// Standalone test for SwingScorer. Build:
-//   QT=~/Qt/6.11.0/gcc_64
-//   g++ -std=c++17 -fPIC -I$QT/include -I$QT/include/QtCore -I$QT/include/QtGui -Isrc/Buffer \
-//       src/Analysis/tests/swing_scorer_test.cpp src/Analysis/swing_scorer.cpp \
-//       -o /tmp/ss_test -L$QT/lib -lQt6Gui -lQt6Core -Wl,-rpath,$QT/lib && /tmp/ss_test
+// Standalone test for SwingScorer. Run via CTest (src/Analysis/tests/CMakeLists.txt):
+//   cmake -S src/Analysis/tests -B build/analyzer-tests -DCMAKE_PREFIX_PATH=$HOME/Qt/6.11.0/gcc_64
+//   cmake --build build/analyzer-tests && ctest --test-dir build/analyzer-tests --output-on-failure
 //
 // Verifies the sign-independent scoring MACHINERY: deadband, bounded falloff,
 // one-sided clamp, and weighted-geometric-mean aggregation (weakest-link).

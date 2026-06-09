@@ -1,8 +1,6 @@
-// Standalone test for SwingDocWriter. Build:
-//   QT=~/Qt/6.11.0/gcc_64
-//   g++ -std=c++17 -fPIC -I$QT/include -I$QT/include/QtCore -I$QT/include/QtGui -Isrc/Buffer \
-//       src/Export/tests/swing_doc_test.cpp src/Export/swing_doc.cpp -o /tmp/sd_test \
-//       -L$QT/lib -lQt6Gui -lQt6Core -Wl,-rpath,$QT/lib && /tmp/sd_test
+// Standalone test for SwingDocWriter (round-trip). Run via CTest (src/Analysis/tests/CMakeLists.txt):
+//   cmake -S src/Analysis/tests -B build/analyzer-tests -DCMAKE_PREFIX_PATH=$HOME/Qt/6.11.0/gcc_64
+//   cmake --build build/analyzer-tests && ctest --test-dir build/analyzer-tests --output-on-failure
 
 #include "../swing_doc.h"
 #include "../swing_paths.h"

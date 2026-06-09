@@ -1,9 +1,7 @@
 // Standalone characterization + property test for wrist_angles.h.
-// Build (no app/CMake needed — Qt Gui only):
-//   QT=~/Qt/6.11.0/gcc_64
-//   g++ -std=c++17 -fPIC -I$QT/include -I$QT/include/QtCore -I$QT/include/QtGui \
-//       src/Analysis/tests/wrist_angles_test.cpp -o /tmp/wa_test \
-//       -L$QT/lib -lQt6Gui -lQt6Core -Wl,-rpath,$QT/lib && /tmp/wa_test
+// Run via CTest (src/Analysis/tests/CMakeLists.txt):
+//   cmake -S src/Analysis/tests -B build/analyzer-tests -DCMAKE_PREFIX_PATH=$HOME/Qt/6.11.0/gcc_64
+//   cmake --build build/analyzer-tests && ctest --test-dir build/analyzer-tests --output-on-failure
 //
 // Verifies the decomposition MATH (axial isolation, magnitude, singularity) with hard
 // asserts, against the hardware-locked imu_calibration anatomical frame

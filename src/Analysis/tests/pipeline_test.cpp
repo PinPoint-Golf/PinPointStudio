@@ -1,10 +1,7 @@
 // Standalone pipeline test: synthetic FusedStreams -> PhaseSegmenter -> MetricExtractor.
-// Pure (no SwingWindow). Build:
-//   QT=~/Qt/6.11.0/gcc_64
-//   g++ -std=c++17 -fPIC -I$QT/include -I$QT/include/QtCore -I$QT/include/QtGui -Isrc/Buffer \
-//       src/Analysis/tests/pipeline_test.cpp \
-//       src/Analysis/phase_segmenter.cpp src/Analysis/metric_extractor.cpp \
-//       -o /tmp/pl_test -L$QT/lib -lQt6Gui -lQt6Core -Wl,-rpath,$QT/lib && /tmp/pl_test
+// Pure (no SwingWindow). Run via CTest (src/Analysis/tests/CMakeLists.txt):
+//   cmake -S src/Analysis/tests -B build/analyzer-tests -DCMAKE_PREFIX_PATH=$HOME/Qt/6.11.0/gcc_64
+//   cmake --build build/analyzer-tests && ctest --test-dir build/analyzer-tests --output-on-failure
 
 #include "../phase_segmenter.h"
 #include "../metric_extractor.h"
