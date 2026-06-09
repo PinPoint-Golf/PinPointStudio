@@ -39,6 +39,9 @@ pp_add_test(wrist_angles_test  wrist_angles_test.cpp)
 # src/IMU/imu_calibration.h + src/Analysis/wrist_angles.h).
 pp_add_test(imu_calibration_test  imu_calibration_test.cpp)
 
+# Live wrist-angle MATH CONTRACT (mirrors live_wrist_angles.cpp tick(); header-only).
+pp_add_test(live_wrist_angles_test  live_wrist_angles_test.cpp)
+
 # Phase segmenter + metric extractor over a synthetic swing.
 pp_add_test(pipeline_test      pipeline_test.cpp
                                ${ANALYSIS}/phase_segmenter.cpp
