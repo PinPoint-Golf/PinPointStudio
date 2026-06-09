@@ -268,13 +268,10 @@ ImuInstance::ImuInstance(const Device &device,
                     if (!slot.valid || slot.capacity < sizeof(pinpoint::ImuSample)) return;
                     const auto a = m_imu->accelData();
                     const auto g = m_imu->gyroData();
-                    pinpoint::ImuSample s;
-                    // Same display-frame remap as the accelUpdated handler:
-                    //   sensor X → display X, sensor Z → display Y, -sensor Y → display Z
-                    s.accel_x =  a.x; s.accel_y =  a.z; s.accel_z = -a.y;
-                    s.gyro_x  =  g.x; s.gyro_y  =  g.z; s.gyro_z  = -g.y;
-                    s.quat_w  =  q.w; s.quat_x  =  q.x;
-                    s.quat_y  =  q.y; s.quat_z  =  q.z;
+                    // makeImuSample owns the stored frame (imu_sample.h) — the single
+                    // source of truth shared with the offline reader / exporter.
+                    const pinpoint::ImuSample s = pinpoint::makeImuSample(
+                        a.x, a.y, a.z, g.x, g.y, g.z, q.w, q.x, q.y, q.z);
                     std::memcpy(slot.data, &s, sizeof(pinpoint::ImuSample));
                     *slot.bytes_written = static_cast<uint32_t>(sizeof(pinpoint::ImuSample));
                     *slot.timestamp_us  = static_cast<int64_t>(pinpoint::EventBuffer::nowMicros());

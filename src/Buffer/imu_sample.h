@@ -35,4 +35,23 @@ struct ImuSample {
 
 static_assert(sizeof(ImuSample) == 40, "ImuSample layout changed");
 
+// SINGLE SOURCE OF TRUTH for the stored frame: build an ImuSample from raw
+// sensor-frame inertial data + the fused orientation quaternion. The exporter writes
+// these fields verbatim into swing.json data[] in struct order (swing_exporter.cpp),
+// so this function defines the on-disk frame.
+//
+// v1 (current): accel/gyro are axis-remapped to a "display" frame
+//   sensor X -> X, sensor Z -> Y, -sensor Y -> Z
+// while the quaternion is stored un-remapped (the fusion-world frame). The two
+// therefore describe DIFFERENT frames within one struct — the latent split this
+// helper exists to make explicit and, at v2, resolve.
+inline ImuSample makeImuSample(float ax, float ay, float az,
+                               float gx, float gy, float gz,
+                               float qw, float qx, float qy, float qz)
+{
+    return ImuSample{  ax,  az, -ay,
+                       gx,  gz, -gy,
+                       qw,  qx,  qy, qz };
+}
+
 } // namespace pinpoint
