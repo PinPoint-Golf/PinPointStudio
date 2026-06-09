@@ -51,3 +51,36 @@ pp_add_test(swing_scorer_test  swing_scorer_test.cpp
 # Unified swing.json writer/reader round-trip (Export subsystem).
 pp_add_test(swing_doc_test     ${SRC}/Export/tests/swing_doc_test.cpp
                                ${SRC}/Export/swing_doc.cpp)
+
+# --- Orientation filters (Phase 0.4): Madgwick (header-only) + ESKF (Eigen-backed) ---
+# The ESKF .cpp pulls the vendored hobbeshunter/IMU_EKF headers (third_party/imu_ekf)
+# through the Arduino-style <Eigen.h>/<Wire.h> shims in imu_ekf_compat (which MUST
+# precede imu_ekf on the include path), and those need real Eigen. Eigen is not a system
+# package here, so resolve it from, in order: an explicit -DEIGEN_INCLUDE_DIR; the app
+# build's existing FetchContent copy (build/*/_deps/eigen-src); or a 3.4.0 fetch.
+set(REPO ${SRC}/..)                               # repo root
+set(EIGEN_INCLUDE_DIR "" CACHE PATH "Eigen include root (dir containing Eigen/Dense)")
+if(NOT EIGEN_INCLUDE_DIR)
+    file(GLOB _eigen_candidates ${REPO}/build/*/_deps/eigen-src)
+    foreach(_c ${_eigen_candidates})
+        if(EXISTS ${_c}/Eigen/Dense)
+            set(EIGEN_INCLUDE_DIR ${_c})
+            break()
+        endif()
+    endforeach()
+endif()
+if(NOT EIGEN_INCLUDE_DIR)
+    message(STATUS "Eigen not found under build/*/_deps — fetching 3.4.0")
+    include(FetchContent)
+    FetchContent_Declare(eigen GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git GIT_TAG 3.4.0)
+    FetchContent_MakeAvailable(eigen)
+    set(EIGEN_INCLUDE_DIR ${eigen_SOURCE_DIR})
+endif()
+message(STATUS "orientation_filter_test Eigen include: ${EIGEN_INCLUDE_DIR}")
+
+pp_add_test(orientation_filter_test  orientation_filter_test.cpp
+                                     ${SRC}/IMU/eskf_orientation_filter.cpp)
+target_include_directories(orientation_filter_test PRIVATE
+    ${REPO}/third_party/imu_ekf_compat    # <Eigen.h>/<Wire.h> shims — MUST precede imu_ekf
+    ${REPO}/third_party/imu_ekf           # ESKF.h, Quaternion.h
+    ${EIGEN_INCLUDE_DIR})
