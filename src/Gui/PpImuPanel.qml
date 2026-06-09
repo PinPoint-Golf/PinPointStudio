@@ -342,21 +342,47 @@ Item {
                     color: Theme.colorText; elide: Text.ElideRight
                 }
                 Text {
+                    // Battery moved to its own colour-coded chip (below); the
+                    // subtitle now carries connection state + data rate only.
                     text: {
                         if (!deviceEnabled) return qsTr("disabled — won't connect")
                         if (!inst)          return qsTr("not connected")
                         if (failed)         return qsTr("connection failed")
                         if (!connected)     return inst.stateLabel   // Scanning… / Connecting… / Retrying…
-                        var parts = []
-                        if (inst.batteryPercent >= 0) parts.push(inst.batteryPercent + "%")
-                        if (inst.dataRateHz > 0)      parts.push(Math.round(inst.dataRateHz) + " Hz")
-                        return parts.join(" · ")
+                        return inst.dataRateHz > 0 ? (Math.round(inst.dataRateHz) + " Hz")
+                                                   : qsTr("connected")
                     }
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingData
                     color: failed  ? Theme.colorError
                          : pending ? Theme.colorWarn
                          :           Theme.colorText3
+                }
+            }
+
+            // Battery level chip — colour-coded by charge (good >60%, warn >20%,
+            // critical ≤20%). The tinted border draws the eye as a sensor runs
+            // low; only shown once a connected device reports a level.
+            Rectangle {
+                id: batChip
+                visible: connected && inst && inst.batteryPercent >= 0
+                opacity: deviceEnabled ? 1.0 : 0.45
+                readonly property int pct: inst ? inst.batteryPercent : 0
+                readonly property color lvlColor: pct > 60 ? Theme.colorGood
+                                                 : pct > 20 ? Theme.colorWarn
+                                                 :            Theme.colorError
+                implicitWidth: batChipLbl.implicitWidth + Theme.sp(14)
+                implicitHeight: Theme.sp(20); radius: Theme.sp(4)
+                color: Qt.rgba(lvlColor.r, lvlColor.g, lvlColor.b, 0.12)
+                border.width: 1
+                border.color: Qt.rgba(lvlColor.r, lvlColor.g, lvlColor.b, 0.35)
+                Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+                Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
+                Text {
+                    id: batChipLbl; anchors.centerIn: parent
+                    text: qsTr("BAT %1%").arg(batChip.pct)
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                    font.letterSpacing: Theme.trackingData; color: batChip.lvlColor
                 }
             }
 

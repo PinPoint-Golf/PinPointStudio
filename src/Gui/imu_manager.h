@@ -53,6 +53,10 @@ class ImuManager : public QObject
     // ── Aggregate state (any connected / count) ───────────────────────────
     Q_PROPERTY(bool imuConnected READ imuConnected NOTIFY instancesChanged)
     Q_PROPERTY(int  imuCount     READ imuCount     NOTIFY instancesChanged)
+    // Lowest battery % across all *connected* IMUs (−1 when none report a
+    // level). Drives the toolbar IMU-pill low-battery warning. Notifies on live
+    // battery updates as well as connect/disconnect (both change the minimum).
+    Q_PROPERTY(int  lowBatteryPercent READ lowBatteryPercent NOTIFY batteryChanged)
     // ── Per-session IMU enablement (device ids excluded this session) ──────
     // Mirrors CameraManager::sessionCameraExcluded: manager-owned so the start
     // wizard, every toolbar IMU panel and the device rows share ONE list.
@@ -76,6 +80,7 @@ public:
     int          imuEnumeratedCount() const;
     bool         imuConnected()       const;
     int          imuCount()           const;
+    int          lowBatteryPercent()  const;
 
     // Toggle selection (= connect/disconnect + EventBuffer register/deregister).
     // index is the position in DeviceEnumerator::devices(DeviceType::Imu).
@@ -125,6 +130,9 @@ signals:
     void imuEnumeratedCountChanged();
     void imuDeviceListChanged();
     void sessionImuExcludedChanged();
+    // Aggregate battery state changed — a connected IMU reported a new level, or
+    // the connected set changed. Backs the lowBatteryPercent property.
+    void batteryChanged();
     // EventBuffer state may have changed (source register/deregister can pause
     // or auto-resume the shared buffer). Forwarded to
     // CameraManager::applyCaptureIntent in main() — the QML-facing buffer state

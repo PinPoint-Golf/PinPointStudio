@@ -248,6 +248,18 @@ int ImuManager::imuCount() const
     return n;
 }
 
+int ImuManager::lowBatteryPercent() const
+{
+    int lowest = -1;
+    for (const auto &entry : m_selected) {
+        if (!entry.instance || !entry.instance->imuConnected()) continue;
+        const int p = entry.instance->batteryPercent();
+        if (p < 0) continue;                          // no reading yet
+        if (lowest < 0 || p < lowest) lowest = p;
+    }
+    return lowest;
+}
+
 // ---------------------------------------------------------------------------
 // Invokables
 // ---------------------------------------------------------------------------
@@ -276,6 +288,7 @@ void ImuManager::setSelected(int index, bool selected)
         if (wasCapturing) m_eventBuffer->resume();
         emit imuListChanged();
         emit instancesChanged();
+        emit batteryChanged();
         // registerSource() may have silently auto-resumed the buffer (first
         // source); let CameraManager re-apply the user capture intent.
         emit bufferStateChanged();
@@ -290,6 +303,7 @@ void ImuManager::setSelected(int index, bool selected)
         if (wasCapturing)
             m_eventBuffer->resume();
         emit imuListChanged();
+        emit batteryChanged();   // entry.instance already cleared above
         if (inst) {
             QTimer::singleShot(0, this, [this, inst]() {
                 emit instancesChanged();
@@ -389,10 +403,13 @@ ImuInstance *ImuManager::createInstance(const Device &device)
     connect(inst, &ImuInstance::imuConnectedChanged, this, [this]() {
         emit imuListChanged();
         emit instancesChanged(); // instanceFor() rebinds in QML
+        emit batteryChanged();   // connect/disconnect changes the aggregate min
     });
     connect(inst, &ImuInstance::busyChanged, this, [this]() {
         emit imuListChanged();
     });
+    // Forward live battery updates to the aggregate lowBatteryPercent property.
+    connect(inst, &ImuInstance::batteryPercentChanged, this, &ImuManager::batteryChanged);
 
     return inst;
 }

@@ -81,6 +81,12 @@ Item {
         return false
     }
 
+    // Lowest battery % across all connected IMUs (−1 when none report a level),
+    // sourced from the manager's aggregate so it tracks live battery updates.
+    // A reading below 50% raises a toolbar warning naming the level.
+    readonly property int  imuLowestBattery: imuManager.lowBatteryPercent
+    readonly property bool imuBatteryLow:    imuLowestBattery >= 0 && imuLowestBattery < 50
+
     Rectangle {
         anchors.fill: parent
         color: Theme.aesthetic === "instrument" ? Theme.colorBg2 : Theme.colorSurface
@@ -366,17 +372,24 @@ Item {
         }
 
         // ── IMUs pill ───────────────────────────────────────────────────────
+        // Low battery takes priority over the calibrate hint in the value line —
+        // a dying sensor is time-critical, and the message names the level so the
+        // user knows how low (e.g. "battery 32%"). Critical (≤20%) reads red.
         DevicePill {
             id: imuPill
             glyph: "⦿"                 // ⦿
             title: qsTr("IMUs")
             count: root.imuConnected
             valueText: root.imuTotal === 0 ? qsTr("none")
+                        : root.imuBatteryLow ? qsTr("battery %1%").arg(root.imuLowestBattery)
                         : root.imuNeedsAttention ? qsTr("calibrate")
                         : qsTr("%1 connected").arg(root.imuConnected)
-            ledColor: root.imuNeedsAttention ? Theme.colorAttention
+            ledColor: root.imuBatteryLow ? (root.imuLowestBattery <= 20 ? Theme.colorError : Theme.colorWarn)
+                       : root.imuNeedsAttention ? Theme.colorAttention
                        : root.imuConnected > 0 ? Theme.colorGood : Theme.colorText3
-            attention: root.imuNeedsAttention
+            attention: root.imuNeedsAttention && !root.imuBatteryLow
+            warn: root.imuBatteryLow
+            warnColor: root.imuLowestBattery <= 20 ? Theme.colorError : Theme.colorWarn
             onClicked: { camPopup.close(); imuPopup.opened ? imuPopup.close() : imuPopup.open() }
         }
     }
@@ -421,7 +434,9 @@ Item {
         property string valueText: ""
         property int    count:     0
         property color  ledColor:  Theme.colorText3
-        property bool   attention: false   // tints only the value text (e.g. "calibrate")
+        property bool   attention: false   // tints the value text amber (e.g. "calibrate")
+        property bool   warn:      false   // overrides the value-text tint (e.g. low battery)
+        property color  warnColor: Theme.colorWarn
         signal clicked()
 
         Layout.alignment: Qt.AlignVCenter
@@ -470,7 +485,8 @@ Item {
                 Text {
                     text: valueText; font.family: Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
-                    color: attention ? Theme.colorAttention : Theme.colorText
+                    color: warn ? warnColor
+                         : attention ? Theme.colorAttention : Theme.colorText
                 }
             }
         }
