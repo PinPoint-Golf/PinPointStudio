@@ -47,6 +47,7 @@
 #include "shot_list_model.h"
 #include "../Export/swing_doc.h"
 #include "shot_processor.h"
+#include "live_wrist_angles.h"
 
 int main(int argc, char *argv[])
 {
@@ -117,6 +118,8 @@ int main(int argc, char *argv[])
     FilmController          filmController;
     BufferController        bufferController(&eventBuffer);
     AthleteController       athleteController;
+    // Live lead-wrist metrics (vs neutral) for the wizard "Check your sensor" overlay.
+    LiveWristAngles         liveWrist(&imuManager, &appSettings, &athleteController);
     SessionController       sessionController;
     NavigationController    navController(&athleteController, &sessionController);
     ResourceMonitorController resourceMonitor(&eventBuffer, &cameraManager, &imuManager);
@@ -209,6 +212,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("shotController"),    &shotController);
     engine.rootContext()->setContextProperty(QStringLiteral("shotProcessor"),     &shotProcessor);
     engine.rootContext()->setContextProperty(QStringLiteral("shotModel"),         &shotModel);
+    engine.rootContext()->setContextProperty(QStringLiteral("liveWrist"),         &liveWrist);
     engine.rootContext()->setContextProperty(QStringLiteral("clipboard"),         &clipboardHelper);
 
     // Clean merger shutdown before Qt tears down its event loop.

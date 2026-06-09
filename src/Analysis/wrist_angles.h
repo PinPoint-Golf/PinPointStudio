@@ -20,6 +20,7 @@
 
 #include <QMatrix3x3>
 #include <QQuaternion>
+#include <QString>
 #include <QVector3D>
 #include <algorithm>
 #include <cmath>
@@ -33,15 +34,14 @@
 // Wrist DOFs in the forearm→hand relative rotation: flexion about X, radial/ulnar
 // deviation about Z, axial (hand-vs-forearm roll) about Y.
 //
-// ⚠ ABSOLUTE SIGNS NOT YET HARDWARE-VERIFIED. The axis→(FE/RUD) assignment is correct
-// for the imu_calibration frame (X=flexion, Z=deviation, Y=axial — verified exactly by
-// wrist_angles_test.cpp). What is NOT yet pinned is the SIGN of each channel: which
-// physical direction reads as +flexion / +ulnar / +pronation. That is confirmed against
-// a real cup/bow pose on the session-start wizard's **"check your sensors"** page (shown
-// AFTER calibration) — the live FE/RUD/pronation readouts there let the user verify and,
-// if needed, flip the signs. Flip points: the `leftArm` mirror below plus a per-channel
-// sign once that page is wired. The decomposition math (cross-talk isolation, magnitude,
-// singularity) is correct regardless of the final sign labelling.
+// SIGN/AXIS STATUS — hardware-locked 2026-06 for the lead (left) arm against
+// ~/pinpoint_wrist_log.csv (captured live on the wizard "check your sensors" page). In
+// the imu_calibration anatomical frame: flexion/extension = rotation about Z, radial/ulnar
+// deviation = rotation about X, forearm pronation = axial twist (Y). The earlier X/Z swap
+// is fixed below; signs verified WITHOUT a left/right mirror. NOT yet verified: the
+// right-lead (left-handed golfer) case. Known limitation: ~10–15° of FE↔RUD cross-talk
+// remains because the no-magnetometer heading (yaw) is unobservable between two sensors
+// (see imu_base.h) — primary channels are correct, the secondary leak is the heading work.
 //
 // CHOSEN CONVENTION (PinPoint = ISB + golf coaching; docs/WRISTMETRICS.md):
 //   +flexion  = "bowed"   (lead wrist bowed toward the ground — the impact goal)
@@ -106,23 +106,21 @@ struct WristAngles {
 
 inline WristAngles wristFlexExtDeviation(const QQuaternion &qWristRel, bool leftArm = false)
 {
-    // ISB wrist Cardan in the imu_calibration anatomical frame (flexion about X = e_x,
-    // deviation about Z, axial about Y): an XZY Tait-Bryan extraction. The third (Y)
-    // angle is the hand-vs-forearm roll (forearm pronation, not a wrist DOF) and drops
-    // out of the sequence, so axial never leaks into FE/RUD — exactly, with no separate
-    // swing-twist. FE uses atan2 (no gimbal across wrist ROM); RUD is the asin middle
-    // term but deviation stays far from ±90°, so it never gimbals.
-    //
-    // The original spec read FE from Z and RUD from X (swapped) via swing-twist; this is
-    // the corrected, exactly-cross-talk-free form. Absolute SIGNS still need locking
-    // against a real cup/bow pose at bring-up — see the header note.
+    // Hardware-locked 2026-06 against ~/pinpoint_wrist_log.csv (lead/left arm). In the
+    // imu_calibration anatomical frame the wrist's FLEXION/EXTENSION is rotation about Z
+    // and RADIAL/ULNAR deviation is rotation about X — the original spec was right; an
+    // earlier "XZY" form had the two axes swapped (so bow/cup read on hinge and vice
+    // versa). ZXY Tait-Bryan: flexion (Z) and deviation (X) are extracted and the forearm
+    // axial twist (Y) drops out, so pronation never leaks into FE/RUD. FE uses atan2 (no
+    // gimbal across wrist ROM); RUD is the asin term but deviation stays far from ±90°.
+    //   +flexion = bowed,  +deviation = ulnar (radial negative).
     const QMatrix3x3 R = qWristRel.toRotationMatrix();
-    double feRad  = std::atan2(R(2, 1), R(1, 1));                        // flexion about X
-    double rudRad = std::asin(std::clamp(-R(0, 1), -1.0f, 1.0f));        // deviation about Z
+    const double feRad  = std::atan2(-R(0, 1), R(1, 1));                 // flexion about Z (+ = bowed)
+    const double rudRad = std::asin(std::clamp(R(2, 1), -1.0f, 1.0f));   // deviation about X (+ = ulnar)
 
-    // Left lead arm mirrors the medio-lateral / dorsal axes so flexion & ulnar stay
-    // positive, matching the right-arm convention (and BodyPoseAdapter mirroring).
-    if (leftArm) { feRad = -feRad; rudRad = -rudRad; }
+    // The lead arm (left, right-handed golfer) reads correct signs with NO mirror —
+    // verified on hardware. The right-lead case (left-handed golfer) is not yet verified.
+    Q_UNUSED(leftArm);
     return { feRad, rudRad };
 }
 
@@ -139,15 +137,34 @@ inline ForearmElbow forearmPronElbowFlex(const QQuaternion &qElbowRel, bool left
     const SwingTwist st = swingTwistDecompose(qElbowRel, yLong);
 
     // pronation = signed twist about the long axis; elbow flexion = swing magnitude.
-    double pronRad = twistAngleRad(st.twist, yLong);
+    const double pronRad = twistAngleRad(st.twist, yLong);
     const QVector3D sv(st.swing.x(), st.swing.y(), st.swing.z());
     const double flexRad = 2.0 * std::atan2(static_cast<double>(sv.length()),
                                             static_cast<double>(st.swing.scalar()));
 
-    if (leftArm) pronRad = -pronRad;
+    // +pronation verified for the lead/left arm with NO mirror (hardware 2026-06).
+    Q_UNUSED(leftArm);
     return { pronRad, std::abs(flexRad) };
 }
 
 inline double radToDeg(double r) { return r * 180.0 / M_PI; }
+
+// User-facing value string per metric, in PinPoint's coaching convention
+// (docs/WRISTMETRICS.md): bow/cup, hinge (ulnar/radial), roll (pronated/supinated);
+// other keys fall back to a signed magnitude in degrees. Shared by the offline analyzer
+// (wrist_analyzer) and the live check-sensors readout (live_wrist_angles).
+inline QString wristMetricLabel(const QString &key, double deg)
+{
+    const long r = std::lround(deg);
+    const long a = r < 0 ? -r : r;
+    const QString d = QString::number(a) + QStringLiteral("°");
+    if (key == QLatin1String("leadWristFlexExt"))
+        return r > 1 ? d + QStringLiteral(" bowed") : r < -1 ? d + QStringLiteral(" cupped") : QStringLiteral("flat");
+    if (key == QLatin1String("leadWristRadUln"))
+        return r > 1 ? d + QStringLiteral(" ulnar") : r < -1 ? d + QStringLiteral(" radial") : QStringLiteral("neutral");
+    if (key == QLatin1String("forearmPronation"))
+        return r > 1 ? d + QStringLiteral(" pronated") : r < -1 ? d + QStringLiteral(" supinated") : QStringLiteral("square");
+    return d;
+}
 
 } // namespace pinpoint::analysis

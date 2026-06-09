@@ -1487,6 +1487,73 @@ Item {
                                 id: confirmArmViz
                                 Layout.fillWidth:  true
                                 Layout.fillHeight: true
+
+                                // ── Live lead-wrist metrics (vs neutral) ──────────────────
+                                // Added as a CHILD of the ArmVizView instance — ArmVizView.qml
+                                // is never modified. Read-only check; '—' until that slot's
+                                // sensors are calibrated (roll needs the optional upper-arm IMU).
+                                Rectangle {
+                                    anchors { top: parent.top; right: parent.right; margins: Theme.sp(10) }
+                                    width:   metricsCol.width  + Theme.sp(20)
+                                    height:  metricsCol.height + Theme.sp(14)
+                                    radius:  Theme.radius
+                                    color:   Qt.alpha(Theme.colorBg2, 0.85)
+                                    border.width: 1
+                                    border.color: Theme.colorBorderMid
+
+                                    Column {
+                                        id: metricsCol
+                                        anchors.centerIn: parent
+                                        spacing: Theme.sp(6)
+
+                                        Row {
+                                            spacing: Theme.sp(10)
+                                            Text {
+                                                text: qsTr("Bow / cup"); width: Theme.sp(54)
+                                                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel
+                                                color: Theme.colorText3
+                                            }
+                                            Text {
+                                                text: liveWrist.bowLabel
+                                                font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
+                                                color: liveWrist.bowValid ? Theme.colorText : Theme.colorText3
+                                            }
+                                        }
+                                        Row {
+                                            spacing: Theme.sp(10)
+                                            Text {
+                                                text: qsTr("Hinge"); width: Theme.sp(54)
+                                                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel
+                                                color: Theme.colorText3
+                                            }
+                                            Text {
+                                                text: liveWrist.hingeLabel
+                                                font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
+                                                color: liveWrist.bowValid ? Theme.colorText : Theme.colorText3
+                                            }
+                                        }
+                                        Row {
+                                            spacing: Theme.sp(10)
+                                            Text {
+                                                text: qsTr("Roll"); width: Theme.sp(54)
+                                                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel
+                                                color: Theme.colorText3
+                                            }
+                                            Text {
+                                                text: liveWrist.rollLabel
+                                                font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
+                                                color: liveWrist.rollValid ? Theme.colorText : Theme.colorText3
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Run the live computer only while this step is showing.
+                                Binding {
+                                    target:   liveWrist
+                                    property: "active"
+                                    value:    root.currentStep === root.stepConfirm
+                                }
                             }
 
                             // Recalibrate affordance — returns to the Calibrate step and forces

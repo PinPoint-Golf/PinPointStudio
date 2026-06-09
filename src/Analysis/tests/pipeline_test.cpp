@@ -17,7 +17,7 @@
 using namespace pinpoint::analysis;
 
 static int g_fail = 0;
-static QVector3D X(1, 0, 0);
+static QVector3D Z(0, 0, 1);   // flexion axis (hardware-locked: FE about Z)
 
 // Synthetic lead-wrist flexion profile (deg) over a 1.5 s swing: settle, backswing set
 // to +50° at the top (t=0.8 s), through to −10° at impact (t=1.2 s), then relax.
@@ -60,7 +60,7 @@ int main()
     for (int i = 0; i < N; ++i) {
         const double ts = fs.timeGrid[i] * 1e-6;
         fore.qAnat.push_back(QQuaternion());                              // identity
-        hand.qAnat.push_back(QQuaternion::fromAxisAndAngle(X, float(feProfile(ts))));
+        hand.qAnat.push_back(QQuaternion::fromAxisAndAngle(Z, float(feProfile(ts))));
         upper.qAnat.push_back(QQuaternion());                            // identity
     }
     fs.segments = { fore, hand, upper };

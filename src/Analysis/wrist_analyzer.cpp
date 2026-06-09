@@ -27,6 +27,7 @@
 #include "metric_extractor.h"
 #include "phase_segmenter.h"
 #include "swing_scorer.h"
+#include "wrist_angles.h"
 #include "swing_window.h"
 #include "../Core/pp_debug.h"
 
@@ -48,31 +49,15 @@ double phaseValue(const MetricSeries &m, Phase p)
     return m.value.empty() ? 0.0 : m.value.back();
 }
 
-// User-facing value string per metric, in PinPoint's coaching convention (see
-// docs/WRISTMETRICS.md): bow/cup, hinge (ulnar/radial), roll (pronated/supinated); elbow
-// as a magnitude. Signs are provisional until confirmed on the "check your sensors" page.
-QString fmtValue(const QString &key, double v)
-{
-    const long r = std::lround(v);
-    const long a = r < 0 ? -r : r;
-    const QString deg = QString::number(a) + QStringLiteral("°");
-    if (key == QLatin1String("leadWristFlexExt"))
-        return r > 1 ? deg + QStringLiteral(" bowed") : r < -1 ? deg + QStringLiteral(" cupped") : QStringLiteral("flat");
-    if (key == QLatin1String("leadWristRadUln"))
-        return r > 1 ? deg + QStringLiteral(" ulnar") : r < -1 ? deg + QStringLiteral(" radial") : QStringLiteral("neutral");
-    if (key == QLatin1String("forearmPronation"))
-        return r > 1 ? deg + QStringLiteral(" pronated") : r < -1 ? deg + QStringLiteral(" supinated") : QStringLiteral("square");
-    return deg;   // elbow flexion: magnitude
-}
-
 // Build the flat key → {label, value} map the carousel renders, sampled at Impact.
+// Value strings use the shared wristMetricLabel() (bow/cup, hinge, roll — wrist_angles.h).
 QVariantMap buildMetricsMap(const std::vector<MetricSeries> &series)
 {
     QVariantMap out;
     for (const MetricSeries &m : series) {
         out.insert(m.key, QVariantMap{
             { QStringLiteral("label"), m.label },
-            { QStringLiteral("value"), fmtValue(m.key, phaseValue(m, Phase::Impact)) },
+            { QStringLiteral("value"), wristMetricLabel(m.key, phaseValue(m, Phase::Impact)) },
         });
     }
     return out;

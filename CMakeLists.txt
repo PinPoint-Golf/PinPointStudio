@@ -136,6 +136,7 @@ qt_add_executable(PinPointStudio
     src/Gui/shot_controller.h          src/Gui/shot_controller.cpp
     src/Gui/shot_list_model.h          src/Gui/shot_list_model.cpp
     src/Gui/shot_processor.h           src/Gui/shot_processor.cpp
+    src/Gui/live_wrist_angles.h        src/Gui/live_wrist_angles.cpp
     src/IMU/imu_base.h        src/IMU/imu_base.cpp
     src/IMU/imu_capabilities.h
     src/IMU/iorientation_filter.h

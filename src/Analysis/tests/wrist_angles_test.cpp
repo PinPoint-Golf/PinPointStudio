@@ -5,9 +5,9 @@
 //       src/Analysis/tests/wrist_angles_test.cpp -o /tmp/wa_test \
 //       -L$QT/lib -lQt6Gui -lQt6Core -Wl,-rpath,$QT/lib && /tmp/wa_test
 //
-// Verifies the decomposition MATH (axial isolation, magnitude, singularity,
-// mirroring) with hard asserts, and DIAGNOSES the FE/RUD axis+sign mapping vs the
-// imu_calibration anatomical frame (X=flexion, Y=long, Z=deviation) as report lines.
+// Verifies the decomposition MATH (axial isolation, magnitude, singularity) with hard
+// asserts, against the hardware-locked imu_calibration anatomical frame
+// (Z=flexion, Y=long/axial, X=deviation — see wrist_angles.h).
 
 #include "../wrist_angles.h"
 
@@ -68,23 +68,23 @@ int main()
         }
     }
 
-    std::printf("\n-- D. physical-axis mapping (cal frame: flexion about X, deviation about Z) --\n");
+    std::printf("\n-- D. physical-axis mapping (cal frame: flexion about Z, deviation about X) --\n");
     {
-        WristAngles wx = wristFlexExtDeviation(R(X, 20));  // physical FLEXION
-        CHECK_NEAR("flexion Rx(20) -> fe",  wx.feRad,  20.0, 0.5);
-        CHECK_NEAR("flexion Rx(20) -> rud", wx.rudRad,  0.0, 0.5);
-        WristAngles wz = wristFlexExtDeviation(R(Z, 20));  // physical DEVIATION
-        CHECK_NEAR("deviation Rz(20) -> rud", wz.rudRad, 20.0, 0.5);
-        CHECK_NEAR("deviation Rz(20) -> fe",  wz.feRad,   0.0, 0.5);
+        WristAngles wz = wristFlexExtDeviation(R(Z, 20));  // physical FLEXION (bow)
+        CHECK_NEAR("flexion Rz(20) -> fe",  wz.feRad,  20.0, 0.5);
+        CHECK_NEAR("flexion Rz(20) -> rud", wz.rudRad,  0.0, 0.5);
+        WristAngles wx = wristFlexExtDeviation(R(X, 20));  // physical DEVIATION (ulnar)
+        CHECK_NEAR("deviation Rx(20) -> rud", wx.rudRad, 20.0, 0.5);
+        CHECK_NEAR("deviation Rx(20) -> fe",  wx.feRad,   0.0, 0.5);
     }
 
-    std::printf("\n-- E. combined flexion+deviation is cross-talk-free --\n");
+    std::printf("\n-- E. combined flexion+deviation is cross-talk-free (ZXY: Rz·Rx·Ry) --\n");
     {
-        WristAngles wc = wristFlexExtDeviation((R(X, 30) * R(Z, 20)).normalized());
+        WristAngles wc = wristFlexExtDeviation((R(Z, 30) * R(X, 20)).normalized());
         CHECK_NEAR("combined -> fe",  wc.feRad,  30.0, 0.5);
         CHECK_NEAR("combined -> rud", wc.rudRad, 20.0, 0.5);
         // flexion + deviation + axial roll all at once → axial must still drop out.
-        WristAngles wa = wristFlexExtDeviation((R(X, 30) * R(Z, 20) * R(Y, 50)).normalized());
+        WristAngles wa = wristFlexExtDeviation((R(Z, 30) * R(X, 20) * R(Y, 50)).normalized());
         CHECK_NEAR("flex+dev+axial -> fe",  wa.feRad,  30.0, 0.8);
         CHECK_NEAR("flex+dev+axial -> rud", wa.rudRad, 20.0, 0.8);
     }
@@ -102,14 +102,14 @@ int main()
         if (std::isnan(es.flexRad) || std::isnan(es.pronRad)) { std::printf("  [FAIL] NaN at singularity\n"); ++g_fail; }
     }
 
-    std::printf("\n-- G. left-arm mirroring inverts FE/RUD/pron --\n");
+    std::printf("\n-- G. leftArm is a no-op (lead/left arm needs no mirror — hardware-locked) --\n");
     {
-        WristAngles wr = wristFlexExtDeviation(R(X, 20), /*leftArm=*/false);
-        WristAngles wl = wristFlexExtDeviation(R(X, 20), /*leftArm=*/true);
-        CHECK_NEAR("fe  mirror", wl.feRad, -radToDeg(wr.feRad), 0.3);
+        WristAngles wr = wristFlexExtDeviation(R(Z, 20), /*leftArm=*/false);
+        WristAngles wl = wristFlexExtDeviation(R(Z, 20), /*leftArm=*/true);
+        CHECK_NEAR("fe  leftArm no-op", wl.feRad, radToDeg(wr.feRad), 0.3);
         ForearmElbow er = forearmPronElbowFlex(R(Y, 30), false);
         ForearmElbow el = forearmPronElbowFlex(R(Y, 30), true);
-        CHECK_NEAR("pron mirror", el.pronRad, -radToDeg(er.pronRad), 0.3);
+        CHECK_NEAR("pron leftArm no-op", el.pronRad, radToDeg(er.pronRad), 0.3);
     }
 
     std::printf("\n=== %s (%d assert failures) ===\n", g_fail ? "FAILURES PRESENT" : "ALL ASSERTS PASS", g_fail);
