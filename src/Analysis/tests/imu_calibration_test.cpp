@@ -171,6 +171,31 @@ int main()
         checkNear("rud frozen (deg)", radToDeg(wa.rudRad), 17.8888, 0.02);
     }
 
+    // -- F. toAnatomical() — the unified A·q·M helper (Phase 1.3) — matches the manual
+    //    expression both call sites used (imu_instance.cpp:213, imu_vision_fuser.cpp:72).
+    std::printf("\n-- F. toAnatomical() unified helper agreement --\n");
+    {
+        const QQuaternion A  = QQuaternion::fromAxisAndAngle(X, 37);
+        const QQuaternion M  = nominalArmMount();
+        const QQuaternion qs[] = {
+            I,
+            QQuaternion::fromAxisAndAngle(Z, 25),
+            (QQuaternion::fromAxisAndAngle(Y, 70) * QQuaternion::fromAxisAndAngle(X, 12)).normalized(),
+        };
+        int idx = 0;
+        for (const QQuaternion &qRaw : qs) {
+            const QQuaternion viaHelper = toAnatomical(A, qRaw, M);
+            const QQuaternion viaManual = (A * qRaw * M).normalized();
+            char lbl[44];
+            std::snprintf(lbl, sizeof lbl, "helper == (A·q·M).norm  [#%d]", idx++);
+            checkQuat(lbl, viaHelper, viaManual, 1e-6f);
+        }
+        // The keystone qAnatFore (section E) is exactly toAnatomical(I, qRawFore, armMount).
+        const QQuaternion qRawFore = QQuaternion::fromAxisAndAngle(X, 10);
+        checkQuat("keystone via helper", toAnatomical(I, qRawFore, nominalArmMount()),
+                  QQuaternion(0.54168f, -0.45452f, -0.45452f, -0.54168f), 1e-3f);
+    }
+
     std::printf("\n=== %s (%d assert failures) ===\n",
                 g_fail ? "FAILURES PRESENT" : "ALL ASSERTS PASS", g_fail);
     return g_fail ? 1 : 0;

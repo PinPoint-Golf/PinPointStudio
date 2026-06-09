@@ -139,4 +139,15 @@ inline Alignment solveSegment(const QQuaternion &refRaw,
     return out;
 }
 
+// Compose the anatomical orientation from the world->anatomical map A, the fused raw
+// sensor orientation q_raw, and the anatomical->sensor mount M:  q_anat = A * q_raw * M.
+// SINGLE SOURCE OF TRUTH for the A*q*M composition, shared by the live write path
+// (imu_instance.cpp) and the offline scored path (imu_vision_fuser.cpp) so a
+// frame-contract change cannot make them diverge (docs/IMU_FRAME_CONTRACT.md).
+// Normalised — the operands are unit quaternions, so this only absorbs float drift.
+inline QQuaternion toAnatomical(const QQuaternion &A, const QQuaternion &qRaw, const QQuaternion &M)
+{
+    return (A * qRaw * M).normalized();
+}
+
 } // namespace imu_calibration

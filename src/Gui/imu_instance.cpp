@@ -210,7 +210,7 @@ ImuInstance::ImuInstance(const Device &device,
         // Anatomical orientation for all consumers (computed before quatChanged so
         // the anatQuat property is current when bindings re-evaluate).
         if (m_anatCalibrated)
-            m_anatQuat = m_alignA * QQuaternion(q.w, q.x, q.y, q.z) * m_mountM;
+            m_anatQuat = imu_calibration::toAnatomical(m_alignA, QQuaternion(q.w, q.x, q.y, q.z), m_mountM);
         else
             m_anatQuat = QQuaternion(q.w, q.x, q.y, q.z);
         emit quatChanged();

@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cstddef>
 
+#include "imu_calibration.h"   // toAnatomical (shared A*q*M)
 #include "imu_sample.h"
 #include "swing_window.h"
 
@@ -69,7 +70,7 @@ FusedStreams ImuVisionFuser::fuse(const SwingWindow &window,
             if (window.interpolateImu(bd.b->source, t,
                                       reinterpret_cast<std::byte *>(&smp), sizeof(smp))) {
                 const QQuaternion qRaw(smp.quat_w, smp.quat_x, smp.quat_y, smp.quat_z);
-                qAnat    = (bd.b->alignA * qRaw * bd.b->mountM).normalized();
+                qAnat    = imu_calibration::toAnatomical(bd.b->alignA, qRaw, bd.b->mountM);
                 last     = qAnat;
                 haveLast = true;
             } else {
