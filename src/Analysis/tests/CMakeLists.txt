@@ -84,3 +84,29 @@ target_include_directories(orientation_filter_test PRIVATE
     ${REPO}/third_party/imu_ekf_compat    # <Eigen.h>/<Wire.h> shims — MUST precede imu_ekf
     ${REPO}/third_party/imu_ekf           # ESKF.h, Quaternion.h
     ${EIGEN_INCLUDE_DIR})
+
+# --- IMU driver frame-parse + WT901BLE67 eulerToQuat override (Phase 0.3) ---
+# Heaviest test: exercises the REAL driver stack. parseQuaternion is reached via
+# receiveData(); the eulerToQuat override needs WT9011DCL_BLE (its BleImuTransport ctor
+# is trivial / headless-safe, so no adapter is required). imu_test_stubs.cpp supplies
+# EventBuffer::nowMicros (Buffer) and PpLogStream (pp_debug) so we link NEITHER the
+# Buffer library NOR the whisper-dependent pp_debug.cpp. The Q_OBJECT driver classes
+# need moc, hence per-target AUTOMOC.
+find_package(Qt6 REQUIRED COMPONENTS Bluetooth)
+add_executable(imu_driver_frame_test
+    imu_driver_frame_test.cpp
+    imu_test_stubs.cpp
+    ${SRC}/IMU/wt9011dcl_ble.cpp
+    ${SRC}/IMU/ble_imu_transport.cpp
+    ${SRC}/IMU/wt9011dcl_base.cpp
+    ${SRC}/IMU/imu_base.cpp
+    ${SRC}/IMU/eskf_orientation_filter.cpp)
+# event_buffer.h → swing_window.h uses std::span, so this target needs C++20 (the app
+# standard), unlike the C++17 header-only tests above.
+set_target_properties(imu_driver_frame_test PROPERTIES
+    AUTOMOC ON CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+target_include_directories(imu_driver_frame_test PRIVATE
+    ${SRC}/IMU ${SRC}/Core ${BUFFER}
+    ${REPO}/third_party/imu_ekf_compat ${REPO}/third_party/imu_ekf ${EIGEN_INCLUDE_DIR})
+target_link_libraries(imu_driver_frame_test PRIVATE Qt6::Core Qt6::Gui Qt6::Bluetooth)
+add_test(NAME imu_driver_frame_test COMMAND imu_driver_frame_test)
