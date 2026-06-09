@@ -365,8 +365,8 @@ The playhead `╳` moves with the replay frame; the phase chip row and x-axis ti
   `ScreenWrist` in-replay graph (`Theme.sp(96)` panel graph, `sp(8)` margins).
 
 ### G. Tests / hygiene
-- [ ] Standalone tests (`src/Analysis/tests/`, `src/Export/tests/`) are g++-built ad hoc —
-  consider a CMake test target like `src/Buffer/tests`.
+- [x] Standalone tests wired into a CTest suite — `src/Analysis/tests/CMakeLists.txt` builds
+  all four (incl. the Export `swing_doc` round-trip); `ctest --test-dir build/analyzer-tests`.
 
 ### H. M2 hooks
 - [ ] ViTPose offline pose path (wired as `PoseEstimatorViTPose`) → monocular metric lift (M2).
