@@ -80,16 +80,17 @@ std::vector<MetricSeries> MetricExtractor::extract(const FusedStreams &s,
     const SegmentStream *hand  = s.streamFor(SegmentRole::LeadHand);
     const SegmentStream *upper = s.streamFor(SegmentRole::LeadUpperArm);
 
-    const int addr = nearestIndex(grid, phaseTime(phases, Phase::Address, grid.front()));
+    // Series are NEUTRAL-relative (absolute joint posture vs the calibration neutral) —
+    // the same reference as the live check-sensors readout, and what the scorer's absolute
+    // bands expect. Δ-from-address is derived in the UI from the Address phase-sample
+    // (docs/SHOT_ANALYZER_VIZ.md).
 
     // --- wrist flex/ext + radial/ulnar (forearm + hand) ---
     if (fore && hand && static_cast<int>(fore->qAnat.size()) == N
                      && static_cast<int>(hand->qAnat.size()) == N) {
-        const QQuaternion addrWrist =
-            (fore->qAnat[addr].conjugated() * hand->qAnat[addr]).normalized();
         std::vector<double> fe(N), rud(N);
         for (int i = 0; i < N; ++i) {
-            const QQuaternion rel = wristRel(fore->qAnat[i], hand->qAnat[i], addrWrist);
+            const QQuaternion rel = (fore->qAnat[i].conjugated() * hand->qAnat[i]).normalized();
             const WristAngles wa = wristFlexExtDeviation(rel, leftArm);
             fe[i]  = radToDeg(wa.feRad);
             rud[i] = radToDeg(wa.rudRad);
@@ -105,11 +106,9 @@ std::vector<MetricSeries> MetricExtractor::extract(const FusedStreams &s,
     // --- forearm pronation + elbow flexion (upper arm + forearm) ---
     if (upper && fore && static_cast<int>(upper->qAnat.size()) == N
                       && static_cast<int>(fore->qAnat.size()) == N) {
-        const QQuaternion addrElbow =
-            (upper->qAnat[addr].conjugated() * fore->qAnat[addr]).normalized();
         std::vector<double> pron(N), elbow(N);
         for (int i = 0; i < N; ++i) {
-            const QQuaternion rel = elbowRel(upper->qAnat[i], fore->qAnat[i], addrElbow);
+            const QQuaternion rel = (upper->qAnat[i].conjugated() * fore->qAnat[i]).normalized();
             const ForearmElbow ef = forearmPronElbowFlex(rel, leftArm);
             pron[i]  = radToDeg(ef.pronRad);
             elbow[i] = radToDeg(ef.flexRad);
