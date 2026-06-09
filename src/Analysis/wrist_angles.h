@@ -26,8 +26,9 @@
 #include <cmath>
 
 // Pure lead-arm joint-angle extraction from per-segment ANATOMICAL quaternions
-// (q_anat = A·q_raw·M; design: docs/SHOT_ANALYZER_M1_WRIST.md §4). Header-only and
-// Qt-Gui-only so it is unit-testable without the app / SwingWindow.
+// (q_anat = A·q_raw·M; design: docs/SHOT_ANALYZER_M1_WRIST.md §4; frame & joint-DOF
+// axis tables: docs/IMU_FRAME_CONTRACT.md §4-5). Header-only and Qt-Gui-only so it is
+// unit-testable without the app / SwingWindow.
 //
 // ANATOMICAL BODY FRAME (from imu_calibration::solveSegment): per segment,
 //   +Y = long axis (distal / elbow→wrist),  +X = flexion axis (medio-lateral),
