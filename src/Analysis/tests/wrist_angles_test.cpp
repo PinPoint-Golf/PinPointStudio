@@ -33,6 +33,15 @@ static QQuaternion R(const QVector3D &axis, float deg) { return QQuaternion::fro
 #define REPORT(label, feR, rudR)                                                       \
     std::printf("  [DIAG] %-34s feRad=%7.2f°  rudRad=%7.2f°\n", label, radToDeg(feR), radToDeg(rudR))
 
+#define CHECK_LABEL(label, got, want)                                                   \
+    do {                                                                               \
+        const QString g = (got);                                                       \
+        const bool ok = (g == QString::fromUtf8(want));                                \
+        std::printf("  [%s] %-30s got \"%s\"  want \"%s\"\n",                          \
+                    ok ? "PASS" : "FAIL", label, g.toUtf8().constData(), want);        \
+        if (!ok) ++g_fail;                                                             \
+    } while (0)
+
 int main()
 {
     const QQuaternion I;   // identity = neutral Address reference
@@ -108,6 +117,54 @@ int main()
         ForearmElbow er = forearmPronElbowFlex(R(Y, 30), false);
         ForearmElbow el = forearmPronElbowFlex(R(Y, 30), true);
         CHECK_NEAR("pron leftArm no-op", el.pronRad, radToDeg(er.pronRad), 0.3);
+    }
+
+    std::printf("\n-- H. named clinical poses: angle + coaching-label goldens --\n");
+    {
+        // Each pose freezes BOTH the extracted degrees AND the user-facing wristMetricLabel
+        // string (docs/WRISTMETRICS.md keys). The label thresholds (±1° deadband in
+        // wrist_angles.h:156-167) were previously untested — this pins them.
+        auto fe  = [](const QQuaternion &q){ return wristFlexExtDeviation(q).feRad;  };
+        auto rud = [](const QQuaternion &q){ return wristFlexExtDeviation(q).rudRad; };
+        auto pron= [](const QQuaternion &q){ return forearmPronElbowFlex(q).pronRad; };
+
+        // neutral
+        CHECK_NEAR("neutral fe",  fe(I),  0.0, 0.3);
+        CHECK_LABEL("neutral fe label",  wristMetricLabel("leadWristFlexExt", radToDeg(fe(I))),  "flat");
+        CHECK_LABEL("neutral rud label", wristMetricLabel("leadWristRadUln",  radToDeg(rud(I))), "neutral");
+        CHECK_LABEL("neutral pron label",wristMetricLabel("forearmPronation", radToDeg(pron(I))),"square");
+
+        // flexion / extension (bow / cup)
+        CHECK_NEAR("bowed fe",  fe(R(Z, 25)), 25.0, 0.4);
+        CHECK_LABEL("bowed label",  wristMetricLabel("leadWristFlexExt", radToDeg(fe(R(Z,  25)))), "25° bowed");
+        CHECK_NEAR("cupped fe", fe(R(Z, -25)), -25.0, 0.4);
+        CHECK_LABEL("cupped label", wristMetricLabel("leadWristFlexExt", radToDeg(fe(R(Z, -25)))), "25° cupped");
+
+        // radial / ulnar (hinge)
+        CHECK_NEAR("ulnar rud",  rud(R(X, 20)), 20.0, 0.4);
+        CHECK_LABEL("ulnar label",  wristMetricLabel("leadWristRadUln", radToDeg(rud(R(X,  20)))), "20° ulnar");
+        CHECK_NEAR("radial rud", rud(R(X, -20)), -20.0, 0.4);
+        CHECK_LABEL("radial label", wristMetricLabel("leadWristRadUln", radToDeg(rud(R(X, -20)))), "20° radial");
+
+        // forearm pronation / supination (roll)
+        CHECK_NEAR("pronated pron",   pron(R(Y, 30)),  30.0, 0.4);
+        CHECK_LABEL("pronated label", wristMetricLabel("forearmPronation", radToDeg(pron(R(Y,  30)))), "30° pronated");
+        CHECK_NEAR("supinated pron",  pron(R(Y, -30)), -30.0, 0.4);
+        CHECK_LABEL("supinated label",wristMetricLabel("forearmPronation", radToDeg(pron(R(Y, -30)))), "30° supinated");
+
+        // two combined poses (cross-talk-free)
+        const QQuaternion bowUlnar  = (R(Z,  20) * R(X,  15)).normalized();
+        const QQuaternion cupRadial = (R(Z, -20) * R(X, -15)).normalized();
+        CHECK_LABEL("bow+ulnar fe label",  wristMetricLabel("leadWristFlexExt", radToDeg(fe(bowUlnar))),  "20° bowed");
+        CHECK_LABEL("bow+ulnar rud label", wristMetricLabel("leadWristRadUln",  radToDeg(rud(bowUlnar))), "15° ulnar");
+        CHECK_LABEL("cup+radial fe label", wristMetricLabel("leadWristFlexExt", radToDeg(fe(cupRadial))), "20° cupped");
+        CHECK_LABEL("cup+radial rud label",wristMetricLabel("leadWristRadUln",  radToDeg(rud(cupRadial))),"15° radial");
+
+        // label-boundary deadband: |r| rounding to 1 stays neutral; 2 crosses (wrist_angles.h:161).
+        CHECK_LABEL("deadband +1° → flat",   wristMetricLabel("leadWristFlexExt", radToDeg(fe(R(Z,  1)))), "flat");
+        CHECK_LABEL("deadband −1° → flat",   wristMetricLabel("leadWristFlexExt", radToDeg(fe(R(Z, -1)))), "flat");
+        CHECK_LABEL("deadband +2° → bowed",  wristMetricLabel("leadWristFlexExt", radToDeg(fe(R(Z,  2)))), "2° bowed");
+        CHECK_LABEL("deadband −2° → cupped", wristMetricLabel("leadWristFlexExt", radToDeg(fe(R(Z, -2)))), "2° cupped");
     }
 
     std::printf("\n=== %s (%d assert failures) ===\n", g_fail ? "FAILURES PRESENT" : "ALL ASSERTS PASS", g_fail);
