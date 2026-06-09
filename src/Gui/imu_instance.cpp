@@ -57,7 +57,7 @@ ImuInstance::ImuInstance(const Device &device,
         fmt.sample_rate_hz = 100;
         // One decoded ImuSample per quaternion update — 40 bytes, quaternion-only rotation.
         fmt.packet_bytes   = sizeof(pinpoint::ImuSample);
-        fmt.packet_schema  = "imu_sample_v1";
+        fmt.packet_schema  = "imu_sample_v2";   // raw sensor-frame vectors (see imu_sample.h)
 
         desc.format.device            = pinpoint::DeviceKind::IMU_WitMotion;
         desc.format.format            = fmt;

@@ -23,9 +23,11 @@
 namespace pinpoint {
 
 // Fixed 40-byte decoded IMU sample stored in the EventBuffer.
-// Schema identifier: "imu_sample_v1".
-// All values expressed in the display/world coordinate frame
-// (axis-remapped from the raw sensor frame at write time).
+// Schema identifier: "imu_sample_v2".
+// All values are in the RAW SENSOR body frame (no axis remap): accel, gyro, AND the
+// fused orientation quaternion now share ONE declared frame. (v1 stored the vectors
+// in a display frame but the quaternion un-remapped — the two described different
+// frames within one struct; v2 resolves that split.) See docs/IMU_FRAME_CONTRACT.md.
 // Rotation is a unit quaternion — never stored as Euler angles.
 struct ImuSample {
     float accel_x, accel_y, accel_z;        // acceleration (g)
@@ -40,17 +42,17 @@ static_assert(sizeof(ImuSample) == 40, "ImuSample layout changed");
 // these fields verbatim into swing.json data[] in struct order (swing_exporter.cpp),
 // so this function defines the on-disk frame.
 //
-// v1 (current): accel/gyro are axis-remapped to a "display" frame
-//   sensor X -> X, sensor Z -> Y, -sensor Y -> Z
-// while the quaternion is stored un-remapped (the fusion-world frame). The two
-// therefore describe DIFFERENT frames within one struct — the latent split this
-// helper exists to make explicit and, at v2, resolve.
+// v2: accel and gyro are stored RAW (sensor body frame), matching the quaternion's
+// frame — one declared frame for the whole struct. (v1 remapped the vectors to a
+// display frame [sensor X->X, Z->Y, -Y->Z] while leaving the quaternion un-remapped,
+// so the two disagreed; the quaternion is the authoritative field, so v2 drops the
+// vector remap rather than rotating the quaternion.)
 inline ImuSample makeImuSample(float ax, float ay, float az,
                                float gx, float gy, float gz,
                                float qw, float qx, float qy, float qz)
 {
-    return ImuSample{  ax,  az, -ay,
-                       gx,  gz, -gy,
+    return ImuSample{  ax,  ay,  az,
+                       gx,  gy,  gz,
                        qw,  qx,  qy, qz };
 }
 

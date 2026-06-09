@@ -403,7 +403,7 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
             QJsonObject s;
             s[QStringLiteral("kind")]   = QStringLiteral("imu");
             s[QStringLiteral("alias")]  = alias;
-            s[QStringLiteral("schema")] = QStringLiteral("imu_sample_v1");
+            s[QStringLiteral("schema")] = QStringLiteral("imu_sample_v2");
             s[QStringLiteral("source")] = QJsonObject{{QStringLiteral("serial"), serial}};
             s[QStringLiteral("units")]  = QJsonObject{
                 {QStringLiteral("accel"), QStringLiteral("g")},
