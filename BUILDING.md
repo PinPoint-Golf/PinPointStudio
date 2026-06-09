@@ -168,6 +168,43 @@ On first configure, CMake downloads all required models and binaries (see table 
 
 ---
 
+## Testing
+
+PinPoint Studio has two standalone unit-test suites. **Neither is part of the application build** — the root `CMakeLists.txt` forces `BUILD_TESTING OFF`, so building the app never compiles them. Each suite is configured against its own source root and is wired into CTest.
+
+### EventBuffer suite (`src/Buffer/tests`)
+
+Lock-free ring, timeline merger, swing window, wait-flag, watchdog and thread-policy coverage, plus an adversarial producer/consumer fuzz test (8 tests). Uses GoogleTest (fetched automatically) and links the standalone `pinpoint_buffer` library. Tests are included only when `src/Buffer` is the top-level project.
+
+```bash
+cmake -S src/Buffer -B build/buffer-tests
+cmake --build build/buffer-tests -j
+ctest --test-dir build/buffer-tests --output-on-failure
+```
+
+Sanitizers are opt-in cache options on the `src/Buffer` project — use a separate build dir for each:
+
+```bash
+cmake -S src/Buffer -B build/buffer-asan -DPINPOINT_ENABLE_ASAN=ON   # (also -DPINPOINT_ENABLE_UBSAN=ON)
+cmake -S src/Buffer -B build/buffer-tsan -DPINPOINT_ENABLE_TSAN=ON   # ThreadSanitizer
+```
+
+`latency_benchmark` is built but intentionally **not** registered with CTest — run it by hand: `./build/buffer-tests/tests/latency_benchmark`.
+
+### Analysis suite (`src/Analysis/tests`)
+
+Covers the M1 shot-analyzer (phase segmenter, metric extractor, banded swing scorer), wrist-angle math, IMU anatomical calibration, the host-side orientation filters (Madgwick + ESKF), the WT9011DCL / WT901BLE67 driver frame-parse and `eulerToQuat` override, the 3D-viz binding chain, the stored IMU sample frame, and the unified `swing.json` writer/reader round-trip from the Export subsystem (10 tests). Self-contained — own `main()` + `CHECK_NEAR`, no GoogleTest — compiling the handful of needed `.cpp` directly rather than linking an analysis library.
+
+```bash
+cmake -S src/Analysis/tests -B build/analyzer-tests -DCMAKE_PREFIX_PATH=/path/to/Qt/6.11.x/gcc_64
+cmake --build build/analyzer-tests -j
+ctest --test-dir build/analyzer-tests --output-on-failure
+```
+
+Requires Qt6 Core/Gui (and Bluetooth, for the driver test) plus Eigen. Eigen is resolved automatically — first from an explicit `-DEIGEN_INCLUDE_DIR=…`, then from the app build's FetchContent copy (`build/*/_deps/eigen-src`), and finally by fetching 3.4.0 if neither is present. Configuring the app at least once first lets the tests reuse its Eigen with no extra download.
+
+---
+
 ## Automatically Downloaded Dependencies
 
 The following are fetched at `cmake ..` time — no manual steps required:

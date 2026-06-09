@@ -36,6 +36,7 @@
 12. [Extending the Module](#12-extending-the-module)
 13. [Common Mistakes](#13-common-mistakes)
 14. [File Map](#14-file-map)
+15. [Testing](#15-testing)
 
 ---
 
@@ -309,6 +310,13 @@ atomically with `QSaveFile`. All stream timestamps are **relative µs offsets fr
 type later is just another element of `streams[]` — readers must ignore unknown
 `kind`s.
 
+> **This is the exporter's *raw* manifest.** At the analyzer∥exporter join,
+> `SwingDocWriter::writeSwingJson()` (§15) composes this tree with the analyzer's
+> output into **one** `swing.json` — bumping the on-disk schema to **`pinpoint.swing/2`**
+> and adding inline `analysis` (`pinpoint.analysis/2`: score, tier, metric series,
+> phases) and `review` (user rating/note) blocks, plus a `thumbnail` block. There is
+> no separate `analysis.json`. The raw `streams[]` shown below are preserved verbatim.
+
 ```json
 {
   "schema": "pinpoint.swing/1",
@@ -329,7 +337,7 @@ type later is just another element of `streams[]` — readers must ignore unknow
       "frames": { "count": 742, "t_us": [0, 6671, 13342] }
     },
     {
-      "kind": "imu", "alias": "leadWrist", "schema": "imu_sample_v1",
+      "kind": "imu", "alias": "leadWrist", "schema": "imu_sample_v2",
       "source": { "serial": "…" },
       "units": { "accel": "g", "gyro": "deg/s", "quat": "wxyz" },
       "samples": { "count": 498, "t_us": [0, 5000, 10000],
@@ -348,7 +356,7 @@ type later is just another element of `streams[]` — readers must ignore unknow
 | `window.end_us` | `endTimestampUs() − t0` |
 | video `source.*`, `capture.*` | `CameraFormat` via `window.formatOf()` (`serial` from `FormatDescriptor::device_serial`) |
 | video `frames.t_us` | Recorded in the encode loop — **written frames only**, so frame *i* in the MP4 corresponds to entry *i* here, always |
-| imu `samples` | Decoded `ImuSample` payloads (40 bytes, schema `imu_sample_v1`) |
+| imu `samples` | Decoded `ImuSample` payloads (40 bytes / 10 floats, schema `imu_sample_v2` — accel, gyro, and quaternion all in the raw sensor frame; see [`IMU_FRAME_CONTRACT.md`](IMU_FRAME_CONTRACT.md)) |
 | `athlete`, `session`, `swing` | The `SwingExportJob` (resolved on the UI thread) |
 
 The `frames.t_us` index is what lets any downstream tool map output frame *i* to
@@ -693,6 +701,49 @@ python3 -c "d=open('<file>','rb').read(); print(d.find(b'moov') < d.find(b'mdat'
 Cross-check `swing.json`: `frames.count` == decoded frame count per video stream,
 `t_us` arrays non-negative and monotonic, IMU rows are 10 floats, and
 `samples.count` == `imuSampleCount()` for each IMU source.
+
+---
+
+## 15. Testing
+
+This module's automated coverage is the **`swing.json` document round-trip**. The
+encoder and frame pipeline have no unit test — they need a live FFmpeg build and
+real captured frames — and are validated by hand (see
+[Verifying an export by hand](#verifying-an-export-by-hand) above).
+
+### `swing_doc_test` — the unified document round-trip
+
+`src/Export/tests/swing_doc_test.cpp` exercises `SwingDocWriter` / `SwingDocReader`
+(§6) end to end against a temp directory:
+
+- **Unified write** — `writeSwingJson(rawManifest, analysis)` composes the exporter's
+  raw `pinpoint.swing/1` tree with a `SwingAnalysis` into one document, bumping the
+  on-disk schema to **`pinpoint.swing/2`** and adding an inline `analysis` block
+  (`pinpoint.analysis/2`: `score`, `tier`, metric `series` with `t_us`/`value`/
+  `phaseSamples`, and `phases`). The raw `streams` / `swing` blocks survive untouched.
+- **Reader** — `readSwingJson()` reconstructs a `PersistedShot` (ordinal, `hasVideo`,
+  thumbnail path, `hh:mm:ss` from `clock.wallclock`, `score`, flat impact `metrics`,
+  and `analysisDetail` for the replay graph) — the same shapes `ShotProcessor`
+  produces live, so a reloaded shot is indistinguishable from a freshly captured one.
+- **Review write-through** — `updateReview(rating, note)` lands an additive `review`
+  block without disturbing the raw/analysis blocks, replaces (does not append) on
+  rewrite, clamps the rating to 0–5, and fails harmlessly (returns `false`) when no
+  `swing.json` exists.
+- **Raw-only** — `writeSwingJson(…, nullptr)` omits the `analysis` block while still
+  emitting `pinpoint.swing/2` (export-succeeded-but-analysis-failed degrades cleanly).
+
+It is self-contained (own `main()` + `check()`, no GoogleTest) and is built by the
+**Analysis CTest suite** (`src/Analysis/tests/CMakeLists.txt`) because it links
+`swing_analysis.h`, rather than a separate Export test project:
+
+```bash
+cmake -S src/Analysis/tests -B build/analyzer-tests -DCMAKE_PREFIX_PATH=/path/to/Qt/6.11.x/gcc_64
+cmake --build build/analyzer-tests -j
+ctest --test-dir build/analyzer-tests -R swing_doc_test --output-on-failure
+```
+
+See [BUILDING.md → Testing](../BUILDING.md#testing) for the full suite (and the
+EventBuffer suite that backs the borrowed-window contract this module relies on).
 
 ---
 

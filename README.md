@@ -22,7 +22,10 @@ Our ambition is to be a platform that can be used by golfers, coaches and resear
 - [EventBuffer Design](docs/event_buffer_design.md) — Architecture and design rationale for the lock-free EventBuffer.
 - [EventBuffer Developer Guide](docs/event_buffer_developer_guide.md) — Tutorial covering usage, threading model, and integration patterns.
 - [Swing Export Developer Guide](docs/swing_export_developer_guide.md) — Per-swing MP4 + swing.json export: pipeline, resume gating, encoder, and sidecar schema.
+- [Shot Analyzer Design](docs/SHOT_ANALYZER_DESIGN.md) — Post-shot analysis pipeline: phase segmentation, metric extraction, scoring, and the per-session-type analyzer interface.
 - [Wrist Calibration Guide](docs/WRISTCALIBRATION.md) — How to mount the IMUs and run the two-pose wrist-motion calibration.
+- [Wrist Metrics Reference](docs/WRISTMETRICS.md) — Lead-arm wrist-angle metrics: sign conventions, coaching names, and research-backed bands.
+- [IMU Frame Contract](docs/IMU_FRAME_CONTRACT.md) — The device-agnostic orientation boundary every IMU consumer depends on.
 - [WT901BLE67 Protocol Reference](docs/WT901BLE67_Protocol.md) — Packet formats, register map, and BLE transport details for the Witmotion IMU.
 - [Aesthetic Design Concepts](docs/aesthetic/pinpoint-aesthetic-concepts.md) — Three visual design directions (Editorial, Instrument, Studio) across light and dark themes.
 - [QML Design System](docs/PINPOINT_QML_DESIGN_SYSTEM.md) — Token system, typography rules, and component patterns; read before writing any QML.
@@ -36,14 +39,14 @@ The interface uses a left-side navigation rail with an athlete avatar at the top
 | Mode | Status | Description |
 |---|---|---|
 | **Home** | Active | Session type selection, device readiness, club selector, and Start button |
-| **Swing** | Active | Multi-camera capture, pose estimation, and ¼-speed swing replay |
-| **Wrist** | In development | Live video tile per session-enabled camera (skeleton overlay, ¼-speed replay) + session-shot carousel; IMU wrist kinematics to come (requires an athlete) |
+| **Swing** | Active | Multi-camera capture, pose estimation, manual SHOT trigger, and ¼-speed post-shot replay |
+| **Wrist** | Active | Live video tile per session-enabled camera (skeleton overlay) + live lead-arm wrist-angle metrics; SHOT runs the wrist analyzer and persists each shot to a session carousel with rating/note and replay-synced metric graph (requires an athlete) |
 | **GRF** | Placeholder | Ground reaction force analysis (requires an athlete) |
 | **Coach** | Placeholder | AI coaching output (requires an athlete) |
 
 Wrist, GRF, and Coach redirect to the Welcome screen until at least one athlete has been created.
 
-All four mode screens (Swing, Wrist, GRF, Coach) carry a persistent **session toolbar** — clock, Capture control, and Cameras/IMUs device pills with in-panel device management and calibration. See [Session toolbar](#session-toolbar).
+All four mode screens (Swing, Wrist, GRF, Coach) carry a persistent **session toolbar** — clock, Capture control, central SHOT trigger, End Session, and Cameras/IMUs device pills with in-panel device management and calibration. See [Session toolbar](#session-toolbar).
 
 Three utility buttons sit at the bottom of the rail:
 
@@ -96,13 +99,15 @@ Pressing Back from any step returns to the previous one. Navigating back to the 
 
 ### Session toolbar
 
-A persistent toolbar pinned to the top of every mode screen (Swing, Wrist, GRF, Coach), built as a single reusable component shared across all four. It carries the session clock, one global capture control, and two device pills.
+A persistent toolbar pinned to the top of every mode screen (Swing, Wrist, GRF, Coach), built as a single reusable component shared across all four. It carries the session clock, one global capture control, a SHOT trigger, End Session, and two device pills.
 
-- **Capture** — anchored at the far left with the session clock alongside it. Toggles the EventBuffer capture gate (`pauseBuffer` / `resumeBuffer`) and starts the session clock on first capture.
-- **Device pills** — Cameras and IMUs, each with a connected-count badge and aggregate state. A pill turns amber and reads **"calibrate"** when a connected device still needs calibration, and stays that way until calibration succeeds.
+- **Capture** — anchored at the far left with the session clock alongside it. It is the **single owner of the EventBuffer state**: Capture/Stop toggles the user capture intent (`resumeBuffer` / `pauseBuffer`) and starts the session clock on first capture. Nothing else changes the net buffer state — ball detection is signal-only (it drives overlays, never capture).
+- **SHOT** — centred trigger that funnels every shot source (the manual button today; IMU/pose/ball detectors later) through a single `ShotController`. Armed only while the buffer is capturing and the shot processor is idle; firing it runs the post-shot pipeline (see [Shot capture & analysis](#shot-capture--analysis)).
+- **End Session** — ghost button (visible while a session runs) with a small confirm popup; ends the session clock, stops capture, and unlocks navigation.
+- **Device pills** — Cameras and IMUs, each with a connected-count badge and aggregate state. A pill turns amber and reads **"calibrate"** when a connected device still needs calibration; the IMU pill instead warns **"battery N%"** (amber, or red below 20%) when any connected sensor drops below 50%.
 - **Drop-down panels** — Tapping a pill opens a panel beneath it with a scoped action row (**Scan / Connect / Calibrate**) and a per-device list. Opening one panel closes the other; click-away or Esc dismisses.
   - **Per-device enable toggles** — Session-local enable/disable per camera and IMU, seeded from the Settings-level exclusion list but never written back (global enablement stays owned by the Settings screen). Camera session enablement lives in `CameraManager` so every toolbar and mode screen shares one list — the mode screens show a video tile per session-enabled camera, and toggling a camera off removes its tile. Connect connects every enabled, not-yet-connected device and starts the camera capture pipeline (the screens' video tiles stream from it); disabling a connected device disconnects it.
-  - **Live pose toggle** — An all-cameras switch in the camera panel that gates pose inference itself (not just the overlay); ball detection and swing replay are unaffected.
+  - **Live pose toggle** — An all-cameras switch in the camera panel that gates pose inference itself (not just the overlay); ball detection and the shot replay pipeline are unaffected.
   - **IMU rows** — Live connection-state LED (grey idle · flashing grey/green connecting · green connected · red failed), battery and data-rate, and the configured body placement.
   - **Camera rows** — Connection-state dot, perspective, serial, and interface.
 - **In-panel calibration** — The Calibrate action runs the calibration flow *inside* the panel; it never opens the full-screen wizard or leaves the mode screen. The IMU flow is the exact same state machine as the session wizard's Calibration step — extracted into a shared `ImuCalibrationFlow` component rendered compactly — so calibration is single-sourced. The Calibrate action and pill stay framed in call-to-action amber until calibration is *successful* (mount validation passes). Camera (stereo) calibration is a placeholder pending the calibration pipeline.
@@ -124,8 +129,25 @@ Every session belongs to an athlete. The athlete management flow is the entry po
 - **Camera backends** — UVC webcams, Aravis (GenICam industrial cameras), Spinnaker (Teledyne/FLIR).
 - **Spinnaker pipeline** — Raw Bayer bytes captured with no CPU demosaic on the hot path; a custom `QQuickRhiItem` runs a bilinear GPU Bayer demosaic shader at display rate while the pose estimator receives OpenCV-demosaiced frames at its already-throttled rate.
 - **Pose estimation** — MoveNet SinglePose Lightning and Thunder via ONNX Runtime — real-time skeleton overlay on each live feed, switchable per camera.
-- **Swing replay** — On ball-lost, the last 5 seconds of captured footage replay automatically at ¼ speed with a `REPLAY ¼×` overlay; a pulsing badge marks the replaying camera view. Ball detection drives buffer capture so the replay always covers the full swing.
+- **Ball detection** — Drives the hitting-area overlay and ball-present indicator only. It is signal-only and never starts, stops, or replays capture (the buffer is owned solely by the Capture control).
 - **GPU acceleration** — CoreML (Apple Silicon), CUDA 12/13 (NVIDIA on Linux/Windows).
+
+### Shot capture & analysis
+
+A shot is the unit of analysis. Every shot source — the toolbar SHOT button today; IMU impact, pose, and ball detectors later — funnels through one `ShotController`, and a single `ShotProcessor` owns the post-shot pipeline:
+
+- **Trigger → post-roll** — On a shot, the buffer keeps capturing for a short post-roll so the follow-through lands in the ring, then pauses and freezes the trailing ~5 s as an immutable `SwingWindow`.
+- **Analyse ∥ export** — The frozen window feeds two concurrent workers reading it zero-copy: the per-session-type **shot analyzer** (Swing / Wrist / GRF / Coach) and the **swing exporter** (per-camera MP4 + thumbnail). The Wrist analyzer is the first real one — it segments swing phases, extracts lead-arm wrist metrics, and produces a banded swing score.
+- **¼-speed replay** — When both analysis and export succeed, the shot replays on-screen at ¼ speed with a `REPLAY ¼×` overlay and a pulsing badge on the replaying view. Press **Esc** to cancel the replay.
+- **Persistence** — Each shot is written as one unified `swing.json` (raw frames + analysis) plus its MP4/thumbnail. Shots reload from disk on startup, so a session's history survives restarts; the analysing indicator on the toolbar shows when the pipeline is busy.
+
+### Shot history & review (Wrist)
+
+The Wrist screen carries a **session-shot carousel** of captured shots:
+
+- **Shot cards** — Thumbnail, swing score, and a tappable star rating; cards persist their rating and free-text note back to `swing.json`.
+- **Replay & review** — Selecting a shot replays its clip with a **replay-synced metric graph** — multi-metric overlay with filter chips and phase ticks, scrubbed in lock-step with the video.
+- **Trash** — Shots move to trash (recoverable, with an Undo toast) rather than being deleted outright.
 
 ### IMU — wrist motion capture
 
@@ -142,7 +164,7 @@ Every session belongs to an athlete. The athlete management flow is the entry po
 - **Zero button** — Re-zeroes orientation on demand for mid-session repositioning, per device.
 - **Rate selector** — Adjustable output rate per device (10 / 20 / 50 / 100 / 200 Hz).
 - **Live data rate** — 2-second rolling Hz average shown per device.
-- **Battery indicator** — Colour-coded BAT: N% badge per device, polled via register 0x64 every 60 s.
+- **Battery indicator** — Colour-coded BAT: N% badge per device, polled via register 0x64 every 60 s. The session toolbar's IMU pill also surfaces the lowest connected level, warning **"battery N%"** when any sensor drops below 50%.
 - **Auto-retry** — One automatic retry after a 45-second cooldown on failed connections (device requires ~40 s to exit cooldown after a rejected attempt).
 - **Session log** — Timestamped per-record diagnostics per device; Save Log writes to `~/imu_log_<MAC>_<timestamp>.txt`.
 
@@ -194,7 +216,7 @@ Enumerated → Selected → Recording → Deselected
 |---|---|---|
 | **Enumerated** | `VideoInputFactory::enumerateDevices()` at `CameraManager` construction. Device appears in `cameraList`; no `CameraInstance` exists. | `DeviceEnumerator::scanImu()` starts async BLE scan at `ImuManager` construction. Device appears in `imuList` as discovered; no `ImuInstance` exists. |
 | **Selected** | User taps chip → `CameraManager::setSelected(i, true)` → `CameraInstance` constructed → `EventBuffer::registerSource()`. | User taps chip → `ImuManager::setSelected(i, true)` → `ImuInstance` constructed → `EventBuffer::registerSource()`, then `start()` begins the async BLE connection. |
-| **Recording** | `CameraManager::startAll()` → `CameraInstance::startRecording()` on each selected instance. Buffer transitions to Capturing once a ball is detected. | IMU writes data continuously once the BLE connection is established; the EventBuffer's Capturing/Paused state gates whether the merger reads from the ring. |
+| **Recording** | `CameraManager::startAll()` → `CameraInstance::startRecording()` on each selected instance. The buffer enters Capturing when the user presses Capture (the session-global capture intent) — independent of ball detection. | IMU writes data continuously once the BLE connection is established; the EventBuffer's Capturing/Paused state gates whether the merger reads from the ring. |
 | **Deselected** | User taps chip → `CameraManager::setSelected(i, false)` → `stopRecording()` if active → `deregisterFromBuffer()` → `deleteLater()`. | User taps chip → `ImuManager::setSelected(i, false)` → `stop()` (BLE disconnect) → `deregisterFromBuffer()` → deferred `deleteLater()`. |
 
 ### Invariants
@@ -215,19 +237,18 @@ These invariants must hold at all times:
 
 ### Buffer state machine
 
-The EventBuffer moves between states under `CameraManager` control:
+The EventBuffer's net state is owned **solely by the session-global capture intent** (the toolbar Capture/Stop). Ball detection is signal-only and never moves it. `CameraManager` applies the intent; `ShotProcessor` owns the post-shot `SwingWindow` lifecycle.
 
 ```
-Idle ──startAll()──▶ Paused ──ball present──▶ Capturing
-                        ▲                          │
-                        └────────ball lost──────────┘
-                                  (after replay)
+Idle ──Capture──▶ Capturing ──SHOT──▶ post-roll ──▶ pause + freeze SwingWindow
+  ▲                  ▲                                analyse ∥ export ──▶ ¼× replay
+  └──── Stop ────────┴───────────── restore capture intent ◀── window destroyed
 ```
 
-- **Idle** — before the first `startAll()` and after `stop()`.
-- **Paused** — recording is active but no ball is in the ROI; the merger does not advance the timeline. Ring memory is live.
-- **Capturing** — ball is present; the merger reads all registered sources and builds the merged timeline.
-- Replay (`SwingWindow`) runs during Paused; the buffer must remain Paused for the duration. `resume()` is called only after the `SwingWindow` is destroyed.
+- **Idle** — before the first Capture (and with no registered sources).
+- **Capturing** — capture intent is on; the merger reads all registered sources and builds the merged timeline. This is the steady state of a live session.
+- **Paused** — capture intent is off (after Stop), or held transiently while the shot pipeline owns a `SwingWindow`. The merger does not advance the timeline; ring memory stays live.
+- A SHOT keeps capturing through a short post-roll, then pauses and freezes the trailing ring as a `SwingWindow`. `resume()` is blocked while that window is live; once it is destroyed the user capture intent is re-applied (back to Capturing if the session is still capturing).
 
 ### Applying this to new device types
 
@@ -236,8 +257,8 @@ To add a new device type (e.g. a launch monitor, a force plate):
 1. Create a `DeviceEnumerator` scan path; populate results with `DeviceType::YourType`.
 2. Create a manager class (e.g. `LaunchMonitorManager`) following the `ImuManager` pattern: constructor scans only, no instances created.
 3. Create an instance class (e.g. `LaunchMonitorInstance`) that calls `registerSource()` in its constructor and exposes `deregisterFromBuffer()`.
-4. In `setSelected(…, true)`: pause buffer → construct instance (registers source) → resume buffer.
-5. In `setSelected(…, false)`: pause buffer → stop → `deregisterFromBuffer()` → null the pointer → emit changed → `deleteLater()` → resume buffer.
+4. In `setSelected(…, true)`: pause buffer → construct instance (registers source) → re-apply the capture intent.
+5. In `setSelected(…, false)`: pause buffer → stop → `deregisterFromBuffer()` → null the pointer → emit changed → `deleteLater()` → re-apply the capture intent.
 6. In the manager destructor: repeat the deselection teardown for all live instances.
 
 ---
@@ -437,11 +458,11 @@ The app only contacts external services when explicitly configured:
 
 ## Roadmap
 
-- **Session recording** — attach captured swing data to the selected athlete; build session history
+- **Session recording** — attach the persisted per-shot history to the selected athlete and session model (per-shot capture, analysis, and `swing.json` persistence are already in place)
 - **Two-camera 3D pose reconstruction** — triangulate occluded joints from a second viewpoint (multi-camera capture is already in place)
-- **Kinematic metric extraction** — derive club head speed, hip/shoulder rotation, lag angle from pose sequences and IMU data
+- **Kinematic metric extraction** — extend beyond the Wrist analyzer (live lead-arm wrist angles already shipped) to club head speed, hip/shoulder rotation, and lag angle from pose sequences and IMU data
 - **AI coach integration** — session-aware coaching output in the Coach mode
-- **Wrist / GRF modes** — connect IMU data to the athlete and session model (Home screen entry points and device requirements already in place)
+- **GRF mode** — connect hip-IMU data to the athlete and session model (Home screen entry point and device requirements already in place)
 - **Smartphone companion** — once core concepts are proven on desktop
 
 It will be published as an open-source desktop application for use in golf studios and coaching facilities.
