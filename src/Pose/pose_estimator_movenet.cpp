@@ -204,8 +204,13 @@ void PoseEstimatorMoveNet::estimatePose(const cv::Mat &frame)
         return;
     }
 
-    if (!m_ready || frame.empty())
+    if (!m_ready || frame.empty()) {
+        // Model missing/failed to load, or a degenerate frame — still release
+        // the throttle, or the whole camera pipeline (pose AND ball) starves
+        // permanently on the first frame.
+        emit estimationDone();
         return;
+    }
 
     // Record arrival time for FPS (interval between successive calls).
     const qint64 nowNs = m_ort->wallTimer.nsecsElapsed();

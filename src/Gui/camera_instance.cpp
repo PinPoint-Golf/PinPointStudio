@@ -46,6 +46,7 @@
 #endif
 
 #include <QCoreApplication>
+#include <QPointer>
 #include <QMetaObject>
 #include "pp_debug.h"
 #include <algorithm>
@@ -468,8 +469,10 @@ CameraInstance::~CameraInstance()
     }
     delete m_preprocessor;
     m_preprocessor = nullptr;
-    delete m_frameThrottle;
-    m_frameThrottle = nullptr;
+    // m_frameThrottle is deleted AFTER the pose/ball threads are joined below:
+    // their completion signals (estimationDone, ballDetected/detectionSkipped)
+    // are DirectConnection into clearBusy/clearRawBusy, so an inference still
+    // draining on either thread would call into a freed throttle.
 
 #ifdef HAVE_OPENCV
     // 3. Stop pose estimator — drain queued estimatePose calls first.
@@ -494,6 +497,9 @@ CameraInstance::~CameraInstance()
     delete m_ballDetector;
     m_ballDetector = nullptr;
 #endif
+
+    delete m_frameThrottle;
+    m_frameThrottle = nullptr;
 }
 
 // ---------------------------------------------------------------------------
@@ -942,23 +948,38 @@ void CameraInstance::startRecording()
         return;
 
 #ifdef Q_OS_MACOS
-    auto *self = this;
+    // The permission completion handler fires on a GCD queue whenever the
+    // user answers the dialog — possibly after this instance was deselected
+    // and destroyed. Guard with a QPointer and use the application object as
+    // the invoke context (a destroyed raw `this` is not a valid context).
+    QPointer<CameraInstance> self(this);
     requestCameraPermission([self](bool granted) {
-        QMetaObject::invokeMethod(self, [self, granted]() {
+        QMetaObject::invokeMethod(QCoreApplication::instance(), [self, granted]() {
+            if (!self)
+                return;
             if (!granted) {
                 ppError() << "[CameraInstance] Camera permission denied."
                            << "Grant access in System Settings → Privacy & Security → Camera.";
                 return;
             }
             QMetaObject::invokeMethod(self->m_videoInput, [self]() {
+                if (!self)
+                    return;
                 self->m_videoInput->setCropRegion(self->m_activeCropRoi);
-                self->m_videoInput->start(self->m_deviceId);
+                if (!self->m_videoInput->start(self->m_deviceId)) {
+                    // Revert the optimistic recording state (non-macOS path
+                    // does the same via its queued failure hop).
+                    QMetaObject::invokeMethod(QCoreApplication::instance(), [self]() {
+                        if (!self) return;
+                        self->m_recording = false;
+                        emit self->isRecordingChanged();
+                    }, Qt::QueuedConnection);
+                }
             }, Qt::QueuedConnection);
             self->m_recording = true;
             emit self->isRecordingChanged();
         }, Qt::QueuedConnection);
     });
-    Q_UNUSED(self);
 #else
     m_recording = true;
     emit isRecordingChanged();

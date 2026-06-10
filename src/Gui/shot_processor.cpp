@@ -167,6 +167,8 @@ ShotProcessor::~ShotProcessor()
     finishNowBlocking();
     if (m_cameraManager)
         m_cameraManager->setShotProcessor(nullptr);
+    if (m_imuManager)
+        m_imuManager->setShotProcessor(nullptr);
 }
 
 QString ShotProcessor::stateName() const
@@ -336,8 +338,23 @@ void ShotProcessor::startAnalysis()
     m_analysisInFlight = true;
     m_analysisWatcher.setFuture(QtConcurrent::run(
         [job = std::move(job), win] {
-            auto analyzer = makeShotAnalyzer(job.sessionType);
-            return analyzer->analyze(*win, job);
+            // Exception barrier: anything escaping the worker (e.g. a
+            // cv::Exception on malformed frame geometry) would be rethrown by
+            // QtConcurrent on the GUI thread at result()/waitForFinished()
+            // with no handler — std::terminate. Degrade to a failed analysis
+            // instead; the join still adds the shot and resumes the buffer.
+            try {
+                auto analyzer = makeShotAnalyzer(job.sessionType);
+                return analyzer->analyze(*win, job);
+            } catch (const std::exception &e) {
+                ShotAnalysisResult r;
+                r.error = QString::fromUtf8(e.what());
+                return r;
+            } catch (...) {
+                ShotAnalysisResult r;
+                r.error = QStringLiteral("unknown exception in shot analysis");
+                return r;
+            }
         }));
 }
 
@@ -369,7 +386,22 @@ void ShotProcessor::startSwingSave()
     m_swingSaveInFlight = true;
     ppInfo() << "[SwingExport] saving swing to" << job.swingDir;
     m_swingSaveWatcher.setFuture(QtConcurrent::run(
-        [job = std::move(job), win] { return pinpoint::SwingExporter::run(*win, job); }));
+        [job = std::move(job), win] {
+            // Same exception barrier as the analysis worker above.
+            try {
+                return pinpoint::SwingExporter::run(*win, job);
+            } catch (const std::exception &e) {
+                pinpoint::SwingExportResult r;
+                r.swingDir = job.swingDir;
+                r.error = QString::fromUtf8(e.what());
+                return r;
+            } catch (...) {
+                pinpoint::SwingExportResult r;
+                r.swingDir = job.swingDir;
+                r.error = QStringLiteral("unknown exception in swing export");
+                return r;
+            }
+        }));
 }
 
 pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()

@@ -44,7 +44,11 @@ void BallDetector::detect(const cv::Mat &frame)
     }
 
     if (m_roi.isEmpty() || frame.empty()) {
-        emit ballDetected(BallDetection{});
+        // No hitting area configured (or degenerate frame) — release the
+        // throttle without a result. Emitting ballDetected here would feed a
+        // spurious miss into the presence-smoothing window and fire a fake
+        // ball-lost transition (see the early-out contract in CLAUDE.md).
+        emit detectionSkipped();
         return;
     }
 

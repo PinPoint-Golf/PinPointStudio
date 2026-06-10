@@ -31,6 +31,8 @@
 
 namespace pinpoint { class EventBuffer; }
 
+class ShotProcessor;
+
 // Manages N ImuInstance objects, one per user-selected IMU device.
 // Mirrors the CameraManager pattern: imuList / instances / setSelected().
 //
@@ -81,6 +83,12 @@ public:
     bool         imuConnected()       const;
     int          imuCount()           const;
     int          lowBatteryPercent()  const;
+
+    // Teardown stop-barrier (same contract as CameraManager): deregistering an
+    // IMU source while a SwingWindow is live frees ring memory under the shot
+    // workers. setSelected(deselect) and the destructor call
+    // finishNowBlocking() first. Set from main.cpp.
+    void setShotProcessor(ShotProcessor *p) { m_shotProcessor = p; }
 
     // Toggle selection (= connect/disconnect + EventBuffer register/deregister).
     // index is the position in DeviceEnumerator::devices(DeviceType::Imu).
@@ -158,6 +166,7 @@ private:
 
     pinpoint::EventBuffer      *m_eventBuffer  = nullptr;
     AppSettings                *m_appSettings  = nullptr;
+    ShotProcessor              *m_shotProcessor = nullptr;
     QMap<QString, ImuEntry>     m_selected;    // keyed by device id
 
     // Per-session exclusion (device ids). Seeded from AppSettings::imuExcluded;

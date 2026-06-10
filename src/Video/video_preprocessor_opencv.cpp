@@ -31,12 +31,21 @@ VideoPreprocessorOpenCV::VideoPreprocessorOpenCV(QObject *parent)
 
 void VideoPreprocessorOpenCV::processFrame(const QVideoFrame &frame)
 {
-    if (!frame.isValid())
+    // Failure paths still emit framePreprocessed (with an empty Mat): the
+    // FrameThrottle has already marked itself busy for this frame, and only
+    // the consumers' completion signals clear it — swallowing a frame here
+    // would starve pose AND ball for the rest of the session. Both consumers
+    // early-out on an empty Mat and emit their done-signal.
+    if (!frame.isValid()) {
+        emit framePreprocessed(cv::Mat());
         return;
+    }
 
     QImage img = frame.toImage();
-    if (img.isNull())
+    if (img.isNull()) {
+        emit framePreprocessed(cv::Mat());
         return;
+    }
 
     // Measure inter-frame interval for camera fps.
     if (m_frameTimer.isValid()) {
@@ -92,8 +101,10 @@ void VideoPreprocessorOpenCV::processFrame(const QVideoFrame &frame)
 
 void VideoPreprocessorOpenCV::processRawFrame(const RawVideoFrame &rawFrame)
 {
-    if (rawFrame.isNull())
+    if (rawFrame.isNull()) {
+        emit framePreprocessed(cv::Mat());   // keep the raw throttle balanced
         return;
+    }
 
     if (m_frameTimer.isValid()) {
         const double intervalMs = m_frameTimer.nsecsElapsed() / 1e6;

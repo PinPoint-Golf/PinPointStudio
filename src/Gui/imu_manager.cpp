@@ -17,6 +17,7 @@
  */
 
 #include "imu_manager.h"
+#include "shot_processor.h"
 
 #include "ble_adapter_pool.h"
 #include "event_buffer.h"
@@ -82,6 +83,12 @@ ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, 
 
 ImuManager::~ImuManager()
 {
+    // Join the shot workers and destroy any live SwingWindow before freeing
+    // ring memory under them (main.cpp declares the processor after the
+    // managers, so normally ~ShotProcessor already ran and cleared this).
+    if (m_shotProcessor)
+        m_shotProcessor->finishNowBlocking();
+
     // Stop and deregister all active instances.
     if (m_eventBuffer) {
         const bool wasCapturing =
@@ -276,6 +283,15 @@ void ImuManager::setSelected(int index, bool selected)
     if (entry.selected == selected) return;
 
     entry.selected = selected;
+
+    // deregisterSource() asserts that no SwingWindow is live, and the shot
+    // workers read ring memory through it — including this IMU's ring. The
+    // processor joins its workers and destroys the window before we touch
+    // source registration (blocking — the correctness barrier; same contract
+    // as CameraManager::setSelected). Also covers the postroll pause/resume:
+    // resume clears all rings, which would otherwise gut the pending shot.
+    if (!selected && m_shotProcessor)
+        m_shotProcessor->finishNowBlocking();
 
     // Pause the buffer around EventBuffer register/deregister (same pattern as CameraManager).
     const bool wasCapturing = m_eventBuffer &&

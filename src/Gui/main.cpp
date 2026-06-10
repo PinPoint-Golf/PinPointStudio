@@ -174,6 +174,7 @@ int main(int argc, char *argv[])
                                             &appSettings, &athleteController,
                                             &sessionController, &shotModel);
     cameraManager.setShotProcessor(&shotProcessor);   // teardown stop-barrier
+    imuManager.setShotProcessor(&shotProcessor);      // same barrier for IMU deselect
     // Disk-backed replay of saved shots (MP4 + swing.json) — independent of the
     // live SwingWindow that ShotProcessor owns for the just-captured shot.
     ShotReplayController      shotReplay;
