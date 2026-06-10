@@ -158,7 +158,12 @@ public:
     void setIsMirrored(bool mirrored);
     void deregisterFromBuffer();
     void setReplaying(bool replaying);
-    void displayReplayFrame(const std::byte *data, size_t bytes, int w, int h, pinpoint::PixelFormat fmt);
+    // srcStrides: the capture-time plane strides from the stored descriptor
+    // (CameraFormat::plane_strides). Zero entries fall back to the replay
+    // frame's own strides (legacy windows stamped before strides existed).
+    void displayReplayFrame(const std::byte *data, size_t bytes, int w, int h,
+                            pinpoint::PixelFormat fmt,
+                            const std::array<uint32_t, 4> &srcStrides = {});
 
     // View subscription — the instance is the video source and PUBLISHES every
     // display/replay frame to all subscribed views. Any number of views may

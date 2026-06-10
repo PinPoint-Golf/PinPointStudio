@@ -682,8 +682,11 @@ void VideoInputSpinnaker::captureLoop()
                     img = QImage(src, static_cast<int>(width), static_cast<int>(height),
                                  static_cast<int>(width) * 3, QImage::Format_BGR888).copy();
                 } else {
+                    // Mono8: use the SDK-reported stride — Spinnaker buffers
+                    // may pad rows, and QImage's implicit stride assumes
+                    // 32-bit-aligned scanlines of exactly `width` bytes.
                     img = QImage(src, static_cast<int>(width), static_cast<int>(height),
-                                 QImage::Format_Grayscale8).copy();
+                                 static_cast<int>(stride), QImage::Format_Grayscale8).copy();
                 }
                 pResultImage->Release();
 

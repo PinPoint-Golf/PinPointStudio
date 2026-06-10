@@ -420,8 +420,13 @@ void VideoInputAravis::captureLoop()
                 arv_buffer_get_image_region(buffer, nullptr, nullptr, &width, &height);
 
                 // Create a QVideoFrame from the buffer.
-                // We use Format_Grayscale8 for raw Bayer data.
-                QImage img((const uchar*)data, width, height, QImage::Format_Grayscale8);
+                // We use Format_Grayscale8 for raw Bayer data. Pass the
+                // stride explicitly: Aravis payloads are packed (stride ==
+                // width), but without the bytesPerLine argument QImage
+                // assumes 32-bit-aligned scanlines — for widths not divisible
+                // by 4 (the ROI width increment can be 2) it would read past
+                // the buffer and skew every row.
+                QImage img((const uchar*)data, width, height, width, QImage::Format_Grayscale8);
                 QVideoFrame frame(img.copy()); // Copy data to ensure it stays valid
 
                 QMetaObject::invokeMethod(this, [this, frame]() {

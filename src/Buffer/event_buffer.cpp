@@ -274,7 +274,13 @@ const FormatDescriptor& EventBuffer::formatOf(SourceId id) const {
 void EventBuffer::updateSourceFormat(SourceId id, const FormatDescriptor &fmt) {
     int idx = findSlotIndex(id);
     if (idx < 0) return;
-    sources_[idx]->desc.format = fmt;
+    FormatDescriptor updated = fmt;
+    // registerSource() normalised device_serial (identifier fallback) so
+    // window readers can attribute payloads to a physical device. Re-stamps
+    // built from frame data carry no serial — preserve the registered one.
+    if (updated.device_serial.empty())
+        updated.device_serial = sources_[idx]->desc.format.device_serial;
+    sources_[idx]->desc.format = updated;
 }
 
 std::vector<IndexEntry> EventBuffer::snapshot(int64_t t_start_us,
@@ -397,8 +403,18 @@ void EventBuffer::mergerLoop() {
                     //   (b) genuine ring overrun: the producer lapped the merger by more than
                     //       slot_count entries.  Skip to the current write head.
                     uint64_t ws_now = slot.ring->writeSequence();
-                    if ((ws_now - next) > slot.ring->slotCount())
-                        next = ws_now; // genuine overrun
+                    if ((ws_now - next) > slot.ring->slotCount()) {
+                        // Genuine overrun. Resume at the OLDEST sequence still
+                        // resident in the ring, not the write head: the
+                        // backlog [ws_now - slot_count, ws_now) is published,
+                        // still-valid data — skipping to ws_now would discard
+                        // a full ring lap (~seconds of frames) on top of what
+                        // the producer already overwrote. peekTimestamp's
+                        // seqlock/lap checks reject any salvaged sequence the
+                        // producer reaches while we drain.
+                        next = ws_now - slot.ring->slotCount();
+                        continue;
+                    }
                     // else: slot being written — break and retry without advancing next
                     break;
                 }

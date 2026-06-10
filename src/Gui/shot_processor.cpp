@@ -739,7 +739,8 @@ void ShotProcessor::onReplayTick()
                 handle.bytes,
                 static_cast<int>(cfmt->width),
                 static_cast<int>(cfmt->height),
-                cfmt->pixel_format);
+                cfmt->pixel_format,
+                cfmt->plane_strides);
         }
     }
 }

@@ -235,7 +235,13 @@ CameraInstance::CameraInstance(const Device &device, pinpoint::EventBuffer *buff
         // VideoInputApple::queryCapabilities() onto the enumerated Qt capabilities.)
         if (device.backend == VideoInputFactory::Backend::AppleAVFoundation)
             maxBpp = std::max(maxBpp, 4);
-        cfmt.max_payload_bytes     = cfmt.width * cfmt.height * static_cast<uint32_t>(maxBpp);
+        // Allow up to 128 bytes of per-row alignment padding: backends can
+        // allocate frames with padded bytesPerLine, and publishFrameToBuffer
+        // stores mappedBytes(p) (padding included). Without the headroom a
+        // padded frame at max resolution exceeds the slot and every frame is
+        // dropped (loudly, post the pre-acquire size check — but still dropped).
+        cfmt.max_payload_bytes     = (cfmt.width * static_cast<uint32_t>(maxBpp) + 128u)
+                                     * cfmt.height;
         cfmt.typical_payload_bytes = cfmt.max_payload_bytes;
 
         // --- FPS: use the maximum supported rate for worst-case slot count ---
@@ -1166,9 +1172,17 @@ void CameraInstance::drainRawFrame()
         if (yFrame.map(QVideoFrame::WriteOnly)) {
             const auto *src = reinterpret_cast<const uchar *>(raw.data.constData());
             uchar *dst = yFrame.bits(0);
-            const int pixels = raw.width * raw.height;
-            // Raw data is always 8-bit packed (BayerRG8 etc.) from the ring buffer.
-            memcpy(dst, src, pixels);
+            // Raw data is always 8-bit packed (BayerRG8 etc., stride == width)
+            // from the ring buffer, but Qt may allocate the Y8 frame with
+            // padded rows — copy row-by-row honouring the destination stride
+            // or the preview shears.
+            const int dstStride = yFrame.bytesPerLine(0);
+            if (dstStride == raw.width) {
+                memcpy(dst, src, static_cast<size_t>(raw.width) * raw.height);
+            } else {
+                for (int y = 0; y < raw.height; ++y)
+                    memcpy(dst + y * dstStride, src + y * raw.width, raw.width);
+            }
             yFrame.unmap();
             m_settingsSink->setVideoFrame(yFrame);
         }
@@ -1298,7 +1312,8 @@ void CameraInstance::setReplaying(bool replaying)
 }
 
 void CameraInstance::displayReplayFrame(const std::byte *data, size_t bytes,
-                                          int w, int h, pinpoint::PixelFormat fmt)
+                                          int w, int h, pinpoint::PixelFormat fmt,
+                                          const std::array<uint32_t, 4> &srcStrides)
 {
     if (!data || bytes == 0) return;
 
@@ -1349,15 +1364,34 @@ void CameraInstance::displayReplayFrame(const std::byte *data, size_t bytes,
         if (!replayFrame.map(QVideoFrame::WriteOnly)) return;
 
         // Restore all planes from the sequentially-stored buffer.
-        // publishFrameToBuffer stores planes in order: plane0 bytes, plane1 bytes, …
+        // publishFrameToBuffer stores planes in order: plane0 bytes, plane1
+        // bytes, … each with the CAPTURE frame's stride (descriptor
+        // plane_strides). Qt may allocate this replay frame with different
+        // row alignment, so copy row-by-row honouring both strides — a flat
+        // memcpy shears every row and misplaces the chroma plane whenever
+        // the two allocations disagree.
         const auto *src = reinterpret_cast<const uint8_t *>(data);
         size_t offset = 0;
         for (int p = 0; p < replayFrame.planeCount(); ++p) {
+            const size_t dstStride  = static_cast<size_t>(replayFrame.bytesPerLine(p));
             const size_t planeBytes = static_cast<size_t>(replayFrame.mappedBytes(p));
-            const size_t available  = offset < bytes ? bytes - offset : 0;
-            std::memcpy(replayFrame.bits(p), src + offset,
-                        std::min(planeBytes, available));
-            offset += planeBytes;
+            const size_t srcStride  =
+                (p < static_cast<int>(srcStrides.size()) && srcStrides[static_cast<size_t>(p)])
+                    ? srcStrides[static_cast<size_t>(p)] : dstStride;
+            const size_t rows       = dstStride ? planeBytes / dstStride : 0;
+            const size_t copyBytes  = std::min(srcStride, dstStride);
+            uint8_t *dst = replayFrame.bits(p);
+            if (srcStride == dstStride) {
+                const size_t available = offset < bytes ? bytes - offset : 0;
+                std::memcpy(dst, src + offset, std::min(planeBytes, available));
+            } else {
+                for (size_t r = 0; r < rows; ++r) {
+                    const size_t srcOff = offset + r * srcStride;
+                    if (srcOff + copyBytes > bytes) break;
+                    std::memcpy(dst + r * dstStride, src + srcOff, copyBytes);
+                }
+            }
+            offset += srcStride * rows;
         }
 
         replayFrame.unmap();
@@ -1412,6 +1446,23 @@ void CameraInstance::updateBufferDescriptor()
     const double fps           = sf.streamFrameRate() > 0.0 ? sf.streamFrameRate() : 30.0;
     cfmt.fps_numerator   = static_cast<uint32_t>(fps * 1000.0);
     cfmt.fps_denominator = 1000;
+
+    // Plane strides exactly as delivered — and therefore exactly as stored:
+    // publishFrameToBuffer copies mappedBytes(p) per plane, INCLUDING any row
+    // padding the backend allocates (bytesPerLine != width*bpp on padded
+    // backends). Swing export and replay must decode with these strides, not
+    // a tight width*bpp assumption, or every saved/replayed frame shears.
+    {
+        QVideoFrame strideProbe = f;
+        if (strideProbe.map(QVideoFrame::ReadOnly)) {
+            const int planes = std::min(strideProbe.planeCount(),
+                                        static_cast<int>(cfmt.plane_strides.size()));
+            for (int p = 0; p < planes; ++p)
+                cfmt.plane_strides[static_cast<size_t>(p)] =
+                    static_cast<uint32_t>(strideProbe.bytesPerLine(p));
+            strideProbe.unmap();
+        }
+    }
     fd.format = cfmt;
 
     m_eventBuffer->updateSourceFormat(m_sourceId, fd);
@@ -1456,6 +1507,7 @@ void CameraInstance::stampBufferDescriptorFromRaw(const RawVideoFrame &raw)
     // Payloads are packed 8-bit Bayer (stride == width — see raw_video_frame.h).
     cfmt.max_payload_bytes     = cfmt.width * cfmt.height;
     cfmt.typical_payload_bytes = cfmt.max_payload_bytes;
+    cfmt.plane_strides[0]      = cfmt.width;   // packed — consumers must not guess
     const double fps = m_configuredFps > 0.0 ? m_configuredFps : 30.0;
     cfmt.fps_numerator   = static_cast<uint32_t>(fps * 1000.0);
     cfmt.fps_denominator = 1000;
@@ -1493,8 +1545,30 @@ void CameraInstance::publishFrameToBuffer(const QVideoFrame &frame)
     for (int p = 0; p < mutable_frame.planeCount(); ++p)
         totalBytes += static_cast<size_t>(mutable_frame.mappedBytes(p));
 
+    // Validate the size BEFORE acquiring a write slot: an acquired-but-never-
+    // published slot stays odd-generation, which the merger treats as
+    // mid-write, stalling this source's timeline indexing for a full ring
+    // lap. The usual cause is the ring slot being sized smaller than the
+    // delivered frame (e.g. capacity sized for the enumerated NV12/YUYV
+    // format while the macOS AVFoundation backend delivers 32-bpp ARGB32).
+    // Log once: at the capture rate this would otherwise flood the bounded
+    // log and bury every other entry.
+    const size_t capacity = m_eventBuffer->getSlotCapacity(m_sourceId);
+    if (totalBytes == 0 || totalBytes > capacity) {
+        if (totalBytes > capacity &&
+            !m_publishDropLogged.exchange(true, std::memory_order_relaxed)) {
+            ppError() << "[CameraInstance] dropping every frame from the event buffer:"
+                      << totalBytes << "byte frame does not fit the" << capacity
+                      << "byte ring slot (planes:" << mutable_frame.planeCount()
+                      << "). No data will be captured and swing replay will be empty."
+                      << "This is logged once per session.";
+        }
+        mutable_frame.unmap();
+        return;
+    }
+
     auto slot = m_eventBuffer->acquireWriteSlot(m_sourceId);
-    if (slot.valid && totalBytes > 0 && totalBytes <= slot.capacity) {
+    if (slot.valid) {
         auto *dst = reinterpret_cast<uint8_t *>(slot.data);
         size_t offset = 0;
         for (int p = 0; p < mutable_frame.planeCount(); ++p) {
@@ -1505,21 +1579,6 @@ void CameraInstance::publishFrameToBuffer(const QVideoFrame &frame)
         *slot.bytes_written = static_cast<uint32_t>(totalBytes);
         *slot.timestamp_us  = pinpoint::EventBuffer::nowMicros();
         m_eventBuffer->publish(m_sourceId, slot.sequence);
-    } else if (slot.valid) {
-        // We acquired a slot but the frame won't be published into it — the slot is
-        // left uncommitted (odd generation), which the merger can never drain, so no
-        // frames reach the timeline index and swing replay captures nothing. The
-        // usual cause is the ring slot being sized smaller than the delivered frame
-        // (e.g. capacity sized for the enumerated NV12/YUYV format while the macOS
-        // AVFoundation backend delivers 32-bpp ARGB32). Log once: at the capture rate
-        // this would otherwise flood the bounded log and bury every other entry.
-        if (!m_publishDropLogged.exchange(true, std::memory_order_relaxed)) {
-            ppError() << "[CameraInstance] dropping every frame from the event buffer:"
-                      << totalBytes << "byte frame does not fit the" << slot.capacity
-                      << "byte ring slot (planes:" << mutable_frame.planeCount()
-                      << "). No data will be captured and swing replay will be empty."
-                      << "This is logged once per session.";
-        }
     }
 
     mutable_frame.unmap();
@@ -1530,9 +1589,23 @@ void CameraInstance::publishRawFrameToBuffer(const RawVideoFrame &frame)
     if (frame.isNull())
         return;
 
+    // Same pre-acquire validation as publishFrameToBuffer: never abandon an
+    // acquired slot (odd generation stalls the merger), and never drop
+    // silently.
     const size_t size = static_cast<size_t>(frame.data.size());
+    const size_t capacity = m_eventBuffer->getSlotCapacity(m_sourceId);
+    if (size == 0 || size > capacity) {
+        if (size > capacity &&
+            !m_publishDropLogged.exchange(true, std::memory_order_relaxed)) {
+            ppError() << "[CameraInstance] dropping every raw frame from the event buffer:"
+                      << size << "byte frame does not fit the" << capacity
+                      << "byte ring slot. No data will be captured and swing"
+                      << "replay will be empty. This is logged once per session.";
+        }
+        return;
+    }
     auto slot = m_eventBuffer->acquireWriteSlot(m_sourceId);
-    if (slot.valid && size <= slot.capacity) {
+    if (slot.valid) {
         std::memcpy(slot.data, frame.data.constData(), size);
         *slot.bytes_written = static_cast<uint32_t>(size);
         *slot.timestamp_us  = pinpoint::EventBuffer::nowMicros();
