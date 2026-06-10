@@ -612,13 +612,16 @@ void ShotProcessor::maybeJoin()
         emit shotFailed(!analysisOk ? m_analysisResult.error
                                     : QStringLiteral("export failed or skipped"));
 
-    // Replay gating: only a fully analysed AND exported shot replays.
-    if (analysisOk && exportOk && !m_replayTracks.empty()) {
+    // Replay gating: fire whenever there is video to show. The on-screen ¼×
+    // replay reads the frozen window's camera frames directly (m_replayTracks),
+    // not the exported MP4 or the analysis result — so neither analysisOk nor
+    // exportOk is a precondition. A shot with captured footage always replays,
+    // even if analysis was absent or the disk export failed.
+    if (!m_replayTracks.empty()) {
         startReplay();
     } else {
-        ppInfo() << "[ShotProcessor] replay skipped — analysisOk" << analysisOk
-                 << "exportOk" << exportOk
-                 << "tracks" << m_replayTracks.size();
+        ppInfo() << "[ShotProcessor] replay skipped — no captured camera tracks"
+                 << "(analysisOk" << analysisOk << "exportOk" << exportOk << ")";
         finishShot();
     }
 }
