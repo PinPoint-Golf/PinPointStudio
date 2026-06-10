@@ -38,8 +38,6 @@ Item {
     property string traceLabel: ""
 
     signal replayRequested(int shotId, string mode)
-    signal exportRequested(int shotId)
-    signal exportAllRequested(var shotIds)
     signal faceOnRequested(int shotId)
 
     property int  selectedShotId: -1
@@ -61,6 +59,24 @@ Item {
 
     // A filtered-out or trashed selection destroys its delegate — drop the panel with it.
     onSelectedCardChanged: if (!selectedCard && panelPopup.opened) panelPopup.close()
+
+    // Opens the export options sheet for a set of swing dirs. Both the ⋯
+    // "export all selected" and the single-shot panel export route through here,
+    // so they share one options panel, one exporter call and one toast.
+    function _openExportSheet(dirs, emptyMsg) {
+        if (dirs.length === 0) {            // analysis-only shots have no on-disk files
+            toast.showUndo = false
+            toast.copyText = ""
+            toast.glyph    = "ℹ"
+            toast.show(emptyMsg)
+            return
+        }
+        exportSheet.swingDirs   = dirs
+        exportSheet.cameras     = swingExporter.camerasForShots(dirs)
+        exportSheet.shotCount   = dirs.length
+        exportSheet.includeJson = true
+        exportSheet.open()
+    }
 
     ShotFilterProxyModel {
         id: filterProxy
@@ -280,7 +296,9 @@ Item {
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
                                     bulkMenu.close()
-                                    root.exportAllRequested(filterProxy.visibleShotIds())
+                                    root._openExportSheet(
+                                        root.activeModel.swingDirsForIds(filterProxy.visibleShotIds()),
+                                        qsTr("No saved shots to export"))
                                 }
                             }
                         }
@@ -332,6 +350,9 @@ Item {
                                     bulkMenu.close()
                                     panelPopup.close()
                                     root.activeModel.moveAllToTrash(ids)
+                                    toast.showUndo = true   // shared toast — reset from any export use
+                                    toast.copyText = ""
+                                    toast.glyph    = "🗑"
                                     toast.show(qsTr("%1 shots moved to trash").arg(ids.length))
                                 }
                             }
@@ -429,8 +450,9 @@ Item {
             onPopOutRequested: panelPopup.close()   // screen replay keeps running (see onClosed)
             onFaceOnRequested: root.faceOnRequested(shotPanel.shotId)
             onExportRequested: {
-                root.exportRequested(shotPanel.shotId)
+                const dirs = root.activeModel.swingDirsForIds([shotPanel.shotId])
                 panelPopup.close()
+                root._openExportSheet(dirs, qsTr("This shot has no saved files to export"))
             }
             onTrashRequested: {
                 const trashedOrdinal = shotPanel.ordinal
@@ -438,6 +460,9 @@ Item {
                 shotPanel.commitNote()
                 panelPopup.close()
                 root.activeModel.moveToTrash(trashedId)
+                toast.showUndo = true   // shared toast — reset from any export use
+                toast.copyText = ""
+                toast.glyph    = "🗑"
                 toast.show(qsTr("Shot #%1 moved to trash").arg(trashedOrdinal))
             }
         }
@@ -488,6 +513,33 @@ Item {
         contentItem: PpSessionDrawer {
             id: sessDrawer
             onCloseRequested: sessionsPopup.close()
+        }
+    }
+
+    // ── Bulk export options — opens upward over the left cap ─────────────────
+    PpExportOptionsSheet {
+        id: exportSheet
+        parent: root
+        x: Theme.sp(16)
+        y: -height - Theme.sp(10)
+        onConfirmed: (selectedVideoFiles, includeJson) =>
+            swingExporter.exportShots(exportSheet.swingDirs, selectedVideoFiles, includeJson)
+    }
+
+    // Completion notice for the bulk export — the copy icon copies the zip path.
+    Connections {
+        target: swingExporter
+        function onExportFinished(ok, zipPath, error) {
+            toast.showUndo = false
+            if (ok) {
+                toast.glyph    = "✓"
+                toast.copyText = zipPath
+                toast.show(qsTr("Exported %1").arg(zipPath.split('/').pop()))
+            } else {
+                toast.glyph    = "⚠"
+                toast.copyText = ""
+                toast.show(qsTr("Export failed: %1").arg(error))
+            }
         }
     }
 

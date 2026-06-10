@@ -24,7 +24,7 @@ set(QT_NO_PRIVATE_MODULE_WARNING ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 Quick3D SerialPort Bluetooth Multimedia Network WebSockets Concurrent ShaderTools GuiPrivate)
+find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 Quick3D SerialPort Bluetooth Multimedia Network WebSockets Concurrent ShaderTools GuiPrivate CorePrivate)
 
 qt_standard_project_setup(REQUIRES 6.10)
 
@@ -250,6 +250,7 @@ qt_add_qml_module(PinPointStudio
         src/Gui/ImuCalibrationFlow.qml
         src/Gui/CameraCalibrationFlow.qml
         src/Gui/PpShotCarousel.qml
+        src/Gui/PpExportOptionsSheet.qml
         src/Gui/PpShotCard.qml
         src/Gui/PpSessionDrawer.qml
         src/Gui/PpShotPanel.qml
@@ -436,7 +437,7 @@ StartupWMClass=PinPointStudio
 endif()
 
 target_link_libraries(PinPointStudio
-    PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::Quick3D Qt6::SerialPort Qt6::Bluetooth Qt6::Multimedia Qt6::Network Qt6::WebSockets Qt6::Concurrent Qt6::GuiPrivate
+    PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::Quick3D Qt6::SerialPort Qt6::Bluetooth Qt6::Multimedia Qt6::Network Qt6::WebSockets Qt6::Concurrent Qt6::GuiPrivate Qt6::CorePrivate
             pinpoint_buffer
 )
 
@@ -1678,6 +1679,8 @@ target_sources(PinPointStudio PRIVATE
     src/Export/swing_paths.cpp
     src/Export/swing_exporter.h
     src/Export/swing_exporter.cpp
+    src/Export/swing_zip_exporter.h
+    src/Export/swing_zip_exporter.cpp
     src/Export/swing_doc.h
     src/Export/swing_doc.cpp
     src/Analysis/swing_analysis.h

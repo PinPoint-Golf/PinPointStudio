@@ -101,6 +101,11 @@ public:
     // single entry point for both the one-shot and bulk delete paths.
     Q_INVOKABLE void restoreLastTrashed();
 
+    // Resolve a list of shot ids (e.g. ShotFilterProxyModel::visibleShotIds()) to
+    // their absolute swing_NNNN directories, skipping analysis-only shots with no
+    // on-disk folder. Backs the carousel's bulk export-to-zip flow.
+    Q_INVOKABLE QVariantList swingDirsForIds(const QVariantList &ids) const;
+
 signals:
     void lastTrashedIdChanged();
     void activeCountChanged();

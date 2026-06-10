@@ -48,6 +48,7 @@
 #include "shot_controller.h"
 #include "shot_list_model.h"
 #include "../Export/swing_doc.h"
+#include "../Export/swing_zip_exporter.h"
 #include "shot_processor.h"
 #include "shot_replay_controller.h"
 #include "live_wrist_angles.h"
@@ -131,6 +132,9 @@ int main(int argc, char *argv[])
     ShotController            shotController(&eventBuffer, &sessionController);
     cameraManager.applyCaptureIntent();
     ShotListModel             shotModel;
+    // Bulk "export selected shots to a zip" for the carousel ⋯ menu — derives
+    // everything from the shot dirs it is handed, so it needs no dependencies.
+    pinpoint::SwingZipExporter swingZipExporter;
     // Reload the current athlete's most recent session so prior shots survive a
     // restart (read-only for now — SwingDocReader parses the unified swing.json;
     // rating/note aren't persisted yet so they come back cleared).
@@ -319,6 +323,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("shotProcessor"),     &shotProcessor);
     engine.rootContext()->setContextProperty(QStringLiteral("shotReplay"),        &shotReplay);
     engine.rootContext()->setContextProperty(QStringLiteral("shotModel"),         &shotModel);
+    engine.rootContext()->setContextProperty(QStringLiteral("swingExporter"),     &swingZipExporter);
     engine.rootContext()->setContextProperty(QStringLiteral("liveWrist"),         &liveWrist);
     engine.rootContext()->setContextProperty(QStringLiteral("clipboard"),         &clipboardHelper);
 

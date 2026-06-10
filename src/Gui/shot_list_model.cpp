@@ -230,6 +230,20 @@ void ShotListModel::moveAllToTrash(const QVariantList &ids)
     emit activeCountChanged();
 }
 
+QVariantList ShotListModel::swingDirsForIds(const QVariantList &ids) const
+{
+    QVariantList dirs;
+    for (const QVariant &v : ids) {
+        const int row = rowForId(v.toInt());
+        if (row < 0)
+            continue;
+        const QString &dir = m_shots.at(row).swingDir;
+        if (!dir.isEmpty())
+            dirs.append(dir);
+    }
+    return dirs;
+}
+
 void ShotListModel::restoreLastTrashed()
 {
     const QVector<int> batch = m_lastTrashBatch;
