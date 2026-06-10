@@ -20,6 +20,9 @@
 
 #include "video_input_base.h"
 
+#include <QFuture>
+#include <atomic>
+
 // Spinnaker-based backend for Teledyne/FLIR industrial cameras.
 // Only supported on Windows.
 //
@@ -53,7 +56,10 @@ private:
     void *m_camera     = nullptr; // Spinnaker::CameraPtr*
     void *m_logHandler = nullptr; // SpinLogHandler* (Windows/HAVE_SPINNAKER only)
     bool  m_streaming = false;
-    bool  m_abort     = false;
+    // Set on the caller's thread, read by the pool-thread capture loop.
+    std::atomic_bool m_abort{false};
+    // The running captureLoop(); stop() joins it before deleting the CameraPtr.
+    QFuture<void> m_captureFuture;
     int   m_bayerPattern = 0;   // RawVideoFrame::BayerPattern int, valid when Bayer format selected
     bool  m_emitRaw      = false; // true when camera runs a Bayer pixel format
     QRectF m_cropRegion;          // normalized crop; empty = full sensor

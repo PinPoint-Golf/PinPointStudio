@@ -275,7 +275,9 @@ bool VideoInputSpinnaker::start(const QString &deviceId)
         m_state = State::Active;
         emit stateChanged(State::Active);
 
-        (void)QtConcurrent::run([this]() { captureLoop(); });
+        // Keep the future so stop() can join the loop before deleting the
+        // CameraPtr it dereferences.
+        m_captureFuture = QtConcurrent::run([this]() { captureLoop(); });
 
         return true;
     } catch (Spinnaker::Exception &e) {
@@ -304,6 +306,16 @@ void VideoInputSpinnaker::stop()
                 (*camera)->EndAcquisition();
                 m_streaming = false;
             }
+        } catch (...) {}
+
+        // Join the pool-thread capture loop BEFORE the teardown below deletes
+        // the CameraPtr it dereferences. EndAcquisition above aborts a blocked
+        // GetNextImage (-1012), and the 1 s GetNextImage timeout bounds the
+        // wait regardless. The loop's frame hand-off is a queued invoke, so
+        // waiting here cannot deadlock.
+        m_captureFuture.waitForFinished();
+
+        try {
             // If the device is still streaming here, it belongs to ANOTHER
             // VideoInputSpinnaker instance — a stale handle's teardown raced
             // a reconnect (e.g. the settings crop-editor preview). Leave the
@@ -615,8 +627,10 @@ CameraCapabilities VideoInputSpinnaker::queryCapabilities() const
 void VideoInputSpinnaker::captureLoop()
 {
 #ifdef HAVE_SPINNAKER
-    while (!m_abort && m_camera) {
-        CameraPtr *camera = (CameraPtr*)m_camera;
+    // Snapshot the CameraPtr once: stop() joins this loop before deleting it,
+    // so the pointer stays valid for the loop's whole lifetime.
+    CameraPtr *camera = (CameraPtr*)m_camera;
+    while (!m_abort && camera) {
         try {
             ImagePtr pResultImage = (*camera)->GetNextImage(1000);
             if (pResultImage->IsIncomplete()) {

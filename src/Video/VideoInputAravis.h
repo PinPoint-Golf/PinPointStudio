@@ -20,6 +20,9 @@
 
 #include "video_input_base.h"
 
+#include <QFuture>
+#include <atomic>
+
 // Aravis-based backend for industrial cameras (GigE Vision / USB3 Vision).
 //
 // Uses the Aravis 0.8 C API to capture frames. Since industrial cameras often
@@ -52,6 +55,9 @@ private:
     void *m_camera    = nullptr; // ArvCamera*
     void *m_stream    = nullptr; // ArvStream*
     bool  m_streaming = false;
-    bool  m_abort     = false;
+    // Set on the caller's thread, read by the pool-thread capture loop.
+    std::atomic_bool m_abort{false};
+    // The running captureLoop(); stop() joins it before freeing the stream.
+    QFuture<void> m_captureFuture;
     QRectF m_cropRegion;         // normalized crop; empty = full sensor
 };

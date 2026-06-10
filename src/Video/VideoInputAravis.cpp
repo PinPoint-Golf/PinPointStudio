@@ -54,8 +54,10 @@ bool VideoInputAravis::start(const QString &deviceId)
         return false;
     }
 
-    // Open device
-    const char *id = deviceId.isEmpty() ? nullptr : deviceId.toLocal8Bit().constData();
+    // Open device. The QByteArray must outlive the constData() pointer —
+    // calling constData() on the toLocal8Bit() temporary dangles immediately.
+    const QByteArray idBytes = deviceId.toLocal8Bit();
+    const char *id = deviceId.isEmpty() ? nullptr : idBytes.constData();
     m_camera = arv_camera_new(id, nullptr);
     if (!m_camera) {
         emit errorOccurred(tr("Failed to open Aravis camera."));
@@ -138,8 +140,9 @@ bool VideoInputAravis::start(const QString &deviceId)
     m_state = State::Active;
     emit stateChanged(State::Active);
 
-    // Start capture loop in a background thread
-    (void)QtConcurrent::run([this]() { captureLoop(); });
+    // Start capture loop in a background thread. Keep the future so stop()
+    // can join the loop before freeing the stream it dereferences.
+    m_captureFuture = QtConcurrent::run([this]() { captureLoop(); });
 
     return true;
 #else
@@ -157,6 +160,13 @@ void VideoInputAravis::stop()
         arv_camera_stop_acquisition((ArvCamera*)m_camera, nullptr);
         m_streaming = false;
     }
+
+    // Join the pool-thread capture loop BEFORE freeing the stream/camera it
+    // dereferences. The loop uses a timed pop, so it observes m_abort within
+    // 100 ms even when no buffer ever arrives after stop_acquisition. The
+    // loop's frame hand-off is a queued invoke (never blocks on this thread),
+    // so waiting here cannot deadlock.
+    m_captureFuture.waitForFinished();
 
     if (m_stream) {
         g_object_unref(m_stream);
@@ -394,9 +404,14 @@ CameraCapabilities VideoInputAravis::queryCapabilities() const
 void VideoInputAravis::captureLoop()
 {
 #ifdef HAVE_ARAVIS
-    while (!m_abort && m_stream) {
-        ArvStream *stream = (ArvStream*)m_stream;
-        ArvBuffer *buffer = arv_stream_pop_buffer(stream);
+    // Snapshot the stream once: stop() joins this loop before unreffing it,
+    // so the pointer stays valid for the loop's whole lifetime.
+    ArvStream *stream = (ArvStream*)m_stream;
+    while (!m_abort && stream) {
+        // Timed pop (100 ms) rather than the blocking variant: after
+        // arv_camera_stop_acquisition no buffer need ever arrive, and a
+        // blocking pop would never observe m_abort.
+        ArvBuffer *buffer = arv_stream_timeout_pop_buffer(stream, 100000);
         if (buffer) {
             if (arv_buffer_get_status(buffer) == ARV_BUFFER_STATUS_SUCCESS) {
                 size_t size;
