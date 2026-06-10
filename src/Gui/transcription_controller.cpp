@@ -24,10 +24,13 @@
 #include "audio_stream_saver.h"
 #include "stt_processor.h"
 
+#include <QAudioDevice>
 #include <QCoreApplication>
+#include <QMediaDevices>
 #include <QMetaObject>
 #include "pp_debug.h"
 #include <QThread>
+#include <QVariantMap>
 
 #ifdef Q_OS_MACOS
 #include "macos_permissions.h"
@@ -64,6 +67,10 @@ TranscriptionController::TranscriptionController(QObject *parent)
             m_acousticDetector, &AcousticShotDetector::onAudioData);
     connect(m_acousticDetector, &AcousticShotDetector::impactDetected,
             this, &TranscriptionController::impactDetected);
+    // Calibration meter — forwarded straight through (queued onto the GUI
+    // thread by the receiver context). Harmless when nothing is connected.
+    connect(m_acousticDetector, &AcousticShotDetector::levelSample,
+            this, &TranscriptionController::audioLevel);
 
     connect(m_stt, &STTProcessor::transcriptionReceived,
             this, &TranscriptionController::onTranscriptionReceived);
@@ -78,6 +85,12 @@ TranscriptionController::TranscriptionController(QObject *parent)
 
     connect(m_processorThread, &QThread::started,
             m_stt, &STTProcessor::start);
+
+    // Re-evaluate capture once the audio thread is actually running, so any
+    // listen reason set before then (e.g. shot detection enabled at startup, or
+    // on macOS where startAudio() is deferred until mic permission) takes effect.
+    connect(m_audioThread, &QThread::started,
+            this, &TranscriptionController::updateCapture);
 
 #ifdef Q_OS_MACOS
     // On macOS both permissions must be resolved before their respective pipelines
@@ -177,6 +190,49 @@ void TranscriptionController::setAcousticLatencyUs(qint64 us)
     m_acousticDetector->setDeviceLatencyUs(us);
 }
 
+QVariantList TranscriptionController::availableInputDevices() const
+{
+    QVariantList out;
+    const QByteArray defId = QMediaDevices::defaultAudioInput().id();
+    for (const QAudioDevice &dev : AudioInput::availableDevices()) {
+        QVariantMap m;
+        m[QStringLiteral("id")]          = QString::fromUtf8(dev.id());
+        m[QStringLiteral("description")] = dev.description();
+        m[QStringLiteral("isDefault")]   = (dev.id() == defId);
+        out.append(m);
+    }
+    return out;
+}
+
+void TranscriptionController::setInputDevice(const QString &deviceId)
+{
+    // Applied on the audio thread (where m_audioInput lives). start() stops the
+    // prior source first, so a restart-in-place is just a fresh start(). The
+    // queued call also serialises correctly with startListening()'s start().
+    const bool wasCapturing = m_capturing;
+    QMetaObject::invokeMethod(m_audioInput, [this, deviceId, wasCapturing]() {
+        m_audioInput->setDevice(deviceId);
+        if (wasCapturing)
+            m_audioInput->start();
+    }, Qt::QueuedConnection);
+}
+
+void TranscriptionController::setAcousticThresholdFactor(double factor)
+{
+    m_acousticDetector->setThresholdFactor(static_cast<float>(factor));
+}
+
+void TranscriptionController::setAcousticMinLevel(double level)
+{
+    m_acousticDetector->setMinLevel(static_cast<float>(level));
+}
+
+void TranscriptionController::setCalibrationActive(bool active)
+{
+    m_calibrationWanted = active;
+    updateCapture();
+}
+
 void TranscriptionController::onTranscriptionDispatched()
 {
     m_sttDispatchTimer.restart();
@@ -208,24 +264,35 @@ void TranscriptionController::onSTTError(const QString &message)
 
 void TranscriptionController::startListening()
 {
-    if (m_listening || !m_audioThread->isRunning())
-        return;
-    QMetaObject::invokeMethod(m_audioInput, [this]() {
-        m_audioInput->start();
-    }, Qt::QueuedConnection);
-    m_listening = true;
-    emit isListeningChanged();
+    m_voiceWanted = true;
+    updateCapture();
 }
 
 void TranscriptionController::stopListening()
 {
-    if (!m_listening)
+    m_voiceWanted = false;
+    updateCapture();
+}
+
+void TranscriptionController::setShotDetectionActive(bool active)
+{
+    m_shotDetectionWanted = active;
+    updateCapture();
+}
+
+void TranscriptionController::updateCapture()
+{
+    const bool want = (m_voiceWanted || m_calibrationWanted || m_shotDetectionWanted)
+                      && m_audioThread->isRunning();
+    if (want == m_capturing)
         return;
-    QMetaObject::invokeMethod(m_audioInput, [this]() {
-        m_audioInput->stop();
+    m_capturing = want;
+    QMetaObject::invokeMethod(m_audioInput, [this, want]() {
+        if (want) m_audioInput->start();
+        else      m_audioInput->stop();
     }, Qt::QueuedConnection);
-    QMetaObject::invokeMethod(m_stt, "stopStreaming", Qt::QueuedConnection);
-    m_listening = false;
+    if (!want)
+        QMetaObject::invokeMethod(m_stt, "stopStreaming", Qt::QueuedConnection);
     emit isListeningChanged();
 }
 

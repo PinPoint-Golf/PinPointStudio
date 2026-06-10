@@ -59,8 +59,8 @@ Item {
         Qt.callLater(function() {
             var panels = [
                 generalPanel, appearancePanel, displaysPanel,
-                camerasPanel, imusPanel, null,
-                storagePanel
+                camerasPanel, imusPanel, microphonesPanel,
+                null, storagePanel
             ]
             var panel = panels[entry.panelIndex]
             if (panel) scrollWithRetry(panel, entry.itemId, 0)
@@ -184,9 +184,10 @@ Item {
                                 { navIdx: 2, icon: "▭", label: qsTr("Displays"),       sectionHead: "",               hasBadge: false },
                                 { navIdx: 3, icon: "⊙", label: qsTr("Cameras"),        sectionHead: qsTr("Hardware"), hasBadge: true  },
                                 { navIdx: 4, icon: "⌖", label: qsTr("IMUs"),           sectionHead: "",               hasBadge: true  },
-                                { navIdx: 5, icon: "◎", label: qsTr("Launch Monitor"), sectionHead: "",               hasBadge: false },
-                                { navIdx: 6, icon: "▥", label: qsTr("Storage"),        sectionHead: qsTr("Data"),     hasBadge: false },
-                                { navIdx: 7, icon: "▤", label: qsTr("Archiving"),      sectionHead: "",               hasBadge: false }
+                                { navIdx: 5, icon: "♪", label: qsTr("Microphone"),     sectionHead: "",               hasBadge: false },
+                                { navIdx: 6, icon: "◎", label: qsTr("Launch Monitor"), sectionHead: "",               hasBadge: false },
+                                { navIdx: 7, icon: "▥", label: qsTr("Storage"),        sectionHead: qsTr("Data"),     hasBadge: false },
+                                { navIdx: 8, icon: "▤", label: qsTr("Archiving"),      sectionHead: "",               hasBadge: false }
                             ]
 
                             delegate: Column {
@@ -537,9 +538,10 @@ Item {
                 DisplaysPanel {   id: displaysPanel;   Layout.fillWidth: true; Layout.fillHeight: true }  // 2
                 CamerasPanel {    id: camerasPanel;    Layout.fillWidth: true; Layout.fillHeight: true }  // 3
                 ImusPanel {       id: imusPanel;       Layout.fillWidth: true; Layout.fillHeight: true }  // 4
-                ScreenPlaceholder { titleText: "Launch Monitor" }                                          // 5
-                StoragePanel {    id: storagePanel;    Layout.fillWidth: true; Layout.fillHeight: true }  // 6
-                ScreenPlaceholder { titleText: "Archiving" }                                               // 7
+                MicrophonesPanel { id: microphonesPanel; hostVisible: root.visible; Layout.fillWidth: true; Layout.fillHeight: true }  // 5
+                ScreenPlaceholder { titleText: "Launch Monitor" }                                          // 6
+                StoragePanel {    id: storagePanel;    Layout.fillWidth: true; Layout.fillHeight: true }  // 7
+                ScreenPlaceholder { titleText: "Archiving" }                                               // 8
             }
         }
     }

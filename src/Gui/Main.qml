@@ -439,4 +439,14 @@ ApplicationWindow {
             saveErrorToast.show(qsTr("Swing save failed — %1").arg(error))
         }
     }
+
+    // Shot-detected confirmation chime — the same C8 ting as IMU calibration,
+    // played once per committed shot (any modality) during a session.
+    TingPlayer { id: shotTing; frequency: 4186.0 }
+    Connections {
+        target: shotController
+        function onShotDetected(source, timestampUs, sessionType) {
+            shotTing.play()
+        }
+    }
 }

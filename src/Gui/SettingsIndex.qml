@@ -221,58 +221,75 @@ QtObject {
           actions: "Test Connect Disconnect Zero orientation Calibrate magnetometer Save to flash Scan Euler angles roll pitch yaw battery calibration",
           itemId: "" },
 
-        // ── Storage (panelIndex: 6) ───────────────────────────────────────────
+        // ── Microphone (panelIndex: 5) ────────────────────────────────────────
 
-        { panelIndex: 6, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Athlete library"),
+        { panelIndex: 5, panelLabel: qsTr("Microphone"),  groupLabel: qsTr("Shot detection"),
+          label: qsTr("Use microphone for shot detection"), subtitle: qsTr("Detect impact from the strike sound, fused with IMU and vision"),
+          actions: "acoustic audio onset enable disable sound",
+          itemId: "setting_acousticShotDetection" },
+
+        { panelIndex: 5, panelLabel: qsTr("Microphone"),  groupLabel: qsTr("Input device"),
+          label: qsTr("Audio input device"),              subtitle: qsTr("Select which microphone is used for capture and shot detection"),
+          actions: "mic select default usb webcam rescan",
+          itemId: "" },
+
+        { panelIndex: 5, panelLabel: qsTr("Microphone"),  groupLabel: qsTr("Calibration"),
+          label: qsTr("Microphone sensitivity"),          subtitle: qsTr("Tune the acoustic detection threshold so every shot is detected"),
+          actions: "calibrate sensitivity threshold level meter tune",
+          itemId: "" },
+
+        // ── Storage (panelIndex: 7) ───────────────────────────────────────────
+
+        { panelIndex: 7, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Athlete library"),
           label: qsTr("Library location"),                 subtitle: qsTr("Root directory for all athlete profiles and session archives"),
           actions: "Change Reveal open folder",
           itemId: "setting_libraryPath" },
 
-        { panelIndex: 6, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Athlete library"),
+        { panelIndex: 7, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Athlete library"),
           label: qsTr("Session folder naming"),            subtitle: qsTr("Pattern used when creating a new session directory"),
           itemId: "setting_sessionNaming" },
 
-        { panelIndex: 6, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Athlete library"),
+        { panelIndex: 7, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Athlete library"),
           label: qsTr("Auto-save session on completion"),  subtitle: qsTr("Writes session data to the library immediately when recording ends"),
           itemId: "setting_autoSave" },
 
-        { panelIndex: 6, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Video recording"),
+        { panelIndex: 7, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Video recording"),
           label: qsTr("Recording resolution"),             subtitle: qsTr("Applies to all cameras — must be within sensor ROI bounds"),
           itemId: "setting_videoRes" },
 
-        { panelIndex: 6, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Video recording"),
+        { panelIndex: 7, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Video recording"),
           label: qsTr("Video codec"),                      subtitle: qsTr("Encoding applied when saving swing clips to disk"),
           itemId: "setting_videoCodec" },
 
-        { panelIndex: 6, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Video recording"),
+        { panelIndex: 7, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Video recording"),
           label: qsTr("Encoding quality"),                 subtitle: qsTr("Higher quality produces larger files"),
           itemId: "setting_videoQuality" },
 
-        { panelIndex: 6, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Video recording"),
+        { panelIndex: 7, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Video recording"),
           label: qsTr("Save raw camera frames"),           subtitle: qsTr("Stores unprocessed Bayer data alongside encoded clips"),
           itemId: "setting_saveRaw" },
 
-        { panelIndex: 6, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Video recording"),
+        { panelIndex: 7, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Video recording"),
           label: qsTr("Container format"),                 subtitle: qsTr("File format for saved swing clips"),
           itemId: "setting_container" },
 
-        { panelIndex: 6, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Sensor data"),
+        { panelIndex: 7, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Sensor data"),
           label: qsTr("Save pose keypoints"),              subtitle: qsTr("MoveNet skeleton data stored as JSON"),
           itemId: "setting_savePose" },
 
-        { panelIndex: 6, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Sensor data"),
+        { panelIndex: 7, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Sensor data"),
           label: qsTr("Save IMU streams"),                 subtitle: qsTr("Full quaternion and accelerometer data for all enabled IMUs"),
           itemId: "setting_saveImu" },
 
-        { panelIndex: 6, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Sensor data"),
+        { panelIndex: 7, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Sensor data"),
           label: qsTr("IMU data format"),                  subtitle: qsTr("File format for saved IMU streams"),
           itemId: "setting_imuFormat" },
 
-        { panelIndex: 6, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Sensor data"),
+        { panelIndex: 7, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Sensor data"),
           label: qsTr("Save launch monitor data"),         subtitle: qsTr("Ball-flight data from connected launch monitor"),
           itemId: "setting_saveLaunchMon" }
 
-        // TODO: add entries when Launch Monitor panel is implemented (panelIndex: 5)
-        // TODO: add entries when Archiving panel is implemented (panelIndex: 7)
+        // TODO: add entries when Launch Monitor panel is implemented (panelIndex: 6)
+        // TODO: add entries when Archiving panel is implemented (panelIndex: 8)
     ]
 }

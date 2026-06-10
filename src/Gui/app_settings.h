@@ -66,6 +66,9 @@ class AppSettings : public QObject
     Q_PROPERTY(bool    autoDetectSwing             READ autoDetectSwing             WRITE setAutoDetectSwing             NOTIFY autoDetectSwingChanged)
     Q_PROPERTY(QString swingDetectionSensitivity   READ swingDetectionSensitivity   WRITE setSwingDetectionSensitivity   NOTIFY swingDetectionSensitivityChanged)
     Q_PROPERTY(int     audioDeviceLatencyUs        READ audioDeviceLatencyUs        WRITE setAudioDeviceLatencyUs        NOTIFY audioDeviceLatencyUsChanged)
+    Q_PROPERTY(QString audioInputDevice            READ audioInputDevice            WRITE setAudioInputDevice            NOTIFY audioInputDeviceChanged)
+    Q_PROPERTY(bool    acousticShotDetectionEnabled READ acousticShotDetectionEnabled WRITE setAcousticShotDetectionEnabled NOTIFY acousticShotDetectionEnabledChanged)
+    Q_PROPERTY(double  acousticSensitivity         READ acousticSensitivity         WRITE setAcousticSensitivity         NOTIFY acousticSensitivityChanged)
     Q_PROPERTY(bool    aiCoachingOnSessionEnd      READ aiCoachingOnSessionEnd      WRITE setAiCoachingOnSessionEnd      NOTIFY aiCoachingOnSessionEndChanged)
     Q_PROPERTY(bool    checkForUpdates             READ checkForUpdates             WRITE setCheckForUpdates             NOTIFY checkForUpdatesChanged)
     Q_PROPERTY(bool    sendDiagnostics             READ sendDiagnostics             WRITE setSendDiagnostics             NOTIFY sendDiagnosticsChanged)
@@ -169,6 +172,9 @@ public:
         // Mic capture-chain delay used to back-date acoustic shot onsets
         // (shot detection P2); a fixed estimate until P4 auto-calibration.
         m_audioDeviceLatencyUs      = ppSettings().value(QStringLiteral("General/audioDeviceLatencyUs"),      20000).toInt();
+        m_audioInputDevice          = ppSettings().value(QStringLiteral("General/audioInputDevice"),          QStringLiteral("")).toString();
+        m_acousticShotDetectionEnabled = ppSettings().value(QStringLiteral("General/acousticShotDetectionEnabled"), true).toBool();
+        m_acousticSensitivity       = ppSettings().value(QStringLiteral("General/acousticSensitivity"),       0.5).toDouble();
         m_aiCoachingOnSessionEnd    = ppSettings().value(QStringLiteral("General/aiCoachingOnSessionEnd"),    true).toBool();
         m_checkForUpdates           = ppSettings().value(QStringLiteral("General/checkForUpdates"),           true).toBool();
         m_sendDiagnostics           = ppSettings().value(QStringLiteral("General/sendDiagnostics"),           false).toBool();
@@ -256,6 +262,9 @@ public:
     bool    autoDetectSwing()           const { return m_autoDetectSwing; }
     QString swingDetectionSensitivity() const { return m_swingDetectionSensitivity; }
     int     audioDeviceLatencyUs()      const { return m_audioDeviceLatencyUs; }
+    QString audioInputDevice()          const { return m_audioInputDevice; }
+    bool    acousticShotDetectionEnabled() const { return m_acousticShotDetectionEnabled; }
+    double  acousticSensitivity()       const { return m_acousticSensitivity; }
     bool    aiCoachingOnSessionEnd()    const { return m_aiCoachingOnSessionEnd; }
     bool    checkForUpdates()           const { return m_checkForUpdates; }
     bool    sendDiagnostics()           const { return m_sendDiagnostics; }
@@ -442,6 +451,32 @@ public:
         m_audioDeviceLatencyUs = v;
         ppSettings().setValue(QStringLiteral("General/audioDeviceLatencyUs"), v);
         emit audioDeviceLatencyUsChanged();
+    }
+
+    void setAudioInputDevice(const QString &v)
+    {
+        if (m_audioInputDevice == v) return;
+        m_audioInputDevice = v;
+        ppSettings().setValue(QStringLiteral("General/audioInputDevice"), v);
+        emit audioInputDeviceChanged();
+    }
+
+    void setAcousticShotDetectionEnabled(bool v)
+    {
+        if (m_acousticShotDetectionEnabled == v) return;
+        m_acousticShotDetectionEnabled = v;
+        ppSettings().setValue(QStringLiteral("General/acousticShotDetectionEnabled"), v);
+        emit acousticShotDetectionEnabledChanged();
+    }
+
+    void setAcousticSensitivity(double v)
+    {
+        // Clamp to [0,1] — the slider's normalised range.
+        v = qBound(0.0, v, 1.0);
+        if (qFuzzyCompare(m_acousticSensitivity, v)) return;
+        m_acousticSensitivity = v;
+        ppSettings().setValue(QStringLiteral("General/acousticSensitivity"), v);
+        emit acousticSensitivityChanged();
     }
 
     void setAiCoachingOnSessionEnd(bool v)
@@ -822,6 +857,9 @@ signals:
     void autoDetectSwingChanged();
     void swingDetectionSensitivityChanged();
     void audioDeviceLatencyUsChanged();
+    void audioInputDeviceChanged();
+    void acousticShotDetectionEnabledChanged();
+    void acousticSensitivityChanged();
     void aiCoachingOnSessionEndChanged();
     void checkForUpdatesChanged();
     void sendDiagnosticsChanged();
@@ -887,6 +925,9 @@ private:
     bool    m_autoDetectSwing           = true;    // ON since the P3 arbiter
     QString m_swingDetectionSensitivity = QStringLiteral("Medium");
     int     m_audioDeviceLatencyUs      = 20000;
+    QString m_audioInputDevice;
+    bool    m_acousticShotDetectionEnabled = true;
+    double  m_acousticSensitivity       = 0.5;   // 0 = least sensitive, 1 = most
     bool    m_aiCoachingOnSessionEnd    = true;
     bool    m_checkForUpdates           = true;
     bool    m_sendDiagnostics           = false;

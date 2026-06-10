@@ -72,6 +72,13 @@ public:
 
     void setPreferredFormat(const QAudioFormat &format);
 
+    // Selects the input device used by the NEXT start() by its stable
+    // QAudioDevice::id() (as a UTF-8 string). Empty = OS default. Does not
+    // restart capture — the caller restarts if currently active. The explicit
+    // deviceName argument to start() (matched by description) still takes
+    // precedence when non-empty.
+    void setDevice(const QString &deviceId);
+
     // -----------------------------------------------------------------------
     // Runtime control
     // -----------------------------------------------------------------------
@@ -88,4 +95,5 @@ private:
     AudioCaptureDevice *m_captureDevice = nullptr;
     QAudioFormat        m_preferredFormat;
     QAudioDevice        m_activeDevice;
+    QString             m_preferredDeviceId;   // QAudioDevice::id() as UTF-8 string
 };

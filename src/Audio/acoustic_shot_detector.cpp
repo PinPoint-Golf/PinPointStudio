@@ -63,6 +63,13 @@ void AcousticShotDetector::onAudioData(const QByteArray &data, const QAudioForma
         m_detector.reset(format.sampleRate());
     }
 
+    // Apply the live sensitivity knobs at the buffer boundary (read once; the
+    // onset math reads both per evaluation within the loop below).
+    m_detector.config().thresholdFactor =
+        m_thresholdFactor.load(std::memory_order_relaxed);
+    m_detector.config().minLevelAbs =
+        m_minLevel.load(std::memory_order_relaxed);
+
     const int bytesPerSample = format.bytesPerSample();
     const int bytesPerFrame  = format.bytesPerFrame();
     if (bytesPerSample <= 0 || bytesPerFrame <= 0)
@@ -78,8 +85,10 @@ void AcousticShotDetector::onAudioData(const QByteArray &data, const QAudioForma
     Pending pending[4];
     int     nPending = 0;
 
+    float peakEnv = 0.0f;
     for (int f = 0; f < frames; ++f, p += bytesPerFrame) {
         const pinpoint::OnsetResult r = m_detector.push(sampleToFloat(p, sfmt));
+        peakEnv = std::max(peakEnv, m_detector.envelope());
         if (r.onset && nPending < 4)
             pending[nPending++] = { r.onsetSample, r.confidence };
     }
@@ -91,4 +100,9 @@ void AcousticShotDetector::onAudioData(const QByteArray &data, const QAudioForma
             recvNow, end - pending[i].sample, m_detector.sampleRate(), latency);
         emit impactDetected(est, pending[i].confidence);
     }
+
+    // Per-buffer meter tick for the calibration view (peak env vs the live
+    // threshold). Cheap, throttled at the buffer rate; harmless when unconnected.
+    if (frames > 0)
+        emit levelSample(peakEnv, m_detector.noiseFloor(), m_detector.threshold());
 }

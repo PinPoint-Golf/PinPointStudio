@@ -62,6 +62,11 @@ public:
     bool isRecording()        const;
     bool anySelected()        const;
     QString bufferState()     const;
+    // The user's capture intent (set by startCapture/stopCapture). Unlike
+    // bufferState this stays stable across a session — it doesn't toggle when
+    // the buffer pauses mid-shot for SwingWindow processing — so it's the right
+    // signal for gating session-lifetime work like acoustic shot detection.
+    bool captureIntent()      const { return m_captureUserEnabled; }
     QStringList sessionCameraExcluded() const;
     bool livePoseEnabled()    const;
     void setLivePoseEnabled(bool on);
@@ -134,6 +139,7 @@ signals:
     void instancesChanged();
     void isRecordingChanged();
     void bufferStateChanged();
+    void captureIntentChanged();
     void sessionCameraExcludedChanged();
     void livePoseEnabledChanged();
 

@@ -109,8 +109,18 @@ bool AudioInput::start(const QString &deviceName)
 
     m_activeDevice = QMediaDevices::defaultAudioInput();
     if (!deviceName.isEmpty()) {
+        // Explicit request — match by description (legacy contract).
         for (const QAudioDevice &dev : devices) {
             if (dev.description() == deviceName) {
+                m_activeDevice = dev;
+                break;
+            }
+        }
+    } else if (!m_preferredDeviceId.isEmpty()) {
+        // Persisted selection — match by stable device id.
+        const QByteArray wantId = m_preferredDeviceId.toUtf8();
+        for (const QAudioDevice &dev : devices) {
+            if (dev.id() == wantId) {
                 m_activeDevice = dev;
                 break;
             }
@@ -194,6 +204,11 @@ QAudioFormat AudioInput::format() const
 void AudioInput::setPreferredFormat(const QAudioFormat &format)
 {
     m_preferredFormat = format;
+}
+
+void AudioInput::setDevice(const QString &deviceId)
+{
+    m_preferredDeviceId = deviceId;
 }
 
 void AudioInput::setVolume(qreal volume)

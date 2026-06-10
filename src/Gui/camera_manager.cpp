@@ -390,14 +390,18 @@ void CameraManager::resumeBuffer()
 
 void CameraManager::startCapture()
 {
+    const bool changed = !m_captureUserEnabled;
     m_captureUserEnabled = true;
     applyCaptureIntent();
+    if (changed) emit captureIntentChanged();
 }
 
 void CameraManager::stopCapture()
 {
+    const bool changed = m_captureUserEnabled;
     m_captureUserEnabled = false;
     applyCaptureIntent();
+    if (changed) emit captureIntentChanged();
 }
 
 void CameraManager::applyCaptureIntent()

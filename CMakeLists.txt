@@ -236,6 +236,7 @@ qt_add_qml_module(PinPointStudio
         src/Gui/DisplaysPanel.qml
         src/Gui/CamerasPanel.qml
         src/Gui/ImusPanel.qml
+        src/Gui/MicrophonesPanel.qml
         src/Gui/StoragePanel.qml
         src/Gui/SettingsIndex.qml
         src/Gui/HmTypeCard.qml

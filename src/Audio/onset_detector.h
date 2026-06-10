@@ -46,7 +46,23 @@ struct OnsetDetectorConfig {
     float noiseTauMs      = 500.0f;   // noise-floor EMA time constant
     float noiseFloorMin   = 1e-4f;    // floor on the adaptive noise estimate
     float thresholdFactor = 8.0f;     // candidate at env > factor × floor
-    float decayWindowMs   = 30.0f;    // decay-gate evaluation horizon
+    // Absolute amplitude gate: a hard floor on the candidate threshold,
+    // independent of the noise floor. The relative (factor × noise) threshold
+    // collapses to ~zero in a quiet room, so any faint tick (keyboard, ambient)
+    // opens a candidate — and those spurious candidates' tracking/refractory
+    // windows then swallow a real loud impact that lands inside them. Gating
+    // candidate-opening on an absolute level keeps the detector idle until a
+    // genuinely loud event arrives, so the impact opens its own clean candidate.
+    // 0 disables (pure relative behaviour); set live from mic calibration.
+    float minLevelAbs     = 0.0f;
+    // Decay-gate evaluation horizon. A strike's envelope must fall below
+    // decayRatioMax × peak within this window or the candidate is rejected.
+    // Set to 45 ms (was 30) so a reverberant/ringing impact in a live indoor
+    // space — whose tail decays more slowly than an anechoic click — still
+    // confirms; 45 ms is the longest horizon that keeps the truth-table speech
+    // bursts rejected (see src/Audio/tests). The reported onset stays the first
+    // threshold crossing, so this only delays confirmation, not the timestamp.
+    float decayWindowMs   = 45.0f;
     float decayRatioMax   = 0.5f;     // env at +window must drop below ratio × peak
     float refractoryMs    = 35.0f;    // min inter-onset after evaluation
 };
@@ -104,6 +120,14 @@ public:
     double  sampleRate()       const { return m_rate; }
     int64_t samplesProcessed() const { return m_n; }
 
+    // Live state — surfaced for the microphone-calibration meter. envelope() is
+    // the post-filter/post-release amplitude; threshold() is the current
+    // candidate trigger level (thresholdFactor × clamped noise floor). All in
+    // the same linear units, so the UI can plot env vs threshold directly.
+    float   envelope()   const { return m_env; }
+    float   noiseFloor() const { return m_noise; }
+    float   threshold()  const { return std::max(m_cfg.thresholdFactor * std::max(m_noise, m_cfg.noiseFloorMin), m_cfg.minLevelAbs); }
+
     // Feed one mono sample. Returns a confirmed onset decayWindowMs after its
     // threshold crossing (sustained sounds fail the decay gate and report
     // nothing).
@@ -141,8 +165,13 @@ public:
         // cannot inflate its own threshold.
         m_noise += m_noiseAlpha * (m_env - m_noise);
 
-        const float threshold =
-            m_cfg.thresholdFactor * std::max(m_noise, m_cfg.noiseFloorMin);
+        // Effective candidate threshold: the larger of the adaptive relative
+        // threshold and the absolute amplitude gate. The gate dominates in a
+        // quiet room (where the relative term collapses); the relative term
+        // adapts upward in a loud room.
+        const float threshold = std::max(
+            m_cfg.thresholdFactor * std::max(m_noise, m_cfg.noiseFloorMin),
+            m_cfg.minLevelAbs);
         const bool above  = m_env > threshold;
         // A candidate must be an *attack* — a crossing from below. Without
         // this, the abrupt END of a sustained tone re-candidates while the

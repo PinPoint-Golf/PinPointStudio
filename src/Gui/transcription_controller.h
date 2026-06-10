@@ -22,6 +22,7 @@
 #include <QString>
 #include <QThread>
 #include <QElapsedTimer>
+#include <QVariantList>
 
 class AcousticShotDetector;
 class AudioInput;
@@ -45,7 +46,7 @@ public:
     ~TranscriptionController() override;
 
     QString transcript()              const { return m_transcript; }
-    bool    isListening()             const { return m_listening; }
+    bool    isListening()             const { return m_capturing; }
     QString sttBackend()              const { return m_sttBackend; }
     bool    cloudSttFallbackAvailable() const { return m_sttCloudToggleAvailable; }
     qint64  lastSttLatencyMs()        const { return m_lastSttLatencyMs; }
@@ -59,6 +60,33 @@ public slots:
     // Acoustic shot detection (P2): forwards AppSettings' device-latency
     // constant to the detector (atomic — safe to call from the GUI thread).
     void setAcousticLatencyUs(qint64 us);
+
+    // ── Microphone selection + calibration ────────────────────────────────
+    // Enumerate input devices for the Microphone settings panel:
+    // [{ id: QString, description: QString, isDefault: bool }, …].
+    Q_INVOKABLE QVariantList availableInputDevices() const;
+
+    // Select the capture device by its stable id (empty = OS default). Applied
+    // on the audio thread; restarts capture in place if currently listening.
+    Q_INVOKABLE void setInputDevice(const QString &deviceId);
+
+    // Live acoustic sensitivity knobs (atomic — safe from the GUI thread).
+    // minLevel: absolute amplitude gate — the candidate-open threshold floor,
+    // the primary calibration lever (below it, nothing fires). thresholdFactor:
+    // relative trigger vs the adaptive noise floor. main.cpp derives the gate
+    // from the single acousticSensitivity setting.
+    Q_INVOKABLE void setAcousticThresholdFactor(double factor);
+    Q_INVOKABLE void setAcousticMinLevel(double level);
+
+    // Hold audio capture open while the calibration view is visible, even
+    // outside a session. Restores the prior listening state when released.
+    Q_INVOKABLE void setCalibrationActive(bool active);
+
+    // Hold audio capture open while live shot detection is active (a capturing
+    // session with acoustic detection enabled). Without this the mic never runs
+    // during a session and the acoustic modality — and its calibration — does
+    // nothing. main.cpp drives it from the camera capture intent.
+    void setShotDetectionActive(bool active);
 
 signals:
     void transcriptChanged();
@@ -74,6 +102,11 @@ signals:
     // hop onto your thread.
     void impactDetected(qint64 estImpactUs, float confidence);
 
+    // Per-buffer calibration meter tick (forwarded from AcousticShotDetector,
+    // emitted on the AUDIO thread): peak envelope, current noise floor, and the
+    // live trigger threshold — all in the same linear units.
+    void audioLevel(float level, float noiseFloor, float threshold);
+
 private slots:
     void onTranscriptionReceived(const QString &text);
     void onTranscriptionDispatched();
@@ -81,6 +114,13 @@ private slots:
     void onAudioError(const QString &message);
     void onSTTError(const QString &message);
     void startAudio();   // called once microphone permission is confirmed
+
+private:
+    // Start/stop the underlying audio device to match the OR of all listen
+    // reasons (manual voice, calibration, shot detection). Idempotent — the
+    // device starts once when the first reason activates and stops when the
+    // last clears, so per-shot capture-intent churn never restarts the device.
+    void updateCapture();
 
 private:
     QThread              *m_audioThread;
@@ -91,7 +131,11 @@ private:
     STTProcessor         *m_stt;
     QString           m_transcript;
     QString           m_sttBackend;
-    bool              m_listening               = false;
+    // Listen reasons — audio captures while ANY is true (see updateCapture).
+    bool              m_voiceWanted             = false;   // manual (Audio page)
+    bool              m_calibrationWanted       = false;   // calibration view open
+    bool              m_shotDetectionWanted     = false;   // capturing session
+    bool              m_capturing               = false;   // actual device state
     bool              m_sttUsingCloud           = false;
     bool              m_sttCloudToggleAvailable = false;
     QElapsedTimer     m_sttDispatchTimer;

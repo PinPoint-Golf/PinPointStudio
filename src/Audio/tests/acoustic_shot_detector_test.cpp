@@ -87,6 +87,21 @@ struct Sim {
         for (int i = 0; i < n; ++i)
             push(amp * std::sin(2.0 * 3.14159265 * 2000.0 * i / kRate));
     }
+
+    // Reverberant impact: sharp onset then an exponentially-decaying 2.5 kHz
+    // ring — what a real strike sounds like in a live indoor space (the tail
+    // outlasts an anechoic click). tauMs is the ring decay time constant.
+    int64_t reverbClick(double tauMs, float amp = 0.8f, double ringMs = 400.0)
+    {
+        const int64_t start = det.samplesProcessed();
+        const int n = (int)(ringMs * 1e-3 * kRate);
+        for (int i = 0; i < n; ++i) {
+            const double t = i / kRate;
+            const float  e = amp * (float)std::exp(-t / (tauMs * 1e-3));
+            push(e * (float)std::sin(2.0 * 3.14159265 * 2500.0 * t));
+        }
+        return start;
+    }
 };
 
 int main()
@@ -155,6 +170,42 @@ int main()
         s2.click();
         s2.quiet(200);
         CHECK("clicks 100 ms apart -> two onsets", s2.onsets == 2);
+    }
+
+    std::printf("\n-- G. reverberant impact (ringing tail) still fires --\n");
+    {
+        // Ring decay constant ~45 ms: the tail outlasts the old 30 ms gate but
+        // confirms within the 45 ms window. Guards against regressing the gate
+        // back to a horizon that drops live-room strikes.
+        Sim s;
+        s.quiet(1000);
+        s.reverbClick(45.0);
+        s.quiet(300);
+        CHECK("reverberant impact fires", s.onsets >= 1);
+    }
+
+    std::printf("\n-- H. absolute amplitude gate: quiet rejected, loud fires --\n");
+    {
+        // minLevelAbs gates candidate-opening on absolute level. A quiet tick
+        // (keyboard click) below the gate must never fire; a loud strike above
+        // it must. This is the fix for "quiet clicks detected, loud impacts
+        // ignored" — quiet sounds no longer open candidates that mask impacts.
+        OnsetDetectorConfig cfg;
+        cfg.minLevelAbs = 0.06f;
+        {
+            Sim s(cfg); s.quiet(1000); s.click(1.0, 0.03f); s.quiet(200);
+            CHECK("quiet click (0.03) below gate ignored", s.onsets == 0);
+        }
+        {
+            Sim s(cfg); s.quiet(1000); s.click(1.0, 0.80f); s.quiet(200);
+            CHECK("loud click (0.80) above gate fires", s.onsets == 1);
+        }
+        {
+            // A loud sustained tone above the gate is still rejected by the
+            // decay gate — the amplitude gate does NOT bypass it.
+            Sim s(cfg); s.quiet(1000); s.tone(500); s.quiet(200);
+            CHECK("loud tone above gate still rejected", s.onsets == 0);
+        }
     }
 
     std::printf("\n-- F. est_t* back-dating math --\n");

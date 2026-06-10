@@ -22,6 +22,8 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 
+#include <cmath>
+
 #include "pp_debug.h"
 #include "app_settings.h"
 #ifdef HAVE_OPENCV
@@ -229,10 +231,52 @@ int main(int argc, char *argv[])
                      &controller, [&controller, &appSettings] {
         controller.setAcousticLatencyUs(appSettings.audioDeviceLatencyUs());
     });
+    // Microphone selection + acoustic sensitivity — pushed at startup and kept
+    // live. setInputDevice before the first capture so the saved device is used.
+    controller.setInputDevice(appSettings.audioInputDevice());
+    QObject::connect(&appSettings, &AppSettings::audioInputDeviceChanged,
+                     &controller, [&controller, &appSettings] {
+        controller.setInputDevice(appSettings.audioInputDevice());
+    });
+    // Acoustic "sensitivity" [0,1] sets the absolute amplitude gate — the
+    // candidate-open threshold floor that keeps quiet ticks/ambient from firing
+    // (and from masking real impacts). Mapped on a log scale across the useful
+    // envelope range: s=0 → 0.30 (only loud events), s=1 → 0.01 (very sensitive),
+    // s=0.5 → ~0.055. The meter draws this level so the user can sit it between
+    // their ambient/keyboard noise and their club impacts.
+    const auto applyAcousticSensitivity = [&controller, &appSettings] {
+        const double s = appSettings.acousticSensitivity();   // already clamped [0,1]
+        controller.setAcousticMinLevel(0.01 * std::pow(30.0, 1.0 - s));
+    };
+    applyAcousticSensitivity();
+    QObject::connect(&appSettings, &AppSettings::acousticSensitivityChanged,
+                     &controller, applyAcousticSensitivity);
+
+    // Run the microphone (hence the acoustic detector + its calibration) while a
+    // capturing session is live. Without this the mic only ran on the Audio page
+    // / calibration view, so acoustic detection — and the calibrated gate — never
+    // applied during real sessions. captureIntent is session-stable (doesn't
+    // toggle per-shot). Gated by the acoustic enable + autoDetectSwing so the mic
+    // stays off whenever acoustic can't contribute a candidate.
+    const auto applyShotAudio = [&controller, &cameraManager, &appSettings] {
+        controller.setShotDetectionActive(cameraManager.captureIntent()
+                                          && appSettings.acousticShotDetectionEnabled()
+                                          && appSettings.autoDetectSwing());
+    };
+    applyShotAudio();
+    QObject::connect(&cameraManager, &CameraManager::captureIntentChanged,
+                     &controller, applyShotAudio);
+    QObject::connect(&appSettings, &AppSettings::acousticShotDetectionEnabledChanged,
+                     &controller, applyShotAudio);
+    QObject::connect(&appSettings, &AppSettings::autoDetectSwingChanged,
+                     &controller, applyShotAudio);
     QObject::connect(&controller, &TranscriptionController::impactDetected,
                      &shotController,
                      [&shotController, &appSettings](qint64 estImpactUs, float conf) {
-        if (appSettings.autoDetectSwing())
+        // Raw detector fires always (so calibration sees them); only feed the
+        // arbiter when shot detection is on AND acoustic is enabled. Voice/STT
+        // is independent and unaffected by acousticShotDetectionEnabled.
+        if (appSettings.autoDetectSwing() && appSettings.acousticShotDetectionEnabled())
             shotController.reportCandidate(ShotController::Source::Acoustic,
                                            estImpactUs, conf);
     });

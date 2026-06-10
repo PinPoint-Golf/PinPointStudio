@@ -49,6 +49,18 @@ public:
     // thread. A measured-ish constant until P4 auto-calibration.
     void setDeviceLatencyUs(qint64 us) { m_deviceLatencyUs.store(us, std::memory_order_relaxed); }
 
+    // Candidate trigger threshold = factor × noise floor; higher = less
+    // sensitive. Atomic — set from the GUI thread (microphone calibration)
+    // while onAudioData applies it on the audio thread at buffer boundaries.
+    // Default mirrors OnsetDetectorConfig::thresholdFactor (8.0).
+    void setThresholdFactor(float f) { m_thresholdFactor.store(f, std::memory_order_relaxed); }
+
+    // Absolute amplitude gate (OnsetDetectorConfig::minLevelAbs): a candidate
+    // only opens when the envelope exceeds this, so quiet ticks/ambient never
+    // fire and never mask a real impact. This is the primary calibration knob.
+    // Atomic, applied per-buffer like the threshold factor. 0 = disabled.
+    void setMinLevel(float lvl) { m_minLevel.store(lvl, std::memory_order_relaxed); }
+
 public slots:
     // Audio-thread context (direct connection from audioDataReady).
     void onAudioData(const QByteArray &data, const QAudioFormat &format);
@@ -59,8 +71,15 @@ signals:
     // latency constant.
     void impactDetected(qint64 estImpactUs, float confidence);
 
+    // Emitted once per processed buffer (~50–100 Hz) for the calibration meter:
+    // the peak envelope over the buffer, plus the current noise floor and
+    // trigger threshold. Audio-thread context — connect with a receiver.
+    void levelSample(float level, float noiseFloor, float threshold);
+
 private:
     pinpoint::OnsetDetector m_detector;
     QAudioFormat            m_format;       // last-seen; reset() on change
     std::atomic<qint64>     m_deviceLatencyUs { 20'000 };
+    std::atomic<float>      m_thresholdFactor { 8.0f };
+    std::atomic<float>      m_minLevel        { 0.0f };
 };
