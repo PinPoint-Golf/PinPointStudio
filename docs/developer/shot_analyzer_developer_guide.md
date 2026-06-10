@@ -41,8 +41,8 @@ analyse the same kind of window with entirely different pipelines. The
 `SessionController::Type` keep that polymorphism out of the orchestration code.
 
 The analyzer is **not** shot detection (deciding that/when a shot happened —
-see `docs/shot_detector_developer_guide.md`) and **not** the media export
-(encoding MP4s + thumbnail — see `docs/swing_export_developer_guide.md`). It
+see `docs/developer/shot_detector_developer_guide.md`) and **not** the media export
+(encoding MP4s + thumbnail — see `docs/developer/swing_export_developer_guide.md`). It
 runs *concurrently with* the export over the same frozen window, and the two
 join before anything is published.
 
@@ -325,7 +325,7 @@ SwingScorer::score(series, sessionType)
 ```
 
 Two hardware-locked facts to respect (full story in `wrist_angles.h` and
-`docs/IMU_FRAME_CONTRACT.md` §4–5):
+`docs/design/IMU_FRAME_CONTRACT.md` §4–5):
 
 - **Joint DOFs are read on the relative-rotation axes, not the segment-axis
   names**: in the forearm→hand decomposition, flexion/extension is about **Z**
@@ -621,10 +621,10 @@ src/Export/
 ---
 
 *Design rationale and the metric/scoring evidence base: 
-`docs/SHOT_ANALYZER_DESIGN.md` (architecture + scoring model),
-`docs/SHOT_ANALYZER_M1_WRIST.md` (the M1 wrist chain),
-`docs/SHOT_ANALYZER_VIZ.md` (replay graph), `docs/WRISTMETRICS.md` (bands),
-`docs/IMU_FRAME_CONTRACT.md` (frames and joint-DOF axes). Upstream:
-`docs/shot_detector_developer_guide.md`; sideways:
-`docs/swing_export_developer_guide.md`; underneath:
-`docs/event_buffer_developer_guide.md`.*
+`docs/design/SHOT_ANALYZER_DESIGN.md` (architecture + scoring model),
+`docs/implementation/SHOT_ANALYZER_M1_WRIST.md` (the M1 wrist chain),
+`docs/design/SHOT_ANALYZER_VIZ.md` (replay graph), `docs/reference/WRISTMETRICS.md` (bands),
+`docs/design/IMU_FRAME_CONTRACT.md` (frames and joint-DOF axes). Upstream:
+`docs/developer/shot_detector_developer_guide.md`; sideways:
+`docs/developer/swing_export_developer_guide.md`; underneath:
+`docs/developer/event_buffer_developer_guide.md`.*

@@ -135,7 +135,7 @@ int main()
     //   orientation, NOT identity — a fixed frame-convention difference from Madgwick.
     //   The two filters are runtime-swappable into the SAME downstream A·q·M, so a swap
     //   without re-calibration would flip orientation by this 180°; per-session re-solve
-    //   of A absorbs it (docs/IMU_REARCHITECTURE.md §1.4, N1). We therefore characterize
+    //   of A absorbs it (docs/implementation/IMU_REARCHITECTURE.md §1.4, N1). We therefore characterize
     //   ESKF by rotation RELATIVE to its own seed, which is convention-independent.
     std::printf("\n-- D. ESKF (relative-to-seed; ESKF world differs from Madgwick by 180°·X) --\n");
     {

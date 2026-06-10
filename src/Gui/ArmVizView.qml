@@ -166,7 +166,7 @@ Item {
     // per-GLB REST OFFSET (the part that makes each segment hang). Canonical basis change:
     // pinpoint::viz::worldToScene() (src/Gui/viz_frame.h), a fixed Rx(-90°); viz_frame_test
     // pins that worldToScene·restOffset reproduces the old hand-tuned R0 constants, so the
-    // avatar is unchanged. (docs/IMU_FRAME_CONTRACT.md §6; IMU_REARCHITECTURE.md §3.4c.)
+    // avatar is unchanged. (docs/design/IMU_FRAME_CONTRACT.md §6; IMU_REARCHITECTURE.md §3.4c.)
     //   left-handed lead  → restOffset = identity → R0 IS the pure basis change.
     //   right-handed lead → restOffset is the back-of-hand/forearm GLB rest rotation.
     readonly property quaternion worldToScene:    Qt.quaternion(0.70710678, -0.70710678, 0, 0)

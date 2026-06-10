@@ -27,7 +27,7 @@ namespace pinpoint {
 // All values are in the RAW SENSOR body frame (no axis remap): accel, gyro, AND the
 // fused orientation quaternion now share ONE declared frame. (v1 stored the vectors
 // in a display frame but the quaternion un-remapped — the two described different
-// frames within one struct; v2 resolves that split.) See docs/IMU_FRAME_CONTRACT.md.
+// frames within one struct; v2 resolves that split.) See docs/design/IMU_FRAME_CONTRACT.md.
 // Rotation is a unit quaternion — never stored as Euler angles.
 struct ImuSample {
     float accel_x, accel_y, accel_z;        // acceleration (g)

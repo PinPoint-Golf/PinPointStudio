@@ -165,7 +165,7 @@ void WT9011DCL_BLE::zeroToCurrentPose()
 // Madgwick 6-axis fusion of raw gyro+accel (orientation_filter.h), because the
 // device's on-board Euler output proved non-rigid. This override is retained only
 // for the old 0x55/0x53 serial packet path and is not on the WT901BLE67 hot path.
-// See docs/IMU_AXIS_REFERENCE.md.
+// See docs/reference/IMU_AXIS_REFERENCE.md.
 //
 // (Historical note — axis mapping it attempted: Roll→X, Yaw→Y, Pitch→Z, pitch
 // negated; gated on |pitch| as the ZYX middle-angle singularity.)

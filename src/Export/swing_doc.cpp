@@ -159,7 +159,7 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
 
     // Only video presence is reconstructed here. imu / pose streams and the raw
     // sidecar are not parsed on reload yet — see the "Reload & replay consumer
-    // contract" in docs/swing_export_developer_guide.md for the shapes a future
+    // contract" in docs/developer/swing_export_developer_guide.md for the shapes a future
     // consumer must honor (IMU json/csv/binary, pose coco17, raw reconstruction).
     for (const QJsonValue &v : root[QStringLiteral("streams")].toArray())
         if (v.toObject()[QStringLiteral("kind")].toString() == QLatin1String("video")) { ps.hasVideo = true; break; }

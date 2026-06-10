@@ -26,8 +26,8 @@
 #include <cmath>
 
 // Pure lead-arm joint-angle extraction from per-segment ANATOMICAL quaternions
-// (q_anat = A·q_raw·M; design: docs/SHOT_ANALYZER_M1_WRIST.md §4; frame & joint-DOF
-// axis tables: docs/IMU_FRAME_CONTRACT.md §4-5). Header-only and Qt-Gui-only so it is
+// (q_anat = A·q_raw·M; design: docs/implementation/SHOT_ANALYZER_M1_WRIST.md §4; frame & joint-DOF
+// axis tables: docs/design/IMU_FRAME_CONTRACT.md §4-5). Header-only and Qt-Gui-only so it is
 // unit-testable without the app / SwingWindow.
 //
 // ANATOMICAL BODY FRAME (from imu_calibration::solveSegment): per segment,
@@ -52,7 +52,7 @@
 // remains because the no-magnetometer heading (yaw) is unobservable between two sensors
 // (see imu_base.h) — primary channels are correct, the secondary leak is the heading work.
 //
-// CHOSEN CONVENTION (PinPoint = ISB + golf coaching; docs/WRISTMETRICS.md):
+// CHOSEN CONVENTION (PinPoint = ISB + golf coaching; docs/reference/WRISTMETRICS.md):
 //   +flexion  = "bowed"   (lead wrist bowed toward the ground — the impact goal)
 //   +deviation= "ulnar"   (wrist "hinge"/cock)
 //   +pronation= "roll"    (forearm pronation)
@@ -159,7 +159,7 @@ inline ForearmElbow forearmPronElbowFlex(const QQuaternion &qElbowRel, bool left
 inline double radToDeg(double r) { return r * 180.0 / M_PI; }
 
 // User-facing value string per metric, in PinPoint's coaching convention
-// (docs/WRISTMETRICS.md): bow/cup, hinge (ulnar/radial), roll (pronated/supinated);
+// (docs/reference/WRISTMETRICS.md): bow/cup, hinge (ulnar/radial), roll (pronated/supinated);
 // other keys fall back to a signed magnitude in degrees. Shared by the offline analyzer
 // (wrist_analyzer) and the live check-sensors readout (live_wrist_angles).
 inline QString wristMetricLabel(const QString &key, double deg)

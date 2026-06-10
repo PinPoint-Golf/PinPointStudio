@@ -83,7 +83,7 @@ std::vector<MetricSeries> MetricExtractor::extract(const FusedStreams &s,
     // Series are NEUTRAL-relative (absolute joint posture vs the calibration neutral) —
     // the same reference as the live check-sensors readout, and what the scorer's absolute
     // bands expect. Δ-from-address is derived in the UI from the Address phase-sample
-    // (docs/SHOT_ANALYZER_VIZ.md).
+    // (docs/design/SHOT_ANALYZER_VIZ.md).
 
     // --- wrist flex/ext + radial/ulnar (forearm + hand) ---
     if (fore && hand && static_cast<int>(fore->qAnat.size()) == N

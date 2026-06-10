@@ -197,7 +197,7 @@ given the EventBuffer's existing per-source timestamps (open question — §10).
 
 ## 6. Recommended architecture for PinPoint
 
-> **Implementation plan:** [`SHOT_DETECTION_IMPL.md`](SHOT_DETECTION_IMPL.md) turns this into a concrete,
+> **Implementation plan:** [`SHOT_DETECTION_IMPL.md`](../implementation/SHOT_DETECTION_IMPL.md) turns this into a concrete,
 > component-by-component build (IMU + acoustic detectors, the candidate→arbitrate→commit layer, the
 > latency-aware timestamp model, phasing, and tests).
 

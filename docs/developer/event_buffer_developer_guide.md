@@ -1176,4 +1176,4 @@ cmake -B tests/build_bench && cmake --build tests/build_bench
 ---
 
 *For the full design rationale, architectural decisions, and revision history, see
-`docs/event_buffer_design.md`.*
+`docs/design/event_buffer_design.md`.*

@@ -5,7 +5,7 @@
 //   cmake -S src/Analysis/tests -B build/analyzer-tests -DCMAKE_PREFIX_PATH=$HOME/Qt/6.11.0/gcc_64
 //   cmake --build build/analyzer-tests && ctest --test-dir build/analyzer-tests --output-on-failure
 //
-// This is the Track-A keystone golden (docs/IMU_REARCHITECTURE.md §6 Phase 0.1): it
+// This is the Track-A keystone golden (docs/implementation/IMU_REARCHITECTURE.md §6 Phase 0.1): it
 // freezes the calibration solve and the composed q_anat→angle numbers so any later
 // frame-contract change that silently perturbs them fails loudly.
 //
@@ -86,7 +86,7 @@ int main()
 
     // -- B. solveSegment reproduces nominalArmMount from the canonical arm-down inputs.
     //    Arm hanging: gravity-DOWN is sensor +X, long axis (distal) is sensor +X, flexion
-    //    axis is sensor +Z (docs/IMU_AXIS_REFERENCE.md + imu_calibration.h:54-57). Hand-
+    //    axis is sensor +Z (docs/reference/IMU_AXIS_REFERENCE.md + imu_calibration.h:54-57). Hand-
     //    verified: this yields M=(0.5,-0.5,-0.5,-0.5)=nominalArmMount exactly.
     std::printf("\n-- B. solveSegment(arm-down) == nominalArmMount --\n");
     {

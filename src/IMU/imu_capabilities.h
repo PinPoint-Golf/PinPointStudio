@@ -98,7 +98,7 @@ struct ImuCapabilities {
                                                 // combined-frame stream
     bool supportsAngleReference       = false;  // CALSW=0x0008: zero roll/pitch to current position
     bool supportsHeadingZero          = false;  // CALSW=0x0004: zero yaw/heading to current
-    bool supportsAccelGyroCalibration = false;  // CALSW=0x0001: 6-point accel+gyro bias cal (all 6 faces) — WitMotion app only; see docs/IMU_AXIS_REFERENCE.md
+    bool supportsAccelGyroCalibration = false;  // CALSW=0x0001: 6-point accel+gyro bias cal (all 6 faces) — WitMotion app only; see docs/reference/IMU_AXIS_REFERENCE.md
     bool supportsMagCalibration       = false;  // CALSW=0x0007: spherical magnetic field calibration
     bool supportsConfigPersistence    = false;  // SAVE register: write settings to onboard flash
 

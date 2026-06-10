@@ -48,7 +48,7 @@ namespace imu_calibration {
 // from the thigh = lateral, USB connector forward = anterior). The strap enforces
 // orientation, so this is a KNOWN FIXED CONSTANT (no per-session strap solve).
 //
-// Derived from the desk-characterisation sensor->case map (docs/IMU_AXIS_REFERENCE.md:
+// Derived from the desk-characterisation sensor->case map (docs/reference/IMU_AXIS_REFERENCE.md:
 //   sensor +X = device-right, +Y = USB-end, +Z = face-normal) + the strap
 // convention, with axis SIGNS pinned by the measured arm-down gravity:
 //   e_y (long, distal / DOWN)     = sensor +X   (accel-up at arm-down = sensor -X)
@@ -143,7 +143,7 @@ inline Alignment solveSegment(const QQuaternion &refRaw,
 // sensor orientation q_raw, and the anatomical->sensor mount M:  q_anat = A * q_raw * M.
 // SINGLE SOURCE OF TRUTH for the A*q*M composition, shared by the live write path
 // (imu_instance.cpp) and the offline scored path (imu_vision_fuser.cpp) so a
-// frame-contract change cannot make them diverge (docs/IMU_FRAME_CONTRACT.md).
+// frame-contract change cannot make them diverge (docs/design/IMU_FRAME_CONTRACT.md).
 // Normalised — the operands are unit quaternions, so this only absorbs float drift.
 inline QQuaternion toAnatomical(const QQuaternion &A, const QQuaternion &qRaw, const QQuaternion &M)
 {

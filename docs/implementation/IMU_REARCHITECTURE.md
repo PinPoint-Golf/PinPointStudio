@@ -6,10 +6,10 @@ a parallel multi-agent investigation and **independently re-verified against sou
 load-bearing claims (the fusion source, the storage frame split, the 6-axis register write,
 the wrist-angle math, the calibration model).*
 
-Companion docs: [`IMU_AXIS_REFERENCE.md`](IMU_AXIS_REFERENCE.md),
-[`WT901BLE67_Protocol.md`](WT901BLE67_Protocol.md),
-[`SHOT_ANALYZER_M1_WRIST.md`](SHOT_ANALYZER_M1_WRIST.md), [`WRISTCALIBRATION.md`](WRISTCALIBRATION.md),
-[`WRISTMETRICS.md`](WRISTMETRICS.md), and the source PDF
+Companion docs: [`IMU_AXIS_REFERENCE.md`](../reference/IMU_AXIS_REFERENCE.md),
+[`WT901BLE67_Protocol.md`](../reference/WT901BLE67_Protocol.md),
+[`SHOT_ANALYZER_M1_WRIST.md`](SHOT_ANALYZER_M1_WRIST.md), [`WRISTCALIBRATION.md`](../user/WRISTCALIBRATION.md),
+[`WRISTMETRICS.md`](../reference/WRISTMETRICS.md), and the source PDF
 `~/Documents/Witmotion/WT9011DCL-BT50 Communication Protocol.pdf`.
 
 ---
@@ -343,7 +343,7 @@ composition; `live_wrist_angles.cpp`; **all QML viz mapping constants**; the lef
 The end state is small and conservative:
 
 1. **One documented contract** (§3.2) — written into `imu_sample.h` and a short
-   `docs/IMU_FRAME_CONTRACT.md`, referenced by every consumer.
+   `docs/design/IMU_FRAME_CONTRACT.md`, referenced by every consumer.
 2. **One declared frame in storage** (`ImuInstance`'s write lambda) — accel, gyro, **and** quaternion
    in a single declared frame (resolve the N2 split: either remap the quaternion to match the
    vectors, or stop remapping the vectors). Note what actually consumes each field: the ring
@@ -423,7 +423,7 @@ Phase 0.0 dep provisioning checked in so the gate actually compiles.
 
 ### Phase 1 — Frame contract + storage fix (Track B) · *behaviour-preserving*
 
-- **1.1** Write `docs/IMU_FRAME_CONTRACT.md` (§3.2), including the **authoritative per-segment
+- **1.1** Write `docs/design/IMU_FRAME_CONTRACT.md` (§3.2), including the **authoritative per-segment
   anatomical axis-label table** (Open-Q §7 #4 — none exists in code today), and reference it from
   `imu_sample.h`, `imu_calibration.h`, `wrist_angles.h`.
 - **1.2** Resolve the N2 split (`imu_instance.cpp:271-281`): put accel, gyro, **and** quaternion in

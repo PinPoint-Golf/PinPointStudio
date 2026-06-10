@@ -21,7 +21,7 @@
 // playhead that scrubs in lockstep with the ¼× replay. Filter chips below double as the
 // legend + a live value/Δ-from-address readout at the playhead. Reads
 // analysisDetail.series; playhead binds to shotProcessor.replayPositionUs (same µs domain
-// as t_us). Pure Shape/Rectangle — no Canvas, no QtCharts. See docs/SHOT_ANALYZER_VIZ.md.
+// as t_us). Pure Shape/Rectangle — no Canvas, no QtCharts. See docs/design/SHOT_ANALYZER_VIZ.md.
 
 pragma ComponentBehavior: Bound
 

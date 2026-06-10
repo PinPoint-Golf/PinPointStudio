@@ -3,7 +3,7 @@
 //
 // These two paths are currently UNREACHABLE on the live BLE67 stream (the 0x61
 // combined frame is host-fused from raw accel+gyro; the device Euler is display-only
-// and the 0x59 quaternion frame is never emitted — docs/IMU_REARCHITECTURE.md §1.1).
+// and the 0x59 quaternion frame is never emitted — docs/implementation/IMU_REARCHITECTURE.md §1.1).
 // They are nonetheless load-bearing reference math: a future native-quaternion path
 // (Track C) or any re-wiring must inherit exactly these byte- and axis-conventions.
 // This freezes them.

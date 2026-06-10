@@ -8,27 +8,40 @@ PinPoint Studio is a free, open source and cross-platform desktop application fo
 
 The app is currently in active prototyping. The core capture and analysis pipeline is functional; the coaching and session-history layers are in development.
 
-![PinPoint Studio — Editorial light](docs/aesthetic/home.png)
+![PinPoint Studio — Editorial light](docs/design/aesthetic/home.png)
 
 The long term goal is to exploit computer vision and wearables to analyse golf movements and mechanistically determine your kinematic sequence aka Lateral-Rock-Twist-Jump, extract key golf swing metrics like X-Factor and tilt, working with the full swing or specialist shots such as pitching and in the sand, wrist angles to examine cupping, cocking and flipping, estimated ground forces to support the kinematic sequence analysis. 
 
 Our ambition is to be a platform that can be used by golfers, coaches and researchers to improve everyone's golfing ability and understanding of the golf swing.
 
 ## Documentation
+
+The `docs/` folder is organised by audience: **user**, **design**, **developer**, and **reference** (internal build/implementation plans live in `docs/implementation/`).
+
 - [Building Instructions](BUILDING.md) — How to resolve dependencies and build PinPoint Studio.
-- [UX Design](docs/pinpoint-ux-design.md) — UI structure, navigation, and interaction design rationale.
-- [User Personas](docs/PERSONAS.md) — Definitions of the three primary user archetypes (club golfer, coach, researcher).
-- [Persona UX Assessment](docs/pinpoint-persona-assessment.md) — UX evaluation against three user archetypes; identifies gaps and design priorities.
-- [EventBuffer Design](docs/event_buffer_design.md) — Architecture and design rationale for the lock-free EventBuffer.
-- [EventBuffer Developer Guide](docs/event_buffer_developer_guide.md) — Tutorial covering usage, threading model, and integration patterns.
-- [Swing Export Developer Guide](docs/swing_export_developer_guide.md) — Per-swing MP4 + swing.json export: pipeline, resume gating, encoder, and sidecar schema.
-- [Shot Analyzer Design](docs/SHOT_ANALYZER_DESIGN.md) — Post-shot analysis pipeline: phase segmentation, metric extraction, scoring, and the per-session-type analyzer interface.
-- [Wrist Calibration Guide](docs/WRISTCALIBRATION.md) — How to mount the IMUs and run the two-pose wrist-motion calibration.
-- [Wrist Metrics Reference](docs/WRISTMETRICS.md) — Lead-arm wrist-angle metrics: sign conventions, coaching names, and research-backed bands.
-- [IMU Frame Contract](docs/IMU_FRAME_CONTRACT.md) — The device-agnostic orientation boundary every IMU consumer depends on.
-- [WT901BLE67 Protocol Reference](docs/WT901BLE67_Protocol.md) — Packet formats, register map, and BLE transport details for the Witmotion IMU.
-- [Aesthetic Design Concepts](docs/aesthetic/pinpoint-aesthetic-concepts.md) — Three visual design directions (Editorial, Instrument, Studio) across light and dark themes.
-- [QML Design System](docs/PINPOINT_QML_DESIGN_SYSTEM.md) — Token system, typography rules, and component patterns; read before writing any QML.
+
+**User & UX** — [`docs/user/`](docs/user)
+- [UX Design](docs/user/pinpoint-ux-design.md) — UI structure, navigation, and interaction design rationale.
+- [User Personas](docs/user/PERSONAS.md) — Definitions of the three primary user archetypes (club golfer, coach, researcher).
+- [Persona UX Assessment](docs/user/pinpoint-persona-assessment.md) — UX evaluation against three user archetypes; identifies gaps and design priorities.
+- [Wrist Calibration Guide](docs/user/WRISTCALIBRATION.md) — How to mount the IMUs and run the two-pose wrist-motion calibration.
+
+**Design** — [`docs/design/`](docs/design)
+- [EventBuffer Design](docs/design/event_buffer_design.md) — Architecture and design rationale for the lock-free EventBuffer.
+- [Shot Analyzer Design](docs/design/SHOT_ANALYZER_DESIGN.md) — Post-shot analysis pipeline: phase segmentation, metric extraction, scoring, and the per-session-type analyzer interface.
+- [IMU Frame Contract](docs/design/IMU_FRAME_CONTRACT.md) — The device-agnostic orientation boundary every IMU consumer depends on.
+- [QML Design System](docs/design/PINPOINT_QML_DESIGN_SYSTEM.md) — Token system, typography rules, and component patterns; read before writing any QML.
+- [Aesthetic Design Concepts](docs/design/aesthetic/pinpoint-aesthetic-concepts.md) — Three visual design directions (Editorial, Instrument, Studio) across light and dark themes.
+
+**Developer guides** — [`docs/developer/`](docs/developer)
+- [EventBuffer Developer Guide](docs/developer/event_buffer_developer_guide.md) — Tutorial covering usage, threading model, and integration patterns.
+- [Swing Export Developer Guide](docs/developer/swing_export_developer_guide.md) — Per-swing MP4 + swing.json export: pipeline, resume gating, encoder, and sidecar schema.
+- [Shot Detector Developer Guide](docs/developer/shot_detector_developer_guide.md) — Multi-modal shot detection: IMU impact + acoustic onset detectors, the arbiter, and latency-aware timestamping.
+- [Shot Analyzer Developer Guide](docs/developer/shot_analyzer_developer_guide.md) — The post-shot pipeline: from frozen SwingWindow through analysis to score, metrics, and the unified swing.json.
+
+**Reference** — [`docs/reference/`](docs/reference)
+- [Wrist Metrics Reference](docs/reference/WRISTMETRICS.md) — Lead-arm wrist-angle metrics: sign conventions, coaching names, and research-backed bands.
+- [WT901BLE67 Protocol Reference](docs/reference/WT901BLE67_Protocol.md) — Packet formats, register map, and BLE transport details for the Witmotion IMU.
 
 ---
 
@@ -56,11 +69,11 @@ Three utility buttons sit at the bottom of the rail:
 | **System ◈** | Opens the resource monitor (buffer, camera, and IMU diagnostics) |
 | **Settings ⚙** | Opens the full Settings screen (see [Settings](#settings)) |
 
-The **Settings** screen selects from eight visual themes — four aesthetics (Instrument, Editorial, Studio, Vector) × two modes (light, dark) — and the selected theme is persisted across restarts. See [Aesthetic Design Concepts](docs/aesthetic/pinpoint-aesthetic-concepts.md).
+The **Settings** screen selects from eight visual themes — four aesthetics (Instrument, Editorial, Studio, Vector) × two modes (light, dark) — and the selected theme is persisted across restarts. See [Aesthetic Design Concepts](docs/design/aesthetic/pinpoint-aesthetic-concepts.md).
 
 | Editorial | Instrument | Studio |
 |---|---|---|
-| ![Editorial light](docs/aesthetic/editorial_summary_light.png) | ![Instrument light](docs/aesthetic/instrument_summary_light.png) | ![Studio light](docs/aesthetic/studio_summary_light.png) |
+| ![Editorial light](docs/design/aesthetic/editorial_summary_light.png) | ![Instrument light](docs/design/aesthetic/instrument_summary_light.png) | ![Studio light](docs/design/aesthetic/studio_summary_light.png) |
 
 ---
 
@@ -378,7 +391,7 @@ The app forces `QSettings::IniFormat` (see `src/Core/pp_settings.h`), so on Wind
 | `session/goalsByType` | _(empty map)_ | ✅ | Per-session-type speed goals; key → target mph value |
 | `session/lastType` | `0` | ✅ | Index of the last-used session type; pre-selects on next wizard open |
 
-**Storage** — honored by the swing exporter (each shot writes one `swing.json` + per-camera clips into the session folder); see the [Swing Export Developer Guide](docs/swing_export_developer_guide.md)
+**Storage** — honored by the swing exporter (each shot writes one `swing.json` + per-camera clips into the session folder); see the [Swing Export Developer Guide](docs/developer/swing_export_developer_guide.md)
 
 | Key | Default | Status | What |
 |---|---|---|---|

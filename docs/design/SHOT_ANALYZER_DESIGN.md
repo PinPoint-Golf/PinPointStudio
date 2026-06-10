@@ -547,7 +547,7 @@ struct ScoreBreakdown {
 
 ## Metric time series & key-swing-point sampling
 
-Every biomechanics metric is **two things at once**: a *continuous per-frame curve* over the swing window's master timeline, and a *sparse set of labelled samples* at each key swing point. The graph needs both — the curve to draw the line, the phase samples to place markers, pin checkpoint readouts, and drive scoring. Both live in the committed `pinpoint::analysis` structs (`docs/SHOT_ANALYZER_DESIGN.md:146-161`); this subsection makes them buildable and persistent. None of it exists in code yet — `src/Analysis/swing_analysis.{h,cpp}` is **to be ADDED**; `ShotAnalysisResult` (`src/Analysis/shot_analyzer.h:47-53`) today carries only `score`/`metrics`/`tracePoints`.
+Every biomechanics metric is **two things at once**: a *continuous per-frame curve* over the swing window's master timeline, and a *sparse set of labelled samples* at each key swing point. The graph needs both — the curve to draw the line, the phase samples to place markers, pin checkpoint readouts, and drive scoring. Both live in the committed `pinpoint::analysis` structs (`docs/design/SHOT_ANALYZER_DESIGN.md:146-161`); this subsection makes them buildable and persistent. None of it exists in code yet — `src/Analysis/swing_analysis.{h,cpp}` is **to be ADDED**; `ShotAnalysisResult` (`src/Analysis/shot_analyzer.h:47-53`) today carries only `score`/`metrics`/`tracePoints`.
 
 ### 1. Data model — TimeGrid, MetricSeries, PhaseSample
 
@@ -861,8 +861,8 @@ validated against `mirroredSource`/handedness; occluded segments stay IMU-recons
 > As-built status after **M1 (Wrist Motion)** — what shipped, decisions taken along the way,
 > and what was deferred. M1 is on `main` (analysis engine → scorer → unified persistence +
 > reload → replay-synced multi-metric graphs → live check-sensors overlay + hardware
-> sign-lock). Companions: `docs/SHOT_ANALYZER_M1_WRIST.md` (§11 = tidy-up checklist) and
-> `docs/WRISTMETRICS.md` (sign/axis/naming + norms). `docs/SHOT_ANALYZER_VIZ.md` covers the
+> sign-lock). Companions: `docs/implementation/SHOT_ANALYZER_M1_WRIST.md` (§11 = tidy-up checklist) and
+> `docs/reference/WRISTMETRICS.md` (sign/axis/naming + norms). `docs/design/SHOT_ANALYZER_VIZ.md` covers the
 > graph work.
 >
 > **Scope:** M1 is the **IMU-orientation** path only. Pose/triangulation layers (1, 2, 4, 5)
@@ -900,7 +900,7 @@ validated against `mirroredSource`/handedness; occluded segments stay IMU-recons
 ### Metrics & scoring — as-built
 - **Catalog (M1 wrist):** `leadWristFlexExt` (bow/cup), `leadWristRadUln` (hinge),
   `forearmPronation` (roll), `leadArmFlexion` (elbow). **Decision:** coaching names + ISB signs
-  (`docs/WRISTMETRICS.md`); shared `wristMetricLabel()` used by analyzer + live readout.
+  (`docs/reference/WRISTMETRICS.md`); shared `wristMetricLabel()` used by analyzer + live readout.
 - **Reference-frame decision:** **neutral/absolute primary** — unifies the live readout with
   shot analysis, and **fixed a scorer reference mismatch** (it now grades the absolute impact
   posture against the absolute bands, not the address-delta).

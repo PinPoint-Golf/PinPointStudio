@@ -1,10 +1,10 @@
 # Shot Detection — Implementation Plan
 
-Operationalizes the design in [`SHOTDETECTION.md`](SHOTDETECTION.md): build the **multi-modal shot
+Operationalizes the design in [`SHOTDETECTION.md`](../design/SHOTDETECTION.md): build the **multi-modal shot
 trigger** — inertial (IMU) + acoustic (microphone) detectors with vision corroboration — behind the
 existing `ShotController`, with a **candidate→arbitrate→commit** layer and **latency-aware
 timestamping**. The vision modality's detector is specified separately in
-[`BALL_DETECTOR_DESIGN.md`](BALL_DETECTOR_DESIGN.md); this doc covers the inertial + acoustic detectors,
+[`BALL_DETECTOR_DESIGN.md`](../design/BALL_DETECTOR_DESIGN.md); this doc covers the inertial + acoustic detectors,
 the arbiter, and the timing model.
 
 Status: **plan / not started.** Every file path, signature, threading and contract claim below is
@@ -294,4 +294,4 @@ Standalone CTest harnesses (project convention, e.g. `src/IMU/tests/`, `src/Audi
 
 ---
 
-*Design: [`SHOTDETECTION.md`](SHOTDETECTION.md). Vision modality: [`BALL_DETECTOR_DESIGN.md`](BALL_DETECTOR_DESIGN.md).*
+*Design: [`SHOTDETECTION.md`](../design/SHOTDETECTION.md). Vision modality: [`BALL_DETECTOR_DESIGN.md`](../design/BALL_DETECTOR_DESIGN.md).*

@@ -358,7 +358,7 @@ type later is just another element of `streams[]` — readers must ignore unknow
 | `window.end_us` | `endTimestampUs() − t0` |
 | video `source.*`, `capture.*` | `CameraFormat` via `window.formatOf()` (`serial` from `FormatDescriptor::device_serial`) |
 | video `frames.t_us` | Recorded in the encode loop — **written frames only**, so frame *i* in the MP4 corresponds to entry *i* here, always |
-| imu `samples` | Decoded `ImuSample` payloads (40 bytes / 10 floats, schema `imu_sample_v2` — accel, gyro, and quaternion all in the raw sensor frame; see [`IMU_FRAME_CONTRACT.md`](IMU_FRAME_CONTRACT.md)) |
+| imu `samples` | Decoded `ImuSample` payloads (40 bytes / 10 floats, schema `imu_sample_v2` — accel, gyro, and quaternion all in the raw sensor frame; see [`IMU_FRAME_CONTRACT.md`](../design/IMU_FRAME_CONTRACT.md)) |
 | `athlete`, `session`, `swing` | The `SwingExportJob` (resolved on the UI thread) |
 
 The `frames.t_us` index is what lets any downstream tool map output frame *i* to
@@ -778,12 +778,12 @@ cmake --build build/analyzer-tests -j
 ctest --test-dir build/analyzer-tests -R swing_doc_test --output-on-failure
 ```
 
-See [BUILDING.md → Testing](../BUILDING.md#testing) for the full suite (and the
+See [BUILDING.md → Testing](../../BUILDING.md#testing) for the full suite (and the
 EventBuffer suite that backs the borrowed-window contract this module relies on).
 
 ---
 
 *For the EventBuffer contracts this module depends on — pause/resume semantics,
 SwingWindow lifetime, zero-copy read safety — see
-`docs/event_buffer_developer_guide.md`, in particular §9 (SwingWindow) and §14
+`docs/developer/event_buffer_developer_guide.md`, in particular §9 (SwingWindow) and §14
 (Common Mistakes).*

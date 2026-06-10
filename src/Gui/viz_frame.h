@@ -21,7 +21,7 @@
 #include <QQuaternion>
 
 // Explicit basis change from the IMU world frame to the Qt Quick3D scene frame
-// (docs/IMU_FRAME_CONTRACT.md §6, IMU_REARCHITECTURE.md §3.4c).
+// (docs/design/IMU_FRAME_CONTRACT.md §6, IMU_REARCHITECTURE.md §3.4c).
 //
 //   IMU world : right-handed, +Z up (gravity reaction), +X right, +Y forward.
 //   Qt scene  : right-handed, +Y up, -Z forward, +X right.
