@@ -189,9 +189,30 @@ void STTProcessor::setChunkDurationMs(int ms)
     m_flushTimer->setInterval(ms);
 }
 
+void STTProcessor::setVoiceEnabled(bool enabled)
+{
+    if (m_voiceEnabled == enabled)
+        return;
+    m_voiceEnabled = enabled;
+    if (!enabled) {
+        m_buffer.clear();
+        QMetaObject::invokeMethod(m_worker, "stopStreaming", Qt::QueuedConnection);
+    }
+}
+
 void STTProcessor::processAudio(const QByteArray &data, const QAudioFormat &format)
 {
-    m_format = format;
+    if (!m_voiceEnabled)
+        return;
+
+    // A device switch can change the sample format/rate mid-capture. Bytes
+    // captured under the old format must never be converted with the new one —
+    // Int16 bytes reinterpreted as Float are garbage (including NaN/Inf, which
+    // crashes whisper's token sampler downstream).
+    if (format != m_format) {
+        m_buffer.clear();
+        m_format = format;
+    }
     m_buffer.append(data);
 }
 

@@ -265,13 +265,25 @@ void TranscriptionController::onSTTError(const QString &message)
 void TranscriptionController::startListening()
 {
     m_voiceWanted = true;
+    setSttGate(true);
     updateCapture();
 }
 
 void TranscriptionController::stopListening()
 {
     m_voiceWanted = false;
+    // Gate STT off even when capture stays open for calibration/shot detection
+    // — those reasons must not feed whisper.
+    setSttGate(false);
     updateCapture();
+}
+
+void TranscriptionController::setSttGate(bool enabled)
+{
+    STTProcessor *stt = m_stt;
+    QMetaObject::invokeMethod(stt, [stt, enabled]() {
+        stt->setVoiceEnabled(enabled);
+    }, Qt::QueuedConnection);
 }
 
 void TranscriptionController::setShotDetectionActive(bool active)

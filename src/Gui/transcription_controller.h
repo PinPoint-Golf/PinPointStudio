@@ -122,6 +122,10 @@ private:
     // last clears, so per-shot capture-intent churn never restarts the device.
     void updateCapture();
 
+    // STT only transcribes while the voice reason is active — capture opened
+    // for calibration/shot detection shares the mic but must not feed whisper.
+    void setSttGate(bool enabled);
+
 private:
     QThread              *m_audioThread;
     QThread              *m_processorThread;

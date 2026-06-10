@@ -61,6 +61,10 @@ public slots:
     void start();
     void processAudio(const QByteArray &data, const QAudioFormat &format) override;
     void stopStreaming();
+    // Gate on the voice listen reason. The capture pipeline also feeds this
+    // processor when the mic is open only for acoustic calibration / shot
+    // detection; audio arriving while disabled is discarded, not transcribed.
+    void setVoiceEnabled(bool enabled);
     // Tear down the current backend and restart with a cloud or local backend.
     // forceCloud=true → Azure STT; false → platform default (e.g. whisper.cpp).
     void swapBackend(bool forceCloud);
@@ -91,6 +95,7 @@ private:
     QStringList  m_searchedPaths;    // populated when model is not found
     bool         m_needsModelFile    = true;  // false for OS-native backends
     bool         m_silenceGating    = true;  // false for cloud backends (need silence for end-of-turn)
+    bool         m_voiceEnabled     = false; // true only while voice listening is wanted
     int          m_chunkDurationMs  = 3000;
     double       m_silenceThreshold = 0.01;
 };

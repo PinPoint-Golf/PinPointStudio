@@ -18,6 +18,7 @@
 
 #include "AudioConverter.h"
 #include <samplerate.h>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 
@@ -48,10 +49,13 @@ std::vector<float> AudioConverter::toWhisperFormat(
         break;
     }
     case QAudioFormat::Float: {
+        // Zero non-finite samples: NaN/Inf survives the downmix and resampler
+        // and poisons whisper's logits (its token sampler asserts on them).
         const int count = rawBytes.size() / 4;
         floatSamples.resize(count);
-        std::memcpy(floatSamples.data(), rawBytes.constData(),
-                    static_cast<std::size_t>(rawBytes.size()));
+        const auto* src = reinterpret_cast<const float*>(rawBytes.constData());
+        for (int i = 0; i < count; ++i)
+            floatSamples[i] = std::isfinite(src[i]) ? src[i] : 0.0f;
         break;
     }
     case QAudioFormat::UInt8: {
