@@ -433,6 +433,33 @@ Item {
             }
         }
 
+        // ── Shot-detection indicators — one dot per detection modality ─────
+        // Live feedback on the multi-modal detector: IMU impact + acoustic
+        // onset today, Ball/vision reserved (always dim until its producer
+        // lands). Tiers: glow = armed & listening, dim = auto-detect on but
+        // not armed, even-more-dim = auto-detect off or modality unavailable.
+        // A detection flashes the dot green and decays back over 2 s.
+        Row {
+            id: detectCluster
+            visible: !sessionReviewController.reviewActive
+            Layout.alignment: Qt.AlignVCenter
+            spacing: Theme.sp(8)
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: qsTr("DETECT")
+                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+            }
+            Row {
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Theme.sp(10)
+                DetectDot { id: imuDot;  available: imuManager.imuCount > 0 }
+                DetectDot { id: acDot;   available: true }
+                DetectDot { id: ballDot; available: false }
+            }
+        }
+
         Item { Layout.fillWidth: true }   // push device pills to the right
 
         // ── Cameras pill ────────────────────────────────────────────────────
@@ -504,6 +531,74 @@ Item {
             border.width: 1; border.color: Theme.colorBorderStrong
         }
         contentItem: PpImuPanel {}
+    }
+
+    // ── Detection-dot flashes ──────────────────────────────────────────────
+    // Each detector firing flashes its dot green; DetectDot.triggerFlash()
+    // self-gates on the dot being armed (capturing + auto-detect on), so a
+    // detector firing while disarmed leaves the dot at its dim tier. Acoustic
+    // onsets are emitted on the audio thread — the queued QML connection
+    // marshals them onto the GUI thread.
+    Connections {
+        target: imuManager
+        function onImpactDetected(estImpactUs, confidence) { imuDot.triggerFlash() }
+    }
+    Connections {
+        target: controller   // TranscriptionController owns the acoustic detector
+        function onImpactDetected(estImpactUs, confidence) { acDot.triggerFlash() }
+    }
+
+    // ── Shot-detection indicator dot ────────────────────────────────────────
+    // One per detection modality (see the DETECT cluster). Brightness tiers:
+    // even-more-dim (auto-detect off, or unavailable — e.g. the Ball
+    // placeholder / no IMU connected), dim (armed pipeline idle), glow (armed
+    // & listening, with a breathing halo). A detection flashes the dot green
+    // and decays to the base tier over 2 s. Call triggerFlash() to fire it.
+    component DetectDot: Item {
+        id: dd
+        property bool   available: true
+        property real   flash:     0     // 1 just after a detection → 0
+
+        readonly property bool _live:  available && appSettings.autoDetectSwing
+        readonly property bool armed:  _live && shotController.armed
+        readonly property real _alpha: armed ? 1.0 : (_live ? 0.38 : 0.14)
+
+        implicitWidth: Theme.sp(8); implicitHeight: Theme.sp(8)
+
+        function triggerFlash() {
+            if (!armed) return
+            _decay.stop(); _rmHold.stop()
+            flash = 1
+            if (Theme.reduceMotion) _rmHold.restart(); else _decay.restart()
+        }
+
+        // Breathing halo — armed only.
+        Rectangle {
+            anchors.centerIn: parent
+            width: Theme.sp(15); height: width; radius: width / 2
+            visible: dd.armed
+            color: Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.22)
+            SequentialAnimation on scale {
+                running: dd.armed && !Theme.reduceMotion
+                loops: Animation.Infinite
+                NumberAnimation { to: 1.3; duration: Theme.durationSlow }
+                NumberAnimation { to: 1.0; duration: Theme.durationSlow }
+            }
+        }
+        // Core dot — colour tier fades between states.
+        Rectangle {
+            anchors.fill: parent; radius: width / 2
+            color: Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, dd._alpha)
+            Behavior on color { ColorAnimation { duration: Theme.durationNormal } }
+        }
+        // Green detection flash, decays to reveal the core tier beneath.
+        Rectangle {
+            anchors.fill: parent; radius: width / 2
+            color: Theme.colorGood
+            opacity: dd.flash
+        }
+        NumberAnimation { id: _decay; target: dd; property: "flash"; to: 0; duration: 2000 }
+        Timer { id: _rmHold; interval: 2000; onTriggered: dd.flash = 0 }   // reduce-motion: hold then clear
     }
 
     // ── Inline pill component ───────────────────────────────────────────────
