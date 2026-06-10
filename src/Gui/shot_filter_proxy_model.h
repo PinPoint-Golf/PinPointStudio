@@ -26,8 +26,7 @@
 //     ShotFilterProxyModel { sourceModel: shotModel }
 //
 // so filter state is per-screen while the shot data stays shared.  Filters
-// AND together; trashed shots are always rejected.  All filter logic lives
-// here — QML only binds the Q_PROPERTYs.
+// AND together.  All filter logic lives here — QML only binds the Q_PROPERTYs.
 
 class ShotFilterProxyModel : public QSortFilterProxyModel
 {
@@ -41,7 +40,7 @@ class ShotFilterProxyModel : public QSortFilterProxyModel
     Q_PROPERTY(int  ratingFilter READ ratingFilter WRITE setRatingFilter NOTIFY filterChanged)
     Q_PROPERTY(bool hasVideoOnly READ hasVideoOnly WRITE setHasVideoOnly NOTIFY filterChanged)
 
-    // "N of M" — visible rows vs non-trashed source rows.
+    // "N of M" — visible (filtered) rows vs total source rows.
     Q_PROPERTY(int visibleCount READ visibleCount NOTIFY countsChanged)
     Q_PROPERTY(int sourceCount  READ sourceCount  NOTIFY countsChanged)
     // Filter-combo label: "N shots" unfiltered, "N of M shots" filtered.

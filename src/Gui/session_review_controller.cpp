@@ -52,7 +52,7 @@ SessionReviewController::SessionReviewController(ShotListModel     *liveModel,
     , m_settings(settings)
     , m_athlete(athlete)
 {
-    // The loaded session's shot count tracks trash/restore in the review model.
+    // The loaded session's shot count tracks trashing in the review model.
     connect(&m_reviewModel, &ShotListModel::activeCountChanged,
             this, &SessionReviewController::activeShotCountChanged);
     refresh();
@@ -80,8 +80,6 @@ SessionListModel::Row SessionReviewController::buildLiveRow(qint64 nowMs) const
         const int n = m_liveModel->rowCount();
         for (int r = 0; r < n; ++r) {
             const QModelIndex idx = m_liveModel->index(r);
-            if (m_liveModel->data(idx, ShotListModel::TrashedRole).toBool())
-                continue;
             pinpoint::ShotSummaryInput in;
             in.score    = m_liveModel->data(idx, ShotListModel::ScoreRole).toInt();
             in.hasVideo = m_liveModel->data(idx, ShotListModel::HasVideoRole).toBool();

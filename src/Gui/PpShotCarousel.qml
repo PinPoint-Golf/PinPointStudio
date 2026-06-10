@@ -57,7 +57,7 @@ Item {
 
     implicitHeight: Theme.carouselHeight
 
-    // A filtered-out or trashed selection destroys its delegate — drop the panel with it.
+    // A filtered-out or removed selection destroys its delegate — drop the panel with it.
     onSelectedCardChanged: if (!selectedCard && panelPopup.opened) panelPopup.close()
 
     // Opens the export options sheet for a set of swing dirs. Both the ⋯
@@ -349,11 +349,13 @@ Item {
                                     const ids = filterProxy.visibleShotIds()
                                     bulkMenu.close()
                                     panelPopup.close()
-                                    root.activeModel.moveAllToTrash(ids)
-                                    toast.showUndo = true   // shared toast — reset from any export use
+                                    const n = root.activeModel.moveAllToTrash(ids)
+                                    toast.showUndo = false   // OS trash is the recovery path, not an in-app undo
                                     toast.copyText = ""
                                     toast.glyph    = "🗑"
-                                    toast.show(qsTr("%1 shots moved to trash").arg(ids.length))
+                                    toast.show(ids.length === 0 ? qsTr("No shots to trash")
+                                               : n === ids.length ? qsTr("%1 shots moved to trash").arg(n)
+                                               : qsTr("Moved %1 of %2 shots to trash").arg(n).arg(ids.length))
                                 }
                             }
                         }
@@ -459,11 +461,12 @@ Item {
                 const trashedId      = shotPanel.shotId
                 shotPanel.commitNote()
                 panelPopup.close()
-                root.activeModel.moveToTrash(trashedId)
-                toast.showUndo = true   // shared toast — reset from any export use
+                const ok = root.activeModel.moveToTrash(trashedId)
+                toast.showUndo = false   // OS trash is the recovery path, not an in-app undo
                 toast.copyText = ""
                 toast.glyph    = "🗑"
-                toast.show(qsTr("Shot #%1 moved to trash").arg(trashedOrdinal))
+                toast.show(ok ? qsTr("Shot #%1 moved to trash").arg(trashedOrdinal)
+                              : qsTr("Couldn't move shot #%1 to trash").arg(trashedOrdinal))
             }
         }
     }
@@ -543,11 +546,11 @@ Item {
         }
     }
 
-    // ── Undo toast ───────────────────────────────────────────────────────────
+    // ── Notice toast (export result / trash confirmation; no in-app undo) ─────
     PpToast {
         id: toast
         anchors.horizontalCenter: parent.horizontalCenter
         y: -height - Theme.sp(14)
-        onUndoClicked: root.activeModel.restoreLastTrashed()
+        showUndo: false
     }
 }

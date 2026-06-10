@@ -25,12 +25,12 @@
 
 // ShotListModel — the session-global list of captured shots, shared by every
 // mode screen's PpShotCarousel.  Exposed in main.cpp as the QML context
-// property `shotModel`.  All shot mutation (rating, note, soft delete) goes
+// property `shotModel`.  All shot mutation (rating, note, trash) goes
 // through the Q_INVOKABLEs below — QML holds no business logic.
 //
-// Soft delete: moveToTrash() only flags the shot; ShotFilterProxyModel drops
-// flagged rows from every carousel.  Nothing is removed from disk — the
-// on-disk purge belongs to the Resource Monitor's future "empty trash".
+// Trash: moveToTrash() moves the shot's swing_NNNN/ folder to the operating
+// system trash (QFile::moveToTrash — cross-platform, recoverable there) and
+// removes the row.  There is no in-app undo: recovery is the OS trash's job.
 //
 // Shots arrive via ShotProcessor::maybeJoin() → addShot() at the
 // analysis+export join of each detected shot.
@@ -39,9 +39,7 @@ class ShotListModel : public QAbstractListModel
 {
     Q_OBJECT
 
-    // Id of the most recently trashed shot — the Undo toast restores it.
-    Q_PROPERTY(int lastTrashedId READ lastTrashedId NOTIFY lastTrashedIdChanged)
-    // Non-trashed shot count — the "of M" in the carousel's "N of M" label.
+    // Total shot count — the "of M" in the carousel's "N of M" label.
     Q_PROPERTY(int activeCount   READ activeCount   NOTIFY activeCountChanged)
 
 public:
@@ -56,7 +54,6 @@ public:
         ScoreRole,
         RatingRole,
         NoteRole,
-        TrashedRole,
         MetricsRole,
         AnalysisDetailRole,
         SwingDirRole,
@@ -68,7 +65,6 @@ public:
     QVariant               data(const QModelIndex &index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    int lastTrashedId() const { return m_lastTrashedId; }
     int activeCount()   const;
 
     // ShotProcessor's entry point — prepends a shot (newest first) with the
@@ -94,12 +90,13 @@ public:
 
     Q_INVOKABLE void setRating(int id, int n);
     Q_INVOKABLE void setNote(int id, const QString &text);
-    Q_INVOKABLE void moveToTrash(int id);
-    Q_INVOKABLE void moveAllToTrash(const QVariantList &ids);
-    Q_INVOKABLE void restore(int id);
-    // Restores the last moveToTrash/moveAllToTrash batch — the Undo toast's
-    // single entry point for both the one-shot and bulk delete paths.
-    Q_INVOKABLE void restoreLastTrashed();
+    // Move the shot's swing_NNNN/ folder to the OS trash and remove its row.
+    // Returns false (and keeps the row) if the move fails — e.g. no trash is
+    // available — so a shot is never lost from view while its files remain.
+    // An analysis-only shot (empty swingDir) just drops from the model.
+    Q_INVOKABLE bool moveToTrash(int id);
+    // Trash each id; returns the number actually moved to the OS trash.
+    Q_INVOKABLE int  moveAllToTrash(const QVariantList &ids);
 
     // Resolve a list of shot ids (e.g. ShotFilterProxyModel::visibleShotIds()) to
     // their absolute swing_NNNN directories, skipping analysis-only shots with no
@@ -107,7 +104,6 @@ public:
     Q_INVOKABLE QVariantList swingDirsForIds(const QVariantList &ids) const;
 
 signals:
-    void lastTrashedIdChanged();
     void activeCountChanged();
 
 private:
@@ -122,7 +118,6 @@ private:
         int          score = 0;       // 0–100 quality (placeholder for now)
         int          rating = 0;      // 0–5 user stars
         QString      note;
-        bool         trashed = false;
         QVariantMap  metrics;         // key → { label, value }
         QVariantMap  analysisDetail;  // { tier, overall, series:[…], phases:[…] } for the graph
         QString      swingDir;        // on-disk folder, for reloaded shots (replay-from-MP4 later)
@@ -133,6 +128,4 @@ private:
 
     QVector<Shot> m_shots;
     int           m_nextId = 1;
-    int           m_lastTrashedId = -1;
-    QVector<int>  m_lastTrashBatch;   // ids of the most recent trash action
 };

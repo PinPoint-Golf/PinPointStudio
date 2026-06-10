@@ -21,6 +21,8 @@
 #include "../Export/swing_doc.h"
 #include "../Core/pp_debug.h"
 
+#include <QFile>
+
 ShotListModel::ShotListModel(QObject *parent)
     : QAbstractListModel(parent)
 {
@@ -47,7 +49,6 @@ QVariant ShotListModel::data(const QModelIndex &index, int role) const
     case ScoreRole:           return s.score;
     case RatingRole:          return s.rating;
     case NoteRole:            return s.note;
-    case TrashedRole:         return s.trashed;
     case MetricsRole:         return s.metrics;
     case AnalysisDetailRole:  return s.analysisDetail;
     case SwingDirRole:        return s.swingDir;
@@ -68,7 +69,6 @@ QHash<int, QByteArray> ShotListModel::roleNames() const
         { ScoreRole,           "score"           },
         { RatingRole,          "rating"          },
         { NoteRole,            "note"            },
-        { TrashedRole,         "trashed"         },
         { MetricsRole,         "metrics"         },
         { AnalysisDetailRole,  "analysisDetail"  },
         { SwingDirRole,        "swingDir"        },
@@ -77,11 +77,7 @@ QHash<int, QByteArray> ShotListModel::roleNames() const
 
 int ShotListModel::activeCount() const
 {
-    int n = 0;
-    for (const Shot &s : m_shots)
-        if (!s.trashed)
-            ++n;
-    return n;
+    return m_shots.size();
 }
 
 int ShotListModel::rowForId(int id) const
@@ -155,10 +151,7 @@ void ShotListModel::clear()
         return;
     beginResetModel();
     m_shots.clear();
-    m_lastTrashBatch.clear();
-    m_lastTrashedId = -1;
     endResetModel();
-    emit lastTrashedIdChanged();
     emit activeCountChanged();
 }
 
@@ -198,36 +191,34 @@ void ShotListModel::setNote(int id, const QString &text)
     persistReview(row);
 }
 
-void ShotListModel::moveToTrash(int id)
+bool ShotListModel::moveToTrash(int id)
 {
     const int row = rowForId(id);
-    if (row < 0 || m_shots.at(row).trashed)
-        return;
-    m_shots[row].trashed = true;
-    emit dataChanged(index(row), index(row), { TrashedRole });
-    m_lastTrashedId = id;
-    m_lastTrashBatch = { id };
-    emit lastTrashedIdChanged();
+    if (row < 0)
+        return false;
+    // Move the on-disk folder to the OS trash (recoverable there). An
+    // analysis-only shot has no folder and simply drops from the model.
+    const QString dir = m_shots.at(row).swingDir;
+    if (!dir.isEmpty() && !QFile::moveToTrash(dir)) {
+        ppWarn() << "[ShotListModel] could not move to trash:" << dir;
+        return false;                 // keep the row — its files are still here
+    }
+    beginRemoveRows(QModelIndex(), row, row);
+    m_shots.removeAt(row);
+    endRemoveRows();
     emit activeCountChanged();
+    return true;
 }
 
-void ShotListModel::moveAllToTrash(const QVariantList &ids)
+int ShotListModel::moveAllToTrash(const QVariantList &ids)
 {
-    QVector<int> batch;
-    for (const QVariant &v : ids) {
-        const int row = rowForId(v.toInt());
-        if (row < 0 || m_shots.at(row).trashed)
-            continue;
-        m_shots[row].trashed = true;
-        emit dataChanged(index(row), index(row), { TrashedRole });
-        batch.append(v.toInt());
-    }
-    if (batch.isEmpty())
-        return;
-    m_lastTrashedId  = batch.last();
-    m_lastTrashBatch = batch;
-    emit lastTrashedIdChanged();
-    emit activeCountChanged();
+    // Delegate per id — moveToTrash() re-resolves the row each time, so the
+    // index shift from each removeAt() can't stale a cached row.
+    int moved = 0;
+    for (const QVariant &v : ids)
+        if (moveToTrash(v.toInt()))
+            ++moved;
+    return moved;
 }
 
 QVariantList ShotListModel::swingDirsForIds(const QVariantList &ids) const
@@ -244,24 +235,3 @@ QVariantList ShotListModel::swingDirsForIds(const QVariantList &ids) const
     return dirs;
 }
 
-void ShotListModel::restoreLastTrashed()
-{
-    const QVector<int> batch = m_lastTrashBatch;
-    m_lastTrashBatch.clear();
-    for (int id : batch)
-        restore(id);
-}
-
-void ShotListModel::restore(int id)
-{
-    const int row = rowForId(id);
-    if (row < 0 || !m_shots.at(row).trashed)
-        return;
-    m_shots[row].trashed = false;
-    emit dataChanged(index(row), index(row), { TrashedRole });
-    if (m_lastTrashedId == id) {
-        m_lastTrashedId = -1;
-        emit lastTrashedIdChanged();
-    }
-    emit activeCountChanged();
-}

@@ -26,7 +26,7 @@ ShotFilterProxyModel::ShotFilterProxyModel(QObject *parent)
 {
     // Counts depend on both proxy rows (visibleCount) and source data
     // (sourceCount via the model's activeCount); proxy row signals cover both
-    // since a trash/restore re-filters the flagged row.
+    // since trashing removes the source row.
     connect(this, &QAbstractItemModel::rowsInserted,  this, &ShotFilterProxyModel::countsChanged);
     connect(this, &QAbstractItemModel::rowsRemoved,   this, &ShotFilterProxyModel::countsChanged);
     connect(this, &QAbstractItemModel::modelReset,    this, &ShotFilterProxyModel::countsChanged);
@@ -37,8 +37,8 @@ ShotFilterProxyModel::ShotFilterProxyModel(QObject *parent)
 
 void ShotFilterProxyModel::onSourceModelChanged()
 {
-    // activeCount changes (trash/restore) must refresh sourceCount even when
-    // the trashed row was already filtered out of this proxy's view.
+    // activeCount changes (add/trash) must refresh sourceCount even when the
+    // affected row is filtered out of this proxy's view.
     if (auto *shots = qobject_cast<ShotListModel *>(sourceModel()))
         connect(shots, &ShotListModel::activeCountChanged,
                 this, &ShotFilterProxyModel::countsChanged, Qt::UniqueConnection);
@@ -157,8 +157,6 @@ QString ShotFilterProxyModel::filterSummary() const
 bool ShotFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const
 {
     const QModelIndex i = sourceModel()->index(sourceRow, 0, sourceParent);
-    if (i.data(ShotListModel::TrashedRole).toBool())
-        return false;
     if (m_ratingFilter > 0 && i.data(ShotListModel::RatingRole).toInt() != m_ratingFilter)
         return false;
     if (m_hasVideoOnly && !i.data(ShotListModel::HasVideoRole).toBool())
