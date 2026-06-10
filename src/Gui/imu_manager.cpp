@@ -384,9 +384,12 @@ ImuInstance *ImuManager::createInstance(const Device &device)
 
     // Restore persisted output rate so it is applied from the very first
     // initializeDevice() call rather than only after the State::Ready reinit.
+    // Devices without a persisted rate default to 200 Hz (shot detection P1 —
+    // sharper impact detection; the device hardware default is 100 Hz, so any
+    // other value must be sent).
     AppSettings  fallback;
     AppSettings *s = m_appSettings ? m_appSettings : &fallback;
-    const int savedRate = s->imuOutputRateHz().value(device.id, 100).toInt();
+    const int savedRate = s->imuOutputRateHz().value(device.id, 200).toInt();
     if (savedRate != 100)
         inst->setOutputRateHz(savedRate);
 
@@ -411,7 +414,28 @@ ImuInstance *ImuManager::createInstance(const Device &device)
     // Forward live battery updates to the aggregate lowBatteryPercent property.
     connect(inst, &ImuInstance::batteryPercentChanged, this, &ImuManager::batteryChanged);
 
+    // IMU impact auto-trigger (shot detection P1): forward to the app-level
+    // funnel and keep the detector sensitivity tracking the setting live.
+    connect(inst, &ImuInstance::impactDetected, this, &ImuManager::impactDetected);
+    inst->setImpactSensitivity(impactScaleFor(s->swingDetectionSensitivity()));
+    if (m_appSettings) {
+        connect(m_appSettings, &AppSettings::swingDetectionSensitivityChanged,
+                inst, [this, inst]() {
+            inst->setImpactSensitivity(
+                impactScaleFor(m_appSettings->swingDetectionSensitivity()));
+        });
+    }
+
     return inst;
+}
+
+float ImuManager::impactScaleFor(const QString &sensitivity)
+{
+    // Threshold scale: >1 = less sensitive. "High" sensitivity fires on
+    // weaker swings, "Low" demands more energy.
+    if (sensitivity == QLatin1String("Low"))  return 1.5f;
+    if (sensitivity == QLatin1String("High")) return 0.7f;
+    return 1.0f;
 }
 
 void ImuManager::setImuAlias(const QString &key, const QString &alias)

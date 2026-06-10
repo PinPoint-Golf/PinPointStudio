@@ -208,6 +208,17 @@ int main(int argc, char *argv[])
         shotController.setProcessorBusy(shotProcessor.busy());
     });
 
+    // IMU impact auto-trigger (shot detection P1) — gated behind the
+    // autoDetectSwing setting (default OFF until the P3 arbiter adds
+    // cross-modal confirmation). Whole chain is GUI-thread, so a direct
+    // connection; the armed() gate inside triggerShot already handles
+    // capturing/busy/review.
+    QObject::connect(&imuManager, &ImuManager::impactDetected, &shotController,
+                     [&shotController, &appSettings](qint64 estImpactUs, float) {
+        if (appSettings.autoDetectSwing())
+            shotController.triggerShot(ShotController::Source::Imu, estImpactUs);
+    });
+
     // Voice input: completed STT transcription → coach chat (when voice input enabled).
     QObject::connect(&controller, &TranscriptionController::transcriptionReceived,
                      &llmController, [&llmController](const QString &text) {

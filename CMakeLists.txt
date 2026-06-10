@@ -146,6 +146,7 @@ qt_add_executable(PinPointStudio
     src/IMU/orientation_filter.h
     src/IMU/eskf_orientation_filter.h  src/IMU/eskf_orientation_filter.cpp
     src/IMU/imu_calibration.h
+    src/IMU/impact_detector.h
     src/IMU/imu_factory.h     src/IMU/imu_factory.cpp
     src/IMU/wt9011dcl_base.h  src/IMU/wt9011dcl_base.cpp
     src/IMU/wt9011dcl.h       src/IMU/wt9011dcl.cpp

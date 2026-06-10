@@ -27,6 +27,7 @@
 #include <QVector3D>
 
 #include "device_enumerator.h"
+#include "impact_detector.h"
 #include "types.h"
 #include "wt9011dcl_ble.h"
 
@@ -131,6 +132,11 @@ public:
     // to the device driver, which applies the swap on its packet-consumer thread.
     void setOrientationFilter(OrientationFilterType type);
 
+    // Impact-detector sensitivity (shot detection P1): threshold scale applied
+    // to every accel/gyro gate — >1 = less sensitive. Set by ImuManager from
+    // AppSettings::swingDetectionSensitivity (Low 1.5 / Medium 1.0 / High 0.7).
+    void setImpactSensitivity(float thresholdScale);
+
     // QML-invokable per-device actions
     Q_INVOKABLE void    zeroOrientation();
     Q_INVOKABLE QString saveLog();
@@ -192,6 +198,12 @@ signals:
     void zeroingFailed();
     void logEntryAdded(const QString &entry);
 
+    // IMU impact auto-trigger (shot detection P1). estImpactUs is the
+    // back-dated true-impact estimate in EventBuffer::nowMicros() domain
+    // (peak arrival − kImuBleLatencyUs); confidence derives from swing energy
+    // (never peak g — the ±16 g full scale clips real strikes).
+    void impactDetected(qint64 estImpactUs, float confidence);
+
 private:
     static QString timestamp();
     void appendLog(const QString &text);
@@ -250,6 +262,15 @@ private:
     float         m_angularVelocityDps = 0.0f;
     QQuaternion   m_prevQuat           { 1.0f, 0.0f, 0.0f, 0.0f };
     QElapsedTimer m_prevQuatTimer;   // elapsed since last quaternion packet
+
+    // IMU impact auto-trigger (shot detection P1) — pure math, fed from the
+    // GUI-thread quaternionUpdated handler (raw accel/gyro + fused quat).
+    pinpoint::ImpactDetector m_impactDetector;
+    // BLE chain delay between the physical impact and host arrival of the
+    // sample that carries it (connection interval + stack). A measured-ish
+    // placeholder until P4 auto-calibration; passed into the detector config,
+    // never hard-coded in the math.
+    static constexpr qint64 kImuBleLatencyUs = 30'000;
 
     // Raw packet streaming state for beginRawDump/endRawDump (off by default).
     bool        m_rawDump = false;

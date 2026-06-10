@@ -141,6 +141,11 @@ signals:
     // Aggregated log entries forwarded from all active instances.
     void logEntryAdded(const QString &entry);
 
+    // IMU impact auto-trigger (shot detection P1) — re-emitted from every
+    // live ImuInstance; main.cpp routes it to ShotController::triggerShot
+    // behind the autoDetectSwing setting.
+    void impactDetected(qint64 estImpactUs, float confidence);
+
 private:
     struct ImuEntry {
         bool         selected = false;
@@ -148,6 +153,8 @@ private:
     };
 
     ImuInstance *createInstance(const Device &device);
+    // swingDetectionSensitivity ("Low"/"Medium"/"High") → detector threshold scale.
+    static float impactScaleFor(const QString &sensitivity);
 
     pinpoint::EventBuffer      *m_eventBuffer  = nullptr;
     AppSettings                *m_appSettings  = nullptr;

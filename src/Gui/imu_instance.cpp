@@ -68,6 +68,10 @@ ImuInstance::ImuInstance(const Device &device,
         m_imuSourceId = m_eventBuffer->registerSource(desc);
     }
 
+    // Impact detector latency is owned here, not in the math header (P4
+    // replaces the constant with auto-calibration).
+    m_impactDetector.config().bleLatencyUs = kImuBleLatencyUs;
+
     // Soft confirmation — fires 500 ms after zeroToCurrentPose() is sent.
     // 500 ms = 50 BLE frames at 100 Hz; enough for the device to process CALSW writes.
     // Used as a fallback when the device does not respond to the RegCalSw fence read.
@@ -251,6 +255,27 @@ ImuInstance::ImuInstance(const Device &device,
             m_prevQuat = QQuaternion(q.w, q.x, q.y, q.z);
         }
 
+        // IMU impact auto-trigger (shot detection P1) — same-thread math on
+        // the raw synchronous accel/gyro (NOT angularVelocityDps, which is
+        // quaternion-derived and coarse) plus the fused quaternion. The club
+        // shaft lies along the sensor long axis (+Y, IMU_FRAME_CONTRACT.md);
+        // the world frame is +Z up, so |z| of the rotated axis is the
+        // orientation scalar.
+        {
+            const auto a = m_imu->accelData();
+            const auto g = m_imu->gyroData();
+            const QVector3D shaftWorld = QQuaternion(q.w, q.x, q.y, q.z)
+                                             .rotatedVector(QVector3D(0, 1, 0));
+            pinpoint::ImpactSample sample;
+            sample.accelMag     = std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
+            sample.gyroMag      = std::sqrt(g.x * g.x + g.y * g.y + g.z * g.z);
+            sample.clubVertical = std::fabs(shaftWorld.z());
+            sample.t_us = static_cast<int64_t>(pinpoint::EventBuffer::nowMicros());
+            const pinpoint::ImpactResult r = m_impactDetector.push(sample);
+            if (r.impact)
+                emit impactDetected(static_cast<qint64>(r.est_t_us), r.confidence);
+        }
+
         onDataRecord();
     });
 
@@ -353,6 +378,11 @@ void ImuInstance::setOrientationFilter(OrientationFilterType type)
 {
     if (m_imu)
         m_imu->setOrientationFilter(type);
+}
+
+void ImuInstance::setImpactSensitivity(float thresholdScale)
+{
+    m_impactDetector.config().thresholdScale = thresholdScale;
 }
 
 void ImuInstance::beginZeroing()

@@ -139,7 +139,10 @@ public:
         m_units                     = ppSettings().value(QStringLiteral("General/units"),                     QStringLiteral("mph")).toString();
         m_athleteLibraryPath        = ppSettings().value(QStringLiteral("General/athleteLibraryPath"),        QStringLiteral("")).toString();
         m_autoSaveSession           = ppSettings().value(QStringLiteral("General/autoSaveSession"),           true).toBool();
-        m_autoDetectSwing           = ppSettings().value(QStringLiteral("General/autoDetectSwing"),           true).toBool();
+        // Default OFF while the IMU auto-trigger is single-modality (shot
+        // detection P1); flips back ON when the P3 arbiter adds cross-modal
+        // confirmation.
+        m_autoDetectSwing           = ppSettings().value(QStringLiteral("General/autoDetectSwing"),           false).toBool();
         m_swingDetectionSensitivity = ppSettings().value(QStringLiteral("General/swingDetectionSensitivity"), QStringLiteral("Medium")).toString();
         m_aiCoachingOnSessionEnd    = ppSettings().value(QStringLiteral("General/aiCoachingOnSessionEnd"),    true).toBool();
         m_checkForUpdates           = ppSettings().value(QStringLiteral("General/checkForUpdates"),           true).toBool();
@@ -845,7 +848,7 @@ private:
     QString m_units                     = QStringLiteral("mph");
     QString m_athleteLibraryPath;
     bool    m_autoSaveSession           = true;
-    bool    m_autoDetectSwing           = true;
+    bool    m_autoDetectSwing           = false;   // P1 default; ON again at P3
     QString m_swingDetectionSensitivity = QStringLiteral("Medium");
     bool    m_aiCoachingOnSessionEnd    = true;
     bool    m_checkForUpdates           = true;
