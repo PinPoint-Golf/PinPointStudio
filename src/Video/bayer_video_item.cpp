@@ -139,8 +139,14 @@ void BayerVideoItemRenderer::buildPipeline()
     m_pipeline->setDepthTest(false);
     m_pipeline->setDepthWrite(false);
 
-    if (!m_pipeline->create())
+    if (!m_pipeline->create()) {
+        // Leave m_pipeline null: render() must not call setGraphicsPipeline()
+        // on a pipeline whose create() failed (UB in the RHI backends) — the
+        // null guard there falls back to a transparent pass instead.
         ppWarn() << "[BayerVideoItem] pipeline create failed";
+        delete m_pipeline;
+        m_pipeline = nullptr;
+    }
 }
 
 void BayerVideoItemRenderer::initialize(QRhiCommandBuffer *cb)
@@ -177,16 +183,22 @@ void BayerVideoItemRenderer::initialize(QRhiCommandBuffer *cb)
     m_ibuf = rhi->newBuffer(QRhiBuffer::Immutable, QRhiBuffer::IndexBuffer, sizeof(kQuadIdx));
     if (!m_ibuf->create()) { ppWarn() << "[BayerVideoItem] ibuf create failed"; return; }
 
+    // Acquired batches must be committed or released — returning early with
+    // one outstanding leaks it from QRhi's finite pool.
     auto *u = rhi->nextResourceUpdateBatch();
+    const auto bail = [u](const char *what) {
+        ppWarn() << "[BayerVideoItem]" << what << "create failed";
+        u->release();
+    };
     u->uploadStaticBuffer(m_vbuf, kQuadVerts);
     u->uploadStaticBuffer(m_ibuf, kQuadIdx);
 
     m_ubuf = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(BayerUBO));
-    if (!m_ubuf->create()) { ppWarn() << "[BayerVideoItem] ubuf create failed"; return; }
+    if (!m_ubuf->create()) { bail("ubuf"); return; }
 
     // 1×1 R8 placeholder; actual camera-resolution texture created in rebuildTexture().
     m_tex = rhi->newTexture(QRhiTexture::R8, QSize(1, 1), 1, {});
-    if (!m_tex->create()) { ppWarn() << "[BayerVideoItem] tex create failed"; return; }
+    if (!m_tex->create()) { bail("tex"); return; }
     const quint8 black = 0;
     u->uploadTexture(m_tex, QRhiTextureUploadEntry(0, 0,
         QRhiTextureSubresourceUploadDescription(&black, 1)));
@@ -194,7 +206,7 @@ void BayerVideoItemRenderer::initialize(QRhiCommandBuffer *cb)
     m_sampler = rhi->newSampler(QRhiSampler::Linear, QRhiSampler::Linear,
                                 QRhiSampler::None,
                                 QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
-    if (!m_sampler->create()) { ppWarn() << "[BayerVideoItem] sampler create failed"; return; }
+    if (!m_sampler->create()) { bail("sampler"); return; }
 
     m_srb = rhi->newShaderResourceBindings();
     m_srb->setBindings({
@@ -205,7 +217,7 @@ void BayerVideoItemRenderer::initialize(QRhiCommandBuffer *cb)
             QRhiShaderResourceBinding::FragmentStage,
             m_tex, m_sampler),
     });
-    if (!m_srb->create()) { ppWarn() << "[BayerVideoItem] srb create failed"; return; }
+    if (!m_srb->create()) { bail("srb"); return; }
 
     buildPipeline();
 

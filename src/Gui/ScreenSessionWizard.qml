@@ -959,7 +959,7 @@ Item {
                                             var insts = cameraManager.instances
                                             if (!_data) return null
                                             for (var i = 0; i < insts.length; ++i)
-                                                if (insts[i].deviceSerialNumber === _data.serialNumber)
+                                                if (insts[i].cameraKey === _data.cameraKey)
                                                     return insts[i]
                                             return null
                                         }

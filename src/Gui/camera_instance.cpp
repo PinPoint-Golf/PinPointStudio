@@ -336,7 +336,8 @@ void CameraInstance::setupPipeline()
 
         m_frameThrottle = new FrameThrottle();
         m_frameThrottle->setSkipFactor(2);
-        m_frameThrottle->setConsumerCount(2);  // pose estimator + ball detector
+        m_frameThrottle->setConsumerCount(2);     // pose estimator + ball detector
+        m_frameThrottle->setRawConsumerCount(2);  // same two consumers on the raw path
 
         connect(cvPP, &VideoPreprocessorOpenCV::framePreprocessed,
                 m_poseEstimator, &PoseEstimatorBase::estimatePose, Qt::QueuedConnection);
@@ -360,10 +361,20 @@ void CameraInstance::setupPipeline()
                 m_ballDetector, &BallDetector::detect, Qt::QueuedConnection);
         connect(m_ballDetector, &BallDetector::ballDetected,
                 this, &CameraInstance::onBallDetected, Qt::QueuedConnection);
+        // Wire BOTH completion signals to BOTH throttle paths (mirrors the
+        // pose estimator above): a camera feeds exactly one path, so only
+        // that path's counter is consulted — but without the raw wiring the
+        // raw (Bayer) path ran the ball detector completely unthrottled,
+        // queueing unbounded full-frame Mats whenever detection was slower
+        // than the pose cycle.
         connect(m_ballDetector, &BallDetector::ballDetected,
                 m_frameThrottle, &FrameThrottle::clearBusy, Qt::DirectConnection);
         connect(m_ballDetector, &BallDetector::detectionSkipped,
                 m_frameThrottle, &FrameThrottle::clearBusy, Qt::DirectConnection);
+        connect(m_ballDetector, &BallDetector::ballDetected,
+                m_frameThrottle, &FrameThrottle::clearRawBusy, Qt::DirectConnection);
+        connect(m_ballDetector, &BallDetector::detectionSkipped,
+                m_frameThrottle, &FrameThrottle::clearRawBusy, Qt::DirectConnection);
 
         // Forward ROI changes to the detector thread.  The lambda captures the
         // current roi value on the main thread before posting it to the detector.
@@ -603,12 +614,16 @@ void CameraInstance::connectVideoInput()
 
 #ifdef HAVE_OPENCV
     if (m_frameThrottle) {
+        // UniqueConnection: throttle and preprocessor survive the auto-
+        // fallback backend swap, and connectVideoInput() runs again for the
+        // replacement input — a duplicate here would run inference twice per
+        // released frame and double-fire the throttle's done counters.
         connect(m_frameThrottle, &FrameThrottle::frameReady,
                 m_preprocessor, &VideoPreprocessorBase::processFrame,
-                Qt::QueuedConnection);
+                static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::UniqueConnection));
         connect(m_frameThrottle, &FrameThrottle::rawFrameReady,
                 m_preprocessor, &VideoPreprocessorBase::processRawFrame,
-                Qt::QueuedConnection);
+                static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::UniqueConnection));
     }
 #endif
 }
@@ -633,6 +648,13 @@ QString CameraInstance::poseBackendLabel()       const { return m_poseBackendLab
 int     CameraInstance::moveNetModel()           const { return m_moveNetModel; }
 QString CameraInstance::deviceDescription()      const { return m_deviceDescription; }
 QString CameraInstance::deviceSerialNumber()     const { return m_deviceSerialNumber; }
+QString CameraInstance::cameraKey()              const
+{
+    // Must mirror CameraManager::cameraKey(): "Model|Serial", falling back to
+    // "Model|DeviceId" when the camera reports no serial.
+    return m_deviceDescription + QStringLiteral("|")
+         + (m_deviceSerialNumber.isEmpty() ? m_deviceId : m_deviceSerialNumber);
+}
 QString CameraInstance::deviceAlias()            const { return m_deviceAlias; }
 
 void CameraInstance::setDeviceAlias(const QString &alias)
@@ -728,7 +750,10 @@ void CameraInstance::clearRoi()
     }
     m_ballWindow.clear();
     m_ballPresentCount = 0;
-    m_ballPresent = false;
+    if (m_ballPresent) {
+        m_ballPresent = false;
+        emit ballPresentChanged(false);   // same contract as the recording-stop path
+    }
     if (m_ballPresencePercent != 0.0) {
         m_ballPresencePercent = 0.0;
         emit ballPresencePercentChanged();
@@ -1014,7 +1039,10 @@ void CameraInstance::startRecording()
                 currentBackend == VideoInputFactory::Backend::Spinnaker)
             {
                 QMetaObject::invokeMethod(this, [this]() {
-                    delete m_videoInput;
+                    // The failed input lives on the (running) capture thread —
+                    // deleting it from the main thread races its event loop.
+                    // deleteLater() destroys it on its own thread.
+                    m_videoInput->deleteLater();
                     m_videoInput = VideoInputFactory::create(VideoInputFactory::Backend::QtMultimedia);
                     m_videoInput->moveToThread(m_captureThread);
                     connectVideoInput();

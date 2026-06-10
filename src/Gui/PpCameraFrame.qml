@@ -59,6 +59,11 @@ Item {
     readonly property bool roiIsSet: instance !== null
                                      && instance.roi.width > 0 && instance.roi.height > 0
 
+    // The video item's inset inside the frame border. Every overlay maps
+    // video coordinates through this ONE value — hardcoded 2s drift from
+    // Theme.sp(2) as soon as the font scale leaves 1.0.
+    readonly property real videoInset: Theme.sp(2)
+
     // Pre-connect placeholder aspect — hosts with a camera-list entry pass
     // its crop-aware initialWidth/initialHeight so a disconnected tile
     // already opens at the aspect the stream will have once connected.
@@ -115,7 +120,7 @@ Item {
         VideoOutput {
             id: videoOut
             anchors.fill: parent
-            anchors.margins: Theme.sp(2)
+            anchors.margins: root.videoInset
             fillMode: VideoOutput.PreserveAspectFit
             visible: root.instance !== null && !root.instance.needsDebayer
         }
@@ -123,7 +128,7 @@ Item {
         BayerVideoItem {
             id: bayerView
             anchors.fill: parent
-            anchors.margins: Theme.sp(2)
+            anchors.margins: root.videoInset
             visible: root.instance !== null && root.instance.needsDebayer
         }
 
@@ -273,9 +278,16 @@ Item {
                 if (!kps || kps.length < 17)
                     return
 
+                // Both branches include the video item's inset inside the
+                // frame: the canvas fills the FRAME, while contentRect /
+                // bayerView dims are in the inset video item's space.
                 var cr = root.instance.needsDebayer
-                    ? Qt.rect(0, 0, bayerView.width, bayerView.height)
-                    : videoOut.contentRect
+                    ? Qt.rect(root.videoInset, root.videoInset,
+                              bayerView.width, bayerView.height)
+                    : Qt.rect(root.videoInset + videoOut.contentRect.x,
+                              root.videoInset + videoOut.contentRect.y,
+                              videoOut.contentRect.width,
+                              videoOut.contentRect.height)
                 if (cr.width <= 0 || cr.height <= 0)
                     return
 
@@ -327,10 +339,10 @@ Item {
             border.color: Theme.colorWarn
             border.width: 2
 
-            property real crX: root.instance && root.instance.needsDebayer
-                               ? 2 : (2 + videoOut.contentRect.x)
-            property real crY: root.instance && root.instance.needsDebayer
-                               ? 2 : (2 + videoOut.contentRect.y)
+            property real crX: root.videoInset + (root.instance && root.instance.needsDebayer
+                               ? 0 : videoOut.contentRect.x)
+            property real crY: root.videoInset + (root.instance && root.instance.needsDebayer
+                               ? 0 : videoOut.contentRect.y)
             property real crW: root.instance && root.instance.needsDebayer
                                ? bayerView.width : videoOut.contentRect.width
             property real crH: root.instance && root.instance.needsDebayer
@@ -378,10 +390,10 @@ Item {
             border.color: Theme.colorGood
             border.width: 2
 
-            property real crX: root.instance && root.instance.needsDebayer
-                               ? 2 : (2 + videoOut.contentRect.x)
-            property real crY: root.instance && root.instance.needsDebayer
-                               ? 2 : (2 + videoOut.contentRect.y)
+            property real crX: root.videoInset + (root.instance && root.instance.needsDebayer
+                               ? 0 : videoOut.contentRect.x)
+            property real crY: root.videoInset + (root.instance && root.instance.needsDebayer
+                               ? 0 : videoOut.contentRect.y)
             property real crW: root.instance && root.instance.needsDebayer
                                ? bayerView.width : videoOut.contentRect.width
             property real crH: root.instance && root.instance.needsDebayer
@@ -477,10 +489,10 @@ Item {
                 root.roiSelecting = false
 
                 if (!root.instance) return
-                var crX = root.instance.needsDebayer
-                          ? 2 : (2 + videoOut.contentRect.x)
-                var crY = root.instance.needsDebayer
-                          ? 2 : (2 + videoOut.contentRect.y)
+                var crX = root.videoInset + (root.instance.needsDebayer
+                          ? 0 : videoOut.contentRect.x)
+                var crY = root.videoInset + (root.instance.needsDebayer
+                          ? 0 : videoOut.contentRect.y)
                 var crW = root.instance.needsDebayer
                           ? bayerView.width : videoOut.contentRect.width
                 var crH = root.instance.needsDebayer

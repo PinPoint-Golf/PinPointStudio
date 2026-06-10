@@ -115,6 +115,16 @@ bool ShotReplayController::start(int shotId, const QString &swingDir, const QStr
 
     if (pending.empty()) {
         ppWarn() << "[ShotReplay] no playable video stream in" << swingDir;
+        // teardown() already ran: a previously-active replay has lost its
+        // players, so clear the whole transport state — leaving m_active /
+        // m_playing / the old shot's id and spans behind shows a zombie
+        // black stage that only Close can dismiss.
+        if (m_active) {
+            m_shotId = -1;
+            m_active = false;
+            setPlaying(false);
+            emit activeChanged();
+        }
         return false;
     }
 

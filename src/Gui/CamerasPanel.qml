@@ -71,7 +71,7 @@ Item {
         readonly property var realInstance: {
             var instances = cameraManager.instances
             for (var i = 0; i < instances.length; ++i) {
-                if (instances[i].deviceSerialNumber === camData.serialNumber)
+                if (instances[i].cameraKey === camData.cameraKey)
                     return instances[i]
             }
             return null

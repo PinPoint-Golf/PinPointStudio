@@ -295,7 +295,18 @@ void VideoInputFactory::enumerateDevices()
 
 VideoInputBase* VideoInputFactory::create(Backend backend, QObject *parent)
 {
-    enumerateDevices();
+    // Enumerate only when the registry is empty (first use / tests). A full
+    // re-enumeration briefly OPENS every Aravis device and Init()/DeInit()s
+    // every Spinnaker camera — including ones live-streaming under another
+    // CameraInstance in this process (the settings crop-preview creates
+    // instances mid-session) — and blocks the calling thread on GenICam node
+    // reads. CameraManager already enumerates at startup; rescans are
+    // explicit user actions.
+    bool haveVideoDevices = false;
+    for (const auto &dev : DeviceEnumerator::instance()->devices())
+        if (dev.type == DeviceType::VideoInput) { haveVideoDevices = true; break; }
+    if (!haveVideoDevices)
+        enumerateDevices();
 
     if (backend == Backend::Auto) {
 #ifdef HAVE_SPINNAKER

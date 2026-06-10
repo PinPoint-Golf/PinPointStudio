@@ -46,12 +46,18 @@ void FrameThrottle::offer(const QVideoFrame &frame)
     if (++m_offerCount % m_skipFactor != 0)
         return;
 
-    if (m_busy.load(std::memory_order_relaxed)) {
+    // The busy check and both busy transitions happen under the mutex:
+    // a relaxed check outside it raced clearBusy() (busy read true here,
+    // cleared there before our park) and left a frame stranded in m_latest
+    // while the throttle sat idle — replayed out-of-order one cycle later.
+    {
         QMutexLocker lk(&m_mutex);
-        m_latest = frame;
-        return;
+        if (m_busy.load(std::memory_order_relaxed)) {
+            m_latest = frame;
+            return;
+        }
+        m_busy.store(true, std::memory_order_relaxed);
     }
-    m_busy.store(true, std::memory_order_relaxed);
     emit frameReady(frame);
 }
 
@@ -66,12 +72,11 @@ void FrameThrottle::clearBusy()
         QMutexLocker lk(&m_mutex);
         next     = m_latest;
         m_latest = QVideoFrame();
+        if (!next.isValid())
+            m_busy.store(false, std::memory_order_relaxed);  // idle decision under the lock
     }
-    if (next.isValid()) {
+    if (next.isValid())
         emit frameReady(next);
-    } else {
-        m_busy.store(false, std::memory_order_relaxed);
-    }
 }
 
 void FrameThrottle::offerRaw(const RawVideoFrame &frame)
@@ -79,12 +84,15 @@ void FrameThrottle::offerRaw(const RawVideoFrame &frame)
     if (++m_rawOfferCount % m_skipFactor != 0)
         return;
 
-    if (m_rawBusy.load(std::memory_order_relaxed)) {
+    // Same lock discipline as offer() — see comment there.
+    {
         QMutexLocker lk(&m_rawMutex);
-        m_rawLatest = frame;
-        return;
+        if (m_rawBusy.load(std::memory_order_relaxed)) {
+            m_rawLatest = frame;
+            return;
+        }
+        m_rawBusy.store(true, std::memory_order_relaxed);
     }
-    m_rawBusy.store(true, std::memory_order_relaxed);
     emit rawFrameReady(frame);
 }
 
@@ -99,12 +107,11 @@ void FrameThrottle::clearRawBusy()
         QMutexLocker lk(&m_rawMutex);
         next        = m_rawLatest;
         m_rawLatest = RawVideoFrame();
+        if (next.isNull())
+            m_rawBusy.store(false, std::memory_order_relaxed);
     }
-    if (!next.isNull()) {
+    if (!next.isNull())
         emit rawFrameReady(next);
-    } else {
-        m_rawBusy.store(false, std::memory_order_relaxed);
-    }
 }
 
 #endif // HAVE_OPENCV

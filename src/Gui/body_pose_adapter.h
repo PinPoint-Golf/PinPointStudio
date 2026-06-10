@@ -18,6 +18,7 @@
 
 #pragma once
 #include <QObject>
+#include <QPointer>
 #include <QQmlEngine>
 #include <QQuaternion>
 #include <QTimer>
@@ -119,7 +120,10 @@ private:
 
     static QQuaternion slerpStep(const QQuaternion &cur, const QQuaternion &tgt, float alpha);
 
-    QObject    *m_poseSource     = nullptr;
+    // QPointer: the source is a CameraInstance that can be deleteLater()'d on
+    // deselection; a pending m_dirty would otherwise make the 60 Hz tick read
+    // property() on a dangling pointer if any binding skips the notify path.
+    QPointer<QObject> m_poseSource;
     QTimer      m_timer;
     bool        m_dirty          = false;
     bool        m_active         = false;

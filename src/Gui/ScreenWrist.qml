@@ -80,7 +80,7 @@ Item {
                         instance: {
                             var insts = cameraManager.instances
                             for (var i = 0; i < insts.length; ++i)
-                                if (insts[i].deviceSerialNumber === modelData.serialNumber)
+                                if (insts[i].cameraKey === modelData.cameraKey)
                                     return insts[i]
                             return null
                         }

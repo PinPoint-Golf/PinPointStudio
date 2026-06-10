@@ -260,7 +260,6 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
 
         const DemosaicPlan plan = demosaicPlanFor(cfmt->pixel_format);
         if (!plan.supported) {
-            Q_ASSERT(cfmt->pixel_format != PixelFormat::H264_NAL);   // not expected from these cameras
             ppWarn() << "[SwingExport] unsupported pixel format"
                      << pixelFormatName(cfmt->pixel_format)
                      << "for camera" << cam.alias << "— skipping";
@@ -344,10 +343,19 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
                               const_cast<std::byte*>(handle.data), stride);
 
             // Raw sidecar mirrors the encoded frame set exactly (same guard), so
-            // raw frame i corresponds to encoded frame i and t_us[i].
-            if (rawSink.isOpen())
-                rawSink.write(reinterpret_cast<const char*>(handle.data),
-                              static_cast<qint64>(minBytes));
+            // raw frame i corresponds to encoded frame i and t_us[i]. A short
+            // write (disk full) would desync that mapping — drop the sidecar
+            // instead of recording a truncated file as complete.
+            if (rawSink.isOpen()
+                && rawSink.write(reinterpret_cast<const char*>(handle.data),
+                                 static_cast<qint64>(minBytes))
+                       != static_cast<qint64>(minBytes)) {
+                ppWarn() << "[SwingExport] short write on raw sidecar" << rec.rawFile
+                         << "— dropping raw frames (disk full?)";
+                rawSink.close();
+                rawSink.remove();
+                rec.rawFile.clear();
+            }
 
             if (plan.cvtCode >= 0)
                 cv::cvtColor(raw, bgr, plan.cvtCode);
@@ -390,6 +398,17 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
 
         ppInfo() << "[SwingExport]" << cam.fileName << ":" << rec.tUs.size() << "frames";
         videoStreams.push_back(std::move(rec));
+    }
+
+    // Every requested camera was skipped (no frames / unsupported format /
+    // degenerate dims) — fail loudly instead of returning a vacuous success.
+    // ok=true with zero streams would mark the shot hasVideo=true and offer a
+    // replay that can never start.
+    if (videoStreams.empty()) {
+        result.error = QStringLiteral("no exportable video streams — all %1 camera(s) "
+                                      "skipped (no frames or unsupported pixel format)")
+                           .arg(job.cameras.size());
+        return result;
     }
 
     // ── Impact thumbnail ──────────────────────────────────────────────────
@@ -543,17 +562,25 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
                             for (float v : rows[i]) out << ',' << v;
                             out << '\n';
                         }
-                        wrote = true;
+                        out.flush();
+                        // Disk-full/short-write check: a truncated sidecar
+                        // referenced as complete by swing.json is worse than
+                        // the inline-JSON fallback.
+                        wrote = (out.status() == QTextStream::Ok
+                                 && f.error() == QFileDevice::NoError);
                     }
                 } else {   // binary: little-endian i64 t_us + 10×f32 per record
                     if (f.open(QIODevice::WriteOnly)) {
-                        for (size_t i = 0; i < tUs.size(); ++i) {
-                            const qint64 t = static_cast<qint64>(tUs[i]);
-                            f.write(reinterpret_cast<const char*>(&t), sizeof(t));
-                            f.write(reinterpret_cast<const char*>(rows[i].data()),
-                                    static_cast<qint64>(sizeof(float) * rows[i].size()));
-                        }
                         wrote = true;
+                        for (size_t i = 0; i < tUs.size() && wrote; ++i) {
+                            const qint64 t = static_cast<qint64>(tUs[i]);
+                            const qint64 rowBytes =
+                                static_cast<qint64>(sizeof(float) * rows[i].size());
+                            wrote = f.write(reinterpret_cast<const char*>(&t),
+                                            sizeof(t)) == sizeof(t)
+                                 && f.write(reinterpret_cast<const char*>(rows[i].data()),
+                                            rowBytes) == rowBytes;
+                        }
                     }
                 }
                 if (wrote) {

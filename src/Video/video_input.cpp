@@ -244,11 +244,23 @@ bool VideoInput::start(const QString &deviceId)
 
     QCameraDevice activeDevice = QMediaDevices::defaultVideoInput();
     if (!deviceId.isEmpty()) {
+        // A specific device was requested — it must actually be found.
+        // Silently falling back to the default camera records from the WRONG
+        // physical device (with the requested device's alias/perspective/crop
+        // applied) whenever the id is stale, e.g. unplug/replug moved the
+        // V4L2 node.
+        bool found = false;
         for (const QCameraDevice &dev : devices) {
             if (dev.description() == deviceId || dev.id() == deviceId.toUtf8()) {
                 activeDevice = dev;
+                found = true;
                 break;
             }
+        }
+        if (!found) {
+            emit errorOccurred(tr("Camera \"%1\" not found — it may have been "
+                                  "unplugged or re-enumerated").arg(deviceId));
+            return false;
         }
     }
 

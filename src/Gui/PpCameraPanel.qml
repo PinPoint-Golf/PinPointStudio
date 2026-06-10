@@ -282,7 +282,7 @@ Item {
         readonly property var realInstance: {
             var insts = cameraManager.instances
             for (var i = 0; i < insts.length; ++i)
-                if (insts[i].deviceSerialNumber === serial) return insts[i]
+                if (insts[i].cameraKey === camKey) return insts[i]
             return null
         }
         readonly property bool connected: realInstance !== null

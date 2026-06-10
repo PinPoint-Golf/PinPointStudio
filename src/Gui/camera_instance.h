@@ -80,6 +80,10 @@ class CameraInstance : public QObject
     Q_PROPERTY(bool ballEnabled READ ballEnabled WRITE setBallEnabled NOTIFY ballEnabledChanged)
     Q_PROPERTY(QString deviceDescription  READ deviceDescription  CONSTANT)
     Q_PROPERTY(QString deviceSerialNumber READ deviceSerialNumber CONSTANT)
+    // Same composition as CameraManager::cameraKey() — THE identity for
+    // matching an instance to a cameraList entry in QML. Serial numbers alone
+    // collide ("" === "") for UVC webcams that don't report one.
+    Q_PROPERTY(QString cameraKey          READ cameraKey          CONSTANT)
     Q_PROPERTY(QString deviceAlias        READ deviceAlias        NOTIFY deviceAliasChanged)
     Q_PROPERTY(int  perspective READ perspective NOTIFY perspectiveChanged)
     Q_PROPERTY(bool isMirrored  READ isMirrored  NOTIFY isMirroredChanged)
@@ -131,6 +135,7 @@ public:
     void    setBallEnabled(bool on);
     QString deviceDescription()   const;
     QString deviceSerialNumber()  const;
+    QString cameraKey()           const;
     QString deviceAlias()         const;
     void    setDeviceAlias(const QString &alias);
     int     perspective() const;
@@ -248,7 +253,9 @@ private:
     // view destroyed without unsubscribing is pruned on the next publish.
     QList<QPointer<QVideoSink>>     m_videoSinks;
     QList<QPointer<BayerVideoItem>> m_bayerItems;
-    QVideoSink            *m_settingsSink      = nullptr;
+    // QPointer (like the subscriber lists): the settings crop-UI VideoOutput
+    // can be destroyed without setSettingsSink(null) reaching us first.
+    QPointer<QVideoSink>   m_settingsSink;
     // Most recent frame delivered to the views — ground truth for
     // updateBufferDescriptor() (the subscriber list may be empty, so the
     // format can no longer be read back from "the" sink).
