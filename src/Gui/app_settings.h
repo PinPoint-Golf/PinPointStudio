@@ -25,6 +25,8 @@
 #include <QCursor>
 #include <QGuiApplication>
 #include <QScreen>
+#include <QUrl>
+#include <QRegularExpression>
 #include "pp_settings.h"
 #include "version.h"
 
@@ -116,6 +118,28 @@ class AppSettings : public QObject
 
 public:
     Q_INVOKABLE StorageInfo queryStorageInfo() const;
+
+    // Cross-platform conversion of a FolderDialog/FileDialog url to a native local
+    // path. QML's JS `url` type has no toLocalFile(), and naively stripping "file://"
+    // leaves a stray leading slash before a Windows drive letter ("/C:/...") which
+    // QDir rejects. Use these from QML instead of string-replacing the scheme.
+    Q_INVOKABLE QString urlToLocalFile(const QUrl &url) const { return url.toLocalFile(); }
+    Q_INVOKABLE QString fileUrlFor(const QString &localPath) const
+    {
+        return QUrl::fromLocalFile(localPath).toString();
+    }
+
+    // Repairs a path that came through the old "file://"-stripping code, where a
+    // Windows url ("file:///C:/...") became "/C:/..." with a leading slash before the
+    // drive letter. Leaves well-formed POSIX and Windows paths untouched.
+    static QString normaliseLibraryPath(const QString &raw)
+    {
+        QString s = raw.trimmed();
+        static const QRegularExpression winDrive(QStringLiteral("^/([A-Za-z]:)"));
+        s.replace(winDrive, QStringLiteral("\\1"));
+        return s;
+    }
+
     explicit AppSettings(QObject *parent = nullptr) : QObject(parent)
     {
         m_themeIndex      = ppSettings().value(QStringLiteral("ui/themeIndex"),      0).toInt();
@@ -138,7 +162,7 @@ public:
         // Qt reads back, so values persist across restarts.
         m_language                  = ppSettings().value(QStringLiteral("General/language"),                  QStringLiteral("en_GB")).toString();
         m_units                     = ppSettings().value(QStringLiteral("General/units"),                     QStringLiteral("mph")).toString();
-        m_athleteLibraryPath        = ppSettings().value(QStringLiteral("General/athleteLibraryPath"),        QStringLiteral("")).toString();
+        m_athleteLibraryPath        = normaliseLibraryPath(ppSettings().value(QStringLiteral("General/athleteLibraryPath"), QStringLiteral("")).toString());
         m_autoSaveSession           = ppSettings().value(QStringLiteral("General/autoSaveSession"),           true).toBool();
         m_autoDetectSwing           = ppSettings().value(QStringLiteral("General/autoDetectSwing"),           true).toBool();
         m_swingDetectionSensitivity = ppSettings().value(QStringLiteral("General/swingDetectionSensitivity"), QStringLiteral("Medium")).toString();
@@ -379,8 +403,9 @@ public:
         emit unitsChanged();
     }
 
-    void setAthleteLibraryPath(const QString &v)
+    void setAthleteLibraryPath(const QString &raw)
     {
+        const QString v = normaliseLibraryPath(raw);
         if (m_athleteLibraryPath == v) return;
         m_athleteLibraryPath = v;
         ppSettings().setValue(QStringLiteral("General/athleteLibraryPath"), v);

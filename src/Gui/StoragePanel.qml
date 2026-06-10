@@ -82,7 +82,7 @@ Item {
         id: folderDialog
         title: qsTr("Select athlete library location")
         onAccepted: {
-            appSettings.athleteLibraryPath = selectedFolder.toString().replace("file://", "")
+            appSettings.athleteLibraryPath = appSettings.urlToLocalFile(selectedFolder)
             root.refreshDiskInfo()
         }
     }
@@ -317,7 +317,7 @@ Item {
                     PpButton {
                         label:     qsTr("Open")
                         enabled:   appSettings.athleteLibraryPath.length > 0
-                        onClicked: Qt.openUrlExternally("file://" + appSettings.athleteLibraryPath)
+                        onClicked: Qt.openUrlExternally(appSettings.fileUrlFor(appSettings.athleteLibraryPath))
                     }
                 }
             }

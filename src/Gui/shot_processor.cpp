@@ -353,6 +353,8 @@ void ShotProcessor::startSwingSave()
     if (job.swingDir.isEmpty()) {
         ppWarn() << "[SwingExport] could not allocate a swing directory — not saving";
         m_exportOutcome = Outcome::Skipped;
+        emit swingSaveFailed(tr("could not create the swing folder — check the athlete "
+                                "library path in Settings"));
         return;
     }
     if (job.cameras.empty()) {
