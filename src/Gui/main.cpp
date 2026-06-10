@@ -219,6 +219,23 @@ int main(int argc, char *argv[])
             shotController.triggerShot(ShotController::Source::Imu, estImpactUs);
     });
 
+    // Acoustic onset auto-trigger (shot detection P2) — same autoDetectSwing
+    // gate as the IMU path until the P3 arbiter fuses candidates.
+    // TranscriptionController::impactDetected is emitted on the AUDIO thread
+    // with est_t* already computed; the &shotController context makes this a
+    // queued hop onto the GUI thread.
+    controller.setAcousticLatencyUs(appSettings.audioDeviceLatencyUs());
+    QObject::connect(&appSettings, &AppSettings::audioDeviceLatencyUsChanged,
+                     &controller, [&controller, &appSettings] {
+        controller.setAcousticLatencyUs(appSettings.audioDeviceLatencyUs());
+    });
+    QObject::connect(&controller, &TranscriptionController::impactDetected,
+                     &shotController,
+                     [&shotController, &appSettings](qint64 estImpactUs, float) {
+        if (appSettings.autoDetectSwing())
+            shotController.triggerShot(ShotController::Source::Acoustic, estImpactUs);
+    });
+
     // Voice input: completed STT transcription → coach chat (when voice input enabled).
     QObject::connect(&controller, &TranscriptionController::transcriptionReceived,
                      &llmController, [&llmController](const QString &text) {

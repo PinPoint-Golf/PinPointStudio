@@ -23,6 +23,7 @@
 #include <QThread>
 #include <QElapsedTimer>
 
+class AcousticShotDetector;
 class AudioInput;
 class AudioInputBase;
 class AudioStreamSaver;
@@ -55,6 +56,10 @@ public slots:
 
     Q_INVOKABLE void toggleSttBackend();
 
+    // Acoustic shot detection (P2): forwards AppSettings' device-latency
+    // constant to the detector (atomic — safe to call from the GUI thread).
+    void setAcousticLatencyUs(qint64 us);
+
 signals:
     void transcriptChanged();
     void transcriptionReceived(const QString &text);  // fires once per completed utterance
@@ -62,6 +67,12 @@ signals:
     void sttBackendChanged();
     void cloudSttFallbackAvailableChanged();
     void lastSttLatencyMsChanged();
+
+    // Acoustic shot detection (P2). NOTE: forwarded signal-to-signal from the
+    // AcousticShotDetector, so it is emitted on the AUDIO thread with est_t*
+    // already computed — connect with a receiver context to get the queued
+    // hop onto your thread.
+    void impactDetected(qint64 estImpactUs, float confidence);
 
 private slots:
     void onTranscriptionReceived(const QString &text);
@@ -72,11 +83,12 @@ private slots:
     void startAudio();   // called once microphone permission is confirmed
 
 private:
-    QThread          *m_audioThread;
-    QThread          *m_processorThread;
-    AudioInput       *m_audioInput;
-    AudioStreamSaver *m_streamSaver;
-    STTProcessor     *m_stt;
+    QThread              *m_audioThread;
+    QThread              *m_processorThread;
+    AudioInput           *m_audioInput;
+    AudioStreamSaver     *m_streamSaver;
+    AcousticShotDetector *m_acousticDetector;
+    STTProcessor         *m_stt;
     QString           m_transcript;
     QString           m_sttBackend;
     bool              m_listening               = false;

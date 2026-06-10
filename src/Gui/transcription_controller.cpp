@@ -18,6 +18,7 @@
 
 #include "transcription_controller.h"
 
+#include "acoustic_shot_detector.h"
 #include "audio_input.h"
 #include "audio_input_base.h"
 #include "audio_stream_saver.h"
@@ -39,6 +40,7 @@ TranscriptionController::TranscriptionController(QObject *parent)
     , m_processorThread(new QThread(this))
     , m_audioInput(new AudioInput)
     , m_streamSaver(nullptr)
+    , m_acousticDetector(new AcousticShotDetector)
     , m_stt(new STTProcessor)
 {
     m_audioThread->setObjectName(QStringLiteral("AudioThread"));
@@ -51,6 +53,17 @@ TranscriptionController::TranscriptionController(QObject *parent)
 
     // connect(m_audioInput, &AudioInputBase::audioDataReady,
     //         m_streamSaver, &AudioStreamSaver::onAudioData);
+
+    // Acoustic shot detection (P2) — second consumer of audioDataReady (the
+    // AudioStreamSaver pattern above); never disturbs the STT pipeline. The
+    // detector lives on the audio thread so the nowMicros receipt stamp is
+    // taken where the buffer arrives; the signal-to-signal forward emits our
+    // impactDetected on that same thread (documented on the signal).
+    m_acousticDetector->moveToThread(m_audioThread);
+    connect(m_audioInput, &AudioInputBase::audioDataReady,
+            m_acousticDetector, &AcousticShotDetector::onAudioData);
+    connect(m_acousticDetector, &AcousticShotDetector::impactDetected,
+            this, &TranscriptionController::impactDetected);
 
     connect(m_stt, &STTProcessor::transcriptionReceived,
             this, &TranscriptionController::onTranscriptionReceived);
@@ -107,6 +120,7 @@ TranscriptionController::~TranscriptionController()
         QMetaObject::invokeMethod(m_audioInput, [this]() {
             m_audioInput->stop();
             m_audioInput->moveToThread(QCoreApplication::instance()->thread());
+            m_acousticDetector->moveToThread(QCoreApplication::instance()->thread());
         }, Qt::BlockingQueuedConnection);
 
         m_audioThread->quit();
@@ -115,6 +129,9 @@ TranscriptionController::~TranscriptionController()
 
     delete m_audioInput;
     m_audioInput = nullptr;
+
+    delete m_acousticDetector;
+    m_acousticDetector = nullptr;
 
     // m_streamSaver->stopSaving();
 
@@ -153,6 +170,11 @@ void TranscriptionController::toggleSttBackend()
     QMetaObject::invokeMethod(stt, [stt, toCloud]() {
         stt->swapBackend(toCloud);
     }, Qt::QueuedConnection);
+}
+
+void TranscriptionController::setAcousticLatencyUs(qint64 us)
+{
+    m_acousticDetector->setDeviceLatencyUs(us);
 }
 
 void TranscriptionController::onTranscriptionDispatched()

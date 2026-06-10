@@ -63,6 +63,7 @@ class AppSettings : public QObject
     Q_PROPERTY(bool    autoSaveSession             READ autoSaveSession             WRITE setAutoSaveSession             NOTIFY autoSaveSessionChanged)
     Q_PROPERTY(bool    autoDetectSwing             READ autoDetectSwing             WRITE setAutoDetectSwing             NOTIFY autoDetectSwingChanged)
     Q_PROPERTY(QString swingDetectionSensitivity   READ swingDetectionSensitivity   WRITE setSwingDetectionSensitivity   NOTIFY swingDetectionSensitivityChanged)
+    Q_PROPERTY(int     audioDeviceLatencyUs        READ audioDeviceLatencyUs        WRITE setAudioDeviceLatencyUs        NOTIFY audioDeviceLatencyUsChanged)
     Q_PROPERTY(bool    aiCoachingOnSessionEnd      READ aiCoachingOnSessionEnd      WRITE setAiCoachingOnSessionEnd      NOTIFY aiCoachingOnSessionEndChanged)
     Q_PROPERTY(bool    checkForUpdates             READ checkForUpdates             WRITE setCheckForUpdates             NOTIFY checkForUpdatesChanged)
     Q_PROPERTY(bool    sendDiagnostics             READ sendDiagnostics             WRITE setSendDiagnostics             NOTIFY sendDiagnosticsChanged)
@@ -144,6 +145,9 @@ public:
         // confirmation.
         m_autoDetectSwing           = ppSettings().value(QStringLiteral("General/autoDetectSwing"),           false).toBool();
         m_swingDetectionSensitivity = ppSettings().value(QStringLiteral("General/swingDetectionSensitivity"), QStringLiteral("Medium")).toString();
+        // Mic capture-chain delay used to back-date acoustic shot onsets
+        // (shot detection P2); a fixed estimate until P4 auto-calibration.
+        m_audioDeviceLatencyUs      = ppSettings().value(QStringLiteral("General/audioDeviceLatencyUs"),      20000).toInt();
         m_aiCoachingOnSessionEnd    = ppSettings().value(QStringLiteral("General/aiCoachingOnSessionEnd"),    true).toBool();
         m_checkForUpdates           = ppSettings().value(QStringLiteral("General/checkForUpdates"),           true).toBool();
         m_sendDiagnostics           = ppSettings().value(QStringLiteral("General/sendDiagnostics"),           false).toBool();
@@ -230,6 +234,7 @@ public:
     bool    autoSaveSession()           const { return m_autoSaveSession; }
     bool    autoDetectSwing()           const { return m_autoDetectSwing; }
     QString swingDetectionSensitivity() const { return m_swingDetectionSensitivity; }
+    int     audioDeviceLatencyUs()      const { return m_audioDeviceLatencyUs; }
     bool    aiCoachingOnSessionEnd()    const { return m_aiCoachingOnSessionEnd; }
     bool    checkForUpdates()           const { return m_checkForUpdates; }
     bool    sendDiagnostics()           const { return m_sendDiagnostics; }
@@ -407,6 +412,14 @@ public:
         m_swingDetectionSensitivity = v;
         ppSettings().setValue(QStringLiteral("General/swingDetectionSensitivity"), v);
         emit swingDetectionSensitivityChanged();
+    }
+
+    void setAudioDeviceLatencyUs(int v)
+    {
+        if (m_audioDeviceLatencyUs == v) return;
+        m_audioDeviceLatencyUs = v;
+        ppSettings().setValue(QStringLiteral("General/audioDeviceLatencyUs"), v);
+        emit audioDeviceLatencyUsChanged();
     }
 
     void setAiCoachingOnSessionEnd(bool v)
@@ -786,6 +799,7 @@ signals:
     void autoSaveSessionChanged();
     void autoDetectSwingChanged();
     void swingDetectionSensitivityChanged();
+    void audioDeviceLatencyUsChanged();
     void aiCoachingOnSessionEndChanged();
     void checkForUpdatesChanged();
     void sendDiagnosticsChanged();
@@ -850,6 +864,7 @@ private:
     bool    m_autoSaveSession           = true;
     bool    m_autoDetectSwing           = false;   // P1 default; ON again at P3
     QString m_swingDetectionSensitivity = QStringLiteral("Medium");
+    int     m_audioDeviceLatencyUs      = 20000;
     bool    m_aiCoachingOnSessionEnd    = true;
     bool    m_checkForUpdates           = true;
     bool    m_sendDiagnostics           = false;

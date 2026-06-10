@@ -153,6 +153,8 @@ qt_add_executable(PinPointStudio
     src/IMU/ble_adapter_pool.h  src/IMU/ble_adapter_pool.cpp
     src/IMU/ble_imu_transport.h src/IMU/ble_imu_transport.cpp
     src/IMU/wt9011dcl_ble.h   src/IMU/wt9011dcl_ble.cpp
+    src/Audio/onset_detector.h
+    src/Audio/acoustic_shot_detector.h src/Audio/acoustic_shot_detector.cpp
     src/Audio/audio_processor_base.h src/Audio/audio_processor_base.cpp
     src/Audio/audio_input_base.h     src/Audio/audio_input_base.cpp
     src/Audio/audio_input.h          src/Audio/audio_input.cpp

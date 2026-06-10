@@ -48,18 +48,20 @@ namespace {
 // for this long after the trigger so the follow-through lands in the ring
 // before it freezes. All 500 ms for now; per-source constants so each
 // detector can be tuned independently once its latency is characterised.
-constexpr int kPostRollManualMs = 500;
-constexpr int kPostRollImuMs    = 500;
-constexpr int kPostRollPoseMs   = 500;
-constexpr int kPostRollBallMs   = 500;
+constexpr int kPostRollManualMs   = 500;
+constexpr int kPostRollImuMs      = 500;
+constexpr int kPostRollPoseMs     = 500;
+constexpr int kPostRollBallMs     = 500;
+constexpr int kPostRollAcousticMs = 500;
 
 int postRollMsFor(ShotController::Source s)
 {
     switch (s) {
-    case ShotController::Source::Manual: return kPostRollManualMs;
-    case ShotController::Source::Imu:    return kPostRollImuMs;
-    case ShotController::Source::Pose:   return kPostRollPoseMs;
-    case ShotController::Source::Ball:   return kPostRollBallMs;
+    case ShotController::Source::Manual:   return kPostRollManualMs;
+    case ShotController::Source::Imu:      return kPostRollImuMs;
+    case ShotController::Source::Pose:     return kPostRollPoseMs;
+    case ShotController::Source::Ball:     return kPostRollBallMs;
+    case ShotController::Source::Acoustic: return kPostRollAcousticMs;
     }
     return kPostRollManualMs;
 }

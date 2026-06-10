@@ -40,7 +40,7 @@ class ShotController : public QObject
     Q_PROPERTY(bool armed READ armed NOTIFY armedChanged)
 
 public:
-    enum class Source { Manual, Imu, Pose, Ball };
+    enum class Source { Manual, Imu, Pose, Ball, Acoustic };
     Q_ENUM(Source)
 
     // Marker payload stored in the EventBuffer ring (schema "shot_marker_v1").
