@@ -170,7 +170,7 @@ On first configure, CMake downloads all required models and binaries (see table 
 
 ## Testing
 
-PinPoint Studio has two standalone unit-test suites. **Neither is part of the application build** — the root `CMakeLists.txt` forces `BUILD_TESTING OFF`, so building the app never compiles them. Each suite is configured against its own source root and is wired into CTest.
+PinPoint Studio has four standalone unit-test suites. **None are part of the application build** — the root `CMakeLists.txt` forces `BUILD_TESTING OFF`, so building the app never compiles them. Each suite is configured against its own source root and is wired into CTest.
 
 ### EventBuffer suite (`src/Buffer/tests`)
 
@@ -202,6 +202,26 @@ ctest --test-dir build/analyzer-tests --output-on-failure
 ```
 
 Requires Qt6 Core/Gui (and Bluetooth, for the driver test) plus Eigen. Eigen is resolved automatically — first from an explicit `-DEIGEN_INCLUDE_DIR=…`, then from the app build's FetchContent copy (`build/*/_deps/eigen-src`), and finally by fetching 3.4.0 if neither is present. Configuring the app at least once first lets the tests reuse its Eigen with no extra download.
+
+### Shot impact-detector suite (`src/IMU/tests`)
+
+Truth-table coverage for the IMU impact detector (shot detection P1): a real strike fires exactly once; mat/ground taps, waggles, and slow swells are rejected; the refractory collapses double-hits; the orientation gate holds; `est_t` is the back-dated peak; 100 Hz and 200 Hz traces behave identically. Self-contained — own `main()` + printf `CHECK` macros, no GoogleTest. `impact_detector.h` is pure math, so the suite needs neither BLE nor an app build (Qt is linked only for parity with the other suites).
+
+```bash
+cmake -S src/IMU/tests -B build/imu-tests -DCMAKE_PREFIX_PATH=/path/to/Qt/6.11.x/gcc_64
+cmake --build build/imu-tests -j
+ctest --test-dir build/imu-tests --output-on-failure
+```
+
+### Acoustic onset-detector suite (`src/Audio/tests`)
+
+Truth-table coverage for the acoustic onset detector (shot detection P2 / P4): a click fires sample-accurately; speech bursts, a sustained tone, tone cutoff, and ambient noise are rejected; the refractory holds; the onset → `est_t` back-dating math is checked; reverberant strikes still confirm (case G); and the absolute amplitude gate rejects quiet sounds while passing loud impacts and still rejecting a loud sustained tone (case H). Same self-contained harness — `onset_detector.h` is pure math, no audio device needed.
+
+```bash
+cmake -S src/Audio/tests -B build/audio-tests -DCMAKE_PREFIX_PATH=/path/to/Qt/6.11.x/gcc_64
+cmake --build build/audio-tests -j
+ctest --test-dir build/audio-tests --output-on-failure
+```
 
 ---
 

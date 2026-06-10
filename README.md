@@ -115,7 +115,7 @@ Pressing Back from any step returns to the previous one. Navigating back to the 
 A persistent toolbar pinned to the top of every mode screen (Swing, Wrist, GRF, Coach), built as a single reusable component shared across all four. It carries the session clock, one global capture control, a SHOT trigger, End Session, and two device pills.
 
 - **Capture** — anchored at the far left with the session clock alongside it. It is the **single owner of the EventBuffer state**: Capture/Stop toggles the user capture intent (`resumeBuffer` / `pauseBuffer`) and starts the session clock on first capture. Nothing else changes the net buffer state — ball detection is signal-only (it drives overlays, never capture).
-- **SHOT** — centred trigger that funnels every shot source (the manual button today; IMU/pose/ball detectors later) through a single `ShotController`. Armed only while the buffer is capturing and the shot processor is idle; firing it runs the post-shot pipeline (see [Shot capture & analysis](#shot-capture--analysis)).
+- **SHOT** — centred trigger that funnels every shot source through a single `ShotController`: the manual button always, plus the automatic IMU-impact and acoustic-onset detectors when *Auto-detect swing* is on (pose/ball later). Armed only while the buffer is capturing and the shot processor is idle; firing it runs the post-shot pipeline (see [Shot capture & analysis](#shot-capture--analysis)). A **DETECT** cluster of per-modality dots (IMU / Acoustic / Ball) sits alongside — each glows while its detector is armed and flashes green on a firing.
 - **End Session** — ghost button (visible while a session runs) with a small confirm popup; ends the session clock, stops capture, and unlocks navigation.
 - **Device pills** — Cameras and IMUs, each with a connected-count badge and aggregate state. A pill turns amber and reads **"calibrate"** when a connected device still needs calibration; the IMU pill instead warns **"battery N%"** (amber, or red below 20%) when any connected sensor drops below 50%.
 - **Drop-down panels** — Tapping a pill opens a panel beneath it with a scoped action row (**Scan / Connect / Calibrate**) and a per-device list. Opening one panel closes the other; click-away or Esc dismisses.
@@ -147,11 +147,11 @@ Every session belongs to an athlete. The athlete management flow is the entry po
 
 ### Shot capture & analysis
 
-A shot is the unit of analysis. Every shot source — the toolbar SHOT button today; IMU impact, pose, and ball detectors later — funnels through one `ShotController`, and a single `ShotProcessor` owns the post-shot pipeline:
+A shot is the unit of analysis. Every shot source funnels through one `ShotController`, and a single `ShotProcessor` owns the post-shot pipeline. Shots fire **manually** (the toolbar SHOT button) or **automatically**: with *Auto-detect swing* on — the default — an IMU-impact detector and an acoustic-onset detector each report candidates to an arbiter that fuses them (commit when two modalities agree within 40 ms, or on a lone high-confidence candidate) and back-dates the timestamp to true impact. Pose- and ball-based detectors join later.
 
 - **Trigger → post-roll** — On a shot, the buffer keeps capturing for a short post-roll so the follow-through lands in the ring, then pauses and freezes the trailing ~5 s as an immutable `SwingWindow`.
 - **Analyse ∥ export** — The frozen window feeds two concurrent workers reading it zero-copy: the per-session-type **shot analyzer** (Swing / Wrist / GRF / Coach) and the **swing exporter** (per-camera MP4 + thumbnail). The Wrist analyzer is the first real one — it segments swing phases, extracts lead-arm wrist metrics, and produces a banded swing score.
-- **¼-speed replay** — When both analysis and export succeed, the shot replays on-screen at ¼ speed with a `REPLAY ¼×` overlay and a pulsing badge on the replaying view. Press **Esc** to cancel the replay.
+- **¼-speed replay** — Any shot that captured camera footage replays on-screen at ¼ speed with a `REPLAY ¼×` overlay and a pulsing badge on the replaying view — independent of whether analysis or disk export succeeded, since the replay reads the frozen window's frames directly. Press **Esc** to cancel the replay.
 - **Persistence** — Each shot is written as one unified `swing.json` (raw frames + analysis) plus its MP4/thumbnail. Shots reload from disk on startup, so a session's history survives restarts; the analysing indicator on the toolbar shows when the pipeline is busy.
 
 ### Shot history & review (Wrist)
@@ -186,6 +186,7 @@ The Wrist screen carries a **session-shot carousel** of captured shots:
 - **Speech-to-text** — Whisper.cpp (local, Vulkan/CUDA GPU-accelerated) with Azure Speech REST fallback for CPU-only systems. Backend badge in the UI shows GPU / Cloud / Apple; clickable to toggle when cloud fallback is available.
 - **Text-to-speech** — Kokoro TTS (local, ONNX Runtime) with Azure Neural Voice fallback for CPU-only systems. Same badge/toggle pattern.
 - **Latency display** — Per-request latency shown next to each badge (e.g. `523 ms`).
+- **Acoustic shot detection** — The selected microphone also feeds an onset detector that auto-triggers shots on club-impact sound (one of the multi-modal detectors above); gated and tuned in Settings → Microphone, independent of voice/STT. See [Shot capture & analysis](#shot-capture--analysis).
 
 ### Settings
 
@@ -198,6 +199,7 @@ The Settings screen uses a sidebar navigation with full-text search (Ctrl/Cmd+F)
 | **Displays** | Active | Main display placement, window geometry memory, secondary display output, post-shot content and delay, UI frame-rate cap, hardware acceleration |
 | **Cameras** | Active | Per-camera enable/disable, view assignment (Face-on / Down-the-line / Other), mirrored image toggle, frame-rate chips, trigger mode (Free-run / HW sync), ROI crop with live preview; global pre-roll buffer and camera-sync toggle |
 | **IMUs** | Active | Per-device enable/disable, body placement assignment (A–D), output rate chips, save-to-flash, live test panel with 3D viz and Euler angles; global auto-connect, auto-reconnect, save-calibration-to-flash, and orientation-fusion algorithm (Madgwick / ESKF) |
+| **Microphone** | Active | Single-active input-device selection; "use microphone for shot detection" toggle (acoustic modality only — voice/STT unaffected); live calibration view with a dB level trace, trigger-threshold line, per-detection markers + chime, and a sensitivity slider |
 | **Launch Monitor** | Placeholder | External launch monitor integration (not yet implemented) |
 | **Storage** | Active | Athlete library path, session folder naming, auto-save; video codec/resolution/quality/container; sensor data export format |
 | **Archiving** | Placeholder | Session archive path and retention policy (not yet implemented) |
@@ -334,13 +336,17 @@ The app forces `QSettings::IniFormat` (see `src/Core/pp_settings.h`), so on Wind
 
 | Key | Default | Status | What |
 |---|---|---|---|
-| `general/language` | `"en_GB"` | ✅ | UI language tag (e.g. `"en_US"`, `"fr_FR"`, `"ja_JP"`); restart required |
-| `general/units` | `"mph"` | ✅ | Speed/distance unit (`"mph"` or `"kmh"`); used in session goals |
-| `general/autoDetectSwing` | `true` | 📋 | Start capture automatically when motion exceeds threshold |
-| `general/swingDetectionSensitivity` | `"Medium"` | 📋 | Trigger threshold (`"Low"`, `"Medium"`, `"High"`) |
-| `general/aiCoachingOnSessionEnd` | `true` | 📋 | Auto-generate a Claude coaching observation after each session |
-| `general/checkForUpdates` | `true` | 📋 | Check on launch for a newer release |
-| `general/sendDiagnostics` | `false` | 📋 | Send anonymous crash/performance data |
+| `General/language` | `"en_GB"` | ✅ | UI language tag (e.g. `"en_US"`, `"fr_FR"`, `"ja_JP"`); restart required |
+| `General/units` | `"mph"` | ✅ | Speed/distance unit (`"mph"` or `"kmh"`); used in session goals |
+| `General/autoDetectSwing` | `true` | ✅ | Master toggle for automatic shot detection — when on, the IMU-impact and acoustic-onset detectors feed the arbiter during a live capture; when off, only the manual SHOT button fires |
+| `General/swingDetectionSensitivity` | `"Medium"` | ✅ | IMU impact-detector threshold scale (`"Low"` = 1.5×, `"Medium"` = 1.0×, `"High"` = 0.7×) |
+| `General/audioDeviceLatencyUs` | `20000` | ✅ | Microphone capture-chain latency (µs) used to back-date acoustic onsets to true impact |
+| `General/audioInputDevice` | _(empty)_ | ✅ | Persistent id of the selected microphone (empty = system default) |
+| `General/acousticShotDetectionEnabled` | `true` | ✅ | Gate for the acoustic shot-detection modality; independent of voice/STT |
+| `General/acousticSensitivity` | `0.5` | ✅ | Acoustic onset sensitivity (`0.0` least … `1.0` most); maps to the absolute amplitude gate |
+| `General/aiCoachingOnSessionEnd` | `true` | 📋 | Auto-generate a Claude coaching observation after each session |
+| `General/checkForUpdates` | `true` | 📋 | Check on launch for a newer release |
+| `General/sendDiagnostics` | `false` | 📋 | Send anonymous crash/performance data |
 
 **Display**
 
