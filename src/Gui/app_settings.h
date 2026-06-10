@@ -140,10 +140,7 @@ public:
         m_units                     = ppSettings().value(QStringLiteral("General/units"),                     QStringLiteral("mph")).toString();
         m_athleteLibraryPath        = ppSettings().value(QStringLiteral("General/athleteLibraryPath"),        QStringLiteral("")).toString();
         m_autoSaveSession           = ppSettings().value(QStringLiteral("General/autoSaveSession"),           true).toBool();
-        // Default OFF while the IMU auto-trigger is single-modality (shot
-        // detection P1); flips back ON when the P3 arbiter adds cross-modal
-        // confirmation.
-        m_autoDetectSwing           = ppSettings().value(QStringLiteral("General/autoDetectSwing"),           false).toBool();
+        m_autoDetectSwing           = ppSettings().value(QStringLiteral("General/autoDetectSwing"),           true).toBool();
         m_swingDetectionSensitivity = ppSettings().value(QStringLiteral("General/swingDetectionSensitivity"), QStringLiteral("Medium")).toString();
         // Mic capture-chain delay used to back-date acoustic shot onsets
         // (shot detection P2); a fixed estimate until P4 auto-calibration.
@@ -862,7 +859,7 @@ private:
     QString m_units                     = QStringLiteral("mph");
     QString m_athleteLibraryPath;
     bool    m_autoSaveSession           = true;
-    bool    m_autoDetectSwing           = false;   // P1 default; ON again at P3
+    bool    m_autoDetectSwing           = true;    // ON since the P3 arbiter
     QString m_swingDetectionSensitivity = QStringLiteral("Medium");
     int     m_audioDeviceLatencyUs      = 20000;
     bool    m_aiCoachingOnSessionEnd    = true;

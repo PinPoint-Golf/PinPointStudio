@@ -135,6 +135,7 @@ qt_add_executable(PinPointStudio
     src/Gui/session_review_controller.h src/Gui/session_review_controller.cpp
     src/Gui/session_list_model.h       src/Gui/session_list_model.cpp
     src/Gui/session_summary.h
+    src/Gui/shot_arbiter.h
     src/Gui/shot_controller.h          src/Gui/shot_controller.cpp
     src/Gui/shot_list_model.h          src/Gui/shot_list_model.cpp
     src/Gui/shot_processor.h           src/Gui/shot_processor.cpp

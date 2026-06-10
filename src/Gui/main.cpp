@@ -208,22 +208,22 @@ int main(int argc, char *argv[])
         shotController.setProcessorBusy(shotProcessor.busy());
     });
 
-    // IMU impact auto-trigger (shot detection P1) — gated behind the
-    // autoDetectSwing setting (default OFF until the P3 arbiter adds
-    // cross-modal confirmation). Whole chain is GUI-thread, so a direct
-    // connection; the armed() gate inside triggerShot already handles
-    // capturing/busy/review.
+    // IMU impact auto-detection (shot detection P1, re-pointed at the P3
+    // arbiter): candidates funnel through reportCandidate's hold/fuse window
+    // rather than committing directly. Gated behind the autoDetectSwing
+    // setting. Whole chain is GUI-thread, so a direct connection; the
+    // armed() gate inside reportCandidate handles capturing/busy/review.
     QObject::connect(&imuManager, &ImuManager::impactDetected, &shotController,
-                     [&shotController, &appSettings](qint64 estImpactUs, float) {
+                     [&shotController, &appSettings](qint64 estImpactUs, float conf) {
         if (appSettings.autoDetectSwing())
-            shotController.triggerShot(ShotController::Source::Imu, estImpactUs);
+            shotController.reportCandidate(ShotController::Source::Imu,
+                                           estImpactUs, conf);
     });
 
-    // Acoustic onset auto-trigger (shot detection P2) — same autoDetectSwing
-    // gate as the IMU path until the P3 arbiter fuses candidates.
-    // TranscriptionController::impactDetected is emitted on the AUDIO thread
-    // with est_t* already computed; the &shotController context makes this a
-    // queued hop onto the GUI thread.
+    // Acoustic onset auto-detection (shot detection P2, re-pointed at the P3
+    // arbiter like the IMU path). TranscriptionController::impactDetected is
+    // emitted on the AUDIO thread with est_t* already computed; the
+    // &shotController context makes this a queued hop onto the GUI thread.
     controller.setAcousticLatencyUs(appSettings.audioDeviceLatencyUs());
     QObject::connect(&appSettings, &AppSettings::audioDeviceLatencyUsChanged,
                      &controller, [&controller, &appSettings] {
@@ -231,10 +231,16 @@ int main(int argc, char *argv[])
     });
     QObject::connect(&controller, &TranscriptionController::impactDetected,
                      &shotController,
-                     [&shotController, &appSettings](qint64 estImpactUs, float) {
+                     [&shotController, &appSettings](qint64 estImpactUs, float conf) {
         if (appSettings.autoDetectSwing())
-            shotController.triggerShot(ShotController::Source::Acoustic, estImpactUs);
+            shotController.reportCandidate(ShotController::Source::Acoustic,
+                                           estImpactUs, conf);
     });
+    // Vision corroboration (P3-G5) joins the same funnel via
+    // reportCandidate(Source::Ball, ...) once the ball detector grows its
+    // Kalman-track ballLaunched(timestampUs) signal (BALL_DETECTOR_DESIGN.md
+    // §8) — today's ballPresentChanged is smoothed over a 50-frame window,
+    // far too coarse for the ±40 ms match tolerance.
 
     // Voice input: completed STT transcription → coach chat (when voice input enabled).
     QObject::connect(&controller, &TranscriptionController::transcriptionReceived,

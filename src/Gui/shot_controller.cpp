@@ -30,6 +30,30 @@ const char *sourceName(ShotController::Source s)
     return QMetaEnum::fromType<ShotController::Source>()
         .valueToKey(static_cast<int>(s));
 }
+
+// ShotController::Source ↔ the arbiter's modality set. Manual has no arbiter
+// modality (it commits directly); Pose rides the vision slot with Ball.
+bool toArbSource(ShotController::Source s, pinpoint::ArbSource &out)
+{
+    switch (s) {
+    case ShotController::Source::Acoustic: out = pinpoint::ArbSource::Acoustic; return true;
+    case ShotController::Source::Imu:      out = pinpoint::ArbSource::Imu;      return true;
+    case ShotController::Source::Ball:
+    case ShotController::Source::Pose:     out = pinpoint::ArbSource::Ball;     return true;
+    case ShotController::Source::Manual:   break;
+    }
+    return false;
+}
+
+ShotController::Source fromArbSource(pinpoint::ArbSource a)
+{
+    switch (a) {
+    case pinpoint::ArbSource::Acoustic: return ShotController::Source::Acoustic;
+    case pinpoint::ArbSource::Imu:      return ShotController::Source::Imu;
+    case pinpoint::ArbSource::Ball:     return ShotController::Source::Ball;
+    }
+    return ShotController::Source::Manual;
+}
 } // namespace
 
 ShotController::ShotController(pinpoint::EventBuffer *buffer,
@@ -64,6 +88,9 @@ ShotController::ShotController(pinpoint::EventBuffer *buffer,
         m_sourceId = m_buffer->registerSource(desc);
     }
 
+    m_arbTimer.setSingleShot(true);
+    connect(&m_arbTimer, &QTimer::timeout, this, &ShotController::onArbHoldExpired);
+
     m_lastArmed = armed();
 }
 
@@ -94,6 +121,12 @@ void ShotController::reevaluateArmed()
     if (now == m_lastArmed)
         return;
     m_lastArmed = now;
+    // A hold window opened while armed is void once disarmed (capture
+    // stopped, processor busy, review entered) — drop it.
+    if (!now) {
+        m_arbTimer.stop();
+        m_arbiter.cancel();
+    }
     emit armedChanged();
 }
 
@@ -101,6 +134,67 @@ void ShotController::triggerShot(Source source, qint64 timestampUs)
 {
     if (!armed()) {
         ppDebug() << "[ShotController] trigger ignored (not capturing or busy) — source"
+                  << sourceName(source);
+        return;
+    }
+
+    // A direct trigger supersedes any pending hold window, and the arbiter
+    // refractory must still cover subsequent auto candidates.
+    m_arbTimer.stop();
+    m_arbiter.cancel();
+    m_arbiter.noteCommit(static_cast<int64_t>(pinpoint::EventBuffer::nowMicros()));
+
+    commitShot(source, timestampUs);
+}
+
+void ShotController::reportCandidate(Source source, qint64 estImpactUs, float confidence)
+{
+    pinpoint::ArbSource arbSrc;
+    if (!toArbSource(source, arbSrc)) {
+        triggerShot(source, estImpactUs);   // Manual never holds
+        return;
+    }
+
+    if (!armed()) {
+        ppDebug() << "[ShotController] candidate ignored (not capturing or busy) — source"
+                  << sourceName(source);
+        return;
+    }
+
+    const auto nowUs =
+        static_cast<int64_t>(pinpoint::EventBuffer::nowMicros());
+    const bool opened = m_arbiter.report(
+        {arbSrc, static_cast<int64_t>(estImpactUs), confidence}, nowUs);
+
+    ppDebug() << "[ShotController] candidate — source" << sourceName(source)
+              << "est_t_us" << estImpactUs << "conf" << confidence
+              << (opened ? "(hold window opened)" : "(joined window)");
+
+    if (opened)
+        m_arbTimer.start(m_arbiter.config().holdMs);
+}
+
+void ShotController::onArbHoldExpired()
+{
+    const auto nowUs =
+        static_cast<int64_t>(pinpoint::EventBuffer::nowMicros());
+    const pinpoint::ShotArbiter::Decision d = m_arbiter.decide(nowUs);
+    if (!d.commit) {
+        ppDebug() << "[ShotController] hold window expired — no commit";
+        return;
+    }
+
+    ppInfo() << "[ShotController] arbiter commit —" << d.modalities
+             << "modalit" << (d.modalities == 1 ? "y" : "ies")
+             << "authoritative" << sourceName(fromArbSource(d.src))
+             << "conf" << d.conf;
+    commitShot(fromArbSource(d.src), d.t_us);
+}
+
+void ShotController::commitShot(Source source, qint64 timestampUs)
+{
+    if (!armed()) {
+        ppDebug() << "[ShotController] commit ignored (not capturing or busy) — source"
                   << sourceName(source);
         return;
     }

@@ -19,17 +19,22 @@
 #pragma once
 
 #include <QObject>
+#include <QTimer>
 
 #include "event_buffer.h"
+#include "shot_arbiter.h"
 
 class SessionController;
 
-// Central application-level shot trigger. Every shot source — the toolbar
-// SHOT button today; IMU impact, pose, and ball detection later — calls
-// triggerShot(). shotDetected is the single signal ShotProcessor (post-roll
-// → buffer freeze → shot window → analysis ∥ export → replay) is driven from.
+// Central application-level shot trigger. The toolbar SHOT button calls
+// triggerShot() (direct commit — manual bypasses the arbiter hold); the auto
+// detectors (IMU impact, acoustic onset, ball launch) call reportCandidate(),
+// which funnels through the ShotArbiter's candidate→hold→fuse→commit window
+// (shot_arbiter.h). shotDetected is the single signal ShotProcessor
+// (post-roll → buffer freeze → shot window → analysis ∥ export → replay) is
+// driven from.
 //
-// On every accepted trigger a shot-marker event is written into the
+// On every committed shot a shot-marker event is written into the
 // EventBuffer (source "shot_controller", schema "shot_marker_v1") so the
 // precise impact instant lives on the same steady_clock-µs timeline as the
 // video frames and IMU samples. A later captureSwingWindow() contains the
@@ -60,11 +65,21 @@ public:
     // only state a shot can fire in. Every source inherits the gate.
     bool armed() const;
 
-    // timestampUs: precise impact instant in EventBuffer::nowMicros() domain
-    // (steady_clock µs). Default -1 → "now" — what the manual button uses.
-    // Future IMU/pose detectors pass the exact sample timestamp of impact.
+    // Direct commit — bypasses the arbiter hold. timestampUs: precise impact
+    // instant in EventBuffer::nowMicros() domain (steady_clock µs); -1 →
+    // "now" (the manual button). A pending arbiter window is cancelled and
+    // the arbiter refractory is noted, so auto candidates cannot double-fire
+    // around a manual shot.
     Q_INVOKABLE void triggerShot(Source source = Source::Manual,
                                  qint64 timestampUs = -1);
+
+    // Auto-detector funnel (shot detection P3): estImpactUs is the
+    // detector's back-dated true-impact estimate, confidence its gate
+    // strength. The first candidate opens a hold window (kArbHoldMs); at the
+    // deadline the arbiter fuses candidates and commits at most one shot
+    // (>=2 agreeing modalities, or one strong one — see shot_arbiter.h).
+    // Inherits the armed() gate; Manual is rerouted to triggerShot().
+    void reportCandidate(Source source, qint64 estImpactUs, float confidence);
 
 public slots:
     // Connected to CameraManager::bufferStateChanged (the single always-notified
@@ -88,6 +103,10 @@ signals:
     void armedChanged();
 
 private:
+    // The single commit path — writes the marker and emits shotDetected.
+    // Re-checks armed() (the processor may have gone busy mid-hold).
+    void commitShot(Source source, qint64 timestampUs);
+    void onArbHoldExpired();
     void writeShotMarker(Source source, int64_t impactUs, int sessionType);
 
     pinpoint::EventBuffer *m_buffer   = nullptr;
@@ -96,4 +115,7 @@ private:
     bool                   m_processorBusy = false;
     bool                   m_reviewActive  = false;
     bool                   m_lastArmed = false;
+
+    pinpoint::ShotArbiter  m_arbiter;
+    QTimer                 m_arbTimer;   // single-shot hold-window deadline
 };
