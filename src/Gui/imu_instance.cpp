@@ -148,6 +148,29 @@ ImuInstance::ImuInstance(const Device &device,
         }
     });
 
+    // 60 Hz display tick — the ONLY emitter of the high-rate change signals
+    // (quat/euler, accel, angular velocity, data rate). Packet handlers write
+    // members and set the dirty flag; consumers that need live values between
+    // ticks (calibration flow, impact detector) read the members directly.
+    m_displayTimer.setInterval(16);
+    m_displayTimer.setSingleShot(false);
+    connect(&m_displayTimer, &QTimer::timeout, this, [this]() {
+        if (!m_displayDirty)
+            return;
+        m_displayDirty = false;
+        emit quatChanged();
+        emit accelChanged();
+        if (qAbs(m_angularVelocityDps - m_lastSentVelDps) > 0.5f) {
+            m_lastSentVelDps = m_angularVelocityDps;
+            emit angularVelocityDpsChanged();
+        }
+        if (qAbs(m_dataRateHz - m_lastSentRateHz) > 0.1) {
+            m_lastSentRateHz = m_dataRateHz;
+            emit dataRateHzChanged();
+        }
+    });
+    m_displayTimer.start();
+
     connect(m_imu, &WT9011DCL_BLE::stateChanged,
             this,  &ImuInstance::onStateChanged);
 
@@ -172,7 +195,7 @@ ImuInstance::ImuInstance(const Device &device,
         m_accelX =  d.x;
         m_accelY =  d.z;
         m_accelZ = -d.y;
-        emit accelChanged();
+        m_displayDirty = true;   // emitted from the 60 Hz display tick
     });
 
     connect(m_imu, &WT9011DCL_Base::batteryUpdated, this, [this](int percent) {
@@ -217,7 +240,7 @@ ImuInstance::ImuInstance(const Device &device,
             m_anatQuat = imu_calibration::toAnatomical(m_alignA, QQuaternion(q.w, q.x, q.y, q.z), m_mountM);
         else
             m_anatQuat = QQuaternion(q.w, q.x, q.y, q.z);
-        emit quatChanged();
+        m_displayDirty = true;   // quatChanged emitted from the 60 Hz display tick
 
         // Raw packet stream (beginRawDump/endRawDump diagnostic; off by default).
         // m_eulerRoll/Pitch/Yaw were just set by the eulerAnglesUpdated slot, which
@@ -244,13 +267,8 @@ ImuInstance::ImuInstance(const Device &device,
             // |dot| of two unit quaternions = cos(half-angle). abs() for double-cover.
             const float dot      = qBound(0.0f, qAbs(QQuaternion::dotProduct(m_prevQuat, cur)), 1.0f);
             const float angleDeg = qRadiansToDegrees(2.0f * qAcos(dot));
-            const float velDps   = angleDeg / (dtMs * 0.001f);
+            m_angularVelocityDps = angleDeg / (dtMs * 0.001f);   // emitted from the display tick
             m_prevQuat = cur;
-
-            if (qAbs(velDps - m_angularVelocityDps) > 0.5f) {
-                m_angularVelocityDps = velDps;
-                emit angularVelocityDpsChanged();
-            }
         } else {
             m_prevQuat = QQuaternion(q.w, q.x, q.y, q.z);
         }
@@ -819,11 +837,7 @@ void ImuInstance::onDataRecord()
     const double hz = (windowMs > 0)
         ? (m_packetTimes.size() * 1000.0 / windowMs) : 0.0;
 
-    if (qAbs(hz - m_dataRateHz) > 0.1) {
-        m_dataRateHz = hz;
-        emit dataRateHzChanged();
-    }
-
+    m_dataRateHz = hz;   // emitted (delta-gated) from the 60 Hz display tick
 }
 
 QString ImuInstance::timestamp()

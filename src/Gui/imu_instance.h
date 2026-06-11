@@ -242,6 +242,18 @@ private:
     QTimer m_gimbalPollTimer;
     static constexpr int kGimbalPollIntervalMs = 200;
 
+    // Display-signal coalescing (BodyPoseAdapter pattern): packet handlers
+    // update members only and set the dirty flag; this 60 Hz tick emits the
+    // QML-facing change signals. BLE packets arrive at up to 200 Hz per
+    // device ON THE GUI THREAD (the driver is a child of this object) — with
+    // three sensors, per-packet emissions were ~1800 QML binding storms/s,
+    // enough to visibly starve rendering on Windows where the WinRT BLE
+    // stack already adds per-notification overhead.
+    QTimer m_displayTimer;
+    bool   m_displayDirty   = false;
+    float  m_lastSentVelDps = 0.0f;
+    double m_lastSentRateHz = 0.0;
+
     // State
     QString m_stateLabel = QStringLiteral("Disconnected");
     bool    m_connected  = false;
