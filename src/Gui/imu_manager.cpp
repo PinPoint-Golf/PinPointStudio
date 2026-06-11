@@ -334,6 +334,19 @@ void ImuManager::setSelected(int index, bool selected)
     }
 }
 
+void ImuManager::disconnectAll()
+{
+    // setSelected owns the full per-device teardown (stop barrier, BLE
+    // disconnect, deregister, buffer-intent notify) — reuse it per device.
+    // The enumerator list is stable across the loop (no scan runs here).
+    const QList<Device> devs = DeviceEnumerator::instance()->devices(DeviceType::Imu);
+    for (int i = 0; i < devs.size(); ++i) {
+        const auto it = m_selected.constFind(devs[i].id);
+        if (it != m_selected.cend() && it->selected)
+            setSelected(i, false);
+    }
+}
+
 void ImuManager::rescanImu()
 {
     DeviceEnumerator::instance()->scanImu();

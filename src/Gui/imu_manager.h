@@ -94,6 +94,10 @@ public:
     // index is the position in DeviceEnumerator::devices(DeviceType::Imu).
     Q_INVOKABLE void setSelected(int index, bool selected);
 
+    // End-of-session device release: disconnects every connected IMU through
+    // the normal setSelected teardown.
+    Q_INVOKABLE void disconnectAll();
+
     QStringList sessionImuExcluded() const;
 
     // Per-session enablement toggle. Disabling a selected/connected device also

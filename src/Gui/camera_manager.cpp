@@ -365,6 +365,17 @@ void CameraManager::stopAll()
     emit isRecordingChanged();
 }
 
+void CameraManager::disconnectAll()
+{
+    stopAll();
+    // setSelected owns the full per-camera teardown (shot-processor stop
+    // barrier, capture-thread stop, deregister, intent restore) — reuse it
+    // rather than batching, so the producer contract stays in one place.
+    for (int i = 0; i < m_cameras.size(); ++i)
+        if (m_cameras[i].selected)
+            setSelected(i, false);
+}
+
 void CameraManager::pauseBuffer()
 {
     if (m_eventBuffer && m_eventBuffer->state() == pinpoint::BufferState::Capturing) {

@@ -99,6 +99,9 @@ public:
     Q_INVOKABLE void setSelected(int index, bool selected);
     Q_INVOKABLE void startAll();
     Q_INVOKABLE void stopAll();
+    // End-of-session device release: stops recording, then deselects every
+    // connected camera through the normal setSelected teardown.
+    Q_INVOKABLE void disconnectAll();
     Q_INVOKABLE void setCameraAlias(const QString &key, const QString &alias);
     Q_INVOKABLE void pauseBuffer();
     Q_INVOKABLE void resumeBuffer();

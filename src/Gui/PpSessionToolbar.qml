@@ -315,6 +315,12 @@ Item {
                                     endPopup.close()
                                     cameraManager.stopCapture()
                                     sessionController.endSession()
+                                    // Ending the session releases the devices:
+                                    // cameras stop + deselect, IMUs disconnect
+                                    // (BLE battery). The next session's wizard
+                                    // reconnects what it needs.
+                                    cameraManager.disconnectAll()
+                                    imuManager.disconnectAll()
                                 }
                             }
                         }
