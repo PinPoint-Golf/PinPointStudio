@@ -55,6 +55,12 @@ Item {
     readonly property real selectedCardX:
         selectedCard ? railCol.x + strip.x + selectedCard.x - strip.contentX : 0
 
+    // Shared popup width for the shot panel AND the sessions drawer (~⅓ of
+    // the carousel width, clamped) — one sizing so the two read as siblings,
+    // and wide enough that the metric-graph legend doesn't wrap.
+    readonly property real drawerWidth:
+        Math.round(Math.max(Theme.sp(420), Math.min(width / 3, Theme.sp(560))))
+
     implicitHeight: Theme.carouselHeight
 
     // A filtered-out or removed selection destroys its delegate — drop the panel with it.
@@ -391,6 +397,7 @@ Item {
     Popup {
         id: panelPopup
         parent: root
+        width: root.drawerWidth
         y: -height - Theme.sp(10)
         x: Math.max(Theme.sp(8),
                     Math.min(root.selectedCardX - width / 2 + Theme.sp(70),
@@ -492,10 +499,7 @@ Item {
         id: sessionsPopup
         parent: root
         x: 0
-        // ~⅓ of the carousel width, clamped — wide enough to stay readable on a
-        // narrow window, capped so it neither sprawls nor spans the whole strip.
-        width: Math.round(Math.max(Theme.sp(420),
-                                   Math.min(root.width / 3, Theme.sp(560))))
+        width: root.drawerWidth   // shared with the shot panel (siblings)
         y: -height - Theme.sp(10)
 
         // Clamp so the top stays below the toolbar. Window height (the overlay)
