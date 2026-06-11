@@ -348,24 +348,94 @@ Item {
 
         // ── Analysing indicator — visible while the shot processor works ────
         // (post-roll + analysis + export; hidden again once the replay runs,
-        // which has its own REPLAY badge on the camera frames).
+        // which has its own REPLAY badge on the camera frames). The bar fills
+        // with shotProcessor.analysisProgress (frames processed) and carries a
+        // sweeping sheen + twinkles at the leading edge — the one deliberately
+        // showy moment in the toolbar. All motion gated on Theme.reduceMotion;
+        // the plain filling bar remains.
         Row {
+            id: analysingRow
             Layout.alignment: Qt.AlignVCenter
             spacing: Theme.sp(6)
             visible: shotProcessor.busy && !shotProcessor.isReplaying
                      && !sessionReviewController.reviewActive
 
-            Rectangle {
-                anchors.verticalCenter: parent.verticalCenter
-                width: Theme.sp(8); height: Theme.sp(8); radius: Theme.sp(4)
-                color: Theme.colorAccent
+            readonly property bool sparkling: visible && !Theme.reduceMotion
 
-                SequentialAnimation on opacity {
-                    running: shotProcessor.busy && !shotProcessor.isReplaying
-                             && !Theme.reduceMotion
-                    loops: Animation.Infinite
-                    NumberAnimation { to: 0.3; duration: Theme.durationSlow }
-                    NumberAnimation { to: 1.0; duration: Theme.durationSlow }
+            Item {
+                id: analyseBar
+                anchors.verticalCenter: parent.verticalCenter
+                width: Theme.sp(96); height: Theme.sp(5)
+
+                Rectangle {   // track
+                    anchors.fill: parent
+                    radius: height / 2
+                    color: Theme.colorBg3
+                    border.width: 1; border.color: Theme.colorBorderMid
+                }
+
+                Rectangle {   // fill — never narrower than its own end caps
+                    id: analyseFill
+                    width: Math.max(height, parent.width * shotProcessor.analysisProgress)
+                    height: parent.height
+                    radius: height / 2
+                    color: Theme.colorAccent
+                    clip: true
+                    Behavior on width { NumberAnimation { duration: Theme.durationNormal } }
+
+                    Rectangle {   // sheen sweeping the filled portion only (parent clips)
+                        id: analyseSheen
+                        width: Theme.sp(22); height: parent.height
+                        visible: analysingRow.sparkling
+                        gradient: Gradient {
+                            orientation: Gradient.Horizontal
+                            GradientStop { position: 0.0; color: "transparent" }
+                            GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.55) }
+                            GradientStop { position: 1.0; color: "transparent" }
+                        }
+                        NumberAnimation on x {
+                            running: analysingRow.sparkling
+                            loops: Animation.Infinite
+                            from: -analyseSheen.width
+                            to: analyseBar.width
+                            duration: 1100
+                        }
+                    }
+                }
+
+                // Twinkles riding the fill's leading edge, staggered so they
+                // read as sparkle rather than a blinking cluster.
+                Repeater {
+                    model: [ { dx: -2,  dy: -7, period: 900  },
+                             { dx: -11, dy:  6, period: 1300 },
+                             { dx:  5,  dy: -2, period: 700  } ]
+                    delegate: Text {
+                        required property var modelData
+                        x: analyseFill.width + modelData.dx - implicitWidth / 2
+                        y: analyseBar.height / 2 + modelData.dy - implicitHeight / 2
+                        text: "✦"
+                        font.family: Theme.fontSymbol
+                        font.pixelSize: Theme.fontSzMicro
+                        color: Theme.colorAccent
+                        opacity: 0
+                        scale: 0.6
+                        SequentialAnimation on opacity {
+                            running: analysingRow.sparkling
+                            loops: Animation.Infinite
+                            PauseAnimation  { duration: modelData.period * 0.4 }
+                            NumberAnimation { to: 1.0; duration: modelData.period * 0.3
+                                              easing.type: Easing.OutQuad }
+                            NumberAnimation { to: 0.0; duration: modelData.period * 0.3
+                                              easing.type: Easing.InQuad }
+                        }
+                        SequentialAnimation on scale {
+                            running: analysingRow.sparkling
+                            loops: Animation.Infinite
+                            PauseAnimation  { duration: modelData.period * 0.4 }
+                            NumberAnimation { to: 1.15; duration: modelData.period * 0.3 }
+                            NumberAnimation { to: 0.6;  duration: modelData.period * 0.3 }
+                        }
+                    }
                 }
             }
 

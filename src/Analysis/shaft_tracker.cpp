@@ -167,10 +167,12 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
 
     std::vector<ShaftFrameObs> obs;
     obs.reserve(entries.size());
-    size_t poseIdx = 0;
+    size_t poseIdx = 0, scanned = 0;
     int detected = 0;
     cv::Mat luma;
     for (const pinpoint::IndexEntry &e : entries) {
+        if (job.progress)
+            job.progress(float(++scanned) / float(entries.size()));
         // Only frames inside pose coverage have a defensible anchor.
         if (e.timestamp_us < pose.frames.front().t_us
             || e.timestamp_us > pose.frames.back().t_us)

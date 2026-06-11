@@ -66,6 +66,10 @@ class ShotProcessor : public QObject
     Q_PROPERTY(QString state       READ stateName   NOTIFY stateChanged)
     Q_PROPERTY(bool    busy        READ busy        NOTIFY busyChanged)
     Q_PROPERTY(bool    isReplaying READ isReplaying NOTIFY isReplayingChanged)
+    // Analysis worker progress, 0..1 — drives the toolbar ANALYSING bar.
+    // Reset on each shot; reported from the worker via the job's progress
+    // callback (queued to the UI thread, throttled to ~1% steps).
+    Q_PROPERTY(double analysisProgress READ analysisProgress NOTIFY analysisProgressChanged)
     // Replay playhead — the single source of truth both the video tile and the
     // synced metric graph bind to. EventBuffer::nowMicros() domain, == MetricSeries
     // t_us, so no conversion. Position fires per ~60 Hz tick; span/impact on start.
@@ -98,6 +102,7 @@ public:
     qint64  replayEndUs()      const { return m_replayWindowEndUs; }
     qint64  replayImpactUs()   const { return m_impactUs; }
     QVariantMap replayAnalysisDetail() const { return m_replayAnalysisDetail; }
+    double  analysisProgress() const { return m_analysisProgress; }
 
     // User-initiated skip (ESC). Only meaningful mid-replay: the shot is
     // already on the carousel and saved by the time the replay runs, so
@@ -117,6 +122,7 @@ signals:
     void stateChanged();
     void busyChanged();
     void isReplayingChanged();
+    void analysisProgressChanged();
     void replayPositionChanged();
     void replaySpanChanged();
     void replayAnalysisDetailChanged();
@@ -146,6 +152,7 @@ private:
     };
 
     void setState(State s);
+    void setAnalysisProgress(double p);
     void captureWindowAndLaunch();
     void startAnalysis();
     void startSwingSave();
@@ -169,7 +176,8 @@ private:
     SessionController     *m_session       = nullptr;
     ShotListModel         *m_shotModel     = nullptr;
 
-    State m_state = State::Idle;
+    State  m_state = State::Idle;
+    double m_analysisProgress = 0.0;
 
     // Pending shot, captured at trigger time.
     ShotController::Source m_shotSource = ShotController::Source::Manual;

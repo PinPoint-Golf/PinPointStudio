@@ -21,6 +21,7 @@
 #include <QString>
 #include <QVariantList>
 #include <QVariantMap>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -51,6 +52,12 @@ struct ShotAnalysisJob {
     int     handedness = 0;     // 0 unknown, 1 right, 2 left (lead-arm sign)
     QString swingDir;           // swing folder for persistence (set at the join)
     bool    calibValid = false; // IMU sensor-to-segment calibration fresh (<30 min)
+
+    // Optional progress sink, 0..1 over the whole analysis. Called from the
+    // WORKER thread — the installer must marshal to its own thread (the
+    // ShotProcessor lambda posts a queued invoke). May be null; analyzers
+    // must check before calling.
+    std::function<void(float)> progress;
 };
 
 // Result shapes mirror the ShotListModel roles so the join can hand them to

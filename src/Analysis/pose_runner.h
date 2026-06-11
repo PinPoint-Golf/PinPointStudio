@@ -24,6 +24,7 @@
 // (null-checked payloads, shared frame_decode, const reads only).
 
 #include <cstdint>
+#include <functional>
 
 #include "types.h"
 #include "swing_analysis.h"   // PoseFrame2D / PoseTrack2D (canonical output shapes)
@@ -38,6 +39,11 @@ struct ShotAnalysisRunnerOptions {
     int     densePreMs  = 800;  // pose every frame within [impact − densePreMs, …
     int     densePostMs = 300;  //                          … impact + densePostMs]
     int     sparseStride = 4;   // every Nth frame outside the dense zone
+
+    // Optional progress sink, 0..1 over this pose pass (window-scan position,
+    // not posed-frame count — the sparse zone advances it in stride jumps).
+    // Called from the worker thread; may be null.
+    std::function<void(float)> progress;
 };
 
 class PoseRunner {

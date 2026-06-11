@@ -150,6 +150,8 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
         if (!dense && (i % static_cast<size_t>(stride)) != 0)
             continue;
         ++sampled;
+        if (opt.progress)
+            opt.progress(float(i + 1) / float(entries.size()));
 
         // Frozen-window contract: payloadOf() may hand back data == nullptr
         // (slot overwritten / mid-write) — decodeToBgr rejects null and short

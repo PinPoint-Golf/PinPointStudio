@@ -165,14 +165,23 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
 
     // ShaftTracker (S3): offline pose + club track over the face-on camera.
     // Heavy (ViTPose per frame) — runs after the cheap IMU stages; failures
-    // degrade to empty/invalid tracks, never to a failed analysis.
+    // degrade to empty/invalid tracks, never to a failed analysis. Progress
+    // budget: the IMU stages are near-instant, so the pose pass owns 10–70%
+    // and the shaft detection scan 70–98% (the assembly tail is cheap).
     if (job.faceOnCameraCount > 0 && !job.cameraSources.empty()) {
         ShotAnalysisRunnerOptions opt;
         opt.impactUs   = job.impactUs;
         opt.handedness = job.handedness;
+        if (job.progress) {
+            job.progress(0.10f);
+            opt.progress = [&job](float f) { job.progress(0.10f + 0.60f * f); };
+        }
         detail->pose2d = PoseRunner::run(window, job.cameraSources.front(), opt);
         if (!detail->pose2d.frames.empty()) {
-            detail->shaft = ShaftTracker::track(window, detail->pose2d, streams, phases, job);
+            ShotAnalysisJob sub = job;
+            if (job.progress)
+                sub.progress = [&job](float f) { job.progress(0.70f + 0.28f * f); };
+            detail->shaft = ShaftTracker::track(window, detail->pose2d, streams, phases, sub);
             if (detail->shaft.valid)
                 series.push_back(buildShaftLeanSeries(detail->shaft, job.handedness,
                                                       job.impactUs));

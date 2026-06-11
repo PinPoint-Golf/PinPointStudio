@@ -246,6 +246,16 @@ void ShotProcessor::setState(State s)
         emit isReplayingChanged();
 }
 
+void ShotProcessor::setAnalysisProgress(double p)
+{
+    // Monotonic except for the explicit per-shot reset to 0: queued worker
+    // updates can land after the completion 1.0 and must not drag the bar back.
+    if (p == m_analysisProgress || (p < m_analysisProgress && p != 0.0))
+        return;
+    m_analysisProgress = p;
+    emit analysisProgressChanged();
+}
+
 // ---------------------------------------------------------------------------
 // Trigger → post-roll
 // ---------------------------------------------------------------------------
@@ -270,6 +280,7 @@ void ShotProcessor::onShotDetected(ShotController::Source source,
     m_sessionType    = sessionType;
     m_timestampLabel = QTime::currentTime().toString(QStringLiteral("hh:mm:ss"));
 
+    setAnalysisProgress(0.0);   // the ANALYSING bar starts empty for each shot
     setState(State::PostRoll);
     m_postRollTimer.start(postRollMsFor(source));
 }
@@ -386,6 +397,19 @@ void ShotProcessor::startAnalysis()
             job.imuBindings.push_back(b);
         }
     }
+
+    // Worker → UI progress marshalling: queued invoke with `this` as context
+    // (auto-cancelled if the processor dies first), throttled to whole-percent
+    // steps so per-frame reporting stays a handful of events per second.
+    auto lastPct = std::make_shared<int>(-1);
+    job.progress = [this, lastPct](float p) {
+        const int pct = static_cast<int>(p * 100.0f);
+        if (pct <= *lastPct)
+            return;            // single worker thread — no synchronisation needed
+        *lastPct = pct;
+        QMetaObject::invokeMethod(this, [this, p] { setAnalysisProgress(p); },
+                                  Qt::QueuedConnection);
+    };
 
     const pinpoint::SwingWindow *win = &*m_swingWindow;   // stable optional storage
     m_analysisInFlight = true;
@@ -601,6 +625,7 @@ void ShotProcessor::onAnalysisFinished()
     m_analysisInFlight = false;
     m_analysisResult   = m_analysisWatcher.result();
     m_analysisOutcome  = m_analysisResult.ok ? Outcome::Succeeded : Outcome::Failed;
+    setAnalysisProgress(1.0);   // beat any still-queued worker updates to full
     if (m_analysisResult.ok)
         ppInfo() << "[ShotProcessor] analysis done — score" << m_analysisResult.score;
     else
