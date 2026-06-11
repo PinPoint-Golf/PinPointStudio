@@ -34,6 +34,15 @@ Rectangle {
     property bool   showUndo: true
     // When non-empty, a copy icon copies this text to the clipboard on tap.
     property string copyText: ""
+    // "info" (neutral, default), "warn", or "error" — tints the border and
+    // glyph so the notice reads at the right urgency without shouting (the
+    // fill stays the neutral elevated surface).
+    property string severity: "info"
+
+    readonly property color _severityColor:
+        severity === "error" ? Theme.colorError
+      : severity === "warn"  ? Theme.colorWarn
+      :                        Theme.colorBorderStrong
 
     signal undoClicked()
 
@@ -49,7 +58,7 @@ Rectangle {
     radius: Theme.radiusLg
     color:  Theme.colorBg3
     border.width: 1
-    border.color: Theme.colorBorderStrong
+    border.color: root._severityColor
 
     Timer {
         id: hideTimer
@@ -70,7 +79,8 @@ Rectangle {
                 text:           root.glyph
                 font.family:    Theme.fontSymbol
                 font.pixelSize: Theme.fontSzBody
-                color:          Theme.colorText2
+                color:          root.severity === "info" ? Theme.colorText2
+                                                         : root._severityColor
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter

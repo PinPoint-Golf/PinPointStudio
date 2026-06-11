@@ -604,7 +604,7 @@ void ShotProcessor::onAnalysisFinished()
     if (m_analysisResult.ok)
         ppInfo() << "[ShotProcessor] analysis done — score" << m_analysisResult.score;
     else
-        ppError() << "[ShotProcessor] analysis failed:" << m_analysisResult.error;
+        emit analysisFailed(m_analysisResult.error);   // toast, not a log line
     maybeJoin();
 }
 

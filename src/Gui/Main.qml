@@ -420,16 +420,30 @@ ApplicationWindow {
         }
     }
 
-    // ── Swing-save failure toast ─────────────────────────────────────────────
-    // Window-level overlay so a failed export surfaces on whatever screen is
-    // active (the error is otherwise only visible in the message log). The
-    // copy action carries the full error for bug reports.
+    // ── Shot-pipeline failure toasts ─────────────────────────────────────────
+    // Window-level overlays so a failure surfaces on whatever screen is
+    // active, instead of dying quietly in the message log. Two independent
+    // toasts because the workers run in parallel and can both fail: save
+    // failure loses data (error red); analysis failure degrades the shot to
+    // no-score (warn amber) but the media still lands. The copy action
+    // carries the full error for bug reports.
     PpToast {
         id: saveErrorToast
         anchors.horizontalCenter: parent.horizontalCenter
         y: parent.height - height - Theme.sp(24)
         z: 100
         glyph: "⚠"
+        severity: "error"
+        showUndo: false
+    }
+    PpToast {
+        id: analysisErrorToast
+        anchors.horizontalCenter: parent.horizontalCenter
+        // Stacks above the save toast when both are visible.
+        y: saveErrorToast.y - (saveErrorToast.visible ? height + Theme.sp(10) : 0)
+        z: 100
+        glyph: "⚠"
+        severity: "warn"
         showUndo: false
     }
     Connections {
@@ -437,6 +451,10 @@ ApplicationWindow {
         function onSwingSaveFailed(error) {
             saveErrorToast.copyText = error
             saveErrorToast.show(qsTr("Swing save failed — %1").arg(error))
+        }
+        function onAnalysisFailed(error) {
+            analysisErrorToast.copyText = error
+            analysisErrorToast.show(qsTr("Shot analysis failed — %1").arg(error))
         }
     }
 

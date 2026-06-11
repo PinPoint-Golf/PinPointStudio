@@ -124,6 +124,10 @@ signals:
     void shotFailed(const QString &error);
     void swingSaved(const QString &path);
     void swingSaveFailed(const QString &error);
+    // Analyzer returned !ok — the shot degrades to no-score/no-metrics but the
+    // pipeline continues. Surfaced as a window-level toast (Main.qml), not a
+    // log line: the user must see why a shot has no analysis.
+    void analysisFailed(const QString &error);
 
 private slots:
     void onPostRollExpired();
