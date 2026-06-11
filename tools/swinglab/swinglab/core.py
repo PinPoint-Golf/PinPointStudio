@@ -2,6 +2,7 @@
 # mechanical parameter sweep (Tier 0 — no model involved).
 
 import json
+import os
 import random
 import shutil
 import subprocess
@@ -28,6 +29,13 @@ def doctor():
         print("  fix: cmake -S <repo> -B <build> -DPINPOINT_BUILD_TOOLS=ON && "
               "cmake --build <build> --target swinglab_run")
         print("  or:  set SWINGLAB_BIN=/path/to/swinglab_run")
+    dll = os.environ.get("SWINGLAB_DLL_PATH")
+    if dll:
+        print(f"dll path: {dll}")
+    elif os.name == "nt":
+        print("dll path: SWINGLAB_DLL_PATH not set — if runs fail with exit "
+              "-1073741515 (DLL not found), setx SWINGLAB_DLL_PATH to the Qt "
+              "bin;OpenCV bin dirs")
     for mod in ("numpy", "cv2", "matplotlib"):
         try:
             __import__(mod)
@@ -89,7 +97,13 @@ def run_one(swing_dir, run_dir, params=None, trace=True, pose=None, binary=None)
     pose_file = Path(pose) if pose else swing_dir / "pose.json"
     if pose_file.exists():
         cmd += ["--pose", str(pose_file)]
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    # Windows: the runner's DLLs (Qt, OpenCV) are not on the service PATH —
+    # SWINGLAB_DLL_PATH (set once per host via setx) is prepended for the child.
+    env = os.environ.copy()
+    extra = env.get("SWINGLAB_DLL_PATH")
+    if extra:
+        env["PATH"] = extra + os.pathsep + env.get("PATH", "")
+    r = subprocess.run(cmd, capture_output=True, text=True, env=env)
     (run_dir / "runner.log").write_text(r.stdout + r.stderr, encoding="utf-8")
     return r.returncode == 0, run_dir
 
