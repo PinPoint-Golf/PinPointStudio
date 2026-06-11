@@ -75,6 +75,7 @@ sequenced build-out.*
   - [Risks & open questions](#risks-open-questions)
 - [Implementation notes (as-built, M1)](#implementation-notes-as-built-m1)
 - [Addendum — Swing segmentation v2 (PhaseSegmenter v2)](#addendum-swing-segmentation-v2-phasesegmenter-v2)
+- [Addendum — Swing segmentation v3 (shaft-aware, two-pass)](#addendum-swing-segmentation-v3-shaft-aware-two-pass)
 - [Addendum — Club shaft detection (ShaftTracker, hand-anchored)](#addendum-club-shaft-detection-shafttracker-hand-anchored)
 - [Appendix A — Codebase integration map](#appendix-a-codebase-integration-map)
 - [Appendix B — Research bibliography](#appendix-b-research-bibliography)
@@ -940,6 +941,8 @@ convention.
 ## Addendum — Swing segmentation v2 (`PhaseSegmenter` v2)
 
 > **Status:** Design addendum (proposal) · **Date:** 2026-06-10 · **Grounded against:** `main` @ `474a6ba`
+> · **Extended by the v3 addendum below** (shaft-aware two-pass; v2's inertial ladder becomes v3's
+> pass 1 verbatim — read this addendum first, then the v3 deltas).
 >
 > Supersedes §6 (*Swing-phase segmentation*) and the as-built M1 `PhaseSegmenter` heuristic. Motivated by
 > the shot-detection P1–P3 work: impact is now an **arbiter-fused, back-dated, sub-frame-accurate anchor**
@@ -1177,10 +1180,163 @@ Reload (`SwingDocReader`) treats a missing `segmentation` block as full-window b
 
 - Learned event detector (SwingNet-style heads on license-clean self-captured data) for the
   camera-geometric P-positions; the inertial ladder above remains the always-available base.
-- Camera refinement of P2/P6/P8 via shaft-line fitting (`HoughLinesP` in a wrist-anchored ROI)
-  once the M2 ViTPose offline path lands.
+- ~~Camera refinement of P2/P6/P8 via shaft-line fitting (`HoughLinesP` in a wrist-anchored ROI)
+  once the M2 ViTPose offline path lands.~~ **Superseded by the v3 addendum** — `ShaftTracker`
+  shipped a far stronger signal than the speculative Hough fit (smoothed, unwrapped, IMU-bridged
+  θ(t) with per-sample confidence), so the refinement is specified there.
 - Club IMU (I2) upgrading `Delivery`/`Release` from proxy to exact.
 - Per-athlete auto-tuning of thresholds/priors from accumulated shot history.
+
+---
+
+## Addendum — Swing segmentation v3 (shaft-aware, two-pass)
+
+> **Status:** Design addendum (proposal) · **Date:** 2026-06-11 · **Grounded against:** `main` @ `7a3a160`
+> · **Implementation plan:** [`docs/implementation/SEGMENTATION_V3_IMPL.md`](../implementation/SEGMENTATION_V3_IMPL.md)
+>
+> Extends (does not replace) the v2 addendum. v2 was written one day before `ShaftTracker` S0–S4
+> landed; it anticipated the club only as a deferred Hough-line refinement and an I2 club IMU. The
+> shaft track that actually shipped — `ShaftTrack2D`: unwrapped RTS-smoothed θ(t), θ̇(t), visible
+> length L(t), head point, per-sample flags/confidence, an all-or-nothing validity gate, and the
+> vision↔IMU θ̇ correlation health metric — is a strictly stronger signal, and it changes the
+> architecture in three ways v2 did not cover:
+>
+> 1. **Two passes.** Segmentation runs *before* the heavy camera stages (to bound them) and is
+>    *refined after* them (the shaft measures the geometric P-positions the inertial ladder can
+>    only proxy). v2 had a single pass.
+> 2. **The truncation now reaches the analyzer's own heavy stages.** v2 trimmed export, replay,
+>    and metric grids; v3 also bounds `PoseRunner` and `ShaftTracker` to the detected swing span —
+>    the single biggest analysis-latency lever (the pose pass dominates wall-time, and the swing
+>    occupies ~half of the 5 s ring).
+> 3. **A vision-only fallback ladder.** With no IMU bound, v2 degrades to the 3-event clamp
+>    fallback; the shaft + pose tracks now support a real (lower-confidence) event ladder for
+>    camera-only sessions.
+>
+> `ShaftTracker` is implemented but **not yet hardware-proven** (S5 pending). v3 is therefore
+> shaped so the shaft is *refinement only*: pass 1 never depends on it, every shaft-derived event
+> carries `Club` provenance and its own confidence, and `shaft.valid == false` simply skips pass 2.
+> Nothing regresses below v2 behaviour if the shaft signal turns out poor on real footage.
+
+### C.1 Two-pass architecture
+
+```
+ShotProcessor pre-stage (worker, ~ms):
+  fuse (IMU-only) → PASS 1: v2 inertial ladder (A.5 verbatim)
+                  → Segmentation { events, swingStartUs, swingEndUs, conf }
+                  → value-copied into ShotAnalysisJob + SwingExportJob
+        ├─► SwingExporter   encodes [swingStartUs, swingEndUs]      (v2 A.6, unchanged)
+        └─► Analyzer worker:
+              fuse → PASS 1 events (recomputed, cheap, identical)
+                   → PoseRunner   over [swingStartUs − pad, swingEndUs + pad]   ← NEW
+                   → ShaftTracker over the same bounds                          ← NEW
+                   → PASS 2: shaft refinement of the event ladder (§C.3)        ← NEW
+                   → MetricExtractor with the REFINED events                    ← moved
+                   → score / faults / persistence
+```
+
+- **Pass 1** is v2's A.4 signal preparation + A.5 detectors, unchanged and still the only input to
+  the export/replay truncation (the exporter cannot wait for the heavy stages). `pad = 150 ms` on
+  each side covers pass-1 timing error without giving back the truncation win.
+- **Heavy-stage bounding** replaces today's behaviour where `PoseRunner` samples the whole 5 s
+  window and `ShaftTracker` detects on every frame inside pose coverage. Expected effect: the
+  scanned span drops from 5 s to (Address − pad … Finish + pad) ≈ **2.2–3.2 s typical** — roughly
+  **2× fewer pose inferences and shaft detections**; the CPU-only pose tier (10–30 s today)
+  benefits proportionally. The dense zone around impact sits inside the span by construction.
+  `ShaftTracker`'s ŝ_hand calibration also improves for free: its "slow, confident frames" now
+  start at a *correct* Address instead of v1's waggle-polluted one.
+- **`MetricExtractor` moves after pass 2** (today it runs before the camera stages), so every
+  phase-anchored metric — including `impactShaftLean` — reads the refined instants. Cost: none
+  (extraction is milliseconds); the analyzer's stage order changes, not its API.
+- When **no face-on camera** ran, pass 2 and the bounding are skipped and v3 degrades to exactly
+  v2. When **no IMU** is bound, see §C.4.
+
+### C.2 What the shaft can and cannot measure
+
+The shaft's image angle θ is measured in the face-on image plane (y-down; unwrapped over the
+swing). The P-system's geometric club checkpoints — P2/P6/P8, "shaft parallel to the ground" —
+occur when the club points down the target line, i.e. **in-plane and horizontal in the face-on
+view**: exactly where the face-on θ is most accurate (maximum visible length, no foreshortening).
+These are the events the shaft measures *better than any other sensor we have*.
+
+The converse: at the **top** of a full swing the shaft points toward/away from the camera; L(t)
+collapses and the tracker itself suppresses θ there (wedge/foreshortening handling, IMU bridging).
+So v3 deliberately does **not** make Top a shaft event — Top stays inertial (v2 A.5.1), with the
+shaft contributing only a *conditional* cross-check (§C.3). Any design that reads Top from vision
+θ̇ would work on half-swings and silently fail on full swings — the wrong failure mode.
+
+Crossing convention: "shaft horizontal" ⇔ `θ ≡ 0 (mod π)`. Since θ is unwrapped and RTS-smoothed,
+each crossing is located by linear interpolation between the two bracketing samples (60 fps grid
+→ ~2–4 ms effective resolution; the geometric events do not need the 1 ms of the inertial
+parabolic refinement).
+
+### C.3 Pass 2 — shaft refinement rules
+
+Pass 2 runs only when `shaft.valid` (the B.8 coverage gate) **and**, when an IMU channel was
+fused, `imuVisionCorr ≥ 0.5` (a track that disagrees with the gyro that badly refines nothing).
+Each rule below also requires the bracketing samples to be `Measured` (full conf) or `ImuBridged`
+(conf × 0.7); crossings that exist only in `Coasted` spans are not events — degrade, never
+fabricate.
+
+| Event | v2 source | v3 refinement |
+|---|---|---|
+| `ShaftParallelBack` (12, **new**) | — (v2 had no geometric P2) | First `θ ≡ 0 (mod π)` crossing in (Takeaway, Top). The P-system P2 proper; `Takeaway` (1) remains the *kinematic* motion-onset event — they are different instants and both are wanted. |
+| `Delivery` (9) | hand-orientation proxy, conf ≤ 0.4 | Last `θ ≡ 0 (mod π)` crossing in (Top, Impact) — **measured**, conf from sample conf. The proxy is emitted only when pass 2 is skipped. |
+| `Release` (6) | forearm inclination crossing | First `θ ≡ 0 (mod π)` crossing in (Impact, Impact + 400 ms). Forearm rule stays as the no-shaft fallback. |
+| `MaxSpeed` (10) | argmax hand \|gyro\| envelope | argmax of `θ̇·L` over [Top, Impact + 50 ms] — a *clubhead*-speed proxy measured at the club, not a hand proxy. Hand-gyro version stays as fallback. |
+| `Top` (2) | inertial zero-crossing | Cross-check only: if the θ̇ zero-crossing nearest pass-1 Top sits within ±40 ms **and** local samples are `Measured` with L above ~60 % of its running median (no foreshortening collapse), average the instants and boost conf — the same A.5 multi-segment voting rule with the club as one more voter. Otherwise leave Top untouched. |
+| `Impact` (5) | hard anchor | Untouched. (Head-trace-meets-ball validation stays deferred — the teed-ball position is not yet plumbed into the job.) |
+
+Refined events obey v2's A.2.5 monotone-chain rule unchanged: a refinement that would violate
+ordering is dropped (lower conf loses), never reordered. Provenance (`segment` field, v2 A.7)
+gains the value `"Club"`. Telemetry: log the pass1→pass2 delta for `Delivery`/`Release` per shot —
+the two systems measuring the same physical instants independently is a free cross-validation of
+*both* (a drifting delta flags whichever is lying, which is exactly what S5 hardware verification
+wants to know).
+
+### C.4 Vision-only fallback ladder (no IMU bound)
+
+When `FusedStreams` has no hand/forearm stream, pass 1 emits v2's 3-event clamp fallback and —
+critically — **no usable swing bounds**, so the heavy stages run full-window (there is nothing
+cheap to bound them with; that is accepted, not worked around). After `ShaftTracker`, if the track
+is valid, run the *vision ladder*: the pass-1 detector structure (A.5) re-instanced with vision
+signals — `|θ̇|` as the energy envelope (zero-phase filtered), θ̇ sign reversal for Top, back-chain
+hysteresis for Takeaway, hand-keypoint stillness (pose2d) for Address, decay for Finish (window
+permitting). Differences from the inertial ladder, stated honestly:
+
+- conf capped at **0.6** for every event (60 fps grid, no accelerometer stillness test, single
+  modality);
+- `Finish` is usually clamped (the post-roll growth of A.6 helps but the vision envelope decays
+  slower than gyro quiet);
+- the **export is not trimmed** in this mode — the exporter cannot wait for the heavy stages, and
+  trimming the replay/metric grids (which *can* use the late events) while shipping a full-length
+  MP4 is the right asymmetry, not a bug.
+
+This turns camera-only Swing sessions from "no segmentation at all" into a real, labelled,
+lower-confidence ladder — and it costs nothing when IMUs are present.
+
+### C.5 Contracts & persistence deltas
+
+- `Phase` enum append-only: `ShaftParallelBack = 12` joins v2's 8–11. The reload switch keeps
+  matching on raw ints.
+- `Segmentation` (v2 A.6 struct) gains `int version` (2 = inertial only, 3 = shaft-refined) and
+  rides `SwingAnalysis` so the doc writer persists it; reload treats a missing block as
+  full-window bounds exactly as v2 specified.
+- `ShotAnalysisJob`/`SwingExportJob` carry the pass-1 `Segmentation` by value (v2 A.6 sequencing);
+  `ShotAnalysisRunnerOptions` gains the scan bounds for `PoseRunner`; `ShaftTracker` takes its
+  span from the same bounds instead of deriving it from Address/Finish events (same meaning,
+  better numbers).
+- Post-roll growth to 1250 ms (v2 A.6) is **load-bearing for v3 too**: `Release` needs
+  Impact + 400 ms of shaft track and `Finish` needs decay-to-still; both are physically truncated
+  at today's 500 ms.
+
+### C.6 Validation deltas
+
+On top of v2 A.8: the synthetic-swing generator gains a synthetic shaft track (θ/θ̇/L with
+foreshortening collapse at Top, blur-wedge σ growth in the downswing, Coasted gaps) so pass 2 is
+unit-tested against ground truth, including the must-not-fire cases (invalid track, low
+`imuVisionCorr`, Coasted-only crossings, Top collapse). Golden captures from the S5 hardware
+session double as segmentation goldens: hand-label P2/P6/P8 from video and regression-test both
+the inertial proxies and the shaft measurements against the same labels.
 
 ---
 
