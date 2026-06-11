@@ -83,6 +83,22 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a)
             { QStringLiteral("conf"),    double(a.segmentation.conf) },
             { QStringLiteral("version"), a.segmentation.version } };
 
+    // Additive IMU-binding snapshot (SwingLab): the per-device calibration
+    // (A/M) keyed by device serial, so the offline runner can re-fuse a
+    // recorded swing with the exact anatomical transforms the app used.
+    if (!a.bindings.empty()) {
+        QJsonArray binds;
+        for (const BindingRecord &b : a.bindings)
+            binds.append(QJsonObject{
+                { QStringLiteral("serial"), b.serial },
+                { QStringLiteral("role"),   int(b.role) },
+                { QStringLiteral("alignA"), QJsonArray{ b.alignA.scalar(), b.alignA.x(),
+                                                        b.alignA.y(), b.alignA.z() } },
+                { QStringLiteral("mountM"), QJsonArray{ b.mountM.scalar(), b.mountM.x(),
+                                                        b.mountM.y(), b.mountM.z() } } });
+        o[QStringLiteral("bindings")] = binds;
+    }
+
     // Additive ShaftTracker blocks (S3). pose2d keypoints are already
     // normalized 0..1 frame coords; club grip/head are normalized here by the
     // camera dims so every consumer (replay overlay, reload) is
@@ -253,6 +269,9 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
         if (an.contains(QStringLiteral("segmentation")))
             ps.analysisDetail.insert(QStringLiteral("segmentation"),
                                      an[QStringLiteral("segmentation")].toObject().toVariantMap());
+        if (an.contains(QStringLiteral("bindings")))
+            ps.analysisDetail.insert(QStringLiteral("bindings"),
+                                     an[QStringLiteral("bindings")].toArray().toVariantList());
 
         // Flat metrics: each metric's value at Impact, signed degrees.
         QVariantMap metrics;

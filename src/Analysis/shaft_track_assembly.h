@@ -160,11 +160,21 @@ public:
                                int64_t spanStartUs, int64_t spanEndUs,
                                const AssemblyConfig &cfg);
 
+    // SwingLab trace: the assembly's internals, filled when a sink is passed
+    // (production passes nothing). Lets the offline runner dump WHY a track
+    // came out the way it did (fit refusal, association choices).
+    struct AssemblyTrace {
+        ShaftInHandFit      fit;
+        std::vector<int>    selected;            // per obs frame; −1 = missing
+        std::vector<double> imuThetaUnwrapped;   // NaN where channel absent
+    };
+
     // The full pipeline: calibrate → build the unwrapped IMU channel →
     // associate → smooth → health metrics. This is what ShaftTracker calls.
     static ShaftTrack2D assemble(const std::vector<ShaftFrameObs> &obs,
                                  int64_t spanStartUs, int64_t spanEndUs,
-                                 const AssemblyConfig &cfg = {});
+                                 const AssemblyConfig &cfg = {},
+                                 AssemblyTrace *trace = nullptr);
 
     // Unwrapped per-frame IMU channel from a fit (NaN where qHand is invalid
     // or fit.ok is false). Exposed for tests and for the health metric.

@@ -58,6 +58,19 @@ struct ShotAnalysisJob {
     // ShotProcessor lambda posts a queued invoke). May be null; analyzers
     // must check before calling.
     std::function<void(float)> progress;
+
+    // SwingLab: when set, the analyzer loads the face-on PoseTrack2D from
+    // this JSON file instead of running ViTPose — synthetic-corpus injection
+    // and pose-cache reuse during shaft tuning. Empty in production.
+    QString poseTrackPath;
+
+    // SwingLab tuning overrides (docs/implementation/SWINGLAB_IMPL.md):
+    // "<area>.<field>" → numeric value, applied onto the config structs at
+    // analysis time (e.g. "shaft.ridgeKernelPx", "assembly.coverageMin",
+    // "seg.backswingMinUs"). Empty in production — the app never sets it;
+    // the offline runner fills it from a params JSON so the lab can iterate
+    // without rebuilds. Unknown keys are logged and ignored.
+    QVariantMap tuningOverrides;
 };
 
 // Result shapes mirror the ShotListModel roles so the join can hand them to

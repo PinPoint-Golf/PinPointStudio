@@ -242,3 +242,42 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
 }
 
 #endif // HAVE_OPENCV && HAVE_VITPOSE && HAVE_ONNXRUNTIME
+
+
+#include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+
+pinpoint::analysis::PoseTrack2D PoseRunner::loadFromJson(const QString &file,
+                                                         pinpoint::SourceId camera)
+{
+    using namespace pinpoint::analysis;
+    PoseTrack2D track;
+    track.camera = camera;
+    QFile f(file);
+    if (!f.open(QIODevice::ReadOnly))
+        return track;
+    const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+    const QJsonArray frames = (root.contains(QStringLiteral("frames"))
+                                   ? root[QStringLiteral("frames")]
+                                   : root[QStringLiteral("pose2d")]
+                                         .toObject()[QStringLiteral("frames")]).toArray();
+    for (const QJsonValue &fv : frames) {
+        const QJsonObject o = fv.toObject();
+        PoseFrame2D pf;
+        pf.t_us = int64_t(o[QStringLiteral("t_us")].toDouble());
+        const QJsonArray kp = o[QStringLiteral("kp")].toArray();
+        for (int j = 0; j < 17 && j * 3 + 2 < kp.size(); ++j) {
+            pf.kp[size_t(j)]   = QPointF(kp[j * 3].toDouble(), kp[j * 3 + 1].toDouble());
+            pf.conf[size_t(j)] = float(kp[j * 3 + 2].toDouble());
+        }
+        const QJsonArray lead = o[QStringLiteral("lead")].toArray();
+        const QJsonArray trail = o[QStringLiteral("trail")].toArray();
+        if (lead.size() == 2)  pf.leadHand  = QPointF(lead[0].toDouble(), lead[1].toDouble());
+        if (trail.size() == 2) pf.trailHand = QPointF(trail[0].toDouble(), trail[1].toDouble());
+        pf.handConf = float(o[QStringLiteral("handConf")].toDouble());
+        track.frames.push_back(std::move(pf));
+    }
+    return track;
+}

@@ -195,6 +195,16 @@ struct ShaftTrack2D {
     std::vector<ShaftSample2D> samples;
 };
 
+// The IMU→segment binding as persisted in swing.json (keyed by the device
+// serial, which is stable across runs — SourceIds are not). Lets the SwingLab
+// offline runner re-fuse a recorded swing with the exact calibration the app
+// used (alignA/mountM are session-lifetime and otherwise unrecoverable).
+struct BindingRecord {
+    QString     serial;                       // FormatDescriptor::device_serial
+    SegmentRole role = SegmentRole::Unknown;
+    QQuaternion alignA, mountM;
+};
+
 // The rich detail behind ShotAnalysisResult::detail — the full analyzed swing.
 struct SwingAnalysis {
     int tier = static_cast<int>(ReconstructionTier::Angles2D);
@@ -205,6 +215,8 @@ struct SwingAnalysis {
     // Swing bounds + ladder meta (phases above IS segmentation.events — the
     // doc writer persists only the bounds/conf/version from here).
     Segmentation              segmentation;
+    // IMU calibration snapshot per bound device (empty when no IMUs).
+    std::vector<BindingRecord> bindings;
     PoseTrack2D               pose2d;  // face-on offline pose (empty when no camera ran)
     ShaftTrack2D              shaft;   // face-on club track (check .valid before use)
 };

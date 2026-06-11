@@ -552,11 +552,17 @@ ShaftTrack2D ShaftTrackAssembly::smooth(const std::vector<ShaftFrameObs> &obs,
 
 ShaftTrack2D ShaftTrackAssembly::assemble(const std::vector<ShaftFrameObs> &obs,
                                           int64_t spanStartUs, int64_t spanEndUs,
-                                          const AssemblyConfig &cfg)
+                                          const AssemblyConfig &cfg,
+                                          AssemblyTrace *trace)
 {
     const ShaftInHandFit fit = calibrateShaftInHand(obs, cfg);
     const std::vector<double> imuTheta = imuThetaChannel(obs, fit);
     const std::vector<int> selected = associate(obs, imuTheta, cfg);
+    if (trace) {
+        trace->fit               = fit;
+        trace->selected          = selected;
+        trace->imuThetaUnwrapped = imuTheta;
+    }
 
     ShaftTrack2D track = smooth(obs, selected, imuTheta,
                                 fit.ok ? fit.residualRad : 0.0,

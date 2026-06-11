@@ -1843,3 +1843,59 @@ if(UNIX AND NOT APPLE)
         DESTINATION "share/applications"
     )
 endif()
+
+# ── SwingLab offline tools (docs/implementation/SWINGLAB_IMPL.md) ─────────────
+# swinglab_run replays a recorded swing dir through the PRODUCTION analysis
+# pipeline (same sources, same configs) with JSON-injectable tuning params and
+# per-frame trace dumps. Built only on request — it shares the app's heavy
+# dependency set (OpenCV incl. videoio, ONNX Runtime, ViTPose model).
+option(PINPOINT_BUILD_TOOLS "Build the SwingLab offline analysis tools" OFF)
+if(PINPOINT_BUILD_TOOLS)
+    add_executable(swinglab_run
+        tools/swinglab/src/swinglab_run.cpp
+        src/Analysis/shot_analyzer.cpp
+        src/Analysis/wrist_analyzer.cpp
+        src/Analysis/imu_vision_fuser.cpp
+        src/Analysis/phase_segmenter.cpp
+        src/Analysis/phase_signals.cpp
+        src/Analysis/metric_extractor.cpp
+        src/Analysis/swing_scorer.cpp
+        src/Analysis/pose_runner.cpp
+        src/Analysis/shaft_tracker.cpp
+        src/Analysis/shaft_tracker_math.cpp
+        src/Analysis/shaft_track_assembly.cpp
+        src/Export/frame_decode.cpp
+        src/Export/swing_doc.cpp
+        src/Export/swing_paths.cpp
+        src/Pose/pose_estimator_base.cpp
+        src/Pose/pose_estimator_vitpose.cpp
+        src/Core/pp_debug.cpp
+        src/Core/PpMessageLog.cpp
+    )
+    target_include_directories(swinglab_run PRIVATE
+        src/Buffer src/Analysis src/Export src/Pose src/Core src/IMU
+        "${_ort_root}/include"
+        ${OpenCV_INCLUDE_DIRS}
+        ${whisper_SOURCE_DIR}/include
+        ${whisper_SOURCE_DIR}/ggml/include
+    )
+    target_compile_definitions(swinglab_run PRIVATE
+        HAVE_OPENCV HAVE_ONNXRUNTIME
+        $<$<BOOL:${_vitpose_model_file}>:HAVE_VITPOSE>
+        $<$<BOOL:${_vitpose_model_file}>:VITPOSE_MODEL_FILE="${_vitpose_model_file}">
+    )
+    target_link_libraries(swinglab_run PRIVATE
+        Qt6::Core Qt6::Gui Qt6::Multimedia
+        pinpoint_buffer whisper
+        ${OpenCV_LIBS}
+    )
+    if(WIN32)
+        target_link_libraries(swinglab_run PRIVATE "${_ort_root}/lib/onnxruntime.lib")
+    elseif(APPLE)
+        target_link_libraries(swinglab_run PRIVATE "${_ort_dylib_path}")
+    else()
+        target_link_libraries(swinglab_run PRIVATE "${_ort_root}/lib/libonnxruntime.so")
+    endif()
+    # The runner resolves the ViTPose model next to its own binary, same as the app.
+    message(STATUS "SwingLab tools: swinglab_run enabled")
+endif()

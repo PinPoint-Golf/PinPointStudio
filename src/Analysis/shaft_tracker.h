@@ -46,11 +46,20 @@ struct FusedStreams;
 // otherwise the assembly runs vision-only (degrade, never fabricate).
 class ShaftTracker {
 public:
+    // SwingLab trace: the per-frame observations (anchor + ALL candidates,
+    // pre-association) plus the assembly internals. Filled only when a sink
+    // is passed — production callers pass nothing.
+    struct ShaftTrace {
+        std::vector<ShaftFrameObs>             obs;
+        ShaftTrackAssembly::AssemblyTrace      assembly;
+    };
+
     static ShaftTrack2D track(const pinpoint::SwingWindow &window,
                               const PoseTrack2D &pose,
                               const FusedStreams &streams,
                               const Segmentation &segmentation,
-                              const ShotAnalysisJob &job);
+                              const ShotAnalysisJob &job,
+                              ShaftTrace *trace = nullptr);
 };
 
 } // namespace pinpoint::analysis

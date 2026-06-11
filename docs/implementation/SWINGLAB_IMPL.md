@@ -1,6 +1,7 @@
 # SwingLab — an offline analysis lab for real-swing development (proposal)
 
-> **Status:** PROPOSAL · **Date:** 2026-06-11 · **Grounded against:** `main` @ `7e5e71b`
+> **Status:** L1–L5 IMPLEMENTED (validated end-to-end on a synthetic corpus —
+> real-data missions await the clean recording session) · **Date:** 2026-06-11
 >
 > As the analysis goes deeper (high-speed swing data, shaft tracking, segmentation),
 > assessing correctness by a human watching replays does not scale — and it locks the
@@ -154,16 +155,57 @@ docs/implementation/SWINGLAB_IMPL.md   # this doc
 runs/ (gitignored)                     # scorecards, plots, traces per run
 ```
 
+## As built (usage)
+
+```bash
+# one-time: configure the tool target, build it
+cmake -S . -B build/Desktop_Qt_6_11_0-Debug -DPINPOINT_BUILD_TOOLS=ON
+cmake --build build/Desktop_Qt_6_11_0-Debug --target swinglab_run --parallel 4
+
+cd tools/swinglab
+P=~/.swinglab-venv/bin/python          # numpy / opencv / matplotlib venv
+
+$P lab.py synth /tmp/corpus/synth_0001            # ground-truthed synthetic swing
+$P lab.py one   /tmp/corpus/synth_0001 /tmp/runs/x  # run+score+contact sheet
+$P lab.py ingest /path/to/corpus                  # corpus.json manifest
+$P lab.py run    /path/to/corpus /tmp/runs --id baseline [--params p.json]
+$P lab.py diff   /tmp/runs/baseline /tmp/runs/candidate   # exit 1 = regressions
+$P lab.py sweep  /path/to/corpus /tmp/runs space.json --trials 20
+$P lab.py label  /path/to/swing                   # truth.json click-UI (needs display)
+```
+
+Validation evidence (synthetic corpus, no real data touched):
+- full pipeline E2E score **100/100** — 16 named checks including
+  `imuVisionCorr 0.986` (the ŝ_hand fit engaged with the closed-form-predicted
+  `sign=−1`), θ RMS vs truth **0.2°**, head median error **2.6 px**, Top
+  within **7 ms** of ground truth;
+- clutter variant (alignment stick) passes; deliberately broken params
+  (`ridgeKernelPx 3`, absurd threshold) drop the corpus to 33/100 and
+  `lab.py diff` flags 3/3 regressions with a non-zero exit;
+- the production additions are inert in the app: `tuningOverrides` /
+  `poseTrackPath` empty, trace sinks null, `analysis.bindings` additive.
+
+Production hooks added for the lab (all additive, app behaviour unchanged):
+`ShotAnalysisJob::tuningOverrides` (dotted keys applied onto
+`SegmentationConfig` / `ShaftDetectConfig` / `AssemblyConfig` at analysis
+time), `ShotAnalysisJob::poseTrackPath` (+ `PoseRunner::loadFromJson`),
+optional trace out-params on `ShaftTracker::track` / assembly, and
+`analysis.bindings` (serial-keyed A/M calibration snapshot) persisted in
+swing.json so recorded swings are re-fusable offline.
+
+The operator/engineer model contract is encoded in
+`.claude/skills/swinglab/SKILL.md` (`/swinglab`).
+
 ## Stages
 
 | Stage | Deliverable | Size |
 |---|---|---|
 | L0 | Recording protocol agreed; corpus v1 recorded (user) + `ingest` manifest | user time |
-| L1 | `swinglab_run`: window reconstruction + production pipeline + `result.json`; `AnalysisTuning` param injection; `--trace` dumps | M (the unlock) |
-| L2 | `score` (Tier-1 invariants + Tier-2 cross-modal) + `plots` contact sheets + `report` | M |
-| L3 | `label` tool + truth.json + Tier-3 metrics | S |
-| L4 | `sweep` + `diff` regression gate | S |
-| L5 | `/swinglab` skill + escalation contract; first soak on the seeded targets | S |
+| L1 ✓ | `swinglab_run`: window reconstruction + production pipeline + `result.json`; tuning injection; `--trace`; `--pose` | M (the unlock) |
+| L2 ✓ | `score` (Tier-1 invariants + Tier-2 cross-modal) + `plots` contact sheets + `report` | M |
+| L3 ✓ | `label` tool + truth.json + Tier-3 metrics (+ `synth` ground-truth generator) | S |
+| L4 ✓ | `sweep` + `diff` regression gate | S |
+| L5 ✓ | `/swinglab` skill + escalation contract (first real soak awaits corpus v1) | S |
 
 L1+L2 alone already transform the workflow: the imuVisionCorr=0 investigation
 becomes "run swing_0007 with --trace, read the ŝ_hand fit record, see why it

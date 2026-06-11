@@ -1,0 +1,156 @@
+# Corpus ingest, batch running, aggregate report, run diffing, and the
+# mechanical parameter sweep (Tier 0 — no model involved).
+
+import json
+import random
+import shutil
+import subprocess
+import time
+from pathlib import Path
+
+from . import Swing, default_binary, git_sha, load_json, save_json
+from .score import scorecard
+
+
+def ingest(corpus_root):
+    """Build corpus.json: every dir containing a swing.json, with quick facts."""
+    root = Path(corpus_root)
+    swings = []
+    for sj in sorted(root.rglob("swing.json")):
+        d = sj.parent
+        try:
+            s = Swing(d)
+        except Exception as e:
+            print(f"[ingest] SKIP {d}: {e}")
+            continue
+        vids = s.video_streams()
+        has_raw = any("raw" in v for v in vids)
+        imus = [x for x in s.doc.get("streams", []) if x.get("kind") == "imu"]
+        swings.append({
+            "path": str(d), "name": s.name,
+            "videos": len(vids), "raw": has_raw, "imus": len(imus),
+            "impact": s.impact_us() is not None,
+            "bindings": len(s.doc.get("analysis", {}).get("bindings", [])),
+            "truth": (d / "truth.json").exists(),
+        })
+    manifest = {"root": str(root), "count": len(swings), "swings": swings}
+    save_json(root / "corpus.json", manifest)
+    print(f"[ingest] {len(swings)} swings -> {root / 'corpus.json'}")
+    return manifest
+
+
+def run_one(swing_dir, run_dir, params=None, trace=True, pose=None, binary=None):
+    """Invoke swinglab_run for one swing; returns (ok, run_dir)."""
+    swing_dir, run_dir = Path(swing_dir), Path(run_dir)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    cmd = [str(binary or default_binary()), str(swing_dir), "--out", str(run_dir)]
+    if params:
+        cmd += ["--params", str(params)]
+    if trace:
+        cmd += ["--trace"]
+    pose_file = Path(pose) if pose else swing_dir / "pose.json"
+    if pose_file.exists():
+        cmd += ["--pose", str(pose_file)]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    (run_dir / "runner.log").write_text(r.stdout + r.stderr)
+    return r.returncode == 0, run_dir
+
+
+def run_corpus(corpus_root, runs_root, run_id=None, params=None, trace=True):
+    """Run + score every swing in the corpus; returns the run summary path."""
+    manifest = load_json(Path(corpus_root) / "corpus.json")
+    run_id = run_id or time.strftime("%Y%m%d-%H%M%S")
+    out_root = Path(runs_root) / run_id
+    cards = []
+    for sw in manifest["swings"]:
+        rd = out_root / sw["name"]
+        ok, _ = run_one(sw["path"], rd, params=params, trace=trace)
+        card = scorecard(rd, sw["path"]) if (rd / "runmeta.json").exists() else {
+            "swing": sw["name"], "score": 0, "ok": False, "failures": ["runner_crashed"]}
+        card["runner_ok"] = ok
+        save_json(rd / "scorecard.json", card)
+        cards.append(card)
+        print(f"[run] {sw['name']}: score {card['score']} "
+              f"({'ok' if ok else 'RUNNER FAIL'}) fails={card.get('failures')}")
+    summary = {
+        "run_id": run_id, "sha": git_sha(),
+        "params": str(params) if params else None,
+        "mean_score": round(sum(c["score"] for c in cards) / max(len(cards), 1), 1),
+        "swings": cards,
+    }
+    save_json(out_root / "summary.json", summary)
+    report(out_root)
+    return out_root
+
+
+def report(run_root):
+    """Aggregate REPORT.md for one run."""
+    run_root = Path(run_root)
+    s = load_json(run_root / "summary.json")
+    lines = [f"# SwingLab run {s['run_id']}",
+             f"- sha `{s['sha']}` · params `{s['params']}` · mean score **{s['mean_score']}**",
+             "",
+             "| swing | score | ok | failures | warnings |",
+             "|---|---|---|---|---|"]
+    for c in sorted(s["swings"], key=lambda c: c["score"]):
+        lines.append(f"| {c['swing']} | {c['score']} | {c.get('ok')} | "
+                     f"{', '.join(c.get('failures', [])) or '—'} | "
+                     f"{', '.join(c.get('warnings', [])) or '—'} |")
+    (run_root / "REPORT.md").write_text("\n".join(lines) + "\n")
+    print(f"[report] {run_root / 'REPORT.md'} (mean {s['mean_score']})")
+
+
+def diff(run_a, run_b, regression_pts=5):
+    """Per-swing regression diff between two runs. Returns count of regressions."""
+    a = load_json(Path(run_a) / "summary.json")
+    b = load_json(Path(run_b) / "summary.json")
+    by_a = {c["swing"]: c for c in a["swings"]}
+    regressions = 0
+    lines = [f"# diff {a['run_id']} -> {b['run_id']}"]
+    for c in b["swings"]:
+        old = by_a.get(c["swing"])
+        if not old:
+            continue
+        delta = c["score"] - old["score"]
+        mark = ""
+        if delta <= -regression_pts:
+            mark = " ⬇ REGRESSION"
+            regressions += 1
+        elif delta >= regression_pts:
+            mark = " ⬆ improved"
+        if mark or delta:
+            lines.append(f"- {c['swing']}: {old['score']} -> {c['score']}{mark}")
+    out = "\n".join(lines) + f"\n\nregressions: {regressions}\n"
+    (Path(run_b) / "DIFF.md").write_text(out)
+    print(out)
+    return regressions
+
+
+def sweep(corpus_root, runs_root, space_file, trials=20, seed=1):
+    """Tier-0 random search over a parameter space:
+       space.json = {"shaft.ridgeKernelPx": [5, 15, "int"], "assembly.coverageMin": [0.4, 0.8]}
+       Objective = mean scorecard score. Keeps the best params + full history."""
+    space = load_json(space_file)
+    rng = random.Random(seed)
+    history, best = [], None
+    for k in range(trials):
+        params = {}
+        for key, spec in space.items():
+            lo, hi = spec[0], spec[1]
+            v = rng.uniform(lo, hi)
+            if len(spec) > 2 and spec[2] == "int":
+                v = int(round(v))
+            params[key] = v
+        pfile = Path(runs_root) / f"sweep-params-{k:03d}.json"
+        save_json(pfile, params)
+        out = run_corpus(corpus_root, runs_root, run_id=f"sweep-{k:03d}",
+                         params=pfile, trace=False)
+        mean = load_json(out / "summary.json")["mean_score"]
+        history.append({"trial": k, "params": params, "mean_score": mean})
+        if best is None or mean > best["mean_score"]:
+            best = history[-1]
+        print(f"[sweep] trial {k}: {mean} (best {best['mean_score']})")
+    save_json(Path(runs_root) / "sweep-result.json",
+              {"space": space, "trials": history, "best": best})
+    print(f"[sweep] BEST mean={best['mean_score']} params={best['params']}")
+    return best

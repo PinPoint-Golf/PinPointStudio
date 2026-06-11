@@ -24,6 +24,7 @@
 
 #include <QElapsedTimer>
 
+#include "analysis_tuning.h"
 #include "imu_vision_fuser.h"
 #include "pose_runner.h"
 #include "shot_analyzer.h"
@@ -129,7 +130,8 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
                                  const PoseTrack2D &pose,
                                  const FusedStreams &streams,
                                  const Segmentation &segmentation,
-                                 const ShotAnalysisJob &job)
+                                 const ShotAnalysisJob &job,
+                                 ShaftTrace *trace)
 {
     ShaftTrack2D out;
     out.camera = pose.camera;
@@ -148,13 +150,34 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
 
     // Prior-quality pixel scale from the pose silhouette (sizes the search
     // radius only). Falls back to a half-frame radius when pose never sees a
-    // full body.
+    // full body. SwingLab "shaft.*" overrides apply first; maxRadiusPx is
+    // computed below from geometry (override "shaft.maxRadiusPx" to pin it).
     ShaftDetectConfig dcfg;
+    {
+        namespace tn = tuning;
+        const QVariantMap &ov = job.tuningOverrides;
+        tn::apply(ov, "shaft.rhoMinPx",          dcfg.rhoMinPx);
+        tn::apply(ov, "shaft.thetaBins",         dcfg.thetaBins);
+        tn::apply(ov, "shaft.ridgeKernelPx",     dcfg.ridgeKernelPx);
+        tn::apply(ov, "shaft.maxCandidates",     dcfg.maxCandidates);
+        tn::apply(ov, "shaft.nmsSeparationDeg",  dcfg.nmsSeparationDeg);
+        tn::apply(ov, "shaft.clutterMaskDeg",    dcfg.clutterMaskDeg);
+        tn::apply(ov, "shaft.minVisibleLenPx",   dcfg.minVisibleLenPx);
+        tn::apply(ov, "shaft.minScoreFrac",      dcfg.minScoreFrac);
+        tn::apply(ov, "shaft.runStartGapPx",     dcfg.runStartGapPx);
+        tn::apply(ov, "shaft.runMaxGapPx",       dcfg.runMaxGapPx);
+        tn::apply(ov, "shaft.noiseSigmaK",       dcfg.noiseSigmaK);
+        tn::apply(ov, "shaft.thresholdFloor",    dcfg.thresholdFloor);
+        tn::apply(ov, "shaft.interHandSigmaDeg", dcfg.interHandSigmaDeg);
+        tn::apply(ov, "shaft.priorFloor",        dcfg.priorFloor);
+        tn::apply(ov, "shaft.wedgeMinSpanDeg",   dcfg.wedgeMinSpanDeg);
+    }
     const double bodyFrac = medianPoseHeight(pose);
     const double pxPerM   = bodyFrac > 0.05 ? bodyFrac * h / kAssumedStatureM : 0.0;
     const double radius   = pxPerM > 0.0 ? 1.25 * job.clubLengthM * pxPerM
                                          : 0.5 * std::min(w, h);
     dcfg.maxRadiusPx = float(std::clamp(radius, 80.0, double(std::min(w, h))));
+    tuning::apply(job.tuningOverrides, "shaft.maxRadiusPx", dcfg.maxRadiusPx);
 
     QElapsedTimer wall;
     wall.start();
@@ -233,7 +256,32 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
         spanHi = obs.back().t_us;
     }
 
-    ShaftTrack2D track = ShaftTrackAssembly::assemble(obs, spanLo, spanHi);
+    AssemblyConfig acfg;
+    {
+        namespace tn = tuning;
+        const QVariantMap &ov = job.tuningOverrides;
+        tn::apply(ov, "assembly.calibMinFrames",      acfg.calibMinFrames);
+        tn::apply(ov, "assembly.calibMinSpanRad",     acfg.calibMinSpanRad);
+        tn::apply(ov, "assembly.calibSlowRateRadS",   acfg.calibSlowRateRadS);
+        tn::apply(ov, "assembly.calibAcceptRad",      acfg.calibAcceptRad);
+        tn::apply(ov, "assembly.missingPenalty",      acfg.missingPenalty);
+        tn::apply(ov, "assembly.nodeScoreFloor",      acfg.nodeScoreFloor);
+        tn::apply(ov, "assembly.transSigmaBaseRad",   acfg.transSigmaBaseRad);
+        tn::apply(ov, "assembly.transAccSlackRadS2",  acfg.transAccSlackRadS2);
+        tn::apply(ov, "assembly.transAccSlackImu",    acfg.transAccSlackImu);
+        tn::apply(ov, "assembly.transNoRateExtraRad", acfg.transNoRateExtraRad);
+        tn::apply(ov, "assembly.lenSigmaFrac",        acfg.lenSigmaFrac);
+        tn::apply(ov, "assembly.lenSigmaFloorPx",     acfg.lenSigmaFloorPx);
+        tn::apply(ov, "assembly.jerkPsd",             acfg.jerkPsd);
+        tn::apply(ov, "assembly.visionSigmaFloorRad", acfg.visionSigmaFloorRad);
+        tn::apply(ov, "assembly.imuSigmaFloorRad",    acfg.imuSigmaFloorRad);
+        tn::apply(ov, "assembly.confSigmaRefRad",     acfg.confSigmaRefRad);
+        tn::apply(ov, "assembly.coverageMin",         acfg.coverageMin);
+    }
+    ShaftTrack2D track = ShaftTrackAssembly::assemble(
+        obs, spanLo, spanHi, acfg, trace ? &trace->assembly : nullptr);
+    if (trace)
+        trace->obs = obs;
     track.camera      = pose.camera;
     track.frameWidth  = w;
     track.frameHeight = h;

@@ -24,6 +24,7 @@
 #include <cmath>
 #include <limits>
 
+#include "analysis_tuning.h"
 #include "imu_vision_fuser.h"
 #include "metric_extractor.h"
 #include "phase_segmenter.h"
@@ -80,6 +81,39 @@ const MetricSeries *find(const std::vector<MetricSeries> &v, const QString &key)
     for (const MetricSeries &m : v)
         if (m.key == key) return &m;
     return nullptr;
+}
+
+// SwingLab tuning: SegmentationConfig with "seg.*" overrides applied.
+SegmentationConfig segConfigFor(const QVariantMap &ov)
+{
+    SegmentationConfig c;
+    if (ov.isEmpty()) return c;
+    namespace tn = tuning;
+    tn::apply(ov, "seg.fcEnvelopeHz",         c.fcEnvelopeHz);
+    tn::apply(ov, "seg.stillGyroDps",         c.stillGyroDps);
+    tn::apply(ov, "seg.stillAccelTolG",       c.stillAccelTolG);
+    tn::apply(ov, "seg.topMinBeforeImpactUs", c.topMinBeforeImpactUs);
+    tn::apply(ov, "seg.topMaxBeforeImpactUs", c.topMaxBeforeImpactUs);
+    tn::apply(ov, "seg.topImpactSlackUs",     c.topImpactSlackUs);
+    tn::apply(ov, "seg.takeawayFracOfPeak",   c.takeawayFracOfPeak);
+    tn::apply(ov, "seg.takeawayMinDps",       c.takeawayMinDps);
+    tn::apply(ov, "seg.takeawayQuietUs",      c.takeawayQuietUs);
+    tn::apply(ov, "seg.backswingMinUs",       c.backswingMinUs);
+    tn::apply(ov, "seg.backswingMaxUs",       c.backswingMaxUs);
+    tn::apply(ov, "seg.addressStillMinUs",    c.addressStillMinUs);
+    tn::apply(ov, "seg.transBeforeTopUs",     c.transBeforeTopUs);
+    tn::apply(ov, "seg.transAfterTopUs",      c.transAfterTopUs);
+    tn::apply(ov, "seg.transMinMeanDps",      c.transMinMeanDps);
+    tn::apply(ov, "seg.voteAgreeUs",          c.voteAgreeUs);
+    tn::apply(ov, "seg.thoraxAgreeUs",        c.thoraxAgreeUs);
+    tn::apply(ov, "seg.maxSpeedPostImpactUs", c.maxSpeedPostImpactUs);
+    tn::apply(ov, "seg.finishGyroDps",        c.finishGyroDps);
+    tn::apply(ov, "seg.finishMinAfterImpactUs", c.finishMinAfterImpactUs);
+    tn::apply(ov, "seg.finishSustainUs",      c.finishSustainUs);
+    tn::apply(ov, "seg.finishMinUs",          c.finishMinUs);
+    tn::apply(ov, "seg.finishMaxUs",          c.finishMaxUs);
+    tn::apply(ov, "seg.boundPadUs",           c.boundPadUs);
+    return c;
 }
 
 // Copy of the fused streams restricted to [fromUs, toUs] — the metric grid
@@ -180,7 +214,8 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
         return r;
     }
 
-    const Segmentation segmentation = PhaseSegmenter::segment(streams, job.impactUs);
+    const Segmentation segmentation =
+        PhaseSegmenter::segment(streams, job.impactUs, segConfigFor(job.tuningOverrides));
     const std::vector<PhaseEvent> &phases = segmentation.events;
     // Metric grids span address → finish, not the raw ring (design A.6): hand
     // the extractor a trimmed copy when the bounds are real. Everything else
@@ -220,7 +255,10 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
             job.progress(0.10f);
             opt.progress = [&job](float f) { job.progress(0.10f + 0.60f * f); };
         }
-        detail->pose2d = PoseRunner::run(window, job.cameraSources.front(), opt);
+        detail->pose2d = job.poseTrackPath.isEmpty()
+                             ? PoseRunner::run(window, job.cameraSources.front(), opt)
+                             : PoseRunner::loadFromJson(job.poseTrackPath,
+                                                        job.cameraSources.front());
         if (!detail->pose2d.frames.empty()) {
             ShotAnalysisJob sub = job;
             if (job.progress)
@@ -236,6 +274,14 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
     detail->series       = series;
     detail->phases       = phases;
     detail->segmentation = segmentation;
+    for (const ImuSegmentBinding &b : job.imuBindings) {
+        BindingRecord rec;
+        rec.serial = QString::fromStdString(window.formatOf(b.source).device_serial);
+        rec.role   = b.role;
+        rec.alignA = b.alignA;
+        rec.mountM = b.mountM;
+        detail->bindings.push_back(std::move(rec));
+    }
     detail->tier   = static_cast<int>(ReconstructionTier::Mono3DPlusImu);
     detail->score  = SwingScorer::score(series, job.sessionType);
 

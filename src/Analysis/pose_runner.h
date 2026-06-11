@@ -23,6 +23,7 @@
 // QtConcurrent analysis worker; honors the frozen-window read contract
 // (null-checked payloads, shared frame_decode, const reads only).
 
+#include <QString>
 #include <cstdint>
 #include <functional>
 
@@ -56,6 +57,13 @@ struct ShotAnalysisRunnerOptions {
 
 class PoseRunner {
 public:
+    // SwingLab: load a PoseTrack2D from a JSON file in the swing.json pose2d
+    // shape ({"frames":[{t_us, kp:[x,y,c]×17, lead, trail, handConf}]}). Used
+    // to inject synthetic tracks and to re-run shaft tuning without paying
+    // for the pose pass. Returns an empty track on any parse problem.
+    static pinpoint::analysis::PoseTrack2D loadFromJson(const QString &file,
+                                                        pinpoint::SourceId camera);
+
     // Decode + pose the face-on camera's frames. Returns an empty track when
     // the source has no frames, the format is undecodable, or ViTPose is
     // unavailable (model missing / built without ORT). Constructs the
