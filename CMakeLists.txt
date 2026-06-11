@@ -497,10 +497,13 @@ target_include_directories(PinPointStudio PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imu_ekf
 )
 
-# FFmpeg log capture — pp_debug.cpp uses dlopen()/dlsym() at runtime to call
-# av_log_set_callback() on every loaded libavutil instance (Qt's bundled copy
-# and the system package), routing FFmpeg log lines into the in-app message
+# FFmpeg log capture — pp_debug.cpp reaches into every loaded libavutil
+# instance at runtime to call av_log_set_callback() (Qt's bundled copy and the
+# system/exporter package), routing FFmpeg log lines into the in-app message
 # log.  No compile-time FFmpeg header/link dependency needed for this.
+# UNIX uses dlopen()/dlsym() (needs libdl + this define); Windows uses
+# GetModuleHandle()/GetProcAddress() guarded by _WIN32 directly in
+# pp_debug.cpp — no define or extra library needed there.
 if(UNIX)
     target_link_libraries(PinPointStudio PRIVATE dl)
     target_compile_definitions(PinPointStudio PRIVATE PP_HAS_DLSYM)

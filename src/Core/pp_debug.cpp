@@ -25,6 +25,16 @@
 #ifdef PP_HAS_DLSYM
 #include <dlfcn.h>
 #endif
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+// FFmpeg av_log capture is available wherever we can reach into an
+// already-loaded libavutil at runtime: dlsym on UNIX, GetModuleHandle on
+// Windows (no CMake define needed there — windows.h is always available).
+#if defined(PP_HAS_DLSYM) || defined(_WIN32)
+#define PP_HAS_AVLOG_CAPTURE 1
+#endif
 
 #include <QMediaPlayer>
 #include <QMessageLogContext>
@@ -100,7 +110,7 @@ static void ppMessageHandler(QtMsgType type, const QMessageLogContext &ctx, cons
 
 static void silentLogCallback(ggml_log_level, const char *, void *) {}
 
-#ifdef PP_HAS_DLSYM
+#ifdef PP_HAS_AVLOG_CAPTURE
 // ── FFmpeg av_log capture ─────────────────────────────────────────────────────
 // Routes libavutil log output (e.g. the "Input #0, mov,mp4,..." stream dumps
 // printed when Qt Multimedia opens a media file) into PpMessageLog instead of
@@ -139,15 +149,35 @@ static void ffmpegLogCallback(void *, int level, const char *fmt, va_list vl)
     }
 }
 
-// Install ffmpegLogCallback on every loaded libavutil instance.  TWO instances
-// coexist: the app binary links the system copy (.so.60, via the swing-export
-// encoder) which is loaded before main(), while Qt Multimedia's FFmpeg plugin
-// links the Qt-bundled copy (.so.59).  The callback pointer lives in static
-// storage inside each instance, so both must be set — do not stop at the
-// first one found.
+// Install ffmpegLogCallback on every loaded libavutil instance.  On UNIX, TWO
+// instances coexist: the app binary links the system copy (.so.60, via the
+// swing-export encoder) which is loaded before main(), while Qt Multimedia's
+// FFmpeg plugin links the Qt-bundled copy (.so.59).  The callback pointer
+// lives in static storage inside each instance, so both must be set — do not
+// stop at the first one found.  On Windows the loader dedupes unqualified
+// module names, so usually one instance serves both, but probe every
+// plausible name anyway.
 static void installAvLogCallbackOnAllInstances()
 {
     using SetCb = void(*)(void(*)(void *, int, const char *, va_list));
+#ifdef _WIN32
+    static const char * const kLibs[] = {
+        "avutil-59.dll",        // FFmpeg 7.x (Qt 6.8–6.11 bundle + exporter)
+        "avutil-58.dll",        // FFmpeg 6.x
+        "avutil-60.dll",        // FFmpeg 8.x
+        "avutil-57.dll",        // FFmpeg 5.x
+        "avutil.dll",
+        nullptr
+    };
+    for (int i = 0; kLibs[i]; ++i) {
+        // Only instances that are already loaded — GetModuleHandle never loads.
+        HMODULE h = GetModuleHandleA(kLibs[i]);
+        if (!h)
+            continue;
+        if (auto fn = reinterpret_cast<SetCb>(GetProcAddress(h, "av_log_set_callback")))
+            fn(&ffmpegLogCallback);
+    }
+#else
     static const char * const kLibs[] = {
         "libavutil.so.59",      // Qt 6.7–6.11
         "libavutil.so.58",      // Qt 6.4–6.6
@@ -168,8 +198,9 @@ static void installAvLogCallbackOnAllInstances()
             fn(&ffmpegLogCallback);
         dlclose(h);   // balance the RTLD_NOLOAD refcount; instance stays loaded
     }
-}
 #endif
+}
+#endif // PP_HAS_AVLOG_CAPTURE
 
 void PinPointDebug::install()
 {
@@ -179,17 +210,17 @@ void PinPointDebug::install()
     ggml_log_set(silentLogCallback, nullptr);
 
     // Capture FFmpeg's av_log output into PpMessageLog.  This early pass only
-    // reaches instances already loaded before main() (the system libavutil
-    // linked by the swing-export encoder).  The Qt-bundled instance is handled
-    // by installFfmpegLogCapture() once QGuiApplication exists.
-#ifdef PP_HAS_DLSYM
+    // reaches instances already loaded before main() (the libavutil linked by
+    // the swing-export encoder).  The Qt-bundled instance is handled by
+    // installFfmpegLogCapture() once QGuiApplication exists.
+#ifdef PP_HAS_AVLOG_CAPTURE
     installAvLogCallbackOnAllInstances();
 #endif
 }
 
 void PinPointDebug::installFfmpegLogCapture()
 {
-#ifdef PP_HAS_DLSYM
+#ifdef PP_HAS_AVLOG_CAPTURE
     // Force the Qt Multimedia FFmpeg plugin to load NOW.  Its integration
     // constructor (setupFFmpegLogger in qffmpegmediaintegration.cpp)
     // unconditionally calls av_log_set_callback — without QT_FFMPEG_DEBUG set,
