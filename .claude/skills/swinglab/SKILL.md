@@ -24,7 +24,7 @@ Follow this recipe exactly. **Tier rules at the bottom are binding.**
   disk; preferred for batch runs and sweeps) and the Linux dev box (corpus
   via `/mnt/swingdata` SMB). Same repo, same commands.
 - **Shared-drive convention:** corpus AND runs live on the SwingData drive
-  (Windows `D:\SwingData\…` ≡ Linux `/mnt/swingdata/…`), so scorecards,
+  (Windows `C:\Users\developer\Data\PinPointStudio\…` ≡ Linux `/mnt/swingdata/…`), so scorecards,
   contact sheets, TRIAGE.md and ESCALATION.md written on one host are
   readable on every other — the share IS the cross-host handoff medium.
 - **Data trust:** only use a corpus whose root contains a `CORPUS.md`

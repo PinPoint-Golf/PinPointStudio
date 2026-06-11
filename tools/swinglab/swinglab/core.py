@@ -35,9 +35,10 @@ def doctor():
         except ImportError:
             ok = False
             print(f"python: {mod} MISSING — pip install -r tools/swinglab/requirements.txt")
-    print("conventions: corpus + runs on the shared SwingData drive (Windows "
-          "D:\\SwingData ≡ Linux /mnt/swingdata) so artifacts (scorecards, "
-          "contact sheets, TRIAGE/ESCALATION.md) are visible from every host.")
+    print("conventions: corpus + runs live on the shared SwingData folder "
+          "(Windows C:\\Users\\developer\\Data\\PinPointStudio == Linux "
+          "/mnt/swingdata) so artifacts (scorecards, contact sheets, "
+          "TRIAGE/ESCALATION.md) are visible from every host.")
     print("data trust: ONLY use corpus roots containing a CORPUS.md that "
           "states calibration provenance; ingest refuses to bless without it.")
     return ok
@@ -66,7 +67,7 @@ def ingest(corpus_root):
         })
     notes_file = root / "CORPUS.md"
     manifest = {"root": str(root), "count": len(swings), "swings": swings,
-                "notes": notes_file.read_text() if notes_file.exists() else None,
+                "notes": notes_file.read_text(encoding="utf-8") if notes_file.exists() else None,
                 "blessed": notes_file.exists()}
     if not notes_file.exists():
         print("[ingest] WARNING: no CORPUS.md — corpus is UNBLESSED (write one "
@@ -89,7 +90,7 @@ def run_one(swing_dir, run_dir, params=None, trace=True, pose=None, binary=None)
     if pose_file.exists():
         cmd += ["--pose", str(pose_file)]
     r = subprocess.run(cmd, capture_output=True, text=True)
-    (run_dir / "runner.log").write_text(r.stdout + r.stderr)
+    (run_dir / "runner.log").write_text(r.stdout + r.stderr, encoding="utf-8")
     return r.returncode == 0, run_dir
 
 
@@ -133,7 +134,7 @@ def report(run_root):
         lines.append(f"| {c['swing']} | {c['score']} | {c.get('ok')} | "
                      f"{', '.join(c.get('failures', [])) or '—'} | "
                      f"{', '.join(c.get('warnings', [])) or '—'} |")
-    (run_root / "REPORT.md").write_text("\n".join(lines) + "\n")
+    (run_root / "REPORT.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"[report] {run_root / 'REPORT.md'} (mean {s['mean_score']})")
 
 
@@ -158,7 +159,7 @@ def diff(run_a, run_b, regression_pts=5):
         if mark or delta:
             lines.append(f"- {c['swing']}: {old['score']} -> {c['score']}{mark}")
     out = "\n".join(lines) + f"\n\nregressions: {regressions}\n"
-    (Path(run_b) / "DIFF.md").write_text(out)
+    (Path(run_b) / "DIFF.md").write_text(out, encoding="utf-8")
     print(out)
     return regressions
 

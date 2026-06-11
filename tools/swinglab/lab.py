@@ -20,6 +20,11 @@ import json
 import sys
 from pathlib import Path
 
+# Windows consoles default to cp1252 — reconfigure so unicode in reports
+# (em-dashes, arrows) never crashes the tooling.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 from swinglab import save_json                              # noqa: E402

@@ -220,7 +220,7 @@ instead of SMB. The design needs no structural change for this because the
 interface is files in, files out:
 
 - **The SwingData share is the artifact exchange medium.** Corpus and runs
-  both live on it (Windows `D:\SwingData\…` ≡ Linux `/mnt/swingdata/…`), so
+  both live on it (Windows `C:\Users\developer\Data\PinPointStudio\…` ≡ Linux `/mnt/swingdata/…`), so
   scorecards, contact sheets, TRIAGE.md and ESCALATION.md produced on one
   host are immediately readable on the other — operator sessions on the
   Windows box and design sessions on the dev box share state with zero sync
