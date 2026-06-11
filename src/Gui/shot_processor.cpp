@@ -389,10 +389,6 @@ void ShotProcessor::onSegmentationFinished()
     if (m_state != State::Processing)
         return;   // aborted while the pre-stage ran
     m_segmentation = m_segmentationWatcher.result();
-    ppInfo() << "[ShotProcessor] segmentation —"
-             << static_cast<qint64>(m_segmentation.events.size()) << "events, span"
-             << (m_segmentation.swingEndUs - m_segmentation.swingStartUs) / 1000 << "ms,"
-             << "conf" << m_segmentation.conf;
 
     // Both heavy workers read the same frozen window concurrently — const,
     // zero-copy reads over stable memory (producers stopped while Paused).

@@ -245,8 +245,6 @@ Item {
         // never on a parallel wall-clock timer (which keeps counting while a
         // stalled renderer shows nothing, running the chain ahead of the user).
         property string _animStage: ""
-        // Throttle for the stillness-reset diagnostic log lines.
-        property double _lastStillLogMs: 0
         // Set when arm-down is captured; prevents the phase-1 timer from
         // re-triggering captureTransitionTimer during the raise animation.
         property bool _armDownCaptured: false
@@ -316,11 +314,6 @@ Item {
             // Stillness-gated: only accumulate while the arm is held still;
             // motion resets the hold so the captured pose is genuinely static.
             if (imu.angularVelocityDps > d._stillThreshDps) {
-                var now = Date.now()   // throttled diagnostic: WHY the hold resets
-                if (now - d._lastStillLogMs > 2000) {
-                    d._lastStillLogMs = now
-                    imu.logCalibHoldReset("T-pose", d._stillThreshDps)
-                }
                 d._phase2Samples = []
                 d.stableAccumMs  = 0
                 d.phaseProgress  = 0.0
@@ -462,11 +455,6 @@ Item {
             // Stillness-gated: only accumulate while the arm is held still;
             // motion resets the hold so the captured pose is genuinely static.
             if (imu.angularVelocityDps > d._stillThreshDps) {
-                var now = Date.now()   // throttled diagnostic: WHY the hold resets
-                if (now - d._lastStillLogMs > 2000) {
-                    d._lastStillLogMs = now
-                    imu.logCalibHoldReset("arm-down", d._stillThreshDps)
-                }
                 d._phase1Samples = []
                 d.phase1AccumMs  = 0
                 return

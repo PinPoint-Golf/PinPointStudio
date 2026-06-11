@@ -196,19 +196,7 @@ public:
     Q_INVOKABLE void    refineMountAboutLongAxis(const QQuaternion &refRaw,
                                                  double phiDeg, bool handMount = false);
 
-    // Calibration-flow diagnostic: records WHY a stillness-gated hold keeps
-    // resetting (measured angular velocity vs the gate) in the exportable
-    // in-app log. QML cannot reach ppInfo()/PpMessageLog directly, so the
-    // flow calls this (throttled on its side) instead of console output.
-    Q_INVOKABLE void    logCalibHoldReset(const QString &stage, double thresholdDps);
     Q_INVOKABLE void    beginZeroing();
-
-    // Diagnostic logging facility (retained dev tool, no production callers; off
-    // unless invoked). Used for log-driven viz/IMU debugging — e.g. capturing
-    // anatQuat at known poses to re-derive render constants offline.
-    // logDiag: append one flushed line to ~/pinpoint_imu_diag.log with the
-    // QML-supplied payload plus the instantaneous RAW euler/accel/gyro/quaternion.
-    Q_INVOKABLE void    logDiag(const QString &tag, const QString &payload);
 
     // beginRawDump/endRawDump: stream every packet's RAW euler/accel/gyro/quaternion
     // to ~/pinpoint_imu_raw.log between begin/end, for offline analysis.

@@ -440,50 +440,6 @@ QString ImuInstance::saveLog()
     return path;
 }
 
-// Diagnostic logger (retained dev tool).
-// Appends one flushed line to ~/pinpointstudio_imu_diag.log. `payload` carries the
-// QML-side slerp-averaged values; here we also log the driver's instantaneous
-// RAW accelerometer (gravity vector, sensor hardware frame) and RAW quaternion
-// (eulerToQuat output) so the offline solve can relate the two frames.
-void ImuInstance::logDiag(const QString &tag, const QString &payload)
-{
-    const QString path = QDir(QStandardPaths::writableLocation(QStandardPaths::HomeLocation))
-                             .filePath(QStringLiteral("pinpointstudio_imu_diag.log"));
-    QFile f(path);
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
-        ppWarn() << "[ImuInstance] logDiag: cannot open" << path;
-        return;
-    }
-
-    // The driver lives on the I/O thread — read the worker's snapshot (raw
-    // sensor-frame vectors + fused quat from the latest processed packet).
-    const ImuIoWorker::LiveSample snap = m_worker->snapshot();
-    struct { float x, y, z; } a{ snap.accelX, snap.accelY, snap.accelZ };
-    struct { float x, y, z; } g{ snap.gyroX,  snap.gyroY,  snap.gyroZ  };
-    struct { float w, x, y, z; } q{ snap.quatW, snap.quatX, snap.quatY, snap.quatZ };
-
-    QTextStream out(&f);
-    out << timestamp()
-        << "  dev=" << m_deviceId
-        << "  tag=" << tag.leftJustified(10, QLatin1Char(' '))
-        << "  euler=(" << QString::number(m_eulerRoll, 'f', 4) << ',' << QString::number(m_eulerPitch, 'f', 4)
-                << ',' << QString::number(m_eulerYaw, 'f', 4) << ')'
-        << "  qraw=("  << QString::number(q.w, 'f', 6) << ',' << QString::number(q.x, 'f', 6)
-                << ',' << QString::number(q.y, 'f', 6) << ',' << QString::number(q.z, 'f', 6) << ')'
-        << "  accel=(" << QString::number(a.x, 'f', 4) << ',' << QString::number(a.y, 'f', 4)
-                << ',' << QString::number(a.z, 'f', 4) << ")g"
-        << "  gyro=(" << QString::number(g.x, 'f', 3) << ',' << QString::number(g.y, 'f', 3)
-                << ',' << QString::number(g.z, 'f', 3) << ')'
-        << "  anatcal=" << (m_anatCalibrated ? '1' : '0')
-        << "  anatquat=(" << QString::number(m_anatQuat.scalar(), 'f', 6) << ',' << QString::number(m_anatQuat.x(), 'f', 6)
-                << ',' << QString::number(m_anatQuat.y(), 'f', 6) << ',' << QString::number(m_anatQuat.z(), 'f', 6) << ')'
-        << "  " << payload
-        << '\n';
-    out.flush();
-
-    appendLog(timestamp() + QStringLiteral("  [diag] ") + tag + QStringLiteral("  ") + payload);
-}
-
 // Raw packet streaming (retained dev tool) — see header. A per-packet queued
 // connection exists ONLY between begin/end, so the diagnostic costs nothing
 // when off; lines are built from the worker snapshot (same-packet values: the
@@ -643,13 +599,6 @@ void ImuInstance::setNominalCalibration(const QQuaternion &refRaw, bool handMoun
     m_worker->setAnatomical(m_alignA, m_mountM, m_anatCalibrated);
     emit anatCalibratedChanged();
     emit quatChanged();
-}
-
-void ImuInstance::logCalibHoldReset(const QString &stage, double thresholdDps)
-{
-    ppInfo() << "[Calib]" << stage << "hold reset —" << m_deviceDescription
-             << "angular velocity" << m_angularVelocityDps << "deg/s (threshold"
-             << thresholdDps << "deg/s)";
 }
 
 void ImuInstance::refineMountAboutLongAxis(const QQuaternion &refRaw, double phiDeg, bool handMount)
