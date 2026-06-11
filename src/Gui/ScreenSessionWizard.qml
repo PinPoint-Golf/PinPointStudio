@@ -162,6 +162,23 @@ Item {
         stepStates = arr
     }
 
+    // Release every device the setup flow may have connected — called when the
+    // user abandons the wizard (Cancel, or ‹ backing out of the first step; see
+    // Main.qml). Mirrors the End Session teardown in PpSessionToolbar: cameras
+    // stop + deselect, IMUs disconnect (BLE battery), and capture intent goes
+    // off, which also releases the microphone (shot-detection audio follows
+    // captureIntent). The paced IMU connect queue must be aborted first: the
+    // wizard stays instantiated in Main.qml's StackLayout, so a running queue
+    // would otherwise keep connecting devices after the wizard is dismissed.
+    function releaseDevices() {
+        imuConnectTimer.stop()
+        imusCol._connecting   = false
+        imusCol._connectQueue = []
+        cameraManager.stopCapture()
+        cameraManager.disconnectAll()
+        imuManager.disconnectAll()
+    }
+
     // The Calibrate / Confirm steps host a full 3D visualisation that should use
     // the entire viewport width, unlike the text-led steps which are clamped to a
     // comfortable reading column (Theme.contentWidth).

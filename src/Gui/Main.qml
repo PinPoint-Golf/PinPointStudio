@@ -339,10 +339,16 @@ ApplicationWindow {
                                     : navController.canGoForward
 
                 onBackRequested: {
-                    if (navController.currentIndex === root.screenWizard && sessionWizard.currentStep > 0)
+                    if (navController.currentIndex === root.screenWizard && sessionWizard.currentStep > 0) {
                         sessionWizard.goBack()
-                    else
+                    } else {
+                        // ‹ on the wizard's first step exits the wizard — that
+                        // abandons setup just like Cancel, so release any
+                        // devices the wizard connected before leaving.
+                        if (navController.currentIndex === root.screenWizard)
+                            sessionWizard.releaseDevices()
                         navController.back()
+                    }
                 }
                 onForwardRequested: {
                     if (navController.currentIndex === root.screenWizard && sessionWizard.currentStep < sessionWizard.lastStep)
@@ -393,7 +399,13 @@ ApplicationWindow {
                 }
                 ScreenSessionWizard {                                      // screenWizard — session setup wizard
                     id: sessionWizard
-                    onCancelled: navController.navigate(root.screenHome)
+                    onCancelled: {
+                        // Abandoning setup releases any devices the wizard
+                        // connected (cameras, IMUs, microphone via capture
+                        // intent) — same teardown as End Session.
+                        sessionWizard.releaseDevices()
+                        navController.navigate(root.screenHome)
+                    }
                     onSessionStartRequested: function(type, goals) {
                         var map = appSettings.sessionGoalsByType
                         map[type.toString()] = goals
