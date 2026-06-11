@@ -21,6 +21,7 @@
 #if defined(HAVE_OPENCV) && defined(HAVE_VITPOSE) && defined(HAVE_ONNXRUNTIME)
 
 #include "pose_estimator_base.h"
+#include <QPointF>
 #include <array>
 #include <memory>
 
@@ -30,10 +31,21 @@
 // Input:  [1, 3, 256, 192] float32 NCHW, RGB, ImageNet-normalised
 // Output: [1, 133, 64, 48] float32 heatmaps — COCO-WholeBody 133-keypoint format.
 //
-// We currently consume only the first 17 channels (COCO body joints), which
-// map 1-to-1 onto PoseJoint.  The remaining 116 channels cover face, hands,
-// and feet keypoints and are ignored for now.  When integrating into the wider
-// pipeline, consider exposing all 133 keypoints for full-body analytics.
+// We always consume the first 17 channels (COCO body joints), which map
+// 1-to-1 onto PoseJoint.  The hand channels (91–132) are additionally decoded
+// into WholeBodyHands when setDecodeHands(true) — used by the offline
+// analyzer (PoseRunner); the live path leaves the flag off.  The remaining
+// face/feet channels are still ignored.
+
+// COCO-WholeBody hand keypoints — channels 91–111 (left), 112–132 (right).
+// A sibling of PoseResult: the 17-slot PoseResult shape is never widened
+// (BodyPoseAdapter reads it by index).
+struct WholeBodyHands {
+    static constexpr int kHandJoints = 21;
+    std::array<QPointF, 21> left{},      right{};        // normalized x/y like PoseResult
+    std::array<float, 21>   leftScore{}, rightScore{};
+    bool valid = false;
+};
 
 class PoseEstimatorViTPose : public PoseEstimatorBase
 {
@@ -48,6 +60,16 @@ public:
 
     bool isReady() const { return m_ready; }
 
+    // Opt-in decode of the COCO-WholeBody hand channels in the same heatmap
+    // pass. Default OFF — the live 60 Hz path is behaviourally unchanged.
+    void setDecodeHands(bool on) { m_decodeHands = on; }
+    bool decodeHands() const     { return m_decodeHands; }
+
+    // Hand keypoints from the most recent inference. Valid (valid == true)
+    // only after a synchronous estimatePose() call returns with hand decode
+    // enabled and inference succeeded.
+    const WholeBodyHands &lastHands() const { return m_lastHands; }
+
 public slots:
     void load();
     void estimatePose(const cv::Mat &frame) override;
@@ -55,6 +77,9 @@ public slots:
 
 private:
     bool m_ready = false;
+
+    bool           m_decodeHands = false;
+    WholeBodyHands m_lastHands;
 
     // 30-sample rolling windows — same pattern as PoseEstimatorMoveNet.
     static constexpr int kWindowSize = 30;

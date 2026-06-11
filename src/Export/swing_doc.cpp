@@ -70,6 +70,55 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a)
                                    { QStringLiteral("t_us"),  static_cast<qint64>(e.t_us) },
                                    { QStringLiteral("conf"),  e.conf } });
     o[QStringLiteral("phases")] = phases;
+
+    // Additive ShaftTracker blocks (S3). pose2d keypoints are already
+    // normalized 0..1 frame coords; club grip/head are normalized here by the
+    // camera dims so every consumer (replay overlay, reload) is
+    // resolution-independent. The club block is written only for a VALID
+    // track — the all-or-nothing consumer contract.
+    if (!a.pose2d.frames.empty()) {
+        QJsonArray frames;
+        for (const PoseFrame2D &f : a.pose2d.frames) {
+            QJsonArray kp;
+            for (int j = 0; j < 17; ++j) {
+                kp.append(f.kp[size_t(j)].x());
+                kp.append(f.kp[size_t(j)].y());
+                kp.append(double(f.conf[size_t(j)]));
+            }
+            frames.append(QJsonObject{
+                { QStringLiteral("t_us"), static_cast<qint64>(f.t_us) },
+                { QStringLiteral("kp"),   kp },
+                { QStringLiteral("lead"),  QJsonArray{ f.leadHand.x(),  f.leadHand.y() } },
+                { QStringLiteral("trail"), QJsonArray{ f.trailHand.x(), f.trailHand.y() } },
+                { QStringLiteral("handConf"), double(f.handConf) } });
+        }
+        o[QStringLiteral("pose2d")] = QJsonObject{
+            { QStringLiteral("camera"), int(a.pose2d.camera) },
+            { QStringLiteral("frames"), frames } };
+    }
+    if (a.shaft.valid && !a.shaft.samples.empty()
+        && a.shaft.frameWidth > 0 && a.shaft.frameHeight > 0) {
+        const double iw = 1.0 / a.shaft.frameWidth, ih = 1.0 / a.shaft.frameHeight;
+        QJsonArray samples;
+        for (const ShaftSample2D &s : a.shaft.samples)
+            samples.append(QJsonObject{
+                { QStringLiteral("t_us"),  static_cast<qint64>(s.t_us) },
+                { QStringLiteral("grip"),  QJsonArray{ s.gripPx.x() * iw, s.gripPx.y() * ih } },
+                { QStringLiteral("head"),  QJsonArray{ s.headPx.x() * iw, s.headPx.y() * ih } },
+                { QStringLiteral("theta"), s.thetaRad },
+                { QStringLiteral("thetaDot"), s.thetaDotRadS },
+                { QStringLiteral("lenPx"), s.visibleLenPx },
+                { QStringLiteral("conf"),  double(s.conf) },
+                { QStringLiteral("flags"), int(s.flags) } });
+        o[QStringLiteral("club")] = QJsonObject{
+            { QStringLiteral("camera"),        int(a.shaft.camera) },
+            { QStringLiteral("valid"),         a.shaft.valid },
+            { QStringLiteral("coverage"),      double(a.shaft.coverage) },
+            { QStringLiteral("imuVisionCorr"), double(a.shaft.imuVisionCorr) },
+            { QStringLiteral("frameWidth"),    a.shaft.frameWidth },
+            { QStringLiteral("frameHeight"),   a.shaft.frameHeight },
+            { QStringLiteral("samples"),       samples } };
+    }
     return o;
 }
 
@@ -180,6 +229,14 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
             { QStringLiteral("series"),  an[QStringLiteral("metrics")].toArray().toVariantList() },
             { QStringLiteral("phases"),  an[QStringLiteral("phases")].toArray().toVariantList() },
         };
+        // Additive ShaftTracker blocks — same variant shapes as the live
+        // toAnalysisDetail (shot_processor.cpp); absent in older files.
+        if (an.contains(QStringLiteral("pose2d")))
+            ps.analysisDetail.insert(QStringLiteral("pose2d"),
+                                     an[QStringLiteral("pose2d")].toObject().toVariantMap());
+        if (an.contains(QStringLiteral("club")))
+            ps.analysisDetail.insert(QStringLiteral("club"),
+                                     an[QStringLiteral("club")].toObject().toVariantMap());
 
         // Flat metrics: each metric's value at Impact (Phase::Impact == 5), signed degrees.
         QVariantMap metrics;

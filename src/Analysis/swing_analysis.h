@@ -20,8 +20,11 @@
 
 #include <QHash>
 #include <QMetaType>
+#include <QPointF>
 #include <QQuaternion>
 #include <QString>
+#include <array>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -110,6 +113,56 @@ struct ScoreBreakdown {
     std::vector<ScoredMetric> metrics;    // full audit trail
 };
 
+// ── ShaftTracker camera tracks (canonical output shapes) ────────────────────
+// Produced by PoseRunner (S0) and ShaftTracker (S2) over the face-on camera;
+// persisted in swing.json and replay-overlaid in PpCameraFrame (S4). Kept here
+// (Qt-only) so consumers of SwingAnalysis never pull the OpenCV-typed
+// detection headers.
+
+// One offline-posed frame: 17 COCO keypoints + both hands' centroid anchors,
+// all normalized 0..1 frame coordinates (PoseResult convention).
+struct PoseFrame2D {
+    int64_t t_us = 0;
+    std::array<QPointF, 17> kp{};
+    std::array<float, 17>   conf{};
+    QPointF leadHand, trailHand;     // hand centroids; COCO wrists on fallback
+    float   handConf = 0.f;          // 0 when wrist-fallback
+};
+
+struct PoseTrack2D {
+    pinpoint::SourceId camera = pinpoint::kInvalidSourceId;
+    std::vector<PoseFrame2D> frames;
+};
+
+enum ShaftSampleFlags : uint8_t {
+    ShaftMeasured      = 0x01,  // vision measurement fused at this sample
+    ShaftImuBridged    = 0x02,  // IMU channel fused (no vision this sample)
+    ShaftCoasted       = 0x04,  // predict-only (neither channel)
+    ShaftWedge         = 0x08,  // vision measurement was a blur-wedge centroid
+    ShaftHeadProjected = 0x10,  // headPx projected from grip + L·dir(θ), not measured
+};
+
+struct ShaftSample2D {
+    int64_t t_us         = 0;
+    QPointF gripPx;             // anchor used for detection (image px)
+    QPointF headPx;             // measured terminus blob, or projected (see flags)
+    double  thetaRad     = 0.0; // unwrapped, RTS-smoothed image angle (atan2 convention)
+    double  thetaDotRadS = 0.0; // smoothed angular velocity
+    double  visibleLenPx = 0.0; // ridge extent (median/hold-filtered — θ is the precision channel)
+    float   conf         = 0.f; // 0..1 from the smoothed θ posterior variance
+    uint8_t flags        = 0;
+};
+
+struct ShaftTrack2D {
+    pinpoint::SourceId camera = pinpoint::kInvalidSourceId;
+    bool  valid = false;        // coverage gate over the swing span (all-or-nothing for consumers)
+    float coverage = 0.f;       // fraction of span frames Measured|ImuBridged
+    float imuVisionCorr = 0.f;  // Pearson corr of vision vs IMU θ̇ (0 = no channel) — health metric
+    int   frameWidth  = 0;      // camera dims so px samples can be normalized by consumers
+    int   frameHeight = 0;
+    std::vector<ShaftSample2D> samples;
+};
+
 // The rich detail behind ShotAnalysisResult::detail — the full analyzed swing.
 struct SwingAnalysis {
     int tier = static_cast<int>(ReconstructionTier::Angles2D);
@@ -117,6 +170,8 @@ struct SwingAnalysis {
     std::vector<PhaseEvent>   phases;
     ScoreBreakdown            score;
     std::vector<Fault>        faults;
+    PoseTrack2D               pose2d;  // face-on offline pose (empty when no camera ran)
+    ShaftTrack2D              shaft;   // face-on club track (check .valid before use)
 };
 
 } // namespace pinpoint::analysis

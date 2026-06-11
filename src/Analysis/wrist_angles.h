@@ -173,6 +173,8 @@ inline QString wristMetricLabel(const QString &key, double deg)
         return r > 1 ? d + QStringLiteral(" ulnar") : r < -1 ? d + QStringLiteral(" radial") : QStringLiteral("neutral");
     if (key == QLatin1String("forearmPronation"))
         return r > 1 ? d + QStringLiteral(" pronated") : r < -1 ? d + QStringLiteral(" supinated") : QStringLiteral("square");
+    if (key == QLatin1String("impactShaftLean"))
+        return r > 1 ? d + QStringLiteral(" forward") : r < -1 ? d + QStringLiteral(" back") : QStringLiteral("neutral");
     return d;
 }
 

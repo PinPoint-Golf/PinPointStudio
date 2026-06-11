@@ -1,0 +1,295 @@
+# ShaftTracker — Implementation Plan (face-on club detection + replay overlay)
+
+> **Status:** **S0–S4 IMPLEMENTED** (as-built notes inline per stage) · S5 (hardware
+> verification) pending · **Dates:** planned 2026-06-10, built 2026-06-10/11 ·
+> **Grounded against:** `main` @ `474a6ba`
+>
+> Implements the *Club shaft detection (`ShaftTracker`, hand-anchored)* addendum of
+> [`docs/design/SHOT_ANALYZER_DESIGN.md`](../design/SHOT_ANALYZER_DESIGN.md) (sections B.1–B.10)
+> inside the shot analyzer. Scope per product decision: **face-on camera only**, and the result is
+> **overlaid together with the skeleton on the replay video**. DTL, 3-D lift, clubface, and learned
+> models stay deferred (addendum B.10).
+>
+> **As-built verification state:** full standalone suite 15/15 green (incl. the three new
+> targets `frame_decode_test`, `shaft_tracker_test`, `shaft_track_test`); app build clean,
+> zero new warnings; headless offscreen startup clean (all screens incl. the new overlay
+> canvas instantiate). **Not yet verified:** anything needing a real captured swing —
+> pixel-level overlay registration, detector thresholds on real shafts/backgrounds, and the
+> >0.9 vision↔IMU θ̇ correlation acceptance — all fold into S5.
+
+## What ships
+
+After a shot, the analyzer re-runs pose on the frozen face-on frames, detects the club shaft per
+frame anchored on the hands, smooths the track (Viterbi + KF/RTS, IMU-bridged through blur), and
+the ¼× replay shows the **skeleton + shaft line + fading clubhead trail** drawn over the video,
+scrubbing with the existing playhead. The track persists in `swing.json` and feeds shaft-lean-at-
+impact plus the P6/P8 segmentation upgrades.
+
+```
+SwingWindow (frozen, face-on camera)
+  └─ S0  FrameDecoder        shared demosaic → grey/luma cv::Mat per frame   (zero-copy wrap)
+  └─ S0  PoseRunner          ViTPose offline → PoseTrack2D (17 kp + hands)   (anchor source)
+  └─ S1  shaft_tracker_math  per-frame anchored radial transform → candidates
+  └─ S2  ShaftTracker        ŝ_hand calib · Viterbi · KF+RTS → ShaftTrack2D
+  └─ S3  WristAnalyzer       detail->pose2d/shaft · swing.json · metrics
+  └─ S4  PpCameraFrame       replay overlay canvas (skeleton + shaft + trail)
+```
+
+## Contracts that bind every stage
+
+- **Frozen-window const reader** — all of S0–S2 runs inside `analyze()` on the QtConcurrent
+  worker; reads finish before return; `payloadOf().data` null-checks on every frame
+  (exporter discipline, `swing_exporter.cpp`).
+- **Quaternions-only** — IMU orientation stays `QQuaternion` end-to-end; the shaft's image
+  angle θ is a genuine 2-D scalar (explicitly permitted; it is not a 3-D rotation intermediate).
+- **Flat source dir** — new code in `src/Analysis/*.{h,cpp}`, standalone tests in
+  `src/Analysis/tests/` (project layout rule).
+- **No new dependencies** — core OpenCV `imgproc` only (no `ximgproc`/contrib), existing ORT EP
+  cascade with `IntraOpNumThreads(1)` (exporter encode runs concurrently).
+- **Live 60 Hz path untouched** — every estimator change is flag-gated; MoveNet/live ViTPose
+  behaviour, throttle balance, and `PoseResult`'s 17-slot shape are unchanged
+  (`BodyPoseAdapter` reads it by index).
+
+---
+
+## S0 — Offline frame decode + pose pass (anchor source)
+
+**Deliverable:** `PoseTrack2D` for the face-on camera — per-frame 17 COCO keypoints + both hands'
+centroids, on window timestamps. This is the analyzer's first camera-reading stage (a thin slice
+of design-doc M2, built now because ShaftTracker needs anchors).
+
+**Files**
+- `src/Export/frame_decode.{h,cpp}` *(new, shared)* — extract the exporter's demosaic table +
+  zero-copy `cv::Mat` wrap (`swing_exporter.cpp:268-294`) into one helper used by **both**
+  `SwingExporter` and the analyzer, so the two decode paths can never diverge. Add a
+  luma-only fast path: NV12/YUV420P expose the Y plane directly (no colour conversion);
+  Bayer uses a cheap green-channel extraction; BGRA converts.
+- `src/Analysis/pose_runner.{h,cpp}` *(new)* — owns a `PoseEstimatorViTPose`, calls the
+  **synchronous** `estimatePose(const cv::Mat&)` (`pose_estimator_base.h:88`) and captures
+  `poseEstimated(PoseResult)` via a direct connection on the worker. Walks
+  `window.entriesFor(faceOnSource)`, decodes, runs pose, emits
+  `PoseTrack2D { std::vector<PoseFrame2D> }` with
+  `PoseFrame2D { int64_t t_us; std::array<QPointF,17> kp; std::array<float,17> conf;
+  QPointF leadHand, trailHand; float handConf; }` (normalized 0..1 frame coords, matching
+  `PoseResult`).
+- `src/Pose/pose_estimator_vitpose.cpp` — decode channels 91–132 (both hands' 21-keypoint sets)
+  into a **sibling** `WholeBodyHands` struct behind an opt-in flag (`setDecodeHands(true)`),
+  default off so the live path is byte-identical. Per the design rule: never widen the 17-slot
+  `PoseResult`.
+- `src/Analysis/shot_analyzer.h` — `ShotAnalysisJob` gains `int faceOnCameraCount = 0` (today
+  "face-on first" in `cameraSources` is unverifiable from the worker) and
+  `double clubLengthM = 1.12` (driver default until club selection is real). Resolved in
+  `ShotProcessor::startAnalysis` on the UI thread, like every other job field.
+
+**Adaptive sampling (CPU-survivable):** pose every frame inside
+`[Top − 150 ms, Impact + 300 ms]` (the blur-critical zone where anchor accuracy matters most) and
+every 4th frame elsewhere, anchors linearly interpolated between pose frames for the in-between
+shaft detections. GPU: ~100–300 pose calls ≈ 1–3 s, inside the design's 2–4 s budget. CPU-only:
+~10–30 s — acceptable for a degraded tier, and the impact-zone-only fallback (S2) still yields
+shaft lean + P6/P8 if the user finds it too slow in practice.
+
+**Tests:** `frame_decode` unit test against synthetic NV12/Bayer/BGRA payloads (golden pixel
+checks); PoseRunner verified by integration (headless app, captured swing) — ORT in a standalone
+harness is not worth the build cost.
+
+**Acceptance:** analyzing a captured swing logs a `PoseTrack2D` with ≥ 90% of frames having
+wrist conf > 0.3; wall-time delta logged.
+
+> **As built (S0).** Shipped as planned, with these deviations/findings:
+> - **BGRA32 was NOT in the exporter's original demosaic table** — the plan's "exactly the
+>   exporter's current behaviour (… BGRA32 …)" was wrong, and industrial BGRA32 shots were
+>   silently skipped at MP4 export. The shared table includes BGRA32, so the extraction
+>   *fixed a real export bug* as a side effect; everything else is byte-identical.
+> - **No intra-op-threads knob added** — `PoseEstimatorViTPose::load()` already pins
+>   `SetIntraOpNumThreads(1)`, exactly what the offline path requires.
+> - `decodeToLuma` covers **every** format the BGR table supports (incl. Mono8/BGR24/
+>   YUYV/UYVY), not just the four named — the two paths can never diverge in coverage.
+> - `pose_runner.cpp` is guarded by `HAVE_OPENCV && HAVE_VITPOSE && HAVE_ONNXRUNTIME` with
+>   a `ppWarn` + empty-track fallback when built without them.
+> - The track types (`PoseFrame2D`/`PoseTrack2D`) later moved to `swing_analysis.h` in S3
+>   (canonical home); `pose_runner.h` keeps only `ShotAnalysisRunnerOptions` + the class.
+> - `frame_decode_test`: 40+ checks — exact BGRA32 goldens incl. padded stride, hand-computed
+>   BT.601 NV12/YUV420P goldens, zero-copy aliasing asserts, false on short/null/unsupported.
+
+## S1 — Detection math core (pure, standalone-tested)
+
+**Deliverable:** the per-frame anchored radial transform of addendum B.3/B.4 as pure functions —
+no Qt, no window access, fully unit-testable.
+
+**Files**
+- `src/Analysis/shaft_tracker_math.{h,cpp}` *(new)* — `detectShaft(const cv::Mat &luma,
+  const ShaftDetectConfig&, const AnchorPrior&) → std::vector<ShaftCandidate>`:
+  top-hat + black-hat ridge response → `cv::warpPolar` about the grip anchor →
+  per-column score `S(θ)` = mean-strength × coverage over `ρ ∈ [ρ_min, ρ_vis]` →
+  clutter masks (±12° of `g→elbow` directions) → soft prior weighting (inter-hand direction,
+  temporal/IMU prediction) → NMS top-K with parabolic sub-bin refinement →
+  per-candidate visible extent `L`, head-blob seed, **wedge plateau handling** (centroid θ +
+  half-width as σ). 3×3 anchor-perturbation rescore + proximal TLS line refit.
+  `ShaftCandidate { double thetaRad, sigmaTheta, visibleLenPx, score; QPointF headPx;
+  bool wedge; }`.
+- `src/Analysis/tests/shaft_tracker_test.cpp` *(new, standalone)* — synthetic renderer:
+  tapered bright/dark lines over noise and real background crops, parameterized blur wedge,
+  rolling-shutter shear, anchor error, alignment-stick/shadow clutter. Asserts addendum B.9
+  tolerances: θ ≤ 0.5° (slow frames), ≤ 2° (wedge frames), L within 5%, clutter rejected.
+  Links system OpenCV by absolute path (standalone-harness gotchas memory).
+
+**Acceptance:** test suite green; single-frame detect ≤ 2 ms on a 600² ROI (measured in-test).
+
+> **As built (S1).** All planned behaviour shipped; four evidence-driven algorithm deviations
+> (each documented at the code site):
+> - **`ridgeKernelPx` default 9, not 7, and RECT, not ellipse** — a 6 px line + AA fringe
+>   survives a 7 px opening, killing the ridge response exactly where the run must start
+>   (rule: kernel strictly wider than the widest ridge); RECT is separable (~6× faster
+>   morphology) and equivalent for sub-kernel-width ridges.
+> - **No `cv::warpPolar`** — 18 polar warps measured 14–21 ms/call. Replaced by a fused
+>   multi-anchor ray scan sampled straight off the Cartesian response maps
+>   (`cv::parallel_for_` over θ, early-exit per column). Same θ convention and outputs.
+> - **Wedge θ = half-peak window midpoint + twin-horn merge** (`wedgePairMaxSepDeg`) — a fan
+>   whose solid interior exceeds the kernel responds at its two *edges*; the naive intensity
+>   centroid dragged −2.2° on an 8° fan. Wedge winners from a perturbed anchor are
+>   re-estimated about the true grip (no TLS stage for wedges).
+> - **TLS refit is iterated** (≤5 passes, band recentred each fit) — a single pass beside a
+>   *tapered* ridge clips it asymmetrically (−0.65° measured; converges to −0.15°).
+>
+> Measured: **~2.0 ms mean** per detect on a 600² ROI. Margins: clean θ −0.004° (tol 0.5°),
+> wedge centroid 0.00° (tol 2°), all clutter/mask/anchor-perturbation checks pass.
+
+## S2 — Track assembly: ŝ_hand, Viterbi, KF + RTS
+
+**Deliverable:** `ShaftTrack2D` (addendum B.6 struct) from per-frame candidates + the lead-hand
+IMU stream — smooth, unwrapped, confidence/flag-annotated, IMU-bridged through blur dropouts.
+
+**Files**
+- `src/Analysis/shaft_tracker.{h,cpp}` *(new)* —
+  `ShaftTracker::track(const SwingWindow&, const PoseTrack2D&, const FusedStreams&,
+  const std::vector<PhaseEvent>&, const ShotAnalysisJob&) → ShaftTrack2D`. Stages:
+  1. **ŝ_hand auto-calibration** (B.2): over Address→Takeaway frames with high vision conf,
+     fit the constant shaft-in-hand-frame unit vector against measured θ (5° spherical grid +
+     Gauss-Newton, orthographic projection). Skipped when no `LeadHand` IMU is bound —
+     vision-only mode.
+  2. **Viterbi association** over per-frame top-K + missing nodes; transition cost uses the
+     IMU-predicted θ̇ when calibrated, finite-difference otherwise.
+  3. **Unwrap → const-accel KF (`[θ, θ̇, θ̈]`, white-jerk, clubhead-grade PSD) + RTS backward
+     pass**, two measurement channels (vision, IMU), predict-only when both absent. Light 1-D
+     KFs for `L(t)` and the head point. Geometry-driven confidence: `L` collapse (shaft toward
+     camera) suppresses θ measurements via the IMU-predicted foreshortening profile.
+  4. **Validity gate** (B.8): ≥ 60% of swing-span frames measured/bridged, else the whole track
+     is marked invalid — consumers must see all-or-nothing.
+- `src/Analysis/tests/shaft_track_test.cpp` *(new)* — synthetic candidate sequences: dropout
+  bridging, clutter-capture recovery (Viterbi must reject a 5-frame strong false ridge),
+  wrap-around continuity, ŝ_hand fit convergence against synthetic `q_anat` streams (reuse
+  `imu_test_stubs.cpp` provisioning).
+
+**Acceptance:** tests green; on a captured swing the IMU↔vision θ̇ correlation (computed anyway —
+it is the fusion layer's temporal-alignment signal) exceeds 0.9, logged per shot as the
+in-production health metric.
+
+## S3 — Analyzer integration + persistence
+
+**Deliverable:** the track rides `SwingAnalysis`, persists in `swing.json`, reloads, and feeds
+metrics/segmentation.
+
+**Files**
+- `src/Analysis/swing_analysis.h` — additive: `PoseTrack2D pose2d; ShaftTrack2D shaft;` on
+  `SwingAnalysis` (both may be empty/invalid).
+- `src/Analysis/wrist_analyzer.cpp` — after `fuse`/`segment` (`wrist_analyzer.cpp:108-116`):
+  when `job.faceOnCameraCount > 0`, run PoseRunner + ShaftTracker; store both tracks on
+  `detail`; add the `impactShaftLean` metric (θ vs image-vertical at the impact sample, signed
+  toward-target using `job.handedness`) to the series so it scores like any other metric. The
+  same call sequence is the seam the future `SwingAnalyzer` (type 0) reuses verbatim.
+- `src/Analysis/phase_segmenter.*` — when segmentation v2 lands, `Delivery`/`Release` upgrade
+  from hand-proxy to measured shaft-parallel crossings. Until then the track is stored but not
+  consumed by phases — **no ordering dependency between the two work streams**.
+- `src/Export/swing_doc.cpp` — additive `analysis.pose2d` + `analysis.club` blocks
+  (addendum B.6 shapes; pose downsampled to kp+conf per frame — ~300 frames × 17 kp is small).
+  `SwingDocReader` maps them back; missing blocks ⇒ empty tracks (old files reload unchanged).
+- `src/Gui/shot_processor.cpp` — `toAnalysisDetail()` (the `m_replayAnalysisDetail` builder,
+  `shot_processor.cpp:623`) gains two arrays, **pre-normalized to 0..1 frame coords** so QML
+  never sees pixel spaces: `pose2d: [{t, kp:[{x,y,c}×17]}]` and
+  `club: [{t, gx,gy, hx,hy, theta, conf, flags}]`.
+
+**Tests:** swing_doc round-trip (write → read → compare) for the new blocks in the existing
+doc-writer test pattern; analyzer integration verified headless.
+
+**Acceptance:** a captured shot's `swing.json` contains both blocks; reload populates the detail;
+`impactShaftLean` appears in the metrics map.
+
+## S4 — Replay overlay: skeleton + shaft on the face-on frame
+
+**Deliverable:** during REPLAYING, the face-on `PpCameraFrame` draws the offline skeleton and the
+shaft (grip→head line + head dot + fading ~10-sample clubhead trail), scrubbing with
+`shotProcessor.replayPositionUs` — the same playhead `ScreenWrist`'s metric graphs already follow.
+
+**Files**
+- `src/Gui/PpCameraFrame.qml` — new `replayOverlayCanvas` *sibling* of the live
+  `skeletonCanvas` (`PpCameraFrame.qml:240`), behind a new screen-config property
+  `showReplayOverlay` (default true on Wrist/Swing screens, panel-wireable later like every
+  other per-screen overlay):
+  - **Visible** when `shotProcessor.isReplaying && root.instance && root.instance.perspective === 2`
+    (live `skeletonCanvas` is already hidden in replay — `isRecording`/live-kp gating — so the
+    two never co-draw). Every subscribed face-on tile gets the overlay for free via the
+    existing frame pub/sub fan-out.
+  - **Data**: cache `shotProcessor.replayAnalysisDetail.pose2d/club` into local
+    `property var` arrays on `replayAnalysisDetailChanged`; `onReplayPositionChanged` →
+    binary-search the nearest sample ≤ playhead → `requestPaint()`. ~60 repaints/s over
+    ≤ 300-element arrays is trivial.
+  - **Drawing**: reuse the live canvas's contentRect/debayer mapping (`PpCameraFrame.qml:284-290`)
+    and `kEdges` table verbatim (factor `kEdges` to a shared `readonly property` on the root so
+    the two canvases share one definition). Skeleton in the live style but at reduced alpha;
+    shaft as a 2 px `Theme.colorAccent` line grip→head with a small head dot; trail as a
+    polyline over the last ~10 club samples with alpha fading to 0 — muted, half-alpha-over-media
+    styling (subtle-chrome preference), no chrome until the replay actually has a valid track
+    (invalid/empty club array ⇒ skeleton only; empty pose2d ⇒ nothing, never a guess).
+- `src/Gui/ScreenWrist.qml` / session screens — set `showReplayOverlay: true` on their face-on
+  `PpCameraFrame` instances (one-line per screen; per-screen video architecture pattern).
+
+**Verification:** QML visual harness (offscreen `grabWindow` from C++, timer-stepped replay,
+TEMP blocks removed before commit) — capture frames at Address/Top/Impact and eyeball
+skeleton+shaft registration against the video; then a real on-hardware replay.
+
+**Acceptance:** replay of a captured swing shows skeleton + shaft tracking the playhead with no
+visible lag or misregistration; toggling `showReplayOverlay` hides it; non-face-on tiles and
+no-analysis shots show plain video.
+
+## S5 — Hardware validation + tuning
+
+- Label shaft endpoints every ~10th frame on the pending hardware-verification swings
+  (shot-detection P4 session); regression-test track RMS and the B.9 tolerances.
+- Tune `ShaftDetectConfig` thresholds (ridge kernel vs px/m, ρ_min, NMS separation) against
+  steel + graphite clubs, indoor mat + outdoor grass backgrounds.
+- Confirm wall-time on the 12-core/GPU box and the CPU-only path; decide whether the CPU tier
+  keeps full-span tracking or drops to impact-zone-only.
+- Log per-shot health: vision↔IMU θ̇ correlation, % frames measured/bridged/coasted.
+
+---
+
+## Order & sizing
+
+| Stage | Depends on | Size | Parallelizable |
+|---|---|---|---|
+| S0 decode + pose runner | — | M | with S1 |
+| S1 math core + tests | — | M | with S0 |
+| S2 track assembly | S0, S1 | M | — |
+| S3 analyzer + persistence | S2 | S | — |
+| S4 replay overlay | S3 | S | — |
+| S5 hardware tuning | S4 + captured swings | M | — |
+
+Segmentation v2 (`PhaseSegmenter` addendum) is **independent**: ShaftTracker runs on the full
+window without it (truncation only saves cost), and the P6/P8 upgrade is a two-line consumer
+change whenever both have landed.
+
+## Risks
+
+- **CPU-only pose latency** is the main schedule risk (10–30 s worst case). Mitigated by
+  adaptive sampling (S0) and the impact-zone-only degradation; the shot lands on the carousel
+  regardless (existing degrade contract).
+- **ViTPose hand-channel quality** on blurred frames is unproven — the wrist keypoints are the
+  fallback anchor, and S1's anchor-perturbation rescore tolerates ±10 px.
+- **`ŝ_hand` orthographic projection** error grows with wide-FOV webcams; it is a prior/second
+  channel, never the sole source, and C1 intrinsics upgrade it transparently later.
+- **GPU contention** analyzer-vs-exporter: already managed by `IntraOpNumThreads(1)`; measure in
+  S0 and, if encode stalls, serialize pose after the exporter's frame-read pass.
+
+## Out of scope (per addendum B.10)
+
+DTL-camera shaft, 3-D shaft lift, clubface angle, learned keypoint models, club identification.

@@ -1677,6 +1677,8 @@ target_sources(PinPointStudio PRIVATE
     src/Export/video_encoder.cpp
     src/Export/swing_paths.h
     src/Export/swing_paths.cpp
+    src/Export/frame_decode.h
+    src/Export/frame_decode.cpp
     src/Export/swing_exporter.h
     src/Export/swing_exporter.cpp
     src/Export/swing_zip_exporter.h
@@ -1691,10 +1693,18 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/imu_vision_fuser.cpp
     src/Analysis/phase_segmenter.h
     src/Analysis/phase_segmenter.cpp
+    src/Analysis/shaft_tracker_math.h
+    src/Analysis/shaft_tracker_math.cpp
+    src/Analysis/shaft_track_assembly.h
+    src/Analysis/shaft_track_assembly.cpp
+    src/Analysis/shaft_tracker.h
+    src/Analysis/shaft_tracker.cpp
     src/Analysis/swing_scorer.h
     src/Analysis/swing_scorer.cpp
     src/Analysis/wrist_analyzer.h
     src/Analysis/wrist_analyzer.cpp
+    src/Analysis/pose_runner.h
+    src/Analysis/pose_runner.cpp
     src/Analysis/shot_analyzer.h
     src/Analysis/shot_analyzer.cpp
 )

@@ -36,6 +36,7 @@
 #include <opencv2/imgproc.hpp>
 
 #include "format_descriptor.h"
+#include "frame_decode.h"
 #include "imu_sample.h"
 #include "swing_paths.h"
 #include "swing_window.h"
@@ -45,42 +46,6 @@
 namespace pinpoint {
 
 namespace {
-
-// How a payload of a given PixelFormat becomes a BGR frame.
-struct DemosaicPlan {
-    bool supported   = false;
-    int  matType     = 0;       // cv::Mat element type of the raw payload
-    int  cvtCode     = -1;      // cv::cvtColor code; -1 = passthrough (already BGR)
-    const char* tag  = "none";  // recorded in swing.json processing.demosaic
-    // Raw Mat rows = height * rowsNum / rowsDen. Planar YUV 4:2:0 payloads
-    // (NV12/I420 — Y plane followed by chroma, stored contiguously by
-    // CameraInstance::publishFrameToBuffer) are 3/2 image-height rows tall.
-    int  rowsNum     = 1;
-    int  rowsDen     = 1;
-};
-
-// Mirrors the live-view mapping (camera_instance.cpp PixelFormat->BayerPattern,
-// raw_video_frame.cpp pattern->COLOR_Bayer{RGGB,BGGR,GRBG,GBRG}2BGR) so export
-// colour matches the on-screen image exactly.  The _EA (edge-aware) variants
-// share the same pattern naming — better quality, irrelevant cost off the hot
-// path.  v1 handles 8-bit formats only.
-DemosaicPlan demosaicPlanFor(PixelFormat fmt)
-{
-    switch (fmt) {
-    case PixelFormat::BayerRG8: return {true, CV_8UC1, cv::COLOR_BayerRGGB2BGR_EA, "EA"};
-    case PixelFormat::BayerBG8: return {true, CV_8UC1, cv::COLOR_BayerBGGR2BGR_EA, "EA"};
-    case PixelFormat::BayerGR8: return {true, CV_8UC1, cv::COLOR_BayerGRBG2BGR_EA, "EA"};
-    case PixelFormat::BayerGB8: return {true, CV_8UC1, cv::COLOR_BayerGBRG2BGR_EA, "EA"};
-    case PixelFormat::Mono8:    return {true, CV_8UC1, cv::COLOR_GRAY2BGR,         "none"};
-    case PixelFormat::BGR24:    return {true, CV_8UC3, -1,                         "none"};
-    case PixelFormat::YUV422:
-    case PixelFormat::YUYV:     return {true, CV_8UC2, cv::COLOR_YUV2BGR_YUYV,     "none"};
-    case PixelFormat::UYVY:     return {true, CV_8UC2, cv::COLOR_YUV2BGR_UYVY,     "none"};
-    case PixelFormat::NV12:     return {true, CV_8UC1, cv::COLOR_YUV2BGR_NV12,     "none", 3, 2};
-    case PixelFormat::YUV420P:  return {true, CV_8UC1, cv::COLOR_YUV2BGR_I420,     "none", 3, 2};
-    default:                    return {};   // MJPEG, H264_NAL, 12/16-bit: unsupported in v1
-    }
-}
 
 const char* pixelFormatName(PixelFormat fmt)
 {
@@ -162,9 +127,6 @@ int64_t writeThumbnail(const SwingWindow& window, SourceId sid,
     const auto* cfmt = std::get_if<CameraFormat>(&fd.format);
     if (!cfmt)
         return -1;
-    const DemosaicPlan plan = demosaicPlanFor(cfmt->pixel_format);
-    if (!plan.supported)
-        return -1;
 
     // Entry nearest impact — clamps naturally to the captured range when a
     // backdated impact timestamp falls outside it.
@@ -174,25 +136,12 @@ int64_t writeThumbnail(const SwingWindow& window, SourceId sid,
             best = &e;
     }
 
-    const int srcW    = static_cast<int>(cfmt->width);
-    const int srcH    = static_cast<int>(cfmt->height);
-    const int rawRows = srcH * plan.rowsNum / plan.rowsDen;
-    const size_t bpp      = static_cast<size_t>(CV_ELEM_SIZE(plan.matType));
-    const size_t stride   = cfmt->plane_strides[0] ? cfmt->plane_strides[0]
-                                                   : static_cast<size_t>(srcW) * bpp;
-    const size_t minBytes = stride * static_cast<size_t>(rawRows);
-
+    // Shared zero-copy demosaic (frame_decode) — false on unsupported formats
+    // and absent/short payloads alike.
     const SourceRing::ReadHandle handle = window.payloadOf(*best);
-    if (!handle.data || handle.bytes < minBytes)
-        return -1;
-
-    const cv::Mat raw(rawRows, srcW, plan.matType,
-                      const_cast<std::byte*>(handle.data), stride);
     cv::Mat bgr;
-    if (plan.cvtCode >= 0)
-        cv::cvtColor(raw, bgr, plan.cvtCode);
-    else
-        bgr = raw;
+    if (!decodeToBgr(*cfmt, handle.data, handle.bytes, bgr))
+        return -1;
 
     // Downscale for cheap carousel I/O; never upscale.
     constexpr int kMaxThumbWidth = 480;
@@ -276,6 +225,14 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
         }
         const cv::Rect cropRect(0, 0, cropW, cropH);
 
+        // Raw-payload geometry (shared with the per-frame decode below). Cannot
+        // fail here — the format and dimensions were vetted above.
+        size_t stride = 0, minBytes = 0;
+        if (!frameGeometry(*cfmt, stride, minBytes)) {
+            ppWarn() << "[SwingExport] degenerate dimensions for" << cam.alias << "— skipping";
+            continue;
+        }
+
         // Honor videoResolutionMode as an export-time downscale (never upscale).
         int outW = cropW, outH = cropH;
         exportTargetSize(srcW, srcH, job.resolutionMode, outW, outH);
@@ -310,12 +267,6 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
         rec.outH        = outH;
         rec.tUs.reserve(entries.size());
 
-        const int    rawRows  = srcH * plan.rowsNum / plan.rowsDen;
-        const size_t bpp      = static_cast<size_t>(CV_ELEM_SIZE(plan.matType));
-        const size_t stride   = cfmt->plane_strides[0] ? cfmt->plane_strides[0]
-                                                       : static_cast<size_t>(srcW) * bpp;
-        const size_t minBytes = stride * static_cast<size_t>(rawRows);
-
         // Optional raw-payload sidecar (saveRawFrames): the undecoded sensor
         // bytes for every encoded frame, concatenated into one "<alias>.raw".
         QFile rawSink;
@@ -338,9 +289,10 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
             if (!handle.data || handle.bytes < minBytes)
                 continue;
 
-            // Zero-copy wrap of the frozen ring payload (stable while Paused).
-            const cv::Mat raw(rawRows, srcW, plan.matType,
-                              const_cast<std::byte*>(handle.data), stride);
+            // Shared zero-copy demosaic (frame_decode) of the frozen ring
+            // payload (stable while Paused). Infallible after the guards above.
+            if (!decodeToBgr(*cfmt, handle.data, handle.bytes, bgr))
+                continue;
 
             // Raw sidecar mirrors the encoded frame set exactly (same guard), so
             // raw frame i corresponds to encoded frame i and t_us[i]. A short
@@ -356,11 +308,6 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
                 rawSink.remove();
                 rec.rawFile.clear();
             }
-
-            if (plan.cvtCode >= 0)
-                cv::cvtColor(raw, bgr, plan.cvtCode);
-            else
-                bgr = raw;   // BGR24 passthrough — still no copy
 
             // TODO(restorer): frame restoration hook
 

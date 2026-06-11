@@ -96,10 +96,60 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
         phases.append(QVariantMap{ { QStringLiteral("phase"), int(e.phase) },
                                    { QStringLiteral("t_us"),  static_cast<qlonglong>(e.t_us) },
                                    { QStringLiteral("conf"),  e.conf } });
-    return QVariantMap{ { QStringLiteral("tier"),    a.tier },
+    QVariantMap detail{ { QStringLiteral("tier"),    a.tier },
                         { QStringLiteral("overall"), a.score.overall },
                         { QStringLiteral("series"),  series },
                         { QStringLiteral("phases"),  phases } };
+
+    // ShaftTracker blocks for the replay overlay — IDENTICAL shapes to the
+    // swing.json blocks SwingDocReader reloads (swing_doc.cpp), keypoints and
+    // club grip/head normalized 0..1 so QML never sees pixel spaces.
+    if (!a.pose2d.frames.empty()) {
+        QVariantList frames;
+        for (const PoseFrame2D &f : a.pose2d.frames) {
+            QVariantList kp;
+            kp.reserve(17 * 3);
+            for (int j = 0; j < 17; ++j) {
+                kp.append(f.kp[size_t(j)].x());
+                kp.append(f.kp[size_t(j)].y());
+                kp.append(double(f.conf[size_t(j)]));
+            }
+            frames.append(QVariantMap{
+                { QStringLiteral("t_us"), static_cast<qlonglong>(f.t_us) },
+                { QStringLiteral("kp"),   kp },
+                { QStringLiteral("lead"),  QVariantList{ f.leadHand.x(),  f.leadHand.y() } },
+                { QStringLiteral("trail"), QVariantList{ f.trailHand.x(), f.trailHand.y() } },
+                { QStringLiteral("handConf"), double(f.handConf) } });
+        }
+        detail.insert(QStringLiteral("pose2d"),
+                      QVariantMap{ { QStringLiteral("camera"), int(a.pose2d.camera) },
+                                   { QStringLiteral("frames"), frames } });
+    }
+    if (a.shaft.valid && !a.shaft.samples.empty()
+        && a.shaft.frameWidth > 0 && a.shaft.frameHeight > 0) {
+        const double iw = 1.0 / a.shaft.frameWidth, ih = 1.0 / a.shaft.frameHeight;
+        QVariantList samples;
+        for (const ShaftSample2D &s : a.shaft.samples)
+            samples.append(QVariantMap{
+                { QStringLiteral("t_us"),  static_cast<qlonglong>(s.t_us) },
+                { QStringLiteral("grip"),  QVariantList{ s.gripPx.x() * iw, s.gripPx.y() * ih } },
+                { QStringLiteral("head"),  QVariantList{ s.headPx.x() * iw, s.headPx.y() * ih } },
+                { QStringLiteral("theta"), s.thetaRad },
+                { QStringLiteral("thetaDot"), s.thetaDotRadS },
+                { QStringLiteral("lenPx"), s.visibleLenPx },
+                { QStringLiteral("conf"),  double(s.conf) },
+                { QStringLiteral("flags"), int(s.flags) } });
+        detail.insert(QStringLiteral("club"),
+                      QVariantMap{
+                          { QStringLiteral("camera"),        int(a.shaft.camera) },
+                          { QStringLiteral("valid"),         a.shaft.valid },
+                          { QStringLiteral("coverage"),      double(a.shaft.coverage) },
+                          { QStringLiteral("imuVisionCorr"), double(a.shaft.imuVisionCorr) },
+                          { QStringLiteral("frameWidth"),    a.shaft.frameWidth },
+                          { QStringLiteral("frameHeight"),   a.shaft.frameHeight },
+                          { QStringLiteral("samples"),       samples } });
+    }
+    return detail;
 }
 
 // Map a placement slot ("A"/"B"/"C") to an anatomical SegmentRole per session
@@ -290,12 +340,15 @@ void ShotProcessor::startAnalysis()
     job.shotSource  = static_cast<int>(m_shotSource);
     job.impactUs    = m_impactUs;
 
-    // Face-on first so analyzers can prefer it without re-sorting.
+    // Face-on first so analyzers can prefer it without re-sorting; the count
+    // makes "face-on first" verifiable from the worker (0 = none captured).
     for (const ReplayTrack &track : m_replayTracks) {
-        if (track.ctrl->perspective() == CameraInstance::FaceOn)
+        if (track.ctrl->perspective() == CameraInstance::FaceOn) {
             job.cameraSources.insert(job.cameraSources.begin(), track.sourceId);
-        else
+            ++job.faceOnCameraCount;
+        } else {
             job.cameraSources.push_back(track.sourceId);
+        }
     }
 
     // IMU and marker sources discovered from the window's own formats.

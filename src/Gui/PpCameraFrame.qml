@@ -47,6 +47,23 @@ Item {
     property bool showPerspectiveBadge: true
     property bool showStatsOverlay:     true   // resolution / fps
     property bool showReplayBadge:      true
+    property bool showReplayOverlay:    true   // analyzed skeleton + club shaft during replay
+
+    // Skeleton edge definitions, shared by the live pose canvas and the
+    // replay overlay — colours mapped to theme tokens. Left-body edges use
+    // colorGood; right-body use colorAccent; mid-line connections use colorWarn.
+    readonly property var kSkeletonEdges: [
+        {a:0,  b:1,  side:"good"}, {a:0,  b:2,  side:"accent"},
+        {a:1,  b:3,  side:"good"}, {a:2,  b:4,  side:"accent"},
+        {a:0,  b:5,  side:"good"}, {a:0,  b:6,  side:"accent"},
+        {a:5,  b:6,  side:"warn"},
+        {a:5,  b:7,  side:"good"}, {a:7,  b:9,  side:"good"},
+        {a:6,  b:8,  side:"accent"}, {a:8,  b:10, side:"accent"},
+        {a:5,  b:11, side:"good"}, {a:6,  b:12, side:"accent"},
+        {a:11, b:12, side:"warn"},
+        {a:11, b:13, side:"good"}, {a:13, b:15, side:"good"},
+        {a:12, b:14, side:"accent"}, {a:14, b:16, side:"accent"}
+    ]
 
     // ROI selection state — driven externally (set roiSelecting true to arm a
     // drag-select; it clears itself when the drag completes). Only honoured
@@ -246,22 +263,6 @@ Item {
                      && root.instance !== null && root.instance.isRecording
                      && root.instance.poseEnabled
 
-            // Skeleton edge definitions — colours mapped to theme tokens.
-            // Left-body edges use colorGood; right-body use colorAccent;
-            // mid-line connections use colorWarn.
-            readonly property var kEdges: [
-                {a:0,  b:1,  side:"good"}, {a:0,  b:2,  side:"accent"},
-                {a:1,  b:3,  side:"good"}, {a:2,  b:4,  side:"accent"},
-                {a:0,  b:5,  side:"good"}, {a:0,  b:6,  side:"accent"},
-                {a:5,  b:6,  side:"warn"},
-                {a:5,  b:7,  side:"good"}, {a:7,  b:9,  side:"good"},
-                {a:6,  b:8,  side:"accent"}, {a:8,  b:10, side:"accent"},
-                {a:5,  b:11, side:"good"}, {a:6,  b:12, side:"accent"},
-                {a:11, b:12, side:"warn"},
-                {a:11, b:13, side:"good"}, {a:13, b:15, side:"good"},
-                {a:12, b:14, side:"accent"}, {a:14, b:16, side:"accent"}
-            ]
-
             Connections {
                 target: root.instance
                 function onPoseKeypointsChanged() { skeletonCanvas.requestPaint() }
@@ -297,8 +298,8 @@ Item {
                 var cWarn   = Qt.rgba(Theme.colorWarn.r,   Theme.colorWarn.g,   Theme.colorWarn.b,   1)
                 var cText   = Qt.rgba(Theme.colorText.r,   Theme.colorText.g,   Theme.colorText.b,   1)
 
-                for (var i = 0; i < kEdges.length; ++i) {
-                    var e = kEdges[i]
+                for (var i = 0; i < root.kSkeletonEdges.length; ++i) {
+                    var e = root.kSkeletonEdges[i]
                     var ka = kps[e.a], kb = kps[e.b]
                     if (ka.score < kMinScore || kb.score < kMinScore)
                         continue
@@ -326,6 +327,133 @@ Item {
                     ctx.fill()
                 }
 
+                ctx.globalAlpha = 1.0
+            }
+        }
+
+        // ── Replay overlay: analyzed skeleton + club shaft ────────────────
+        // Drawn from the shot's analyzed detail (offline ViTPose pose2d + the
+        // ShaftTracker club track), scrubbing with the replay playhead. The
+        // live skeletonCanvas is recording-gated, so the two never co-draw.
+        // Face-on tiles only — the tracks were measured on that camera.
+        Canvas {
+            id: replayOverlay
+            anchors.fill: parent
+            z: 21
+            visible: root.showReplayOverlay
+                     && shotProcessor.isReplaying
+                     && root.instance !== null && root.instance.perspective === 2
+                     && (_poseFrames.length > 0 || _clubSamples.length > 0)
+
+            // Cached from replayAnalysisDetail — pose kp flat [x,y,c]×17 and
+            // club samples with normalized grip/head (toAnalysisDetail shapes).
+            property var _poseFrames:  []
+            property var _clubSamples: []
+            readonly property int kTrail: 10
+
+            function _rebuildCache() {
+                var d = shotProcessor.replayAnalysisDetail
+                _poseFrames  = (d && d.pose2d && d.pose2d.frames) ? d.pose2d.frames : []
+                _clubSamples = (d && d.club && d.club.valid && d.club.samples)
+                                   ? d.club.samples : []
+                if (visible) requestPaint()
+            }
+
+            // Greatest index with t_us <= t (−1 when empty).
+            function _indexFor(arr, t) {
+                var hi = arr.length - 1
+                if (hi < 0 || t < arr[0].t_us) return hi < 0 ? -1 : 0
+                if (t >= arr[hi].t_us) return hi
+                var lo = 0
+                while (hi - lo > 1) {
+                    var mid = (lo + hi) >> 1
+                    if (arr[mid].t_us <= t) lo = mid; else hi = mid
+                }
+                return lo
+            }
+
+            Connections {
+                target: shotProcessor
+                function onReplayAnalysisDetailChanged() { replayOverlay._rebuildCache() }
+                function onReplayPositionChanged() {
+                    if (replayOverlay.visible) replayOverlay.requestPaint()
+                }
+            }
+            onVisibleChanged: if (visible) _rebuildCache()
+            Component.onCompleted: _rebuildCache()
+
+            onPaint: {
+                var ctx = getContext("2d")
+                ctx.clearRect(0, 0, width, height)
+                if (!root.instance)
+                    return
+                var cr = root.instance.needsDebayer
+                    ? Qt.rect(root.videoInset, root.videoInset,
+                              bayerView.width, bayerView.height)
+                    : Qt.rect(root.videoInset + videoOut.contentRect.x,
+                              root.videoInset + videoOut.contentRect.y,
+                              videoOut.contentRect.width,
+                              videoOut.contentRect.height)
+                if (cr.width <= 0 || cr.height <= 0)
+                    return
+                var t = shotProcessor.replayPositionUs
+                var kMinScore = 0.25
+                var cGood   = Qt.rgba(Theme.colorGood.r,   Theme.colorGood.g,   Theme.colorGood.b,   1)
+                var cAccent = Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 1)
+                var cWarn   = Qt.rgba(Theme.colorWarn.r,   Theme.colorWarn.g,   Theme.colorWarn.b,   1)
+
+                // Analyzed skeleton — live style, muted (it sits over replay
+                // footage; half-alpha chrome).
+                var pi = _indexFor(_poseFrames, t)
+                if (pi >= 0) {
+                    var kp = _poseFrames[pi].kp
+                    ctx.lineWidth = 2
+                    ctx.lineCap   = "round"
+                    for (var i = 0; i < root.kSkeletonEdges.length; ++i) {
+                        var e = root.kSkeletonEdges[i]
+                        var ca = kp[e.a * 3 + 2], cb = kp[e.b * 3 + 2]
+                        if (ca < kMinScore || cb < kMinScore)
+                            continue
+                        ctx.globalAlpha = 0.55 * (0.4 + 0.6 * Math.min(ca, cb))
+                        ctx.strokeStyle = e.side === "good"   ? cGood
+                                        : e.side === "accent" ? cAccent
+                                        :                       cWarn
+                        ctx.beginPath()
+                        ctx.moveTo(kp[e.a * 3] * cr.width + cr.x, kp[e.a * 3 + 1] * cr.height + cr.y)
+                        ctx.lineTo(kp[e.b * 3] * cr.width + cr.x, kp[e.b * 3 + 1] * cr.height + cr.y)
+                        ctx.stroke()
+                    }
+                }
+
+                // Club: fading head trail, then the current shaft line.
+                var ci = _indexFor(_clubSamples, t)
+                if (ci >= 0) {
+                    ctx.strokeStyle = cAccent
+                    ctx.lineCap     = "round"
+                    var k0 = Math.max(0, ci - kTrail)
+                    for (var k = k0; k < ci; ++k) {
+                        var h0 = _clubSamples[k].head, h1 = _clubSamples[k + 1].head
+                        ctx.globalAlpha = 0.45 * (k + 1 - k0) / (ci - k0 + 1)
+                        ctx.lineWidth   = 2
+                        ctx.beginPath()
+                        ctx.moveTo(h0[0] * cr.width + cr.x, h0[1] * cr.height + cr.y)
+                        ctx.lineTo(h1[0] * cr.width + cr.x, h1[1] * cr.height + cr.y)
+                        ctx.stroke()
+                    }
+                    var s  = _clubSamples[ci]
+                    var gx = s.grip[0] * cr.width + cr.x, gy = s.grip[1] * cr.height + cr.y
+                    var hx = s.head[0] * cr.width + cr.x, hy = s.head[1] * cr.height + cr.y
+                    ctx.globalAlpha = 0.35 + 0.5 * s.conf
+                    ctx.lineWidth   = 2
+                    ctx.beginPath()
+                    ctx.moveTo(gx, gy)
+                    ctx.lineTo(hx, hy)
+                    ctx.stroke()
+                    ctx.fillStyle = cAccent
+                    ctx.beginPath()
+                    ctx.arc(hx, hy, 4, 0, Math.PI * 2)
+                    ctx.fill()
+                }
                 ctx.globalAlpha = 1.0
             }
         }

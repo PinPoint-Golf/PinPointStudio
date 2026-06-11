@@ -74,6 +74,8 @@ sequenced build-out.*
   - [Validation strategy](#validation-strategy)
   - [Risks & open questions](#risks-open-questions)
 - [Implementation notes (as-built, M1)](#implementation-notes-as-built-m1)
+- [Addendum — Swing segmentation v2 (PhaseSegmenter v2)](#addendum-swing-segmentation-v2-phasesegmenter-v2)
+- [Addendum — Club shaft detection (ShaftTracker, hand-anchored)](#addendum-club-shaft-detection-shafttracker-hand-anchored)
 - [Appendix A — Codebase integration map](#appendix-a-codebase-integration-map)
 - [Appendix B — Research bibliography](#appendix-b-research-bibliography)
 
@@ -932,6 +934,487 @@ Reload set (rating/note, MP4 replay, export-fail header) · FE↔RUD cross-talk 
 (mag / kinematic / ROS-ENU frame contract) · right-arm sign · scorer band finalization · exact
 Δ curve · ViTPose offline pose path (M2) · decouple the analyzer from the WT9011 quaternion
 convention.
+
+---
+
+## Addendum — Swing segmentation v2 (`PhaseSegmenter` v2)
+
+> **Status:** Design addendum (proposal) · **Date:** 2026-06-10 · **Grounded against:** `main` @ `474a6ba`
+>
+> Supersedes §6 (*Swing-phase segmentation*) and the as-built M1 `PhaseSegmenter` heuristic. Motivated by
+> the shot-detection P1–P3 work: impact is now an **arbiter-fused, back-dated, sub-frame-accurate anchor**
+> (Acoustic > IMU > Ball, `pinpoint::ShotArbiter`), which the v1 segmenter does not exploit beyond clamping.
+> Goals: (a) an accurate **swing start / swing end** so the 5 s window can be logically truncated for
+> export, replay, and metric grids; (b) a **richer event set** — the full P-system checkpoint ladder
+> (address, takeaway, backswing checkpoints, transition, top, downswing delivery points, impact,
+> release, follow-through, finish) — each with confidence and provenance.
+
+### A.1 Why v1 falls short
+
+The as-built M1 segmenter (`src/Analysis/phase_segmenter.cpp`) emits 4 events from one quaternion stream.
+Specific weaknesses, in code:
+
+1. **Address = first onset crossing, scanned forward from the grid edge.** Any pre-shot motion —
+   a waggle, a regrip, walking into the stance inside the 5 s ring — crosses `onset` first and
+   pins Address seconds too early. The "settle just before sustained motion" of the spec is not
+   actually implemented; there is no stillness test and no *sustained* test.
+2. **Top = orientation furthest from Address.** Correct only if Address is correct (see 1), and
+   quaternion distance conflates body turn with wrist hinge — a late re-hinge can out-distance the
+   true reversal point. There is no Transition event at all (the enum value exists, unused).
+3. **Finish = `grid.back()` at conf 1.0.** That is the window edge (impact + ~500 ms post-roll),
+   not a detected event — and with `kPostRoll* = 500 ms` the follow-through (~0.67 s typical) is
+   physically truncated before it ends, so v1 *cannot* see the finish.
+4. **The measured gyro is thrown away.** `ImuVisionFuser::fuse()` interpolates the full 40-byte
+   `ImuSample` but keeps only `qAnat`; the segmenter then re-derives angular speed by differencing
+   quaternions on the 200 Hz grid with a 5-sample boxcar — a noisier, phase-lagged copy of a signal
+   the gyroscope measured directly at the sensor.
+5. **No swing start/end output.** Exports, replay, and metric grids span the whole 5 s window;
+   ~2–3 s of pre-shot standing-around is encoded into every MP4 and plotted under every metric curve.
+
+### A.2 Design principles
+
+1. **Impact is the anchor; search outward.** `job.impactUs` is the most accurate timestamp in the
+   system (acoustic-or-IMU back-dated, arbiter-fused). Every other event is found by deterministic
+   **backward** search (top → transition → takeaway → address) or **forward** search (release →
+   follow-through → finish) from it, gated by physiological duration priors. Never scan forward
+   from the window edge.
+2. **Back-chain, don't threshold-scan.** Start each search *inside* the swing — a region of
+   guaranteed high signal — and walk outward with hysteresis until the signal dies. This is
+   waggle-proof by construction: the pre-swing noise is reached last, not first.
+3. **Use the measured inertials.** The window stores raw gyro (°/s) and accel (g) per sample;
+   `SwingWindow::interpolateImu` already lerps them. v2 extends `SegmentStream` with the resampled
+   `gyro`/`accel` channels and uses |gyro| for energy envelopes, gyro projections for signed
+   rotation rates, and accel for stillness tests. Quaternion-derived signals are reserved for what
+   only orientation gives: gravity-referenced **inclination** (drift-free pitch of a segment axis)
+   and swing-twist axial decompositions.
+4. **Zero-phase filtering.** The window is offline, so use forward-backward (zero-phase) filtering —
+   2nd-order Butterworth ≈ 10 Hz for energy envelopes, Savitzky-Golay where a derivative is needed.
+   No phase lag means no systematic event-time bias (the v1 boxcar smears onsets by ~12 ms).
+5. **Confidence + provenance per event; constraints over corrections.** Every `PhaseEvent` carries
+   `conf` and (new) the segment it was measured from. The event chain must be monotone
+   (Address ≤ Takeaway < MidBackswing < Transition ≤ Top < Downswing < Delivery < MaxSpeed ≤ Impact
+   < Release < FollowThrough < Finish); a violating event is *dropped* (lower conf loses), never
+   reordered.
+6. **Degrade, never fabricate.** Lead hand/forearm IMU (always present in a Wrist session) yields
+   the full hand-chain ladder; a pelvis IMU adds Transition; thorax adds a cross-check; a future
+   club IMU / camera P-position detector upgrades the geometric checkpoints from approximations to
+   exact. Missing sensor ⇒ the event is omitted (or emitted at low conf), not guessed.
+
+### A.3 Event taxonomy — the P-system superset
+
+The `Phase` enum is extended **append-only**: phases persist as raw ints in `swing.json`
+(`swing_doc.cpp` writes `int(e.phase)` and the reload path matches `phase == 5`), so existing
+values must keep their positions. (Tidy-up: replace the magic `5` with `int(Phase::Impact)`.)
+
+| `Phase` (int) | P-system | Definition | Detector (v2) | Needs |
+|---|---|---|---|---|
+| `Address` (0) | P1 | End of last sustained stillness before the takeaway | §A.5 stillness back-search | hand or forearm IMU |
+| `Takeaway` (1) | ≈P2 | Sustained motion onset of the backswing | §A.5 back-chain from Top | hand/forearm IMU |
+| `MidBackswing` (8, new) | P3 | Lead arm parallel to ground (backswing) | forearm inclination ↑ crossing horizontal | forearm IMU |
+| `Transition` (3) | — | Pelvis reverses while hands still going back (start of downswing sequence) | pelvis signed axial-rate zero-crossing before Top | pelvis IMU |
+| `Top` (2) | P4 | Hand/club rotation reversal about the swing plane | §A.5 signed-rate zero-crossing | hand/forearm IMU |
+| `Downswing` (4) | P5 | Lead arm parallel (downswing) | forearm inclination ↓ crossing horizontal | forearm IMU |
+| `Delivery` (9, new) | P6 | Shaft parallel (downswing) | club-shaft inclination; hand-proxy at low conf until club IMU/camera | club IMU / camera |
+| `MaxSpeed` (10, new) | — | Peak hand angular speed (clubhead-speed proxy) | argmax of hand \|gyro\| envelope in [Top, Impact+50 ms] | hand IMU |
+| `Impact` (5) | P7 | The shot marker — unchanged hard anchor | `job.impactUs` | marker |
+| `Release` (6) | P8 | Shaft/forearm parallel (follow-through) | first forward inclination crossing after impact | forearm IMU |
+| `FollowThrough` (11, new) | P9 | Lead arm parallel (follow-through) | second forward crossing | forearm IMU |
+| `Finish` (7) | P10 | Rotation decays to rest | sustained quiet onset after impact | any IMU |
+
+`MidBackswing`/`Downswing`/`Delivery`/`Release`/`FollowThrough` are *geometric* checkpoints: from
+IMU orientation they are approximated via the gravity-referenced inclination of the instrumented
+segment (exact for the segment the sensor is on, a labelled proxy for the club until I2/camera).
+The remaining events are *kinematic* (energy/reversal) and are exact from inertials alone.
+
+### A.4 Signal preparation (`FusedStreams` v2)
+
+`SegmentStream` gains the channels the fuser currently discards, all on the same 200 Hz grid:
+
+```cpp
+struct SegmentStream {
+    SegmentRole role;
+    std::vector<QQuaternion> qAnat;     // as today
+    std::vector<QVector3D>   gyroDps;   // body-frame, lerped from ImuSample
+    std::vector<QVector3D>   accelG;    // body-frame, lerped from ImuSample
+};
+```
+
+Derived per segment (computed once, shared by all detectors):
+
+- **Energy envelope** `Ω(t) = ‖gyro(t)‖` → zero-phase Butterworth LP ≈ 10 Hz.
+- **World-frame gyro** `g_w(t) = qAnat(t) · gyro(t) · qAnat(t)⁻¹` (quaternion rotation, never Euler).
+- **Swing-plane normal** `n̂`: principal eigenvector of `Σ g_w·g_wᵀ` accumulated over
+  `[impact − 300 ms, impact − 30 ms]` (the downswing is near-planar and dominates the energy);
+  sign-fixed so the mean projection is positive.
+- **Signed swing-plane rate** `r(t) = dot(g_w(t), n̂)` — positive = downswing direction.
+- **Inclination** `θ(t) = asin(dot(qAnat(t)·ŷ_seg, ẑ_world))` — segment long-axis angle above
+  horizontal. Gravity-referenced ⇒ immune to the 6-axis yaw drift (inclination needs no re-zero).
+- **Pelvis/thorax signed axial rate**: `dot(gyro(t), â_long)` with `â_long` the anatomical long
+  axis in the sensor frame — a dot product, no differentiation.
+- **Stillness predicate** `still(t)`: `Ω(t) < θ_still` (≈ 15 °/s) **and** `|‖accel(t)‖ − 1| < 0.08 g`,
+  required across *all* bound segments.
+
+All event instants get **sub-grid refinement**: parabolic interpolation through the three samples
+around a zero-crossing/peak (the 200 Hz grid is 5 ms; the parabola brings events to ~1 ms).
+
+### A.5 Detectors, in search order
+
+Duration priors below are from the §6 literature values (backswing ~1.16 s, downswing ~0.32 s,
+follow-through ~0.67 s), padded generously; each gate also shapes the event's confidence
+(log-normal likelihood × signal margin, clamped to [0,1]).
+
+**1. Top (P4) — backward from impact.** Find the *downswing run*: the maximal interval ending at
+impact where `r(t) > 0` and `Ω(t)` above a low floor. `Top` = the zero-crossing of `r` at the start
+of that run. Gate: `impact − top ∈ [180, 600] ms`. This is exactly "the rotation about the swing
+plane reverses" — robust to wrist re-hinge, independent of Address.
+
+**2. Transition — pelvis reversal before Top.** Nearest zero-crossing of the pelvis signed axial
+rate in `[Top − 250 ms, Top + 80 ms]`, requiring the post-crossing sign to match the downswing.
+No pelvis IMU ⇒ event omitted (do not synthesize from Top). When present, `Transition ≤ Top`
+ordering is also the kinematic-sequence sanity check (pelvis leads).
+
+**3. Takeaway (≈P2) — back-chain from Top.** Walk backward from Top while `Ω_hand(t) > θ_low`
+(hysteresis: `θ_low = max(0.08·Ω_peak, 15 °/s)`), tolerating dips shorter than 120 ms (takeaways
+are slow). The chain ends at the first dip below `θ_low` sustained ≥ 150 ms; `Takeaway` = the rise
+out of that dip. Gate: `Top − Takeaway ∈ [500, 1800] ms`. Because the walk starts inside the
+backswing, waggles (which are separated from the swing by a quiet beat) cannot capture it.
+
+**4. Address (P1) — stillness search before Takeaway.** Continue backward from Takeaway for the
+last interval of ≥ 300 ms where `still(t)` holds; `Address` = the **end** of that interval. If no
+such interval exists in the window (continuous waggle), `Address = Takeaway` at conf 0.3. This is
+also where the metric reference frame is re-anchored (unchanged from §6: *not* frame 0).
+
+**5. Geometric checkpoints.** `MidBackswing` (P3): forearm `θ` crossing 0° upward in
+(Takeaway, Top). `Downswing` (P5): crossing 0° downward in (Top, Impact). `Delivery` (P6): club
+shaft `θ` crossing 0° in (Downswing, Impact) — club IMU/camera only; until then a hand-orientation
+proxy emitted at conf ≤ 0.4 and labelled as a proxy. `Release` (P8) / `FollowThrough` (P9): first /
+second forearm crossings after Impact.
+
+**6. MaxSpeed.** `argmax Ω_hand` over `[Top, Impact + 50 ms]` — diagnostically valuable on its own
+(early peak = casting; the hands peak just before a well-sequenced impact) and a free input to the
+kinematic-sequence metric.
+
+**7. Finish (P10) — forward from impact.** First `t > Impact + 200 ms` where `still(t)` (relaxed:
+`θ_finish ≈ 30 °/s`) holds sustained ≥ 250 ms; `Finish` = the start of that interval. Gate:
+`Finish − Impact ∈ [400, 2000] ms`. If the window ends first, emit `Finish = grid.back()` at
+conf 0.2 — visibly a clamp, never a claim.
+
+**Multi-segment voting.** Hand-chain detectors run on `LeadHand` and `LeadForearm` when both are
+bound: agreement within 40 ms boosts conf and averages the instants; disagreement prefers the hand
+and lowers conf. Thorax, when bound, cross-checks Top (thorax reversal within ±60 ms).
+
+### A.6 Swing start/end — logical truncation of the window
+
+The frozen `SwingWindow` itself is never trimmed (it is a zero-copy view over ring memory; the 5 s
+capture contract is untouched). Truncation is **metadata** consumed downstream:
+
+```cpp
+struct Segmentation {
+    std::vector<PhaseEvent> events;          // the ladder above
+    int64_t swingStartUs = 0;                // Address − 250 ms pad, clamped to coverage
+    int64_t swingEndUs   = 0;                // Finish  + 250 ms pad, clamped to coverage
+    float   conf         = 0.0f;             // min conf over {Address, Top, Impact, Finish}
+};
+// v2 API (replaces the v1 signature):
+static Segmentation segment(const FusedStreams&, int64_t impactUs, const SegmentationConfig&);
+```
+
+Consumers:
+
+- **`SwingExporter`** trims the MP4 encode to `[swingStartUs, swingEndUs]` — typically ~2.5 s
+  instead of 5 s: half the encode time, half the file size, replays that start at address instead
+  of mid-fidget. Raw IMU streams in `swing.json` stay full-window (cheap, and useful for re-running
+  segmentation offline). Requires the segmentation result to be available *before* the export
+  worker reads frames — see sequencing below.
+- **`ShotProcessor` replay** starts at `swingStartUs` and ends at `swingEndUs`.
+- **`MetricExtractor`** restricts the metric `TimeGrid` to the truncated span, so every graph spans
+  address → finish, not the raw ring.
+- **Free metrics:** `backswingMs = Top − Takeaway`, `downswingMs = Impact − Top`,
+  `tempoRatio = backswing/downswing` (tour ≈ 3:1) join the catalog with no extra computation.
+
+**Sequencing change.** Today analysis ∥ export launch together and never share results. v2 runs
+segmentation as a cheap **pre-stage on the worker before both heavy stages**: `ImuVisionFuser::fuse`
++ `PhaseSegmenter::segment` cost ~milliseconds on a 1000-sample grid. Simplest concrete shape:
+`ShotProcessor` runs the segmentation synchronously-on-worker first (a third small QtConcurrent
+stage whose future gates the other two), passes the `Segmentation` into both `ShotAnalysisJob` and
+`SwingExportJob` as a value, and the analyzer/exporter remain pure const readers. Failure ⇒ both
+jobs receive the full-window bounds (today's behaviour) and the events list from the v1-equivalent
+fallback.
+
+**Post-roll must grow.** With `kPostRoll* = 500 ms` the finish is truncated by construction
+(follow-through ~0.67 s + decay-to-still). Raise the auto-detector post-rolls (`kPostRollImuMs`,
+`kPostRollAcousticMs`, …) to **1250 ms**. Budget check: impact then sits ~3.75 s into the 5 s ring,
+leaving ~3.75 s pre-impact for address + backswing (~2.5 s typical) — comfortable. Manual-trigger
+post-roll can stay 500 ms (the user presses it after the swing anyway; impact is back-dated).
+
+### A.7 Persistence
+
+Additive to `swing.json` (`pinpoint.swing/2`, additive policy — no schema bump):
+
+```json
+"analysis": {
+  "phases": [ { "phase": 2, "t_us": ..., "conf": 0.91, "segment": "LeadHand" }, ... ],
+  "segmentation": { "swingStartUs": ..., "swingEndUs": ..., "conf": 0.84, "version": 2 }
+}
+```
+
+`phases[]` keeps its int encoding (append-only enum). New optional `segment` provenance field.
+Reload (`SwingDocReader`) treats a missing `segmentation` block as full-window bounds.
+
+### A.8 Validation
+
+- **Synthetic-swing unit tests** (existing `src/Analysis/tests` pattern): a parameterized generator
+  composing quaternion trajectories per phase with consistent finite-difference gyro; assert every
+  event within tolerance (±10 ms kinematic, ±25 ms geometric). Adversarial cases: waggle + regrip
+  injection before takeaway, truncated finish, missing pelvis, hand-only, forearm-only, continuous
+  pre-shot motion, 100 Hz vs 200 Hz grids.
+- **Golden captures:** the pending hardware-verification session records N real swings; hand-label
+  events from video frames and regression-test (same harness as the detector goldens).
+- **Telemetry sanity:** log per-shot `(Top−Takeaway)/(Impact−Top)` — the tempo-ratio distribution
+  centring near 3:1 is a cheap field check that Top and Takeaway are landing where they should.
+
+### A.9 Deferred
+
+- Learned event detector (SwingNet-style heads on license-clean self-captured data) for the
+  camera-geometric P-positions; the inertial ladder above remains the always-available base.
+- Camera refinement of P2/P6/P8 via shaft-line fitting (`HoughLinesP` in a wrist-anchored ROI)
+  once the M2 ViTPose offline path lands.
+- Club IMU (I2) upgrading `Delivery`/`Release` from proxy to exact.
+- Per-athlete auto-tuning of thresholds/priors from accumulated shot history.
+
+---
+
+## Addendum — Club shaft detection (`ShaftTracker`, hand-anchored)
+
+> **Status:** Design addendum (proposal) · **Date:** 2026-06-10 · **Grounded against:** `main` @ `474a6ba`
+>
+> Makes the deferred "club/ball (deferred)" line of Algorithms §1 concrete for the **face-on camera**,
+> as a **zero-training classical-CV pipeline**. The original plan gated club metrics on a custom
+> keypoint model needing license-clean training data; this addendum removes that gate. The key
+> exploit: the offline `PoseRunner` gives the **hand position in every frame**, and a club shaft is a
+> thin straight structure with **one endpoint pinned to the hands** — so a 4-DOF line-segment search
+> collapses to a 1-DOF angle search around a known anchor, which can be solved densely, robustly,
+> and fast. Occlusion is rarely an issue for the shaft in a face-on view; the real adversaries are
+> **motion blur** (the clubhead sweeps ~30°/frame at 60 fps near impact), low contrast, and clutter
+> (forearms, shadows, alignment sticks) — all addressed below.
+>
+> **Implementation plan:** [`docs/implementation/SHAFT_TRACKER_IMPL.md`](../implementation/SHAFT_TRACKER_IMPL.md)
+> (stages S0–S5: decode/pose → math core → track assembly → analyzer/persistence → replay overlay → hardware tuning).
+
+### B.1 Scope & payoff
+
+**In scope (MVP):** per-frame 2D shaft line (image angle θ, visible length L, grip + clubhead image
+points) from the face-on camera, temporally associated, smoothed, and IMU-bridged. **Out of scope
+(deferred):** DTL-camera shaft (different geometry, heavy foreshortening), clubface angle, learned
+keypoint models, full 3D shaft lift.
+
+What it unlocks, in priority order:
+
+1. **Segmentation v2 upgrades** — `Delivery` (P6) and `Release` (P8) move from hand-proxy
+   (conf ≤ 0.4) to *measured* shaft-parallel events; `Top` gains a vision cross-check.
+2. **Shaft lean at impact** — hands-ahead/behind lean toward the target is a *face-on* metric,
+   directly readable from θ at the impact frame. One of the highest-value coaching numbers.
+3. **Clubhead trace** — the classic swing-arc overlay for replay (head point per frame), plus a
+   clubhead-speed *proxy* (`θ̇·L`), upgrading to real m/s once C1 ground-plane calibration lands.
+4. **Camera↔IMU temporal alignment** — Algorithms §3 needs a vision speed signal to cross-correlate
+   against IMU angular velocity for sub-frame stream alignment; vision θ̇(t) **is** that signal.
+   `ShaftTracker` therefore also unblocks the fusion layer's "non-optional" alignment step.
+5. **Impact validation** — the head trace meeting the teed-ball position cross-checks the arbiter's
+   impact timestamp to ±1 frame.
+
+### B.2 Geometry, anchors, and priors
+
+**The anchor.** From the ViTPose-wholebody output (133 channels — already emitted, currently
+discarded above channel 16 at `pose_estimator_vitpose.cpp:246`): both hands' 21-keypoint sets
+(channels 91–111 left, 112–132 right) give per-hand knuckle centroids; fall back to the COCO wrists
+when hand confidence is low. Two anchor products:
+
+- **Grip point `g`** = midpoint of the two hand centroids (wrist midpoint + a fixed offset along
+  the forearm direction as fallback). Expected jitter ±3–5 px.
+- **Grip direction prior `d̂`** = `normalize(trailHand − leadHand)` — the trail hand grips *below*
+  the lead hand, so the inter-hand vector points down-shaft. Worth ±15–20°, available every frame,
+  and it resolves which side of `g` the shaft is on for free.
+
+**The IMU prior — the strongest one.** Once gripped, the shaft direction is **constant in the
+lead-hand sensor frame**: a fixed unit vector `ŝ_hand`. With a lead-hand IMU bound,
+`ŝ_world(t) = q_anat(t)·ŝ_hand·q_anat(t)⁻¹` predicts the shaft direction at 200 Hz — including
+through frames where vision is hopeless (peak blur). `ŝ_hand` is **auto-calibrated per shot**
+(re-gripping moves it, so never persist it): over the high-confidence slow frames
+(Address→Takeaway), fit the 2-DOF unit vector minimizing `Σ wrap(θ_pred(ŝ) − θ_meas)²` — coarse
+5° spherical grid then Gauss-Newton. Projection is orthographic until C1 intrinsics exist (fine
+for a prior; exact with `K`). The fit residual doubles as the channel's measurement noise. A
+lead-*forearm*-only IMU is a weaker substitute (the wrist hinge moves between forearm and shaft):
+use it as a loose prior in slow phases only, never as a filter measurement.
+
+**Phase priors** (from segmentation v2): per-phase expected θ ranges (down toward the ball at
+Address/Impact, along the target line at Top…) and expected angular velocity (≲ 200 °/s in the
+takeaway, up to ~1700–2500 °/s into impact — driver clubhead ~35 m/s over a ~1.15 m shaft ≈
+30 rad/s). These scale search windows and gate confidence; they never replace measurement.
+
+**Appearance.** At typical face-on framing (golfer ~500 px tall ⇒ ~270 px/m), a 9–15 mm shaft
+images at **2–6 px wide**, tapering tip-ward — a *ridge* (thin line), not an edge pair to a
+detector's eye. Steel shafts ride bright (specular highlight); graphite rides dark. Both polarities
+are handled and the winner is **locked for the clip** (the club doesn't change mid-swing).
+
+### B.3 Per-frame detection — the anchored radial transform
+
+The core algorithm is a Radon-style transform restricted to **rays from the anchor**: a shaft
+through `g` is a 1-D peak in angle space. Pipeline per frame (luma only — the Y plane is directly
+addressable in NV12/YUV420P without color conversion; Bayer uses the green channel; BGRA converts):
+
+1. **ROI** = disc of radius `R_max ≈ 1.25 · L_club · pxPerM` around `g`, clamped to the image.
+   `L_club` from a new `ShotAnalysisJob::clubLengthM` (default 1.12 m driver until the club field
+   is real); `pxPerM` from C1 calibration when present, else from the subject's pose bounding-box
+   height vs an assumed stature (prior-quality scale is fine — it only sizes a search region).
+2. **Ridge response** (Cartesian, before any resampling): morphological top-hat *and* black-hat
+   with a ~7 px kernel — cheap, isotropic thin-structure responses for bright and dark shafts
+   respectively (core `imgproc` only; no `ximgproc`/contrib dependency). Threshold adaptively from
+   the ROI's noise MAD.
+3. **Polar resample** the response map about `g` (`cv::warpPolar`, ~0.5°/bin × 1 px/bin in ρ):
+   a line through `g` becomes a **vertical stripe** at constant θ.
+4. **Angular score** `S(θ)` per column over `ρ ∈ [ρ_min, ρ_vis]`, with `ρ_min ≈ 1.5` hand-widths
+   (skips grip/glove clutter). Score = (mean ridge strength) × (**coverage** = fraction of ρ bins
+   supra-threshold). The coverage term is what makes body-crossing benign: a ray crossing the
+   torso loses contrast mid-ρ but keeps it on both sides, scoring far above clutter rays.
+5. **Clutter masks**: zero `S(θ)` within ±12° of the image directions `g→elbow` (both arms — the
+   forearm is itself a radial ridge into the anchor and is the dominant false positive); the
+   inter-hand prior `d̂` and the IMU/temporal predictions instead *weight* `S(θ)` multiplicatively
+   (soft, never hard-gating a measurement with a prior).
+6. **Candidates**: top-K (K ≤ 5) peaks of `S(θ)` after non-max suppression, each refined to
+   sub-bin by parabolic interpolation, each with a visible extent: the longest supra-threshold run
+   along ρ gives `L(t)` and its terminus seeds the **clubhead** estimate (the head is a compact
+   blob terminating the ridge — refine by local blob centroid).
+
+The anchored transform inherently rejects the classic false positives that kill plain
+Hough/LSD on golf footage: the **shaft's ground shadow** (a strong line, but through the
+*clubhead*, not through `g`), **alignment sticks** and mat edges (not radial through `g`), and it
+never suffers Hough's 180° direction ambiguity (ρ is integrated on one side of `g` only).
+
+**Anchor-error tolerance.** The true line misses the wrist midpoint by up to ~10 px (grip is below
+the hands; pose jitters). Two cheap fixes: score over a 3×3 grid of anchor perturbations and keep
+the best (the polar warp is the only re-done step), and after candidate selection re-fit the line
+by total-least-squares over its supporting ridge pixels, letting `g` move to the fitted line's
+proximal end.
+
+### B.4 Motion blur — read the wedge, don't fight it
+
+Near impact the shaft sweeps `ω·t_exp` degrees during the exposure (at 2000 °/s and 4 ms ⇒ 8°;
+1/60 s rolling exposure ⇒ 30°+). The shaft then images not as a line but a **fan/wedge centered on
+`g`** — which in `S(θ)` is a *plateau*, not a peak. This is signal, not noise:
+
+- The plateau **centroid** is the shaft angle at **mid-exposure** (uniform-sweep assumption) — take
+  it as `θ_meas` with `R` inflated by the plateau half-width.
+- The plateau **width** is a direct measurement of `ω·t_exp` — cross-checkable against the IMU
+  channel, and a per-camera exposure-time estimate falls out (useful metadata we have no other
+  source for).
+- The **proximal shaft barely blurs** (rotation is about a point near the hands: image velocity
+  grows linearly with ρ), so coverage near `ρ_min` survives every frame. Weight `S(θ)` toward
+  proximal ρ in high-ω phases.
+- Frames where even the wedge drowns (very fast + low contrast): emit **no measurement**. The
+  filter coasts on the IMU channel — never fabricate (layer-4 discipline).
+
+**Rolling shutter** (consumer webcams): row-sequential exposure shears a fast near-vertical shaft —
+the imaged "line" genuinely bends. The proximal-weighted anchored fit reports the grip-side
+tangent (the slow, unsheared part), which is exactly the part shaft-lean and P6/P8 need; the
+clubhead point carries a `rollingShutter` flag near impact rather than a pretend-straight fit.
+Industrial global-shutter cameras (Aravis/Spinnaker) are immune. **Genuine shaft flex** (5–10 cm
+lead-deflection at impact) is the same story: report the proximal tangent as θ and the *measured*
+head blob as the head — never force collinearity at high ω.
+
+### B.5 Temporal association & smoothing
+
+Per-frame argmax + gating is not enough when a clutter ridge outscores the shaft in scattered
+frames. Three stages, matching the design's layer-4 philosophy:
+
+1. **Association — Viterbi over candidate sets.** Nodes = the K candidates per frame (plus a
+   "missing" node); node cost `−log score`; transition cost
+   `((θ_{t+1} − θ_t − θ̇_pred·Δt)/σ_trans)²` with `θ̇_pred` from the IMU channel when calibrated
+   (else finite-difference prediction), plus an `ΔL` smoothness term. O(N·K²) over ~300 frames —
+   microseconds. Output: one consistent raw track with outliers and dropouts resolved globally,
+   not greedily.
+2. **Unwrap** θ along the selected track (the swing sweeps ~300° of image angle; the track is
+   continuous by construction, so unwrapping is trivial accumulation).
+3. **Filter + smooth.** Constant-acceleration KF on `[θ, θ̇, θ̈]` (white-noise jerk, clubhead-grade
+   PSD per the layer-4 per-joint rule) with **two measurement channels**: vision θ (R from wedge
+   width × score) and IMU `θ_imu` (R from the `ŝ_hand` fit residual; only when a lead-hand IMU is
+   bound and calibration converged). Predict-only when both are absent. Then the
+   **Rauch–Tung–Striebel backward pass** over the whole window — offline, zero lag at impact.
+   Separate light 1-D KFs smooth `L(t)` and the head point. Quaternions are untouched here — θ is
+   a genuine 2-D image-plane scalar, which the quaternions-only rule explicitly permits (it bans
+   Euler *intermediates for 3-D rotation*, not image angles).
+
+A final consistency pass clamps physically impossible residue: `|θ̇|` capped by phase prior ×2,
+`L(t)` continuity vs the IMU-predicted foreshortening profile `L_club·cos(φ(t))` (the IMU knows
+the out-of-plane angle φ — when the shaft points near the camera, L collapses, the angle becomes
+ill-conditioned, and confidence is driven down *by geometry*, not by noise heuristics).
+
+### B.6 Outputs
+
+```cpp
+struct ShaftSample2D {
+    int64_t t_us;            // frame mid-exposure estimate
+    QPointF gripPx, headPx;  // image px (face-on camera space)
+    double  thetaRad;        // unwrapped image angle of the proximal shaft tangent
+    double  thetaDotRadS;    // smoothed angular velocity
+    double  visibleLenPx;    // supra-threshold ridge extent
+    float   conf;            // 0..1
+    uint8_t flags;           // Measured | ImuBridged | Coasted | WedgeCentroid | RollingShutter
+};
+struct ShaftTrack2D { pinpoint::SourceId camera; std::vector<ShaftSample2D> samples; };
+```
+
+Consumers: `PhaseSegmenter` v2 (P6/P8 from θ crossing image-horizontal — true horizon once C1
+exists), `MetricExtractor` (impact shaft lean, clubhead-speed proxy, swing-arc width), replay
+overlay (head trace polyline), fusion layer 3 (θ̇ cross-correlation temporal alignment). The 3-D
+`ClubTrack` of the canonical data model is fed from `ShaftTrack2D` + IMU lift later (deferred).
+**Persistence:** additive `swing.json` `analysis.club` block — `{camera, samples:[{t_us, theta,
+lenPx, gripX, gripY, headX, headY, conf, flags}]}`, downsampled per the existing series rules.
+
+### B.7 Where it runs, and what it costs
+
+Layer 1, alongside `PoseRunner` (the architecture table's `ClubBallTracker` slot, built as
+`src/Analysis/shaft_tracker.{h,cpp}` + pure-math core in `shaft_tracker_math.h` — flat dir,
+standalone tests in `src/Analysis/tests/`, per the project layout rule). Per frame after pose:
+top/black-hat on a ~600² ROI + `warpPolar` + column reductions ≈ **1–2 ms CPU** — two orders of
+magnitude under the ViTPose budget, so it changes nothing in the latency picture. The Viterbi +
+KF/RTS passes over 300 frames are sub-millisecond. No new dependencies (core OpenCV `imgproc`
+only — deliberately no `ximgproc`/contrib, which the system OpenCV may lack).
+
+`ShotAnalysisJob` additions: `clubLengthM` (defaulted), reuse of existing `handedness` (decides
+lead/trail hand channels). No EventBuffer changes, no new sources, const-reader contract untouched.
+
+### B.8 Degradation ladder
+
+| Available | Behaviour |
+|---|---|
+| Pose hands + clean frames | Full track, vision-only (IMU channel absent, σ_trans from finite differences) |
+| + lead-hand IMU | `ŝ_hand` auto-calib → IMU measurement channel; blur/occlusion bridged at 200 Hz |
+| Hands low-conf in some frames | Anchor predicted from smoothed wrist track (layer-4 output); conf-weighted |
+| Shaft points at camera (φ→90°) | L collapses; θ measurement suppressed by geometry; IMU carries |
+| No usable shaft in ≥ 60% of swing frames | `ShaftTrack2D` marked invalid; consumers fall back (P6/P8 stay hand-proxy; no head trace) — never a half-track presented as whole |
+
+### B.9 Validation
+
+- **Synthetic harness** (standalone test, no app build): render tapered lines over real captured
+  background frames with parameterized blur wedge, rolling-shutter shear, polarity, contrast, and
+  anchor error; assert θ within 0.5° (slow) / 2° (wedge frames), L within 5%, association survives
+  injected alignment-stick clutter.
+- **Golden captures**: hand-label shaft endpoints every ~10th frame on the pending
+  hardware-verification swings; regression-test track RMS.
+- **IMU cross-validation as a health metric**: the per-shot correlation between vision θ̇ and the
+  projected hand gyro is computed anyway (temporal alignment); a low correlation flags a bad track
+  *in production*, not just in tests.
+
+### B.10 Deferred
+
+- **DTL-camera shaft** (separate geometry: strong foreshortening, golfer-body occlusion is real
+  there) — needed for club path / attack angle; design when the DTL pipeline matters (M3).
+- **3-D shaft lift**: C1 calibration + `ŝ_hand` + θ → metric 3-D shaft direction; feeds `ClubTrack`.
+- **Clubface angle** — not recoverable from shaft geometry; needs a learned head model or a club IMU.
+- **Learned shaft/head keypoint model** — still worthwhile eventually for grip-occluded frames and
+  DTL, trained on data auto-labelled *by this classical tracker* (it bootstraps its own successor).
+- **Club identification** (driver vs iron) from the L statistics + head blob size, feeding the
+  currently-stubbed `club` field.
 
 ---
 

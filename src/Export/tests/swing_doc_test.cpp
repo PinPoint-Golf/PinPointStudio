@@ -53,6 +53,29 @@ int main()
     a.series.push_back(m);
     a.phases.push_back({ Phase::Impact, 1010000, 1.0f });
 
+    // ShaftTracker blocks (S3): one pose frame + a valid 2-sample club track.
+    PoseFrame2D pf;
+    pf.t_us = 1000000;
+    pf.kp[9]   = QPointF(0.40, 0.55); pf.conf[9]  = 0.9f;   // left wrist
+    pf.kp[10]  = QPointF(0.42, 0.56); pf.conf[10] = 0.8f;   // right wrist
+    pf.leadHand  = QPointF(0.41, 0.57);
+    pf.trailHand = QPointF(0.43, 0.58);
+    pf.handConf  = 0.85f;
+    a.pose2d.camera = 3;
+    a.pose2d.frames.push_back(pf);
+
+    a.shaft.camera        = 3;
+    a.shaft.valid         = true;
+    a.shaft.coverage      = 0.95f;
+    a.shaft.imuVisionCorr = 0.97f;
+    a.shaft.frameWidth    = 1920;
+    a.shaft.frameHeight   = 1080;
+    a.shaft.samples.push_back({ 1000000, QPointF(960.0, 540.0), QPointF(960.0, 810.0),
+                                1.5708, 0.0, 270.0, 0.9f, ShaftMeasured });
+    a.shaft.samples.push_back({ 1010000, QPointF(950.0, 545.0), QPointF(700.0, 700.0),
+                                2.2, 30.0, 268.0, 0.8f,
+                                uint8_t(ShaftImuBridged | ShaftHeadProjected) });
+
     std::printf("=== unified write (raw + analysis) ===\n");
     QString err;
     if (!SwingDocWriter::writeSwingJson(dir, manifest, &a, &err)) {
@@ -81,6 +104,37 @@ int main()
     check(an[QStringLiteral("phases")].toArray().size() == 1, "phases array");
     check(static_cast<qint64>(an[QStringLiteral("phases")].toArray().at(0).toObject()[QStringLiteral("t_us")].toDouble()) == 1010000, "phase t_us preserved");
 
+    std::printf("\n=== ShaftTracker blocks (pose2d + club) ===\n");
+    {
+        check(an.contains(QStringLiteral("pose2d")), "pose2d block present");
+        const QJsonObject p2 = an[QStringLiteral("pose2d")].toObject();
+        check(p2[QStringLiteral("camera")].toInt() == 3, "pose2d.camera");
+        const QJsonArray pframes = p2[QStringLiteral("frames")].toArray();
+        check(pframes.size() == 1, "pose2d one frame");
+        const QJsonObject pf0 = pframes.at(0).toObject();
+        check(pf0[QStringLiteral("kp")].toArray().size() == 17 * 3, "kp flat array 51 long");
+        check(qFuzzyCompare(pf0[QStringLiteral("kp")].toArray().at(9 * 3).toDouble(), 0.40),
+              "left-wrist x at kp[27]");
+        check(qFuzzyCompare(pf0[QStringLiteral("handConf")].toDouble(), double(0.85f)), "handConf");
+        check(qFuzzyCompare(pf0[QStringLiteral("lead")].toArray().at(1).toDouble(), 0.57),
+              "lead hand y");
+
+        check(an.contains(QStringLiteral("club")), "club block present");
+        const QJsonObject cb = an[QStringLiteral("club")].toObject();
+        check(cb[QStringLiteral("valid")].toBool(), "club.valid");
+        check(cb[QStringLiteral("frameWidth")].toInt() == 1920, "club.frameWidth");
+        const QJsonArray cs = cb[QStringLiteral("samples")].toArray();
+        check(cs.size() == 2, "club two samples");
+        const QJsonObject c0 = cs.at(0).toObject();
+        check(qFuzzyCompare(c0[QStringLiteral("grip")].toArray().at(0).toDouble(), 960.0 / 1920.0),
+              "grip x normalized by frame width");
+        check(qFuzzyCompare(c0[QStringLiteral("head")].toArray().at(1).toDouble(), 810.0 / 1080.0),
+              "head y normalized by frame height");
+        check(c0[QStringLiteral("flags")].toInt() == int(ShaftMeasured), "sample 0 flags");
+        check(cs.at(1).toObject()[QStringLiteral("flags")].toInt()
+                  == int(ShaftImuBridged | ShaftHeadProjected), "sample 1 flags");
+    }
+
     std::printf("\n=== reader round-trip ===\n");
     {
         const PersistedShot ps = SwingDocReader::readSwingJson(dir);
@@ -95,6 +149,14 @@ int main()
         check(ps.analysisDetail.value(QStringLiteral("overall")).toInt() == 82, "analysisDetail.overall");
         check(ps.analysisDetail.value(QStringLiteral("series")).toList().size() == 1, "analysisDetail.series len 1");
         check(ps.analysisDetail.value(QStringLiteral("phases")).toList().size() == 1, "analysisDetail.phases len 1");
+        const QVariantMap p2 = ps.analysisDetail.value(QStringLiteral("pose2d")).toMap();
+        check(p2.value(QStringLiteral("frames")).toList().size() == 1, "reloaded pose2d frames");
+        const QVariantMap cb = ps.analysisDetail.value(QStringLiteral("club")).toMap();
+        check(cb.value(QStringLiteral("valid")).toBool(), "reloaded club.valid");
+        check(cb.value(QStringLiteral("samples")).toList().size() == 2, "reloaded club samples");
+        const QVariantMap cs1 = cb.value(QStringLiteral("samples")).toList().at(1).toMap();
+        check(cs1.value(QStringLiteral("flags")).toInt()
+                  == int(ShaftImuBridged | ShaftHeadProjected), "reloaded sample flags");
     }
 
     std::printf("\n=== review write-through round-trip ===\n");

@@ -22,10 +22,13 @@
 #include <QString>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 #include "imu_vision_fuser.h"
 #include "metric_extractor.h"
 #include "phase_segmenter.h"
+#include "pose_runner.h"
+#include "shaft_tracker.h"
 #include "swing_scorer.h"
 #include "wrist_angles.h"
 #include "swing_window.h"
@@ -34,6 +37,43 @@
 using namespace pinpoint::analysis;
 
 namespace {
+
+constexpr double kPiD = 3.14159265358979323846;
+
+// Shaft lean vs image-vertical from the smoothed shaft track, signed toward
+// the target: a face-on camera shows the golfer's left on image-right, so for
+// a right-handed golfer positive = shaft (grip-to-head) tilted away from
+// image-right = hands ahead of the clubhead. PROVISIONAL sign pending the
+// hardware sign-lock pass (the wrist metrics needed the same treatment).
+// Unscored — no validated reference band yet; the scorer's band table simply
+// doesn't list the key.
+MetricSeries buildShaftLeanSeries(const ShaftTrack2D &shaft, int handedness,
+                                  int64_t impactUs)
+{
+    MetricSeries m;
+    m.key   = QStringLiteral("impactShaftLean");
+    m.label = QStringLiteral("Shaft lean");
+    m.unit  = QStringLiteral("°");
+
+    const double sgn = (handedness == 2) ? -1.0 : 1.0;
+    int64_t bestDt = std::numeric_limits<int64_t>::max();
+    PhaseSample impact;
+    impact.phase = Phase::Impact;
+    for (const ShaftSample2D &s : shaft.samples) {
+        // Lean = deviation of the grip→head ray from straight-down (+90° in
+        // the y-down image convention), wrapped near zero.
+        double lean = s.thetaRad - kPiD / 2.0;
+        lean = std::remainder(lean, 2.0 * kPiD);
+        const double deg = sgn * lean * 180.0 / kPiD;
+        m.t_us.push_back(s.t_us);
+        m.value.push_back(deg);
+        const int64_t dt = std::llabs(s.t_us - impactUs);
+        if (dt < bestDt) { bestDt = dt; impact.t_us = s.t_us; impact.value = deg; }
+    }
+    if (bestDt != std::numeric_limits<int64_t>::max())
+        m.phaseSamples.push_back(impact);
+    return m;
+}
 
 const MetricSeries *find(const std::vector<MetricSeries> &v, const QString &key)
 {
@@ -114,7 +154,7 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
     }
 
     const std::vector<PhaseEvent>  phases = PhaseSegmenter::segment(streams, job.impactUs);
-    const std::vector<MetricSeries> series = MetricExtractor::extract(streams, phases, job.handedness);
+    std::vector<MetricSeries> series = MetricExtractor::extract(streams, phases, job.handedness);
     if (series.empty()) {
         r.ok = false;
         r.error = QStringLiteral("no wrist metrics (need forearm + hand IMUs)");
@@ -122,6 +162,23 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
     }
 
     auto detail   = std::make_shared<SwingAnalysis>();
+
+    // ShaftTracker (S3): offline pose + club track over the face-on camera.
+    // Heavy (ViTPose per frame) — runs after the cheap IMU stages; failures
+    // degrade to empty/invalid tracks, never to a failed analysis.
+    if (job.faceOnCameraCount > 0 && !job.cameraSources.empty()) {
+        ShotAnalysisRunnerOptions opt;
+        opt.impactUs   = job.impactUs;
+        opt.handedness = job.handedness;
+        detail->pose2d = PoseRunner::run(window, job.cameraSources.front(), opt);
+        if (!detail->pose2d.frames.empty()) {
+            detail->shaft = ShaftTracker::track(window, detail->pose2d, streams, phases, job);
+            if (detail->shaft.valid)
+                series.push_back(buildShaftLeanSeries(detail->shaft, job.handedness,
+                                                      job.impactUs));
+        }
+    }
+
     detail->series = series;
     detail->phases = phases;
     detail->tier   = static_cast<int>(ReconstructionTier::Mono3DPlusImu);

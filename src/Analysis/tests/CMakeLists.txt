@@ -127,3 +127,41 @@ target_include_directories(imu_driver_frame_test PRIVATE
     ${REPO}/third_party/imu_ekf_compat ${REPO}/third_party/imu_ekf ${EIGEN_INCLUDE_DIR})
 target_link_libraries(imu_driver_frame_test PRIVATE Qt6::Core Qt6::Gui Qt6::Bluetooth)
 add_test(NAME imu_driver_frame_test COMMAND imu_driver_frame_test)
+
+# --- ShaftTracker OpenCV targets (the only OpenCV-dependent targets here) ---
+# OpenCV (system 4.x, core imgproc only — no contrib) is found and linked for
+# these two targets ONLY; the Qt-only targets above are untouched. Both sources
+# are Qt-free, so no Qt libraries are linked either.
+find_package(OpenCV REQUIRED COMPONENTS core imgproc)
+
+# Shared frame decode (src/Export/frame_decode, ShaftTracker S0): synthetic
+# NV12/YUV420P/BGRA32/Bayer8 payloads with golden-pixel checks.
+add_executable(frame_decode_test
+    frame_decode_test.cpp
+    ${SRC}/Export/frame_decode.cpp)
+target_include_directories(frame_decode_test PRIVATE ${BUFFER} ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(frame_decode_test PRIVATE ${OpenCV_LIBS})
+add_test(NAME frame_decode_test COMMAND frame_decode_test)
+
+# ShaftTracker S1: anchored radial shaft detection math core. Added manually
+# rather than via pp_add_test (that helper links Qt, which this target neither
+# needs nor wants). -O2 because the suite sets no build type and the timing
+# assertion measures real hot-loop cost.
+add_executable(shaft_tracker_test
+    shaft_tracker_test.cpp
+    ${ANALYSIS}/shaft_tracker_math.cpp)
+target_include_directories(shaft_tracker_test PRIVATE ${OpenCV_INCLUDE_DIRS})
+target_compile_options(shaft_tracker_test PRIVATE -O2)
+target_link_libraries(shaft_tracker_test PRIVATE ${OpenCV_LIBS})
+add_test(NAME shaft_tracker_test COMMAND shaft_tracker_test)
+
+# ShaftTracker S2: track assembly (ŝ_hand calibration + Viterbi association +
+# wrap-aware 2-channel KF/RTS) over synthetic candidate sequences. Needs Qt
+# (QQuaternion/QPointF) AND OpenCV core (Matx/Vec) — both linked here only.
+add_executable(shaft_track_test
+    shaft_track_test.cpp
+    ${ANALYSIS}/shaft_track_assembly.cpp)
+target_include_directories(shaft_track_test PRIVATE ${BUFFER} ${OpenCV_INCLUDE_DIRS})
+target_compile_options(shaft_track_test PRIVATE -O2)
+target_link_libraries(shaft_track_test PRIVATE Qt6::Core Qt6::Gui ${OpenCV_LIBS})
+add_test(NAME shaft_track_test COMMAND shaft_track_test)

@@ -38,8 +38,11 @@ struct ShotAnalysisJob {
     qint64  impactUs    = -1;   // impact instant, EventBuffer::nowMicros() domain
 
     std::vector<pinpoint::SourceId> cameraSources;  // exported cameras, face-on first
+    int faceOnCameraCount = 0;  // leading cameraSources entries that are face-on
     std::vector<pinpoint::SourceId> imuSources;     // IMU sources present in the window
     pinpoint::SourceId markerSourceId = pinpoint::kInvalidSourceId;  // shot_marker_v1 source
+
+    double clubLengthM = 1.12;  // shaft search radius (driver default until club selection is real)
 
     // Resolved IMU -> anatomical-segment bindings (placement slot + the live
     // calibration A/M snapshot), filled on the UI thread — the worker cannot
