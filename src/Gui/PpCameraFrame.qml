@@ -379,7 +379,12 @@ Item {
                     if (replayOverlay.visible) replayOverlay.requestPaint()
                 }
             }
-            onVisibleChanged: if (visible) _rebuildCache()
+            // The cache is owned by onReplayAnalysisDetailChanged (published
+            // before REPLAYING begins) + onCompleted for tiles created later.
+            // Do NOT rebuild from onVisibleChanged: visible reads
+            // _poseFrames/_clubSamples, so writing them there is a binding
+            // loop — becoming visible only needs a repaint of current data.
+            onVisibleChanged: if (visible) requestPaint()
             Component.onCompleted: _rebuildCache()
 
             onPaint: {
