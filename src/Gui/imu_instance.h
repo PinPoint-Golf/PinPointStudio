@@ -27,10 +27,11 @@
 #include <QVector3D>
 
 #include "device_enumerator.h"
-#include "impact_detector.h"
 #include "types.h"
 #include "wt9011dcl_ble.h"
 
+class ImuIoWorker;
+class QThread;
 namespace pinpoint { class EventBuffer; }
 
 // Manages the BLE connection lifecycle and live data for a single IMU device.
@@ -80,8 +81,12 @@ class ImuInstance : public QObject
     Q_PROPERTY(double      mountGravityErrorDeg READ mountGravityErrorDeg NOTIFY anatCalibratedChanged)
 
 public:
+    // ioThread is the ImuManager-owned shared IMU I/O thread: the BLE driver
+    // and the per-packet hot path (ImuIoWorker) live there, never on the GUI
+    // thread (docs/implementation/IMU_IO_THREAD_IMPL.md).
     explicit ImuInstance(const Device &device,
                          pinpoint::EventBuffer *buffer,
+                         QThread *ioThread,
                          QObject *parent = nullptr);
     ~ImuInstance() override;
 
@@ -215,12 +220,16 @@ private:
     void appendLog(const QString &text);
     void setStateLabel(const QString &s);
     void onStateChanged(WT9011DCL_BLE::State s);
-    void onDataRecord();
 
     pinpoint::EventBuffer *m_eventBuffer  = nullptr;
     pinpoint::SourceId     m_imuSourceId  = pinpoint::kInvalidSourceId;
 
+    // I/O-thread residents (no QObject parent — parenting would fight
+    // moveToThread): destroyed via deleteLater onto the I/O thread, which
+    // ImuManager joins after the instances are gone.
+    QThread       *m_ioThread          = nullptr;
     WT9011DCL_BLE *m_imu               = nullptr;
+    ImuIoWorker   *m_worker            = nullptr;
     Device         m_device;
     QString        m_deviceId;
     QString        m_deviceDescription;
@@ -242,17 +251,14 @@ private:
     QTimer m_gimbalPollTimer;
     static constexpr int kGimbalPollIntervalMs = 200;
 
-    // Display-signal coalescing (BodyPoseAdapter pattern): packet handlers
-    // update members only and set the dirty flag; this 60 Hz tick emits the
-    // QML-facing change signals. BLE packets arrive at up to 200 Hz per
-    // device ON THE GUI THREAD (the driver is a child of this object) — with
-    // three sensors, per-packet emissions were ~1800 QML binding storms/s,
-    // enough to visibly starve rendering on Windows where the WinRT BLE
-    // stack already adds per-notification overhead.
-    QTimer m_displayTimer;
-    bool   m_displayDirty   = false;
-    float  m_lastSentVelDps = 0.0f;
-    double m_lastSentRateHz = 0.0;
+    // 60 Hz display tick: copies the worker's LiveSample snapshot into the
+    // QML-facing members and emits the change signals — the GUI sees ZERO
+    // per-packet events (the hot path lives on the I/O thread).
+    QTimer  m_displayTimer;
+    quint64 m_lastSeq        = 0;     // last snapshot seq consumed
+    quint64 m_seqBase        = 0;     // seq at connection (per-connection totals)
+    float   m_lastSentVelDps = 0.0f;
+    double  m_lastSentRateHz = 0.0;
 
     // State
     QString m_stateLabel = QStringLiteral("Disconnected");
@@ -270,30 +276,24 @@ private:
     int   m_batteryPercent  = -1;
     int   m_gimbalDropCount = 0;
 
-    // Rolling 2-second data-rate window
-    QList<qint64> m_packetTimes;
-    double        m_dataRateHz = 0.0;
+    // Tick-refreshed copies of the worker's snapshot (members so the QML
+    // property reads and the calibration flow's 100 ms polls stay cheap).
+    double m_dataRateHz = 0.0;
+    float  m_angularVelocityDps = 0.0f;
 
-    // Angular-velocity estimate — computed on the main thread via the queued
-    // connection from successive quaternions. Consumed by the wizard Calibrate
-    // step for stillness-gated capture (ScreenSessionWizard.qml).
-    float         m_angularVelocityDps = 0.0f;
-    QQuaternion   m_prevQuat           { 1.0f, 0.0f, 0.0f, 0.0f };
-    QElapsedTimer m_prevQuatTimer;   // elapsed since last quaternion packet
-
-    // IMU impact auto-trigger (shot detection P1) — pure math, fed from the
-    // GUI-thread quaternionUpdated handler (raw accel/gyro + fused quat).
-    pinpoint::ImpactDetector m_impactDetector;
     // BLE chain delay between the physical impact and host arrival of the
     // sample that carries it (connection interval + stack). A measured-ish
-    // placeholder until P4 auto-calibration; passed into the detector config,
-    // never hard-coded in the math.
+    // placeholder until P4 auto-calibration; passed into the worker's
+    // detector config, never hard-coded in the math.
     static constexpr qint64 kImuBleLatencyUs = 30'000;
 
     // Raw packet streaming state for beginRawDump/endRawDump (off by default).
+    // While active, a per-packet queued connection feeds the GUI (diagnostic
+    // mode only — zero hot-path cost when off).
     bool        m_rawDump = false;
     QString     m_rawDumpTag;
     QStringList m_rawDumpLines;
+    QMetaObject::Connection m_rawDumpConn;
 
     // Zeroing confirmation — settle-timer approach (no hardware ACK on WT901)
     // Future devices that emit ImuBase::zeroingConfirmed() take precedence over settle.
@@ -320,12 +320,11 @@ private:
     double      m_mountGravityErrorDeg = 0.0;          // arm-down gravity vs anatomical up (flip check)
 
     // Log throttle — summary every 10 s
-    QTimer m_logTimer;
-    int    m_totalRecords    = 0;
-    int    m_recordsSinceLog = 0;
+    QTimer  m_logTimer;
+    quint64 m_totalRecords    = 0;
+    quint64 m_recordsSinceLog = 0;
 
     static constexpr int kMaxRetries      = 1;
     static constexpr int kRetryDelayMs    = 30'000;
     static constexpr int kLogIntervalMs   = 10'000;
-    static constexpr int kRollingWindowMs = 2'000;
 };

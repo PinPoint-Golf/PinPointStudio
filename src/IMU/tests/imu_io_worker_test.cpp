@@ -67,6 +67,14 @@ struct Clock {
     qint64 step(qint64 us = 5000) { t += us; return t; }
 };
 
+ImuIoWorker::RawSample mk(qint64 t, float qw, float qx, float qy, float qz,
+                          float ax, float ay, float az,
+                          float gx, float gy, float gz,
+                          float er = 0.f, float ep = 0.f, float ey = 0.f)
+{
+    return ImuIoWorker::RawSample{ t, qw, qx, qy, qz, ax, ay, az, gx, gy, gz, er, ep, ey };
+}
+
 pinpoint::SourceId registerImuSource(pinpoint::EventBuffer &buf, const char *ident)
 {
     pinpoint::SourceDescriptor desc;
@@ -97,31 +105,32 @@ int main()
 
         // Uncalibrated: anatQuat == raw; display accel remap (x, z, −y).
         const QQuaternion q1 = QQuaternion::fromAxisAndAngle(0, 1, 0, 30.f);
-        w.processSample(clk.step(), q1.scalar(), q1.x(), q1.y(), q1.z(),
-                        0.1f, -0.3f, 0.95f, 1.f, 2.f, 3.f);
+        w.processSample(mk(clk.step(), q1.scalar(), q1.x(), q1.y(), q1.z(),
+                        0.1f, -0.3f, 0.95f, 1.f, 2.f, 3.f));
         ImuIoWorker::LiveSample s = w.snapshot();
         CHECK("seq advanced", s.seq == 1);
         CHECK("raw quat stored", quatNear(
                   QQuaternion(s.quatW, s.quatX, s.quatY, s.quatZ), q1));
         CHECK("anatQuat == raw while uncalibrated", quatNear(s.anatQuat, q1));
-        CHECK_NEAR("accel display X = sensor x", s.accelX, 0.1, 1e-6);
-        CHECK_NEAR("accel display Y = sensor z", s.accelY, 0.95, 1e-6);
-        CHECK_NEAR("accel display Z = -sensor y", s.accelZ, 0.3, 1e-6);
+        CHECK_NEAR("raw accel x stored", s.accelX, 0.1, 1e-6);
+        CHECK_NEAR("raw accel y stored", s.accelY, -0.3, 1e-6);
+        CHECK_NEAR("raw accel z stored", s.accelZ, 0.95, 1e-6);
+        CHECK_NEAR("raw gyro y stored", s.gyroY, 2.0, 1e-6);
 
         // Calibrated: anatQuat == A·q·M exactly (the shared composition).
         const QQuaternion A = QQuaternion::fromAxisAndAngle(0, 0, 1, 90.f);
         const QQuaternion M = QQuaternion::fromAxisAndAngle(1, 0, 0, 90.f);
         w.setAnatomical(A, M, true);
-        w.processSample(clk.step(), q1.scalar(), q1.x(), q1.y(), q1.z(),
-                        0, 0, 1, 0, 0, 0);
+        w.processSample(mk(clk.step(), q1.scalar(), q1.x(), q1.y(), q1.z(),
+                        0, 0, 1, 0, 0, 0));
         s = w.snapshot();
         CHECK("anatQuat == A*q*M when calibrated",
               quatNear(s.anatQuat, imu_calibration::toAnatomical(A, q1, M)));
 
         // Angular velocity: 9° rotation over a 5 ms step = 1800 °/s.
         const QQuaternion q2 = QQuaternion::fromAxisAndAngle(0, 1, 0, 39.f);
-        w.processSample(clk.step(), q2.scalar(), q2.x(), q2.y(), q2.z(),
-                        0, 0, 1, 0, 0, 0);
+        w.processSample(mk(clk.step(), q2.scalar(), q2.x(), q2.y(), q2.z(),
+                        0, 0, 1, 0, 0, 0));
         s = w.snapshot();
         CHECK_NEAR("angular velocity (9 deg / 5 ms)", s.angularVelocityDps, 1800.0, 1.0);
 
@@ -130,14 +139,14 @@ int main()
         ImuIoWorker wb;
         Clock bclk;
         const QQuaternion b0 = QQuaternion::fromAxisAndAngle(1, 0, 0, 0.f);
-        wb.processSample(bclk.step(), b0.scalar(), b0.x(), b0.y(), b0.z(), 0, 0, 1, 0, 0, 0);
+        wb.processSample(mk(bclk.step(), b0.scalar(), b0.x(), b0.y(), b0.z(), 0, 0, 1, 0, 0, 0));
         for (int i = 1; i <= 3; ++i) {   // burst: 3 packets 100 µs apart
             const QQuaternion bq = QQuaternion::fromAxisAndAngle(1, 0, 0, float(i));
-            wb.processSample(bclk.step(100), bq.scalar(), bq.x(), bq.y(), bq.z(), 0, 0, 1, 0, 0, 0);
+            wb.processSample(mk(bclk.step(100), bq.scalar(), bq.x(), bq.y(), bq.z(), 0, 0, 1, 0, 0, 0));
         }
         // Gap packet at +15 ms from baseline: 4° over ~15.3 ms ≈ 261 °/s.
         const QQuaternion bg = QQuaternion::fromAxisAndAngle(1, 0, 0, 4.f);
-        wb.processSample(bclk.step(15000), bg.scalar(), bg.x(), bg.y(), bg.z(), 0, 0, 1, 0, 0, 0);
+        wb.processSample(mk(bclk.step(15000), bg.scalar(), bg.x(), bg.y(), bg.z(), 0, 0, 1, 0, 0, 0));
         CHECK_NEAR("burst-tolerant velocity (4 deg over burst window)",
                    wb.snapshot().angularVelocityDps, 4.0 / 0.015, 30.0);
 
@@ -145,7 +154,7 @@ int main()
         ImuIoWorker wr;
         Clock rclk;
         for (int i = 0; i < 400; ++i)
-            wr.processSample(rclk.step(), 1, 0, 0, 0, 0, 0, 1, 0, 0, 0);
+            wr.processSample(mk(rclk.step(), 1, 0, 0, 0, 0, 0, 1, 0, 0, 0));
         CHECK_NEAR("data rate at 200 Hz feed", wr.snapshot().dataRateHz, 200.0, 5.0);
     }
 
@@ -157,10 +166,10 @@ int main()
         std::thread producer([&] {
             Clock clk;
             for (quint64 k = 1; k <= 300000; ++k) {
-                // Pattern-encoded sample: display X=k, Y=2k, Z=3k (remap-aware).
+                // Pattern-encoded sample: y = 2x, z = 3x (raw fields).
                 const float kf = float(k % 100000);
-                w.processSample(clk.step(), 1, 0, 0, 0,
-                                kf, -3.0f * kf, 2.0f * kf, 0, 0, 0);
+                w.processSample(mk(clk.step(), 1, 0, 0, 0,
+                                kf, 2.0f * kf, 3.0f * kf, 0, 0, 0));
             }
             done.store(true, std::memory_order_release);
         });
@@ -200,8 +209,8 @@ int main()
         std::thread producer([&] {
             Clock clk;
             for (int k = 0; k < 200000; ++k)
-                w.processSample(clk.step(), q.scalar(), q.x(), q.y(), q.z(),
-                                0, 0, 1, 0, 0, 0);
+                w.processSample(mk(clk.step(), q.scalar(), q.x(), q.y(), q.z(),
+                                0, 0, 1, 0, 0, 0));
             done.store(true, std::memory_order_release);
         });
 
@@ -238,7 +247,7 @@ int main()
         std::thread producer([&] {
             Clock clk;
             while (!stop.load(std::memory_order_acquire)) {
-                w.processSample(clk.step(), 1, 0, 0, 0, 0, 0, 1, 0, 0, 0);
+                w.processSample(mk(clk.step(), 1, 0, 0, 0, 0, 0, 1, 0, 0, 0));
                 pushed.fetch_add(1, std::memory_order_relaxed);
             }
         });
@@ -284,8 +293,8 @@ int main()
                 const QQuaternion q = vertical > 0.5f
                     ? QQuaternion::fromAxisAndAngle(1, 0, 0, 90.f)   // +Y -> +Z (vertical)
                     : QQuaternion();                                 // +Y horizontal
-                wk.processSample(clk.step(), q.scalar(), q.x(), q.y(), q.z(),
-                                accel, 0, 0, gyro, 0, 0);
+                wk.processSample(mk(clk.step(), q.scalar(), q.x(), q.y(), q.z(),
+                                accel, 0, 0, gyro, 0, 0));
             };
             for (int i = 0; i < 160; ++i) push(1.0f, 5.0f, 0.9f);        // address ~0.8 s
             for (int i = 1; i <= 60; ++i)                                 // downswing ramp
@@ -323,7 +332,7 @@ int main()
             std::thread producer([&] {
                 Clock clk;
                 while (!stop.load(std::memory_order_acquire))
-                    w->processSample(clk.step(), 1, 0, 0, 0, 0, 0, 1, 0, 0, 0);
+                    w->processSample(mk(clk.step(), 1, 0, 0, 0, 0, 0, 1, 0, 0, 0));
             });
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
             w->detachBuffer();          // stop barrier

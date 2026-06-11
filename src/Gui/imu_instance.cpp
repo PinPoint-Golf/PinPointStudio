@@ -22,6 +22,7 @@
 #include "ble_adapter_pool.h"
 #include "event_buffer.h"
 #include "imu_calibration.h"
+#include "imu_io_worker.h"
 #include "imu_sample.h"
 #include "source_descriptor.h"
 
@@ -30,6 +31,7 @@
 #include <QFile>
 #include <QStandardPaths>
 #include <QTextStream>
+#include <QThread>
 #include <QtMath>
 #include <cmath>
 #include <chrono>
@@ -37,14 +39,25 @@
 
 ImuInstance::ImuInstance(const Device &device,
                          pinpoint::EventBuffer *buffer,
+                         QThread *ioThread,
                          QObject *parent)
     : QObject(parent)
     , m_eventBuffer(buffer)
-    , m_imu(new WT9011DCL_BLE(this))
+    , m_ioThread(ioThread)
+    , m_imu(new WT9011DCL_BLE)        // no parent — lives on the I/O thread
+    , m_worker(new ImuIoWorker)       // no parent — lives on the I/O thread
     , m_device(device)
     , m_deviceId(device.id)
     , m_deviceDescription(device.description)
 {
+    // Host the driver and the hot-path worker on the shared IMU I/O thread:
+    // the QLowEnergyController is created inside connectToDevice(), which runs
+    // there (invokeMethod in start()), so its affinity is correct from birth.
+    if (m_ioThread) {
+        m_imu->moveToThread(m_ioThread);
+        m_worker->moveToThread(m_ioThread);
+    }
+
     if (m_eventBuffer) {
         pinpoint::SourceDescriptor desc;
         desc.name       = device.description.toStdString();
@@ -69,8 +82,36 @@ ImuInstance::ImuInstance(const Device &device,
     }
 
     // Impact detector latency is owned here, not in the math header (P4
-    // replaces the constant with auto-calibration).
-    m_impactDetector.config().bleLatencyUs = kImuBleLatencyUs;
+    // replaces the constant with auto-calibration). Pre-stream configuration
+    // (the worker's detector is producer-thread state once packets flow).
+    m_worker->impactConfig().bleLatencyUs = kImuBleLatencyUs;
+    if (m_eventBuffer && m_imuSourceId != pinpoint::kInvalidSourceId)
+        m_worker->attachBuffer(m_eventBuffer, m_imuSourceId);
+
+    // Data path, entirely on the I/O thread: one DirectConnection from the
+    // driver's combined-packet signal into the worker's hot path. accel/gyro/
+    // euler accessors are same-thread reads (dispatchCombinedPacket sets them
+    // before emitting quaternionUpdated).
+    connect(m_imu, &WT9011DCL_Base::quaternionUpdated, m_worker,
+            [imu = m_imu, worker = m_worker](const WT9011DCL_Base::QuaternionData &q) {
+                const auto a = imu->accelData();
+                const auto g = imu->gyroData();
+                const auto e = imu->eulerData();
+                ImuIoWorker::RawSample in;
+                in.nowUs = static_cast<qint64>(pinpoint::EventBuffer::nowMicros());
+                in.qw = q.w; in.qx = q.x; in.qy = q.y; in.qz = q.z;
+                in.ax = a.x; in.ay = a.y; in.az = a.z;
+                in.gx = g.x; in.gy = g.y; in.gz = g.z;
+                in.eulerRoll = e.roll; in.eulerPitch = e.pitch; in.eulerYaw = e.yaw;
+                worker->processSample(in);
+            },
+            Qt::DirectConnection);
+
+    // Impact trigger: worker (I/O thread) -> this signal (queued to GUI).
+    connect(m_worker, &ImuIoWorker::impactDetected, this,
+            [this](qint64 estUs, double conf) {
+                emit impactDetected(estUs, float(conf));
+            });
 
     // Soft confirmation — fires 500 ms after zeroToCurrentPose() is sent.
     // 500 ms = 50 BLE frames at 100 Hz; enough for the device to process CALSW writes.
@@ -135,7 +176,9 @@ ImuInstance::ImuInstance(const Device &device,
     m_batteryTimer.setInterval(60'000);
     m_batteryTimer.setSingleShot(false);
     connect(&m_batteryTimer, &QTimer::timeout, this, [this]() {
-        if (m_connected) m_imu->requestBattery();
+        if (m_connected)
+            QMetaObject::invokeMethod(m_imu, &WT9011DCL_BLE::requestBattery,
+                                      Qt::QueuedConnection);
     });
 
     m_gimbalPollTimer.setInterval(kGimbalPollIntervalMs);
@@ -149,15 +192,34 @@ ImuInstance::ImuInstance(const Device &device,
     });
 
     // 60 Hz display tick — the ONLY emitter of the high-rate change signals
-    // (quat/euler, accel, angular velocity, data rate). Packet handlers write
-    // members and set the dirty flag; consumers that need live values between
-    // ticks (calibration flow, impact detector) read the members directly.
+    // (quat/euler, accel, angular velocity, data rate). The hot path lives on
+    // the I/O thread; this copies its latest LiveSample into the QML-facing
+    // members (display-frame accel remap happens here: sensor X→X, Z→Y, −Y→Z)
+    // and emits. Consumers that poll between ticks (calibration flow) read
+    // these members — at worst one tick (16 ms) stale, well inside the 100 ms
+    // poll cadence.
     m_displayTimer.setInterval(16);
     m_displayTimer.setSingleShot(false);
     connect(&m_displayTimer, &QTimer::timeout, this, [this]() {
-        if (!m_displayDirty)
+        const ImuIoWorker::LiveSample snap = m_worker->snapshot();
+        if (snap.seq == m_lastSeq)
             return;
-        m_displayDirty = false;
+        m_recordsSinceLog += snap.seq - m_lastSeq;
+        m_lastSeq          = snap.seq;
+        m_totalRecords     = snap.seq - m_seqBase;
+
+        m_quatW = snap.quatW; m_quatX = snap.quatX;
+        m_quatY = snap.quatY; m_quatZ = snap.quatZ;
+        m_anatQuat   = snap.anatQuat;
+        m_eulerRoll  = snap.eulerRoll;
+        m_eulerPitch = snap.eulerPitch;
+        m_eulerYaw   = snap.eulerYaw;
+        m_accelX =  snap.accelX;
+        m_accelY =  snap.accelZ;
+        m_accelZ = -snap.accelY;
+        m_angularVelocityDps = snap.angularVelocityDps;
+        m_dataRateHz         = snap.dataRateHz;
+
         emit quatChanged();
         emit accelChanged();
         if (qAbs(m_angularVelocityDps - m_lastSentVelDps) > 0.5f) {
@@ -186,18 +248,6 @@ ImuInstance::ImuInstance(const Device &device,
         appendLog(timestamp() + "  [diag] " + msg);
     });
 
-    connect(m_imu, &WT9011DCL_Base::accelUpdated,
-            this, [this](const WT9011DCL_Base::AccelData &d) {
-        // Remap from sensor frame to display/world frame:
-        //   sensor X (Roll axis)  → display X  (unchanged)
-        //   sensor Z (Yaw axis)   → display Y
-        //   sensor Y (Pitch axis) → display Z, negated
-        m_accelX =  d.x;
-        m_accelY =  d.z;
-        m_accelZ = -d.y;
-        m_displayDirty = true;   // emitted from the 60 Hz display tick
-    });
-
     connect(m_imu, &WT9011DCL_Base::batteryUpdated, this, [this](int percent) {
         if (percent == m_batteryPercent) return;
         m_batteryPercent = percent;
@@ -209,7 +259,9 @@ ImuInstance::ImuInstance(const Device &device,
         if (m_batteryRetries >= kMaxBatteryRetries) return;
         ++m_batteryRetries;
         QTimer::singleShot(5000, this, [this]() {
-            if (m_connected) m_imu->requestBattery();
+            if (m_connected)
+                QMetaObject::invokeMethod(m_imu, &WT9011DCL_BLE::requestBattery,
+                                          Qt::QueuedConnection);
         });
     });
 
@@ -223,104 +275,6 @@ ImuInstance::ImuInstance(const Device &device,
                 .arg(d.temperature, 5, 'f', 1));
     });
 
-    connect(m_imu, &WT9011DCL_Base::eulerAnglesUpdated,
-            this, [this](const WT9011DCL_Base::EulerAngles &e) {
-        m_eulerRoll  = e.roll;
-        m_eulerPitch = e.pitch;
-        m_eulerYaw   = e.yaw;
-    });
-
-    // Display update — queued to main thread, drives QML bindings.
-    connect(m_imu, &WT9011DCL_Base::quaternionUpdated,
-            this, [this](const WT9011DCL_Base::QuaternionData &q) {
-        m_quatW = q.w; m_quatX = q.x; m_quatY = q.y; m_quatZ = q.z;
-        // Anatomical orientation for all consumers (computed before quatChanged so
-        // the anatQuat property is current when bindings re-evaluate).
-        if (m_anatCalibrated)
-            m_anatQuat = imu_calibration::toAnatomical(m_alignA, QQuaternion(q.w, q.x, q.y, q.z), m_mountM);
-        else
-            m_anatQuat = QQuaternion(q.w, q.x, q.y, q.z);
-        m_displayDirty = true;   // quatChanged emitted from the 60 Hz display tick
-
-        // Raw packet stream (beginRawDump/endRawDump diagnostic; off by default).
-        // m_eulerRoll/Pitch/Yaw were just set by the eulerAnglesUpdated slot, which
-        // is connected before this one so fires first for the same packet.
-        if (m_rawDump) {
-            const auto a = m_imu->accelData();
-            const auto g = m_imu->gyroData();
-            m_rawDumpLines.append(
-                QStringLiteral("euler=(%1,%2,%3) accel=(%4,%5,%6) gyro=(%7,%8,%9) qraw=(%10,%11,%12,%13)")
-                    .arg(m_eulerRoll, 0, 'f', 4).arg(m_eulerPitch, 0, 'f', 4).arg(m_eulerYaw, 0, 'f', 4)
-                    .arg(a.x, 0, 'f', 5).arg(a.y, 0, 'f', 5).arg(a.z, 0, 'f', 5)
-                    .arg(g.x, 0, 'f', 4).arg(g.y, 0, 'f', 4).arg(g.z, 0, 'f', 4)
-                    .arg(q.w, 0, 'f', 6).arg(q.x, 0, 'f', 6).arg(q.y, 0, 'f', 6).arg(q.z, 0, 'f', 6));
-        }
-
-        // Angular velocity from successive quaternions, for the Calibrate step's
-        // stillness-gated capture. QElapsedTimer is not started until the first
-        // packet, so skip the first tick.
-        const qint64 dtMs = m_prevQuatTimer.isValid() ? m_prevQuatTimer.elapsed() : -1;
-        m_prevQuatTimer.restart();
-
-        if (dtMs >= 5 && dtMs < 500) {
-            const QQuaternion cur(q.w, q.x, q.y, q.z);
-            // |dot| of two unit quaternions = cos(half-angle). abs() for double-cover.
-            const float dot      = qBound(0.0f, qAbs(QQuaternion::dotProduct(m_prevQuat, cur)), 1.0f);
-            const float angleDeg = qRadiansToDegrees(2.0f * qAcos(dot));
-            m_angularVelocityDps = angleDeg / (dtMs * 0.001f);   // emitted from the display tick
-            m_prevQuat = cur;
-        } else {
-            m_prevQuat = QQuaternion(q.w, q.x, q.y, q.z);
-        }
-
-        // IMU impact auto-trigger (shot detection P1) — same-thread math on
-        // the raw synchronous accel/gyro (NOT angularVelocityDps, which is
-        // quaternion-derived and coarse) plus the fused quaternion. The club
-        // shaft lies along the sensor long axis (+Y, IMU_FRAME_CONTRACT.md);
-        // the world frame is +Z up, so |z| of the rotated axis is the
-        // orientation scalar.
-        {
-            const auto a = m_imu->accelData();
-            const auto g = m_imu->gyroData();
-            const QVector3D shaftWorld = QQuaternion(q.w, q.x, q.y, q.z)
-                                             .rotatedVector(QVector3D(0, 1, 0));
-            pinpoint::ImpactSample sample;
-            sample.accelMag     = std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
-            sample.gyroMag      = std::sqrt(g.x * g.x + g.y * g.y + g.z * g.z);
-            sample.clubVertical = std::fabs(shaftWorld.z());
-            sample.t_us = static_cast<int64_t>(pinpoint::EventBuffer::nowMicros());
-            const pinpoint::ImpactResult r = m_impactDetector.push(sample);
-            if (r.impact)
-                emit impactDetected(static_cast<qint64>(r.est_t_us), r.confidence);
-        }
-
-        onDataRecord();
-    });
-
-    // EventBuffer write — DirectConnection so the write happens on the BLE
-    // notification thread. Safe because stop() disconnects quaternionUpdated
-    // before deregisterFromBuffer(), severing the producer before ring memory
-    // is freed (same guarantee as the old rawPacketReady pattern).
-    // accelData()/gyroData() are current: dispatchCombinedPacket sets them
-    // before emitting quaternionUpdated.
-    if (m_eventBuffer && m_imuSourceId != pinpoint::kInvalidSourceId) {
-        connect(m_imu, &WT9011DCL_Base::quaternionUpdated,
-                this, [this](const WT9011DCL_Base::QuaternionData &q) {
-                    if (!m_eventBuffer->isCapturing()) return;
-                    auto slot = m_eventBuffer->acquireWriteSlot(m_imuSourceId);
-                    if (!slot.valid || slot.capacity < sizeof(pinpoint::ImuSample)) return;
-                    const auto a = m_imu->accelData();
-                    const auto g = m_imu->gyroData();
-                    // makeImuSample owns the stored frame (imu_sample.h) — the single
-                    // source of truth shared with the offline reader / exporter.
-                    const pinpoint::ImuSample s = pinpoint::makeImuSample(
-                        a.x, a.y, a.z, g.x, g.y, g.z, q.w, q.x, q.y, q.z);
-                    std::memcpy(slot.data, &s, sizeof(pinpoint::ImuSample));
-                    *slot.bytes_written = static_cast<uint32_t>(sizeof(pinpoint::ImuSample));
-                    *slot.timestamp_us  = static_cast<int64_t>(pinpoint::EventBuffer::nowMicros());
-                    m_eventBuffer->publish(m_imuSourceId, slot.sequence);
-                }, Qt::DirectConnection);
-    }
 }
 
 ImuInstance::~ImuInstance()
@@ -331,6 +285,17 @@ ImuInstance::~ImuInstance()
     m_logTimer.stop();
     m_batteryTimer.stop();
     m_gimbalPollTimer.stop();
+
+    // Defensive: ImuManager always calls stop() (the producer barrier) before
+    // destroying an instance; detachBuffer() is idempotent if it didn't.
+    if (m_worker)
+        m_worker->detachBuffer();
+
+    // The driver and worker live on the I/O thread — destroy them there. The
+    // thread outlives the instances (ImuManager joins it after deleting them),
+    // so these deferred deletes always run.
+    if (m_imu)    m_imu->deleteLater();
+    if (m_worker) m_worker->deleteLater();
 }
 
 void ImuInstance::start()
@@ -358,6 +323,8 @@ void ImuInstance::start()
     appendLog(timestamp() + QStringLiteral("  >>> Connecting to: ")
               + m_deviceDescription + QStringLiteral(" [") + m_deviceId + QStringLiteral("]"));
 
+    // connectToDevice runs ON the I/O thread so the QLowEnergyController (and
+    // the WinRT watchers behind it) are created with the right affinity.
 #ifdef Q_OS_LINUX
     // On Linux, assign adapters round-robin across connections so multiple IMUs
     // can stream simultaneously without contending for the same HCI adapter.
@@ -366,9 +333,13 @@ void ImuInstance::start()
     const QBluetoothAddress adapter = BleAdapterPool::instance()->nextAdapter();
     if (!adapter.isNull())
         appendLog(timestamp() + QStringLiteral("  BT adapter: ") + adapter.toString());
-    m_imu->connectToDevice(deviceInfo, adapter);
+    QMetaObject::invokeMethod(m_imu, [imu = m_imu, deviceInfo, adapter]() {
+        imu->connectToDevice(deviceInfo, adapter);
+    }, Qt::QueuedConnection);
 #else
-    m_imu->connectToDevice(deviceInfo);
+    QMetaObject::invokeMethod(m_imu, [imu = m_imu, deviceInfo]() {
+        imu->connectToDevice(deviceInfo);
+    }, Qt::QueuedConnection);
 #endif
 
     if (!m_busy) { m_busy = true; emit busyChanged(); }
@@ -380,8 +351,17 @@ void ImuInstance::stop()
     m_retryCount     = 0;
     m_inConnectPhase = false;
     m_attemptingConn = false;
-    disconnect(m_imu, &WT9011DCL_Base::quaternionUpdated, this, nullptr);
-    m_imu->disconnectFromDevice();
+
+    // Producer stop barrier, ON the I/O thread (blocking): sever the
+    // driver→worker data path and drop the BLE link; when this returns no new
+    // sample can enter processSample(). Then detachBuffer() waits out any
+    // write already in flight. After both, the caller may pause the buffer
+    // and deregister the source (EventBuffer producer contract).
+    QMetaObject::invokeMethod(m_imu, [imu = m_imu, worker = m_worker]() {
+        QObject::disconnect(imu, &WT9011DCL_Base::quaternionUpdated, worker, nullptr);
+        imu->disconnectFromDevice();
+    }, Qt::BlockingQueuedConnection);
+    m_worker->detachBuffer();
 }
 
 void ImuInstance::deregisterFromBuffer()
@@ -395,12 +375,18 @@ void ImuInstance::deregisterFromBuffer()
 void ImuInstance::setOrientationFilter(OrientationFilterType type)
 {
     if (m_imu)
-        m_imu->setOrientationFilter(type);
+        QMetaObject::invokeMethod(m_imu, [imu = m_imu, type]() {
+            imu->setOrientationFilter(type);
+        }, Qt::QueuedConnection);
 }
 
 void ImuInstance::setImpactSensitivity(float thresholdScale)
 {
-    m_impactDetector.config().thresholdScale = thresholdScale;
+    // The detector is producer-thread state — mutate it on the I/O thread so
+    // a mid-stream sensitivity change never races processSample().
+    QMetaObject::invokeMethod(m_worker, [worker = m_worker, thresholdScale]() {
+        worker->impactConfig().thresholdScale = thresholdScale;
+    }, Qt::QueuedConnection);
 }
 
 void ImuInstance::beginZeroing()
@@ -411,7 +397,8 @@ void ImuInstance::beginZeroing()
     appendLog(msg);
     m_zeroing = true;
     emit zeroingChanged();
-    m_imu->zeroToCurrentPose();           // CALSW × 3 + readRegisters(RegCalSw, 0)
+    QMetaObject::invokeMethod(m_imu, &WT9011DCL_Base::zeroToCurrentPose,
+                              Qt::QueuedConnection);   // CALSW × 3 + RegCalSw fence
     m_zeroSettleTimer.start(500);         // fallback: confirm after 500 ms if no hardware ACK
     m_zeroConfirmTimer.start(30'000);     // absolute 30 s deadline
 }
@@ -420,8 +407,10 @@ void ImuInstance::zeroOrientation()
 {
     if (!m_connected) return;
     appendLog(timestamp() + "  Zeroing orientation…");
-    m_imu->reinitialize();
-    m_imu->zeroToCurrentPose();   // reinitialize() no longer zeros; must call explicitly
+    QMetaObject::invokeMethod(m_imu, [imu = m_imu]() {
+        imu->reinitialize();
+        imu->zeroToCurrentPose();   // reinitialize() no longer zeros; explicit
+    }, Qt::QueuedConnection);
 
     // Reinitialising changes the device configuration. If calibration was
     // previously set, it is now invalid — the user must recalibrate.
@@ -466,9 +455,12 @@ void ImuInstance::logDiag(const QString &tag, const QString &payload)
         return;
     }
 
-    const auto a = m_imu ? m_imu->accelData()      : WT9011DCL_Base::AccelData{};
-    const auto g = m_imu ? m_imu->gyroData()       : WT9011DCL_Base::GyroData{};
-    const auto q = m_imu ? m_imu->quaternionData() : WT9011DCL_Base::QuaternionData{};
+    // The driver lives on the I/O thread — read the worker's snapshot (raw
+    // sensor-frame vectors + fused quat from the latest processed packet).
+    const ImuIoWorker::LiveSample snap = m_worker->snapshot();
+    struct { float x, y, z; } a{ snap.accelX, snap.accelY, snap.accelZ };
+    struct { float x, y, z; } g{ snap.gyroX,  snap.gyroY,  snap.gyroZ  };
+    struct { float w, x, y, z; } q{ snap.quatW, snap.quatX, snap.quatY, snap.quatZ };
 
     QTextStream out(&f);
     out << timestamp()
@@ -492,17 +484,32 @@ void ImuInstance::logDiag(const QString &tag, const QString &payload)
     appendLog(timestamp() + QStringLiteral("  [diag] ") + tag + QStringLiteral("  ") + payload);
 }
 
-// Raw packet streaming (retained dev tool) — see header.
+// Raw packet streaming (retained dev tool) — see header. A per-packet queued
+// connection exists ONLY between begin/end, so the diagnostic costs nothing
+// when off; lines are built from the worker snapshot (same-packet values: the
+// snapshot is published before the queued signal is delivered here).
 void ImuInstance::beginRawDump(const QString &tag)
 {
     m_rawDumpTag = tag;
     m_rawDumpLines.clear();
     m_rawDump = true;
+    m_rawDumpConn = connect(m_imu, &WT9011DCL_Base::quaternionUpdated,
+                            this, [this](const WT9011DCL_Base::QuaternionData &) {
+        const ImuIoWorker::LiveSample snap = m_worker->snapshot();
+        m_rawDumpLines.append(
+            QStringLiteral("euler=(%1,%2,%3) accel=(%4,%5,%6) gyro=(%7,%8,%9) qraw=(%10,%11,%12,%13)")
+                .arg(snap.eulerRoll, 0, 'f', 4).arg(snap.eulerPitch, 0, 'f', 4).arg(snap.eulerYaw, 0, 'f', 4)
+                .arg(snap.accelX, 0, 'f', 5).arg(snap.accelY, 0, 'f', 5).arg(snap.accelZ, 0, 'f', 5)
+                .arg(snap.gyroX, 0, 'f', 4).arg(snap.gyroY, 0, 'f', 4).arg(snap.gyroZ, 0, 'f', 4)
+                .arg(snap.quatW, 0, 'f', 6).arg(snap.quatX, 0, 'f', 6)
+                .arg(snap.quatY, 0, 'f', 6).arg(snap.quatZ, 0, 'f', 6));
+    });
 }
 
 void ImuInstance::endRawDump()
 {
     m_rawDump = false;
+    disconnect(m_rawDumpConn);
     const QString path = QDir(QStandardPaths::writableLocation(QStandardPaths::HomeLocation))
                              .filePath(QStringLiteral("pinpointstudio_imu_raw.log"));
     QFile f(path);
@@ -594,6 +601,7 @@ void ImuInstance::setFunctionalCalibration(const QQuaternion &refRaw,
                                 .arg(m_mountDeviationDeg > 15.0 ? QStringLiteral(" — CHECK SEATING")
                                    : (!a.valid ? QStringLiteral(" — axis POOR") : QString())));
 
+    m_worker->setAnatomical(m_alignA, m_mountM, m_anatCalibrated);
     emit anatCalibratedChanged();
     emit quatChanged();   // refresh anatQuat consumers
 }
@@ -614,9 +622,9 @@ void ImuInstance::setNominalCalibration(const QQuaternion &refRaw, bool handMoun
     // ~ anatomical "up" (0,-1,0); a flipped / upside-down mount points it elsewhere
     // (phi/mount-deviation is blind to this). Caller treats a large value as a
     // mount FAIL (re-seat). Assumes the sensor is held at the arm-down pose.
-    if (m_imu) {
-        const auto a = m_imu->accelData();
-        QVector3D acc(a.x, a.y, a.z);
+    {
+        const ImuIoWorker::LiveSample snap = m_worker->snapshot();
+        QVector3D acc(snap.accelX, snap.accelY, snap.accelZ);
         if (acc.lengthSquared() > 1e-6f) {
             const QVector3D gBody = m_mountM.conjugated().rotatedVector(acc.normalized());
             const float dot = qBound(-1.0f, QVector3D::dotProduct(gBody, QVector3D(0.0f, -1.0f, 0.0f)), 1.0f);
@@ -630,6 +638,7 @@ void ImuInstance::setNominalCalibration(const QQuaternion &refRaw, bool handMoun
                                 .arg(m_mountGravityErrorDeg, 0, 'f', 1)
                                 .arg(m_mountGravityErrorDeg > 25.0 ? QStringLiteral(" — MOUNT FLIPPED?") : QString()));
 
+    m_worker->setAnatomical(m_alignA, m_mountM, m_anatCalibrated);
     emit anatCalibratedChanged();
     emit quatChanged();
 }
@@ -663,6 +672,7 @@ void ImuInstance::refineMountAboutLongAxis(const QQuaternion &refRaw, double phi
                  << "— precise refine REJECTED (phi" << phiDeg << "deg too large); kept nominal";
         appendLog(timestamp() + QStringLiteral("  Precise refine rejected (Δ %1° too large) — kept nominal.")
                                     .arg(phiDeg, 0, 'f', 1));
+        m_worker->setAnatomical(m_alignA, m_mountM, m_anatCalibrated);
         emit anatCalibratedChanged();
         emit quatChanged();
         return;
@@ -682,6 +692,7 @@ void ImuInstance::refineMountAboutLongAxis(const QQuaternion &refRaw, double phi
                                 .arg(phiDeg, 0, 'f', 1)
                                 .arg(std::abs(phiDeg) > 15.0 ? QStringLiteral(" — CHECK SEATING") : QString()));
 
+    m_worker->setAnatomical(m_alignA, m_mountM, m_anatCalibrated);
     emit anatCalibratedChanged();
     emit quatChanged();
 }
@@ -691,6 +702,7 @@ void ImuInstance::clearFunctionalCalibration()
     m_anatCalibrated = false;
     m_alignA = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
     m_mountM = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+    m_worker->setAnatomical(m_alignA, m_mountM, false);
     emit anatCalibratedChanged();
     emit quatChanged();
 }
@@ -710,10 +722,12 @@ void ImuInstance::setOutputRateHz(int hz)
     emit outputRateHzChanged();
     // Always sync the driver's internal rate register so initializeDevice() uses
     // the right value from the first connection. writeToDevice() is a no-op when
-    // disconnected so this is safe to call at any time.
-    m_imu->setOutputRate(rate);
-    if (m_connected)
-        m_imu->reinitialize();
+    // disconnected so this is safe to call at any time. Driver state — I/O thread.
+    QMetaObject::invokeMethod(m_imu, [imu = m_imu, rate, connected = m_connected]() {
+        imu->setOutputRate(rate);
+        if (connected)
+            imu->reinitialize();
+    }, Qt::QueuedConnection);
 }
 
 void ImuInstance::onStateChanged(WT9011DCL_BLE::State s)
@@ -725,7 +739,6 @@ void ImuInstance::onStateChanged(WT9011DCL_BLE::State s)
         m_logTimer.stop();
         m_batteryTimer.stop();
         m_gimbalPollTimer.stop();
-        m_packetTimes.clear();
         if (m_dataRateHz != 0.0)    { m_dataRateHz = 0.0; emit dataRateHzChanged(); }
         if (m_batteryPercent != -1) { m_batteryPercent = -1; emit batteryPercentChanged(); }
         if (m_connected || m_busy) {
@@ -779,8 +792,8 @@ void ImuInstance::onStateChanged(WT9011DCL_BLE::State s)
         m_totalRecords    = 0;
         m_recordsSinceLog = 0;
         m_batteryRetries  = 0;
-        m_packetTimes.clear();
-        m_imu->resetGimbalDropCount();
+        m_seqBase         = m_lastSeq;   // per-connection record totals
+        m_imu->resetGimbalDropCount();   // atomic — safe cross-thread
         if (m_gimbalDropCount != 0) { m_gimbalDropCount = 0; emit gimbalDropCountChanged(); }
         m_logTimer.start(kLogIntervalMs);
         m_gimbalPollTimer.start();
@@ -790,7 +803,8 @@ void ImuInstance::onStateChanged(WT9011DCL_BLE::State s)
         QTimer::singleShot(1500, this, [this]() {
             if (m_connected) {
                 appendLog(timestamp() + "  Requesting battery level…");
-                m_imu->requestBattery();
+                QMetaObject::invokeMethod(m_imu, &WT9011DCL_BLE::requestBattery,
+                                          Qt::QueuedConnection);
             }
         });
         m_batteryTimer.start();
@@ -819,25 +833,6 @@ void ImuInstance::onStateChanged(WT9011DCL_BLE::State s)
         }
         break;
     }
-}
-
-void ImuInstance::onDataRecord()
-{
-    ++m_totalRecords;
-    ++m_recordsSinceLog;
-
-    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-    m_packetTimes.append(nowMs);
-    const qint64 cutoff = nowMs - kRollingWindowMs;
-    while (!m_packetTimes.isEmpty() && m_packetTimes.first() < cutoff)
-        m_packetTimes.removeFirst();
-
-    const qint64 windowMs = m_packetTimes.size() > 1
-        ? (nowMs - m_packetTimes.first()) : 0;
-    const double hz = (windowMs > 0)
-        ? (m_packetTimes.size() * 1000.0 / windowMs) : 0.0;
-
-    m_dataRateHz = hz;   // emitted (delta-gated) from the 60 Hz display tick
 }
 
 QString ImuInstance::timestamp()

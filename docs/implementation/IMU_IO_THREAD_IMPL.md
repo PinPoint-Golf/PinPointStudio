@@ -1,6 +1,7 @@
 # IMU I/O Thread — Implementation Plan (device interaction off the GUI thread)
 
-> **Status:** W0 IMPLEMENTED (worker + validation tests, not yet wired) · W1–W4 planned ·
+> **Status:** W0–W3 IMPLEMENTED (worker + tests, thread hosting, control marshaling,
+> teardown barriers) · W4 (studio validation) pending ·
 > **Date:** 2026-06-11 · **Grounded against:** the studio performance triage of the same day
 >
 > Moves all per-packet IMU work off the GUI thread onto one dedicated I/O thread.
@@ -71,7 +72,7 @@ ImuInstance (GUI, unchanged QML API)
    backdated by `bleLatencyUs` to the µs
 6. 25 attach/hammer/detach/deregister churn cycles
 
-## W1 — Thread hosting + data-path wiring
+## W1 — Thread hosting + data-path wiring ✓
 
 - `ImuManager` owns the `ImuIoThread` (created on first selection, joined in the
   destructor after all instances are gone).
@@ -90,7 +91,7 @@ ImuInstance (GUI, unchanged QML API)
   unchanged. `impactDetected`: worker → `ImuInstance` (queued) → existing
   ShotController wiring; timestamps are absolute, so the queued hop costs nothing.
 
-## W2 — Control marshaling (GUI → I/O thread)
+## W2 — Control marshaling (GUI → I/O thread) ✓
 
 Every driver/worker mutation from the GUI becomes an `invokeMethod` onto the I/O
 thread (or a worker any-thread call, which is already mutex-safe):
@@ -103,7 +104,7 @@ thread (or a worker any-thread call, which is already mutex-safe):
 - impact sensitivity (`ImuManager` threshold scale) — `worker->impactConfig()`
   before streaming starts (documented pre-stream contract).
 
-## W3 — Teardown ordering (the risk concentration)
+## W3 — Teardown ordering (the risk concentration) ✓
 
 `ImuInstance::stop()` becomes, in order:
 1. blocking invoke on the I/O thread: disconnect driver→worker connection and

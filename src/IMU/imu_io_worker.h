@@ -54,13 +54,29 @@ class ImuIoWorker : public QObject
     Q_OBJECT
 
 public:
-    // GUI-facing state, copied out under the lock. seq increments once per
-    // processed sample so consumers (and the coherence tests) can detect
-    // change and torn reads.
+    // One parsed combined packet. nowUs is the host-arrival steady-clock
+    // instant (EventBuffer::nowMicros() domain), passed in rather than read
+    // inside the worker so tests can drive a synthetic clock. accel is g,
+    // gyro is °/s, both RAW sensor frame (imu_sample.h v2); the quaternion is
+    // the host-fused orientation; euler is the device's display-only angles.
+    struct RawSample {
+        qint64 nowUs = 0;
+        float  qw = 1.f, qx = 0.f, qy = 0.f, qz = 0.f;
+        float  ax = 0.f, ay = 0.f, az = 0.f;
+        float  gx = 0.f, gy = 0.f, gz = 0.f;
+        float  eulerRoll = 0.f, eulerPitch = 0.f, eulerYaw = 0.f;
+    };
+
+    // GUI-facing state, copied out under the lock. All vectors RAW sensor
+    // frame — display remapping is the GUI tick's concern. seq increments
+    // once per processed sample so consumers (and the coherence tests) can
+    // detect change and torn reads.
     struct LiveSample {
         float quatW = 1.f, quatX = 0.f, quatY = 0.f, quatZ = 0.f;  // fused, raw frame
         QQuaternion anatQuat;                  // A·q·M when calibrated, else raw
-        float  accelX = 0.f, accelY = 0.f, accelZ = 0.f;   // DISPLAY frame (x, z, −y)
+        float  accelX = 0.f, accelY = 0.f, accelZ = 0.f;   // RAW sensor frame, g
+        float  gyroX = 0.f, gyroY = 0.f, gyroZ = 0.f;      // RAW sensor frame, °/s
+        float  eulerRoll = 0.f, eulerPitch = 0.f, eulerYaw = 0.f;  // device, display-only
         float  angularVelocityDps = 0.f;
         double dataRateHz = 0.0;
         quint64 seq = 0;
@@ -69,14 +85,7 @@ public:
     explicit ImuIoWorker(QObject *parent = nullptr);
 
     // ── Producer-thread entry point ──────────────────────────────────────────
-    // nowUs is the host-arrival steady-clock instant (EventBuffer::nowMicros()
-    // domain), passed in rather than read here so tests can drive a synthetic
-    // clock. accel is g, gyro is °/s, both RAW sensor frame (imu_sample.h v2);
-    // the quaternion is the host-fused orientation.
-    void processSample(qint64 nowUs,
-                       float qw, float qx, float qy, float qz,
-                       float ax, float ay, float az,
-                       float gxDps, float gyDps, float gzDps);
+    void processSample(const RawSample &in);
 
     // ── Any-thread API ───────────────────────────────────────────────────────
     LiveSample snapshot() const;

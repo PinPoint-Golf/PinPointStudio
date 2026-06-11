@@ -243,6 +243,7 @@ void WT9011DCL_Base::dispatchCombinedPacket(const QByteArray &frame)
     euler.roll  = roll  / 32768.0f * 180.0f;
     euler.pitch = pitch / 32768.0f * 180.0f;
     euler.yaw   = yaw   / 32768.0f * 180.0f;
+    m_euler = euler;
     emit eulerAnglesUpdated(euler);   // display labels only
 
     // Fuse orientation locally from the raw gyro+accel (ImuBase, shared across
@@ -312,7 +313,8 @@ void WT9011DCL_Base::parseEuler(const QByteArray &d)
     euler.pitch = le16(d, 2) / 32768.0f * 180.0f;
     euler.yaw   = le16(d, 4) / 32768.0f * 180.0f;
     const auto q = eulerToQuat(euler);
-    if (!q) { ++m_gimbalDropCount; return; }
+    if (!q) { m_gimbalDropCount.fetch_add(1, std::memory_order_relaxed); return; }
+    m_euler = euler;
     emit eulerAnglesUpdated(euler);
     m_quat = *q;
     emit quaternionUpdated(m_quat);

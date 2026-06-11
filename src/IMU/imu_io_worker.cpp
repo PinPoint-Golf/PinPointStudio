@@ -32,11 +32,12 @@ ImuIoWorker::ImuIoWorker(QObject *parent)
 {
 }
 
-void ImuIoWorker::processSample(qint64 nowUs,
-                                float qw, float qx, float qy, float qz,
-                                float ax, float ay, float az,
-                                float gxDps, float gyDps, float gzDps)
+void ImuIoWorker::processSample(const RawSample &in)
 {
+    const qint64 nowUs = in.nowUs;
+    const float  qw = in.qw, qx = in.qx, qy = in.qy, qz = in.qz;
+    const float  ax = in.ax, ay = in.ay, az = in.az;
+    const float  gxDps = in.gx, gyDps = in.gy, gzDps = in.gz;
     const QQuaternion qRaw(qw, qx, qy, qz);
 
     // Angular velocity from successive quaternions, for the Calibrate step's
@@ -98,10 +99,11 @@ void ImuIoWorker::processSample(qint64 nowUs,
     m_live.anatQuat = m_anatCalibrated
                           ? imu_calibration::toAnatomical(m_alignA, qRaw, m_mountM)
                           : qRaw;
-    // Display-frame remap (sensor X→X, Z→Y, −Y→Z) — same as the old handler.
-    m_live.accelX = ax;
-    m_live.accelY = az;
-    m_live.accelZ = -ay;
+    m_live.accelX = ax;        m_live.accelY = ay;        m_live.accelZ = az;
+    m_live.gyroX  = gxDps;     m_live.gyroY  = gyDps;     m_live.gyroZ  = gzDps;
+    m_live.eulerRoll  = in.eulerRoll;
+    m_live.eulerPitch = in.eulerPitch;
+    m_live.eulerYaw   = in.eulerYaw;
     m_live.angularVelocityDps = m_velDps;
     m_live.dataRateHz = rateHz;
     ++m_live.seq;

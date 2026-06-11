@@ -20,6 +20,7 @@
 
 #include "imu_base.h"
 #include "imu_capabilities.h"
+#include <atomic>
 #include <optional>
 
 // WT9011DCL (MPU9250) IMU protocol layer — transport-agnostic.
@@ -157,8 +158,9 @@ public:
     // are silently dropped in eulerToQuat() rather than producing a degenerate quaternion.
     static constexpr float kGimbalLockThresholdDeg = 85.0f;
 
-    int  gimbalDropCount()      const { return m_gimbalDropCount; }
-    void resetGimbalDropCount()       { m_gimbalDropCount = 0; }
+    // Atomic: incremented on the packet (I/O) thread, polled from the GUI.
+    int  gimbalDropCount()      const { return m_gimbalDropCount.load(std::memory_order_relaxed); }
+    void resetGimbalDropCount()       { m_gimbalDropCount.store(0, std::memory_order_relaxed); }
 
     // Orientation fusion (resetOrientationFilter / setOrientationFilter /
     // orientationFilterType) is provided by ImuBase and shared by all devices.
@@ -173,6 +175,7 @@ public:
     GyroData       gyroData()       const override { return m_gyro;  }
     MagData        magData()        const override { return m_mag;   }
     QuaternionData quaternionData() const override { return m_quat;  }
+    EulerAngles    eulerData()      const          { return m_euler; }
 
 protected:
     // Converts device Euler angles to a world-frame quaternion, applying any
@@ -258,7 +261,8 @@ private:
     GyroData       m_gyro;
     MagData        m_mag;
     QuaternionData m_quat;
-    int            m_gimbalDropCount = 0;
+    EulerAngles    m_euler;
+    std::atomic<int> m_gimbalDropCount{0};
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(WT9011DCL_Base::OutputFlags)

@@ -31,6 +31,11 @@ ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, 
     // and round-robin connection assignment are both ready from the start.
     BleAdapterPool::instance()->initialize();
 
+    // The shared IMU I/O thread — always running (an idle event loop is free);
+    // every instance's driver + worker is moved onto it at creation.
+    m_ioThread.setObjectName(QStringLiteral("ImuIoThread"));
+    m_ioThread.start();
+
     // Seed the per-session exclusion list from the persisted global enablement
     // (mirrors CameraManager). Track the global list so mid-session Settings
     // changes can be diffed into the session list below.
@@ -106,6 +111,13 @@ ImuManager::~ImuManager()
     }
     for (auto &entry : m_selected)
         delete entry.instance;
+
+    // Join the I/O thread LAST: the instance destructors queue their driver/
+    // worker deleteLater events onto its loop, and quit() is processed after
+    // those (posted later), so everything living on the thread is destroyed
+    // there before it exits.
+    m_ioThread.quit();
+    m_ioThread.wait();
 }
 
 // ---------------------------------------------------------------------------
@@ -409,7 +421,7 @@ void ImuManager::setOrientationFilter(const QString &name)
 
 ImuInstance *ImuManager::createInstance(const Device &device)
 {
-    auto *inst = new ImuInstance(device, m_eventBuffer, this);
+    auto *inst = new ImuInstance(device, m_eventBuffer, &m_ioThread, this);
 
     // Restore persisted output rate so it is applied from the very first
     // initializeDevice() call rather than only after the State::Ready reinit.
