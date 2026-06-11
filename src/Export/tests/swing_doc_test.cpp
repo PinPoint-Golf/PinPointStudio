@@ -52,6 +52,13 @@ int main()
     m.phaseSamples.push_back({ Phase::Impact, 1010000, -8.0, QStringLiteral("green") });
     a.series.push_back(m);
     a.phases.push_back({ Phase::Impact, 1010000, 1.0f });
+    a.phases.push_back({ Phase::Top, 700000, 0.9f, SegmentRole::LeadHand });
+
+    // Segmentation block (v3 G2): swing bounds + ladder meta.
+    a.segmentation.swingStartUs = 250000;
+    a.segmentation.swingEndUs   = 1400000;
+    a.segmentation.conf         = 0.84f;
+    a.segmentation.version      = 2;
 
     // ShaftTracker blocks (S3): one pose frame + a valid 2-sample club track.
     PoseFrame2D pf;
@@ -101,8 +108,23 @@ int main()
     check(m0[QStringLiteral("t_us")].toArray().size() == 3 && m0[QStringLiteral("value")].toArray().size() == 3, "t_us + value arrays (len 3)");
     check(qFuzzyCompare(m0[QStringLiteral("value")].toArray().at(1).toDouble(), 12.5), "value[1] == 12.5");
     check(m0[QStringLiteral("phaseSamples")].toArray().size() == 1, "phaseSamples");
-    check(an[QStringLiteral("phases")].toArray().size() == 1, "phases array");
+    check(an[QStringLiteral("phases")].toArray().size() == 2, "phases array");
     check(static_cast<qint64>(an[QStringLiteral("phases")].toArray().at(0).toObject()[QStringLiteral("t_us")].toDouble()) == 1010000, "phase t_us preserved");
+    check(an[QStringLiteral("phases")].toArray().at(1).toObject()[QStringLiteral("segment")].toInt()
+              == int(SegmentRole::LeadHand), "phase provenance preserved");
+
+    std::printf("\n=== segmentation block (v3 G2) ===\n");
+    {
+        check(an.contains(QStringLiteral("segmentation")), "segmentation block present");
+        const QJsonObject sg = an[QStringLiteral("segmentation")].toObject();
+        check(static_cast<qint64>(sg[QStringLiteral("swingStartUs")].toDouble()) == 250000,
+              "swingStartUs preserved");
+        check(static_cast<qint64>(sg[QStringLiteral("swingEndUs")].toDouble()) == 1400000,
+              "swingEndUs preserved");
+        check(qFuzzyCompare(sg[QStringLiteral("conf")].toDouble(), double(0.84f)),
+              "segmentation conf preserved");
+        check(sg[QStringLiteral("version")].toInt() == 2, "segmentation version preserved");
+    }
 
     std::printf("\n=== ShaftTracker blocks (pose2d + club) ===\n");
     {
@@ -148,7 +170,11 @@ int main()
         check(fe.value(QStringLiteral("value")).toString() == QStringLiteral("-8°"), "flat metric value -8 deg");
         check(ps.analysisDetail.value(QStringLiteral("overall")).toInt() == 82, "analysisDetail.overall");
         check(ps.analysisDetail.value(QStringLiteral("series")).toList().size() == 1, "analysisDetail.series len 1");
-        check(ps.analysisDetail.value(QStringLiteral("phases")).toList().size() == 1, "analysisDetail.phases len 1");
+        check(ps.analysisDetail.value(QStringLiteral("phases")).toList().size() == 2, "analysisDetail.phases len 2");
+        const QVariantMap sg = ps.analysisDetail.value(QStringLiteral("segmentation")).toMap();
+        check(sg.value(QStringLiteral("swingStartUs")).toLongLong() == 250000
+                  && sg.value(QStringLiteral("swingEndUs")).toLongLong() == 1400000,
+              "analysisDetail.segmentation bounds reload");
         const QVariantMap p2 = ps.analysisDetail.value(QStringLiteral("pose2d")).toMap();
         check(p2.value(QStringLiteral("frames")).toList().size() == 1, "reloaded pose2d frames");
         const QVariantMap cb = ps.analysisDetail.value(QStringLiteral("club")).toMap();

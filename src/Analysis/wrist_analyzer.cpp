@@ -82,6 +82,33 @@ const MetricSeries *find(const std::vector<MetricSeries> &v, const QString &key)
     return nullptr;
 }
 
+// Copy of the fused streams restricted to [fromUs, toUs] — the metric grid
+// spans the detected swing, not the raw 5 s ring. Timestamps stay absolute.
+FusedStreams trimStreams(const FusedStreams &in, int64_t fromUs, int64_t toUs)
+{
+    const auto lo = std::lower_bound(in.timeGrid.begin(), in.timeGrid.end(), fromUs);
+    const auto hi = std::upper_bound(in.timeGrid.begin(), in.timeGrid.end(), toUs);
+    const size_t a = size_t(lo - in.timeGrid.begin());
+    const size_t b = size_t(hi - in.timeGrid.begin());
+    if (a >= b)
+        return in;   // degenerate bounds — keep the full grid
+    FusedStreams out;
+    out.timeGrid.assign(in.timeGrid.begin() + long(a), in.timeGrid.begin() + long(b));
+    for (const SegmentStream &s : in.segments) {
+        if (s.qAnat.size() != in.timeGrid.size())
+            continue;   // malformed stream — drop rather than misalign
+        SegmentStream t;
+        t.role = s.role;
+        t.qAnat.assign(s.qAnat.begin() + long(a), s.qAnat.begin() + long(b));
+        if (s.gyroDps.size() == in.timeGrid.size())
+            t.gyroDps.assign(s.gyroDps.begin() + long(a), s.gyroDps.begin() + long(b));
+        if (s.accelG.size() == in.timeGrid.size())
+            t.accelG.assign(s.accelG.begin() + long(a), s.accelG.begin() + long(b));
+        out.segments.push_back(std::move(t));
+    }
+    return out;
+}
+
 double phaseValue(const MetricSeries &m, Phase p)
 {
     for (const PhaseSample &s : m.phaseSamples)
@@ -155,7 +182,14 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
 
     const Segmentation segmentation = PhaseSegmenter::segment(streams, job.impactUs);
     const std::vector<PhaseEvent> &phases = segmentation.events;
-    std::vector<MetricSeries> series = MetricExtractor::extract(streams, phases, job.handedness);
+    // Metric grids span address → finish, not the raw ring (design A.6): hand
+    // the extractor a trimmed copy when the bounds are real. Everything else
+    // (shaft qHand sampling) keeps the full streams.
+    std::vector<MetricSeries> series = MetricExtractor::extract(
+        segmentation.conf > 0.f
+            ? trimStreams(streams, segmentation.swingStartUs, segmentation.swingEndUs)
+            : streams,
+        phases, job.handedness);
     if (series.empty()) {
         r.ok = false;
         r.error = QStringLiteral("no wrist metrics (need forearm + hand IMUs)");
@@ -189,8 +223,9 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
         }
     }
 
-    detail->series = series;
-    detail->phases = phases;
+    detail->series       = series;
+    detail->phases       = phases;
+    detail->segmentation = segmentation;
     detail->tier   = static_cast<int>(ReconstructionTier::Mono3DPlusImu);
     detail->score  = SwingScorer::score(series, job.sessionType);
 

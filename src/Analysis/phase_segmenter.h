@@ -84,23 +84,8 @@ struct SegmentationConfig {
     int64_t boundPadUs         = 250000;
 };
 
-// The segmentation result (design A.6): the event ladder plus the logical
-// swing bounds consumers truncate to. The frozen window itself is never
-// trimmed. conf == 0 means "bounds are just the window" — consumers needing
-// real truncation (heavy-stage bounding, export trim) must check it.
-struct Segmentation {
-    std::vector<PhaseEvent> events;        // time-ordered, monotone ladder
-    int64_t swingStartUs = 0;              // Address − pad, clamped to coverage
-    int64_t swingEndUs   = 0;              // Finish  + pad, clamped to coverage
-    float   conf         = 0.0f;           // min over {Address, Top, Impact, Finish}
-    int     version      = 2;              // 3 once the shaft refinement ran
-
-    const PhaseEvent *eventFor(Phase p) const {
-        for (const PhaseEvent &e : events)
-            if (e.phase == p) return &e;
-        return nullptr;
-    }
-};
+// The Segmentation result struct lives in swing_analysis.h (canonical home —
+// it rides SwingAnalysis and the export/analysis jobs).
 
 class PhaseSegmenter {
 public:

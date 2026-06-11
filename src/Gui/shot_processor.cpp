@@ -28,6 +28,8 @@
 #include "imu_manager.h"
 #include "session_controller.h"
 #include "shot_list_model.h"
+#include "../Analysis/imu_vision_fuser.h"
+#include "../Analysis/phase_segmenter.h"
 #include "../Analysis/swing_analysis.h"
 #include "../Export/swing_doc.h"
 #include "../Core/pp_debug.h"
@@ -46,13 +48,16 @@ namespace {
 
 // Post-trigger capture continuation, per source — the buffer keeps capturing
 // for this long after the trigger so the follow-through lands in the ring
-// before it freezes. All 500 ms for now; per-source constants so each
-// detector can be tuned independently once its latency is characterised.
+// before it freezes. Auto detectors use 1250 ms (segmentation v3: the finish
+// is follow-through ~0.67 s + decay-to-still, physically truncated at 500 ms
+// — design A.6; impact then sits ~3.75 s into the 5 s ring, leaving ample
+// pre-impact room). Manual stays 500 ms: the user presses after the swing and
+// impact is back-dated, so the finish is already in the ring.
 constexpr int kPostRollManualMs   = 500;
-constexpr int kPostRollImuMs      = 500;
-constexpr int kPostRollPoseMs     = 500;
-constexpr int kPostRollBallMs     = 500;
-constexpr int kPostRollAcousticMs = 500;
+constexpr int kPostRollImuMs      = 1250;
+constexpr int kPostRollPoseMs     = 1250;
+constexpr int kPostRollBallMs     = 1250;
+constexpr int kPostRollAcousticMs = 1250;
 
 int postRollMsFor(ShotController::Source s)
 {
@@ -93,13 +98,25 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
     }
     QVariantList phases;
     for (const PhaseEvent &e : a.phases)
-        phases.append(QVariantMap{ { QStringLiteral("phase"), int(e.phase) },
-                                   { QStringLiteral("t_us"),  static_cast<qlonglong>(e.t_us) },
-                                   { QStringLiteral("conf"),  e.conf } });
+        phases.append(QVariantMap{ { QStringLiteral("phase"),   int(e.phase) },
+                                   { QStringLiteral("t_us"),    static_cast<qlonglong>(e.t_us) },
+                                   { QStringLiteral("conf"),    e.conf },
+                                   { QStringLiteral("segment"), int(e.provenance) } });
     QVariantMap detail{ { QStringLiteral("tier"),    a.tier },
                         { QStringLiteral("overall"), a.score.overall },
                         { QStringLiteral("series"),  series },
                         { QStringLiteral("phases"),  phases } };
+
+    // Swing bounds + ladder meta (v3 G2) — same shape the doc reader reloads.
+    if (a.segmentation.swingEndUs > a.segmentation.swingStartUs)
+        detail.insert(QStringLiteral("segmentation"),
+                      QVariantMap{
+                          { QStringLiteral("swingStartUs"),
+                            static_cast<qlonglong>(a.segmentation.swingStartUs) },
+                          { QStringLiteral("swingEndUs"),
+                            static_cast<qlonglong>(a.segmentation.swingEndUs) },
+                          { QStringLiteral("conf"),    double(a.segmentation.conf) },
+                          { QStringLiteral("version"), a.segmentation.version } });
 
     // ShaftTracker blocks for the replay overlay — IDENTICAL shapes to the
     // swing.json blocks SwingDocReader reloads (swing_doc.cpp), keypoints and
@@ -207,6 +224,9 @@ ShotProcessor::ShotProcessor(pinpoint::EventBuffer *buffer,
             this, &ShotProcessor::onSwingSaveFinished);
     connect(&m_analysisWatcher, &QFutureWatcher<ShotAnalysisResult>::finished,
             this, &ShotProcessor::onAnalysisFinished);
+    connect(&m_segmentationWatcher,
+            &QFutureWatcher<pinpoint::analysis::Segmentation>::finished,
+            this, &ShotProcessor::onSegmentationFinished);
 }
 
 ShotProcessor::~ShotProcessor()
@@ -329,6 +349,7 @@ void ShotProcessor::captureWindowAndLaunch()
     m_exportOutcome   = Outcome::Pending;
     m_analysisOutcome = Outcome::Pending;
     m_analysisResult  = {};
+    m_segmentation    = {};
     m_swingDir.clear();
     m_thumbnailPath.clear();
     setState(State::Processing);
@@ -337,14 +358,47 @@ void ShotProcessor::captureWindowAndLaunch()
              << static_cast<qint64>(m_swingWindow->entries().size()) << "entries,"
              << m_replayTracks.size() << "camera track(s)";
 
-    // Both workers read the same frozen window concurrently — const, zero-copy
-    // reads over stable memory (producers stopped while Paused).
+    // Segmentation pre-stage (v3 G2): a milliseconds-cheap fuse + inertial
+    // ladder over the frozen window, gating both heavy workers — its swing
+    // bounds trim the export encode span and the replay. The job is resolved
+    // on the UI thread NOW (value types only); failure or no-IMU yields a
+    // conf-0 result and everything below degrades to full-window behaviour.
+    m_analysisJob = buildAnalysisJob();
+    const pinpoint::SwingWindow *win = &*m_swingWindow;
+    m_segmentationInFlight = true;
+    m_segmentationWatcher.setFuture(QtConcurrent::run(
+        [bindings = m_analysisJob.imuBindings, impactUs = m_impactUs, win] {
+            try {
+                const pinpoint::analysis::FusedStreams streams =
+                    pinpoint::analysis::ImuVisionFuser::fuse(*win, bindings);
+                return pinpoint::analysis::PhaseSegmenter::segment(streams, impactUs);
+            } catch (...) {
+                return pinpoint::analysis::Segmentation{};   // conf 0 → full window
+            }
+        }));
+}
+
+void ShotProcessor::onSegmentationFinished()
+{
+    if (!m_segmentationInFlight)
+        return;   // already joined blockingly in finishNowBlocking()
+    m_segmentationInFlight = false;
+    if (m_state != State::Processing)
+        return;   // aborted while the pre-stage ran
+    m_segmentation = m_segmentationWatcher.result();
+    ppInfo() << "[ShotProcessor] segmentation —"
+             << static_cast<qint64>(m_segmentation.events.size()) << "events, span"
+             << (m_segmentation.swingEndUs - m_segmentation.swingStartUs) / 1000 << "ms,"
+             << "conf" << m_segmentation.conf;
+
+    // Both heavy workers read the same frozen window concurrently — const,
+    // zero-copy reads over stable memory (producers stopped while Paused).
     startAnalysis();
     startSwingSave();
     maybeJoin();   // covers the export-skipped path completing synchronously
 }
 
-void ShotProcessor::startAnalysis()
+ShotAnalysisJob ShotProcessor::buildAnalysisJob()
 {
     ShotAnalysisJob job;
     job.sessionType = m_sessionType;
@@ -410,6 +464,12 @@ void ShotProcessor::startAnalysis()
         QMetaObject::invokeMethod(this, [this, p] { setAnalysisProgress(p); },
                                   Qt::QueuedConnection);
     };
+    return job;
+}
+
+void ShotProcessor::startAnalysis()
+{
+    ShotAnalysisJob job = m_analysisJob;   // resolved in captureWindowAndLaunch
 
     const pinpoint::SwingWindow *win = &*m_swingWindow;   // stable optional storage
     m_analysisInFlight = true;
@@ -552,6 +612,13 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
             job.thumbnailSourceId = track.sourceId;
             break;
         }
+    }
+
+    // Encode span from the pre-stage segmentation (v3 G2): MP4s span
+    // address → finish. conf 0 leaves 0/0 = full window.
+    if (m_segmentation.conf > 0.f) {
+        job.encodeStartUs = m_segmentation.swingStartUs;
+        job.encodeEndUs   = m_segmentation.swingEndUs;
     }
 
     // IMU aliases keyed by the same identifier the sources registered with
@@ -758,6 +825,17 @@ void ShotProcessor::startReplay()
         }
     }
 
+    // Clamp to the detected swing (v3 G2): replay starts at address, not
+    // mid-fidget. conf 0 (no IMU / failed pre-stage) keeps the full span.
+    if (m_segmentation.conf > 0.f) {
+        const int64_t lo = std::max(m_replayWindowStartUs, m_segmentation.swingStartUs);
+        const int64_t hi = std::min(m_replayWindowEndUs,   m_segmentation.swingEndUs);
+        if (hi > lo) {
+            m_replayWindowStartUs = lo;
+            m_replayWindowEndUs   = hi;
+        }
+    }
+
     for (ReplayTrack &track : m_replayTracks) {
         track.idx = 0;
         track.ctrl->setReplaying(true);
@@ -876,14 +954,18 @@ void ShotProcessor::finishNowBlocking()
     if (m_state == State::Replaying)
         stopReplay(false);
 
-    // Block until both workers have returned: they read ring memory through
-    // the window, which the caller is about to invalidate (deregister/teardown).
+    // Block until the pre-stage and both workers have returned: they read ring
+    // memory through the window, which the caller is about to invalidate
+    // (deregister/teardown).
+    if (m_segmentationInFlight)
+        m_segmentationWatcher.waitForFinished();
     if (m_analysisInFlight)
         m_analysisWatcher.waitForFinished();
     if (m_swingSaveInFlight)
         m_swingSaveWatcher.waitForFinished();
     // The queued finished() handlers will still be delivered later; flag-off
     // makes them no-ops.
+    m_segmentationInFlight = false;
     m_analysisInFlight  = false;
     m_swingSaveInFlight = false;
 

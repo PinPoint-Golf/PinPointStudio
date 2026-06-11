@@ -91,6 +91,14 @@ struct SwingExportJob {
     // stream as a fallback). -1 disables thumbnail extraction.
     SourceId thumbnailSourceId    = kInvalidSourceId;
     int64_t  thumbnailTimestampUs = -1;
+
+    // Video encode span (segmentation v3 G2): camera frames outside
+    // [encodeStartUs, encodeEndUs] are skipped — MP4s span address → finish
+    // instead of the raw 5 s ring. 0/0 = encode the full window. Raw IMU
+    // streams in swing.json stay full-window regardless (cheap, and lets
+    // segmentation be re-run offline).
+    int64_t encodeStartUs = 0;
+    int64_t encodeEndUs   = 0;
 };
 
 struct SwingExportResult {

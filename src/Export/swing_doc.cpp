@@ -66,10 +66,22 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a)
 
     QJsonArray phases;
     for (const PhaseEvent &e : a.phases)
-        phases.append(QJsonObject{ { QStringLiteral("phase"), int(e.phase) },
-                                   { QStringLiteral("t_us"),  static_cast<qint64>(e.t_us) },
-                                   { QStringLiteral("conf"),  e.conf } });
+        phases.append(QJsonObject{ { QStringLiteral("phase"),   int(e.phase) },
+                                   { QStringLiteral("t_us"),    static_cast<qint64>(e.t_us) },
+                                   { QStringLiteral("conf"),    e.conf },
+                                   { QStringLiteral("segment"), int(e.provenance) } });
     o[QStringLiteral("phases")] = phases;
+
+    // Additive segmentation block (v3 G2, design A.7): the swing bounds +
+    // ladder meta. Missing block on reload = full-window bounds.
+    if (a.segmentation.swingEndUs > a.segmentation.swingStartUs)
+        o[QStringLiteral("segmentation")] = QJsonObject{
+            { QStringLiteral("swingStartUs"),
+              static_cast<qint64>(a.segmentation.swingStartUs) },
+            { QStringLiteral("swingEndUs"),
+              static_cast<qint64>(a.segmentation.swingEndUs) },
+            { QStringLiteral("conf"),    double(a.segmentation.conf) },
+            { QStringLiteral("version"), a.segmentation.version } };
 
     // Additive ShaftTracker blocks (S3). pose2d keypoints are already
     // normalized 0..1 frame coords; club grip/head are normalized here by the
@@ -229,14 +241,18 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
             { QStringLiteral("series"),  an[QStringLiteral("metrics")].toArray().toVariantList() },
             { QStringLiteral("phases"),  an[QStringLiteral("phases")].toArray().toVariantList() },
         };
-        // Additive ShaftTracker blocks — same variant shapes as the live
-        // toAnalysisDetail (shot_processor.cpp); absent in older files.
+        // Additive ShaftTracker + segmentation blocks — same variant shapes as
+        // the live toAnalysisDetail (shot_processor.cpp); absent in older files
+        // (missing segmentation = full-window bounds).
         if (an.contains(QStringLiteral("pose2d")))
             ps.analysisDetail.insert(QStringLiteral("pose2d"),
                                      an[QStringLiteral("pose2d")].toObject().toVariantMap());
         if (an.contains(QStringLiteral("club")))
             ps.analysisDetail.insert(QStringLiteral("club"),
                                      an[QStringLiteral("club")].toObject().toVariantMap());
+        if (an.contains(QStringLiteral("segmentation")))
+            ps.analysisDetail.insert(QStringLiteral("segmentation"),
+                                     an[QStringLiteral("segmentation")].toObject().toVariantMap());
 
         // Flat metrics: each metric's value at Impact, signed degrees.
         QVariantMap metrics;

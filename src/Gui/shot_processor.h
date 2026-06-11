@@ -137,6 +137,7 @@ signals:
 
 private slots:
     void onPostRollExpired();
+    void onSegmentationFinished();
     void onAnalysisFinished();
     void onSwingSaveFinished();
     void onReplayTick();
@@ -154,6 +155,7 @@ private:
     void setState(State s);
     void setAnalysisProgress(double p);
     void captureWindowAndLaunch();
+    ShotAnalysisJob buildAnalysisJob();   // UI-thread value resolution
     void startAnalysis();
     void startSwingSave();
     pinpoint::SwingExportJob buildSwingExportJob();
@@ -195,6 +197,15 @@ private:
     QVariantMap   m_replayAnalysisDetail;      // detail of the shot being replayed
     QElapsedTimer m_replayElapsed;
     QTimer       *m_replayTimer = nullptr;
+
+    // Segmentation pre-stage (v3 G2): a cheap fuse+segment pass on the frozen
+    // window whose future GATES both heavy workers — its swing bounds trim the
+    // export encode span and the replay, and ride the jobs as values. Borrows
+    // &*m_swingWindow like the workers, so finishNowBlocking() must join it.
+    QFutureWatcher<pinpoint::analysis::Segmentation> m_segmentationWatcher;
+    bool                            m_segmentationInFlight = false;
+    pinpoint::analysis::Segmentation m_segmentation;   // result for THIS shot
+    ShotAnalysisJob                 m_analysisJob;      // resolved pre-stage, used at launch
 
     // Workers. Both borrow &*m_swingWindow; the window may only be destroyed
     // once BOTH have returned (and replay has stopped) — see maybeJoin()/

@@ -80,6 +80,26 @@ struct PhaseEvent {
     SegmentRole provenance = SegmentRole::Unknown;
 };
 
+// The segmentation result (design addendum A.6/C.5): the event ladder plus
+// the logical swing bounds consumers truncate to (export encode span, replay
+// span, metric grid, heavy-stage scan bounds). The frozen window itself is
+// never trimmed. conf == 0 means "bounds are just the window" — consumers
+// needing real truncation must check it. Canonical home here (Qt-only) so it
+// can ride SwingAnalysis and the jobs without pulling the segmenter header.
+struct Segmentation {
+    std::vector<PhaseEvent> events;        // time-ordered, monotone ladder
+    int64_t swingStartUs = 0;              // Address − pad, clamped to coverage
+    int64_t swingEndUs   = 0;              // Finish  + pad, clamped to coverage
+    float   conf         = 0.0f;           // min over {Address, Top, Impact, Finish}
+    int     version      = 2;              // 3 once the shaft refinement ran
+
+    const PhaseEvent *eventFor(Phase p) const {
+        for (const PhaseEvent &e : events)
+            if (e.phase == p) return &e;
+        return nullptr;
+    }
+};
+
 // One labelled point on a metric's curve at a key swing phase.
 struct PhaseSample {
     Phase   phase = Phase::Address;
@@ -182,6 +202,9 @@ struct SwingAnalysis {
     std::vector<PhaseEvent>   phases;
     ScoreBreakdown            score;
     std::vector<Fault>        faults;
+    // Swing bounds + ladder meta (phases above IS segmentation.events — the
+    // doc writer persists only the bounds/conf/version from here).
+    Segmentation              segmentation;
     PoseTrack2D               pose2d;  // face-on offline pose (empty when no camera ran)
     ShaftTrack2D              shaft;   // face-on club track (check .valid before use)
 };
