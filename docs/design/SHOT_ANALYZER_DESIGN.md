@@ -1124,11 +1124,12 @@ static Segmentation segment(const FusedStreams&, int64_t impactUs, const Segment
 
 Consumers:
 
-- **`SwingExporter`** trims the MP4 encode to `[swingStartUs, swingEndUs]` — typically ~2.5 s
-  instead of 5 s: half the encode time, half the file size, replays that start at address instead
-  of mid-fidget. Raw IMU streams in `swing.json` stay full-window (cheap, and useful for re-running
-  segmentation offline). Requires the segmentation result to be available *before* the export
-  worker reads frames — see sequencing below.
+- ~~**`SwingExporter`** trims the MP4 encode to `[swingStartUs, swingEndUs]`~~ **Dropped
+  (product decision, 2026-06-11): the saved artifact preserves every captured frame — a wrong
+  Address/Finish on a real swing would clip frames irrecoverably (the ring is freed after the
+  shot). Truncation applies to playback only: replay span, metric grids, and the analyzer's
+  heavy-stage scan.** Raw IMU streams in `swing.json` stay full-window (useful for re-running
+  segmentation offline).
 - **`ShotProcessor` replay** starts at `swingStartUs` and ends at `swingEndUs`.
 - **`MetricExtractor`** restricts the metric `TimeGrid` to the truncated span, so every graph spans
   address → finish, not the raw ring.
@@ -1224,7 +1225,7 @@ ShotProcessor pre-stage (worker, ~ms):
   fuse (IMU-only) → PASS 1: v2 inertial ladder (A.5 verbatim)
                   → Segmentation { events, swingStartUs, swingEndUs, conf }
                   → value-copied into ShotAnalysisJob + SwingExportJob
-        ├─► SwingExporter   encodes [swingStartUs, swingEndUs]      (v2 A.6, unchanged)
+        ├─► SwingExporter   encodes the FULL window (export trim dropped — see A.6 note)
         └─► Analyzer worker:
               fuse → PASS 1 events (recomputed, cheap, identical)
                    → PoseRunner   over [swingStartUs − pad, swingEndUs + pad]   ← NEW

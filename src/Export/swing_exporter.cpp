@@ -284,11 +284,6 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
         }
 
         for (const IndexEntry& e : entries) {
-            // Encode span (segmentation bounds): pre-address fidgeting and
-            // post-finish dead time never reach the encoder.
-            if (job.encodeEndUs > job.encodeStartUs
-                && (e.timestamp_us < job.encodeStartUs || e.timestamp_us > job.encodeEndUs))
-                continue;
             const SourceRing::ReadHandle handle = window.payloadOf(e);
             // Skip absent/short payloads entirely so MP4 frame i == t_us[i].
             if (!handle.data || handle.bytes < minBytes)

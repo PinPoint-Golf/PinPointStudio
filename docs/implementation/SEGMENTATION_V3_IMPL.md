@@ -19,11 +19,13 @@
 ## What ships
 
 After a shot, a milliseconds-cheap inertial pass finds the full event ladder (address → takeaway →
-top → … → finish, each with confidence + provenance) and the swing start/end. The exporter encodes
-only the swing (~2.5 s instead of 5 s), the replay and metric graphs span address→finish, and the
-analyzer's pose + shaft stages scan only the swing span. After the shaft track is built, the
-geometric club checkpoints (P2/P6/P8) are re-measured from θ(t) and the metric extraction reads
-the refined instants. Tempo metrics (backswing/downswing/ratio) come free from the events.
+top → … → finish, each with confidence + provenance) and the swing start/end. The replay and
+metric graphs span address→finish, and the analyzer's pose + shaft stages scan only the swing
+span. **Exports are never trimmed** (product decision, 2026-06-11): the saved MP4 preserves every
+captured frame — a wrong Address/Finish would clip frames irrecoverably; truncation is a
+playback/analysis concern only. After the shaft track is built, the geometric club checkpoints
+(P2/P6/P8) are re-measured from θ(t) and the metric extraction reads the refined instants. Tempo
+metrics (backswing/downswing/ratio) come free from the events.
 
 ```
 PASS 1 (ShotProcessor pre-stage + analyzer, IMU-only, ~ms)
@@ -134,10 +136,9 @@ window edge at conf 1.0) demonstrably fixed in-test.
   events (today's behaviour). Replay span: `m_replayWindowStartUs/EndUs` clamp to the bounds, and
   per-track `entries` are sliced to it (less frame churn for free). The analysis progress bar's
   elapsed time drops with the span — no change needed there.
-- `src/Export/swing_exporter.cpp` + `swing_exporter.h` — `SwingExportJob` gains
-  `qint64 encodeStartUs/encodeEndUs` (0 = full window); the per-camera encode loop skips entries
-  outside the span. Raw IMU streams in `swing.json` stay **full-window** (cheap, and lets
-  segmentation be re-run offline).
+- ~~`src/Export/swing_exporter.cpp` + `swing_exporter.h` — encode span~~ **Built, then removed
+  (product decision, 2026-06-11): exports preserve every captured frame. The MP4 and the raw IMU
+  streams both stay full-window; segmentation bounds trim playback and analysis only.**
 - `src/Analysis/metric_extractor.cpp` — the metric `TimeGrid` is restricted to
   [swingStartUs, swingEndUs] so every graph spans address → finish.
 - `src/Export/swing_doc.cpp` — persist the `segmentation` block (A.7 shape:

@@ -614,13 +614,6 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         }
     }
 
-    // Encode span from the pre-stage segmentation (v3 G2): MP4s span
-    // address → finish. conf 0 leaves 0/0 = full window.
-    if (m_segmentation.conf > 0.f) {
-        job.encodeStartUs = m_segmentation.swingStartUs;
-        job.encodeEndUs   = m_segmentation.swingEndUs;
-    }
-
     // IMU aliases keyed by the same identifier the sources registered with
     // (serial when present, else device id — mirrors ImuInstance).
     const QVariantMap imuAliases = s->imuAlias();
