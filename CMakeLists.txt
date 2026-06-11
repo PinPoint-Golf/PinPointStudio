@@ -18,6 +18,21 @@ cmake_minimum_required(VERSION 3.16)
 
 project(PinPointStudio VERSION 0.1 LANGUAGES CXX)
 
+# Build provenance recorded into saved shots (swing.json "capture.host"). The
+# short git sha is captured at configure time — good enough for corpus
+# provenance; reconfigure refreshes it.
+execute_process(
+    COMMAND git rev-parse --short HEAD
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    OUTPUT_VARIABLE PP_GIT_SHA
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+if(NOT PP_GIT_SHA)
+    set(PP_GIT_SHA "unknown")
+endif()
+configure_file(cmake/pp_version.h.in "${CMAKE_BINARY_DIR}/generated/pp_version.h" @ONLY)
+
 # Qt GuiPrivate is used for QRhi (public API since Qt 6.6, accessed via GuiPrivate includes).
 set(QT_NO_PRIVATE_MODULE_WARNING ON)
 
@@ -192,7 +207,7 @@ qt_add_executable(PinPointStudio
     src/Gui/llm_controller.h         src/Gui/llm_controller.cpp
 )
 
-target_include_directories(PinPointStudio PRIVATE src/Gui src/IMU src/Audio src/Video src/Pose src/STT src/TTS src/LLM src/Secrets src/Core src/Buffer)
+target_include_directories(PinPointStudio PRIVATE src/Gui src/IMU src/Audio src/Video src/Pose src/STT src/TTS src/LLM src/Secrets src/Core src/Buffer "${CMAKE_BINARY_DIR}/generated")
 
 set_source_files_properties(src/Gui/Theme.qml         PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set_source_files_properties(src/Gui/SettingsIndex.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)

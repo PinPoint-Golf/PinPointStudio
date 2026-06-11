@@ -66,12 +66,22 @@ def ingest(corpus_root):
         vids = s.video_streams()
         has_raw = any("raw" in v for v in vids)
         imus = [x for x in s.doc.get("streams", []) if x.get("kind") == "imu"]
+        cap = s.capture()
         swings.append({
             "path": str(d), "name": s.name,
             "videos": len(vids), "raw": has_raw, "imus": len(imus),
             "impact": s.impact_us() is not None,
-            "bindings": len(s.doc.get("analysis", {}).get("bindings", [])),
+            "bindings": len(s.bindings()),
             "truth": (d / "truth.json").exists(),
+            # Capture provenance (None on legacy swings lacking the fields) —
+            # filter the corpus on these before tuning.
+            "sessionType": cap.get("sessionType"),
+            "shotSource": cap.get("shotSource"),
+            "calibrated": s.calibrated(),
+            "calibAgeSec": s.calib_age_sec(),
+            "perspectives": [v.get("setup", {}).get("perspectiveName")
+                             for v in vids] if any("setup" in v for v in vids) else None,
+            "appVersion": cap.get("host", {}).get("version"),
         })
     notes_file = root / "CORPUS.md"
     manifest = {"root": str(root), "count": len(swings), "swings": swings,

@@ -36,6 +36,28 @@ struct SwingExportCamera {
     SourceId sourceId = kInvalidSourceId;
     QString  alias;        // human label recorded in swing.json
     QString  fileName;     // "<alias>.mp4"
+    // Camera setup at capture time (stream "setup" object): CameraInstance
+    // perspective enum (None 0, DownTheLine 1, FaceOn 2, Other 3), mirroring,
+    // and the AppSettings fixed-in-place flag (the camera-side "calibrated").
+    int      perspective  = 0;
+    bool     mirrored     = false;
+    bool     fixedInPlace = false;
+};
+
+// Per-IMU device configuration at capture time (stream "device" object),
+// keyed by device serial like imuAliasBySerial. outputRateHz is the live
+// instance's rate — authoritative over the registration-time ImuFormat.
+struct SwingImuDeviceInfo {
+    int     outputRateHz = 0;
+    QString fusionMode;          // device 6/9-axis algorithm
+    QString orientationFilter;   // host fusion algo (Madgwick / ESKF)
+    QString placementSlot;       // "A"/"B"/"C" (AppSettings imuPlacement)
+};
+
+// Host/app provenance recorded under capture.host — explains cross-host
+// analysis variance (e.g. pose backend CPU vs CUDA) in a SwingLab corpus.
+struct SwingHostInfo {
+    QString appVersion, gitSha, hostname, platform, poseBackend;
 };
 
 // One camera's 2D pose series for the swing window, resolved on the UI thread.
@@ -61,7 +83,16 @@ struct SwingExportJob {
 
     std::vector<SwingExportCamera> cameras;
     QHash<QString, QString> imuAliasBySerial;  // device serial/id -> alias
+    QHash<QString, SwingImuDeviceInfo> imuDeviceBySerial;  // device serial/id -> config
     std::vector<SwingPoseStream> poseStreams;  // pose to serialise (empty today)
+
+    // Session context + provenance for the top-level "capture" block.
+    int     sessionType = -1;    // SessionController::Type (-1 = none)
+    int     shotSource  = 0;     // ShotController::Source as int
+    QString swingDetectionSensitivity;   // "Low"/"Medium"/"High"
+    qint64  imuBleLatencyUs     = 0;     // detector back-dating constants at capture
+    int     audioDeviceLatencyUs = 0;
+    SwingHostInfo host;
 
     QString codec = QStringLiteral("h264");  // AppSettings videoCodec -> factory key
     int  crf     = 23;     // from AppSettings videoQuality
@@ -114,6 +145,11 @@ struct SwingExportResult {
 class SwingExporter {
 public:
     static SwingExportResult run(const SwingWindow& window, const SwingExportJob& job);
+
+    // The top-level "capture" block (session context + host provenance) built
+    // from the job's value fields. Shared with ShotProcessor's degraded
+    // analysis-only manifest so both paths record identical metadata.
+    static QJsonObject captureBlock(const SwingExportJob& job);
 };
 
 } // namespace pinpoint

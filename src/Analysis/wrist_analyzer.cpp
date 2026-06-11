@@ -280,6 +280,12 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
         rec.role   = b.role;
         rec.alignA = b.alignA;
         rec.mountM = b.mountM;
+        rec.anatCalibrated       = b.anatCalibrated;
+        rec.calibrated           = b.calibrated;
+        rec.mountDeviationDeg    = b.mountDeviationDeg;
+        rec.mountGravityErrorDeg = b.mountGravityErrorDeg;
+        rec.calibratedAtUtc      = b.calibratedAtUtc;
+        rec.calibAgeSec          = b.calibAgeSec;
         detail->bindings.push_back(std::move(rec));
     }
     detail->tier   = static_cast<int>(ReconstructionTier::Mono3DPlusImu);

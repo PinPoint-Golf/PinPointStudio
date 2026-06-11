@@ -36,9 +36,28 @@ int main()
     manifest[QStringLiteral("schema")]  = QStringLiteral("pinpoint.swing/1");
     manifest[QStringLiteral("swing")]   = QJsonObject{ {QStringLiteral("index"), 7},
                                                        {QStringLiteral("id"), QStringLiteral("swing_0007")} };
-    manifest[QStringLiteral("streams")] = QJsonArray{ QJsonObject{ {QStringLiteral("kind"), QStringLiteral("video")},
-                                                                   {QStringLiteral("alias"), QStringLiteral("face-on")} } };
+    manifest[QStringLiteral("streams")] = QJsonArray{
+        QJsonObject{ {QStringLiteral("kind"), QStringLiteral("video")},
+                     {QStringLiteral("alias"), QStringLiteral("face-on")},
+                     {QStringLiteral("setup"), QJsonObject{ {QStringLiteral("perspective"), 2},
+                                                            {QStringLiteral("perspectiveName"), QStringLiteral("FaceOn")},
+                                                            {QStringLiteral("mirrored"), false},
+                                                            {QStringLiteral("fixedInPlace"), true} }} },
+        QJsonObject{ {QStringLiteral("kind"), QStringLiteral("imu")},
+                     {QStringLiteral("alias"), QStringLiteral("Hand")},
+                     {QStringLiteral("device"), QJsonObject{ {QStringLiteral("outputRateHz"), 200},
+                                                             {QStringLiteral("fusionMode"), QStringLiteral("6axis")},
+                                                             {QStringLiteral("orientationFilter"), QStringLiteral("Madgwick")},
+                                                             {QStringLiteral("placementSlot"), QStringLiteral("B")} }} } };
     manifest[QStringLiteral("clock")]   = QJsonObject{ {QStringLiteral("wallclock"), QStringLiteral("2026-06-08T16:00:00.000")} };
+    manifest[QStringLiteral("capture")] = QJsonObject{
+        {QStringLiteral("sessionType"), 1},
+        {QStringLiteral("shotSource"),  1},
+        {QStringLiteral("swingDetectionSensitivity"), QStringLiteral("Medium")},
+        {QStringLiteral("latencyUs"), QJsonObject{ {QStringLiteral("imuBle"), 30000},
+                                                   {QStringLiteral("audioDevice"), 20000} }},
+        {QStringLiteral("host"), QJsonObject{ {QStringLiteral("app"), QStringLiteral("PinPointStudio")},
+                                              {QStringLiteral("gitSha"), QStringLiteral("abc1234")} }} };
     manifest[QStringLiteral("thumbnail")] = QJsonObject{ {QStringLiteral("file"), QStringLiteral("thumb.jpg")},
                                                          {QStringLiteral("t_us"), static_cast<qint64>(10000)} };
 
@@ -83,6 +102,20 @@ int main()
                                 2.2, 30.0, 268.0, 0.8f,
                                 uint8_t(ShaftImuBridged | ShaftHeadProjected) });
 
+    // IMU binding with the calibration-status snapshot (corpus provenance).
+    BindingRecord bind;
+    bind.serial = QStringLiteral("WT901-1234");
+    bind.role   = SegmentRole::LeadHand;
+    bind.alignA = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+    bind.mountM = QQuaternion(0.5f, -0.5f, -0.5f, -0.5f);
+    bind.anatCalibrated       = true;
+    bind.calibrated           = true;
+    bind.mountDeviationDeg    = 3.2;
+    bind.mountGravityErrorDeg = 5.1;
+    bind.calibratedAtUtc      = QStringLiteral("2026-06-11T09:12:00.123Z");
+    bind.calibAgeSec          = 412.5;
+    a.bindings.push_back(bind);
+
     std::printf("=== unified write (raw + analysis) ===\n");
     QString err;
     if (!SwingDocWriter::writeSwingJson(dir, manifest, &a, &err)) {
@@ -112,6 +145,40 @@ int main()
     check(static_cast<qint64>(an[QStringLiteral("phases")].toArray().at(0).toObject()[QStringLiteral("t_us")].toDouble()) == 1010000, "phase t_us preserved");
     check(an[QStringLiteral("phases")].toArray().at(1).toObject()[QStringLiteral("segment")].toInt()
               == int(SegmentRole::LeadHand), "phase provenance preserved");
+
+    std::printf("\n=== capture / setup / device passthrough ===\n");
+    {
+        check(root.contains(QStringLiteral("capture")), "capture block preserved");
+        const QJsonObject cap = root[QStringLiteral("capture")].toObject();
+        check(cap[QStringLiteral("sessionType")].toInt() == 1, "capture.sessionType");
+        check(cap[QStringLiteral("latencyUs")].toObject()[QStringLiteral("imuBle")].toInt() == 30000,
+              "capture.latencyUs.imuBle");
+        check(cap[QStringLiteral("host")].toObject()[QStringLiteral("gitSha")].toString()
+                  == QStringLiteral("abc1234"), "capture.host.gitSha");
+        const QJsonArray strs = root[QStringLiteral("streams")].toArray();
+        check(strs.at(0).toObject()[QStringLiteral("setup")].toObject()[QStringLiteral("perspective")].toInt() == 2,
+              "video stream setup.perspective");
+        check(strs.at(1).toObject()[QStringLiteral("device")].toObject()[QStringLiteral("outputRateHz")].toInt() == 200,
+              "imu stream device.outputRateHz");
+    }
+
+    std::printf("\n=== bindings calibration status ===\n");
+    {
+        check(an.contains(QStringLiteral("bindings")), "bindings block present");
+        const QJsonArray binds = an[QStringLiteral("bindings")].toArray();
+        check(binds.size() == 1, "one binding");
+        const QJsonObject b0 = binds.at(0).toObject();
+        check(b0[QStringLiteral("serial")].toString() == QStringLiteral("WT901-1234"), "binding serial");
+        check(b0[QStringLiteral("role")].toInt() == int(SegmentRole::LeadHand), "binding role");
+        check(b0[QStringLiteral("calibrated")].toBool(), "binding calibrated");
+        check(b0[QStringLiteral("anatCalibrated")].toBool(), "binding anatCalibrated");
+        check(qFuzzyCompare(b0[QStringLiteral("mountDeviationDeg")].toDouble(), 3.2), "mountDeviationDeg");
+        check(qFuzzyCompare(b0[QStringLiteral("mountGravityErrorDeg")].toDouble(), 5.1), "mountGravityErrorDeg");
+        check(b0[QStringLiteral("calibratedAt")].toString() == QStringLiteral("2026-06-11T09:12:00.123Z"),
+              "calibratedAt ISO string");
+        check(qFuzzyCompare(b0[QStringLiteral("calibAgeSec")].toDouble(), 412.5), "calibAgeSec");
+        check(qFuzzyCompare(b0[QStringLiteral("mountM")].toArray().at(0).toDouble(), 0.5), "mountM w");
+    }
 
     std::printf("\n=== segmentation block (v3 G2) ===\n");
     {
@@ -183,6 +250,12 @@ int main()
         const QVariantMap cs1 = cb.value(QStringLiteral("samples")).toList().at(1).toMap();
         check(cs1.value(QStringLiteral("flags")).toInt()
                   == int(ShaftImuBridged | ShaftHeadProjected), "reloaded sample flags");
+        const QVariantList rbinds = ps.analysisDetail.value(QStringLiteral("bindings")).toList();
+        check(rbinds.size() == 1, "reloaded bindings len 1");
+        const QVariantMap rb0 = rbinds.at(0).toMap();
+        check(rb0.value(QStringLiteral("calibrated")).toBool(), "reloaded binding calibrated");
+        check(qFuzzyCompare(rb0.value(QStringLiteral("calibAgeSec")).toDouble(), 412.5),
+              "reloaded binding calibAgeSec");
     }
 
     std::printf("\n=== review write-through round-trip ===\n");

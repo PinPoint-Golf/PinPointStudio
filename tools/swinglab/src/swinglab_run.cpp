@@ -82,6 +82,9 @@ struct VideoStreamIn {
     qint64   rawStride = 0, rawFrameBytes = 0;
     std::vector<int64_t> tUs;
     bool     faceOn = false;
+    int      fpsNum = 150, fpsDen = 1;       // stream "capture" fps; legacy default
+    bool     hasSetup = false;               // stream carries a "setup" object
+    int      perspective = 0;                // setup.perspective (FaceOn = 2)
     SourceId sourceId = kInvalidSourceId;
 };
 
@@ -89,6 +92,7 @@ struct ImuStreamIn {
     QString  alias, serial;
     std::vector<int64_t> tUs;
     std::vector<std::array<float, 10>> samples;   // ax..az gx..gz qw qx qy qz
+    int      rateHz = 200;                   // stream "device" rate; legacy default
     SourceId sourceId = kInvalidSourceId;
 };
 
@@ -207,13 +211,32 @@ int main(int argc, char **argv)
                 v.rawStride      = qint64(r["stride"].toDouble());
                 v.rawFrameBytes  = qint64(r["frameBytes"].toDouble());
             }
-            v.faceOn = v.alias.contains(cli.value(optFaceOn), Qt::CaseInsensitive)
-                    || s["file"].toString().contains(cli.value(optFaceOn), Qt::CaseInsensitive);
+            if (s.contains("capture")) {
+                const QJsonObject c = s["capture"].toObject();
+                if (c["fps_num"].toInt() > 0 && c["fps_den"].toInt() > 0) {
+                    v.fpsNum = c["fps_num"].toInt();
+                    v.fpsDen = c["fps_den"].toInt();
+                }
+            }
+            if (s.contains("setup")) {
+                v.hasSetup    = true;
+                v.perspective = s["setup"].toObject()["perspective"].toInt();
+            }
+            // Face-on: recorded perspective when the stream carries "setup";
+            // legacy alias substring otherwise. An explicit --face-on always
+            // wins (escape hatch for mislabelled recordings).
+            if (v.hasSetup && !cli.isSet(optFaceOn))
+                v.faceOn = (v.perspective == 2);
+            else
+                v.faceOn = v.alias.contains(cli.value(optFaceOn), Qt::CaseInsensitive)
+                        || s["file"].toString().contains(cli.value(optFaceOn), Qt::CaseInsensitive);
             videos.push_back(std::move(v));
         } else if (kind == "imu") {
             ImuStreamIn m;
             m.alias  = s["alias"].toString();
             m.serial = s["source"].toObject()["serial"].toString();
+            if (s["device"].toObject()["outputRateHz"].toInt() > 0)
+                m.rateHz = s["device"].toObject()["outputRateHz"].toInt();
             const QJsonObject samples = s["samples"].toObject();
             m.tUs = readTimestamps(samples["t_us"].toArray());
             for (const QJsonValue &dv : samples["data"].toArray()) {
@@ -255,11 +278,13 @@ int main(int argc, char **argv)
             fmt.max_payload_bytes = uint32_t(v.width * v.height * 3);
             fmt.plane_strides[0]  = uint32_t(v.width * 3);
         }
-        fmt.fps_numerator = 150; fmt.fps_denominator = 1;
+        fmt.fps_numerator   = uint32_t(v.fpsNum);
+        fmt.fps_denominator = uint32_t(v.fpsDen);
         desc.format.device = DeviceKind::Camera_UVC;
         desc.format.format = fmt;
         desc.window_duration = std::chrono::milliseconds(8000);
-        desc.expected_interarrival_us = std::chrono::microseconds(6700);
+        desc.expected_interarrival_us =
+            std::chrono::microseconds(int64_t(1000000) * v.fpsDen / v.fpsNum);
         v.sourceId = buffer.registerSource(desc);
         if (!v.tUs.empty()) {
             tMin = std::min(tMin, v.tUs.front());
@@ -273,13 +298,13 @@ int main(int argc, char **argv)
                                              : m.serial.toStdString();
         ImuFormat fmt{};
         fmt.device         = DeviceKind::IMU_WitMotion;
-        fmt.sample_rate_hz = 200;
+        fmt.sample_rate_hz = uint32_t(m.rateHz);
         fmt.packet_bytes   = sizeof(ImuSample);
         fmt.packet_schema  = "imu_sample_v2";
         desc.format.device = DeviceKind::IMU_WitMotion;
         desc.format.format = fmt;
         desc.window_duration = std::chrono::milliseconds(8000);
-        desc.expected_interarrival_us = std::chrono::microseconds(5000);
+        desc.expected_interarrival_us = std::chrono::microseconds(1000000 / m.rateHz);
         m.sourceId = buffer.registerSource(desc);
         if (!m.tUs.empty()) {
             tMin = std::min(tMin, m.tUs.front());
@@ -345,7 +370,14 @@ int main(int argc, char **argv)
 
     // ── Resolve the job ──────────────────────────────────────────────────────
     ShotAnalysisJob job;
-    job.sessionType = cli.value(optSession).toInt();
+    // Session type: recorded capture.sessionType when present; the CLI option
+    // (default 1) covers legacy swings and explicit overrides.
+    const QJsonObject captureIn = root["capture"].toObject();
+    if (!cli.isSet(optSession) && captureIn.contains("sessionType")
+        && captureIn["sessionType"].toInt() >= 0)
+        job.sessionType = captureIn["sessionType"].toInt();
+    else
+        job.sessionType = cli.value(optSession).toInt();
     job.tuningOverrides = tuning;
     if (cli.isSet(optPose))
         job.poseTrackPath = cli.value(optPose);
@@ -379,6 +411,7 @@ int main(int argc, char **argv)
     // Bindings from the persisted analysis.bindings (serial-keyed); identity
     // A/M (role only) is NOT synthesized — re-fusing without the session
     // calibration would be fabrication.
+    int calibKnown = 0, calibTrue = 0;   // bindings carrying "calibrated" / of those, true
     for (const QJsonValue &bv : analysisIn["bindings"].toArray()) {
         const QJsonObject b = bv.toObject();
         const QString serial = b["serial"].toString();
@@ -392,6 +425,24 @@ int main(int argc, char **argv)
                                       float(A[2].toDouble()), float(A[3].toDouble()));
             bind.mountM = QQuaternion(float(M[0].toDouble()), float(M[1].toDouble()),
                                       float(M[2].toDouble()), float(M[3].toDouble()));
+            // Calibration provenance (legacy swings lack the field → assume
+            // calibrated, matching the old behaviour).
+            bind.calibrated = !b.contains("calibrated") || b["calibrated"].toBool();
+            if (b.contains("calibrated")) {
+                ++calibKnown;
+                if (b["calibrated"].toBool()) ++calibTrue;
+            }
+            bind.anatCalibrated       = b["anatCalibrated"].toBool(bind.calibrated);
+            bind.mountDeviationDeg    = b["mountDeviationDeg"].toDouble();
+            bind.mountGravityErrorDeg = b["mountGravityErrorDeg"].toDouble();
+            bind.calibratedAtUtc      = b["calibratedAt"].toString();
+            bind.calibAgeSec          = b["calibAgeSec"].toDouble(-1.0);
+            if (!bind.calibrated)
+                std::fprintf(stderr,
+                             "[swinglab] WARNING: binding %s recorded UNCALIBRATED "
+                             "(mount dev %.1f deg, gravity err %.1f deg) — results unreliable\n",
+                             serial.toUtf8().constData(),
+                             bind.mountDeviationDeg, bind.mountGravityErrorDeg);
             job.imuBindings.push_back(bind);
         }
     }
@@ -431,6 +482,12 @@ int main(int argc, char **argv)
     meta["bindings"]   = int(job.imuBindings.size());
     meta["host"]       = QSysInfo::machineHostName();
     meta["platform"]   = QSysInfo::prettyProductName();
+    meta["sessionType"] = job.sessionType;
+    // Verbatim capture echo (empty object for legacy swings) + the corpus
+    // calibration verdict: true/false when recorded, null when unknown.
+    meta["capture"]    = captureIn;
+    meta["calibrated"] = calibKnown == 0 ? QJsonValue(QJsonValue::Null)
+                                         : QJsonValue(calibTrue == calibKnown);
     {
         QFile mf(outDir + "/runmeta.json");
         if (mf.open(QIODevice::WriteOnly))

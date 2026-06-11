@@ -115,8 +115,9 @@ One entry point, subcommands; all outputs file-based so any model can consume:
 
 ### 3. The model loop — operator/engineer split with explicit escalation
 
-Encoded as a repo skill (`.claude/skills/swinglab/`) so any model follows the
-same recipe:
+Encoded as a Claude skill (`.claude/skills/swinglab/` — local-only, NOT
+committed; Claude-specific artefacts stay out of the repo) so any model
+follows the same recipe:
 
 ```
 TIER 0 (no model)   lab.py sweep — parameter search is a for-loop, not a prompt.
@@ -149,7 +150,7 @@ tools/swinglab/
   src/swinglab_run.cpp          # C++ runner (built via -DPINPOINT_BUILD_TOOLS=ON)
   lab.py + swinglab/*.py        # ingest, score, plots, label, sweep, report, diff
   configs/                      # params.json presets + sweep spaces
-.claude/skills/swinglab/SKILL.md
+.claude/skills/swinglab/SKILL.md       # local-only (gitignored), per host
 docs/implementation/SWINGLAB_IMPL.md   # this doc
 ~/SwingData/corpus-v1/...              # data lives OUTSIDE the repo
 runs/ (gitignored)                     # scorecards, plots, traces per run
@@ -193,6 +194,30 @@ optional trace out-params on `ShaftTracker::track` / assembly, and
 `analysis.bindings` (serial-keyed A/M calibration snapshot) persisted in
 swing.json so recorded swings are re-fusable offline.
 
+### Capture provenance in swing.json (2026-06)
+
+The app now records capture metadata the lab consumes (all additive — legacy
+swings without the fields keep the old behaviour; see
+`docs/developer/swing_export_developer_guide.md` §6 for the full schema):
+
+- **Top-level `capture`** — sessionType, shotSource, detection sensitivity,
+  back-dating latencies, host provenance (app version/git sha, hostname,
+  platform, pose backend). `swinglab_run` takes `sessionType` from here when
+  `--session-type` isn't passed, and echoes the whole block into runmeta.json.
+- **Video `setup`** — recorded perspective. Face-on selection now uses
+  `setup.perspective == 2` instead of the `--face-on` alias substring guess
+  (an explicit `--face-on` still wins; legacy swings fall back to substring).
+- **IMU `device`** — `outputRateHz` replaces the hardcoded 200 Hz registration
+  (camera fps likewise comes from the stream's `capture.fps_num/den` instead
+  of the hardcoded 150).
+- **`analysis.bindings[]` calibration status** — `calibrated` (composite mount
+  gate), gate angles, `calibratedAt`/`calibAgeSec`. The runner warns on
+  uncalibrated bindings; runmeta.json carries `calibrated: true|false|null`
+  (null = legacy, field absent). `lab.py ingest` surfaces
+  `sessionType / shotSource / calibrated / calibAgeSec / perspectives /
+  appVersion` per swing in corpus.json so a corpus can be filtered before
+  tuning.
+
 The operator/engineer model contract is encoded in
 `.claude/skills/swinglab/SKILL.md` (`/swinglab`).
 
@@ -228,9 +253,11 @@ interface is files in, files out:
   on Windows, `ssh studio "… lab.py run …"` works as-is.
 - **Context-less hosts bootstrap from the repo alone**: `lab.py doctor`
   verifies binary + deps and prints the conventions; `requirements.txt` +
-  `-DPINPOINT_BUILD_TOOLS=ON` are the whole setup. Everything an operator
-  session needs (skill, docs, recipes, tier rules) is in-repo and travels
-  with git — nothing depends on machine-local assistant memory.
+  `-DPINPOINT_BUILD_TOOLS=ON` are the whole setup. The lab tooling and this
+  doc are in-repo and travel with git. Exception: the `/swinglab` skill
+  (`.claude/skills/swinglab/SKILL.md`) is local-only — `.claude/` is
+  gitignored (Claude artefacts stay out of the repo) — so a new operator
+  host needs it copied over once (e.g. via the SwingData share).
 - **Data trust travels with the data, not with a machine**: a corpus root
   must contain a `CORPUS.md` stating recording date and calibration
   provenance; `ingest` marks the manifest `blessed` only then. (This encodes

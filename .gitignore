@@ -80,3 +80,6 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# Claude-specific artefacts stay local (skills, notes, settings)
+.claude/

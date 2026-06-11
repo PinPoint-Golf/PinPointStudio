@@ -419,6 +419,18 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
             {QStringLiteral("fps_num"), static_cast<int>(rec.fmt->fps_numerator)},
             {QStringLiteral("fps_den"), static_cast<int>(rec.fmt->fps_denominator)},
         };
+        // Camera setup at capture time (additive). perspectiveName saves
+        // readers a magic-number table; fixedInPlace is the camera-side
+        // "calibrated" signal SwingLab filters on.
+        static const char* kPerspectiveNames[] = {"None", "DownTheLine", "FaceOn", "Other"};
+        const int pi = (rec.cam->perspective >= 0 && rec.cam->perspective <= 3)
+                           ? rec.cam->perspective : 0;
+        s[QStringLiteral("setup")] = QJsonObject{
+            {QStringLiteral("perspective"),     rec.cam->perspective},
+            {QStringLiteral("perspectiveName"), QString::fromLatin1(kPerspectiveNames[pi])},
+            {QStringLiteral("mirrored"),        rec.cam->mirrored},
+            {QStringLiteral("fixedInPlace"),    rec.cam->fixedInPlace},
+        };
         s[QStringLiteral("playback")] = QJsonObject{{QStringLiteral("fps"), 30}};
         s[QStringLiteral("processing")] = QJsonObject{
             {QStringLiteral("demosaic"), QString::fromLatin1(rec.demosaicTag)},
@@ -474,6 +486,17 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
             s[QStringLiteral("alias")]  = alias;
             s[QStringLiteral("schema")] = QStringLiteral("imu_sample_v2");
             s[QStringLiteral("source")] = QJsonObject{{QStringLiteral("serial"), serial}};
+            // Device configuration at capture time (additive) — outputRateHz
+            // replaces SwingLab's hardcoded 200 Hz assumption.
+            if (job.imuDeviceBySerial.contains(serial)) {
+                const SwingImuDeviceInfo& dev = job.imuDeviceBySerial[serial];
+                s[QStringLiteral("device")] = QJsonObject{
+                    {QStringLiteral("outputRateHz"),      dev.outputRateHz},
+                    {QStringLiteral("fusionMode"),        dev.fusionMode},
+                    {QStringLiteral("orientationFilter"), dev.orientationFilter},
+                    {QStringLiteral("placementSlot"),     dev.placementSlot},
+                };
+            }
             s[QStringLiteral("units")]  = QJsonObject{
                 {QStringLiteral("accel"), QStringLiteral("g")},
                 {QStringLiteral("gyro"),  QStringLiteral("deg/s")},
@@ -617,6 +640,7 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
             {QStringLiteral("t_us"), static_cast<qint64>(thumbTsUs - t0)},
         };
     }
+    root[QStringLiteral("capture")] = SwingExporter::captureBlock(job);
     root[QStringLiteral("streams")] = streams;
 
     // swing.json is NOT written here. The worker returns its raw manifest and the GUI
@@ -626,6 +650,27 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
     result.manifest = root;
     result.ok       = true;
     return result;
+}
+
+QJsonObject SwingExporter::captureBlock(const SwingExportJob& job)
+{
+    return QJsonObject{
+        {QStringLiteral("sessionType"), job.sessionType},
+        {QStringLiteral("shotSource"),  job.shotSource},
+        {QStringLiteral("swingDetectionSensitivity"), job.swingDetectionSensitivity},
+        {QStringLiteral("latencyUs"), QJsonObject{
+            {QStringLiteral("imuBle"),      static_cast<qint64>(job.imuBleLatencyUs)},
+            {QStringLiteral("audioDevice"), job.audioDeviceLatencyUs},
+        }},
+        {QStringLiteral("host"), QJsonObject{
+            {QStringLiteral("app"),         QStringLiteral("PinPointStudio")},
+            {QStringLiteral("version"),     job.host.appVersion},
+            {QStringLiteral("gitSha"),      job.host.gitSha},
+            {QStringLiteral("hostname"),    job.host.hostname},
+            {QStringLiteral("platform"),    job.host.platform},
+            {QStringLiteral("poseBackend"), job.host.poseBackend},
+        }},
+    };
 }
 
 } // namespace pinpoint

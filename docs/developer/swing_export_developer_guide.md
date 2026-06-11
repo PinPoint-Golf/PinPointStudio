@@ -328,12 +328,22 @@ type later is just another element of `streams[]` — readers must ignore unknow
   "clock":   { "t0_us": 173456789012345, "unit": "us",
                "wallclock": "2026-06-05T14:22:01.234Z" },
   "window":  { "start_us": 0, "end_us": 4980000 },
+  "capture": {
+    "sessionType": 1, "shotSource": 1,
+    "swingDetectionSensitivity": "Medium",
+    "latencyUs": { "imuBle": 30000, "audioDevice": 20000 },
+    "host": { "app": "PinPointStudio", "version": "0.1", "gitSha": "cab95fb",
+              "hostname": "studio-pc", "platform": "Ubuntu 26.04",
+              "poseBackend": "CUDA" }
+  },
   "streams": [
     {
       "kind": "video", "alias": "faceOn", "file": "faceOn.mp4",
       "source": { "serial": "…", "pixelFormat": "BayerRG8",
                   "width": 1936, "height": 1096 },
       "capture":  { "fps_num": 150, "fps_den": 1 },
+      "setup":    { "perspective": 2, "perspectiveName": "FaceOn",
+                    "mirrored": false, "fixedInPlace": true },
       "playback": { "fps": 30 },
       "processing": { "demosaic": "EA", "restorer": "none" },
       "frames": { "count": 742, "t_us": [0, 6671, 13342] }
@@ -341,6 +351,8 @@ type later is just another element of `streams[]` — readers must ignore unknow
     {
       "kind": "imu", "alias": "leadWrist", "schema": "imu_sample_v2",
       "source": { "serial": "…" },
+      "device": { "outputRateHz": 200, "fusionMode": "6axis",
+                  "orientationFilter": "Madgwick", "placementSlot": "A" },
       "units": { "accel": "g", "gyro": "deg/s", "quat": "wxyz" },
       "samples": { "count": 498, "t_us": [0, 5000, 10000],
                    "data": [[0.01, 0.99, 0.02, 1.2, 0.3, -0.1, 1, 0, 0, 0]] }
@@ -348,6 +360,30 @@ type later is just another element of `streams[]` — readers must ignore unknow
   ]
 }
 ```
+
+### Capture provenance (additive, 2026-06)
+
+Recorded so SwingLab can filter a corpus by calibration/session provenance and
+stop hardcoding assumptions; all additive (absent on legacy swings):
+
+- **Top-level `capture`** — session context (`sessionType` = `SessionController::Type`,
+  `shotSource` = `ShotController::Source`, detection sensitivity, the detector
+  back-dating latencies) and host provenance (`version`/`gitSha` from the generated
+  `pp_version.h`, hostname/platform from `QSysInfo`, `poseBackend` from the first
+  camera's live pose-backend label). Built by `SwingExporter::captureBlock()` —
+  shared with `ShotProcessor::buildSynthManifest()` so the degraded analysis-only
+  path records identical metadata.
+- **Per-video-stream `setup`** — `perspective`/`perspectiveName` (CameraInstance
+  enum: None 0, DownTheLine 1, FaceOn 2, Other 3), `mirrored`, `fixedInPlace`
+  (the camera-side "calibrated" signal).
+- **Per-IMU-stream `device`** — `outputRateHz` (live instance rate — authoritative
+  over the registration-time `ImuFormat`), `fusionMode` (device 6/9-axis),
+  `orientationFilter` (host fusion: Madgwick/ESKF), `placementSlot` (A/B/C).
+- **`analysis.bindings[]` calibration status** — alongside `alignA`/`mountM`:
+  `calibrated` (composite gate: `anatCalibrated` AND mount deviation ≤ 15° AND
+  gravity error ≤ 25° — `ImuInstance::fullyCalibrated()`), the two gate angles,
+  `calibratedAt` (ISO8601 UTC) and `calibAgeSec` at shot time (−1 / empty = never
+  calibrated).
 
 ### Field sources
 

@@ -584,6 +584,7 @@ void ImuInstance::setFunctionalCalibration(const QQuaternion &refRaw,
     m_alignA         = a.A;
     m_mountM         = a.M;
     m_anatCalibrated = true;
+    m_calibratedAtUtc = QDateTime::currentDateTimeUtc();
 
     // Mis-mount check: angle between the solved mounting and the expected nominal.
     // δM = M_solved * conj(M_nominal); rotation angle = 2*acos(|w|).
@@ -615,6 +616,7 @@ void ImuInstance::setNominalCalibration(const QQuaternion &refRaw, bool handMoun
                          : imu_calibration::nominalArmMount();
     m_alignA = (refRaw * m_mountM).conjugated().normalized();
     m_anatCalibrated    = true;
+    m_calibratedAtUtc   = QDateTime::currentDateTimeUtc();
     m_mountDeviationDeg = 0.0;   // nominal = no fine-tune applied
 
     // Gravity-direction (flip) check: express the current arm-down accelerometer
@@ -667,6 +669,7 @@ void ImuInstance::refineMountAboutLongAxis(const QQuaternion &refRaw, double phi
         m_mountM = nominal;
         m_alignA = (refRaw * m_mountM).conjugated().normalized();
         m_anatCalibrated    = true;
+        m_calibratedAtUtc   = QDateTime::currentDateTimeUtc();
         m_mountDeviationDeg = std::abs(phiDeg);
         ppWarn() << "[ImuInstance]" << m_deviceDescription
                  << "— precise refine REJECTED (phi" << phiDeg << "deg too large); kept nominal";
@@ -684,6 +687,7 @@ void ImuInstance::refineMountAboutLongAxis(const QQuaternion &refRaw, double phi
     m_mountM = (nominal * Ry).normalized();
     m_alignA = (refRaw * m_mountM).conjugated().normalized();
     m_anatCalibrated   = true;
+    m_calibratedAtUtc  = QDateTime::currentDateTimeUtc();
     m_mountDeviationDeg = std::abs(phiDeg);
 
     ppWarn() << "[ImuInstance]" << m_deviceDescription
@@ -699,7 +703,8 @@ void ImuInstance::refineMountAboutLongAxis(const QQuaternion &refRaw, double phi
 
 void ImuInstance::clearFunctionalCalibration()
 {
-    m_anatCalibrated = false;
+    m_anatCalibrated  = false;
+    m_calibratedAtUtc = QDateTime();
     m_alignA = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
     m_mountM = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
     m_worker->setAnatomical(m_alignA, m_mountM, false);

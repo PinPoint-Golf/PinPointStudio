@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include <QDateTime>
 #include <QElapsedTimer>
 #include <QList>
 #include <QObject>
@@ -127,6 +128,29 @@ public:
     double      mountGravityErrorDeg() const { return m_mountGravityErrorDeg; }
     QQuaternion alignA()        const { return m_alignA; }   // session-metadata accessors
     QQuaternion mountM()        const { return m_mountM; }
+    // Wallclock instant of the last successful anatomical calibration (invalid
+    // until calibrated; cleared with the calibration). Persisted into saved
+    // shots so SwingLab can filter a corpus by calibration freshness.
+    QDateTime   calibratedAtUtc() const { return m_calibratedAtUtc; }
+
+    // The two-part mount-gate thresholds (see .claude/calibration.md): gravity
+    // catches flips, long-axis deviation catches strap rotation. BOTH must pass.
+    static constexpr double kMountDeviationMaxDeg    = 15.0;
+    static constexpr double kMountGravityErrorMaxDeg = 25.0;
+    // Composite "is calibrated" — anatomical transform valid AND both mount
+    // checks within threshold. This is what saved shots record as `calibrated`.
+    bool fullyCalibrated() const
+    {
+        return m_anatCalibrated
+            && m_mountDeviationDeg    <= kMountDeviationMaxDeg
+            && m_mountGravityErrorDeg <= kMountGravityErrorMaxDeg;
+    }
+
+    // BLE chain delay between the physical impact and host arrival of the
+    // sample that carries it (connection interval + stack). A measured-ish
+    // placeholder until P4 auto-calibration; passed into the worker's
+    // detector config and recorded in swing.json, never hard-coded in math.
+    static constexpr qint64 kImuBleLatencyUs = 30'000;
 
     // Lifecycle — called by ImuManager
     void start();                // begin BLE connection
@@ -281,12 +305,6 @@ private:
     double m_dataRateHz = 0.0;
     float  m_angularVelocityDps = 0.0f;
 
-    // BLE chain delay between the physical impact and host arrival of the
-    // sample that carries it (connection interval + stack). A measured-ish
-    // placeholder until P4 auto-calibration; passed into the worker's
-    // detector config, never hard-coded in the math.
-    static constexpr qint64 kImuBleLatencyUs = 30'000;
-
     // Raw packet streaming state for beginRawDump/endRawDump (off by default).
     // While active, a per-packet queued connection feeds the GUI (diagnostic
     // mode only — zero hot-path cost when off).
@@ -318,6 +336,7 @@ private:
     QQuaternion m_anatQuat{ 1.0f, 0.0f, 0.0f, 0.0f };   // cached A * q_raw * M
     double      m_mountDeviationDeg = 0.0;              // |solved M vs nominal| (precise mode)
     double      m_mountGravityErrorDeg = 0.0;          // arm-down gravity vs anatomical up (flip check)
+    QDateTime   m_calibratedAtUtc;                     // wallclock of last calibration (invalid = never)
 
     // Log throttle — summary every 10 s
     QTimer  m_logTimer;

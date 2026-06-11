@@ -33,6 +33,9 @@
 #include "../Analysis/swing_analysis.h"
 #include "../Export/swing_doc.h"
 #include "../Core/pp_debug.h"
+#include "pp_version.h"
+
+#include <QSysInfo>
 
 #include <QDateTime>
 #include <QJsonArray>
@@ -448,6 +451,17 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
             b.role   = segmentRoleForSlot(m_sessionType, placement.value(imu->deviceId()).toString());
             b.alignA = imu->alignA();
             b.mountM = imu->mountM();
+            // Calibration status snapshot — persisted into swing.json's
+            // analysis.bindings so SwingLab can filter by provenance.
+            b.anatCalibrated       = imu->anatCalibrated();
+            b.calibrated           = imu->fullyCalibrated();
+            b.mountDeviationDeg    = imu->mountDeviationDeg();
+            b.mountGravityErrorDeg = imu->mountGravityErrorDeg();
+            if (imu->calibratedAtUtc().isValid()) {
+                b.calibratedAtUtc = imu->calibratedAtUtc().toString(Qt::ISODateWithMs);
+                b.calibAgeSec     = imu->calibratedAtUtc()
+                                        .msecsTo(QDateTime::currentDateTimeUtc()) / 1000.0;
+            }
             job.imuBindings.push_back(b);
         }
     }
@@ -581,6 +595,23 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
     // Wallclock anchor: right now, wallclock ~= monotonic endTimestampUs().
     job.wallclockAnchorUtc = QDateTime::currentDateTimeUtc();
 
+    // Session context + host provenance for the manifest's "capture" block.
+    job.sessionType = m_sessionType;
+    job.shotSource  = static_cast<int>(m_shotSource);
+    job.swingDetectionSensitivity = s->swingDetectionSensitivity();
+    job.imuBleLatencyUs      = ImuInstance::kImuBleLatencyUs;
+    job.audioDeviceLatencyUs = s->audioDeviceLatencyUs();
+    job.host.appVersion = QStringLiteral(PP_APP_VERSION);
+    job.host.gitSha     = QStringLiteral(PP_GIT_SHA);
+    job.host.hostname   = QSysInfo::machineHostName();
+    job.host.platform   = QSysInfo::prettyProductName();
+    for (const ReplayTrack &track : m_replayTracks) {
+        if (!track.ctrl->poseBackendLabel().isEmpty()) {
+            job.host.poseBackend = track.ctrl->poseBackendLabel();
+            break;
+        }
+    }
+
     // Cameras: every replay track, with its alias resolved and sanitised.
     // Filename = alias (live-updated on the instance), falling back to the
     // device description, then serial.
@@ -601,6 +632,10 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         cam.sourceId = track.sourceId;
         cam.alias    = name;
         cam.fileName = name + QLatin1Char('.') + container;
+        cam.perspective  = track.ctrl->perspective();
+        cam.mirrored     = track.ctrl->isMirrored();
+        cam.fixedInPlace = s->cameraFixedInPlace()
+                               .value(track.ctrl->cameraKey()).toBool();
         job.cameras.push_back(std::move(cam));
     }
 
@@ -616,7 +651,10 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
 
     // IMU aliases keyed by the same identifier the sources registered with
     // (serial when present, else device id — mirrors ImuInstance).
-    const QVariantMap imuAliases = s->imuAlias();
+    const QVariantMap imuAliases   = s->imuAlias();
+    const QVariantMap imuPlacement = s->imuPlacement();
+    const QVariantMap imuFusion    = s->imuFusionMode();
+    const QVariantMap imuRates     = s->imuOutputRateHz();
     const QList<Device> imus = DeviceEnumerator::instance()->devices(DeviceType::Imu);
     for (const Device &dev : imus) {
         const QString serial = dev.imuCapabilities.serialNumber.isEmpty()
@@ -626,6 +664,26 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         const QString alias  = imuAliases.value(imuKey).toString().trimmed();
         if (!alias.isEmpty())
             job.imuAliasBySerial.insert(serial, alias);
+
+        // Per-device config for the stream "device" object. The live
+        // instance's rate is authoritative; settings are the fallback when
+        // the device disconnected between capture and export.
+        pinpoint::SwingImuDeviceInfo info;
+        info.outputRateHz      = imuRates.value(dev.id, 200).toInt();
+        info.fusionMode        = imuFusion.value(dev.id, s->imuDefaultFusionMode()).toString();
+        info.orientationFilter = s->imuOrientationFilter();
+        info.placementSlot     = imuPlacement.value(dev.id).toString();
+        if (m_imuManager) {
+            const QVariantList insts = m_imuManager->instances();
+            for (const QVariant &v : insts) {
+                auto *imu = qobject_cast<ImuInstance *>(v.value<QObject *>());
+                if (imu && imu->deviceId() == dev.id) {
+                    info.outputRateHz = imu->outputRateHz();
+                    break;
+                }
+            }
+        }
+        job.imuDeviceBySerial.insert(serial, info);
     }
 
     const auto alloc = m_swingPaths.allocateSwingDir(s->athleteLibraryPath(),
@@ -670,6 +728,7 @@ QJsonObject ShotProcessor::buildSynthManifest() const
         { QStringLiteral("start_us"), 0 },
         { QStringLiteral("end_us"),   static_cast<qint64>(durationUs) },
     };
+    root[QStringLiteral("capture")] = pinpoint::SwingExporter::captureBlock(m_exportJob);
     root[QStringLiteral("streams")] = QJsonArray{};   // analysis-only — no media
     return root;
 }

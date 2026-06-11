@@ -51,7 +51,6 @@ struct ShotAnalysisJob {
     std::vector<pinpoint::analysis::ImuSegmentBinding> imuBindings;
     int     handedness = 0;     // 0 unknown, 1 right, 2 left (lead-arm sign)
     QString swingDir;           // swing folder for persistence (set at the join)
-    bool    calibValid = false; // IMU sensor-to-segment calibration fresh (<30 min)
 
     // Optional progress sink, 0..1 over the whole analysis. Called from the
     // WORKER thread — the installer must marshal to its own thread (the

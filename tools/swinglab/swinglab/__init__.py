@@ -51,10 +51,34 @@ class Swing:
         return [s for s in self.doc.get("streams", []) if s.get("kind") == "video"]
 
     def face_on(self, needle="Face"):
+        # Recorded perspective (stream "setup", FaceOn == 2) wins when present;
+        # legacy swings fall back to the alias substring guess.
+        for s in self.video_streams():
+            if s.get("setup", {}).get("perspective") == 2:
+                return s
         for s in self.video_streams():
             if needle.lower() in (s.get("alias", "") + s.get("file", "")).lower():
                 return s
         return self.video_streams()[0] if self.video_streams() else None
+
+    def capture(self):
+        """Top-level capture block (session context + host provenance); {} on legacy swings."""
+        return self.doc.get("capture", {})
+
+    def bindings(self):
+        return self.doc.get("analysis", {}).get("bindings", [])
+
+    def calibrated(self):
+        """All-bindings calibration verdict: True/False when recorded, None when
+           unknown (legacy swing or no bindings carrying the field)."""
+        known = [b["calibrated"] for b in self.bindings() if "calibrated" in b]
+        return all(known) if known else None
+
+    def calib_age_sec(self):
+        """Worst (max) calibration age across bindings; None when not recorded."""
+        ages = [b["calibAgeSec"] for b in self.bindings()
+                if b.get("calibAgeSec", -1) >= 0]
+        return max(ages) if ages else None
 
     def impact_us(self):
         for p in self.doc.get("analysis", {}).get("phases", []):

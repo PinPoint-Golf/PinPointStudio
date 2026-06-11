@@ -95,7 +95,15 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a)
                 { QStringLiteral("alignA"), QJsonArray{ b.alignA.scalar(), b.alignA.x(),
                                                         b.alignA.y(), b.alignA.z() } },
                 { QStringLiteral("mountM"), QJsonArray{ b.mountM.scalar(), b.mountM.x(),
-                                                        b.mountM.y(), b.mountM.z() } } });
+                                                        b.mountM.y(), b.mountM.z() } },
+                // Calibration status at shot time (additive — SwingLab corpus
+                // provenance). calibAgeSec -1 / empty calibratedAt = never.
+                { QStringLiteral("calibrated"),           b.calibrated },
+                { QStringLiteral("anatCalibrated"),       b.anatCalibrated },
+                { QStringLiteral("mountDeviationDeg"),    b.mountDeviationDeg },
+                { QStringLiteral("mountGravityErrorDeg"), b.mountGravityErrorDeg },
+                { QStringLiteral("calibratedAt"),         b.calibratedAtUtc },
+                { QStringLiteral("calibAgeSec"),          b.calibAgeSec } });
         o[QStringLiteral("bindings")] = binds;
     }
 

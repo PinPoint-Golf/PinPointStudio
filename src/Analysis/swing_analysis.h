@@ -57,6 +57,15 @@ struct ImuSegmentBinding {
     SegmentRole role   = SegmentRole::Unknown;
     QQuaternion alignA;   // fusion-world  -> anatomical-world  (A)
     QQuaternion mountM;   // anatomical-body -> sensor-body     (M)
+    // Calibration status snapshot (ImuInstance) — persisted so SwingLab can
+    // filter a corpus by calibration provenance. `calibrated` is the composite
+    // gate (anatCalibrated AND both mount checks within threshold).
+    bool        anatCalibrated = false;
+    bool        calibrated     = false;
+    double      mountDeviationDeg    = 0.0;
+    double      mountGravityErrorDeg = 0.0;
+    QString     calibratedAtUtc;       // ISO8601 wallclock; empty = never calibrated
+    double      calibAgeSec = -1.0;    // age at shot time; -1 = never calibrated
 };
 
 // APPEND-ONLY: phases persist as raw ints in swing.json and QML compares the
@@ -203,6 +212,13 @@ struct BindingRecord {
     QString     serial;                       // FormatDescriptor::device_serial
     SegmentRole role = SegmentRole::Unknown;
     QQuaternion alignA, mountM;
+    // Calibration status at shot time (mirrors ImuSegmentBinding; see there).
+    bool        anatCalibrated = false;
+    bool        calibrated     = false;
+    double      mountDeviationDeg    = 0.0;
+    double      mountGravityErrorDeg = 0.0;
+    QString     calibratedAtUtc;
+    double      calibAgeSec = -1.0;
 };
 
 // The rich detail behind ShotAnalysisResult::detail — the full analyzed swing.
