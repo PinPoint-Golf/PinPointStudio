@@ -134,16 +134,34 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
     const int64_t denseHi = opt.impactUs + static_cast<int64_t>(opt.densePostMs) * 1000;
     const int     stride  = std::max(1, opt.sparseStride);
 
+    // Scan bounds (v3 G3): restrict to the detected swing span. Entries are
+    // per-source monotonic, so the span is a contiguous index range. Bounds
+    // that exclude every frame (clock mismatch) fall back to the full window
+    // — degrading the optimisation, never the result.
+    size_t i0 = 0, i1 = entries.size();
+    if (opt.scanEndUs > opt.scanStartUs) {
+        while (i0 < entries.size() && entries[i0].timestamp_us < opt.scanStartUs)
+            ++i0;
+        while (i1 > i0 && entries[i1 - 1].timestamp_us > opt.scanEndUs)
+            --i1;
+        if (i0 >= i1) {
+            ppWarn() << "[PoseRunner] scan bounds exclude every frame — falling back "
+                        "to the full window";
+            i0 = 0;
+            i1 = entries.size();
+        }
+    }
+
     // Lead = left hand for right-handed (and unknown) golfers, right for left-handed.
     const bool leftLeads = (opt.handedness != 2);
     constexpr int   kLeftWrist    = 9;    // PoseJoint::LeftWrist
     constexpr int   kRightWrist   = 10;   // PoseJoint::RightWrist
     constexpr float kMinHandConf  = 0.3f;
 
-    track.frames.reserve(entries.size());
+    track.frames.reserve(i1 - i0);
     size_t sampled = 0, wristOk = 0;
     cv::Mat bgr;   // reused decode scratch
-    for (size_t i = 0; i < entries.size(); ++i) {
+    for (size_t i = i0; i < i1; ++i) {
         const pinpoint::IndexEntry &e = entries[i];
         const bool dense = opt.impactUs >= 0
                         && e.timestamp_us >= denseLo && e.timestamp_us <= denseHi;
@@ -151,7 +169,7 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
             continue;
         ++sampled;
         if (opt.progress)
-            opt.progress(float(i + 1) / float(entries.size()));
+            opt.progress(float(i + 1 - i0) / float(i1 - i0));
 
         // Frozen-window contract: payloadOf() may hand back data == nullptr
         // (slot overwritten / mid-write) — decodeToBgr rejects null and short
@@ -203,9 +221,9 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
     }
 
     ppInfo() << "[PoseRunner] source" << faceOnSource << ":" << track.frames.size()
-             << "posed of" << sampled << "sampled (" << entries.size()
-             << "in window)," << wristOk << "with both wrists conf > 0.3,"
-             << wall.elapsed() << "ms";
+             << "posed of" << sampled << "sampled (" << (i1 - i0) << "in span,"
+             << entries.size() << "in window)," << wristOk
+             << "with both wrists conf > 0.3," << wall.elapsed() << "ms";
     return track;
 }
 

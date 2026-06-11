@@ -40,9 +40,17 @@ struct ShotAnalysisRunnerOptions {
     int     densePostMs = 300;  //                          … impact + densePostMs]
     int     sparseStride = 4;   // every Nth frame outside the dense zone
 
-    // Optional progress sink, 0..1 over this pose pass (window-scan position,
-    // not posed-frame count — the sparse zone advances it in stride jumps).
-    // Called from the worker thread; may be null.
+    // Scan bounds (segmentation v3 G3): only frames inside
+    // [scanStartUs, scanEndUs] are decoded/posed — the detected swing span
+    // (plus pad) instead of the whole 5 s ring. 0/0 = unbounded. If the
+    // bounds exclude every frame (clock mismatch), the runner falls back to
+    // the full window rather than returning an empty track.
+    int64_t scanStartUs = 0;
+    int64_t scanEndUs   = 0;
+
+    // Optional progress sink, 0..1 over this pose pass (span-relative scan
+    // position, not posed-frame count — the sparse zone advances it in
+    // stride jumps). Called from the worker thread; may be null.
     std::function<void(float)> progress;
 };
 

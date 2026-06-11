@@ -128,7 +128,7 @@ double medianPoseHeight(const PoseTrack2D &pose)
 ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
                                  const PoseTrack2D &pose,
                                  const FusedStreams &streams,
-                                 const std::vector<PhaseEvent> &phases,
+                                 const Segmentation &segmentation,
                                  const ShotAnalysisJob &job)
 {
     ShaftTrack2D out;
@@ -221,13 +221,13 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
         return out;
     }
 
-    // Coverage span: the detected swing when the segmenter found one, else
-    // the whole observation range.
+    // Coverage span for the validity gate: the detected swing (Address→Finish
+    // from the segmentation ladder) when found, else the whole obs range.
     int64_t spanLo = obs.front().t_us, spanHi = obs.back().t_us;
-    for (const PhaseEvent &p : phases) {
-        if (p.phase == Phase::Address) spanLo = std::max(spanLo, p.t_us);
-        if (p.phase == Phase::Finish)  spanHi = std::min(spanHi, p.t_us);
-    }
+    if (const PhaseEvent *a = segmentation.eventFor(Phase::Address))
+        spanLo = std::max(spanLo, a->t_us);
+    if (const PhaseEvent *f = segmentation.eventFor(Phase::Finish))
+        spanHi = std::min(spanHi, f->t_us);
     if (spanHi <= spanLo) {
         spanLo = obs.front().t_us;
         spanHi = obs.back().t_us;

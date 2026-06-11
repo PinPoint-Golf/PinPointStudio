@@ -207,6 +207,15 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
         ShotAnalysisRunnerOptions opt;
         opt.impactUs   = job.impactUs;
         opt.handedness = job.handedness;
+        // Heavy-stage bounding (v3 G3): scan only the detected swing span
+        // (+pad for pass-1 timing error). The shaft detection loop follows
+        // pose coverage, so this bounds both heavy stages. conf 0 ⇒ full
+        // window, exactly today's behaviour.
+        if (segmentation.conf > 0.f) {
+            constexpr int64_t kScanPadUs = 150000;
+            opt.scanStartUs = segmentation.swingStartUs - kScanPadUs;
+            opt.scanEndUs   = segmentation.swingEndUs   + kScanPadUs;
+        }
         if (job.progress) {
             job.progress(0.10f);
             opt.progress = [&job](float f) { job.progress(0.10f + 0.60f * f); };
@@ -216,7 +225,8 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
             ShotAnalysisJob sub = job;
             if (job.progress)
                 sub.progress = [&job](float f) { job.progress(0.70f + 0.28f * f); };
-            detail->shaft = ShaftTracker::track(window, detail->pose2d, streams, phases, sub);
+            detail->shaft = ShaftTracker::track(window, detail->pose2d, streams,
+                                                segmentation, sub);
             if (detail->shaft.valid)
                 series.push_back(buildShaftLeanSeries(detail->shaft, job.handedness,
                                                       job.impactUs));

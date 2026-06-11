@@ -18,10 +18,8 @@
 
 #pragma once
 
-#include <vector>
-
 #include "shaft_track_assembly.h"   // ShaftTrack2D + assembly stages
-#include "swing_analysis.h"         // PhaseEvent, SegmentRole
+#include "swing_analysis.h"         // Segmentation, SegmentRole
 
 struct ShotAnalysisJob;
 
@@ -32,10 +30,12 @@ namespace pinpoint::analysis {
 struct FusedStreams;
 
 // ShaftTracker stage S2 driver — runs the per-frame anchored radial detection
-// (shaft_tracker_math) over EVERY face-on camera frame of the frozen window,
-// with grip/elbow anchors interpolated between the PoseRunner's sampled
-// frames, then assembles the smooth track (shaft_track_assembly: ŝ_hand
-// calibration → Viterbi → wrap-aware 2-channel KF + RTS).
+// (shaft_tracker_math) over every face-on camera frame inside the PoseRunner's
+// coverage (the segmentation-bounded swing span since v3 G3), with grip/elbow
+// anchors interpolated between the sampled pose frames, then assembles the
+// smooth track (shaft_track_assembly: ŝ_hand calibration → Viterbi →
+// wrap-aware 2-channel KF + RTS). The coverage-gate span comes from the
+// segmentation's Address/Finish events (full obs range when absent).
 //
 // Pure const reader of the frozen window — all reads finish before return.
 // Returns an INVALID track (consumers must check .valid) when: the pose track
@@ -49,7 +49,7 @@ public:
     static ShaftTrack2D track(const pinpoint::SwingWindow &window,
                               const PoseTrack2D &pose,
                               const FusedStreams &streams,
-                              const std::vector<PhaseEvent> &phases,
+                              const Segmentation &segmentation,
                               const ShotAnalysisJob &job);
 };
 
