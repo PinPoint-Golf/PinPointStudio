@@ -433,8 +433,11 @@ int main(int argc, char **argv)
     meta["platform"]   = QSysInfo::prettyProductName();
     {
         QFile mf(outDir + "/runmeta.json");
-        mf.open(QIODevice::WriteOnly);
-        mf.write(QJsonDocument(meta).toJson());
+        if (mf.open(QIODevice::WriteOnly))
+            mf.write(QJsonDocument(meta).toJson());
+        else
+            std::fprintf(stderr, "[swinglab] cannot write runmeta.json: %s\n",
+                         mf.errorString().toUtf8().constData());
     }
 
     // ── Trace (re-runs the shaft stages with the sinks) ──────────────────────
@@ -451,7 +454,11 @@ int main(int argc, char **argv)
         ShaftTracker::track(window, pose, streams, seg, job, &trace);
 
         QFile tf(outDir + "/trace.jsonl");
-        tf.open(QIODevice::WriteOnly);
+        if (!tf.open(QIODevice::WriteOnly)) {
+            std::fprintf(stderr, "[swinglab] cannot write trace.jsonl: %s\n",
+                         tf.errorString().toUtf8().constData());
+            return result.ok ? 0 : 2;
+        }
         for (size_t i = 0; i < trace.obs.size(); ++i) {
             const ShaftFrameObs &o = trace.obs[i];
             QJsonArray cands;
