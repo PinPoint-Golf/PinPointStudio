@@ -62,21 +62,37 @@ FusedStreams ImuVisionFuser::fuse(const SwingWindow &window,
         SegmentStream s;
         s.role = bd.b->role;
         s.qAnat.reserve(out.timeGrid.size());
+        s.gyroDps.reserve(out.timeGrid.size());
+        s.accelG.reserve(out.timeGrid.size());
+        // ImuSample vectors are RAW sensor-frame (imu_sample.h v2); rotate them
+        // into the anatomical segment frame (v_anat = M⁻¹·v_sensor) so they share
+        // qAnat's body frame. M is unit, so conjugated() is its inverse.
+        const QQuaternion mountInv = bd.b->mountM.conjugated();
         QQuaternion last;            // hold-last fallback for a momentary gap
+        QVector3D   lastGyro, lastAccel;
         bool haveLast = false;
         for (const int64_t t : out.timeGrid) {
             ImuSample smp{};
             QQuaternion qAnat;
+            QVector3D   gyro, accel;
             if (window.interpolateImu(bd.b->source, t,
                                       reinterpret_cast<std::byte *>(&smp), sizeof(smp))) {
                 const QQuaternion qRaw(smp.quat_w, smp.quat_x, smp.quat_y, smp.quat_z);
-                qAnat    = imu_calibration::toAnatomical(bd.b->alignA, qRaw, bd.b->mountM);
-                last     = qAnat;
-                haveLast = true;
+                qAnat     = imu_calibration::toAnatomical(bd.b->alignA, qRaw, bd.b->mountM);
+                gyro      = mountInv.rotatedVector(QVector3D(smp.gyro_x, smp.gyro_y, smp.gyro_z));
+                accel     = mountInv.rotatedVector(QVector3D(smp.accel_x, smp.accel_y, smp.accel_z));
+                last      = qAnat;
+                lastGyro  = gyro;
+                lastAccel = accel;
+                haveLast  = true;
             } else {
                 qAnat = haveLast ? last : QQuaternion();   // identity until first valid sample
+                gyro  = lastGyro;                          // zero until first valid sample
+                accel = lastAccel;
             }
             s.qAnat.push_back(qAnat);
+            s.gyroDps.push_back(gyro);
+            s.accelG.push_back(accel);
         }
         out.segments.push_back(std::move(s));
     }

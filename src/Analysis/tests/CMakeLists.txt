@@ -49,6 +49,11 @@ pp_add_test(imu_sample_test  imu_sample_test.cpp)
 # math (header-only: src/Gui/viz_frame.h).
 pp_add_test(viz_frame_test  viz_frame_test.cpp)
 
+# Segmentation v2/v3 signal preparation (G0): zero-phase filtering, envelopes,
+# world-frame gyro, swing-plane axis, inclination, stillness, sub-grid refine.
+pp_add_test(phase_signals_test phase_signals_test.cpp
+                               ${ANALYSIS}/phase_signals.cpp)
+
 # Phase segmenter + metric extractor over a synthetic swing.
 pp_add_test(pipeline_test      pipeline_test.cpp
                                ${ANALYSIS}/phase_segmenter.cpp

@@ -19,6 +19,7 @@
 #pragma once
 
 #include <QQuaternion>
+#include <QVector3D>
 #include <cstdint>
 #include <vector>
 
@@ -32,6 +33,13 @@ namespace pinpoint::analysis {
 struct SegmentStream {
     SegmentRole role = SegmentRole::Unknown;
     std::vector<QQuaternion> qAnat;        // q_anat = A·q_raw·M at each TimeGrid index
+    // Measured inertials resampled on the same grid, rotated into the ANATOMICAL
+    // segment frame (M⁻¹·v_sensor — the frame qAnat maps to world). So the
+    // world-frame gyro is qAnat·gyro·qAnat⁻¹ and a signed axial rate is a plain
+    // dot product against a constant segment axis. Units as stored in ImuSample:
+    // °/s and g. Same length as qAnat (hold-last across momentary gaps).
+    std::vector<QVector3D>   gyroDps;
+    std::vector<QVector3D>   accelG;
 };
 
 // The orientation slice of the fusion layer: every bound IMU resampled onto one

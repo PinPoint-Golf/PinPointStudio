@@ -1693,6 +1693,8 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/imu_vision_fuser.cpp
     src/Analysis/phase_segmenter.h
     src/Analysis/phase_segmenter.cpp
+    src/Analysis/phase_signals.h
+    src/Analysis/phase_signals.cpp
     src/Analysis/shaft_tracker_math.h
     src/Analysis/shaft_tracker_math.cpp
     src/Analysis/shaft_track_assembly.h
