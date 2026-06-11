@@ -616,6 +616,13 @@ void ImuInstance::setNominalCalibration(const QQuaternion &refRaw, bool handMoun
     emit quatChanged();
 }
 
+void ImuInstance::logCalibHoldReset(const QString &stage, double thresholdDps)
+{
+    ppInfo() << "[Calib]" << stage << "hold reset —" << m_deviceDescription
+             << "angular velocity" << m_angularVelocityDps << "deg/s (threshold"
+             << thresholdDps << "deg/s)";
+}
+
 void ImuInstance::refineMountAboutLongAxis(const QQuaternion &refRaw, double phiDeg, bool handMount)
 {
     // M' = M_nominal * Ry(phi)  (Ry about the anatomical long axis +Y); then A'

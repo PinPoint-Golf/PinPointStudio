@@ -319,9 +319,7 @@ Item {
                 var now = Date.now()   // throttled diagnostic: WHY the hold resets
                 if (now - d._lastStillLogMs > 2000) {
                     d._lastStillLogMs = now
-                    console.info("[Calib] T-pose hold reset — angular velocity",
-                                 imu.angularVelocityDps.toFixed(1), "°/s (threshold",
-                                 d._stillThreshDps, "°/s)")
+                    imu.logCalibHoldReset("T-pose", d._stillThreshDps)
                 }
                 d._phase2Samples = []
                 d.stableAccumMs  = 0
@@ -467,9 +465,7 @@ Item {
                 var now = Date.now()   // throttled diagnostic: WHY the hold resets
                 if (now - d._lastStillLogMs > 2000) {
                     d._lastStillLogMs = now
-                    console.info("[Calib] arm-down hold reset — angular velocity",
-                                 imu.angularVelocityDps.toFixed(1), "°/s (threshold",
-                                 d._stillThreshDps, "°/s)")
+                    imu.logCalibHoldReset("arm-down", d._stillThreshDps)
                 }
                 d._phase1Samples = []
                 d.phase1AccumMs  = 0

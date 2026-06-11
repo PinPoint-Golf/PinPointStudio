@@ -166,6 +166,12 @@ public:
     // Keeps the validated nominal; bounded → cannot flip the frame.
     Q_INVOKABLE void    refineMountAboutLongAxis(const QQuaternion &refRaw,
                                                  double phiDeg, bool handMount = false);
+
+    // Calibration-flow diagnostic: records WHY a stillness-gated hold keeps
+    // resetting (measured angular velocity vs the gate) in the exportable
+    // in-app log. QML cannot reach ppInfo()/PpMessageLog directly, so the
+    // flow calls this (throttled on its side) instead of console output.
+    Q_INVOKABLE void    logCalibHoldReset(const QString &stage, double thresholdDps);
     Q_INVOKABLE void    beginZeroing();
 
     // Diagnostic logging facility (retained dev tool, no production callers; off
