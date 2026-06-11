@@ -184,6 +184,54 @@ IMU stream — smooth, unwrapped, confidence/flag-annotated, IMU-bridged through
 it is the fusion layer's temporal-alignment signal) exceeds 0.9, logged per shot as the
 in-production health metric.
 
+> **As built (S2).** All planned behaviour shipped, restructured into two files and with
+> these algorithm deviations:
+> - **Split: `shaft_track_assembly.{h,cpp}` + `shaft_tracker.{h,cpp}`** (plan had one file).
+>   The assembly is pure over plain vectors (`ShaftFrameObs` in → `ShaftTrack2D` out, no
+>   `SwingWindow` access) so the whole ŝ_hand→Viterbi→KF/RTS pipeline is standalone-testable;
+>   `ShaftTracker::track()` keeps only the window-driving orchestration. The canonical output
+>   types (`ShaftSample2D`/`ShaftTrack2D`/flags) live in `swing_analysis.h` (Qt-only) so
+>   `SwingAnalysis` consumers never pull the OpenCV-typed detection headers.
+> - **Driver specifics** (`shaft_tracker.cpp`): detection runs over **every** camera frame
+>   inside pose coverage, grip/elbow anchors lerped between the sampled pose frames; the
+>   search radius comes from the median pose-silhouette height × assumed 1.70 m stature →
+>   `1.25 · clubLengthM · px/m`, clamped [80 px, min(w,h)], half-frame fallback when pose
+>   never sees a full body. `qHand` is the nearest 200 Hz fused-grid sample within 25 ms.
+>   Coverage span = Address→Finish phase events when present, else the full obs range.
+> - **ŝ_hand fit gained two parameters the plan missed:** `sign ∈ {±1}` (mirrored-camera
+>   chirality — mirroring is not a rotation, no constant offset can express it) and `δ`
+>   (constant image-angle offset absorbing IMU-world↔image yaw/camera roll, closed-form
+>   circular mean per candidate direction). Solver is a Fibonacci sphere lattice (800 dirs
+>   ≈ 7°) + two local tangent-plane refinement grids (±7° @ 1.7°, ±1.7° @ 0.6°) — no
+>   Gauss-Newton stage needed at that resolution. Eligibility: valid quat, non-wedge best
+>   candidate, wrapped rate ≤ 3 rad/s; gates: ≥ 8 frames, ≥ 15° θ span (identifiability),
+>   RMS residual ≤ ~7° or the channel is disabled (degrade, never fabricate). Per-shot fit,
+>   never persisted (re-gripping moves ŝ).
+> - **Unwrapping is velocity-aware inside the filter, not a pre-pass** — each wrapped vision
+>   measurement is lifted against the prediction (`z = x̂₀ + wrap(θ_z − x̂₀)`), so downswing
+>   gaps cannot alias; the IMU channel is unwrapped from the fit per frame and re-anchored to
+>   the filter domain by one constant per-run offset.
+> - **`L(t)`/head simplified vs the planned "light 1-D KFs":** L = median-of-5 over measured
+>   values + hold-last between; head = measured blob when present, else projected
+>   `grip + L·dir(θ)` with a `ShaftHeadProjected` flag. Deliberate — θ is the precision
+>   channel. **The planned foreshortening-driven θ suppression (L-collapse via the
+>   IMU-predicted profile) was NOT built** — wedge σ and the coverage gate carry that risk
+>   for now; revisit in S5 if real face-on swings show θ corruption when the shaft points
+>   at the camera.
+> - Viterbi transition cost: deviation of Δθ from the IMU-predicted delta (slack 200 rad/s²)
+>   when calibrated, else the path's own velocity trend (slack 800 rad/s², extra ~20° on the
+>   first transition), plus a ΔL deviation term; node cost from per-frame-normalised scores
+>   with a missing hypothesis at fixed penalty.
+> - `imuVisionCorr` (Pearson over consecutive measured-pair θ̇, dt < 0.2 s, ≥ 8 pairs) is
+>   computed in `assemble()` and rides the track — the >0.9 acceptance itself pends S5.
+> - `shaft_track_test` (4 scenarios over a synthetic 110-frame swing): IMU run — fit
+>   reproduces the projected angle everywhere (the gauge-invariant statement; ŝ itself has a
+>   one-parameter family), mid-backswing strong-clutter rejection, 8-frame downswing dropout
+>   bridged, unwrapped top→post-impact sweep ≈ −300°; mirrored camera — fit sign = −1;
+>   vision-only — coasting, trend-based clutter rejection, corr stays 0; coverage gate —
+>   every-other-frame dropout with no IMU ⇒ invalid. Only test target linking Qt **and**
+>   OpenCV; `-O2` like the S1 target.
+
 ## S3 — Analyzer integration + persistence
 
 **Deliverable:** the track rides `SwingAnalysis`, persists in `swing.json`, reloads, and feeds
@@ -213,6 +261,31 @@ doc-writer test pattern; analyzer integration verified headless.
 
 **Acceptance:** a captured shot's `swing.json` contains both blocks; reload populates the detail;
 `impactShaftLean` appears in the metrics map.
+
+> **As built (S3).** Shipped as planned, with these deviations/clarifications:
+> - **`impactShaftLean` is in the series but UNSCORED** — the plan's "scores like any other
+>   metric" was premature: there is no validated reference band, so the scorer's band table
+>   simply doesn't list the key (series + impact phase-sample only). The toward-target
+>   **sign is provisional** pending the hardware sign-lock pass (same treatment the wrist
+>   metrics needed). Lean = deviation of the grip→head ray from image-vertical (+90° in the
+>   y-down convention), wrapped near zero; `wristMetricLabel` renders forward/back/neutral.
+> - The shaft stage runs **after** the cheap IMU stages in `WristAnalyzer::analyze()`, gated
+>   on `job.faceOnCameraCount > 0`; every failure degrades to empty/invalid tracks on the
+>   detail, never to a failed analysis (the shot lands on the carousel regardless).
+> - `swing.json`: `analysis.pose2d` (per frame: flat `kp [x,y,c]×17` + lead/trail/handConf)
+>   and `analysis.club`. **The club block is written only for a VALID track** (all-or-nothing
+>   consumer contract); grip/head are normalized 0..1 at serialization by the camera dims,
+>   which are persisted too (`frameWidth/Height`). `SwingDocReader` maps both blocks into
+>   `analysisDetail` as variant maps with shapes IDENTICAL to the live `toAnalysisDetail`
+>   (`shot_processor.cpp`) — reloaded shots drive the replay overlay unchanged; missing
+>   blocks ⇒ absent keys (old files reload as before). Round-trip covered in
+>   `swing_doc_test` (pose frame + 2-sample valid club track, exact value checks).
+> - `ShotProcessor::startAnalysis()` counts face-on cameras while building the face-on-first
+>   `cameraSources` (making the ordering verifiable from the worker); `clubLengthM` rides the
+>   job at its 1.12 driver default. `PoseRunner` options (`impactUs`, `handedness`) are
+>   resolved from the job on the worker — value types only, per the job rule.
+> - `phase_segmenter.*` untouched, exactly as planned — the track is stored, not yet consumed
+>   by phases.
 
 ## S4 — Replay overlay: skeleton + shaft on the face-on frame
 
@@ -250,6 +323,28 @@ skeleton+shaft registration against the video; then a real on-hardware replay.
 **Acceptance:** replay of a captured swing shows skeleton + shaft tracking the playhead with no
 visible lag or misregistration; toggling `showReplayOverlay` hides it; non-face-on tiles and
 no-analysis shots show plain video.
+
+> **As built (S4).** `replayOverlay` canvas in `PpCameraFrame.qml` (z 21, sibling of the
+> live skeleton canvas) per the plan, with these deviations:
+> - **`showReplayOverlay` defaults `true` on `PpCameraFrame` itself — the planned per-screen
+>   one-liners don't exist.** Every face-on tile gets the overlay with zero screen edits;
+>   panel wiring stays future work like the other per-screen overlay toggles.
+> - `kEdges` factored to a root `readonly property var kSkeletonEdges` shared by both
+>   canvases, as planned.
+> - Visibility = `showReplayOverlay && shotProcessor.isReplaying && perspective === 2 &&`
+>   **cached arrays non-empty**; `_rebuildCache()` (on `replayAnalysisDetailChanged` and on
+>   becoming visible) caches `club.samples` only when `club.valid` — so invalid track ⇒
+>   skeleton only, no pose ⇒ nothing, exactly the planned degrade ladder.
+> - Scrubbing: `_indexFor()` binary search (greatest `t_us ≤ playhead`) over both arrays;
+>   repaint on `replayPositionChanged` only while visible.
+> - Drawing: skeleton in the live style at 0.55 × conf-scaled alpha; shaft = 2 px
+>   `Theme.colorAccent` grip→head line, alpha `0.35 + 0.5·conf`; 4 px head dot; head trail =
+>   alpha-fading polyline over the last 10 samples. Coord mapping reuses the live canvas's
+>   contentRect/debayer split verbatim.
+> - **The planned QML visual-harness pass was NOT run** — there is no captured swing with a
+>   club on disk yet, so a grabbed frame could only show the canvas not drawing. Pixel-level
+>   registration is verified headless only to the extent that the canvas instantiates clean;
+>   the eyeball check folds into S5 (as the header note records).
 
 ## S5 — Hardware validation + tuning
 
