@@ -352,25 +352,31 @@ Item {
             visible: !sessionReviewController.reviewActive
         }
 
-        // ── Analysing indicator — visible while the shot processor works ────
+        // ── Analysing badge — visible while the shot processor works ────────
         // (post-roll + analysis + export; hidden again once the replay runs,
-        // which has its own REPLAY badge on the camera frames). The bar fills
-        // with shotProcessor.analysisProgress (frames processed) and carries a
+        // which has its own REPLAY badge on the camera frames). One contained
+        // chip, SHOT-button footprint: label + elapsed time on the top line,
+        // progress bar beneath. The bar fills with
+        // shotProcessor.analysisProgress (frames processed) and carries a
         // sweeping sheen + twinkles at the leading edge — the one deliberately
         // showy moment in the toolbar. All motion gated on Theme.reduceMotion;
         // the plain filling bar remains.
-        Row {
-            id: analysingRow
+        Rectangle {
+            id: analysingBox
             Layout.alignment: Qt.AlignVCenter
-            spacing: Theme.sp(6)
+            implicitWidth: Theme.sp(128)
+            implicitHeight: Theme.sp(40)
+            radius: Theme.radius
+            color: Theme.colorBg2
+            border.width: 1
+            border.color: Theme.colorBorderMid
             visible: shotProcessor.busy && !shotProcessor.isReplaying
                      && !sessionReviewController.reviewActive
 
             readonly property bool sparkling: visible && !Theme.reduceMotion
 
             // Elapsed wall-time since the shot started processing (post-roll
-            // included) — the muted latency-label pattern from the STT/TTS
-            // badges. Hidden for the first second so instant analyses never
+            // included). Hidden for the first second so instant analyses never
             // flash a "0s".
             property int elapsedS: 0
             readonly property string elapsedLabel: elapsedS >= 60
@@ -378,105 +384,117 @@ Item {
                 : elapsedS + "s"
             onVisibleChanged: if (visible) elapsedS = 0
             Timer {
-                running: analysingRow.visible
+                running: analysingBox.visible
                 interval: 1000; repeat: true
-                onTriggered: analysingRow.elapsedS++
+                onTriggered: analysingBox.elapsedS++
             }
 
-            Item {
-                id: analyseBar
-                anchors.verticalCenter: parent.verticalCenter
-                width: Theme.sp(96); height: Theme.sp(5)
+            Column {
+                anchors.centerIn: parent
+                width: parent.width - Theme.sp(24)
+                spacing: Theme.sp(5)
 
-                Rectangle {   // track
-                    anchors.fill: parent
-                    radius: height / 2
-                    color: Theme.colorBg3
-                    border.width: 1; border.color: Theme.colorBorderMid
-                }
+                Item {   // label left, elapsed time right
+                    width: parent.width
+                    height: analysingLbl.implicitHeight
 
-                Rectangle {   // fill — never narrower than its own end caps
-                    id: analyseFill
-                    width: Math.max(height, parent.width * shotProcessor.analysisProgress)
-                    height: parent.height
-                    radius: height / 2
-                    color: Theme.colorAccent
-                    clip: true
-                    Behavior on width { NumberAnimation { duration: Theme.durationNormal } }
-
-                    Rectangle {   // sheen sweeping the filled portion only (parent clips)
-                        id: analyseSheen
-                        width: Theme.sp(22); height: parent.height
-                        visible: analysingRow.sparkling
-                        gradient: Gradient {
-                            orientation: Gradient.Horizontal
-                            GradientStop { position: 0.0; color: "transparent" }
-                            GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.55) }
-                            GradientStop { position: 1.0; color: "transparent" }
-                        }
-                        NumberAnimation on x {
-                            running: analysingRow.sparkling
-                            loops: Animation.Infinite
-                            from: -analyseSheen.width
-                            to: analyseBar.width
-                            duration: 1100
-                        }
-                    }
-                }
-
-                // Twinkles riding the fill's leading edge, staggered so they
-                // read as sparkle rather than a blinking cluster.
-                Repeater {
-                    model: [ { dx: -2,  dy: -7, period: 900  },
-                             { dx: -11, dy:  6, period: 1300 },
-                             { dx:  5,  dy: -2, period: 700  } ]
-                    delegate: Text {
-                        required property var modelData
-                        x: analyseFill.width + modelData.dx - implicitWidth / 2
-                        y: analyseBar.height / 2 + modelData.dy - implicitHeight / 2
-                        text: "✦"
-                        font.family: Theme.fontSymbol
+                    Text {
+                        id: analysingLbl
+                        anchors.left: parent.left
+                        text: qsTr("ANALYSING")
+                        font.family: Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
+                        font.letterSpacing: Theme.trackingMicro
+                        color: Theme.colorText3
+                    }
+
+                    Text {
+                        anchors.right: parent.right
+                        visible: analysingBox.elapsedS > 0
+                        text: analysingBox.elapsedLabel
+                        font.family: Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color: Theme.colorText3
+                        opacity: 0.7
+                    }
+                }
+
+                Item {
+                    id: analyseBar
+                    width: parent.width
+                    height: Theme.sp(4)
+
+                    Rectangle {   // track
+                        anchors.fill: parent
+                        radius: height / 2
+                        color: Theme.colorBg3
+                    }
+
+                    Rectangle {   // fill — never narrower than its own end caps
+                        id: analyseFill
+                        width: Math.max(height, parent.width * shotProcessor.analysisProgress)
+                        height: parent.height
+                        radius: height / 2
                         color: Theme.colorAccent
-                        opacity: 0
-                        scale: 0.6
-                        SequentialAnimation on opacity {
-                            running: analysingRow.sparkling
-                            loops: Animation.Infinite
-                            PauseAnimation  { duration: modelData.period * 0.4 }
-                            NumberAnimation { to: 1.0; duration: modelData.period * 0.3
-                                              easing.type: Easing.OutQuad }
-                            NumberAnimation { to: 0.0; duration: modelData.period * 0.3
-                                              easing.type: Easing.InQuad }
+                        clip: true
+                        Behavior on width { NumberAnimation { duration: Theme.durationNormal } }
+
+                        Rectangle {   // sheen sweeping the filled portion only (parent clips)
+                            id: analyseSheen
+                            width: Theme.sp(22); height: parent.height
+                            visible: analysingBox.sparkling
+                            gradient: Gradient {
+                                orientation: Gradient.Horizontal
+                                GradientStop { position: 0.0; color: "transparent" }
+                                GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.55) }
+                                GradientStop { position: 1.0; color: "transparent" }
+                            }
+                            NumberAnimation on x {
+                                running: analysingBox.sparkling
+                                loops: Animation.Infinite
+                                from: -analyseSheen.width
+                                to: analyseBar.width
+                                duration: 1100
+                            }
                         }
-                        SequentialAnimation on scale {
-                            running: analysingRow.sparkling
-                            loops: Animation.Infinite
-                            PauseAnimation  { duration: modelData.period * 0.4 }
-                            NumberAnimation { to: 1.15; duration: modelData.period * 0.3 }
-                            NumberAnimation { to: 0.6;  duration: modelData.period * 0.3 }
+                    }
+
+                    // Twinkles riding the fill's leading edge, staggered so
+                    // they read as sparkle rather than a blinking cluster —
+                    // offsets tightened to stay inside the chip.
+                    Repeater {
+                        model: [ { dx: -2, dy: -5, period: 900  },
+                                 { dx: -9, dy:  4, period: 1300 },
+                                 { dx:  4, dy: -1, period: 700  } ]
+                        delegate: Text {
+                            required property var modelData
+                            x: analyseFill.width + modelData.dx - implicitWidth / 2
+                            y: analyseBar.height / 2 + modelData.dy - implicitHeight / 2
+                            text: "✦"
+                            font.family: Theme.fontSymbol
+                            font.pixelSize: Theme.fontSzMicro - 1
+                            color: Theme.colorAccent
+                            opacity: 0
+                            scale: 0.6
+                            SequentialAnimation on opacity {
+                                running: analysingBox.sparkling
+                                loops: Animation.Infinite
+                                PauseAnimation  { duration: modelData.period * 0.4 }
+                                NumberAnimation { to: 1.0; duration: modelData.period * 0.3
+                                                  easing.type: Easing.OutQuad }
+                                NumberAnimation { to: 0.0; duration: modelData.period * 0.3
+                                                  easing.type: Easing.InQuad }
+                            }
+                            SequentialAnimation on scale {
+                                running: analysingBox.sparkling
+                                loops: Animation.Infinite
+                                PauseAnimation  { duration: modelData.period * 0.4 }
+                                NumberAnimation { to: 1.15; duration: modelData.period * 0.3 }
+                                NumberAnimation { to: 0.6;  duration: modelData.period * 0.3 }
+                            }
                         }
                     }
                 }
-            }
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: qsTr("ANALYSING")
-                font.family: Theme.fontData
-                font.pixelSize: Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro
-                color: Theme.colorText3
-            }
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                visible: analysingRow.elapsedS > 0
-                text: analysingRow.elapsedLabel
-                font.family: Theme.fontData
-                font.pixelSize: Theme.fontSzMicro
-                color: Theme.colorText3
-                opacity: 0.7
             }
         }
 
