@@ -126,15 +126,22 @@ Item {
 
     // When true, animate leadArmOverrideRotation changes via slerp (1.5 s).
     // Used by the calibration wizard to animate the guide from arm-down to T-pose.
-    // Implemented with NumberAnimation + JS slerp to avoid QuaternionAnimation,
-    // whose from/to properties shadow base-class members and generate Qt warnings.
+    // Implemented with FrameAnimation + JS slerp: a wall-clock NumberAnimation
+    // skips to its end on the first frame after a render stall (on Windows the
+    // first frames of the calibrate step can stall for seconds while D3D
+    // compiles the 19 skinned-model pipelines — the guide visibly "jumped" to
+    // T-pose). Per-frame advance with a clamped step makes stalls PAUSE the
+    // guide instead of skipping it. Emits leadArmAnimFinished() when the slerp
+    // completes so hosts can chain on actual completion, not wall-clock guesses.
     property bool animateLeadArm:     false
     property int  leadArmAnimDuration: 1500
+    signal leadArmAnimFinished()
 
     // Internal slerp state — not part of the public API.
     property quaternion _leadArmFrom: Qt.quaternion(1, 0, 0, 0)
     property quaternion _leadArmTo:   Qt.quaternion(1, 0, 0, 0)
-    property real       _leadArmT:    1.0   // 0 → 1 driven by NumberAnimation
+    property real       _leadArmP:    1.0   // linear progress 0 → 1 (frame-driven)
+    property real       _leadArmT:    1.0   // eased (InOutCubic) copy of _leadArmP
 
     function _slerp(a, b, t) {
         var dot = a.scalar*b.scalar + a.x*b.x + a.y*b.y + a.z*b.z
@@ -161,16 +168,27 @@ Item {
     function resetArmAnimation(fromQ) {
         _leadArmAnim.stop()
         _leadArmFrom = fromQ
+        _leadArmP    = 1.0
         _leadArmT    = 1.0
     }
 
-    NumberAnimation {
+    FrameAnimation {
         id: _leadArmAnim
-        target:   root
-        property: "_leadArmT"
-        from:     0.0; to: 1.0
-        duration: root.leadArmAnimDuration
-        easing.type: Easing.InOutCubic
+        running: false
+        onTriggered: {
+            // Clamp a stalled frame to one ~30 fps step so shader-compile or
+            // load hitches pause the guide rather than fast-forwarding it.
+            const dt = Math.min(frameTime, 1 / 30)
+            root._leadArmP = Math.min(1.0, root._leadArmP
+                                           + dt * 1000 / root.leadArmAnimDuration)
+            const p = root._leadArmP   // InOutCubic, as the old NumberAnimation
+            root._leadArmT = p < 0.5 ? 4 * p * p * p
+                                     : 1 - Math.pow(-2 * p + 2, 3) / 2
+            if (root._leadArmP >= 1.0) {
+                stop()
+                root.leadArmAnimFinished()
+            }
+        }
     }
 
     onLeadArmOverrideRotationChanged: {
@@ -179,6 +197,7 @@ Item {
             ? root._slerp(root._leadArmFrom, root._leadArmTo, root._leadArmT)
             : root._leadArmFrom
         root._leadArmTo = root.leadArmOverrideRotation
+        root._leadArmP  = 0.0
         root._leadArmT  = 0.0
         _leadArmAnim.restart()
     }

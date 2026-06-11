@@ -79,6 +79,7 @@ Item {
         d.phase1AccumMs      = 0
         d.stableAccumMs      = d._captureHoldMs
         d.phaseProgress      = 1.0
+        d._animStage         = ""
         d._animateLeadArm    = false
         d._leadArmTarget     = d.leadArmDownQuat
         d.calibrationFailed  = false
@@ -239,6 +240,13 @@ Item {
         // Animation targets — driven imperatively by the phase timers below.
         property quaternion _leadArmTarget:  d.leadArmDownQuat
         property bool       _animateLeadArm: false
+        // Which guide animation is in flight ("introUp"/"introDown"/"raise") —
+        // the chain advances on the BodyVizView's leadArmAnimFinished() signal,
+        // never on a parallel wall-clock timer (which keeps counting while a
+        // stalled renderer shows nothing, running the chain ahead of the user).
+        property string _animStage: ""
+        // Throttle for the stillness-reset diagnostic log lines.
+        property double _lastStillLogMs: 0
         // Set when arm-down is captured; prevents the phase-1 timer from
         // re-triggering captureTransitionTimer during the raise animation.
         property bool _armDownCaptured: false
@@ -252,12 +260,12 @@ Item {
         function _reset() {
             if (leadImu) leadImu.clearCalibration()
 
-            introDoneTimer.stop()
             introReadyTimer.stop()
             phase1MinHoldTimer.stop()
             phase1HoldTimer.stop()
             captureTransitionTimer.stop()
             raiseReadyTimer.stop()
+            _animStage         = ""
             calibPhase         = 0
             phase1AccumMs      = 0
             stableAccumMs      = 0
@@ -308,6 +316,13 @@ Item {
             // Stillness-gated: only accumulate while the arm is held still;
             // motion resets the hold so the captured pose is genuinely static.
             if (imu.angularVelocityDps > d._stillThreshDps) {
+                var now = Date.now()   // throttled diagnostic: WHY the hold resets
+                if (now - d._lastStillLogMs > 2000) {
+                    d._lastStillLogMs = now
+                    console.info("[Calib] T-pose hold reset — angular velocity",
+                                 imu.angularVelocityDps.toFixed(1), "°/s (threshold",
+                                 d._stillThreshDps, "°/s)")
+                }
                 d._phase2Samples = []
                 d.stableAccumMs  = 0
                 d.phaseProgress  = 0.0
@@ -356,43 +371,57 @@ Item {
         }
     }
 
-    // Phase 0: 3s after the flow becomes active, play 3s rest→T-pose animation.
-    // Guard on visible+gate: this flow lives in a StackLayout/Popup so it is
-    // instantiated up front — without the guard the intro fires immediately and
-    // the whole capture chain runs in the background.
+    // Phase 0: 3s after the flow becomes active AND the body model has fully
+    // loaded, play the 3s rest→T-pose guide animation. The fullyLoaded gate
+    // matters on Windows: the 19 GLB segments + first-draw shader compilation
+    // can stall rendering for seconds, and a chain started against a stalled
+    // renderer plays to nobody. Guard on visible+gate: this flow lives in a
+    // StackLayout/Popup so it is instantiated up front — without the guard the
+    // intro fires immediately and the whole capture chain runs in the
+    // background.
     Timer {
         id: introStartTimer
         interval: 3000
         repeat:   false
         running:  d.calibPhase === 0 && flow.visible && flow._autoStartGate
+                  && flow._bvv !== null && flow._bvv.fullyLoaded
         onTriggered: {
             flow._bvv.resetArmAnimation(d.leadArmDownQuat)
             flow._bvv.leadArmAnimDuration = 3000
+            d._animStage      = "introUp"
             d._animateLeadArm = true
             d._leadArmTarget  = d.tPoseQuat
-            introDoneTimer.start()   // wait for up-animation
         }
     }
 
-    // Up-animation done: lower arm back to rest at the same speed.
-    Timer {
-        id: introDoneTimer
-        interval: 3000
-        repeat:   false
-        onTriggered: {
-            // _leadArmFrom is still leadArmDownQuat from resetArmAnimation —
-            // reset it to tPoseQuat so the return animation starts from the top.
-            flow._bvv.resetArmAnimation(d.tPoseQuat)
-            flow._bvv.leadArmAnimDuration = 3000
-            d._leadArmTarget = d.leadArmDownQuat
-            introReadyTimer.start()   // 3s anim + 2s pause
+    // Guide-animation completion chain: each stage advances when the guide has
+    // actually FINISHED drawing (BodyVizView signals the slerp's end), so a
+    // stalled renderer delays the chain instead of being outrun by it.
+    Connections {
+        target:  flow._bvv
+        enabled: flow._autoStartGate
+        function onLeadArmAnimFinished() {
+            if (d._animStage === "introUp") {
+                // Lower the arm back to rest at the same speed. _leadArmFrom is
+                // reset to tPoseQuat so the return starts from the top.
+                d._animStage = "introDown"
+                flow._bvv.resetArmAnimation(d.tPoseQuat)
+                flow._bvv.leadArmAnimDuration = 3000
+                d._leadArmTarget = d.leadArmDownQuat
+            } else if (d._animStage === "introDown") {
+                d._animStage = ""
+                introReadyTimer.start()   // 2s settle pause, then phase 1
+            } else if (d._animStage === "raise") {
+                d._animStage = ""
+                raiseReadyTimer.start()   // 2s settle pause, then phase 2
+            }
         }
     }
 
-    // Return animation + 2s pause complete: start phase 1.
+    // Post-intro settle pause complete: start phase 1.
     Timer {
         id: introReadyTimer
-        interval: 5000   // 3000ms return anim + 2000ms pause
+        interval: 2000
         repeat:   false
         onTriggered: {
             d._animateLeadArm    = false
@@ -435,6 +464,13 @@ Item {
             // Stillness-gated: only accumulate while the arm is held still;
             // motion resets the hold so the captured pose is genuinely static.
             if (imu.angularVelocityDps > d._stillThreshDps) {
+                var now = Date.now()   // throttled diagnostic: WHY the hold resets
+                if (now - d._lastStillLogMs > 2000) {
+                    d._lastStillLogMs = now
+                    console.info("[Calib] arm-down hold reset — angular velocity",
+                                 imu.angularVelocityDps.toFixed(1), "°/s (threshold",
+                                 d._stillThreshDps, "°/s)")
+                }
                 d._phase1Samples = []
                 d.phase1AccumMs  = 0
                 return
@@ -466,8 +502,8 @@ Item {
         }
     }
 
-    // Phase 1 → raise: brief pause after arm-down captured, then play
-    // the raise guide animation before starting T-pose capture.
+    // Phase 1 → raise: brief pause after arm-down captured, then play the
+    // raise guide animation; phase 2 starts via the completion chain above.
     Timer {
         id: captureTransitionTimer
         interval: 800
@@ -475,16 +511,16 @@ Item {
         onTriggered: {
             flow._bvv.resetArmAnimation(d.leadArmDownQuat)
             flow._bvv.leadArmAnimDuration = 1500
+            d._animStage      = "raise"
             d._animateLeadArm = true
             d._leadArmTarget  = d.tPoseQuat
-            raiseReadyTimer.start()
         }
     }
 
-    // Raise animation (1.5s) + 2s pause, then start T-pose capture.
+    // Raise animation complete + settle pause, then start T-pose capture.
     Timer {
         id: raiseReadyTimer
-        interval: 3500   // 1500ms raise anim + 2000ms pause
+        interval: 2000
         repeat:   false
         onTriggered: {
             d._animateLeadArm = false
