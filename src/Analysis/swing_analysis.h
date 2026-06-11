@@ -59,13 +59,25 @@ struct ImuSegmentBinding {
     QQuaternion mountM;   // anatomical-body -> sensor-body     (M)
 };
 
-enum class Phase { Address, Takeaway, Top, Transition, Downswing, Impact, Release, Finish };
+// APPEND-ONLY: phases persist as raw ints in swing.json and QML compares the
+// ints directly (e.g. PpMetricGraph's `phase === 5`), so existing values must
+// keep their positions. v2 ladder additions start at 8 (design addendum A.3).
+enum class Phase {
+    Address, Takeaway, Top, Transition, Downswing, Impact, Release, Finish,
+    MidBackswing  = 8,    // P3 — lead arm parallel (backswing)
+    Delivery      = 9,    // P6 — shaft parallel (downswing); hand-proxy until shaft-measured
+    MaxSpeed      = 10,   //      peak hand angular speed (clubhead-speed proxy)
+    FollowThrough = 11,   // P9 — lead arm parallel (follow-through)
+};
 
 // A detected swing-phase event on the shared phase timeline.
 struct PhaseEvent {
     Phase   phase = Phase::Address;
     int64_t t_us  = 0;
     float   conf  = 1.0f;   // 0..1; low-confidence ticks fade in the UI
+    // Which segment the event was measured from (provenance, design A.2.5);
+    // Club once the shaft refinement lands. Unknown for anchors (Impact).
+    SegmentRole provenance = SegmentRole::Unknown;
 };
 
 // One labelled point on a metric's curve at a key swing phase.

@@ -54,9 +54,16 @@ pp_add_test(viz_frame_test  viz_frame_test.cpp)
 pp_add_test(phase_signals_test phase_signals_test.cpp
                                ${ANALYSIS}/phase_signals.cpp)
 
+# PhaseSegmenter v2 ladder (G1): synthetic full swing with FD-consistent gyro;
+# adversarial waggle/regrip/truncation/degradation/grid-rate cases.
+pp_add_test(phase_segmenter_test phase_segmenter_test.cpp
+                                 ${ANALYSIS}/phase_segmenter.cpp
+                                 ${ANALYSIS}/phase_signals.cpp)
+
 # Phase segmenter + metric extractor over a synthetic swing.
 pp_add_test(pipeline_test      pipeline_test.cpp
                                ${ANALYSIS}/phase_segmenter.cpp
+                               ${ANALYSIS}/phase_signals.cpp
                                ${ANALYSIS}/metric_extractor.cpp)
 
 # Banded weighted-geometric-mean scorer.

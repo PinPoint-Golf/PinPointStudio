@@ -153,7 +153,8 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
         return r;
     }
 
-    const std::vector<PhaseEvent>  phases = PhaseSegmenter::segment(streams, job.impactUs);
+    const Segmentation segmentation = PhaseSegmenter::segment(streams, job.impactUs);
+    const std::vector<PhaseEvent> &phases = segmentation.events;
     std::vector<MetricSeries> series = MetricExtractor::extract(streams, phases, job.handedness);
     if (series.empty()) {
         r.ok = false;

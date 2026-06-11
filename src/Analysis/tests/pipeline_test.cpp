@@ -31,6 +31,27 @@ static const MetricSeries *find(const std::vector<MetricSeries> &v, const char *
     for (const auto &m : v) if (m.key == QString::fromLatin1(key)) return &m;
     return nullptr;
 }
+
+// Fill gyroDps/accelG consistently with the quaternion track: body-frame gyro
+// by finite difference (the v2 segmenter runs on the measured inertials), and
+// gravity rotated into the body frame (unit magnitude -> "still" accel).
+static void fillInertials(SegmentStream &s, const std::vector<int64_t> &grid)
+{
+    const size_t n = s.qAnat.size();
+    s.gyroDps.assign(n, QVector3D());
+    s.accelG.assign(n, QVector3D());
+    for (size_t i = 0; i < n; ++i) {
+        s.accelG[i] = s.qAnat[i].conjugated().rotatedVector(QVector3D(0, 0, 1));
+        if (i + 1 >= n) { if (i) s.gyroDps[i] = s.gyroDps[i - 1]; continue; }
+        const QQuaternion dq = (s.qAnat[i].conjugated() * s.qAnat[i + 1]).normalized();
+        const QVector3D v(dq.x(), dq.y(), dq.z());
+        const double ang = 2.0 * std::atan2(double(v.length()), double(std::abs(dq.scalar())));
+        const double dt  = double(grid[i + 1] - grid[i]) * 1e-6;
+        if (v.length() > 1e-9 && dt > 0)
+            s.gyroDps[i] = v.normalized()
+                         * float(ang / dt * 180.0 / M_PI * (dq.scalar() < 0 ? -1.0 : 1.0));
+    }
+}
 static double phaseVal(const MetricSeries &m, Phase p)
 {
     for (const auto &s : m.phaseSamples) if (s.phase == p) return s.value;
@@ -60,12 +81,16 @@ int main()
         hand.qAnat.push_back(QQuaternion::fromAxisAndAngle(Z, float(feProfile(ts))));
         upper.qAnat.push_back(QQuaternion());                            // identity
     }
+    fillInertials(fore,  fs.timeGrid);
+    fillInertials(hand,  fs.timeGrid);
+    fillInertials(upper, fs.timeGrid);
     fs.segments = { fore, hand, upper };
 
     const int64_t impactUs = 1200000;
 
     std::printf("=== PhaseSegmenter ===\n");
-    auto phases = PhaseSegmenter::segment(fs, impactUs);
+    const Segmentation seg = PhaseSegmenter::segment(fs, impactUs);
+    const std::vector<PhaseEvent> &phases = seg.events;
     double addrT = -1, topT = -1, impT = -1;
     for (auto &e : phases) {
         if (e.phase == Phase::Address) addrT = e.t_us * 1e-6;

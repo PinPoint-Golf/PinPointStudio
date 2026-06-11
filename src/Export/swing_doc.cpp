@@ -238,7 +238,7 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
             ps.analysisDetail.insert(QStringLiteral("club"),
                                      an[QStringLiteral("club")].toObject().toVariantMap());
 
-        // Flat metrics: each metric's value at Impact (Phase::Impact == 5), signed degrees.
+        // Flat metrics: each metric's value at Impact, signed degrees.
         QVariantMap metrics;
         for (const QJsonValue &mv : an[QStringLiteral("metrics")].toArray()) {
             const QJsonObject m = mv.toObject();
@@ -246,7 +246,9 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
             double impact = 0.0;
             for (const QJsonValue &sv : m[QStringLiteral("phaseSamples")].toArray()) {
                 const QJsonObject s = sv.toObject();
-                if (s[QStringLiteral("phase")].toInt() == 5) { impact = s[QStringLiteral("value")].toDouble(); found = true; break; }
+                if (s[QStringLiteral("phase")].toInt() == int(analysis::Phase::Impact)) {
+                    impact = s[QStringLiteral("value")].toDouble(); found = true; break;
+                }
             }
             if (!found)
                 continue;
