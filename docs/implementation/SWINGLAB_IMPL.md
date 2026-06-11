@@ -211,6 +211,39 @@ L1+L2 alone already transform the workflow: the imuVisionCorr=0 investigation
 becomes "run swing_0007 with --trace, read the ŝ_hand fit record, see why it
 refused" instead of speculating from app logs.
 
+## Multi-host operation (Windows studio PC + Linux dev box)
+
+The Windows host (i9 Ultra / 32 GB / RTX 5080, idle outside simulator
+sessions) is the preferred engine for batch runs and sweeps: the pose pass —
+the dominant cost — runs on CUDA there, and the corpus is on local NVMe
+instead of SMB. The design needs no structural change for this because the
+interface is files in, files out:
+
+- **The SwingData share is the artifact exchange medium.** Corpus and runs
+  both live on it (Windows `D:\SwingData\…` ≡ Linux `/mnt/swingdata/…`), so
+  scorecards, contact sheets, TRIAGE.md and ESCALATION.md produced on one
+  host are immediately readable on the other — operator sessions on the
+  Windows box and design sessions on the dev box share state with zero sync
+  machinery. Remote execution needs nothing new either: with OpenSSH enabled
+  on Windows, `ssh studio "… lab.py run …"` works as-is.
+- **Context-less hosts bootstrap from the repo alone**: `lab.py doctor`
+  verifies binary + deps and prints the conventions; `requirements.txt` +
+  `-DPINPOINT_BUILD_TOOLS=ON` are the whole setup. Everything an operator
+  session needs (skill, docs, recipes, tier rules) is in-repo and travels
+  with git — nothing depends on machine-local assistant memory.
+- **Data trust travels with the data, not with a machine**: a corpus root
+  must contain a `CORPUS.md` stating recording date and calibration
+  provenance; `ingest` marks the manifest `blessed` only then. (This encodes
+  the 2026-06-11 decision that pre-corpus-v1 studio recordings are
+  unreliable.)
+- **Cross-host runs are attributable, not comparable**: runmeta.json records
+  host + platform; CPU and CUDA pose outputs differ subtly, so the diff gate
+  compares same-host runs only.
+- Windows bring-up checklist (first session there): pull, configure with
+  `-DPINPOINT_BUILD_TOOLS=ON`, build `swinglab_run`, `py -m venv` +
+  `pip install -r tools/swinglab/requirements.txt`, `lab.py doctor`, then
+  `lab.py synth` + `lab.py one` as the acceptance test (expect 100/100).
+
 ## Risks & honest limits
 
 - **MP4-only swings are approximate** (re-encoded pixels). Mitigation: protocol

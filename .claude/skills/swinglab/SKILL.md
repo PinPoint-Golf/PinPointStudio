@@ -8,18 +8,33 @@ description: Run, score, tune, and triage the swing-analysis pipeline against re
 You are operating the SwingLab harness (docs/implementation/SWINGLAB_IMPL.md).
 Follow this recipe exactly. **Tier rules at the bottom are binding.**
 
-## Setup facts
+## Setup facts (host-agnostic — ALWAYS start with `doctor`)
 
-- Python: `~/.swinglab-venv/bin/python` (numpy/cv2/matplotlib installed).
-- CLI: `cd tools/swinglab && ~/.swinglab-venv/bin/python lab.py <cmd>`.
-- Runner binary: `build/Desktop_Qt_6_11_0-Debug/swinglab_run` (rebuild with
-  `cmake --build build/Desktop_Qt_6_11_0-Debug --target swinglab_run --parallel 4`
-  after C++ changes; configure once with `-DPINPOINT_BUILD_TOOLS=ON`).
-- Corpus = a directory of swing dirs (each has swing.json). Real corpus lives
-  under `/mnt/swingdata/...` (only use folders the user has blessed); a
+- **First command on any host:** `lab.py doctor` — verifies the binary,
+  python deps, and prints the conventions. Fix what it reports before
+  anything else. You need NO other local context to operate.
+- CLI: `cd tools/swinglab && <venv-python> lab.py <cmd>`. The venv is
+  per-host (`pip install -r requirements.txt`); on the Linux dev box it is
+  `~/.swinglab-venv/bin/python`.
+- Runner binary: auto-located in the standard build dir, or set
+  `SWINGLAB_BIN=/path/to/swinglab_run`. Rebuild after C++ changes:
+  `cmake --build <build-dir> --target swinglab_run --parallel 4`
+  (configure once with `-DPINPOINT_BUILD_TOOLS=ON`).
+- **Hosts:** the Windows studio PC (RTX 5080 — CUDA pose, corpus on local
+  disk; preferred for batch runs and sweeps) and the Linux dev box (corpus
+  via `/mnt/swingdata` SMB). Same repo, same commands.
+- **Shared-drive convention:** corpus AND runs live on the SwingData drive
+  (Windows `D:\SwingData\…` ≡ Linux `/mnt/swingdata/…`), so scorecards,
+  contact sheets, TRIAGE.md and ESCALATION.md written on one host are
+  readable on every other — the share IS the cross-host handoff medium.
+- **Data trust:** only use a corpus whose root contains a `CORPUS.md`
+  stating recording date + calibration provenance (`lab.py ingest` marks it
+  `blessed`). Unblessed real data must not drive tuning conclusions. A
   synthetic corpus can always be created fresh with `lab.py synth`.
-- Runs land where you point them (use `/tmp/swinglab-runs/...` or a path the
-  user gives). NEVER write into the corpus dirs except `truth.json`.
+- Runs land where you point them. NEVER write into swing dirs except
+  `truth.json`.
+- Cross-host comparisons: runmeta.json records host/platform — only diff
+  runs from the SAME host (CPU vs CUDA pose output differs subtly).
 
 ## The loop
 

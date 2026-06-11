@@ -45,6 +45,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QQuaternion>
+#include <QSysInfo>
 #include <QVariantMap>
 
 #include <opencv2/core.hpp>
@@ -428,6 +429,8 @@ int main(int argc, char **argv)
     meta["params"]     = QJsonObject::fromVariantMap(tuning);
     meta["impactUs"]   = job.impactUs;
     meta["bindings"]   = int(job.imuBindings.size());
+    meta["host"]       = QSysInfo::machineHostName();
+    meta["platform"]   = QSysInfo::prettyProductName();
     {
         QFile mf(outDir + "/runmeta.json");
         mf.open(QIODevice::WriteOnly);

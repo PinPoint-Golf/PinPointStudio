@@ -36,6 +36,8 @@ def main():
     p.add_argument("--clutter", action="store_true")
     p.add_argument("--seed", type=int, default=7)
 
+    sub.add_parser("doctor")
+
     p = sub.add_parser("ingest")
     p.add_argument("corpus_root")
 
@@ -79,7 +81,10 @@ def main():
 
     a = ap.parse_args()
 
-    if a.cmd == "synth":
+    if a.cmd == "doctor":
+        from swinglab.core import doctor
+        sys.exit(0 if doctor() else 1)
+    elif a.cmd == "synth":
         from swinglab.synth import generate
         generate(a.out_dir, seed=a.seed, clutter=a.clutter)
     elif a.cmd == "ingest":

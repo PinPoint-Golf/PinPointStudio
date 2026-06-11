@@ -12,6 +12,37 @@ from . import Swing, default_binary, git_sha, load_json, save_json
 from .score import scorecard
 
 
+def doctor():
+    """Self-orientation for a session on ANY host (no local context needed):
+       verifies the binary, python deps, and conventions; prints fixes."""
+    import platform
+    from . import default_binary
+    ok = True
+    print(f"host: {platform.node()} ({platform.system()})")
+    b = default_binary()
+    if b.exists():
+        print(f"binary: {b} OK")
+    else:
+        ok = False
+        print(f"binary: {b} MISSING")
+        print("  fix: cmake -S <repo> -B <build> -DPINPOINT_BUILD_TOOLS=ON && "
+              "cmake --build <build> --target swinglab_run")
+        print("  or:  set SWINGLAB_BIN=/path/to/swinglab_run")
+    for mod in ("numpy", "cv2", "matplotlib"):
+        try:
+            __import__(mod)
+            print(f"python: {mod} OK")
+        except ImportError:
+            ok = False
+            print(f"python: {mod} MISSING — pip install -r tools/swinglab/requirements.txt")
+    print("conventions: corpus + runs on the shared SwingData drive (Windows "
+          "D:\\SwingData ≡ Linux /mnt/swingdata) so artifacts (scorecards, "
+          "contact sheets, TRIAGE/ESCALATION.md) are visible from every host.")
+    print("data trust: ONLY use corpus roots containing a CORPUS.md that "
+          "states calibration provenance; ingest refuses to bless without it.")
+    return ok
+
+
 def ingest(corpus_root):
     """Build corpus.json: every dir containing a swing.json, with quick facts."""
     root = Path(corpus_root)
@@ -33,7 +64,13 @@ def ingest(corpus_root):
             "bindings": len(s.doc.get("analysis", {}).get("bindings", [])),
             "truth": (d / "truth.json").exists(),
         })
-    manifest = {"root": str(root), "count": len(swings), "swings": swings}
+    notes_file = root / "CORPUS.md"
+    manifest = {"root": str(root), "count": len(swings), "swings": swings,
+                "notes": notes_file.read_text() if notes_file.exists() else None,
+                "blessed": notes_file.exists()}
+    if not notes_file.exists():
+        print("[ingest] WARNING: no CORPUS.md — corpus is UNBLESSED (write one "
+              "stating recording date, calibration state, and reliability)")
     save_json(root / "corpus.json", manifest)
     print(f"[ingest] {len(swings)} swings -> {root / 'corpus.json'}")
     return manifest

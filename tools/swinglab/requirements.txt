@@ -1,0 +1,8 @@
+# SwingLab python deps. Create per host:
+#   python3 -m venv ~/.swinglab-venv          (Windows: py -m venv %USERPROFILE%\.swinglab-venv)
+#   ~/.swinglab-venv/bin/pip install -r requirements.txt
+# opencv-python (full) is needed for the label tool's GUI; everything else
+# works with opencv-python-headless if a GUI-less host prefers it.
+numpy
+opencv-python
+matplotlib
