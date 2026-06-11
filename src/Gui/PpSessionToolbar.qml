@@ -368,6 +368,21 @@ Item {
 
             readonly property bool sparkling: visible && !Theme.reduceMotion
 
+            // Elapsed wall-time since the shot started processing (post-roll
+            // included) — the muted latency-label pattern from the STT/TTS
+            // badges. Hidden for the first second so instant analyses never
+            // flash a "0s".
+            property int elapsedS: 0
+            readonly property string elapsedLabel: elapsedS >= 60
+                ? Math.floor(elapsedS / 60) + ":" + String(elapsedS % 60).padStart(2, "0")
+                : elapsedS + "s"
+            onVisibleChanged: if (visible) elapsedS = 0
+            Timer {
+                running: analysingRow.visible
+                interval: 1000; repeat: true
+                onTriggered: analysingRow.elapsedS++
+            }
+
             Item {
                 id: analyseBar
                 anchors.verticalCenter: parent.verticalCenter
@@ -452,6 +467,16 @@ Item {
                 font.pixelSize: Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingMicro
                 color: Theme.colorText3
+            }
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: analysingRow.elapsedS > 0
+                text: analysingRow.elapsedLabel
+                font.family: Theme.fontData
+                font.pixelSize: Theme.fontSzMicro
+                color: Theme.colorText3
+                opacity: 0.7
             }
         }
 
