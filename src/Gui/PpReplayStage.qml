@@ -194,8 +194,16 @@ Item {
                    onActed: shotReplay.togglePlay() }
             TBtn { glyph: "▸"; onActed: shotReplay.stepFrame(1) }
 
+            // Playback speed (capture-time multiplier; 1× = real time) —
+            // honoured by the running replay immediately.
+            PpSpeedSelector {
+                Layout.leftMargin: Theme.sp(8)
+                current: shotReplay.speed
+                onSelected: (speed) => shotReplay.setSpeed(speed)
+            }
+
             Text {
-                Layout.leftMargin: Theme.sp(6)
+                Layout.leftMargin: Theme.sp(8)
                 text: stage._fmt(shotReplay.positionUs - shotReplay.startUs)
                       + " / " + stage._fmt(shotReplay.endUs - shotReplay.startUs)
                 font.family: Theme.fontData
@@ -204,27 +212,6 @@ Item {
             }
 
             Item { Layout.fillWidth: true }
-
-            // Speed toggle ¼× ↔ ⅛×.
-            Rectangle {
-                width: Theme.sp(40); height: Theme.sp(34); radius: Theme.radius
-                color: spdMa.containsMouse ? Theme.colorBg3 : "transparent"
-                border.width: 1; border.color: Theme.colorBorderMid
-                Text {
-                    anchors.centerIn: parent
-                    text: shotReplay.mode === "slow" ? "⅛×" : "¼×"
-                    font.family: Theme.fontData
-                    font.pixelSize: Theme.fontSzMicro
-                    color: Theme.colorText2
-                }
-                MouseArea {
-                    id: spdMa
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: shotReplay.setMode(shotReplay.mode === "slow" ? "normal" : "slow")
-                }
-            }
         }
 
         // ── Scrub bar — full-width, prominent; drag to scrub-search (works

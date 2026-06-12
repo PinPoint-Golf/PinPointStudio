@@ -63,7 +63,7 @@ ShotReplayController::~ShotReplayController()
 // Load + start
 // ---------------------------------------------------------------------------
 
-bool ShotReplayController::start(int shotId, const QString &swingDir, const QString &mode,
+bool ShotReplayController::start(int shotId, const QString &swingDir, double speed,
                                 const QString &target)
 {
     if (swingDir.isEmpty())
@@ -132,8 +132,7 @@ bool ShotReplayController::start(int shotId, const QString &swingDir, const QStr
     m_swingDir   = swingDir;
     m_target     = (target == QLatin1String("screen")) ? QStringLiteral("screen")
                                                        : QStringLiteral("panel");
-    m_mode       = (mode == QLatin1String("slow")) ? QStringLiteral("slow")
-                                                   : QStringLiteral("normal");
+    m_speed      = std::clamp(speed, 0.1, 1.0);
     m_startUs    = spanStart;
     m_endUs      = std::max(spanEnd, spanStart + 1);
     m_positionUs = m_startUs;
@@ -241,6 +240,7 @@ bool ShotReplayController::start(int shotId, const QString &swingDir, const QStr
     setPositionUs(m_startUs);
     emit spanChanged();
     emit activeChanged();
+    emit speedChanged();   // start() may have changed m_speed
     setPlaying(true);
     m_timer->start();
 
@@ -330,15 +330,14 @@ void ShotReplayController::stepFrame(int delta)
     seekToUs(s.tUs[idx]);
 }
 
-void ShotReplayController::setMode(const QString &mode)
+void ShotReplayController::setSpeed(double speed)
 {
-    const QString m = (mode == QLatin1String("slow")) ? QStringLiteral("slow")
-                                                      : QStringLiteral("normal");
-    if (m == m_mode)
+    speed = std::clamp(speed, 0.1, 1.0);
+    if (qFuzzyCompare(speed, m_speed))
         return;
-    m_mode = m;
-    applyPlaybackRates();
-    emit modeChanged();
+    m_speed = speed;
+    applyPlaybackRates();   // live players pick the new rate up immediately
+    emit speedChanged();
 }
 
 void ShotReplayController::beginScrub()
@@ -440,10 +439,9 @@ void ShotReplayController::seekPlayersTo(qint64 captureUs)
 void ShotReplayController::applyPlaybackRates()
 {
     // Each MP4 is 30 fps, so its native duration is frameCount/fps. Scale every
-    // stream so the whole window replays over the same wall time → ¼× (normal)
-    // or ⅛× (slow) of capture speed, fps-independent, all finishing together.
-    const double factor = (m_mode == QLatin1String("slow")) ? 8.0 : 4.0;
-    const double desiredWallSec = std::max(0.001, factor * double(m_endUs - m_startUs) / 1e6);
+    // stream so the whole window replays over the same wall time → m_speed ×
+    // capture speed (1.0 = real time), fps-independent, all finishing together.
+    const double desiredWallSec = std::max(0.001, double(m_endUs - m_startUs) / 1e6 / m_speed);
     for (Stream &s : m_streams) {
         const double nativeWallSec = double(s.tUs.size()) / s.playbackFps;
         s.player->setPlaybackRate(std::clamp(nativeWallSec / desiredWallSec, 0.05, 8.0));

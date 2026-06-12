@@ -285,6 +285,16 @@ Item {
                     }
                 }
 
+                Item { height: panel._diskReplaying ? Theme.sp(4) : 0; width: 1 }
+
+                // Playback speed — its own row so the scrub bar keeps its full
+                // width; changes the running replay's speed immediately.
+                PpSpeedSelector {
+                    visible: panel._diskReplaying
+                    current: shotReplay.speed
+                    onSelected: (speed) => shotReplay.setSpeed(speed)
+                }
+
                 PpTrace {              // sparkline fallback when there's no analysis series
                     visible: !panel._hasSeries && !panel._diskReplaying
                     width:  parent.width
@@ -362,16 +372,8 @@ Item {
                 enabled: panel.canReplay
                 onClicked: {
                     if (panel._diskReplaying) { shotReplay.stop(); return }
-                    shotReplay.start(panel.shotId, panel.swingDir, "normal")
+                    shotReplay.start(panel.shotId, panel.swingDir, 0.25)
                     panel.replayRequested("normal")
-                }
-            }
-            PpButton {
-                label: qsTr("½× Slow")
-                enabled: panel.canReplay
-                onClicked: {
-                    shotReplay.start(panel.shotId, panel.swingDir, "slow")
-                    panel.replayRequested("slow")
                 }
             }
             PpButton {
@@ -382,7 +384,7 @@ Item {
                 // popup. The carousel's onClosed leaves screen-targeted replays
                 // running (only panel ones stop on close).
                 onClicked: {
-                    shotReplay.start(panel.shotId, panel.swingDir, "normal", "screen")
+                    shotReplay.start(panel.shotId, panel.swingDir, 0.25, "screen")
                     panel.popOutRequested()
                 }
             }

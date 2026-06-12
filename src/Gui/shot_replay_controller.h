@@ -45,9 +45,11 @@ class QTimer;
 //
 // Each MP4 plays at its baked-in 30 fps, which already slows high-fps captures —
 // so each stream's playbackRate is computed to make the whole window replay at a
-// fixed capture-time speed (¼× / ⅛×) regardless of the camera's capture fps. The
-// graph playhead is derived by mapping the master player's reported position back
-// to capture time via that stream's frames.t_us table.
+// fixed capture-time speed regardless of the camera's capture fps. `speed` is
+// that capture-time multiplier (1.0 = real time), user-selected from
+// 0.1/0.25/0.5/1 (PpSpeedSelector); changes apply to live players immediately.
+// The graph playhead is derived by mapping the master player's reported position
+// back to capture time via that stream's frames.t_us table.
 class ShotReplayController : public QObject
 {
     Q_OBJECT
@@ -59,7 +61,7 @@ class ShotReplayController : public QObject
     // "screen" (the full main-screen PpReplayStage). One QMediaPlayer has one
     // sink, so only the matching surface binds its VideoOutputs.
     Q_PROPERTY(QString     target         READ target         NOTIFY activeChanged)
-    Q_PROPERTY(QString     mode           READ mode           NOTIFY modeChanged)
+    Q_PROPERTY(double      speed          READ speed          NOTIFY speedChanged)
     Q_PROPERTY(qint64      positionUs     READ positionUs     NOTIFY positionChanged)
     Q_PROPERTY(qint64      startUs        READ startUs        NOTIFY spanChanged)
     Q_PROPERTY(qint64      endUs          READ endUs          NOTIFY spanChanged)
@@ -80,20 +82,20 @@ public:
     qint64      impactUs()       const { return m_impactUs; }
     QVariantMap analysisDetail() const { return m_analysisDetail; }
     QString     target()         const { return m_target; }
-    QString     mode()           const { return m_mode; }
+    double      speed()          const { return m_speed; }
 
-    // Start replaying the shot at `swingDir` for carousel row `shotId`. mode
-    // "slow" replays at ⅛× capture speed, anything else at ¼× (matching the live
-    // replay); target "screen" renders on the main-screen stage, else the review
+    // Start replaying the shot at `swingDir` for carousel row `shotId`. `speed`
+    // is the capture-time multiplier (1.0 = real time), clamped to 0.1..1;
+    // target "screen" renders on the main-screen stage, else the review
     // panel. Returns false if the doc has no playable video stream.
-    Q_INVOKABLE bool start(int shotId, const QString &swingDir, const QString &mode,
+    Q_INVOKABLE bool start(int shotId, const QString &swingDir, double speed = 0.25,
                            const QString &target = QStringLiteral("panel"));
     Q_INVOKABLE void stop();
     Q_INVOKABLE void togglePlay();
     Q_INVOKABLE void seekToFraction(double frac);   // 0..1 over the window
     Q_INVOKABLE void seekToUs(qint64 us);
     Q_INVOKABLE void stepFrame(int delta);          // ±N frames on the master stream
-    Q_INVOKABLE void setMode(const QString &mode);  // switch ¼×/⅛× mid-replay
+    Q_INVOKABLE void setSpeed(double speed);        // mid-replay change, applied immediately
     Q_INVOKABLE void beginScrub();                  // pause on slider grab
     Q_INVOKABLE void endScrub();                    // restore play state on release
 
@@ -107,7 +109,7 @@ signals:
     void playingChanged();
     void positionChanged();
     void spanChanged();
-    void modeChanged();
+    void speedChanged();
     // A stream failed to decode (e.g. an H.265/MKV clip the platform media
     // backend can't play). Carries a human-readable reason for the UI to show
     // instead of a silent black surface.
@@ -127,7 +129,7 @@ private:
     void setPlaying(bool p);
     void setPositionUs(qint64 us);
     void seekPlayersTo(qint64 captureUs);    // map capture µs → each MP4 and setPosition
-    void applyPlaybackRates();               // per-stream rate from m_mode + span
+    void applyPlaybackRates();               // per-stream rate from m_speed + span
     qint64 captureUsForStream(int streamIdx, qint64 mp4Ms) const;
     qint64 mp4MsForStream(int streamIdx, qint64 captureUs) const;
 
@@ -136,7 +138,7 @@ private:
     int         m_shotId     = -1;
     QString     m_swingDir;
     QString     m_target     = QStringLiteral("panel");
-    QString     m_mode       = QStringLiteral("normal");
+    double      m_speed      = 0.25;   // capture-time multiplier, 0.1..1
     bool        m_wasPlayingBeforeScrub = false;
     qint64      m_startUs    = 0;
     qint64      m_endUs      = 0;
