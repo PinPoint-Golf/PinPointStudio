@@ -89,6 +89,10 @@ Item {
                         // Wrist screen: skeleton overlay only — no hitting-area
                         // / ball chrome here (other rail screens enable theirs).
                         showHittingArea: false
+                        // …but while live pose runs in a session, a faint
+                        // outline shows where the ball detector is looking.
+                        showHittingAreaHint: cameraManager.livePoseEnabled
+                                             && sessionController.running
                     }
                 }
 

@@ -43,6 +43,7 @@ Item {
     // ── Per-screen overlay configuration ────────────────────────────────────
     property bool showPoseOverlay:      true   // skeleton canvas
     property bool showHittingArea:      true   // ROI overlay + detected ball circle
+    property bool showHittingAreaHint:  false  // faint label-free ROI outline (live pose)
     property bool roiEditable:          false  // enables the ROI drag-select interaction
     property bool showPerspectiveBadge: true
     property bool showStatsOverlay:     true   // resolution / fps
@@ -460,6 +461,25 @@ Item {
                 }
                 ctx.globalAlpha = 1.0
             }
+        }
+
+        // ── Faint hitting-area hint ───────────────────────────────────────
+        // Label-free, low-alpha outline of the ball detector ROI — enough to
+        // see where the detector is looking while live pose runs, without the
+        // full editor chrome (which showHittingArea owns; hint yields to it).
+        Rectangle {
+            id: roiHint
+            visible: root.showHittingAreaHint && !root.showHittingArea
+                     && root.roiIsSet
+            z: 19
+            color: Theme.colorWarnLight
+            border.color: Qt.alpha(Theme.colorWarn, 0.35)
+            border.width: 1
+
+            x: roiOverlay.crX + (root.instance ? root.instance.roi.x * roiOverlay.crW : 0)
+            y: roiOverlay.crY + (root.instance ? root.instance.roi.y * roiOverlay.crH : 0)
+            width:  root.instance ? root.instance.roi.width  * roiOverlay.crW : 0
+            height: root.instance ? root.instance.roi.height * roiOverlay.crH : 0
         }
 
         // ── Persistent ROI overlay ────────────────────────────────────────
