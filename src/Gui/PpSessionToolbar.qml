@@ -575,7 +575,26 @@ Item {
                 spacing: Theme.sp(10)
                 DetectDot { id: imuDot;  available: imuManager.imuCount > 0 }
                 DetectDot { id: acDot;   available: true }
-                DetectDot { id: ballDot; available: false }
+                // Ball/vision dot (design §8.3): amber while running on the
+                // generic (uncalibrated) detector or when lighting has drifted
+                // from the calibration envelope; steady green core while the
+                // ball is present at the hitting area. The shot flash joins
+                // when the Source::Ball candidate feed lands.
+                DetectDot {
+                    id: ballDot
+                    readonly property QtObject foInst: {
+                        var insts = cameraManager.instances
+                        for (var i = 0; i < insts.length; ++i)
+                            if (insts[i].perspective === CameraInstance.FaceOn)
+                                return insts[i]
+                        return null
+                    }
+                    available: foInst !== null && foInst.ballEnabled
+                    baseColor: foInst !== null
+                               && (!foInst.ballCalibrated || foInst.ballDrifting)
+                               ? Theme.colorAttention : Theme.colorAccent
+                    presence:  foInst !== null && foInst.ballPresent
+                }
             }
         }
 
@@ -677,6 +696,12 @@ Item {
         id: dd
         property bool   available: true
         property real   flash:     0     // 1 just after a detection → 0
+        // Core/halo colour tier — Theme.colorAttention marks a modality that
+        // is running but needs attention (e.g. ball detection uncalibrated).
+        property color  baseColor: Theme.colorAccent
+        // Steady-good core while the modality's subject is present (ball seen
+        // at the hitting area). Armed tier only.
+        property bool   presence:  false
 
         readonly property bool _live:  available && appSettings.autoDetectSwing
         readonly property bool armed:  _live && shotController.armed
@@ -696,7 +721,7 @@ Item {
             anchors.centerIn: parent
             width: Theme.sp(15); height: width; radius: width / 2
             visible: dd.armed
-            color: Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.22)
+            color: Qt.rgba(dd.baseColor.r, dd.baseColor.g, dd.baseColor.b, 0.22)
             SequentialAnimation on scale {
                 running: dd.armed && !Theme.reduceMotion
                 loops: Animation.Infinite
@@ -707,7 +732,9 @@ Item {
         // Core dot — colour tier fades between states.
         Rectangle {
             anchors.fill: parent; radius: width / 2
-            color: Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, dd._alpha)
+            color: dd.presence && dd.armed
+                   ? Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.95)
+                   : Qt.rgba(dd.baseColor.r, dd.baseColor.g, dd.baseColor.b, dd._alpha)
             Behavior on color { ColorAnimation { duration: Theme.durationNormal } }
         }
         // Green detection flash, decays to reveal the core tier beneath.

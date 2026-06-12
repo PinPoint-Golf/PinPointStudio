@@ -269,6 +269,7 @@ qt_add_qml_module(PinPointStudio
         src/Gui/ScreenSessionMode.qml
         src/Gui/ImuCalibrationFlow.qml
         src/Gui/CameraCalibrationFlow.qml
+        src/Gui/BallCalibrationFlow.qml
         src/Gui/PpShotCarousel.qml
         src/Gui/PpExportOptionsSheet.qml
         src/Gui/PpShotCard.qml

@@ -1027,6 +1027,147 @@ Item {
 
                             }
 
+                            // ── Ball detection confirmation (design §8.2) ──
+                            // Settings is the home of ROI + calibration; this
+                            // row only CONFIRMS. Calibrated → one-glance tick;
+                            // not calibrated → optional inline calibration.
+                            // Never blocks Continue.
+                            Column {
+                                id: ballCalBlock
+                                width: parent.width
+                                spacing: Theme.sp(8)
+
+                                // First CONNECTED face-on camera (reactive on
+                                // instances — same pattern as CheckRow._inst).
+                                readonly property QtObject faceOnInst: {
+                                    var insts = cameraManager.instances
+                                    var fo = root.faceOnList
+                                    for (var i = 0; i < fo.length; ++i)
+                                        for (var j = 0; j < insts.length; ++j)
+                                            if (insts[j].cameraKey === fo[i].cameraKey)
+                                                return insts[j]
+                                    return null
+                                }
+                                readonly property QtObject calCtrl:
+                                    faceOnInst ? cameraManager.ballCalibrationFor(faceOnInst) : null
+                                readonly property var savedInfo:
+                                    calCtrl ? calCtrl.savedProfileInfo() : ({})
+                                property bool expanded: false
+
+                                visible: faceOnInst !== null
+
+                                RowLayout {
+                                    width: parent.width
+                                    spacing: Theme.sp(8)
+
+                                    Rectangle {
+                                        implicitWidth: Theme.sp(8); implicitHeight: Theme.sp(8)
+                                        radius: width / 2
+                                        Layout.alignment: Qt.AlignVCenter
+                                        color: ballCalBlock.faceOnInst && ballCalBlock.faceOnInst.ballCalibrated
+                                               ? Theme.colorGood : Theme.colorText3
+                                    }
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: {
+                                            var inst = ballCalBlock.faceOnInst
+                                            if (!inst) return ""
+                                            if (!inst.ballCalibrated)
+                                                return qsTr("Ball detection not calibrated — the generic detector will be used")
+                                            var info  = ballCalBlock.savedInfo
+                                            var parts = []
+                                            if (info.margin !== undefined)
+                                                parts.push(qsTr("margin %1").arg(Number(info.margin).toFixed(2)))
+                                            if (info.calibratedAtMs) {
+                                                var days = Math.floor((Date.now() - info.calibratedAtMs) / 86400000)
+                                                parts.push(days <= 0 ? qsTr("today")
+                                                         : days === 1 ? qsTr("yesterday")
+                                                         : qsTr("%1 days ago").arg(days))
+                                            }
+                                            return parts.length
+                                                ? qsTr("Ball detection calibrated (%1)").arg(parts.join(", "))
+                                                : qsTr("Ball detection calibrated")
+                                        }
+                                        wrapMode: Text.WordWrap
+                                        font.family: Theme.fontBody
+                                        font.pixelSize: Theme.fontSzBody2
+                                        color: ballCalBlock.faceOnInst && ballCalBlock.faceOnInst.ballCalibrated
+                                               ? Theme.colorText2 : Theme.colorText3
+                                    }
+                                    Text {
+                                        text: ballCalBlock.expanded ? qsTr("Hide")
+                                             : (ballCalBlock.faceOnInst && ballCalBlock.faceOnInst.ballCalibrated
+                                                ? qsTr("Recalibrate") : qsTr("Calibrate now"))
+                                        font.family: Theme.fontBody
+                                        font.pixelSize: Theme.fontSzBody2
+                                        color: Theme.colorAccent
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: ballCalBlock.expanded = !ballCalBlock.expanded
+                                        }
+                                    }
+                                }
+
+                                // Drift hint (§6) carried into the wizard card.
+                                Text {
+                                    width: parent.width
+                                    visible: ballCalBlock.faceOnInst !== null
+                                             && ballCalBlock.faceOnInst.ballDrifting
+                                    text: qsTr("Lighting has changed since calibration — revalidating is recommended.")
+                                    wrapMode: Text.WordWrap
+                                    font.family: Theme.fontData
+                                    font.pixelSize: Theme.fontSzMicro
+                                    color: Theme.colorWarn
+                                }
+
+                                RowLayout {
+                                    width: parent.width
+                                    visible: ballCalBlock.expanded
+                                    spacing: Theme.sp(16)
+
+                                    Loader {
+                                        Layout.preferredWidth: Theme.sp(280)
+                                        Layout.preferredHeight: Theme.sp(180)
+                                        Layout.alignment: Qt.AlignTop
+                                        active: ballCalBlock.expanded && ballCalBlock.faceOnInst !== null
+                                        sourceComponent: PpCameraFrame {
+                                            instance: ballCalBlock.faceOnInst
+                                            showPoseOverlay:      false
+                                            showHittingArea:      true
+                                            roiEditable:          true
+                                            showPerspectiveBadge: false
+                                            showStatsOverlay:     false
+                                            showReplayBadge:      false
+                                            showReplayOverlay:    false
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        Layout.alignment: Qt.AlignTop
+                                        spacing: Theme.sp(8)
+
+                                        Text {
+                                            Layout.fillWidth: true
+                                            visible: ballCalBlock.faceOnInst !== null
+                                                     && ballCalBlock.faceOnInst.roi.width <= 0
+                                            text: qsTr("Drag on the video to draw the hitting area first.")
+                                            wrapMode: Text.WordWrap
+                                            font.family: Theme.fontBody
+                                            font.pixelSize: Theme.fontSzBody2
+                                            color: Theme.colorText2
+                                        }
+
+                                        BallCalibrationFlow {
+                                            Layout.fillWidth: true
+                                            controller: ballCalBlock.calCtrl
+                                            onCompleted: ballCalBlock.expanded = false
+                                        }
+                                    }
+                                }
+                            }
+
                             // Settings deep-link
                             Text {
                                 text:           qsTr("→ Open camera settings")

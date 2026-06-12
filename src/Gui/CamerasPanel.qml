@@ -27,6 +27,9 @@ Item {
 
     // Index of the camera row whose ROI panel is currently open (-1 = none).
     property int openRoiIndex: -1
+    // Index of the camera whose ball-detection (hitting area + calibration)
+    // panel is expanded; -1 = none. Same pattern as openRoiIndex.
+    property int openBallIndex: -1
 
     // ─────────────────────────────────────────────────────────────────────────
     // Inline component — reusable toggle pill
@@ -89,6 +92,7 @@ Item {
                                                                          : localPreviewInstance)
 
         readonly property bool roiOpen: root.openRoiIndex === camData.index
+        readonly property bool ballOpen: root.openBallIndex === camData.index
 
         // Effective fps for storage calculations:
         // priority: user-set target → live measured configuredFps → capability maxFps → 30
@@ -103,6 +107,7 @@ Item {
         implicitHeight: camRow.roiOpen
                             ? headerRow.height + bodyRow.height + roiPanel.height
                             : headerRow.height + (camData.enabled ? bodyRow.height : excludedNote.height)
+                              + (camRow.ballOpen ? ballPanel.height : 0)
 
         Behavior on implicitHeight { NumberAnimation { duration: Theme.durationFast } }
 
@@ -123,7 +128,7 @@ Item {
             anchors.fill: parent
             color:        "transparent"
             border.width: 1
-            border.color: camRow.roiOpen
+            border.color: (camRow.roiOpen || camRow.ballOpen)
                             ? Theme.colorAccent
                             : (camData.enabled ? Theme.colorBorderStrong : Theme.colorBorderMid)
             radius:       Theme.radius
@@ -690,7 +695,45 @@ Item {
                                 mgr.setSelected(idx, false)
                             if (wasActive)
                                 toast.show(notice)
+                            panelRoot.openBallIndex = -1
                             panelRoot.openRoiIndex = idx
+                        }
+                    }
+                }
+
+                // Ball detection — hitting area + in-situ calibration
+                // (design §8.1). Face-on cameras only; the profile only
+                // persists for a fixed-in-place camera, which the panel
+                // explains inline.
+                Rectangle {
+                    visible: camData.perspective === CameraInstance.FaceOn
+                    width:  ballLabel.implicitWidth + Theme.sp(24)
+                    height: Theme.sp(26)
+                    radius: Theme.radius
+                    color:  camRow.ballOpen ? Theme.colorAccentLight : "transparent"
+                    border.width: 1
+                    border.color: camRow.ballOpen ? Theme.colorAccent : Theme.colorBorderStrong
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                    Text {
+                        id: ballLabel
+                        anchors.centerIn: parent
+                        text:           qsTr("Ball detection")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody2
+                        font.weight:    Theme.fontBodyWeight
+                        color:          camRow.ballOpen ? Theme.colorAccent : Theme.colorText2
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape:  Qt.PointingHandCursor
+                        onClicked: {
+                            root.openBallIndex = camRow.ballOpen ? -1 : camData.index
+                            if (root.openBallIndex !== -1)
+                                root.openRoiIndex = -1
                         }
                     }
                 }
@@ -1636,6 +1679,143 @@ Item {
                                     cursorShape:  Qt.PointingHandCursor
                                     onClicked:    root.openRoiIndex = -1
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Ball detection panel — hitting area + calibration (design §8.1) ──
+        Item {
+            id: ballPanel
+            anchors.top:   roiPanel.bottom
+            anchors.left:  parent.left
+            anchors.right: parent.right
+            height: camRow.ballOpen ? ballPanelContent.implicitHeight : 0
+            clip: true
+            visible: camRow.ballOpen
+
+            Behavior on height { NumberAnimation { duration: Theme.durationFast } }
+
+            // The per-instance calibration controller (created on demand,
+            // parented to the instance — dies with it on disconnect).
+            readonly property QtObject calCtrl:
+                camRow.realInstance ? cameraManager.ballCalibrationFor(camRow.realInstance) : null
+
+            readonly property bool fixedInPlace:
+                appSettings.cameraFixedInPlace[camData.cameraKey] === true
+
+            ColumnLayout {
+                id: ballPanelContent
+                anchors.left:  parent.left
+                anchors.right: parent.right
+                spacing: Theme.sp(12)
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: 1
+                    color:  Theme.colorBorderMid
+                    opacity: Theme.borderOpacityNormal
+                }
+
+                // Camera not connected — everything here needs live frames.
+                Text {
+                    visible: camRow.realInstance === null
+                    Layout.fillWidth: true
+                    Layout.margins: Theme.sp(16)
+                    text: qsTr("Connect this camera to set the hitting area and calibrate ball detection.")
+                    wrapMode: Text.WordWrap
+                    font.family: Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody2
+                    color: Theme.colorText2
+                }
+
+                RowLayout {
+                    visible: camRow.realInstance !== null
+                    Layout.fillWidth: true
+                    Layout.margins: Theme.sp(16)
+                    Layout.topMargin: Theme.sp(4)
+                    spacing: Theme.sp(16)
+
+                    // Live view with the hitting-area overlay; drag to draw.
+                    // Loader-gated so a collapsed panel never subscribes to
+                    // the video stream.
+                    Loader {
+                        Layout.preferredWidth: Theme.sp(300)
+                        Layout.preferredHeight: Theme.sp(190)
+                        Layout.alignment: Qt.AlignTop
+                        active: camRow.ballOpen && camRow.realInstance !== null
+                        sourceComponent: PpCameraFrame {
+                            instance: camRow.realInstance
+                            displayName: camData.alias || camData.description
+                            showPoseOverlay:      false
+                            showHittingArea:      true
+                            roiEditable:          true
+                            showPerspectiveBadge: false
+                            showStatsOverlay:     false
+                            showReplayBadge:      false
+                            showReplayOverlay:    false
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignTop
+                        spacing: Theme.sp(8)
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: {
+                                if (!camRow.realInstance) return ""
+                                if (camRow.realInstance.roi.width <= 0)
+                                    return qsTr("Drag on the video to draw the hitting area — the region the ball sits in at address.")
+                                return qsTr("Hitting area set. Drag on the video to adjust it (this invalidates the calibration).")
+                            }
+                            wrapMode: Text.WordWrap
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody2
+                            color: Theme.colorText2
+                        }
+
+                        Text {
+                            visible: !ballPanel.fixedInPlace
+                            Layout.fillWidth: true
+                            text: qsTr("This camera isn't marked fixed in place — the hitting area and calibration will not be restored next session.")
+                            wrapMode: Text.WordWrap
+                            font.family: Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            font.italic: true
+                            color: Theme.colorWarn
+                        }
+
+                        // Drift hint (§6 soft drift).
+                        Text {
+                            visible: camRow.realInstance !== null && camRow.realInstance.ballDrifting
+                            Layout.fillWidth: true
+                            text: qsTr("Lighting has changed since calibration — consider recalibrating.")
+                            wrapMode: Text.WordWrap
+                            font.family: Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            color: Theme.colorWarn
+                        }
+
+                        BallCalibrationFlow {
+                            Layout.fillWidth: true
+                            controller: ballPanel.calCtrl
+                        }
+
+                        // Clear saved calibration.
+                        Text {
+                            visible: camRow.realInstance !== null && camRow.realInstance.ballCalibrated
+                            text: qsTr("→ Clear saved calibration")
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody2
+                            color: Theme.colorAccent
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: if (ballPanel.calCtrl) ballPanel.calCtrl.clearSaved()
                             }
                         }
                     }
