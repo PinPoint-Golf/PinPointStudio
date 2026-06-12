@@ -14,7 +14,12 @@ detector for stationary acquisition" (§3.4 `ClassicalPatchDetector`). **This de
 acquisition layer.** The CNN/Kalman plan remains valid for flight tracking and slots on top later;
 nothing here blocks it. Part of the vision modality of [`shotdetection.md`](shotdetection.md).
 
-Status: **design / not started.**
+Status: **implemented (B0–B5, 2026-06)** — studio/hardware validation (the B5 field half)
+pending. As-built deviations from this doc: the profile persists as ONE `cv::FileStorage`
+`profile.yml.gz` per cameraKey hash (lossless float mats; simpler than the json+png split in §7),
+and there is no AppSettings `ballCalibrated` flag — UI status probes the saved profile via
+`BallCalibrationController::savedProfileInfo()` instead. The CaptureBall stability gate is a
+settle-timer + fit-sanity-gates rather than live blob tracking (§5).
 
 ---
 

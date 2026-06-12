@@ -25,6 +25,7 @@
 #include <cstring>
 #include <variant>
 
+#include <QDateTime>
 #include <QFile>
 #include <QImage>
 #include <QJsonArray>
@@ -32,6 +33,7 @@
 #include <QJsonObject>
 #include <QSaveFile>
 #include <QTextStream>
+#include <QTimeZone>
 
 #include <opencv2/imgproc.hpp>
 
@@ -425,11 +427,21 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
         static const char* kPerspectiveNames[] = {"None", "DownTheLine", "FaceOn", "Other"};
         const int pi = (rec.cam->perspective >= 0 && rec.cam->perspective <= 3)
                            ? rec.cam->perspective : 0;
+        QJsonObject ballDetection{
+            {QStringLiteral("calibrated"),     rec.cam->ballCalibrated},
+            {QStringLiteral("margin"),         rec.cam->ballMargin},
+            {QStringLiteral("driftAtCapture"), rec.cam->ballDriftAtCapture},
+        };
+        ballDetection[QStringLiteral("calibratedAt")] = rec.cam->ballCalibratedAtMs > 0
+            ? QJsonValue(QDateTime::fromMSecsSinceEpoch(rec.cam->ballCalibratedAtMs, QTimeZone::UTC)
+                             .toString(Qt::ISODate))
+            : QJsonValue();
         s[QStringLiteral("setup")] = QJsonObject{
             {QStringLiteral("perspective"),     rec.cam->perspective},
             {QStringLiteral("perspectiveName"), QString::fromLatin1(kPerspectiveNames[pi])},
             {QStringLiteral("mirrored"),        rec.cam->mirrored},
             {QStringLiteral("fixedInPlace"),    rec.cam->fixedInPlace},
+            {QStringLiteral("ballDetection"),   ballDetection},
         };
         s[QStringLiteral("playback")] = QJsonObject{{QStringLiteral("fps"), 30}};
         s[QStringLiteral("processing")] = QJsonObject{

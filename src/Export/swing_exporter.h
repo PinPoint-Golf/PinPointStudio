@@ -42,6 +42,13 @@ struct SwingExportCamera {
     int      perspective  = 0;
     bool     mirrored     = false;
     bool     fixedInPlace = false;
+    // Ball-detection provenance (ball_detection_calibration.md §7): whether
+    // the environment-calibrated detector was active on this stream, its
+    // validation margin / timestamp, and the drift severity at capture.
+    bool     ballCalibrated     = false;
+    double   ballMargin         = 0.0;
+    qint64   ballCalibratedAtMs = 0;     // epoch ms, 0 = n/a
+    double   ballDriftAtCapture = 0.0;
 };
 
 // Per-IMU device configuration at capture time (stream "device" object),

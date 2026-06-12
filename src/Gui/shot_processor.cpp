@@ -632,6 +632,10 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         cam.mirrored     = track.ctrl->isMirrored();
         cam.fixedInPlace = s->cameraFixedInPlace()
                                .value(track.ctrl->cameraKey()).toBool();
+        cam.ballCalibrated     = track.ctrl->ballCalibrated();
+        cam.ballMargin         = track.ctrl->ballCalMargin();
+        cam.ballCalibratedAtMs = track.ctrl->ballCalibratedAtMs();
+        cam.ballDriftAtCapture = track.ctrl->ballDriftSeverity();
         job.cameras.push_back(std::move(cam));
     }
 

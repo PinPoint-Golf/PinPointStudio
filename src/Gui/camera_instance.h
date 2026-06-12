@@ -157,6 +157,9 @@ public:
     bool    ballCalibrated()      const;
     bool    ballDrifting()        const;
     double  ballDriftSeverity()   const;
+    // Profile provenance for swing.json (C++ only, set by applyBallCalProfile).
+    double  ballCalMargin()       const { return m_ballCalMargin; }
+    qint64  ballCalibratedAtMs()  const { return m_ballCalibratedAtMs; }
     int     frameWidth()          const;
     int     frameHeight()         const;
     double  configuredFps()       const;
@@ -336,6 +339,8 @@ private:
     bool             m_ballCalibrated       = false;
     bool             m_ballDrifting         = false;
     double           m_ballDriftSeverity    = 0.0;
+    double           m_ballCalMargin        = 0.0;
+    qint64           m_ballCalibratedAtMs   = 0;
     double           m_ballHoughConf        = 0.7;
     int              m_ballWhiteSatCeil     = 50;
     TingPlayer      *m_tingPlayer           = nullptr;

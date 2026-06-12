@@ -837,6 +837,8 @@ void CameraInstance::applyBallCalProfile(const pinpoint::ballcal::BallCalProfile
         QMetaObject::invokeMethod(m_ballDetector, [det = m_ballDetector, profile]() {
             det->setProfile(profile);
         }, Qt::QueuedConnection);
+    m_ballCalMargin      = profile.margin;
+    m_ballCalibratedAtMs = profile.calibratedAtMs;
     if (!m_ballCalibrated) {
         m_ballCalibrated = true;
         emit ballCalibratedChanged();
@@ -854,6 +856,8 @@ void CameraInstance::clearBallCalProfile()
         QMetaObject::invokeMethod(m_ballDetector, [det = m_ballDetector]() {
             det->clearProfile();
         }, Qt::QueuedConnection);
+    m_ballCalMargin      = 0.0;
+    m_ballCalibratedAtMs = 0;
     if (m_ballCalibrated) {
         m_ballCalibrated = false;
         emit ballCalibratedChanged();

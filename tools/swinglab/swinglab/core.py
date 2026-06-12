@@ -81,6 +81,19 @@ def ingest(corpus_root):
             "calibAgeSec": s.calib_age_sec(),
             "perspectives": [v.get("setup", {}).get("perspectiveName")
                              for v in vids] if any("setup" in v for v in vids) else None,
+            # Ball-detection calibration provenance (None on legacy swings):
+            # True when ANY stream captured with the environment-calibrated
+            # detector; worst (lowest) margin across streams for filtering.
+            "ballCalibrated": (any(v.get("setup", {}).get("ballDetection", {}).get("calibrated")
+                                   for v in vids)
+                               if any("ballDetection" in v.get("setup", {}) for v in vids)
+                               else None),
+            "ballMargin": (min((v["setup"]["ballDetection"].get("margin", 0.0)
+                                for v in vids
+                                if v.get("setup", {}).get("ballDetection", {}).get("calibrated")),
+                               default=None)
+                           if any("ballDetection" in v.get("setup", {}) for v in vids)
+                           else None),
             "appVersion": cap.get("host", {}).get("version"),
         })
     notes_file = root / "CORPUS.md"
