@@ -550,7 +550,7 @@ struct ScoreBreakdown {
 
 ## Metric time series & key-swing-point sampling
 
-Every biomechanics metric is **two things at once**: a *continuous per-frame curve* over the swing window's master timeline, and a *sparse set of labelled samples* at each key swing point. The graph needs both — the curve to draw the line, the phase samples to place markers, pin checkpoint readouts, and drive scoring. Both live in the committed `pinpoint::analysis` structs (`docs/design/SHOT_ANALYZER_DESIGN.md:146-161`); this subsection makes them buildable and persistent. None of it exists in code yet — `src/Analysis/swing_analysis.{h,cpp}` is **to be ADDED**; `ShotAnalysisResult` (`src/Analysis/shot_analyzer.h:47-53`) today carries only `score`/`metrics`/`tracePoints`.
+Every biomechanics metric is **two things at once**: a *continuous per-frame curve* over the swing window's master timeline, and a *sparse set of labelled samples* at each key swing point. The graph needs both — the curve to draw the line, the phase samples to place markers, pin checkpoint readouts, and drive scoring. Both live in the committed `pinpoint::analysis` structs (`docs/design/shot_analyzer_design.md:146-161`); this subsection makes them buildable and persistent. None of it exists in code yet — `src/Analysis/swing_analysis.{h,cpp}` is **to be ADDED**; `ShotAnalysisResult` (`src/Analysis/shot_analyzer.h:47-53`) today carries only `score`/`metrics`/`tracePoints`.
 
 ### 1. Data model — TimeGrid, MetricSeries, PhaseSample
 
@@ -637,7 +637,7 @@ The analyzer's `SwingAnalysis` is serialised **inline** under `"analysis"` (no `
 
 ---
 
-> See **SHOT_ANALYZER_M1_WRIST.md → Replay-synchronized graphing** for how these series drive the lockstep detail view.
+> See **shot_analyzer_m1_wrist.md → Replay-synchronized graphing** for how these series drive the lockstep detail view.
 
 ## Implementation Plan
 
@@ -864,8 +864,8 @@ validated against `mirroredSource`/handedness; occluded segments stay IMU-recons
 > As-built status after **M1 (Wrist Motion)** — what shipped, decisions taken along the way,
 > and what was deferred. M1 is on `main` (analysis engine → scorer → unified persistence +
 > reload → replay-synced multi-metric graphs → live check-sensors overlay + hardware
-> sign-lock). Companions: `docs/implementation/SHOT_ANALYZER_M1_WRIST.md` (§11 = tidy-up checklist) and
-> `docs/reference/WRISTMETRICS.md` (sign/axis/naming + norms). `docs/design/SHOT_ANALYZER_VIZ.md` covers the
+> sign-lock). Companions: `docs/implementation/shot_analyzer_m1_wrist.md` (§11 = tidy-up checklist) and
+> `docs/reference/wristmetrics.md` (sign/axis/naming + norms). `docs/design/shot_analyzer_viz.md` covers the
 > graph work.
 >
 > **Scope:** M1 is the **IMU-orientation** path only. Pose/triangulation layers (1, 2, 4, 5)
@@ -903,7 +903,7 @@ validated against `mirroredSource`/handedness; occluded segments stay IMU-recons
 ### Metrics & scoring — as-built
 - **Catalog (M1 wrist):** `leadWristFlexExt` (bow/cup), `leadWristRadUln` (hinge),
   `forearmPronation` (roll), `leadArmFlexion` (elbow). **Decision:** coaching names + ISB signs
-  (`docs/reference/WRISTMETRICS.md`); shared `wristMetricLabel()` used by analyzer + live readout.
+  (`docs/reference/wristmetrics.md`); shared `wristMetricLabel()` used by analyzer + live readout.
 - **Reference-frame decision:** **neutral/absolute primary** — unifies the live readout with
   shot analysis, and **fixed a scorer reference mismatch** (it now grades the absolute impact
   posture against the absolute bands, not the address-delta).
@@ -927,7 +927,7 @@ validated against `mirroredSource`/handedness; occluded segments stay IMU-recons
 - **M0** (plumbing/persistence): done.
 - **M1**: **functionally complete** as the IMU-orientation path (engine, sign-lock, scorer,
   unified persistence + reload, replay-synced multi-metric graphs, live overlay). Tidy-ups in
-  `M1_WRIST.md §11`.
+  `shot_analyzer_m1_wrist.md §11`.
 - **M2–M6**: not started.
 
 ### Cross-cutting deferred / follow-up
@@ -1193,7 +1193,7 @@ Reload (`SwingDocReader`) treats a missing `segmentation` block as full-window b
 ## Addendum — Swing segmentation v3 (shaft-aware, two-pass)
 
 > **Status:** Design addendum (proposal) · **Date:** 2026-06-11 · **Grounded against:** `main` @ `7a3a160`
-> · **Implementation plan:** [`docs/implementation/SEGMENTATION_V3_IMPL.md`](../implementation/SEGMENTATION_V3_IMPL.md)
+> · **Implementation plan:** [`docs/implementation/segmentation_v3_impl.md`](../implementation/segmentation_v3_impl.md)
 >
 > Extends (does not replace) the v2 addendum. v2 was written one day before `ShaftTracker` S0–S4
 > landed; it anticipated the club only as a deferred Hough-line refinement and an I2 club IMU. The
@@ -1355,7 +1355,7 @@ the inertial proxies and the shaft measurements against the same labels.
 > **motion blur** (the clubhead sweeps ~30°/frame at 60 fps near impact), low contrast, and clutter
 > (forearms, shadows, alignment sticks) — all addressed below.
 >
-> **Implementation plan:** [`docs/implementation/SHAFT_TRACKER_IMPL.md`](../implementation/SHAFT_TRACKER_IMPL.md)
+> **Implementation plan:** [`docs/implementation/shaft_tracker_impl.md`](../implementation/shaft_tracker_impl.md)
 > (stages S0–S5: decode/pose → math core → track assembly → analyzer/persistence → replay overlay → hardware tuning).
 
 ### B.1 Scope & payoff

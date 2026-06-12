@@ -76,7 +76,7 @@ void ImuIoWorker::processSample(const RawSample &in)
 
     // IMU impact auto-trigger (shot detection P1) — raw inertial magnitudes
     // plus the fused orientation; the shaft lies along sensor +Y
-    // (IMU_FRAME_CONTRACT.md), world +Z up.
+    // (imu_frame_contract.md), world +Z up.
     {
         const QVector3D shaftWorld = qRaw.rotatedVector(QVector3D(0, 1, 0));
         pinpoint::ImpactSample s;

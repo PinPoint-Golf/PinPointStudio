@@ -22,15 +22,15 @@ The `docs/` folder is organised by audience: **user**, **design**, **developer**
 
 **User & UX** — [`docs/user/`](docs/user)
 - [UX Design](docs/user/pinpoint-ux-design.md) — UI structure, navigation, and interaction design rationale.
-- [User Personas](docs/user/PERSONAS.md) — Definitions of the three primary user archetypes (club golfer, coach, researcher).
+- [User Personas](docs/user/personas.md) — Definitions of the three primary user archetypes (club golfer, coach, researcher).
 - [Persona UX Assessment](docs/user/pinpoint-persona-assessment.md) — UX evaluation against three user archetypes; identifies gaps and design priorities.
-- [Wrist Calibration Guide](docs/user/WRISTCALIBRATION.md) — How to mount the IMUs and run the two-pose wrist-motion calibration.
+- [Wrist Calibration Guide](docs/user/wristcalibration.md) — How to mount the IMUs and run the two-pose wrist-motion calibration.
 
 **Design** — [`docs/design/`](docs/design)
 - [EventBuffer Design](docs/design/event_buffer_design.md) — Architecture and design rationale for the lock-free EventBuffer.
-- [Shot Analyzer Design](docs/design/SHOT_ANALYZER_DESIGN.md) — Post-shot analysis pipeline: phase segmentation, metric extraction, scoring, and the per-session-type analyzer interface.
-- [IMU Frame Contract](docs/design/IMU_FRAME_CONTRACT.md) — The device-agnostic orientation boundary every IMU consumer depends on.
-- [QML Design System](docs/design/PINPOINT_QML_DESIGN_SYSTEM.md) — Token system, typography rules, and component patterns; read before writing any QML.
+- [Shot Analyzer Design](docs/design/shot_analyzer_design.md) — Post-shot analysis pipeline: phase segmentation, metric extraction, scoring, and the per-session-type analyzer interface.
+- [IMU Frame Contract](docs/design/imu_frame_contract.md) — The device-agnostic orientation boundary every IMU consumer depends on.
+- [QML Design System](docs/design/pinpoint_qml_design_system.md) — Token system, typography rules, and component patterns; read before writing any QML.
 - [Aesthetic Design Concepts](docs/design/aesthetic/pinpoint-aesthetic-concepts.md) — Three visual design directions (Editorial, Instrument, Studio) across light and dark themes.
 
 **Developer guides** — [`docs/developer/`](docs/developer)
@@ -40,8 +40,8 @@ The `docs/` folder is organised by audience: **user**, **design**, **developer**
 - [Shot Analyzer Developer Guide](docs/developer/shot_analyzer_developer_guide.md) — The post-shot pipeline: from frozen SwingWindow through analysis to score, metrics, and the unified swing.json.
 
 **Reference** — [`docs/reference/`](docs/reference)
-- [Wrist Metrics Reference](docs/reference/WRISTMETRICS.md) — Lead-arm wrist-angle metrics: sign conventions, coaching names, and research-backed bands.
-- [WT901BLE67 Protocol Reference](docs/reference/WT901BLE67_Protocol.md) — Packet formats, register map, and BLE transport details for the Witmotion IMU.
+- [Wrist Metrics Reference](docs/reference/wristmetrics.md) — Lead-arm wrist-angle metrics: sign conventions, coaching names, and research-backed bands.
+- [WT901BLE67 Protocol Reference](docs/reference/wt901ble67_protocol.md) — Packet formats, register map, and BLE transport details for the Witmotion IMU.
 
 ---
 

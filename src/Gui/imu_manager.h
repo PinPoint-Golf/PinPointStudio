@@ -169,7 +169,7 @@ private:
     // swingDetectionSensitivity ("Low"/"Medium"/"High") → detector threshold scale.
     static float impactScaleFor(const QString &sensitivity);
 
-    // The shared IMU I/O thread (IMU_IO_THREAD_IMPL.md): hosts every device's
+    // The shared IMU I/O thread (imu_io_thread_impl.md): hosts every device's
     // BLE driver + ImuIoWorker, so packet parse / fusion / impact detection /
     // ring writes never touch the GUI thread. One thread for all devices —
     // Qt BLE is fully async and 3 × 200 Hz is nothing for one event loop.

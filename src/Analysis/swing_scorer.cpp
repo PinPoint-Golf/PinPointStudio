@@ -38,7 +38,7 @@ struct ScoreBand {
     const char *region;
 };
 
-// PROVISIONAL Wrist (session type 1) bands — see docs/reference/WRISTMETRICS.md for the evidence.
+// PROVISIONAL Wrist (session type 1) bands — see docs/reference/wristmetrics.md for the evidence.
 // flex/ext (bow/cup) is weighted HIGHEST: it drives clubhead speed more than the other
 // axes (Sweeney forward-kinematic model). radial/ulnar (hinge) is down-weighted — it is
 // the weakest IMU axis and a secondary speed contributor (Buchanan/Zhang handicap study:

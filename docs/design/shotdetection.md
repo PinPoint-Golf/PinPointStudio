@@ -6,7 +6,7 @@
 nearby players) and low enough latency to drive a live trigger.
 
 This doc reframes and supersedes the earlier ball-only note (formerly `CLUBANDBALLDETECTION.md`, now
-folded in here and into [`BALL_DETECTOR_DESIGN.md`](BALL_DETECTOR_DESIGN.md)): "ball present → ball
+folded in here and into [`ball_detector_design.md`](ball_detector_design.md)): "ball present → ball
 absent" is **one signal among several**, not the framing. Shot detection is a
 **multi-modal sensing problem**, and the evidence says the robust answer is **sensor fusion**, not any
 single method.
@@ -120,7 +120,7 @@ the same PCM. High audio sample rate (44.1/48 kHz) is what enables sample-accura
   swings** (no ball ever left); and the captured `SwingWindow` gives the **exact impact frame** offline
   for metrics. It should generally *not* be the fast trigger.
 - The **detector implementation** for this modality (CNN + Kalman patch tracking, replacing the Hough
-  `BallDetector`) is specified in **[`BALL_DETECTOR_DESIGN.md`](BALL_DETECTOR_DESIGN.md)**; that doc's
+  `BallDetector`) is specified in **[`ball_detector_design.md`](ball_detector_design.md)**; that doc's
   `ballLaunched(timestampUs)` hook is precisely the corroboration/veto signal referenced here.
 
 ### 2.4 Other approaches (radar/Doppler, optical gates, pressure mats) — named, unevidenced here
@@ -197,7 +197,7 @@ given the EventBuffer's existing per-source timestamps (open question — §10).
 
 ## 6. Recommended architecture for PinPoint
 
-> **Implementation plan:** [`SHOT_DETECTION_IMPL.md`](../implementation/SHOT_DETECTION_IMPL.md) turns this into a concrete,
+> **Implementation plan:** [`shot_detection_impl.md`](../implementation/shot_detection_impl.md) turns this into a concrete,
 > component-by-component build (IMU + acoustic detectors, the candidate→arbitrate→commit layer, the
 > latency-aware timestamp model, phasing, and tests).
 
@@ -211,7 +211,7 @@ given the EventBuffer's existing per-source timestamps (open question — §10).
    Acoustic (existing audio PCM)                  ▼  within ~50 ms window?
      envelope-peak + exp-decay/HFC ──────►  CONFIRM  + sample-accurate t*  (Source::Audio)
                                                   │  back-date EventBuffer shot marker → t*
-   Vision (BALL_DETECTOR_DESIGN.md)               ▼
+   Vision (ball_detector_design.md)               ▼
      ball present → ballLaunched ────────►  CORROBORATE / VETO  + offline exact impact frame
                                                   │
                                                   ▼
@@ -230,7 +230,7 @@ rather than trust it blindly.
   higher output rate for the active sensor.
 - Arbitration/dedup lives in `ShotController` (it's already the single funnel) — collapse multiple
   near-simultaneous sources into one shot, choose the acoustic-pinpointed `timestampUs`.
-- Vision `ballLaunched` (`BALL_DETECTOR_DESIGN.md`) wired as corroboration/veto, not the primary trigger.
+- Vision `ballLaunched` (`ball_detector_design.md`) wired as corroboration/veto, not the primary trigger.
 
 **Phasing (lowest-risk first):**
 1. **IMU threshold trigger** (club/active-wrist) under the existing `armed` + new swing-energy/refractory
@@ -260,7 +260,7 @@ rather than trust it blindly.
 ## 8. Vision-modality detail (folded from the old ball/club note)
 
 The deep ball-detection research and the implementation plan now live in
-**[`BALL_DETECTOR_DESIGN.md`](BALL_DETECTOR_DESIGN.md)** (CNN + Kalman patch tracking, model sourcing,
+**[`ball_detector_design.md`](ball_detector_design.md)** (CNN + Kalman patch tracking, model sourcing,
 ORT engine decision). For shot detection specifically, the relevant outputs of that work are: the
 **ball-present** state (corroboration), the **`ballLaunched`** event (veto practice swings; coarse
 launch instant), and the **offline exact impact frame** from the frozen `SwingWindow`. **Club/clubhead
@@ -327,14 +327,14 @@ critical path.
   https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/10706273
 
 **Vision (under-evidenced; see companion)**
-- [`BALL_DETECTOR_DESIGN.md`](BALL_DETECTOR_DESIGN.md) — vision-modality detector implementation + the
+- [`ball_detector_design.md`](ball_detector_design.md) — vision-modality detector implementation + the
   ball-detection research (arXiv 2012.09393 patch+Kalman, GolfDB/SwingNet waggle rejection).
 
 ---
 
 ### Research provenance
 Two deep-research passes (multi-angle search → fetch → 3-vote adversarial verification → synthesis):
-ball/swing-phase (folded into the vision section + `BALL_DETECTOR_DESIGN.md`) and this multi-modal
+ball/swing-phase (folded into the vision section + `ball_detector_design.md`) and this multi-modal
 shot-detection pass (**21 confirmed / 4 refuted** of 25 verified, from 18 sources). Confidence/vote tags
 reflect that process. Largest residual gaps: **golf-specific** fusion accuracy and **vision** trigger
 latency — both flagged in §10.

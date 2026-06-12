@@ -33,7 +33,7 @@ at exactly what instant?"** The answer drives the entire post-shot pipeline: the
 shot marker written into the EventBuffer, the frozen `SwingWindow`, analysis,
 export, and the on-screen replay all align to the committed impact timestamp.
 
-It is a **multi-modal** problem by design (`docs/design/SHOTDETECTION.md`): no single
+It is a **multi-modal** problem by design (`docs/design/shotdetection.md`): no single
 sensor is reliable enough alone. The implementation fuses three independent
 detectors behind one funnel:
 
@@ -243,7 +243,7 @@ and the fused quaternion are all current:
 - `gyroMag` comes from `m_imu->gyroData()` (raw, synchronous) — **not**
   `angularVelocityDps`, which is quaternion-derived, queued, and coarse.
 - `clubVertical = |z|` of the fused quaternion rotating the sensor long axis
-  (+Y, see `docs/design/IMU_FRAME_CONTRACT.md`) into the +Z-up world frame.
+  (+Y, see `docs/design/imu_frame_contract.md`) into the +Z-up world frame.
 - The hook adds **no new EventBuffer producer** — the producer/stop-barrier
   contract (CLAUDE.md) is untouched. The whole BLE chain runs on the GUI
   thread, so `impactDetected` → `ImuManager` → `main.cpp` → `ShotController`
@@ -409,7 +409,7 @@ ring — a new source must be added to that switch.
 ## 9. Getting Started — Adding a New Detector Modality
 
 The intended fourth modality is vision: a `ballLaunched(qint64 timestampUs)`
-signal from a Kalman-tracked ball detector (`docs/design/BALL_DETECTOR_DESIGN.md` §8).
+signal from a Kalman-tracked ball detector (`docs/design/ball_detector_design.md` §8).
 **It does not exist yet** — today's `CameraInstance::ballPresentChanged` is
 smoothed over a 50-frame window, seconds too coarse for a ±40 ms match
 tolerance. Do not wire it as a candidate source. When the tracked detector
@@ -666,7 +666,7 @@ src/Analysis/tests/
 ---
 
 *For the research survey behind the multi-modal approach see
-`docs/design/SHOTDETECTION.md`; for the design this implements (including the P4
+`docs/design/shotdetection.md`; for the design this implements (including the P4
 roadmap: latency auto-calibration, optional audio-in-ring, ML for jerk-less
-sensor placements) see `docs/implementation/SHOT_DETECTION_IMPL.md`. Downstream of
+sensor placements) see `docs/implementation/shot_detection_impl.md`. Downstream of
 `shotDetected`, see `docs/developer/shot_analyzer_developer_guide.md`.*

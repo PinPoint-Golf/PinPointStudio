@@ -32,7 +32,7 @@
 #include "types.h"   // pinpoint::SourceId, kInvalidSourceId
 
 // Canonical intermediate + output data structures for the shot analyzer
-// (design: docs/design/SHOT_ANALYZER_DESIGN.md). All rotation is QQuaternion — Euler
+// (design: docs/design/shot_analyzer_design.md). All rotation is QQuaternion — Euler
 // appears only at the UI readout. Header-only value types, passed by value /
 // shared_ptr across the QtConcurrent worker boundary.
 namespace pinpoint::analysis {

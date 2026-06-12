@@ -3,7 +3,7 @@
 *The device-agnostic orientation boundary every IMU consumer depends on. A future
 non-Witmotion IMU must deliver into this contract; nothing downstream depends on the
 Witmotion device directly. Established by the Track-B work in
-[`IMU_REARCHITECTURE.md`](../implementation/IMU_REARCHITECTURE.md) §3.2 / §5; this is the authoritative
+[`imu_rearchitecture.md`](../implementation/imu_rearchitecture.md) §3.2 / §5; this is the authoritative
 reference, that doc is the rationale.*
 
 ---
@@ -13,7 +13,7 @@ reference, that doc is the rationale.*
 | Frame | Definition | Owner |
 |---|---|---|
 | **World** (`imu_world`) | Right-handed, **gravity-aligned, +Z up**. Yaw is **arbitrary-but-fixed per session** (re-zeroable via calibration `A`) — **NOT** magnetic-north referenced (we run 6-axis, no magnetometer). REP-103 ENU *vocabulary*, REP-145 *no-mag semantics*. | Host fusion (`orientation_filter.h` Madgwick / `eskf_orientation_filter.h`) |
-| **Sensor body** (`imu_link`) | Right-handed, **+X = device-right, +Y = USB-end (long), +Z = face-normal**. Identity quaternion at the neutral pose. | Device characterization ([`IMU_AXIS_REFERENCE.md`](../reference/IMU_AXIS_REFERENCE.md)) |
+| **Sensor body** (`imu_link`) | Right-handed, **+X = device-right, +Y = USB-end (long), +Z = face-normal**. Identity quaternion at the neutral pose. | Device characterization ([`imu_axis_reference.md`](../reference/imu_axis_reference.md)) |
 | **Anatomical body** | Per-segment frame from `imu_calibration::solveSegment`. Axis table in §4. | `imu_calibration.h` (`A`, `M`) |
 
 The fused quaternion produced by host fusion **is** the world→sensor-body orientation in
@@ -93,7 +93,7 @@ Scene is Y-up, right-handed, −Z forward. The basis change is a fixed `Rx(−90
 (det +1, no handedness flip): world +Z→scene +Y, +Y→scene −Z, +X→+X. ⚠ This basis change
 is **not** the whole rendered bone rotation — the avatar needs rest→*hanging*, so each
 viz renderer folds the basis change into a per-GLB rest offset (`R0`). See §3.4c of
-[`IMU_REARCHITECTURE.md`](../implementation/IMU_REARCHITECTURE.md); the explicit `worldToScene()` helper is
+[`imu_rearchitecture.md`](../implementation/imu_rearchitecture.md); the explicit `worldToScene()` helper is
 Phase 2 (not yet landed).
 
 ## 7. Fusion filter gotcha (both implement `IOrientationFilter`)

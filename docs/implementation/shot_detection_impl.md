@@ -1,10 +1,10 @@
 # Shot Detection — Implementation Plan
 
-Operationalizes the design in [`SHOTDETECTION.md`](../design/SHOTDETECTION.md): build the **multi-modal shot
+Operationalizes the design in [`shotdetection.md`](../design/shotdetection.md): build the **multi-modal shot
 trigger** — inertial (IMU) + acoustic (microphone) detectors with vision corroboration — behind the
 existing `ShotController`, with a **candidate→arbitrate→commit** layer and **latency-aware
 timestamping**. The vision modality's detector is specified separately in
-[`BALL_DETECTOR_DESIGN.md`](../design/BALL_DETECTOR_DESIGN.md); this doc covers the inertial + acoustic detectors,
+[`ball_detector_design.md`](../design/ball_detector_design.md); this doc covers the inertial + acoustic detectors,
 the arbiter, and the timing model.
 
 Status: **plan / not started.** Every file path, signature, threading and contract claim below is
@@ -22,7 +22,7 @@ grounded in the current code (file:line).
   and `ShotProcessor` are reused unchanged except for an added arbitration layer and a `Source::Acoustic`.
 
 **Non-goals**
-- Vision *detector* internals (→ `BALL_DETECTOR_DESIGN.md`); here vision is only a corroboration/veto input.
+- Vision *detector* internals (→ `ball_detector_design.md`); here vision is only a corroboration/veto input.
 - Ball-flight physics / launch metrics.
 - Replacing the manual SHOT button — it stays as an immediate, definitive trigger that bypasses arbitration.
 
@@ -65,7 +65,7 @@ The arbiter compares those and commits the **audio-derived** instant when availa
    |accel|>τ & swing-energy & club-orient ──► reportCandidate(Imu,  est_t, conf)
  Acoustic onset detector (audio-thread consumer of audioDataReady)
    envelope-peak + decay/HFC gate ─────────► reportCandidate(Acoustic, est_t*, conf)   [pinpoint]
- Vision (BALL_DETECTOR_DESIGN.md)
+ Vision (ball_detector_design.md)
    ballLaunched / ball-was-present ────────► reportCandidate(Ball, est_t, conf)         [confirm/veto]
                          │
                          ▼
@@ -106,7 +106,7 @@ notifications are marshaled there), so it can call `ShotController` directly. Ke
 - **Gates (cheap, in-handler):** require a preceding **swing-energy signature** (recent angular-velocity
   ramp into transition — reuses the swing-phase work) and a plausible **club orientation at impact**
   (from the fused quaternion, free here) — this is what separates a real strike from an address tap or
-  a waggle, and mirrors commercial club-orientation gating (`SHOTDETECTION.md` §3).
+  a waggle, and mirrors commercial club-orientation gating (`shotdetection.md` §3).
 - Emit `reportCandidate(Source::Imu, est_t, conf)` where `est_t = nowMicros()_at_handler_top −
   kImuBleLatencyUs`. (For the earliest raw stamp, optionally consume `rawPacketReady`'s pre-stamped
   `timestamp_us`, `wt9011dcl_base.cpp:156-157`.)
@@ -139,7 +139,7 @@ rate preserves the impact "click" high-frequency content and gives ~20 µs/sampl
 - **High-pass pre-filter** (impact energy is high-frequency; rejects rumble/speech fundamentals).
 - **Energy envelope** = max magnitude in a ~10 ms sliding window; **peak** above an adaptive threshold
   (e.g. halfway between the running average and max — ShotSpotter US11133023) → onset candidate.
-- **Validate (false-positive rejection, `SHOTDETECTION.md` §2.2):** require **fast exponential decay**
+- **Validate (false-positive rejection, `shotdetection.md` §2.2):** require **fast exponential decay**
   after the peak (rejects speech, which builds), **positive spectral-flux / HFC** delta, and **sudden
   amplitude vs the noise floor**; **refractory ~30–40 ms** (min inter-onset). Spectral-flux/HFC need a
   small STFT — start time-domain (envelope + decay) and add the spectral gate in a second pass.
@@ -158,7 +158,7 @@ reference but not worth a dependency for one detector.
 
 ## 5. Component — vision corroboration
 
-Reuse the ball detector's `ballLaunched(timestampUs)` hook (`BALL_DETECTOR_DESIGN.md` §8) and the
+Reuse the ball detector's `ballLaunched(timestampUs)` hook (`ball_detector_design.md` §8) and the
 ball-present state. Vision is the **slowest** modality (camera fps + `FrameThrottle` `skipFactor=2`), so:
 - `reportCandidate(Source::Ball, est_t, conf)` as a **confirmer** (a strike that coincides with a
   ball-launch is almost certainly real) and a **veto** for practice swings (no ball ever left the ROI).
@@ -274,7 +274,7 @@ Standalone CTest harnesses (project convention, e.g. `src/IMU/tests/`, `src/Audi
 - **Audio device-latency calibration** — one-time constant per setup; `setBufferSize()` is currently
   unset, so the period is platform default; may need to set it for determinism.
 - **Golf-specific tuning** — all thresholds (accel τ, onset threshold, gates) need field tuning; no golf
-  benchmark exists (`SHOTDETECTION.md` caveats). Capture real strikes (we store full swing windows) to tune.
+  benchmark exists (`shotdetection.md` caveats). Capture real strikes (we store full swing windows) to tune.
 - **Open:** auto-calibrate per-source latency online (peak-function cross-correlation) vs a fixed
   measured constant? Put audio in the ring now or later? Single-modality accept thresholds (how strong is
   "strong enough" for IMU-only)?
@@ -294,4 +294,4 @@ Standalone CTest harnesses (project convention, e.g. `src/IMU/tests/`, `src/Audi
 
 ---
 
-*Design: [`SHOTDETECTION.md`](../design/SHOTDETECTION.md). Vision modality: [`BALL_DETECTOR_DESIGN.md`](../design/BALL_DETECTOR_DESIGN.md).*
+*Design: [`shotdetection.md`](../design/shotdetection.md). Vision modality: [`ball_detector_design.md`](../design/ball_detector_design.md).*

@@ -6,10 +6,10 @@ a parallel multi-agent investigation and **independently re-verified against sou
 load-bearing claims (the fusion source, the storage frame split, the 6-axis register write,
 the wrist-angle math, the calibration model).*
 
-Companion docs: [`IMU_AXIS_REFERENCE.md`](../reference/IMU_AXIS_REFERENCE.md),
-[`WT901BLE67_Protocol.md`](../reference/WT901BLE67_Protocol.md),
-[`SHOT_ANALYZER_M1_WRIST.md`](SHOT_ANALYZER_M1_WRIST.md), [`WRISTCALIBRATION.md`](../user/WRISTCALIBRATION.md),
-[`WRISTMETRICS.md`](../reference/WRISTMETRICS.md), and the source PDF
+Companion docs: [`imu_axis_reference.md`](../reference/imu_axis_reference.md),
+[`wt901ble67_protocol.md`](../reference/wt901ble67_protocol.md),
+[`shot_analyzer_m1_wrist.md`](shot_analyzer_m1_wrist.md), [`wristcalibration.md`](../user/wristcalibration.md),
+[`wristmetrics.md`](../reference/wristmetrics.md), and the source PDF
 `~/Documents/Witmotion/WT9011DCL-BT50 Communication Protocol.pdf`.
 
 ---
@@ -108,7 +108,7 @@ BLE notify (0x55 0x61 frame: accel+gyro+Euler, little-endian int16)
 | Frame | Definition | Where |
 |---|---|---|
 | **Fusion-world** | Right-handed, **+Z = up** (gravity reaction). Yaw **unobservable / drifting** (no mag, no North). | Madgwick seed rotates world-up `(0,0,1)` onto measured gravity (`orientation_filter.h:69-71`); ESKF gravity `[0,0,−9.81]`. |
-| **Sensor/case body** | Right-handed, **+X = device-right, +Y = USB-end (long), +Z = face-normal**. | Desk characterization, `IMU_AXIS_REFERENCE.md §3`. |
+| **Sensor/case body** | Right-handed, **+X = device-right, +Y = USB-end (long), +Z = face-normal**. | Desk characterization, `imu_axis_reference.md §3`. |
 | **Anatomical body** (post `A·q·M`) | Right-handed, **+Y = long axis (distal), +X = flexion axis, +Z = e_x×e_y**. Anatomical "up" = `−Y`. | `imu_calibration.h:121-129`; `imu_instance.cpp:577`. |
 
 ### 1.3 The latent frame split (a real bug to fix in Track B)
@@ -150,7 +150,7 @@ it does **not** delete the (true) segment-frame line.
 
 > **Note for any future migrator:** the shipped extraction (`wrist_angles.h:117-119`) is a plain
 > rotation-matrix Cardan — it has **no swing-twist preamble**, unlike the snippet in
-> `SHOT_ANALYZER_M1_WRIST.md §4`. Axial-Y still drops out (verified by tests). Do not "restore" the
+> `shot_analyzer_m1_wrist.md §4`. Axial-Y still drops out (verified by tests). Do not "restore" the
 > swing-twist form from the M1 doc; it would silently change the shipped values.
 
 **Key insight that de-risks the whole migration:** these angles are computed from *relative*
@@ -235,7 +235,7 @@ yaw drift; because the metrics are *relative* quaternions between co-located seg
 ⚠ **But common-mode cancellation solves only the easy half.** Three sensors have *independent* gyro
 biases, so a **differential** yaw drift accumulates between them over the swing — it does **not**
 cancel, and it is exactly the documented **~10–15° FE↔RUD cross-talk** (`wrist_angles.h:42-44`) that
-makes RUD "the weakest IMU axis (~5° mean error)" per `WRISTMETRICS.md` — the *same magnitude as the
+makes RUD "the weakest IMU axis (~5° mean error)" per `wristmetrics.md` — the *same magnitude as the
 M1 "HackMotion-grade" accuracy target*. So the 6-axis default is correct for FE/pronation, but it
 leaves RUD accuracy bounded by a real, unsolved drift. **Two paths could constrain it** (both Track C
 / future): (a) a clean upper-arm 9-axis heading as an external reference, or (b) a kinematic-chain
@@ -343,7 +343,7 @@ composition; `live_wrist_angles.cpp`; **all QML viz mapping constants**; the lef
 The end state is small and conservative:
 
 1. **One documented contract** (§3.2) — written into `imu_sample.h` and a short
-   `docs/design/IMU_FRAME_CONTRACT.md`, referenced by every consumer.
+   `docs/design/imu_frame_contract.md`, referenced by every consumer.
 2. **One declared frame in storage** (`ImuInstance`'s write lambda) — accel, gyro, **and** quaternion
    in a single declared frame (resolve the N2 split: either remap the quaternion to match the
    vectors, or stop remapping the vectors). Note what actually consumes each field: the ring
@@ -423,7 +423,7 @@ Phase 0.0 dep provisioning checked in so the gate actually compiles.
 
 ### Phase 1 — Frame contract + storage fix (Track B) · *behaviour-preserving*
 
-- **1.1** Write `docs/design/IMU_FRAME_CONTRACT.md` (§3.2), including the **authoritative per-segment
+- **1.1** Write `docs/design/imu_frame_contract.md` (§3.2), including the **authoritative per-segment
   anatomical axis-label table** (Open-Q §7 #4 — none exists in code today), and reference it from
   `imu_sample.h`, `imu_calibration.h`, `wrist_angles.h`.
 - **1.2** Resolve the N2 split (`imu_instance.cpp:271-281`): put accel, gyro, **and** quaternion in

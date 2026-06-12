@@ -23,7 +23,7 @@
 // Pure functions over plain vectors: no window access, no Qt event machinery,
 // standalone-tested (src/Analysis/tests/phase_signals_test.cpp).
 //
-// Conventions (docs/design/IMU_FRAME_CONTRACT.md):
+// Conventions (docs/design/imu_frame_contract.md):
 //  - World is right-handed, gravity-aligned, +Z up; yaw arbitrary per session.
 //  - SegmentStream.gyroDps/accelG are in the ANATOMICAL segment frame (the
 //    frame qAnat maps to world); segment long axis is +Y (distal).

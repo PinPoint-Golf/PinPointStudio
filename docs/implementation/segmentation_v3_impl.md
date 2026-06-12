@@ -3,7 +3,7 @@
 > **Status:** PLANNED · **Date:** 2026-06-11 · **Grounded against:** `main` @ `7a3a160`
 >
 > Implements the *Swing segmentation v2* and *Swing segmentation v3* addenda of
-> [`docs/design/SHOT_ANALYZER_DESIGN.md`](../design/SHOT_ANALYZER_DESIGN.md) (sections A.1–A.9 and
+> [`docs/design/shot_analyzer_design.md`](../design/shot_analyzer_design.md) (sections A.1–A.9 and
 > C.1–C.6) in one programme: v2's inertial ladder is v3's pass 1, so there is no point building
 > them separately. Primary motivations, in the user's priority order: **(1) bound the heavy
 > camera stages to the detected swing span** (the pose pass dominates analysis wall-time and the

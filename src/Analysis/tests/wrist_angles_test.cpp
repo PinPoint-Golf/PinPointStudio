@@ -122,7 +122,7 @@ int main()
     std::printf("\n-- H. named clinical poses: angle + coaching-label goldens --\n");
     {
         // Each pose freezes BOTH the extracted degrees AND the user-facing wristMetricLabel
-        // string (docs/reference/WRISTMETRICS.md keys). The label thresholds (±1° deadband in
+        // string (docs/reference/wristmetrics.md keys). The label thresholds (±1° deadband in
         // wrist_angles.h:156-167) were previously untested — this pins them.
         auto fe  = [](const QQuaternion &q){ return wristFlexExtDeviation(q).feRad;  };
         auto rud = [](const QQuaternion &q){ return wristFlexExtDeviation(q).rudRad; };

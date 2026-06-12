@@ -151,7 +151,7 @@ tools/swinglab/
   lab.py + swinglab/*.py        # ingest, score, plots, label, sweep, report, diff
   configs/                      # params.json presets + sweep spaces
 .claude/skills/swinglab/SKILL.md       # local-only (gitignored), per host
-docs/implementation/SWINGLAB_IMPL.md   # this doc
+docs/implementation/swinglab_impl.md   # this doc
 ~/SwingData/corpus-v1/...              # data lives OUTSIDE the repo
 runs/ (gitignored)                     # scorecards, plots, traces per run
 ```

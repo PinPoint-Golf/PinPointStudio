@@ -394,7 +394,7 @@ stop hardcoding assumptions; all additive (absent on legacy swings):
 | `window.end_us` | `endTimestampUs() − t0` |
 | video `source.*`, `capture.*` | `CameraFormat` via `window.formatOf()` (`serial` from `FormatDescriptor::device_serial`) |
 | video `frames.t_us` | Recorded in the encode loop — **written frames only**, so frame *i* in the MP4 corresponds to entry *i* here, always |
-| imu `samples` | Decoded `ImuSample` payloads (40 bytes / 10 floats, schema `imu_sample_v2` — accel, gyro, and quaternion all in the raw sensor frame; see [`IMU_FRAME_CONTRACT.md`](../design/IMU_FRAME_CONTRACT.md)) |
+| imu `samples` | Decoded `ImuSample` payloads (40 bytes / 10 floats, schema `imu_sample_v2` — accel, gyro, and quaternion all in the raw sensor frame; see [`imu_frame_contract.md`](../design/imu_frame_contract.md)) |
 | `athlete`, `session`, `swing` | The `SwingExportJob` (resolved on the UI thread) |
 
 The `frames.t_us` index is what lets any downstream tool map output frame *i* to

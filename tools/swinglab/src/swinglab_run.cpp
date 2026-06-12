@@ -16,7 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// swinglab_run — the SwingLab offline runner (SWINGLAB_IMPL.md, stage L1).
+// swinglab_run — the SwingLab offline runner (swinglab_impl.md, stage L1).
 //
 // Rebuilds an EventBuffer + SwingWindow from a recorded PinPointStudio swing
 // dir (video frames + IMU samples at their ORIGINAL timestamps) and executes

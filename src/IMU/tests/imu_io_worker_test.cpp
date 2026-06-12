@@ -17,7 +17,7 @@
  */
 
 // ImuIoWorker — the per-packet IMU hot path that moves onto the dedicated
-// I/O thread (docs/implementation/IMU_IO_THREAD_IMPL.md, stage W0). Validates
+// I/O thread (docs/implementation/imu_io_thread_impl.md, stage W0). Validates
 // the migration's load-bearing invariants WITHOUT hardware:
 //   1. hot-path correctness (anat transform, display remap, velocity, rate)
 //   2. snapshot coherence under cross-thread hammering (no torn reads)

@@ -53,7 +53,7 @@
 // perturbations plus a final total-least-squares line refit over the winning
 // candidate's proximal ridge pixels.
 //
-// See docs/design/SHOT_ANALYZER_DESIGN.md addendum B.2–B.4 (algorithm) and
+// See docs/design/shot_analyzer_design.md addendum B.2–B.4 (algorithm) and
 // B.9 (validation tolerances).
 
 namespace pinpoint::analysis {

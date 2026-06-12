@@ -325,7 +325,7 @@ SwingScorer::score(series, sessionType)
 ```
 
 Two hardware-locked facts to respect (full story in `wrist_angles.h` and
-`docs/design/IMU_FRAME_CONTRACT.md` §4–5):
+`docs/design/imu_frame_contract.md` §4–5):
 
 - **Joint DOFs are read on the relative-rotation axes, not the segment-axis
   names**: in the forearm→hand decomposition, flexion/extension is about **Z**
@@ -346,7 +346,7 @@ verified.
 
 ## 7. The Scoring Model
 
-`SwingScorer` (design: `SHOT_ANALYZER_DESIGN.md` §B) is deliberately
+`SwingScorer` (design: `shot_analyzer_design.md` §B) is deliberately
 transparent and **non-compensatory**:
 
 1. Each metric in the session's band table is read **at its scoring phase**
@@ -490,7 +490,7 @@ hold-last covers momentary BLE gaps without poisoning the grid.
 An arithmetic mean lets a 100/100/100/10 swing score 78 — "pretty good" with a
 catastrophic fault. The weighted geometric mean scores it ~46: faults are
 things to fix, not average away. This is a coaching product decision encoded
-in math; see SHOT_ANALYZER_DESIGN.md §B for the derivation.
+in math; see shot_analyzer_design.md §B for the derivation.
 
 ### Why `detail` is a `shared_ptr`
 
@@ -621,10 +621,10 @@ src/Export/
 ---
 
 *Design rationale and the metric/scoring evidence base: 
-`docs/design/SHOT_ANALYZER_DESIGN.md` (architecture + scoring model),
-`docs/implementation/SHOT_ANALYZER_M1_WRIST.md` (the M1 wrist chain),
-`docs/design/SHOT_ANALYZER_VIZ.md` (replay graph), `docs/reference/WRISTMETRICS.md` (bands),
-`docs/design/IMU_FRAME_CONTRACT.md` (frames and joint-DOF axes). Upstream:
+`docs/design/shot_analyzer_design.md` (architecture + scoring model),
+`docs/implementation/shot_analyzer_m1_wrist.md` (the M1 wrist chain),
+`docs/design/shot_analyzer_viz.md` (replay graph), `docs/reference/wristmetrics.md` (bands),
+`docs/design/imu_frame_contract.md` (frames and joint-DOF axes). Upstream:
 `docs/developer/shot_detector_developer_guide.md`; sideways:
 `docs/developer/swing_export_developer_guide.md`; underneath:
 `docs/developer/event_buffer_developer_guide.md`.*

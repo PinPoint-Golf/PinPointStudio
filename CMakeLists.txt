@@ -1859,7 +1859,7 @@ if(UNIX AND NOT APPLE)
     )
 endif()
 
-# ── SwingLab offline tools (docs/implementation/SWINGLAB_IMPL.md) ─────────────
+# ── SwingLab offline tools (docs/implementation/swinglab_impl.md) ─────────────
 # swinglab_run replays a recorded swing dir through the PRODUCTION analysis
 # pipeline (same sources, same configs) with JSON-injectable tuning params and
 # per-frame trace dumps. Built only on request — it shares the app's heavy

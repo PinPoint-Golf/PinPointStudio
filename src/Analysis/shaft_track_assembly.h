@@ -35,7 +35,7 @@
 // standalone (src/Analysis/tests/shaft_track_test.cpp); the window-driving
 // orchestration lives in ShaftTracker (shaft_tracker.h).
 //
-// Three stages, per the design addendum (SHOT_ANALYZER_DESIGN.md B.5):
+// Three stages, per the design addendum (shot_analyzer_design.md B.5):
 //
 //  1. ŝ_hand auto-calibration (B.2). Once gripped, the shaft direction is a
 //     CONSTANT unit vector in the lead-hand sensor/anatomical-body frame.

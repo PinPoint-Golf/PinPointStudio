@@ -1,6 +1,6 @@
 # M1 — Wrist Motion
 
-*A concrete refinement of [`SHOT_ANALYZER_DESIGN.md`](../design/SHOT_ANALYZER_DESIGN.md) for the **Wrist Motion** session (`SessionController::Type::Wrist == 1`): **one face-on camera + three Witmotion WT901BLE67 IMUs on the lead arm** (back-of-hand, forearm, upper arm). This document fixes the algorithms, type names, file targets and exit criteria so `WristAnalyzer` can be built directly against the committed code.*
+*A concrete refinement of [`shot_analyzer_design.md`](../design/shot_analyzer_design.md) for the **Wrist Motion** session (`SessionController::Type::Wrist == 1`): **one face-on camera + three Witmotion WT901BLE67 IMUs on the lead arm** (back-of-hand, forearm, upper arm). This document fixes the algorithms, type names, file targets and exit criteria so `WristAnalyzer` can be built directly against the committed code.*
 
 ---
 
@@ -321,7 +321,7 @@ The playhead `╳` moves with the replay frame; the phase chip row and x-axis ti
 > **M1 is functionally complete and on `main`** (analysis engine → scorer → unified
 > persistence + reload → replay-synced multi-metric graphs → live check-sensors overlay +
 > hardware sign-lock). This is the punch-list to resume from; each item names the file(s).
-> Cross-ref: `docs/design/SHOT_ANALYZER_DESIGN.md` → "Implementation notes (as-built, M1)".
+> Cross-ref: `docs/design/shot_analyzer_design.md` → "Implementation notes (as-built, M1)".
 
 ### A. Verify on hardware (next swing)
 - [ ] In-replay graph scrubs beside the video in `ScreenWrist` (Phase 3 is compile-verified only).
@@ -344,7 +344,7 @@ The playhead `╳` moves with the replay frame; the phase chip row and x-axis ti
 
 ### C. Scorer
 - [ ] Finalize `kWristBands` centres/σ in `swing_scorer.cpp` from real-swing data — currently
-  **provisional** (on the correct channels post sign-lock). No public quartile source (`WRISTMETRICS.md`).
+  **provisional** (on the correct channels post sign-lock). No public quartile source (`wristmetrics.md`).
 
 ### D. Deferred persistence set ("another set of updates")
 - [ ] **Rating/note persistence** into `swing.json` (reloaded shots come back cleared).

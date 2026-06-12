@@ -557,7 +557,7 @@ src/Analysis/shot_analyzer.h    # ShotAnalysisJob (tuningOverrides, poseTrackPat
 src/Analysis/swing_analysis.h   # ImuSegmentBinding / BindingRecord (calibration status)
 src/Export/swing_doc.{h,cpp}    # result.json writer (shared with the app)
 
-docs/implementation/SWINGLAB_IMPL.md      # design + stage history (L0–L5)
+docs/implementation/swinglab_impl.md      # design + stage history (L0–L5)
 docs/developer/swing_export_developer_guide.md  # the swing-dir artifacts replayed here
 .claude/skills/swinglab/SKILL.md          # /swinglab operator contract (LOCAL-ONLY, gitignored)
 

@@ -24,7 +24,7 @@
 
 namespace pinpoint::analysis {
 
-// Transparent, non-compensatory swing scorer (design: SHOT_ANALYZER_DESIGN.md
+// Transparent, non-compensatory swing scorer (design: shot_analyzer_design.md
 // "B) Scoring model"). Each metric is read at its scoring phase and mapped to a
 // 0..100 sub-score against a reference band (deadband + bounded falloff, one-sided
 // where a fault is directional); sub-scores aggregate by a WEIGHTED GEOMETRIC mean

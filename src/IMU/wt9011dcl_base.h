@@ -124,7 +124,7 @@ public:
     // CALSW=0x01: 6-POINT accel/gyro bias calibration — the device must be placed
     // on all six faces in sequence, NOT just held flat. PinPoint Studio does NOT perform
     // this (a flat-still + SAVE attempt corrupted sensors); bias calibration is
-    // done in the official WitMotion app only. See docs/reference/IMU_AXIS_REFERENCE.md.
+    // done in the official WitMotion app only. See docs/reference/imu_axis_reference.md.
     void startAccelGyroCalibration();
 
     // Rotate through all orientations for ~30 s; call endCalibration() when done.

@@ -287,7 +287,7 @@ int main(int argc, char *argv[])
     });
     // Vision corroboration (P3-G5) joins the same funnel via
     // reportCandidate(Source::Ball, ...) once the ball detector grows its
-    // Kalman-track ballLaunched(timestampUs) signal (BALL_DETECTOR_DESIGN.md
+    // Kalman-track ballLaunched(timestampUs) signal (ball_detector_design.md
     // §8) — today's ballPresentChanged is smoothed over a 50-frame window,
     // far too coarse for the ±40 ms match tolerance.
 

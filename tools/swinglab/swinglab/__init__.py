@@ -1,4 +1,4 @@
-# SwingLab — offline analysis lab for PinPointStudio (SWINGLAB_IMPL.md).
+# SwingLab — offline analysis lab for PinPointStudio (swinglab_impl.md).
 # Shared helpers: paths, json io, swing-dir model.
 
 import json

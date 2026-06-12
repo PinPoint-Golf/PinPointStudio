@@ -84,7 +84,7 @@ class ImuInstance : public QObject
 public:
     // ioThread is the ImuManager-owned shared IMU I/O thread: the BLE driver
     // and the per-packet hot path (ImuIoWorker) live there, never on the GUI
-    // thread (docs/implementation/IMU_IO_THREAD_IMPL.md).
+    // thread (docs/implementation/imu_io_thread_impl.md).
     explicit ImuInstance(const Device &device,
                          pinpoint::EventBuffer *buffer,
                          QThread *ioThread,

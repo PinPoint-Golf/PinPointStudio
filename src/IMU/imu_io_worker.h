@@ -19,7 +19,7 @@
 #pragma once
 
 // The per-packet IMU hot path, extracted from ImuInstance so it can run on
-// the dedicated IMU I/O thread (docs/implementation/IMU_IO_THREAD_IMPL.md).
+// the dedicated IMU I/O thread (docs/implementation/imu_io_thread_impl.md).
 // One worker per device. Consumes parsed combined packets (fused quaternion +
 // raw sensor-frame accel/gyro) and does everything that must happen at packet
 // rate: anatomical transform, angular-velocity estimate, data-rate window,

@@ -63,7 +63,7 @@ struct ShotAnalysisJob {
     // and pose-cache reuse during shaft tuning. Empty in production.
     QString poseTrackPath;
 
-    // SwingLab tuning overrides (docs/implementation/SWINGLAB_IMPL.md):
+    // SwingLab tuning overrides (docs/implementation/swinglab_impl.md):
     // "<area>.<field>" → numeric value, applied onto the config structs at
     // analysis time (e.g. "shaft.ridgeKernelPx", "assembly.coverageMin",
     // "seg.backswingMinUs"). Empty in production — the app never sets it;

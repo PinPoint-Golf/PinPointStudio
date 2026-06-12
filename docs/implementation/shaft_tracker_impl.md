@@ -5,7 +5,7 @@
 > **Grounded against:** `main` @ `474a6ba`
 >
 > Implements the *Club shaft detection (`ShaftTracker`, hand-anchored)* addendum of
-> [`docs/design/SHOT_ANALYZER_DESIGN.md`](../design/SHOT_ANALYZER_DESIGN.md) (sections B.1–B.10)
+> [`docs/design/shot_analyzer_design.md`](../design/shot_analyzer_design.md) (sections B.1–B.10)
 > inside the shot analyzer. Scope per product decision: **face-on camera only**, and the result is
 > **overlaid together with the skeleton on the replay video**. DTL, 3-D lift, clubface, and learned
 > models stay deferred (addendum B.10).

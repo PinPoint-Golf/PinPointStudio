@@ -18,7 +18,7 @@
 
 #pragma once
 
-// SwingLab tuning-override application (SWINGLAB_IMPL.md). The offline runner
+// SwingLab tuning-override application (swinglab_impl.md). The offline runner
 // passes "<area>.<field>" → number in ShotAnalysisJob::tuningOverrides; each
 // analysis stage applies the keys it owns onto its config struct at run time,
 // so parameter sweeps iterate at binary speed with no rebuild. Empty map (the

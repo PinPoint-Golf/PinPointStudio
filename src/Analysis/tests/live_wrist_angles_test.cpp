@@ -7,7 +7,7 @@
 // (kept in sync by review against the cited lines), driven by the same synthetic poses
 // as pipeline_test (forearm/upper identity, hand flexes about Z).
 //
-// What it guards (docs/implementation/IMU_REARCHITECTURE.md §7 #6, #8):
+// What it guards (docs/implementation/imu_rearchitecture.md §7 #6, #8):
 //   * The live path derives leftArm from athlete handedness (leftArm = handedness !=
 //     "Left", so a RIGHT-handed golfer — the common case — passes leftArm=TRUE), while
 //     the offline path derives it from SegmentRole. They agree ONLY because leftArm is

@@ -44,7 +44,7 @@ View3D {
         // Diagnostic cube: the cube IS the orientation, so it binds the RAW sensor
         // quaternion DIRECTLY — intentionally NOT routed through worldToScene() like the
         // ArmVizView avatar. Conjugating it would rotate the cube relative to its labelled
-        // faces (IMU_REARCHITECTURE.md §3.4c). Any viewing-frame tweak belongs on a parent
+        // faces (imu_rearchitecture.md §3.4c). Any viewing-frame tweak belongs on a parent
         // Node, not here.
         // Null-guard: controller may be null when no IMU is selected.
         rotation: root.controller

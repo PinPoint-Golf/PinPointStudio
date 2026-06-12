@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SwingLab CLI (docs/implementation/SWINGLAB_IMPL.md).
+# SwingLab CLI (docs/implementation/swinglab_impl.md).
 #
 #   lab.py synth   <out_dir> [--clutter] [--seed N]   ground-truthed synthetic swing
 #   lab.py ingest  <corpus_root>                      build corpus.json

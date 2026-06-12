@@ -1,10 +1,10 @@
 # Reload & Replay — Design & Plan
 
-> Picks up the two deferred M1 items (`SHOT_ANALYZER_M1_WRIST.md §11 D/E`): make
+> Picks up the two deferred M1 items (`shot_analyzer_m1_wrist.md §11 D/E`): make
 > **reloaded shots fully usable** — rating/note that survive a restart — and **replay a shot
 > loaded from disk** (which has MP4s + `swing.json` but no in-memory `SwingWindow`). This doc
 > is self-contained so a fresh session can start implementing without re-discovering the M1
-> code. Companion: `SHOT_ANALYZER_DESIGN.md` (as-built notes), `SHOT_ANALYZER_M1_WRIST.md`.
+> code. Companion: `shot_analyzer_design.md` (as-built notes), `shot_analyzer_m1_wrist.md`.
 
 ## 1. Goal & scope
 - **Reload completion:** rating/note persist into `swing.json` and reload; (minor) an

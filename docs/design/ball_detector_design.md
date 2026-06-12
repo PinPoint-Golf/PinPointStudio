@@ -2,7 +2,7 @@
 
 **A state-of-the-art, high-performance camera-only golf-ball detector for PinPoint Studio.**
 
-Implements the **vision modality** of [`SHOTDETECTION.md`](SHOTDETECTION.md) (which frames shot
+Implements the **vision modality** of [`shotdetection.md`](shotdetection.md) (which frames shot
 detection as a multi-modal problem — acoustic + inertial + vision fusion). Here: replace the
 classical Hough/blob `BallDetector` with a **CNN (ONNX YOLO) + Kalman tracking-by-detection** loop
 running on **small patches**, keep the cheap classical detector for stationary acquisition, and add
@@ -26,7 +26,7 @@ contracts, CMake recipe, phasing, and tests are all grounded in the current code
   the ML model exists, by using the existing Hough/blob as the in-patch detector first.
 
 **Non-goals (separate efforts)**
-- **Club / clubhead detection** — open R&D, tracked in [`SHOTDETECTION.md`](SHOTDETECTION.md) §2.3/§8. Not here.
+- **Club / clubhead detection** — open R&D, tracked in [`shotdetection.md`](shotdetection.md) §2.3/§8. Not here.
 - **Ball-based shot triggering** — kept signal-only for now (see §8); the detector will *expose* the
   hooks but won't arm shots in v2.
 - **Launch-monitor-grade ball-flight physics** (spin, true 3D launch) — out of scope; we produce a
@@ -447,7 +447,7 @@ clean seam; Phase 2 delivers the *accuracy* win once the model lands.
 
 ---
 
-*Part of the shot-detection design: [`SHOTDETECTION.md`](SHOTDETECTION.md) frames the multi-modal
+*Part of the shot-detection design: [`shotdetection.md`](shotdetection.md) frames the multi-modal
 problem (acoustic + inertial + vision fusion); this doc is the implementation plan for the **vision
 modality's** ball detector, whose `ball-present` / `ballLaunched` outputs feed shot-detection's
 corroboration/veto path. Club/clubhead detection remains an open R&D item.*
