@@ -361,6 +361,14 @@ void CameraInstance::setupPipeline()
                 m_ballDetector, &BallDetector::detect, Qt::QueuedConnection);
         connect(m_ballDetector, &BallDetector::ballDetected,
                 this, &CameraInstance::onBallDetected, Qt::QueuedConnection);
+        connect(m_ballDetector, &BallDetector::environmentDrift,
+                this, [this](bool drifting, double severity) {
+            if (m_ballDrifting == drifting
+                && qFuzzyCompare(m_ballDriftSeverity, severity)) return;
+            m_ballDrifting      = drifting;
+            m_ballDriftSeverity = severity;
+            emit ballDriftChanged();
+        }, Qt::QueuedConnection);
         // Wire BOTH completion signals to BOTH throttle paths (mirrors the
         // pose estimator above): a camera feeds exactly one path, so only
         // that path's counter is consulted — but without the raw wiring the
@@ -785,6 +793,9 @@ double CameraInstance::ballPresencePercent() const { return m_ballPresencePercen
 bool   CameraInstance::ballPresent()         const { return m_ballPresent; }
 double CameraInstance::ballHoughConf()       const { return m_ballHoughConf; }
 int    CameraInstance::ballWhiteSatCeil()    const { return m_ballWhiteSatCeil; }
+bool   CameraInstance::ballCalibrated()      const { return m_ballCalibrated; }
+bool   CameraInstance::ballDrifting()        const { return m_ballDrifting; }
+double CameraInstance::ballDriftSeverity()   const { return m_ballDriftSeverity; }
 
 #ifdef HAVE_OPENCV
 void CameraInstance::setBallHoughConf(double v)
@@ -813,6 +824,46 @@ void CameraInstance::setBallWhiteSatCeil(int v)
 #else
 void CameraInstance::setBallHoughConf(double)    {}
 void CameraInstance::setBallWhiteSatCeil(int)    {}
+#endif
+
+#ifdef HAVE_OPENCV
+void CameraInstance::applyBallCalProfile(const pinpoint::ballcal::BallCalProfile &profile)
+{
+    if (!profile.valid) {
+        clearBallCalProfile();
+        return;
+    }
+    if (m_ballDetector)
+        QMetaObject::invokeMethod(m_ballDetector, [det = m_ballDetector, profile]() {
+            det->setProfile(profile);
+        }, Qt::QueuedConnection);
+    if (!m_ballCalibrated) {
+        m_ballCalibrated = true;
+        emit ballCalibratedChanged();
+    }
+    if (m_ballDrifting || m_ballDriftSeverity != 0.0) {
+        m_ballDrifting      = false;
+        m_ballDriftSeverity = 0.0;
+        emit ballDriftChanged();
+    }
+}
+
+void CameraInstance::clearBallCalProfile()
+{
+    if (m_ballDetector)
+        QMetaObject::invokeMethod(m_ballDetector, [det = m_ballDetector]() {
+            det->clearProfile();
+        }, Qt::QueuedConnection);
+    if (m_ballCalibrated) {
+        m_ballCalibrated = false;
+        emit ballCalibratedChanged();
+    }
+    if (m_ballDrifting || m_ballDriftSeverity != 0.0) {
+        m_ballDrifting      = false;
+        m_ballDriftSeverity = 0.0;
+        emit ballDriftChanged();
+    }
+}
 #endif
 
 #ifdef HAVE_OPENCV

@@ -20,6 +20,9 @@
 
 #ifdef HAVE_OPENCV
 
+#include "ball_model.h"
+
+#include <QElapsedTimer>
 #include <QObject>
 #include <QRectF>
 #include <atomic>
@@ -33,8 +36,17 @@ struct BallDetection {
     qint64  detectMs  = 0;     // wall-clock duration of detect() in ms (0 = skipped)
 };
 Q_DECLARE_METATYPE(BallDetection)
+Q_DECLARE_METATYPE(pinpoint::ballcal::BallCalProfile)
 
-// Detects golf balls using the OpenCV Hough circle transform.
+// Detects golf balls within the hitting-area ROI.
+//
+// Two detection paths (docs/design/ball_detection_calibration.md §4):
+//   calibrated — when a valid BallCalProfile is set: background-difference +
+//                multi-cue scoring against the learned models (ball_model.h),
+//                with the per-frame illumination drift monitor.
+//   legacy     — bit-for-bit the original white-HSV/Hough/blob detector;
+//                the default when no profile exists, so nothing regresses
+//                for users who skip calibration.
 //
 // Receives preprocessed BGR frames from VideoPreprocessorOpenCV.
 // Only searches within the ROI supplied via setRoi(); if no ROI is set
@@ -69,9 +81,15 @@ public slots:
     void setRoi(QRectF roi);
 
     // Tune detector parameters at runtime. Safe to call via queued connection.
+    // LEGACY PATH ONLY — ignored while a calibration profile is active.
     // houghConf: HOUGH_GRADIENT_ALT confidence threshold [0.3, 1.0] (default 0.7)
     // whiteSatCeil: HSV saturation upper bound for white-mask [20, 120] (default 50)
     void setParams(double houghConf, int whiteSatCeil);
+
+    // Swap in / drop the learned calibration profile. Safe to call via queued
+    // connection. An invalid profile is equivalent to clearProfile().
+    void setProfile(const pinpoint::ballcal::BallCalProfile &profile);
+    void clearProfile();
 
 signals:
     void ballDetected(const BallDetection &result);
@@ -80,7 +98,16 @@ signals:
     // FrameThrottle connects this to clearBusy() alongside ballDetected().
     void detectionSkipped();
 
+    // Illumination drift vs the calibration envelope (calibrated path only,
+    // docs/design/ball_detection_calibration.md §6). Emitted on state change.
+    void environmentDrift(bool drifting, double severity);
+
 private:
+    void detectLegacy(const cv::Mat &roiMat, int rx, int ry, int fw, int fh,
+                      const QElapsedTimer &t);
+    void detectCalibrated(const cv::Mat &roiMat, int rx, int ry, int fw, int fh,
+                          const QElapsedTimer &t);
+
     std::atomic<bool> m_enabled{true};
 
     // Only accessed on the detector's own thread (all slots arrive via queued
@@ -88,6 +115,8 @@ private:
     QRectF m_roi;
     double m_houghConf    = 0.7;
     int    m_whiteSatCeil = 50;
+    pinpoint::ballcal::BallCalProfile m_profile;   // valid flag gates the path
+    bool   m_drifting = false;
 };
 
 #endif // HAVE_OPENCV

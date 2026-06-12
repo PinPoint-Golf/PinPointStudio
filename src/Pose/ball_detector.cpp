@@ -29,11 +29,24 @@ BallDetector::BallDetector(QObject *parent)
     : QObject(parent)
 {
     qRegisterMetaType<BallDetection>();
+    qRegisterMetaType<pinpoint::ballcal::BallCalProfile>();
 }
 
 void BallDetector::setRoi(QRectF roi)
 {
     m_roi = roi;
+}
+
+void BallDetector::setProfile(const pinpoint::ballcal::BallCalProfile &profile)
+{
+    m_profile  = profile;
+    m_drifting = false;
+}
+
+void BallDetector::clearProfile()
+{
+    m_profile  = pinpoint::ballcal::BallCalProfile{};
+    m_drifting = false;
 }
 
 void BallDetector::detect(const cv::Mat &frame)
@@ -65,6 +78,51 @@ void BallDetector::detect(const cv::Mat &frame)
     const int rh = qBound(1, static_cast<int>(m_roi.height() * fh), fh - ry);
 
     cv::Mat roiMat = frame(cv::Rect(rx, ry, rw, rh));
+
+    // Calibrated path when a valid profile matches the current ROI geometry;
+    // a resolution change (hard invalidation, design §6) falls back to legacy
+    // rather than feeding a permanent found=false stream downstream.
+    if (m_profile.valid
+        && m_profile.background.meanGray.cols == rw
+        && m_profile.background.meanGray.rows == rh) {
+        detectCalibrated(roiMat, rx, ry, fw, fh, t);
+        return;
+    }
+
+    detectLegacy(roiMat, rx, ry, fw, fh, t);
+}
+
+void BallDetector::detectCalibrated(const cv::Mat &roiMat, int rx, int ry,
+                                    int fw, int fh, const QElapsedTimer &t)
+{
+    using namespace pinpoint::ballcal;
+
+    const Detection det = pinpoint::ballcal::detect(roiMat, m_profile.background,
+                                                    m_profile.ball, m_profile.theta);
+
+    // Illumination drift monitor — state-change edges only (§6 soft drift).
+    const double severity = driftSeverity(det.gain);
+    const bool drifting   = severity > tuning::kGainDriftLog;
+    if (drifting != m_drifting) {
+        m_drifting = drifting;
+        emit environmentDrift(drifting, severity);
+    }
+
+    if (det.found) {
+        const float cx = (rx + det.centerPx.x) / static_cast<float>(fw);
+        const float cy = (ry + det.centerPx.y) / static_cast<float>(fh);
+        const float cr =       det.radiusPx    / static_cast<float>(fw);
+        emit ballDetected(BallDetection{true, cx, cy, cr, t.elapsed()});
+    } else {
+        emit ballDetected(BallDetection{false, 0.f, 0.f, 0.f, t.elapsed()});
+    }
+}
+
+void BallDetector::detectLegacy(const cv::Mat &roiMat, int rx, int ry,
+                                int fw, int fh, const QElapsedTimer &t)
+{
+    const int rw = roiMat.cols;
+    const int rh = roiMat.rows;
 
     // White segmentation: isolate high-V, low-S pixels (the ball). Shadows are
     // not white so they are eliminated before any geometry detection runs.

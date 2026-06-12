@@ -16,7 +16,9 @@ project(pinpoint_pose_tests LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(OpenCV REQUIRED COMPONENTS core imgproc)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc features2d)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui)
+set(CMAKE_AUTOMOC ON)
 enable_testing()
 
 function(pp_add_test name)
@@ -29,3 +31,15 @@ endfunction()
 # Calibrated detection core: background/ball model fitting, theta derivation,
 # multi-cue scoring (dim-studio golden case), gain invariance, drift severity.
 pp_add_test(ball_model_test  ball_model_test.cpp)
+
+# BallDetector throttle contract: exactly one ballDetected/detectionSkipped
+# per detect() on every path (legacy, calibrated, fallback, guards). Builds
+# the real ball_detector.cpp with a PpLogStream stub (no whisper dependency).
+pp_add_test(ball_detector_contract_test
+    ball_detector_contract_test.cpp
+    pose_test_stubs.cpp
+    ../ball_detector.cpp
+    ../ball_detector.h)
+target_compile_definitions(ball_detector_contract_test PRIVATE HAVE_OPENCV)
+target_include_directories(ball_detector_contract_test PRIVATE .. ../../Core)
+target_link_libraries(ball_detector_contract_test PRIVATE Qt6::Core Qt6::Gui)

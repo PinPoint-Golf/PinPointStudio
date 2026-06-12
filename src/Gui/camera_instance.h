@@ -98,6 +98,9 @@ class CameraInstance : public QObject
     Q_PROPERTY(double ballAvgMs          READ ballAvgMs          NOTIFY ballAvgMsChanged)
     Q_PROPERTY(double ballHoughConf    READ ballHoughConf    NOTIFY ballHoughConfChanged)
     Q_PROPERTY(int    ballWhiteSatCeil READ ballWhiteSatCeil NOTIFY ballWhiteSatCeilChanged)
+    Q_PROPERTY(bool   ballCalibrated    READ ballCalibrated    NOTIFY ballCalibratedChanged)
+    Q_PROPERTY(bool   ballDrifting      READ ballDrifting      NOTIFY ballDriftChanged)
+    Q_PROPERTY(double ballDriftSeverity READ ballDriftSeverity NOTIFY ballDriftChanged)
     Q_PROPERTY(int    frameWidth         READ frameWidth          NOTIFY frameSizeChanged)
     Q_PROPERTY(int    frameHeight        READ frameHeight         NOTIFY frameSizeChanged)
     Q_PROPERTY(double configuredFps     READ configuredFps       NOTIFY frameSizeChanged)
@@ -151,6 +154,9 @@ public:
     double  ballAvgMs()           const;
     double  ballHoughConf()       const;
     int     ballWhiteSatCeil()    const;
+    bool    ballCalibrated()      const;
+    bool    ballDrifting()        const;
+    double  ballDriftSeverity()   const;
     int     frameWidth()          const;
     int     frameHeight()         const;
     double  configuredFps()       const;
@@ -190,6 +196,15 @@ public:
     Q_INVOKABLE void clearRoi();
     Q_INVOKABLE void setBallHoughConf(double v);
     Q_INVOKABLE void setBallWhiteSatCeil(int v);
+
+#ifdef HAVE_OPENCV
+    // Called by BallCalibrationController — pushes the learned profile to the
+    // detector thread (queued) and flips ballCalibrated. An invalid profile
+    // clears. Not Q_INVOKABLE: QML manages calibration through the controller.
+    void applyBallCalProfile(const pinpoint::ballcal::BallCalProfile &profile);
+    void clearBallCalProfile();
+    BallDetector *ballDetector() const { return m_ballDetector; }
+#endif
     Q_INVOKABLE void setCropRoi(QRectF roi); // frame crop for storage / ring-buffer sizing
     Q_INVOKABLE void clearCropRoi();
 
@@ -219,6 +234,8 @@ signals:
     void ballAvgMsChanged();
     void ballHoughConfChanged();
     void ballWhiteSatCeilChanged();
+    void ballCalibratedChanged();
+    void ballDriftChanged();
     void frameSizeChanged();
     void isReplayingChanged();
     void deviceAliasChanged();
@@ -316,6 +333,9 @@ private:
     double           m_ballPresencePercent  = 0.0;
     bool             m_ballPresent          = false;
     double           m_ballAvgMs            = 0.0;
+    bool             m_ballCalibrated       = false;
+    bool             m_ballDrifting         = false;
+    double           m_ballDriftSeverity    = 0.0;
     double           m_ballHoughConf        = 0.7;
     int              m_ballWhiteSatCeil     = 50;
     TingPlayer      *m_tingPlayer           = nullptr;
