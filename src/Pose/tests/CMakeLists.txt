@@ -32,6 +32,12 @@ endfunction()
 # multi-cue scoring (dim-studio golden case), gain invariance, drift severity.
 pp_add_test(ball_model_test  ball_model_test.cpp)
 
+# Calibration protocol: round bookkeeping (consecutive-clean pass rule,
+# failed-round evidence retention, exhaustion) + profile save/load round-trip
+# (FileStorage, schema-version rejection, detector-equivalence of the loaded
+# profile).
+pp_add_test(ball_calibration_test  ball_calibration_test.cpp)
+
 # BallDetector throttle contract: exactly one ballDetected/detectionSkipped
 # per detect() on every path (legacy, calibrated, fallback, guards). Builds
 # the real ball_detector.cpp with a PpLogStream stub (no whisper dependency).

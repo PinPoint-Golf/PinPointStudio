@@ -17,6 +17,10 @@
  */
 
 #include "camera_manager.h"
+#include "ball_calibration_controller.h"
+#ifdef HAVE_OPENCV
+#include "ball_calibration_store.h"
+#endif
 
 #include "camera_instance.h"
 #include "shot_processor.h"
@@ -632,7 +636,16 @@ void CameraManager::setBallRoi(QObject *rawController, QRectF roi)
         return;
     }
 
+    const bool roiChanged = target->roi() != roi;
     target->setRoi(roi);
+
+#ifdef HAVE_OPENCV
+    // A different hitting area invalidates the learned profile (§6) — the
+    // persisted file is kept (it records its own ROI; it reloads only when
+    // the area matches again).
+    if (roiChanged && target->ballCalibrated())
+        target->clearBallCalProfile();
+#endif
 
     AppSettings  fallback;
     AppSettings *ps = m_appSettings ? m_appSettings : &fallback;
@@ -649,6 +662,28 @@ void CameraManager::setBallRoi(QObject *rawController, QRectF roi)
         }
     }
     ps->setCameraBallRoi(map);
+}
+
+QObject *CameraManager::ballCalibrationFor(QObject *rawController)
+{
+#ifdef HAVE_OPENCV
+    auto *target = qobject_cast<CameraInstance *>(rawController);
+    if (!target)
+        return nullptr;
+
+    if (auto *existing = target->findChild<BallCalibrationController *>(
+            QString(), Qt::FindDirectChildrenOnly))
+        return existing;
+
+    QString key;
+    for (const auto &cam : m_cameras) {
+        if (cam.controller == target) { key = cameraKey(cam); break; }
+    }
+    return new BallCalibrationController(target, key, m_appSettings, target);
+#else
+    Q_UNUSED(rawController);
+    return nullptr;
+#endif
 }
 
 void CameraManager::clearBallRoi(QObject *rawController)
@@ -766,8 +801,23 @@ CameraInstance *CameraManager::createController(const Device &device)
                              r.value(QStringLiteral("y")).toDouble(),
                              r.value(QStringLiteral("w")).toDouble(),
                              r.value(QStringLiteral("h")).toDouble());
-            if (!roi.isEmpty())
+            if (!roi.isEmpty()) {
                 ctrl->setRoi(roi);
+
+#ifdef HAVE_OPENCV
+                // Saved calibration profile — applied only when it was learned
+                // for this exact hitting area (design §7: rail-direct users get
+                // the calibrated detector with no wizard participation).
+                pinpoint::ballcal::BallCalProfile saved;
+                if (pinpoint::ballcal::loadProfile(
+                        BallCalibrationController::profilePathFor(key).toStdString(), saved)) {
+                    const QRectF savedRoi(saved.roiX, saved.roiY, saved.roiW, saved.roiH);
+                    if ((savedRoi.topLeft() - roi.topLeft()).manhattanLength() < 1e-6
+                        && (savedRoi.bottomRight() - roi.bottomRight()).manhattanLength() < 1e-6)
+                        ctrl->applyBallCalProfile(saved);
+                }
+#endif
+            }
         }
     }
 

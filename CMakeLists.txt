@@ -191,6 +191,10 @@ qt_add_executable(PinPointStudio
     src/Video/VideoInputAravis.h           src/Video/VideoInputAravis.cpp
     src/Gui/camera_instance.h             src/Gui/camera_instance.cpp
     src/Gui/camera_manager.h               src/Gui/camera_manager.cpp
+    src/Gui/ball_calibration_controller.h  src/Gui/ball_calibration_controller.cpp
+    src/Pose/ball_model.h
+    src/Pose/ball_calibration_logic.h
+    src/Pose/ball_calibration_store.h
     src/Gui/buffer_controller.h            src/Gui/buffer_controller.cpp
     src/STT/stt_processor.h          src/STT/stt_processor.cpp
     src/TTS/TTSEngine.h              src/TTS/TTSEngine.cpp

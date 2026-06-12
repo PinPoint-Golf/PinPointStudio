@@ -49,6 +49,18 @@ void BallDetector::clearProfile()
     m_drifting = false;
 }
 
+void BallDetector::beginCalibCapture(int targetFrames)
+{
+    m_calibTarget = qMax(1, targetFrames);
+    m_calibHave   = 0;
+}
+
+void BallDetector::cancelCalibCapture()
+{
+    m_calibTarget = 0;
+    m_calibHave   = 0;
+}
+
 void BallDetector::detect(const cv::Mat &frame)
 {
     if (!isEnabled()) {     // disabled by method — release the throttle, keep ball state
@@ -78,6 +90,17 @@ void BallDetector::detect(const cv::Mat &frame)
     const int rh = qBound(1, static_cast<int>(m_roi.height() * fh), fh - ry);
 
     cv::Mat roiMat = frame(cv::Rect(rx, ry, rw, rh));
+
+    // Calibration capture (side effect — detection continues below so the
+    // overlays stay live and the throttle contract is untouched).
+    if (m_calibTarget > 0) {
+        emit calibFrame(roiMat.clone(), ++m_calibHave, m_calibTarget);
+        if (m_calibHave >= m_calibTarget) {
+            m_calibTarget = 0;
+            m_calibHave   = 0;
+            emit calibCaptureDone();
+        }
+    }
 
     // Calibrated path when a valid profile matches the current ROI geometry;
     // a resolution change (hard invalidation, design §6) falls back to legacy
@@ -112,9 +135,9 @@ void BallDetector::detectCalibrated(const cv::Mat &roiMat, int rx, int ry,
         const float cx = (rx + det.centerPx.x) / static_cast<float>(fw);
         const float cy = (ry + det.centerPx.y) / static_cast<float>(fh);
         const float cr =       det.radiusPx    / static_cast<float>(fw);
-        emit ballDetected(BallDetection{true, cx, cy, cr, t.elapsed()});
+        emit ballDetected(BallDetection{true, cx, cy, cr, t.elapsed(), det.score});
     } else {
-        emit ballDetected(BallDetection{false, 0.f, 0.f, 0.f, t.elapsed()});
+        emit ballDetected(BallDetection{false, 0.f, 0.f, 0.f, t.elapsed(), det.score});
     }
 }
 

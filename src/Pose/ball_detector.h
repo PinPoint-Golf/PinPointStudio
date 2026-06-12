@@ -34,6 +34,8 @@ struct BallDetection {
     float   y         = 0.f;
     float   radius    = 0.f;   // radius normalised to frame width
     qint64  detectMs  = 0;     // wall-clock duration of detect() in ms (0 = skipped)
+    float   score     = 0.f;   // calibrated path: best candidate's multi-cue total
+                               // (also when found=false); legacy path: 0
 };
 Q_DECLARE_METATYPE(BallDetection)
 Q_DECLARE_METATYPE(pinpoint::ballcal::BallCalProfile)
@@ -91,6 +93,13 @@ public slots:
     void setProfile(const pinpoint::ballcal::BallCalProfile &profile);
     void clearProfile();
 
+    // Calibration capture mode (BallCalibrationController only). While armed,
+    // each detect() ALSO emits a cloned ROI mat via calibFrame() — detection
+    // and the throttle contract continue untouched (overlays stay live).
+    // Capture self-disarms after targetFrames.
+    void beginCalibCapture(int targetFrames);
+    void cancelCalibCapture();
+
 signals:
     void ballDetected(const BallDetection &result);
 
@@ -101,6 +110,10 @@ signals:
     // Illumination drift vs the calibration envelope (calibrated path only,
     // docs/design/ball_detection_calibration.md §6). Emitted on state change.
     void environmentDrift(bool drifting, double severity);
+
+    // Calibration capture stream (cloned ROI-space BGR mats).
+    void calibFrame(const cv::Mat &roiBgr, int have, int target);
+    void calibCaptureDone();
 
 private:
     void detectLegacy(const cv::Mat &roiMat, int rx, int ry, int fw, int fh,
@@ -117,6 +130,8 @@ private:
     int    m_whiteSatCeil = 50;
     pinpoint::ballcal::BallCalProfile m_profile;   // valid flag gates the path
     bool   m_drifting = false;
+    int    m_calibTarget = 0;                      // >0 = capture mode armed
+    int    m_calibHave   = 0;
 };
 
 #endif // HAVE_OPENCV

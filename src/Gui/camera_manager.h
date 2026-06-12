@@ -128,9 +128,14 @@ public slots:
 
     // Sets the hitting-area ROI on one camera and persists it per cameraKey.
     // Restored on connect when the camera is fixed in place (a moved camera
-    // invalidates the stored area). An empty rect clears both.
+    // invalidates the stored area). An empty rect clears both. Changing the
+    // ROI drops any live calibration profile (hard invalidation, design §6).
     Q_INVOKABLE void setBallRoi(QObject *controller, QRectF roi);
     Q_INVOKABLE void clearBallRoi(QObject *controller);
+
+    // Per-instance ball-calibration controller (created on demand, parented
+    // to the instance). Null when the instance is invalid.
+    Q_INVOKABLE QObject *ballCalibrationFor(QObject *controller);
 
     Q_INVOKABLE void setExcluded(int index, bool excluded);
     Q_INVOKABLE void setSessionCameraEnabled(const QString &cameraKey, bool on);
