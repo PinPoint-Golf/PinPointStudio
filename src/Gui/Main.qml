@@ -76,7 +76,15 @@ ApplicationWindow {
         var screens = Qt.application.screens
         var mode    = appSettings.mainDisplayMode
 
-        if (mode === "cursor") {
+        if (mode === "cursor" && Qt.platform.pluginName.startsWith("wayland")) {
+            // Wayland: QCursor::pos() is unknowable before the app has a
+            // focused window, so cursorScreenIndex() resolves to the primary
+            // screen — and an explicitly-set root.screen IS honoured by
+            // xdg_toplevel.set_fullscreen, which would pin the window to the
+            // wrong output. The compositor already implements cursor placement
+            // natively (new windows open on the monitor with the pointer), so
+            // set nothing and let it place us.
+        } else if (mode === "cursor") {
             var ci   = appSettings.cursorScreenIndex()
             var cscr = screens[(ci >= 0 && ci < screens.length) ? ci : 0]
             root.screen = cscr
