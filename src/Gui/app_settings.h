@@ -86,6 +86,7 @@ class AppSettings : public QObject
     Q_PROPERTY(QVariantMap cameraRoi         READ cameraRoi         WRITE setCameraRoi         NOTIFY cameraRoiChanged)
     Q_PROPERTY(QVariantMap cameraPerspective READ cameraPerspective WRITE setCameraPerspective NOTIFY cameraPerspectiveChanged)
     Q_PROPERTY(QVariantMap cameraIsMirrored  READ cameraIsMirrored  WRITE setCameraIsMirrored  NOTIFY cameraIsMirroredChanged)
+    Q_PROPERTY(QVariantMap cameraBallRoi     READ cameraBallRoi     WRITE setCameraBallRoi     NOTIFY cameraBallRoiChanged)
     Q_PROPERTY(double      cameraPreroll       READ cameraPreroll       WRITE setCameraPreroll       NOTIFY cameraPrerollChanged)
     Q_PROPERTY(bool        cameraSyncEnabled   READ cameraSyncEnabled   WRITE setCameraSyncEnabled   NOTIFY cameraSyncEnabledChanged)
     Q_PROPERTY(QVariantMap cameraFixedInPlace  READ cameraFixedInPlace  WRITE setCameraFixedInPlace  NOTIFY cameraFixedInPlaceChanged)
@@ -194,6 +195,7 @@ public:
         m_cameraRoi         = ppSettings().value(QStringLiteral("camera/roi"),         QVariantMap{}).toMap();
         m_cameraPerspective = ppSettings().value(QStringLiteral("camera/perspective"), QVariantMap{}).toMap();
         m_cameraIsMirrored  = ppSettings().value(QStringLiteral("camera/isMirrored"),  QVariantMap{}).toMap();
+        m_cameraBallRoi     = ppSettings().value(QStringLiteral("camera/ballRoi"),     QVariantMap{}).toMap();
         m_cameraPreroll     = ppSettings().value(QStringLiteral("camera/preroll"),     1.0).toDouble();
         m_cameraSyncEnabled  = ppSettings().value(QStringLiteral("camera/syncEnabled"),    true).toBool();
         m_cameraFixedInPlace = ppSettings().value(QStringLiteral("camera/fixedInPlace"), QVariantMap{}).toMap();
@@ -284,6 +286,7 @@ public:
     QVariantMap cameraRoi()         const { return m_cameraRoi; }
     QVariantMap cameraPerspective() const { return m_cameraPerspective; }
     QVariantMap cameraIsMirrored()  const { return m_cameraIsMirrored; }
+    QVariantMap cameraBallRoi()     const { return m_cameraBallRoi; }
     double      cameraPreroll()      const { return m_cameraPreroll; }
     bool        cameraSyncEnabled()  const { return m_cameraSyncEnabled; }
     QVariantMap cameraFixedInPlace() const { return m_cameraFixedInPlace; }
@@ -615,6 +618,14 @@ public:
         emit cameraIsMirroredChanged();
     }
 
+    void setCameraBallRoi(const QVariantMap &v)
+    {
+        if (m_cameraBallRoi == v) return;
+        m_cameraBallRoi = v;
+        ppSettings().setValue(QStringLiteral("camera/ballRoi"), v);
+        emit cameraBallRoiChanged();
+    }
+
     void setCameraPreroll(double v)
     {
         if (qFuzzyCompare(m_cameraPreroll, v)) return;
@@ -880,6 +891,7 @@ signals:
     void cameraPrerollChanged();
     void cameraSyncEnabledChanged();
     void cameraFixedInPlaceChanged();
+    void cameraBallRoiChanged();
     void cameraAliasChanged();
     void imuExcludedChanged();
     void imuPlacementChanged();
@@ -950,6 +962,7 @@ private:
     double      m_cameraPreroll     = 1.0;
     bool        m_cameraSyncEnabled = true;
     QVariantMap m_cameraFixedInPlace;
+    QVariantMap m_cameraBallRoi;
     QVariantMap m_cameraAlias;
 
     QStringList m_imuExcluded;

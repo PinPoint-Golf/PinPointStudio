@@ -640,7 +640,9 @@ Item {
                 var ny  = Math.max(0, Math.min(1, (y1 - crY) / crH))
                 var nx2 = Math.max(0, Math.min(1, (x2 - crX) / crW))
                 var ny2 = Math.max(0, Math.min(1, (y2 - crY) / crH))
-                root.instance.setRoi(Qt.rect(nx, ny, nx2 - nx, ny2 - ny))
+                // Via the manager so the hitting area persists per camera
+                // (restored on connect when the camera is fixed in place).
+                cameraManager.setBallRoi(root.instance, Qt.rect(nx, ny, nx2 - nx, ny2 - ny))
             }
         }
     }

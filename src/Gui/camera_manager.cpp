@@ -620,6 +620,57 @@ void CameraManager::setIsMirrored(QObject *rawController, bool mirrored)
     ps->setCameraIsMirrored(map);
 }
 
+void CameraManager::setBallRoi(QObject *rawController, QRectF roi)
+{
+    auto *target = qobject_cast<CameraInstance *>(rawController);
+    if (!target)
+        return;
+
+    roi = roi.normalized().intersected(QRectF(0.0, 0.0, 1.0, 1.0));
+    if (roi.isEmpty()) {
+        clearBallRoi(rawController);
+        return;
+    }
+
+    target->setRoi(roi);
+
+    AppSettings  fallback;
+    AppSettings *ps = m_appSettings ? m_appSettings : &fallback;
+    QVariantMap map = ps->cameraBallRoi();
+    for (const auto &cam : m_cameras) {
+        if (cam.controller == target) {
+            map[cameraKey(cam)] = QVariantMap{
+                {QStringLiteral("x"), roi.x()},
+                {QStringLiteral("y"), roi.y()},
+                {QStringLiteral("w"), roi.width()},
+                {QStringLiteral("h"), roi.height()},
+            };
+            break;
+        }
+    }
+    ps->setCameraBallRoi(map);
+}
+
+void CameraManager::clearBallRoi(QObject *rawController)
+{
+    auto *target = qobject_cast<CameraInstance *>(rawController);
+    if (!target)
+        return;
+
+    target->clearRoi();
+
+    AppSettings  fallback;
+    AppSettings *ps = m_appSettings ? m_appSettings : &fallback;
+    QVariantMap map = ps->cameraBallRoi();
+    for (const auto &cam : m_cameras) {
+        if (cam.controller == target) {
+            map.remove(cameraKey(cam));
+            break;
+        }
+    }
+    ps->setCameraBallRoi(map);
+}
+
 // ---------------------------------------------------------------------------
 // Private
 // ---------------------------------------------------------------------------
@@ -703,6 +754,22 @@ CameraInstance *CameraManager::createController(const Device &device)
     const QVariantMap mirrorMap = cs->cameraIsMirrored();
     if (mirrorMap.contains(key))
         ctrl->setIsMirrored(mirrorMap.value(key).toBool());
+
+    // Hitting-area ROI — only restored for a fixed-in-place camera (a moved
+    // camera makes the stored area meaningless; the map entry is kept so
+    // re-fixing the camera brings it back).
+    if (cs->cameraFixedInPlace().value(key).toBool()) {
+        const QVariantMap ballRoiMap = cs->cameraBallRoi();
+        if (ballRoiMap.contains(key)) {
+            const QVariantMap r = ballRoiMap.value(key).toMap();
+            const QRectF roi(r.value(QStringLiteral("x")).toDouble(),
+                             r.value(QStringLiteral("y")).toDouble(),
+                             r.value(QStringLiteral("w")).toDouble(),
+                             r.value(QStringLiteral("h")).toDouble());
+            if (!roi.isEmpty())
+                ctrl->setRoi(roi);
+        }
+    }
 
     return ctrl;
 }
