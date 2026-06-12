@@ -3,12 +3,17 @@
 Operationalizes the design in [`shotdetection.md`](../design/shotdetection.md): build the **multi-modal shot
 trigger** — inertial (IMU) + acoustic (microphone) detectors with vision corroboration — behind the
 existing `ShotController`, with a **candidate→arbitrate→commit** layer and **latency-aware
-timestamping**. The vision modality's detector is specified separately in
-[`ball_detector_design.md`](../design/ball_detector_design.md); this doc covers the inertial + acoustic detectors,
-the arbiter, and the timing model.
+timestamping**. The vision modality's detector is specified separately — launch-hook roadmap in
+[`ball_detector_design.md`](../design/ball_detector_design.md), the as-built calibrated stationary
+detector in [`ball_detection_calibration.md`](../design/ball_detection_calibration.md); this doc covers
+the inertial + acoustic detectors, the arbiter, and the timing model.
 
-Status: **plan / not started.** Every file path, signature, threading and contract claim below is
-grounded in the current code (file:line).
+Status: **Phases 1–4 implemented** (IMU trigger, acoustic detector, arbiter, mic settings +
+latency calibration). Outstanding: studio hardware verification, and the vision modality's
+`ballLaunched` producer — the calibrated ball detector is live (ball_detection_calibration.md) but
+emits stationary presence only, so `Source::Ball` has no candidate producer yet. File paths,
+signatures and contract claims below were grounded in the code at planning time; the phasing table
+(§10) records what landed.
 
 ---
 
@@ -158,8 +163,13 @@ reference but not worth a dependency for one detector.
 
 ## 5. Component — vision corroboration
 
-Reuse the ball detector's `ballLaunched(timestampUs)` hook (`ball_detector_design.md` §8) and the
-ball-present state. Vision is the **slowest** modality (camera fps + `FrameThrottle` `skipFactor=2`), so:
+**Status: pending.** The underlying detector is now the environment-calibrated stationary detector
+(`ball_detection_calibration.md`, implemented B0–B5): per-camera hitting-area ROI persisted in
+settings, detection gated on a user-run calibration profile, with an illumination-drift monitor.
+What does **not** exist yet is the `ballLaunched(timestampUs)` launch hook (`ball_detector_design.md`
+§8) — today the detector reports stationary presence only, so nothing produces `Source::Ball`
+candidates. When the hook lands, vision joins the arbiter as below. Vision is the **slowest**
+modality (camera fps + `FrameThrottle` `skipFactor=2`), so:
 - `reportCandidate(Source::Ball, est_t, conf)` as a **confirmer** (a strike that coincides with a
   ball-launch is almost certainly real) and a **veto** for practice swings (no ball ever left the ROI).
 - Never the pinpoint or the sole fast trigger. The exact impact *frame* is recovered offline from the
@@ -204,7 +214,7 @@ and the manual path both call.
 |---|---|---|---|
 | IMU detector | GUI (BLE marshaled) | **Direct call** | connect with `this` context → severed by `ImuInstance::stop()` before deregister |
 | Acoustic detector | audio/processor thread | `QMetaObject::invokeMethod` (queued), `est_t*` computed first | second `audioDataReady` consumer; no EventBuffer producer involvement |
-| Vision (`ballLaunched`) | ball-detector thread | queued signal | already a QObject signal |
+| Vision (`ballLaunched` — future, see §5) | ball-detector thread | queued signal | will be a QObject signal like `ballDetected` |
 | Arbiter (`ShotController`) | GUI | — | single-threaded; `QTimer` hold; no locks |
 
 No new EventBuffer producers are required for the core trigger, so the producer/stop-barrier contract is
@@ -236,15 +246,15 @@ Minimal — no new external dependencies, no model downloads:
 
 ## 10. Phasing (lowest-risk first)
 
-| Phase | Deliverable | Risk |
+| Phase | Deliverable | Status / Risk |
 |---|---|---|
-| **1 — IMU trigger** | `impact_detector.h` + `ImuInstance` hook → `triggerShot(Source::Imu)` directly (no arbiter yet); armed + swing-energy + club-orient + refractory gates; raise active sensor to 200 Hz | Low — cheapest, biggest single win; pure GUI-thread |
-| **2 — Acoustic detector** | `AcousticShotDetector` on native-rate audio; envelope-peak + decay gate; receipt-stamped back-dated timestamp; `Source::Acoustic` | Med — device-latency calibration; onset tuning |
-| **3 — Arbiter + vision** | `reportCandidate` + hold/fuse/commit in `ShotController`; route IMU+acoustic+`ballLaunched` through it; authoritative-timestamp = acoustic; cross-modal agreement | Med — timing/latency-constant tuning |
-| **4 — Calibration + audio-in-ring + ML** | auto-calibrate per-source latency (cross-correlate peak functions, arXiv 1805.05456); optional audio EventBuffer source; ML IMU detector only if a placement lacks a clean jerk | Low/Med, incremental |
+| **1 — IMU trigger** | `impact_detector.h` + `ImuInstance` hook → `triggerShot(Source::Imu)` directly (no arbiter yet); armed + swing-energy + club-orient + refractory gates; raise active sensor to 200 Hz | **DONE** |
+| **2 — Acoustic detector** | `AcousticShotDetector` on native-rate audio; envelope-peak + decay gate; receipt-stamped back-dated timestamp; `Source::Acoustic` | **DONE** |
+| **3 — Arbiter + vision** | `reportCandidate` + hold/fuse/commit in `ShotController`; route IMU+acoustic+`ballLaunched` through it; authoritative-timestamp = acoustic; cross-modal agreement | **DONE for IMU+acoustic** — `ballLaunched` producer pending (calibrated detector is live, launch hook is not; §5) |
+| **4 — Calibration + audio-in-ring + ML** | auto-calibrate per-source latency (cross-correlate peak functions, arXiv 1805.05456); optional audio EventBuffer source; ML IMU detector only if a placement lacks a clean jerk | **Mic settings + latency calibration DONE**; audio-in-ring and ML detector not started |
 
 Phase 1 alone gives a working automatic trigger; Phases 2–3 are where false positives drop and the
-timestamp becomes sample-accurate.
+timestamp becomes sample-accurate. Studio hardware verification of the full chain is still pending.
 
 ---
 
@@ -290,8 +300,10 @@ Standalone CTest harnesses (project convention, e.g. `src/IMU/tests/`, `src/Audi
 (construct + wire the acoustic detector and route candidates), `CMakeLists.txt` (new sources),
 `src/Gui/app_settings.*` (latency/threshold constants).
 **Unchanged (reused):** `ShotProcessor`, `shot_marker_v1` source, the `armed` gate, `EventBuffer`,
-`AudioInput`/`audioDataReady`, the ball detector's `ballLaunched`.
+`AudioInput`/`audioDataReady`, the ball detector's `ballLaunched` (once it exists — see §5).
 
 ---
 
-*Design: [`shotdetection.md`](../design/shotdetection.md). Vision modality: [`ball_detector_design.md`](../design/ball_detector_design.md).*
+*Design: [`shotdetection.md`](../design/shotdetection.md). Vision modality:
+[`ball_detection_calibration.md`](../design/ball_detection_calibration.md) (as-built stationary
+detector) and [`ball_detector_design.md`](../design/ball_detector_design.md) (launch-hook roadmap).*

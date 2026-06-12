@@ -207,6 +207,9 @@ swings without the fields keep the old behaviour; see
 - **Video `setup`** — recorded perspective. Face-on selection now uses
   `setup.perspective == 2` instead of the `--face-on` alias substring guess
   (an explicit `--face-on` still wins; legacy swings fall back to substring).
+  Since B5 the block also carries `ballDetection` (`calibrated`, `margin`,
+  `driftAtCapture`, `calibratedAt`) — the calibrated ball detector's state at
+  capture time.
 - **IMU `device`** — `outputRateHz` replaces the hardcoded 200 Hz registration
   (camera fps likewise comes from the stream's `capture.fps_num/den` instead
   of the hardcoded 150).
@@ -215,8 +218,8 @@ swings without the fields keep the old behaviour; see
   uncalibrated bindings; runmeta.json carries `calibrated: true|false|null`
   (null = legacy, field absent). `lab.py ingest` surfaces
   `sessionType / shotSource / calibrated / calibAgeSec / perspectives /
-  appVersion` per swing in corpus.json so a corpus can be filtered before
-  tuning.
+  appVersion / ballCalibrated / ballMargin` per swing in corpus.json so a
+  corpus can be filtered before tuning (ball fields null for pre-B5 swings).
 
 The operator/engineer model contract is encoded in
 `.claude/skills/swinglab/SKILL.md` (`/swinglab`).

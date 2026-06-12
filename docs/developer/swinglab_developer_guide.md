@@ -345,11 +345,14 @@ behave exactly as before:
 | video `setup.perspective` | face-on selection (== 2) | alias-substring match |
 | imu `device.outputRateHz` | `ImuFormat::sample_rate_hz` + interarrival | 200 Hz, 5000 µs |
 | `analysis.bindings[].calibrated` (+ gate angles, `calibratedAt`, `calibAgeSec`) | stderr warning per uncalibrated binding; runmeta `calibrated: true\|false\|null`; corpus filtering | assume calibrated (old behaviour), runmeta `null` |
+| video `setup.ballDetection` (`calibrated`, `margin`, `driftAtCapture`, `calibratedAt`) | `ballCalibrated` (any calibrated video stream) + `ballMargin` (min margin over calibrated streams) in corpus.json — corpus filtering | absent → `null` (pre-B5 swings) |
 | `capture.host.*` | runmeta echo; `appVersion` in corpus.json | absent → `null` |
 
 `lab.py ingest` surfaces `sessionType / shotSource / calibrated /
-calibAgeSec / perspectives / appVersion` per swing in `corpus.json` — filter
-out `calibrated: false` swings before drawing tuning conclusions. The
+calibAgeSec / perspectives / appVersion / ballCalibrated / ballMargin` per
+swing in `corpus.json` — filter out `calibrated: false` swings before drawing
+tuning conclusions, and filter on `ballCalibrated` / a `ballMargin` floor when
+a mission depends on trustworthy ball-presence data. The
 `calibrated` flag is the app-side composite mount gate
 (`ImuInstance::fullyCalibrated()`: anatomical transform valid AND mount
 deviation ≤ 15° AND gravity error ≤ 25°).
@@ -378,8 +381,9 @@ The geometry is closed-form, so truth is exact by construction:
 - `pose.json` is injected (a plausible static figure with wrists at the
   grip) because there is no human for ViTPose to find; `truth.json` carries
   per-frame θ/grip/head plus P-position times.
-- The manifest stamps the full capture-provenance shape (§7) so synthetic
-  swings exercise every metadata reader.
+- The manifest stamps the full capture-provenance shape (§7) — including a
+  calibrated `setup.ballDetection` block — so synthetic swings exercise every
+  metadata reader.
 
 Validation evidence on this fixture: pipeline E2E score 100/100 (16 named
 checks, `imuVisionCorr 0.986`, θ RMS vs truth 0.2°, head median 2.6 px, Top

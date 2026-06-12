@@ -51,8 +51,10 @@ derivative peak or audio energy-envelope peak) *fixes* the sample-accurate insta
 
 **Mapping to PinPoint:** IMU fires the candidate `triggerShot(Source::Imu, …)` under the `armed` gate →
 acoustic confirms within a small time window **and** supplies the precise `timestampUs` → vision
-corroborates (ball present→launched) and yields the exact impact frame offline. Add a `Source::Audio`
-to the existing enum; everything else (funnel, back-dated marker, armed gate) already exists.
+corroborates (ball present→launched) and yields the exact impact frame offline. Add a `Source::Acoustic`
+to the existing enum (as built); everything else (funnel, back-dated marker, armed gate) already exists.
+Vision's launch hook (`ballLaunched`) is the one piece still pending — the calibrated detector itself is
+live (see §2.3).
 
 ---
 
@@ -119,9 +121,14 @@ the same PCM. High audio sample rate (44.1/48 kHz) is what enables sample-accura
   and then launched" is strong *context* to confirm an IMU/audio trigger and to **reject practice
   swings** (no ball ever left); and the captured `SwingWindow` gives the **exact impact frame** offline
   for metrics. It should generally *not* be the fast trigger.
-- The **detector implementation** for this modality (CNN + Kalman patch tracking, replacing the Hough
-  `BallDetector`) is specified in **[`ball_detector_design.md`](ball_detector_design.md)**; that doc's
-  `ballLaunched(timestampUs)` hook is precisely the corroboration/veto signal referenced here.
+- The **detector implementation** for this modality is now the environment-calibrated stationary
+  detector of **[`ball_detection_calibration.md`](ball_detection_calibration.md)** (as built — the
+  legacy Hough/HSV path is retired; detection is gated on a per-camera calibration profile). The
+  `ballLaunched(timestampUs)` launch hook specified in
+  **[`ball_detector_design.md`](ball_detector_design.md)** §8 is precisely the corroboration/veto
+  signal referenced here, but it is **not yet implemented** — today the detector reports stationary
+  presence only (`ballPresentChanged`, 50-frame smoothed, far too coarse for the ±40 ms arbitration
+  window).
 
 ### 2.4 Other approaches (radar/Doppler, optical gates, pressure mats) — named, unevidenced here
 
@@ -209,9 +216,10 @@ given the EventBuffer's existing per-source timestamps (open question — §10).
      accel-derivative peak > τ ──────────►  CANDIDATE  (Source::Imu, coarse t)  ── fast path
                                                   │
    Acoustic (existing audio PCM)                  ▼  within ~50 ms window?
-     envelope-peak + exp-decay/HFC ──────►  CONFIRM  + sample-accurate t*  (Source::Audio)
+     envelope-peak + exp-decay/HFC ──────►  CONFIRM  + sample-accurate t*  (Source::Acoustic)
                                                   │  back-date EventBuffer shot marker → t*
-   Vision (ball_detector_design.md)               ▼
+   Vision (calibrated detector, live;             ▼
+          ballLaunched hook FUTURE)
      ball present → ballLaunched ────────►  CORROBORATE / VETO  + offline exact impact frame
                                                   │
                                                   ▼

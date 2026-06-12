@@ -1,9 +1,9 @@
 # Pinpoint Shot Detector — Developer Guide
 
 **Audience**: Developers working on or integrating with the Pinpoint application  
-**Location**: `src/IMU/impact_detector.h`, `src/Audio/onset_detector.h` + `acoustic_shot_detector.{h,cpp}`, `src/Gui/shot_arbiter.h` + `shot_controller.{h,cpp}`  
+**Location**: `src/IMU/impact_detector.h`, `src/Audio/onset_detector.h` + `acoustic_shot_detector.{h,cpp}`, `src/Gui/shot_arbiter.h` + `shot_controller.{h,cpp}`; vision groundwork in `src/Pose/ball_detector.*` + `ball_model.h` and `src/Gui/ball_calibration_controller.{h,cpp}`  
 **Language**: C++17 (detector math headers) / C++20 (app integration)  
-**Status**: P1–P3 implemented and unit-tested. P4 (per-source latency auto-calibration) pending; on-hardware field tuning pending.
+**Status**: P1–P3 implemented and unit-tested; P4 mic settings + latency calibration landed. The calibrated ball detector (B0–B5) is live but its `ballLaunched` candidate producer is still pending; on-hardware field tuning pending.
 
 ---
 
@@ -41,7 +41,7 @@ detectors behind one funnel:
 |---|---|---|---|
 | **Acoustic** | `OnsetDetector` (impact "click") | Sample-accurate pinpoint; small, stable capture latency | Fires on any sharp sound near the mic |
 | **IMU** | `ImpactDetector` (shaft shock + swing energy) | Strong evidence a *swing* happened | ±5 ms sampling at 200 Hz; variable BLE latency; ±16 g clipping |
-| **Vision** | ball launch (future — see §9 note) | Confirms a ball actually left | Frame-rate coarse; detector latency |
+| **Vision** | calibrated ball presence (live); launch signal future — see §9 note | Confirms a ball is teed (and, later, that it left) | Requires per-camera calibration; frame-rate coarse; launch hook pending |
 
 Each detector emits a *candidate* — an estimated true-impact instant plus a
 confidence. The **arbiter** collects candidates in a short hold window and
@@ -410,10 +410,15 @@ ring — a new source must be added to that switch.
 
 The intended fourth modality is vision: a `ballLaunched(qint64 timestampUs)`
 signal from a Kalman-tracked ball detector (`docs/design/ball_detector_design.md` §8).
-**It does not exist yet** — today's `CameraInstance::ballPresentChanged` is
-smoothed over a 50-frame window, seconds too coarse for a ±40 ms match
-tolerance. Do not wire it as a candidate source. When the tracked detector
-lands, the full integration is:
+**The launch signal does not exist yet**, but the groundwork now does: the
+environment-calibrated stationary detector
+(`docs/design/ball_detection_calibration.md`, implemented as B0–B5) gates
+detection on a per-camera calibration profile (`BallDetector::setProfile()`,
+created via `BallCalibrationController`, persisted per cameraKey) with an
+illumination-drift monitor — the legacy Hough/HSV path is retired. Today's
+`CameraInstance::ballPresentChanged` is still smoothed over a 50-frame window,
+seconds too coarse for a ±40 ms match tolerance. Do not wire it as a candidate
+source. When the tracked launch detector lands, the full integration is:
 
 ```cpp
 // 1. Detector math: a pure header under the owning subsystem
@@ -459,6 +464,7 @@ A detector's entire job is `(est_t, conf)` candidates within its own gates.
 | Auto-detect swing | `General/autoDetectSwing` | **ON** (since P3) | Master gate on both auto wirings in main.cpp. OFF = manual SHOT only. |
 | Swing detection sensitivity | `General/swingDetectionSensitivity` | "Medium" | Low/Medium/High → IMU `thresholdScale` 1.5/1.0/0.7 (`ImuManager::impactScaleFor`, live-updated). >1 = less sensitive. |
 | Audio device latency | `General/audioDeviceLatencyUs` | 20000 | Acoustic back-dating constant; forwarded to the detector atomically, live-updated. |
+| Hitting-area ROI | `camera/ballRoi` | unset | Per-cameraKey `{x, y, w, h}` map (`AppSettings::cameraBallRoi`); set via `CameraManager::setBallRoi()`. Changing it hard-invalidates the camera's ball-calibration profile. Vision groundwork (B0), not a detector tunable. |
 
 The default flipped OFF→ON at P3: a single modality auto-trigger was judged too
 false-positive-prone to default on, but with cross-modal confirmation (or a
@@ -546,6 +552,11 @@ cmake --build build/audio-tests -j && ctest --test-dir build/audio-tests --outpu
 # Arbiter decision table (lives in the analyzer suite — Gui-header precedent)
 cmake -S src/Analysis/tests -B build/analyzer-tests -DCMAKE_PREFIX_PATH=$HOME/Qt/6.11.0/gcc_64
 cmake --build build/analyzer-tests -j && ctest --test-dir build/analyzer-tests --output-on-failure
+
+# Vision groundwork — calibrated ball detection (model scoring, throttle
+# contract, calibration session protocol + profile persistence)
+cmake -S src/Pose/tests -B build/pose-tests -DCMAKE_PREFIX_PATH=$HOME/Qt/6.11.0/gcc_64
+cmake --build build/pose-tests -j && ctest --test-dir build/pose-tests --output-on-failure
 ```
 
 The truth tables **are** the subsystem's value — every gate exists to kill a
@@ -661,6 +672,23 @@ src/Gui/
 
 src/Analysis/tests/
 └── arbiter_test.cpp            Arbiter decision table (in the analyzer suite)
+
+src/Pose/                       Vision groundwork (B0–B5) — no candidate producer yet (§9)
+├── ball_detector.{h,cpp}       BallDetector — calibration-gated detection, drift monitor,
+│                                 calib-capture mode (setProfile/clearProfile, beginCalibCapture)
+├── ball_model.h                pinpoint::ballcal — BallCalProfile, candidate scoring
+├── ball_calibration_logic.h    Calibration session protocol (pure header)
+├── ball_calibration_store.h    Profile persistence (profile.yml.gz per cameraKey)
+└── tests/
+    ├── CMakeLists.txt          Standalone CTest (build/pose-tests)
+    ├── ball_model_test.cpp     Model construction + scoring goldens
+    ├── ball_detector_contract_test.cpp  FrameThrottle contract (one signal per detect())
+    └── ball_calibration_test.cpp        Session protocol + profile persistence
+
+src/Gui/ (vision groundwork)
+├── ball_calibration_controller.{h,cpp}  User-in-the-loop calibration state machine
+└── camera_manager / camera_instance     setBallRoi/ballCalibrationFor; applyBallCalProfile,
+                                           ballCalibrated/ballDrifting properties
 ```
 
 ---

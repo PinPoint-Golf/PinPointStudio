@@ -32,10 +32,15 @@ ball may be 3px or 60px) — isolation is dominant-contrast-blob picking (contra
 inscribed circle, which penalises non-compact blobs for free), no shape ranking, no size floors
 beyond the morphology noise limit. Detection assumes SIZE but not strict shape: all golf balls
 are 42.67mm, so the calibrated pixel radius hard-gates runtime candidates to [0.5, 2.0]×r̂ —
-a beach-ball-sized blob can never be "the ball" after calibration. **Every protocol prompt is
-confirm-gated with a 5-second auto-press countdown (2026-06):** the validate rounds' remove/place
-asks wait for Continue (manual or countdown expiry) before watching starts — a reaching arm
-mid-removal must never count as a false positive.
+a beach-ball-sized blob can never be "the ball" after calibration. The same rework added a fifth
+scoring cue: `CandidateScore` carries **contrast** alongside size/shape/appearance/diffSupport, and
+the as-built fixed weights are **contrast .35, appearance .25, size .20, shape .10, diffSupport
+.10** (not the §3 example values — size/shape were demoted per the assumption split). Profiles
+carry a schema version (`kProfileSchemaVersion = 1`, `ball_calibration_store.h`); a mismatch on
+load is rejected, forcing recalibration rather than silently reinterpreting old fields. **Every
+protocol prompt is confirm-gated with a 5-second auto-press countdown (2026-06):** the validate
+rounds' remove/place asks wait for Continue (manual or countdown expiry) before watching starts —
+a reaching arm mid-removal must never count as a false positive.
 
 ---
 

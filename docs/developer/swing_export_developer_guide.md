@@ -343,7 +343,10 @@ type later is just another element of `streams[]` — readers must ignore unknow
                   "width": 1936, "height": 1096 },
       "capture":  { "fps_num": 150, "fps_den": 1 },
       "setup":    { "perspective": 2, "perspectiveName": "FaceOn",
-                    "mirrored": false, "fixedInPlace": true },
+                    "mirrored": false, "fixedInPlace": true,
+                    "ballDetection": { "calibrated": true, "margin": 0.42,
+                                       "driftAtCapture": 0.0,
+                                       "calibratedAt": "2026-06-12T09:14:03Z" } },
       "playback": { "fps": 30 },
       "processing": { "demosaic": "EA", "restorer": "none" },
       "frames": { "count": 742, "t_us": [0, 6671, 13342] }
@@ -375,7 +378,12 @@ stop hardcoding assumptions; all additive (absent on legacy swings):
   path records identical metadata.
 - **Per-video-stream `setup`** — `perspective`/`perspectiveName` (CameraInstance
   enum: None 0, DownTheLine 1, FaceOn 2, Other 3), `mirrored`, `fixedInPlace`
-  (the camera-side "calibrated" signal).
+  (the camera-side "calibrated" signal), and `ballDetection` — the calibrated
+  ball detector's state at capture: `calibrated` (profile loaded), `margin`
+  (the profile's validated ball/empty separation), `driftAtCapture`
+  (illumination-drift severity, 0 when clean), `calibratedAt` (ISO 8601 UTC,
+  null when never calibrated). SwingLab filters the corpus on these
+  (`ballCalibrated`/`ballMargin` in corpus.json).
 - **Per-IMU-stream `device`** — `outputRateHz` (live instance rate — authoritative
   over the registration-time `ImuFormat`), `fusionMode` (device 6/9-axis),
   `orientationFilter` (host fusion: Madgwick/ESKF), `placementSlot` (A/B/C).
