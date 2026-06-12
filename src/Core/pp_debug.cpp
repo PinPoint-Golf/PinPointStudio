@@ -205,19 +205,21 @@ static void silentLogCallback(ggml_log_level, const char *, void *) {}
 
 #ifdef PP_HAS_AVLOG_CAPTURE
 // ── FFmpeg av_log capture ─────────────────────────────────────────────────────
-// Routes libavutil log output (e.g. the "Input #0, mov,mp4,..." stream dumps
-// printed when Qt Multimedia opens a media file) into PpMessageLog instead of
-// stderr.  Numeric constants mirror libavutil/log.h — no header dependency.
+// Routes libavutil warnings/errors into PpMessageLog instead of stderr.
+// Anything below warning (the "Input #0, mov,mp4,..." stream dumps, codec
+// banners, etc.) is swallowed — neither logged nor printed.  Numeric
+// constants mirror libavutil/log.h — no header dependency.
 
 static constexpr int kAvLogError   = 16;
 static constexpr int kAvLogWarning = 24;
-static constexpr int kAvLogInfo    = 32;
 
 static void ffmpegLogCallback(void *, int level, const char *fmt, va_list vl)
 {
     // Custom callbacks receive every message regardless of av_log_set_level —
-    // filter here.  Drop verbose/debug/trace.
-    if (level > kAvLogInfo)
+    // filter here.  Drop info/verbose/debug/trace: FFmpeg's INFO (stream
+    // dumps, codec banners) is far too chatty for the app log; only
+    // warnings and errors are worth surfacing.
+    if (level > kAvLogWarning)
         return;
 
     char chunk[1024];
@@ -235,9 +237,7 @@ static void ffmpegLogCallback(void *, int level, const char *fmt, va_list vl)
         if (line.isEmpty())
             continue;
 
-        QtMsgType type = QtInfoMsg;
-        if      (level <= kAvLogError)   type = QtCriticalMsg;
-        else if (level <= kAvLogWarning) type = QtWarningMsg;
+        const QtMsgType type = (level <= kAvLogError) ? QtCriticalMsg : QtWarningMsg;
         PpMessageLog::instance()->append(type, QStringLiteral("[FFmpeg] ") + line);
     }
 }
