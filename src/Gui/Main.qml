@@ -26,7 +26,9 @@ ApplicationWindow {
     id: root
     width:   appSettings.windowWidth
     height:  appSettings.windowHeight
-    visible: true
+    // Created hidden on purpose — Component.onCompleted positions the window on
+    // the chosen display BEFORE it is shown. See the note there.
+    visible: false
     title: qsTr("PinPoint Studio")
     color: Theme.colorBg
     font.family: Theme.fontBody
@@ -63,23 +65,34 @@ ApplicationWindow {
             Theme.fontScale = w >= 3840 ? 1.5 : w >= 2560 ? 1.25 : 1.0
         }
 
-        // Geometry: restore saved position, or place on the chosen display.
-        if (appSettings.rememberWindowGeometry
-                && appSettings.windowX >= 0 && appSettings.windowY >= 0) {
+        // Geometry. Priority order:
+        //   1. "cursor" mode — open on the screen under the cursor. This is an
+        //      explicit per-launch intent, so it beats a remembered position
+        //      (which would otherwise pin the window to a stale monitor). The
+        //      remembered SIZE is still applied via the width/height bindings.
+        //   2. Remembered exact position (when enabled and previously saved) —
+        //      honoured for the "primary"/"screen:N" modes.
+        //   3. The chosen display, centred.
+        var screens = Qt.application.screens
+        var mode    = appSettings.mainDisplayMode
+
+        if (mode === "cursor") {
+            var ci   = appSettings.cursorScreenIndex()
+            var cscr = screens[(ci >= 0 && ci < screens.length) ? ci : 0]
+            root.screen = cscr
+            // Centre on the cursor's screen (guarantees full visibility
+            // regardless of how the remembered size compares to this monitor).
+            root.x = cscr.virtualX + Math.round((cscr.width  - root.width)  / 2)
+            root.y = cscr.virtualY + Math.round((cscr.height - root.height) / 2)
+        } else if (appSettings.rememberWindowGeometry
+                   && appSettings.windowX >= 0 && appSettings.windowY >= 0) {
             // Exact saved position — preserves which screen the user last used.
             root.x = appSettings.windowX
             root.y = appSettings.windowY
         } else {
             // No saved position: place on the screen chosen in Display settings.
-            var screens = Qt.application.screens
-            var target  = screens[0]   // index 0 is always the primary screen in Qt
-            var mode    = appSettings.mainDisplayMode
-
-            if (mode === "cursor") {
-                var ci = appSettings.cursorScreenIndex()
-                if (ci >= 0 && ci < screens.length)
-                    target = screens[ci]
-            } else if (mode.indexOf("screen:") === 0) {
+            var target = screens[0]   // index 0 is always the primary screen in Qt
+            if (mode.indexOf("screen:") === 0) {
                 var idx = parseInt(mode.substring(7))
                 if (!isNaN(idx) && idx >= 0 && idx < screens.length)
                     target = screens[idx]
@@ -92,8 +105,17 @@ ApplicationWindow {
             root.y = target.virtualY + Math.round((target.height - root.height) / 2)
         }
 
+        // Show the window only AFTER its geometry is set. The window is declared
+        // visible:false above for this reason: on Windows a visible:true window
+        // is created on the PRIMARY monitor first, and relocating it afterwards
+        // (setScreen + x/y) is unreliable under per-monitor DPI — it snaps back
+        // to primary, so "cursor"/"screen:N" placement was never honoured.
+        // Creating it hidden and showing it once positioned makes Windows open
+        // the native window on the correct monitor from the start.
         if (appSettings.windowMaximized)
             root.showFullScreen()
+        else
+            root.visible = true
     }
 
     // NOTE: on Wayland the compositor owns window placement — Qt6 applications
