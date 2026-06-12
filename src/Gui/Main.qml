@@ -78,12 +78,13 @@ ApplicationWindow {
 
         if (mode === "cursor" && Qt.platform.pluginName.startsWith("wayland")) {
             // Wayland: QCursor::pos() is unknowable before the app has a
-            // focused window, so cursorScreenIndex() resolves to the primary
-            // screen — and an explicitly-set root.screen IS honoured by
-            // xdg_toplevel.set_fullscreen, which would pin the window to the
-            // wrong output. The compositor already implements cursor placement
-            // natively (new windows open on the monitor with the pointer), so
-            // set nothing and let it place us.
+            // focused window, so cursorScreenIndex() resolves to the wrong
+            // screen, x/y are ignored, and root.screen is ignored too (mutter
+            // disregards the xdg set_fullscreen output hint for a window whose
+            // FIRST map is fullscreen — verified empirically). The compositor
+            // places normally-mapped windows on the monitor with the pointer,
+            // which is exactly cursor mode: set nothing here, and let the
+            // show sequence below map the window normal-first.
         } else if (mode === "cursor") {
             var ci   = appSettings.cursorScreenIndex()
             var cscr = screens[(ci >= 0 && ci < screens.length) ? ci : 0]
@@ -120,10 +121,22 @@ ApplicationWindow {
         // to primary, so "cursor"/"screen:N" placement was never honoured.
         // Creating it hidden and showing it once positioned makes Windows open
         // the native window on the correct monitor from the start.
-        if (appSettings.windowMaximized)
-            root.showFullScreen()
-        else
+        if (appSettings.windowMaximized) {
+            if (mode === "cursor" && Qt.platform.pluginName.startsWith("wayland")) {
+                // Map the window NORMAL first, then fullscreen it. mutter
+                // places a first-map-fullscreen window on a monitor of its own
+                // choosing, ignoring both the pointer and the requested output
+                // (verified: it always picked the laptop panel). A normally
+                // mapped window is placed on the monitor with the pointer, and
+                // fullscreening an already-placed window keeps it there.
+                root.visible = true
+                root.showFullScreen()
+            } else {
+                root.showFullScreen()
+            }
+        } else {
             root.visible = true
+        }
     }
 
     // NOTE: on Wayland the compositor owns window placement — Qt6 applications
