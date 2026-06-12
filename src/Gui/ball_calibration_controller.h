@@ -132,6 +132,15 @@ private:
     std::vector<cv::Mat> m_emptyFrames;   // 2N: first half fits bg, second half scores
     std::vector<cv::Mat> m_ballFrames;    // N
     bool    m_capturingBall = false;
+    // Scene-stillness gate: capture frames are stored only after
+    // kStillFramesNeeded consecutive frames show no change beyond the
+    // scene's own noise (ballcal::frameStillness) — so capture can't start
+    // while the user is still stepping out of view.
+    int     m_captureTarget = 0;          // frames to store once the gate opens
+    bool    m_gateOpen = false;
+    int     m_stillRun = 0;
+    cv::Mat m_prevCalibFrame;
+    QTimer  m_stillnessTimeout;           // scene never settles → actionable failure
     QTimer  m_settleTimer;
     QTimer  m_frameTimeout;               // no frames arriving → actionable failure
     QTimer  m_holdTimer;                  // validate hold windows

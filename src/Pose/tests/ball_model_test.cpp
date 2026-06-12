@@ -335,6 +335,113 @@ static void testBallIsolationTriesHard()
     }
 }
 
+// THE studio failure of 2026-06-12: the user was still stepping clear when
+// ball capture started, so the first frames showed them instead of the ball.
+// The fit's consensus correctly dropped those frames — but the threshold was
+// derived over ALL frames, so the contaminated ones scored ~0, collapsed
+// minBall, and a 0.97-margin scene failed as "ball doesn't stand out".
+// Threshold derivation must score the consensus-inlier frames ONLY.
+static void testInlierFrameScoring()
+{
+    std::printf("inlier-only threshold scoring (motion during ball capture):\n");
+
+    BackgroundModel bg;
+    for (int i = 0; i < 12; ++i) bg.accumulate(makeFrame(37.0, 2.5, 3000 + i));
+    bg.finalize();
+
+    // Frames 0-1: no ball yet, the user's body as a bright irregular patch.
+    // Frames 2-11: clean ball.
+    std::vector<cv::Mat> ballFrames;
+    for (int i = 0; i < 12; ++i) {
+        cv::Mat f = makeFrame(37.0, 2.5, 3100 + i);
+        if (i < 2) {
+            cv::rectangle(f, cv::Point(80, 30), cv::Point(200, 60),
+                          cv::Scalar(110, 110, 110), cv::FILLED);
+            cv::rectangle(f, cv::Point(80, 60), cv::Point(115, 130),
+                          cv::Scalar(110, 110, 110), cv::FILLED);
+        } else {
+            drawBall(f, {230.f, 170.f}, 20.f, 180.0);
+        }
+        ballFrames.push_back(f);
+    }
+    BallModel ball = fitBallModel(ballFrames, bg);
+    CHECK("model valid despite 2 contaminated frames", ball.valid);
+    CHECK("consensus kept the 10 clean frames", ball.inlierFrames.size() == 10);
+    bool excluded = true;
+    for (int idx : ball.inlierFrames)
+        if (idx < 2) excluded = false;
+    CHECK("contaminated frames excluded from inliers", excluded);
+
+    std::vector<double> inlierScores, allScores, emptyScores;
+    for (int idx : ball.inlierFrames)
+        inlierScores.push_back(detect(ballFrames[(size_t)idx], bg, ball, 2.0).score);
+    for (const auto &f : ballFrames)
+        allScores.push_back(detect(f, bg, ball, 2.0).score);
+    for (int i = 0; i < 12; ++i)
+        emptyScores.push_back(detect(makeFrame(37.0, 2.5, 3200 + i), bg, ball, 2.0).score);
+
+    const ThresholdResult good = deriveThreshold(inlierScores, emptyScores);
+    CHECK("inlier-only scoring passes", good.pass);
+    CHECK("inlier-only margin is wide", good.margin >= 0.5);
+
+    // The regression this guards against: all-frames scoring collapses.
+    const ThresholdResult bad = deriveThreshold(allScores, emptyScores);
+    CHECK("all-frames scoring would have failed (the bug)", !bad.pass);
+}
+
+// Scene-stillness gate: calibration capture must not start while anything is
+// moving through the hitting area. Noise-adaptive — the changed-pixel
+// threshold scales with the scene's own frame-to-frame noise.
+static void testFrameStillness()
+{
+    std::printf("frame stillness (capture gate):\n");
+
+    StillnessResult r = frameStillness(cv::Mat(), makeFrame(37.0, 2.5, 4000));
+    CHECK("no baseline: not still", !r.still);
+
+    // Dark noisy studio (the 2026-06-12 scene): noise alone must read still.
+    r = frameStillness(makeFrame(37.0, 2.5, 4001), makeFrame(37.0, 2.5, 4002));
+    CHECK("dark studio noise reads still", r.still);
+
+    // Much noisier sensor: still must NOT read as motion (adaptive threshold).
+    r = frameStillness(makeFrame(37.0, 8.0, 4003), makeFrame(37.0, 8.0, 4004));
+    CHECK("high-noise sensor reads still", r.still);
+
+    // A stationary ball present in BOTH frames is not motion.
+    {
+        cv::Mat a = makeFrame(37.0, 2.5, 4005), b = makeFrame(37.0, 2.5, 4006);
+        drawBall(a, {kW / 2.f, kH / 2.f}, 20.f, 180.0);
+        drawBall(b, {kW / 2.f, kH / 2.f}, 20.f, 180.0);
+        r = frameStillness(a, b);
+        CHECK("stationary ball reads still", r.still);
+    }
+
+    // Mild auto-exposure drift on a dark scene is not motion.
+    {
+        cv::Mat a = makeFrame(37.0, 2.5, 4007);
+        cv::Mat b = scaleExposure(makeFrame(37.0, 2.5, 4008), 1.05);
+        r = frameStillness(a, b);
+        CHECK("mild AE drift reads still", r.still);
+    }
+
+    // A hand-sized intrusion appearing IS motion — even on a noisy sensor.
+    {
+        cv::Mat a = makeFrame(37.0, 8.0, 4009), b = makeFrame(37.0, 8.0, 4010);
+        cv::rectangle(b, cv::Point(140, 100), cv::Point(180, 140),
+                      cv::Scalar(120, 120, 120), cv::FILLED);
+        r = frameStillness(a, b);
+        CHECK("hand-sized intrusion reads as motion", !r.still);
+    }
+
+    // The ball APPEARING between frames is motion (placement still in progress).
+    {
+        cv::Mat a = makeFrame(37.0, 2.5, 4011), b = makeFrame(37.0, 2.5, 4012);
+        drawBall(b, {kW / 2.f, kH / 2.f}, 20.f, 180.0);
+        r = frameStillness(a, b);
+        CHECK("ball appearing reads as motion", !r.still);
+    }
+}
+
 static void testThresholdDerivation()
 {
     std::printf("threshold derivation:\n");
@@ -452,6 +559,8 @@ int main()
     testBackgroundModel();
     testBallModelFit();
     testBallIsolationTriesHard();
+    testInlierFrameScoring();
+    testFrameStillness();
     testThresholdDerivation();
     testDetection();
     testGainInvariance();

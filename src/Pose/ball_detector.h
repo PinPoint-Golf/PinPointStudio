@@ -90,7 +90,10 @@ public slots:
     // Calibration capture mode (BallCalibrationController only). While armed,
     // each detect() ALSO emits a cloned ROI mat via calibFrame() — detection
     // and the throttle contract continue untouched (overlays stay live).
-    // Capture self-disarms after targetFrames.
+    // targetFrames > 0: self-disarms after that many frames (calibCaptureDone).
+    // targetFrames <= 0: open-ended — streams until cancelCalibCapture()
+    // (calibFrame's target arrives as -1); the controller gates on scene
+    // stillness and does its own counting.
     void beginCalibCapture(int targetFrames);
     void cancelCalibCapture();
 

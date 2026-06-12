@@ -36,6 +36,8 @@ namespace {
 constexpr int kEmptyFrames      = 30;     // first 15 fit the bg, second 15 score
 constexpr int kBallFrames       = 15;
 constexpr int kSettleMs         = 1200;   // hand-leaving-frame delay after "ball placed"
+constexpr int kStillFramesNeeded   = 4;      // consecutive still frames to open the gate
+constexpr int kStillnessTimeoutMs  = 20000;  // scene never settles → actionable failure
 constexpr int kFrameTimeoutMs   = 5000;   // no frames at all → actionable failure
 constexpr int kRemoveHoldMs     = 3000;   // sustained not-found while removed
 constexpr int kPlaceHoldMs      = 1500;   // sustained found after placement
@@ -59,6 +61,24 @@ BallCalibrationController::BallCalibrationController(CameraInstance *instance,
     m_frameTimeout.setSingleShot(true);
     m_holdTimer.setSingleShot(true);
     m_acquireTimeout.setSingleShot(true);
+    m_stillnessTimeout.setSingleShot(true);
+
+    // Scene-stillness gate never opened: frames are flowing (else the frame
+    // timeout fires first) but something kept moving through the hitting area.
+    connect(&m_stillnessTimeout, &QTimer::timeout, this, [this]() {
+        const bool capturing = m_phase == QLatin1String("captureEmpty")
+                            || m_phase == QLatin1String("captureBall");
+        if (!capturing || m_gateOpen)
+            return;
+        if (BallDetector *det = m_instance ? m_instance->ballDetector() : nullptr)
+            QMetaObject::invokeMethod(det, [det]() { det->cancelCalibCapture(); },
+                                      Qt::QueuedConnection);
+        m_frameTimeout.stop();
+        setPhase(QStringLiteral("failed"),
+                 tr("The hitting area never settled — something kept moving "
+                    "through the camera's view (that includes you). Step "
+                    "fully out of view and try again."));
+    });
 
     // 1 Hz auto-confirm countdown for every awaiting-confirm prompt: the user
     // sees exactly how long they have to do the ask before Continue presses
@@ -124,13 +144,17 @@ QString BallCalibrationController::instruction() const
     if (m_phase == QLatin1String("promptEmpty"))
         return tr("Make sure the hitting area is completely clear, then tap Continue.");
     if (m_phase == QLatin1String("captureEmpty"))
-        return tr("Learning the empty hitting area — keep it clear…");
+        return m_gateOpen
+            ? tr("Learning the empty hitting area — keep it clear…")
+            : tr("Waiting for the hitting area to settle — keep it clear…");
     if (m_phase == QLatin1String("promptBall"))
         return tr("Place a ball anywhere in the hitting area, then tap Continue.");
     if (m_phase == QLatin1String("settle"))
         return tr("Hold on…");
     if (m_phase == QLatin1String("captureBall"))
-        return tr("Learning the ball — don't touch it…");
+        return m_gateOpen
+            ? tr("Learning the ball — don't touch it…")
+            : tr("Waiting for the hitting area to settle — stay out of view…");
     if (m_phase == QLatin1String("fit"))
         return tr("Tuning the detector…");
     if (m_phase == QLatin1String("promptRemove"))
@@ -237,6 +261,7 @@ void BallCalibrationController::cancel()
     }
     m_settleTimer.stop(); m_frameTimeout.stop();
     m_holdTimer.stop();   m_acquireTimeout.stop();
+    m_stillnessTimeout.stop();
     m_countdownTimer.stop(); m_countdownDelay.stop();
     setPhase(QStringLiteral("idle"));
     emit cancelled();
@@ -287,30 +312,59 @@ void BallCalibrationController::startCapture(int frames)
     emit progressChanged();
     BallDetector *det = m_instance ? m_instance->ballDetector() : nullptr;
     if (!det) { failNoFrames(); return; }
-    QMetaObject::invokeMethod(det, [det, frames]() { det->beginCalibCapture(frames); },
+    m_captureTarget = frames;
+    m_gateOpen      = false;
+    m_stillRun      = 0;
+    m_prevCalibFrame.release();
+    // Open-ended stream: the stillness gate decides when frames start
+    // counting, so this side owns the target and stops the stream itself.
+    QMetaObject::invokeMethod(det, [det]() { det->beginCalibCapture(-1); },
                               Qt::QueuedConnection);
     m_frameTimeout.start(kFrameTimeoutMs);
+    m_stillnessTimeout.start(kStillnessTimeoutMs);
 }
 
-void BallCalibrationController::onCalibFrame(const cv::Mat &roiBgr, int have, int target)
+void BallCalibrationController::onCalibFrame(const cv::Mat &roiBgr, int /*have*/,
+                                             int /*target*/)
 {
     m_frameTimeout.start(kFrameTimeoutMs);   // frames are flowing — keep alive
 
-    if (m_phase == QLatin1String("captureEmpty") && !m_capturingBall)
-        m_emptyFrames.push_back(roiBgr);
-    else if (m_phase == QLatin1String("captureBall") && m_capturingBall)
-        m_ballFrames.push_back(roiBgr);
-    else
+    const bool emptyPhase = m_phase == QLatin1String("captureEmpty") && !m_capturingBall;
+    const bool ballPhase  = m_phase == QLatin1String("captureBall")  && m_capturingBall;
+    if (!emptyPhase && !ballPhase)
         return;                              // stale frame from a cancelled phase
 
-    m_progress = target > 0 ? static_cast<double>(have) / target : 0.0;
+    // Scene-stillness gate: don't start feeding frames into the models while
+    // anything is still moving through the hitting area (the user stepping
+    // clear, a club waving past). Gate frames are never stored. The frame
+    // that completes the still run is itself clean, so it falls through and
+    // is stored as the first capture frame.
+    if (!m_gateOpen) {
+        const auto s = pinpoint::ballcal::frameStillness(m_prevCalibFrame, roiBgr);
+        m_prevCalibFrame = roiBgr;
+        m_stillRun = s.still ? m_stillRun + 1 : 0;
+        if (m_stillRun < kStillFramesNeeded)
+            return;
+        m_gateOpen = true;
+        m_stillnessTimeout.stop();
+        emit phaseChanged();                 // instruction: settling → learning
+    }
+
+    auto &store = emptyPhase ? m_emptyFrames : m_ballFrames;
+    store.push_back(roiBgr);
+
+    m_progress = m_captureTarget > 0
+        ? static_cast<double>(store.size()) / m_captureTarget : 0.0;
     emit progressChanged();
 
-    if (have >= target) {
+    if (static_cast<int>(store.size()) >= m_captureTarget) {
         m_frameTimeout.stop();
-        if (m_phase == QLatin1String("captureEmpty"))
+        if (BallDetector *det = m_instance ? m_instance->ballDetector() : nullptr)
+            QMetaObject::invokeMethod(det, [det]() { det->cancelCalibCapture(); },
+                                      Qt::QueuedConnection);
+        if (emptyPhase)
             setPhase(QStringLiteral("promptBall"));
-        else if (m_phase == QLatin1String("captureBall"))
+        else
             runFit();
     }
 }
@@ -318,6 +372,12 @@ void BallCalibrationController::onCalibFrame(const cv::Mat &roiBgr, int have, in
 void BallCalibrationController::failNoFrames()
 {
     m_settleTimer.stop(); m_holdTimer.stop(); m_acquireTimeout.stop();
+    m_stillnessTimeout.stop();
+    // The capture stream is open-ended now — disarm it so a camera that
+    // recovers later doesn't keep cloning ROI mats into a failed session.
+    if (BallDetector *det = m_instance ? m_instance->ballDetector() : nullptr)
+        QMetaObject::invokeMethod(det, [det]() { det->cancelCalibCapture(); },
+                                  Qt::QueuedConnection);
     setPhase(QStringLiteral("failed"),
              tr("No camera frames are arriving — check the camera is connected "
                 "and started, and ball detection is enabled."));
@@ -348,9 +408,14 @@ void BallCalibrationController::runFit()
         if (!p.ball.valid) return p;
 
         // …the second half (never seen by the fit) provides honest empty scores.
+        // Ball scores come from the consensus-inlier frames ONLY: a frame the
+        // fit itself rejected (hand still leaving, ball not yet placed) scores
+        // ~0 through the scorer and would collapse minBall — turning transient
+        // motion during capture into a bogus "doesn't stand out" failure.
         std::vector<double> ballScores, emptyScores;
-        for (const auto &f : balls)
-            ballScores.push_back(detect(f, p.background, p.ball, 2.0).score);
+        for (int idx : p.ball.inlierFrames)
+            ballScores.push_back(detect(balls[static_cast<size_t>(idx)],
+                                        p.background, p.ball, 2.0).score);
         for (size_t i = half; i < empties.size(); ++i)
             emptyScores.push_back(detect(empties[i], p.background, p.ball, 2.0).score);
 
@@ -392,7 +457,7 @@ void BallCalibrationController::onFitDone()
         // (theta = maxEmpty + bias*margin).
         const double minBall = p.theta
             + (1.0 - pinpoint::ballcal::tuning::kThetaBias) * p.margin;
-        const QString reason = p.margin < pinpoint::ballcal::tuning::kMinMargin
+        QString reason = p.margin < pinpoint::ballcal::tuning::kMinMargin
             ? tr("The ball doesn't stand out enough from the empty hitting "
                  "area (margin %1, need %2). Improve the lighting or contrast "
                  "— or accept the marginal calibration.")
@@ -405,6 +470,13 @@ void BallCalibrationController::onFitDone()
                   .arg(p.margin, 0, 'f', 2)
                   .arg(minBall, 0, 'f', 2)
                   .arg(pinpoint::ballcal::tuning::kMinBallScore, 0, 'f', 2);
+        const size_t dropped = m_ballFrames.size() - p.ball.inlierFrames.size();
+        if (dropped >= 2)
+            reason += QLatin1Char('\n')
+                + tr("%1 of %2 capture frames showed something else moving in "
+                     "the hitting area and were ignored — stay fully out of "
+                     "the camera's view while the ball is being learned.")
+                      .arg(dropped).arg(m_ballFrames.size());
         setPhase(QStringLiteral("failed"), reason);
         return;
     }

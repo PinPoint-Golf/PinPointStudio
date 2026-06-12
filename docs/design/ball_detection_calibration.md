@@ -19,7 +19,8 @@ pending. As-built deviations from this doc: the profile persists as ONE `cv::Fil
 `profile.yml.gz` per cameraKey hash (lossless float mats; simpler than the json+png split in §7),
 and there is no AppSettings `ballCalibrated` flag — UI status probes the saved profile via
 `BallCalibrationController::savedProfileInfo()` instead. The CaptureBall stability gate is a
-settle-timer + fit-sanity-gates rather than live blob tracking (§5). Hough never became a
+settle-timer + a noise-adaptive scene-stillness gate on both capture phases + fit-sanity-gates
+rather than live blob tracking (§5). Hough never became a
 candidate generator (§2) — instead, candidate generation got a 4σ→2.5σ threshold ladder and the
 calibration-time isolation is shape-ranked over ALL diff blobs with cross-frame positional
 consensus and failure diagnostics (tee stalks, not-the-largest-blob and barely-above-noise balls
@@ -79,9 +80,10 @@ CALIBRATION                                    RUNTIME
 │ ≥2 ball positions)          │      (mean+cov in gain-normalised space),
 │                             │      grayscale template patch, contrast stats
 ├─────────────────────────────┤
-│ score all calib frames      │──► decision threshold θ = derived from the gap:
-│ through the runtime scorer  │      require margin = min(ballScores) − max(emptyScores)
-└─────────────────────────────┘      to exceed a robustness floor before PASS
+│ score calib frames through  │──► decision threshold θ = derived from the gap:
+│ the runtime scorer (ball    │      require margin = min(ballScores) − max(emptyScores)
+│ side: consensus inliers     │      to exceed a robustness floor before PASS
+│ ONLY — see Threshold rule)  │
 
 RUNTIME (per frame, detector thread, unchanged throttle contract)
   gain-normalise ROI (median-luma ratio vs calibration)
@@ -171,7 +173,13 @@ Design decisions:
 - **Threshold rule:** `θ = maxEmpty + 0.4·(minBall − maxEmpty)` — biased toward the empty side
   because a false "ball present" is worse than a slow acquisition (presence hysteresis already
   debounces brief misses). `pass = (minBall − maxEmpty) ≥ kMinMargin (0.15) && minBall/maxEmptyish
-  sanity checks`. Empty frames with zero candidates contribute score 0.
+  sanity checks`. Empty frames with zero candidates contribute score 0. `ballScores` are computed
+  over the fit's **consensus-inlier frames only** (`BallModel::inlierFrames`): a ball-capture frame
+  the fit itself rejected — the user still stepping clear, ball not yet placed — scores ~0 through
+  the runtime scorer, and since `minBall` is the 10th percentile, two such frames collapse the
+  margin and misreport a cleanly separable ball as "doesn't stand out" (observed in the studio,
+  2026-06-12: a 0.97-margin scene failed at margin 0). When ≥2 frames were dropped, the failure
+  message also tells the user something moved through the hitting area during capture.
 - **Background σ floor** (≈2 luma levels) prevents a too-quiet calibration from making the diff
   threshold hair-trigger; **k=4σ** for the diff mask.
 - **ROI resolution native** — the ROI is a small fraction of the frame; no downsampling, radius
@@ -237,7 +245,16 @@ Phase details:
   detector we're calibrating); `fitBallModel` learns scale/colour/template from it. Sanity gates:
   exactly one dominant blob, plausibly circular, ≥ 8 px radius — else explain and retry ("couldn't
   isolate the ball — check the area is clear and the ball is visible").
-- **Fit** — score *all* captures through `ballcal::detect`, derive θ/margin.
+- **Scene-stillness gate (as built, 2026-06, both capture phases)** — frames only start counting
+  toward either capture once `ballcal::frameStillness` reports kStillFramesNeeded (4) consecutive
+  frames with no change beyond the scene's own frame-to-frame noise (changed-pixel threshold =
+  kStillNoiseK × median |diff|, so a noisy dark sensor doesn't read as motion). The detector's
+  calib stream runs open-ended (`beginCalibCapture(-1)`) and the controller owns the count; if the
+  scene never settles within 20 s the phase fails with an actionable "step fully out of view"
+  message. This is what actually protects the captures from the user still leaving the frame —
+  the fixed settle timer alone proved insufficient in the studio (2026-06-12).
+- **Fit** — score *all* captures through `ballcal::detect`, derive θ/margin (ball side:
+  consensus-inlier frames only, see §3 Threshold rule).
 - **Validate** — the user loop you asked for, made measurable. Each round: prompted removal (expect
   sustained not-found — catches false positives, the dangerous failure), prompted placement *at a
   varied spot within the ROI* (expect acquisition within ~0.5 s — catches false negatives and

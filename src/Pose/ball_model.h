@@ -95,6 +95,17 @@ inline constexpr double kMinBallScore    = 0.40;  // sanity: a real ball must sc
 inline constexpr double kMinRadiusPx     = 2.0;   // runtime candidate floor (noise only)
 inline constexpr double kRadiusSigmaRel  = 0.15;  // radius tolerance floor, relative to learned r
 inline constexpr double kGainDriftLog    = 0.3001;// |ln(gain)| beyond this = soft drift (≈±35%)
+// Scene-stillness gate (calibration capture must not start while someone is
+// still stepping out of view). Noise-adaptive: a pixel counts as "changed"
+// when its frame-to-frame |diff| exceeds kStillNoiseK x the median |diff|
+// (the scene's own noise scale), so a noisy dark camera doesn't read as
+// motion and a quiet camera still catches a faint intruder. The frame is
+// still when fewer than kStillMaxChangedFrac of pixels changed — an order of
+// magnitude under any real intrusion (a hand is several % of the ROI) and an
+// order of magnitude over the Gaussian tail at that threshold.
+inline constexpr double kStillNoiseK         = 6.0;
+inline constexpr double kStillAbsFloor       = 6.0;   // luma — quiet 8-bit scenes median ~0
+inline constexpr double kStillMaxChangedFrac = 0.005;
 }  // namespace tuning
 
 // ── Models ──────────────────────────────────────────────────────────────────
@@ -129,6 +140,13 @@ struct BallModel {
     cv::Matx33f colourCovInv;
     cv::Mat     template8u;              // gain-normalised gray patch for NCC
     double      minContrast = 0.0;       // mean |ball - background| luma seen at calibration
+    // Indices (into the ballFrames passed to fitBallModel) of the frames the
+    // cross-frame consensus accepted. Threshold derivation must score ONLY
+    // these: a frame the fit itself rejected (hand still leaving, ball not
+    // yet placed) scores ~0 through the runtime scorer and would collapse
+    // minBall — reporting a perfectly separable ball as "doesn't stand out".
+    // Transient calibration state — not persisted by the profile store.
+    std::vector<int> inlierFrames;
 };
 
 // One detection candidate's per-cue breakdown — preserved for diagnostics
@@ -385,6 +403,41 @@ inline int pickDominantBlob(const std::vector<Candidate> &cands, const cv::Mat &
 
 }  // namespace detail
 
+// ── Scene stillness (calibration capture gate) ─────────────────────────────
+
+struct StillnessResult {
+    bool   still = false;        // false until a same-size baseline exists
+    double changedFrac = 1.0;    // fraction of pixels beyond the noise threshold
+};
+
+// Frame-to-frame change test for gating calibration capture: compare this
+// ROI frame against the previous one (NOT a background model — none exists
+// yet during the empty capture). See the tuning::kStill* constants for the
+// noise-adaptive threshold rationale.
+inline StillnessResult frameStillness(const cv::Mat &prevRoiBgr, const cv::Mat &roiBgr)
+{
+    StillnessResult r;
+    if (prevRoiBgr.empty() || roiBgr.empty() || prevRoiBgr.size() != roiBgr.size())
+        return r;
+
+    cv::Mat diff;
+    cv::absdiff(detail::toGray32f(roiBgr), detail::toGray32f(prevRoiBgr), diff);
+    const double noise  = detail::medianOf(diff);
+    const double thresh = std::max(tuning::kStillAbsFloor, tuning::kStillNoiseK * noise);
+
+    int changed = 0, n = 0;
+    for (int y = 0; y < diff.rows; y += 2) {
+        const float *row = diff.ptr<float>(y);
+        for (int x = 0; x < diff.cols; x += 2) {
+            ++n;
+            if (row[x] > thresh) ++changed;
+        }
+    }
+    r.changedFrac = n > 0 ? static_cast<double>(changed) / n : 1.0;
+    r.still = r.changedFrac < tuning::kStillMaxChangedFrac;
+    return r;
+}
+
 // ── BackgroundModel implementation ─────────────────────────────────────────
 
 inline void BackgroundModel::accumulate(const cv::Mat &roiBgr)
@@ -600,6 +653,9 @@ inline BallModel fitBallModel(const std::vector<cv::Mat> &ballFrames,
                   + std::to_string(sizeRejects) + " size rejects)";
         return ball;
     }
+
+    for (const auto &o : obs)
+        ball.inlierFrames.push_back(o.frameIdx);
 
     // Robust radius: median + MAD.
     std::vector<float> radii;

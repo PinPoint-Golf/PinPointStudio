@@ -49,7 +49,10 @@ void BallDetector::clearProfile()
 
 void BallDetector::beginCalibCapture(int targetFrames)
 {
-    m_calibTarget = qMax(1, targetFrames);
+    // targetFrames <= 0 — open-ended: stream every ROI frame until
+    // cancelCalibCapture(). The calibration controller uses this so it can
+    // gate on scene stillness and count stored frames itself.
+    m_calibTarget = targetFrames > 0 ? targetFrames : -1;
     m_calibHave   = 0;
 }
 
@@ -91,9 +94,9 @@ void BallDetector::detect(const cv::Mat &frame)
 
     // Calibration capture (side effect — detection continues below so the
     // overlays stay live and the throttle contract is untouched).
-    if (m_calibTarget > 0) {
+    if (m_calibTarget != 0) {
         emit calibFrame(roiMat.clone(), ++m_calibHave, m_calibTarget);
-        if (m_calibHave >= m_calibTarget) {
+        if (m_calibTarget > 0 && m_calibHave >= m_calibTarget) {
             m_calibTarget = 0;
             m_calibHave   = 0;
             emit calibCaptureDone();

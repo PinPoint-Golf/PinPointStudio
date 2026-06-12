@@ -675,8 +675,10 @@ src/Analysis/tests/
 
 src/Pose/                       Vision groundwork (B0–B5) — no candidate producer yet (§9)
 ├── ball_detector.{h,cpp}       BallDetector — calibration-gated detection, drift monitor,
-│                                 calib-capture mode (setProfile/clearProfile, beginCalibCapture)
-├── ball_model.h                pinpoint::ballcal — BallCalProfile, candidate scoring
+│                                 calib-capture mode (setProfile/clearProfile, beginCalibCapture;
+│                                 target ≤ 0 = open-ended stream for the stillness gate)
+├── ball_model.h                pinpoint::ballcal — BallCalProfile, candidate scoring,
+│                                 frameStillness (noise-adaptive capture gate)
 ├── ball_calibration_logic.h    Calibration session protocol (pure header)
 ├── ball_calibration_store.h    Profile persistence (profile.yml.gz per cameraKey)
 └── tests/
