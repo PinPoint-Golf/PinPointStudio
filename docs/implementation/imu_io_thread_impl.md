@@ -119,6 +119,11 @@ Re-run: `imu-tests` (+TSAN), the full Buffer suite, and the headless app start.
 
 ## W4 — Studio validation
 
+- **macOS connect path verified (2026-06-12):** connect, service discovery,
+  streaming and clean stop()/teardown all pass with the driver on `ImuIoThread`.
+  (An apparent macOS stall during this pass was environmental — a USB BT dongle
+  wedging bluetoothd, see `docs/reference/macos_ble_troubleshooting.md` — not a
+  thread-affinity problem.)
 - Calibration screens + live video smooth with 3 IMUs connected (the original
   complaint); CPU per-core profile sane in Task Manager.
 - Calibrate flow end-to-end (the stillness gates read worker snapshots now).

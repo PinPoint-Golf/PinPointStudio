@@ -73,10 +73,21 @@ static void ppMessageHandler(QtMsgType type, const QMessageLogContext &ctx, cons
     if (ctx.category) {
         const QLatin1StringView cat(ctx.category);
 
+        // PINPOINT_BLE_TRACE=1: emit the full qt.bluetooth category to stderr
+        // (enable with QT_LOGGING_RULES="qt.bluetooth*=true"). The category is
+        // suppressed below by default, which also hides Qt-side BLE *errors* —
+        // this is the only way to see where a connection stalls in the field.
+        static const bool bleTrace = qEnvironmentVariableIsSet("PINPOINT_BLE_TRACE");
+        const bool isBle = cat.startsWith(QLatin1StringView("qt.bluetooth"));
+        if (bleTrace && isBle) {
+            fprintf(stderr, "[%s] %s\n", ctx.category, msg.toLocal8Bit().constData());
+            return;
+        }
+
         if (cat.startsWith(QLatin1StringView("qt.multimedia.ffmpeg"))
          || cat.startsWith(QLatin1StringView("qt.multimedia.playbackengine"))
          || cat.startsWith(QLatin1StringView("qt.core.qfuture"))
-         || cat.startsWith(QLatin1StringView("qt.bluetooth")))
+         || isBle)
             return;
 
 #if PINPOINT_DEBUG_LEVEL < 3
