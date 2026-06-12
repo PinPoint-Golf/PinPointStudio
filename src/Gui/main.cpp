@@ -57,6 +57,9 @@ int main(int argc, char *argv[])
 {
     PinPointDebug::install();
 #ifdef HAVE_OPENCV
+    // WARN+ logger output still goes to std::cerr (no writer hook before
+    // OpenCV 4.11) — captured into PpMessageLog by the cerr tee in
+    // PinPointDebug::install() above.
     cv::utils::logging::setLogLevel(cv::utils::logging::LOG_LEVEL_WARNING);
     cv::redirectError([](int status, const char *func, const char *msg,
                          const char * /*file*/, int /*line*/, void *) -> int {

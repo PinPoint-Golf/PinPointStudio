@@ -40,6 +40,9 @@
 #include <QMessageLogContext>
 #include <cstdarg>
 #include <cstdio>
+#include <iostream>
+#include <streambuf>
+#include <string>
 
 // ── PpLogStream ───────────────────────────────────────────────────────────────
 
@@ -104,6 +107,96 @@ static void ppMessageHandler(QtMsgType type, const QMessageLogContext &ctx, cons
     case QtFatalMsg:    fprintf(stderr, "FATAL: %s\n",    localMsg.constData()); ::abort();
     }
 #endif
+}
+
+// ── std::cerr capture ─────────────────────────────────────────────────────────
+// OpenCV's logger (CV_LOG_WARNING / CV_LOG_ERROR — e.g. videoio's
+// "[ WARN:0@1.234] global cap_v4l.cpp ..." lines) writes straight to std::cerr;
+// the writer-replacement hook only exists from OpenCV 4.11, so on 4.10 the only
+// way to capture it is to tee the stream itself.  cv::redirectError in main.cpp
+// covers the CV_Error path; this covers the logging path.  Safe against
+// recursion: all PinPoint/Qt/FFmpeg console output uses stdio (fprintf), which
+// bypasses iostream streambufs.  STTBackendWhisperCpp's temporary
+// devnull-rdbuf swap during model load saves and restores this buffer — fine.
+
+namespace {
+
+class CerrCaptureBuf : public std::streambuf
+{
+public:
+    explicit CerrCaptureBuf(std::streambuf *fwd) : m_fwd(fwd) {}
+
+protected:
+    int overflow(int ch) override
+    {
+        if (ch == traits_type::eof())
+            return 0;
+        const char c = traits_type::to_char_type(ch);
+        ingest(&c, 1);
+        return ch;
+    }
+
+    std::streamsize xsputn(const char *s, std::streamsize n) override
+    {
+        ingest(s, n);
+        return n;
+    }
+
+    int sync() override { return m_fwd ? m_fwd->pubsync() : 0; }
+
+private:
+    void ingest(const char *s, std::streamsize n)
+    {
+#if PINPOINT_DEBUG_LEVEL > 0
+        if (m_fwd)
+            m_fwd->sputn(s, n);
+#endif
+        // Writers may emit partial lines — accumulate per thread (OpenCV logs
+        // from capture threads) and flush one PpMessageLog entry per full line.
+        thread_local std::string pending;
+        pending.append(s, size_t(n));
+
+        size_t nl;
+        while ((nl = pending.find('\n')) != std::string::npos) {
+            emitLine(QString::fromUtf8(pending.data(), qsizetype(nl)).trimmed());
+            pending.erase(0, nl + 1);
+        }
+    }
+
+    static void emitLine(const QString &line)
+    {
+        if (line.isEmpty())
+            return;
+
+        // OpenCV log lines carry their severity as "[LEVEL:thread@time] ..."
+        // (level padded to 5 chars: "[ WARN", "[ERROR", "[FATAL", "[ INFO").
+        QtMsgType type = QtWarningMsg;
+        QString   tag  = QStringLiteral("[stderr] ");
+        if (line.startsWith(QLatin1StringView("[ERROR:"))
+         || line.startsWith(QLatin1StringView("[FATAL:"))) {
+            type = QtCriticalMsg;
+            tag  = QStringLiteral("[OpenCV] ");
+        } else if (line.startsWith(QLatin1StringView("[ WARN:"))) {
+            tag  = QStringLiteral("[OpenCV] ");
+        } else if (line.startsWith(QLatin1StringView("[ INFO:"))) {
+            type = QtInfoMsg;
+            tag  = QStringLiteral("[OpenCV] ");
+        } else if (line.startsWith(QLatin1StringView("[DEBUG:"))
+                || line.startsWith(QLatin1StringView("[VERB:"))) {
+            return;
+        }
+        PpMessageLog::instance()->append(type, tag + line);
+    }
+
+    std::streambuf *m_fwd;
+};
+
+} // namespace
+
+static void installCerrCapture()
+{
+    static CerrCaptureBuf s_buf(std::cerr.rdbuf());
+    std::cerr.rdbuf(&s_buf);
 }
 
 // ── Dependency log suppressors ────────────────────────────────────────────────
@@ -205,6 +298,9 @@ static void installAvLogCallbackOnAllInstances()
 void PinPointDebug::install()
 {
     qInstallMessageHandler(ppMessageHandler);
+
+    // Capture iostream stderr writers (OpenCV's logger) into PpMessageLog.
+    installCerrCapture();
 
     whisper_log_set(silentLogCallback, nullptr);
     ggml_log_set(silentLogCallback, nullptr);

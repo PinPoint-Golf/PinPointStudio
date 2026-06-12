@@ -66,8 +66,10 @@ public:
 
 namespace PinPointDebug {
     // Call once at the very start of main(), before creating any Qt objects.
-    // Installs the Qt message handler, silences whisper/ggml dependency noise,
-    // and installs the FFmpeg av_log capture on already-loaded libavutil instances.
+    // Installs the Qt message handler, a std::cerr tee that routes iostream
+    // stderr writers (OpenCV's logger) into PpMessageLog, silences whisper/ggml
+    // dependency noise, and installs the FFmpeg av_log capture on
+    // already-loaded libavutil instances.
     void install();
 
     // Call once after QGuiApplication is constructed.  Forces the Qt Multimedia
