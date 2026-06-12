@@ -30,6 +30,7 @@ The `docs/` folder is organised by audience: **user**, **design**, **developer**
 - [EventBuffer Design](docs/design/event_buffer_design.md) — Architecture and design rationale for the lock-free EventBuffer.
 - [Shot Analyzer Design](docs/design/shot_analyzer_design.md) — Post-shot analysis pipeline: phase segmentation, metric extraction, scoring, and the per-session-type analyzer interface.
 - [IMU Frame Contract](docs/design/imu_frame_contract.md) — The device-agnostic orientation boundary every IMU consumer depends on.
+- [Calibrated Ball Detection](docs/design/ball_detection_calibration.md) — Environment-calibrated stationary-ball detection with a user-in-the-loop calibration protocol.
 - [QML Design System](docs/design/pinpoint_qml_design_system.md) — Token system, typography rules, and component patterns; read before writing any QML.
 - [Aesthetic Design Concepts](docs/design/aesthetic/pinpoint-aesthetic-concepts.md) — Three visual design directions (Editorial, Instrument, Studio) across light and dark themes.
 

@@ -11,6 +11,13 @@ an **offline trajectory-refinement** pass over the frozen `SwingWindow`. No IR.
 Status: **plan / not started.** This doc is the build spec — file paths, signatures, throttle/threading
 contracts, CMake recipe, phasing, and tests are all grounded in the current code (file:line below).
 
+> **Update (2026-06):** the *stationary acquisition* layer this plan keeps classical (§3.4
+> `ClassicalPatchDetector`) is being redesigned as an **environment-calibrated detector** — see
+> [`ball_detection_calibration.md`](ball_detection_calibration.md). That effort replaces the
+> fixed-threshold Hough/HSV path and supersedes §3.4's classical seam; the CNN/Kalman flight-tracking
+> plan here is unchanged and should use the calibrated detector for SEARCHING/acquisition when a
+> profile exists.
+
 ---
 
 ## 0. Goals & non-goals
