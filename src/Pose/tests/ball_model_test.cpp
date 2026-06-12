@@ -177,11 +177,162 @@ static void testBallModelFit()
     CHECK("dim studio: calibration passes", dim.pass);
     CHECK("dim studio: positive margin", dim.margin >= tuning::kMinMargin);
 
-    // No ball placed → invalid model, no crash.
+    // No ball placed → invalid model, no crash, and a diagnosis for the UI.
     std::vector<cv::Mat> empties;
     for (int i = 0; i < 8; ++i) empties.push_back(makeFrame(60.0, 3.0, 900 + i));
     BallModel none = fitBallModel(empties, dim.bg);
     CHECK("no ball: model invalid", !none.valid);
+    CHECK("no ball: diagnosis filled", !none.diag.empty());
+}
+
+static void testBallIsolationTriesHard()
+{
+    std::printf("ball isolation (shape-ranked, ladder, consensus):\n");
+
+    BackgroundModel bg;
+    for (int i = 0; i < 12; ++i) bg.accumulate(makeFrame(60.0, 3.0, 1000 + i));
+    bg.finalize();
+
+    // 1. Ball ON A TEE: the stalk merges into the blob and drags circularity
+    //    below the old 0.55 gate — must still isolate.
+    std::vector<cv::Mat> teeFrames;
+    for (int i = 0; i < 12; ++i) {
+        cv::Mat f = makeFrame(60.0, 3.0, 1100 + i);
+        cv::rectangle(f, cv::Point(kW / 2 - 3, kH / 2 + 16), cv::Point(kW / 2 + 3, kH / 2 + 34),
+                      cv::Scalar(115, 115, 115), cv::FILLED);      // tee stalk
+        drawBall(f, {kW / 2.f, kH / 2.f}, 20.f, 115.0);
+        teeFrames.push_back(f);
+    }
+    BallModel tee = fitBallModel(teeFrames, bg);
+    CHECK("tee: model valid", tee.valid);
+    // The stalk merges into the learned blob — radius lands between the bare
+    // ball and ball+stalk. Self-consistent: runtime sees the same blob.
+    CHECK("tee: radius plausible (ball..ball+stalk)",
+          tee.radiusPx >= 18.0 && tee.radiusPx <= 32.0);
+    {
+        cv::Mat probe = makeFrame(60.0, 3.0, 1150);
+        cv::rectangle(probe, cv::Point(kW / 2 - 3, kH / 2 + 16), cv::Point(kW / 2 + 3, kH / 2 + 34),
+                      cv::Scalar(115, 115, 115), cv::FILLED);
+        drawBall(probe, {kW / 2.f, kH / 2.f}, 20.f, 115.0);
+        Detection d = detect(probe, bg, tee, 0.45);
+        CHECK("tee: runtime detect on the same scene", d.found);
+    }
+
+    // 2. Ball is NOT the largest change: a big IRREGULAR patch (mat shift /
+    //    shadow — genuinely jagged, the way real shadows are) coexists — the
+    //    ranking must choose the round ball, not the biggest blob. (A big
+    //    ROUND coexisting object is inherently ambiguous and is settled by
+    //    the validation rounds, not the per-frame pick.)
+    std::vector<cv::Mat> distractFrames;
+    for (int i = 0; i < 12; ++i) {
+        cv::Mat f = makeFrame(60.0, 3.0, 1200 + i);
+        // L-shaped region ~4x the ball's footprint, top-left.
+        cv::rectangle(f, cv::Point(20, 30), cv::Point(140, 60),
+                      cv::Scalar(100, 100, 100), cv::FILLED);
+        cv::rectangle(f, cv::Point(20, 60), cv::Point(55, 130),
+                      cv::Scalar(100, 100, 100), cv::FILLED);
+        drawBall(f, {230.f, 170.f}, 20.f, 115.0);
+        distractFrames.push_back(f);
+    }
+    BallModel dis = fitBallModel(distractFrames, bg);
+    CHECK("distractor: model valid", dis.valid);
+    CHECK_NEAR("distractor: picked the BALL, x", dis.calibCenter.x, 230.0, 5.0);
+    CHECK_NEAR("distractor: picked the BALL, y", dis.calibCenter.y, 170.0, 5.0);
+
+    // 3. A blob with NO meaningful contrast must REFUSE to calibrate —
+    //    calibration considers high-contrast blobs only (the ball WILL
+    //    contrast with the background; a +10-luma smudge is not a ball).
+    std::vector<cv::Mat> faintFrames;
+    for (int i = 0; i < 12; ++i) {
+        cv::Mat f = makeFrame(60.0, 3.0, 1300 + i);
+        drawBall(f, {kW / 2.f, kH / 2.f}, 20.f, 70.0);   // +10 luma — under the floor
+        faintFrames.push_back(f);
+    }
+    BallModel faint = fitBallModel(faintFrames, bg);
+    CHECK("low-contrast blob refuses to calibrate", !faint.valid);
+    CHECK("low-contrast refusal explains itself",
+          faint.diag.find("low-contrast") != std::string::npos);
+
+    // 4. A REAL golf ball at studio distance is only a few pixels — no
+    //    absolute size expectation may reject it. Full pipeline at r=4px.
+    CalibScene tiny = calibrate(60.0, 140.0, 3.0, {kW / 2.f, kH / 2.f}, 4.f);
+    CHECK("tiny ball (4px): model valid", tiny.ball.valid);
+    CHECK_NEAR("tiny ball: learned radius", tiny.ball.radiusPx, 4.0, 1.5);
+    CHECK("tiny ball: calibration passes", tiny.pass);
+    {
+        cv::Mat p2 = makeFrame(60.0, 3.0, 1500);
+        drawBall(p2, {200.f, 120.f}, 4.f, 140.0);
+        Detection d2 = detect(p2, tiny.bg, tiny.ball, tiny.theta);
+        CHECK("tiny ball: runtime detect (moved)", d2.found);
+        CHECK_NEAR("tiny ball: centre x", d2.centerPx.x, 200.0, 3.0);
+    }
+    {
+        Detection d3 = detect(makeFrame(60.0, 3.0, 1600), tiny.bg, tiny.ball, tiny.theta);
+        CHECK("tiny ball: empty frame stays empty", !d3.found);
+    }
+
+    // 5. THE canonical studio scene: near-black background, white ball — the
+    //    contrast assumption calibration is allowed to make.
+    CalibScene studio = calibrate(25.0, 210.0, 3.0);
+    CHECK("dark studio + white ball: calibration passes", studio.pass);
+    CHECK("dark studio: strong margin", studio.margin >= 0.25);
+    {
+        cv::Mat p = makeFrame(25.0, 3.0, 1700);
+        drawBall(p, {120.f, 90.f}, 20.f, 210.0);
+        Detection d4 = detect(p, studio.bg, studio.ball, studio.theta);
+        CHECK("dark studio: detect", d4.found);
+    }
+
+    // 6. SIZE IS KNOWN AFTER CALIBRATION: a beach-ball-sized bright blob must
+    //    be rejected at runtime — the learned radius hard-gates candidates.
+    {
+        cv::Mat p = makeFrame(25.0, 3.0, 1800);
+        drawBall(p, {kW / 2.f, kH / 2.f}, 60.f, 210.0);   // 3x the calibrated ball
+        Detection d5 = detect(p, studio.bg, studio.ball, studio.theta);
+        CHECK("beach ball rejected post-calibration", !d5.found);
+    }
+    {
+        cv::Mat p = makeFrame(25.0, 3.0, 1900);
+        drawBall(p, {kW / 2.f, kH / 2.f}, 7.f, 210.0);    // a third of the size
+        Detection d6 = detect(p, studio.bg, studio.ball, studio.theta);
+        CHECK("undersized blob rejected post-calibration", !d6.found);
+    }
+
+    // 7. CONTRAST IS KNOWN AFTER CALIBRATION: a ball-SIZED, ball-SHAPED blob
+    //    at a fraction of the calibrated ball's contrast (a mark on the mat,
+    //    background texture, a shadow patch) must be rejected at runtime —
+    //    NCC alone cannot reject it (it is contrast-invariant).
+    {
+        cv::Mat p = makeFrame(25.0, 3.0, 2000);
+        drawBall(p, {kW / 2.f, kH / 2.f}, 20.f, 85.0);    // right size, faint (60 vs ball's 185)
+        Detection d7 = detect(p, studio.bg, studio.ball, studio.theta);
+        CHECK("faint ball-sized smudge rejected post-calibration", !d7.found);
+    }
+
+    // 8. NON-UNIFORM background (gradient + noise): calibrates, detects, and
+    //    the texture itself never false-positives.
+    {
+        CalibScene tex;
+        for (int i = 0; i < 12; ++i)
+            tex.bg.accumulate(makeFrame(35.0, 3.0, 2100 + i, /*gradient=*/50.0));
+        tex.bg.finalize();
+        std::vector<cv::Mat> ballFrames;
+        for (int i = 0; i < 12; ++i) {
+            cv::Mat f = makeFrame(35.0, 3.0, 2200 + i, 50.0);
+            drawBall(f, {kW / 2.f, kH / 2.f}, 20.f, 200.0);
+            ballFrames.push_back(f);
+        }
+        tex.ball = fitBallModel(ballFrames, tex.bg);
+        CHECK("textured bg: ball model valid", tex.ball.valid);
+        std::vector<double> bs, es;
+        for (const auto &f : ballFrames) bs.push_back(detect(f, tex.bg, tex.ball, 2.0).score);
+        for (int i = 0; i < 12; ++i)
+            es.push_back(detect(makeFrame(35.0, 3.0, 2300 + i, 50.0), tex.bg, tex.ball, 2.0).score);
+        const ThresholdResult t = deriveThreshold(bs, es);
+        CHECK("textured bg: calibration passes", t.pass);
+        Detection d8 = detect(makeFrame(35.0, 3.0, 2400, 50.0), tex.bg, tex.ball, t.theta);
+        CHECK("textured bg: empty frame stays empty", !d8.found);
+    }
 }
 
 static void testThresholdDerivation()
@@ -208,6 +359,17 @@ static void testThresholdDerivation()
 
     t = deriveThreshold({0.8, 0.9}, {});
     CHECK("no empty scores still derives", t.pass);
+
+    // Robust endpoints: ONE bad capture frame (occlusion, AE flicker) must
+    // not define the result — the 10th/90th percentiles trim it.
+    std::vector<double> ball12(12, 0.85);
+    ball12[5] = 0.10;                       // single occluded frame
+    std::vector<double> empty12(12, 0.05);
+    empty12[7] = 0.80;                      // single foot-through-frame
+    t = deriveThreshold(ball12, empty12);
+    CHECK("single bad ball frame trimmed", t.minBall >= 0.80);
+    CHECK("single bad empty frame trimmed", t.maxEmpty <= 0.10);
+    CHECK("outlier-resistant derivation passes", t.pass);
 }
 
 static void testDetection()
@@ -289,6 +451,7 @@ int main()
 {
     testBackgroundModel();
     testBallModelFit();
+    testBallIsolationTriesHard();
     testThresholdDerivation();
     testDetection();
     testGainInvariance();

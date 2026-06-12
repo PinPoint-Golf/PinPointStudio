@@ -741,8 +741,19 @@ void CameraInstance::setRoi(QRectF roi)
     roi = roi.normalized().intersected(QRectF(0.0, 0.0, 1.0, 1.0));
     if (roi.isEmpty() || m_roi == roi)
         return;
+    const bool hadRoi = !m_roi.isEmpty();
     m_roi = roi;
     emit roiChanged();
+
+#ifdef HAVE_OPENCV
+    // A different hitting area invalidates the learned calibration profile
+    // (design §6 hard invalidation) — enforced here so EVERY change path
+    // (manager commit, live drag-resize, QML) invalidates exactly once. The
+    // connect-time restore is unaffected: it sets the ROI first (nothing
+    // calibrated yet), then applies the matching saved profile.
+    if (hadRoi && m_ballCalibrated)
+        clearBallCalProfile();
+#endif
 }
 
 void CameraInstance::clearRoi()
@@ -791,40 +802,10 @@ double CameraInstance::ballY()               const { return m_ballY; }
 double CameraInstance::ballRadius()          const { return m_ballRadius; }
 double CameraInstance::ballPresencePercent() const { return m_ballPresencePercent; }
 bool   CameraInstance::ballPresent()         const { return m_ballPresent; }
-double CameraInstance::ballHoughConf()       const { return m_ballHoughConf; }
-int    CameraInstance::ballWhiteSatCeil()    const { return m_ballWhiteSatCeil; }
 bool   CameraInstance::ballCalibrated()      const { return m_ballCalibrated; }
 bool   CameraInstance::ballDrifting()        const { return m_ballDrifting; }
 double CameraInstance::ballDriftSeverity()   const { return m_ballDriftSeverity; }
 
-#ifdef HAVE_OPENCV
-void CameraInstance::setBallHoughConf(double v)
-{
-    v = qBound(0.3, v, 1.0);
-    if (qFuzzyCompare(v, m_ballHoughConf)) return;
-    m_ballHoughConf = v;
-    if (m_ballDetector)
-        QMetaObject::invokeMethod(m_ballDetector, [this]() {
-            m_ballDetector->setParams(m_ballHoughConf, m_ballWhiteSatCeil);
-        }, Qt::QueuedConnection);
-    emit ballHoughConfChanged();
-}
-
-void CameraInstance::setBallWhiteSatCeil(int v)
-{
-    v = qBound(20, v, 120);
-    if (v == m_ballWhiteSatCeil) return;
-    m_ballWhiteSatCeil = v;
-    if (m_ballDetector)
-        QMetaObject::invokeMethod(m_ballDetector, [this]() {
-            m_ballDetector->setParams(m_ballHoughConf, m_ballWhiteSatCeil);
-        }, Qt::QueuedConnection);
-    emit ballWhiteSatCeilChanged();
-}
-#else
-void CameraInstance::setBallHoughConf(double)    {}
-void CameraInstance::setBallWhiteSatCeil(int)    {}
-#endif
 
 #ifdef HAVE_OPENCV
 void CameraInstance::applyBallCalProfile(const pinpoint::ballcal::BallCalProfile &profile)
@@ -910,7 +891,7 @@ void CameraInstance::onBallDetected(const BallDetection &result)
     // Fire ting and notify CameraManager when threshold-based presence flips.
     const bool nowPresent = (m_ballPresencePercent > kBallPresentThreshold);
     if (m_ballPresent != nowPresent) {
-        if (!m_ballPresent && nowPresent)
+        if (!m_ballPresent && nowPresent && !m_ballTingSuppressed)
             m_tingPlayer->play();
         m_ballPresent = nowPresent;
         emit ballPresentChanged(nowPresent);

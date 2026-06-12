@@ -48,23 +48,25 @@ Item {
 
     // Named step indices (panels live in a StackLayout at these indices). Use
     // these everywhere instead of hardcoded numbers so the wizard stays robust.
-    //   Goals(0) Cameras(1) Triangulate(2) IMUs(3) Calibrate(4) Confirm(5) Ready(6)
+    //   Goals(0) Cameras(1) Triangulate(2) BallCal(3) IMUs(4) Calibrate(5) Confirm(6) Ready(7)
     // Triangulate appears only once both camera perspectives are connected
-    // (hasTriangulateStep); Calibrate + Confirm are wrist-only (hasCalibrateStep);
-    // all others run every session. (Zero-G / gyro-bias is performed in the
-    // WitMotion app, not here.)
+    // (hasTriangulateStep); BallCal always shows and is skippable (the generic
+    // detector remains the fallback); Calibrate + Confirm are wrist-only
+    // (hasCalibrateStep); all others run every session. (Zero-G / gyro-bias is
+    // performed in the WitMotion app, not here.)
     readonly property int stepGoals:       0
     readonly property int stepCameras:     1
     readonly property int stepTriangulate: 2
-    readonly property int stepImus:        3
-    readonly property int stepCalibrate:   4
-    readonly property int stepConfirm:     5
-    readonly property int stepReady:       6
-    readonly property int stepCount:       7
+    readonly property int stepBallCal:     3
+    readonly property int stepImus:        4
+    readonly property int stepCalibrate:   5
+    readonly property int stepConfirm:     6
+    readonly property int stepReady:       7
+    readonly property int stepCount:       8
 
     property int currentStep: 0
     // stepCount entries, indexed by the named step constants above.
-    property var stepStates: ["pending", "pending", "pending", "pending", "pending", "pending", "pending"]
+    property var stepStates: ["pending", "pending", "pending", "pending", "pending", "pending", "pending", "pending"]
 
     // Per-session IMU exclusion lives in ImuManager (imuManager.sessionImuExcluded)
     // so the wizard and every toolbar IMU panel share one list — same pattern as
@@ -94,12 +96,27 @@ Item {
         return fo && dtl
     }
 
+    // First CONNECTED face-on camera instance (reactive on instances) and the
+    // ball-detection calibration state — drives the BallCal step, its footer
+    // hint/Skip, and the Ready summary row.
+    readonly property QtObject ballFaceOnInst: {
+        var insts = cameraManager.instances
+        var fo = faceOnList
+        for (var i = 0; i < fo.length; ++i)
+            for (var j = 0; j < insts.length; ++j)
+                if (insts[j].cameraKey === fo[i].cameraKey)
+                    return insts[j]
+        return null
+    }
+    readonly property bool ballCalDone: ballFaceOnInst !== null && ballFaceOnInst.ballCalibrated
+
     // Ordered indices of the steps visible for the current session type and
     // camera state — the single source of truth for navigation (goNext/goBack),
     // the tab strip, and the "STEP x OF N" numbering.
     readonly property var visibleSteps: {
         var s = [stepGoals, stepCameras]
         if (hasTriangulateStep) s.push(stepTriangulate)
+        s.push(stepBallCal)
         s.push(stepImus)
         if (hasCalibrateStep) { s.push(stepCalibrate); s.push(stepConfirm) }
         s.push(stepReady)
@@ -643,7 +660,7 @@ Item {
                     // stepCount tabs always present; conditional steps (Triangulate,
                     // Calibrate, Confirm) hide via visibleSteps. Indices match the
                     // named step constants.
-                    model: [qsTr("Goals"), qsTr("Cameras"), qsTr("Triangulate"), qsTr("IMUs"), qsTr("Calibrate"), qsTr("Confirm"), qsTr("Ready")]
+                    model: [qsTr("Goals"), qsTr("Cameras"), qsTr("Triangulate"), qsTr("Ball"), qsTr("IMUs"), qsTr("Calibrate"), qsTr("Confirm"), qsTr("Ready")]
 
                     delegate: Row {
                         id: tabRow
@@ -1027,146 +1044,6 @@ Item {
 
                             }
 
-                            // ── Ball detection confirmation (design §8.2) ──
-                            // Settings is the home of ROI + calibration; this
-                            // row only CONFIRMS. Calibrated → one-glance tick;
-                            // not calibrated → optional inline calibration.
-                            // Never blocks Continue.
-                            Column {
-                                id: ballCalBlock
-                                width: parent.width
-                                spacing: Theme.sp(8)
-
-                                // First CONNECTED face-on camera (reactive on
-                                // instances — same pattern as CheckRow._inst).
-                                readonly property QtObject faceOnInst: {
-                                    var insts = cameraManager.instances
-                                    var fo = root.faceOnList
-                                    for (var i = 0; i < fo.length; ++i)
-                                        for (var j = 0; j < insts.length; ++j)
-                                            if (insts[j].cameraKey === fo[i].cameraKey)
-                                                return insts[j]
-                                    return null
-                                }
-                                readonly property QtObject calCtrl:
-                                    faceOnInst ? cameraManager.ballCalibrationFor(faceOnInst) : null
-                                readonly property var savedInfo:
-                                    calCtrl ? calCtrl.savedProfileInfo() : ({})
-                                property bool expanded: false
-
-                                visible: faceOnInst !== null
-
-                                RowLayout {
-                                    width: parent.width
-                                    spacing: Theme.sp(8)
-
-                                    Rectangle {
-                                        implicitWidth: Theme.sp(8); implicitHeight: Theme.sp(8)
-                                        radius: width / 2
-                                        Layout.alignment: Qt.AlignVCenter
-                                        color: ballCalBlock.faceOnInst && ballCalBlock.faceOnInst.ballCalibrated
-                                               ? Theme.colorGood : Theme.colorText3
-                                    }
-                                    Text {
-                                        Layout.fillWidth: true
-                                        text: {
-                                            var inst = ballCalBlock.faceOnInst
-                                            if (!inst) return ""
-                                            if (!inst.ballCalibrated)
-                                                return qsTr("Ball detection not calibrated — the generic detector will be used")
-                                            var info  = ballCalBlock.savedInfo
-                                            var parts = []
-                                            if (info.margin !== undefined)
-                                                parts.push(qsTr("margin %1").arg(Number(info.margin).toFixed(2)))
-                                            if (info.calibratedAtMs) {
-                                                var days = Math.floor((Date.now() - info.calibratedAtMs) / 86400000)
-                                                parts.push(days <= 0 ? qsTr("today")
-                                                         : days === 1 ? qsTr("yesterday")
-                                                         : qsTr("%1 days ago").arg(days))
-                                            }
-                                            return parts.length
-                                                ? qsTr("Ball detection calibrated (%1)").arg(parts.join(", "))
-                                                : qsTr("Ball detection calibrated")
-                                        }
-                                        wrapMode: Text.WordWrap
-                                        font.family: Theme.fontBody
-                                        font.pixelSize: Theme.fontSzBody2
-                                        color: ballCalBlock.faceOnInst && ballCalBlock.faceOnInst.ballCalibrated
-                                               ? Theme.colorText2 : Theme.colorText3
-                                    }
-                                    Text {
-                                        text: ballCalBlock.expanded ? qsTr("Hide")
-                                             : (ballCalBlock.faceOnInst && ballCalBlock.faceOnInst.ballCalibrated
-                                                ? qsTr("Recalibrate") : qsTr("Calibrate now"))
-                                        font.family: Theme.fontBody
-                                        font.pixelSize: Theme.fontSzBody2
-                                        color: Theme.colorAccent
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: ballCalBlock.expanded = !ballCalBlock.expanded
-                                        }
-                                    }
-                                }
-
-                                // Drift hint (§6) carried into the wizard card.
-                                Text {
-                                    width: parent.width
-                                    visible: ballCalBlock.faceOnInst !== null
-                                             && ballCalBlock.faceOnInst.ballDrifting
-                                    text: qsTr("Lighting has changed since calibration — revalidating is recommended.")
-                                    wrapMode: Text.WordWrap
-                                    font.family: Theme.fontData
-                                    font.pixelSize: Theme.fontSzMicro
-                                    color: Theme.colorWarn
-                                }
-
-                                RowLayout {
-                                    width: parent.width
-                                    visible: ballCalBlock.expanded
-                                    spacing: Theme.sp(16)
-
-                                    Loader {
-                                        Layout.preferredWidth: Theme.sp(280)
-                                        Layout.preferredHeight: Theme.sp(180)
-                                        Layout.alignment: Qt.AlignTop
-                                        active: ballCalBlock.expanded && ballCalBlock.faceOnInst !== null
-                                        sourceComponent: PpCameraFrame {
-                                            instance: ballCalBlock.faceOnInst
-                                            showPoseOverlay:      false
-                                            showHittingArea:      true
-                                            roiEditable:          true
-                                            showPerspectiveBadge: false
-                                            showStatsOverlay:     false
-                                            showReplayBadge:      false
-                                            showReplayOverlay:    false
-                                        }
-                                    }
-
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        Layout.alignment: Qt.AlignTop
-                                        spacing: Theme.sp(8)
-
-                                        Text {
-                                            Layout.fillWidth: true
-                                            visible: ballCalBlock.faceOnInst !== null
-                                                     && ballCalBlock.faceOnInst.roi.width <= 0
-                                            text: qsTr("Drag on the video to draw the hitting area first.")
-                                            wrapMode: Text.WordWrap
-                                            font.family: Theme.fontBody
-                                            font.pixelSize: Theme.fontSzBody2
-                                            color: Theme.colorText2
-                                        }
-
-                                        BallCalibrationFlow {
-                                            Layout.fillWidth: true
-                                            controller: ballCalBlock.calCtrl
-                                            onCompleted: ballCalBlock.expanded = false
-                                        }
-                                    }
-                                }
-                            }
 
                             // Settings deep-link
                             Text {
@@ -1244,7 +1121,111 @@ Item {
                         }
                     }
 
-                    // ── Panel 3: IMUs ─────────────────────────────────────────
+                    // ── Panel 3: Ball Detection ───────────────────────────────
+                    // Always in the flow (visibleSteps) and skippable — the
+                    // generic detector remains the fallback. Settings is the
+                    // home of the hitting area + calibration (§8.1); this step
+                    // confirms or runs it inline for the connected face-on
+                    // camera (§8.2).
+
+                    Item {
+                        implicitHeight: ballCalCol.implicitHeight + Theme.sp(32)
+
+                        Column {
+                            id: ballCalCol
+                            anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.sp(32) }
+                            spacing: Theme.sp(16)
+
+                            StepIntro {
+                                width:   parent.width
+                                eyebrow: qsTr("STEP %1 OF %2 · BALL DETECTION").arg(root.stepNumbers[root.stepBallCal]).arg(root.totalSteps)
+                                heading: qsTr("Calibrate ball detection")
+                                body:    qsTr("Pinpoint learns what the ball and the empty hitting area look like under your studio's lighting, so detection is tuned to this exact setup. Place the hitting area over where the ball sits at address, then follow the prompts — you'll place and remove a ball a couple of times. Skip to use the generic detector.")
+                            }
+
+                            // Cameras step skipped / face-on not connected.
+                            Text {
+                                width: parent.width
+                                visible: root.ballFaceOnInst === null
+                                text: qsTr("No face-on camera connected — go back to the Cameras step and connect one, or skip ball detection.")
+                                wrapMode: Text.WordWrap
+                                font.family: Theme.fontBody
+                                font.pixelSize: Theme.fontSzBody2
+                                color: Theme.colorWarn
+                            }
+
+                            RowLayout {
+                                width: parent.width
+                                visible: root.ballFaceOnInst !== null
+                                spacing: Theme.sp(20)
+
+                                Loader {
+                                    id: ballStepFrame
+                                    Layout.preferredWidth: Theme.sp(420)
+                                    Layout.preferredHeight: Theme.sp(270)
+                                    Layout.alignment: Qt.AlignTop
+                                    // Only live while this step is showing — the
+                                    // wizard stays instantiated in the StackLayout.
+                                    active: root.currentStep === root.stepBallCal
+                                            && root.ballFaceOnInst !== null
+                                    onLoaded: {
+                                        var inst = root.ballFaceOnInst
+                                        if (inst && inst.roi.width <= 0)
+                                            cameraManager.setBallRoi(inst, Qt.rect(0.40, 0.55, 0.20, 0.30))
+                                    }
+                                    sourceComponent: PpCameraFrame {
+                                        instance: root.ballFaceOnInst
+                                        showPoseOverlay:      false
+                                        showHittingArea:      true
+                                        roiEditable:          true
+                                        showPerspectiveBadge: false
+                                        showStatsOverlay:     false
+                                        showReplayBadge:      false
+                                        showReplayOverlay:    false
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    Layout.alignment: Qt.AlignTop
+                                    spacing: Theme.sp(8)
+
+                                    readonly property QtObject calCtrl:
+                                        root.ballFaceOnInst
+                                            ? cameraManager.ballCalibrationFor(root.ballFaceOnInst) : null
+
+                                    // Drift hint (§6 soft drift).
+                                    Text {
+                                        Layout.fillWidth: true
+                                        visible: root.ballFaceOnInst !== null
+                                                 && root.ballFaceOnInst.ballDrifting
+                                        text: qsTr("Lighting has changed since calibration — revalidating is recommended.")
+                                        wrapMode: Text.WordWrap
+                                        font.family: Theme.fontData
+                                        font.pixelSize: Theme.fontSzMicro
+                                        color: Theme.colorWarn
+                                    }
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        visible: !root.ballCalDone
+                                        text: qsTr("Place the hitting area over where the ball sits at address: drag to move, corners to resize, drag outside to redraw.")
+                                        wrapMode: Text.WordWrap
+                                        font.family: Theme.fontBody
+                                        font.pixelSize: Theme.fontSzBody2
+                                        color: Theme.colorText2
+                                    }
+
+                                    BallCalibrationFlow {
+                                        Layout.fillWidth: true
+                                        controller: parent.calCtrl
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // ── Panel 4: IMUs ─────────────────────────────────────────
 
                     Item {
                         implicitHeight: imusCol.implicitHeight + Theme.sp(32)
@@ -1548,7 +1529,7 @@ Item {
                         }
                     }
 
-                    // ── Panel 4: Calibrate Sensors ───────────────────────────
+                    // ── Panel 5: Calibrate Sensors ───────────────────────────
                     // Only reachable for Wrist Motion (hasCalibrateStep).
                     // The panel fills the available height — no Flickable wrapper.
 
@@ -1570,7 +1551,7 @@ Item {
                         }
                     }
 
-                    // ── Panel 5: Confirm Tracking ─────────────────────────────
+                    // ── Panel 6: Confirm Tracking ─────────────────────────────
                     // Only reachable for wrist motion sessions (hasCalibrateStep).
 
                     Item {
@@ -1736,7 +1717,7 @@ Item {
                         }
                     }
 
-                    // ── Panel 6: Ready ────────────────────────────────────────
+                    // ── Panel 7: Ready ────────────────────────────────────────
 
 
                     Item {
@@ -1917,6 +1898,17 @@ Item {
                                                           ? qsTr("%1 sensors assigned").arg(root.curImuReqs.filter(function(r){ return r.required }).length)
                                                           : qsTr("Some sensors not assigned")
                                     }
+                                    Rectangle { width: parent.width; height: 1; color: Theme.colorBorderMid }
+                                    SummaryRow {
+                                        width: parent.width
+                                        rowLabel: qsTr("Ball detection")
+                                        good: root.ballCalDone
+                                        rowValue: root.ballCalDone
+                                                      ? qsTr("Calibrated")
+                                                      : root.stepStates[root.stepBallCal] === "skipped"
+                                                          ? qsTr("Skipped — generic detector")
+                                                          : qsTr("Not calibrated — generic detector")
+                                    }
                                 }
                             }
 
@@ -1991,6 +1983,9 @@ Item {
                                 : root.anyFixedCamera
                                     ? qsTr("Optional — cameras are fixed in place")
                                     : qsTr("Stereo calibration isn't available yet — skip to continue")
+                            if (s === root.stepBallCal) return root.ballCalDone
+                                ? qsTr("Ball detection calibrated")
+                                : qsTr("Calibrate for reliable ball detection — or skip to use the generic detector")
                             if (s === root.stepImus) return root.imusAllConnected
                                 ? qsTr("All required sensors connected")
                                 : root.imusOk
@@ -2010,6 +2005,7 @@ Item {
                             if (s === root.stepTriangulate)
                                 return (root._todo_triangulationValid || root.anyFixedCamera)
                                            ? Theme.colorGood : Theme.colorWarn
+                            if (s === root.stepBallCal) return root.ballCalDone ? Theme.colorGood : Theme.colorWarn
                             if (s === root.stepImus)    return root.imusAllConnected ? Theme.colorGood : Theme.colorWarn
                             if (s === root.stepCalibrate) return calibFlow.calibrationDone ? Theme.colorGood : Theme.colorWarn
                             return Theme.colorText3
@@ -2029,6 +2025,7 @@ Item {
                     PpButton {
                         visible: (root.currentStep === root.stepCameras && !root.camsAllConnected)
                                  || (root.currentStep === root.stepTriangulate && !root._todo_triangulationValid)
+                                 || (root.currentStep === root.stepBallCal && !root.ballCalDone)
                                  || (root.currentStep === root.stepImus && !root.imusAllConnected)
                                  || (root.currentStep === root.stepCalibrate && !calibFlow.calibrationDone)
                         label:   qsTr("Skip →")

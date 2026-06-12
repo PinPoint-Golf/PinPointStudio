@@ -29,6 +29,7 @@
 
 #include "ball_model.h"
 
+#include <fstream>
 #include <string>
 #include <opencv2/core/persistence.hpp>
 
@@ -68,6 +69,11 @@ inline bool saveProfile(const std::string &path, const BallCalProfile &p)
 
 inline bool loadProfile(const std::string &path, BallCalProfile &out)
 {
+    // Probe existence first — cv::FileStorage prints a loud global ERROR for
+    // a missing file, and "no profile yet" is the normal case (the wizard's
+    // status binding probes on every instance change).
+    if (!std::ifstream(path).good()) return false;
+
     cv::FileStorage fs(path, cv::FileStorage::READ);
     if (!fs.isOpened()) return false;
 
@@ -102,7 +108,7 @@ inline bool loadProfile(const std::string &path, BallCalProfile &out)
     fs["ballTemplate"]    >> p.ball.template8u;
     fs["ballMinContrast"] >> p.ball.minContrast;
 
-    p.ball.valid = p.ball.radiusPx >= 8.0 && !p.ball.template8u.empty();
+    p.ball.valid = p.ball.radiusPx >= tuning::kMinCandRadius && !p.ball.template8u.empty();
     p.valid = p.background.valid() && p.ball.valid && p.theta > 0.0
               && p.roiPxW > 0 && p.roiPxH > 0;
     if (!p.valid) return false;

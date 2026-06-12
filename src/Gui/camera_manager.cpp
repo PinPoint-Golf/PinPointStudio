@@ -636,16 +636,10 @@ void CameraManager::setBallRoi(QObject *rawController, QRectF roi)
         return;
     }
 
-    const bool roiChanged = target->roi() != roi;
+    // Profile invalidation on ROI change lives in CameraInstance::setRoi —
+    // the live drag-resize path updates the instance directly, so the
+    // manager cannot be the only gate.
     target->setRoi(roi);
-
-#ifdef HAVE_OPENCV
-    // A different hitting area invalidates the learned profile (§6) — the
-    // persisted file is kept (it records its own ROI; it reloads only when
-    // the area matches again).
-    if (roiChanged && target->ballCalibrated())
-        target->clearBallCalProfile();
-#endif
 
     AppSettings  fallback;
     AppSettings *ps = m_appSettings ? m_appSettings : &fallback;

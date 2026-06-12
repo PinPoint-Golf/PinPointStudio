@@ -42,13 +42,12 @@ Q_DECLARE_METATYPE(pinpoint::ballcal::BallCalProfile)
 
 // Detects golf balls within the hitting-area ROI.
 //
-// Two detection paths (docs/design/ball_detection_calibration.md §4):
-//   calibrated — when a valid BallCalProfile is set: background-difference +
-//                multi-cue scoring against the learned models (ball_model.h),
-//                with the per-frame illumination drift monitor.
-//   legacy     — bit-for-bit the original white-HSV/Hough/blob detector;
-//                the default when no profile exists, so nothing regresses
-//                for users who skip calibration.
+// Detection requires a calibration profile (docs/design/ball_detection_calibration.md):
+// background-difference + multi-cue scoring against the learned models
+// (ball_model.h), with the per-frame illumination drift monitor. WITHOUT a
+// profile the detector emits found=false — the legacy white-HSV/Hough/blob
+// path was retired (it was unusable in dim studios and its generic-parameter
+// false positives were noise); calibration is THE way to enable detection.
 //
 // Receives preprocessed BGR frames from VideoPreprocessorOpenCV.
 // Only searches within the ROI supplied via setRoi(); if no ROI is set
@@ -74,6 +73,7 @@ public:
     void setEnabled(bool on) { m_enabled.store(on, std::memory_order_relaxed); }
     bool isEnabled() const   { return m_enabled.load(std::memory_order_relaxed); }
 
+
 public slots:
     // Receives a BGR CV_8UC3 frame from VideoPreprocessorOpenCV.
     // No-op when no ROI is set.
@@ -81,12 +81,6 @@ public slots:
 
     // Update the search region. Safe to call via queued connection.
     void setRoi(QRectF roi);
-
-    // Tune detector parameters at runtime. Safe to call via queued connection.
-    // LEGACY PATH ONLY — ignored while a calibration profile is active.
-    // houghConf: HOUGH_GRADIENT_ALT confidence threshold [0.3, 1.0] (default 0.7)
-    // whiteSatCeil: HSV saturation upper bound for white-mask [20, 120] (default 50)
-    void setParams(double houghConf, int whiteSatCeil);
 
     // Swap in / drop the learned calibration profile. Safe to call via queued
     // connection. An invalid profile is equivalent to clearProfile().
@@ -116,8 +110,6 @@ signals:
     void calibCaptureDone();
 
 private:
-    void detectLegacy(const cv::Mat &roiMat, int rx, int ry, int fw, int fh,
-                      const QElapsedTimer &t);
     void detectCalibrated(const cv::Mat &roiMat, int rx, int ry, int fw, int fh,
                           const QElapsedTimer &t);
 
@@ -126,8 +118,6 @@ private:
     // Only accessed on the detector's own thread (all slots arrive via queued
     // connections, so they are serialised by the event loop).
     QRectF m_roi;
-    double m_houghConf    = 0.7;
-    int    m_whiteSatCeil = 50;
     pinpoint::ballcal::BallCalProfile m_profile;   // valid flag gates the path
     bool   m_drifting = false;
     int    m_calibTarget = 0;                      // >0 = capture mode armed

@@ -96,8 +96,6 @@ class CameraInstance : public QObject
     Q_PROPERTY(double ballPresencePercent READ ballPresencePercent NOTIFY ballPresencePercentChanged)
     Q_PROPERTY(bool   ballPresent        READ ballPresent        NOTIFY ballPresentChanged)
     Q_PROPERTY(double ballAvgMs          READ ballAvgMs          NOTIFY ballAvgMsChanged)
-    Q_PROPERTY(double ballHoughConf    READ ballHoughConf    NOTIFY ballHoughConfChanged)
-    Q_PROPERTY(int    ballWhiteSatCeil READ ballWhiteSatCeil NOTIFY ballWhiteSatCeilChanged)
     Q_PROPERTY(bool   ballCalibrated    READ ballCalibrated    NOTIFY ballCalibratedChanged)
     Q_PROPERTY(bool   ballDrifting      READ ballDrifting      NOTIFY ballDriftChanged)
     Q_PROPERTY(double ballDriftSeverity READ ballDriftSeverity NOTIFY ballDriftChanged)
@@ -152,14 +150,15 @@ public:
     double  ballPresencePercent() const;
     bool    ballPresent()         const;
     double  ballAvgMs()           const;
-    double  ballHoughConf()       const;
-    int     ballWhiteSatCeil()    const;
     bool    ballCalibrated()      const;
     bool    ballDrifting()        const;
     double  ballDriftSeverity()   const;
     // Profile provenance for swing.json (C++ only, set by applyBallCalProfile).
     double  ballCalMargin()       const { return m_ballCalMargin; }
     qint64  ballCalibratedAtMs()  const { return m_ballCalibratedAtMs; }
+    // Mute the ball-present ting (calibration's validate rounds would chime
+    // on every prompted place/remove). C++ only — BallCalibrationController.
+    void    setBallTingSuppressed(bool on) { m_ballTingSuppressed = on; }
     int     frameWidth()          const;
     int     frameHeight()         const;
     double  configuredFps()       const;
@@ -197,8 +196,6 @@ public:
     Q_INVOKABLE void selectMoveNetModel(int variant);
     Q_INVOKABLE void setRoi(QRectF roi);    // hitting area for ball detection
     Q_INVOKABLE void clearRoi();
-    Q_INVOKABLE void setBallHoughConf(double v);
-    Q_INVOKABLE void setBallWhiteSatCeil(int v);
 
 #ifdef HAVE_OPENCV
     // Called by BallCalibrationController — pushes the learned profile to the
@@ -235,8 +232,6 @@ signals:
     void ballPresencePercentChanged();
     void ballPresentChanged(bool present);
     void ballAvgMsChanged();
-    void ballHoughConfChanged();
-    void ballWhiteSatCeilChanged();
     void ballCalibratedChanged();
     void ballDriftChanged();
     void frameSizeChanged();
@@ -341,8 +336,7 @@ private:
     double           m_ballDriftSeverity    = 0.0;
     double           m_ballCalMargin        = 0.0;
     qint64           m_ballCalibratedAtMs   = 0;
-    double           m_ballHoughConf        = 0.7;
-    int              m_ballWhiteSatCeil     = 50;
+    bool             m_ballTingSuppressed   = false;
     TingPlayer      *m_tingPlayer           = nullptr;
     bool             m_replaying            = false;
     // Capture-rate FPS: counted on the capture thread, sampled on a timer.

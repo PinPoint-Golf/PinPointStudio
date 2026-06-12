@@ -19,7 +19,23 @@ pending. As-built deviations from this doc: the profile persists as ONE `cv::Fil
 `profile.yml.gz` per cameraKey hash (lossless float mats; simpler than the json+png split in §7),
 and there is no AppSettings `ballCalibrated` flag — UI status probes the saved profile via
 `BallCalibrationController::savedProfileInfo()` instead. The CaptureBall stability gate is a
-settle-timer + fit-sanity-gates rather than live blob tracking (§5).
+settle-timer + fit-sanity-gates rather than live blob tracking (§5). Hough never became a
+candidate generator (§2) — instead, candidate generation got a 4σ→2.5σ threshold ladder and the
+calibration-time isolation is shape-ranked over ALL diff blobs with cross-frame positional
+consensus and failure diagnostics (tee stalks, not-the-largest-blob and barely-above-noise balls
+are all handled; see `fitBallModel`). **The legacy Hough/HSV path was retired entirely
+(2026-06)** — §4's bit-for-bit fallback proved noise in practice (generic-parameter circles and
+presence tings); detection is now calibration-gated: no profile → found=false, silent. The
+`houghConf`/`whiteSatCeil` tunables were deleted with it. **Assumption split (2026-06, studio
+feedback):** calibration may assume CONTRAST but never size (the ROI may be tight or wide; the
+ball may be 3px or 60px) — isolation is dominant-contrast-blob picking (contrast²·radius over the
+inscribed circle, which penalises non-compact blobs for free), no shape ranking, no size floors
+beyond the morphology noise limit. Detection assumes SIZE but not strict shape: all golf balls
+are 42.67mm, so the calibrated pixel radius hard-gates runtime candidates to [0.5, 2.0]×r̂ —
+a beach-ball-sized blob can never be "the ball" after calibration. **Every protocol prompt is
+confirm-gated with a 5-second auto-press countdown (2026-06):** the validate rounds' remove/place
+asks wait for Continue (manual or countdown expiry) before watching starts — a reaching arm
+mid-removal must never count as a false positive.
 
 ---
 

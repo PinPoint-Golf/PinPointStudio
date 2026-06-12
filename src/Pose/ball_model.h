@@ -41,6 +41,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include <opencv2/core.hpp>
@@ -51,17 +52,47 @@ namespace pinpoint::ballcal {
 // ── Tuning constants (fixed by design — only theta is learned) ─────────────
 namespace tuning {
 // Multi-cue score weights (§3: "score weights are fixed, only theta is derived").
-inline constexpr float kWeightSize       = 0.30f;
-inline constexpr float kWeightShape      = 0.25f;
-inline constexpr float kWeightAppearance = 0.30f;
-inline constexpr float kWeightDiff       = 0.15f;
+// Contrast is a first-class cue: NCC is contrast-invariant by construction and
+// diff-support is self-fulfilling (the blob came from the mask), so without it
+// a faint background-texture smudge that is ball-sized and roundish scores
+// dangerously high.
+// Contrast outranks everything (studio physics: a light blob on the dark
+// hitting area can only be the ball; apparent size and shape are fragile
+// under lighting changes and attached shadows).
+inline constexpr float kWeightContrast   = 0.35f;
+inline constexpr float kWeightAppearance = 0.25f;
+inline constexpr float kWeightSize       = 0.20f;
+inline constexpr float kWeightShape      = 0.10f;
+inline constexpr float kWeightDiff       = 0.10f;
 
 inline constexpr double kSigmaFloor      = 2.0;   // luma levels — background can't be "too quiet"
 inline constexpr double kDiffSigmaK      = 4.0;   // diff mask threshold, sigma-multiples
+inline constexpr double kDiffSigmaRelax  = 2.5;   // retry threshold when 4-sigma finds nothing
+// CALIBRATION assumes contrast, never size: the ROI may be tight or wide, so
+// the ball may be a handful of pixels or a fifth of the area — the dominant
+// CONTRASTING blob is the ball (the user placed it; the background is the
+// learned empty area). The floors below only discard sub-morphology noise
+// and near-whole-ROI changes (global lighting).
+// DETECTION assumes size: all golf balls are 42.67mm, so once calibration
+// has measured the pixel radius it is KNOWN — runtime hard-gates candidates
+// to [kSizeWindowLo, kSizeWindowHi] x learned radius (a beach-ball-sized
+// blob can never be 'the ball' after calibration).
+inline constexpr double kMinCandRadius   = 2.5;   // sub-noise floor only
+inline constexpr double kMaxCandRadiusRel = 0.45; // vs min ROI side — a whole-ROI change isn't a ball
+inline constexpr double kSizeWindowLo    = 0.5;   // runtime size gate vs learned radius
+inline constexpr double kSizeWindowHi    = 2.0;
+// Contrast is KNOWN after calibration too (the learned ball's mean |ball-bg|):
+// runtime candidates below this fraction of it can't be the ball — a faint
+// smudge where the ball once sat, background texture, a shadow.
+inline constexpr double kContrastWindowLo = 0.4;
+// Calibration-side absolute floor: isolation considers HIGH-contrast blobs
+// only (the white-ball-on-dark-background assumption) — background texture
+// and noise patches are never picked as "the ball".
+inline constexpr double kMinCalibContrast = 12.0; // mean luma diff over the blob circle
 inline constexpr double kMinMargin       = 0.15;  // robustness floor for PASS
 inline constexpr double kThetaBias       = 0.40;  // theta sits 40% into the gap from the empty side
 inline constexpr double kMinBallScore    = 0.40;  // sanity: a real ball must score at least this
-inline constexpr double kMinRadiusPx     = 4.0;   // candidates smaller than this are noise
+inline constexpr double kMinRadiusPx     = 2.0;   // runtime candidate floor (noise only)
 inline constexpr double kRadiusSigmaRel  = 0.15;  // radius tolerance floor, relative to learned r
 inline constexpr double kGainDriftLog    = 0.3001;// |ln(gain)| beyond this = soft drift (≈±35%)
 }  // namespace tuning
@@ -91,6 +122,7 @@ struct BackgroundModel {
 // The learned appearance of THIS ball under THIS lighting.
 struct BallModel {
     bool    valid = false;
+    std::string diag;                          // why the fit failed (calibration UI)
     double  radiusPx = 0.0, radiusSigma = 0.0;
     cv::Point2f calibCenter;             // where the ball sat during calibration (px, ROI space)
     cv::Vec3f   colourMean;              // gain-normalised BGR
@@ -102,10 +134,11 @@ struct BallModel {
 // One detection candidate's per-cue breakdown — preserved for diagnostics
 // (the calibration UI's "where did the worst empty score come from").
 struct CandidateScore {
-    float size = 0.f, shape = 0.f, appearance = 0.f, diffSupport = 0.f;
+    float size = 0.f, shape = 0.f, appearance = 0.f, diffSupport = 0.f, contrast = 0.f;
     float total() const {
         return tuning::kWeightSize * size + tuning::kWeightShape * shape
-             + tuning::kWeightAppearance * appearance + tuning::kWeightDiff * diffSupport;
+             + tuning::kWeightAppearance * appearance + tuning::kWeightDiff * diffSupport
+             + tuning::kWeightContrast * contrast;
     }
 };
 
@@ -133,6 +166,7 @@ struct BallCalProfile {
 
 struct ThresholdResult {
     double theta = 0.0, margin = 0.0;
+    double minBall = 0.0, maxEmpty = 0.0;   // robust endpoints (for diagnostics)
     bool   pass = false;
 };
 
@@ -197,11 +231,12 @@ inline double computeGain(const cv::Mat &gray32, const BackgroundModel &bg)
 }
 
 // Binary mask of pixels deviating from the background by > k*sigma (after gain).
-inline cv::Mat diffMask(const cv::Mat &gray32Gained, const BackgroundModel &bg)
+inline cv::Mat diffMask(const cv::Mat &gray32Gained, const BackgroundModel &bg,
+                        double k = tuning::kDiffSigmaK)
 {
     cv::Mat diff;
     cv::absdiff(gray32Gained, bg.meanGray, diff);
-    cv::Mat thresh = bg.sigma * tuning::kDiffSigmaK;
+    cv::Mat thresh = bg.sigma * k;
     cv::Mat mask = diff > thresh;                      // CV_8U 0/255
 
     // Open removes specks, close fills the ball's dimple texture.
@@ -296,6 +331,58 @@ inline std::vector<Candidate> contourCandidates(const cv::Mat &mask)
     return out;
 }
 
+// Mean |frame - background| within a candidate's inscribed circle — how
+// strongly this blob CONTRASTS with the learned empty area.
+inline double blobContrast(const cv::Mat &diff32, cv::Point2f center, float radius)
+{
+    double sum = 0.0; int n = 0;
+    const int x0 = std::max(0, static_cast<int>(center.x - radius));
+    const int x1 = std::min(diff32.cols - 1, static_cast<int>(center.x + radius));
+    const int y0 = std::max(0, static_cast<int>(center.y - radius));
+    const int y1 = std::min(diff32.rows - 1, static_cast<int>(center.y + radius));
+    const float r2 = radius * radius;
+    for (int y = y0; y <= y1; ++y) {
+        const float *row = diff32.ptr<float>(y);
+        for (int x = x0; x <= x1; ++x) {
+            const float dx = x - center.x, dy = y - center.y;
+            if (dx * dx + dy * dy <= r2) { sum += row[x]; ++n; }
+        }
+    }
+    return n > 0 ? sum / n : 0.0;
+}
+
+// Calibration-time isolation is BLOB detection, not circle detection: the
+// background is dark and the user just placed a white ball, so the dominant
+// CONTRASTING blob is the ball. Ranking = contrast^2 * radius — contrast
+// density dominates (a large but faint region like a shadow or mat shift
+// loses to a compact bright blob), size breaks ties. Shape plays NO part:
+// at small radii circularity is discretisation noise, and a contact shadow
+// merged into the blob distorts it anyway. Cross-frame consensus and the
+// validation rounds are the safety net. Only physical implausibility
+// rejects: sub-noise specks and near-whole-ROI changes.
+inline int pickDominantBlob(const std::vector<Candidate> &cands, const cv::Mat &diff32,
+                            double maxRadius, int *sizeRejects = nullptr,
+                            int *contrastRejects = nullptr)
+{
+    int    bestIdx = -1;
+    double bestScore = 0.0;
+    for (size_t i = 0; i < cands.size(); ++i) {
+        const Candidate &c = cands[i];
+        if (c.radius < tuning::kMinCandRadius || c.radius > maxRadius) {
+            if (sizeRejects) ++*sizeRejects;
+            continue;
+        }
+        const double contrast = blobContrast(diff32, c.center, c.radius);
+        if (contrast < tuning::kMinCalibContrast) {
+            if (contrastRejects) ++*contrastRejects;
+            continue;                       // high-contrast blobs ONLY
+        }
+        const double score = contrast * contrast * c.radius;
+        if (score > bestScore) { bestScore = score; bestIdx = static_cast<int>(i); }
+    }
+    return bestIdx;
+}
+
 }  // namespace detail
 
 // ── BackgroundModel implementation ─────────────────────────────────────────
@@ -362,6 +449,7 @@ inline void BackgroundModel::resetAccumulation()
 inline CandidateScore scoreCandidate(const detail::Candidate &cand,
                                      const cv::Mat &gray32Gained,
                                      const cv::Mat &mask,
+                                     const cv::Mat &diff32,
                                      const BallModel &ball)
 {
     CandidateScore s;
@@ -371,6 +459,10 @@ inline CandidateScore scoreCandidate(const detail::Candidate &cand,
     s.shape       = cand.circularity * cand.convexity;
     s.appearance  = detail::appearanceScore(gray32Gained, cand.center, ball);
     s.diffSupport = detail::diffSupportScore(mask, cand.center, cand.radius);
+    // Contrast vs the calibrated ball's (NCC is contrast-invariant, so this
+    // is the cue that separates the real ball from a faint look-alike).
+    const double c = detail::blobContrast(diff32, cand.center, cand.radius);
+    s.contrast    = static_cast<float>(std::clamp(c / std::max(ball.minContrast, 1.0), 0.0, 1.0));
     return s;
 }
 
@@ -390,10 +482,32 @@ inline Detection detect(const cv::Mat &roiBgr, const BackgroundModel &bg,
     cv::Mat gained = gray32 * det.gain;
     cv::Mat mask   = detail::diffMask(gained, bg);
 
-    const auto candidates = detail::contourCandidates(mask);
+    auto candidates = detail::contourCandidates(mask);
+    if (candidates.empty()) {
+        // Nothing above 4-sigma — a ball barely above the noise floor (very
+        // dim studios) still shows at the relaxed threshold. Only taken when
+        // the strict pass is empty, so a quiet scene costs one extra pass and
+        // theta (derived through this same ladder) stays consistent.
+        mask       = detail::diffMask(gained, bg, tuning::kDiffSigmaRelax);
+        candidates = detail::contourCandidates(mask);
+    }
+
+    // Post-calibration the ball's pixel size AND contrast are KNOWN (all golf
+    // balls are 42.67mm; calibration measured this setup's radius and the
+    // ball's |ball-background| contrast) — hard-gate candidates to both
+    // physical windows. A beach-ball-sized blob can never be 'the ball', and
+    // neither can a faint smudge however ball-shaped it is.
+    const double rLo = tuning::kSizeWindowLo * ball.radiusPx;
+    const double rHi = tuning::kSizeWindowHi * ball.radiusPx;
+    const double cLo = tuning::kContrastWindowLo * ball.minContrast;
+    cv::Mat diff32;
+    cv::absdiff(gained, bg.meanGray, diff32);
+
     float bestTotal = 0.f;
     for (const auto &cand : candidates) {
-        const CandidateScore s = scoreCandidate(cand, gained, mask, ball);
+        if (cand.radius < rLo || cand.radius > rHi) continue;
+        if (detail::blobContrast(diff32, cand.center, cand.radius) < cLo) continue;
+        const CandidateScore s = scoreCandidate(cand, gained, mask, diff32, ball);
         const float total = s.total();
         if (total > bestTotal) {
             bestTotal     = total;
@@ -411,8 +525,16 @@ inline Detection detect(const cv::Mat &roiBgr, const BackgroundModel &bg,
 
 // Learn the ball's appearance from ball-present captures. The ball is
 // segmented by background difference (no chicken-and-egg with the detector
-// being calibrated). Frames whose largest diff blob is implausible are
-// dropped; the model is valid when at least half the frames agreed.
+// being calibrated). Isolation tries hard (the user is standing there — fail
+// honestly, not lazily):
+//   1. per frame, EVERY diff blob is considered and the most BALL-LIKE one
+//      wins (shape-ranked — a bigger shadow or mat-shift blob can't shadow
+//      the ball, and a tee stalk's circularity hit is tolerated);
+//   2. a frame with nothing above 4-sigma retries at 2.5-sigma (dim studios);
+//   3. per-frame picks must agree ACROSS frames — a positional consensus
+//      around the median centre drops stragglers (hand still leaving, etc.);
+//   4. failure fills BallModel::diag with which stage rejected what, so the
+//      calibration UI can say WHY instead of a generic shrug.
 inline BallModel fitBallModel(const std::vector<cv::Mat> &ballFrames,
                               const BackgroundModel &bg)
 {
@@ -421,6 +543,9 @@ inline BallModel fitBallModel(const std::vector<cv::Mat> &ballFrames,
 
     struct Obs { cv::Point2f center; float radius; double gain; int frameIdx; };
     std::vector<Obs> obs;
+    int framesNoDiff = 0, sizeRejects = 0, contrastRejects = 0;
+    const double maxRadius = tuning::kMaxCandRadiusRel
+                             * std::min(bg.meanGray.cols, bg.meanGray.rows);
 
     for (size_t i = 0; i < ballFrames.size(); ++i) {
         const cv::Mat &f = ballFrames[i];
@@ -429,24 +554,52 @@ inline BallModel fitBallModel(const std::vector<cv::Mat> &ballFrames,
         if (gray32.size() != bg.meanGray.size()) continue;
 
         const double g = detail::computeGain(gray32, bg);
-        cv::Mat mask = detail::diffMask(gray32 * g, bg);
+        cv::Mat gained = gray32 * g;
+        cv::Mat diff32;
+        cv::absdiff(gained, bg.meanGray, diff32);
 
-        auto cands = detail::contourCandidates(mask);
-        if (cands.empty()) continue;
-
-        // The ball must be the DOMINANT change: largest candidate by area,
-        // and plausibly round.
-        auto best = std::max_element(cands.begin(), cands.end(),
-            [](const detail::Candidate &a, const detail::Candidate &b) {
-                return a.radius < b.radius;
-            });
-        if (best->circularity < 0.55f || best->convexity < 0.70f) continue;
-        if (best->radius < 8.f) continue;                          // §5 sanity gate
-
-        obs.push_back({best->center, best->radius, g, static_cast<int>(i)});
+        int pick = -1;
+        std::vector<detail::Candidate> cands;
+        for (double k : {tuning::kDiffSigmaK, tuning::kDiffSigmaRelax}) {
+            cands = detail::contourCandidates(detail::diffMask(gained, bg, k));
+            pick  = detail::pickDominantBlob(cands, diff32, maxRadius, &sizeRejects,
+                                             &contrastRejects);
+            if (pick >= 0) break;
+        }
+        if (pick < 0) {
+            if (cands.empty()) ++framesNoDiff;
+            continue;
+        }
+        obs.push_back({cands[static_cast<size_t>(pick)].center,
+                       cands[static_cast<size_t>(pick)].radius, g, static_cast<int>(i)});
     }
 
-    if (obs.size() < ballFrames.size() / 2 || obs.size() < 3) return ball;
+    // Cross-frame positional consensus: the ball is stationary, so the picks
+    // must cluster. Median centre/radius, then drop outliers.
+    if (obs.size() >= 3) {
+        std::vector<float> cxs, cys, rads;
+        for (const auto &o : obs) {
+            cxs.push_back(o.center.x); cys.push_back(o.center.y); rads.push_back(o.radius);
+        }
+        std::nth_element(cxs.begin(),  cxs.begin()  + cxs.size() / 2,  cxs.end());
+        std::nth_element(cys.begin(),  cys.begin()  + cys.size() / 2,  cys.end());
+        std::nth_element(rads.begin(), rads.begin() + rads.size() / 2, rads.end());
+        const float medX = cxs[cxs.size() / 2], medY = cys[cys.size() / 2];
+        const float tol  = std::max(2.f * rads[rads.size() / 2], 20.f);
+        obs.erase(std::remove_if(obs.begin(), obs.end(), [&](const Obs &o) {
+            const float dx = o.center.x - medX, dy = o.center.y - medY;
+            return dx * dx + dy * dy > tol * tol;
+        }), obs.end());
+    }
+
+    if (obs.size() < std::max<size_t>(3, ballFrames.size() / 3)) {
+        ball.diag = "agreed in " + std::to_string(obs.size()) + "/"
+                  + std::to_string(ballFrames.size()) + " frames ("
+                  + std::to_string(framesNoDiff) + " saw no change vs the empty area, "
+                  + std::to_string(contrastRejects) + " low-contrast rejects, "
+                  + std::to_string(sizeRejects) + " size rejects)";
+        return ball;
+    }
 
     // Robust radius: median + MAD.
     std::vector<float> radii;
@@ -494,7 +647,10 @@ inline BallModel fitBallModel(const std::vector<cv::Mat> &ballFrames,
             }
         }
     }
-    if (samples.size() < 16) return ball;
+    if (samples.size() < 16) {
+        ball.diag = "too few ball pixels to learn its appearance";
+        return ball;
+    }
     mean *= 1.0 / static_cast<double>(samples.size());
     ball.colourMean = cv::Vec3f(static_cast<float>(mean[0]), static_cast<float>(mean[1]),
                                 static_cast<float>(mean[2]));
@@ -533,7 +689,13 @@ inline BallModel fitBallModel(const std::vector<cv::Mat> &ballFrames,
         ball.template8u = padded(cv::Rect(cx, cy, 2 * half + 1, 2 * half + 1)).clone();
     }
 
-    ball.valid = ball.radiusPx >= 8.0;
+    // The learned radius is whatever the ball measures — tiny is fine, the
+    // validation rounds prove (or disprove) reliability at that scale. Only
+    // a degenerate sub-noise model is invalid.
+    ball.valid = ball.radiusPx >= tuning::kMinCandRadius;
+    if (!ball.valid)
+        ball.diag = "learned blob is at the noise floor ("
+                  + std::to_string(ball.radiusPx).substr(0, 4) + "px radius)";
     return ball;
 }
 
@@ -541,21 +703,31 @@ inline BallModel fitBallModel(const std::vector<cv::Mat> &ballFrames,
 
 // theta = maxEmpty + kThetaBias * (minBall - maxEmpty), biased toward the
 // empty side because a false "ball present" is worse than slow acquisition.
+// ROBUST endpoints: the 10th percentile of the ball scores and the 90th of
+// the empty scores (nearest-rank) — a single bad capture frame (auto-exposure
+// flicker, the user's shadow crossing) must not define the whole result. With
+// fewer than ~10 samples the percentiles equal min/max.
 inline ThresholdResult deriveThreshold(const std::vector<double> &ballScores,
                                        const std::vector<double> &emptyScores)
 {
     ThresholdResult r;
     if (ballScores.empty()) return r;
 
-    const double minBall  = *std::min_element(ballScores.begin(), ballScores.end());
-    const double maxEmpty = emptyScores.empty()
-        ? 0.0 : *std::max_element(emptyScores.begin(), emptyScores.end());
+    std::vector<double> bs = ballScores;
+    std::sort(bs.begin(), bs.end());
+    r.minBall = bs[static_cast<size_t>(0.10 * (bs.size() - 1))];
 
-    r.margin = minBall - maxEmpty;
-    r.theta  = maxEmpty + tuning::kThetaBias * r.margin;
-    r.pass   = r.margin >= tuning::kMinMargin && minBall >= tuning::kMinBallScore;
+    if (!emptyScores.empty()) {
+        std::vector<double> es = emptyScores;
+        std::sort(es.begin(), es.end());
+        r.maxEmpty = es[static_cast<size_t>(std::ceil(0.90 * (es.size() - 1)))];
+    }
+
+    r.margin = r.minBall - r.maxEmpty;
+    r.theta  = r.maxEmpty + tuning::kThetaBias * r.margin;
+    r.pass   = r.margin >= tuning::kMinMargin && r.minBall >= tuning::kMinBallScore;
     if (!r.pass && r.margin <= 0.0)
-        r.theta = minBall;     // overlapping distributions: never a confident theta
+        r.theta = r.minBall;   // overlapping distributions: never a confident theta
     return r;
 }
 

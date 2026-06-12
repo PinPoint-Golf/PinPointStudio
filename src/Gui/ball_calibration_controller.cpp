@@ -40,6 +40,8 @@ constexpr int kFrameTimeoutMs   = 5000;   // no frames at all → actionable fai
 constexpr int kRemoveHoldMs     = 3000;   // sustained not-found while removed
 constexpr int kPlaceHoldMs      = 1500;   // sustained found after placement
 constexpr int kAcquireTimeoutMs = 30000;  // generous: the user is walking
+constexpr int kConfirmCountdownSecs = 5;  // auto-press Continue after this
+constexpr int kCountdownDelayMs     = 2000; // read-the-prompt grace before ticking
 }
 
 BallCalibrationController::BallCalibrationController(CameraInstance *instance,
@@ -57,6 +59,26 @@ BallCalibrationController::BallCalibrationController(CameraInstance *instance,
     m_frameTimeout.setSingleShot(true);
     m_holdTimer.setSingleShot(true);
     m_acquireTimeout.setSingleShot(true);
+
+    // 1 Hz auto-confirm countdown for every awaiting-confirm prompt: the user
+    // sees exactly how long they have to do the ask before Continue presses
+    // itself (clicking earlier is always allowed). Ticking starts after a
+    // read-the-prompt grace period.
+    m_countdownTimer.setInterval(1000);
+    connect(&m_countdownTimer, &QTimer::timeout, this, [this]() {
+        if (m_countdown > 0) {
+            --m_countdown;
+            emit countdownChanged();
+        }
+        if (m_countdown == 0)
+            confirm();          // stops the timer via setPhase
+    });
+    m_countdownDelay.setSingleShot(true);
+    m_countdownDelay.setInterval(kCountdownDelayMs);
+    connect(&m_countdownDelay, &QTimer::timeout, this, [this]() {
+        if (awaitingConfirm())
+            m_countdownTimer.start();
+    });
 
     connect(&m_settleTimer, &QTimer::timeout, this, [this]() {
         if (m_phase == QLatin1String("settle")) {
@@ -111,10 +133,14 @@ QString BallCalibrationController::instruction() const
         return tr("Learning the ball — don't touch it…");
     if (m_phase == QLatin1String("fit"))
         return tr("Tuning the detector…");
+    if (m_phase == QLatin1String("promptRemove"))
+        return tr("Remove the ball from the hitting area.");
     if (m_phase == QLatin1String("validateRemove"))
-        return tr("Now remove the ball from the hitting area.");
-    if (m_phase == QLatin1String("validatePlace"))
+        return tr("Checking the empty hitting area…");
+    if (m_phase == QLatin1String("promptPlace"))
         return tr("Place the ball again — try a slightly different spot.");
+    if (m_phase == QLatin1String("validatePlace"))
+        return tr("Checking ball detection…");
     if (m_phase == QLatin1String("done"))
         return tr("Ball detection calibrated.");
     if (m_phase == QLatin1String("failed"))
@@ -125,7 +151,9 @@ QString BallCalibrationController::instruction() const
 bool BallCalibrationController::awaitingConfirm() const
 {
     return m_phase == QLatin1String("promptEmpty")
-        || m_phase == QLatin1String("promptBall");
+        || m_phase == QLatin1String("promptBall")
+        || m_phase == QLatin1String("promptRemove")
+        || m_phase == QLatin1String("promptPlace");
 }
 
 bool BallCalibrationController::busy() const
@@ -183,6 +211,13 @@ void BallCalibrationController::confirm()
     } else if (m_phase == QLatin1String("promptBall")) {
         setPhase(QStringLiteral("settle"));
         m_settleTimer.start(kSettleMs);
+    } else if (m_phase == QLatin1String("promptRemove")) {
+        // The ball is gone (the user just confirmed) — NOW start watching.
+        setPhase(QStringLiteral("validateRemove"));
+    } else if (m_phase == QLatin1String("promptPlace")) {
+        m_holdFound = m_holdTotal = 0;
+        setPhase(QStringLiteral("validatePlace"));
+        m_acquireTimeout.start(kAcquireTimeoutMs);
     }
 }
 
@@ -202,6 +237,7 @@ void BallCalibrationController::cancel()
     }
     m_settleTimer.stop(); m_frameTimeout.stop();
     m_holdTimer.stop();   m_acquireTimeout.stop();
+    m_countdownTimer.stop(); m_countdownDelay.stop();
     setPhase(QStringLiteral("idle"));
     emit cancelled();
 }
@@ -340,19 +376,36 @@ void BallCalibrationController::onFitDone()
         return;
     }
     if (!p.ball.valid) {
-        setPhase(QStringLiteral("failed"),
-                 tr("Couldn't isolate the ball — check it sits fully inside the "
-                    "hitting area and is visible to the camera, then try again."));
+        QString reason = tr("Couldn't isolate the ball — check it sits fully inside "
+                            "the hitting area and is visible to the camera, then "
+                            "try again.");
+        if (!p.ball.diag.empty())
+            reason += QStringLiteral("\n(") + QString::fromStdString(p.ball.diag)
+                      + QLatin1Char(')');
+        setPhase(QStringLiteral("failed"), reason);
         return;
     }
     if (!p.valid) {
         m_candidate = p;
         m_candidate.valid = true;   // usable, but below the robustness floor
-        setPhase(QStringLiteral("failed"),
-                 tr("The ball doesn't stand out enough from the hitting area "
-                    "(margin %1). Improve the lighting or use a mat the ball "
-                    "contrasts with — or accept the marginal calibration.")
-                     .arg(p.margin, 0, 'f', 2));
+        // Which condition failed? minBall recovers from theta + margin
+        // (theta = maxEmpty + bias*margin).
+        const double minBall = p.theta
+            + (1.0 - pinpoint::ballcal::tuning::kThetaBias) * p.margin;
+        const QString reason = p.margin < pinpoint::ballcal::tuning::kMinMargin
+            ? tr("The ball doesn't stand out enough from the empty hitting "
+                 "area (margin %1, need %2). Improve the lighting or contrast "
+                 "— or accept the marginal calibration.")
+                  .arg(p.margin, 0, 'f', 2)
+                  .arg(pinpoint::ballcal::tuning::kMinMargin, 0, 'f', 2)
+            : tr("Separation is fine (margin %1) but the ball's own match "
+                 "score is weak (worst frames %2, need %3) — usually a frame "
+                 "where the ball was occluded or lighting flickered during "
+                 "capture. Try again, or accept the marginal calibration.")
+                  .arg(p.margin, 0, 'f', 2)
+                  .arg(minBall, 0, 'f', 2)
+                  .arg(pinpoint::ballcal::tuning::kMinBallScore, 0, 'f', 2);
+        setPhase(QStringLiteral("failed"), reason);
         return;
     }
 
@@ -388,16 +441,16 @@ void BallCalibrationController::startValidateRemove()
     m_roundBall.clear();
     m_roundRemoveClean = false;
     m_sawFalsePositive = false;
-    setPhase(QStringLiteral("validateRemove"));
-    // The hold starts when the ball actually disappears (onLiveDetection).
+    // Confirm-gated (countdown): watching starts only after the user has had
+    // time to actually remove the ball — a reaching arm mid-removal must
+    // never count as a false positive.
+    setPhase(QStringLiteral("promptRemove"));
 }
 
 void BallCalibrationController::startValidatePlace()
 {
-    m_holdFound = m_holdTotal = 0;
-    setPhase(QStringLiteral("validatePlace"));
-    m_acquireTimeout.start(kAcquireTimeoutMs);
-    // The hold starts on the first found (onLiveDetection).
+    // Confirm-gated likewise — placement happens during the prompt.
+    setPhase(QStringLiteral("promptPlace"));
 }
 
 void BallCalibrationController::onLiveDetection(const BallDetection &det)
@@ -488,6 +541,27 @@ void BallCalibrationController::setPhase(const QString &phase, const QString &fa
     if (m_phase == phase && m_failReason == failReason) return;
     m_phase = phase;
     m_failReason = failReason;
+
+    // The presence ting is feedback chrome, not protocol — during the
+    // validate rounds every place/remove would chime, which is just noise
+    // while the user is following prompts.
+    if (m_instance)
+        m_instance->setBallTingSuppressed(busy());
+
+    // Awaiting-confirm phases run the auto-press countdown; everything else
+    // stops it (incl. an early manual Continue). The number shows at once,
+    // but ticking waits out the read-the-prompt grace.
+    if (awaitingConfirm()) {
+        m_countdown = kConfirmCountdownSecs;
+        m_countdownTimer.stop();
+        m_countdownDelay.start();
+    } else {
+        m_countdownDelay.stop();
+        m_countdownTimer.stop();
+        m_countdown = -1;
+    }
+    emit countdownChanged();
+
     emit phaseChanged();
 }
 

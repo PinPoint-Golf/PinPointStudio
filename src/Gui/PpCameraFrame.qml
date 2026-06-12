@@ -65,10 +65,9 @@ Item {
         {a:12, b:14, side:"accent"}, {a:14, b:16, side:"accent"}
     ]
 
-    // ROI selection state — driven externally (set roiSelecting true to arm a
-    // drag-select; it clears itself when the drag completes). Only honoured
-    // when roiEditable is true.
-    property bool  roiSelecting:  false
+    // ROI editor drag state (internal — driven by the unified MouseArea
+    // below). roiDragging is true only while a NEW rectangle is being drawn
+    // (rubber band); move/resize manipulate the committed rect live.
     property point roiDragStart:  Qt.point(0, 0)
     property point roiDragEnd:    Qt.point(0, 0)
     property bool  roiDragging:   false
@@ -466,7 +465,7 @@ Item {
         // ── Persistent ROI overlay ────────────────────────────────────────
         Rectangle {
             id: roiOverlay
-            visible: root.showHittingArea && root.roiIsSet && !root.roiSelecting
+            visible: root.showHittingArea && root.roiIsSet && !root.roiDragging
             z: 20
             color: "transparent"
             border.color: Theme.colorWarn
@@ -497,6 +496,14 @@ Item {
                 font.weight: Font.Normal
                 font.letterSpacing: Theme.trackingData
             }
+
+            // Corner handle squares — editor affordance only (drag handled by
+            // the unified MouseArea below; same pattern as the crop editor).
+            readonly property int hs: Theme.sp(10)
+            Rectangle { visible: root.roiEditable; width: roiOverlay.hs; height: roiOverlay.hs; x: -roiOverlay.hs/2;                    y: -roiOverlay.hs/2;                     color: Theme.colorWarn; border.width: 1; border.color: "black" }
+            Rectangle { visible: root.roiEditable; width: roiOverlay.hs; height: roiOverlay.hs; x: roiOverlay.width-roiOverlay.hs/2;    y: -roiOverlay.hs/2;                     color: Theme.colorWarn; border.width: 1; border.color: "black" }
+            Rectangle { visible: root.roiEditable; width: roiOverlay.hs; height: roiOverlay.hs; x: -roiOverlay.hs/2;                    y: roiOverlay.height-roiOverlay.hs/2;    color: Theme.colorWarn; border.width: 1; border.color: "black" }
+            Rectangle { visible: root.roiEditable; width: roiOverlay.hs; height: roiOverlay.hs; x: roiOverlay.width-roiOverlay.hs/2;    y: roiOverlay.height-roiOverlay.hs/2;    color: Theme.colorWarn; border.width: 1; border.color: "black" }
         }
 
         // ── Rubber-band while dragging ────────────────────────────────────
@@ -600,49 +607,131 @@ Item {
             }
         }
 
-        // ── ROI drag-select MouseArea ─────────────────────────────────────
+        // ── Unified ROI editor MouseArea (crop-editor interaction model) ──
+        // Always-on while roiEditable: drag inside the rect to move it, drag
+        // a corner handle to resize, drag anywhere else to draw a new rect.
+        // Move/resize update the instance live (no persistence churn); the
+        // committed rect persists once on release via the manager.
         MouseArea {
+            id: roiEditArea
             anchors.fill: parent
-            enabled: root.roiEditable && root.roiSelecting
-            visible: root.roiEditable && root.roiSelecting
-            cursorShape: Qt.CrossCursor
+            enabled: root.roiEditable && root.instance !== null
+            visible: enabled
+            hoverEnabled: true
+            preventStealing: true
             z: 30
 
+            readonly property real hr: Theme.sp(16)   // handle hit radius
+            property string dragMode: "none"          // none|new|move|tl|tr|bl|br
+            property real origX: 0
+            property real origY: 0
+            property real origW: 0
+            property real origH: 0
+
+            function hitZone(mx, my) {
+                if (!root.roiIsSet) return "new"
+                var rx = roiOverlay.x,     ry = roiOverlay.y
+                var rw = roiOverlay.width, rh = roiOverlay.height
+                var h  = hr
+                if (Math.abs(mx - rx)      < h && Math.abs(my - ry)      < h) return "tl"
+                if (Math.abs(mx - (rx+rw)) < h && Math.abs(my - ry)      < h) return "tr"
+                if (Math.abs(mx - rx)      < h && Math.abs(my - (ry+rh)) < h) return "bl"
+                if (Math.abs(mx - (rx+rw)) < h && Math.abs(my - (ry+rh)) < h) return "br"
+                if (mx > rx && mx < rx+rw && my > ry && my < ry+rh)           return "move"
+                return "new"                          // outside = draw a replacement
+            }
+
+            cursorShape: {
+                switch (hitZone(mouseX, mouseY)) {
+                case "tl": case "br": return Qt.SizeFDiagCursor
+                case "tr": case "bl": return Qt.SizeBDiagCursor
+                case "move":          return Qt.SizeAllCursor
+                default:              return Qt.CrossCursor
+                }
+            }
+
             onPressed: (mouse) => {
+                dragMode = hitZone(mouse.x, mouse.y)
                 root.roiDragStart = Qt.point(mouse.x, mouse.y)
-                root.roiDragEnd   = Qt.point(mouse.x, mouse.y)
-                root.roiDragging  = true
+                if (dragMode === "new") {
+                    root.roiDragEnd  = Qt.point(mouse.x, mouse.y)
+                    root.roiDragging = true
+                } else if (root.instance) {
+                    var r = root.instance.roi
+                    origX = r.x; origY = r.y; origW = r.width; origH = r.height
+                }
             }
+
             onPositionChanged: (mouse) => {
-                if (root.roiDragging)
+                if (dragMode === "none" || !root.instance) return
+                if (dragMode === "new") {
                     root.roiDragEnd = Qt.point(mouse.x, mouse.y)
-            }
-            onReleased: (mouse) => {
-                root.roiDragging  = false
-                root.roiSelecting = false
-
-                if (!root.instance) return
-                var crX = root.videoInset + (root.instance.needsDebayer
-                          ? 0 : videoOut.contentRect.x)
-                var crY = root.videoInset + (root.instance.needsDebayer
-                          ? 0 : videoOut.contentRect.y)
-                var crW = root.instance.needsDebayer
-                          ? bayerView.width : videoOut.contentRect.width
-                var crH = root.instance.needsDebayer
-                          ? bayerView.height : videoOut.contentRect.height
+                    return
+                }
+                var crW = roiOverlay.crW, crH = roiOverlay.crH
                 if (crW <= 0 || crH <= 0) return
+                var dx = (mouse.x - root.roiDragStart.x) / crW
+                var dy = (mouse.y - root.roiDragStart.y) / crH
+                var ox = origX, oy = origY, ow = origW, oh = origH
+                var nx, ny, nw, nh
+                switch (dragMode) {
+                case "move":
+                    nx = Math.max(0, Math.min(1.0 - ow, ox + dx))
+                    ny = Math.max(0, Math.min(1.0 - oh, oy + dy))
+                    root.instance.setRoi(Qt.rect(nx, ny, ow, oh))
+                    break
+                case "tl":
+                    nx = Math.max(0,    Math.min(ox + ow - 0.02, ox + dx))
+                    ny = Math.max(0,    Math.min(oy + oh - 0.02, oy + dy))
+                    nw = Math.max(0.02, ow - (nx - ox))
+                    nh = Math.max(0.02, oh - (ny - oy))
+                    root.instance.setRoi(Qt.rect(nx, ny, nw, nh))
+                    break
+                case "tr":
+                    ny = Math.max(0,    Math.min(oy + oh - 0.02, oy + dy))
+                    nw = Math.max(0.02, Math.min(1.0 - ox, ow + dx))
+                    nh = Math.max(0.02, oh - (ny - oy))
+                    root.instance.setRoi(Qt.rect(ox, ny, nw, nh))
+                    break
+                case "bl":
+                    nx = Math.max(0,    Math.min(ox + ow - 0.02, ox + dx))
+                    nw = Math.max(0.02, ow - (nx - ox))
+                    nh = Math.max(0.02, Math.min(1.0 - oy, oh + dy))
+                    root.instance.setRoi(Qt.rect(nx, oy, nw, nh))
+                    break
+                case "br":
+                    nw = Math.max(0.02, Math.min(1.0 - ox, ow + dx))
+                    nh = Math.max(0.02, Math.min(1.0 - oy, oh + dy))
+                    root.instance.setRoi(Qt.rect(ox, oy, nw, nh))
+                    break
+                }
+            }
 
-                var x1  = Math.min(root.roiDragStart.x, mouse.x)
-                var y1  = Math.min(root.roiDragStart.y, mouse.y)
-                var x2  = Math.max(root.roiDragStart.x, mouse.x)
-                var y2  = Math.max(root.roiDragStart.y, mouse.y)
-                var nx  = Math.max(0, Math.min(1, (x1 - crX) / crW))
-                var ny  = Math.max(0, Math.min(1, (y1 - crY) / crH))
-                var nx2 = Math.max(0, Math.min(1, (x2 - crX) / crW))
-                var ny2 = Math.max(0, Math.min(1, (y2 - crY) / crH))
-                // Via the manager so the hitting area persists per camera
-                // (restored on connect when the camera is fixed in place).
-                cameraManager.setBallRoi(root.instance, Qt.rect(nx, ny, nx2 - nx, ny2 - ny))
+            onReleased: (mouse) => {
+                if (!root.instance) { dragMode = "none"; root.roiDragging = false; return }
+
+                if (dragMode === "new") {
+                    root.roiDragging = false
+                    var crX = roiOverlay.crX, crY = roiOverlay.crY
+                    var crW = roiOverlay.crW, crH = roiOverlay.crH
+                    if (crW > 0 && crH > 0) {
+                        var x1  = Math.min(root.roiDragStart.x, mouse.x)
+                        var y1  = Math.min(root.roiDragStart.y, mouse.y)
+                        var x2  = Math.max(root.roiDragStart.x, mouse.x)
+                        var y2  = Math.max(root.roiDragStart.y, mouse.y)
+                        var nx  = Math.max(0, Math.min(1, (x1 - crX) / crW))
+                        var ny  = Math.max(0, Math.min(1, (y1 - crY) / crH))
+                        var nx2 = Math.max(0, Math.min(1, (x2 - crX) / crW))
+                        var ny2 = Math.max(0, Math.min(1, (y2 - crY) / crH))
+                        // Via the manager so the hitting area persists per
+                        // camera (restored on connect when fixed in place).
+                        cameraManager.setBallRoi(root.instance, Qt.rect(nx, ny, nx2 - nx, ny2 - ny))
+                    }
+                } else if (dragMode !== "none") {
+                    // Move/resize updated the instance live — persist once.
+                    cameraManager.setBallRoi(root.instance, root.instance.roi)
+                }
+                dragMode = "none"
             }
         }
     }

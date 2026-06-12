@@ -54,6 +54,10 @@ class BallCalibrationController : public QObject
     Q_PROPERTY(QString instruction  READ instruction  NOTIFY phaseChanged)
     Q_PROPERTY(QString failReason   READ failReason   NOTIFY phaseChanged)
     Q_PROPERTY(bool    awaitingConfirm READ awaitingConfirm NOTIFY phaseChanged)
+    // Seconds until the Continue prompt auto-presses (-1 = no countdown).
+    // Every awaiting-confirm phase auto-advances after kConfirmCountdownSecs
+    // so the user knows exactly how long they have to do the ask.
+    Q_PROPERTY(int     confirmCountdown READ confirmCountdown NOTIFY countdownChanged)
     Q_PROPERTY(bool    busy         READ busy         NOTIFY phaseChanged)
     Q_PROPERTY(double  progress     READ progress     NOTIFY progressChanged)
     Q_PROPERTY(double  robustness   READ robustness   NOTIFY sessionChanged)
@@ -69,6 +73,7 @@ public:
     QString instruction() const;
     QString failReason()  const { return m_failReason; }
     bool    awaitingConfirm() const;
+    int     confirmCountdown() const { return m_countdown; }
     bool    busy()        const;
     double  progress()    const { return m_progress; }
     double  robustness()  const { return m_session.robustness(); }
@@ -93,6 +98,7 @@ public:
 
 signals:
     void phaseChanged();
+    void countdownChanged();
     void progressChanged();
     void sessionChanged();
     void completed();
@@ -130,6 +136,9 @@ private:
     QTimer  m_frameTimeout;               // no frames arriving → actionable failure
     QTimer  m_holdTimer;                  // validate hold windows
     QTimer  m_acquireTimeout;             // validate place: max wait for the ball
+    QTimer  m_countdownTimer;             // 1 Hz auto-confirm countdown
+    QTimer  m_countdownDelay;             // read-the-prompt grace before ticking
+    int     m_countdown = -1;
 
     // Fit results
     pinpoint::ballcal::BallCalProfile m_candidate;

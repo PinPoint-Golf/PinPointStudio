@@ -30,6 +30,20 @@ Item {
     // Index of the camera whose ball-detection (hitting area + calibration)
     // panel is expanded; -1 = none. Same pattern as openRoiIndex.
     property int openBallIndex: -1
+    // True when opening the ball panel connected the camera itself — closing
+    // the panel then restores the disconnected state (settings should not
+    // silently change connection state).
+    property bool ballAutoConnected: false
+
+    function closeBallPanel() {
+        var idx = openBallIndex
+        if (idx === -1) return
+        openBallIndex = -1
+        if (ballAutoConnected) {
+            ballAutoConnected = false
+            cameraManager.setSelected(idx, false)
+        }
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Inline component — reusable toggle pill
@@ -695,7 +709,7 @@ Item {
                                 mgr.setSelected(idx, false)
                             if (wasActive)
                                 toast.show(notice)
-                            panelRoot.openBallIndex = -1
+                            panelRoot.closeBallPanel()
                             panelRoot.openRoiIndex = idx
                         }
                     }
@@ -731,9 +745,30 @@ Item {
                         anchors.fill: parent
                         cursorShape:  Qt.PointingHandCursor
                         onClicked: {
-                            root.openBallIndex = camRow.ballOpen ? -1 : camData.index
-                            if (root.openBallIndex !== -1)
-                                root.openRoiIndex = -1
+                            if (camRow.ballOpen) {
+                                root.closeBallPanel()
+                                return
+                            }
+                            // Calibration needs the LIVE pipeline (the ball
+                            // detector only exists on buffer-backed
+                            // instances), so opening connects the camera via
+                            // the normal path — the wizard's Connect ditto.
+                            // setSelected rebuilds the Repeater delegates
+                            // SYNCHRONOUSLY (see the crop button above):
+                            // snapshot locals first.
+                            var mgr         = cameraManager
+                            var panelRoot   = root
+                            var idx         = camData.index
+                            var wasSelected = camData.selected
+                            panelRoot.closeBallPanel()   // restore any other row first
+                            panelRoot.openRoiIndex = -1
+                            panelRoot.ballAutoConnected = !wasSelected
+                            if (!wasSelected) {
+                                mgr.setSelected(idx, true)
+                                if (!mgr.isRecording && mgr.anySelected)
+                                    mgr.startAll()
+                            }
+                            panelRoot.openBallIndex = idx
                         }
                     }
                 }
@@ -850,8 +885,8 @@ Item {
                         // Preview area
                         Rectangle {
                             id: previewRect
-                            width:  Theme.sp(340)
-                            height: Theme.sp(192)
+                            width:  Theme.sp(510)
+                            height: Theme.sp(288)
                             color:  "#080a0c"
                             border.width: 1
                             border.color: Theme.colorBorderMid
@@ -1724,7 +1759,7 @@ Item {
                     visible: camRow.realInstance === null
                     Layout.fillWidth: true
                     Layout.margins: Theme.sp(16)
-                    text: qsTr("Connect this camera to set the hitting area and calibrate ball detection.")
+                    text: qsTr("Connecting the camera\u2026 If this persists, check the camera is not in use elsewhere.")
                     wrapMode: Text.WordWrap
                     font.family: Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
@@ -1736,16 +1771,27 @@ Item {
                     Layout.fillWidth: true
                     Layout.margins: Theme.sp(16)
                     Layout.topMargin: Theme.sp(4)
+                    Layout.bottomMargin: Theme.sp(28)
                     spacing: Theme.sp(16)
 
                     // Live view with the hitting-area overlay; drag to draw.
                     // Loader-gated so a collapsed panel never subscribes to
                     // the video stream.
                     Loader {
-                        Layout.preferredWidth: Theme.sp(300)
-                        Layout.preferredHeight: Theme.sp(190)
+                        id: ballFrameLoader
+                        Layout.preferredWidth: Theme.sp(450)
+                        Layout.preferredHeight: Theme.sp(285)
                         Layout.alignment: Qt.AlignTop
                         active: camRow.ballOpen && camRow.realInstance !== null
+                        // Seed a default hitting area the first time the
+                        // editor opens, so a manipulable rect is there
+                        // immediately (crop-editor pattern). Never touches a
+                        // calibrated camera (those always have an area).
+                        onLoaded: {
+                            var inst = camRow.realInstance
+                            if (inst && inst.roi.width <= 0)
+                                cameraManager.setBallRoi(inst, Qt.rect(0.40, 0.55, 0.20, 0.30))
+                        }
                         sourceComponent: PpCameraFrame {
                             instance: camRow.realInstance
                             displayName: camData.alias || camData.description
@@ -1766,12 +1812,7 @@ Item {
 
                         Text {
                             Layout.fillWidth: true
-                            text: {
-                                if (!camRow.realInstance) return ""
-                                if (camRow.realInstance.roi.width <= 0)
-                                    return qsTr("Drag on the video to draw the hitting area — the region the ball sits in at address.")
-                                return qsTr("Hitting area set. Drag on the video to adjust it (this invalidates the calibration).")
-                            }
+                            text: qsTr("Place the hitting area over where the ball sits at address: drag the rectangle to move it, drag a corner to resize, or drag outside it to draw a new one. Changing it invalidates the calibration.")
                             wrapMode: Text.WordWrap
                             font.family: Theme.fontBody
                             font.pixelSize: Theme.fontSzBody2

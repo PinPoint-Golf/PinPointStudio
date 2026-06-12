@@ -48,6 +48,14 @@ Item {
     readonly property string _phase: controller ? controller.phase : "idle"
     readonly property bool   _running: controller ? controller.busy : false
 
+    // Saved-profile summary (margin / age) — savedProfileInfo() is an
+    // invokable, so re-evaluate whenever the phase moves (begin/done/clear
+    // all change it).
+    readonly property var _savedInfo: {
+        var _dep = flow._phase
+        return flow.controller ? flow.controller.savedProfileInfo() : ({})
+    }
+
     implicitHeight: col.implicitHeight
 
     Connections {
@@ -131,6 +139,28 @@ Item {
             }
         }
 
+        // ── Last-calibrated label (attention colour — calibration decays
+        //    with the environment, so its age should catch the eye) ─────────
+        Text {
+            Layout.fillWidth: true
+            visible: flow._savedInfo.calibratedAtMs !== undefined
+            text: {
+                var info = flow._savedInfo
+                if (info.calibratedAtMs === undefined) return ""
+                var days = Math.floor((Date.now() - info.calibratedAtMs) / 86400000)
+                var when = days <= 0 ? qsTr("today")
+                         : days === 1 ? qsTr("yesterday")
+                         : qsTr("%1 days ago").arg(days)
+                var m = info.margin !== undefined
+                        ? qsTr(" · margin %1").arg(Number(info.margin).toFixed(2)) : ""
+                return qsTr("Last calibrated %1%2").arg(when).arg(m)
+            }
+            font.family: Theme.fontData
+            font.pixelSize: Theme.fontSzMicro
+            font.letterSpacing: Theme.trackingMicro
+            color: Theme.colorAttention
+        }
+
         // ── Instruction ─────────────────────────────────────────────────────
         Text {
             Layout.fillWidth: true
@@ -173,7 +203,11 @@ Item {
             PpButton {
                 visible: flow.controller !== null && flow.controller.awaitingConfirm
                 primary: true
-                label:   qsTr("Continue")
+                // The countdown shows how long until Continue presses itself —
+                // clicking earlier is always allowed.
+                label: flow.controller !== null && flow.controller.confirmCountdown > 0
+                       ? qsTr("Continue %1").arg(flow.controller.confirmCountdown)
+                       : qsTr("Continue")
                 onClicked: flow.controller.confirm()
             }
             PpButton {

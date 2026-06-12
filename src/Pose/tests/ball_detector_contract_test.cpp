@@ -18,10 +18,10 @@
 
 // Throttle-contract test for BallDetector (design §9 test 6): every detect()
 // call must emit EXACTLY ONE of ballDetected / detectionSkipped on EVERY code
-// path — disabled, no-ROI, empty frame, legacy found / not-found, calibrated
-// found / not-found, profile-geometry-mismatch fallback. The shared
-// FrameThrottle (consumerCount=2) deadlocks if zero fire and runs ahead if
-// two fire.
+// path — disabled, no-ROI, empty frame, uncalibrated (silent found=false; the
+// legacy Hough path is retired), calibrated found / not-found, and the
+// profile-geometry-mismatch fallback. The shared FrameThrottle
+// (consumerCount=2) deadlocks if zero fire and runs ahead if two fire.
 
 #include "ball_detector.h"
 
@@ -147,21 +147,23 @@ int main(int argc, char **argv)
     det.detect(cv::Mat());
     CHECK("empty frame: 1 signal, skipped", spy.total() == 1 && spy.skips == 1);
 
-    // 4. Legacy path, no ball → ballDetected(found=false).
+    // 4. Uncalibrated, no ball → silent found=false.
     spy.reset();
     det.detect(fullFrame(40.0, 3.0, 3));
-    CHECK("legacy miss: 1 signal, found=false",
+    CHECK("uncalibrated miss: 1 signal, found=false",
           spy.total() == 1 && spy.detections == 1 && !spy.lastFound);
 
-    // 5. Legacy path, bright ball (V=200 — the regime legacy handles).
+    // 5. Uncalibrated, even a BRIGHT ball → still found=false: detection is
+    //    calibration-gated (the legacy Hough path is retired — no circles or
+    //    presence tings from generic parameters).
     spy.reset();
     {
         cv::Mat f = fullFrame(40.0, 3.0, 4);
         drawBall(f, 200.0);
         det.detect(f);
     }
-    CHECK("legacy hit: 1 signal, found=true",
-          spy.total() == 1 && spy.detections == 1 && spy.lastFound);
+    CHECK("uncalibrated bright ball: 1 signal, found=false (legacy retired)",
+          spy.total() == 1 && spy.detections == 1 && !spy.lastFound);
 
     // 6. Calibrated path (dim studio: legacy CANNOT see this ball).
     const BallCalProfile profile = makeProfile();
@@ -182,28 +184,16 @@ int main(int argc, char **argv)
     CHECK("calibrated miss: 1 signal, found=false",
           spy.total() == 1 && spy.detections == 1 && !spy.lastFound);
 
-    // Cross-check: the same dim ball through the LEGACY path is invisible —
-    // the regression this whole design exists to fix.
-    det.clearProfile();
-    spy.reset();
-    {
-        cv::Mat f = fullFrame(60.0, 3.0, 7);
-        drawBall(f, 115.0);
-        det.detect(f);
-    }
-    CHECK("legacy CANNOT see dim ball (1 signal, found=false)",
-          spy.total() == 1 && spy.detections == 1 && !spy.lastFound);
-
     // 7. Profile geometry mismatch (ROI moved/resized after calibration) →
-    //    legacy fallback, still exactly one signal.
+    //    silent found=false, still exactly one signal.
     det.setProfile(profile);
     det.setRoi(QRectF(0.1, 0.1, 0.3, 0.3));
     spy.reset();
     det.detect(fullFrame(60.0, 3.0, 8));
-    CHECK("profile/ROI mismatch: 1 signal (legacy fallback)",
-          spy.total() == 1 && spy.detections == 1);
+    CHECK("profile/ROI mismatch: 1 signal, found=false",
+          spy.total() == 1 && spy.detections == 1 && !spy.lastFound);
 
-    // 8. Invalid profile via setProfile == clearProfile.
+    // 8. Invalid profile via setProfile == clearProfile → silent.
     det.setRoi(kRoi);
     det.setProfile(BallCalProfile{});
     spy.reset();
@@ -212,7 +202,7 @@ int main(int argc, char **argv)
         drawBall(f, 115.0);
         det.detect(f);
     }
-    CHECK("invalid profile → legacy (dim ball unseen)",
+    CHECK("invalid profile: 1 signal, found=false",
           spy.total() == 1 && !spy.lastFound);
 
     std::printf("%s (%d failure%s)\n", g_fail == 0 ? "ALL PASS" : "FAILURES",
