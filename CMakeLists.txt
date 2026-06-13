@@ -232,6 +232,8 @@ qt_add_qml_module(PinPointStudio
         src/Gui/FilmPage.qml
         src/Gui/VideoPage.qml
         src/Gui/PpCameraFrame.qml
+        src/Gui/PpSegmentedControl.qml
+        src/Gui/PpStagePanel.qml
         src/Gui/PpRail.qml
         src/Gui/PpRailButton.qml
         src/Gui/PpDivider.qml
