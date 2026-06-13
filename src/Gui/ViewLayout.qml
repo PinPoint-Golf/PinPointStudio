@@ -16,23 +16,22 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Resolves the session-toolbar View state (which panels are visible + how the
-// centre stage packs them) per SessionController::Type, persisting to appSettings.
-// Two orthogonal concerns: VISIBILITY (panel on/off) and ARRANGEMENT (stage
-// packing). A named preset sets both; toggling either marks the preset "Custom".
+// Resolves the session-stage layout (which panels are visible + how the centre
+// stage packs them) per session MODE (Capture | Review | Analyse), persisting to
+// appSettings.viewLayoutByMode. Two orthogonal concerns: VISIBILITY (panel on/off)
+// and ARRANGEMENT (stage packing). There are no named presets — every edit just
+// updates that mode's layout in place.
 //
 // Panels split into two homes:
-//   stagePanels — arranged inside PpModeStage per `arrangement`
-//   railPanels  — full-width rails the screen shows/hides via isPanelOn()
+//   stage panels — camera/charts/dashboard/table, arranged inside PpModeStage
+//   rail panels  — timeline/carousel, full-width rails the screen shows/hides
 //
-// Storage shape (per type, key = String(typeInt)):
-//   viewPanelsByType[k]      → QStringList of enabled panel keys
-//   viewArrangementByType[k] → "tabs" | "split" | "stage"
-//   viewPresetByType[k]      → preset name, or "Custom"
+// Storage shape (per mode, key = String(modeInt)):
+//   viewLayoutByMode[k] = { panels: QStringList, arrangement: "tabs"|"split"|"stage" }
 //
-// The resolver functions read the notifying appSettings.view*ByType properties,
+// The resolver functions read the notifying appSettings.viewLayoutByMode property,
 // so QML binding dependency-tracking re-evaluates visible:/arrangement: bindings
-// whenever the maps change — no extra change signal needed.
+// whenever the map changes — no extra change signal needed.
 
 pragma Singleton
 import QtQuick
@@ -41,103 +40,55 @@ import PinPointStudio
 QtObject {
     id: vl
 
-    readonly property var panelKeys:  ["camera", "timeline", "charts", "dashboard", "table", "carousel"]
-    readonly property var stagePanels: ["camera", "charts", "dashboard", "table"]   // arranged
-    readonly property var railPanels:  ["timeline", "carousel"]                     // full-width
-
-    // preset name → { panels: [enabled keys], arrangement }
-    readonly property var presets: ({
-        "Capture": { panels: ["camera", "carousel"],                            arrangement: "stage" },
-        "Review":  { panels: ["camera", "carousel", "charts"],                  arrangement: "split" },
-        "Analyse": { panels: ["camera", "charts", "table", "carousel", "timeline"], arrangement: "split" },
-        "All":     { panels: ["camera", "timeline", "charts", "dashboard", "table", "carousel"], arrangement: "split" }
-    })
-    readonly property var presetOrder: ["Capture", "Review", "Analyse", "All"]
-
-    function defaultPreset(type) {
-        switch (type) {
-            case SessionController.Wrist: return "Capture"
-            case SessionController.Coach: return "Review"
-            default:                      return "Analyse"
+    // mode → sensible default layout (used until the user edits a mode's layout).
+    function defaultLayout(mode) {
+        switch (mode) {
+            case SessionMode.review:
+                return { panels: ["camera", "charts", "timeline", "carousel"], arrangement: "split" }
+            case SessionMode.analyse:
+                return { panels: ["charts", "table", "timeline", "carousel"], arrangement: "split" }
+            default: // capture
+                return { panels: ["camera", "carousel"], arrangement: "stage" }
         }
     }
 
-    function _key(type) { return String(type) }
+    function _key(mode) { return String(mode) }
+
+    function _layout(mode) {
+        var m = appSettings.viewLayoutByMode, k = _key(mode)
+        return (m && m[k] !== undefined) ? m[k] : defaultLayout(mode)
+    }
 
     // ── resolution (read) ───────────────────────────────────────────────────
-    function presetFor(type) {
-        var m = appSettings.viewPresetByType, k = _key(type)
-        return (m && m[k] !== undefined) ? m[k] : defaultPreset(type)
+    function enabledKeysFor(mode) {
+        return _layout(mode).panels || []
     }
 
-    // QStringList of enabled keys; falls back to the active preset's set.
-    function enabledKeysFor(type) {
-        var m = appSettings.viewPanelsByType, k = _key(type)
-        if (m && m[k] !== undefined) return m[k]
-        var p = presets[presetFor(type)] || presets["Analyse"]
-        return p.panels
+    function isPanelOn(mode, key) {
+        return enabledKeysFor(mode).indexOf(key) >= 0
     }
 
-    function isPanelOn(type, key) {
-        return enabledKeysFor(type).indexOf(key) >= 0
-    }
-
-    function arrangementFor(type) {
-        var m = appSettings.viewArrangementByType, k = _key(type)
-        if (m && m[k] !== undefined) return m[k]
-        var p = presets[presetFor(type)] || presets["Analyse"]
-        return p.arrangement
+    function arrangementFor(mode) {
+        return _layout(mode).arrangement || "split"
     }
 
     // ── mutation (write) ────────────────────────────────────────────────────
-    function applyPreset(type, name) {
-        var p = presets[name]; if (!p) return
-        var k = _key(type)
-        var mp = _clone(appSettings.viewPanelsByType);      mp[k] = p.panels.slice()
-        var ma = _clone(appSettings.viewArrangementByType); ma[k] = p.arrangement
-        var ms = _clone(appSettings.viewPresetByType);      ms[k] = name
-        appSettings.viewPanelsByType      = mp
-        appSettings.viewArrangementByType = ma
-        appSettings.viewPresetByType      = ms
-    }
-
-    function setPanel(type, key, on) {
-        var k = _key(type)
-        var keys = enabledKeysFor(type).slice()
+    function setPanel(mode, key, on) {
+        var keys = enabledKeysFor(mode).slice()
         var i = keys.indexOf(key)
         if (on && i < 0) keys.push(key)
         else if (!on && i >= 0) keys.splice(i, 1)
-        var mp = _clone(appSettings.viewPanelsByType); mp[k] = keys
-        appSettings.viewPanelsByType = mp
-        _reconcilePreset(type)
+        _write(mode, keys, arrangementFor(mode))
     }
 
-    function setArrangement(type, name) {
-        var k = _key(type)
-        var ma = _clone(appSettings.viewArrangementByType); ma[k] = name
-        appSettings.viewArrangementByType = ma
-        _reconcilePreset(type)
+    function setArrangement(mode, name) {
+        _write(mode, enabledKeysFor(mode).slice(), name)
     }
 
-    // If the resolved state matches a named preset, show that name; else "Custom".
-    function _reconcilePreset(type) {
-        var match = ""
-        for (var i = 0; i < presetOrder.length; ++i)
-            if (_matchesPreset(type, presetOrder[i])) { match = presetOrder[i]; break }
-        var k = _key(type)
-        var ms = _clone(appSettings.viewPresetByType)
-        ms[k] = match !== "" ? match : "Custom"
-        appSettings.viewPresetByType = ms
-    }
-
-    function _matchesPreset(type, name) {
-        var p = presets[name]; if (!p) return false
-        if (arrangementFor(type) !== p.arrangement) return false
-        var cur = enabledKeysFor(type)
-        if (cur.length !== p.panels.length) return false
-        for (var i = 0; i < p.panels.length; ++i)
-            if (cur.indexOf(p.panels[i]) < 0) return false
-        return true
+    function _write(mode, panels, arrangement) {
+        var m = _clone(appSettings.viewLayoutByMode)
+        m[_key(mode)] = { panels: panels, arrangement: arrangement }
+        appSettings.viewLayoutByMode = m
     }
 
     function _clone(m) {

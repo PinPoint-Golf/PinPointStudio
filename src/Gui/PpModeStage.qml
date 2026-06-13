@@ -17,7 +17,7 @@
  */
 
 // Centre-stage arranger. Shows the enabled stage panels (camera/charts/dashboard/
-// table) packed per ViewLayout.arrangementFor(type): tabs | split | stage.
+// table) packed per ViewLayout.arrangementFor(SessionMode.mode): tabs | split | stage.
 // Screens override cameraDelegate; the rest fall back to PpStagePanel placeholders.
 //
 // Each arrangement's Loaders are gated on the active `arrangement` (not just the
@@ -31,14 +31,14 @@ import PinPointStudio
 
 Item {
     id: stage
-    property int sessionType: -1
 
     property Component cameraDelegate:    null
     property Component chartsDelegate:    null
     property Component dashboardDelegate: null
     property Component tableDelegate:     null
 
-    readonly property string arrangement: ViewLayout.arrangementFor(sessionType)
+    // Layout resolves on the active session MODE, not the session type.
+    readonly property string arrangement: ViewLayout.arrangementFor(SessionMode.mode)
 
     readonly property var _defs: [
         { key: "camera",    label: qsTr("Camera"),    comp: cameraDelegate },
@@ -48,7 +48,7 @@ Item {
     ]
     // ordered, enabled-only
     readonly property var active: _defs.filter(function(d) {
-        return ViewLayout.isPanelOn(stage.sessionType, d.key)
+        return ViewLayout.isPanelOn(SessionMode.mode, d.key)
     })
 
     property int tabIndex: 0

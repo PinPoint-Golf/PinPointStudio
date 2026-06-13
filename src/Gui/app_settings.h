@@ -114,6 +114,11 @@ class AppSettings : public QObject
     Q_PROPERTY(QVariantMap viewPanelsByType      READ viewPanelsByType      WRITE setViewPanelsByType      NOTIFY viewPanelsByTypeChanged)
     Q_PROPERTY(QVariantMap viewArrangementByType READ viewArrangementByType WRITE setViewArrangementByType NOTIFY viewArrangementByTypeChanged)
     Q_PROPERTY(QVariantMap viewPresetByType      READ viewPresetByType      WRITE setViewPresetByType      NOTIFY viewPresetByTypeChanged)
+    // Session-stage layout, persisted per session MODE (key = String(mode): 0=Capture,
+    // 1=Review, 2=Analyse) rather than per session type. Value = { panels: QStringList,
+    // arrangement: "tabs"|"split"|"stage" }. Resolved by the ViewLayout.qml singleton;
+    // supersedes the per-type view{Panels,Arrangement,Preset}ByType maps above.
+    Q_PROPERTY(QVariantMap viewLayoutByMode      READ viewLayoutByMode      WRITE setViewLayoutByMode      NOTIFY viewLayoutByModeChanged)
     // Active data-viewer region preset, persisted per SessionController::Type (key
     // = String(typeInt)) so each mode remembers its default lens. Value is a region
     // name ("Axial"/"Lower"/"Upper"/"Delivery"/"Custom"). Read by PpDataViewer.
@@ -229,6 +234,7 @@ public:
         m_viewPanelsByType      = ppSettings().value(QStringLiteral("view/panelsByType"),      QVariantMap{}).toMap();
         m_viewArrangementByType = ppSettings().value(QStringLiteral("view/arrangementByType"), QVariantMap{}).toMap();
         m_viewPresetByType      = ppSettings().value(QStringLiteral("view/presetByType"),      QVariantMap{}).toMap();
+        m_viewLayoutByMode      = ppSettings().value(QStringLiteral("view/layoutByMode"),      QVariantMap{}).toMap();
         m_dataRegionByType      = ppSettings().value(QStringLiteral("view/dataRegionByType"),  QVariantMap{}).toMap();
         m_lastSessionType    = ppSettings().value(QStringLiteral("session/lastType"), 0).toInt();
 
@@ -311,6 +317,7 @@ public:
     QVariantMap viewPanelsByType()      const { return m_viewPanelsByType; }
     QVariantMap viewArrangementByType() const { return m_viewArrangementByType; }
     QVariantMap viewPresetByType()      const { return m_viewPresetByType; }
+    QVariantMap viewLayoutByMode()      const { return m_viewLayoutByMode; }
     QVariantMap dataRegionByType()      const { return m_dataRegionByType; }
     int         lastSessionType()    const { return m_lastSessionType; }
 
@@ -805,6 +812,14 @@ public:
         emit viewPresetByTypeChanged();
     }
 
+    void setViewLayoutByMode(const QVariantMap &v)
+    {
+        if (m_viewLayoutByMode == v) return;
+        m_viewLayoutByMode = v;
+        ppSettings().setValue(QStringLiteral("view/layoutByMode"), v);
+        emit viewLayoutByModeChanged();
+    }
+
     void setDataRegionByType(const QVariantMap &v)
     {
         if (m_dataRegionByType == v) return;
@@ -960,6 +975,7 @@ signals:
     void viewPanelsByTypeChanged();
     void viewArrangementByTypeChanged();
     void viewPresetByTypeChanged();
+    void viewLayoutByModeChanged();
     void dataRegionByTypeChanged();
     void lastSessionTypeChanged();
     void sessionNamingPatternChanged();
@@ -1037,6 +1053,7 @@ private:
     QVariantMap m_viewPanelsByType;
     QVariantMap m_viewArrangementByType;
     QVariantMap m_viewPresetByType;
+    QVariantMap m_viewLayoutByMode;
     QVariantMap m_dataRegionByType;
     int         m_lastSessionType = 0;
 

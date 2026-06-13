@@ -20,8 +20,8 @@ import QtQuick
 
 // Segmented playback-speed selector — all speeds visible, the active one
 // highlighted with an accent-tinted capsule; click any segment to select it
-// directly. Used by both replay surfaces (PpReplayStage transport row,
-// PpShotPanel scrub row) so speed control looks and behaves identically.
+// directly. Used by the Review transport (PpReviewTransport) to drive the
+// session-stage replay speed.
 Rectangle {
     id: root
 

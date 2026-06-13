@@ -18,96 +18,81 @@
 
 #pragma once
 
-#include <QElapsedTimer>
+#include "replay_source.h"
+
 #include <QObject>
-#include <QPointer>
 #include <QString>
+#include <QVariantList>
 #include <QVariantMap>
-#include <QVector>
-#include <vector>
+#include <memory>
 
-class QMediaPlayer;
 class QVideoSink;
-class QTimer;
 
-// ShotReplayController (QML context property `shotReplay`) — replays a shot from
-// disk (its MP4(s) + swing.json), the disk-backed counterpart to ShotProcessor's
-// live ¼× replay. A reloaded shot (or any older carousel entry) has no in-memory
-// SwingWindow, so it cannot use ShotProcessor; this controller owns one
-// QMediaPlayer per recorded video stream and reports a synchronised playhead so
-// the metric graph (PpMetricGraph) tracks the video.
+// ShotReplayController (QML context property `shotReplay`) — the QML-facing facade
+// for the unified Review stage. It owns a polymorphic ReplaySource (today a
+// DiskReplaySource: MP4(s) + swing.json) and forwards QML calls to it, the same
+// abstract-base + factory shape as the IMU/STT/TTS backends. There is ONE replay
+// surface — the session stage; the old "panel"/"screen" target split is gone.
 //
-// Domain: everything the graph sees is WINDOW-RELATIVE µs (capture time, t0
-// subtracted) — startUs..endUs span the captured frames, positionUs is the
-// playhead, analysisDetail.series/phases are offset to the same 0-based domain on
-// load. (Exporter stream frames.t_us are already window-relative; analysis t_us
-// are absolute, so they are offset by clock.t0_us here on load.)
-//
-// Each MP4 plays at its baked-in 30 fps, which already slows high-fps captures —
-// so each stream's playbackRate is computed to make the whole window replay at a
-// fixed capture-time speed regardless of the camera's capture fps. `speed` is
-// that capture-time multiplier (1.0 = real time), user-selected from
-// 0.1/0.25/0.5/1 (PpSpeedSelector); changes apply to live players immediately.
-// The graph playhead is derived by mapping the master player's reported position
-// back to capture time via that stream's frames.t_us table.
+// The controller owns only the QML-shot identity (shotId / swingDir / active) and
+// the `streams` list the Review camera tiles enumerate; everything time/transport
+// related is delegated to the source. A reviewed swing may have been recorded on a
+// different camera rig, so `streams` is built from the swing's OWN swing.json.
 class ShotReplayController : public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(bool        active         READ active         NOTIFY activeChanged)
-    Q_PROPERTY(bool        playing        READ playing        NOTIFY playingChanged)
-    Q_PROPERTY(int         shotId         READ shotId         NOTIFY activeChanged)
+    Q_PROPERTY(bool         active         READ active         NOTIFY activeChanged)
+    Q_PROPERTY(bool         playing        READ playing        NOTIFY playingChanged)
+    Q_PROPERTY(int          shotId         READ shotId         NOTIFY activeChanged)
     // On-disk folder of the focused (replaying/scrubbing) shot, for the data viewer.
     // Empty when no replay is active — the viewer then falls back to the carousel's
     // current selection. NOTIFY activeChanged covers both start() and stop().
-    Q_PROPERTY(QString     swingDir       READ swingDir       NOTIFY activeChanged)
-    Q_PROPERTY(int         streamCount    READ streamCount    NOTIFY activeChanged)
-    // Which surface renders the replay — "panel" (inline review popup) or
-    // "screen" (the full main-screen PpReplayStage). One QMediaPlayer has one
-    // sink, so only the matching surface binds its VideoOutputs.
-    Q_PROPERTY(QString     target         READ target         NOTIFY activeChanged)
-    Q_PROPERTY(double      speed          READ speed          NOTIFY speedChanged)
-    Q_PROPERTY(qint64      positionUs     READ positionUs     NOTIFY positionChanged)
-    Q_PROPERTY(qint64      startUs        READ startUs        NOTIFY spanChanged)
-    Q_PROPERTY(qint64      endUs          READ endUs          NOTIFY spanChanged)
-    Q_PROPERTY(qint64      impactUs       READ impactUs       NOTIFY spanChanged)
-    Q_PROPERTY(QVariantMap analysisDetail READ analysisDetail NOTIFY activeChanged)
+    Q_PROPERTY(QString      swingDir       READ swingDir       NOTIFY activeChanged)
+    Q_PROPERTY(int          streamCount    READ streamCount    NOTIFY activeChanged)
+    // Per-stream metadata for the Review camera tiles, from the swing's own
+    // swing.json: list of { index, perspective, aspect, hasAnalysis }.
+    Q_PROPERTY(QVariantList streams        READ streams        NOTIFY activeChanged)
+    Q_PROPERTY(double       speed          READ speed          NOTIFY speedChanged)
+    Q_PROPERTY(qint64       positionUs     READ positionUs     NOTIFY positionChanged)
+    Q_PROPERTY(qint64       startUs        READ startUs        NOTIFY spanChanged)
+    Q_PROPERTY(qint64       endUs          READ endUs          NOTIFY spanChanged)
+    Q_PROPERTY(qint64       impactUs       READ impactUs       NOTIFY spanChanged)
+    Q_PROPERTY(QVariantMap  analysisDetail READ analysisDetail NOTIFY activeChanged)
 
 public:
     explicit ShotReplayController(QObject *parent = nullptr);
     ~ShotReplayController() override;
 
-    bool        active()         const { return m_active; }
-    bool        playing()        const { return m_playing; }
-    int         shotId()         const { return m_shotId; }
-    QString     swingDir()       const { return m_active ? m_swingDir : QString(); }
-    int         streamCount()    const { return int(m_streams.size()); }
-    qint64      positionUs()     const { return m_positionUs; }
-    qint64      startUs()        const { return m_startUs; }
-    qint64      endUs()          const { return m_endUs; }
-    qint64      impactUs()       const { return m_impactUs; }
-    QVariantMap analysisDetail() const { return m_analysisDetail; }
-    QString     target()         const { return m_target; }
-    double      speed()          const { return m_speed; }
+    bool         active()         const { return m_active; }
+    bool         playing()        const { return m_source->playing(); }
+    int          shotId()         const { return m_shotId; }
+    QString      swingDir()       const { return m_active ? m_swingDir : QString(); }
+    int          streamCount()    const { return m_source->streamCount(); }
+    QVariantList streams()        const;
+    qint64       positionUs()     const { return m_source->positionUs(); }
+    qint64       startUs()        const { return m_source->startUs(); }
+    qint64       endUs()          const { return m_source->endUs(); }
+    qint64       impactUs()       const { return m_source->impactUs(); }
+    QVariantMap  analysisDetail() const { return m_source->analysisDetail(); }
+    double       speed()          const { return m_source->speed(); }
 
     // Start replaying the shot at `swingDir` for carousel row `shotId`. `speed`
-    // is the capture-time multiplier (1.0 = real time), clamped to 0.1..1;
-    // target "screen" renders on the main-screen stage, else the review
-    // panel. Returns false if the doc has no playable video stream.
-    Q_INVOKABLE bool start(int shotId, const QString &swingDir, double speed = 0.25,
-                           const QString &target = QStringLiteral("panel"));
+    // is the capture-time multiplier (1.0 = real time), clamped to 0.1..1.
+    // Returns false if the doc has no playable video stream.
+    Q_INVOKABLE bool start(int shotId, const QString &swingDir, double speed = 0.25);
     Q_INVOKABLE void stop();
-    Q_INVOKABLE void togglePlay();
-    Q_INVOKABLE void seekToFraction(double frac);   // 0..1 over the window
-    Q_INVOKABLE void seekToUs(qint64 us);
-    Q_INVOKABLE void stepFrame(int delta);          // ±N frames on the master stream
-    Q_INVOKABLE void setSpeed(double speed);        // mid-replay change, applied immediately
-    Q_INVOKABLE void beginScrub();                  // pause on slider grab
-    Q_INVOKABLE void endScrub();                    // restore play state on release
+    Q_INVOKABLE void togglePlay()                 { m_source->togglePlay(); }
+    Q_INVOKABLE void seekToFraction(double frac)  { m_source->seekToFraction(frac); }
+    Q_INVOKABLE void seekToUs(qint64 us)          { m_source->seekToUs(us); }
+    Q_INVOKABLE void stepFrame(int delta)         { m_source->stepFrame(delta); }
+    Q_INVOKABLE void setSpeed(double speed)       { m_source->setSpeed(speed); }
+    Q_INVOKABLE void beginScrub()                 { m_source->beginScrub(); }
+    Q_INVOKABLE void endScrub()                   { m_source->endScrub(); }
 
     // Bind a QML VideoOutput's sink to stream `index` (face-on = 0). Persists
-    // across shots (the VideoOutput outlives a single replay), so it may be
-    // called before start(); a live player at that index is rebound immediately.
-    Q_INVOKABLE void setVideoSink(int index, QVideoSink *sink);
+    // across shots (the VideoOutput outlives a single replay), so it may be called
+    // before start(); a live player at that index is rebound immediately.
+    Q_INVOKABLE void setVideoSink(int index, QVideoSink *sink) { m_source->setVideoSink(index, sink); }
 
 signals:
     void activeChanged();
@@ -115,43 +100,14 @@ signals:
     void positionChanged();
     void spanChanged();
     void speedChanged();
-    // A stream failed to decode (e.g. an H.265/MKV clip the platform media
-    // backend can't play). Carries a human-readable reason for the UI to show
-    // instead of a silent black surface.
+    // A stream failed to decode — carries a human-readable reason for the UI.
     void replayFailed(const QString &error);
 
-private slots:
-    void onTick();
-
 private:
-    struct Stream {
-        QMediaPlayer        *player = nullptr;
-        std::vector<int64_t> tUs;            // window-relative frame stamps (µs)
-        double               playbackFps = 30.0;
-    };
+    void onAborted();
 
-    void teardown();
-    void setPlaying(bool p);
-    void setPositionUs(qint64 us);
-    void seekPlayersTo(qint64 captureUs);    // map capture µs → each MP4 and setPosition
-    void applyPlaybackRates();               // per-stream rate from m_speed + span
-    qint64 captureUsForStream(int streamIdx, qint64 mp4Ms) const;
-    qint64 mp4MsForStream(int streamIdx, qint64 captureUs) const;
-
-    bool        m_active     = false;
-    bool        m_playing    = false;
-    int         m_shotId     = -1;
-    QString     m_swingDir;
-    QString     m_target     = QStringLiteral("panel");
-    double      m_speed      = 0.25;   // capture-time multiplier, 0.1..1
-    bool        m_wasPlayingBeforeScrub = false;
-    qint64      m_startUs    = 0;
-    qint64      m_endUs      = 0;
-    qint64      m_impactUs   = -1;
-    qint64      m_positionUs = 0;
-    QVariantMap m_analysisDetail;
-
-    std::vector<Stream>               m_streams;
-    QVector<QPointer<QVideoSink>>     m_sinks;   // bound from QML, by stream index
-    QTimer                           *m_timer = nullptr;
+    bool                          m_active = false;
+    int                           m_shotId = -1;
+    QString                       m_swingDir;
+    std::unique_ptr<ReplaySource> m_source;
 };

@@ -37,6 +37,9 @@ Item {
     // so the session lock knows which type owns the running session.
     property int sessionType: -1
 
+    // Mode-switch labels, indexed by SessionMode.mode (capture/review/analyse).
+    readonly property var modeNames: [qsTr("Capture"), qsTr("Review"), qsTr("Analyse")]
+
     // Live capture truth — mirrors the actual EventBuffer state (same source as
     // the Resource Monitor). cameraManager.bufferState notifies on every net
     // transition, including those caused by IMU register/deregister (forwarded
@@ -609,10 +612,29 @@ Item {
             Layout.alignment: Qt.AlignVCenter
         }
 
-        // ── View pill ───────────────────────────────────────────────────────
+        // ── Mode switch — primary layout control (Capture/Review/Analyse) ─────
+        // The activity axis. Review is never blocked: with no focused swing the
+        // stage shows its empty-state. Selecting a mode never stops live capture
+        // (that is the data-source axis, owned by SessionReviewController).
+        PpSegmentedControl {
+            id: modeSwitch
+            Layout.preferredWidth: Theme.sp(220)
+            Layout.alignment: Qt.AlignVCenter
+            solid: false
+            options:  root.modeNames
+            selected: root.modeNames[SessionMode.mode]
+            onActivated: (value) => {
+                var i = root.modeNames.indexOf(value)
+                if (i === SessionMode.review)       SessionMode.showReview()
+                else if (i === SessionMode.analyse) SessionMode.enterAnalyse()
+                else                                SessionMode.enterCapture()
+            }
+        }
+
+        // ── View pill — edits the CURRENT mode's saved layout ─────────────────
         ViewPill {
             id: viewPill
-            sessionType: root.sessionType
+            label: root.modeNames[SessionMode.mode]
             active: viewPopup.opened
             onClicked: {
                 camPopup.close(); imuPopup.close()
@@ -673,7 +695,7 @@ Item {
             color: Theme.colorSurface; radius: Theme.radiusLg
             border.width: 1; border.color: Theme.colorBorderStrong
         }
-        contentItem: PpViewPanel { sessionType: root.sessionType }
+        contentItem: PpViewPanel { }
     }
 
     Popup {
@@ -783,10 +805,10 @@ Item {
     }
 
     // ── View pill — lighter sibling of DevicePill (no badge; shows the active
-    // preset and a chevron; accent ring while its popup is open) ─────────────
+    // mode and a chevron; accent ring while its popup is open) ────────────────
     component ViewPill: Rectangle {
-        property int  sessionType: -1
-        property bool active: false
+        property string label: ""
+        property bool   active: false
         signal clicked()
 
         Layout.alignment: Qt.AlignVCenter
@@ -824,7 +846,7 @@ Item {
                 Row {
                     spacing: Theme.sp(4)
                     Text {
-                        text: ViewLayout.presetFor(sessionType)
+                        text: label
                         font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
                         color: Theme.colorText
                     }

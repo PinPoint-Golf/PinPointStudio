@@ -43,22 +43,26 @@ Item {
             sessionType: root.sessionType
         }
 
-        // Timeline rail (placeholder until the real producer lands).
-        RmTimelineChart {
+        // Timeline rail — content resolves by mode: Review shows the scrub +
+        // clickable phase pills; Capture/Analyse keep the session placeholder.
+        Loader {
             Layout.fillWidth: true
-            Layout.preferredHeight: Theme.sp(48)
-            visible: ViewLayout.isPanelOn(root.sessionType, "timeline")
+            Layout.preferredHeight: Theme.sp(56)
+            visible: ViewLayout.isPanelOn(SessionMode.mode, "timeline")
+            active: visible
+            sourceComponent: SessionMode.mode === SessionMode.review
+                             ? reviewTimelineComp : rmTimelineComp
         }
 
-        // Centre stage — camera tiles wired to real content; charts/dashboard/
-        // table fall back to muted PpStagePanel placeholders until their
-        // producers land. Packing (tabs/split/stage) is resolved by ViewLayout.
+        // Centre stage — camera tiles + the Review charts trace; dashboard/table
+        // fall back to muted PpStagePanel placeholders until their producers land.
+        // Packing (tabs/split/stage) is resolved by ViewLayout on the active mode.
         PpModeStage {
             Layout.fillWidth: true; Layout.fillHeight: true
-            sessionType: root.sessionType
             cameraDelegate: Component {
                 PpCameraTiles { sessionType: root.sessionType }
             }
+            chartsDelegate: Component { PpReviewCharts {} }
             // Table panel — read-only inspector of the focused swing.json. The
             // focused swing is the active replay, else the carousel's selection.
             tableDelegate: Component {
@@ -70,14 +74,24 @@ Item {
             }
         }
 
+        // Always-on Review transport (play/step/speed); works even when the
+        // timeline panel is hidden. Capture/Analyse hide it.
+        PpReviewTransport {
+            Layout.fillWidth: true
+            visible: SessionMode.mode === SessionMode.review
+        }
+
         // Session-shot carousel — stub model for now (per-mode goal vocabulary
         // lands with the real analyzers).
         PpShotCarousel {
             id: modeCarousel
             Layout.fillWidth: true
-            visible: ViewLayout.isPanelOn(root.sessionType, "carousel")
+            visible: ViewLayout.isPanelOn(SessionMode.mode, "carousel")
             metricKeys: []
             traceLabel: qsTr("SESSION SHOTS")
         }
     }
+
+    Component { id: reviewTimelineComp; PpReviewTimeline {} }
+    Component { id: rmTimelineComp;     RmTimelineChart {} }
 }

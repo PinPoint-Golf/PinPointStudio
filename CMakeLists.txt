@@ -155,6 +155,8 @@ qt_add_executable(PinPointStudio
     src/Gui/shot_list_model.h          src/Gui/shot_list_model.cpp
     src/Gui/shot_processor.h           src/Gui/shot_processor.cpp
     src/Gui/shot_replay_controller.h   src/Gui/shot_replay_controller.cpp
+    src/Gui/replay_source.h
+    src/Gui/disk_replay_source.h       src/Gui/disk_replay_source.cpp
     src/Gui/live_wrist_angles.h        src/Gui/live_wrist_angles.cpp
     src/IMU/imu_base.h        src/IMU/imu_base.cpp
     src/IMU/imu_capabilities.h
@@ -216,6 +218,7 @@ target_include_directories(PinPointStudio PRIVATE src/Gui src/IMU src/Audio src/
 set_source_files_properties(src/Gui/Theme.qml         PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set_source_files_properties(src/Gui/SettingsIndex.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set_source_files_properties(src/Gui/ViewLayout.qml    PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set_source_files_properties(src/Gui/SessionMode.qml   PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
 qt_add_qml_module(PinPointStudio
     URI PinPointStudio
@@ -223,6 +226,7 @@ qt_add_qml_module(PinPointStudio
     QML_FILES
         src/Gui/Theme.qml
         src/Gui/ViewLayout.qml
+        src/Gui/SessionMode.qml
         src/Gui/Main.qml
         src/Gui/AudioPage.qml
         src/Gui/CapturePage.qml
@@ -237,6 +241,9 @@ qt_add_qml_module(PinPointStudio
         src/Gui/PpViewPanel.qml
         src/Gui/PpCameraTiles.qml
         src/Gui/PpModeStage.qml
+        src/Gui/PpReviewCharts.qml
+        src/Gui/PpReviewTimeline.qml
+        src/Gui/PpReviewTransport.qml
         src/Gui/PpRail.qml
         src/Gui/PpRailButton.qml
         src/Gui/PpDivider.qml
@@ -281,13 +288,11 @@ qt_add_qml_module(PinPointStudio
         src/Gui/PpExportOptionsSheet.qml
         src/Gui/PpShotCard.qml
         src/Gui/PpSessionDrawer.qml
-        src/Gui/PpShotPanel.qml
         src/Gui/PpShotFilter.qml
         src/Gui/PpQualityPill.qml
         src/Gui/PpStarRating.qml
         src/Gui/PpTrace.qml
         src/Gui/PpMetricGraph.qml
-        src/Gui/PpReplayStage.qml
         src/Gui/PpSpeedSelector.qml
         src/Gui/PpToast.qml
         src/Gui/PpDataViewer.qml

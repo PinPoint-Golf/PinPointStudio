@@ -16,9 +16,9 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// View panel for the session toolbar. Three sections: a segmented PRESETS pill,
-// an ARRANGEMENT schematic group (tabs/split/stage), and a PANELS toggle grid.
-// All state resolves through ViewLayout, persisted per SessionController::Type.
+// View panel for the session toolbar. Two sections: an ARRANGEMENT schematic
+// group (tabs/split/stage) and a PANELS toggle grid. Both edit the CURRENT
+// session mode's layout via ViewLayout, persisted per SessionMode.mode.
 
 import QtQuick
 import QtQuick.Layouts
@@ -26,7 +26,6 @@ import PinPointStudio
 
 Item {
     id: root
-    property int sessionType: -1
 
     implicitWidth:  Theme.sp(300)
     implicitHeight: col.implicitHeight + Theme.sp(26)
@@ -44,25 +43,6 @@ Item {
         id: col
         anchors { fill: parent; margins: Theme.sp(13) }
         spacing: Theme.sp(12)
-
-        // ── PRESETS ─────────────────────────────────────────────────────────
-        Column {
-            width: parent.width
-            spacing: Theme.sp(8)
-            Text {
-                text: qsTr("LAYOUT PRESETS")
-                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
-            }
-            PpSegmentedControl {
-                width: parent.width
-                options:  ViewLayout.presetOrder
-                selected: ViewLayout.presetFor(root.sessionType)
-                onActivated: ViewLayout.applyPreset(root.sessionType, value)
-            }
-        }
-
-        PpDivider { width: parent.width }
 
         // ── ARRANGEMENT ─────────────────────────────────────────────────────
         Column {
@@ -109,13 +89,13 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             text: modelData.label
                             font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                            color: ViewLayout.isPanelOn(root.sessionType, modelData.key)
+                            color: ViewLayout.isPanelOn(SessionMode.mode, modelData.key)
                                    ? Theme.colorText : Theme.colorText2
                         }
                         MiniToggle {
                             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                            checked: ViewLayout.isPanelOn(root.sessionType, modelData.key)
-                            onToggled: ViewLayout.setPanel(root.sessionType, modelData.key, !checked)
+                            checked: ViewLayout.isPanelOn(SessionMode.mode, modelData.key)
+                            onToggled: ViewLayout.setPanel(SessionMode.mode, modelData.key, !checked)
                         }
                     }
                 }
@@ -127,7 +107,7 @@ Item {
     component ArrangeCard: Rectangle {
         property string value: ""
         property string label: ""
-        readonly property bool active: ViewLayout.arrangementFor(root.sessionType) === value
+        readonly property bool active: ViewLayout.arrangementFor(SessionMode.mode) === value
         height: Theme.sp(46)
         radius: Theme.radius
         color: active ? Theme.colorAccentLight : "transparent"
@@ -169,7 +149,7 @@ Item {
         MouseArea {
             anchors.fill: parent; hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: ViewLayout.setArrangement(root.sessionType, value)
+            onClicked: ViewLayout.setArrangement(SessionMode.mode, value)
         }
     }
 

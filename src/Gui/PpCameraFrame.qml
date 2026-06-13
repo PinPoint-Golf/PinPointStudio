@@ -37,6 +37,23 @@ Item {
     // Live CameraInstance, or null while the camera is not connected.
     property QtObject instance: null
 
+    // Replay-stream mode: when >= 0 this tile renders shotReplay stream N — the
+    // reviewed swing's OWN video (disk-backed, source-agnostic) — instead of a
+    // live CameraInstance. Default -1 = live-camera tile (instance path).
+    property int replayStreamIndex: -1
+    readonly property bool _isReplay: replayStreamIndex >= 0
+
+    // Replay-overlay source — resolves to the disk replay (Review tile) or the
+    // live in-window transient (Capture tile), so the analyzed skeleton/club
+    // overlay reads ONE set of values regardless of which surface is driving it.
+    readonly property bool _replayActive:     _isReplay ? shotReplay.active        : shotProcessor.isReplaying
+    readonly property var  _replayDetail:     _isReplay ? shotReplay.analysisDetail : shotProcessor.replayAnalysisDetail
+    readonly property real _replayPlayheadUs: _isReplay ? shotReplay.positionUs     : shotProcessor.replayPositionUs
+    readonly property int  _replayPerspective: _isReplay
+            ? (shotReplay.streams[replayStreamIndex] !== undefined
+               ? shotReplay.streams[replayStreamIndex].perspective : -1)
+            : (instance ? instance.perspective : -1)
+
     // Camera name shown in-frame (muted overlay; also the placeholder title).
     property string displayName: ""
 
@@ -115,7 +132,13 @@ Item {
             root._subscribed.addBayerItem(bayerView)
         }
     }
-    Component.onCompleted: _syncSubscription()
+    Component.onCompleted: {
+        _syncSubscription()
+        // Replay tiles bind their VideoOutput sink to the disk-replay stream
+        // (persists across loads; rebinds the live player immediately).
+        if (root._isReplay)
+            shotReplay.setVideoSink(root.replayStreamIndex, videoOut.videoSink)
+    }
     onInstanceChanged:     _syncSubscription()
     Component.onDestruction: {
         if (root._subscribed) {
@@ -139,7 +162,7 @@ Item {
             anchors.fill: parent
             anchors.margins: root.videoInset
             fillMode: VideoOutput.PreserveAspectFit
-            visible: root.instance !== null && !root.instance.needsDebayer
+            visible: root._isReplay || (root.instance !== null && !root.instance.needsDebayer)
         }
 
         BayerVideoItem {
@@ -152,10 +175,11 @@ Item {
         // ── Placeholder states ────────────────────────────────────────────
         // Not connected: dim frame with the camera name; the layout doesn't
         // jump when video starts. Connected but idle: "No camera feed".
+        // (Replay tiles never show this — their video is disk-backed.)
         Column {
             anchors.centerIn: parent
             spacing: Theme.sp(4)
-            visible: root.instance === null
+            visible: root.instance === null && !root._isReplay
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
                 visible: root.displayName !== ""
@@ -341,23 +365,22 @@ Item {
             anchors.fill: parent
             z: 21
             visible: root.showReplayOverlay
-                     && shotProcessor.isReplaying
-                     && root.instance !== null && root.instance.perspective === 2
+                     && root._replayActive
+                     && root._replayPerspective === 2
                      && (_poseFrames.length > 0 || _clubSamples.length > 0)
 
-            // Cached from replayAnalysisDetail — pose kp flat [x,y,c]×17 and
+            // Bound from the active replay's detail — pose kp flat [x,y,c]×17 and
             // club samples with normalized grip/head (toAnalysisDetail shapes).
-            property var _poseFrames:  []
-            property var _clubSamples: []
-            readonly property int kTrail: 10
-
-            function _rebuildCache() {
-                var d = shotProcessor.replayAnalysisDetail
-                _poseFrames  = (d && d.pose2d && d.pose2d.frames) ? d.pose2d.frames : []
-                _clubSamples = (d && d.club && d.club.valid && d.club.samples)
-                                   ? d.club.samples : []
-                if (visible) requestPaint()
+            // root._replayDetail resolves to disk (Review) or in-window (Capture).
+            readonly property var _poseFrames: {
+                var d = root._replayDetail
+                return (d && d.pose2d && d.pose2d.frames) ? d.pose2d.frames : []
             }
+            readonly property var _clubSamples: {
+                var d = root._replayDetail
+                return (d && d.club && d.club.valid && d.club.samples) ? d.club.samples : []
+            }
+            readonly property int kTrail: 10
 
             // Greatest index with t_us <= t (−1 when empty).
             function _indexFor(arr, t) {
@@ -372,27 +395,32 @@ Item {
                 return lo
             }
 
+            // Repaint as the playhead advances — from whichever surface drives it.
             Connections {
                 target: shotProcessor
-                function onReplayAnalysisDetailChanged() { replayOverlay._rebuildCache() }
+                enabled: !root._isReplay
                 function onReplayPositionChanged() {
                     if (replayOverlay.visible) replayOverlay.requestPaint()
                 }
             }
-            // The cache is owned by onReplayAnalysisDetailChanged (published
-            // before REPLAYING begins) + onCompleted for tiles created later.
-            // Do NOT rebuild from onVisibleChanged: visible reads
-            // _poseFrames/_clubSamples, so writing them there is a binding
-            // loop — becoming visible only needs a repaint of current data.
+            Connections {
+                target: shotReplay
+                enabled: root._isReplay
+                function onPositionChanged() {
+                    if (replayOverlay.visible) replayOverlay.requestPaint()
+                }
+            }
             onVisibleChanged: if (visible) requestPaint()
-            Component.onCompleted: _rebuildCache()
+            on_PoseFramesChanged:  if (visible) requestPaint()
+            on_ClubSamplesChanged: if (visible) requestPaint()
 
             onPaint: {
                 var ctx = getContext("2d")
                 ctx.clearRect(0, 0, width, height)
-                if (!root.instance)
+                // Live tile needs an instance; replay tiles paint over videoOut.
+                if (!root._isReplay && !root.instance)
                     return
-                var cr = root.instance.needsDebayer
+                var cr = (!root._isReplay && root.instance.needsDebayer)
                     ? Qt.rect(root.videoInset, root.videoInset,
                               bayerView.width, bayerView.height)
                     : Qt.rect(root.videoInset + videoOut.contentRect.x,
@@ -401,7 +429,7 @@ Item {
                               videoOut.contentRect.height)
                 if (cr.width <= 0 || cr.height <= 0)
                     return
-                var t = shotProcessor.replayPositionUs
+                var t = root._replayPlayheadUs
                 var kMinScore = 0.25
                 var cGood   = Qt.rgba(Theme.colorGood.r,   Theme.colorGood.g,   Theme.colorGood.b,   1)
                 var cAccent = Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 1)
@@ -572,7 +600,8 @@ Item {
         Rectangle {
             id: replayBadge
             visible: root.showReplayBadge
-                     && root.instance !== null && root.instance.isReplaying
+                     && ((root.instance !== null && root.instance.isReplaying)
+                         || (root._isReplay && shotReplay.active))
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top
             anchors.topMargin: Theme.sp(12)

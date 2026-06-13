@@ -163,10 +163,14 @@ int main(int argc, char *argv[])
     // row reflects the just-restored shots.
     SessionReviewController   sessionReviewController(&shotModel, &appSettings,
                                                       &athleteController);
-    // Entering review stops live capture (which disarms the shot trigger via the
-    // buffer state) and explicitly gates ShotController; the session/clock keep
-    // running so resumeLive() returns to the same live session. Capture is NOT
-    // auto-resumed on resumeLive — the user presses Capture again.
+    // DATA-SOURCE transition (a past session opened/closed from disk). This is the
+    // ONLY axis that pauses capture: opening a loaded session stops live capture
+    // (which disarms the shot trigger via the buffer state) and gates
+    // ShotController; the session/clock keep running so resumeLive() returns to the
+    // same live session. Capture is NOT auto-resumed on resumeLive — the user
+    // presses Capture again. The orthogonal session MODE (Capture/Review/Analyse)
+    // is owned by the SessionMode QML singleton and never stops live capture; the
+    // stage's Review mode is reset to Capture on this transition in Main.qml.
     QObject::connect(&sessionReviewController, &SessionReviewController::reviewActiveChanged,
                      [&sessionReviewController, &shotController, &cameraManager] {
         const bool review = sessionReviewController.reviewActive();

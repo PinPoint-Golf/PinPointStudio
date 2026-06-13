@@ -37,9 +37,6 @@ Item {
     // Caption over the panel's trace chart (e.g. "LEAD-WRIST FLEXION · ADDRESS → IMPACT").
     property string traceLabel: ""
 
-    signal replayRequested(int shotId, string mode)
-    signal faceOnRequested(int shotId)
-
     property int  selectedShotId: -1
     property Item selectedCard:   null   // live delegate; nulled by QML when it is destroyed
 
@@ -51,24 +48,16 @@ Item {
     readonly property var  activeModel: reviewing ? sessionReviewController.shots
                                                   : shotModel
 
-    // Selected card's visual x within the carousel — tracks list scrolling.
-    readonly property real selectedCardX:
-        selectedCard ? railCol.x + strip.x + selectedCard.x - strip.contentX : 0
-
-    // Shared popup width for the shot panel AND the sessions drawer (~⅓ of
-    // the carousel width, clamped) — one sizing so the two read as siblings,
-    // and wide enough that the metric-graph legend doesn't wrap.
+    // Shared popup width for the sessions drawer (~⅓ of the carousel width,
+    // clamped) — wide enough that its content doesn't wrap.
     readonly property real drawerWidth:
         Math.round(Math.max(Theme.sp(420), Math.min(width / 3, Theme.sp(560))))
 
     implicitHeight: Theme.carouselHeight
 
-    // A filtered-out or removed selection destroys its delegate — drop the panel with it.
-    onSelectedCardChanged: if (!selectedCard && panelPopup.opened) panelPopup.close()
-
-    // Opens the export options sheet for a set of swing dirs. Both the ⋯
-    // "export all selected" and the single-shot panel export route through here,
-    // so they share one options panel, one exporter call and one toast.
+    // Opens the export options sheet for a set of swing dirs. The ⋯ "export all
+    // selected" action routes through here, sharing one options panel, one
+    // exporter call and one toast.
     function _openExportSheet(dirs, emptyMsg) {
         if (dirs.length === 0) {            // analysis-only shots have no on-disk files
             toast.showUndo = false
@@ -354,7 +343,6 @@ Item {
                                 onClicked: {
                                     const ids = filterProxy.visibleShotIds()
                                     bulkMenu.close()
-                                    panelPopup.close()
                                     const n = root.activeModel.moveAllToTrash(ids)
                                     toast.showUndo = false   // OS trash is the recovery path, not an in-app undo
                                     toast.copyText = ""
@@ -382,98 +370,15 @@ Item {
 
             delegate: PpShotCard {
                 id: cardDelegate
-                selected: shotId === root.selectedShotId && panelPopup.opened
+                // Highlight follows the swing currently on the stage (filmstrip
+                // → loupe). Single click promotes this swing into Review.
+                selected: shotId === SessionMode.focusedShotId
                 onTapped: {
                     root.selectedShotId = shotId
                     root.selectedCard   = cardDelegate
-                    panelPopup.open()
+                    SessionMode.enterReview(shotId, swingDir)
                 }
                 onRated: (n) => root.activeModel.setRating(shotId, n)
-            }
-        }
-    }
-
-    // ── Review panel — opens upward, anchored over the selected card ────────
-    Popup {
-        id: panelPopup
-        parent: root
-        width: root.drawerWidth
-        y: -height - Theme.sp(10)
-        x: Math.max(Theme.sp(8),
-                    Math.min(root.selectedCardX - width / 2 + Theme.sp(70),
-                             root.width - width - Theme.sp(8)))
-        padding: 0
-        margins: Theme.sp(8)
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        background: Rectangle {
-            color: Theme.colorSurface; radius: Theme.radiusLg
-            border.width: 1; border.color: Theme.colorBorderStrong
-
-            Rectangle {   // pointer arrow aligned to the selected card
-                x: Math.max(Theme.sp(14),
-                            Math.min(root.selectedCardX + Theme.sp(70) - panelPopup.x - width / 2,
-                                     parent.width - width - Theme.sp(14)))
-                anchors.bottom: parent.bottom
-                anchors.bottomMargin: -Theme.sp(7)
-                width:  Theme.sp(13); height: Theme.sp(13)
-                rotation: 45
-                color: Theme.colorSurface
-                border.width: 1; border.color: Theme.colorBorderStrong
-            }
-            Rectangle {   // mask the arrow's top half so only the tip shows
-                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                anchors.margins: 1
-                height: Theme.sp(10)
-                radius: Theme.radiusLg
-                color:  Theme.colorSurface
-            }
-        }
-        onClosed: {
-            // Closing the panel ends an inline replay, but a popped-out (screen)
-            // replay keeps running on the rail body with its own controls.
-            if (shotReplay.target === "panel")
-                shotReplay.stop()
-            shotPanel.commitNote()
-            root.selectedShotId = -1
-            root.selectedCard   = null
-        }
-
-        contentItem: PpShotPanel {
-            id: shotPanel
-            shotId:         root.selectedCard ? root.selectedCard.shotId         : -1
-            ordinal:        root.selectedCard ? root.selectedCard.ordinal        : 0
-            timestampLabel: root.selectedCard ? root.selectedCard.timestampLabel : ""
-            club:           root.selectedCard ? root.selectedCard.club           : ""
-            score:          root.selectedCard ? root.selectedCard.score          : 0
-            rating:         root.selectedCard ? root.selectedCard.rating         : 0
-            note:           root.selectedCard ? root.selectedCard.note           : ""
-            tracePoints:    root.selectedCard ? root.selectedCard.tracePoints    : []
-            metrics:        root.selectedCard ? root.selectedCard.metrics        : ({})
-            analysisDetail: root.selectedCard ? root.selectedCard.analysisDetail : ({})
-            swingDir:       root.selectedCard ? root.selectedCard.swingDir       : ""
-            hasVideo:       root.selectedCard ? root.selectedCard.hasVideo       : false
-            metricKeys:     root.metricKeys
-            traceLabel:     root.traceLabel
-
-            onReplayRequested: (mode) => root.replayRequested(shotPanel.shotId, mode)
-            onPopOutRequested: panelPopup.close()   // screen replay keeps running (see onClosed)
-            onFaceOnRequested: root.faceOnRequested(shotPanel.shotId)
-            onExportRequested: {
-                const dirs = root.activeModel.swingDirsForIds([shotPanel.shotId])
-                panelPopup.close()
-                root._openExportSheet(dirs, qsTr("This shot has no saved files to export"))
-            }
-            onTrashRequested: {
-                const trashedOrdinal = shotPanel.ordinal
-                const trashedId      = shotPanel.shotId
-                shotPanel.commitNote()
-                panelPopup.close()
-                const ok = root.activeModel.moveToTrash(trashedId)
-                toast.showUndo = false   // OS trash is the recovery path, not an in-app undo
-                toast.copyText = ""
-                toast.glyph    = "🗑"
-                toast.show(ok ? qsTr("Shot #%1 moved to trash").arg(trashedOrdinal)
-                              : qsTr("Couldn't move shot #%1 to trash").arg(trashedOrdinal))
             }
         }
     }

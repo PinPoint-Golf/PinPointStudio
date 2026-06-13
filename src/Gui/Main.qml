@@ -152,12 +152,15 @@ ApplicationWindow {
     Shortcut { sequence: "F11";         onActivated: root.toggleFullscreen() }
     Shortcut { sequence: "Meta+Ctrl+F"; onActivated: root.toggleFullscreen() }
 
-    // ESC skips the post-shot replay — inert otherwise (enabled gating keeps
-    // Esc free for popups/text fields when no replay is running).
+    // ESC skips the post-shot capture replay, or exits Review back to Capture —
+    // inert otherwise (enabled gating keeps Esc free for popups/text fields).
     Shortcut {
         sequence: "Esc"
-        enabled: shotProcessor.isReplaying
-        onActivated: shotProcessor.cancelReplay()
+        enabled: shotProcessor.isReplaying || SessionMode.mode === SessionMode.review
+        onActivated: {
+            if (shotProcessor.isReplaying) shotProcessor.cancelReplay()
+            else SessionMode.enterCapture()
+        }
     }
 
     // ── Close interception while a session is active ─────────────────────────
@@ -289,8 +292,16 @@ ApplicationWindow {
         target: navController
         function onCurrentIndexChanged() {
             root.contentItem.forceActiveFocus()
-            shotReplay.stop()   // leaving a screen ends any disk-backed replay
+            SessionMode.clear()   // leaving a screen exits Review + ends any disk replay
         }
+    }
+
+    // Switching data-source (opening or closing a loaded past session) resets the
+    // stage to live Capture. Mode and data-source are orthogonal axes, but a
+    // source change is a clean slate; clear() also stops any disk replay.
+    Connections {
+        target: sessionReviewController
+        function onReviewActiveChanged() { SessionMode.clear() }
     }
 
     // Named StackLayout/navController indices — keep in sync with screenNames
