@@ -114,6 +114,10 @@ class AppSettings : public QObject
     Q_PROPERTY(QVariantMap viewPanelsByType      READ viewPanelsByType      WRITE setViewPanelsByType      NOTIFY viewPanelsByTypeChanged)
     Q_PROPERTY(QVariantMap viewArrangementByType READ viewArrangementByType WRITE setViewArrangementByType NOTIFY viewArrangementByTypeChanged)
     Q_PROPERTY(QVariantMap viewPresetByType      READ viewPresetByType      WRITE setViewPresetByType      NOTIFY viewPresetByTypeChanged)
+    // Active data-viewer region preset, persisted per SessionController::Type (key
+    // = String(typeInt)) so each mode remembers its default lens. Value is a region
+    // name ("Axial"/"Lower"/"Upper"/"Delivery"/"Custom"). Read by PpDataViewer.
+    Q_PROPERTY(QVariantMap dataRegionByType      READ dataRegionByType      WRITE setDataRegionByType      NOTIFY dataRegionByTypeChanged)
     Q_PROPERTY(int         lastSessionType   READ lastSessionType   WRITE setLastSessionType   NOTIFY lastSessionTypeChanged)
 
     Q_PROPERTY(QString sessionNamingPattern  READ sessionNamingPattern  WRITE setSessionNamingPattern  NOTIFY sessionNamingPatternChanged)
@@ -225,6 +229,7 @@ public:
         m_viewPanelsByType      = ppSettings().value(QStringLiteral("view/panelsByType"),      QVariantMap{}).toMap();
         m_viewArrangementByType = ppSettings().value(QStringLiteral("view/arrangementByType"), QVariantMap{}).toMap();
         m_viewPresetByType      = ppSettings().value(QStringLiteral("view/presetByType"),      QVariantMap{}).toMap();
+        m_dataRegionByType      = ppSettings().value(QStringLiteral("view/dataRegionByType"),  QVariantMap{}).toMap();
         m_lastSessionType    = ppSettings().value(QStringLiteral("session/lastType"), 0).toInt();
 
         m_sessionNamingPattern  = ppSettings().value(QStringLiteral("storage/sessionNamingPattern"),  QStringLiteral("date-name-type")).toString();
@@ -306,6 +311,7 @@ public:
     QVariantMap viewPanelsByType()      const { return m_viewPanelsByType; }
     QVariantMap viewArrangementByType() const { return m_viewArrangementByType; }
     QVariantMap viewPresetByType()      const { return m_viewPresetByType; }
+    QVariantMap dataRegionByType()      const { return m_dataRegionByType; }
     int         lastSessionType()    const { return m_lastSessionType; }
 
     QString sessionNamingPattern()  const { return m_sessionNamingPattern; }
@@ -799,6 +805,14 @@ public:
         emit viewPresetByTypeChanged();
     }
 
+    void setDataRegionByType(const QVariantMap &v)
+    {
+        if (m_dataRegionByType == v) return;
+        m_dataRegionByType = v;
+        ppSettings().setValue(QStringLiteral("view/dataRegionByType"), v);
+        emit dataRegionByTypeChanged();
+    }
+
     void setLastSessionType(int v)
     {
         if (m_lastSessionType == v) return;
@@ -946,6 +960,7 @@ signals:
     void viewPanelsByTypeChanged();
     void viewArrangementByTypeChanged();
     void viewPresetByTypeChanged();
+    void dataRegionByTypeChanged();
     void lastSessionTypeChanged();
     void sessionNamingPatternChanged();
     void videoResolutionModeChanged();
@@ -1022,6 +1037,7 @@ private:
     QVariantMap m_viewPanelsByType;
     QVariantMap m_viewArrangementByType;
     QVariantMap m_viewPresetByType;
+    QVariantMap m_dataRegionByType;
     int         m_lastSessionType = 0;
 
     QString m_sessionNamingPattern  = QStringLiteral("date-name-type");

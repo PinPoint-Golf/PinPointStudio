@@ -49,6 +49,40 @@ enum class SegmentRole {
     Club,
 };
 
+// Canonical placement-slot → anatomical role mapping — the single source of truth,
+// shared by the swing exporter (analysis.bindings[].role + stream device.role) and
+// the data viewer's settings fallback. Only Wrist Motion (sessionType 1) is mapped
+// today; other session types resolve to Unknown until their placement UX lands.
+inline SegmentRole segmentRoleForSlot(int sessionType, const QString &slot)
+{
+    if (sessionType == 1) {            // Wrist Motion
+        if (slot == QLatin1String("A")) return SegmentRole::LeadForearm;
+        if (slot == QLatin1String("B")) return SegmentRole::LeadHand;
+        if (slot == QLatin1String("C")) return SegmentRole::LeadUpperArm;
+    }
+    return SegmentRole::Unknown;
+}
+
+// Stable string name for a role — written to swing.json (stream device.roleName,
+// analysis.bindings[].roleName) and consumed by SwingLab / future post-hoc tools.
+// Stable across enum renumbering; pair it with the int role value.
+inline QString segmentRoleName(SegmentRole r)
+{
+    switch (r) {
+    case SegmentRole::Pelvis:       return QStringLiteral("Pelvis");
+    case SegmentRole::Thorax:       return QStringLiteral("Thorax");
+    case SegmentRole::T12:          return QStringLiteral("T12");
+    case SegmentRole::LeadUpperArm: return QStringLiteral("LeadUpperArm");
+    case SegmentRole::LeadForearm:  return QStringLiteral("LeadForearm");
+    case SegmentRole::LeadHand:     return QStringLiteral("LeadHand");
+    case SegmentRole::TrailThigh:   return QStringLiteral("TrailThigh");
+    case SegmentRole::LeadThigh:    return QStringLiteral("LeadThigh");
+    case SegmentRole::Club:         return QStringLiteral("Club");
+    case SegmentRole::Unknown:      break;
+    }
+    return QStringLiteral("Unknown");
+}
+
 // Resolved on the UI thread from AppSettings::imuPlacement + the live ImuInstance
 // calibration snapshot (alignA/mountM are session-lifetime on the QObject — the
 // worker can never read them, so they are copied into the job here).

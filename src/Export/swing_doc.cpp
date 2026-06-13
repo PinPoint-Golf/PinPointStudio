@@ -90,8 +90,9 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a)
         QJsonArray binds;
         for (const BindingRecord &b : a.bindings)
             binds.append(QJsonObject{
-                { QStringLiteral("serial"), b.serial },
-                { QStringLiteral("role"),   int(b.role) },
+                { QStringLiteral("serial"),   b.serial },
+                { QStringLiteral("role"),     int(b.role) },
+                { QStringLiteral("roleName"), segmentRoleName(b.role) },
                 { QStringLiteral("alignA"), QJsonArray{ b.alignA.scalar(), b.alignA.x(),
                                                         b.alignA.y(), b.alignA.z() } },
                 { QStringLiteral("mountM"), QJsonArray{ b.mountM.scalar(), b.mountM.x(),

@@ -59,11 +59,21 @@ Item {
             cameraDelegate: Component {
                 PpCameraTiles { sessionType: root.sessionType }
             }
+            // Table panel — read-only inspector of the focused swing.json. The
+            // focused swing is the active replay, else the carousel's selection.
+            tableDelegate: Component {
+                PpDataViewer {
+                    sessionType: root.sessionType
+                    swingDir: shotReplay.swingDir !== "" ? shotReplay.swingDir
+                            : (modeCarousel.selectedCard ? modeCarousel.selectedCard.swingDir : "")
+                }
+            }
         }
 
         // Session-shot carousel — stub model for now (per-mode goal vocabulary
         // lands with the real analyzers).
         PpShotCarousel {
+            id: modeCarousel
             Layout.fillWidth: true
             visible: ViewLayout.isPanelOn(root.sessionType, "carousel")
             metricKeys: []

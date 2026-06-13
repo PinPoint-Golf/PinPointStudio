@@ -507,6 +507,8 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
                     {QStringLiteral("fusionMode"),        dev.fusionMode},
                     {QStringLiteral("orientationFilter"), dev.orientationFilter},
                     {QStringLiteral("placementSlot"),     dev.placementSlot},
+                    {QStringLiteral("role"),              dev.role},
+                    {QStringLiteral("roleName"),          dev.roleName},
                 };
             }
             s[QStringLiteral("units")]  = QJsonObject{

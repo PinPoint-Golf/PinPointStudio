@@ -56,6 +56,10 @@ class ShotReplayController : public QObject
     Q_PROPERTY(bool        active         READ active         NOTIFY activeChanged)
     Q_PROPERTY(bool        playing        READ playing        NOTIFY playingChanged)
     Q_PROPERTY(int         shotId         READ shotId         NOTIFY activeChanged)
+    // On-disk folder of the focused (replaying/scrubbing) shot, for the data viewer.
+    // Empty when no replay is active — the viewer then falls back to the carousel's
+    // current selection. NOTIFY activeChanged covers both start() and stop().
+    Q_PROPERTY(QString     swingDir       READ swingDir       NOTIFY activeChanged)
     Q_PROPERTY(int         streamCount    READ streamCount    NOTIFY activeChanged)
     // Which surface renders the replay — "panel" (inline review popup) or
     // "screen" (the full main-screen PpReplayStage). One QMediaPlayer has one
@@ -75,6 +79,7 @@ public:
     bool        active()         const { return m_active; }
     bool        playing()        const { return m_playing; }
     int         shotId()         const { return m_shotId; }
+    QString     swingDir()       const { return m_active ? m_swingDir : QString(); }
     int         streamCount()    const { return int(m_streams.size()); }
     qint64      positionUs()     const { return m_positionUs; }
     qint64      startUs()        const { return m_startUs; }

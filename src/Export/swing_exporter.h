@@ -59,6 +59,8 @@ struct SwingImuDeviceInfo {
     QString fusionMode;          // device 6/9-axis algorithm
     QString orientationFilter;   // host fusion algo (Madgwick / ESKF)
     QString placementSlot;       // "A"/"B"/"C" (AppSettings imuPlacement)
+    int     role = 0;            // pinpoint::analysis::SegmentRole (0 = Unknown)
+    QString roleName;            // stable role name, e.g. "LeadHand" (segmentRoleName)
 };
 
 // Host/app provenance recorded under capture.host — explains cross-host

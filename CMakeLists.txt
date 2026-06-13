@@ -290,6 +290,9 @@ qt_add_qml_module(PinPointStudio
         src/Gui/PpReplayStage.qml
         src/Gui/PpSpeedSelector.qml
         src/Gui/PpToast.qml
+        src/Gui/PpDataViewer.qml
+        src/Gui/PpCoverageStrip.qml
+        src/Gui/PpPropertiesPanel.qml
     SOURCES
         src/Audio/ting_player.h
         src/Audio/ting_player.cpp
@@ -299,6 +302,12 @@ qt_add_qml_module(PinPointStudio
         src/Gui/body_pose_adapter.cpp
         src/Gui/shot_filter_proxy_model.h
         src/Gui/shot_filter_proxy_model.cpp
+        src/Gui/swing_data_source.h
+        src/Gui/swing_data_source.cpp
+        src/Gui/swing_coverage_model.h
+        src/Gui/swing_coverage_model.cpp
+        src/Gui/swing_series_model.h
+        src/Gui/swing_series_model.cpp
 )
 
 qt6_add_shaders(PinPointStudio "debayer_shaders"

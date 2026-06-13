@@ -172,19 +172,10 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
     return detail;
 }
 
-// Map a placement slot ("A"/"B"/"C") to an anatomical SegmentRole per session
-// type. Wrist (1): A=forearm, B=hand, C=upper arm. Other types resolve as their
-// analyzers land — Unknown until then (the binding's A/M are still captured).
-pinpoint::analysis::SegmentRole segmentRoleForSlot(int sessionType, const QString &slot)
-{
-    using R = pinpoint::analysis::SegmentRole;
-    if (sessionType == 1) {            // Wrist Motion
-        if (slot == QLatin1String("A")) return R::LeadForearm;
-        if (slot == QLatin1String("B")) return R::LeadHand;
-        if (slot == QLatin1String("C")) return R::LeadUpperArm;
-    }
-    return R::Unknown;
-}
+// Placement-slot → SegmentRole mapping lives in swing_analysis.h
+// (pinpoint::analysis::segmentRoleForSlot) — one source of truth shared with the
+// stream device.role export and the data viewer's settings fallback.
+using pinpoint::analysis::segmentRoleForSlot;
 
 // Human label for a SessionController::Type, used in session-folder naming.
 QString sessionTypeLabel(int sessionType)
@@ -673,6 +664,13 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         info.fusionMode        = imuFusion.value(dev.id, s->imuDefaultFusionMode()).toString();
         info.orientationFilter = s->imuOrientationFilter();
         info.placementSlot     = imuPlacement.value(dev.id).toString();
+        // Resolve the anatomical body role from slot+sessionType (same canonical
+        // mapping as analysis.bindings) so it is baked into the stream itself —
+        // needed by the data viewer, SwingLab and future post-hoc analysis.
+        const pinpoint::analysis::SegmentRole role =
+            segmentRoleForSlot(m_sessionType, info.placementSlot);
+        info.role     = int(role);
+        info.roleName = pinpoint::analysis::segmentRoleName(role);
         if (m_imuManager) {
             const QVariantList insts = m_imuManager->instances();
             for (const QVariant &v : insts) {

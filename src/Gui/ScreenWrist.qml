@@ -56,11 +56,21 @@ Item {
             cameraDelegate: Component {
                 PpCameraTiles { sessionType: SessionController.Wrist; showHittingArea: false }
             }
+            // Table panel — read-only inspector of the focused swing.json. The
+            // focused swing is the active replay, else the carousel's selection.
+            tableDelegate: Component {
+                PpDataViewer {
+                    sessionType: SessionController.Wrist
+                    swingDir: shotReplay.swingDir !== "" ? shotReplay.swingDir
+                            : (wristCarousel.selectedCard ? wristCarousel.selectedCard.swingDir : "")
+                }
+            }
         }
 
         // Session-shot carousel — keys mirror the Wrist goal vocabulary
         // (goalDefsByType[1]); the stub model supplies placeholder values.
         PpShotCarousel {
+            id: wristCarousel
             Layout.fillWidth: true
             visible: ViewLayout.isPanelOn(SessionController.Wrist, "carousel")
             metricKeys: ["leadWristFlexExt", "leadWristRadUln", "forearmPronation", "leadArmFlexion"]
