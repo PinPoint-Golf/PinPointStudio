@@ -129,7 +129,7 @@ Item {
                 options: [qsTr("show gaps"), qsTr("nearest")]
                 selected: src.fillMode === "off" ? qsTr("show gaps") : qsTr("nearest")
                 solid: false
-                onActivated: src.fillMode = (value === qsTr("nearest")) ? "nearest" : "off"
+                onActivated: (value) => src.fillMode = (value === qsTr("nearest")) ? "nearest" : "off"
             }
             Rectangle {
                 Layout.preferredHeight: Theme.sp(28)
