@@ -215,12 +215,14 @@ target_include_directories(PinPointStudio PRIVATE src/Gui src/IMU src/Audio src/
 
 set_source_files_properties(src/Gui/Theme.qml         PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set_source_files_properties(src/Gui/SettingsIndex.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set_source_files_properties(src/Gui/ViewLayout.qml    PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
 qt_add_qml_module(PinPointStudio
     URI PinPointStudio
     OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/qml/PinPointStudio
     QML_FILES
         src/Gui/Theme.qml
+        src/Gui/ViewLayout.qml
         src/Gui/Main.qml
         src/Gui/AudioPage.qml
         src/Gui/CapturePage.qml
