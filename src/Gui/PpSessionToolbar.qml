@@ -600,6 +600,25 @@ Item {
 
         Item { Layout.fillWidth: true }   // push device pills to the right
 
+        // ── View · subtle vertical divider sets the layout cluster apart ────
+        PpDivider {
+            orientation: Qt.Vertical
+            Layout.preferredHeight: Theme.sp(28)
+            Layout.alignment: Qt.AlignVCenter
+            visible: !sessionReviewController.reviewActive
+        }
+
+        // ── View pill ───────────────────────────────────────────────────────
+        ViewPill {
+            id: viewPill
+            sessionType: root.sessionType
+            active: viewPopup.opened
+            onClicked: {
+                camPopup.close(); imuPopup.close()
+                viewPopup.opened ? viewPopup.close() : viewPopup.open()
+            }
+        }
+
         // ── Cameras pill ────────────────────────────────────────────────────
         DevicePill {
             id: camPill
@@ -612,7 +631,7 @@ Item {
             ledColor: root.camNeedsAttention ? Theme.colorAttention
                        : root.camConnected > 0 ? Theme.colorGood : Theme.colorText3
             attention: root.camNeedsAttention
-            onClicked: { imuPopup.close(); camPopup.opened ? camPopup.close() : camPopup.open() }
+            onClicked: { imuPopup.close(); viewPopup.close(); camPopup.opened ? camPopup.close() : camPopup.open() }
         }
 
         // ── IMUs pill ───────────────────────────────────────────────────────
@@ -634,13 +653,28 @@ Item {
             attention: root.imuNeedsAttention && !root.imuBatteryLow
             warn: root.imuBatteryLow
             warnColor: root.imuLowestBattery <= 20 ? Theme.colorError : Theme.colorWarn
-            onClicked: { camPopup.close(); imuPopup.opened ? imuPopup.close() : imuPopup.open() }
+            onClicked: { camPopup.close(); viewPopup.close(); imuPopup.opened ? imuPopup.close() : imuPopup.open() }
         }
     }
 
     // ── Popups host the reusable panels; positioned under their pills ───────
     // margins clamp the popup within the window; the panel's implicitHeight
     // drives the popup height so it grows when a panel enters calibrate mode.
+    Popup {
+        id: viewPopup
+        parent: viewPill
+        y: viewPill.height + Theme.sp(10)
+        x: viewPill.width - width
+        padding: 0
+        margins: Theme.sp(8)
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+        background: Rectangle {
+            color: Theme.colorSurface; radius: Theme.radiusLg
+            border.width: 1; border.color: Theme.colorBorderStrong
+        }
+        contentItem: PpViewPanel { sessionType: root.sessionType }
+    }
+
     Popup {
         id: camPopup
         parent: camPill
@@ -745,6 +779,67 @@ Item {
         }
         NumberAnimation { id: _decay; target: dd; property: "flash"; to: 0; duration: 2000 }
         Timer { id: _rmHold; interval: 2000; onTriggered: dd.flash = 0 }   // reduce-motion: hold then clear
+    }
+
+    // ── View pill — lighter sibling of DevicePill (no badge; shows the active
+    // preset and a chevron; accent ring while its popup is open) ─────────────
+    component ViewPill: Rectangle {
+        property int  sessionType: -1
+        property bool active: false
+        signal clicked()
+
+        Layout.alignment: Qt.AlignVCenter
+        visible: !sessionReviewController.reviewActive
+        implicitWidth: vpRow.implicitWidth + Theme.sp(24)
+        implicitHeight: Theme.sp(44)
+        radius: Theme.radius
+        color: vpMa.containsMouse ? Theme.colorBg3 : Theme.colorBg2
+        border.width: 1
+        border.color: active ? Theme.colorAccentMid : Theme.colorBorderMid
+        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+        RowLayout {
+            id: vpRow
+            anchors { fill: parent; leftMargin: Theme.sp(11); rightMargin: Theme.sp(11) }
+            spacing: Theme.sp(11)
+            Item {
+                Layout.preferredWidth: Theme.sp(34); Layout.preferredHeight: Theme.sp(34)
+                Layout.alignment: Qt.AlignVCenter
+                Rectangle {
+                    anchors.fill: parent; radius: Theme.radius; color: Theme.colorSurface
+                    Text {
+                        anchors.centerIn: parent; text: "▦"   // ▦ — swap for project icon set
+                        font.family: Theme.fontSymbol; font.pixelSize: Theme.sp(18)
+                        color: active ? Theme.colorAccent : Theme.colorText2
+                    }
+                }
+            }
+            Column {
+                Layout.alignment: Qt.AlignVCenter; spacing: Theme.sp(2)
+                Text {
+                    text: qsTr("VIEW"); font.family: Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingMicro
+                    color: Theme.colorText3
+                }
+                Row {
+                    spacing: Theme.sp(4)
+                    Text {
+                        text: ViewLayout.presetFor(sessionType)
+                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                        color: Theme.colorText
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "▾"  // ▾
+                        font.pixelSize: Theme.fontSzMicro; color: Theme.colorText2
+                    }
+                }
+            }
+        }
+        MouseArea {
+            id: vpMa; anchors.fill: parent; hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor; onClicked: parent.clicked()
+        }
     }
 
     // ── Inline pill component ───────────────────────────────────────────────
