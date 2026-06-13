@@ -1,0 +1,158 @@
+/*
+ * Copyright (c) 2026 Mark Liversedge (liversedge@gmail.com)
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc., 51
+ * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
+// Centre-stage arranger. Shows the enabled stage panels (camera/charts/dashboard/
+// table) packed per ViewLayout.arrangementFor(type): tabs | split | stage.
+// Screens override cameraDelegate; the rest fall back to PpStagePanel placeholders.
+//
+// Each arrangement's Loaders are gated on the active `arrangement` (not just the
+// container's visible:), so only the selected layout instantiates its panels —
+// a hidden arrangement must not spin up a second PpCameraTiles (and its camera
+// frame subscriptions) behind the visible one.
+
+import QtQuick
+import QtQuick.Layouts
+import PinPointStudio
+
+Item {
+    id: stage
+    property int sessionType: -1
+
+    property Component cameraDelegate:    null
+    property Component chartsDelegate:    null
+    property Component dashboardDelegate: null
+    property Component tableDelegate:     null
+
+    readonly property string arrangement: ViewLayout.arrangementFor(sessionType)
+
+    readonly property var _defs: [
+        { key: "camera",    label: qsTr("Camera"),    comp: cameraDelegate },
+        { key: "charts",    label: qsTr("Charts"),    comp: chartsDelegate },
+        { key: "dashboard", label: qsTr("Dashboard"), comp: dashboardDelegate },
+        { key: "table",     label: qsTr("Table"),     comp: tableDelegate }
+    ]
+    // ordered, enabled-only
+    readonly property var active: _defs.filter(function(d) {
+        return ViewLayout.isPanelOn(stage.sessionType, d.key)
+    })
+
+    property int tabIndex: 0
+    onActiveChanged: if (tabIndex >= active.length) tabIndex = 0
+
+    // empty state
+    Text {
+        anchors.centerIn: parent
+        visible: stage.active.length === 0
+        text: qsTr("No panels selected — pick some in View")
+        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+        color: Theme.colorText3
+    }
+
+    // ── SPLIT — even row ─────────────────────────────────────────────────────
+    RowLayout {
+        anchors.fill: parent; anchors.margins: Theme.sp(10)
+        spacing: Theme.sp(8)
+        visible: stage.arrangement === "split" && stage.active.length > 0
+        Repeater {
+            model: stage.arrangement === "split" ? stage.active : []
+            delegate: Loader {
+                required property var modelData
+                Layout.fillWidth: true; Layout.fillHeight: true
+                sourceComponent: modelData.comp || placeholderComp
+                onLoaded: if (item && !modelData.comp) item.title = modelData.label
+            }
+        }
+    }
+
+    // ── STAGE — first panel dominant, rest in a side column ──────────────────
+    RowLayout {
+        anchors.fill: parent; anchors.margins: Theme.sp(10)
+        spacing: Theme.sp(8)
+        visible: stage.arrangement === "stage" && stage.active.length > 0
+        Loader {
+            Layout.fillWidth: true; Layout.fillHeight: true
+            Layout.preferredWidth: stage.width * 0.62
+            sourceComponent: (stage.arrangement === "stage" && stage.active.length > 0)
+                             ? (stage.active[0].comp || placeholderComp) : null
+            onLoaded: if (item && stage.active.length > 0 && !stage.active[0].comp)
+                          item.title = stage.active[0].label
+        }
+        ColumnLayout {
+            visible: stage.active.length > 1
+            Layout.preferredWidth: stage.width * 0.30
+            Layout.fillHeight: true
+            spacing: Theme.sp(8)
+            Repeater {
+                model: (stage.arrangement === "stage" && stage.active.length > 1)
+                       ? stage.active.slice(1) : []
+                delegate: Loader {
+                    required property var modelData
+                    Layout.fillWidth: true; Layout.fillHeight: true
+                    sourceComponent: modelData.comp || placeholderComp
+                    onLoaded: if (item && !modelData.comp) item.title = modelData.label
+                }
+            }
+        }
+    }
+
+    // ── TABS — tab strip + single loader ─────────────────────────────────────
+    ColumnLayout {
+        anchors.fill: parent; anchors.margins: Theme.sp(10)
+        spacing: Theme.sp(6)
+        visible: stage.arrangement === "tabs" && stage.active.length > 0
+        Row {
+            spacing: Theme.sp(5)
+            Repeater {
+                model: stage.arrangement === "tabs" ? stage.active : []
+                delegate: Rectangle {
+                    required property var modelData
+                    required property int index
+                    readonly property bool sel: index === stage.tabIndex
+                    height: Theme.sp(30); width: tabTxt.implicitWidth + Theme.sp(26)
+                    radius: Theme.radius
+                    color: sel ? Theme.colorBg2 : "transparent"
+                    Rectangle {  // active underline
+                        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                        height: 2; color: sel ? Theme.colorAccent : "transparent"
+                    }
+                    Text {
+                        id: tabTxt; anchors.centerIn: parent; text: modelData.label
+                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                        color: sel ? Theme.colorText : Theme.colorText3
+                    }
+                    MouseArea {
+                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                        onClicked: stage.tabIndex = index
+                    }
+                }
+            }
+        }
+        Loader {
+            Layout.fillWidth: true; Layout.fillHeight: true
+            sourceComponent: (stage.arrangement === "tabs" && stage.active.length > 0)
+                             ? (stage.active[Math.min(stage.tabIndex, stage.active.length - 1)].comp || placeholderComp)
+                             : null
+            onLoaded: {
+                var d = stage.active[Math.min(stage.tabIndex, stage.active.length - 1)]
+                if (item && d && !d.comp) item.title = d.label
+            }
+        }
+    }
+
+    Component { id: placeholderComp; PpStagePanel {} }
+}

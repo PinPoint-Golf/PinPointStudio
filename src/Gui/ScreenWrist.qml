@@ -17,11 +17,12 @@
  */
 
 // Wrist Motion screen (contentStack index 2). Hosts the persistent session
-// toolbar at the top and one video tile per session-enabled camera (toggle a
-// camera off in the toolbar's camera panel and its tile disappears; Connect
-// in the panel starts the streams). The toolbar's device panels run
-// calibration entirely in-panel, so this screen neither exposes nor routes
-// any calibrate request.
+// toolbar, then a View-driven layout: an optional timeline rail, the centre
+// stage (camera tiles today; charts/dashboard/table land later), and an
+// optional shot carousel. Which panels show, and how the stage packs them, is
+// owned by the toolbar's View control (ViewLayout, per session type). The
+// toolbar's device panels run calibration entirely in-panel, so this screen
+// neither exposes nor routes any calibrate request.
 
 import QtQuick
 import QtQuick.Layouts
@@ -30,122 +31,30 @@ import PinPointStudio
 Item {
     id: root
 
-    // Series of the shot currently replaying — feeds the in-replay graph.
-    readonly property var _replaySeries:
-        (shotProcessor.replayAnalysisDetail && shotProcessor.replayAnalysisDetail.series)
-        ? shotProcessor.replayAnalysisDetail.series : []
-
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
 
         PpSessionToolbar {
             Layout.fillWidth: true
-            sessionType: 1   // SessionController::Type::Wrist
+            sessionType: SessionController.Wrist
         }
 
-        // Body — one video tile per session-enabled camera, side by side.
-        // Tiles appear on entry as dim "Not connected" placeholders and stream
-        // once the toolbar panel's Connect starts the capture pipeline.
-        Item {
+        // Timeline rail (placeholder until the real producer lands).
+        RmTimelineChart {
+            Layout.fillWidth: true
+            Layout.preferredHeight: Theme.sp(48)
+            visible: ViewLayout.isPanelOn(SessionController.Wrist, "timeline")
+        }
+
+        // Centre stage — camera tiles wired to real content; charts/dashboard/
+        // table fall back to muted PpStagePanel placeholders until their
+        // producers land. Packing (tabs/split/stage) is resolved by ViewLayout.
+        PpModeStage {
             Layout.fillWidth: true; Layout.fillHeight: true
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.margins: Theme.sp(12)
-                spacing: Theme.sp(8)
-
-                Repeater {
-                    model: cameraManager.cameraList.filter(function(c) { return c.sessionEnabled })
-                    delegate: PpCameraFrame {
-                        required property var modelData
-                        Layout.fillHeight: true
-                        // Hug the video: width follows the (cropped) frame
-                        // aspect at full row height, so a narrow crop frees
-                        // horizontal space instead of letterboxing. The
-                        // layout may shrink below preferred when several
-                        // cameras compete — the inner frameRect aspect-fits
-                        // within whatever it gets.
-                        Layout.fillWidth: false
-                        Layout.preferredWidth: height * videoAspect
-                        // Disconnected placeholders open at the crop-aware
-                        // aspect (persisted crop × sensor) instead of 16:9,
-                        // so the tile doesn't resize when the stream starts.
-                        placeholderAspect: (modelData.initialWidth > 0
-                                            && modelData.initialHeight > 0)
-                                           ? modelData.initialWidth / modelData.initialHeight
-                                           : 16.0 / 9.0
-                        // Reactive instance lookup (same pattern as the panel's
-                        // CamRow) — non-null once the camera is connected.
-                        instance: {
-                            var insts = cameraManager.instances
-                            for (var i = 0; i < insts.length; ++i)
-                                if (insts[i].cameraKey === modelData.cameraKey)
-                                    return insts[i]
-                            return null
-                        }
-                        displayName: modelData.alias !== "" ? modelData.alias
-                                                            : modelData.description
-                        // Wrist screen: skeleton overlay only — no hitting-area
-                        // / ball chrome here (other rail screens enable theirs).
-                        showHittingArea: false
-                        // …but while live pose runs in a session, a faint
-                        // outline shows where the ball detector is looking.
-                        showHittingAreaHint: cameraManager.livePoseEnabled
-                                             && sessionController.running
-                    }
-                }
-
-                // Tiles pack left; the remainder hosts the in-replay metric graph
-                // (scrub-with-video), shown only during the ¼× replay so it never
-                // reflows the videos in the live view.
-                Item {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-
-                    PpMetricGraph {
-                        anchors.fill: parent
-                        anchors.margins: Theme.sp(8)
-                        visible:      shotProcessor.isReplaying && root._replaySeries.length > 0
-                        seriesList:   root._replaySeries
-                        phases:       (shotProcessor.replayAnalysisDetail && shotProcessor.replayAnalysisDetail.phases)
-                                          ? shotProcessor.replayAnalysisDetail.phases : []
-                        startUs:      shotProcessor.replayStartUs
-                        endUs:        shotProcessor.replayEndUs
-                        impactUs:     shotProcessor.replayImpactUs
-                        playheadUs:   shotProcessor.replayPositionUs
-                        showPlayhead: true
-                    }
-                }
-            }
-
-            // Muted empty state when every camera is toggled off (or none found).
-            Column {
-                anchors.centerIn: parent
-                spacing: Theme.sp(6)
-                visible: cameraManager.cameraList.filter(function(c) { return c.sessionEnabled }).length === 0
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: qsTr("No cameras enabled")
-                    color: Theme.colorText2
-                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
-                }
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: qsTr("Enable cameras in the toolbar's Cameras panel")
-                    color: Theme.colorText3
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                    font.letterSpacing: Theme.trackingData
-                }
-            }
-
-            // Disk-backed replay popped out from the review panel — a large,
-            // interactive surface overlaying the live tiles (scrub back and
-            // forth, frame-step, speed) until the user closes it.
-            PpReplayStage {
-                anchors.fill: parent
-                z: 10
-                visible: shotReplay.active && shotReplay.target === "screen"
+            sessionType: SessionController.Wrist
+            cameraDelegate: Component {
+                PpCameraTiles { sessionType: SessionController.Wrist; showHittingArea: false }
             }
         }
 
@@ -153,6 +62,7 @@ Item {
         // (goalDefsByType[1]); the stub model supplies placeholder values.
         PpShotCarousel {
             Layout.fillWidth: true
+            visible: ViewLayout.isPanelOn(SessionController.Wrist, "carousel")
             metricKeys: ["leadWristFlexExt", "leadWristRadUln", "forearmPronation", "leadArmFlexion"]
             traceLabel: qsTr("LEAD-WRIST FLEXION · ADDRESS → IMPACT")
         }
