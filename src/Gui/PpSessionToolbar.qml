@@ -601,11 +601,12 @@ Item {
         Item { Layout.fillWidth: true }   // push device pills to the right
 
         // ── View · subtle vertical divider sets the layout cluster apart ────
+        // Always present alongside the View/Cameras/IMUs cluster (the device
+        // pills are never gated on review state, and neither is View).
         PpDivider {
             orientation: Qt.Vertical
             Layout.preferredHeight: Theme.sp(28)
             Layout.alignment: Qt.AlignVCenter
-            visible: !sessionReviewController.reviewActive
         }
 
         // ── View pill ───────────────────────────────────────────────────────
@@ -789,7 +790,6 @@ Item {
         signal clicked()
 
         Layout.alignment: Qt.AlignVCenter
-        visible: !sessionReviewController.reviewActive
         implicitWidth: vpRow.implicitWidth + Theme.sp(24)
         implicitHeight: Theme.sp(44)
         radius: Theme.radius
