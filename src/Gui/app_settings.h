@@ -107,6 +107,13 @@ class AppSettings : public QObject
     // magnetometer mode). See iorientation_filter.h.
     Q_PROPERTY(QString     imuOrientationFilter   READ imuOrientationFilter   WRITE setImuOrientationFilter   NOTIFY imuOrientationFilterChanged)
     Q_PROPERTY(QVariantMap sessionGoalsByType READ sessionGoalsByType WRITE setSessionGoalsByType NOTIFY sessionGoalsByTypeChanged)
+    // Session-toolbar View state, persisted per SessionController::Type (key =
+    // String(typeInt)). panels = QStringList of enabled panel keys; arrangement =
+    // "tabs"|"split"|"stage"; preset = named preset or "Custom". Resolved by the
+    // ViewLayout.qml singleton. Distinct from main/secondaryDisplayMode (monitor).
+    Q_PROPERTY(QVariantMap viewPanelsByType      READ viewPanelsByType      WRITE setViewPanelsByType      NOTIFY viewPanelsByTypeChanged)
+    Q_PROPERTY(QVariantMap viewArrangementByType READ viewArrangementByType WRITE setViewArrangementByType NOTIFY viewArrangementByTypeChanged)
+    Q_PROPERTY(QVariantMap viewPresetByType      READ viewPresetByType      WRITE setViewPresetByType      NOTIFY viewPresetByTypeChanged)
     Q_PROPERTY(int         lastSessionType   READ lastSessionType   WRITE setLastSessionType   NOTIFY lastSessionTypeChanged)
 
     Q_PROPERTY(QString sessionNamingPattern  READ sessionNamingPattern  WRITE setSessionNamingPattern  NOTIFY sessionNamingPatternChanged)
@@ -215,6 +222,9 @@ public:
         m_imuCalibration          = ppSettings().value(QStringLiteral("imu/calibration"),          QVariantMap{}).toMap();
 
         m_sessionGoalsByType = ppSettings().value(QStringLiteral("session/goalsByType"), QVariantMap{}).toMap();
+        m_viewPanelsByType      = ppSettings().value(QStringLiteral("view/panelsByType"),      QVariantMap{}).toMap();
+        m_viewArrangementByType = ppSettings().value(QStringLiteral("view/arrangementByType"), QVariantMap{}).toMap();
+        m_viewPresetByType      = ppSettings().value(QStringLiteral("view/presetByType"),      QVariantMap{}).toMap();
         m_lastSessionType    = ppSettings().value(QStringLiteral("session/lastType"), 0).toInt();
 
         m_sessionNamingPattern  = ppSettings().value(QStringLiteral("storage/sessionNamingPattern"),  QStringLiteral("date-name-type")).toString();
@@ -293,6 +303,9 @@ public:
     QVariantMap cameraAlias()        const { return m_cameraAlias; }
 
     QVariantMap sessionGoalsByType() const { return m_sessionGoalsByType; }
+    QVariantMap viewPanelsByType()      const { return m_viewPanelsByType; }
+    QVariantMap viewArrangementByType() const { return m_viewArrangementByType; }
+    QVariantMap viewPresetByType()      const { return m_viewPresetByType; }
     int         lastSessionType()    const { return m_lastSessionType; }
 
     QString sessionNamingPattern()  const { return m_sessionNamingPattern; }
@@ -762,6 +775,30 @@ public:
         emit sessionGoalsByTypeChanged();
     }
 
+    void setViewPanelsByType(const QVariantMap &v)
+    {
+        if (m_viewPanelsByType == v) return;
+        m_viewPanelsByType = v;
+        ppSettings().setValue(QStringLiteral("view/panelsByType"), v);
+        emit viewPanelsByTypeChanged();
+    }
+
+    void setViewArrangementByType(const QVariantMap &v)
+    {
+        if (m_viewArrangementByType == v) return;
+        m_viewArrangementByType = v;
+        ppSettings().setValue(QStringLiteral("view/arrangementByType"), v);
+        emit viewArrangementByTypeChanged();
+    }
+
+    void setViewPresetByType(const QVariantMap &v)
+    {
+        if (m_viewPresetByType == v) return;
+        m_viewPresetByType = v;
+        ppSettings().setValue(QStringLiteral("view/presetByType"), v);
+        emit viewPresetByTypeChanged();
+    }
+
     void setLastSessionType(int v)
     {
         if (m_lastSessionType == v) return;
@@ -906,6 +943,9 @@ signals:
     void imuAliasChanged();
     void imuCalibrationChanged();
     void sessionGoalsByTypeChanged();
+    void viewPanelsByTypeChanged();
+    void viewArrangementByTypeChanged();
+    void viewPresetByTypeChanged();
     void lastSessionTypeChanged();
     void sessionNamingPatternChanged();
     void videoResolutionModeChanged();
@@ -979,6 +1019,9 @@ private:
     QString     m_imuOrientationFilter    = QStringLiteral("Madgwick");
 
     QVariantMap m_sessionGoalsByType;
+    QVariantMap m_viewPanelsByType;
+    QVariantMap m_viewArrangementByType;
+    QVariantMap m_viewPresetByType;
     int         m_lastSessionType = 0;
 
     QString m_sessionNamingPattern  = QStringLiteral("date-name-type");
