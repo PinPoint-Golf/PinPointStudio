@@ -16,10 +16,11 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Reusable session-mode screen: the persistent session toolbar pinned at the top
-// with a placeholder body below. Used by the Swing, GRF and Coach rail screens
-// (the Wrist screen has its own ScreenWrist, which will gain bespoke content).
-// Bespoke per-mode content replaces the placeholder in later prompts.
+// Reusable session-mode screen (Swing, GRF and Coach rail screens; the Wrist
+// screen has its own ScreenWrist). Hosts the persistent session toolbar then a
+// View-driven layout — an optional timeline rail, the centre stage (camera tiles
+// today; charts/dashboard/table land later), and an optional shot carousel —
+// each gated by the toolbar's View control (ViewLayout, per session type).
 
 import QtQuick
 import QtQuick.Layouts
@@ -27,6 +28,7 @@ import PinPointStudio
 
 Item {
     id: root
+    // Retained for Main.qml's per-instance labelling; the body is now View-driven.
     property string iconText:  ""
     property string titleText: ""
     // SessionController::Type of this screen (set per instance in Main.qml).
@@ -41,13 +43,31 @@ Item {
             sessionType: root.sessionType
         }
 
-        Item {
+        // Timeline rail (placeholder until the real producer lands).
+        RmTimelineChart {
+            Layout.fillWidth: true
+            Layout.preferredHeight: Theme.sp(48)
+            visible: ViewLayout.isPanelOn(root.sessionType, "timeline")
+        }
+
+        // Centre stage — camera tiles wired to real content; charts/dashboard/
+        // table fall back to muted PpStagePanel placeholders until their
+        // producers land. Packing (tabs/split/stage) is resolved by ViewLayout.
+        PpModeStage {
             Layout.fillWidth: true; Layout.fillHeight: true
-            ScreenPlaceholder {
-                anchors.fill: parent
-                iconText:  root.iconText
-                titleText: root.titleText
+            sessionType: root.sessionType
+            cameraDelegate: Component {
+                PpCameraTiles { sessionType: root.sessionType }
             }
+        }
+
+        // Session-shot carousel — stub model for now (per-mode goal vocabulary
+        // lands with the real analyzers).
+        PpShotCarousel {
+            Layout.fillWidth: true
+            visible: ViewLayout.isPanelOn(root.sessionType, "carousel")
+            metricKeys: []
+            traceLabel: qsTr("SESSION SHOTS")
         }
     }
 }
