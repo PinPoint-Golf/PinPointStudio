@@ -235,6 +235,7 @@ qt_add_qml_module(PinPointStudio
         src/Gui/PpSegmentedControl.qml
         src/Gui/PpStagePanel.qml
         src/Gui/PpViewPanel.qml
+        src/Gui/PpCameraTiles.qml
         src/Gui/PpRail.qml
         src/Gui/PpRailButton.qml
         src/Gui/PpDivider.qml
