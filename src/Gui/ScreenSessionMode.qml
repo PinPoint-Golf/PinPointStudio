@@ -21,6 +21,11 @@
 // View-driven layout — an optional timeline rail, the centre stage (camera tiles
 // today; charts/dashboard/table land later), and an optional shot carousel —
 // each gated by the toolbar's View control (ViewLayout, per session type).
+//
+// Review and Analyse use the Transit timeline, in one of two orientations
+// (appSettings.timelineOrientation): HORIZONTAL lives in the top rail (opens down
+// from the toolbar); VERTICAL lives in a fixed-width panel to the LEFT of the
+// stage. Capture has no timeline (RmTimelineChart lives only on the resource monitor).
 
 import QtQuick
 import QtQuick.Layouts
@@ -34,6 +39,12 @@ Item {
     // SessionController::Type of this screen (set per instance in Main.qml).
     property int sessionType: -1
 
+    readonly property bool _timelineOn:  ViewLayout.isPanelOn(SessionMode.mode, "timeline")
+    // Review AND Analyse use the Transit timeline; Capture has no timeline rail.
+    readonly property bool _transitMode: SessionMode.mode === SessionMode.review
+                                         || SessionMode.mode === SessionMode.analyse
+    readonly property bool _vertical:    appSettings.timelineOrientation === "vertical"
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -43,42 +54,70 @@ Item {
             sessionType: root.sessionType
         }
 
-        // Timeline rail — content resolves by mode: Review shows the scrub +
-        // clickable phase pills; Capture/Analyse keep the session placeholder.
+        // Top rail — horizontal Transit timeline (Review/Analyse only). Capture has
+        // no timeline; the vertical orientation moves Transit to the left rail instead.
         Loader {
+            id: topRail
+            readonly property bool horizTransit: root._transitMode && root._timelineOn && !root._vertical
             Layout.fillWidth: true
-            Layout.preferredHeight: Theme.sp(56)
-            visible: ViewLayout.isPanelOn(SessionMode.mode, "timeline")
+            Layout.preferredHeight: horizTransit ? Theme.sp(150) : 0
+            Behavior on Layout.preferredHeight {
+                enabled: !Theme.reduceMotion
+                NumberAnimation { duration: Theme.durationNormal; easing.type: Easing.InOutQuad }
+            }
+            visible: Layout.preferredHeight > 0
             active: visible
-            sourceComponent: SessionMode.mode === SessionMode.review
-                             ? reviewTimelineComp : rmTimelineComp
+            clip: true
+            sourceComponent: transitHorizComp
         }
 
-        // Centre stage — camera tiles + the Review charts trace; dashboard/table
-        // fall back to muted PpStagePanel placeholders until their producers land.
-        // Packing (tabs/split/stage) is resolved by ViewLayout on the active mode.
-        PpModeStage {
+        // Stage row — optional vertical Transit panel (left) + the centre stage.
+        RowLayout {
             Layout.fillWidth: true; Layout.fillHeight: true
-            cameraDelegate: Component {
-                PpCameraTiles { sessionType: root.sessionType }
+            spacing: 0
+
+            Loader {
+                id: leftRail
+                readonly property bool transitVert: root._transitMode && root._vertical && root._timelineOn
+                Layout.fillHeight: true
+                Layout.preferredWidth: transitVert ? Theme.sp(184) : 0
+                Behavior on Layout.preferredWidth {
+                    enabled: !Theme.reduceMotion
+                    NumberAnimation { duration: Theme.durationNormal; easing.type: Easing.InOutQuad }
+                }
+                visible: Layout.preferredWidth > 0
+                active: visible
+                clip: true
+                sourceComponent: transitVertComp
             }
-            chartsDelegate: Component { PpReviewCharts {} }
-            // Table panel — read-only inspector of the focused swing.json. The
-            // focused swing is the active replay, else the carousel's selection.
-            tableDelegate: Component {
-                PpDataViewer {
-                    sessionType: root.sessionType
-                    swingDir: shotReplay.swingDir !== "" ? shotReplay.swingDir
-                            : (modeCarousel.selectedCard ? modeCarousel.selectedCard.swingDir : "")
+
+            // Centre stage — camera tiles + the Review charts trace; dashboard/table
+            // fall back to muted PpStagePanel placeholders until their producers land.
+            // Packing (tabs/split/stage) is resolved by ViewLayout on the active mode.
+            PpModeStage {
+                Layout.fillWidth: true; Layout.fillHeight: true
+                cameraDelegate: Component {
+                    PpCameraTiles { sessionType: root.sessionType }
+                }
+                chartsDelegate: Component { PpReviewCharts {} }
+                // Table panel — read-only inspector of the focused swing.json. The
+                // focused swing is the active replay, else the carousel's selection.
+                tableDelegate: Component {
+                    PpDataViewer {
+                        sessionType: root.sessionType
+                        swingDir: shotReplay.swingDir !== "" ? shotReplay.swingDir
+                                : (modeCarousel.selectedCard ? modeCarousel.selectedCard.swingDir : "")
+                    }
                 }
             }
         }
 
-        // Always-on Review transport (play/step/speed); works even when the
-        // timeline panel is hidden. Capture/Analyse hide it.
+        // Replay transport (play/step/speed) for Review and Analyse — both drive the
+        // loaded swing's playhead. Works even when the timeline panel is hidden.
+        // Capture has no replay, so it's hidden there.
         PpReviewTransport {
             Layout.fillWidth: true
-            visible: SessionMode.mode === SessionMode.review
+            visible: root._transitMode
         }
 
         // Session-shot carousel — stub model for now (per-mode goal vocabulary
@@ -92,6 +131,12 @@ Item {
         }
     }
 
-    Component { id: reviewTimelineComp; PpReviewTimeline {} }
-    Component { id: rmTimelineComp;     RmTimelineChart {} }
+    Component {
+        id: transitHorizComp
+        PpTransitTimeline { orientation: "horizontal"; snapToPhases: appSettings.timelineSnapToPhases }
+    }
+    Component {
+        id: transitVertComp
+        PpTransitTimeline { orientation: "vertical"; snapToPhases: appSettings.timelineSnapToPhases }
+    }
 }

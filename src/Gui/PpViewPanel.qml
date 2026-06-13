@@ -34,7 +34,7 @@ Item {
         { key: "camera",    label: qsTr("Camera"),    ready: true  },
         { key: "charts",    label: qsTr("Charts"),    ready: false },
         { key: "carousel",  label: qsTr("Carousel"),  ready: true  },
-        { key: "timeline",  label: qsTr("Timeline"),  ready: false },
+        { key: "timeline",  label: qsTr("Timeline"),  ready: true  },
         { key: "dashboard", label: qsTr("Dashboard"), ready: false },
         { key: "table",     label: qsTr("Table"),     ready: false }
     ]
@@ -65,6 +65,43 @@ Item {
 
         PpDivider { width: parent.width }
 
+        // ── TIMELINE ────────────────────────────────────────────────────────
+        // Review-mode timeline orientation + snap, persisted globally on appSettings
+        // (not per-mode, unlike arrangement/panels above).
+        Column {
+            width: parent.width
+            spacing: Theme.sp(9)
+            Text {
+                text: qsTr("TIMELINE")
+                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+            }
+            Row {
+                width: parent.width
+                spacing: Theme.sp(7)
+                readonly property real cardW: (width - Theme.sp(7)) / 2
+                OrientCard { value: "horizontal"; label: qsTr("Horizontal"); horizontalGlyph: true;  width: parent.cardW }
+                OrientCard { value: "vertical";   label: qsTr("Vertical");   horizontalGlyph: false; width: parent.cardW }
+            }
+            Item {
+                width: parent.width
+                height: Theme.sp(20)
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("Snap to phases")
+                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                    color: appSettings.timelineSnapToPhases ? Theme.colorText : Theme.colorText2
+                }
+                MiniToggle {
+                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                    checked: appSettings.timelineSnapToPhases
+                    onToggled: appSettings.timelineSnapToPhases = !checked
+                }
+            }
+        }
+
+        PpDivider { width: parent.width }
+
         // ── PANELS ──────────────────────────────────────────────────────────
         Column {
             width: parent.width
@@ -83,6 +120,11 @@ Item {
                     model: root.panelMeta
                     delegate: Item {
                         required property var modelData
+                        // Capture has no timeline concept — hide that toggle there.
+                        // The Grid skips invisible items, so the others reflow.
+                        readonly property bool _avail: !(modelData.key === "timeline"
+                                                         && SessionMode.mode === SessionMode.capture)
+                        visible: _avail
                         width: (parent.width - Theme.sp(14)) / 2
                         height: Theme.sp(20)
                         Text {
@@ -150,6 +192,48 @@ Item {
             anchors.fill: parent; hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: ViewLayout.setArrangement(SessionMode.mode, value)
+        }
+    }
+
+    // ── timeline orientation card (mirrors ArrangeCard, writes appSettings) ──
+    component OrientCard: Rectangle {
+        id: orientCard
+        property string value: ""
+        property string label: ""
+        property bool   horizontalGlyph: true
+        readonly property bool active: appSettings.timelineOrientation === value
+        height: Theme.sp(46)
+        radius: Theme.radius
+        color: active ? Theme.colorAccentLight : "transparent"
+        border.width: 1
+        border.color: active ? Theme.colorAccentMid : Theme.colorBorderMid
+        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+        Column {
+            anchors.centerIn: parent
+            spacing: Theme.sp(5)
+            Item {
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: Theme.sp(20); height: Theme.sp(14)
+                Rectangle {   // a line oriented per the choice
+                    anchors.centerIn: parent
+                    width:  orientCard.horizontalGlyph ? Theme.sp(18) : Theme.sp(2)
+                    height: orientCard.horizontalGlyph ? Theme.sp(2)  : Theme.sp(12)
+                    radius: 1
+                    color: orientCard.active ? Theme.colorAccent : Theme.colorText3
+                }
+            }
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: orientCard.label
+                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro
+                color: orientCard.active ? Theme.colorAccent : Theme.colorText2
+            }
+        }
+        MouseArea {
+            anchors.fill: parent; hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: appSettings.timelineOrientation = orientCard.value
         }
     }
 

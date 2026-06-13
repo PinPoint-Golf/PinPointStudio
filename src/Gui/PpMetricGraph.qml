@@ -108,8 +108,10 @@ Item {
 
     function xForT(t) { return (root._axisEnd > root._axisStart) ? (t - root._axisStart) / (root._axisEnd - root._axisStart) * plot.width : 0 }
     function yForV(v) { return (root._range.hi > root._range.lo) ? plot.height - (v - root._range.lo) / (root._range.hi - root._range.lo) * plot.height : plot.height / 2 }
-    function _phaseTag(p) { return ["ADR", "TKW", "TOP", "TRN", "DWN", "IMP", "REL", "FIN",
-                                    "MBK", "DLV", "SPD", "FLW"][p] || "" }
+
+    // Phase short tags come from the shared C++ source of truth (TimelineLabels),
+    // the same map PpTransitTimeline uses for full names — no duplicated list here.
+    TimelineLabels { id: phaseNames }
 
     function _valueAt(s, t) {
         var ts = s.t_us
@@ -157,7 +159,7 @@ Item {
                 }
                 Text {
                     anchors { bottom: parent.bottom; left: parent.left; leftMargin: Theme.sp(2) }
-                    text: root._phaseTag(tick.modelData.phase)
+                    text: phaseNames.phaseShortTag(tick.modelData.phase)
                     font.pixelSize: Theme.fontSzMicro
                     color: tick.isImpact ? Theme.colorText2 : Theme.colorText3
                 }

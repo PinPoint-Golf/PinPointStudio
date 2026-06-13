@@ -200,6 +200,28 @@ QString SwingSeriesModel::columnColorKey(int col) const
     return m_cols.at(col).colorKey;
 }
 
+int SwingSeriesModel::rowForTimeUs(qint64 us) const
+{
+    if (m_rowTimeUs.isEmpty())                       return -1;
+    if (us < m_windowStartUs || us > m_windowEndUs)  return -1;
+
+    const int n = m_rowTimeUs.size();
+    if (us <= m_rowTimeUs.first()) return 0;
+    if (us >= m_rowTimeUs.last())  return n - 1;
+
+    // Ascending — binary search for the first row at/after us, then pick the nearer
+    // of it and its predecessor (ties go to the earlier row).
+    int lo = 0, hi = n - 1;
+    while (lo < hi) {
+        const int mid = (lo + hi) / 2;
+        if (m_rowTimeUs.at(mid) < us) lo = mid + 1;
+        else                          hi = mid;
+    }
+    const qint64 tHi = m_rowTimeUs.at(lo);
+    const qint64 tLo = m_rowTimeUs.at(lo - 1);
+    return (us - tLo) <= (tHi - us) ? lo - 1 : lo;
+}
+
 void SwingSeriesModel::configure(const QVector<SwingSeries> &series, qint64 windowStartUs,
                                  qint64 windowEndUs, const QString &fillMode)
 {
@@ -254,6 +276,12 @@ void SwingSeriesModel::configure(const QVector<SwingSeries> &series, qint64 wind
             if (rowTimes.size() >= kMaxRows) break;
         }
     }
+
+    // Retain the row timeline + window so rowForTimeUs() can map the replay playhead
+    // to a row (and reject positions outside the window).
+    m_rowTimeUs     = rowTimes;
+    m_windowStartUs = windowStartUs;
+    m_windowEndUs   = windowEndUs;
 
     // ── precompute cells ──────────────────────────────────────────────────────
     const SwingSeries *primary = (primaryIdx >= 0) ? &series[primaryIdx] : nullptr;

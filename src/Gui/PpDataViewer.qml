@@ -314,6 +314,20 @@ Item {
             readonly property int rowH: Theme.sp(22)
             onCurrentRowChanged: table.positionViewAtRow(currentRow, TableView.Contain)
 
+            // Replay playhead drives the current row — cross-highlight in lockstep
+            // with the Transit timeline + charts cursor. One µs domain (window-
+            // relative), so positionUs maps directly. rowForTimeUs returns -1 when the
+            // playhead is outside a phase-windowed table; we leave the row alone then,
+            // and keyboard nav still moves it between playhead updates.
+            Connections {
+                target: shotReplay
+                function onPositionChanged() {
+                    if (!shotReplay.active) return
+                    var r = src.table.rowForTimeUs(shotReplay.positionUs)
+                    if (r >= 0) tableArea.currentRow = r
+                }
+            }
+
             HorizontalHeaderView {
                 id: header
                 anchors { top: parent.top; left: parent.left; right: parent.right }

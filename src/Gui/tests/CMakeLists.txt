@@ -1,0 +1,45 @@
+# Standalone CTest suite for src/Gui model/helper logic — TimelineLabels (the train-map
+# label solver + nearest/active searches + phase names) and SwingSeriesModel (playhead→row
+# mapping). Self-contained — NOT part of the app build (mirrors src/Analysis/tests and
+# src/Buffer/tests).
+#
+# Configure + run:
+#   cmake -S src/Gui/tests -B build/gui-tests -DCMAKE_PREFIX_PATH=$HOME/Qt/6.11.0/gcc_64
+#   cmake --build build/gui-tests -j
+#   ctest --test-dir build/gui-tests --output-on-failure
+#
+# Self-contained (own main() + printf asserts; no googletest). Compiles the handful of Gui
+# .cpp directly. Qt6::Qml is required because the Gui headers use QML_ELEMENT
+# (qqmlregistration.h); Qt6::Gui for QFontMetricsF/QFont used by TimelineLabels. The
+# QML_ELEMENT classes carry Q_OBJECT, so each target enables AUTOMOC.
+
+cmake_minimum_required(VERSION 3.16)
+project(pinpoint_gui_tests LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml)
+enable_testing()
+
+set(GUI    ${CMAKE_CURRENT_SOURCE_DIR}/..)   # src/Gui
+set(SRC    ${GUI}/..)                         # src
+set(BUFFER ${SRC}/Buffer)                     # types.h (pulled in by Gui models)
+
+function(pp_add_test name)
+    add_executable(${name} ${ARGN})
+    set_target_properties(${name} PROPERTIES AUTOMOC ON)
+    target_include_directories(${name} PRIVATE ${GUI} ${SRC} ${BUFFER})
+    target_link_libraries(${name} PRIVATE Qt6::Core Qt6::Gui Qt6::Qml)
+    add_test(NAME ${name} COMMAND ${name})
+endfunction()
+
+# TimelineLabels — 1-D label distribution solver + nearest/active searches + phase names.
+pp_add_test(timeline_labels_test  timeline_labels_test.cpp
+                                  ${GUI}/timeline_labels.cpp)
+
+# SwingSeriesModel — playhead→row mapping (rowForTimeUs) for the table cross-highlight.
+# resolveValue/Match are local to swing_series_model.cpp, and SwingSeries' methods are
+# header-inline, so no swing_data_source.cpp link is needed.
+pp_add_test(swing_series_model_test  swing_series_model_test.cpp
+                                    ${GUI}/swing_series_model.cpp)

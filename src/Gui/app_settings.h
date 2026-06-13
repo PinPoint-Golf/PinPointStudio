@@ -54,6 +54,8 @@ class AppSettings : public QObject
     Q_PROPERTY(int     windowHeight READ windowHeight WRITE setWindowHeight NOTIFY windowHeightChanged)
     Q_PROPERTY(double  fontScale    READ fontScale    WRITE setFontScale    NOTIFY fontScaleChanged)
     Q_PROPERTY(QString density      READ density      WRITE setDensity      NOTIFY densityChanged)
+    Q_PROPERTY(QString timelineOrientation READ timelineOrientation WRITE setTimelineOrientation NOTIFY timelineOrientationChanged)
+    Q_PROPERTY(bool    timelineSnapToPhases READ timelineSnapToPhases WRITE setTimelineSnapToPhases NOTIFY timelineSnapToPhasesChanged)
     Q_PROPERTY(bool    reduceMotion READ reduceMotion WRITE setReduceMotion NOTIFY reduceMotionChanged)
     Q_PROPERTY(double  overlayOpacity  READ overlayOpacity  WRITE setOverlayOpacity  NOTIFY overlayOpacityChanged)
     Q_PROPERTY(bool    windowMaximized READ windowMaximized WRITE setWindowMaximized NOTIFY windowMaximizedChanged)
@@ -167,6 +169,8 @@ public:
         m_windowHeight    = ppSettings().value(QStringLiteral("ui/windowHeight"),    700).toInt();
         m_fontScale       = ppSettings().value(QStringLiteral("ui/fontScale"),       -1.0).toDouble();
         m_density         = ppSettings().value(QStringLiteral("ui/density"),         QStringLiteral("default")).toString();
+        m_timelineOrientation = ppSettings().value(QStringLiteral("ui/timelineOrientation"), QStringLiteral("horizontal")).toString();
+        m_timelineSnapToPhases = ppSettings().value(QStringLiteral("ui/timelineSnapToPhases"), false).toBool();
         m_reduceMotion    = ppSettings().value(QStringLiteral("ui/reduceMotion"),    false).toBool();
         m_overlayOpacity  = ppSettings().value(QStringLiteral("ui/overlayOpacity"),  0.7).toDouble();
         m_windowMaximized = ppSettings().value(QStringLiteral("ui/windowMaximized"), false).toBool();
@@ -260,6 +264,8 @@ public:
     int     windowHeight()  const { return m_windowHeight; }
     double  fontScale()     const { return m_fontScale; }
     QString density()       const { return m_density; }
+    QString timelineOrientation() const { return m_timelineOrientation; }
+    bool    timelineSnapToPhases() const { return m_timelineSnapToPhases; }
     bool    reduceMotion()  const { return m_reduceMotion; }
     double  overlayOpacity()  const { return m_overlayOpacity; }
     bool    windowMaximized() const { return m_windowMaximized; }
@@ -383,6 +389,22 @@ public:
         m_density = v;
         ppSettings().setValue(QStringLiteral("ui/density"), v);
         emit densityChanged();
+    }
+
+    void setTimelineOrientation(const QString &v)
+    {
+        if (m_timelineOrientation == v) return;
+        m_timelineOrientation = v;
+        ppSettings().setValue(QStringLiteral("ui/timelineOrientation"), v);
+        emit timelineOrientationChanged();
+    }
+
+    void setTimelineSnapToPhases(bool v)
+    {
+        if (m_timelineSnapToPhases == v) return;
+        m_timelineSnapToPhases = v;
+        ppSettings().setValue(QStringLiteral("ui/timelineSnapToPhases"), v);
+        emit timelineSnapToPhasesChanged();
     }
 
     void setReduceMotion(bool v)
@@ -922,6 +944,8 @@ signals:
     void windowHeightChanged();
     void fontScaleChanged();
     void densityChanged();
+    void timelineOrientationChanged();
+    void timelineSnapToPhasesChanged();
     void reduceMotionChanged();
     void overlayOpacityChanged();
     void windowMaximizedChanged();
@@ -995,6 +1019,8 @@ private:
     int     m_windowHeight    = 700;
     double  m_fontScale       = -1.0;
     QString m_density         = QStringLiteral("default");
+    QString m_timelineOrientation = QStringLiteral("horizontal");
+    bool    m_timelineSnapToPhases = false;
     bool    m_reduceMotion    = false;
     double  m_overlayOpacity  = 0.7;
     bool    m_windowMaximized = false;

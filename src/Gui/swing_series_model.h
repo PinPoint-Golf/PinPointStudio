@@ -57,6 +57,13 @@ public:
 
     Q_INVOKABLE QString columnColorKey(int col) const;  // header top-border tint
 
+    // Nearest row index to a window-relative timestamp `us` (same µs domain as
+    // shotReplay.positionUs), or -1 when `us` falls outside [windowStartUs,
+    // windowEndUs] — lets the replay playhead drive the table's current row while a
+    // phase-windowed table leaves the keyboard cursor alone when the playhead is
+    // elsewhere. O(log n).
+    Q_INVOKABLE int rowForTimeUs(qint64 us) const;
+
     // Configured by SwingDataSource::rebuild().
     void configure(const QVector<SwingSeries> &series, qint64 windowStartUs,
                    qint64 windowEndUs, const QString &fillMode);
@@ -73,7 +80,10 @@ private:
     };
 
     QVector<Column>          m_cols;
-    QVector<QVector<Cell>>   m_rows;   // [row][col]
+    QVector<QVector<Cell>>   m_rows;     // [row][col]
+    QVector<qint64>          m_rowTimeUs;          // parallel to m_rows; ascending
+    qint64                   m_windowStartUs = 0;  // inclusive bounds for rowForTimeUs
+    qint64                   m_windowEndUs   = 0;
 };
 
 } // namespace pinpoint

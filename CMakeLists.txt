@@ -242,7 +242,7 @@ qt_add_qml_module(PinPointStudio
         src/Gui/PpCameraTiles.qml
         src/Gui/PpModeStage.qml
         src/Gui/PpReviewCharts.qml
-        src/Gui/PpReviewTimeline.qml
+        src/Gui/PpTransitTimeline.qml
         src/Gui/PpReviewTransport.qml
         src/Gui/PpRail.qml
         src/Gui/PpRailButton.qml
@@ -313,6 +313,8 @@ qt_add_qml_module(PinPointStudio
         src/Gui/swing_coverage_model.cpp
         src/Gui/swing_series_model.h
         src/Gui/swing_series_model.cpp
+        src/Gui/timeline_labels.h
+        src/Gui/timeline_labels.cpp
 )
 
 qt6_add_shaders(PinPointStudio "debayer_shaders"
