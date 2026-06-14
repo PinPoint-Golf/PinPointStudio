@@ -62,15 +62,21 @@ Wrist, GRF, and Coach redirect to the Welcome screen until at least one athlete 
 
 ### Session modes
 
-Every session screen (Swing, Wrist, GRF, Coach) runs in one of three **modes**, chosen from the toolbar's mode switch. The active mode re-lays the centre stage:
+Every session screen (Swing, Wrist, GRF, Coach) runs in one of three **modes**, chosen from the toolbar's mode switch. The active mode re-lays the centre stage and decides what the camera panel plays:
 
-| Mode | Stage |
-|---|---|
-| **Capture** | Live camera tiles with overlays, the SHOT trigger, and the filling shot carousel — the recording surface |
-| **Review** | A captured swing promoted onto the stage: its own video with the analyzed overlay, metric charts, and a scrubbable phase timeline |
-| **Analyse** | The swing's charts and data table — for reading the numbers rather than the footage |
+| Mode | Stage | Camera panel |
+|---|---|---|
+| **Capture** | Live camera tiles with overlays, the SHOT trigger, and the filling shot carousel — the recording surface | Live camera feeds |
+| **Replay** | A captured swing promoted onto the stage: its video with the analyzed overlay, metric charts, and a scrubbable phase timeline — for watching it back | The swing's disk video, ¼ speed |
+| **Analyse** | The *same* loaded video plus the swing's full metric charts and a read-only data table — for reading the numbers, not just the footage | The same disk video (follows the Replay↔Analyse toggle) |
 
-Mode is the **layout/activity** axis, and it is *orthogonal* to the **data source** — whether you are looking at the *live* session or a *loaded* past one. The two compose: a single click on any carousel card promotes that swing onto the stage and enters Review, and from a live session capture keeps running in the background while you review. See [Shot review — the session stage](#shot-review--the-session-stage).
+**Mode is the layout/activity axis, and it is *orthogonal* to the data source** — whether the stage shows the *live* session or a *loaded* past one. The two compose:
+
+- **Capture is live-only.** Entering Capture always returns to the running live session and drops any focused swing; live capture keeps recording in the background while you review.
+- **Replay and Analyse work on either data source** — a swing from the live session you are recording, or any swing from a session loaded off disk.
+- **Replay ↔ Analyse share the focused swing and its loaded video**, so toggling between them never reloads or restarts playback; only entering Capture tears the loaded swing down.
+
+A single click on any carousel card promotes that swing onto the stage and enters Replay. Each mode remembers its own panel set and stage arrangement, edited via the toolbar's View control. See [Shot review — the session stage](#shot-review--the-session-stage).
 
 Each session screen carries a persistent **session toolbar** — clock, Capture control, central SHOT trigger, End Session, the mode switch and View control, and Cameras/IMUs device pills with in-panel device management and calibration. See [Session toolbar](#session-toolbar).
 
@@ -129,7 +135,7 @@ A persistent toolbar pinned to the top of every mode screen (Swing, Wrist, GRF, 
 
 - **Capture** — anchored at the far left with the session clock alongside it. It is the **single owner of the EventBuffer state**: Capture/Stop toggles the user capture intent (`resumeBuffer` / `pauseBuffer`) and starts the session clock on first capture. Nothing else changes the net buffer state — ball detection is signal-only (it drives overlays, never capture).
 - **SHOT** — centred trigger that funnels every shot source through a single `ShotController`: the manual button always, plus the automatic IMU-impact and acoustic-onset detectors when *Auto-detect swing* is on (pose/ball later). Armed only while the buffer is capturing and the shot processor is idle; firing it runs the post-shot pipeline (see [Shot capture & analysis](#shot-capture--analysis)). A **DETECT** cluster of per-modality dots (IMU / Acoustic / Ball) sits alongside — each glows while its detector is armed and flashes green on a firing.
-- **Mode switch** — a three-segment **Capture / Review / Analyse** control, the primary layout control of the stage. Selecting a mode re-lays the centre stage to that mode's saved layout; choosing Review with no swing focused shows a "select a swing" prompt rather than blocking. Switching mode never stops live capture (that is the data-source axis — see [Session modes](#session-modes)).
+- **Mode switch** — a three-segment **Capture / Replay / Analyse** control, the primary layout control of the stage. Selecting a mode re-lays the centre stage to that mode's saved layout; choosing Replay with no swing focused shows a "select a swing" prompt rather than blocking. Switching mode never stops live capture (that is the data-source axis — see [Session modes](#session-modes)).
 - **View** — a pill showing the current mode; tapping it opens the View panel, which edits *that mode's* layout: which panels are shown (camera, charts, table, timeline, carousel — plus a dashboard placeholder) and how the stage packs them (**tabs / split / stage**). Edits apply live and persist per mode; there are no named presets.
 - **End Session** — ghost button (visible while a session runs) with a small confirm popup; ends the session clock, stops capture, and unlocks navigation.
 - **Device pills** — Cameras and IMUs, each with a connected-count badge and aggregate state. A pill turns amber and reads **"calibrate"** when a connected device still needs calibration; the IMU pill instead warns **"battery N%"** (amber, or red below 20%) when any connected sensor drops below 50%.
@@ -173,11 +179,11 @@ A shot is the unit of analysis. Every shot source funnels through one `ShotContr
 
 A captured (or loaded) shot is reviewed by promoting it onto the main session **stage** — the same camera/charts/timeline panels the live session uses — rather than a pop-over. The shot **carousel** at the foot of every session screen is the filmstrip that drives it.
 
-- **Single click promotes** — Clicking a card makes that swing the focused swing, loads it onto the stage, and enters **Review** mode. Clicking another card swaps the focused swing in place (Lightroom-style filmstrip → loupe). The carousel stays hot during Capture, so you can drop into review mid-session — and on a live session, capture keeps recording in the background while you do.
+- **Single click promotes** — Clicking a card makes that swing the focused swing, loads it onto the stage, and enters **Replay** mode. Clicking another card swaps the focused swing in place (Lightroom-style filmstrip → loupe). The carousel stays hot during Capture, so you can drop into review mid-session — and on a live session, capture keeps recording in the background while you do.
 - **Cross-machine safe** — The stage enumerates the *reviewed swing's own* camera streams from its `swing.json`, never the local rig, so a swing recorded on a different setup (different camera count, perspectives, aspect ratios) still plays back, degrading gracefully when streams or analysis are missing.
-- **Stage panels** — In Review the camera tiles render the swing's video with the analyzed skeleton/club overlay (face-on stream); the **charts** panel draws its metric traces; the **timeline** panel carries a scrub slider and bold, clickable phase pills — all locked to one playhead. An always-on **transport** (play/pause, frame-step, speed) keeps working even when the timeline panel is hidden. *Analyse* mode swaps the footage for the swing's charts and a read-only data table.
+- **Stage panels** — In Replay the camera tiles render the swing's video with the analyzed skeleton/club overlay (face-on stream); the **charts** panel draws its metric traces; the **timeline** panel carries a scrub slider and bold, clickable phase pills — all locked to one playhead. An always-on **transport** (play/pause, frame-step, speed) keeps working even when the timeline panel is hidden. *Analyse* keeps that same footage and adds a read-only data table beside the charts.
 - **Shot cards** — Thumbnail, swing score, and a tappable star rating; cards persist their rating and free-text note back to `swing.json` (rating is editable directly on the card, no pop-over).
-- **Exit** — Leave Review via the mode switch, the Capture control, or **Esc**; from a live session that returns you to the running capture.
+- **Exit** — Leave Replay via the mode switch, the Capture control, or **Esc**; from a live session that returns you to the running capture.
 - **Sessions & trash** — A sessions drawer opens past sessions from disk for review; shots move to trash (recoverable, with an Undo toast) rather than being deleted outright, and bulk export/trash act on the filtered selection.
 
 ### IMU — wrist motion capture
