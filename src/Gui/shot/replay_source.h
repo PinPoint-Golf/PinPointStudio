@@ -95,6 +95,11 @@ signals:
     // The source became unusable (e.g. the master stream is invalid media) and
     // tore itself down — the controller should clear its active state.
     void aborted();
+    // Playback reached the natural end of the window (master stream EndOfMedia) —
+    // distinct from a user pause. The host uses this to auto-return to Capture
+    // after a post-shot auto-replay; a user-initiated replay reaching its end
+    // emits it too, but the host gates the action on its own intent flag.
+    void playbackEnded();
 };
 
 // Factory — today only the disk-backed source. The owner holds the returned

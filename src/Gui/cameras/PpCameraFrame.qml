@@ -132,14 +132,30 @@ Item {
             root._subscribed.addBayerItem(bayerView)
         }
     }
-    Component.onCompleted: {
-        _syncSubscription()
-        // Replay tiles bind their VideoOutput sink to the disk-replay stream
-        // (persists across loads; rebinds the live player immediately).
-        if (root._isReplay)
+    // Replay tiles must keep the disk-replay player bound to THIS tile's live video
+    // sink. A one-shot bind in onCompleted is not enough: the player is recreated on
+    // every load(), and tiles get churned by mode/layout transitions — so we also
+    // rebind when the replay (re)starts and when our stream index resolves.
+    // Qt.callLater coalesces the triggers and never fires for a tile that has already
+    // been destroyed, so the surviving (visible) tile is the one that ends up bound.
+    function _bindReplaySink() {
+        if (root._isReplay && videoOut.videoSink)
             shotReplay.setVideoSink(root.replayStreamIndex, videoOut.videoSink)
     }
-    onInstanceChanged:     _syncSubscription()
+    Component.onCompleted: {
+        _syncSubscription()
+        if (root._isReplay)
+            Qt.callLater(root._bindReplaySink)
+    }
+    onInstanceChanged:          _syncSubscription()
+    onReplayStreamIndexChanged: if (root._isReplay) Qt.callLater(root._bindReplaySink)
+
+    Connections {
+        target: shotReplay
+        enabled: root._isReplay
+        // Every (re)load creates a fresh player that needs this tile's sink.
+        function onActiveChanged() { if (shotReplay.active) Qt.callLater(root._bindReplaySink) }
+    }
     Component.onDestruction: {
         if (root._subscribed) {
             root._subscribed.removeVideoSink(videoOut.videoSink)

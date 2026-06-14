@@ -33,6 +33,12 @@ ShotReplayController::ShotReplayController(QObject *parent)
     connect(m_source.get(), &ReplaySource::speedChanged,    this, &ShotReplayController::speedChanged);
     connect(m_source.get(), &ReplaySource::failed,          this, &ShotReplayController::replayFailed);
     connect(m_source.get(), &ReplaySource::aborted,         this, &ShotReplayController::onAborted);
+    // Queued: the source emits this from inside QMediaPlayer's own mediaStatusChanged
+    // callback, and the host's reaction (auto-return to Capture) tears the source down
+    // via stop()/unload(). Deferring out of the player's callback avoids re-entrant
+    // teardown — same reasoning as DiskReplaySource's InvalidMedia path.
+    connect(m_source.get(), &ReplaySource::playbackEnded,   this, &ShotReplayController::playbackEnded,
+            Qt::QueuedConnection);
 }
 
 ShotReplayController::~ShotReplayController() = default;

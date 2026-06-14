@@ -262,6 +262,7 @@ bool DiskReplaySource::load(const QString &swingDir, double speed)
                     [this](QMediaPlayer::MediaStatus s) {
                         if (s == QMediaPlayer::EndOfMedia) {
                             setPlaying(false);
+                            emit playbackEnded();   // natural end, not a user pause
                         } else if (s == QMediaPlayer::InvalidMedia) {
                             ppWarn() << "[ShotReplay] master stream is invalid media — cannot replay";
                             emit failed(QStringLiteral("unsupported or corrupt video"));

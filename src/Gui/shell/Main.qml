@@ -314,11 +314,25 @@ ApplicationWindow {
     // the Replay stage (disk replay of the swing just written). Only auto-promote
     // from Capture — if the user is already in Replay/Analyse studying an earlier
     // shot, the new one just lands in the carousel rather than yanking them away.
+    // The `true` marks this as the post-shot auto-replay so it returns to Capture
+    // when it finishes (see onPlaybackEnded below).
     Connections {
         target: shotProcessor
         function onShotProcessed(shotId, swingDir) {
             if (swingDir !== "" && SessionMode.mode === SessionMode.capture)
-                SessionMode.enterReplay(shotId, swingDir)
+                SessionMode.enterReplay(shotId, swingDir, true)
+        }
+    }
+
+    // …and when that auto-replay plays to its end, drop straight back to live
+    // Capture — the user is at the mat ready to hit again. Gated on
+    // autoReturnToCapture so a user-initiated Replay reaching its end stays put;
+    // the source reports the fact, SessionMode owns the policy.
+    Connections {
+        target: shotReplay
+        function onPlaybackEnded() {
+            if (SessionMode.autoReturnToCapture && SessionMode.mode === SessionMode.replay)
+                SessionMode.enterCapture()
         }
     }
 

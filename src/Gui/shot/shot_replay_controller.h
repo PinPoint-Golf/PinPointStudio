@@ -102,6 +102,9 @@ signals:
     void speedChanged();
     // A stream failed to decode — carries a human-readable reason for the UI.
     void replayFailed(const QString &error);
+    // Forwarded from the source: the replay played to its natural end. The host
+    // uses it to auto-return to Capture after a post-shot auto-replay.
+    void playbackEnded();
 
 private:
     void onAborted();
