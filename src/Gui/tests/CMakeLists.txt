@@ -29,17 +29,17 @@ set(BUFFER ${SRC}/Buffer)                     # types.h (pulled in by Gui models
 function(pp_add_test name)
     add_executable(${name} ${ARGN})
     set_target_properties(${name} PROPERTIES AUTOMOC ON)
-    target_include_directories(${name} PRIVATE ${GUI} ${SRC} ${BUFFER})
+    target_include_directories(${name} PRIVATE ${GUI} ${GUI}/review ${SRC} ${BUFFER})
     target_link_libraries(${name} PRIVATE Qt6::Core Qt6::Gui Qt6::Qml)
     add_test(NAME ${name} COMMAND ${name})
 endfunction()
 
 # TimelineLabels — 1-D label distribution solver + nearest/active searches + phase names.
 pp_add_test(timeline_labels_test  timeline_labels_test.cpp
-                                  ${GUI}/timeline_labels.cpp)
+                                  ${GUI}/review/timeline_labels.cpp)
 
 # SwingSeriesModel — playhead→row mapping (rowForTimeUs) for the table cross-highlight.
 # resolveValue/Match are local to swing_series_model.cpp, and SwingSeries' methods are
 # header-inline, so no swing_data_source.cpp link is needed.
 pp_add_test(swing_series_model_test  swing_series_model_test.cpp
-                                    ${GUI}/swing_series_model.cpp)
+                                    ${GUI}/review/swing_series_model.cpp)

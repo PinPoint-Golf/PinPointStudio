@@ -7,7 +7,7 @@
 // club mix (distinct, first-seen order), day/time labels (relative + earliest),
 // preview-thumb cap, and the empty / unknown-timestamp degenerate cases.
 
-#include "../../Gui/session_summary.h"
+#include "../../Gui/review/session_summary.h"
 
 #include <cstdio>
 

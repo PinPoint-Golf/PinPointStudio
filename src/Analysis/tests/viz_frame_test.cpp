@@ -13,7 +13,7 @@
 // values are the invariant: when 2.2 re-expresses R0 as worldToScene()·restOffset, the
 // recomputed W must still equal these.
 
-#include "../../Gui/viz_frame.h"
+#include "../../Gui/cameras/viz_frame.h"
 
 #include <QQuaternion>
 #include <QVector3D>

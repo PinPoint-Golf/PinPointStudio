@@ -9,7 +9,7 @@
 // tolerance does not fuse; the post-commit refractory drops echoes; a manual
 // commit (noteCommit) arms the same refractory; cancel() voids a window.
 
-#include "../../Gui/shot_arbiter.h"
+#include "../../Gui/shot/shot_arbiter.h"
 
 #include <cstdio>
 

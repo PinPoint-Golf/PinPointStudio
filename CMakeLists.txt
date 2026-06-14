@@ -136,28 +136,28 @@ qt_add_executable(PinPointStudio
     src/Gui/main.cpp
     $<$<BOOL:${APPLE}>:${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/icons/PinPointStudio.icns>
     $<$<BOOL:${WIN32}>:${CMAKE_CURRENT_SOURCE_DIR}/PinPointStudio.rc>
-    src/Gui/app_settings.h             src/Gui/app_settings.cpp
-    src/Gui/imu_manager.h              src/Gui/imu_manager.cpp
-    src/Gui/imu_instance.h             src/Gui/imu_instance.cpp
-    src/Gui/transcription_controller.h src/Gui/transcription_controller.cpp
-    src/Gui/tts_controller.h           src/Gui/tts_controller.cpp
-    src/Gui/film_controller.h          src/Gui/film_controller.cpp
-    src/Gui/athlete_controller.h       src/Gui/athlete_controller.cpp
-    src/Gui/navigation_controller.h    src/Gui/navigation_controller.cpp
-    src/Gui/resource_monitor_controller.h src/Gui/resource_monitor_controller.cpp
-    src/Gui/clipboard_helper.h
-    src/Gui/session_controller.h       src/Gui/session_controller.cpp
-    src/Gui/session_review_controller.h src/Gui/session_review_controller.cpp
-    src/Gui/session_list_model.h       src/Gui/session_list_model.cpp
-    src/Gui/session_summary.h
-    src/Gui/shot_arbiter.h
-    src/Gui/shot_controller.h          src/Gui/shot_controller.cpp
-    src/Gui/shot_list_model.h          src/Gui/shot_list_model.cpp
-    src/Gui/shot_processor.h           src/Gui/shot_processor.cpp
-    src/Gui/shot_replay_controller.h   src/Gui/shot_replay_controller.cpp
-    src/Gui/replay_source.h
-    src/Gui/disk_replay_source.h       src/Gui/disk_replay_source.cpp
-    src/Gui/live_wrist_angles.h        src/Gui/live_wrist_angles.cpp
+    src/Gui/app/app_settings.h               src/Gui/app/app_settings.cpp
+    src/Gui/imu/imu_manager.h                src/Gui/imu/imu_manager.cpp
+    src/Gui/imu/imu_instance.h               src/Gui/imu/imu_instance.cpp
+    src/Gui/media/transcription_controller.h src/Gui/media/transcription_controller.cpp
+    src/Gui/media/tts_controller.h           src/Gui/media/tts_controller.cpp
+    src/Gui/media/film_controller.h          src/Gui/media/film_controller.cpp
+    src/Gui/athlete/athlete_controller.h     src/Gui/athlete/athlete_controller.cpp
+    src/Gui/shell/navigation_controller.h    src/Gui/shell/navigation_controller.cpp
+    src/Gui/monitor/resource_monitor_controller.h src/Gui/monitor/resource_monitor_controller.cpp
+    src/Gui/app/clipboard_helper.h
+    src/Gui/session/session_controller.h       src/Gui/session/session_controller.cpp
+    src/Gui/review/session_review_controller.h src/Gui/review/session_review_controller.cpp
+    src/Gui/review/session_list_model.h        src/Gui/review/session_list_model.cpp
+    src/Gui/review/session_summary.h
+    src/Gui/shot/shot_arbiter.h
+    src/Gui/shot/shot_controller.h          src/Gui/shot/shot_controller.cpp
+    src/Gui/shot/shot_list_model.h          src/Gui/shot/shot_list_model.cpp
+    src/Gui/shot/shot_processor.h           src/Gui/shot/shot_processor.cpp
+    src/Gui/shot/shot_replay_controller.h   src/Gui/shot/shot_replay_controller.cpp
+    src/Gui/shot/replay_source.h
+    src/Gui/shot/disk_replay_source.h       src/Gui/shot/disk_replay_source.cpp
+    src/Gui/viz/live_wrist_angles.h         src/Gui/viz/live_wrist_angles.cpp
     src/IMU/imu_base.h        src/IMU/imu_base.cpp
     src/IMU/imu_capabilities.h
     src/IMU/iorientation_filter.h
@@ -191,13 +191,13 @@ qt_add_executable(PinPointStudio
     src/Pose/pose_estimator_base.h        src/Pose/pose_estimator_base.cpp
     src/Core/device_enumerator.h           src/Core/device_enumerator.cpp
     src/Video/VideoInputAravis.h           src/Video/VideoInputAravis.cpp
-    src/Gui/camera_instance.h             src/Gui/camera_instance.cpp
-    src/Gui/camera_manager.h               src/Gui/camera_manager.cpp
-    src/Gui/ball_calibration_controller.h  src/Gui/ball_calibration_controller.cpp
+    src/Gui/cameras/camera_instance.h     src/Gui/cameras/camera_instance.cpp
+    src/Gui/cameras/camera_manager.h      src/Gui/cameras/camera_manager.cpp
+    src/Gui/calibration/ball_calibration_controller.h  src/Gui/calibration/ball_calibration_controller.cpp
     src/Pose/ball_model.h
     src/Pose/ball_calibration_logic.h
     src/Pose/ball_calibration_store.h
-    src/Gui/buffer_controller.h            src/Gui/buffer_controller.cpp
+    src/Gui/cameras/buffer_controller.h   src/Gui/cameras/buffer_controller.cpp
     src/STT/stt_processor.h          src/STT/stt_processor.cpp
     src/TTS/TTSEngine.h              src/TTS/TTSEngine.cpp
     src/TTS/TTSEngineFactory.h       src/TTS/TTSEngineFactory.cpp
@@ -210,118 +210,124 @@ qt_add_executable(PinPointStudio
     src/LLM/LocalLlmEngine.h         src/LLM/LocalLlmEngine.cpp
     src/LLM/GeminiLlmEngine.h        src/LLM/GeminiLlmEngine.cpp
     src/LLM/LlmWorker.h              src/LLM/LlmWorker.cpp
-    src/Gui/llm_controller.h         src/Gui/llm_controller.cpp
+    src/Gui/media/llm_controller.h   src/Gui/media/llm_controller.cpp
 )
 
-target_include_directories(PinPointStudio PRIVATE src/Gui src/IMU src/Audio src/Video src/Pose src/STT src/TTS src/LLM src/Secrets src/Core src/Buffer "${CMAKE_BINARY_DIR}/generated")
+target_include_directories(PinPointStudio PRIVATE
+    src/Gui
+    src/Gui/app src/Gui/shell src/Gui/athlete src/Gui/monitor src/Gui/cameras
+    src/Gui/imu src/Gui/viz src/Gui/session src/Gui/shot src/Gui/review
+    src/Gui/media src/Gui/calibration
+    src/IMU src/Audio src/Video src/Pose src/STT src/TTS src/LLM src/Secrets src/Core src/Buffer
+    "${CMAKE_BINARY_DIR}/generated")
 
-set_source_files_properties(src/Gui/Theme.qml         PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
-set_source_files_properties(src/Gui/SettingsIndex.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
-set_source_files_properties(src/Gui/ViewLayout.qml    PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
-set_source_files_properties(src/Gui/SessionMode.qml   PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set_source_files_properties(src/Gui/theme/Theme.qml            PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set_source_files_properties(src/Gui/settings/SettingsIndex.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set_source_files_properties(src/Gui/session/ViewLayout.qml     PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set_source_files_properties(src/Gui/session/SessionMode.qml    PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
 qt_add_qml_module(PinPointStudio
     URI PinPointStudio
     OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/qml/PinPointStudio
     QML_FILES
-        src/Gui/Theme.qml
-        src/Gui/ViewLayout.qml
-        src/Gui/SessionMode.qml
-        src/Gui/Main.qml
-        src/Gui/AudioPage.qml
-        src/Gui/CapturePage.qml
-        src/Gui/ImuVizView.qml
-        src/Gui/ArmVizView.qml
-        src/Gui/BodyVizView.qml
-        src/Gui/FilmPage.qml
-        src/Gui/VideoPage.qml
-        src/Gui/PpCameraFrame.qml
-        src/Gui/PpSegmentedControl.qml
-        src/Gui/PpStagePanel.qml
-        src/Gui/PpViewPanel.qml
-        src/Gui/PpCameraTiles.qml
-        src/Gui/PpModeStage.qml
-        src/Gui/PpReplayCharts.qml
-        src/Gui/PpTransitTimeline.qml
-        src/Gui/PpReplayTransport.qml
-        src/Gui/PpRail.qml
-        src/Gui/PpRailButton.qml
-        src/Gui/PpDivider.qml
-        src/Gui/PpHeader.qml
-        src/Gui/PpDetectCluster.qml
-        src/Gui/PpAnalysingBadge.qml
-        src/Gui/PlayPage.qml
-        src/Gui/ScreenPlaceholder.qml
-        src/Gui/ScreenAthleteForm.qml
-        src/Gui/ScreenAthletePicker.qml
-        src/Gui/PpTextField.qml
-        src/Gui/PpChipGroup.qml
-        src/Gui/PpUnitToggle.qml
-        src/Gui/PpButton.qml
-        src/Gui/PpAthleteCard.qml
-        src/Gui/PpAthleteRow.qml
-        src/Gui/ScreenResourceMonitor.qml
-        src/Gui/RmDeviceCard.qml
-        src/Gui/RmSourceRow.qml
-        src/Gui/RmTimelineChart.qml
-        src/Gui/RmWarningNotice.qml
-        src/Gui/ScreenHome.qml
-        src/Gui/ScreenSettings.qml
-        src/Gui/AppearancePanel.qml
-        src/Gui/GeneralPanel.qml
-        src/Gui/DisplaysPanel.qml
-        src/Gui/CamerasPanel.qml
-        src/Gui/ImusPanel.qml
-        src/Gui/MicrophonesPanel.qml
-        src/Gui/StoragePanel.qml
-        src/Gui/SettingsIndex.qml
-        src/Gui/HmTypeCard.qml
-        src/Gui/ScreenSessionWizard.qml
-        src/Gui/CoachPage.qml
-        src/Gui/PpSessionToolbar.qml
-        src/Gui/PpCameraPanel.qml
-        src/Gui/PpImuPanel.qml
-        src/Gui/ScreenWrist.qml
-        src/Gui/ScreenSessionMode.qml
-        src/Gui/ImuCalibrationFlow.qml
-        src/Gui/CameraCalibrationFlow.qml
-        src/Gui/BallCalibrationFlow.qml
-        src/Gui/PpShotCarousel.qml
-        src/Gui/PpExportOptionsSheet.qml
-        src/Gui/PpShotCard.qml
-        src/Gui/PpSessionDrawer.qml
-        src/Gui/PpShotFilter.qml
-        src/Gui/PpQualityPill.qml
-        src/Gui/PpStarRating.qml
-        src/Gui/PpTrace.qml
-        src/Gui/PpMetricChart.qml
-        src/Gui/PpChartPlot.qml
-        src/Gui/PpSegmentBrush.qml
-        src/Gui/PpChartSummary.qml
-        src/Gui/PpSpeedSelector.qml
-        src/Gui/PpToast.qml
-        src/Gui/PpDataViewer.qml
-        src/Gui/PpCoverageStrip.qml
-        src/Gui/PpPropertiesPanel.qml
+        src/Gui/theme/Theme.qml
+        src/Gui/session/ViewLayout.qml
+        src/Gui/session/SessionMode.qml
+        src/Gui/shell/Main.qml
+        src/Gui/media/AudioPage.qml
+        src/Gui/imu/CapturePage.qml
+        src/Gui/viz/ImuVizView.qml
+        src/Gui/viz/ArmVizView.qml
+        src/Gui/viz/BodyVizView.qml
+        src/Gui/media/FilmPage.qml
+        src/Gui/cameras/VideoPage.qml
+        src/Gui/cameras/PpCameraFrame.qml
+        src/Gui/components/PpSegmentedControl.qml
+        src/Gui/session/PpStagePanel.qml
+        src/Gui/session/PpViewPanel.qml
+        src/Gui/cameras/PpCameraTiles.qml
+        src/Gui/session/PpModeStage.qml
+        src/Gui/review/PpReplayCharts.qml
+        src/Gui/review/PpTransitTimeline.qml
+        src/Gui/review/PpReplayTransport.qml
+        src/Gui/shell/PpRail.qml
+        src/Gui/shell/PpRailButton.qml
+        src/Gui/components/PpDivider.qml
+        src/Gui/shell/PpHeader.qml
+        src/Gui/shell/PpDetectCluster.qml
+        src/Gui/shell/PpAnalysingBadge.qml
+        src/Gui/shell/PlayPage.qml
+        src/Gui/shell/ScreenPlaceholder.qml
+        src/Gui/athlete/ScreenAthleteForm.qml
+        src/Gui/athlete/ScreenAthletePicker.qml
+        src/Gui/components/PpTextField.qml
+        src/Gui/components/PpChipGroup.qml
+        src/Gui/components/PpUnitToggle.qml
+        src/Gui/components/PpButton.qml
+        src/Gui/athlete/PpAthleteCard.qml
+        src/Gui/athlete/PpAthleteRow.qml
+        src/Gui/monitor/ScreenResourceMonitor.qml
+        src/Gui/monitor/RmDeviceCard.qml
+        src/Gui/monitor/RmSourceRow.qml
+        src/Gui/monitor/RmTimelineChart.qml
+        src/Gui/monitor/RmWarningNotice.qml
+        src/Gui/home/ScreenHome.qml
+        src/Gui/settings/ScreenSettings.qml
+        src/Gui/settings/AppearancePanel.qml
+        src/Gui/settings/GeneralPanel.qml
+        src/Gui/settings/DisplaysPanel.qml
+        src/Gui/settings/CamerasPanel.qml
+        src/Gui/settings/ImusPanel.qml
+        src/Gui/settings/MicrophonesPanel.qml
+        src/Gui/settings/StoragePanel.qml
+        src/Gui/settings/SettingsIndex.qml
+        src/Gui/home/HmTypeCard.qml
+        src/Gui/session/ScreenSessionWizard.qml
+        src/Gui/media/CoachPage.qml
+        src/Gui/session/PpSessionToolbar.qml
+        src/Gui/cameras/PpCameraPanel.qml
+        src/Gui/imu/PpImuPanel.qml
+        src/Gui/session/ScreenWrist.qml
+        src/Gui/session/ScreenSessionMode.qml
+        src/Gui/calibration/ImuCalibrationFlow.qml
+        src/Gui/calibration/CameraCalibrationFlow.qml
+        src/Gui/calibration/BallCalibrationFlow.qml
+        src/Gui/shot/PpShotCarousel.qml
+        src/Gui/shot/PpExportOptionsSheet.qml
+        src/Gui/shot/PpShotCard.qml
+        src/Gui/session/PpSessionDrawer.qml
+        src/Gui/shot/PpShotFilter.qml
+        src/Gui/components/PpQualityPill.qml
+        src/Gui/components/PpStarRating.qml
+        src/Gui/components/PpTrace.qml
+        src/Gui/review/PpMetricChart.qml
+        src/Gui/review/PpChartPlot.qml
+        src/Gui/review/PpSegmentBrush.qml
+        src/Gui/review/PpChartSummary.qml
+        src/Gui/review/PpSpeedSelector.qml
+        src/Gui/components/PpToast.qml
+        src/Gui/review/PpDataViewer.qml
+        src/Gui/review/PpCoverageStrip.qml
+        src/Gui/review/PpPropertiesPanel.qml
     SOURCES
         src/Audio/ting_player.h
         src/Audio/ting_player.cpp
         src/Video/bayer_video_item.h
         src/Video/bayer_video_item.cpp
-        src/Gui/body_pose_adapter.h
-        src/Gui/body_pose_adapter.cpp
-        src/Gui/shot_filter_proxy_model.h
-        src/Gui/shot_filter_proxy_model.cpp
-        src/Gui/swing_data_source.h
-        src/Gui/swing_data_source.cpp
-        src/Gui/swing_coverage_model.h
-        src/Gui/swing_coverage_model.cpp
-        src/Gui/swing_series_model.h
-        src/Gui/swing_series_model.cpp
-        src/Gui/timeline_labels.h
-        src/Gui/timeline_labels.cpp
-        src/Gui/chart_metrics.h
-        src/Gui/chart_metrics.cpp
+        src/Gui/viz/body_pose_adapter.h
+        src/Gui/viz/body_pose_adapter.cpp
+        src/Gui/shot/shot_filter_proxy_model.h
+        src/Gui/shot/shot_filter_proxy_model.cpp
+        src/Gui/review/swing_data_source.h
+        src/Gui/review/swing_data_source.cpp
+        src/Gui/review/swing_coverage_model.h
+        src/Gui/review/swing_coverage_model.cpp
+        src/Gui/review/swing_series_model.h
+        src/Gui/review/swing_series_model.cpp
+        src/Gui/review/timeline_labels.h
+        src/Gui/review/timeline_labels.cpp
+        src/Gui/review/chart_metrics.h
+        src/Gui/review/chart_metrics.cpp
 )
 
 qt6_add_shaders(PinPointStudio "debayer_shaders"
@@ -1807,8 +1813,8 @@ if(APPLE)
     qt_import_plugins(PinPointStudio INCLUDE Qt6::QDarwinBluetoothPermissionPlugin)
 
     target_sources(PinPointStudio PRIVATE
-        src/Gui/macos_permissions.h
-        src/Gui/macos_permissions.mm
+        src/Gui/app/macos_permissions.h
+        src/Gui/app/macos_permissions.mm
         src/STT/STTBackendApple.h
         src/STT/STTBackendApple.mm
         src/Video/VideoInputApple.h
