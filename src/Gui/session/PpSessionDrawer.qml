@@ -35,6 +35,10 @@ Item {
     // Raised when a row is chosen (or the ✕ tapped) — the host popup closes.
     signal closeRequested()
 
+    // A session row was chosen (live or past) — the host clears the carousel
+    // filter so the freshly selected session shows all of its shots.
+    signal sessionSelected()
+
     // Per-row '...' menu actions, handled by the host carousel (which owns the
     // shared export sheet, exporter and toast). sessionId is the row's absolute
     // session dir; never emitted for the live row (it carries no '...' menu).
@@ -155,6 +159,7 @@ Item {
                 onClicked: {
                     if (rowBg.isLive) sessionReviewController.resumeLive()
                     else              sessionReviewController.loadSession(rowBg.sessionId)
+                    drawer.sessionSelected()
                     drawer.closeRequested()
                 }
             }

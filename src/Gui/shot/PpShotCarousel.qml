@@ -426,6 +426,10 @@ Item {
             id: sessDrawer
             onCloseRequested: sessionsPopup.close()
 
+            // A freshly chosen session shows all its shots — drop any filter
+            // left over from the previously viewed session.
+            onSessionSelected: filterProxy.clearAll()
+
             // Per-session '...' actions reuse the carousel's shared export sheet
             // and toast. The drawer stays open so the user can act on several
             // sessions in turn; for trash the row drops out of the list in place.
