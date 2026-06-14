@@ -57,7 +57,9 @@ Item {
             id: topRail
             readonly property bool horizTransit: root._transitMode && root._timelineOn && !root._vertical
             Layout.fillWidth: true
-            Layout.preferredHeight: horizTransit ? Theme.sp(150) : 0
+            // Sized to the timeline's own content (line + labels), not a fixed
+            // over-tall rail — otherwise dead space sits below the labels.
+            Layout.preferredHeight: horizTransit ? (item ? item.contentHeight : Theme.sp(98)) : 0
             Behavior on Layout.preferredHeight {
                 enabled: !Theme.reduceMotion
                 NumberAnimation { duration: Theme.durationNormal; easing.type: Easing.InOutQuad }

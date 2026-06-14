@@ -58,6 +58,12 @@ Item {
     readonly property real _lineLen:   Math.max(1, (_horizontal ? width : height) - 2 * _insetMain)
     readonly property real _beadMain:  _insetMain + _playFrac * _lineLen
 
+    // Natural cross-axis extent of the horizontal layout: line → elbow drop to the
+    // label band → one upright label row (+ a little breathing room). Hosts bind the
+    // top rail's height to this so no dead space is left beneath the labels.
+    readonly property real contentHeight: _labelBand + Theme.sp(2)
+                                          + Math.round(Theme.fontSzLabel * 1.5) + Theme.sp(4)
+
     // The full render model — recomputed only on layout/orientation/data change (NOT
     // on playhead movement). Each entry: {phase,tUs,frac,center,label,name,isImpact,elbow}.
     readonly property var _stations: shotReplay.active
