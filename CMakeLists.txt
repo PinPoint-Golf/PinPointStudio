@@ -248,6 +248,8 @@ qt_add_qml_module(PinPointStudio
         src/Gui/PpRailButton.qml
         src/Gui/PpDivider.qml
         src/Gui/PpHeader.qml
+        src/Gui/PpDetectCluster.qml
+        src/Gui/PpAnalysingBadge.qml
         src/Gui/PlayPage.qml
         src/Gui/ScreenPlaceholder.qml
         src/Gui/ScreenAthleteForm.qml

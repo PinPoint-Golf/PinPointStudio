@@ -318,264 +318,11 @@ Item {
             }
         }
 
-        Item {   // centre the SHOT button (live only)
-            Layout.fillWidth: true
-            visible: !sessionReviewController.reviewActive
-        }
-
-        // ── Analysing badge — visible while the shot processor works ────────
-        // (post-roll + analysis + export; hidden again once the replay runs,
-        // which has its own REPLAY badge on the camera frames). One contained
-        // chip, SHOT-button footprint: label + elapsed time on the top line,
-        // progress bar beneath. The bar fills with
-        // shotProcessor.analysisProgress (frames processed) and carries a
-        // sweeping sheen + twinkles at the leading edge — the one deliberately
-        // showy moment in the toolbar. All motion gated on Theme.reduceMotion;
-        // the plain filling bar remains.
-        Rectangle {
-            id: analysingBox
-            Layout.alignment: Qt.AlignVCenter
-            implicitWidth: Theme.sp(128)
-            implicitHeight: Theme.sp(40)
-            radius: Theme.radius
-            color: Theme.colorBg2
-            border.width: 1
-            border.color: Theme.colorBorderMid
-            visible: shotProcessor.busy && !shotProcessor.isReplaying
-                     && !sessionReviewController.reviewActive
-
-            readonly property bool sparkling: visible && !Theme.reduceMotion
-
-            // Elapsed wall-time since the shot started processing (post-roll
-            // included). Hidden for the first second so instant analyses never
-            // flash a "0s".
-            property int elapsedS: 0
-            readonly property string elapsedLabel: elapsedS >= 60
-                ? Math.floor(elapsedS / 60) + ":" + String(elapsedS % 60).padStart(2, "0")
-                : elapsedS + "s"
-            onVisibleChanged: if (visible) elapsedS = 0
-            Timer {
-                running: analysingBox.visible
-                interval: 1000; repeat: true
-                onTriggered: analysingBox.elapsedS++
-            }
-
-            Column {
-                anchors.centerIn: parent
-                width: parent.width - Theme.sp(24)
-                spacing: Theme.sp(5)
-
-                Item {   // label left, elapsed time right
-                    width: parent.width
-                    height: analysingLbl.implicitHeight
-
-                    Text {
-                        id: analysingLbl
-                        anchors.left: parent.left
-                        text: qsTr("ANALYSING")
-                        font.family: Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        font.letterSpacing: Theme.trackingMicro
-                        color: Theme.colorText3
-                    }
-
-                    Text {
-                        anchors.right: parent.right
-                        visible: analysingBox.elapsedS > 0
-                        text: analysingBox.elapsedLabel
-                        font.family: Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color: Theme.colorText3
-                        opacity: 0.7
-                    }
-                }
-
-                Item {
-                    id: analyseBar
-                    width: parent.width
-                    height: Theme.sp(4)
-
-                    Rectangle {   // track
-                        anchors.fill: parent
-                        radius: height / 2
-                        color: Theme.colorBg3
-                    }
-
-                    Rectangle {   // fill — never narrower than its own end caps
-                        id: analyseFill
-                        width: Math.max(height, parent.width * shotProcessor.analysisProgress)
-                        height: parent.height
-                        radius: height / 2
-                        color: Theme.colorAccent
-                        clip: true
-                        Behavior on width { NumberAnimation { duration: Theme.durationNormal } }
-
-                        Rectangle {   // sheen sweeping the filled portion only (parent clips)
-                            id: analyseSheen
-                            width: Theme.sp(22); height: parent.height
-                            visible: analysingBox.sparkling
-                            gradient: Gradient {
-                                orientation: Gradient.Horizontal
-                                GradientStop { position: 0.0; color: "transparent" }
-                                GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.55) }
-                                GradientStop { position: 1.0; color: "transparent" }
-                            }
-                            NumberAnimation on x {
-                                running: analysingBox.sparkling
-                                loops: Animation.Infinite
-                                from: -analyseSheen.width
-                                to: analyseBar.width
-                                duration: 1100
-                            }
-                        }
-                    }
-
-                    // Twinkles riding the fill's leading edge, staggered so
-                    // they read as sparkle rather than a blinking cluster —
-                    // offsets tightened to stay inside the chip.
-                    Repeater {
-                        model: [ { dx: -2, dy: -5, period: 900  },
-                                 { dx: -9, dy:  4, period: 1300 },
-                                 { dx:  4, dy: -1, period: 700  } ]
-                        delegate: Text {
-                            required property var modelData
-                            x: analyseFill.width + modelData.dx - implicitWidth / 2
-                            y: analyseBar.height / 2 + modelData.dy - implicitHeight / 2
-                            text: "✦"
-                            font.family: Theme.fontSymbol
-                            font.pixelSize: Theme.fontSzMicro - 1
-                            color: Theme.colorAccent
-                            opacity: 0
-                            scale: 0.6
-                            SequentialAnimation on opacity {
-                                running: analysingBox.sparkling
-                                loops: Animation.Infinite
-                                PauseAnimation  { duration: modelData.period * 0.4 }
-                                NumberAnimation { to: 1.0; duration: modelData.period * 0.3
-                                                  easing.type: Easing.OutQuad }
-                                NumberAnimation { to: 0.0; duration: modelData.period * 0.3
-                                                  easing.type: Easing.InQuad }
-                            }
-                            SequentialAnimation on scale {
-                                running: analysingBox.sparkling
-                                loops: Animation.Infinite
-                                PauseAnimation  { duration: modelData.period * 0.4 }
-                                NumberAnimation { to: 1.15; duration: modelData.period * 0.3 }
-                                NumberAnimation { to: 0.6;  duration: modelData.period * 0.3 }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // ── SHOT (manual shot trigger) — centred between timer and pills ────
-        // Armed only while the buffer is capturing; the central
-        // shotController.triggerShot() gate matches, so a disarmed click is a
-        // no-op even if the binding lags.
-        Rectangle {
-            id: shotBtn
-            // Live-capture only: the manual trigger has no meaning while replaying
-            // or analysing a recorded swing, so it is hidden outside Capture.
-            visible: SessionMode.mode === SessionMode.capture
-                     && !sessionReviewController.reviewActive
-            Layout.alignment: Qt.AlignVCenter
-            implicitWidth: shotLbl.implicitWidth + Theme.sp(28)
-            implicitHeight: Theme.sp(40)
-            radius: Theme.radius
-            color: shotMa.containsMouse && shotController.armed ? Theme.colorBg3
-                                                                : Theme.colorBg2
-            border.width: 1
-            border.color: Theme.colorBorderMid
-            opacity: shotController.armed ? 1.0 : 0.35
-            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-            Text {
-                id: shotLbl
-                anchors.centerIn: parent
-                text: qsTr("SHOT")
-                font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody
-                font.letterSpacing: Theme.trackingMicro
-                color: Theme.colorText
-            }
-
-            // Brief accent flash on fire.
-            SequentialAnimation {
-                id: shotFlash
-                ColorAnimation {
-                    target: shotBtn; property: "border.color"
-                    to: Theme.colorAccent; duration: Theme.durationFast
-                }
-                ColorAnimation {
-                    target: shotBtn; property: "border.color"
-                    to: Theme.colorBorderMid; duration: Theme.durationSlow
-                }
-            }
-
-            MouseArea {
-                id: shotMa
-                anchors.fill: parent
-                hoverEnabled: true
-                enabled: shotController.armed
-                cursorShape: shotController.armed ? Qt.PointingHandCursor
-                                                  : Qt.ArrowCursor
-                onClicked: {
-                    shotController.triggerShot()
-                    if (!Theme.reduceMotion) shotFlash.restart()
-                }
-            }
-        }
-
-        // ── Shot-detection indicators — one dot per detection modality ─────
-        // Live feedback on the multi-modal detector: IMU impact + acoustic
-        // onset today, Ball/vision reserved (always dim until its producer
-        // lands). Tiers: glow = armed & listening, dim = auto-detect on but
-        // not armed, even-more-dim = auto-detect off or modality unavailable.
-        // A detection flashes the dot green and decays back over 2 s.
-        Row {
-            id: detectCluster
-            // Detection only runs against live capture — hide the dots outside
-            // Capture (Replay/Analyse show a recorded swing, nothing to detect).
-            visible: SessionMode.mode === SessionMode.capture
-                     && !sessionReviewController.reviewActive
-            Layout.alignment: Qt.AlignVCenter
-            spacing: Theme.sp(8)
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: qsTr("DETECT")
-                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
-            }
-            Row {
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: Theme.sp(10)
-                DetectDot { id: imuDot;  available: imuManager.imuCount > 0 }
-                DetectDot { id: acDot;   available: true }
-                // Ball/vision dot (design §8.3): amber while running on the
-                // generic (uncalibrated) detector or when lighting has drifted
-                // from the calibration envelope; steady green core while the
-                // ball is present at the hitting area. The shot flash joins
-                // when the Source::Ball candidate feed lands.
-                DetectDot {
-                    id: ballDot
-                    readonly property QtObject foInst: {
-                        var insts = cameraManager.instances
-                        for (var i = 0; i < insts.length; ++i)
-                            if (insts[i].perspective === CameraInstance.FaceOn)
-                                return insts[i]
-                        return null
-                    }
-                    available: foInst !== null && foInst.ballEnabled
-                    baseColor: foInst !== null
-                               && (!foInst.ballCalibrated || foInst.ballDrifting)
-                               ? Theme.colorAttention : Theme.colorAccent
-                    presence:  foInst !== null && foInst.ballPresent
-                }
-            }
-        }
-
-        Item { Layout.fillWidth: true }   // push device pills to the right
+        // Centre stage moved to the title bar (SHOT trigger + ANALYSING badge);
+        // this spacer now just pushes the device cluster to the right. The mode
+        // switch is centred on the bar as an overlay sibling (see `modeSwitch`,
+        // declared after the RowLayout) so it sits at the toolbar's true centre.
+        Item { Layout.fillWidth: true }
 
         // ── View · subtle vertical divider sets the layout cluster apart ────
         // Always present alongside the View/Cameras/IMUs cluster (the device
@@ -584,26 +331,6 @@ Item {
             orientation: Qt.Vertical
             Layout.preferredHeight: Theme.sp(28)
             Layout.alignment: Qt.AlignVCenter
-        }
-
-        // ── Mode switch — primary layout control (Capture/Replay/Analyse) ─────
-        // The activity axis. Replay is never blocked: with no focused swing the
-        // stage shows its empty-state. Replay/Analyse leave the data-source alone;
-        // Capture is the single path back to the live current session (it calls
-        // SessionReviewController.resumeLive when a past session is loaded).
-        PpSegmentedControl {
-            id: modeSwitch
-            Layout.preferredWidth: Theme.sp(220)
-            Layout.alignment: Qt.AlignVCenter
-            solid: false
-            options:  root.modeNames
-            selected: root.modeNames[SessionMode.mode]
-            onActivated: (value) => {
-                var i = root.modeNames.indexOf(value)
-                if (i === SessionMode.replay)       SessionMode.showReplay()
-                else if (i === SessionMode.analyse) SessionMode.enterAnalyse()
-                else                                SessionMode.enterCapture()
-            }
         }
 
         // ── View pill — edits the CURRENT mode's saved layout ─────────────────
@@ -655,6 +382,29 @@ Item {
         }
     }
 
+    // ── Mode switch — primary layout control (Capture/Replay/Analyse) ─────────
+    // Centred on the toolbar as an overlay sibling of the RowLayout (the bar's
+    // centre is otherwise empty — SHOT/ANALYSING moved to the title bar), so it
+    // sits at the TRUE centre regardless of the asymmetric left/right clusters.
+    // The activity axis: Replay is never blocked (empty-state with no focused
+    // swing); Replay/Analyse leave the data-source alone; Capture is the single
+    // path back to the live current session (SessionReviewController.resumeLive).
+    PpSegmentedControl {
+        id: modeSwitch
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.verticalCenter:   parent.verticalCenter
+        width: Theme.sp(220)
+        solid: false
+        options:  root.modeNames
+        selected: root.modeNames[SessionMode.mode]
+        onActivated: (value) => {
+            var i = root.modeNames.indexOf(value)
+            if (i === SessionMode.replay)       SessionMode.showReplay()
+            else if (i === SessionMode.analyse) SessionMode.enterAnalyse()
+            else                                SessionMode.enterCapture()
+        }
+    }
+
     // ── Popups host the reusable panels; positioned under their pills ───────
     // margins clamp the popup within the window; the panel's implicitHeight
     // drives the popup height so it grows when a panel enters calibrate mode.
@@ -701,82 +451,6 @@ Item {
             border.width: 1; border.color: Theme.colorBorderStrong
         }
         contentItem: PpImuPanel {}
-    }
-
-    // ── Detection-dot flashes ──────────────────────────────────────────────
-    // Each detector firing flashes its dot green; DetectDot.triggerFlash()
-    // self-gates on the dot being armed (capturing + auto-detect on), so a
-    // detector firing while disarmed leaves the dot at its dim tier. Acoustic
-    // onsets are emitted on the audio thread — the queued QML connection
-    // marshals them onto the GUI thread.
-    Connections {
-        target: imuManager
-        function onImpactDetected(estImpactUs, confidence) { imuDot.triggerFlash() }
-    }
-    Connections {
-        target: controller   // TranscriptionController owns the acoustic detector
-        function onImpactDetected(estImpactUs, confidence) { acDot.triggerFlash() }
-    }
-
-    // ── Shot-detection indicator dot ────────────────────────────────────────
-    // One per detection modality (see the DETECT cluster). Brightness tiers:
-    // even-more-dim (auto-detect off, or unavailable — e.g. the Ball
-    // placeholder / no IMU connected), dim (armed pipeline idle), glow (armed
-    // & listening, with a breathing halo). A detection flashes the dot green
-    // and decays to the base tier over 2 s. Call triggerFlash() to fire it.
-    component DetectDot: Item {
-        id: dd
-        property bool   available: true
-        property real   flash:     0     // 1 just after a detection → 0
-        // Core/halo colour tier — Theme.colorAttention marks a modality that
-        // is running but needs attention (e.g. ball detection uncalibrated).
-        property color  baseColor: Theme.colorAccent
-        // Steady-good core while the modality's subject is present (ball seen
-        // at the hitting area). Armed tier only.
-        property bool   presence:  false
-
-        readonly property bool _live:  available && appSettings.autoDetectSwing
-        readonly property bool armed:  _live && shotController.armed
-        readonly property real _alpha: armed ? 1.0 : (_live ? 0.38 : 0.14)
-
-        implicitWidth: Theme.sp(8); implicitHeight: Theme.sp(8)
-
-        function triggerFlash() {
-            if (!armed) return
-            _decay.stop(); _rmHold.stop()
-            flash = 1
-            if (Theme.reduceMotion) _rmHold.restart(); else _decay.restart()
-        }
-
-        // Breathing halo — armed only.
-        Rectangle {
-            anchors.centerIn: parent
-            width: Theme.sp(15); height: width; radius: width / 2
-            visible: dd.armed
-            color: Qt.rgba(dd.baseColor.r, dd.baseColor.g, dd.baseColor.b, 0.22)
-            SequentialAnimation on scale {
-                running: dd.armed && !Theme.reduceMotion
-                loops: Animation.Infinite
-                NumberAnimation { to: 1.3; duration: Theme.durationSlow }
-                NumberAnimation { to: 1.0; duration: Theme.durationSlow }
-            }
-        }
-        // Core dot — colour tier fades between states.
-        Rectangle {
-            anchors.fill: parent; radius: width / 2
-            color: dd.presence && dd.armed
-                   ? Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.95)
-                   : Qt.rgba(dd.baseColor.r, dd.baseColor.g, dd.baseColor.b, dd._alpha)
-            Behavior on color { ColorAnimation { duration: Theme.durationNormal } }
-        }
-        // Green detection flash, decays to reveal the core tier beneath.
-        Rectangle {
-            anchors.fill: parent; radius: width / 2
-            color: Theme.colorGood
-            opacity: dd.flash
-        }
-        NumberAnimation { id: _decay; target: dd; property: "flash"; to: 0; duration: 2000 }
-        Timer { id: _rmHold; interval: 2000; onTriggered: dd.flash = 0 }   // reduce-motion: hold then clear
     }
 
     // ── View pill — lighter sibling of DevicePill (no badge; shows the active

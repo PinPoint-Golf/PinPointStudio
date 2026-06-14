@@ -28,6 +28,11 @@ Item {
     property bool showVersionPill: false
     property bool isFullscreen: false
 
+    // True while a session screen (Swing/Wrist/GRF/Coach) is current — set by
+    // Main.qml. Gates the centred DETECT cluster, which only makes sense during
+    // a live Capture session.
+    property bool sessionScreenActive: false
+
     // Override-able navigation state — default to navController, Main.qml
     // can replace these to intercept back/forward for wizard step navigation.
     property bool backEnabled:    navController.canGoBack
@@ -258,5 +263,28 @@ Item {
         }
 
         Item { Layout.preferredWidth: Theme.sp(4) }
+    }
+
+    // Centre slot of the title bar (moved up from the session toolbar). Both are
+    // siblings of the RowLayout so they centre on the bar itself, independent of
+    // the left/right clusters; the mid-bar region is otherwise empty. While a
+    // shot is being processed the ANALYSING badge takes the slot; otherwise the
+    // DETECT cluster (which is also the manual SHOT trigger) holds it. Gated to
+    // session screens — Replay/Analyse and non-session screens hide both.
+    readonly property bool _analysisActive: shotProcessor.busy && !shotProcessor.isReplaying
+
+    PpAnalysingBadge {
+        anchors.centerIn: parent
+        visible: root.sessionScreenActive
+                 && root._analysisActive
+                 && !sessionReviewController.reviewActive
+    }
+
+    PpDetectCluster {
+        anchors.centerIn: parent
+        visible: root.sessionScreenActive
+                 && SessionMode.mode === SessionMode.capture
+                 && !sessionReviewController.reviewActive
+                 && !root._analysisActive   // yields the slot to the ANALYSING badge
     }
 }

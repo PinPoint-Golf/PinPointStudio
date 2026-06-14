@@ -394,6 +394,10 @@ ApplicationWindow {
                 screenName: navController.currentIndex < screenNames.length
                             ? screenNames[navController.currentIndex] : ""
                 showVersionPill: navController.currentIndex === root.screenSettings
+                // Session screens (Swing/Wrist/GRF/Coach) gate the centred DETECT
+                // cluster the header hosts during live Capture.
+                sessionScreenActive: navController.currentIndex >= root.screenSwing
+                                     && navController.currentIndex <= root.screenCoach
                 isFullscreen: root.visibility === Window.FullScreen
                 onFullscreenToggleRequested: root.toggleFullscreen()
                 // Route through window.close() so the session-active confirm
