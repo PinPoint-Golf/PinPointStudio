@@ -20,6 +20,7 @@
 
 #include <QDateTime>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QTime>
 #include <QUrl>
@@ -27,6 +28,7 @@
 #include "app_settings.h"
 #include "athlete_controller.h"
 #include "session_summary.h"
+#include "../Core/pp_debug.h"
 #include "../Export/swing_doc.h"
 
 namespace {
@@ -177,9 +179,10 @@ void SessionReviewController::loadSession(const QString &sessionId)
     }
 
     const pinpoint::SessionSummary sum = pinpoint::summarizeSession(ins, nowMs);
-    m_activeDayLabel  = sum.dayLabel;
-    m_activeTimeLabel = sum.timeLabel;
-    m_activeClubMix   = sum.clubMix;
+    m_activeDayLabel   = sum.dayLabel;
+    m_activeTimeLabel  = sum.timeLabel;
+    m_activeClubMix    = sum.clubMix;
+    m_loadedSessionDir = QFileInfo(sessionId).absoluteFilePath();
 
     m_reviewActive = true;
     emit reviewActiveChanged();          // also re-evaluates the activeDay/Time/ClubMix bindings
@@ -194,7 +197,36 @@ void SessionReviewController::resumeLive()
     m_activeDayLabel.clear();
     m_activeTimeLabel.clear();
     m_activeClubMix.clear();
+    m_loadedSessionDir.clear();
     m_reviewModel.clear();
     emit reviewActiveChanged();
     emit activeShotCountChanged();
+}
+
+QVariantList SessionReviewController::swingDirsForSession(const QString &sessionId) const
+{
+    QVariantList dirs;
+    if (sessionId.isEmpty())             // the live row has no on-disk session
+        return dirs;
+    for (const QString &sd : pinpoint::SwingDocReader::findSwingDirs(sessionId))
+        dirs.append(sd);
+    return dirs;
+}
+
+bool SessionReviewController::trashSession(const QString &sessionId)
+{
+    if (sessionId.isEmpty())             // the live row has no on-disk session
+        return false;
+    // Move the whole session folder to the OS trash (recoverable there). On
+    // failure keep everything in place — the files are still on disk.
+    if (!QFile::moveToTrash(sessionId)) {
+        ppWarn() << "[SessionReviewController] could not move session to trash:" << sessionId;
+        return false;
+    }
+    // If we just trashed the session being reviewed, drop back to live so the
+    // carousel isn't left pointing at files that are no longer there.
+    if (m_reviewActive && QFileInfo(sessionId).absoluteFilePath() == m_loadedSessionDir)
+        resumeLive();
+    refresh();                           // the trashed row drops out of the list
+    return true;
 }

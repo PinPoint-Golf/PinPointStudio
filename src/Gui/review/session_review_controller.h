@@ -20,6 +20,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QVariantList>
 
 #include "session_list_model.h"
 #include "shot_list_model.h"
@@ -83,6 +84,18 @@ public:
     // Capture again; the session clock kept running throughout.
     Q_INVOKABLE void resumeLive();
 
+    // The session's swing_NNNN dirs (absolute) for the bulk export sheet — the
+    // same list the carousel feeds to swingExporter. Empty for the live row's
+    // sentinel id (its shots export through the carousel itself).
+    Q_INVOKABLE QVariantList swingDirsForSession(const QString &sessionId) const;
+
+    // Move a whole saved session folder to the OS trash (recoverable there — the
+    // same recovery path as the carousel's per-shot trash) and rebuild the list.
+    // No-op (false) for the live row or a path that can't be trashed; if the
+    // trashed session was being reviewed, falls back to live. Returns true on
+    // success.
+    Q_INVOKABLE bool trashSession(const QString &sessionId);
+
 signals:
     void reviewActiveChanged();
     void activeShotCountChanged();
@@ -105,4 +118,5 @@ private:
     QString m_activeDayLabel;
     QString m_activeTimeLabel;
     QString m_activeClubMix;
+    QString m_loadedSessionDir;        // absolute dir of the reviewed session, empty when live
 };

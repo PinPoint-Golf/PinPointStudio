@@ -425,6 +425,23 @@ Item {
         contentItem: PpSessionDrawer {
             id: sessDrawer
             onCloseRequested: sessionsPopup.close()
+
+            // Per-session '...' actions reuse the carousel's shared export sheet
+            // and toast. The drawer stays open so the user can act on several
+            // sessions in turn; for trash the row drops out of the list in place.
+            onExportRequested: (sessionId) => {
+                root._openExportSheet(
+                    sessionReviewController.swingDirsForSession(sessionId),
+                    qsTr("No saved shots to export"))
+            }
+            onTrashRequested: (sessionId) => {
+                const ok = sessionReviewController.trashSession(sessionId)
+                toast.showUndo = false   // OS trash is the recovery path, not an in-app undo
+                toast.copyText = ""
+                toast.glyph    = "🗑"
+                toast.show(ok ? qsTr("Session moved to trash")
+                              : qsTr("Could not move session to trash"))
+            }
         }
     }
 

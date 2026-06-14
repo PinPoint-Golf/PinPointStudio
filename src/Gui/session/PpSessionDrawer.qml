@@ -35,6 +35,12 @@ Item {
     // Raised when a row is chosen (or the ✕ tapped) — the host popup closes.
     signal closeRequested()
 
+    // Per-row '...' menu actions, handled by the host carousel (which owns the
+    // shared export sheet, exporter and toast). sessionId is the row's absolute
+    // session dir; never emitted for the live row (it carries no '...' menu).
+    signal exportRequested(string sessionId)
+    signal trashRequested(string sessionId)
+
     // Natural content height the host popup uses to size itself (it clamps this
     // so the drawer never reaches the toolbar). list.contentHeight is independent
     // of the view's own height, so there is no binding loop with the popup.
@@ -134,8 +140,24 @@ Item {
             height: Theme.sp(58)
             radius: Theme.radius
             color:  isLive ? Theme.colorAccentLight
-                  : rowMa.containsMouse ? Theme.colorBg : "transparent"
+                  : (rowMa.containsMouse || kebabMa.containsMouse || rowMenu.opened)
+                        ? Theme.colorBg : "transparent"
             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+            // Declared before the visuals so the kebab's own MouseArea (inside the
+            // RowLayout below, drawn on top) wins for its slot, while clicks
+            // anywhere else on the row fall through here to load the session.
+            MouseArea {
+                id: rowMa
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                    if (rowBg.isLive) sessionReviewController.resumeLive()
+                    else              sessionReviewController.loadSession(rowBg.sessionId)
+                    drawer.closeRequested()
+                }
+            }
 
             RowLayout {
                 anchors.fill: parent
@@ -218,17 +240,147 @@ Item {
                 Stat { value: rowBg.lengthLabel || "—";           unit: qsTr("length") }
                 Stat { value: rowBg.avgQuality; unit: qsTr("avg q")
                        valueColor: Theme.qualityColor(rowBg.avgQuality) }
-            }
 
-            MouseArea {
-                id: rowMa
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    if (rowBg.isLive) sessionReviewController.resumeLive()
-                    else              sessionReviewController.loadSession(rowBg.sessionId)
-                    drawer.closeRequested()
+                // ── Per-row '...' menu (Export session / Move to trash) ──────
+                // Excluded from the layout on the live row (no on-disk session),
+                // so live rows keep their original alignment. The glyph is hidden
+                // at rest and revealed on row hover to keep the list chromeless.
+                Item {
+                    id: kebab
+                    visible: !rowBg.isLive
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.preferredWidth:  Theme.sp(22)
+                    Layout.preferredHeight: Theme.sp(22)
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: Theme.radius
+                        color: rowMenu.opened || kebabMa.containsMouse
+                                   ? Theme.colorBg3 : "transparent"
+                        opacity: (rowMa.containsMouse || kebabMa.containsMouse
+                                  || rowMenu.opened) ? 1 : 0
+                        Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+                        Text {
+                            anchors.centerIn: parent
+                            text: "⋯"
+                            font.family: Theme.fontData
+                            font.pixelSize: Theme.fontSzBody
+                            color: Theme.colorText2
+                        }
+                    }
+                    MouseArea {
+                        id: kebabMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: rowMenu.opened ? rowMenu.close() : rowMenu.open()
+                    }
+
+                    // Reuses the carousel bulk-menu pattern (Popup → Column of
+                    // hover rows, destructive action below a separator).
+                    Popup {
+                        id: rowMenu
+                        parent: kebab
+                        x: kebab.width - width            // right edges aligned
+                        y: -height - Theme.sp(4)          // open upward, like the carousel
+                        padding: Theme.sp(5)
+                        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+                        contentWidth: Math.max(exportRow.implicitWidth, trashRow.implicitWidth)
+                                      + Theme.sp(28)
+                        background: Rectangle {
+                            color: Theme.colorSurface; radius: Theme.radiusLg
+                            border.width: 1; border.color: Theme.colorBorderStrong
+                        }
+
+                        contentItem: Column {
+
+                            Rectangle {   // Export session → shared carousel export sheet
+                                width: parent.width
+                                height: Theme.sp(34)
+                                radius: Theme.radius
+                                color: exportMa.containsMouse ? Theme.colorBg2 : "transparent"
+                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                Row {
+                                    id: exportRow
+                                    anchors { left: parent.left; leftMargin: Theme.sp(10)
+                                              verticalCenter: parent.verticalCenter }
+                                    spacing: Theme.sp(10)
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "⤓"
+                                        font.family: Theme.fontSymbol
+                                        font.pixelSize: Theme.fontSzBody
+                                        color: Theme.colorText2
+                                    }
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: qsTr("Export session")
+                                        font.family: Theme.fontBody
+                                        font.pixelSize: Theme.fontSzBody
+                                        color: Theme.colorText
+                                    }
+                                }
+                                MouseArea {
+                                    id: exportMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        rowMenu.close()
+                                        drawer.exportRequested(rowBg.sessionId)
+                                    }
+                                }
+                            }
+
+                            Rectangle {   // separator — destructive action in its own group
+                                width: parent.width - Theme.sp(12)
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                height: 1
+                                color: Theme.colorBorderMid
+                                opacity: Theme.borderOpacityNormal
+                            }
+
+                            // "Move to trash", not "Delete" — recoverable via the OS
+                            // trash, the same wording as the carousel's shot trash.
+                            Rectangle {   // Move to trash (soft, recoverable)
+                                width: parent.width
+                                height: Theme.sp(34)
+                                radius: Theme.radius
+                                color: trashMa.containsMouse ? Theme.colorWarnLight : "transparent"
+                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                Row {
+                                    id: trashRow
+                                    anchors { left: parent.left; leftMargin: Theme.sp(10)
+                                              verticalCenter: parent.verticalCenter }
+                                    spacing: Theme.sp(10)
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "🗑"
+                                        font.family: Theme.fontSymbol
+                                        font.pixelSize: Theme.fontSzBody
+                                        color: Theme.colorWarn
+                                    }
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: qsTr("Move to trash")
+                                        font.family: Theme.fontBody
+                                        font.pixelSize: Theme.fontSzBody
+                                        color: Theme.colorWarn
+                                    }
+                                }
+                                MouseArea {
+                                    id: trashMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        rowMenu.close()
+                                        drawer.trashRequested(rowBg.sessionId)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
