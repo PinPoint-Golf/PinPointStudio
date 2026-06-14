@@ -475,7 +475,10 @@ Item {
         // no-op even if the binding lags.
         Rectangle {
             id: shotBtn
-            visible: !sessionReviewController.reviewActive
+            // Live-capture only: the manual trigger has no meaning while replaying
+            // or analysing a recorded swing, so it is hidden outside Capture.
+            visible: SessionMode.mode === SessionMode.capture
+                     && !sessionReviewController.reviewActive
             Layout.alignment: Qt.AlignVCenter
             implicitWidth: shotLbl.implicitWidth + Theme.sp(28)
             implicitHeight: Theme.sp(40)
@@ -531,7 +534,10 @@ Item {
         // A detection flashes the dot green and decays back over 2 s.
         Row {
             id: detectCluster
-            visible: !sessionReviewController.reviewActive
+            // Detection only runs against live capture — hide the dots outside
+            // Capture (Replay/Analyse show a recorded swing, nothing to detect).
+            visible: SessionMode.mode === SessionMode.capture
+                     && !sessionReviewController.reviewActive
             Layout.alignment: Qt.AlignVCenter
             spacing: Theme.sp(8)
 
