@@ -371,12 +371,12 @@ Item {
             delegate: PpShotCard {
                 id: cardDelegate
                 // Highlight follows the swing currently on the stage (filmstrip
-                // → loupe). Single click promotes this swing into Review.
+                // → loupe). Single click promotes this swing into Replay.
                 selected: shotId === SessionMode.focusedShotId
                 onTapped: {
                     root.selectedShotId = shotId
                     root.selectedCard   = cardDelegate
-                    SessionMode.enterReview(shotId, swingDir)
+                    SessionMode.enterReplay(shotId, swingDir)
                 }
                 onRated: (n) => root.activeModel.setRating(shotId, n)
             }

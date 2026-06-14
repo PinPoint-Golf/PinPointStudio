@@ -20,7 +20,7 @@ import QtQuick
 
 // Segmented playback-speed selector — all speeds visible, the active one
 // highlighted with an accent-tinted capsule; click any segment to select it
-// directly. Used by the Review transport (PpReviewTransport) to drive the
+// directly. Used by the Replay transport (PpReplayTransport) to drive the
 // session-stage replay speed.
 Rectangle {
     id: root

@@ -66,7 +66,7 @@ Item {
         PpDivider { width: parent.width }
 
         // ── TIMELINE ────────────────────────────────────────────────────────
-        // Review-mode timeline orientation + snap, persisted globally on appSettings
+        // Replay-mode timeline orientation + snap, persisted globally on appSettings
         // (not per-mode, unlike arrangement/panels above).
         Column {
             width: parent.width

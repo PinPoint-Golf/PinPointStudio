@@ -38,7 +38,7 @@ Item {
     property int sessionType: -1
 
     // Mode-switch labels, indexed by SessionMode.mode (capture/review/analyse).
-    readonly property var modeNames: [qsTr("Capture"), qsTr("Review"), qsTr("Analyse")]
+    readonly property var modeNames: [qsTr("Capture"), qsTr("Replay"), qsTr("Analyse")]
 
     // Live capture truth — mirrors the actual EventBuffer state (same source as
     // the Resource Monitor). cameraManager.bufferState notifies on every net
@@ -139,41 +139,9 @@ Item {
             }
         }
 
-        // ── Resume live session — leaves review, back to the live model ─────
-        Rectangle {
-            id: resumeBtn
-            visible: sessionReviewController.reviewActive
-            Layout.alignment: Qt.AlignVCenter
-            implicitWidth:  resumeRow.implicitWidth + Theme.sp(24)
-            implicitHeight: Theme.sp(32)
-            radius: Theme.radius
-            color: resumeMa.containsMouse ? Theme.colorBg3 : Theme.colorBg2
-            border.width: 1; border.color: Theme.colorBorderMid
-            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-            Row {
-                id: resumeRow
-                anchors.centerIn: parent
-                spacing: Theme.sp(7)
-                Rectangle {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: Theme.sp(7); height: Theme.sp(7); radius: Theme.sp(3.5)
-                    color: Theme.colorError
-                }
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("Resume live session")
-                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                    color: Theme.colorText2
-                }
-            }
-            MouseArea {
-                id: resumeMa
-                anchors.fill: parent; hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: sessionReviewController.resumeLive()
-            }
-        }
+        // Returning to live is now the Capture mode button's job (it calls
+        // resumeLive), so the old "Resume live session" button is gone — the
+        // REVIEWING strip above just names the loaded session.
 
         // ── Capture (session-global) — far left, always first ───────────────
         Rectangle {
@@ -612,10 +580,11 @@ Item {
             Layout.alignment: Qt.AlignVCenter
         }
 
-        // ── Mode switch — primary layout control (Capture/Review/Analyse) ─────
-        // The activity axis. Review is never blocked: with no focused swing the
-        // stage shows its empty-state. Selecting a mode never stops live capture
-        // (that is the data-source axis, owned by SessionReviewController).
+        // ── Mode switch — primary layout control (Capture/Replay/Analyse) ─────
+        // The activity axis. Replay is never blocked: with no focused swing the
+        // stage shows its empty-state. Replay/Analyse leave the data-source alone;
+        // Capture is the single path back to the live current session (it calls
+        // SessionReviewController.resumeLive when a past session is loaded).
         PpSegmentedControl {
             id: modeSwitch
             Layout.preferredWidth: Theme.sp(220)
@@ -625,7 +594,7 @@ Item {
             selected: root.modeNames[SessionMode.mode]
             onActivated: (value) => {
                 var i = root.modeNames.indexOf(value)
-                if (i === SessionMode.review)       SessionMode.showReview()
+                if (i === SessionMode.replay)       SessionMode.showReplay()
                 else if (i === SessionMode.analyse) SessionMode.enterAnalyse()
                 else                                SessionMode.enterCapture()
             }

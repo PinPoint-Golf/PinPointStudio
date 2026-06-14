@@ -156,7 +156,7 @@ ApplicationWindow {
     // inert otherwise (enabled gating keeps Esc free for popups/text fields).
     Shortcut {
         sequence: "Esc"
-        enabled: shotProcessor.isReplaying || SessionMode.mode === SessionMode.review
+        enabled: shotProcessor.isReplaying || SessionMode.mode === SessionMode.replay
         onActivated: {
             if (shotProcessor.isReplaying) shotProcessor.cancelReplay()
             else SessionMode.enterCapture()
@@ -292,27 +292,33 @@ ApplicationWindow {
         target: navController
         function onCurrentIndexChanged() {
             root.contentItem.forceActiveFocus()
-            SessionMode.clear()   // leaving a screen exits Review + ends any disk replay
+            // Mode + loaded swing PERSIST across navigation: leaving the session
+            // screen (e.g. to Settings) and returning lands you back in the same
+            // mode on the same swing. Live-capture record state is untouched by
+            // navigation, so it is preserved for free.
         }
     }
 
-    // Switching data-source (opening or closing a loaded past session) resets the
-    // stage to live Capture. Mode and data-source are orthogonal axes, but a
-    // source change is a clean slate; clear() also stops any disk replay.
+    // Data-source transition. Loading a past session lands you in Replay on that
+    // session (Capture is live-only); returning to live drops to Capture. Both
+    // entries reset the focused swing and stop any lingering disk replay.
     Connections {
         target: sessionReviewController
-        function onReviewActiveChanged() { SessionMode.clear() }
+        function onReviewActiveChanged() {
+            if (sessionReviewController.reviewActive) SessionMode.enterLoadedSession()
+            else                                      SessionMode.enterCapture()
+        }
     }
 
     // Instant playback: when a shot finishes processing it is promoted straight onto
-    // the Review stage (disk replay of the swing just written). Only auto-promote
-    // from Capture — if the user is already in Review/Analyse studying an earlier
+    // the Replay stage (disk replay of the swing just written). Only auto-promote
+    // from Capture — if the user is already in Replay/Analyse studying an earlier
     // shot, the new one just lands in the carousel rather than yanking them away.
     Connections {
         target: shotProcessor
         function onShotProcessed(shotId, swingDir) {
             if (swingDir !== "" && SessionMode.mode === SessionMode.capture)
-                SessionMode.enterReview(shotId, swingDir)
+                SessionMode.enterReplay(shotId, swingDir)
         }
     }
 

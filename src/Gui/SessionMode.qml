@@ -16,17 +16,18 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Session-screen MODE — the layout/activity axis (Capture | Review | Analyse).
+// Session-screen MODE — the layout/activity axis (Capture | Replay | Analyse).
 // Effectively global: only one session screen is visible at a time, so a single
-// singleton holds the active mode and the focused swing that Review/Analyse show.
+// singleton holds the active mode and the focused swing that Replay/Analyse show.
 //
 // Mode is ORTHOGONAL to the data-source axis (Live vs Loaded, owned by
-// SessionReviewController.reviewActive). Mode never stops live capture; clicking
-// a card from a live session enters Review with capture still running. The two
-// compose — do not fuse them.
+// SessionReviewController.reviewActive — kept under its legacy "review" name for
+// now). Replay/Analyse work on either data-source; only Capture forces Live, so
+// entering Capture returns to the live current session. The two compose — do not
+// fuse them.
 //
 // Enum values are plain ints (a QML singleton can't host a Q_ENUM cleanly):
-//   capture = 0, review = 1, analyse = 2. Compare with `=== SessionMode.review`.
+//   capture = 0, replay = 1, analyse = 2. Compare with `=== SessionMode.replay`.
 //
 // shotReplay (a context property) is reachable from this singleton's root context.
 
@@ -38,49 +39,62 @@ QtObject {
     id: sm
 
     readonly property int capture: 0
-    readonly property int review:  1
+    readonly property int replay:  1
     readonly property int analyse: 2
 
     property int    mode: capture
 
-    // The swing currently promoted onto the stage (Review/Analyse). -1 / "" = none.
+    // The swing currently promoted onto the stage (Replay/Analyse). -1 / "" = none.
     property int    focusedShotId:   -1
     property string focusedSwingDir: ""
 
-    // Capture shows live tiles and never the disk replay, so free it here. The
-    // focused swing is kept so re-entering Review/Analyse re-shows it.
-    function enterCapture() { mode = capture; shotReplay.stop() }
+    // Capture IS the live current session: it shows live tiles, never the disk
+    // replay. Returning to Capture exits any loaded past session (resumeLive is
+    // idempotent) and drops that session's focused swing; the live-capture record
+    // state is remembered/restored around that excursion in main.cpp. When toggling
+    // from Replay/Analyse within the LIVE session, the focused swing is kept so
+    // re-entering Replay/Analyse re-shows it.
+    function enterCapture() {
+        mode = capture
+        shotReplay.stop()
+        if (sessionReviewController.reviewActive) {
+            focusedShotId   = -1
+            focusedSwingDir = ""
+            sessionReviewController.resumeLive()
+        }
+    }
 
     // Analyse shows the focused swing's charts/table (its analysisDetail), so the
     // replay must stay loaded — ensure it is.
     function enterAnalyse() { mode = analyse; _loadFocused() }
 
-    // Show Review for the currently-focused swing (the mode-switch path). With no
-    // focused swing the stage shows its empty-state — Review is never blocked.
-    function showReview() {
-        mode = review
+    // Show Replay for the currently-focused swing (the mode-switch path). With no
+    // focused swing the stage shows its empty-state — Replay is never blocked.
+    function showReplay() {
+        mode = replay
         _loadFocused()
     }
 
-    // Focus a swing and review it (the carousel-click path). Re-clicking the same
-    // card in Review just keeps it on the stage (no reload — see _loadFocused).
-    function enterReview(shotId, swingDir) {
+    // Focus a swing and replay it (the carousel-click path). Re-clicking the same
+    // card in Replay just keeps it on the stage (no reload — see _loadFocused).
+    function enterReplay(shotId, swingDir) {
         focusedShotId   = shotId
         focusedSwingDir = swingDir
-        showReview()
+        showReplay()
     }
 
-    // Leave any session screen: back to Capture, drop the focused swing, tear down
-    // the disk replay. Mirrors the existing shotReplay.stop() site in Main.qml.
-    function clear() {
+    // A past session was just loaded (data-source → Loaded): show it in Replay,
+    // fresh — its own carousel supplies the swings, nothing focused yet. Capture is
+    // live-only, so a loaded session never lands there.
+    function enterLoadedSession() {
         focusedShotId   = -1
         focusedSwingDir = ""
-        mode = capture
+        mode = replay
         shotReplay.stop()
     }
 
     // Load the focused swing onto the stage, unless it is already the loaded one
-    // (so toggling Review↔Analyse, or re-clicking the focused card, never restarts
+    // (so toggling Replay↔Analyse, or re-clicking the focused card, never restarts
     // playback). One replay surface now (the session stage) — no target arg.
     function _loadFocused() {
         if (focusedShotId >= 0 && focusedSwingDir !== ""

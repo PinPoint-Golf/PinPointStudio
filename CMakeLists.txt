@@ -241,9 +241,9 @@ qt_add_qml_module(PinPointStudio
         src/Gui/PpViewPanel.qml
         src/Gui/PpCameraTiles.qml
         src/Gui/PpModeStage.qml
-        src/Gui/PpReviewCharts.qml
+        src/Gui/PpReplayCharts.qml
         src/Gui/PpTransitTimeline.qml
-        src/Gui/PpReviewTransport.qml
+        src/Gui/PpReplayTransport.qml
         src/Gui/PpRail.qml
         src/Gui/PpRailButton.qml
         src/Gui/PpDivider.qml

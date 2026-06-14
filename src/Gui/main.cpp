@@ -165,18 +165,25 @@ int main(int argc, char *argv[])
                                                       &athleteController);
     // DATA-SOURCE transition (a past session opened/closed from disk). This is the
     // ONLY axis that pauses capture: opening a loaded session stops live capture
-    // (which disarms the shot trigger via the buffer state) and gates
-    // ShotController; the session/clock keep running so resumeLive() returns to the
-    // same live session. Capture is NOT auto-resumed on resumeLive — the user
-    // presses Capture again. The orthogonal session MODE (Capture/Review/Analyse)
-    // is owned by the SessionMode QML singleton and never stops live capture; the
-    // stage's Review mode is reset to Capture on this transition in Main.qml.
+    // (which disarms the shot trigger via the buffer state) and gates ShotController;
+    // the session/clock keep running so returning to live resumes the SAME session.
+    // The live-capture record state is remembered here and restored on return, so
+    // pressing Capture (→ resumeLive) reinstates exactly what was running — and stays
+    // idle if capture was idle. The orthogonal session MODE (Capture/Replay/Analyse)
+    // is owned by the SessionMode QML singleton; Main.qml lands a loaded session in
+    // Replay and a return-to-live in Capture.
     QObject::connect(&sessionReviewController, &SessionReviewController::reviewActiveChanged,
-                     [&sessionReviewController, &shotController, &cameraManager] {
+                     [&sessionReviewController, &shotController, &cameraManager,
+                      wasCapturing = false]() mutable {
         const bool review = sessionReviewController.reviewActive();
         shotController.setReviewActive(review);
-        if (review)
+        if (review) {
+            wasCapturing = cameraManager.captureIntent();   // remember before pausing
             cameraManager.stopCapture();
+        } else if (wasCapturing) {
+            wasCapturing = false;
+            cameraManager.startCapture();                   // restore on return to live
+        }
     });
     // Declared after cameraManager so it is destroyed FIRST: ~ShotProcessor
     // joins the shot workers and destroys the SwingWindow before

@@ -16,10 +16,10 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Always-on Review transport chrome: play/pause, frame-step and speed. Slim bar
-// shown under the camera panel in Review mode, so video-only review still works
+// Always-on Replay transport chrome: play/pause, frame-step and speed. Slim bar
+// shown under the camera panel in Replay/Analyse, so video-only review still works
 // even when the timeline panel (scrub + phase pills) is hidden. There is no Close
-// button — exit Review via the toolbar mode switch / Capture / Esc.
+// button — exit via the toolbar mode switch / Capture / Esc.
 
 import QtQuick
 import QtQuick.Layouts

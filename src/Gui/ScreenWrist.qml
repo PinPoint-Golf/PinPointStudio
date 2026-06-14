@@ -24,7 +24,7 @@
 // toolbar's device panels run calibration entirely in-panel, so this screen
 // neither exposes nor routes any calibrate request.
 //
-// Review and Analyse use the Transit timeline, in one of two orientations
+// Replay and Analyse use the Transit timeline, in one of two orientations
 // (appSettings.timelineOrientation): HORIZONTAL in the top rail, VERTICAL in a
 // fixed-width panel to the LEFT of the stage. Kept in lockstep with
 // ScreenSessionMode. Capture has no timeline (RmTimelineChart is resource-monitor only).
@@ -37,8 +37,8 @@ Item {
     id: root
 
     readonly property bool _timelineOn:  ViewLayout.isPanelOn(SessionMode.mode, "timeline")
-    // Review AND Analyse use the Transit timeline; Capture has no timeline rail.
-    readonly property bool _transitMode: SessionMode.mode === SessionMode.review
+    // Replay AND Analyse use the Transit timeline; Capture has no timeline rail.
+    readonly property bool _transitMode: SessionMode.mode === SessionMode.replay
                                          || SessionMode.mode === SessionMode.analyse
     readonly property bool _vertical:    appSettings.timelineOrientation === "vertical"
 
@@ -51,7 +51,7 @@ Item {
             sessionType: SessionController.Wrist
         }
 
-        // Top rail — horizontal Transit timeline (Review/Analyse only). Capture has
+        // Top rail — horizontal Transit timeline (Replay/Analyse only). Capture has
         // no timeline; the vertical orientation moves Transit to the left rail instead.
         Loader {
             id: topRail
@@ -88,7 +88,7 @@ Item {
                 sourceComponent: transitVertComp
             }
 
-            // Centre stage — camera tiles + the Review charts trace; dashboard/table
+            // Centre stage — camera tiles + the Replay charts trace; dashboard/table
             // fall back to muted PpStagePanel placeholders until their producers land.
             // Packing (tabs/split/stage) is resolved by ViewLayout on the active mode.
             PpModeStage {
@@ -96,7 +96,7 @@ Item {
                 cameraDelegate: Component {
                     PpCameraTiles { sessionType: SessionController.Wrist; showHittingArea: false }
                 }
-                chartsDelegate: Component { PpReviewCharts {} }
+                chartsDelegate: Component { PpReplayCharts {} }
                 // Table panel — read-only inspector of the focused swing.json. The
                 // focused swing is the active replay, else the carousel's selection.
                 tableDelegate: Component {
@@ -109,10 +109,10 @@ Item {
             }
         }
 
-        // Replay transport (play/step/speed) for Review and Analyse — both drive the
+        // Replay transport (play/step/speed) for Replay and Analyse — both drive the
         // loaded swing's playhead. Works even when the timeline panel is hidden.
         // Capture has no replay, so it's hidden there.
-        PpReviewTransport {
+        PpReplayTransport {
             Layout.fillWidth: true
             visible: root._transitMode
         }

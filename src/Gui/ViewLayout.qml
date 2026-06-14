@@ -17,7 +17,7 @@
  */
 
 // Resolves the session-stage layout (which panels are visible + how the centre
-// stage packs them) per session MODE (Capture | Review | Analyse), persisting to
+// stage packs them) per session MODE (Capture | Replay | Analyse), persisting to
 // appSettings.viewLayoutByMode. Two orthogonal concerns: VISIBILITY (panel on/off)
 // and ARRANGEMENT (stage packing). There are no named presets — every edit just
 // updates that mode's layout in place.
@@ -43,12 +43,12 @@ QtObject {
     // mode → sensible default layout (used until the user edits a mode's layout).
     function defaultLayout(mode) {
         switch (mode) {
-            case SessionMode.review:
+            case SessionMode.replay:
                 return { panels: ["camera", "charts", "timeline", "carousel"], arrangement: "split" }
             case SessionMode.analyse:
-                // Analyse plays the loaded shot's video (same disk source as Review)
+                // Analyse plays the loaded shot's video (same disk source as Replay)
                 // alongside the deeper-analysis panels — camera included so playback
-                // follows the Review↔Analyse toggle.
+                // follows the Replay↔Analyse toggle.
                 return { panels: ["camera", "charts", "table", "timeline", "carousel"], arrangement: "split" }
             default: // capture
                 return { panels: ["camera", "carousel"], arrangement: "stage" }
