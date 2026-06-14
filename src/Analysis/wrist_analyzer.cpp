@@ -206,30 +206,32 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
 {
     ShotAnalysisResult r;
 
+    // IMU fusion is OPTIONAL. A webcam-only capture still yields camera-driven
+    // (pose + shaft) analysis, so absent IMU streams DEGRADE the result rather
+    // than failing it: phase segmentation and wrist metrics are IMU-derived and
+    // simply don't run, but the pose pass below still populates analysis.pose2d.
     const FusedStreams streams = ImuVisionFuser::fuse(window, job.imuBindings);
-    if (streams.timeGrid.empty() || streams.segments.empty()) {
-        r.ok = false;
-        r.error = QStringLiteral("no IMU data in window");
-        ppWarn() << "[WristAnalysis] no fusable IMU streams — degraded result";
-        return r;
-    }
+    const bool hasImu = !streams.timeGrid.empty() && !streams.segments.empty();
+    if (!hasImu)
+        ppInfo() << "[WristAnalysis] no fusable IMU streams — camera-only (pose) analysis";
 
-    const Segmentation segmentation =
-        PhaseSegmenter::segment(streams, job.impactUs, segConfigFor(job.tuningOverrides));
-    const std::vector<PhaseEvent> &phases = segmentation.events;
-    // Metric grids span address → finish, not the raw ring (design A.6): hand
-    // the extractor a trimmed copy when the bounds are real. Everything else
-    // (shaft qHand sampling) keeps the full streams.
-    std::vector<MetricSeries> series = MetricExtractor::extract(
-        segmentation.conf > 0.f
-            ? trimStreams(streams, segmentation.swingStartUs, segmentation.swingEndUs)
-            : streams,
-        phases, job.handedness);
-    if (series.empty()) {
-        r.ok = false;
-        r.error = QStringLiteral("no wrist metrics (need forearm + hand IMUs)");
-        return r;
+    // Phase segmentation + wrist metrics are IMU-derived. Without IMU the
+    // segmentation stays default (conf 0 ⇒ full-window pose scan) and series is
+    // empty. Metric grids span address → finish (design A.6): hand the extractor
+    // a trimmed copy when the bounds are real; shaft qHand sampling keeps the
+    // full streams.
+    Segmentation              segmentation;
+    std::vector<MetricSeries> series;
+    if (hasImu) {
+        segmentation = PhaseSegmenter::segment(streams, job.impactUs,
+                                               segConfigFor(job.tuningOverrides));
+        series = MetricExtractor::extract(
+            segmentation.conf > 0.f
+                ? trimStreams(streams, segmentation.swingStartUs, segmentation.swingEndUs)
+                : streams,
+            segmentation.events, job.handedness);
     }
+    const std::vector<PhaseEvent> &phases = segmentation.events;
 
     auto detail   = std::make_shared<SwingAnalysis>();
 
@@ -271,6 +273,18 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
         }
     }
 
+    // Require at least one usable analysis product — IMU-derived wrist metrics
+    // OR camera-derived pose. With neither there is nothing to persist, so fail
+    // and let the shot degrade to video-only (the prior no-IMU contract, now
+    // reached only when the pose pass also produced nothing).
+    if (series.empty() && detail->pose2d.frames.empty()) {
+        r.ok = false;
+        r.error = hasImu
+                      ? QStringLiteral("no wrist metrics (need forearm + hand IMUs)")
+                      : QStringLiteral("no IMU and no pose data in window");
+        return r;
+    }
+
     detail->series       = series;
     detail->phases       = phases;
     detail->segmentation = segmentation;
@@ -288,7 +302,8 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
         rec.calibAgeSec          = b.calibAgeSec;
         detail->bindings.push_back(std::move(rec));
     }
-    detail->tier   = static_cast<int>(ReconstructionTier::Mono3DPlusImu);
+    detail->tier   = static_cast<int>(hasImu ? ReconstructionTier::Mono3DPlusImu
+                                              : ReconstructionTier::Angles2D);
     detail->score  = SwingScorer::score(series, job.sessionType);
 
     r.metrics     = buildMetricsMap(series);
