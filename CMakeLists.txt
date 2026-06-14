@@ -294,7 +294,10 @@ qt_add_qml_module(PinPointStudio
         src/Gui/PpQualityPill.qml
         src/Gui/PpStarRating.qml
         src/Gui/PpTrace.qml
-        src/Gui/PpMetricGraph.qml
+        src/Gui/PpMetricChart.qml
+        src/Gui/PpChartPlot.qml
+        src/Gui/PpSegmentBrush.qml
+        src/Gui/PpChartSummary.qml
         src/Gui/PpSpeedSelector.qml
         src/Gui/PpToast.qml
         src/Gui/PpDataViewer.qml
@@ -317,6 +320,8 @@ qt_add_qml_module(PinPointStudio
         src/Gui/swing_series_model.cpp
         src/Gui/timeline_labels.h
         src/Gui/timeline_labels.cpp
+        src/Gui/chart_metrics.h
+        src/Gui/chart_metrics.cpp
 )
 
 qt6_add_shaders(PinPointStudio "debayer_shaders"

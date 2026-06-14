@@ -105,8 +105,9 @@ Item {
         Item {
             Layout.fillWidth: true; Layout.fillHeight: true
             visible: !root._replay
-            PpMetricGraph {
+            PpMetricChart {
                 anchors.fill: parent; anchors.margins: Theme.sp(8)
+                compact:    true        // plot only — no toolbar / brush / summary chrome
                 visible:    shotProcessor.isReplaying && root._replaySeries.length > 0
                 seriesList: root._replaySeries
                 phases:     (shotProcessor.replayAnalysisDetail && shotProcessor.replayAnalysisDetail.phases)

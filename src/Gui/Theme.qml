@@ -219,6 +219,30 @@ QtObject {
     readonly property color colorImuC: dark ? "#34C759" : "#2E9E4F"   // green
     readonly property color colorImuD: dark ? "#3399FF" : "#0A6CFF"   // blue
 
+    // Generic metric-series palette — categorical hues for charts that plot several
+    // unrelated metrics together (PpMetricChart and future charts). Distinct from the
+    // colorImu* identity hues, which mean "this specific sensor"; these carry no fixed
+    // meaning, they just need to read apart on each background. ~6 hues per aesthetic,
+    // tuned light/dark; index with chartSeriesColor(i) to wrap safely.
+    readonly property var chartSeries: {
+        if (aesthetic === "instrument") return dark
+            ? ["#7EBFAA", "#6FA8C7", "#E0935F", "#E0B84A", "#B79AD6", "#E08FA8"]
+            : ["#2B4A3F", "#3E6E8C", "#B5602A", "#9A6B12", "#6B4E8C", "#A0405A"]
+        if (aesthetic === "editorial")  return dark
+            ? ["#A8C4E0", "#8ABFA0", "#D8A06A", "#C99AC8", "#E6C25A", "#D98FA0"]
+            : ["#1A3A5C", "#3E7E68", "#A85A2A", "#7A3B6E", "#8A6A14", "#8B2E45"]
+        if (aesthetic === "vector")     return dark
+            ? ["#FF5500", "#3399FF", "#2EE8A0", "#FFD60A", "#B266FF", "#FF4081"]
+            : ["#CC3300", "#0066CC", "#006B45", "#B58900", "#7A29CC", "#C2185B"]
+        return dark   // studio (default)
+            ? ["#4D90FF", "#30C983", "#FF6B6B", "#F5C451", "#B79AF5", "#3FC2E0"]
+            : ["#0066FF", "#0A7A4A", "#D64545", "#9C6F12", "#7A4FCF", "#0E7C9C"]
+    }
+    function chartSeriesColor(i) {
+        var p = chartSeries
+        return p[((i % p.length) + p.length) % p.length]
+    }
+
     // ── Font family tokens ───────────────────────────────────────────────────
     // Falls back to the system default if the font file is not installed.
     readonly property string fontBody: {

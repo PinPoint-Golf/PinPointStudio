@@ -16,10 +16,10 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Charts stage-panel: the focused replay's metric traces (PpMetricGraph),
-// scrubbing with the replay playhead. Bound to shotReplay — the same content the
-// old shot pop-over and in-tile graph drew. Hosted by PpModeStage as the "charts"
-// panel; shows an empty-state until a swing is reviewed.
+// Charts stage-panel: the focused replay's metric traces (PpMetricChart),
+// scrubbing with the replay playhead, with split/overlay + chart-local segment
+// selection + per-window summary. Bound to shotReplay. Hosted by PpModeStage as the
+// "charts" panel; shows an empty-state until a swing is reviewed.
 
 import QtQuick
 import PinPointStudio
@@ -30,7 +30,7 @@ Item {
     readonly property var  _detail: shotReplay.analysisDetail
     readonly property var  _series: (_detail && _detail.series) ? _detail.series : []
 
-    PpMetricGraph {
+    PpMetricChart {
         anchors.fill: parent
         anchors.margins: Theme.sp(12)
         visible:    root._series.length > 0

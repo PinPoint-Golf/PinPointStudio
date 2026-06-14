@@ -26,7 +26,7 @@
 namespace {
 
 // Phase-name tables. Indices match Analysis Phase enum (swing_analysis.h); the array
-// is the single source of truth that PpTransitTimeline (full names) and PpMetricGraph
+// is the single source of truth that PpTransitTimeline (full names) and PpChartPlot
 // (short tags) both read, replacing the lists that used to be duplicated in QML.
 const char *const kFullNames[] = {
     "Address", "Takeaway", "Top", "Transition", "Downswing", "Impact",

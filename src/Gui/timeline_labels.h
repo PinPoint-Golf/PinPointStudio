@@ -24,7 +24,7 @@
 #include <QtQml/qqmlregistration.h>
 
 // TimelineLabels — the single home for all the iterative timeline maths that the
-// "no JavaScript logic in QML" rule keeps out of PpTransitTimeline / PpMetricGraph.
+// "no JavaScript logic in QML" rule keeps out of PpTransitTimeline / PpMetricChart.
 // Stateless: every method is const and depends only on its arguments, so one shared
 // instance can be declared declaratively (TimelineLabels { id: solver }) and reused.
 //

@@ -1,0 +1,594 @@
+/*
+ * Copyright (c) 2026 Mark Liversedge (liversedge@gmail.com)
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc., 51
+ * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
+// PpMetricChart — reusable, prop-driven metric chart. Toggles between a single overlaid
+// plot (all series, shared Y) and small multiples (one PpChartPlot per series, each Y
+// auto-scaled). Owns the chart-LOCAL view window [viewStartUs,viewEndUs] (it never touches
+// shotReplay / SwingDataSource, so different chart instances scope independently). The
+// playhead and the view window are conceptually distinct — the window never moves the
+// playhead; the playhead is simply clipped when outside the window.
+//
+// Phase 1: split/overlay, axes, phase bands, traces, P-dots, playhead, hover crosshair +
+// tooltip, legend chips. Phase 2 adds the segment brush + chips → viewStartUs/viewEndUs.
+// Phase 3 adds the summary cards. Heavy maths lives in ChartMetrics; phase tags/value
+// lookup in TimelineLabels; colours/sizes/fonts in Theme.
+
+pragma ComponentBehavior: Bound
+
+import QtQuick
+import QtQuick.Layouts
+import PinPointStudio
+
+Item {
+    id: root
+
+    // ── Data (host wires these from shotReplay) ───────────────────────────────────
+    property var  seriesList: []         // [{ key, label, unit, t_us, value, phaseSamples }]
+    property var  phases:     []         // [{ phase, t_us, conf }]
+    property real startUs:    0
+    property real endUs:      0
+    property real impactUs:   0
+    property real playheadUs: 0
+    property bool showPlayhead: true
+
+    // ── Chart-local view state (NOT bound to shotReplay / SwingDataSource) ─────────
+    property real viewStartUs: root._axisStart      // segment/brush window (Phase 2)
+    property real viewEndUs:   root._axisEnd
+    property bool splitMode:   true                 // true = chart per series; false = overlay
+    property var  enabledKeys: ({})                 // legend visibility ({} = all on)
+    property bool showDots:    true
+    property bool showCursor:  true
+    property string _preset:   "Full"               // active segment ("Full" / "ADR→TKW" / "Custom")
+
+    // Compact mode: just the overlay plot (no toolbar / segment chips / brush / header /
+    // legend / summary) — for small in-tile transients like the ¼× auto-replay graph.
+    property bool compact: false
+    readonly property bool _effSplit: root.splitMode && !root.compact
+
+    // Collapsible sections (full mode only): CONTROLS / CHART / SUMMARY.
+    property bool controlsCollapsed: false
+    property bool chartCollapsed:    false
+    property bool summaryCollapsed:  false
+
+    // Shared geometry (one source of truth for plots + tooltip placement). Split needs a
+    // wider gutter for the per-facet name + @end caption.
+    readonly property real _gutterLeft: root._effSplit ? Theme.sp(92) : Theme.sp(54)
+    readonly property real _padR:       Theme.sp(10)
+
+    // ── Derived data ──────────────────────────────────────────────────────────────
+    readonly property var _list: root.seriesList || []
+    function _isOn(key) { return root.enabledKeys[key] !== false }
+    function _toggle(key) {
+        var e = Object.assign({}, root.enabledKeys)
+        e[key] = !root._isOn(key)
+        root.enabledKeys = e
+    }
+    function _color(i) { return Theme.chartSeriesColor(i) }
+    function _name(s)  { return cm.shortLabel(s.key) || s.label || s.key }
+    function _fmt(v)   { var r = Math.round(v); return (r > 0 ? "+" : "") + r + "°" }
+
+    readonly property bool _hasAny: {
+        for (var i = 0; i < root._list.length; ++i)
+            if (root._list[i] && root._list[i].t_us && root._list[i].t_us.length > 1) return true
+        return false
+    }
+    // Enabled series with data, decorated with their (stable, full-list) palette colour.
+    readonly property var _visible: {
+        var out = []
+        for (var i = 0; i < root._list.length; ++i) {
+            var s = root._list[i]
+            if (s && s.t_us && s.t_us.length > 1 && s.value && s.value.length === s.t_us.length
+                  && root._isOn(s.key)) {
+                var d = Object.assign({}, s)
+                d.color = root._color(i)
+                out.push(d)
+            }
+        }
+        return out
+    }
+
+    // Full-swing extents (the window defaults to these; the brush narrows them in Phase 2).
+    readonly property real _dataStart: (root._list.length && root._list[0].t_us
+                                        && root._list[0].t_us.length) ? root._list[0].t_us[0] : 0
+    readonly property real _dataEnd: {
+        var e = root._dataStart + 1
+        for (var i = 0; i < root._list.length; ++i) {
+            var t = root._list[i].t_us
+            if (t && t.length) e = Math.max(e, t[t.length - 1])
+        }
+        return e
+    }
+    readonly property real _axisStart: (root.startUs > 0 && root.endUs > root.startUs) ? root.startUs : root._dataStart
+    readonly property real _axisEnd:   (root.startUs > 0 && root.endUs > root.startUs) ? root.endUs   : root._dataEnd
+
+    // Shared value range (overlay) / per-series range (split), clipped to the view window.
+    function _rangeFor(arr) {
+        var lo = Infinity, hi = -Infinity
+        for (var k = 0; k < (arr ? arr.length : 0); ++k) {
+            var s = arr[k]
+            if (!s || !s.t_us || !s.value) continue   // skip transient/torn-down entries
+            var t = s.t_us, v = s.value
+            for (var j = 0; j < v.length; ++j) {
+                if (t[j] < root.viewStartUs || t[j] > root.viewEndUs) continue
+                if (v[j] < lo) lo = v[j]; if (v[j] > hi) hi = v[j]
+            }
+        }
+        if (lo === Infinity) { lo = 0; hi = 1 }
+        var pad = Math.max((hi - lo) * 0.14, 2)
+        return { lo: lo - pad, hi: hi + pad }
+    }
+
+    // Plot specs — ONE uniform object shape for both modes so the Repeater delegate never
+    // has to type-switch modelData (the [array]-as-modelData trick raced during toggles):
+    //   split  → one spec per visible series ({ series:[s], facet:true })
+    //   overlay→ a single spec over all visible series ({ series:_visible, facet:false })
+    readonly property var _plots: {
+        if (root._visible.length === 0) return []
+        if (root._effSplit) {
+            var out = []
+            for (var i = 0; i < root._visible.length; ++i)
+                out.push({ series: [root._visible[i]], facet: true,
+                           last: i === root._visible.length - 1 })
+            return out
+        }
+        return [{ series: root._visible, facet: false, last: true }]
+    }
+
+    // Cursor for the chip readout: the playhead during replay, else impact (else window end).
+    readonly property real _readoutUs: root.showPlayhead ? root.playheadUs
+                                     : (root.impactUs > 0 ? root.impactUs : root._axisEnd)
+    function _addrValue(s) {
+        var ps = s.phaseSamples || []
+        for (var i = 0; i < ps.length; ++i) if (ps[i].phase === 0) return ps[i].value  // Address
+        return (s.value && s.value.length) ? s.value[0] : 0
+    }
+
+    // ── Segments (chart-local window presets) ──────────────────────────────────────
+    // [0]=Full, then adjacent phase pairs. Labels composed here via TimelineLabels.
+    readonly property var _segments:  cm.segments(root.phases, root._axisEnd - root._axisStart)
+    readonly property int _nearStart: cm.nearestPhase(root.phases, root.viewStartUs)
+    readonly property int _nearEnd:   cm.nearestPhase(root.phases, root.viewEndUs)
+
+    function _segLabel(seg) {
+        return seg.phaseA === -1 ? qsTr("Full")
+             : labels.phaseShortTag(seg.phaseA) + "→" + labels.phaseShortTag(seg.phaseB)
+    }
+    function _selectSegment(seg) {
+        if (seg.phaseA === -1) {                         // Full — use the true axis extent
+            root.viewStartUs = root._axisStart
+            root.viewEndUs   = root._axisEnd
+            root._preset     = "Full"
+        } else {
+            root.viewStartUs = seg.startUs
+            root.viewEndUs   = seg.endUs
+            root._preset     = root._segLabel(seg)
+        }
+    }
+
+    // A new swing restores the full-window bindings (the imperative chip/brush writes break
+    // them); the window is chart-local, so it always re-opens to the whole new swing.
+    onSeriesListChanged: {
+        root._preset     = "Full"
+        root.viewStartUs = Qt.binding(function () { return root._axisStart })
+        root.viewEndUs   = Qt.binding(function () { return root._axisEnd })
+    }
+
+    // Shared hover cursor, fanned back to every plot so the crosshair spans all facets.
+    property real _cursorUs: -1
+    function _tooltipX(areaW) {
+        var span = root.viewEndUs - root.viewStartUs
+        if (span <= 0) return root._gutterLeft
+        return root._gutterLeft
+             + (root._cursorUs - root.viewStartUs) / span * (areaW - root._gutterLeft - root._padR)
+    }
+
+    ChartMetrics   { id: cm }
+    TimelineLabels { id: labels }
+
+    // Collapsible section header (caret + title, click to toggle) — same idiom as
+    // PpDataViewer's SectionHeader, ending in a hairline rule.
+    component SectionHeader: Rectangle {
+        id: sh
+        property string title: ""
+        property bool   collapsed: false
+        signal toggled()
+        Layout.fillWidth: true
+        implicitHeight: Theme.sp(24)
+        color: shMa.containsMouse ? Theme.colorBg3 : "transparent"
+        radius: Theme.sp(4)
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: Theme.sp(6); anchors.rightMargin: Theme.sp(6)
+            spacing: Theme.sp(7)
+            Text {
+                text: "▸"; rotation: sh.collapsed ? 0 : 90
+                color: Theme.colorText3; font.pixelSize: Theme.fontSzBody2
+                Behavior on rotation { enabled: !Theme.reduceMotion
+                                       NumberAnimation { duration: Theme.durationFast } }
+            }
+            Text {
+                text: sh.title; color: Theme.colorText3
+                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                font.letterSpacing: Theme.trackingMicro
+            }
+            Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.colorBorder }
+        }
+        MouseArea { id: shMa; anchors.fill: parent; hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor; onClicked: sh.toggled() }
+    }
+
+    // ── Layout ────────────────────────────────────────────────────────────────────
+    ColumnLayout {
+        anchors.fill: parent
+        spacing: Theme.sp(8)
+        visible: root._hasAny
+
+        // ── CONTROLS section ──────────────────────────────────────────────────────
+        SectionHeader {
+            visible: !root.compact
+            title: qsTr("CONTROLS"); collapsed: root.controlsCollapsed
+            onToggled: root.controlsCollapsed = !root.controlsCollapsed
+        }
+
+        // Toolbar: Split/Overlay + P-dots / Cursor toggles.
+        RowLayout {
+            visible: !root.compact && !root.controlsCollapsed
+            Layout.fillWidth: true
+            spacing: Theme.sp(10)
+
+            PpSegmentedControl {
+                Layout.preferredWidth: Theme.sp(150)
+                options:  [qsTr("Split"), qsTr("Overlay")]
+                selected: root.splitMode ? qsTr("Split") : qsTr("Overlay")
+                onActivated: (v) => root.splitMode = (v === qsTr("Split"))
+            }
+
+            Item { Layout.fillWidth: true }      // spacer
+
+            Repeater {
+                model: [{ t: qsTr("P dots"), on: root.showDots, k: "dots" },
+                        { t: qsTr("Cursor"), on: root.showCursor, k: "cursor" }]
+                delegate: Row {
+                    id: tog
+                    required property var modelData
+                    spacing: Theme.sp(5)
+                    Rectangle {
+                        width: Theme.sp(14); height: Theme.sp(14); radius: Theme.sp(4)
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: tog.modelData.on ? Theme.colorAccent : "transparent"
+                        border.width: Theme.sp(1.5)
+                        border.color: tog.modelData.on ? Theme.colorAccent : Theme.colorBorderStrong
+                        Text {
+                            anchors.centerIn: parent
+                            visible: tog.modelData.on
+                            text: "✓"; color: Theme.dark ? Theme.colorBg : "#FFFFFF"
+                            font.pixelSize: Theme.fontSzMicro
+                        }
+                    }
+                    Text {
+                        text: tog.modelData.t
+                        anchors.verticalCenter: parent.verticalCenter
+                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
+                        font.letterSpacing: Theme.trackingData
+                        color: Theme.colorText2
+                    }
+                    TapHandler {
+                        onTapped: tog.modelData.k === "dots" ? (root.showDots = !root.showDots)
+                                                             : (root.showCursor = !root.showCursor)
+                    }
+                }
+            }
+        }
+
+        // Segment preset chips — Full + adjacent phase pairs (+ Custom on free-drag).
+        Flow {
+            visible: !root.compact && !root.controlsCollapsed
+            Layout.fillWidth: true
+            spacing: Theme.sp(6)
+
+            Text {
+                text: qsTr("SEGMENT")
+                height: Theme.sp(28); verticalAlignment: Text.AlignVCenter
+                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                font.letterSpacing: Theme.trackingLabel
+                color: Theme.colorText3
+                rightPadding: Theme.sp(2)
+            }
+
+            Repeater {
+                model: root._segments
+                delegate: Rectangle {
+                    id: segChip
+                    required property var modelData
+                    readonly property string lbl: root._segLabel(segChip.modelData)
+                    readonly property bool active: root._preset === segChip.lbl
+                    implicitWidth: segLblText.width + Theme.sp(20); height: Theme.sp(28)
+                    radius: Theme.sp(7)
+                    color: active ? Theme.colorAccentLight : "transparent"
+                    border.width: 1
+                    border.color: active ? Theme.colorAccent : Theme.colorBorderMid
+                    Text {
+                        id: segLblText
+                        anchors.centerIn: parent
+                        text: segChip.lbl.toUpperCase()
+                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
+                        font.letterSpacing: Theme.trackingData
+                        color: segChip.active ? Theme.colorAccent : Theme.colorText2
+                    }
+                    MouseArea {
+                        anchors.fill: parent; hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root._selectSegment(segChip.modelData)
+                    }
+                }
+            }
+
+            // Custom chip — present only while a free-dragged window is active.
+            Rectangle {
+                visible: root._preset === "Custom"
+                implicitWidth: customText.width + Theme.sp(20); height: Theme.sp(28)
+                radius: Theme.sp(7)
+                color: Theme.colorAccentLight
+                border.width: 1; border.color: Theme.colorAccent
+                Text {
+                    id: customText
+                    anchors.centerIn: parent
+                    text: qsTr("CUSTOM")
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
+                    font.letterSpacing: Theme.trackingData
+                    color: Theme.colorAccent
+                }
+            }
+        }
+
+        // Overview + draggable selection window → chart-local view window.
+        PpSegmentBrush {
+            visible: !root.compact && !root.controlsCollapsed
+            Layout.fillWidth: true
+            series:      root._visible
+            phases:      root.phases
+            axisStartUs: root._axisStart
+            axisEndUs:   root._axisEnd
+            winStartUs:  root.viewStartUs
+            winEndUs:    root.viewEndUs
+            impactUs:    root.impactUs
+            onViewWindowChanged: (s, e) => {
+                root.viewStartUs = s
+                root.viewEndUs   = e
+                root._preset     = "Custom"
+            }
+        }
+
+        // Segment header — phase span + duration of the active window.
+        RowLayout {
+            visible: !root.compact && !root.controlsCollapsed
+            Layout.fillWidth: true
+            spacing: Theme.sp(12)
+            Text {
+                text: root._preset === "Full" ? qsTr("Full swing")
+                    : labels.phaseFullName(root._nearStart) + " → " + labels.phaseFullName(root._nearEnd)
+                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzHeading
+                color: Theme.colorText
+            }
+            Text {
+                text: Math.round((root.viewEndUs - root.viewStartUs) / 1000) + qsTr(" ms")
+                      + " · " + root._list.length + qsTr(" metrics") + " · "
+                      + labels.phaseShortTag(root._nearStart) + "→" + labels.phaseShortTag(root._nearEnd)
+                font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
+                font.letterSpacing: Theme.trackingData
+                color: Theme.colorText3
+            }
+        }
+
+        // ── CHART section ─────────────────────────────────────────────────────────
+        SectionHeader {
+            visible: !root.compact
+            title: qsTr("CHART"); collapsed: root.chartCollapsed
+            onToggled: root.chartCollapsed = !root.chartCollapsed
+        }
+
+        // Plot area — one plot (overlay) or one per visible series (split).
+        Item {
+            id: plotArea
+            visible: root.compact || !root.chartCollapsed
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+
+            ColumnLayout {
+                anchors.fill: parent
+                spacing: Theme.sp(10)
+
+                Repeater {
+                    model: root._plots
+                    delegate: PpChartPlot {
+                        id: plot
+                        required property var modelData
+                        // modelData is briefly undefined while the Repeater swaps models on a
+                        // Split↔Overlay toggle — every binding below tolerates that.
+                        readonly property var  plotSeries: modelData ? modelData.series : []
+                        readonly property bool facet: modelData ? modelData.facet : false
+                        readonly property var  facetSeries: (facet && plotSeries.length > 0) ? plotSeries[0] : null
+                        readonly property var  rng: root._rangeFor(plotSeries)
+
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+
+                        series:     plotSeries
+                        phases:     root.phases
+                        valueLo:    rng.lo
+                        valueHi:    rng.hi
+                        domStartUs: root.viewStartUs
+                        domEndUs:   root.viewEndUs
+                        impactUs:   root.impactUs
+                        unitLabel:  (plotSeries.length > 0 && plotSeries[0].unit)
+                                    ? plotSeries[0].unit : qsTr("deg")
+                        playheadUs:    root.playheadUs
+                        showPlayhead:  root.showPlayhead
+                        showDots:      root.showDots
+                        showCrosshair: root.showCursor
+                        cursorUs:      root.showCursor ? root._cursorUs : -1
+                        yTickCount:    facet ? 3 : 6
+                        showFrame:     facet
+                        showXAxis:     modelData ? modelData.last : true
+                        gutterLeft:    root._gutterLeft
+                        padR:          root._padR
+                        facetName:     facetSeries ? root._name(facetSeries) : ""
+                        facetEndText:  facetSeries
+                            ? "@end " + root._fmt(cm.summary(facetSeries.t_us, facetSeries.value,
+                                                             root.viewStartUs, root.viewEndUs).end)
+                            : ""
+
+                        onHoverMoved: (t) => root._cursorUs =
+                            Math.max(root.viewStartUs, Math.min(root.viewEndUs, t))
+                        onHoverExited: root._cursorUs = -1
+                    }
+                }
+            }
+
+            // Shared hover tooltip (all visible series at the cursor).
+            Rectangle {
+                id: tip
+                visible: root.showCursor && root._cursorUs >= 0 && root._visible.length > 0
+                readonly property real cx: root._tooltipX(plotArea.width)
+                x: Math.min(cx + Theme.sp(14), plotArea.width - width - Theme.sp(2))
+                y: Theme.sp(4)
+                width: tipCol.width + Theme.sp(20); height: tipCol.height + Theme.sp(16)
+                color: Theme.colorSurface; radius: Theme.sp(8)
+                border.width: 1; border.color: Theme.colorBorderStrong
+
+                Column {
+                    id: tipCol
+                    x: Theme.sp(10); y: Theme.sp(8)
+                    spacing: Theme.sp(3)
+                    Text {
+                        text: {
+                            var ms = Math.round((root._cursorUs - root.impactUs) / 1000)
+                            return (ms > 0 ? "+" : "") + ms + qsTr(" ms · impact")
+                        }
+                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                        font.letterSpacing: Theme.trackingLabel
+                        color: Theme.colorText3
+                    }
+                    Repeater {
+                        model: root._visible
+                        delegate: Row {
+                            id: trow
+                            required property var modelData
+                            spacing: Theme.sp(8)
+                            Rectangle {
+                                width: Theme.sp(8); height: Theme.sp(8); radius: Theme.sp(2)
+                                anchors.verticalCenter: parent.verticalCenter
+                                color: trow.modelData.color
+                            }
+                            Text {
+                                width: Theme.sp(70)
+                                text: root._name(trow.modelData)
+                                elide: Text.ElideRight
+                                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel
+                                color: Theme.colorText2
+                            }
+                            Text {
+                                text: root._fmt(labels.valueAtNearest(trow.modelData.t_us,
+                                                                      trow.modelData.value, root._cursorUs))
+                                font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
+                                font.weight: Font.Medium
+                                color: Theme.colorText
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Legend chips = toggle + live value / Δ-from-address readout at the playhead.
+        Flow {
+            visible: !root.compact && !root.chartCollapsed
+            Layout.fillWidth: true
+            spacing: Theme.sp(10)
+
+            Repeater {
+                model: root._list
+                delegate: Row {
+                    id: chip
+                    required property var modelData
+                    required property int index
+                    readonly property bool on: root._isOn(chip.modelData.key)
+                    readonly property real val: labels.valueAtNearest(chip.modelData.t_us,
+                                                                      chip.modelData.value, root._readoutUs)
+                    spacing: Theme.sp(4)
+                    opacity: chip.on ? 1.0 : 0.4
+
+                    Rectangle {
+                        width: Theme.sp(8); height: Theme.sp(8); radius: Theme.sp(2)
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: chip.on ? root._color(chip.index) : Theme.colorText3
+                    }
+                    Text {
+                        text: root._name(chip.modelData)
+                        anchors.verticalCenter: parent.verticalCenter
+                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel
+                        color: Theme.colorText2
+                    }
+                    Text {
+                        text: root._fmt(chip.val) + "  Δ" + root._fmt(chip.val - root._addrValue(chip.modelData))
+                        anchors.verticalCenter: parent.verticalCenter
+                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                        color: Theme.colorText3
+                    }
+                    TapHandler { onTapped: root._toggle(chip.modelData.key) }
+                }
+            }
+        }
+
+        // ── SUMMARY section ───────────────────────────────────────────────────────
+        SectionHeader {
+            visible: !root.compact
+            title: qsTr("SUMMARY"); collapsed: root.summaryCollapsed
+            onToggled: root.summaryCollapsed = !root.summaryCollapsed
+        }
+
+        // Per-window summary cards — recompute over the active view window. The section's
+        // own header is suppressed; the SectionHeader above labels it.
+        PpChartSummary {
+            visible: !root.compact && !root.summaryCollapsed
+            Layout.fillWidth: true
+            showHeader:  false
+            series:      root._visible
+            startUs:     root.viewStartUs
+            endUs:       root.viewEndUs
+            segmentName: root._preset === "Full" ? qsTr("full swing")
+                       : (labels.phaseFullName(root._nearStart) + " → "
+                          + labels.phaseFullName(root._nearEnd)).toLowerCase()
+        }
+
+        // Trailing spacer — when CHART (the natural fillHeight item) is collapsed there is
+        // nothing to absorb the leftover height, so the remaining sections would float; this
+        // fills ONLY then, pinning them to the top. (Inert while the chart is expanded, so it
+        // never competes with the plot for space.)
+        Item { Layout.fillWidth: true; Layout.fillHeight: root.chartCollapsed && !root.compact }
+    }
+
+    // Empty state.
+    Text {
+        anchors.centerIn: parent
+        visible: !root._hasAny
+        text: qsTr("No analysis")
+        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+        color: Theme.colorText3
+    }
+}

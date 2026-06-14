@@ -103,7 +103,7 @@ struct ImuSegmentBinding {
 };
 
 // APPEND-ONLY: phases persist as raw ints in swing.json and QML compares the
-// ints directly (e.g. PpMetricGraph's `phase === 5`), so existing values must
+// ints directly (e.g. PpChartPlot's `phase === 5`), so existing values must
 // keep their positions. v2 ladder additions start at 8 (design addendum A.3).
 enum class Phase {
     Address, Takeaway, Top, Transition, Downswing, Impact, Release, Finish,
