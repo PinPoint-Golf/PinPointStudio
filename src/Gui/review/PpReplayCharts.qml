@@ -27,12 +27,17 @@ import PinPointStudio
 Item {
     id: root
 
+    // Screen session type (Swing/Wrist/GRF/Coach), forwarded to the chart so it can
+    // persist its collapsible-section state per screen+mode. Set by the host screen.
+    property int sessionType: -1
+
     readonly property var  _detail: shotReplay.analysisDetail
     readonly property var  _series: (_detail && _detail.series) ? _detail.series : []
 
     PpMetricChart {
         anchors.fill: parent
         anchors.margins: Theme.sp(12)
+        sessionType: root.sessionType
         visible:    root._series.length > 0
         seriesList: root._series
         phases:     (root._detail && root._detail.phases) ? root._detail.phases : []

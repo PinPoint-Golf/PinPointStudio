@@ -34,10 +34,31 @@ Item {
     // their wrapped chip rows all hang-indent to the same edge.
     readonly property int ctrlGutter: Theme.sp(82)
 
-    // Per-section collapse state (session-only; default expanded).
+    // Per-section collapse state (default expanded), persisted per screen+mode
+    // via AppSettings (key "<sessionType>:<mode>:<section>"). Restored on creation
+    // and whenever the screen+mode key changes — so a surviving instance re-reads
+    // its layout when the mode flips (e.g. Replay↔Analyse) — and written on toggle.
     property bool scopeCollapsed:    false
     property bool coverageCollapsed: false
     property bool tableCollapsed:    false
+
+    readonly property string _sectionKeyBase: root.sessionType + ":" + SessionMode.mode + ":"
+    on_SectionKeyBaseChanged: root._restoreSections()
+    Component.onCompleted:    root._restoreSections()
+
+    function _restoreSections() {
+        var m = appSettings.sectionCollapse, b = root._sectionKeyBase
+        root.scopeCollapsed    = m[b + "scope"]    === true
+        root.coverageCollapsed = m[b + "coverage"] === true
+        root.tableCollapsed    = m[b + "table"]    === true
+    }
+    function _persistSection(name, val) {
+        if (root.sessionType < 0) return            // transient instance — don't persist
+        var m = {}
+        for (var k in appSettings.sectionCollapse) m[k] = appSettings.sectionCollapse[k]
+        m[root._sectionKeyBase + name] = val
+        appSettings.sectionCollapse = m
+    }
 
     // Reusable collapsible section header (caret + title, click to toggle).
     component SectionHeader: Rectangle {
@@ -154,7 +175,8 @@ Item {
         // ── scope (region + segment + resolved tags) ────────────────────────
         SectionHeader {
             Layout.fillWidth: true; title: qsTr("SCOPE"); collapsed: root.scopeCollapsed
-            onToggled: root.scopeCollapsed = !root.scopeCollapsed
+            onToggled: { root.scopeCollapsed = !root.scopeCollapsed
+                         root._persistSection("scope", root.scopeCollapsed) }
         }
         ColumnLayout {
             Layout.fillWidth: true
@@ -282,7 +304,8 @@ Item {
         // ── coverage strip ──────────────────────────────────────────────────
         SectionHeader {
             Layout.fillWidth: true; title: qsTr("COVERAGE"); collapsed: root.coverageCollapsed
-            onToggled: root.coverageCollapsed = !root.coverageCollapsed
+            onToggled: { root.coverageCollapsed = !root.coverageCollapsed
+                         root._persistSection("coverage", root.coverageCollapsed) }
         }
         PpCoverageStrip {
             Layout.fillWidth: true
@@ -301,7 +324,8 @@ Item {
         // ── detail table ────────────────────────────────────────────────────
         SectionHeader {
             Layout.fillWidth: true; title: qsTr("TABLE"); collapsed: root.tableCollapsed
-            onToggled: root.tableCollapsed = !root.tableCollapsed
+            onToggled: { root.tableCollapsed = !root.tableCollapsed
+                         root._persistSection("table", root.tableCollapsed) }
         }
         Item {
             id: tableArea

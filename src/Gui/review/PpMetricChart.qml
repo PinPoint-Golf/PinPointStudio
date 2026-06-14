@@ -60,10 +60,33 @@ Item {
     property bool compact: false
     readonly property bool _effSplit: root.splitMode && !root.compact
 
-    // Collapsible sections (full mode only): CONTROLS / CHART / SUMMARY.
+    // Collapsible sections (full mode only): CONTROLS / CHART / SUMMARY. Persisted
+    // per screen+mode via AppSettings (key "<sessionType>:<mode>:<section>"); the
+    // host passes sessionType (−1 for the compact transient, which never persists).
+    // Restored on creation and whenever the screen+mode key changes; written on toggle.
+    property int  sessionType: -1
     property bool controlsCollapsed: false
     property bool chartCollapsed:    false
     property bool summaryCollapsed:  false
+
+    readonly property string _sectionKeyBase: root.sessionType + ":" + SessionMode.mode + ":"
+    on_SectionKeyBaseChanged: root._restoreSections()
+    Component.onCompleted:    root._restoreSections()
+
+    function _restoreSections() {
+        if (root.sessionType < 0) return            // compact / transient — keep defaults
+        var m = appSettings.sectionCollapse, b = root._sectionKeyBase
+        root.controlsCollapsed = m[b + "controls"] === true
+        root.chartCollapsed    = m[b + "chart"]    === true
+        root.summaryCollapsed  = m[b + "summary"]  === true
+    }
+    function _persistSection(name, val) {
+        if (root.sessionType < 0) return            // compact / transient — don't persist
+        var mm = {}
+        for (var k in appSettings.sectionCollapse) mm[k] = appSettings.sectionCollapse[k]
+        mm[root._sectionKeyBase + name] = val
+        appSettings.sectionCollapse = mm
+    }
 
     // Shared geometry (one source of truth for plots + tooltip placement). Split needs a
     // wider gutter for the per-facet name + @end caption.
@@ -242,7 +265,8 @@ Item {
         SectionHeader {
             visible: !root.compact
             title: qsTr("CONTROLS"); collapsed: root.controlsCollapsed
-            onToggled: root.controlsCollapsed = !root.controlsCollapsed
+            onToggled: { root.controlsCollapsed = !root.controlsCollapsed
+                         root._persistSection("controls", root.controlsCollapsed) }
         }
 
         // Toolbar: Split/Overlay + P-dots / Cursor toggles.
@@ -399,7 +423,8 @@ Item {
         SectionHeader {
             visible: !root.compact
             title: qsTr("CHART"); collapsed: root.chartCollapsed
-            onToggled: root.chartCollapsed = !root.chartCollapsed
+            onToggled: { root.chartCollapsed = !root.chartCollapsed
+                         root._persistSection("chart", root.chartCollapsed) }
         }
 
         // Plot area — one plot (overlay) or one per visible series (split).
@@ -559,7 +584,8 @@ Item {
         SectionHeader {
             visible: !root.compact
             title: qsTr("SUMMARY"); collapsed: root.summaryCollapsed
-            onToggled: root.summaryCollapsed = !root.summaryCollapsed
+            onToggled: { root.summaryCollapsed = !root.summaryCollapsed
+                         root._persistSection("summary", root.summaryCollapsed) }
         }
 
         // Per-window summary cards — recompute over the active view window. The section's

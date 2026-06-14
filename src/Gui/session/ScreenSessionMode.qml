@@ -99,7 +99,7 @@ Item {
                 cameraDelegate: Component {
                     PpCameraTiles { sessionType: root.sessionType }
                 }
-                chartsDelegate: Component { PpReplayCharts {} }
+                chartsDelegate: Component { PpReplayCharts { sessionType: root.sessionType } }
                 // Table panel — read-only inspector of the focused swing.json. The
                 // focused swing is the active replay, else the carousel's selection.
                 tableDelegate: Component {

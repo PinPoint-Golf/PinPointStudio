@@ -125,6 +125,11 @@ class AppSettings : public QObject
     // = String(typeInt)) so each mode remembers its default lens. Value is a region
     // name ("Axial"/"Lower"/"Upper"/"Delivery"/"Custom"). Read by PpDataViewer.
     Q_PROPERTY(QVariantMap dataRegionByType      READ dataRegionByType      WRITE setDataRegionByType      NOTIFY dataRegionByTypeChanged)
+    // Collapsed/expanded state of the data-table and chart collapsible sections,
+    // persisted per screen+mode. Key = "<sessionTypeInt>:<modeInt>:<section>"
+    // (e.g. "1:1:scope"), value = bool (true = collapsed). Read/written by
+    // PpDataViewer and PpMetricChart so each screen+mode remembers its layout.
+    Q_PROPERTY(QVariantMap sectionCollapse      READ sectionCollapse      WRITE setSectionCollapse      NOTIFY sectionCollapseChanged)
     Q_PROPERTY(int         lastSessionType   READ lastSessionType   WRITE setLastSessionType   NOTIFY lastSessionTypeChanged)
 
     Q_PROPERTY(QString sessionNamingPattern  READ sessionNamingPattern  WRITE setSessionNamingPattern  NOTIFY sessionNamingPatternChanged)
@@ -240,6 +245,7 @@ public:
         m_viewPresetByType      = ppSettings().value(QStringLiteral("view/presetByType"),      QVariantMap{}).toMap();
         m_viewLayoutByMode      = ppSettings().value(QStringLiteral("view/layoutByMode"),      QVariantMap{}).toMap();
         m_dataRegionByType      = ppSettings().value(QStringLiteral("view/dataRegionByType"),  QVariantMap{}).toMap();
+        m_sectionCollapse       = ppSettings().value(QStringLiteral("view/sectionCollapse"),   QVariantMap{}).toMap();
         m_lastSessionType    = ppSettings().value(QStringLiteral("session/lastType"), 0).toInt();
 
         m_sessionNamingPattern  = ppSettings().value(QStringLiteral("storage/sessionNamingPattern"),  QStringLiteral("date-name-type")).toString();
@@ -325,6 +331,7 @@ public:
     QVariantMap viewPresetByType()      const { return m_viewPresetByType; }
     QVariantMap viewLayoutByMode()      const { return m_viewLayoutByMode; }
     QVariantMap dataRegionByType()      const { return m_dataRegionByType; }
+    QVariantMap sectionCollapse()       const { return m_sectionCollapse; }
     int         lastSessionType()    const { return m_lastSessionType; }
 
     QString sessionNamingPattern()  const { return m_sessionNamingPattern; }
@@ -850,6 +857,14 @@ public:
         emit dataRegionByTypeChanged();
     }
 
+    void setSectionCollapse(const QVariantMap &v)
+    {
+        if (m_sectionCollapse == v) return;
+        m_sectionCollapse = v;
+        ppSettings().setValue(QStringLiteral("view/sectionCollapse"), v);
+        emit sectionCollapseChanged();
+    }
+
     void setLastSessionType(int v)
     {
         if (m_lastSessionType == v) return;
@@ -1001,6 +1016,7 @@ signals:
     void viewPresetByTypeChanged();
     void viewLayoutByModeChanged();
     void dataRegionByTypeChanged();
+    void sectionCollapseChanged();
     void lastSessionTypeChanged();
     void sessionNamingPatternChanged();
     void videoResolutionModeChanged();
@@ -1081,6 +1097,7 @@ private:
     QVariantMap m_viewPresetByType;
     QVariantMap m_viewLayoutByMode;
     QVariantMap m_dataRegionByType;
+    QVariantMap m_sectionCollapse;
     int         m_lastSessionType = 0;
 
     QString m_sessionNamingPattern  = QStringLiteral("date-name-type");
