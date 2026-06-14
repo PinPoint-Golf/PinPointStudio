@@ -349,6 +349,7 @@ Item {
             id: camPill
             glyph: "◫"                 // ◫
             title: qsTr("Cameras")
+            active: camPopup.opened
             count: root.camConnected
             valueText: root.camTotal === 0 ? qsTr("none")
                         : root.camNeedsAttention ? qsTr("calibrate")
@@ -367,6 +368,7 @@ Item {
             id: imuPill
             glyph: "⦿"                 // ⦿
             title: qsTr("IMUs")
+            active: imuPopup.opened
             count: root.imuConnected
             valueText: root.imuTotal === 0 ? qsTr("none")
                         : root.imuBatteryLow ? qsTr("battery %1%").arg(root.imuLowestBattery)
@@ -520,6 +522,7 @@ Item {
         property string valueText: ""
         property int    count:     0
         property color  ledColor:  Theme.colorText3
+        property bool   active:    false   // tints the glyph accent while the pill's popup is open
         property bool   attention: false   // tints the value text amber (e.g. "calibrate")
         property bool   warn:      false   // overrides the value-text tint (e.g. low battery)
         property color  warnColor: Theme.colorWarn
@@ -546,7 +549,7 @@ Item {
                     Text {
                         anchors.centerIn: parent; text: glyph
                         font.family: Theme.fontSymbol; font.pixelSize: Theme.sp(18)
-                        color: Theme.colorText2
+                        color: active ? Theme.colorAccent : Theme.colorText2
                     }
                 }
                 Rectangle {
