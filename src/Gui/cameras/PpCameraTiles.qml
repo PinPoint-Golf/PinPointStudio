@@ -45,6 +45,18 @@ Item {
     readonly property bool _screenActive: navController.currentIndex === root.sessionType + 1
     readonly property bool _replayHere: _replay && _screenActive
 
+    // Replay tiles are instantiated one event-loop turn AFTER _replayHere goes true.
+    // Entering Replay can recreate this whole panel (Capture's "stage" arrangement →
+    // Replay's "split" rebuilds PpModeStage's camera Loader), and the panel being torn
+    // down would otherwise spawn a transient replay tile — which binds, then dies,
+    // churning the disk-replay video sink. Loader destroys the dying panel
+    // synchronously during the arrangement change, so deferring arming via Qt.callLater
+    // means only the SURVIVING instance ever reaches _replayArmed and creates a tile.
+    property bool _replayArmed: false
+    function _syncReplayArmed() { root._replayArmed = root._replayHere }
+    on_ReplayHereChanged: Qt.callLater(root._syncReplayArmed)
+    Component.onCompleted:  Qt.callLater(root._syncReplayArmed)
+
     readonly property var _liveCameras:
         cameraManager.cameraList.filter(function(c) { return c.sessionEnabled })
 
@@ -80,9 +92,11 @@ Item {
         }
 
         // ── Replay stream tiles (Review / Analyse) — the loaded swing's OWN ─
-        // streams. Only the active screen creates these (one sink per stream).
+        // streams. Only the active screen creates these (one sink per stream), and
+        // only once arming has settled (see _replayArmed) so a torn-down panel during
+        // the Capture→Replay transition never spawns a transient tile.
         Repeater {
-            model: root._replayHere ? shotReplay.streams : []
+            model: root._replayArmed ? shotReplay.streams : []
             delegate: PpCameraFrame {
                 required property var modelData
                 Layout.fillHeight: true
