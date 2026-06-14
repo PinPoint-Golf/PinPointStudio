@@ -88,11 +88,11 @@ int ShotListModel::rowForId(int id) const
     return -1;
 }
 
-void ShotListModel::addShot(const QString &swingDir, const QString &timestampLabel,
-                            const QString &club, bool hasVideo, const QUrl &thumbnailSource,
-                            const QVariantList &tracePoints, int score,
-                            const QVariantMap &metrics,
-                            const QVariantMap &analysisDetail)
+int ShotListModel::addShot(const QString &swingDir, const QString &timestampLabel,
+                           const QString &club, bool hasVideo, const QUrl &thumbnailSource,
+                           const QVariantList &tracePoints, int score,
+                           const QVariantMap &metrics,
+                           const QVariantMap &analysisDetail)
 {
     int maxOrdinal = 0;
     for (const Shot &s : m_shots)
@@ -116,6 +116,7 @@ void ShotListModel::addShot(const QString &swingDir, const QString &timestampLab
     m_shots.prepend(shot);
     endInsertRows();
     emit activeCountChanged();
+    return shot.id;
 }
 
 void ShotListModel::addPersistedShot(const QString &swingDir, int ordinal,

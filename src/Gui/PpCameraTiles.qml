@@ -16,12 +16,13 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Camera stage-panel, mode-aware. In Capture/Analyse it shows one live video tile
-// per session-enabled camera (plus the Capture-mode ¼× auto-replay metric graph).
-// In Review it shows one tile per stream of the REVIEWED swing — enumerated from
-// the swing's own swing.json (shotReplay.streams), never the local camera rig, so
-// a swing recorded on a different setup still plays. Hosted by PpModeStage as the
-// "camera" panel on every mode.
+// Camera stage-panel — its video source follows the session DATA SOURCE, not the
+// mode. Capture is the only live-video mode: it shows one live tile per session-
+// enabled camera (plus the degraded-shot ¼× auto-replay metric graph). Review AND
+// Analyse both show the LOADED shot's video — one tile per stream of that swing,
+// enumerated from the swing's own swing.json (shotReplay.streams), never the local
+// camera rig, so a swing recorded on a different setup still plays and the playback
+// follows the Review↔Analyse toggle. Hosted by PpModeStage as the "camera" panel.
 
 import QtQuick
 import QtQuick.Layouts
@@ -32,14 +33,17 @@ Item {
     property int  sessionType: -1
     property bool showHittingArea: false
 
-    readonly property bool _review: SessionMode.mode === SessionMode.review
+    // Live cameras show ONLY in Capture; Review and Analyse both render the loaded
+    // shot's disk streams. The fork is data-source-driven (not Review-specific), so
+    // one loaded shotReplay carries the video across the Review↔Analyse mode toggle.
+    readonly property bool _replay: SessionMode.mode !== SessionMode.capture
 
     // All session screens stay instantiated in the StackLayout, but a disk-replay
     // stream has ONE QMediaPlayer with ONE sink — so only the ACTIVE screen may
     // create replay tiles (else hidden screens steal the sink and the visible one
     // shows nothing). The session screen sits at StackLayout index sessionType + 1.
     readonly property bool _screenActive: navController.currentIndex === root.sessionType + 1
-    readonly property bool _reviewHere: _review && _screenActive
+    readonly property bool _replayHere: _replay && _screenActive
 
     readonly property var _liveCameras:
         cameraManager.cameraList.filter(function(c) { return c.sessionEnabled })
@@ -53,9 +57,9 @@ Item {
         anchors.margins: Theme.sp(12)
         spacing: Theme.sp(8)
 
-        // ── Live camera tiles (Capture / Analyse) ──────────────────────────
+        // ── Live camera tiles (Capture only) ───────────────────────────────
         Repeater {
-            model: root._review ? [] : root._liveCameras
+            model: root._replay ? [] : root._liveCameras
             delegate: PpCameraFrame {
                 required property var modelData
                 Layout.fillHeight: true
@@ -75,10 +79,10 @@ Item {
             }
         }
 
-        // ── Replay stream tiles (Review) — the reviewed swing's OWN streams ─
-        // Only the active screen creates these (one sink per stream — see above).
+        // ── Replay stream tiles (Review / Analyse) — the loaded swing's OWN ─
+        // streams. Only the active screen creates these (one sink per stream).
         Repeater {
-            model: root._reviewHere ? shotReplay.streams : []
+            model: root._replayHere ? shotReplay.streams : []
             delegate: PpCameraFrame {
                 required property var modelData
                 Layout.fillHeight: true
@@ -96,10 +100,11 @@ Item {
         }
 
         // In-replay metric graph — the Capture-mode ¼× auto-replay transient
-        // (shotProcessor). Review draws its curves in the charts panel instead.
+        // (shotProcessor; degraded shots only). Review/Analyse draw their curves
+        // in the charts panel instead.
         Item {
             Layout.fillWidth: true; Layout.fillHeight: true
-            visible: !root._review
+            visible: !root._replay
             PpMetricGraph {
                 anchors.fill: parent; anchors.margins: Theme.sp(8)
                 visible:    shotProcessor.isReplaying && root._replaySeries.length > 0
@@ -115,11 +120,11 @@ Item {
         }
     }
 
-    // Capture/Analyse empty-state: no cameras enabled.
+    // Capture empty-state: no cameras enabled.
     Column {
         anchors.centerIn: parent
         spacing: Theme.sp(6)
-        visible: !root._review && root._liveCameras.length === 0
+        visible: !root._replay && root._liveCameras.length === 0
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
             text: qsTr("No cameras enabled")
@@ -133,11 +138,11 @@ Item {
         }
     }
 
-    // Review empty-state: no swing focused, or the swing has no playable video.
+    // Review / Analyse empty-state: no swing focused, or the swing has no video.
     Column {
         anchors.centerIn: parent
         spacing: Theme.sp(6)
-        visible: root._reviewHere && shotReplay.streams.length === 0
+        visible: root._replayHere && shotReplay.streams.length === 0
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
             text: SessionMode.focusedShotId >= 0 ? qsTr("No video for this swing")

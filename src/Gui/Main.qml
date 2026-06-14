@@ -304,6 +304,18 @@ ApplicationWindow {
         function onReviewActiveChanged() { SessionMode.clear() }
     }
 
+    // Instant playback: when a shot finishes processing it is promoted straight onto
+    // the Review stage (disk replay of the swing just written). Only auto-promote
+    // from Capture — if the user is already in Review/Analyse studying an earlier
+    // shot, the new one just lands in the carousel rather than yanking them away.
+    Connections {
+        target: shotProcessor
+        function onShotProcessed(shotId, swingDir) {
+            if (swingDir !== "" && SessionMode.mode === SessionMode.capture)
+                SessionMode.enterReview(shotId, swingDir)
+        }
+    }
+
     // Named StackLayout/navController indices — keep in sync with screenNames
     // and the ScreenXxx order in contentStack below. Session screens sit at
     // sessionType + 1 (see SessionController::Type).

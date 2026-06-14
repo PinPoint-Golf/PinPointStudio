@@ -820,11 +820,12 @@ void ShotProcessor::maybeJoin()
                                  : QVariantMap{};
     emit replayAnalysisDetailChanged();
 
+    int newShotId = -1;
     if (m_shotModel) {
         const QUrl thumbUrl = m_thumbnailPath.isEmpty()
                                   ? QUrl()
                                   : QUrl::fromLocalFile(m_thumbnailPath);
-        m_shotModel->addShot(savedSwingDir,
+        newShotId = m_shotModel->addShot(savedSwingDir,
                              m_timestampLabel,
                              QStringLiteral("DRIVER"),
                              exportOk,
@@ -835,18 +836,26 @@ void ShotProcessor::maybeJoin()
                              m_replayAnalysisDetail);
     }
 
+    // "Reviewable on disk": analysis + export both succeeded AND a swing.json was
+    // actually written — that is the swing the UI promotes straight into Review for
+    // instant playback (the disk replay reads the just-written MP4(s), not the ring).
+    const bool reviewableOnDisk = analysisOk && exportOk && !savedSwingDir.isEmpty();
+
     if (analysisOk && exportOk)
-        emit shotProcessed(m_swingDir);
+        emit shotProcessed(newShotId, savedSwingDir);
     else
         emit shotFailed(!analysisOk ? m_analysisResult.error
                                     : QStringLiteral("export failed or skipped"));
 
-    // Replay gating: fire whenever there is video to show. The on-screen ¼×
-    // replay reads the frozen window's camera frames directly (m_replayTracks),
-    // not the exported MP4 or the analysis result — so neither analysisOk nor
-    // exportOk is a precondition. A shot with captured footage always replays,
-    // even if analysis was absent or the disk export failed.
-    if (!m_replayTracks.empty()) {
+    // Post-shot playback now lives on the Review stage: a reviewable shot is auto-
+    // promoted into Review (disk replay) by the UI from shotProcessed(), so skip the
+    // on-screen ¼× window transient and resume capture immediately. Only when there
+    // is no reviewable disk shot do we fall back to the in-window transient (reading
+    // the frozen window's frames directly) so the user still sees the swing they
+    // just made.
+    if (reviewableOnDisk) {
+        finishShot();
+    } else if (!m_replayTracks.empty()) {
         startReplay();
     } else {
         ppInfo() << "[ShotProcessor] replay skipped — no captured camera tracks"

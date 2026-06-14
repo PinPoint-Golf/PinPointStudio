@@ -126,7 +126,9 @@ signals:
     void replayPositionChanged();
     void replaySpanChanged();
     void replayAnalysisDetailChanged();
-    void shotProcessed(const QString &swingDir);   // analysis+export join reached, all ok
+    // analysis+export join reached, all ok — carries the reviewable on-disk swing
+    // (swingDir) and its carousel row id so the UI can promote it straight into Review.
+    void shotProcessed(int shotId, const QString &swingDir);
     void shotFailed(const QString &error);
     void swingSaved(const QString &path);
     void swingSaveFailed(const QString &error);

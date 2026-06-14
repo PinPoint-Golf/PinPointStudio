@@ -70,11 +70,12 @@ public:
     // ShotProcessor's entry point — prepends a shot (newest first) with the
     // next ordinal and a fresh id. swingDir links the row to its on-disk folder
     // so rating/note edits write through to swing.json (empty when the export
-    // produced no directory).
-    void addShot(const QString &swingDir, const QString &timestampLabel, const QString &club,
-                 bool hasVideo, const QUrl &thumbnailSource, const QVariantList &tracePoints,
-                 int score, const QVariantMap &metrics,
-                 const QVariantMap &analysisDetail = {});
+    // produced no directory). Returns the new shot's id (the carousel row
+    // identity) so the caller can promote the just-captured shot into Review.
+    int addShot(const QString &swingDir, const QString &timestampLabel, const QString &club,
+                bool hasVideo, const QUrl &thumbnailSource, const QVariantList &tracePoints,
+                int score, const QVariantMap &metrics,
+                const QVariantMap &analysisDetail = {});
 
     // Reload a shot from disk (SwingDocReader): uses the stored ordinal and links the
     // row to its swingDir; rating/note are restored from the persisted "review" block.

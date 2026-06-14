@@ -46,7 +46,10 @@ QtObject {
             case SessionMode.review:
                 return { panels: ["camera", "charts", "timeline", "carousel"], arrangement: "split" }
             case SessionMode.analyse:
-                return { panels: ["charts", "table", "timeline", "carousel"], arrangement: "split" }
+                // Analyse plays the loaded shot's video (same disk source as Review)
+                // alongside the deeper-analysis panels — camera included so playback
+                // follows the Review↔Analyse toggle.
+                return { panels: ["camera", "charts", "table", "timeline", "carousel"], arrangement: "split" }
             default: // capture
                 return { panels: ["camera", "carousel"], arrangement: "stage" }
         }
