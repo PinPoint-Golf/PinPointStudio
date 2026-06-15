@@ -87,10 +87,21 @@ pp_add_test(phase_segmenter_test phase_segmenter_test.cpp
                                  ${ANALYSIS}/phase_signals.cpp)
 
 # Phase segmenter + metric extractor over a synthetic swing.
+# metric_extractor.cpp carries resource-profiler instrumentation, so it pulls in
+# the profiler core (pp_profiler/pp_os_metrics/PpStatsLog) and a PpLogStream
+# (imu_test_stubs, which also swallows the log without whisper/ggml).
 pp_add_test(pipeline_test      pipeline_test.cpp
                                ${ANALYSIS}/phase_segmenter.cpp
                                ${ANALYSIS}/phase_signals.cpp
-                               ${ANALYSIS}/metric_extractor.cpp)
+                               ${ANALYSIS}/metric_extractor.cpp
+                               ${SRC}/Core/pp_profiler.cpp
+                               ${SRC}/Core/pp_os_metrics.cpp
+                               ${SRC}/Core/PpStatsLog.cpp
+                               imu_test_stubs.cpp)
+target_include_directories(pipeline_test PRIVATE ${SRC}/Core)   # pp_debug.h for the stub
+# imu_test_stubs.cpp pulls event_buffer.h → swing_window.h (std::span) → needs C++20,
+# matching the IMU driver-stack tests that share the stub.
+set_target_properties(pipeline_test PROPERTIES CXX_STANDARD 20)
 
 # Banded weighted-geometric-mean scorer.
 pp_add_test(swing_scorer_test  swing_scorer_test.cpp

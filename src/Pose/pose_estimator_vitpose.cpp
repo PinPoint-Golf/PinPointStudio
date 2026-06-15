@@ -24,8 +24,10 @@
 #include <QDateTime>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFileInfo>
 #include <QLibrary>
 #include "pp_debug.h"
+#include "pp_profiler.h"
 
 #include <onnxruntime_cxx_api.h>
 #include "ort_log.h"
@@ -90,6 +92,8 @@ struct PoseEstimatorViTPose::OrtState {
     std::string outputName;
 
     QElapsedTimer wallTimer;
+
+    int64_t modelBytes = 0;   // [seam] model-file size as an ONNX.Pose arena proxy
 };
 
 // ---------------------------------------------------------------------------
@@ -98,7 +102,11 @@ PoseEstimatorViTPose::PoseEstimatorViTPose(QObject *parent)
     : PoseEstimatorBase(parent)
 {}
 
-PoseEstimatorViTPose::~PoseEstimatorViTPose() = default;
+PoseEstimatorViTPose::~PoseEstimatorViTPose()
+{
+    if (m_ort && m_ort->modelBytes > 0)
+        PP_PROFILE_MEM_SUB("ONNX.Pose", m_ort->modelBytes);
+}
 
 QString PoseEstimatorViTPose::modelPath()
 {
@@ -126,6 +134,8 @@ void PoseEstimatorViTPose::load()
     }
 
     m_ready = false;
+    if (m_ort && m_ort->modelBytes > 0)   // reload: release the prior arena estimate
+        PP_PROFILE_MEM_SUB("ONNX.Pose", m_ort->modelBytes);
     m_ort   = std::make_unique<OrtState>();
     m_ort->opts.SetIntraOpNumThreads(1);
     m_ort->opts.SetGraphOptimizationLevel(ORT_ENABLE_ALL);
@@ -205,6 +215,9 @@ void PoseEstimatorViTPose::load()
     m_ort->inputName  = m_ort->session->GetInputNameAllocated(0, m_ort->allocator).get();
     m_ort->outputName = m_ort->session->GetOutputNameAllocated(0, m_ort->allocator).get();
 
+    m_ort->modelBytes = QFileInfo(path).size();   // [seam] file size as ORT arena proxy
+    PP_PROFILE_MEM_ADD("ONNX.Pose", m_ort->modelBytes);
+
     ppInfo() << "[ViTPose] Loaded — input:" << m_ort->inputName.c_str()
              << "output:" << m_ort->outputName.c_str()
              << "size:" << kInputW << "×" << kInputH;
@@ -235,6 +248,8 @@ void PoseEstimatorViTPose::estimatePose(const cv::Mat &frame)
         return;
     }
 
+    PP_PROFILE_SCOPE("Pose.ViTPose.run");   // full per-frame estimate (preprocess + infer + decode)
+
     const qint64 nowNs = m_ort->wallTimer.nsecsElapsed();
 
     // Preprocess: resize → BGR→RGB → float32 [0,1] → ImageNet normalise → CHW.
@@ -261,6 +276,8 @@ void PoseEstimatorViTPose::estimatePose(const cv::Mat &frame)
     inferTimer.start();
 
     try {
+        PP_PROFILE_SCOPE("Pose.ViTPose.infer");   // ORT Run() + heatmap decode
+
         Ort::MemoryInfo memInfo =
             Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 

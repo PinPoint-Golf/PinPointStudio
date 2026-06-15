@@ -34,6 +34,9 @@
 
 #include <utility>
 
+#include "../Core/pp_profiler.h"
+#include "../Core/pp_os_metrics.h"
+
 namespace pinpoint {
 
 namespace {
@@ -201,6 +204,11 @@ void SwingZipExporter::exportShots(const QVariantList &swingDirs,
 
 SwingZipExporter::ZipResult SwingZipExporter::runZip(const ZipJob &job)
 {
+    // Runs on a transient QtConcurrent pool thread — register for the duration so
+    // it shows a labelled per-thread CPU row, and drop it again on every exit path.
+    pinpoint::osmetrics::registerThread("Export.Zip");
+    struct ThreadUnreg { ~ThreadUnreg() { pinpoint::osmetrics::unregisterThread(); } } threadUnreg_;
+
     // Filename ctor → opens an internal QFile; each member's compressed bytes are
     // written to disk as it is added, so the whole archive is never buffered.
     QZipWriter writer(job.outZipPath);
@@ -232,6 +240,8 @@ SwingZipExporter::ZipResult SwingZipExporter::runZip(const ZipJob &job)
                 ppWarn() << "[SwingZipExporter] skipping unreadable" << fi.absoluteFilePath();
                 continue;   // one missing artifact must not fail the whole zip
             }
+            // QZipWriter buffers one member at a time → peak ≈ largest file.
+            PP_PROFILE_MEM_SCOPE("Export.Staging", int64_t(in.size()));
             writer.addFile(base + name, &in);   // streams; QZipWriter buffers one file
             in.close();
             ++filesAdded;

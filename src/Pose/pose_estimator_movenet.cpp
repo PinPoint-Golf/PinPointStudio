@@ -24,7 +24,10 @@
 #include <QDateTime>
 #include <QElapsedTimer>
 #include "pp_debug.h"
+#include "pp_profiler.h"
+#include "pp_os_metrics.h"
 #include <QFile>
+#include <QFileInfo>
 #include <QLibrary>
 
 #include <onnxruntime_cxx_api.h>
@@ -48,6 +51,8 @@ struct PoseEstimatorMoveNet::OrtState {
 
     // Persistent nanosecond-resolution timer for interval tracking.
     QElapsedTimer wallTimer;
+
+    int64_t modelBytes = 0;   // [seam] model-file size as an ONNX.Pose arena proxy
 };
 
 // ---------------------------------------------------------------------------
@@ -56,7 +61,11 @@ PoseEstimatorMoveNet::PoseEstimatorMoveNet(QObject *parent)
     : PoseEstimatorBase(parent)
 {}
 
-PoseEstimatorMoveNet::~PoseEstimatorMoveNet() = default;
+PoseEstimatorMoveNet::~PoseEstimatorMoveNet()
+{
+    if (m_ort && m_ort->modelBytes > 0)
+        PP_PROFILE_MEM_SUB("ONNX.Pose", m_ort->modelBytes);
+}
 
 QString PoseEstimatorMoveNet::modelPath(ModelVariant v)
 {
@@ -97,6 +106,10 @@ void PoseEstimatorMoveNet::reloadModel(int variant)
 
 void PoseEstimatorMoveNet::load()
 {
+    // load() is the live pose thread's run-loop entry (connected to the thread's
+    // started() signal) — register it with the resource profiler here.
+    pinpoint::osmetrics::registerThread("Pose.Worker");
+
     const QString path = modelPath(m_variant);
     if (!QFile::exists(path)) {
         ppError() << "[MoveNet] Model not found:" << path;
@@ -104,6 +117,8 @@ void PoseEstimatorMoveNet::load()
     }
 
     m_ready = false;
+    if (m_ort && m_ort->modelBytes > 0)   // reload: release the prior arena estimate
+        PP_PROFILE_MEM_SUB("ONNX.Pose", m_ort->modelBytes);
     m_ort   = std::make_unique<OrtState>();
     m_ort->opts.SetIntraOpNumThreads(1);
     m_ort->opts.SetGraphOptimizationLevel(ORT_ENABLE_ALL);
@@ -183,6 +198,9 @@ void PoseEstimatorMoveNet::load()
     // Query actual input/output names from the graph.
     m_ort->inputName  = m_ort->session->GetInputNameAllocated(0, m_ort->allocator).get();
     m_ort->outputName = m_ort->session->GetOutputNameAllocated(0, m_ort->allocator).get();
+
+    m_ort->modelBytes = QFileInfo(path).size();   // [seam] file size as ORT arena proxy
+    PP_PROFILE_MEM_ADD("ONNX.Pose", m_ort->modelBytes);
 
     const char *variantName = (m_variant == ModelVariant::Thunder) ? "Thunder" : "Lightning";
     const int   modelSz    = inputSize(m_variant);

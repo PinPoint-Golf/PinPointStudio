@@ -166,7 +166,8 @@ once per call site by pointer, so the steady-state cost is a deref plus a few re
 **The standard instrumentation set** (seeded in Phase 3) is: scopes `Pose.ViTPose.run` /
 `Pose.ViTPose.infer`, `Analysis.PoseRunner.run`, `Video.preprocess`; categories `ONNX.Pose`,
 `ONNX.LLM`, `Video.FramePool`, `Video.Preproc`, `Export.Staging`, `Analysis.Series`;
-registered threads `Capture`, `IMU`, `Merge`, `Pose`, `Encode`, `UI`. Add to it freely.
+registered threads `UI`, `Camera.Capture`, `IMU.IO`, `Buffer.Merger`, `Pose.Worker`,
+`Export.Zip`. Add to it freely.
 
 ## 5. Reading the Profiler in the Resource Monitor
 

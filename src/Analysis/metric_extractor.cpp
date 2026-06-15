@@ -22,6 +22,7 @@
 #include <algorithm>
 
 #include "wrist_angles.h"
+#include "../Core/pp_profiler.h"
 
 namespace pinpoint::analysis {
 namespace {
@@ -71,6 +72,10 @@ std::vector<MetricSeries> MetricExtractor::extract(const FusedStreams &s,
     const int N = static_cast<int>(grid.size());
     if (N < 2)
         return out;
+
+    // [seam] rough proxy for the derived-series working set during extraction
+    // (≈ up to 8 N-length double series produced below).
+    PP_PROFILE_MEM_SCOPE("Analysis.Series", int64_t(N) * 8 * int64_t(sizeof(double)));
 
     // Lead arm = left unless the golfer is left-handed (provisional sign convention,
     // confirmed on the wizard "check your sensors" page — see wrist_angles.h).

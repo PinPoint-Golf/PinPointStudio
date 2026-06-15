@@ -64,6 +64,7 @@ private:
     bool               m_ready = false;
     std::atomic<bool>  m_stopFlag { false };
     QString            m_gpuBackend;  // "CUDA", "CoreML", or "" (CPU)
+    qint64             m_modelBytes = 0;  // on-disk model size, tracked as ONNX.LLM
 
 #ifdef HAVE_ORTGENAI
     struct OrtGenAiState;

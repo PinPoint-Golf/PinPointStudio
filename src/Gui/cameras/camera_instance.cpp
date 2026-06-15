@@ -57,6 +57,8 @@
 #include <QVideoFrameFormat>
 #include <QVideoSink>
 
+#include "pp_os_metrics.h"
+
 #ifdef Q_OS_MACOS
 #include "macos_permissions.h"
 #endif
@@ -442,6 +444,12 @@ void CameraInstance::setupPipeline()
                     }, Qt::QueuedConnection);
                 }
             }, Qt::QueuedConnection);
+
+    // Register the capture thread with the resource profiler (runs on it: the
+    // receiver m_videoInput lives on m_captureThread, so the slot fires there).
+    connect(m_captureThread, &QThread::started, m_videoInput, []() {
+        pinpoint::osmetrics::registerThread("Camera.Capture");
+    });
 
     m_captureThread->start();
 

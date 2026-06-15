@@ -21,6 +21,7 @@
 
 #include "ble_adapter_pool.h"
 #include "event_buffer.h"
+#include "pp_os_metrics.h"
 
 ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, QObject *parent)
     : QObject(parent)
@@ -34,6 +35,12 @@ ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, 
     // The shared IMU I/O thread — always running (an idle event loop is free);
     // every instance's driver + worker is moved onto it at creation.
     m_ioThread.setObjectName(QStringLiteral("ImuIoThread"));
+    // Register the shared IMU I/O thread with the resource profiler. The
+    // context-free 3-arg connect runs the functor directly in the emitting
+    // (started) context — i.e. on the I/O thread itself.
+    connect(&m_ioThread, &QThread::started, []() {
+        pinpoint::osmetrics::registerThread("IMU.IO");
+    });
     m_ioThread.start();
 
     // Seed the per-session exclusion list from the persisted global enablement

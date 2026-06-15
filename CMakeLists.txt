@@ -1965,6 +1965,9 @@ if(PINPOINT_BUILD_TOOLS)
         src/Pose/pose_estimator_vitpose.cpp
         src/Core/pp_debug.cpp
         src/Core/PpMessageLog.cpp
+        src/Core/PpStatsLog.cpp
+        src/Core/pp_profiler.cpp
+        src/Core/pp_os_metrics.cpp
     )
     target_include_directories(swinglab_run PRIVATE
         src/Buffer src/Analysis src/Export src/Pose src/Core src/IMU

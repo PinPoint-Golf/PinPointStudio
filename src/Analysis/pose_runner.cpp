@@ -30,6 +30,7 @@ using pinpoint::analysis::PoseTrack2D;
 #include "format_descriptor.h"
 #include "swing_window.h"
 #include "../Core/pp_debug.h"
+#include "../Core/pp_profiler.h"
 
 #if defined(HAVE_OPENCV) && defined(HAVE_VITPOSE) && defined(HAVE_ONNXRUNTIME)
 #include <opencv2/core.hpp>
@@ -103,6 +104,8 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
 
     QElapsedTimer wall;
     wall.start();
+
+    PP_PROFILE_SCOPE("Analysis.PoseRunner.run");
 
     // Estimator built on this (worker) thread — same model-path resolution and
     // ORT session options as the live path (load() already pins

@@ -23,6 +23,8 @@
 #include <QImage>
 #include <opencv2/imgproc.hpp>
 
+#include "pp_profiler.h"
+
 VideoPreprocessorOpenCV::VideoPreprocessorOpenCV(QObject *parent)
     : VideoPreprocessorBase(parent)
 {
@@ -47,6 +49,9 @@ void VideoPreprocessorOpenCV::processFrame(const QVideoFrame &frame)
         return;
     }
 
+    // [seam] decoded-frame buffer; the BGR scratch is tracked separately below.
+    PP_PROFILE_MEM_SCOPE("Video.FramePool", img.sizeInBytes());
+
     // Measure inter-frame interval for camera fps.
     if (m_frameTimer.isValid()) {
         const double intervalMs = m_frameTimer.nsecsElapsed() / 1e6;
@@ -66,6 +71,9 @@ void VideoPreprocessorOpenCV::processFrame(const QVideoFrame &frame)
 
     QElapsedTimer timer;
     timer.start();
+
+    PP_PROFILE_SCOPE("Video.preprocess");
+    PP_PROFILE_MEM_SCOPE("Video.Preproc", int64_t(img.height()) * img.width() * 3);
 
     // Build a BGR cv::Mat that owns its own buffer (safe to emit across threads).
     // Spinnaker frames arrive as BGR888; other sources arrive as RGB888.
@@ -106,6 +114,9 @@ void VideoPreprocessorOpenCV::processRawFrame(const RawVideoFrame &rawFrame)
         return;
     }
 
+    // [seam] raw (Bayer/grey) source buffer; BGR scratch tracked separately below.
+    PP_PROFILE_MEM_SCOPE("Video.FramePool", int64_t(rawFrame.data.size()));
+
     if (m_frameTimer.isValid()) {
         const double intervalMs = m_frameTimer.nsecsElapsed() / 1e6;
         m_intervalSum -= m_intervalSamples[m_intervalIndex];
@@ -124,6 +135,9 @@ void VideoPreprocessorOpenCV::processRawFrame(const RawVideoFrame &rawFrame)
 
     QElapsedTimer timer;
     timer.start();
+
+    PP_PROFILE_SCOPE("Video.preprocess");
+    PP_PROFILE_MEM_SCOPE("Video.Preproc", int64_t(rawFrame.height) * rawFrame.width * 3);
 
     const int cvtCode = rawFrame.opencvBayerToBgrCode();
     cv::Mat bgr;

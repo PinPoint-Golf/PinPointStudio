@@ -18,9 +18,14 @@
 #include "LocalLlmEngine.h"
 #include "pp_debug.h"
 
+#include <QDir>
+#include <QDirIterator>
 #include <QFile>
+#include <QFileInfo>
 #include <QLibrary>
 #include <QVariantMap>
+
+#include "pp_profiler.h"
 
 #ifdef HAVE_ORTGENAI
 #  include <ort_genai.h>
@@ -72,7 +77,11 @@ LocalLlmEngine::LocalLlmEngine(QObject *parent)
 #endif
 }
 
-LocalLlmEngine::~LocalLlmEngine() = default;
+LocalLlmEngine::~LocalLlmEngine()
+{
+    if (m_modelBytes > 0)
+        PP_PROFILE_MEM_SUB("ONNX.LLM", m_modelBytes);
+}
 
 bool LocalLlmEngine::loadModel(const QString &modelDir)
 {
@@ -90,6 +99,16 @@ bool LocalLlmEngine::loadModel(const QString &modelDir)
         m_oga->model     = OgaModel::Create(path.c_str());
         m_oga->tokenizer = OgaTokenizer::Create(*m_oga->model);
         m_oga->tokStream = OgaTokenizerStream::Create(*m_oga->tokenizer);
+
+        // [seam] on-disk model size as a proxy for the resident ORT-GenAI arena.
+        qint64 bytes = 0;
+        for (QDirIterator it(modelDir, QDir::Files, QDirIterator::Subdirectories); it.hasNext();) {
+            it.next();
+            bytes += it.fileInfo().size();
+        }
+        m_modelBytes = bytes;
+        PP_PROFILE_MEM_ADD("ONNX.LLM", m_modelBytes);
+
         m_ready = true;
         ppInfo() << "[LocalLLM] Model loaded from" << modelDir
                  << "backend:" << (m_gpuBackend.isEmpty() ? "CPU" : m_gpuBackend);

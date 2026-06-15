@@ -365,6 +365,9 @@ void EventBuffer::mergerLoop() {
 #endif
 
     ThreadPolicy::apply(ThreadRole::Merger);
+    // Resource-profiler thread registration (decoupled — see setThreadRegisterHook).
+    if (m_threadRegisterHook)
+        m_threadRegisterHook("Buffer.Merger");
     logMsg(LogSeverity::Warn, (std::string("[pinpoint] merger thread priority: ")
                                + ThreadPolicy::lastApplyDescription()).c_str());
 

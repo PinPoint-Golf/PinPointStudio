@@ -118,6 +118,11 @@ int main(int argc, char *argv[])
         else
             ppWarn() << msg;
     });
+    // Register the merger thread with the resource profiler (decoupled hook so the
+    // Buffer library and its standalone tests stay free of any Core dependency).
+    eventBuffer.setThreadRegisterHook([](const char *name) {
+        pinpoint::osmetrics::registerThread(name);
+    });
     // Merger runs for app lifetime. With no sources registered yet it
     // auto-pauses; the first registerSource() call auto-resumes it.
     eventBuffer.start();

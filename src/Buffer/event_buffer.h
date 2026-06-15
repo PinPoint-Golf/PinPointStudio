@@ -62,6 +62,15 @@ public:
     // go to stderr. The callback may be invoked from the merger thread.
     void setLogCallback(LogCallback cb);
 
+    // Optional hook invoked once from the merger thread at loop entry, so the app
+    // can register that thread with its resource profiler WITHOUT coupling this
+    // buffer library to it (the standalone Buffer tests never set it). Set before
+    // start(); the argument is a stable label for the thread.
+    void setThreadRegisterHook(std::function<void(const char *)> hook)
+    {
+        m_threadRegisterHook = std::move(hook);
+    }
+
     EventBuffer(const EventBuffer&)            = delete;
     EventBuffer& operator=(const EventBuffer&) = delete;
 
@@ -247,6 +256,7 @@ private:
     std::atomic<bool> swing_window_live_{false};
 
     LogCallback m_logCallback;
+    std::function<void(const char *)> m_threadRegisterHook;
 
     void logMsg(LogSeverity sev, const char *msg) const;
     int findSlotIndex(SourceId id) const noexcept;
