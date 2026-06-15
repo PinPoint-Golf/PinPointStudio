@@ -41,6 +41,8 @@
 #include "athlete_controller.h"
 #include "navigation_controller.h"
 #include "resource_monitor_controller.h"
+#include "profiler_controller.h"
+#include "pp_os_metrics.h"
 #include "clipboard_helper.h"
 #include "llm_controller.h"
 #include "session_controller.h"
@@ -68,6 +70,10 @@ int main(int argc, char *argv[])
     }, nullptr);
 #endif
     QGuiApplication app(argc, argv);
+
+    // Register the GUI thread with the resource profiler so it shows a labelled
+    // per-thread CPU row (the sampler that reads it runs on this thread too).
+    pinpoint::osmetrics::registerThread("UI");
 
     // Must run after the app object exists: loads the Qt Multimedia FFmpeg
     // plugin (which clobbers any earlier av_log callback) and re-installs the
@@ -130,6 +136,14 @@ int main(int argc, char *argv[])
     SessionController       sessionController;
     NavigationController    navController(&athleteController, &sessionController);
     ResourceMonitorController resourceMonitor(&eventBuffer, &cameraManager, &imuManager);
+    // Resource profiler bridge — owns the single 1 s gauge sampler and the 60 s
+    // stats-dump cadence. Per-session profile: reset at session start, dump at end.
+    ProfilerController        profilerController;
+    QObject::connect(&sessionController, &SessionController::runningChanged,
+                     &profilerController, [&sessionController, &profilerController]() {
+        if (sessionController.running()) profilerController.reset();
+        else                             profilerController.dumpToLog();
+    });
     // Registers the shot-marker EventBuffer source; registering a first source
     // auto-resumes the buffer, so restore the user capture intent right after.
     ShotController            shotController(&eventBuffer, &sessionController);
@@ -331,6 +345,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("filmController"),   &filmController);
     engine.rootContext()->setContextProperty(QStringLiteral("bufferController"), &bufferController);
     engine.rootContext()->setContextProperty(QStringLiteral("resourceMonitor"),  &resourceMonitor);
+    engine.rootContext()->setContextProperty(QStringLiteral("profiler"),         &profilerController);
     engine.rootContext()->setContextProperty(QStringLiteral("sessionController"), &sessionController);
     engine.rootContext()->setContextProperty(QStringLiteral("sessionReviewController"), &sessionReviewController);
     engine.rootContext()->setContextProperty(QStringLiteral("shotController"),    &shotController);

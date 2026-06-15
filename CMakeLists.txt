@@ -145,6 +145,7 @@ qt_add_executable(PinPointStudio
     src/Gui/athlete/athlete_controller.h     src/Gui/athlete/athlete_controller.cpp
     src/Gui/shell/navigation_controller.h    src/Gui/shell/navigation_controller.cpp
     src/Gui/monitor/resource_monitor_controller.h src/Gui/monitor/resource_monitor_controller.cpp
+    src/Gui/monitor/profiler_controller.h         src/Gui/monitor/profiler_controller.cpp
     src/Gui/app/clipboard_helper.h
     src/Gui/session/session_controller.h       src/Gui/session/session_controller.cpp
     src/Gui/review/session_review_controller.h src/Gui/review/session_review_controller.cpp
@@ -269,6 +270,8 @@ qt_add_qml_module(PinPointStudio
         src/Gui/monitor/ScreenResourceMonitor.qml
         src/Gui/monitor/RmDeviceCard.qml
         src/Gui/monitor/RmSourceRow.qml
+        src/Gui/monitor/RmProfilerRow.qml
+        src/Gui/monitor/RmStatRow.qml
         src/Gui/monitor/RmTimelineChart.qml
         src/Gui/monitor/RmWarningNotice.qml
         src/Gui/home/ScreenHome.qml
@@ -397,6 +400,8 @@ target_sources(PinPointStudio PRIVATE
     src/Core/pp_settings.h
     src/Core/PpMessageLog.h
     src/Core/PpMessageLog.cpp
+    src/Core/PpStatsLog.h
+    src/Core/PpStatsLog.cpp
     src/Core/pp_profiler.h
     src/Core/pp_profiler.cpp
     src/Core/pp_os_metrics.h

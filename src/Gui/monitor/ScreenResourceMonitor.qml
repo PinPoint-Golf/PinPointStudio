@@ -32,7 +32,10 @@ Item {
         interval: 500
         running: visible
         repeat: true
-        onTriggered: resourceMonitor.refresh()
+        onTriggered: {
+            resourceMonitor.refresh()
+            if (profiler.available) profiler.refresh()
+        }
     }
 
     // ── Left column: Devices ──────────────────────────────────────────────────
@@ -424,6 +427,693 @@ Item {
                 width: parent.width - 40
                 historyData: resourceMonitor.timelineHistory
                 bufferState: resourceMonitor.bufferState
+            }
+
+            // ── Resource profiler ─────────────────────────────────────────────
+            // Hidden when the feature is compiled out (GA builds). All values are
+            // pre-formatted in ProfilerController — pure bindings here.
+            Column {
+                id: profilerSection
+                visible: profiler.available
+                width: parent.width - 40
+                spacing: Theme.sp(12)
+
+                // Header: section label + deep toggle + Reset + Dump-to-log
+                Item {
+                    width: parent.width
+                    height: Theme.sp(28)
+
+                    Text {
+                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                        text: qsTr("PROFILER")
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fontSzMicro
+                        font.letterSpacing: Theme.trackingMicro
+                        color: Theme.colorText3
+                    }
+
+                    Row {
+                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                        spacing: Theme.sp(8)
+
+                        // Deep toggle — greyed when the deep tier isn't compiled in
+                        Rectangle {
+                            id: deepChip
+                            readonly property bool on: profiler.deepEnabled
+                            width: deepLbl.implicitWidth + Theme.sp(16)
+                            height: Theme.sp(18)
+                            radius: Theme.sp(9)
+                            opacity: profiler.deepAvailable ? 1.0 : 0.4
+                            color: on ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.15)
+                                      : "transparent"
+                            border.width: 1
+                            border.color: on ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.4)
+                                             : Theme.colorBorderMid
+
+                            Text {
+                                id: deepLbl
+                                anchors.centerIn: parent
+                                text: qsTr("DEEP")
+                                font.family: Theme.fontData
+                                font.pixelSize: Theme.sp(9)
+                                font.letterSpacing: Theme.trackingMicro
+                                color: parent.on ? Theme.colorAccent : Theme.colorText3
+                            }
+
+                            TapHandler  { enabled: profiler.deepAvailable; onTapped: profiler.deepEnabled = !profiler.deepEnabled }
+                            HoverHandler { cursorShape: profiler.deepAvailable ? Qt.PointingHandCursor : Qt.ArrowCursor }
+                        }
+
+                        // Reset
+                        Rectangle {
+                            width: resetLbl.implicitWidth + Theme.sp(16)
+                            height: Theme.sp(18)
+                            radius: Theme.radius
+                            color: "transparent"
+                            border.width: 1
+                            border.color: Theme.colorBorderMid
+                            Text {
+                                id: resetLbl
+                                anchors.centerIn: parent
+                                text: qsTr("Reset")
+                                font.family: Theme.fontBody
+                                font.pixelSize: Theme.sp(10)
+                                color: Theme.colorText3
+                            }
+                            TapHandler  { onTapped: profiler.reset() }
+                            HoverHandler { cursorShape: Qt.PointingHandCursor }
+                        }
+
+                        // Dump to log
+                        Rectangle {
+                            width: dumpLbl.implicitWidth + Theme.sp(16)
+                            height: Theme.sp(18)
+                            radius: Theme.radius
+                            color: "transparent"
+                            border.width: 1
+                            border.color: Theme.colorBorderMid
+                            Text {
+                                id: dumpLbl
+                                anchors.centerIn: parent
+                                text: qsTr("Dump to log")
+                                font.family: Theme.fontBody
+                                font.pixelSize: Theme.sp(10)
+                                color: Theme.colorText3
+                            }
+                            TapHandler  { onTapped: profiler.dumpToLog() }
+                            HoverHandler { cursorShape: Qt.PointingHandCursor }
+                        }
+                    }
+                }
+
+                // Gauge strip — process CPU% and RSS, each with its peak watermark
+                Rectangle {
+                    width: parent.width
+                    height: Theme.sp(64)
+                    radius: Theme.radiusLg
+                    border.width: 1
+                    border.color: Theme.colorBorderMid
+                    color: Theme.colorSurface
+
+                    Row {
+                        anchors { fill: parent; leftMargin: Theme.sp(16); rightMargin: Theme.sp(16) }
+                        spacing: Theme.sp(28)
+
+                        Column {
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Theme.sp(2)
+                            Text {
+                                text: qsTr("PROCESS CPU")
+                                font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                            }
+                            Text {
+                                text: profiler.cpuPercentStr
+                                font.family: Theme.fontData; font.pixelSize: Theme.fontSzData
+                                font.weight: Font.Light; color: Theme.colorText
+                            }
+                            Text {
+                                text: qsTr("peak %1").arg(profiler.peakCpuPercentStr)
+                                font.family: Theme.fontData; font.pixelSize: Theme.sp(9); color: Theme.colorText3
+                            }
+                        }
+
+                        Rectangle {
+                            width: 1; height: Theme.sp(40)
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: Theme.colorBorderMid
+                        }
+
+                        Column {
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Theme.sp(2)
+                            Text {
+                                text: qsTr("RSS")
+                                font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                            }
+                            Text {
+                                text: profiler.rssBytesStr
+                                font.family: Theme.fontData; font.pixelSize: Theme.fontSzData
+                                font.weight: Font.Light; color: Theme.colorText
+                            }
+                            Text {
+                                text: qsTr("peak %1").arg(profiler.peakRssBytesStr)
+                                font.family: Theme.fontData; font.pixelSize: Theme.sp(9); color: Theme.colorText3
+                            }
+                        }
+                    }
+                }
+
+                // Per-thread CPU
+                Column {
+                    width: parent.width
+                    spacing: 0
+
+                    Text {
+                        text: qsTr("THREADS")
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fontSzMicro
+                        font.letterSpacing: Theme.trackingMicro
+                        color: Theme.colorText3
+                        bottomPadding: 8
+                    }
+
+                    Repeater {
+                        model: profiler.threads
+
+                        Item {
+                            width: parent.width
+                            height: Theme.sp(22)
+
+                            Text {
+                                anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                                text: modelData.name
+                                font.family: Theme.fontData
+                                font.pixelSize: Theme.fontSzDataSm
+                                color: Theme.colorText2
+                            }
+
+                            Rectangle {
+                                anchors { right: thVal.left; rightMargin: Theme.sp(10); verticalCenter: parent.verticalCenter }
+                                width: Theme.sp(90); height: Theme.sp(4); radius: Theme.sp(2)
+                                color: Theme.colorBg3
+                                Rectangle {
+                                    height: Theme.sp(4); radius: Theme.sp(2)
+                                    width: parent.width * Math.min(1.0, modelData.cpuPercent / 100.0)
+                                    color: modelData.cpuPercent > 85 ? Theme.colorWarn : Theme.colorGood
+                                }
+                            }
+
+                            Text {
+                                id: thVal
+                                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                width: Theme.sp(56)
+                                horizontalAlignment: Text.AlignRight
+                                text: modelData.cpuPercentStr
+                                font.family: Theme.fontData
+                                font.pixelSize: Theme.fontSzDataSm
+                                color: Theme.colorText2
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        visible: profiler.threads.length === 0
+                        width: parent.width
+                        height: Theme.sp(28)
+                        color: Theme.colorSurface
+                        Text {
+                            anchors.centerIn: parent
+                            text: qsTr("No threads registered")
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody2
+                            color: Theme.colorText3
+                        }
+                    }
+                }
+
+                // Scopes table — NAME / CALLS / TOTAL / AVG / MAX / CPU
+                Column {
+                    width: parent.width
+                    spacing: 0
+
+                    Text {
+                        text: qsTr("SCOPES")
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fontSzMicro
+                        font.letterSpacing: Theme.trackingMicro
+                        color: Theme.colorText3
+                        bottomPadding: 8
+                    }
+
+                    Rectangle {
+                        width: parent.width
+                        height: Theme.sp(30)
+                        color: Theme.colorBg2
+                        radius: Theme.radiusLg
+                        Rectangle {
+                            anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
+                            height: Theme.radiusLg; color: Theme.colorBg2
+                        }
+                        Rectangle {
+                            anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
+                            height: 1; color: Theme.colorBorderMid
+                        }
+
+                        Row {
+                            anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
+                            property int nameW: parent.width - Theme.sp(10) - Theme.sp(10) - Theme.sp(64) - Theme.sp(76) - Theme.sp(76) - Theme.sp(76) - Theme.sp(76)
+
+                            Item {
+                                width: parent.nameW; height: parent.height
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: qsTr("SCOPE")
+                                    font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                                }
+                            }
+                            Item {
+                                width: Theme.sp(64); height: parent.height
+                                Text {
+                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                    text: qsTr("CALLS")
+                                    font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                                }
+                            }
+                            Item {
+                                width: Theme.sp(76); height: parent.height
+                                Text {
+                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                    text: qsTr("TOTAL")
+                                    font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                                }
+                            }
+                            Item {
+                                width: Theme.sp(76); height: parent.height
+                                Text {
+                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                    text: qsTr("AVG")
+                                    font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                                }
+                            }
+                            Item {
+                                width: Theme.sp(76); height: parent.height
+                                Text {
+                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                    text: qsTr("MAX")
+                                    font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                                }
+                            }
+                            Item {
+                                width: Theme.sp(76); height: parent.height
+                                Text {
+                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                    text: qsTr("CPU")
+                                    font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                    font.letterSpacing: Theme.trackingMicro
+                                    color: profiler.deepEnabled ? Theme.colorText3 : Theme.colorBorderStrong
+                                }
+                            }
+                        }
+                    }
+
+                    Repeater {
+                        model: profiler.scopes
+                        RmProfilerRow {
+                            scopeData: modelData
+                            isAlternate: index % 2 === 1
+                            deepOn: profiler.deepEnabled
+                            width: parent.width
+                        }
+                    }
+
+                    Rectangle {
+                        visible: profiler.scopes.length === 0
+                        width: parent.width
+                        height: Theme.sp(28)
+                        color: Theme.colorSurface
+                        Text {
+                            anchors.centerIn: parent
+                            text: qsTr("No scopes recorded")
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody2
+                            color: Theme.colorText3
+                        }
+                    }
+                }
+
+                // Memory table — CATEGORY / CURRENT / PEAK
+                Column {
+                    width: parent.width
+                    spacing: 0
+
+                    Text {
+                        text: qsTr("MEMORY")
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fontSzMicro
+                        font.letterSpacing: Theme.trackingMicro
+                        color: Theme.colorText3
+                        bottomPadding: 8
+                    }
+
+                    Rectangle {
+                        width: parent.width
+                        height: Theme.sp(30)
+                        color: Theme.colorBg2
+                        radius: Theme.radiusLg
+                        Rectangle {
+                            anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
+                            height: Theme.radiusLg; color: Theme.colorBg2
+                        }
+                        Rectangle {
+                            anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
+                            height: 1; color: Theme.colorBorderMid
+                        }
+
+                        Row {
+                            anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
+
+                            Item {
+                                width: parent.width - Theme.sp(100) - Theme.sp(100); height: parent.height
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: qsTr("CATEGORY")
+                                    font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                                }
+                            }
+                            Item {
+                                width: Theme.sp(100); height: parent.height
+                                Text {
+                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                    text: qsTr("CURRENT")
+                                    font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                                }
+                            }
+                            Item {
+                                width: Theme.sp(100); height: parent.height
+                                Text {
+                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                    text: qsTr("PEAK")
+                                    font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                                }
+                            }
+                        }
+                    }
+
+                    Repeater {
+                        model: profiler.memory
+
+                        Rectangle {
+                            width: parent.width
+                            height: Theme.sp(28)
+                            color: index % 2 === 1 ? Theme.colorBg : Theme.colorSurface
+
+                            Row {
+                                anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
+
+                                Item {
+                                    width: parent.width - Theme.sp(100) - Theme.sp(100); height: parent.height
+                                    Text {
+                                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                                        width: parent.width
+                                        text: modelData.name
+                                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm
+                                        color: Theme.colorText2; elide: Text.ElideRight
+                                    }
+                                }
+                                Item {
+                                    width: Theme.sp(100); height: parent.height
+                                    Text {
+                                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                        text: modelData.currentStr
+                                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm
+                                        color: Theme.colorText2
+                                    }
+                                }
+                                Item {
+                                    width: Theme.sp(100); height: parent.height
+                                    Text {
+                                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                        text: modelData.peakStr
+                                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm
+                                        color: Theme.colorText2
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        visible: profiler.memory.length === 0
+                        width: parent.width
+                        height: Theme.sp(28)
+                        color: Theme.colorSurface
+                        Text {
+                            anchors.centerIn: parent
+                            text: qsTr("No memory categories")
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody2
+                            color: Theme.colorText3
+                        }
+                    }
+                }
+
+                // ── Stats history — the dedicated PpStatsLog ring (own filter) ──
+                Column {
+                    id: statsCol
+                    width: parent.width
+                    spacing: 0
+
+                    // Header: label + category chips + text filter + Clear/Export
+                    Item {
+                        width: parent.width
+                        height: Theme.sp(32)
+
+                        Text {
+                            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                            text: qsTr("STATS HISTORY")
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.fontSzMicro
+                            font.letterSpacing: Theme.trackingMicro
+                            color: Theme.colorText3
+                        }
+
+                        // Clear
+                        Rectangle {
+                            id: statsClearBtn
+                            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                            width: statsClearLbl.implicitWidth + Theme.sp(16)
+                            height: Theme.sp(18)
+                            radius: Theme.radius
+                            color: "transparent"
+                            border.width: 1
+                            border.color: Theme.colorBorderMid
+                            Text {
+                                id: statsClearLbl
+                                anchors.centerIn: parent
+                                text: qsTr("Clear")
+                                font.family: Theme.fontBody
+                                font.pixelSize: Theme.sp(10)
+                                color: Theme.colorText3
+                            }
+                            TapHandler  { onTapped: profiler.clearStats() }
+                            HoverHandler { cursorShape: Qt.PointingHandCursor }
+                        }
+
+                        // Export
+                        Rectangle {
+                            id: statsExportBtn
+                            anchors { right: statsClearBtn.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
+                            width: statsExportLbl.implicitWidth + Theme.sp(16)
+                            height: Theme.sp(18)
+                            radius: Theme.radius
+                            color: "transparent"
+                            border.width: 1
+                            border.color: Theme.colorBorderMid
+                            Text {
+                                id: statsExportLbl
+                                anchors.centerIn: parent
+                                text: qsTr("Export")
+                                font.family: Theme.fontBody
+                                font.pixelSize: Theme.sp(10)
+                                color: Theme.colorText3
+                            }
+                            TapHandler {
+                                onTapped: {
+                                    var path = profiler.exportStats()
+                                    exportToast.copyText = path
+                                    if (path.length > 0) exportToast.show(qsTr("Stats exported to %1").arg(path))
+                                    else                 exportToast.show(qsTr("Stats export failed"))
+                                }
+                            }
+                            HoverHandler { cursorShape: Qt.PointingHandCursor }
+                        }
+
+                        // Category filter chips
+                        Row {
+                            id: statsChips
+                            anchors { right: statsExportBtn.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
+                            spacing: Theme.sp(4)
+
+                            Repeater {
+                                model: profiler.statsCategories
+
+                                Rectangle {
+                                    readonly property bool active: modelData.active
+
+                                    width: statsChipLbl.implicitWidth + Theme.sp(10)
+                                    height: Theme.sp(18)
+                                    radius: Theme.sp(9)
+                                    color: active
+                                        ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.15)
+                                        : "transparent"
+                                    border.width: 1
+                                    border.color: active
+                                        ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.4)
+                                        : Theme.colorBorderMid
+
+                                    Text {
+                                        id: statsChipLbl
+                                        anchors.centerIn: parent
+                                        text: modelData.name
+                                        font.family: Theme.fontData
+                                        font.pixelSize: Theme.sp(9)
+                                        font.letterSpacing: Theme.trackingMicro
+                                        color: parent.active ? Theme.colorAccent : Theme.colorText3
+                                    }
+
+                                    TapHandler  { onTapped: profiler.toggleStatsCategory(modelData.name) }
+                                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                                }
+                            }
+                        }
+
+                        // Text filter
+                        Rectangle {
+                            anchors { right: statsChips.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
+                            width: Theme.sp(120)
+                            height: Theme.sp(18)
+                            radius: Theme.radius
+                            color: Theme.colorBg2
+                            border.width: 1
+                            border.color: statsFilterInput.activeFocus ? Theme.colorAccent : Theme.colorBorderMid
+
+                            Text {
+                                anchors { left: parent.left; leftMargin: Theme.sp(7); verticalCenter: parent.verticalCenter }
+                                visible: statsFilterInput.text.length === 0
+                                text: qsTr("Filter…")
+                                font.family: Theme.fontBody
+                                font.pixelSize: Theme.sp(10)
+                                color: Theme.colorText3
+                            }
+
+                            TextInput {
+                                id: statsFilterInput
+                                anchors { left: parent.left; right: statsClearFilter.left; leftMargin: Theme.sp(7); rightMargin: Theme.sp(4); verticalCenter: parent.verticalCenter }
+                                font.family: Theme.fontBody
+                                font.pixelSize: Theme.sp(10)
+                                color: Theme.colorText
+                                selectionColor: Theme.colorAccentMid
+                                selectedTextColor: Theme.colorText
+                                clip: true
+                                onTextChanged: profiler.setStatsTextFilter(text)
+                            }
+
+                            Text {
+                                id: statsClearFilter
+                                anchors { right: parent.right; rightMargin: Theme.sp(5); verticalCenter: parent.verticalCenter }
+                                visible: statsFilterInput.text.length > 0
+                                text: "×"
+                                font.pixelSize: Theme.sp(12)
+                                color: Theme.colorText3
+                                TapHandler   { onTapped: { statsFilterInput.text = ""; statsFilterInput.forceActiveFocus() } }
+                                HoverHandler { cursorShape: Qt.PointingHandCursor }
+                            }
+                        }
+                    }
+
+                    // Column header
+                    Rectangle {
+                        width: parent.width
+                        height: Theme.sp(24)
+                        color: Theme.colorBg2
+                        radius: Theme.radiusLg
+                        Rectangle {
+                            anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
+                            height: Theme.radiusLg; color: Theme.colorBg2
+                        }
+                        Rectangle {
+                            anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
+                            height: 1; color: Theme.colorBorderMid
+                        }
+
+                        Row {
+                            anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
+
+                            Item {
+                                width: Theme.sp(52); height: parent.height
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: qsTr("TIME")
+                                    font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                                }
+                            }
+                            Item {
+                                width: Theme.sp(60); height: parent.height
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: qsTr("CATEGORY")
+                                    font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                                }
+                            }
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: qsTr("MESSAGE")
+                                font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                            }
+                        }
+                    }
+
+                    // Empty state
+                    Rectangle {
+                        visible: profiler.statsHistory.length === 0
+                        width: parent.width
+                        height: Theme.sp(40)
+                        color: Theme.colorSurface
+                        radius: Theme.radius
+                        border.width: 1
+                        border.color: Theme.colorBorderMid
+                        Text {
+                            anchors.centerIn: parent
+                            text: qsTr("No stats recorded — dumped every 60 s and at session end")
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody2
+                            color: Theme.colorText3
+                        }
+                    }
+
+                    // Rows — newest first
+                    Repeater {
+                        model: profiler.statsHistory
+                        RmStatRow {
+                            statData: modelData
+                            isAlternate: index % 2 === 1
+                            width: parent.width
+                        }
+                    }
+                }
             }
 
             // ── Message log (grows downward; lives at bottom) ─────────────────

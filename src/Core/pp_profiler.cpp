@@ -19,6 +19,9 @@
 #include "pp_profiler.h"
 #include "pp_os_metrics.h"
 #include "pp_debug.h"
+#include "PpStatsLog.h"
+
+#include <QString>
 
 #include <algorithm>
 #include <cstdio>
@@ -154,18 +157,29 @@ std::string fmtPct(double p)
 
 void Profiler::dumpToLog() const
 {
+    // Routes into the dedicated PpStatsLog ring — NOT the main PpMessageLog — so
+    // the periodic/session-end summary never pollutes the application log or its
+    // Export.  The profiler controller surfaces this ring in the monitor's STATS
+    // HISTORY section (own filter + export).  Each line carries a coarse category
+    // so the UI can filter without parsing text.
     const Snapshot snap = snapshot();
     const osmetrics::ProcessSample proc = osmetrics::sampleProcess();
 
-    ppInfo() << "[Profiler] ── baseline summary ──"
-             << "RSS" << fmtBytes(int64_t(proc.rss_bytes)).c_str()
-             << "(peak" << fmtBytes(int64_t(proc.peak_rss_bytes)).c_str() << ")"
-             << "CPU" << fmtPct(proc.cpu_percent).c_str()
-             << "(peak" << fmtPct(proc.peak_cpu_percent).c_str() << ")";
+    PpStatsLog *log = PpStatsLog::instance();
+
+    log->append(QStringLiteral("GAUGE"),
+        QStringLiteral("RSS %1 (peak %2)  CPU %3 (peak %4)")
+            .arg(QString::fromStdString(fmtBytes(int64_t(proc.rss_bytes))),
+                 QString::fromStdString(fmtBytes(int64_t(proc.peak_rss_bytes))),
+                 QString::fromStdString(fmtPct(proc.cpu_percent)),
+                 QString::fromStdString(fmtPct(proc.peak_cpu_percent))));
 
     const auto threads = osmetrics::sampleThreads();
     for (const auto &t : threads) {
-        ppInfo() << "[Profiler] thread" << t.name.c_str() << fmtPct(t.cpu_percent).c_str();
+        log->append(QStringLiteral("THREAD"),
+            QStringLiteral("%1  %2")
+                .arg(QString::fromStdString(t.name),
+                     QString::fromStdString(fmtPct(t.cpu_percent))));
     }
 
     // Top scopes by total wall time.
@@ -181,19 +195,23 @@ void Profiler::dumpToLog() const
     for (size_t i = 0; i < shown; ++i) {
         const ScopeStat *s = top[i];
         const uint64_t avg = s->calls ? s->wall_ns_total / s->calls : 0;
-        ppInfo() << "[Profiler] scope" << s->name.c_str()
-                 << "n=" << qulonglong(s->calls)
-                 << "total=" << fmtMs(s->wall_ns_total).c_str()
-                 << "avg="   << fmtMs(avg).c_str()
-                 << "max="   << fmtMs(s->wall_ns_max).c_str();
+        log->append(QStringLiteral("SCOPE"),
+            QStringLiteral("%1  n=%2 total=%3 avg=%4 max=%5")
+                .arg(QString::fromStdString(s->name))
+                .arg(qulonglong(s->calls))
+                .arg(QString::fromStdString(fmtMs(s->wall_ns_total)),
+                     QString::fromStdString(fmtMs(avg)),
+                     QString::fromStdString(fmtMs(s->wall_ns_max))));
     }
 
     for (const auto &m : snap.memory) {
         if (m.current_bytes == 0 && m.peak_bytes == 0)
             continue;
-        ppInfo() << "[Profiler] mem" << m.name.c_str()
-                 << "cur=" << fmtBytes(m.current_bytes).c_str()
-                 << "peak=" << fmtBytes(m.peak_bytes).c_str();
+        log->append(QStringLiteral("MEM"),
+            QStringLiteral("%1  cur=%2 peak=%3")
+                .arg(QString::fromStdString(m.name),
+                     QString::fromStdString(fmtBytes(m.current_bytes)),
+                     QString::fromStdString(fmtBytes(m.peak_bytes))));
     }
 }
 
