@@ -5,8 +5,8 @@ This document outlines the dependencies and steps required to build PinPoint Stu
 ## General Requirements
 
 - **CMake**: 3.16 or higher (3.24+ recommended — `DOWNLOAD_EXTRACT_TIMESTAMP` support).
-- **Qt 6.11**: Quick, QuickControls2, Quick3D, SerialPort, Bluetooth, Multimedia, Network, WebSockets, Concurrent, ShaderTools, GuiPrivate (for the RHI Bayer-demosaic video item).
-- **C++ Compiler**: C++17/20 capable — GCC 9+, Clang 10+, or MSVC 2022.
+- **Qt 6.11**: Quick, QuickControls2, Quick3D, SerialPort, Bluetooth, Multimedia, Network, WebSockets, Concurrent, ShaderTools, GuiPrivate, CorePrivate (the Private modules back the RHI Bayer-demosaic video item).
+- **C++ Compiler**: C++20 capable (`CMAKE_CXX_STANDARD 20`, required) — GCC 10+, Clang 12+, or MSVC 2022.
 - **OpenCV**: 3.0+ (required on all platforms — pose preprocessing, swing export demosaic).
 - **FFmpeg** (optional): libavcodec/libavformat/libavutil/libswscale dev libraries with **libx264**, located via `pkg-config`. Powers the swing-export H.264/MP4 encoder. Without it the app still builds and runs, but swing video export is disabled. GPL FFmpeg builds are fine — the project is GPLv2+.
 
@@ -58,9 +58,13 @@ sudo apt install libespeak-ng-dev
 - **CUDA**: Install the [CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit). Vulkan is preferred and checked first; CUDA is the fallback when Vulkan headers are absent.
 
 #### ONNX Runtime (TTS / pose estimation)
-- **CUDA 12**: ORT 1.26.0 uses the `linux-x64-gpu` package — requires matching CUDA 12 runtime.
-- **CUDA 13**: Not yet wired up in the Linux CMake path (only Windows); falls back to CPU for ORT.
-- **CPU**: Used automatically when no matching CUDA is found.
+`WITH_CUDA` defaults ON. **Unlike the Windows path, the Linux CMake does not probe the installed CUDA version.** When `WITH_CUDA=ON` it unconditionally downloads `onnxruntime-linux-x64-gpu-1.26.0.tgz`, which is built against **CUDA 12.x + cuDNN 9**. There is no CUDA-13 Linux package selection (the `gpu_cuda13` variant exists only for Windows).
+
+- **CUDA 12.x runtime + cuDNN 9 installed** → the CUDA EP loads and ORT runs on the GPU.
+- **CUDA 13.x installed (no CUDA 12 alongside)** → the CUDA-12-built EP fails to load at runtime because it imports CUDA-12-versioned shared libraries (e.g. `libcublasLt.so.12`, `libcudnn.so.9`), so ORT **silently falls back to CPU**. To get GPU ORT under CUDA 13, install a CUDA 12.x runtime alongside it (the EP only needs the CUDA 12 `.so`s present, not as the default toolkit), or wait for a CUDA-13 Linux package to be wired into CMake.
+- **No CUDA, incompatible CUDA, or `-DWITH_CUDA=OFF`** → ORT runs on CPU. Passing `-DWITH_CUDA=OFF` also avoids the larger GPU download, fetching the CPU-only `onnxruntime-linux-x64-1.26.0.tgz` instead.
+
+> cuDNN 9 is a separate install from the CUDA Toolkit. On Linux install the cuDNN 9 runtime matching CUDA 12 from NVIDIA's apt repository (e.g. `libcudnn9-cuda-12`) or the [cuDNN download page](https://developer.nvidia.com/cudnn).
 
 > **Intel integrated GPU (including Linux on MacBook Pro Intel):**
 > ORT's only GPU execution provider on Linux is CUDA. Intel UHD and Iris integrated graphics cannot use it.
@@ -170,7 +174,7 @@ On first configure, CMake downloads all required models and binaries (see table 
 
 ## Testing
 
-PinPoint Studio has four standalone unit-test suites. **None are part of the application build** — the root `CMakeLists.txt` forces `BUILD_TESTING OFF`, so building the app never compiles them. Each suite is configured against its own source root and is wired into CTest.
+PinPoint Studio has six standalone unit-test suites. **None are part of the application build** — the root `CMakeLists.txt` forces `BUILD_TESTING OFF`, so building the app never compiles them. Each suite is configured against its own source root and is wired into CTest.
 
 ### EventBuffer suite (`src/Buffer/tests`)
 
@@ -193,7 +197,7 @@ cmake -S src/Buffer -B build/buffer-tsan -DPINPOINT_ENABLE_TSAN=ON   # ThreadSan
 
 ### Analysis suite (`src/Analysis/tests`)
 
-Covers the M1 shot-analyzer (phase segmenter, metric extractor, banded swing scorer), wrist-angle math, IMU anatomical calibration, the host-side orientation filters (Madgwick + ESKF), the WT9011DCL / WT901BLE67 driver frame-parse and `eulerToQuat` override, the 3D-viz binding chain, the stored IMU sample frame, and the unified `swing.json` writer/reader round-trip from the Export subsystem (10 tests). Self-contained — own `main()` + `CHECK_NEAR`, no GoogleTest — compiling the handful of needed `.cpp` directly rather than linking an analysis library.
+Covers the shot-analyzer chain (phase signals, phase segmenter, metric extractor, banded swing scorer, full pipeline), wrist-angle math (static + live), IMU anatomical calibration, the host-side orientation filters (Madgwick + ESKF), the WT9011DCL / WT901BLE67 driver frame-parse and `eulerToQuat` override, the 3D-viz binding chain, the stored IMU sample frame, the shaft tracker (math + track assembly), the multi-modal shot arbiter, the per-session summary, the raw-frame decode, and the unified `swing.json` writer/reader round-trip from the Export subsystem (17 tests). Self-contained — own `main()` + `CHECK_NEAR`, no GoogleTest — compiling the handful of needed `.cpp` directly rather than linking an analysis library.
 
 ```bash
 cmake -S src/Analysis/tests -B build/analyzer-tests -DCMAKE_PREFIX_PATH=/path/to/Qt/6.11.x/gcc_64
@@ -221,6 +225,26 @@ Truth-table coverage for the acoustic onset detector (shot detection P2 / P4): a
 cmake -S src/Audio/tests -B build/audio-tests -DCMAKE_PREFIX_PATH=/path/to/Qt/6.11.x/gcc_64
 cmake --build build/audio-tests -j
 ctest --test-dir build/audio-tests --output-on-failure
+```
+
+### Calibrated ball-detection suite (`src/Pose/tests`)
+
+Covers the OpenCV-only calibrated ball-detection core (`ball_model.h`): background/ball model fitting, theta derivation, multi-cue scoring (dim-studio golden case), gain invariance, drift severity; the calibration protocol (consecutive-clean round bookkeeping, failed-round evidence retention, profile save/load round-trip with schema-version rejection); and the `BallDetector` throttle contract (exactly one `ballDetected`/`detectionSkipped` per `detect()` on every path). Requires OpenCV (core/imgproc/features2d) and Qt6 Core/Gui — no app build.
+
+```bash
+cmake -S src/Pose/tests -B build/pose-tests -DCMAKE_PREFIX_PATH=/path/to/Qt/6.11.x/gcc_64
+cmake --build build/pose-tests -j
+ctest --test-dir build/pose-tests --output-on-failure
+```
+
+### Gui model/helper suite (`src/Gui/tests`)
+
+Covers the review-screen model logic: `TimelineLabels` (the train-map 1-D label distribution solver, nearest/active searches, phase names) and `SwingSeriesModel` (playhead → table-row mapping). Self-contained — own `main()` + printf asserts, no GoogleTest — compiling the handful of Gui `.cpp` directly. Requires Qt6 Core/Gui/Qml (Qml because the Gui headers use `QML_ELEMENT`).
+
+```bash
+cmake -S src/Gui/tests -B build/gui-tests -DCMAKE_PREFIX_PATH=/path/to/Qt/6.11.x/gcc_64
+cmake --build build/gui-tests -j
+ctest --test-dir build/gui-tests --output-on-failure
 ```
 
 ---
@@ -272,15 +296,29 @@ ORT on Linux with Intel integrated graphics runs on CPU — see the note above o
 
 | Option | Default | Description |
 |---|---|---|
-| `-DWITH_CUDA=ON/OFF` | ON | Enable CUDA EP for ONNX Runtime (auto-disabled on version mismatch) |
+| `-DWITH_CUDA=ON/OFF` | ON | Enable CUDA EP for ONNX Runtime. Windows: auto-disabled to the CPU package when no CUDA 12/13 toolkit matches. Linux: always fetches the CUDA-12 GPU package (no version probe — see [Linux GPU notes](#4-gpu-acceleration-optional)) |
 | `-DWITH_COREML=ON/OFF` | ON | Enable CoreML EP on macOS ARM64 |
 | `-DWITH_VITPOSE=ON/OFF` | ON | Download and build ViTPose-B wholebody pose estimator (~330 MB model) |
-| `-DWITH_MEDIAPIPE=ON/OFF` | OFF | Build MediaPipe BlazePose estimator (requires Python + `qai-hub-models`) |
+| `-DWITH_MEDIAPIPE=ON/OFF` | OFF | Build MediaPipe BlazePose estimator (requires Python 3.10–3.13 + `qai-hub-models`, `torch`, `onnxscript`) |
 | `-DWITH_ORTGENAI=ON/OFF` | ON | ONNX Runtime GenAI local LLM engine (auto-off on Intel macOS — falls back to Gemini cloud) |
+| `-DPINPOINT_BUILD_TOOLS=ON/OFF` | OFF | Build the SwingLab offline analysis tools (`swinglab_run`) — see below |
 | `-DPINPOINT_DEBUG_LEVEL=<n>` | 1 | Log verbosity (2 = startup info + warnings/errors) |
 | `-DASSEMBLYAI_API_KEY=<key>` | — | Seed AssemblyAI API key into settings at build time |
 | `-DOpenCV_DIR=<path>` | — | Path to OpenCV CMake config (Windows, non-standard location) |
 | `-DFFMPEG_DIR=<path>` | — | FFmpeg root for swing export (Windows, non-standard location; must contain `lib/pkgconfig`) |
+
+---
+
+## SwingLab Offline Tools (Optional)
+
+`swinglab_run` replays a recorded swing directory through the **production** analysis pipeline (same sources, same configs) with JSON-injectable tuning parameters and per-frame trace dumps — used for parameter sweeps and regression triage. It is **not built by default**; enable it with `-DPINPOINT_BUILD_TOOLS=ON`:
+
+```bash
+cmake .. -DCMAKE_PREFIX_PATH=/path/to/qt/6.11.x/compiler_arch -DPINPOINT_BUILD_TOOLS=ON
+cmake --build . --target swinglab_run
+```
+
+It shares the app's heavy dependency set (OpenCV incl. videoio, ONNX Runtime, the ViTPose model), so configure the app at least once first to ensure those are present.
 
 ---
 
