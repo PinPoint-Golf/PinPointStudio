@@ -148,6 +148,10 @@ signals:
 private:
     void reload();    // parse swingDir/swing.json → m_doc + m_all series store
     void rebuild();   // re-resolve region + reconfigure coverage/series models
+    // Coalesce reload(): swingDir/sessionType/imuPlacement are all set in the same
+    // QML binding pass on a swing switch — without this each setter re-parsed the
+    // whole file (≈4× per swing). Defer to the event loop so they collapse to one.
+    void scheduleReload();
 
     // A resolved part spec (identity), independent of whether it is present. For IMU:
     // role >= 1 matches by anatomical role; ref == "*" means all IMUs (generic
@@ -168,6 +172,7 @@ private:
     qint64  m_windowEndUs   = 0;
     qint64  m_spanUs        = 0;
     bool    m_loaded   = false;
+    bool    m_reloadPending = false;   // a coalesced reload() is queued (see scheduleReload)
 
     QJsonObject m_doc;
     QVector<SwingSeries> m_all;        // everything parseable in the file

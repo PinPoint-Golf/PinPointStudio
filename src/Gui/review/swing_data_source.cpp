@@ -196,14 +196,14 @@ void SwingDataSource::setSwingDir(const QString &dir)
     if (m_swingDir == dir) return;
     m_swingDir = dir;
     emit swingDirChanged();
-    reload();
+    scheduleReload();
 }
 
 void SwingDataSource::setSessionType(int v)
 {
     if (m_sessionType == v) return;
     m_sessionType = v;
-    if (!m_swingDir.isEmpty()) reload();   // role resolution depends on session type
+    if (!m_swingDir.isEmpty()) scheduleReload();   // role resolution depends on session type
     else emit viewChanged();
 }
 
@@ -211,8 +211,22 @@ void SwingDataSource::setImuPlacement(const QVariantMap &m)
 {
     if (m_imuPlacement == m) return;
     m_imuPlacement = m;
-    if (!m_swingDir.isEmpty()) reload();   // settings fallback for missing device.role
+    if (!m_swingDir.isEmpty()) scheduleReload();   // settings fallback for missing device.role
     else emit viewChanged();
+}
+
+// Collapse the burst of setSwingDir/setSessionType/setImuPlacement that QML fires
+// in one binding pass on a swing switch into a single deferred reload(). Safe
+// against destruction: the queued call is cancelled if `this` dies first.
+void SwingDataSource::scheduleReload()
+{
+    if (m_reloadPending)
+        return;
+    m_reloadPending = true;
+    QMetaObject::invokeMethod(this, [this] {
+        m_reloadPending = false;
+        reload();
+    }, Qt::QueuedConnection);
 }
 
 void SwingDataSource::setRegion(const QString &r)

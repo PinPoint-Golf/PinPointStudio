@@ -30,6 +30,12 @@ Item {
     property string swingDir: ""
 
     readonly property bool hasSwing: root.swingDir !== "" && src.loaded
+
+    // All session screens live in the StackLayout simultaneously (the session screen
+    // sits at index sessionType+1), so without this gate EVERY swing reload re-parsed
+    // swing.json in all of them — 3 invisible viewers doing ~230 ms of work each on
+    // the UI thread. Only the visible screen feeds its source. Mirrors PpCameraTiles.
+    readonly property bool _screenActive: navController.currentIndex === root.sessionType + 1
     // Left gutter for the control-row labels so REGION / SEGMENT / RESOLVES TO and
     // their wrapped chip rows all hang-indent to the same edge.
     readonly property int ctrlGutter: Theme.sp(82)
@@ -83,7 +89,9 @@ Item {
 
     SwingDataSource {
         id: src
-        swingDir: root.swingDir
+        // Gated: an inactive screen feeds "" so it never parses; it picks up the real
+        // swing the moment its screen becomes visible (one parse, lazily).
+        swingDir: root._screenActive ? root.swingDir : ""
         sessionType: root.sessionType
         imuPlacement: appSettings.imuPlacement   // settings fallback when device.role absent
         // Persisted explicit choice for this session type, else the content-aware

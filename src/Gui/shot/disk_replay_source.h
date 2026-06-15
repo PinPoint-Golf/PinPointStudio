@@ -73,6 +73,7 @@ private:
         QMediaPlayer        *player = nullptr;
         std::vector<int64_t> tUs;            // window-relative frame stamps (µs)
         double               playbackFps = 30.0;
+        QString              file;           // current source filename (for error logs across reuse)
     };
 
     void setPlaying(bool p);

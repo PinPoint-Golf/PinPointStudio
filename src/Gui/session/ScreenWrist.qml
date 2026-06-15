@@ -41,6 +41,11 @@ Item {
     readonly property bool _transitMode: SessionMode.mode === SessionMode.replay
                                          || SessionMode.mode === SessionMode.analyse
     readonly property bool _vertical:    appSettings.timelineOrientation === "vertical"
+    // All session screens stay alive in the StackLayout (this one at index Wrist+1).
+    // The transit timeline's stationLayout recompute is heavy and fires on every
+    // shotReplay span change, so keep it UNLOADED unless this screen is visible —
+    // otherwise an off-screen timeline re-lays-out on every swing reload.
+    readonly property bool _screenActive: navController.currentIndex === SessionController.Wrist + 1
 
     ColumnLayout {
         anchors.fill: parent
@@ -65,7 +70,7 @@ Item {
                 NumberAnimation { duration: Theme.durationNormal; easing.type: Easing.InOutQuad }
             }
             visible: Layout.preferredHeight > 0
-            active: visible
+            active: visible && root._screenActive
             clip: true
             sourceComponent: transitHorizComp
         }
@@ -85,7 +90,7 @@ Item {
                     NumberAnimation { duration: Theme.durationNormal; easing.type: Easing.InOutQuad }
                 }
                 visible: Layout.preferredWidth > 0
-                active: visible
+                active: visible && root._screenActive
                 clip: true
                 sourceComponent: transitVertComp
             }

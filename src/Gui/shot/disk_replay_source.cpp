@@ -94,8 +94,10 @@ bool DiskReplaySource::load(const QString &swingDir, double speed)
     if (root.isEmpty())
         return false;
 
-    // Commit to the new shot: tear down any previous replay.
-    unload();
+    // NOTE: previous replay is NOT torn down here. Destroying/recreating the
+    // QMediaPlayers per reload synchronously joined the old decode threads on the
+    // UI thread (≈2–4 s) and made the new open contend with that teardown. The
+    // players are reused below (just setSource); see the player-pool section.
 
     const qint64 t0 = static_cast<qint64>(
         root[QStringLiteral("clock")].toObject()[QStringLiteral("t0_us")].toDouble());
@@ -143,7 +145,8 @@ bool DiskReplaySource::load(const QString &swingDir, double speed)
 
     if (pending.empty()) {
         ppWarn() << "[ShotReplay] no playable video stream in" << swingDir;
-        return false;   // already unloaded → streamCount() == 0 (controller clears active)
+        unload();        // fully clear → streamCount() == 0 (controller clears active)
+        return false;
     }
 
     m_speed      = std::clamp(speed, 0.1, 1.0);
@@ -230,48 +233,76 @@ bool DiskReplaySource::load(const QString &swingDir, double speed)
                          : (m_startUs + m_endUs) / 2;
     }
 
-    // ── Players + per-stream metadata. Each MP4 is 30 fps; applyPlaybackRates()
-    //    picks a per-stream rate so the whole window replays over the same wall
-    //    time → a fixed capture-time speed independent of capture fps. ─────────
+    // ── Players + per-stream metadata. The player pool is REUSED across reloads:
+    //    each MP4 swap is just setSource() on a persistent QMediaPlayer, which the
+    //    backend handles asynchronously — load() stays near-instant. (Recreating
+    //    players per reload joined the previous decode threads on the UI thread,
+    //    ≈2–4 s, and starved the new open.) Signals are wired once, on creation;
+    //    the per-stream file/fps/frame-table are refreshed every load. Each MP4 is
+    //    30 fps; applyPlaybackRates() picks a per-stream rate so the whole window
+    //    replays over the same wall time → a fixed capture-time speed. ───────────
+    m_streamInfo.clear();
+
+    // Retire pool players beyond the new stream count (rare — only a shot with
+    // fewer cameras). deleteLater keeps the join off this call.
+    while (m_streams.size() > pending.size()) {
+        Stream &dead = m_streams.back();
+        if (dead.player) {
+            dead.player->setVideoSink(nullptr);
+            dead.player->deleteLater();
+        }
+        m_streams.pop_back();
+    }
+
     for (size_t i = 0; i < pending.size(); ++i) {
         const bool faceOn = pending[i].perspective == kPerspectiveFaceOn;
         m_streamInfo.append(ReplayStreamInfo{
             int(i), pending[i].perspective, pending[i].aspect,
             faceOn && hasAnalysis });
 
-        Stream st;
+        if (i >= m_streams.size())
+            m_streams.push_back(Stream{});
+        Stream &st = m_streams[i];
         st.tUs         = std::move(pending[i].tUs);
         st.playbackFps = pending[i].fps;
-        st.player = new QMediaPlayer(this);
+        st.file        = pending[i].file;
+
+        if (!st.player) {
+            st.player = new QMediaPlayer(this);
+            const int idx = int(i);
+
+            // Surface decode failures instead of silently rendering black. The
+            // file is read from the (index-stable) stream slot so the handler
+            // stays correct after a source swap.
+            connect(st.player, &QMediaPlayer::errorOccurred, this,
+                    [this, idx](QMediaPlayer::Error err, const QString &msg) {
+                        if (err == QMediaPlayer::NoError)
+                            return;
+                        const QString f = idx < int(m_streams.size()) ? m_streams[idx].file : QString();
+                        ppWarn() << "[ShotReplay] media error for" << f << ":" << msg;
+                        emit failed(msg.isEmpty() ? f : msg);
+                    });
+
+            if (idx == 0)
+                connect(st.player, &QMediaPlayer::mediaStatusChanged, this,
+                        [this](QMediaPlayer::MediaStatus s) {
+                            if (s == QMediaPlayer::EndOfMedia) {
+                                setPlaying(false);
+                                emit playbackEnded();   // natural end, not a user pause
+                            } else if (s == QMediaPlayer::InvalidMedia) {
+                                ppWarn() << "[ShotReplay] master stream is invalid media — cannot replay";
+                                emit failed(QStringLiteral("unsupported or corrupt video"));
+                                // Defer teardown out of the player's own callback.
+                                QMetaObject::invokeMethod(this, [this] { unload(); emit aborted(); },
+                                                          Qt::QueuedConnection);
+                            }
+                        });
+        }
+
         if (int(i) < m_sinks.size() && m_sinks[int(i)])
             st.player->setVideoSink(m_sinks[int(i)]);
 
-        // Surface decode failures instead of silently rendering black.
-        const QString fileLabel = pending[i].file;
-        connect(st.player, &QMediaPlayer::errorOccurred, this,
-                [this, fileLabel](QMediaPlayer::Error err, const QString &msg) {
-                    if (err == QMediaPlayer::NoError)
-                        return;
-                    ppWarn() << "[ShotReplay] media error for" << fileLabel << ":" << msg;
-                    emit failed(msg.isEmpty() ? fileLabel : msg);
-                });
-
         st.player->setSource(QUrl::fromLocalFile(swingDir + QStringLiteral("/") + pending[i].file));
-        if (i == 0)
-            connect(st.player, &QMediaPlayer::mediaStatusChanged, this,
-                    [this](QMediaPlayer::MediaStatus s) {
-                        if (s == QMediaPlayer::EndOfMedia) {
-                            setPlaying(false);
-                            emit playbackEnded();   // natural end, not a user pause
-                        } else if (s == QMediaPlayer::InvalidMedia) {
-                            ppWarn() << "[ShotReplay] master stream is invalid media — cannot replay";
-                            emit failed(QStringLiteral("unsupported or corrupt video"));
-                            // Defer teardown out of the player's own callback.
-                            QMetaObject::invokeMethod(this, [this] { unload(); emit aborted(); },
-                                                      Qt::QueuedConnection);
-                        }
-                    });
-        m_streams.push_back(std::move(st));
     }
     applyPlaybackRates();
     for (Stream &st : m_streams)

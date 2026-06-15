@@ -31,7 +31,12 @@ Item {
     // persist its collapsible-section state per screen+mode. Set by the host screen.
     property int sessionType: -1
 
-    readonly property var  _detail: shotReplay.analysisDetail
+    // All session screens live in the StackLayout at once (this screen is at index
+    // sessionType+1). Without this gate every shotReplay span/position change re-ran
+    // the chart maths in all 4 — 3 invisible. Only the visible screen's chart reacts.
+    readonly property bool _screenActive: navController.currentIndex === root.sessionType + 1
+
+    readonly property var  _detail: root._screenActive ? shotReplay.analysisDetail : null
     readonly property var  _series: (_detail && _detail.series) ? _detail.series : []
 
     PpMetricChart {
@@ -41,10 +46,12 @@ Item {
         visible:    root._series.length > 0
         seriesList: root._series
         phases:     (root._detail && root._detail.phases) ? root._detail.phases : []
-        startUs:    shotReplay.startUs
-        endUs:      shotReplay.endUs
-        impactUs:   shotReplay.impactUs
-        playheadUs: shotReplay.positionUs
+        // Span/playhead gated too: an inactive screen feeds constants so no binding
+        // churns its axis maths when shotReplay updates for a swing on another screen.
+        startUs:    root._screenActive ? shotReplay.startUs    : 0
+        endUs:      root._screenActive ? shotReplay.endUs      : 0
+        impactUs:   root._screenActive ? shotReplay.impactUs   : 0
+        playheadUs: root._screenActive ? shotReplay.positionUs : 0
         showPlayhead: true
     }
 
