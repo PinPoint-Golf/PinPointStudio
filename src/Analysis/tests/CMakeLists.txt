@@ -35,6 +35,32 @@ endfunction()
 # Pure angle math (header-only).
 pp_add_test(wrist_angles_test  wrist_angles_test.cpp)
 
+# Wrist Motion assessment engine — Phase 0 windowed-median sampler over the input contract,
+# driven by the synthetic golden fixtures (all header-only: wrist_assessment_types/contract.h,
+# wrist_angle_sampler.h, wrist_assessment_fixtures.h).
+pp_add_test(wrist_angle_sampling_test  wrist_angle_sampling_test.cpp)
+
+# Wrist Motion assessment engine — the assess() pipeline: Tier-1 banding + Tier-2 rules + score v2.
+# The engine .cpp pulls in the rule registry, so every engine-linked test compiles both.
+set(WRIST_ENGINE ${ANALYSIS}/reference_bands.cpp
+                 ${ANALYSIS}/wrist_assessment_engine.cpp
+                 ${ANALYSIS}/assessment_rules.cpp)
+
+pp_add_test(reference_bands_test     reference_bands_test.cpp ${ANALYSIS}/reference_bands.cpp)
+pp_add_test(archetype_bands_test     archetype_bands_test.cpp     ${WRIST_ENGINE})
+pp_add_test(tier1_banding_test       tier1_banding_test.cpp       ${WRIST_ENGINE})
+
+# Live adapter: shotReplay.analysisDetail (QVariantMap) → engine contract → assess.
+pp_add_test(wrist_analysis_adapter_test  wrist_analysis_adapter_test.cpp
+                                         ${ANALYSIS}/wrist_analysis_adapter.cpp ${WRIST_ENGINE})
+
+# Tier-2 rule engine — golden fault/strength suite + relationships + confidence + score v2.
+pp_add_test(fault_rules_test         fault_rules_test.cpp         ${WRIST_ENGINE})
+pp_add_test(strengths_test           strengths_test.cpp           ${WRIST_ENGINE})
+pp_add_test(relationship_rules_test  relationship_rules_test.cpp  ${WRIST_ENGINE})
+pp_add_test(confidence_test          confidence_test.cpp          ${WRIST_ENGINE})
+pp_add_test(composite_score_v2_test  composite_score_v2_test.cpp  ${WRIST_ENGINE})
+
 # Anatomical calibration solve (A·q·M) + end-to-end keystone golden (header-only:
 # src/IMU/imu_calibration.h + src/Analysis/wrist_angles.h).
 pp_add_test(imu_calibration_test  imu_calibration_test.cpp)

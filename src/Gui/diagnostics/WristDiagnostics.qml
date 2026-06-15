@@ -1,0 +1,314 @@
+/*
+ * Copyright (c) 2026 Mark Liversedge (liversedge@gmail.com)
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc., 51
+ * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
+// Wrist Motion diagnostics — the read-only Tier-1 surface for a Wrist session's Analyse view
+// (design §8). It is fed the focused swing's real analysis (shotReplay.analysisDetail) and tracks
+// the replay playhead; the selected checkpoint comes from the transit timeline, so there is no
+// in-panel scrubber. Headline score pill, per-DOF trajectory strips (band corridor + player line +
+// RAG markers + consequence poles), the collapsible position×phase grid, and a legend. Findings +
+// "Working well" land in Phase 2. Pure binding.
+
+import QtQuick
+import QtQuick.Layouts
+import PinPointStudio
+
+Item {
+    id: root
+
+    WristDiagnosticsModel {
+        id: dx
+        analysisDetail: shotReplay.analysisDetail
+        playheadUs:     shotReplay.positionUs
+        previousAnalysisDetail:  shotModel.previousAnalysisDetail(shotReplay.swingDir)
+        referenceAnalysisDetail: shotModel.analysisDetailForSwingDir(appSettings.wristReferenceSwingDir)
+    }
+
+    readonly property var _pos: dx.positions[dx.selectedPosition]
+
+    function _ragColor(r) {
+        return r === "green" ? Theme.colorRagGood
+             : r === "amber" ? Theme.colorRagWatch
+             : r === "red"   ? Theme.colorRagFault
+             :                 Theme.colorRagNone
+    }
+
+    // ── Empty state (no analysed wrist swing) — mirrors PpReplayCharts ─────────────────
+    Column {
+        anchors.centerIn: parent
+        spacing: Theme.sp(6)
+        visible: !dx.hasData
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: shotReplay.active ? qsTr("No wrist metrics for this swing")
+                                    : qsTr("Select a swing to review")
+            color: Theme.colorText2; font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
+        }
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: qsTr("Wrist diagnostics show the analysed joint angles vs the expected corridor")
+            color: Theme.colorText3; font.family: Theme.fontData
+            font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingData
+        }
+    }
+
+    Flickable {
+        id: flick
+        anchors.fill: parent
+        visible: dx.hasData
+        contentHeight: body.implicitHeight + Theme.sp(32)
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+
+        ColumnLayout {
+            id: body
+            y: Theme.sp(16)
+            x: Math.max(Theme.sp(16), (flick.width - width) / 2)
+            width: Math.min(flick.width - Theme.sp(32), Theme.sp(980))
+            spacing: Theme.sp(16)
+
+            // Side-by-side strips/dock when there's room; stacked on a narrow panel.
+            readonly property bool _wide: width > Theme.sp(680)
+
+            // ── Header: title + phase context · score pill ──────────────────────────
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.sp(16)
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.sp(1)
+                    Text {
+                        text: qsTr("Wrist motion diagnostics")
+                        font.family: Theme.fontDisplay; font.pixelSize: Theme.fontSzHeading
+                        color: Theme.colorText
+                    }
+                    Row {
+                        spacing: Theme.sp(2)
+                        Text {
+                            text: root._pos ? root._pos.name : ""
+                            font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
+                            font.weight: Font.Medium
+                            color: Theme.colorText2
+                        }
+                        Text {
+                            text: root._pos ? ("· " + root._pos.note) : ""
+                            font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
+                            color: Theme.colorText3
+                        }
+                    }
+                }
+                WristScorePill {
+                    Layout.alignment: Qt.AlignTop
+                    score: dx.score
+                    band: dx.scoreBand
+                    breakdown: dx.scoreBreakdown
+                    breakdownText: dx.scoreBreakdownText
+                }
+            }
+
+            // ── Model (band archetype, Auto-detect) + Compare-to (ghost) controls ───
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.sp(16)
+
+                // Band model — Auto detects from the swing; the rest are manual overrides.
+                RowLayout {
+                    spacing: Theme.sp(6)
+                    Text {
+                        text: qsTr("Model")
+                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                        font.capitalization: Font.AllUppercase; font.letterSpacing: Theme.trackingMicro
+                        color: Theme.colorText3
+                    }
+                    PpSegmentedControl {
+                        Layout.preferredWidth: Theme.sp(230)
+                        options: dx.archetypes                       // [Auto, Neutral, Bowed, Cupped]
+                        selected: dx.archetypes[dx.archetype + 1]    // mode −1..2 → option index 0..3
+                        onActivated: (v) => { dx.archetype = dx.archetypes.indexOf(v) - 1 }
+                    }
+                    Text {
+                        visible: dx.archetype === -1
+                        text: "→ " + dx.effectiveArchetypeName
+                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                        color: Theme.colorText3
+                    }
+                }
+
+                // Compare-to ghost.
+                RowLayout {
+                    spacing: Theme.sp(6)
+                    Text {
+                        text: qsTr("Compare")
+                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                        font.capitalization: Font.AllUppercase; font.letterSpacing: Theme.trackingMicro
+                        color: Theme.colorText3
+                    }
+                    PpSegmentedControl {
+                        Layout.preferredWidth: Theme.sp(210)
+                        options: [qsTr("Address"), qsTr("Previous"), qsTr("Reference")]
+                        selected: dx.compareTo === "previous"  ? qsTr("Previous")
+                                : dx.compareTo === "reference" ? qsTr("Reference") : qsTr("Address")
+                        onActivated: (v) => { dx.compareTo = (v === qsTr("Previous")  ? "previous"
+                                                            : v === qsTr("Reference") ? "reference" : "address") }
+                    }
+                }
+
+                // "Set as reference" toggle — marks the focused swing as the comparison reference.
+                Rectangle {
+                    id: refBtn
+                    readonly property bool isRef: shotReplay.swingDir !== ""
+                                                  && shotReplay.swingDir === appSettings.wristReferenceSwingDir
+                    readonly property bool canSet: shotReplay.swingDir !== ""
+                    implicitWidth: refRow.implicitWidth + Theme.sp(14)
+                    implicitHeight: Theme.sp(28)
+                    radius: Theme.radius
+                    color: isRef ? Theme.colorAccentLight : "transparent"
+                    border.width: Theme.borderWidth
+                    border.color: isRef ? Theme.colorAccentMid : Theme.colorBorderMid
+                    opacity: canSet ? 1.0 : 0.4
+                    Row {
+                        id: refRow
+                        anchors.centerIn: parent
+                        spacing: Theme.sp(3)
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "★"
+                            font.family: Theme.fontSymbol; font.pixelSize: Theme.fontSzLabel
+                            color: refBtn.isRef ? Theme.colorAccent : Theme.colorText3
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: refBtn.isRef ? qsTr("Reference") : qsTr("Set as reference")
+                            font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                            color: refBtn.isRef ? Theme.colorAccent : Theme.colorText2
+                        }
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        enabled: refBtn.canSet
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: appSettings.wristReferenceSwingDir = (refBtn.isRef ? "" : shotReplay.swingDir)
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+            }
+
+            // ── Body: trajectory strips + grid (left) · Working-well + Findings dock (right) ──
+            GridLayout {
+                Layout.fillWidth: true
+                columns: body._wide ? 2 : 1
+                columnSpacing: Theme.sp(16)
+                rowSpacing: Theme.sp(16)
+
+                // Left — strips card + collapsible data grid.
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignTop
+                    spacing: Theme.sp(16)
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: stripsCol.implicitHeight + Theme.sp(24)
+                        color: Theme.colorSurface
+                        border.width: Theme.borderWidth
+                        border.color: Theme.colorBorder
+                        radius: Theme.radiusLg
+
+                        ColumnLayout {
+                            id: stripsCol
+                            anchors { fill: parent; margins: Theme.sp(12) }
+                            spacing: Theme.sp(16)
+                            Repeater {
+                                model: dx.strips
+                                delegate: DofTrajectoryStrip {
+                                    required property var modelData
+                                    Layout.fillWidth: true
+                                    strip: modelData
+                                    positions: dx.positions
+                                    selected: dx.selectedPosition
+                                }
+                            }
+                        }
+                    }
+
+                    PositionAngleGrid {
+                        Layout.fillWidth: true
+                        gridRows: dx.gridRows
+                        positions: dx.positions
+                        selected: dx.selectedPosition
+                    }
+                }
+
+                // Right — "Working well" leads the dock, then "Findings".
+                ColumnLayout {
+                    Layout.fillWidth: !body._wide
+                    Layout.preferredWidth: body._wide ? Theme.sp(330) : 0
+                    Layout.alignment: Qt.AlignTop
+                    spacing: Theme.sp(16)
+
+                    StrengthsList {
+                        Layout.fillWidth: true
+                        visible: dx.strengths.length > 0
+                        strengths: dx.strengths
+                        onSeek: (u) => shotReplay.seekToUs(u)
+                    }
+                    FindingsList {
+                        Layout.fillWidth: true
+                        findings: dx.findings
+                        onSeek: (u) => shotReplay.seekToUs(u)
+                    }
+                }
+            }
+
+            // ── Legend ──────────────────────────────────────────────────────────────
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: Theme.sp(4)
+                spacing: Theme.sp(16)
+                Repeater {
+                    model: [ { g: "●", t: qsTr("in range"), c: "green" },
+                             { g: "▲", t: qsTr("watch"),    c: "amber" },
+                             { g: "■", t: qsTr("fault"),    c: "red"   },
+                             { g: "◆", t: qsTr("no data"),  c: "none"  } ]
+                    delegate: Row {
+                        required property var modelData
+                        spacing: Theme.sp(2)
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: parent.modelData.g
+                            font.family: Theme.fontSymbol; font.pixelSize: Theme.fontSzMicro
+                            color: root._ragColor(parent.modelData.c)
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: parent.modelData.t
+                            font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel
+                            color: Theme.colorText2
+                        }
+                    }
+                }
+                Item { Layout.fillWidth: true }
+                Text {
+                    text: qsTr("Δ from address · degrees")
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                    color: Theme.colorText3
+                }
+            }
+        }
+    }
+}

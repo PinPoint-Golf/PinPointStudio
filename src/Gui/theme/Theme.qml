@@ -210,6 +210,31 @@ QtObject {
         return dark ? "#14f5c451" : "#0f9c6f12"
     }
 
+    // RAG assessment palette (Wrist diagnostics, design §8.4). Semantic aliases onto the existing
+    // status family so a "good/watch/fault/no-data" reading reuses the same hues a user already
+    // associates with success / call-to-action / failure; the view pairs each with a shape + label
+    // so colour is never the only channel.
+    readonly property color colorRagGood:  colorGood
+    readonly property color colorRagWatch: colorAttention
+    readonly property color colorRagFault: colorError
+    readonly property color colorRagNone:  colorText3
+
+    // Band-corridor fills — the shaded "expected" corridor on a trajectory strip. Low-alpha
+    // (~0x24) so the player line and points read on top; greener/amber than the ~0x14 *Light
+    // fills, which are too faint to mark a corridor.
+    readonly property color colorBandGreen: {
+        if (aesthetic === "instrument") return dark ? "#247ebfaa" : "#241e4d3a"
+        if (aesthetic === "editorial")  return dark ? "#248abfa0" : "#241a4a2e"
+        if (aesthetic === "vector")     return dark ? "#242ee8a0" : "#24006b45"
+        return dark ? "#2430c983" : "#240a7a4a"
+    }
+    readonly property color colorBandAmber: {
+        if (aesthetic === "instrument") return dark ? "#24e8b54a" : "#249a6b12"
+        if (aesthetic === "editorial")  return dark ? "#24e6c25a" : "#248a6a14"
+        if (aesthetic === "vector")     return dark ? "#24ffd60a" : "#24b58900"
+        return dark ? "#24f5c451" : "#249c6f12"
+    }
+
     // IMU device-identity colours — A/B/C/D. Fixed hues (red / yellow / green /
     // blue) so a given sensor's colour is consistent across all aesthetics; only
     // brightness shifts for dark vs light backgrounds. Used by the 3D orientation

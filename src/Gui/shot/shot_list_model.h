@@ -104,6 +104,15 @@ public:
     // on-disk folder. Backs the carousel's bulk export-to-zip flow.
     Q_INVOKABLE QVariantList swingDirsForIds(const QVariantList &ids) const;
 
+    // The analysisDetail of the swing captured just BEFORE the one at `swingDir` (the next-older
+    // sibling; rows are newest-first). Empty if `swingDir` isn't in this model or has no predecessor.
+    // Backs the wrist diagnostics "compare to previous" ghost.
+    Q_INVOKABLE QVariantMap previousAnalysisDetail(const QString &swingDir) const;
+
+    // The analysisDetail of the swing at `swingDir` (empty if not in this model). Backs the wrist
+    // diagnostics "compare to reference" ghost.
+    Q_INVOKABLE QVariantMap analysisDetailForSwingDir(const QString &swingDir) const;
+
 signals:
     void activeCountChanged();
 

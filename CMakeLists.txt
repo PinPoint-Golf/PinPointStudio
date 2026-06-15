@@ -217,7 +217,7 @@ target_include_directories(PinPointStudio PRIVATE
     src/Gui
     src/Gui/app src/Gui/shell src/Gui/athlete src/Gui/monitor src/Gui/cameras
     src/Gui/imu src/Gui/viz src/Gui/session src/Gui/shot src/Gui/review
-    src/Gui/media src/Gui/calibration
+    src/Gui/media src/Gui/calibration src/Gui/diagnostics
     src/IMU src/Audio src/Video src/Pose src/STT src/TTS src/LLM src/Secrets src/Core src/Buffer
     "${CMAKE_BINARY_DIR}/generated")
 
@@ -309,6 +309,13 @@ qt_add_qml_module(PinPointStudio
         src/Gui/review/PpDataViewer.qml
         src/Gui/review/PpCoverageStrip.qml
         src/Gui/review/PpPropertiesPanel.qml
+        src/Gui/diagnostics/WristDiagnostics.qml
+        src/Gui/diagnostics/DofTrajectoryStrip.qml
+        src/Gui/diagnostics/PositionAngleGrid.qml
+        src/Gui/diagnostics/WristScorePill.qml
+        src/Gui/diagnostics/FindingCard.qml
+        src/Gui/diagnostics/FindingsList.qml
+        src/Gui/diagnostics/StrengthsList.qml
     SOURCES
         src/Audio/ting_player.h
         src/Audio/ting_player.cpp
@@ -328,6 +335,17 @@ qt_add_qml_module(PinPointStudio
         src/Gui/review/timeline_labels.cpp
         src/Gui/review/chart_metrics.h
         src/Gui/review/chart_metrics.cpp
+        src/Gui/diagnostics/wrist_diagnostics_model.h
+        src/Gui/diagnostics/wrist_diagnostics_model.cpp
+        src/Analysis/reference_bands.h
+        src/Analysis/reference_bands.cpp
+        src/Analysis/wrist_assessment_engine.h
+        src/Analysis/wrist_assessment_engine.cpp
+        src/Analysis/wrist_analysis_adapter.h
+        src/Analysis/wrist_analysis_adapter.cpp
+        src/Analysis/assessment_rule.h
+        src/Analysis/assessment_rules.h
+        src/Analysis/assessment_rules.cpp
 )
 
 qt6_add_shaders(PinPointStudio "debayer_shaders"

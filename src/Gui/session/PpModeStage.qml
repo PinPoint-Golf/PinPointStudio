@@ -16,9 +16,9 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Centre-stage arranger. Shows the enabled stage panels (camera/charts/dashboard/
-// table) packed per ViewLayout.arrangementFor(SessionMode.mode): tabs | split | stage.
-// Screens override cameraDelegate; the rest fall back to PpStagePanel placeholders.
+// Centre-stage arranger. Shows the enabled, host-wired stage panels (camera/charts/
+// dashboard/table) packed per ViewLayout.arrangementFor(SessionMode.mode): tabs | split |
+// stage. A panel a screen does not provide a delegate for is omitted (see `active`).
 //
 // Each arrangement's Loaders are gated on the active `arrangement` (not just the
 // container's visible:), so only the selected layout instantiates its panels —
@@ -46,9 +46,11 @@ Item {
         { key: "dashboard", label: qsTr("Dashboard"), comp: dashboardDelegate },
         { key: "table",     label: qsTr("Table"),     comp: tableDelegate }
     ]
-    // ordered, enabled-only
+    // ordered; enabled AND actually wired by the host screen. A panel a screen does not provide a
+    // delegate for (e.g. "dashboard" on Swing/GRF/Coach, which only ScreenWrist wires today) is
+    // simply omitted rather than shown as an empty placeholder.
     readonly property var active: _defs.filter(function(d) {
-        return ViewLayout.isPanelOn(SessionMode.mode, d.key)
+        return ViewLayout.isPanelOn(SessionMode.mode, d.key) && d.comp !== null
     })
 
     property int tabIndex: 0

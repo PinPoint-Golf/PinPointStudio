@@ -90,15 +90,19 @@ Item {
                 sourceComponent: transitVertComp
             }
 
-            // Centre stage — camera tiles + the Replay charts trace; dashboard/table
-            // fall back to muted PpStagePanel placeholders until their producers land.
-            // Packing (tabs/split/stage) is resolved by ViewLayout on the active mode.
+            // Centre stage — camera tiles + the Replay charts trace + the Data table, plus the
+            // Wrist Motion diagnostics dashboard panel. Packing (tabs/split/stage) and which panels
+            // show is resolved by ViewLayout on the active mode; the View control toggles them.
             PpModeStage {
                 Layout.fillWidth: true; Layout.fillHeight: true
                 cameraDelegate: Component {
                     PpCameraTiles { sessionType: SessionController.Wrist; showHittingArea: false }
                 }
                 chartsDelegate: Component { PpReplayCharts { sessionType: SessionController.Wrist } }
+                // Wrist Motion diagnostics — the Tier-1 assessment surface (Phase 1: demo-fed; the
+                // live data adapter lands in Phase 3). A normal stage panel: place/arrange it via
+                // the View control like camera/charts/table.
+                dashboardDelegate: Component { WristDiagnostics {} }
                 // Table panel — read-only inspector of the focused swing.json. The
                 // focused swing is the active replay, else the carousel's selection.
                 tableDelegate: Component {

@@ -55,6 +55,8 @@ class AppSettings : public QObject
     Q_PROPERTY(double  fontScale    READ fontScale    WRITE setFontScale    NOTIFY fontScaleChanged)
     Q_PROPERTY(QString density      READ density      WRITE setDensity      NOTIFY densityChanged)
     Q_PROPERTY(QString timelineOrientation READ timelineOrientation WRITE setTimelineOrientation NOTIFY timelineOrientationChanged)
+    // The on-disk swing_NNNN dir designated as the wrist diagnostics "compare to reference" swing.
+    Q_PROPERTY(QString wristReferenceSwingDir READ wristReferenceSwingDir WRITE setWristReferenceSwingDir NOTIFY wristReferenceSwingDirChanged)
     Q_PROPERTY(bool    timelineSnapToPhases READ timelineSnapToPhases WRITE setTimelineSnapToPhases NOTIFY timelineSnapToPhasesChanged)
     Q_PROPERTY(bool    reduceMotion READ reduceMotion WRITE setReduceMotion NOTIFY reduceMotionChanged)
     Q_PROPERTY(double  overlayOpacity  READ overlayOpacity  WRITE setOverlayOpacity  NOTIFY overlayOpacityChanged)
@@ -175,6 +177,7 @@ public:
         m_fontScale       = ppSettings().value(QStringLiteral("ui/fontScale"),       -1.0).toDouble();
         m_density         = ppSettings().value(QStringLiteral("ui/density"),         QStringLiteral("default")).toString();
         m_timelineOrientation = ppSettings().value(QStringLiteral("ui/timelineOrientation"), QStringLiteral("horizontal")).toString();
+        m_wristReferenceSwingDir = ppSettings().value(QStringLiteral("ui/wristReferenceSwingDir"), QString()).toString();
         m_timelineSnapToPhases = ppSettings().value(QStringLiteral("ui/timelineSnapToPhases"), false).toBool();
         m_reduceMotion    = ppSettings().value(QStringLiteral("ui/reduceMotion"),    false).toBool();
         m_overlayOpacity  = ppSettings().value(QStringLiteral("ui/overlayOpacity"),  0.7).toDouble();
@@ -271,6 +274,7 @@ public:
     double  fontScale()     const { return m_fontScale; }
     QString density()       const { return m_density; }
     QString timelineOrientation() const { return m_timelineOrientation; }
+    QString wristReferenceSwingDir() const { return m_wristReferenceSwingDir; }
     bool    timelineSnapToPhases() const { return m_timelineSnapToPhases; }
     bool    reduceMotion()  const { return m_reduceMotion; }
     double  overlayOpacity()  const { return m_overlayOpacity; }
@@ -404,6 +408,13 @@ public:
         m_timelineOrientation = v;
         ppSettings().setValue(QStringLiteral("ui/timelineOrientation"), v);
         emit timelineOrientationChanged();
+    }
+    void setWristReferenceSwingDir(const QString &v)
+    {
+        if (m_wristReferenceSwingDir == v) return;
+        m_wristReferenceSwingDir = v;
+        ppSettings().setValue(QStringLiteral("ui/wristReferenceSwingDir"), v);
+        emit wristReferenceSwingDirChanged();
     }
 
     void setTimelineSnapToPhases(bool v)
@@ -960,6 +971,7 @@ signals:
     void fontScaleChanged();
     void densityChanged();
     void timelineOrientationChanged();
+    void wristReferenceSwingDirChanged();
     void timelineSnapToPhasesChanged();
     void reduceMotionChanged();
     void overlayOpacityChanged();
@@ -1036,6 +1048,7 @@ private:
     double  m_fontScale       = -1.0;
     QString m_density         = QStringLiteral("default");
     QString m_timelineOrientation = QStringLiteral("horizontal");
+    QString m_wristReferenceSwingDir;
     bool    m_timelineSnapToPhases = false;
     bool    m_reduceMotion    = false;
     double  m_overlayOpacity  = 0.7;
