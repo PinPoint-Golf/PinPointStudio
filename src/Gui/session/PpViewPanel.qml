@@ -32,10 +32,10 @@ Item {
 
     readonly property var panelMeta: [
         { key: "camera",    label: qsTr("Camera"),    ready: true  },
-        { key: "charts",    label: qsTr("Charts"),    ready: false },
+        { key: "dashboard", label: qsTr("Dashboard"), ready: false },
         { key: "carousel",  label: qsTr("Carousel"),  ready: true  },
         { key: "timeline",  label: qsTr("Timeline"),  ready: true  },
-        { key: "dashboard", label: qsTr("Dashboard"), ready: false },
+        { key: "charts",    label: qsTr("Charts"),    ready: false },
         { key: "table",     label: qsTr("Table"),     ready: false }
     ]
 

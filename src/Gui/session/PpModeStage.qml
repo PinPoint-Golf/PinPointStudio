@@ -42,8 +42,8 @@ Item {
 
     readonly property var _defs: [
         { key: "camera",    label: qsTr("Camera"),    comp: cameraDelegate },
-        { key: "charts",    label: qsTr("Charts"),    comp: chartsDelegate },
         { key: "dashboard", label: qsTr("Dashboard"), comp: dashboardDelegate },
+        { key: "charts",    label: qsTr("Charts"),    comp: chartsDelegate },
         { key: "table",     label: qsTr("Table"),     comp: tableDelegate }
     ]
     // ordered; enabled AND actually wired by the host screen. A panel a screen does not provide a
