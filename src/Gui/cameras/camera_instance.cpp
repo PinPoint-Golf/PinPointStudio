@@ -331,6 +331,12 @@ void CameraInstance::setupPipeline()
         m_poseEstimator = mn;
         m_poseEstimator->moveToThread(m_poseThread);
         connect(m_poseThread, &QThread::started, mn, &PoseEstimatorMoveNet::load);
+        // Symmetric unregister (see Camera.Capture above): context-free so it runs
+        // on the pose thread as it finishes, matching the tid registered in load().
+        // Without it the dead thread's pthread_t dangles and the profiler crashes.
+        connect(m_poseThread, &QThread::finished, []() {
+            pinpoint::osmetrics::unregisterThread();
+        });
         connect(m_poseEstimator, &PoseEstimatorBase::poseStatsUpdated,
                 this, &CameraInstance::onPoseStats, Qt::QueuedConnection);
         connect(m_poseEstimator, &PoseEstimatorBase::poseBackendReady,
@@ -449,6 +455,16 @@ void CameraInstance::setupPipeline()
     // receiver m_videoInput lives on m_captureThread, so the slot fires there).
     connect(m_captureThread, &QThread::started, m_videoInput, []() {
         pinpoint::osmetrics::registerThread("Camera.Capture");
+    });
+    // Symmetric unregister, or the profiler crashes when this camera is torn down:
+    // a dead thread's entry would linger alive=true and the next sampler tick would
+    // call pthread_getcpuclockid() on its now-dangling pthread_t (SIGSEGV). Must be
+    // a context-free 3-arg connect so the functor runs on the capture thread itself
+    // as it finishes (currentTid() must match the registered entry). A receiver here
+    // would be wrong: stopCapture() moves m_videoInput back to the GUI thread before
+    // quit(), so an AutoConnection would fire on the GUI thread and unregister it.
+    connect(m_captureThread, &QThread::finished, []() {
+        pinpoint::osmetrics::unregisterThread();
     });
 
     m_captureThread->start();
