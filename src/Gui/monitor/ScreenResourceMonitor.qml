@@ -25,6 +25,11 @@ Item {
 
     signal navigateToSettings(int panelIndex)
 
+    // Bottom log area is tabbed: 0 = Message Log, 1 = Stats History.
+    // Always reset to Message Log when the screen is (re)entered.
+    property int logTab: 0
+    onVisibleChanged: if (visible) logTab = 0
+
     // Refresh data every 500ms, but only while this screen is visible.
     // StackLayout sets non-active children to visible: false, so running: visible
     // gates the timer automatically without any extra wiring.
@@ -886,239 +891,70 @@ Item {
                         }
                     }
                 }
+            }
 
-                // ── Stats history — the dedicated PpStatsLog ring (own filter) ──
-                Column {
-                    id: statsCol
-                    width: parent.width
-                    spacing: 0
+            // ── Tab bar: Message Log / Stats History ─────────────────────────
+            Row {
+                id: logTabBar
+                width: parent.width - 40
+                spacing: Theme.sp(20)
 
-                    // Header: label + category chips + text filter + Clear/Export
-                    Item {
-                        width: parent.width
-                        height: Theme.sp(32)
+                // Message Log tab
+                Item {
+                    width: msgTabLbl.implicitWidth
+                    height: Theme.sp(24)
 
-                        Text {
-                            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                            text: qsTr("STATS HISTORY")
-                            font.family: Theme.fontBody
-                            font.pixelSize: Theme.fontSzMicro
-                            font.letterSpacing: Theme.trackingMicro
-                            color: Theme.colorText3
-                        }
-
-                        // Clear
-                        Rectangle {
-                            id: statsClearBtn
-                            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                            width: statsClearLbl.implicitWidth + Theme.sp(16)
-                            height: Theme.sp(18)
-                            radius: Theme.radius
-                            color: "transparent"
-                            border.width: 1
-                            border.color: Theme.colorBorderMid
-                            Text {
-                                id: statsClearLbl
-                                anchors.centerIn: parent
-                                text: qsTr("Clear")
-                                font.family: Theme.fontBody
-                                font.pixelSize: Theme.sp(10)
-                                color: Theme.colorText3
-                            }
-                            TapHandler  { onTapped: profiler.clearStats() }
-                            HoverHandler { cursorShape: Qt.PointingHandCursor }
-                        }
-
-                        // Export
-                        Rectangle {
-                            id: statsExportBtn
-                            anchors { right: statsClearBtn.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
-                            width: statsExportLbl.implicitWidth + Theme.sp(16)
-                            height: Theme.sp(18)
-                            radius: Theme.radius
-                            color: "transparent"
-                            border.width: 1
-                            border.color: Theme.colorBorderMid
-                            Text {
-                                id: statsExportLbl
-                                anchors.centerIn: parent
-                                text: qsTr("Export")
-                                font.family: Theme.fontBody
-                                font.pixelSize: Theme.sp(10)
-                                color: Theme.colorText3
-                            }
-                            TapHandler {
-                                onTapped: {
-                                    var path = profiler.exportStats()
-                                    exportToast.copyText = path
-                                    if (path.length > 0) exportToast.show(qsTr("Stats exported to %1").arg(path))
-                                    else                 exportToast.show(qsTr("Stats export failed"))
-                                }
-                            }
-                            HoverHandler { cursorShape: Qt.PointingHandCursor }
-                        }
-
-                        // Category filter chips
-                        Row {
-                            id: statsChips
-                            anchors { right: statsExportBtn.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
-                            spacing: Theme.sp(4)
-
-                            Repeater {
-                                model: profiler.statsCategories
-
-                                Rectangle {
-                                    readonly property bool active: modelData.active
-
-                                    width: statsChipLbl.implicitWidth + Theme.sp(10)
-                                    height: Theme.sp(18)
-                                    radius: Theme.sp(9)
-                                    color: active
-                                        ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.15)
-                                        : "transparent"
-                                    border.width: 1
-                                    border.color: active
-                                        ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.4)
-                                        : Theme.colorBorderMid
-
-                                    Text {
-                                        id: statsChipLbl
-                                        anchors.centerIn: parent
-                                        text: modelData.name
-                                        font.family: Theme.fontData
-                                        font.pixelSize: Theme.sp(9)
-                                        font.letterSpacing: Theme.trackingMicro
-                                        color: parent.active ? Theme.colorAccent : Theme.colorText3
-                                    }
-
-                                    TapHandler  { onTapped: profiler.toggleStatsCategory(modelData.name) }
-                                    HoverHandler { cursorShape: Qt.PointingHandCursor }
-                                }
-                            }
-                        }
-
-                        // Text filter
-                        Rectangle {
-                            anchors { right: statsChips.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
-                            width: Theme.sp(120)
-                            height: Theme.sp(18)
-                            radius: Theme.radius
-                            color: Theme.colorBg2
-                            border.width: 1
-                            border.color: statsFilterInput.activeFocus ? Theme.colorAccent : Theme.colorBorderMid
-
-                            Text {
-                                anchors { left: parent.left; leftMargin: Theme.sp(7); verticalCenter: parent.verticalCenter }
-                                visible: statsFilterInput.text.length === 0
-                                text: qsTr("Filter…")
-                                font.family: Theme.fontBody
-                                font.pixelSize: Theme.sp(10)
-                                color: Theme.colorText3
-                            }
-
-                            TextInput {
-                                id: statsFilterInput
-                                anchors { left: parent.left; right: statsClearFilter.left; leftMargin: Theme.sp(7); rightMargin: Theme.sp(4); verticalCenter: parent.verticalCenter }
-                                font.family: Theme.fontBody
-                                font.pixelSize: Theme.sp(10)
-                                color: Theme.colorText
-                                selectionColor: Theme.colorAccentMid
-                                selectedTextColor: Theme.colorText
-                                clip: true
-                                onTextChanged: profiler.setStatsTextFilter(text)
-                            }
-
-                            Text {
-                                id: statsClearFilter
-                                anchors { right: parent.right; rightMargin: Theme.sp(5); verticalCenter: parent.verticalCenter }
-                                visible: statsFilterInput.text.length > 0
-                                text: "×"
-                                font.pixelSize: Theme.sp(12)
-                                color: Theme.colorText3
-                                TapHandler   { onTapped: { statsFilterInput.text = ""; statsFilterInput.forceActiveFocus() } }
-                                HoverHandler { cursorShape: Qt.PointingHandCursor }
-                            }
-                        }
+                    Text {
+                        id: msgTabLbl
+                        anchors { left: parent.left; top: parent.top; topMargin: Theme.sp(3) }
+                        text: qsTr("MESSAGE LOG")
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fontSzMicro
+                        font.letterSpacing: Theme.trackingMicro
+                        color: root.logTab === 0 ? Theme.colorText2 : Theme.colorText3
                     }
-
-                    // Column header
                     Rectangle {
-                        width: parent.width
-                        height: Theme.sp(24)
-                        color: Theme.colorBg2
-                        radius: Theme.radiusLg
-                        Rectangle {
-                            anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
-                            height: Theme.radiusLg; color: Theme.colorBg2
-                        }
-                        Rectangle {
-                            anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
-                            height: 1; color: Theme.colorBorderMid
-                        }
-
-                        Row {
-                            anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
-
-                            Item {
-                                width: Theme.sp(52); height: parent.height
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: qsTr("TIME")
-                                    font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
-                                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
-                                }
-                            }
-                            Item {
-                                width: Theme.sp(60); height: parent.height
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: qsTr("CATEGORY")
-                                    font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
-                                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
-                                }
-                            }
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: qsTr("MESSAGE")
-                                font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
-                                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
-                            }
-                        }
+                        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                        height: Theme.sp(2)
+                        radius: 1
+                        color: Theme.colorAccent
+                        visible: root.logTab === 0
                     }
+                    TapHandler   { onTapped: root.logTab = 0 }
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                }
 
-                    // Empty state
+                // Stats History tab — only when the profiler is compiled in
+                Item {
+                    visible: profiler.available
+                    width: statsTabLbl.implicitWidth
+                    height: Theme.sp(24)
+
+                    Text {
+                        id: statsTabLbl
+                        anchors { left: parent.left; top: parent.top; topMargin: Theme.sp(3) }
+                        text: qsTr("STATS HISTORY")
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fontSzMicro
+                        font.letterSpacing: Theme.trackingMicro
+                        color: root.logTab === 1 ? Theme.colorText2 : Theme.colorText3
+                    }
                     Rectangle {
-                        visible: profiler.statsHistory.length === 0
-                        width: parent.width
-                        height: Theme.sp(40)
-                        color: Theme.colorSurface
-                        radius: Theme.radius
-                        border.width: 1
-                        border.color: Theme.colorBorderMid
-                        Text {
-                            anchors.centerIn: parent
-                            text: qsTr("No stats recorded — dumped every 60 s and at session end")
-                            font.family: Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody2
-                            color: Theme.colorText3
-                        }
+                        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                        height: Theme.sp(2)
+                        radius: 1
+                        color: Theme.colorAccent
+                        visible: root.logTab === 1
                     }
-
-                    // Rows — newest first
-                    Repeater {
-                        model: profiler.statsHistory
-                        RmStatRow {
-                            statData: modelData
-                            isAlternate: index % 2 === 1
-                            width: parent.width
-                        }
-                    }
+                    TapHandler   { onTapped: root.logTab = 1 }
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
                 }
             }
 
             // ── Message log (grows downward; lives at bottom) ─────────────────
             Column {
                 id: msgLogColumn
+                visible: root.logTab === 0
                 width: parent.width - 40
                 spacing: 0
 
@@ -1159,19 +995,10 @@ Item {
                     width: parent.width
                     height: Theme.sp(32)
 
-                    Text {
-                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                        text: qsTr("MESSAGE LOG")
-                        font.family: Theme.fontBody
-                        font.pixelSize: Theme.fontSzMicro
-                        font.letterSpacing: Theme.trackingMicro
-                        color: Theme.colorText3
-                    }
-
                     // Entry count
                     Text {
                         visible: resourceMonitor.messageLog.length > 0
-                        anchors { left: parent.left; leftMargin: Theme.sp(100); verticalCenter: parent.verticalCenter }
+                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                         text: qsTr("%1 entries").arg(msgLogColumn.filteredLog.length)
                         font.family: Theme.fontData
                         font.pixelSize: Theme.sp(9)
@@ -1475,6 +1302,226 @@ Item {
                             selectionColor: Theme.colorAccentMid
                             selectedTextColor: Theme.colorText
                         }
+                    }
+                }
+            }
+
+            // ── Stats history — the dedicated PpStatsLog ring (own filter) ──
+            Column {
+                id: statsCol
+                visible: root.logTab === 1 && profiler.available
+                width: parent.width - 40
+                spacing: 0
+
+                // Header: category chips + text filter + Clear/Export
+                Item {
+                    width: parent.width
+                    height: Theme.sp(32)
+
+                    // Clear
+                    Rectangle {
+                        id: statsClearBtn
+                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                        width: statsClearLbl.implicitWidth + Theme.sp(16)
+                        height: Theme.sp(18)
+                        radius: Theme.radius
+                        color: "transparent"
+                        border.width: 1
+                        border.color: Theme.colorBorderMid
+                        Text {
+                            id: statsClearLbl
+                            anchors.centerIn: parent
+                            text: qsTr("Clear")
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.sp(10)
+                            color: Theme.colorText3
+                        }
+                        TapHandler  { onTapped: profiler.clearStats() }
+                        HoverHandler { cursorShape: Qt.PointingHandCursor }
+                    }
+
+                    // Export
+                    Rectangle {
+                        id: statsExportBtn
+                        anchors { right: statsClearBtn.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
+                        width: statsExportLbl.implicitWidth + Theme.sp(16)
+                        height: Theme.sp(18)
+                        radius: Theme.radius
+                        color: "transparent"
+                        border.width: 1
+                        border.color: Theme.colorBorderMid
+                        Text {
+                            id: statsExportLbl
+                            anchors.centerIn: parent
+                            text: qsTr("Export")
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.sp(10)
+                            color: Theme.colorText3
+                        }
+                        TapHandler {
+                            onTapped: {
+                                var path = profiler.exportStats()
+                                exportToast.copyText = path
+                                if (path.length > 0) exportToast.show(qsTr("Stats exported to %1").arg(path))
+                                else                 exportToast.show(qsTr("Stats export failed"))
+                            }
+                        }
+                        HoverHandler { cursorShape: Qt.PointingHandCursor }
+                    }
+
+                    // Category filter chips
+                    Row {
+                        id: statsChips
+                        anchors { right: statsExportBtn.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
+                        spacing: Theme.sp(4)
+
+                        Repeater {
+                            model: profiler.statsCategories
+
+                            Rectangle {
+                                readonly property bool active: modelData.active
+
+                                width: statsChipLbl.implicitWidth + Theme.sp(10)
+                                height: Theme.sp(18)
+                                radius: Theme.sp(9)
+                                color: active
+                                    ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.15)
+                                    : "transparent"
+                                border.width: 1
+                                border.color: active
+                                    ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.4)
+                                    : Theme.colorBorderMid
+
+                                Text {
+                                    id: statsChipLbl
+                                    anchors.centerIn: parent
+                                    text: modelData.name
+                                    font.family: Theme.fontData
+                                    font.pixelSize: Theme.sp(9)
+                                    font.letterSpacing: Theme.trackingMicro
+                                    color: parent.active ? Theme.colorAccent : Theme.colorText3
+                                }
+
+                                TapHandler  { onTapped: profiler.toggleStatsCategory(modelData.name) }
+                                HoverHandler { cursorShape: Qt.PointingHandCursor }
+                            }
+                        }
+                    }
+
+                    // Text filter
+                    Rectangle {
+                        anchors { right: statsChips.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
+                        width: Theme.sp(120)
+                        height: Theme.sp(18)
+                        radius: Theme.radius
+                        color: Theme.colorBg2
+                        border.width: 1
+                        border.color: statsFilterInput.activeFocus ? Theme.colorAccent : Theme.colorBorderMid
+
+                        Text {
+                            anchors { left: parent.left; leftMargin: Theme.sp(7); verticalCenter: parent.verticalCenter }
+                            visible: statsFilterInput.text.length === 0
+                            text: qsTr("Filter…")
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.sp(10)
+                            color: Theme.colorText3
+                        }
+
+                        TextInput {
+                            id: statsFilterInput
+                            anchors { left: parent.left; right: statsClearFilter.left; leftMargin: Theme.sp(7); rightMargin: Theme.sp(4); verticalCenter: parent.verticalCenter }
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.sp(10)
+                            color: Theme.colorText
+                            selectionColor: Theme.colorAccentMid
+                            selectedTextColor: Theme.colorText
+                            clip: true
+                            onTextChanged: profiler.setStatsTextFilter(text)
+                        }
+
+                        Text {
+                            id: statsClearFilter
+                            anchors { right: parent.right; rightMargin: Theme.sp(5); verticalCenter: parent.verticalCenter }
+                            visible: statsFilterInput.text.length > 0
+                            text: "×"
+                            font.pixelSize: Theme.sp(12)
+                            color: Theme.colorText3
+                            TapHandler   { onTapped: { statsFilterInput.text = ""; statsFilterInput.forceActiveFocus() } }
+                            HoverHandler { cursorShape: Qt.PointingHandCursor }
+                        }
+                    }
+                }
+
+                // Column header
+                Rectangle {
+                    width: parent.width
+                    height: Theme.sp(24)
+                    color: Theme.colorBg2
+                    radius: Theme.radiusLg
+                    Rectangle {
+                        anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
+                        height: Theme.radiusLg; color: Theme.colorBg2
+                    }
+                    Rectangle {
+                        anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
+                        height: 1; color: Theme.colorBorderMid
+                    }
+
+                    Row {
+                        anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
+
+                        Item {
+                            width: Theme.sp(52); height: parent.height
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: qsTr("TIME")
+                                font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                            }
+                        }
+                        Item {
+                            width: Theme.sp(60); height: parent.height
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: qsTr("CATEGORY")
+                                font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                            }
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: qsTr("MESSAGE")
+                            font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                            font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                        }
+                    }
+                }
+
+                // Empty state
+                Rectangle {
+                    visible: profiler.statsHistory.length === 0
+                    width: parent.width
+                    height: Theme.sp(40)
+                    color: Theme.colorSurface
+                    radius: Theme.radius
+                    border.width: 1
+                    border.color: Theme.colorBorderMid
+                    Text {
+                        anchors.centerIn: parent
+                        text: qsTr("No stats recorded — dumped every 60 s and at session end")
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody2
+                        color: Theme.colorText3
+                    }
+                }
+
+                // Rows — newest first
+                Repeater {
+                    model: profiler.statsHistory
+                    RmStatRow {
+                        statData: modelData
+                        isAlternate: index % 2 === 1
+                        width: parent.width
                     }
                 }
             }
