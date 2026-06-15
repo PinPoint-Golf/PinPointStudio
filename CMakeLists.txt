@@ -381,12 +381,26 @@ endif()
 message(STATUS "PinPointStudio debug level: ${PINPOINT_DEBUG_LEVEL}")
 target_compile_definitions(PinPointStudio PRIVATE PINPOINT_DEBUG_LEVEL=${PINPOINT_DEBUG_LEVEL})
 
+# ── Resource profiler ───────────────────────────────────────────────────────
+# Baseline tier ships in ALL builds (incl. release) through alpha/beta; flip OFF
+# for GA. Deep tier is opt-in at compile time AND gated by a runtime toggle.
+option(PINPOINT_PROFILE_BASELINE "Always-on baseline resource profiling" ON)
+option(PINPOINT_PROFILE          "Deep, toggle-gated resource profiling"  OFF)
+message(STATUS "PinPointStudio profiler: baseline=${PINPOINT_PROFILE_BASELINE} deep=${PINPOINT_PROFILE}")
+target_compile_definitions(PinPointStudio PRIVATE
+    PINPOINT_PROFILE_BASELINE=$<BOOL:${PINPOINT_PROFILE_BASELINE}>
+    PINPOINT_PROFILE=$<BOOL:${PINPOINT_PROFILE}>)
+
 target_sources(PinPointStudio PRIVATE
     src/Core/pp_debug.h
     src/Core/pp_debug.cpp
     src/Core/pp_settings.h
     src/Core/PpMessageLog.h
     src/Core/PpMessageLog.cpp
+    src/Core/pp_profiler.h
+    src/Core/pp_profiler.cpp
+    src/Core/pp_os_metrics.h
+    src/Core/pp_os_metrics.cpp
 )
 
 # ── Application icon ─────────────────────────────────────────────────────────
