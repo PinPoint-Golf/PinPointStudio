@@ -348,7 +348,7 @@ Item {
         DevicePill {
             id: camPill
             glyph: "◫"                 // ◫
-            title: qsTr("Cameras")
+            title: qsTr("CAMERAS")
             active: camPopup.opened
             count: root.camConnected
             valueText: root.camTotal === 0 ? qsTr("none")
@@ -367,7 +367,7 @@ Item {
         DevicePill {
             id: imuPill
             glyph: "⦿"                 // ⦿
-            title: qsTr("IMUs")
+            title: qsTr("IMUS")
             active: imuPopup.opened
             count: root.imuConnected
             valueText: root.imuTotal === 0 ? qsTr("none")
