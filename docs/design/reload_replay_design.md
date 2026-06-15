@@ -162,3 +162,74 @@ reload t_us offset, the `review` round-trip in `swing_doc_test`).
   wiring in `src/Gui/Main.qml` / `VideoPage.qml`.
 - Reload entry: `src/Gui/main.cpp` (startup reload block).
 - Tests: `src/Analysis/tests/CMakeLists.txt` (CTest suite); `src/Export/tests/swing_doc_test.cpp`.
+
+## 8. Reload performance (as-built, 2026-06-15 — commit `cbb63aa`)
+
+Switching the focused swing in Replay took **~5–6 s** to show the new video. Now
+**~1 s warm / ~0.5 s cold**. The work was diagnostic-led: temporary `ppInfo()`
+timers bracketing each phase of `DiskReplaySource::load()` (output lands in the
+in-app `PpMessageLog`, **not** stderr), with the user exporting the log per run.
+
+**Ruled out (red herrings).** JSON parse of `swing.json` is ~20–35 ms (files are
+≤2 MB). Codec decode is trivial (CLI decodes all 746 frames in <200 ms). Forcing
+software decode (`QT_FFMPEG_DECODING_HW_DEVICE_TYPES`) made **no** difference and
+added an `Unknown hw device type` warning — not used.
+
+**Cause 1 — synchronous player teardown (~2–4 s).** `load()` called `unload()`
+up front, destroying both `QMediaPlayer`s and recreating them. Destroying a
+playing FFmpeg-backend player joins its decode threads **on the UI thread**, and
+the new players' open then contended with that teardown.
+*Fix:* reuse a **persistent player pool** — `load()` no longer tears down; it
+reconciles `m_streams` to the new stream count and just calls `setSource()` on the
+existing players (the backend swaps asynchronously). Per-player signals
+(`errorOccurred`, master `mediaStatusChanged`) are connected **once on creation**;
+`Stream` gained a `file` field so the error handler reads the current filename by
+(index-stable) slot instead of a captured stale label. `unload()` still does the
+full teardown for the genuine exit paths (leaving Replay, invalid media,
+no-playable-stream).
+
+**Cause 2 — redundant work across off-screen session screens.** *All* session
+screens (Swing/Wrist/GRF/Coach) live in the `StackLayout` simultaneously (see
+`Main.qml` / `PpCameraTiles` notes), so every screen's replay-reactive panels
+fired on each reload — 3 of 4 invisible:
+- 4× `SwingDataSource::reload()` (~230 ms each) re-parsing the same file.
+- `emit spanChanged()` drove a **synchronous ~0.8–1.9 s** recompute of the transit
+  timeline (`solver.stationLayout`) + metric charts across all four screens, also
+  done twice (once with stale series during `load()`, once on `activeChanged`).
+
+*Fix — gate replay-reactive panels on screen visibility* (the pattern
+`PpCameraTiles` already used): a panel only reacts when its screen is current,
+`navController.currentIndex === sessionType + 1`:
+- `PpDataViewer` — feeds its `SwingDataSource.swingDir` only when active (else `""`).
+- `PpReplayCharts` — gates `analysisDetail`/`startUs`/`endUs`/`impactUs`/`playheadUs`.
+- Transit timeline — host screens (`ScreenWrist`, `ScreenSessionMode`) gate the
+  rail `Loader.active` on `_screenActive`, so off-screen timelines **unload**
+  entirely (no `stationLayout` recompute).
+- `SwingDataSource` also coalesces its three property-driven reloads
+  (`swingDir`/`sessionType`/`imuPlacement`) into one deferred `scheduleReload()`.
+
+> **General rule:** anything that reacts to global `shotReplay.*` state must gate
+> on `navController.currentIndex === sessionType + 1`, or it does the work N× (once
+> per live screen). This bit the data viewer, charts, **and** the timeline.
+
+**Result.** Warm first-frame ~3.2 s → ~1 s; cold ~1.1 s → ~0.5 s (~5–6×).
+
+**Remaining levers (deferred — not yet done).**
+1. The *visible* screen's chart recompute on `spanChanged` is still ~220–490 ms
+   and appears to **grow per reload** (7→219→491 ms observed) — likely
+   accumulation in `PpMetricChart`'s binding chain (Canvas/Repeater). Needs care.
+2. `QMediaPlayer` opening the MP4s is ~0.4–0.9 s. Each clip is **24.8 s of
+   playback** for a ~5 s capture (746 frames baked at 30 fps, replayed at
+   `playbackRate`≈1.24×), so Qt buffers a long file. The clean fix is
+   **export-side**: write the MP4 at capture fps so the file is ~5 s and
+   opens/buffers far faster (helps newly-captured swings only).
+
+### §8 file & symbol quick-reference (current paths)
+- Disk replay: `src/Gui/shot/disk_replay_source.{h,cpp}` (`load()` player pool,
+  `Stream::file`, `unload()`), `src/Gui/shot/shot_replay_controller.{h,cpp}`
+  (`shotReplay`, `activeChanged`/`spanChanged`).
+- Data viewer: `src/Gui/review/swing_data_source.{h,cpp}` (`scheduleReload`),
+  `src/Gui/review/PpDataViewer.qml`, `PpReplayCharts.qml`, `PpMetricChart.qml`,
+  `PpTransitTimeline.qml`.
+- Hosts / gating: `src/Gui/session/ScreenWrist.qml`,
+  `src/Gui/session/ScreenSessionMode.qml` (`_screenActive`, rail `Loader.active`).
