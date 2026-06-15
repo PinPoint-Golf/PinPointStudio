@@ -214,11 +214,27 @@ fired on each reload — 3 of 4 invisible:
 
 **Result.** Warm first-frame ~3.2 s → ~1 s; cold ~1.1 s → ~0.5 s (~5–6×).
 
-**Remaining levers (deferred — not yet done).**
-1. The *visible* screen's chart recompute on `spanChanged` is still ~220–490 ms
-   and appears to **grow per reload** (7→219→491 ms observed) — likely
-   accumulation in `PpMetricChart`'s binding chain (Canvas/Repeater). Needs care.
-2. `QMediaPlayer` opening the MP4s is ~0.4–0.9 s. Each clip is **24.8 s of
+**Remaining levers.**
+1. ~~Chart recompute grows per reload — possible accumulation/leak in
+   `PpMetricChart`.~~ **Investigated 2026-06-15 — NOT a leak; lever closed.**
+   Temporary `[CHARTPERF]` probes (plot-delegate live/ever counters in
+   `PpMetricChart`, a per-reload marker, and a process-wide `ChartMetrics`
+   call-time accumulator) over six consecutive Split-mode reloads showed:
+   - `plotsLive` stays pinned at the displayed swing's series count (3 for a
+     3-series swing) every reload — 14 plots created **and destroyed**, never
+     accumulating. The `Repeater` delegates are torn down correctly.
+   - `plotsEver` rises by exactly `series` per reload (2→5→8→11→14→17) ⇒ a
+     single clean rebuild per reload, no redundant double-rebuild.
+   - `ChartMetrics` maths is flat at **~6 ms** per swing (`cmCalls`≈47), not
+     growing — even dropping on the last reload.
+
+   So the chart's object model and maths are healthy and constant. The earlier
+   "~220–490 ms growing" figure is not reproduced in the maths/object layer; any
+   residual cost is QML render-side (Shape/CurveRenderer triangulation + layout)
+   and **constant** (plot count is stable), and is small next to lever #2. The
+   probes were reverted after the run.
+2. `QMediaPlayer` opening the MP4s is ~0.4–0.9 s — **the real remaining reload
+   lever.** Each clip is **24.8 s of
    playback** for a ~5 s capture (746 frames baked at 30 fps, replayed at
    `playbackRate`≈1.24×), so Qt buffers a long file. The clean fix is
    **export-side**: write the MP4 at capture fps so the file is ~5 s and
