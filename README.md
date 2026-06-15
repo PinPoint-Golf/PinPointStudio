@@ -33,6 +33,7 @@ The `docs/` folder is organised by audience: **user**, **design**, **developer**
 - [Calibrated Ball Detection](docs/design/ball_detection_calibration.md) — Environment-calibrated stationary-ball detection with a user-in-the-loop calibration protocol.
 - [QML Design System](docs/design/pinpoint_qml_design_system.md) — Token system, typography rules, and component patterns; read before writing any QML.
 - [Aesthetic Design Concepts](docs/design/aesthetic/pinpoint-aesthetic-concepts.md) — Three visual design directions (Editorial, Instrument, Studio) across light and dark themes.
+- [Wrist Motion Assessment](docs/design/wristmotion_assessment_design.md) — The wrist diagnostics engine + UI: per-position banding, the fault/strength rule engine, archetype band models, and the composite score.
 
 **Developer guides** — [`docs/developer/`](docs/developer)
 - [EventBuffer Developer Guide](docs/developer/event_buffer_developer_guide.md) — Tutorial covering usage, threading model, and integration patterns.
@@ -54,7 +55,7 @@ The interface uses a left-side navigation rail with an athlete avatar at the top
 |---|---|---|
 | **Home** | Active | Session type selection, device readiness, club selector, and Start button |
 | **Swing** | Active | Multi-camera capture with pose estimation, manual + automatic SHOT triggers, and on-stage shot review |
-| **Wrist** | Active | Live video tile per session-enabled camera (skeleton overlay) + live lead-arm wrist-angle metrics; SHOT runs the wrist analyzer — the first real one — and adds each shot to the session carousel for on-stage review (requires an athlete) |
+| **Wrist** | Active | Live video tile per session-enabled camera (skeleton overlay) + live lead-arm wrist-angle metrics; SHOT runs the wrist analyzer — the first real one — and adds each shot to the session carousel for on-stage review; in **Analyse**, a Wrist Motion diagnostics panel scores each swing position against expected bands and surfaces named faults, strengths, and coaching (requires an athlete) |
 | **GRF** | Placeholder | Ground reaction force analysis (requires an athlete) |
 | **Coach** | Placeholder | AI coaching output (requires an athlete) |
 
@@ -68,7 +69,7 @@ Every session screen (Swing, Wrist, GRF, Coach) runs in one of three **modes**, 
 |---|---|---|
 | **Capture** | Live camera tiles with overlays, the SHOT trigger, and the filling shot carousel — the recording surface | Live camera feeds |
 | **Replay** | A captured swing promoted onto the stage: its video with the analyzed overlay, metric charts, and a scrubbable phase timeline — for watching it back | The swing's disk video, ¼ speed |
-| **Analyse** | The *same* loaded video plus the swing's full metric charts and a read-only data table — for reading the numbers, not just the footage | The same disk video (follows the Replay↔Analyse toggle) |
+| **Analyse** | The *same* loaded video plus the swing's full metric charts and a read-only data table — for reading the numbers, not just the footage (the Wrist screen adds a Motion-diagnostics dashboard panel) | The same disk video (follows the Replay↔Analyse toggle) |
 
 **Mode is the layout/activity axis, and it is *orthogonal* to the data source** — whether the stage shows the *live* session or a *loaded* past one. The two compose:
 

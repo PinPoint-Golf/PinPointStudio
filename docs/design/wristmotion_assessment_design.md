@@ -1,7 +1,9 @@
 # Wrist Motion — Position Assessment Engine & UI
 
-**PinPointStudio · design specification (pre-mockup, pre-implementation)**
-Status: draft for review · Owner: Mark · Target screen: **Wrist Motion → Review mode**
+**PinPointStudio · design specification**
+Status: **implemented** (Phases 0–2 + archetype band model · compare-to ghost · auto-detect) · Owner: Mark · Target screen: **Wrist Motion → Analyse**
+
+> **As-built:** see [`docs/implementation/wrist_assessment.md`](../implementation/wrist_assessment.md) for what actually shipped and where it diverges from this spec — notably the **named-phase nomenclature** (Address…Follow-through via `TimelineLabels`) instead of P1–P8, **no OpenSim IK** (the real angle source is the IMU-quaternion `MetricExtractor`), and **lead-side-only DOFs** today. This document remains the original design intent.
 
 This document specifies two coupled deliverables:
 
@@ -548,3 +550,15 @@ Each phase documents seams as hook comments; simple-first implementations throug
    show it inline? I've defaulted to hidden.
 5. **Band config format.** JSON sidecar vs a dedicated QML/C++ config resource for
    `ConfigReferenceBandProvider`. (Leaning JSON for tunability and version control.)
+
+**Resolved (as built):**
+1. **Trail-side** — graceful degradation: trail-wrist corroboration is a boost-when-present (tested on
+   the synthetic fixtures, neutral on live data); F9–F11 and the full F8 are deferred until trail /
+   shoulder producers exist.
+2. **Composite score** — kept, as a findings-weighted **score v2** with a tap-to-explain breakdown.
+3. **Archetype selection** — **both**: manual Neutral/Bowed/Cupped plus an **Auto** mode (the default)
+   that detects bowed/cupped/neutral from the lead-wrist flex-ext at the Top.
+4. **Grid** — hidden behind a collapsible "Data" drawer.
+5. **Band config** — a **compiled-in C++ declarative table** (`ConfigReferenceBandProvider`), not a
+   JSON sidecar, behind the `IReferenceBandProvider` factory (a JSON / player-baseline / archetype
+   provider can replace it later without touching the engine).
