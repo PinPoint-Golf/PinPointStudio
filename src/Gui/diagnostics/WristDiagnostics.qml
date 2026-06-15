@@ -77,8 +77,8 @@ Item {
         ColumnLayout {
             id: body
             y: Theme.sp(16)
-            x: Math.max(Theme.sp(16), (flick.width - width) / 2)
-            width: Math.min(flick.width - Theme.sp(32), Theme.sp(980))
+            x: Theme.sp(16)
+            width: flick.width - Theme.sp(32)
             spacing: Theme.sp(16)
 
             // Side-by-side strips/dock when there's room; stacked on a narrow panel.
@@ -92,7 +92,7 @@ Item {
                     Layout.fillWidth: true
                     spacing: Theme.sp(1)
                     Text {
-                        text: qsTr("Wrist motion diagnostics")
+                        text: qsTr("Wrist Motion Dashboard")
                         font.family: Theme.fontDisplay; font.pixelSize: Theme.fontSzHeading
                         color: Theme.colorText
                     }
