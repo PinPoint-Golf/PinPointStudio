@@ -19,7 +19,10 @@
 #include "KokoroTTSEngine.h"
 
 #include "pp_debug.h"
+#include "pp_profiler.h"
+#include "pp_gpu_metrics.h"
 #include <QFile>
+#include <QFileInfo>
 #include <QLibrary>
 
 #ifdef HAVE_ONNXRUNTIME
@@ -36,6 +39,9 @@ struct KokoroTTSEngine::OrtState {
     Ort::SessionOptions opts;
     Ort::RunOptions     runOpts;
     std::unique_ptr<Ort::Session> session;
+
+    int64_t modelBytes = 0;   // [seam] model-file size as an ONNX.TTS arena proxy
+    int64_t gpuBytes   = 0;   // measured process-VRAM delta across session create (GPU.TTS)
 };
 #endif
 
@@ -105,7 +111,15 @@ KokoroTTSEngine::KokoroTTSEngine(QObject *parent)
 #endif
 }
 
-KokoroTTSEngine::~KokoroTTSEngine() = default;
+KokoroTTSEngine::~KokoroTTSEngine()
+{
+#ifdef HAVE_ONNXRUNTIME
+    if (m_ort && m_ort->modelBytes > 0)
+        PP_PROFILE_MEM_SUB("ONNX.TTS", m_ort->modelBytes);
+    if (m_ort && m_ort->gpuBytes > 0)
+        PP_PROFILE_MEM_SUB("GPU.TTS", m_ort->gpuBytes);
+#endif
+}
 
 bool KokoroTTSEngine::loadModel(const QString &modelPath,
                                  const QString &voicePath,
@@ -140,6 +154,14 @@ bool KokoroTTSEngine::loadModel(const QString &modelPath,
     std::memcpy(m_styleVec.data(), vdata.constData(), static_cast<size_t>(kExpected));
 
     // ---- ONNX model ---------------------------------------------------------
+    // OrtState is reused across reloads (model hot-swap), so release the prior
+    // accounting before bracketing the new session build.
+    if (m_ort->modelBytes > 0) PP_PROFILE_MEM_SUB("ONNX.TTS", m_ort->modelBytes);
+    if (m_ort->gpuBytes   > 0) PP_PROFILE_MEM_SUB("GPU.TTS",  m_ort->gpuBytes);
+    m_ort->modelBytes = 0;
+    m_ort->gpuBytes   = 0;
+
+    const uint64_t gpuBefore = pinpoint::gpumetrics::processGpuBytes();
     try {
         m_ort->runOpts.UnsetTerminate();
 #ifdef Q_OS_WIN
@@ -153,6 +175,14 @@ bool KokoroTTSEngine::loadModel(const QString &modelPath,
         emit errorOccurred(tr("ONNX load failed: %1")
                                .arg(QString::fromUtf8(e.what())));
         return false;
+    }
+
+    m_ort->modelBytes = QFileInfo(modelPath).size();   // [seam] file size as ORT arena proxy
+    PP_PROFILE_MEM_ADD("ONNX.TTS", m_ort->modelBytes);
+    const uint64_t gpuAfter = pinpoint::gpumetrics::processGpuBytes();
+    if (gpuAfter > gpuBefore) {
+        m_ort->gpuBytes = int64_t(gpuAfter - gpuBefore);
+        PP_PROFILE_MEM_ADD("GPU.TTS", m_ort->gpuBytes);
     }
 
     m_ready = true;

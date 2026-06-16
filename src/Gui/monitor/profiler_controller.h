@@ -59,9 +59,27 @@ class ProfilerController : public QObject
     Q_PROPERTY(QString peakRssBytesStr   READ peakRssBytesStr   NOTIFY gaugeChanged)
     Q_PROPERTY(QVariantList threads      READ threads           NOTIFY gaugeChanged)
 
+    // GPU gauge (cached from the 1 s sampler). gpuAvailable == false means no GPU
+    // memory source resolved on this host (e.g. CPU-only inference) — the panel
+    // shows a muted "none" line. Device used/total are 0 when the backend cannot
+    // report them (DXGI/Metal report process + total only).
+    Q_PROPERTY(bool    gpuAvailable          READ gpuAvailable          NOTIFY gaugeChanged)
+    Q_PROPERTY(bool    gpuUnified            READ gpuUnified            NOTIFY gaugeChanged)
+    Q_PROPERTY(QString gpuBackend            READ gpuBackend            NOTIFY gaugeChanged)
+    Q_PROPERTY(QString gpuDeviceName         READ gpuDeviceName         NOTIFY gaugeChanged)
+    Q_PROPERTY(quint64 gpuProcessBytes       READ gpuProcessBytes       NOTIFY gaugeChanged)
+    Q_PROPERTY(quint64 gpuPeakProcessBytes   READ gpuPeakProcessBytes   NOTIFY gaugeChanged)
+    Q_PROPERTY(quint64 gpuDeviceUsedBytes    READ gpuDeviceUsedBytes    NOTIFY gaugeChanged)
+    Q_PROPERTY(quint64 gpuDeviceTotalBytes   READ gpuDeviceTotalBytes   NOTIFY gaugeChanged)
+    Q_PROPERTY(QString gpuProcessBytesStr    READ gpuProcessBytesStr    NOTIFY gaugeChanged)
+    Q_PROPERTY(QString gpuPeakProcessBytesStr READ gpuPeakProcessBytesStr NOTIFY gaugeChanged)
+    Q_PROPERTY(QString gpuDeviceUsedBytesStr READ gpuDeviceUsedBytesStr NOTIFY gaugeChanged)
+    Q_PROPERTY(QString gpuDeviceTotalBytesStr READ gpuDeviceTotalBytesStr NOTIFY gaugeChanged)
+
     // Scope + memory tables (rebuilt by refresh()).
     Q_PROPERTY(QVariantList scopes       READ scopes            NOTIFY snapshotChanged)
     Q_PROPERTY(QVariantList memory       READ memory            NOTIFY snapshotChanged)
+    Q_PROPERTY(QVariantList gpuMemory    READ gpuMemory         NOTIFY snapshotChanged)
 
     // STATS HISTORY — the dedicated PpStatsLog ring, filtered in C++.
     Q_PROPERTY(QVariantList statsHistory    READ statsHistory    NOTIFY snapshotChanged)
@@ -88,8 +106,22 @@ public:
     QString peakRssBytesStr()   const;
     QVariantList threads()      const { return m_threads; }
 
+    bool    gpuAvailable()        const { return m_gpuAvailable; }
+    bool    gpuUnified()          const { return m_gpuUnified; }
+    QString gpuBackend()          const { return m_gpuBackend; }
+    QString gpuDeviceName()       const { return m_gpuDeviceName; }
+    quint64 gpuProcessBytes()     const { return m_gpuProc; }
+    quint64 gpuPeakProcessBytes() const { return m_gpuPeakProc; }
+    quint64 gpuDeviceUsedBytes()  const { return m_gpuDevUsed; }
+    quint64 gpuDeviceTotalBytes() const { return m_gpuDevTotal; }
+    QString gpuProcessBytesStr()     const;
+    QString gpuPeakProcessBytesStr() const;
+    QString gpuDeviceUsedBytesStr()  const;
+    QString gpuDeviceTotalBytesStr() const;
+
     QVariantList scopes()       const { return m_scopes; }
     QVariantList memory()       const { return m_memory; }
+    QVariantList gpuMemory()    const { return m_gpuMemory; }
 
     QVariantList statsHistory()    const { return m_statsFiltered; }
     QVariantList statsCategories() const;
@@ -126,8 +158,19 @@ private:
     quint64 m_peakRss    = 0;
     QVariantList m_threads;
 
+    // Cached GPU gauge (written only by onSamplerTick).
+    bool    m_gpuAvailable = false;
+    bool    m_gpuUnified   = false;
+    QString m_gpuBackend;
+    QString m_gpuDeviceName;
+    quint64 m_gpuProc      = 0;
+    quint64 m_gpuPeakProc  = 0;
+    quint64 m_gpuDevUsed   = 0;
+    quint64 m_gpuDevTotal  = 0;
+
     QVariantList m_scopes;
     QVariantList m_memory;
+    QVariantList m_gpuMemory;
 
     QVariantList  m_statsAll;       // every retained entry, newest-first
     QVariantList  m_statsFiltered;  // m_statsAll after category + text filter

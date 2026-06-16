@@ -26,6 +26,7 @@
 #include "pp_debug.h"
 #include "pp_profiler.h"
 #include "pp_os_metrics.h"
+#include "pp_gpu_metrics.h"
 #include <QFile>
 #include <QFileInfo>
 #include <QLibrary>
@@ -53,6 +54,7 @@ struct PoseEstimatorMoveNet::OrtState {
     QElapsedTimer wallTimer;
 
     int64_t modelBytes = 0;   // [seam] model-file size as an ONNX.Pose arena proxy
+    int64_t gpuBytes   = 0;   // measured process-VRAM delta across session create (GPU.Pose)
 };
 
 // ---------------------------------------------------------------------------
@@ -65,6 +67,8 @@ PoseEstimatorMoveNet::~PoseEstimatorMoveNet()
 {
     if (m_ort && m_ort->modelBytes > 0)
         PP_PROFILE_MEM_SUB("ONNX.Pose", m_ort->modelBytes);
+    if (m_ort && m_ort->gpuBytes > 0)
+        PP_PROFILE_MEM_SUB("GPU.Pose", m_ort->gpuBytes);
 }
 
 QString PoseEstimatorMoveNet::modelPath(ModelVariant v)
@@ -119,6 +123,8 @@ void PoseEstimatorMoveNet::load()
     m_ready = false;
     if (m_ort && m_ort->modelBytes > 0)   // reload: release the prior arena estimate
         PP_PROFILE_MEM_SUB("ONNX.Pose", m_ort->modelBytes);
+    if (m_ort && m_ort->gpuBytes > 0)
+        PP_PROFILE_MEM_SUB("GPU.Pose", m_ort->gpuBytes);
     m_ort   = std::make_unique<OrtState>();
     m_ort->opts.SetIntraOpNumThreads(1);
     m_ort->opts.SetGraphOptimizationLevel(ORT_ENABLE_ALL);
@@ -181,6 +187,10 @@ void PoseEstimatorMoveNet::load()
     else
         ppInfo() << "[MoveNet] Using" << epLabel << "execution provider";
 
+    // Bracket the session build with a process-VRAM sample so we can attribute the
+    // weights+arena (and, for the first GPU model loaded, the one-time CUDA/cuDNN
+    // context) to GPU.Pose. Returns 0 on CPU/no-GPU hosts → no GPU.Pose category.
+    const uint64_t gpuBefore = pinpoint::gpumetrics::processGpuBytes();
     try {
 #ifdef Q_OS_WIN
         m_ort->session = std::make_unique<Ort::Session>(
@@ -201,6 +211,12 @@ void PoseEstimatorMoveNet::load()
 
     m_ort->modelBytes = QFileInfo(path).size();   // [seam] file size as ORT arena proxy
     PP_PROFILE_MEM_ADD("ONNX.Pose", m_ort->modelBytes);
+
+    const uint64_t gpuAfter = pinpoint::gpumetrics::processGpuBytes();
+    if (gpuAfter > gpuBefore) {
+        m_ort->gpuBytes = int64_t(gpuAfter - gpuBefore);
+        PP_PROFILE_MEM_ADD("GPU.Pose", m_ort->gpuBytes);
+    }
 
     const char *variantName = (m_variant == ModelVariant::Thunder) ? "Thunder" : "Lightning";
     const int   modelSz    = inputSize(m_variant);

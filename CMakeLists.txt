@@ -406,6 +406,8 @@ target_sources(PinPointStudio PRIVATE
     src/Core/pp_profiler.cpp
     src/Core/pp_os_metrics.h
     src/Core/pp_os_metrics.cpp
+    src/Core/pp_gpu_metrics.h
+    src/Core/pp_gpu_metrics.cpp
 )
 
 # ── Application icon ─────────────────────────────────────────────────────────
@@ -1669,7 +1671,8 @@ endif()
 
 if(WIN32)
     # cfgmgr32: device tree traversal to extract USB serial numbers for Qt Multimedia cameras.
-    target_link_libraries(PinPointStudio PRIVATE cfgmgr32)
+    # dxgi:    per-process / per-adapter VRAM query for pp_gpu_metrics (IDXGIAdapter3).
+    target_link_libraries(PinPointStudio PRIVATE cfgmgr32 dxgi)
 endif()
 
 # ── OpenCV ───────────────────────────────────────────────────────────────────
@@ -1856,7 +1859,11 @@ if(APPLE)
         src/STT/STTBackendApple.mm
         src/Video/VideoInputApple.h
         src/Video/VideoInputApple.mm
+        src/Core/pp_gpu_metrics_mac.mm
     )
+    # ARC manages the MTLDevice returned by MTLCreateSystemDefaultDevice().
+    set_source_files_properties(src/Core/pp_gpu_metrics_mac.mm
+        PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     add_custom_command(TARGET PinPointStudio POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
             "${CMAKE_CURRENT_BINARY_DIR}/Info.plist"
@@ -1897,6 +1904,8 @@ if(APPLE)
         "-framework CoreVideo"
         "-framework Accelerate"
         "-framework Speech"
+        "-framework Metal"        # pp_gpu_metrics_mac.mm — MTLDevice memory query
+        "-framework Foundation"
     )
 endif()
 

@@ -19,6 +19,7 @@
 #include "profiler_controller.h"
 
 #include "pp_os_metrics.h"
+#include "pp_gpu_metrics.h"
 #include "pp_debug.h"
 #include "PpStatsLog.h"
 
@@ -80,6 +81,15 @@ ProfilerController::ProfilerController(QObject *parent)
     m_sampler.setInterval(kSamplerIntervalMs);
     connect(&m_sampler, &QTimer::timeout, this, &ProfilerController::onSamplerTick);
     if (available()) {
+        // Resolve the GPU backend once and log it (NVML / DXGI / Metal, or none).
+        if (pinpoint::gpumetrics::init()) {
+            const auto g = pinpoint::gpumetrics::sample();
+            ppInfo() << "[Profiler] GPU memory source:" << QString::fromStdString(g.backend)
+                     << "—" << QString::fromStdString(g.deviceName)
+                     << (g.unified ? "(unified memory)" : "");
+        } else {
+            ppInfo() << "[Profiler] no GPU memory source — CPU inference / no supported GPU";
+        }
         onSamplerTick();    // seed the OS baseline now (reports 0%); real % from next tick
         m_sampler.start();
     }
@@ -102,6 +112,11 @@ QString ProfilerController::cpuPercentStr()     const { return fmtPct(m_cpuPct);
 QString ProfilerController::peakCpuPercentStr() const { return fmtPct(m_peakCpuPct); }
 QString ProfilerController::rssBytesStr()       const { return fmtBytes(qint64(m_rss)); }
 QString ProfilerController::peakRssBytesStr()   const { return fmtBytes(qint64(m_peakRss)); }
+
+QString ProfilerController::gpuProcessBytesStr()     const { return fmtBytes(qint64(m_gpuProc)); }
+QString ProfilerController::gpuPeakProcessBytesStr() const { return fmtBytes(qint64(m_gpuPeakProc)); }
+QString ProfilerController::gpuDeviceUsedBytesStr()  const { return fmtBytes(qint64(m_gpuDevUsed)); }
+QString ProfilerController::gpuDeviceTotalBytesStr() const { return fmtBytes(qint64(m_gpuDevTotal)); }
 
 QVariantList ProfilerController::statsCategories() const
 {
@@ -134,6 +149,18 @@ void ProfilerController::onSamplerTick()
         m[QStringLiteral("cpuPercentStr")] = fmtPct(t.cpu_percent);
         m_threads.append(m);
     }
+
+    // GPU gauge — one driver query per tick (no-op/zero when unavailable).
+    const pinpoint::gpumetrics::GpuSample gpu = pinpoint::gpumetrics::sample();
+    m_gpuAvailable  = gpu.available;
+    m_gpuUnified    = gpu.unified;
+    m_gpuBackend    = QString::fromStdString(gpu.backend);
+    m_gpuDeviceName = QString::fromStdString(gpu.deviceName);
+    m_gpuProc       = gpu.processUsedBytes;
+    m_gpuPeakProc   = gpu.peakProcessBytes;
+    m_gpuDevUsed    = gpu.deviceUsedBytes;
+    m_gpuDevTotal   = gpu.deviceTotalBytes;
+
     emit gaugeChanged();
 
     // 60 s baseline dump into the stats ring. dumpToLog() re-samples the gauge
@@ -166,14 +193,20 @@ void ProfilerController::refresh()
     }
 
     m_memory.clear();
+    m_gpuMemory.clear();
     for (const auto &mem : snap.memory) {
+        const QString name = QString::fromStdString(mem.name);
         QVariantMap m;
-        m[QStringLiteral("name")]         = QString::fromStdString(mem.name);
+        m[QStringLiteral("name")]         = name;
         m[QStringLiteral("currentBytes")] = qint64(mem.current_bytes);
         m[QStringLiteral("peakBytes")]    = qint64(mem.peak_bytes);
         m[QStringLiteral("currentStr")]   = fmtBytes(mem.current_bytes);
         m[QStringLiteral("peakStr")]      = fmtBytes(mem.peak_bytes);
-        m_memory.append(m);
+        // "GPU.*" categories (VRAM attribution) surface in a separate table.
+        if (name.startsWith(QStringLiteral("GPU.")))
+            m_gpuMemory.append(m);
+        else
+            m_memory.append(m);
     }
 
     pullStats();
@@ -184,11 +217,13 @@ void ProfilerController::refresh()
 void ProfilerController::reset()
 {
     pinpoint::profiling::Profiler::instance().reset();
+    pinpoint::gpumetrics::reset();   // drop the GPU process-VRAM peak watermark too
     // The OS gauge baselines/peaks were just unseeded; clear the cached peaks so
     // the UI does not show a stale watermark for up to one sampler interval.
-    m_cpuPct     = 0.0;
-    m_peakCpuPct = 0.0;
-    m_peakRss    = 0;
+    m_cpuPct      = 0.0;
+    m_peakCpuPct  = 0.0;
+    m_peakRss     = 0;
+    m_gpuPeakProc = 0;
     emit gaugeChanged();
     refresh();   // tables now reflect zeroed counters
 }

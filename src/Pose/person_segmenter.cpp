@@ -22,8 +22,11 @@
 
 #include <QCoreApplication>
 #include <QFile>
+#include <QFileInfo>
 #include <QString>
 #include "pp_debug.h"
+#include "pp_profiler.h"
+#include "pp_gpu_metrics.h"
 
 #include <onnxruntime_cxx_api.h>
 #include "ort_log.h"
@@ -42,12 +45,22 @@ struct PersonSegmenter::OrtState {
 
     std::string inputName;
     std::string outputName;
+
+    int64_t modelBytes = 0;   // [seam] model-file size as an ONNX.Segmenter arena proxy
+    int64_t gpuBytes   = 0;   // measured process-VRAM delta across session create (GPU.Segmenter)
 };
 
 // ---------------------------------------------------------------------------
 
 PersonSegmenter::PersonSegmenter()  = default;
-PersonSegmenter::~PersonSegmenter() = default;
+
+PersonSegmenter::~PersonSegmenter()
+{
+    if (m_ort && m_ort->modelBytes > 0)
+        PP_PROFILE_MEM_SUB("ONNX.Segmenter", m_ort->modelBytes);
+    if (m_ort && m_ort->gpuBytes > 0)
+        PP_PROFILE_MEM_SUB("GPU.Segmenter", m_ort->gpuBytes);
+}
 
 QString PersonSegmenter::modelPath()
 {
@@ -76,10 +89,15 @@ bool PersonSegmenter::load()
     }
 
     m_ready = false;
+    if (m_ort && m_ort->modelBytes > 0)   // reload: release the prior estimates
+        PP_PROFILE_MEM_SUB("ONNX.Segmenter", m_ort->modelBytes);
+    if (m_ort && m_ort->gpuBytes > 0)
+        PP_PROFILE_MEM_SUB("GPU.Segmenter", m_ort->gpuBytes);
     m_ort   = std::make_unique<OrtState>();
     m_ort->opts.SetIntraOpNumThreads(2);
     m_ort->opts.SetGraphOptimizationLevel(ORT_ENABLE_ALL);
 
+    const uint64_t gpuBefore = pinpoint::gpumetrics::processGpuBytes();
     try {
 #ifdef Q_OS_WIN
         m_ort->session = std::make_unique<Ort::Session>(
@@ -92,6 +110,14 @@ bool PersonSegmenter::load()
         ppError() << "[Segmenter] Failed to load model:" << e.what();
         m_ort.reset();
         return false;
+    }
+
+    m_ort->modelBytes = QFileInfo(path).size();   // [seam] file size as ORT arena proxy
+    PP_PROFILE_MEM_ADD("ONNX.Segmenter", m_ort->modelBytes);
+    const uint64_t gpuAfter = pinpoint::gpumetrics::processGpuBytes();
+    if (gpuAfter > gpuBefore) {
+        m_ort->gpuBytes = int64_t(gpuAfter - gpuBefore);
+        PP_PROFILE_MEM_ADD("GPU.Segmenter", m_ort->gpuBytes);
     }
 
     m_ort->inputName = m_ort->session->GetInputNameAllocated(0, m_ort->alloc).get();

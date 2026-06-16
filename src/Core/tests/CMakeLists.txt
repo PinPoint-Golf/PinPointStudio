@@ -76,6 +76,22 @@ pp_core_test(pp_os_metrics_test           pp_os_metrics_test.cpp          ${CORE
 pp_core_test(pp_stats_log_test            pp_stats_log_test.cpp           ${CORE}/PpStatsLog.cpp)
 pp_core_test(pp_profiler_concurrency_test pp_profiler_concurrency_test.cpp ${PROFILER_CORE})
 
+# GPU metrics — graceful-degradation contract (verifiable without a GPU). Pure
+# C++ + dlopen (no Qt, no profiler core); the Metal backend is an ObjC++ .mm on
+# Apple. Linked against ${CMAKE_DL_LIBS} for dlopen on glibc < 2.34.
+add_executable(pp_gpu_metrics_test pp_gpu_metrics_test.cpp ${CORE}/pp_gpu_metrics.cpp)
+target_include_directories(pp_gpu_metrics_test PRIVATE ${CORE})
+target_link_libraries(pp_gpu_metrics_test PRIVATE Threads::Threads GTest::gtest_main ${CMAKE_DL_LIBS})
+if(APPLE)
+    target_sources(pp_gpu_metrics_test PRIVATE ${CORE}/pp_gpu_metrics_mac.mm)
+    set_source_files_properties(${CORE}/pp_gpu_metrics_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    target_link_libraries(pp_gpu_metrics_test PRIVATE "-framework Metal" "-framework Foundation")
+elseif(WIN32)
+    target_link_libraries(pp_gpu_metrics_test PRIVATE dxgi)
+endif()
+pinpoint_apply_sanitizers(pp_gpu_metrics_test)
+add_test(NAME pp_gpu_metrics_test COMMAND pp_gpu_metrics_test)
+
 # Zero-overhead claim: BOTH tiers OFF → every macro expands to ((void)0).
 add_executable(pp_profiler_compileout_test pp_profiler_compileout_test.cpp ${PROFILER_CORE})
 target_include_directories(pp_profiler_compileout_test PRIVATE ${CORE})

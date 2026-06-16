@@ -590,6 +590,83 @@ Item {
                     }
                 }
 
+                // GPU gauge — device + this-process VRAM. On a CPU/no-GPU host
+                // (no supported GPU memory source) it collapses to a muted line.
+                Rectangle {
+                    width: parent.width
+                    height: Theme.sp(64)
+                    radius: Theme.radiusLg
+                    border.width: 1
+                    border.color: Theme.colorBorderMid
+                    color: Theme.colorSurface
+
+                    Text {
+                        visible: !profiler.gpuAvailable
+                        anchors { left: parent.left; leftMargin: Theme.sp(16); verticalCenter: parent.verticalCenter }
+                        text: qsTr("GPU  —  none (CPU inference)")
+                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm
+                        color: Theme.colorText3
+                    }
+
+                    Row {
+                        visible: profiler.gpuAvailable
+                        anchors { fill: parent; leftMargin: Theme.sp(16); rightMargin: Theme.sp(16) }
+                        spacing: Theme.sp(28)
+
+                        Column {
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Theme.sp(2)
+                            Text {
+                                text: qsTr("GPU (PROCESS)")
+                                font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                            }
+                            Text {
+                                text: profiler.gpuProcessBytesStr
+                                font.family: Theme.fontData; font.pixelSize: Theme.fontSzData
+                                font.weight: Font.Light; color: Theme.colorText
+                            }
+                            Text {
+                                text: qsTr("peak %1").arg(profiler.gpuPeakProcessBytesStr)
+                                font.family: Theme.fontData; font.pixelSize: Theme.sp(9); color: Theme.colorText3
+                            }
+                        }
+
+                        Rectangle {
+                            width: 1; height: Theme.sp(40)
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: Theme.colorBorderMid
+                        }
+
+                        Column {
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Theme.sp(2)
+                            Text {
+                                text: qsTr("GPU (DEVICE)")
+                                font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                            }
+                            Text {
+                                // used/total when the backend reports device-wide used (NVML);
+                                // total/budget only for DXGI/Metal.
+                                text: profiler.gpuDeviceUsedBytes > 0
+                                      ? qsTr("%1 / %2").arg(profiler.gpuDeviceUsedBytesStr).arg(profiler.gpuDeviceTotalBytesStr)
+                                      : profiler.gpuDeviceTotalBytesStr
+                                font.family: Theme.fontData; font.pixelSize: Theme.fontSzData
+                                font.weight: Font.Light; color: Theme.colorText
+                            }
+                            Text {
+                                width: Theme.sp(190)
+                                text: profiler.gpuBackend
+                                      + " · " + profiler.gpuDeviceName
+                                      + (profiler.gpuUnified ? qsTr("  (unified)") : "")
+                                font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                color: Theme.colorText3; elide: Text.ElideRight
+                            }
+                        }
+                    }
+                }
+
                 // Per-thread CPU
                 Column {
                     width: parent.width
@@ -885,6 +962,135 @@ Item {
                         Text {
                             anchors.centerIn: parent
                             text: qsTr("No memory categories")
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody2
+                            color: Theme.colorText3
+                        }
+                    }
+                }
+
+                // GPU MEMORY table — per-subsystem VRAM attribution (GPU.* categories)
+                Column {
+                    width: parent.width
+                    spacing: 0
+
+                    Text {
+                        text: qsTr("GPU MEMORY")
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fontSzMicro
+                        font.letterSpacing: Theme.trackingMicro
+                        color: Theme.colorText3
+                        bottomPadding: 2
+                    }
+                    Text {
+                        text: qsTr("measured process-VRAM delta per model — the first model loaded also carries the shared GPU runtime/context")
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fontSzMicro
+                        color: Theme.colorText3
+                        bottomPadding: 8
+                    }
+
+                    Rectangle {
+                        width: parent.width
+                        height: Theme.sp(30)
+                        color: Theme.colorBg2
+                        radius: Theme.radiusLg
+                        Rectangle {
+                            anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
+                            height: Theme.radiusLg; color: Theme.colorBg2
+                        }
+                        Rectangle {
+                            anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
+                            height: 1; color: Theme.colorBorderMid
+                        }
+
+                        Row {
+                            anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
+
+                            Item {
+                                width: parent.width - Theme.sp(100) - Theme.sp(100); height: parent.height
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: qsTr("CATEGORY")
+                                    font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                                }
+                            }
+                            Item {
+                                width: Theme.sp(100); height: parent.height
+                                Text {
+                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                    text: qsTr("CURRENT")
+                                    font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                                }
+                            }
+                            Item {
+                                width: Theme.sp(100); height: parent.height
+                                Text {
+                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                    text: qsTr("PEAK")
+                                    font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                                }
+                            }
+                        }
+                    }
+
+                    Repeater {
+                        model: profiler.gpuMemory
+
+                        Rectangle {
+                            width: parent.width
+                            height: Theme.sp(28)
+                            color: index % 2 === 1 ? Theme.colorBg : Theme.colorSurface
+
+                            Row {
+                                anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
+
+                                Item {
+                                    width: parent.width - Theme.sp(100) - Theme.sp(100); height: parent.height
+                                    Text {
+                                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                                        width: parent.width
+                                        text: modelData.name
+                                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm
+                                        color: Theme.colorText2; elide: Text.ElideRight
+                                    }
+                                }
+                                Item {
+                                    width: Theme.sp(100); height: parent.height
+                                    Text {
+                                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                        text: modelData.currentStr
+                                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm
+                                        color: Theme.colorText2
+                                    }
+                                }
+                                Item {
+                                    width: Theme.sp(100); height: parent.height
+                                    Text {
+                                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                        text: modelData.peakStr
+                                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm
+                                        color: Theme.colorText2
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        visible: profiler.gpuMemory.length === 0
+                        width: parent.width
+                        height: Theme.sp(28)
+                        color: Theme.colorSurface
+                        Text {
+                            anchors.centerIn: parent
+                            text: profiler.gpuAvailable ? qsTr("No GPU allocations attributed yet")
+                                                        : qsTr("No GPU categories (CPU inference)")
                             font.family: Theme.fontBody
                             font.pixelSize: Theme.fontSzBody2
                             color: Theme.colorText3
