@@ -37,6 +37,15 @@ Item {
     // Caption over the panel's trace chart (e.g. "LEAD-WRIST FLEXION · ADDRESS → IMPACT").
     property string traceLabel: ""
 
+    // Optional host-injected control tucked into the carousel's top strip (right side) —
+    // e.g. the replay transport on review screens. null leaves the strip as just the
+    // session/filter chips.
+    property Component transport: null
+    // Host drives this true when the transport should show (e.g. Replay/Analyse) — this is
+    // the "hide/show by view" gate. Kept explicit (rather than the carousel peeking at the
+    // loaded item's visibility) so the Loader and the dock-height grow stay in lockstep.
+    property bool transportActive: false
+
     property int  selectedShotId: -1
     property Item selectedCard:   null   // live delegate; nulled by QML when it is destroyed
 
@@ -53,7 +62,15 @@ Item {
     readonly property real drawerWidth:
         Math.round(Math.max(Theme.sp(420), Math.min(width / 3, Theme.sp(560))))
 
-    implicitHeight: Theme.carouselHeight
+    // When the host injects a transport and it is showing, it sits centered in the top strip
+    // — an overlay over the chips row (so it centers on the full dock width, not the space
+    // left of the chips). The chips row reserves _stripBandHeight so the filmstrip clears it;
+    // the dock grows to fit. Nothing showing (e.g. Capture) → the base height, unchanged.
+    readonly property bool _transportShown: root.transport !== null && root.transportActive
+    readonly property real _stripTopMargin:    Theme.sp(3.5)   // halved top/bottom padding
+    readonly property real _stripBottomMargin: Theme.sp(4)
+    readonly property real _stripBandHeight:   Theme.sp(40)    // header band height when the transport shows
+    implicitHeight: Theme.carouselHeight + (_transportShown ? Theme.sp(20) : 0)
 
     // Opens the export options sheet for a set of swing dirs. The ⋯ "export all
     // selected" action routes through here, sharing one options panel, one
@@ -91,12 +108,16 @@ Item {
         id: railCol
         anchors { fill: parent
                   leftMargin: Theme.sp(16); rightMargin: Theme.sp(16)
-                  topMargin: Theme.sp(7);   bottomMargin: Theme.sp(8) }
+                  topMargin: root._stripTopMargin; bottomMargin: root._stripBottomMargin }
         spacing: Theme.sp(7)
 
-        // ── Session chip + filter combo + bulk-action menu ───────────────────
+        // ── Session chip + filter combo + bulk-action menu. The transport overlays this
+        //    row, centered (the Loader below railCol); reserve the band height so the
+        //    filmstrip clears it when the transport shows. ──
         RowLayout {
+            id: chipsRow
             Layout.alignment: Qt.AlignLeft
+            Layout.minimumHeight: root._transportShown ? root._stripBandHeight : 0
             spacing: Theme.sp(4)
 
             Rectangle {   // session chooser chip — live name or loaded-session label
@@ -166,6 +187,7 @@ Item {
 
             Rectangle {   // "N shots" / "N of M shots" when filtered
                 id: filterPill
+                Layout.alignment: Qt.AlignVCenter
                 implicitWidth:  pillRow.implicitWidth + Theme.sp(12)
                 implicitHeight: Theme.sp(22)
                 radius: Theme.radius
@@ -206,6 +228,7 @@ Item {
 
             Rectangle {   // ⋯ bulk actions on the filtered set
                 id: bulkKebab
+                Layout.alignment: Qt.AlignVCenter
                 visible: filterProxy.filterActive
                 implicitWidth:  Theme.sp(22)
                 implicitHeight: Theme.sp(22)
@@ -381,6 +404,26 @@ Item {
                 onRated: (n) => root.activeModel.setRating(shotId, n)
             }
         }
+    }
+
+    // Host-injected transport, centered across the dock. An overlay (not in the chips
+    // row's flow) so it centers on the full width; the chips row reserves _stripBandHeight
+    // so the filmstrip clears it. The transport's own content is centre-anchored, so the
+    // buttons land on the dock's horizontal centre.
+    Loader {
+        id: transportLoader
+        // Centred across the dock, but clamped so it never rides over the chips on the left:
+        // true-centre on a wide dock; tucked just right of the chips on a narrow one.
+        y: root._stripTopMargin + (root._stripBandHeight - height) / 2
+        x: {
+            var centreX = root.width / 2 - width / 2
+            var minX    = chipsRow.x + chipsRow.width + Theme.sp(12)
+            var maxX    = root.width - Theme.sp(16) - width
+            return Math.min(Math.max(centreX, minX), maxX)
+        }
+        active:  root._transportShown
+        visible: active
+        sourceComponent: root.transport
     }
 
     // ── Filter popover — opens upward over the left cap ──────────────────────

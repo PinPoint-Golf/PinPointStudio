@@ -120,20 +120,17 @@ Item {
             }
         }
 
-        // Replay transport (play/step/speed) for Replay and Analyse — both drive the
-        // loaded swing's playhead. Works even when the timeline panel is hidden.
-        // Capture has no replay, so it's hidden there.
-        PpReplayTransport {
-            Layout.fillWidth: true
-            visible: root._transitMode
-        }
-
         // Session-shot carousel — keys mirror the Wrist goal vocabulary
-        // (goalDefsByType[1]); the stub model supplies placeholder values.
+        // (goalDefsByType[1]); the stub model supplies placeholder values. The replay
+        // transport (play/step/speed) rides in the carousel's top strip for Replay and
+        // Analyse — both drive the loaded swing's playhead; Capture has no replay so it
+        // stays hidden there. Works even when the timeline panel is hidden.
         PpShotCarousel {
             id: wristCarousel
             Layout.fillWidth: true
             visible: ViewLayout.isPanelOn(SessionMode.mode, "carousel")
+            transport: Component { PpReplayTransport {} }
+            transportActive: root._transitMode
             metricKeys: ["leadWristFlexExt", "leadWristRadUln", "forearmPronation", "leadArmFlexion"]
             traceLabel: qsTr("LEAD-WRIST FLEXION · ADDRESS → IMPACT")
         }

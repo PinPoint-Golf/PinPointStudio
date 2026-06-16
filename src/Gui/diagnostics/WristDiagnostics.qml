@@ -70,7 +70,7 @@ Item {
         id: flick
         anchors.fill: parent
         visible: dx.hasData
-        contentHeight: body.implicitHeight + Theme.sp(32)
+        contentHeight: body.height + Theme.sp(32)
         clip: true
         boundsBehavior: Flickable.StopAtBounds
 
@@ -79,6 +79,10 @@ Item {
             y: Theme.sp(16)
             x: Theme.sp(16)
             width: flick.width - Theme.sp(32)
+            // Fill the panel vertically: when the content is shorter than the viewport the body
+            // stretches to it (the GridLayout below absorbs the slack so the strips grow rather
+            // than the dashboard hugging the top); when it is taller, it grows past and scrolls.
+            height: Math.max(implicitHeight, flick.height - Theme.sp(32))
             spacing: Theme.sp(16)
 
             // Side-by-side strips/dock when there's room; stacked on a narrow panel.
@@ -211,6 +215,7 @@ Item {
             // ── Body: trajectory strips + grid (left) · Working-well + Findings dock (right) ──
             GridLayout {
                 Layout.fillWidth: true
+                Layout.fillHeight: true
                 columns: body._wide ? 2 : 1
                 columnSpacing: Theme.sp(16)
                 rowSpacing: Theme.sp(16)
@@ -218,12 +223,13 @@ Item {
                 // Left — strips card + collapsible data grid.
                 ColumnLayout {
                     Layout.fillWidth: true
-                    Layout.alignment: Qt.AlignTop
+                    Layout.fillHeight: true
                     spacing: Theme.sp(16)
 
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: stripsCol.implicitHeight + Theme.sp(24)
+                        Layout.fillHeight: true
+                        Layout.minimumHeight: stripsCol.implicitHeight + Theme.sp(24)
                         color: Theme.colorSurface
                         border.width: Theme.borderWidth
                         border.color: Theme.colorBorder
@@ -238,6 +244,8 @@ Item {
                                 delegate: DofTrajectoryStrip {
                                     required property var modelData
                                     Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    Layout.minimumHeight: implicitHeight
                                     strip: modelData
                                     positions: dx.positions
                                     selected: dx.selectedPosition

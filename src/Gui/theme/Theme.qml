@@ -403,7 +403,7 @@ QtObject {
         { lo: 75, hi: 100, label: "75–100" }
     ]
     readonly property int headerHeight:    40
-    readonly property int carouselHeight:  sp(122)
+    readonly property int carouselHeight:  sp(116)
     readonly property int statusBarHeight: 36
     readonly property int radius: {
         if (aesthetic === "instrument") return 6

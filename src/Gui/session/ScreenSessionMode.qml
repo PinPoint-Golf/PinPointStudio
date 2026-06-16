@@ -119,20 +119,16 @@ Item {
             }
         }
 
-        // Replay transport (play/step/speed) for Replay and Analyse — both drive the
-        // loaded swing's playhead. Works even when the timeline panel is hidden.
-        // Capture has no replay, so it's hidden there.
-        PpReplayTransport {
-            Layout.fillWidth: true
-            visible: root._transitMode
-        }
-
         // Session-shot carousel — stub model for now (per-mode goal vocabulary
-        // lands with the real analyzers).
+        // lands with the real analyzers). The replay transport (play/step/speed) rides
+        // in the carousel's top strip for Replay and Analyse; Capture has no replay so
+        // it stays hidden there. Works even when the timeline panel is hidden.
         PpShotCarousel {
             id: modeCarousel
             Layout.fillWidth: true
             visible: ViewLayout.isPanelOn(SessionMode.mode, "carousel")
+            transport: Component { PpReplayTransport {} }
+            transportActive: root._transitMode
             metricKeys: []
             traceLabel: qsTr("SESSION SHOTS")
         }

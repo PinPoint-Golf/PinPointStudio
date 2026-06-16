@@ -16,10 +16,13 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Always-on Replay transport chrome: play/pause, frame-step and speed. Slim bar
-// shown under the camera panel in Replay/Analyse, so video-only review still works
-// even when the timeline panel (scrub + phase pills) is hidden. There is no Close
-// button — exit via the toolbar mode switch / Capture / Esc.
+// Always-on Replay transport chrome: play/pause, frame-step and speed. Slim control
+// that rides in the shot carousel's top strip in Replay/Analyse, so video-only review
+// still works even when the timeline panel (scrub + phase pills) is hidden. There is no
+// Close button — exit via the toolbar mode switch / Capture / Esc.
+//
+// Content-sized (implicitWidth follows the button row) so the host can right-align it in
+// the carousel strip; it does not stretch to fill.
 
 import QtQuick
 import QtQuick.Layouts
@@ -27,11 +30,13 @@ import PinPointStudio
 
 Item {
     id: root
+    implicitWidth:  bar.implicitWidth
     implicitHeight: Theme.sp(40)
 
     function _fmt(us) { return (Math.max(0, us) / 1e6).toFixed(2) + "s" }
 
     RowLayout {
+        id: bar
         anchors.centerIn: parent
         spacing: Theme.sp(4)
 

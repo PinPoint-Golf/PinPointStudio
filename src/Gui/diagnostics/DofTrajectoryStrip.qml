@@ -39,7 +39,10 @@ Item {
     readonly property int _n: 8
     function _tag(i) { return (root.positions[i] && root.positions[i].tag) ? root.positions[i].tag : "" }
 
-    implicitHeight: head.implicitHeight + plot.height + foot.implicitHeight + Theme.sp(6)
+    // Natural (minimum) plot height; the plot fills any extra height the layout grants so the
+    // strip can stretch to fill its space. Constant here (not plot.height) to avoid a binding loop.
+    readonly property real _minPlotH: Theme.sp(112)
+    implicitHeight: head.implicitHeight + _minPlotH + foot.implicitHeight + Theme.sp(6)
 
     // ── RAG → colour / accessibility glyph (mirrors PpChartPlot._bandColor) ─────────
     function _ragColor(r) {
@@ -92,8 +95,9 @@ Item {
     // ── Plot ────────────────────────────────────────────────────────────────────────
     Item {
         id: plot
-        anchors { left: parent.left; right: parent.right; top: head.bottom; topMargin: Theme.sp(2) }
-        height: Theme.sp(112)
+        anchors { left: parent.left; right: parent.right
+                  top: head.bottom; topMargin: Theme.sp(2)
+                  bottom: foot.top; bottomMargin: Theme.sp(2) }
 
         readonly property real padL: Theme.sp(8)
         readonly property real padR: Theme.sp(8)
@@ -255,7 +259,7 @@ Item {
     // ── Footer: source + confidence pips ────────────────────────────────────────────
     Row {
         id: foot
-        anchors { left: parent.left; top: plot.bottom; topMargin: Theme.sp(2) }
+        anchors { left: parent.left; bottom: parent.bottom }
         spacing: Theme.sp(2)
         Text {
             anchors.verticalCenter: parent.verticalCenter
