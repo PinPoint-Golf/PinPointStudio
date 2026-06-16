@@ -31,6 +31,7 @@
 #  include <opencv2/core/utils/logger.hpp>
 #endif
 #include "SecretsManager.h"
+#include "SecretsBridge.h"
 #include "film_controller.h"
 #include "imu_manager.h"
 #include "transcription_controller.h"
@@ -128,10 +129,11 @@ int main(int argc, char *argv[])
     eventBuffer.start();
 
     AppSettings              appSettings;
+    SecretsBridge            secrets;
     ImuManager              imuManager(&eventBuffer, &appSettings);
-    TranscriptionController controller;
-    TtsController           ttsController;
-    LlmController           llmController;
+    TranscriptionController controller(&appSettings);
+    TtsController           ttsController(&appSettings);
+    LlmController           llmController(&appSettings);
     CameraManager           cameraManager(&eventBuffer, &appSettings);
     FilmController          filmController;
     BufferController        bufferController(&eventBuffer);
@@ -338,8 +340,19 @@ int main(int argc, char *argv[])
             ttsController.speak(text);
     });
 
+    // Entering/clearing an API key in Settings → Cloud Fallback re-evaluates each
+    // subsystem's cloud-fallback availability and re-applies the user's preference
+    // (so a force-cloud toggle that was waiting on a key engages immediately).
+    QObject::connect(&secrets, &SecretsBridge::keysChanged,
+                     &controller,    &TranscriptionController::refreshCloudAvailability);
+    QObject::connect(&secrets, &SecretsBridge::keysChanged,
+                     &ttsController,  &TtsController::refreshCloudAvailability);
+    QObject::connect(&secrets, &SecretsBridge::keysChanged,
+                     &llmController,  &LlmController::refreshCloudAvailability);
+
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("appSettings"),       &appSettings);
+    engine.rootContext()->setContextProperty(QStringLiteral("secrets"),           &secrets);
     engine.rootContext()->setContextProperty(QStringLiteral("athleteController"), &athleteController);
     engine.rootContext()->setContextProperty(QStringLiteral("navController"),     &navController);
     engine.rootContext()->setContextProperty(QStringLiteral("imuManager"),       &imuManager);

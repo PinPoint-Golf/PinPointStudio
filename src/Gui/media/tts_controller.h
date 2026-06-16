@@ -23,6 +23,7 @@
 #include <QStringList>
 #include <QThread>
 
+class AppSettings;
 class AudioOutput;
 class ModelDownloader;
 class TtsWorker;
@@ -61,7 +62,7 @@ class TtsController : public QObject
     Q_PROPERTY(qint64      lastTtsLatencyMs          READ lastTtsLatencyMs          NOTIFY lastTtsLatencyMsChanged)
 
 public:
-    explicit TtsController(QObject *parent = nullptr);
+    explicit TtsController(AppSettings *settings = nullptr, QObject *parent = nullptr);
     ~TtsController() override;
 
     bool        ttsReady()                  const { return m_ttsReady; }
@@ -81,6 +82,10 @@ public:
     Q_INVOKABLE void stopSpeaking();
     Q_INVOKABLE void replayLastAudio();
     Q_INVOKABLE void toggleTtsBackend();
+
+    // Re-evaluate whether the Azure key is configured (cloud-fallback availability)
+    // and re-apply the cloudFallbackTts preference. Wired to SecretsBridge::keysChanged.
+    void refreshCloudAvailability();
 
 signals:
     void ttsReadyChanged();
@@ -109,6 +114,11 @@ private slots:
     void onDownloadFinished();
     void onDownloadFailed(const QString &error);
 
+private slots:
+    // Swap to/from Azure cloud TTS to match cloudFallbackTts && key-present.
+    // Connected to AppSettings::cloudFallbackTtsChanged.
+    void    applyCloudFallbackPref();
+
 private:
     bool    modelFilesExist() const;
     void    startDownload();
@@ -118,11 +128,15 @@ private:
     void    switchToAzure(const QString &apiKey);
     void    switchToKokoro();
 
+    // True when the Azure TTS key is configured.
+    bool    ttsKeyPresent() const;
+
     QString modelDataDir()    const;
     QString resolveModelPath()  const;
     QString resolveVoicePath()  const;
     QString resolveTokensPath() const;
 
+    AppSettings     *m_appSettings = nullptr;
     QThread         *m_workerThread;
     TtsWorker       *m_worker;
     AudioOutput     *m_audioOutput;
@@ -135,6 +149,7 @@ private:
     bool          m_switchingToAzure     = false;
     bool          m_forceLocalTts        = false;
     bool          m_cloudToggleAvailable = false;
+    QString       m_ttsCloudKey;            // Azure key currently loaded in the backend
     qreal         m_downloadProgress = 0.0;
     QString       m_downloadStatus;
     QString       m_ttsBackend;

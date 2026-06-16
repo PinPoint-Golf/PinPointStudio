@@ -73,6 +73,137 @@ Item {
         }
     }
 
+    // ── Cloud Fallback reusable rows ──────────────────────────────────────────
+
+    // A force-cloud toggle row. `locked` shows ON and is non-interactive (used by
+    // the AI Coach when no local GPU exists); `canToggle` gates interaction on the
+    // provider API key being configured.
+    component CloudFallbackRow: RowLayout {
+        id: cfr
+        property string title:     ""
+        property string subtitle:  ""
+        property bool   checked:   false
+        property bool   locked:    false
+        property bool   canToggle: true
+        signal toggled()
+
+        Layout.fillWidth: true
+        spacing: Theme.sp(16)
+        property bool searchHighlight: false
+        Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: cfr.searchHighlight ? 1.0 : 0.0; z: -1 }
+
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: Theme.sp(3)
+
+            Text {
+                text:           cfr.title
+                font.family:    Theme.fontBody
+                font.pixelSize: Theme.fontSzBody
+                color:          Theme.colorText
+            }
+            Text {
+                text:             cfr.subtitle
+                visible:          cfr.subtitle.length > 0
+                font.family:      Theme.fontData
+                font.pixelSize:   Theme.fontSzMicro
+                color:            Theme.colorText3
+                wrapMode:         Text.WordWrap
+                Layout.fillWidth: true
+            }
+        }
+
+        Rectangle {
+            id: cfrSwitch
+            Layout.alignment: Qt.AlignVCenter
+            width:  Theme.sp(34)
+            height: Theme.sp(18)
+            radius: Theme.sp(9)
+            readonly property bool shownOn: cfr.locked || cfr.checked
+            color:   shownOn ? Theme.colorAccent : Theme.colorBg3
+            opacity: (cfr.canToggle && !cfr.locked) ? 1.0 : 0.45
+            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+            Rectangle {
+                width:  Theme.sp(12)
+                height: Theme.sp(12)
+                radius: Theme.sp(6)
+                color:  "white"
+                anchors.verticalCenter: parent.verticalCenter
+                x: cfrSwitch.shownOn ? parent.width - width - Theme.sp(3) : Theme.sp(3)
+                Behavior on x { NumberAnimation { duration: 120 } }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                enabled:      cfr.canToggle && !cfr.locked
+                cursorShape:  enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                onClicked:    cfr.toggled()
+            }
+        }
+    }
+
+    // A masked API-key field (with a Show/Hide reveal) bound to a SecretsManager
+    // key via the `secrets` bridge. Commits on focus loss / Enter (PpTextField).
+    component CloudKeyField: RowLayout {
+        id: ckf
+        property string title:       ""
+        property string secretName:  ""
+        property string placeholder: ""
+
+        Layout.fillWidth: true
+        spacing: Theme.sp(16)
+        property bool searchHighlight: false
+        Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: ckf.searchHighlight ? 1.0 : 0.0; z: -1 }
+
+        Text {
+            text:             ckf.title
+            font.family:      Theme.fontBody
+            font.pixelSize:   Theme.fontSzBody
+            color:            Theme.colorText
+            Layout.fillWidth: true
+        }
+
+        PpTextField {
+            id: keyField
+            Layout.alignment:      Qt.AlignVCenter
+            Layout.preferredWidth: Theme.sp(220)
+            placeholderText:       ckf.placeholder
+            echoMode:              revealBtn.revealed ? TextInput.Normal : TextInput.Password
+            // read() has no change-notify, so this evaluates once on load — typing
+            // is never reset. Commit persists via secrets.write() on editingFinished.
+            text:                  secrets.read(ckf.secretName)
+            onEditingFinished:     secrets.write(ckf.secretName, text)
+        }
+
+        Rectangle {
+            id: revealBtn
+            property bool revealed: false
+            Layout.alignment: Qt.AlignVCenter
+            implicitWidth:  revealLabel.implicitWidth + Theme.sp(20)
+            implicitHeight: Theme.sp(34)
+            radius:         Theme.radius
+            color:          "transparent"
+            border.width:   1
+            border.color:   Theme.colorBorderStrong
+
+            Text {
+                id: revealLabel
+                anchors.centerIn: parent
+                text:           revealBtn.revealed ? qsTr("Hide") : qsTr("Show")
+                font.family:    Theme.fontData
+                font.pixelSize: Theme.fontSzMicro
+                color:          Theme.colorText2
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                cursorShape:  Qt.PointingHandCursor
+                onClicked:    revealBtn.revealed = !revealBtn.revealed
+            }
+        }
+    }
+
     ScrollView {
         id: scrollView
         anchors.fill: parent
@@ -618,6 +749,77 @@ Item {
                         }
                     }
                 }
+            }
+
+            PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
+
+            // ── Group 4 — Cloud fallback ──────────────────────────────────────
+
+            Text {
+                text: qsTr("CLOUD FALLBACK")
+                font.family:         Theme.fontBody
+                font.pixelSize:      Theme.fontSzMicro
+                font.letterSpacing:  Theme.trackingMicro
+                font.capitalization: Font.AllUppercase
+                color: Theme.colorText3
+            }
+
+            Text {
+                text: qsTr("Run speech and AI in the cloud when no local GPU is available — or always. Each provider needs an API key entered below; that key is the source used for the cloud service.")
+                font.family:      Theme.fontBody
+                font.pixelSize:   Theme.fontSzBody2
+                font.weight:      Theme.fontBodyWeight
+                color:            Theme.colorText3
+                wrapMode:         Text.WordWrap
+                Layout.fillWidth: true
+            }
+
+            CloudFallbackRow {
+                objectName: "setting_cloudStt"
+                title:      qsTr("Speech-to-text (Azure)")
+                subtitle:   secrets.hasAzureKey ? qsTr("Transcribe with Azure cloud speech recognition")
+                                                : qsTr("Add the Azure Speech key below to enable")
+                checked:    appSettings.cloudFallbackStt
+                canToggle:  secrets.hasAzureKey
+                onToggled:  appSettings.cloudFallbackStt = !appSettings.cloudFallbackStt
+            }
+
+            CloudFallbackRow {
+                objectName: "setting_cloudTts"
+                title:      qsTr("Text-to-speech (Azure)")
+                subtitle:   secrets.hasAzureKey ? qsTr("Synthesise speech with Azure cloud voices")
+                                                : qsTr("Add the Azure Speech key below to enable")
+                checked:    appSettings.cloudFallbackTts
+                canToggle:  secrets.hasAzureKey
+                onToggled:  appSettings.cloudFallbackTts = !appSettings.cloudFallbackTts
+            }
+
+            CloudFallbackRow {
+                objectName: "setting_cloudLlm"
+                title:      qsTr("AI Coach (Gemini)")
+                subtitle:   !llmController.localGpuAvailable
+                              ? (secrets.hasGeminiKey ? qsTr("No GPU detected — the cloud model is required")
+                                                      : qsTr("No GPU detected — add the Gemini key below"))
+                              : (secrets.hasGeminiKey ? qsTr("Run the Google Gemini cloud model")
+                                                      : qsTr("Add the Gemini key below to enable"))
+                checked:    appSettings.cloudFallbackLlm
+                locked:     !llmController.localGpuAvailable
+                canToggle:  secrets.hasGeminiKey
+                onToggled:  appSettings.cloudFallbackLlm = !appSettings.cloudFallbackLlm
+            }
+
+            CloudKeyField {
+                objectName:  "setting_azureKey"
+                title:       qsTr("Azure Speech key")
+                secretName:  "azureTtsApiKey"
+                placeholder: qsTr("Azure Cognitive Services key")
+            }
+
+            CloudKeyField {
+                objectName:  "setting_geminiKey"
+                title:       qsTr("Gemini API key")
+                secretName:  "geminiApiKey"
+                placeholder: qsTr("Google AI Studio API key")
             }
         }
     }

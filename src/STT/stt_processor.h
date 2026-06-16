@@ -44,7 +44,10 @@ class STTProcessor : public AudioProcessorBase
     Q_OBJECT
 
 public:
-    explicit STTProcessor(QObject *parent = nullptr);
+    // forceCloud: when true (and an Azure key is configured) the processor starts
+    // on the Azure cloud backend instead of the platform default. Driven by the
+    // AppSettings cloudFallbackStt preference via TranscriptionController.
+    explicit STTProcessor(bool forceCloud = false, QObject *parent = nullptr);
     ~STTProcessor() override;
 
     // Audio is dispatched to the worker in chunks of this duration (default: 3000 ms).

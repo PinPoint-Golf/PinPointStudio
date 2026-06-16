@@ -558,6 +558,8 @@ target_sources(PinPointStudio PRIVATE
 target_sources(PinPointStudio PRIVATE
     src/Secrets/SecretsManager.h
     src/Secrets/SecretsManager.cpp
+    src/Secrets/SecretsBridge.h
+    src/Secrets/SecretsBridge.cpp
 )
 
 # ── Azure cloud STT fallback ──────────────────────────────────────────────────

@@ -35,7 +35,7 @@
 
 Q_DECLARE_METATYPE(std::vector<float>)
 
-STTProcessor::STTProcessor(QObject *parent)
+STTProcessor::STTProcessor(bool forceCloud, QObject *parent)
     : AudioProcessorBase(parent)
     , m_flushTimer(new QTimer(this))
 {
@@ -44,18 +44,23 @@ STTProcessor::STTProcessor(QObject *parent)
     m_flushTimer->setInterval(m_chunkDurationMs);
     connect(m_flushTimer, &QTimer::timeout, this, &STTProcessor::onFlushTimer);
 
-    auto backend = STTBackendFactory::createDefault();
-
-    // If the best local backend can only use CPU, switch to Azure cloud transcription.
+    // Backend selection: the user's cloud-fallback preference is authoritative.
+    // When forceCloud is set (and an Azure key is configured) use Azure cloud STT
+    // directly; otherwise the platform default (whisper.cpp on GPU/CPU, or Apple
+    // on macOS). The old "auto-switch to Azure whenever the local backend is
+    // CPU-only" decision now lives in the cloudFallbackStt toggle (GeneralPanel).
     // Check azureSttApiKey first; fall back to azureTtsApiKey so a single Azure
     // Cognitive Services resource covers both STT and TTS with one configured key.
-    if (backend->backendLabel() == QLatin1String("CPU")) {
+    std::unique_ptr<STTBackend> backend;
+    if (forceCloud) {
         QString apiKey = SecretsManager::read(QStringLiteral("azureSttApiKey"));
         if (apiKey.isEmpty())
             apiKey = SecretsManager::read(QStringLiteral("azureTtsApiKey"));
         if (!apiKey.isEmpty())
             backend = std::make_unique<STTBackendAzure>(apiKey);
     }
+    if (!backend)
+        backend = STTBackendFactory::createDefault();
 
     m_needsModelFile = backend->requiresModelFile();
     m_silenceGating  = backend->requiresSilenceGating();

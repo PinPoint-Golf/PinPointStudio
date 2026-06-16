@@ -81,6 +81,31 @@ QtObject {
           actions: "Version app version up to date release build number",
           itemId: "setting_version" },
 
+        { panelIndex: 0, panelLabel: qsTr("General"),    groupLabel: qsTr("Cloud fallback"),
+          label: qsTr("Speech-to-text cloud fallback"),  subtitle: qsTr("Transcribe with Azure cloud speech recognition"),
+          actions: "cloud fallback STT Azure speech recognition transcription GPU",
+          itemId: "setting_cloudStt" },
+
+        { panelIndex: 0, panelLabel: qsTr("General"),    groupLabel: qsTr("Cloud fallback"),
+          label: qsTr("Text-to-speech cloud fallback"),  subtitle: qsTr("Synthesise speech with Azure cloud voices"),
+          actions: "cloud fallback TTS Azure text to speech synthesis voice GPU",
+          itemId: "setting_cloudTts" },
+
+        { panelIndex: 0, panelLabel: qsTr("General"),    groupLabel: qsTr("Cloud fallback"),
+          label: qsTr("AI Coach cloud fallback"),         subtitle: qsTr("Run the Google Gemini cloud model"),
+          actions: "cloud fallback LLM AI coach Gemini Google model GPU",
+          itemId: "setting_cloudLlm" },
+
+        { panelIndex: 0, panelLabel: qsTr("General"),    groupLabel: qsTr("Cloud fallback"),
+          label: qsTr("Azure Speech key"),                subtitle: qsTr("API key for cloud speech-to-text and text-to-speech"),
+          actions: "Azure cognitive services API key secret credentials cloud STT TTS",
+          itemId: "setting_azureKey" },
+
+        { panelIndex: 0, panelLabel: qsTr("General"),    groupLabel: qsTr("Cloud fallback"),
+          label: qsTr("Gemini API key"),                  subtitle: qsTr("API key for the Google Gemini AI Coach"),
+          actions: "Gemini Google AI studio API key secret credentials cloud LLM coach",
+          itemId: "setting_geminiKey" },
+
         // ── Appearance (panelIndex: 1) ────────────────────────────────────────
 
         { panelIndex: 1, panelLabel: qsTr("Appearance"),  groupLabel: qsTr("Aesthetic & colour mode"),

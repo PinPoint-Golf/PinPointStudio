@@ -22,6 +22,7 @@
 #include <QVariantList>
 #include <QThread>
 
+class AppSettings;
 class LlmWorker;
 class ModelDownloader;
 
@@ -54,13 +55,16 @@ class LlmController : public QObject
     Q_PROPERTY(QString      downloadStatus            READ downloadStatus            NOTIFY downloadStatusChanged)
     Q_PROPERTY(QString      llmBackend                READ llmBackend                NOTIFY llmBackendChanged)
     Q_PROPERTY(bool         cloudLlmFallbackAvailable READ cloudLlmFallbackAvailable NOTIFY cloudLlmFallbackAvailableChanged)
+    // True when a local GPU exists. When false the AI Coach has no local path and
+    // the Cloud Fallback toggle is locked ON in the UI. Fixed at startup.
+    Q_PROPERTY(bool         localGpuAvailable         READ localGpuAvailable         CONSTANT)
     Q_PROPERTY(QVariantList conversation              READ conversation              NOTIFY conversationChanged)
     Q_PROPERTY(bool         voiceInputEnabled         READ voiceInputEnabled         NOTIFY voiceInputEnabledChanged)
     Q_PROPERTY(bool         voiceOutputEnabled        READ voiceOutputEnabled        NOTIFY voiceOutputEnabledChanged)
     Q_PROPERTY(qint64       lastLlmLatencyMs          READ lastLlmLatencyMs          NOTIFY lastLlmLatencyMsChanged)
 
 public:
-    explicit LlmController(QObject *parent = nullptr);
+    explicit LlmController(AppSettings *settings = nullptr, QObject *parent = nullptr);
     ~LlmController() override;
 
     bool         llmReady()                  const { return m_llmReady; }
@@ -70,6 +74,7 @@ public:
     QString      downloadStatus()            const { return m_downloadStatus; }
     QString      llmBackend()                const { return m_llmBackend; }
     bool         cloudLlmFallbackAvailable() const { return m_cloudToggleAvailable; }
+    bool         localGpuAvailable()         const { return m_localGpuAvailable; }
     QVariantList conversation()              const;
     bool         voiceInputEnabled()         const { return m_voiceInputEnabled; }
     bool         voiceOutputEnabled()        const { return m_voiceOutputEnabled; }
@@ -81,6 +86,10 @@ public:
     Q_INVOKABLE void toggleLlmBackend();
     Q_INVOKABLE void setVoiceInput(bool enabled);
     Q_INVOKABLE void setVoiceOutput(bool enabled);
+
+    // Re-evaluate whether the Gemini key is configured (cloud-fallback availability)
+    // and re-apply the cloudFallbackLlm preference. Wired to SecretsBridge::keysChanged.
+    void refreshCloudAvailability();
 
 signals:
     void llmReadyChanged();
@@ -102,6 +111,9 @@ private slots:
     void onModelReady();
     void onModelFailed(const QString &error);
     void onBackendChanged(const QString &backend);
+    // Swap to/from Gemini cloud to match (cloudFallbackLlm || no-GPU) && key-present.
+    // Connected to AppSettings::cloudFallbackLlmChanged.
+    void applyCloudFallbackPref();
     void onTokenReady(const QString &token);
     void onResponseReady(const QString &full);
     void onLlmError(const QString &message);
@@ -123,6 +135,7 @@ private:
 
     QString modelDataDir() const;
 
+    AppSettings     *m_appSettings = nullptr;
     QThread         *m_workerThread;
     LlmWorker       *m_worker;
     ModelDownloader *m_downloader;
@@ -137,7 +150,9 @@ private:
     bool    m_switchingToGemini    = false;
     bool    m_forceLocalLlm        = false;
     bool    m_cloudToggleAvailable = false;
+    bool    m_localGpuAvailable    = false;
     bool    m_voiceInputEnabled    = false;
+    QString m_llmCloudKey;            // Gemini key currently loaded in the backend
     bool    m_voiceOutputEnabled   = false;
     qreal   m_downloadProgress     = 0.0;
     QString m_downloadStatus;

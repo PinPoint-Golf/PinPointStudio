@@ -25,6 +25,7 @@
 #include <QVariantList>
 
 class AcousticShotDetector;
+class AppSettings;
 class AudioInput;
 class AudioInputBase;
 class AudioStreamSaver;
@@ -42,7 +43,7 @@ class TranscriptionController : public QObject
     Q_PROPERTY(qint64 lastSttLatencyMs        READ lastSttLatencyMs        NOTIFY lastSttLatencyMsChanged)
 
 public:
-    explicit TranscriptionController(QObject *parent = nullptr);
+    explicit TranscriptionController(AppSettings *settings = nullptr, QObject *parent = nullptr);
     ~TranscriptionController() override;
 
     QString transcript()              const { return m_transcript; }
@@ -56,6 +57,10 @@ public slots:
     void stopListening();
 
     Q_INVOKABLE void toggleSttBackend();
+
+    // Re-evaluate whether the Azure key is configured (cloud-fallback availability)
+    // and re-apply the cloudFallbackStt preference. Wired to SecretsBridge::keysChanged.
+    void refreshCloudAvailability();
 
     // Acoustic shot detection (P2): forwards AppSettings' device-latency
     // constant to the detector (atomic — safe to call from the GUI thread).
@@ -114,6 +119,9 @@ private slots:
     void onAudioError(const QString &message);
     void onSTTError(const QString &message);
     void startAudio();   // called once microphone permission is confirmed
+    // Swap the STT backend to match cloudFallbackStt && key-present. Connected to
+    // AppSettings::cloudFallbackSttChanged.
+    void applyCloudFallbackPref();
 
 private:
     // Start/stop the underlying audio device to match the OR of all listen
@@ -126,7 +134,13 @@ private:
     // for calibration/shot detection shares the mic but must not feed whisper.
     void setSttGate(bool enabled);
 
+    // Effective Azure key for STT: the STT-specific key, or the shared TTS key.
+    QString sttCloudKey() const;
+    // True when an Azure key (STT-specific, or the shared TTS key) is configured.
+    bool    sttKeyPresent() const;
+
 private:
+    AppSettings          *m_appSettings = nullptr;
     QThread              *m_audioThread;
     QThread              *m_processorThread;
     AudioInput           *m_audioInput;
@@ -142,6 +156,7 @@ private:
     bool              m_capturing               = false;   // actual device state
     bool              m_sttUsingCloud           = false;
     bool              m_sttCloudToggleAvailable = false;
+    QString           m_sttCloudKey;            // Azure key currently loaded in the backend
     QElapsedTimer     m_sttDispatchTimer;
     qint64            m_lastSttLatencyMs        = 0;
 };

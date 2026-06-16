@@ -74,6 +74,12 @@ class AppSettings : public QObject
     Q_PROPERTY(bool    acousticShotDetectionEnabled READ acousticShotDetectionEnabled WRITE setAcousticShotDetectionEnabled NOTIFY acousticShotDetectionEnabledChanged)
     Q_PROPERTY(double  acousticSensitivity         READ acousticSensitivity         WRITE setAcousticSensitivity         NOTIFY acousticSensitivityChanged)
     Q_PROPERTY(bool    aiCoachingOnSessionEnd      READ aiCoachingOnSessionEnd      WRITE setAiCoachingOnSessionEnd      NOTIFY aiCoachingOnSessionEndChanged)
+    // Force cloud fallback for each AI subsystem even when a local GPU is present
+    // (user preference; the relevant API key must be configured). See the
+    // controllers' applyCloudFallbackPref() slots and GeneralPanel.qml.
+    Q_PROPERTY(bool    cloudFallbackStt            READ cloudFallbackStt            WRITE setCloudFallbackStt            NOTIFY cloudFallbackSttChanged)
+    Q_PROPERTY(bool    cloudFallbackTts            READ cloudFallbackTts            WRITE setCloudFallbackTts            NOTIFY cloudFallbackTtsChanged)
+    Q_PROPERTY(bool    cloudFallbackLlm            READ cloudFallbackLlm            WRITE setCloudFallbackLlm            NOTIFY cloudFallbackLlmChanged)
     Q_PROPERTY(bool    checkForUpdates             READ checkForUpdates             WRITE setCheckForUpdates             NOTIFY checkForUpdatesChanged)
     Q_PROPERTY(bool    sendDiagnostics             READ sendDiagnostics             WRITE setSendDiagnostics             NOTIFY sendDiagnosticsChanged)
     Q_PROPERTY(QString mainDisplayMode             READ mainDisplayMode             WRITE setMainDisplayMode             NOTIFY mainDisplayModeChanged)
@@ -205,6 +211,9 @@ public:
         m_acousticShotDetectionEnabled = ppSettings().value(QStringLiteral("General/acousticShotDetectionEnabled"), true).toBool();
         m_acousticSensitivity       = ppSettings().value(QStringLiteral("General/acousticSensitivity"),       0.5).toDouble();
         m_aiCoachingOnSessionEnd    = ppSettings().value(QStringLiteral("General/aiCoachingOnSessionEnd"),    true).toBool();
+        m_cloudFallbackStt          = ppSettings().value(QStringLiteral("General/cloudFallbackStt"),          false).toBool();
+        m_cloudFallbackTts          = ppSettings().value(QStringLiteral("General/cloudFallbackTts"),          false).toBool();
+        m_cloudFallbackLlm          = ppSettings().value(QStringLiteral("General/cloudFallbackLlm"),          false).toBool();
         m_checkForUpdates           = ppSettings().value(QStringLiteral("General/checkForUpdates"),           true).toBool();
         m_sendDiagnostics           = ppSettings().value(QStringLiteral("General/sendDiagnostics"),           false).toBool();
 
@@ -305,6 +314,9 @@ public:
     bool    acousticShotDetectionEnabled() const { return m_acousticShotDetectionEnabled; }
     double  acousticSensitivity()       const { return m_acousticSensitivity; }
     bool    aiCoachingOnSessionEnd()    const { return m_aiCoachingOnSessionEnd; }
+    bool    cloudFallbackStt()          const { return m_cloudFallbackStt; }
+    bool    cloudFallbackTts()          const { return m_cloudFallbackTts; }
+    bool    cloudFallbackLlm()          const { return m_cloudFallbackLlm; }
     bool    checkForUpdates()           const { return m_checkForUpdates; }
     bool    sendDiagnostics()           const { return m_sendDiagnostics; }
 
@@ -554,6 +566,30 @@ public:
         m_aiCoachingOnSessionEnd = v;
         ppSettings().setValue(QStringLiteral("General/aiCoachingOnSessionEnd"), v);
         emit aiCoachingOnSessionEndChanged();
+    }
+
+    void setCloudFallbackStt(bool v)
+    {
+        if (m_cloudFallbackStt == v) return;
+        m_cloudFallbackStt = v;
+        ppSettings().setValue(QStringLiteral("General/cloudFallbackStt"), v);
+        emit cloudFallbackSttChanged();
+    }
+
+    void setCloudFallbackTts(bool v)
+    {
+        if (m_cloudFallbackTts == v) return;
+        m_cloudFallbackTts = v;
+        ppSettings().setValue(QStringLiteral("General/cloudFallbackTts"), v);
+        emit cloudFallbackTtsChanged();
+    }
+
+    void setCloudFallbackLlm(bool v)
+    {
+        if (m_cloudFallbackLlm == v) return;
+        m_cloudFallbackLlm = v;
+        ppSettings().setValue(QStringLiteral("General/cloudFallbackLlm"), v);
+        emit cloudFallbackLlmChanged();
     }
 
     void setCheckForUpdates(bool v)
@@ -989,6 +1025,9 @@ signals:
     void acousticShotDetectionEnabledChanged();
     void acousticSensitivityChanged();
     void aiCoachingOnSessionEndChanged();
+    void cloudFallbackSttChanged();
+    void cloudFallbackTtsChanged();
+    void cloudFallbackLlmChanged();
     void checkForUpdatesChanged();
     void sendDiagnosticsChanged();
     void mainDisplayModeChanged();
@@ -1067,6 +1106,9 @@ private:
     bool    m_acousticShotDetectionEnabled = true;
     double  m_acousticSensitivity       = 0.5;   // 0 = least sensitive, 1 = most
     bool    m_aiCoachingOnSessionEnd    = true;
+    bool    m_cloudFallbackStt          = false;
+    bool    m_cloudFallbackTts          = false;
+    bool    m_cloudFallbackLlm          = false;
     bool    m_checkForUpdates           = true;
     bool    m_sendDiagnostics           = false;
 

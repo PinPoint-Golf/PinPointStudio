@@ -18,6 +18,7 @@
 
 #include "tts_controller.h"
 
+#include "app_settings.h"
 #include "audio_output.h"
 #include "AzureTTSEngine.h"
 #include "ModelDownloader.h"
@@ -63,13 +64,21 @@ static const struct { const char *name; const char *file; } kVoiceUrls[] = {
 
 // ---------------------------------------------------------------------------
 
-TtsController::TtsController(QObject *parent)
+TtsController::TtsController(AppSettings *settings, QObject *parent)
     : QObject(parent)
+    , m_appSettings(settings)
     , m_workerThread(new QThread(this))
     , m_audioOutput(new AudioOutput(this))
     , m_downloader(new ModelDownloader(this))
 {
     m_workerThread->setObjectName(QStringLiteral("TtsWorkerThread"));
+
+    // Cloud-fallback availability is gated on the Azure key being configured; the
+    // cloudFallbackTts preference selects the backend (see applyCloudFallbackPref).
+    m_cloudToggleAvailable = ttsKeyPresent();
+    if (m_appSettings)
+        connect(m_appSettings, &AppSettings::cloudFallbackTtsChanged,
+                this, &TtsController::applyCloudFallbackPref);
 
     // ---- Engine + worker ----------------------------------------------------
     auto engine = TTSEngineFactory::create(TTSEngineFactory::Backend::Kokoro);
@@ -100,8 +109,16 @@ TtsController::TtsController(QObject *parent)
     // ---- Start worker thread ------------------------------------------------
     m_workerThread->start();
 
-    // ---- Check model files, download if missing -----------------------------
-    if (modelFilesExist()) {
+    // ---- Initial backend ----------------------------------------------------
+    // The cloudFallbackTts preference is authoritative: when set (and an Azure
+    // key exists) go straight to cloud TTS and skip the Kokoro model download.
+    if (m_appSettings && m_appSettings->cloudFallbackTts() && m_cloudToggleAvailable) {
+        const QString apiKey = SecretsManager::read(QStringLiteral("azureTtsApiKey"));
+        m_usingCloudTts    = true;
+        m_switchingToAzure = true;
+        m_ttsCloudKey      = apiKey;
+        QTimer::singleShot(0, this, [this, apiKey]() { switchToAzure(apiKey); });
+    } else if (modelFilesExist()) {
         triggerModelLoad();
     } else {
         startDownload();
@@ -174,18 +191,50 @@ void TtsController::stopSpeaking()
 
 void TtsController::toggleTtsBackend()
 {
-    if (!m_cloudToggleAvailable)
+    // The persisted preference is the single source of truth — flipping it drives
+    // applyCloudFallbackPref() (and keeps the Settings toggle in sync).
+    if (!m_cloudToggleAvailable || !m_appSettings)
         return;
-    if (m_usingCloudTts) {
-        m_forceLocalTts = true;
-        switchToKokoro();
-    } else {
-        m_forceLocalTts = false;
-        const QString apiKey = SecretsManager::read(QStringLiteral("azureTtsApiKey"));
+    m_appSettings->setCloudFallbackTts(!m_appSettings->cloudFallbackTts());
+}
+
+void TtsController::applyCloudFallbackPref()
+{
+    if (!m_appSettings)
+        return;
+    const QString apiKey = SecretsManager::read(QStringLiteral("azureTtsApiKey"));
+    const bool    want   = m_appSettings->cloudFallbackTts() && !apiKey.isEmpty();
+    // Rebuild when the desired backend changes, OR when staying on cloud but the
+    // key value changed (e.g. the user corrected a bad key).
+    if (want == m_usingCloudTts && (!want || apiKey == m_ttsCloudKey))
+        return;
+    if (want) {
+        m_forceLocalTts    = false;
         m_usingCloudTts    = true;
         m_switchingToAzure = true;
+        m_ttsCloudKey      = apiKey;
         QTimer::singleShot(0, this, [this, apiKey]() { switchToAzure(apiKey); });
+    } else {
+        m_forceLocalTts = true;   // prevent any implicit cloud re-engagement
+        m_ttsCloudKey.clear();
+        switchToKokoro();
     }
+}
+
+void TtsController::refreshCloudAvailability()
+{
+    const bool avail = ttsKeyPresent();
+    if (avail != m_cloudToggleAvailable) {
+        m_cloudToggleAvailable = avail;
+        emit cloudTtsFallbackAvailableChanged();
+    }
+    // A newly-entered key may enable a force-cloud preference that was waiting on it.
+    applyCloudFallbackPref();
+}
+
+bool TtsController::ttsKeyPresent() const
+{
+    return !SecretsManager::read(QStringLiteral("azureTtsApiKey")).isEmpty();
 }
 
 void TtsController::replayLastAudio()
@@ -221,23 +270,10 @@ void TtsController::onModelFailed(const QString &error)
 
 void TtsController::onBackendChanged(const QString &backend)
 {
-    // Kokoro loaded on CPU — fall back to Azure cloud TTS if a key is available,
-    // unless the user explicitly chose to use local (CPU) by toggling.
-    // backendChanged fires before modelReady (guaranteed by TtsWorker::loadModel
-    // signal order), so we can abort the "ready" transition before it happens.
-    if (!m_usingCloudTts && !m_forceLocalTts && backend.isEmpty()) {
-        const QString azureKey = SecretsManager::read(QStringLiteral("azureTtsApiKey"));
-        if (!azureKey.isEmpty()) {
-            if (!m_cloudToggleAvailable) {
-                m_cloudToggleAvailable = true;
-                emit cloudTtsFallbackAvailableChanged();
-            }
-            m_usingCloudTts    = true;
-            m_switchingToAzure = true;
-            QTimer::singleShot(0, this, [this, azureKey]() { switchToAzure(azureKey); });
-            return;
-        }
-    }
+    // The cloudFallbackTts preference (applied at startup and via
+    // applyCloudFallbackPref) is authoritative — there is no implicit CPU→cloud
+    // auto-fallback here. Just clear the in-flight switch flag and record the label
+    // so OFF genuinely means "use the local engine" (Kokoro GPU or CPU).
     if (m_switchingToAzure)
         m_switchingToAzure = false;
     if (m_ttsBackend == backend)

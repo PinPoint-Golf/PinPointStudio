@@ -17,6 +17,7 @@
 
 #include "llm_controller.h"
 
+#include "app_settings.h"
 #include "LlmEngine.h"
 #include "LocalLlmEngine.h"
 #include "GeminiLlmEngine.h"
@@ -63,8 +64,9 @@ static const char * const kModelFiles[] = {
 
 // ---------------------------------------------------------------------------
 
-LlmController::LlmController(QObject *parent)
+LlmController::LlmController(AppSettings *settings, QObject *parent)
     : QObject(parent)
+    , m_appSettings(settings)
     , m_workerThread(new QThread(this))
     , m_worker(nullptr)
     , m_downloader(new ModelDownloader(this))
@@ -80,18 +82,27 @@ LlmController::LlmController(QObject *parent)
 
     const QString geminiKey = SecretsManager::read(QStringLiteral("geminiApiKey"));
     m_cloudToggleAvailable  = !geminiKey.isEmpty();
+    m_localGpuAvailable     = LocalLlmEngine::hasGpu();
+    if (m_appSettings)
+        connect(m_appSettings, &AppSettings::cloudFallbackLlmChanged,
+                this, &LlmController::applyCloudFallbackPref);
 
-    const bool gpuAvailable = LocalLlmEngine::hasGpu();
+    // Cloud is used when the user forces it (cloudFallbackLlm) OR there is no local
+    // GPU (the AI Coach has no on-device CPU path); both require a Gemini key.
+    const bool preferCloud = m_appSettings && m_appSettings->cloudFallbackLlm();
+    const bool useCloud    = (preferCloud || !m_localGpuAvailable) && !geminiKey.isEmpty();
 
     LlmEngine *engine;
-    if (!gpuAvailable && !geminiKey.isEmpty()) {
-        // No GPU: go straight to Gemini — no point downloading a 4.9 GB model
-        // that would never be used.
-        ppInfo() << "[LlmController] No GPU detected — AI Coach will use Gemini cloud;"
-                 << "local model download skipped.";
+    if (useCloud) {
+        if (!m_localGpuAvailable)
+            ppInfo() << "[LlmController] No GPU detected — AI Coach will use Gemini cloud;"
+                     << "local model download skipped.";
+        else
+            ppInfo() << "[LlmController] Cloud fallback forced — AI Coach will use Gemini cloud.";
         m_usingCloudLlm = true;
+        m_llmCloudKey   = geminiKey;
         engine = new GeminiLlmEngine(geminiKey);
-    } else if (!gpuAvailable) {
+    } else if (!m_localGpuAvailable) {
         ppWarn() << "[LlmController] No GPU and no Gemini API key — AI Coach unavailable.";
         engine = new LocalLlmEngine;  // will fail at load; coach stays in not-ready state
     } else {
@@ -107,7 +118,7 @@ LlmController::LlmController(QObject *parent)
         triggerModelLoad();
     } else if (modelFilesExist()) {
         triggerModelLoad();
-    } else if (gpuAvailable) {
+    } else if (m_localGpuAvailable) {
         startDownload();
     }
 }
@@ -191,16 +202,48 @@ void LlmController::clearHistory()
 
 void LlmController::toggleLlmBackend()
 {
-    if (!m_cloudToggleAvailable)
+    // The persisted preference is the single source of truth — flipping it drives
+    // applyCloudFallbackPref() (and keeps the Settings toggle in sync).
+    if (!m_cloudToggleAvailable || !m_appSettings)
         return;
+    // No local GPU → cloud is mandatory (toggle locked ON in the UI); guard here too
+    // so the badge can't force an unusable local LLM.
+    if (!m_localGpuAvailable)
+        return;
+    m_appSettings->setCloudFallbackLlm(!m_appSettings->cloudFallbackLlm());
+}
 
-    if (m_usingCloudLlm) {
-        switchToLocal();
+void LlmController::applyCloudFallbackPref()
+{
+    if (!m_appSettings)
+        return;
+    const QString key = SecretsManager::read(QStringLiteral("geminiApiKey"));
+    const bool want = (m_appSettings->cloudFallbackLlm() || !m_localGpuAvailable)
+                      && !key.isEmpty();
+    // Rebuild when the desired backend changes, OR when staying on cloud but the
+    // key value changed (e.g. the user corrected a bad key).
+    if (want == m_usingCloudLlm && (!want || key == m_llmCloudKey))
+        return;
+    if (want) {
+        m_usingCloudLlm     = true;
+        m_switchingToGemini = true;
+        m_llmCloudKey       = key;
+        switchToGemini(key);
     } else {
-        const QString key = SecretsManager::read(QStringLiteral("geminiApiKey"));
-        if (!key.isEmpty())
-            switchToGemini(key);
+        m_llmCloudKey.clear();
+        switchToLocal();
     }
+}
+
+void LlmController::refreshCloudAvailability()
+{
+    const bool avail = !SecretsManager::read(QStringLiteral("geminiApiKey")).isEmpty();
+    if (avail != m_cloudToggleAvailable) {
+        m_cloudToggleAvailable = avail;
+        emit cloudLlmFallbackAvailableChanged();
+    }
+    // A newly-entered key may enable a force-cloud (or no-GPU mandatory) preference.
+    applyCloudFallbackPref();
 }
 
 void LlmController::setVoiceInput(bool enabled)
