@@ -61,10 +61,18 @@ if (-not $iscc) { throw "Inno Setup 6 (ISCC.exe) not found. Install it from http
 # Inno generator runs ISCC — so configure, build AND package all run inside the same
 # vcvars + jom environment. cpack runs from the build dir so it finds CPackConfig.cmake
 # and writes _CPack_Packages / the installer there.
+# Distinct output name per variant so successive runs don't overwrite each other:
+#   both -> PinPointStudioSetup-<ver>.exe
+#   core -> PinPointStudioSetup-<ver>-core.exe   (no CUDA; smaller)
+#   cuda -> PinPointStudioSetup-<ver>-cuda.exe   (GPU runtime only)
+$version = '0.0.0'
+$m = Select-String -Path (Join-Path $repo 'CMakeLists.txt') -Pattern 'project\(PinPointStudio VERSION ([0-9.]+)' | Select-Object -First 1
+if ($m) { $version = $m.Matches[0].Groups[1].Value }
+$pkgName = "PinPointStudioSetup-$version"
 $cpackComponentArg = ''
 switch ($Components) {
-    'core' { $cpackComponentArg = '-D CPACK_COMPONENTS_ALL=core' }
-    'cuda' { $cpackComponentArg = '-D CPACK_COMPONENTS_ALL=cuda' }
+    'core' { $cpackComponentArg = '-D CPACK_COMPONENTS_ALL=core'; $pkgName += '-core' }
+    'cuda' { $cpackComponentArg = '-D CPACK_COMPONENTS_ALL=cuda'; $pkgName += '-cuda' }
 }
 $bat = @"
 @echo on
@@ -74,7 +82,7 @@ cd /d "$repo"
 "$cmake" -S . -B "$BuildDir" -G "NMake Makefiles JOM" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$QtPrefix" || exit /b 1
 "$cmake" --build "$BuildDir" --target PinPointStudio || exit /b 1
 cd /d "$repo\$BuildDir"
-"$cpack" -G INNOSETUP -D CPACK_INNOSETUP_EXECUTABLE="$iscc" $cpackComponentArg || exit /b 1
+"$cpack" -G INNOSETUP -D CPACK_INNOSETUP_EXECUTABLE="$iscc" -D CPACK_PACKAGE_FILE_NAME="$pkgName" $cpackComponentArg || exit /b 1
 "@
 $batPath = Join-Path $env:TEMP 'pp_build_installer.bat'
 $bat | Out-File -FilePath $batPath -Encoding ascii
