@@ -19,6 +19,7 @@
 #include "PhonemeTokenizer.h"
 
 #include <QCoreApplication>
+#include <QDir>
 #include <QFile>
 #include "pp_debug.h"
 #include <QJsonDocument>
@@ -91,6 +92,18 @@ bool PhonemeTokenizer::initialise(const QString &tokensJsonPath)
 #ifdef Q_OS_MACOS
     const QByteArray espeakData =
         (QCoreApplication::applicationDirPath() + "/../Resources").toLocal8Bit();
+    const char *espeakDataPath = espeakData.constData();
+#elif defined(Q_OS_WIN)
+    // Installed/dev layout: espeak-ng-data sits next to the executable, so the
+    // path passed to espeak (the directory *containing* espeak-ng-data) is the
+    // application directory. Fall back to the build-tree ESPEAK_DATA_PATH when
+    // the next-to-exe copy is absent (e.g. a bare build before POST_BUILD ran).
+    QByteArray espeakData = QCoreApplication::applicationDirPath().toLocal8Bit();
+    if (!QDir(QCoreApplication::applicationDirPath() + "/espeak-ng-data").exists()) {
+#  ifdef ESPEAK_DATA_PATH
+        espeakData = QByteArray(ESPEAK_DATA_PATH);
+#  endif
+    }
     const char *espeakDataPath = espeakData.constData();
 #elif defined(ESPEAK_DATA_PATH)
     // Set by CMake when espeak-ng is built from source; the system library

@@ -56,8 +56,27 @@
 #include "shot_replay_controller.h"
 #include "live_wrist_angles.h"
 
+#ifdef Q_OS_WIN
+#  ifndef NOMINMAX
+#    define NOMINMAX
+#  endif
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#  endif
+#  include <windows.h>
+#endif
+
 int main(int argc, char *argv[])
 {
+#ifdef Q_OS_WIN
+    // Single-instance / updater mutex. The Windows installer (Inno Setup's
+    // AppMutex directive — see cmake/PinPointPackaging.cmake) checks for this
+    // named mutex so it can detect a running instance and replace files in place
+    // during a future (auto-)update. We only create and hold it; the app does not
+    // itself reject a second instance. The handle is intentionally leaked — the OS
+    // releases it on process exit. The name MUST match CPACK_INNOSETUP_SETUP_AppMutex.
+    ::CreateMutexW(nullptr, FALSE, L"PinPointStudio.SingleInstance.Mutex");
+#endif
     PinPointDebug::install();
 #ifdef HAVE_OPENCV
     // WARN+ logger output still goes to std::cerr (no writer hook before

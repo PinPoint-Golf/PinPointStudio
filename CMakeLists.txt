@@ -16,7 +16,31 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-project(PinPointStudio VERSION 0.1 LANGUAGES CXX)
+project(PinPointStudio VERSION 0.1.0 LANGUAGES CXX)
+
+# Standard install dirs (bin/, lib/, share/). Without this CMAKE_INSTALL_BINDIR is
+# empty and install(TARGETS ... RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}) would
+# place the executable at the install-prefix root while the DLLs (DESTINATION bin)
+# land in bin/ — splitting the runtime tree. Including this pins BINDIR=bin.
+include(GNUInstallDirs)
+
+# ── Windows runtime bundling helper ───────────────────────────────────────────
+# Copy a list of DLLs/files next to the dev executable (POST_BUILD) AND register
+# them for install/packaging under bin/, tagged with a CPack component. Windows
+# only; assumes a flat layout next to the executable. The function body is
+# evaluated lazily at call time, so it may be defined before the target exists.
+function(pp_win_bundle_dll _component)
+    if(NOT WIN32 OR NOT ARGN)
+        return()
+    endif()
+    foreach(_f ${ARGN})
+        add_custom_command(TARGET PinPointStudio POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_f}" "$<TARGET_FILE_DIR:PinPointStudio>"
+            VERBATIM)
+    endforeach()
+    install(FILES ${ARGN} DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT ${_component})
+endfunction()
 
 # Build provenance recorded into saved shots (swing.json "capture.host"). The
 # short git sha is captured at configure time — good enough for corpus
@@ -696,17 +720,12 @@ endif()
 if(WIN32)
     target_link_libraries(PinPointStudio PRIVATE "${_ort_root}/lib/onnxruntime.lib")
     # Collect all ORT DLLs (main + any provider DLLs present in the package).
+    # The CUDA/TensorRT provider DLLs are included here in the "core" component:
+    # they are versioned with ONNX Runtime (i.e. with the app), not with the
+    # NVIDIA toolkit, so they travel with every app update. Only the NVIDIA
+    # toolkit + cuDNN DLLs go in the separately-packaged "cuda" component.
     file(GLOB _ort_all_dlls "${_ort_root}/lib/onnxruntime*.dll")
-    # POST_BUILD: copy DLLs next to the executable so they are found at runtime
-    # during development builds (install() rules only run on cmake --install).
-    foreach(_dll ${_ort_all_dlls})
-        add_custom_command(TARGET PinPointStudio POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dll}" "$<TARGET_FILE_DIR:PinPointStudio>"
-        )
-    endforeach()
-    foreach(_dll ${_ort_all_dlls})
-        install(FILES "${_dll}" DESTINATION bin)
-    endforeach()
+    pp_win_bundle_dll(core ${_ort_all_dlls})
 elseif(APPLE)
     file(GLOB _ort_dylib "${_ort_root}/lib/libonnxruntime*.dylib")
     list(GET _ort_dylib 0 _ort_dylib_path)
@@ -721,19 +740,43 @@ if(WIN32 AND WITH_CUDA)
     file(GLOB _cudnn_dlls
         "C:/Program Files/NVIDIA/CUDNN/*/bin/${CUDAToolkit_VERSION_MAJOR}.*/x64/cudnn*.dll")
     if(_cudnn_dlls)
-        foreach(_dll ${_cudnn_dlls})
-            add_custom_command(TARGET PinPointStudio POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dll}" "$<TARGET_FILE_DIR:PinPointStudio>"
-            )
-        endforeach()
-        foreach(_dll ${_cudnn_dlls})
-            install(FILES "${_dll}" DESTINATION bin)
-        endforeach()
+        # cuDNN is part of the GPU runtime → "cuda" component. Keep the dev-tree
+        # copy: unlike the CUDA toolkit DLLs, cuDNN's versioned install dir is not
+        # on PATH, so the dev build needs them next to the executable.
+        pp_win_bundle_dll(cuda ${_cudnn_dlls})
         message(STATUS "cuDNN DLLs: ${_cudnn_dlls}")
     else()
         message(WARNING "cuDNN DLLs not found under "
             "C:/Program Files/NVIDIA/CUDNN/*/bin/${CUDAToolkit_VERSION_MAJOR}.*/x64/ — "
             "CUDA EP will fail at runtime. Install cuDNN 9 and reconfigure.")
+    endif()
+endif()
+
+# CUDA toolkit runtime: the ORT CUDA EP imports versioned cuBLAS/cuFFT/cudart DLLs
+# the first time a model runs. On the dev box these are on the system (Machine)
+# PATH, so they are NOT copied into the dev tree — but a target machine may have
+# only the NVIDIA driver. Bundle them for packaging in the separately-distributed
+# "cuda" component (install-only; cuDNN above completes that component). These are
+# the large (~hundreds of MB each) libraries that change only with the CUDA
+# version, so isolating them keeps routine app updates small.
+if(WIN32 AND WITH_CUDA AND CUDAToolkit_FOUND)
+    # CUDA 12 keeps these in bin/; CUDA 13 moved them to bin/x64/. Glob both.
+    file(GLOB _cuda_rt_dlls
+        "${CUDAToolkit_BIN_DIR}/cudart64_*.dll"
+        "${CUDAToolkit_BIN_DIR}/cublas64_*.dll"
+        "${CUDAToolkit_BIN_DIR}/cublasLt64_*.dll"
+        "${CUDAToolkit_BIN_DIR}/cufft64_*.dll"
+        "${CUDAToolkit_BIN_DIR}/x64/cudart64_*.dll"
+        "${CUDAToolkit_BIN_DIR}/x64/cublas64_*.dll"
+        "${CUDAToolkit_BIN_DIR}/x64/cublasLt64_*.dll"
+        "${CUDAToolkit_BIN_DIR}/x64/cufft64_*.dll")
+    if(_cuda_rt_dlls)
+        install(FILES ${_cuda_rt_dlls}
+                DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT cuda)
+        message(STATUS "CUDA runtime (cuda component): ${_cuda_rt_dlls}")
+    else()
+        message(WARNING "CUDA runtime DLLs not found in ${CUDAToolkit_BIN_DIR} — "
+            "the cuda component will be incomplete; GPU EP would rely on system PATH.")
     endif()
 endif()
 
@@ -797,14 +840,7 @@ if(WITH_ORTGENAI)
     if(WIN32)
         target_link_libraries(PinPointStudio PRIVATE "${_ortgenai_root}/lib/onnxruntime-genai.lib")
         file(GLOB _ortgenai_dlls "${_ortgenai_root}/lib/onnxruntime-genai*.dll")
-        foreach(_dll ${_ortgenai_dlls})
-            add_custom_command(TARGET PinPointStudio POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dll}" "$<TARGET_FILE_DIR:PinPointStudio>"
-            )
-        endforeach()
-        foreach(_dll ${_ortgenai_dlls})
-            install(FILES "${_dll}" DESTINATION bin)
-        endforeach()
+        pp_win_bundle_dll(core ${_ortgenai_dlls})
     elseif(APPLE)
         file(GLOB _ortgenai_dylib "${_ortgenai_root}/lib/libonnxruntime-genai*.dylib")
         list(GET _ortgenai_dylib 0 _ortgenai_dylib_path)
@@ -927,6 +963,8 @@ if(EXISTS "${_movenet_lightning_path}")
                 "$<TARGET_FILE_DIR:PinPointStudio>/models/${_movenet_lightning_file}"
             COMMENT "Copying MoveNet Lightning model to output directory"
         )
+        install(FILES "${_movenet_lightning_path}"
+                DESTINATION "${CMAKE_INSTALL_BINDIR}/models" COMPONENT core)
         if(EXISTS "${_movenet_thunder_path}")
             add_custom_command(TARGET PinPointStudio POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -934,6 +972,8 @@ if(EXISTS "${_movenet_lightning_path}")
                     "$<TARGET_FILE_DIR:PinPointStudio>/models/${_movenet_thunder_file}"
                 COMMENT "Copying MoveNet Thunder model to output directory"
             )
+            install(FILES "${_movenet_thunder_path}"
+                    DESTINATION "${CMAKE_INSTALL_BINDIR}/models" COMPONENT core)
         endif()
     endif()
 else()
@@ -1261,6 +1301,8 @@ if(EXISTS "${_mediapipe_detector_path}" AND EXISTS "${_mediapipe_landmark_path}"
                 "$<TARGET_FILE_DIR:PinPointStudio>/models/${_mediapipe_landmark_file}"
             COMMENT "Copying MediaPipe Pose models to output directory"
         )
+        install(FILES "${_mediapipe_detector_path}" "${_mediapipe_landmark_path}"
+                DESTINATION "${CMAKE_INSTALL_BINDIR}/models" COMPONENT core)
     endif()
 else()
     message(STATUS "MediaPipe Pose: models unavailable -- MediaPipe option disabled")
@@ -1315,6 +1357,8 @@ if(EXISTS "${_seg_model_path}")
                 "$<TARGET_FILE_DIR:PinPointStudio>/models/${_seg_model_file}"
             COMMENT "Copying segmenter model to output directory"
         )
+        install(FILES "${_seg_model_path}"
+                DESTINATION "${CMAKE_INSTALL_BINDIR}/models" COMPONENT core)
     endif()
     if(EXISTS "${_movenet_lightning_path}")
         target_sources(PinPointStudio PRIVATE
@@ -1378,6 +1422,8 @@ if(WITH_VITPOSE)
                     "$<TARGET_FILE_DIR:PinPointStudio>/models/${_vitpose_model_file}"
                 COMMENT "Copying ViTPose model to output directory"
             )
+            install(FILES "${_vitpose_model_path}"
+                    DESTINATION "${CMAKE_INSTALL_BINDIR}/models" COMPONENT core)
         endif()
     else()
         message(STATUS "ViTPose: model unavailable -- estimator disabled")
@@ -1422,7 +1468,7 @@ if(EXISTS "${_whisper_model_path}")
         COMMENT "Copying Whisper model to output directory"
     )
     install(FILES "${_whisper_model_path}"
-            DESTINATION bin/models/whisper)
+            DESTINATION "${CMAKE_INSTALL_BINDIR}/models/whisper" COMPONENT core)
 else()
     message(STATUS "Whisper: model unavailable — STT will use cloud fallback")
 endif()
@@ -1475,6 +1521,9 @@ if(EXISTS "${_ytdlp_path}")
             "${_ytdlp_path}" "$<TARGET_FILE_DIR:PinPointStudio>/${_ytdlp_name}"
         COMMENT "Copying yt-dlp to output directory"
     )
+    # install(PROGRAMS) sets the executable bit on non-Windows targets.
+    install(PROGRAMS "${_ytdlp_path}"
+            DESTINATION "${CMAKE_INSTALL_BINDIR}" RENAME "${_ytdlp_name}" COMPONENT core)
     if(NOT WIN32)
         add_custom_command(TARGET PinPointStudio POST_BUILD
             COMMAND chmod +x "$<TARGET_FILE_DIR:PinPointStudio>/${_ytdlp_name}"
@@ -1558,9 +1607,25 @@ else()
     else()
         # On Linux (and Windows) building from source, the compiled-in PKGDATADIR
         # won't match the build tree.  Pass the actual build-dir path so
-        # espeak_Initialize can find the phoneme tables at runtime.
+        # espeak_Initialize can find the phoneme tables at runtime (dev fallback).
         target_compile_definitions(PinPointStudio PRIVATE
             ESPEAK_DATA_PATH="${espeak_ng_BINARY_DIR}")
+
+        if(WIN32)
+            # ESPEAK_DATA_PATH points into the build tree, which does not exist on
+            # an installed machine. Copy espeak-ng-data next to the executable so
+            # the runtime (PhonemeTokenizer) can resolve it relative to the exe,
+            # and install it for packaging. The `data` target dependency above
+            # guarantees the compiled tables exist before this POST_BUILD copy.
+            add_custom_command(TARGET PinPointStudio POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${espeak_ng_BINARY_DIR}/espeak-ng-data"
+                    "$<TARGET_FILE_DIR:PinPointStudio>/espeak-ng-data"
+                COMMENT "Copying espeak-ng data next to the executable"
+            )
+            install(DIRECTORY "${espeak_ng_BINARY_DIR}/espeak-ng-data"
+                    DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT core)
+        endif()
     endif()
 
     message(STATUS "espeak-ng 1.52.0: built from source")
@@ -1637,13 +1702,17 @@ if(WIN32)
             src/Video/VideoInputSpinnaker.cpp
         )
 
-        # Copy Spinnaker DLLs to output directory for development
+        # Copy Spinnaker DLLs next to the dev executable AND install them (core).
+        # bin64 also holds SpinView's managed/GUI assemblies (Qt5*, Actipro WPF,
+        # OpenTK, Newtonsoft, the .NET wrappers + GUI selectors) which a native
+        # C++ consumer never loads — exclude them so the installer doesn't ship
+        # tens of unrelated DLLs (incl. a conflicting-looking Qt5 set). The native
+        # runtime + GenICam DLLs (Spinnaker[C]_v140, GenApi/GCBase/Log/…, libiomp)
+        # are kept.
         file(GLOB _spinnaker_dlls "${SPINNAKER_ROOT}/bin64/vs2015/*.dll")
-        foreach(_dll ${_spinnaker_dlls})
-            add_custom_command(TARGET PinPointStudio POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dll}" "$<TARGET_FILE_DIR:PinPointStudio>"
-            )
-        endforeach()
+        list(FILTER _spinnaker_dlls EXCLUDE REGEX
+            "(Qt5|ActiproSoftware|OpenTK|Newtonsoft|[Ll]og4net|GALogger|SpinSwitch|NETGUI|NET_v140|GUI_WPF|GUISelector|SpinVideoNET)")
+        pp_win_bundle_dll(core ${_spinnaker_dlls})
     else()
         message(STATUS "Spinnaker: not found (high-speed camera support disabled)")
     endif()
@@ -1708,6 +1777,32 @@ message(STATUS "OpenCV ${OpenCV_VERSION}: found")
 target_compile_definitions(PinPointStudio PRIVATE HAVE_OPENCV)
 target_include_directories(PinPointStudio PRIVATE ${OpenCV_INCLUDE_DIRS})
 target_link_libraries(PinPointStudio PRIVATE ${OpenCV_LIBS})
+
+# Windows OpenCV runtime: previously resolved only from the dev PATH (e.g.
+# C:\tools\opencv\build\x64\vc16\bin) — nothing was copied or installed. Bundle
+# the world DLL (config-aware via the imported target) plus the videoio FFmpeg
+# backend (a loose DLL loaded on demand by cv::VideoCapture).
+if(WIN32)
+    set(_opencv_runtime_files "")
+    if(TARGET opencv_world)
+        list(APPEND _opencv_runtime_files "$<TARGET_FILE:opencv_world>")
+    else()
+        message(WARNING "OpenCV: 'opencv_world' target not found — modular OpenCV "
+            "build? The world DLL will not be bundled; installer may be incomplete.")
+    endif()
+    file(GLOB _opencv_ffmpeg_dlls
+        "${OpenCV_DIR}/x64/*/bin/opencv_videoio_ffmpeg*.dll"
+        "${OpenCV_DIR}/../bin/opencv_videoio_ffmpeg*.dll"
+        "${OpenCV_DIR}/bin/opencv_videoio_ffmpeg*.dll")
+    list(APPEND _opencv_runtime_files ${_opencv_ffmpeg_dlls})
+    if(_opencv_runtime_files)
+        pp_win_bundle_dll(core ${_opencv_runtime_files})
+        message(STATUS "OpenCV runtime: bundling ${_opencv_runtime_files}")
+    else()
+        message(WARNING "OpenCV runtime DLLs not located under ${OpenCV_DIR} — "
+            "installer may be incomplete (set OpenCV_DIR to the build/ or lib/ dir).")
+    endif()
+endif()
 target_sources(PinPointStudio PRIVATE
     src/Video/video_preprocessor_opencv.h
     src/Video/video_preprocessor_opencv.cpp
@@ -1836,12 +1931,11 @@ if(FFMPEG_FOUND)
             "${_ffmpeg_libdir}/../bin/avutil-*.dll"
             "${_ffmpeg_libdir}/../bin/swscale-*.dll"
             "${_ffmpeg_libdir}/../bin/swresample-*.dll")
-        foreach(_dll ${_ffmpeg_dlls})
-            add_custom_command(TARGET PinPointStudio POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dll}" "$<TARGET_FILE_DIR:PinPointStudio>"
-            )
-            install(FILES "${_dll}" DESTINATION bin)
-        endforeach()
+        # NOTE: windeployqt (wired in at the CPack/install-deploy stage) ships Qt's
+        # own LGPL FFmpeg DLLs under the same names — those lack libx264 and break
+        # swing export. The install-deploy script must re-copy these BtbN GPL DLLs
+        # *after* windeployqt runs so they win. See packaging step.
+        pp_win_bundle_dll(core ${_ffmpeg_dlls})
     endif()
     message(STATUS "FFmpeg ${FFMPEG_libavcodec_VERSION}: found — swing export enabled")
 else()
@@ -1929,10 +2023,66 @@ if(MSVC)
 endif()
 
 install(TARGETS PinPointStudio
-    BUNDLE DESTINATION .
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    BUNDLE  DESTINATION . COMPONENT core
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT core
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT core
 )
+
+# ── Qt deployment (windeployqt) at install time ──────────────────────────────
+# The POST_BUILD steps above make the *build* tree runnable from the dev PATH, but
+# Qt itself (Qt6 DLLs, platform/imageformats/multimedia/tls plugins, QML modules)
+# is never copied. Run windeployqt against the *installed* exe to pull Qt into the
+# install tree. Runs as part of the "core" component, after install(TARGETS) above
+# so the exe it inspects already exists.
+#
+# We invoke windeployqt directly via install(CODE) rather than
+# qt_generate_deploy_qml_app_script: the latter pre-copies the QML plugin DLLs into
+# the tree and then has windeployqt overwrite them, which fails deterministically
+# here with "Cannot remove existing file …plugind.dll: being used by another
+# process" (the just-written DLL is briefly locked, e.g. by AV real-time scan).
+# windeployqt deploying into a clean tree never overwrites, so it is reliable.
+if(WIN32)
+    get_filename_component(_qt_prefix "${Qt6_DIR}/../../.." ABSOLUTE)
+    find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${_qt_prefix}/bin" REQUIRED)
+    # Do NOT pass --force. windeployqt reaches some QML plugins via multiple import
+    # paths and maps each plugin DLL to read its dependency table. With --force it
+    # then removes-and-recopies that same still-mapped file, hitting "Cannot remove
+    # existing file …plugind.dll: being used by another process" (it locks its own
+    # file). Without --force it simply skips already-current files. The retry is a
+    # belt for genuine transient AV locks on freshly written DLLs.
+    install(CODE "
+        set(_wdq_ok FALSE)
+        foreach(_try RANGE 1 4)
+            message(STATUS \"Deploying Qt (windeployqt) attempt \${_try} into \${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}\")
+            execute_process(
+                COMMAND \"${WINDEPLOYQT_EXECUTABLE}\"
+                        --qmldir \"${CMAKE_CURRENT_SOURCE_DIR}\"
+                        --compiler-runtime
+                        --no-translations
+                        \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/PinPointStudio.exe\"
+                RESULT_VARIABLE _wdq_rc)
+            if(_wdq_rc EQUAL 0)
+                set(_wdq_ok TRUE)
+                break()
+            endif()
+            message(STATUS \"  windeployqt attempt \${_try} failed (exit \${_wdq_rc}); retrying after 3s\")
+            execute_process(COMMAND \"${CMAKE_COMMAND}\" -E sleep 3)
+        endforeach()
+        if(NOT _wdq_ok)
+            message(FATAL_ERROR \"windeployqt failed after 4 attempts.\")
+        endif()
+    " COMPONENT core)
+
+    # windeployqt ships Qt Multimedia's own LGPL FFmpeg DLLs under the SAME names
+    # as our BtbN GPL build — but Qt's lack libx264, breaking swing export. They
+    # were installed earlier (via pp_win_bundle_dll), then clobbered by windeployqt
+    # just above. Re-copy the BtbN DLLs LAST so they win. install() runs in
+    # declaration order, so this must come *after* the deploy install(CODE).
+    if(FFMPEG_FOUND AND _ffmpeg_dlls)
+        install(FILES ${_ffmpeg_dlls}
+                DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT core)
+    endif()
+endif()
 
 # ── Linux: install hicolor PNG icons + .desktop file ─────────────────────────
 if(UNIX AND NOT APPLE)
@@ -2007,3 +2157,8 @@ if(PINPOINT_BUILD_TOOLS)
     # The runner resolves the ViTPose model next to its own binary, same as the app.
     message(STATUS "SwingLab tools: swinglab_run enabled")
 endif()
+
+# ── Windows installer packaging (CPack + Inno Setup) ─────────────────────────
+# Must come last: include(CPack) snapshots the CPACK_* variables and component
+# definitions set inside, and all install() rules must already be declared.
+include(cmake/PinPointPackaging.cmake)
