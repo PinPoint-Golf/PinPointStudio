@@ -23,7 +23,7 @@
 // e.g. "-beta1", "-alpha1", "-rc2" for pre-releases.
 #define PINPOINT_VERSION_MAJOR   0
 #define PINPOINT_VERSION_MINOR   1
-#define PINPOINT_VERSION_POSTFIX "-alpha1"
+#define PINPOINT_VERSION_POSTFIX "-alpha2"
 
 // ── Assembled string ─────────────────────────────────────────────────────────
 #define PP_STR_IMPL(x) #x
