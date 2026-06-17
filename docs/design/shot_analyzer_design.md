@@ -1,6 +1,7 @@
 # PinPoint Studio — Shot Analyzer: Design & Implementation Plan
 
 > **Status:** Design proposal (draft) · **Date:** 2026-06-08 · **Grounded against:** `main` @ `1d6ac77`
+> · **Current state:** see **Appendix C — Checkpoint review** (as-built audit, 2026-06-17, end of doc).
 >
 > This document specifies the **shot analyzer** — the layer that turns a frozen `pinpoint::SwingWindow`
 > (raw multi-camera frames + 100 Hz IMU samples + the impact marker) into 3D biomechanics, scored
@@ -79,6 +80,7 @@ sequenced build-out.*
 - [Addendum — Club shaft detection (ShaftTracker, hand-anchored)](#addendum-club-shaft-detection-shafttracker-hand-anchored)
 - [Appendix A — Codebase integration map](#appendix-a-codebase-integration-map)
 - [Appendix B — Research bibliography](#appendix-b-research-bibliography)
+- [Appendix C — Checkpoint review (2026-06-17)](#appendix-c--checkpoint-review-2026-06-17)
 
 ---
 
@@ -868,12 +870,20 @@ validated against `mirroredSource`/handedness; occluded segments stay IMU-recons
 > `docs/reference/wristmetrics.md` (sign/axis/naming + norms). `docs/design/shot_analyzer_viz.md` covers the
 > graph work.
 >
-> **Scope:** M1 is the **IMU-orientation** path only. Pose/triangulation layers (1, 2, 4, 5)
-> and camera metric calibration are **M2+**, unimplemented — so "monocular skeleton" below is
-> as-built IMU-orientation-only.
+> **Scope:** M1 as shipped was the **IMU-orientation** path only — pose/triangulation layers
+> (1, 2, 4, 5) and camera metric calibration were unimplemented at M1, so "monocular skeleton"
+> below is as-built IMU-orientation-only.
+>
+> **⚠ This section is the M1 milestone snapshot and is now partly stale.** The offline pose pass
+> (layer 1) and the `ShaftTracker` club pipeline landed *after* M1 and now run in production. See
+> **Appendix C — Checkpoint review (2026-06-17)** for the current as-built state; the notes below
+> are corrected inline where they would otherwise mislead.
 
 ### Architecture & data pipeline — as-built
-- **Layers implemented:** 3 (`ImuVisionFuser`) and 6 (`PhaseSegmenter`). 1/2/4/5 not in M1.
+- **Layers implemented:** 3 (`ImuVisionFuser`) and 6 (`PhaseSegmenter`); **1/2/4/5 not in M1**.
+  *(Updated 2026-06-17: layer 1 — offline `PoseRunner`/ViTPose — and the `ShaftTracker` club
+  pipeline landed post-M1 and now run in `WristAnalyzer`, swing-span bounded per segmentation
+  v3 G3; layers 2/4/5 remain unbuilt.)*
 - **Canonical structures** (`src/Analysis/swing_analysis.h`): `SegmentRole`,
   `ImuSegmentBinding {SourceId, role, alignA, mountM}`, `ReconstructionTier`,
   `Phase`/`PhaseEvent`/`PhaseSample`, `MetricSeries`, `ScoredMetric`, `ScoreBreakdown`,
@@ -898,7 +908,8 @@ validated against `mirroredSource`/handedness; occluded segments stay IMU-recons
   live capture, signs correct for the lead/left arm with **no left/right mirror**.
   **Deferred:** ~10–15° FE↔RUD cross-talk from the no-magnetometer **yaw being unobservable**
   between two sensors (`src/IMU/imu_base.h`); right-arm sign unverified.
-- **§0 / layers 1, 2, 4, 5** — M2+.
+- **§0 / layers 1, 2, 4, 5** — M2+. *(Updated 2026-06-17: layer 1 pose now shipped — see
+  Appendix C; §0 camera calibration and layers 2/4/5 remain unbuilt.)*
 
 ### Metrics & scoring — as-built
 - **Catalog (M1 wrist):** `leadWristFlexExt` (bow/cup), `leadWristRadUln` (hinge),
@@ -928,7 +939,12 @@ validated against `mirroredSource`/handedness; occluded segments stay IMU-recons
 - **M1**: **functionally complete** as the IMU-orientation path (engine, sign-lock, scorer,
   unified persistence + reload, replay-synced multi-metric graphs, live overlay). Tidy-ups in
   `shot_analyzer_m1_wrist.md §11`.
-- **M2–M6**: not started.
+- **M2–M6**: ~~not started~~ *(stale — updated 2026-06-17)*. **Partial:** the offline `PoseRunner`/
+  ViTPose pass, the `ShaftTracker` club pipeline (S0–S4), segmentation v2 + v3 (pass-1 ladder +
+  heavy-stage bounding; pass-2 G4 on hold), and the SwingLab offline harness all shipped after M1.
+  **Still not started:** camera metric calibration, `Triangulator`/DLT, MonoLift/MotionBERT, the
+  body `TrackSmoother`/`SkeletonSolver` (no `SkeletonTimeline`), `FaultRanker`, DTW, and the
+  Swing/GRF/Coach analyzers (still stubs). See **Appendix C** for the full breakdown.
 
 ### Cross-cutting deferred / follow-up
 Reload set (rating/note, MP4 replay, export-fail header) · FE↔RUD cross-talk & shared-heading
@@ -1939,4 +1955,122 @@ _Sources consulted during the domain research phase, grouped by topic. Recommend
 - Sportsbox AI 3D motion analysis (markerless ~30 keypoints, red/yellow/green vs pro benchmarks, kinematic sequence): https://www.getsgolf.com/post/sportsbox-ai-3d-motion-analysis-kinematic-ai-technology and Foresight/GCQuad fusion https://www.sportsbox.ai/press-releases/sportsbox-ai-unveils-partnership-with-foresight-sports-to-integrate-launch-monitor-data-into-its-3dgolf-app
 - K-Motion / K-Vest evaluation (efficiency graph, speed creation/consistency scores, vs Tour/peer/own-best): https://www.k-motion.com/evaluation/
 - GEARS 3D motion capture (34 markers, <0.2mm, compare to any tour swing — reference-swing source): https://gearssports.com/frequently-asked-questions
+
+---
+
+## Appendix C — Checkpoint review (2026-06-17)
+
+> **Status:** As-built audit · **Date:** 2026-06-17 · **Grounded against:** `main` @ `c90dcdf`
+>
+> A point-in-time review of the analyzer against this design and the commits since it was written
+> (`1d6ac77..main`). This appendix supersedes the *Implementation notes (as-built, M1)* section as
+> the **current-state record**; that section is retained as the M1 milestone snapshot (corrected
+> inline). Headline: the analyzer is real and unexpectedly deep — **for the Wrist session only** —
+> and has been validated **exclusively against synthetic data**. No live golfer swing has been
+> analyzed end-to-end.
+
+### What shipped vs the plan
+
+Production entry is unchanged: `makeShotAnalyzer()` (`src/Analysis/shot_analyzer.cpp`) dispatches by
+session type, and **only type 1 (Wrist) is a real analyzer** — Swing (0), GRF (2), Coach (3) still
+return the timestamp-hash stub. `WristAnalyzer::analyze` (`src/Analysis/wrist_analyzer.cpp`) runs
+the chain below over the frozen window.
+
+| Layer / milestone | State | Notes |
+|---|---|---|
+| **M0** plumbing — widened job/result, unified `swing.json` single-writer, reload | **Done** | |
+| **L3 Fusion** `ImuVisionFuser` (`q_anat = A·q·M`, 200 Hz grid) | **Done** | IMU-only; no camera-fusion / Kabsch yaw term yet |
+| **L6 Phase** `PhaseSegmenter` (v2/v3 inertial ladder, `SegmentationConfig`) | **Done (pass 1)** | v3 **pass-2 shaft refinement is NOT run** (G4 on hold) |
+| **L6 Metrics** `MetricExtractor` (wrist FE/RUD, pronation, elbow) | **Done** | |
+| **L1 Detection** `PoseRunner` (offline **ViTPose**, swing-span bounded) | **Done** | deferred out of the M1 ship; now in production, v3-G3 bounded |
+| **`ShaftTracker`** (face-on club, classical CV) → `impactShaftLean` series | **Done (S0–S4)** | unscored/provisional sign; degrades to invalid track; S5 pending |
+| **L7 Scoring** `SwingScorer` (banded weighted geometric mean) | **Done** | bands **provisional / untuned** |
+| Wrist **assessment engine** (`WristAssessmentEngine` + `reference_bands` + findings) | **Done** | a *separate* checkpoint-RAG system for the Wrist Motion review UI — **not** called by `WristAnalyzer` |
+| **SwingLab** offline harness (L1–L5) + ~27 synthetic CTest targets | **Done** | synthetic corpus only |
+
+The analyzer has quietly absorbed work the original M-plan placed much later: the offline pose pass
+and the entire `ShaftTracker` + segmentation v2/v3 lines, all reprioritized **ahead** of camera
+metric calibration via the three addenda above.
+
+### Not built
+
+- **Camera metric calibration (M2).** `src/Gui/calibration/CameraCalibrationFlow.qml` is still a
+  placeholder with a disabled Start button; there is no `camera_calibrator`; `AppSettings` has no
+  `cameraIntrinsics`/`cameraExtrinsics`/`cameraCalibrated`/`subjectHeightM`; and `ShotAnalysisJob`
+  carries **no `cameraCalib` field** (only `imuBindings`). Metric scale therefore never lands.
+- **L2 `Triangulator`/DLT, MonoLift/MotionBERT, L4 `TrackSmoother` (body Kalman+RTS), L5
+  `SkeletonSolver` (IK), L8 `FaultRanker`, DTW similarity — none of these files exist.**
+  Consequently there is **no `SkeletonTimeline`**, and the design's "analyzed skeleton drives
+  `BodyVizView` replay" goal is unrealized (replay remains live-keypoint/video; `BodyVizView` is
+  IMU-driven via `BodyPoseAdapter`).
+- **Swing / GRF / Coach analyzers** — stubs.
+- **M4 / M5 / M6** — not started.
+
+### The validation gap (the dominant fact)
+
+Every test in `src/Analysis/tests` uses synthetic fixtures (`pipeline_test` is literally
+"Pure (no SwingWindow)"); **no recorded `SwingWindow` is exercised anywhere**, and no live swing has
+been analyzed end-to-end. Compounding it:
+
+- Hardware **sign-lock is incomplete** — the ~10–15° FE↔RUD cross-talk from unobservable yaw, and
+  the right-arm / left-handed sign, are unverified (`shot_analyzer_m1_wrist.md §11.B`).
+- **Both** band tables are explicitly provisional: `SwingScorer`'s `kWristBands` and the assessment
+  engine's `reference_bands` ("starting heuristics … every number is expected to move once tuned
+  against real swings").
+- The recorded **corpus is flagged unreliable** by the 2026-06-11 decision; **corpus-v1 has not
+  been recorded**, so SwingLab's real missions cannot run. `ShaftTracker` S5 and segmentation v3 G4
+  are both studio-gated on the same data.
+
+### What's left, prioritized
+
+**Tier 1 — close the loop on what exists (before adding breadth).**
+1. Record **corpus-v1** (clean, with calibration provenance) → run SwingLab real missions → **tune
+   the provisional bands** and **finish hardware sign-lock**. This is *the* gate: the stack is
+   "theoretically complete, never seen a real golfer."
+2. `ShaftTracker` **S5** hardware verification → unblock segmentation **v3 G4** (pass-2 shaft
+   refinement of Delivery/Release/Top + the `MetricExtractor`-after-pass-2 reorder; both
+   coded-and-waiting).
+3. M1 `§11` tidy-ups: in-replay graph verify, export-fail header fallback, MP4-backed replay
+   reload, the exact quaternion-referenced Δ curve.
+
+**Tier 2 — breadth, reusing the existing spine.**
+4. **Swing / Coach analyzers** — the cheapest large win: the fuse→segment→metric→score machinery is
+   session-agnostic and the body orientation metrics (X-factor, kinematic sequence, rotations) are
+   IMU-delivered and camera-count-independent. These sessions currently get a *hash*, not analysis.
+   Coach = Swing + DTW; GRF = kinematic estimate, clearly labelled.
+5. **IMU slot-map fix** (a clean pelvis+thorax pair vs thorax/lumbar/T12) — the real unlock for
+   `xFactor`/`pelvisRotation`; an instrumentation change, not a camera one.
+
+**Tier 3 — heavy, model/calibration-risky (defer until a metric demands it).**
+6. M2 camera calibration (ChArUco + ground-plane `solvePnP`) → sway/lift/tilt in cm, shaft lean /
+   clubhead speed in real units.
+7. M3 second camera + DLT (club path / attack / thrust); M4 `TrackSmoother` + `SkeletonSolver` →
+   `SkeletonTimeline`; M5 `FaultRanker` + reference-swing DTW + ranked feedback; M6 cross-platform
+   GPU / latency.
+
+### What to reconsider
+
+1. **Make validation the explicit stop-the-line gate; freeze breadth until it closes.** The chief
+   risk is a large synthetic-only-validated stack with provisional bands and unverified signs, while
+   the data that would validate it does not exist. Every metric/analyzer added pre-corpus-v1
+   compounds untested surface area.
+2. **Resolve the two parallel wrist banding systems.** `SwingScorer` (post-shot summary card) and
+   `WristAssessmentEngine`/`reference_bands` (checkpoint-RAG diagnostics UI) both grade lead-wrist
+   FE/RUD + pronation with **independent provisional band tables** that can disagree (a green RAG
+   matrix alongside a mediocre overall score). Converge on one band source of truth — the
+   `IReferenceBandProvider` seam is the better-designed, archetype-aware one — or document precisely
+   why the two legitimately need different thresholds. Tuning two sets against corpus-v1
+   independently is wasted effort and a divergence trap.
+3. **De-risk (or drop) the MotionBERT-lift / IK-skeleton branch (M4).** It is the heaviest, most
+   model/license-fragile, hardest-to-validate part, and the value actually shipped needs none of it
+   (`BodyVizView` is already IMU-driven). Confirm a concrete metric or replay feature that genuinely
+   requires a reconstructed `SkeletonTimeline` before building it on spec.
+4. **Watch the now-live latency cost.** ViTPose runs per-frame for every Wrist shot; the v3
+   swing-span bounding (the right lever) is wired, but CPU-only the pose pass is ~10–30 s. Confirm
+   the budget on the actual studio machine. Minor: the SwingLab hooks (`poseTrackPath`,
+   `tuningOverrides`) have leaked into the production `ShotAnalysisJob` value type.
+5. **Re-baseline the M-plan.** The M0–M6 numbering no longer maps to reality (the pose pass and the
+   `ShaftTracker` line jumped ahead of M2 calibration). The inline corrections above and this
+   appendix realign the narrative; consider replacing the linear plan with the two-axis
+   (camera × IMU) capability matrix the design itself argues for.
 
