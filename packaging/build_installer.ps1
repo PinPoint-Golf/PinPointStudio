@@ -65,15 +65,17 @@ if (-not $iscc) { throw "Inno Setup 6 (ISCC.exe) not found. Install it from http
 #   both -> PinPointStudioSetup-<ver>.exe
 #   core -> PinPointStudioSetup-<ver>-core.exe   (no CUDA; smaller)
 #   cuda -> PinPointStudioSetup-<ver>-cuda.exe   (GPU runtime only)
-# Version is derived from src/Core/version.h (MAJOR.MINOR.BUILD) — the same single
-# source of truth CMake's project(VERSION) now derives from. (Don't scrape it from
-# CMakeLists.txt: the project() line is computed there, not a literal.)
+# The asset FILENAME reflects the version.h string / release tag (e.g. v0.1-alpha3),
+# the single source of truth — NOT the internal monotonic build number. (The Inno
+# AppVersion / CPACK_PACKAGE_VERSION stays numeric MAJOR.MINOR.BUILD, derived by CMake
+# from the same version.h, for upgrade comparison.) Don't scrape CMakeLists.txt: the
+# project() line is computed there, not a literal.
 $verH = Get-Content (Join-Path $repo 'src\Core\version.h') -Raw
 $maj = [regex]::Match($verH, '#define\s+PINPOINT_VERSION_MAJOR\s+(\d+)').Groups[1].Value
 $min = [regex]::Match($verH, '#define\s+PINPOINT_VERSION_MINOR\s+(\d+)').Groups[1].Value
-$bld = [regex]::Match($verH, '#define\s+PINPOINT_VERSION_BUILD\s+(\d+)').Groups[1].Value
-if (-not $maj -or -not $min -or -not $bld) { throw "Could not parse version from src/Core/version.h" }
-$version = "$maj.$min.$bld"
+$pfx = [regex]::Match($verH, '#define\s+PINPOINT_VERSION_POSTFIX\s+"([^"]*)"').Groups[1].Value
+if (-not $maj -or -not $min) { throw "Could not parse version from src/Core/version.h" }
+$version = "v$maj.$min$pfx"   # e.g. v0.1-alpha3 — matches PINPOINT_VERSION_STRING and the tag
 $pkgName = "PinPointStudioSetup-$version"
 $cpackComponentArg = ''
 switch ($Components) {

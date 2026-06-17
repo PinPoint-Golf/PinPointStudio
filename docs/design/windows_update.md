@@ -137,8 +137,8 @@ A release's `appcast-win.xml` has one `<item>`:
       </sparkle:releaseNotesLink>
       <pubDate>Tue, 17 Jun 2026 09:00:00 +0000</pubDate>
       <enclosure
-        url="https://github.com/PinPoint-Golf/PinPointStudio/releases/download/v0.1-alpha2/PinPointStudioSetup-0.1.0-core.exe"
-        sparkle:version="100002"
+        url="https://github.com/PinPoint-Golf/PinPointStudio/releases/download/v0.1-alpha2/PinPointStudioSetup-v0.1-alpha2-core.exe"
+        sparkle:version="10002"
         sparkle:shortVersionString="v0.1-alpha2"
         sparkle:os="windows"
         length="268435456"
@@ -491,8 +491,10 @@ appcast-win.xml                        # the Sparkle feed: version, URL, edSigna
 release-notes-win.html                 # (optional) "what's new", shown in WinSparkle's window
 PinPointStudioSetup-<ver>-cuda.exe     # standalone CUDA runtime (own AppId) — fetched adaptively by the app when a GPU is present (§4.4)
 ```
-`<ver>` = the CMake/Inno installer version (e.g. `0.1.0`), bumped in lockstep with
-`version.h`. `appcast-win.xml` and the installer co-exist with the Linux
+`<ver>` = the **`version.h` string / release tag** (e.g. `v0.1-alpha3`) — the asset
+filename reflects the tag, while the *internal* Inno `AppVersion` is the numeric
+`MAJOR.MINOR.BUILD` CMake derives from the same `version.h`. `appcast-win.xml` and the
+installer co-exist with the Linux
 `*.AppImage*` assets on the **same** release; each platform's updater reads only its
 own assets and ignores the other's (the Linux updater already skips Windows-only
 releases, and WinSparkle only ever looks at `appcast-win.xml`).

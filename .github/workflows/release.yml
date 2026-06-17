@@ -114,14 +114,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Read version (version.h → installer version)
+      - name: Read version (version.h → asset name)
         shell: bash
         run: |
           maj=$(sed -n 's/^#define PINPOINT_VERSION_MAJOR[[:space:]]*\([0-9]*\).*/\1/p' src/Core/version.h)
           min=$(sed -n 's/^#define PINPOINT_VERSION_MINOR[[:space:]]*\([0-9]*\).*/\1/p' src/Core/version.h)
-          bld=$(sed -n 's/^#define PINPOINT_VERSION_BUILD[[:space:]]*\([0-9]*\).*/\1/p' src/Core/version.h)
-          echo "PP_VERSION=${maj}.${min}.${bld}" >> "$GITHUB_ENV"
-          echo "installer version → ${maj}.${min}.${bld} (git tag ${GITHUB_REF_NAME} is free-form)"
+          pfx=$(sed -n 's/^#define PINPOINT_VERSION_POSTFIX[[:space:]]*"\([^"]*\)".*/\1/p' src/Core/version.h)
+          # Asset name reflects the version.h string / tag (e.g. v0.1-alpha3); the internal
+          # Inno AppVersion stays numeric (CMake derives it from the same version.h).
+          echo "PP_VERSION=v${maj}.${min}${pfx}" >> "$GITHUB_ENV"
+          echo "asset version → v${maj}.${min}${pfx} (tag ${GITHUB_REF_NAME})"
 
       - name: Set up MSVC (x64)
         uses: ilammy/msvc-dev-cmd@v1
