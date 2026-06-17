@@ -68,6 +68,7 @@ if (-not $Installer) {
 if (-not $Installer -or -not (Test-Path $Installer)) {
     throw "No -core installer found. Build it with packaging\build_installer.ps1 -Components core, or pass -Installer."
 }
+$Installer = (Resolve-Path -LiteralPath $Installer).Path   # absolute, so the appcast path is too
 $installerName = Split-Path -Leaf $Installer
 $length = (Get-Item $Installer).Length
 
@@ -123,7 +124,9 @@ $notesElement      <pubDate>$pubDate</pubDate>
 "@
 
 if (-not $OutFile) { $OutFile = Join-Path (Split-Path -Parent $Installer) 'appcast-win.xml' }
-$xml | Out-File -FilePath $OutFile -Encoding utf8
+# Write UTF-8 WITHOUT a BOM — a BOM before <?xml trips some feed parsers. (PS 5.1's
+# Out-File -Encoding utf8 emits a BOM, so use the .NET writer with BOM-less encoding.)
+[System.IO.File]::WriteAllText($OutFile, $xml, (New-Object System.Text.UTF8Encoding($false)))
 
 Write-Host ""
 Write-Host "appcast written: $OutFile" -ForegroundColor Green
