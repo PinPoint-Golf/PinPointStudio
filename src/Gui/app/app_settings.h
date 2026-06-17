@@ -81,6 +81,7 @@ class AppSettings : public QObject
     Q_PROPERTY(bool    cloudFallbackTts            READ cloudFallbackTts            WRITE setCloudFallbackTts            NOTIFY cloudFallbackTtsChanged)
     Q_PROPERTY(bool    cloudFallbackLlm            READ cloudFallbackLlm            WRITE setCloudFallbackLlm            NOTIFY cloudFallbackLlmChanged)
     Q_PROPERTY(bool    checkForUpdates             READ checkForUpdates             WRITE setCheckForUpdates             NOTIFY checkForUpdatesChanged)
+    Q_PROPERTY(QString skippedUpdateVersion        READ skippedUpdateVersion        WRITE setSkippedUpdateVersion        NOTIFY skippedUpdateVersionChanged)
     Q_PROPERTY(bool    sendDiagnostics             READ sendDiagnostics             WRITE setSendDiagnostics             NOTIFY sendDiagnosticsChanged)
     Q_PROPERTY(QString mainDisplayMode             READ mainDisplayMode             WRITE setMainDisplayMode             NOTIFY mainDisplayModeChanged)
     Q_PROPERTY(bool    rememberWindowGeometry      READ rememberWindowGeometry      WRITE setRememberWindowGeometry      NOTIFY rememberWindowGeometryChanged)
@@ -215,6 +216,7 @@ public:
         m_cloudFallbackTts          = ppSettings().value(QStringLiteral("General/cloudFallbackTts"),          false).toBool();
         m_cloudFallbackLlm          = ppSettings().value(QStringLiteral("General/cloudFallbackLlm"),          false).toBool();
         m_checkForUpdates           = ppSettings().value(QStringLiteral("General/checkForUpdates"),           true).toBool();
+        m_skippedUpdateVersion      = ppSettings().value(QStringLiteral("General/skippedUpdateVersion"),      QString()).toString();
         m_sendDiagnostics           = ppSettings().value(QStringLiteral("General/sendDiagnostics"),           false).toBool();
 
         m_mainDisplayMode        = ppSettings().value(QStringLiteral("display/mainDisplayMode"),        QStringLiteral("primary")).toString();
@@ -318,6 +320,7 @@ public:
     bool    cloudFallbackTts()          const { return m_cloudFallbackTts; }
     bool    cloudFallbackLlm()          const { return m_cloudFallbackLlm; }
     bool    checkForUpdates()           const { return m_checkForUpdates; }
+    QString skippedUpdateVersion()      const { return m_skippedUpdateVersion; }
     bool    sendDiagnostics()           const { return m_sendDiagnostics; }
 
     QString mainDisplayMode()        const { return m_mainDisplayMode; }
@@ -598,6 +601,14 @@ public:
         m_checkForUpdates = v;
         ppSettings().setValue(QStringLiteral("General/checkForUpdates"), v);
         emit checkForUpdatesChanged();
+    }
+
+    void setSkippedUpdateVersion(const QString &v)
+    {
+        if (m_skippedUpdateVersion == v) return;
+        m_skippedUpdateVersion = v;
+        ppSettings().setValue(QStringLiteral("General/skippedUpdateVersion"), v);
+        emit skippedUpdateVersionChanged();
     }
 
     void setSendDiagnostics(bool v)
@@ -1029,6 +1040,7 @@ signals:
     void cloudFallbackTtsChanged();
     void cloudFallbackLlmChanged();
     void checkForUpdatesChanged();
+    void skippedUpdateVersionChanged();
     void sendDiagnosticsChanged();
     void mainDisplayModeChanged();
     void rememberWindowGeometryChanged();
@@ -1110,6 +1122,7 @@ private:
     bool    m_cloudFallbackTts          = false;
     bool    m_cloudFallbackLlm          = false;
     bool    m_checkForUpdates           = true;
+    QString m_skippedUpdateVersion;
     bool    m_sendDiagnostics           = false;
 
     QString m_mainDisplayMode        = QStringLiteral("primary");

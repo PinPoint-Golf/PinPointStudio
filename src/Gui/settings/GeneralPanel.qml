@@ -710,8 +710,28 @@ Item {
                 }
 
                 Row {
+                    id: verRow
                     spacing: Theme.sp(10)
                     Layout.alignment: Qt.AlignVCenter
+
+                    // Live updater state (Linux AppImage). Off-Linux / dev builds
+                    // report "unsupported"/"devbuild" and the action is hidden.
+                    readonly property string uState: updateController.state
+
+                    // Status-badge palette per state {text, fg, bg}. Text for the
+                    // downloading state is bound separately so the % updates live.
+                    readonly property var pal: {
+                        switch (uState) {
+                        case "checking":    return { text: qsTr("Checking…"),         fg: Theme.colorText2, bg: "transparent" }
+                        case "available":   return { text: qsTr("Update available"),  fg: Theme.colorAccent, bg: Theme.colorAccentLight }
+                        case "downloading": return { text: "",                         fg: Theme.colorAccent, bg: Theme.colorAccentLight }
+                        case "verifying":   return { text: qsTr("Verifying…"),        fg: Theme.colorAccent, bg: Theme.colorAccentLight }
+                        case "ready":       return { text: qsTr("Restart to update"), fg: Theme.colorGood,  bg: Theme.colorGoodLight }
+                        case "error":       return { text: qsTr("Update check failed"), fg: Theme.colorWarn, bg: Theme.colorWarnLight }
+                        case "devbuild":    return { text: qsTr("Development build"), fg: Theme.colorText3, bg: "transparent" }
+                        default:            return { text: qsTr("✓  Up to date"),     fg: Theme.colorGood,  bg: Theme.colorGoodLight }  // uptodate / unsupported
+                        }
+                    }
 
                     Rectangle {
                         implicitWidth:  verText.implicitWidth + Theme.sp(20)
@@ -731,24 +751,88 @@ Item {
                         }
                     }
 
+                    // Status badge — hidden in the neutral "idle" state (the action
+                    // chip carries "Check now" there).
                     Rectangle {
+                        visible: verRow.uState !== "idle"
                         implicitWidth:  badgeText.implicitWidth + Theme.sp(16)
                         implicitHeight: Theme.sp(26)
-                        color:          Theme.colorGoodLight
+                        color:          verRow.pal.bg
                         border.width:   1
-                        border.color:   Theme.colorGood
+                        border.color:   verRow.pal.fg
                         radius:         Theme.radius
 
                         Text {
                             id: badgeText
                             anchors.centerIn: parent
-                            text:           qsTr("✓  Up to date")
+                            text: verRow.uState === "downloading"
+                                  ? qsTr("Downloading %1%").arg(Math.round(updateController.progress * 100))
+                                  : verRow.pal.text
                             font.family:    Theme.fontData
                             font.pixelSize: Theme.fontSzMicro
-                            color:          Theme.colorGood
+                            color:          verRow.pal.fg
+                        }
+                    }
+
+                    // Contextual action: Check now / Download & install / Restart now.
+                    // Hidden while a check/download/verify is in flight and on
+                    // platforms whose updates are native (Sparkle/WinSparkle) or dev.
+                    Rectangle {
+                        id: updAction
+                        readonly property string mode:
+                            !updateController.supported ? ""
+                            : verRow.uState === "available" ? "download"
+                            : verRow.uState === "ready"     ? "restart"
+                            : (verRow.uState === "checking" || verRow.uState === "downloading"
+                               || verRow.uState === "verifying") ? ""
+                            : "check"
+                        visible: mode !== ""
+                        implicitWidth:  updActionText.implicitWidth + Theme.sp(20)
+                        implicitHeight: Theme.sp(26)
+                        radius:         Theme.radius
+                        color:          updActionMa.containsMouse ? Theme.colorAccentLight : "transparent"
+                        border.width:   1
+                        border.color:   (mode === "download" || mode === "restart")
+                                        ? Theme.colorAccent : Theme.colorBorderStrong
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+                        Text {
+                            id: updActionText
+                            anchors.centerIn: parent
+                            text: updAction.mode === "download" ? qsTr("Download & install")
+                                : updAction.mode === "restart"  ? qsTr("Restart now")
+                                : qsTr("Check now")
+                            font.family:    Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            color: (updAction.mode === "download" || updAction.mode === "restart")
+                                   ? Theme.colorAccent : Theme.colorText2
+                        }
+
+                        MouseArea {
+                            id: updActionMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape:  Qt.PointingHandCursor
+                            onClicked: {
+                                if (updAction.mode === "download")      updateController.download()
+                                else if (updAction.mode === "restart")  updateController.relaunch()
+                                else                                    updateController.checkNow()
+                            }
                         }
                     }
                 }
+            }
+
+            // Updater status / error line (e.g. "End the session to install").
+            Text {
+                Layout.fillWidth: true
+                visible: updateController.supported && text.length > 0
+                text: updateController.state === "error" ? updateController.errorString
+                      : updateController.statusMessage
+                font.family:    Theme.fontData
+                font.pixelSize: Theme.fontSzMicro
+                color:          updateController.state === "error" ? Theme.colorWarn : Theme.colorText3
+                wrapMode:       Text.WordWrap
             }
 
             PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }

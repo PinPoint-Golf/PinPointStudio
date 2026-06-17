@@ -244,6 +244,7 @@ target_include_directories(PinPointStudio PRIVATE
     src/Gui/imu src/Gui/viz src/Gui/session src/Gui/shot src/Gui/review
     src/Gui/media src/Gui/calibration src/Gui/diagnostics
     src/IMU src/Audio src/Video src/Pose src/STT src/TTS src/LLM src/Secrets src/Core src/Buffer
+    src/Update
     "${CMAKE_BINARY_DIR}/generated")
 
 set_source_files_properties(src/Gui/theme/Theme.qml            PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
@@ -279,6 +280,7 @@ qt_add_qml_module(PinPointStudio
         src/Gui/shell/PpRailButton.qml
         src/Gui/components/PpDivider.qml
         src/Gui/shell/PpHeader.qml
+        src/Gui/shell/PpUpdateBanner.qml
         src/Gui/shell/PpDetectCluster.qml
         src/Gui/shell/PpAnalysingBadge.qml
         src/Gui/shell/PlayPage.qml
@@ -465,6 +467,15 @@ qt_add_resources(PinPointStudio "app_icons"
         src/Resources/icons/pinpointstudio_256.png
 )
 
+# Pinned release public key for the Linux in-app updater's signature gate
+# (docs/design/linux_update.md §6). PLACEHOLDER until the real key is generated (P2).
+qt_add_resources(PinPointStudio "app_keys"
+    PREFIX "/keys"
+    BASE "src/Resources/keys"
+    FILES
+        src/Resources/keys/pinpoint_release_pubkey.asc
+)
+
 qt_add_resources(PinPointStudio "app_fonts"
     PREFIX "/fonts"
     BASE "src/Resources/fonts"
@@ -584,6 +595,16 @@ target_sources(PinPointStudio PRIVATE
     src/Secrets/SecretsManager.cpp
     src/Secrets/SecretsBridge.h
     src/Secrets/SecretsBridge.cpp
+)
+
+# ── In-app update (Linux AppImage; inert elsewhere) ───────────────────────────
+# See docs/design/linux_update.md. Pure Qt (Network/Concurrent/Process) — drives
+# the bundled appimageupdatetool via QProcess; no libappimageupdate/gpgme deps.
+target_sources(PinPointStudio PRIVATE
+    src/Update/appimage_update.h
+    src/Update/appimage_update.cpp
+    src/Update/update_controller.h
+    src/Update/update_controller.cpp
 )
 
 # ── Azure cloud STT fallback ──────────────────────────────────────────────────

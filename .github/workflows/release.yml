@@ -1,0 +1,100 @@
+# Linux release pipeline — builds the self-updating AppImage and stages it as a
+# DRAFT GitHub release. Signing is done LOCALLY by the maintainer (the release key
+# never touches GitHub) — see docs/implementation/linux_release_runbook.md.
+# Phase P2 of docs/implementation/linux_update_impl.md.
+#
+# The published Release IS the in-app updater's feed: UpdateController polls
+# api.github.com/.../releases and AppImageUpdate resolves the gh-releases-zsync
+# update-info embedded in the AppImage against these assets. A release is only
+# discoverable by the updater once it is PUBLISHED (non-draft) AND carries the
+# detached *.AppImage.sig (the gate refuses an unsigned release) — both happen in
+# the local signing step, not here.
+#
+# ┌─ STATUS ────────────────────────────────────────────────────────────────────┐
+# │ Scaffolding — authored, not yet run. Validate by pushing a test tag. GPU      │
+# │ note: GitHub-hosted runners have no NVIDIA GPU, so this produces a CPU-capable │
+# │ AppImage; for a CUDA-bundled build use a self-hosted runner with CUDA 12 +     │
+# │ cuDNN 9 and set CUDA_LIB_DIR / CUDNN_LIB_DIR.                                   │
+# └──────────────────────────────────────────────────────────────────────────────┘
+#
+# Secrets: NONE for signing — the private key stays offline (local signing). Only
+# the automatic GITHUB_TOKEN is used, to create the draft release.
+
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # create the draft GitHub Release + upload assets
+
+jobs:
+  appimage:
+    runs-on: ubuntu-22.04   # oldest supported glibc → widest AppImage compatibility
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Version comes from version.h → the AppImage asset filename (NOT the git
+      # tag, whose format is constrained by the release process). The updater reads
+      # the version from the asset name, so the tag here is free-form. Log both. ───
+      - name: Report version
+        run: |
+          maj=$(sed -n 's/^#define PINPOINT_VERSION_MAJOR[[:space:]]*\([0-9]*\).*/\1/p' src/Core/version.h)
+          min=$(sed -n 's/^#define PINPOINT_VERSION_MINOR[[:space:]]*\([0-9]*\).*/\1/p' src/Core/version.h)
+          pfx=$(sed -n 's/^#define PINPOINT_VERSION_POSTFIX[[:space:]]*"\([^"]*\)".*/\1/p' src/Core/version.h)
+          echo "version.h → v${maj}.${min}${pfx} (embedded in the AppImage asset name)"
+          echo "git tag    → ${GITHUB_REF_NAME} (free-form; not parsed by the updater)"
+
+      # ── System dependencies (mirrors BUILDING.md → Linux) ───────────────────────
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake pkg-config git \
+            libglib2.0-dev libaravis-dev libudev-dev libopencv-dev \
+            libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libswresample-dev \
+            libespeak-ng-dev libvulkan-dev glslc \
+            fuse libfuse2 zsync
+
+      - name: Install Qt 6.11
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.11.0'
+          modules: 'qtmultimedia qtwebsockets qtquick3d qtshadertools qtserialport qtconnectivity'
+
+      # ── AppImage tooling (linuxdeploy + Qt plugin, appimagetool, appimageupdatetool) ─
+      - name: Install AppImage tooling
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o "$HOME/.local/bin/linuxdeploy" \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          curl -fsSL -o "$HOME/.local/bin/linuxdeploy-plugin-qt" \
+            https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          curl -fsSL -o "$HOME/.local/bin/appimagetool" \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          curl -fsSL -o "$HOME/.local/bin/appimageupdatetool" \
+            https://github.com/AppImageCommunity/AppImageUpdate/releases/download/continuous/appimageupdatetool-x86_64.AppImage
+          chmod +x "$HOME/.local/bin/"*
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # ── Build + bundle + zsync, UNSIGNED (resolves version from version.h) ──────
+      - name: Package AppImage (unsigned)
+        env:
+          CMAKE_PREFIX: ${{ env.QT_ROOT_DIR }}
+          JOBS: '2'   # GitHub-hosted runners are small; keep memory in check
+        run: tools/package_appimage.sh --no-sign
+
+      # ── Stage as a DRAFT release. The maintainer signs locally, uploads the .sig,
+      # and publishes (un-drafts) per the runbook — only then is it live to users. ─
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          draft: true            # NOT live until locally signed + published
+          prerelease: false      # at publish time: non-prerelease so `latest` resolves (design §7)
+          generate_release_notes: true
+          files: |
+            dist/PinPointStudio-*-x86_64.AppImage
+            dist/PinPointStudio-*-x86_64.AppImage.zsync

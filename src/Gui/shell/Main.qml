@@ -560,6 +560,20 @@ ApplicationWindow {
         }
     }
 
+    // ── Linux in-app update banner (design §5 surface A) ─────────────────────
+    // Non-modal, bottom-centred, stacked above the error toasts. Suppressed during
+    // a session, for skipped versions, and on the wizard. Inert off-Linux.
+    PpUpdateBanner {
+        id: updateBanner
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: Math.min(parent.width - Theme.sp(96), Theme.sp(620))
+        allowed: navController.currentIndex !== root.screenWizard
+        y: (analysisErrorToast.visible ? analysisErrorToast.y
+            : saveErrorToast.visible   ? saveErrorToast.y
+            : parent.height) - height - Theme.sp(12)
+        z: 100
+    }
+
     // Shot-detected confirmation chime — the same C8 ting as IMU calibration,
     // played once per committed shot (any modality) during a session.
     TingPlayer { id: shotTing; frequency: 4186.0 }

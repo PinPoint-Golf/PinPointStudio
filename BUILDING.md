@@ -172,6 +172,44 @@ On first configure, CMake downloads all required models and binaries (see table 
 
 ---
 
+## Packaging & Release (Linux — AppImage with in-app update)
+
+Linux ships as a single self-updating **AppImage** — the native analogue of the
+macOS (Sparkle) / Windows (WinSparkle) update story. Design:
+[`docs/design/linux_update.md`](docs/design/linux_update.md); build plan:
+[`docs/implementation/linux_update_impl.md`](docs/implementation/linux_update_impl.md).
+
+**Build the AppImage:**
+```bash
+# Host tools (once): linuxdeploy, linuxdeploy-plugin-qt, appimagetool,
+# appimageupdatetool, zsync (zsyncmake). All from the AppImageCommunity releases.
+export SIGN_KEY=<your-release-gpg-key-fpr>
+export CMAKE_PREFIX=~/Qt/6.11.0/gcc_64
+export CUDA_LIB_DIR=/usr/local/cuda-12/lib64   # for GPU ORT
+export CUDNN_LIB_DIR=/usr/lib/x86_64-linux-gnu # cuDNN 9
+tools/package_appimage.sh                      # → dist/PinPointStudio-<ver>-x86_64.AppImage{,.zsync,.sig}
+tools/package_appimage.sh --no-sign            # unsigned dev build (no in-app update trust)
+```
+
+The script resolves the version from `src/Core/version.h`, builds Release, bundles
+Qt/QML + the heavy native deps (ORT, the **x264-capable** FFmpeg — same trap as the
+`windeployqt` x264 note in the Windows section, OpenCV, Aravis, espeak-ng,
+CUDA/cuDNN, optional Spinnaker) + the `appimageupdatetool` binary the app shells out
+to, then
+seals with `appimagetool` embedding the `gh-releases-zsync` update information and a
+GPG signature.
+
+> **Not yet validated end-to-end.** As of this commit the script encodes the recipe
+> but has not been run on a clean VM (the dev host lacks the AppImage tooling). The
+> P0 acceptance gate (clean-Ubuntu launch with BLE + cameras + GPU + x264 export) is
+> still open — see the impl plan.
+
+**Releasing:** tag exactly the `version.h` string (e.g. `v0.1-alpha1`) and push;
+CI (`.github/workflows/release.yml`, P2) builds, signs, and attaches the three
+artifacts to the GitHub Release. The in-app updater polls that release feed.
+
+---
+
 ## Testing
 
 PinPoint Studio has six standalone unit-test suites. **None are part of the application build** — the root `CMakeLists.txt` forces `BUILD_TESTING OFF`, so building the app never compiles them. Each suite is configured against its own source root and is wired into CTest.

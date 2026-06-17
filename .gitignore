@@ -47,6 +47,9 @@ build_bench/
 build_tsan/
 build_asan/
 
+# AppImage packaging output (multi-hundred-MB artifacts — never commit)
+dist/
+
 # Qt guff
 .qtcreator
 

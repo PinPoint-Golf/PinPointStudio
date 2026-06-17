@@ -43,6 +43,7 @@
 #include "navigation_controller.h"
 #include "resource_monitor_controller.h"
 #include "profiler_controller.h"
+#include "update_controller.h"
 #include "pp_os_metrics.h"
 #include "clipboard_helper.h"
 #include "llm_controller.h"
@@ -161,6 +162,10 @@ int main(int argc, char *argv[])
     LiveWristAngles         liveWrist(&imuManager, &appSettings, &athleteController);
     SessionController       sessionController;
     NavigationController    navController(&athleteController, &sessionController);
+    // Linux AppImage in-app updater (Sparkle/WinSparkle analogue). Constructed on
+    // all platforms for QML uniformity; inert ("unsupported"/"devbuild") off-Linux
+    // or when not running as an AppImage. See docs/design/linux_update.md.
+    UpdateController        updateController(&appSettings, &sessionController);
     ResourceMonitorController resourceMonitor(&eventBuffer, &cameraManager, &imuManager);
     // Resource profiler bridge — owns the single 1 s gauge sampler and the 60 s
     // stats-dump cadence. Per-session profile: reset at session start, dump at end.
@@ -384,6 +389,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("resourceMonitor"),  &resourceMonitor);
     engine.rootContext()->setContextProperty(QStringLiteral("profiler"),         &profilerController);
     engine.rootContext()->setContextProperty(QStringLiteral("sessionController"), &sessionController);
+    engine.rootContext()->setContextProperty(QStringLiteral("updateController"),   &updateController);
     engine.rootContext()->setContextProperty(QStringLiteral("sessionReviewController"), &sessionReviewController);
     engine.rootContext()->setContextProperty(QStringLiteral("shotController"),    &shotController);
     engine.rootContext()->setContextProperty(QStringLiteral("shotProcessor"),     &shotProcessor);

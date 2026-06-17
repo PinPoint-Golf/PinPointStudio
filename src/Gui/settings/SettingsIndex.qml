@@ -78,7 +78,7 @@ QtObject {
 
         { panelIndex: 0, panelLabel: qsTr("General"),    groupLabel: qsTr("Application"),
           label: qsTr("Version"),                         subtitle: qsTr("Installed application version and update status"),
-          actions: "Version app version up to date release build number",
+          actions: "Version app version up to date release build number check now download install update available restart upgrade",
           itemId: "setting_version" },
 
         { panelIndex: 0, panelLabel: qsTr("General"),    groupLabel: qsTr("Cloud fallback"),

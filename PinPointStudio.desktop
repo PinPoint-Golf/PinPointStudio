@@ -3,7 +3,10 @@ Type=Application
 Name=PinPoint Studio
 GenericName=Golf Swing Analyser
 Comment=Full kinematic golf swing analysis
-Exec=/home/markl/Projects/PinPointStudio/build/Desktop_Qt_6_11_0-Debug/PinPointStudio
+# Relocatable: AppImage/installed launches resolve PinPointStudio on PATH (the
+# AppImage AppRun prepends usr/bin). For a dev launcher pointing at the build tree,
+# copy this file elsewhere and set an absolute Exec — do not commit that copy.
+Exec=PinPointStudio
 Icon=pinpointstudio
 Categories=Sports;Science;
 StartupWMClass=PinPointStudio
