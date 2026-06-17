@@ -133,9 +133,11 @@ if ! ldconfig -p | grep -q 'libtiff\.so\.5'; then
         log "shimmed libtiff.so.5 → $_tiff6 for deployment (TIFF unused at runtime)"
     fi
 fi
-# Bundle the offscreen platform plugin alongside the default xcb so the AppImage can
-# also run headless (CI smoke tests, servers); xcb remains the on-desktop default.
-export EXTRA_PLATFORM_PLUGINS="libqoffscreen.so"
+# Bundle extra platform plugins alongside the default xcb:
+#   wayland   → run natively on Wayland sessions (no "could not find plugin wayland")
+#   offscreen → headless runs (CI smoke tests, servers)
+# xcb remains the X11 / XWayland fallback.
+export EXTRA_PLATFORM_PLUGINS="libqwayland.so;libqoffscreen.so"
 linuxdeploy --appdir "$APPDIR" \
     --desktop-file "$APPDIR/usr/share/applications/PinPointStudio.desktop" \
     --icon-file "$APPDIR/pinpointstudio.png" \
@@ -148,6 +150,29 @@ linuxdeploy --appdir "$APPDIR" \
 copy_lib() { # copy_lib <glob...>  → into usr/lib, following symlinks
     local f; for f in "$@"; do [[ -e "$f" ]] && cp -Lv "$f" "$APPDIR/usr/lib/" || log "WARN: missing lib $f"; done
 }
+
+# Wayland: linuxdeploy bundles the platform plugin (libqwayland.so via
+# EXTRA_PLATFORM_PLUGINS) but not its companion plugin dirs. Bundle them so native
+# Wayland actually works (shell-integration = xdg-shell etc.; decoration =
+# client-side titlebars; graphics-integration = EGL/dmabuf), rpath them to the
+# bundled Qt libs, and bundle the libwayland client libs they depend on.
+if [[ -n "${QMAKE:-}" ]]; then
+    _qtp=$("$QMAKE" -query QT_INSTALL_PLUGINS 2>/dev/null)
+    for sub in wayland-shell-integration wayland-decoration-client wayland-graphics-integration-client; do
+        if [[ -d "$_qtp/$sub" ]]; then
+            mkdir -p "$APPDIR/usr/plugins/$sub"
+            cp -vn "$_qtp/$sub"/*.so "$APPDIR/usr/plugins/$sub/" 2>/dev/null || true
+            if command -v patchelf >/dev/null; then
+                for _so in "$APPDIR/usr/plugins/$sub"/*.so; do
+                    [[ -e "$_so" ]] && patchelf --set-rpath '$ORIGIN/../../lib' "$_so" 2>/dev/null || true
+                done
+            fi
+        fi
+    done
+    copy_lib /usr/lib/x86_64-linux-gnu/libwayland-client.so* \
+             /usr/lib/x86_64-linux-gnu/libwayland-egl.so* \
+             /usr/lib/x86_64-linux-gnu/libwayland-cursor.so*
+fi
 
 log "bundling runtime tools (appimageupdatetool, yt-dlp)"
 # appimageupdatetool drives the in-app delta update (design §3). REQUIRED.
