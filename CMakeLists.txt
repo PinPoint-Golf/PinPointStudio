@@ -16,7 +16,27 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-project(PinPointStudio VERSION 0.1.0 LANGUAGES CXX)
+# ── Version: single source of truth is src/Core/version.h ─────────────────────
+# Derive the CMake/CPack/Inno project version from version.h so the installer
+# version and the in-app updaters never drift from the compiled version (Windows
+# design §7). MAJOR.MINOR come from the macros; PATCH is the monotonic build number
+# (PINPOINT_VERSION_BUILD) so the Inno AppVersion strictly increases every release
+# and WinSparkle's compare key matches. Bump version.h only.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/src/Core/version.h" _pp_version_h)
+string(REGEX MATCH "#define[ \t]+PINPOINT_VERSION_MAJOR[ \t]+([0-9]+)" _ "${_pp_version_h}")
+set(_pp_ver_major "${CMAKE_MATCH_1}")
+string(REGEX MATCH "#define[ \t]+PINPOINT_VERSION_MINOR[ \t]+([0-9]+)" _ "${_pp_version_h}")
+set(_pp_ver_minor "${CMAKE_MATCH_1}")
+string(REGEX MATCH "#define[ \t]+PINPOINT_VERSION_BUILD[ \t]+([0-9]+)" _ "${_pp_version_h}")
+set(_pp_ver_build "${CMAKE_MATCH_1}")
+# Compare against "" (not NOT), since a valid MAJOR of 0 is falsey to CMake's if().
+if("${_pp_ver_major}" STREQUAL "" OR "${_pp_ver_minor}" STREQUAL "" OR "${_pp_ver_build}" STREQUAL "")
+    message(FATAL_ERROR "Could not parse version from src/Core/version.h")
+endif()
+
+project(PinPointStudio
+    VERSION ${_pp_ver_major}.${_pp_ver_minor}.${_pp_ver_build}
+    LANGUAGES CXX)
 
 # Standard install dirs (bin/, lib/, share/). Without this CMAKE_INSTALL_BINDIR is
 # empty and install(TARGETS ... RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}) would
@@ -467,13 +487,17 @@ qt_add_resources(PinPointStudio "app_icons"
         src/Resources/icons/pinpointstudio_256.png
 )
 
-# Pinned release public key for the Linux in-app updater's signature gate
-# (docs/design/linux_update.md §6). PLACEHOLDER until the real key is generated (P2).
+# Pinned release public keys for the in-app updaters' signature gates:
+#   *.asc → Linux AppImage GPG gate          (docs/design/linux_update.md §6)
+#   *.pub → Windows WinSparkle EdDSA gate     (docs/design/windows_update.md §6)
+# PLACEHOLDERS until the real keys are generated (P2) — the gates refuse every
+# update while the key is a placeholder.
 qt_add_resources(PinPointStudio "app_keys"
     PREFIX "/keys"
     BASE "src/Resources/keys"
     FILES
         src/Resources/keys/pinpoint_release_pubkey.asc
+        src/Resources/keys/pinpoint_release_win_eddsa.pub
 )
 
 qt_add_resources(PinPointStudio "app_fonts"
@@ -605,7 +629,42 @@ target_sources(PinPointStudio PRIVATE
     src/Update/appimage_update.cpp
     src/Update/update_controller.h
     src/Update/update_controller.cpp
+    # Hardware-adaptive CUDA runtime offer (Windows; inert elsewhere) — design §4.4.
+    src/Update/cuda_runtime_controller.h
+    src/Update/cuda_runtime_controller.cpp
 )
+
+# ── WinSparkle (Windows in-app update engine) ─────────────────────────────────
+# The WinSparkle/Sparkle analogue for Windows. See docs/design/windows_update.md.
+# Prebuilt DLL + import lib fetched like the ORT package; linked and bundled into
+# the "core" component so it travels with the small auto-update payload. EdDSA
+# signature pinning requires WinSparkle >= 0.9.0.
+if(WIN32)
+    set(WINSPARKLE_VERSION "0.9.3")
+    FetchContent_Declare(winsparkle
+        URL "https://github.com/vslavik/winsparkle/releases/download/v${WINSPARKLE_VERSION}/WinSparkle-${WINSPARKLE_VERSION}.zip"
+        URL_HASH SHA256=745985f41d2ab26b2d5a1cf87d76e4ed851039db19038e50610eb25ea0b73772
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+    FetchContent_MakeAvailable(winsparkle)
+
+    # The archive keeps a top-level WinSparkle-<ver>/ dir; probe for the header in
+    # case a CMake version strips it (mirrors the ORT root probe above).
+    if(EXISTS "${winsparkle_SOURCE_DIR}/include/winsparkle.h")
+        set(_ws_root "${winsparkle_SOURCE_DIR}")
+    else()
+        file(GLOB _ws_candidates LIST_DIRECTORIES true "${winsparkle_SOURCE_DIR}/WinSparkle-*")
+        list(GET _ws_candidates 0 _ws_root)
+    endif()
+
+    target_include_directories(PinPointStudio PRIVATE "${_ws_root}/include")
+    target_link_libraries(PinPointStudio PRIVATE "${_ws_root}/x64/Release/WinSparkle.lib")
+    target_compile_definitions(PinPointStudio PRIVATE HAVE_WINSPARKLE)
+    pp_win_bundle_dll(core "${_ws_root}/x64/Release/WinSparkle.dll")
+
+    target_sources(PinPointStudio PRIVATE
+        src/Update/win_sparkle_update.h
+        src/Update/win_sparkle_update.cpp)
+endif()
 
 # ── Azure cloud STT fallback ──────────────────────────────────────────────────
 # The Azure STT backend uses the same Cognitive Services Speech resource as the

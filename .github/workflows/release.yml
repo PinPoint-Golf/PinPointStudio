@@ -98,3 +98,62 @@ jobs:
           files: |
             dist/PinPointStudio-*-x86_64.AppImage
             dist/PinPointStudio-*-x86_64.AppImage.zsync
+
+  # ── Windows: build the UNSIGNED -core installer (the WinSparkle enclosure) and
+  # stage it on the same DRAFT release. The maintainer signs locally with the offline
+  # EdDSA key, generates appcast-win.xml (packaging/make_appcast.ps1), uploads both,
+  # and publishes — only then is it live to users (docs/implementation/
+  # windows_release_runbook.md, design docs/design/windows_update.md). No signing
+  # secrets here. The hosted runner has no NVIDIA GPU, so it builds the hardware-
+  # agnostic -core only; the -cuda runtime is built/managed separately (design §4.4).
+  #
+  # STATUS: scaffolding — authored, not yet run. Heavy FetchContent (whisper/ViTPose/
+  # ORT) makes the first run slow; validate by pushing a test tag.
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version (version.h → installer version)
+        shell: bash
+        run: |
+          maj=$(sed -n 's/^#define PINPOINT_VERSION_MAJOR[[:space:]]*\([0-9]*\).*/\1/p' src/Core/version.h)
+          min=$(sed -n 's/^#define PINPOINT_VERSION_MINOR[[:space:]]*\([0-9]*\).*/\1/p' src/Core/version.h)
+          bld=$(sed -n 's/^#define PINPOINT_VERSION_BUILD[[:space:]]*\([0-9]*\).*/\1/p' src/Core/version.h)
+          echo "PP_VERSION=${maj}.${min}.${bld}" >> "$GITHUB_ENV"
+          echo "installer version → ${maj}.${min}.${bld} (git tag ${GITHUB_REF_NAME} is free-form)"
+
+      - name: Set up MSVC (x64)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install Qt 6.11
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.11.0'
+          modules: 'qtmultimedia qtwebsockets qtquick3d qtshadertools qtserialport qtconnectivity'
+
+      - name: Install Ninja + Inno Setup
+        run: choco install ninja innosetup --no-progress -y
+
+      - name: Configure + build (Release, core only)
+        shell: cmd
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="%QT_ROOT_DIR%" || exit /b 1
+          cmake --build build --target PinPointStudio || exit /b 1
+
+      - name: Package -core installer (UNSIGNED)
+        shell: cmd
+        run: |
+          cd build
+          cpack -G INNOSETUP -D CPACK_COMPONENTS_ALL=core -D CPACK_PACKAGE_FILE_NAME=PinPointStudioSetup-%PP_VERSION%-core || exit /b 1
+
+      - name: Stage on draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          draft: true            # maintainer signs + adds appcast-win.xml + publishes
+          prerelease: false
+          files: |
+            build/PinPointStudioSetup-*-core.exe

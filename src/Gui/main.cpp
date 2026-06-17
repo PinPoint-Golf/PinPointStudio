@@ -44,6 +44,7 @@
 #include "resource_monitor_controller.h"
 #include "profiler_controller.h"
 #include "update_controller.h"
+#include "cuda_runtime_controller.h"
 #include "pp_os_metrics.h"
 #include "clipboard_helper.h"
 #include "llm_controller.h"
@@ -166,6 +167,10 @@ int main(int argc, char *argv[])
     // all platforms for QML uniformity; inert ("unsupported"/"devbuild") off-Linux
     // or when not running as an AppImage. See docs/design/linux_update.md.
     UpdateController        updateController(&appSettings, &sessionController);
+    // Hardware-adaptive CUDA-runtime offer (Windows): detects an NVIDIA GPU and offers
+    // the separately-packaged GPU runtime when present but not installed, so users who
+    // add a GPU later adapt without reinstalling. Inert off Windows. See §4.4.
+    CudaRuntimeController   cudaRuntime;
     ResourceMonitorController resourceMonitor(&eventBuffer, &cameraManager, &imuManager);
     // Resource profiler bridge — owns the single 1 s gauge sampler and the 60 s
     // stats-dump cadence. Per-session profile: reset at session start, dump at end.
@@ -390,6 +395,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("profiler"),         &profilerController);
     engine.rootContext()->setContextProperty(QStringLiteral("sessionController"), &sessionController);
     engine.rootContext()->setContextProperty(QStringLiteral("updateController"),   &updateController);
+    engine.rootContext()->setContextProperty(QStringLiteral("cudaRuntime"),        &cudaRuntime);
     engine.rootContext()->setContextProperty(QStringLiteral("sessionReviewController"), &sessionReviewController);
     engine.rootContext()->setContextProperty(QStringLiteral("shotController"),    &shotController);
     engine.rootContext()->setContextProperty(QStringLiteral("shotProcessor"),     &shotProcessor);
@@ -399,8 +405,10 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("liveWrist"),         &liveWrist);
     engine.rootContext()->setContextProperty(QStringLiteral("clipboard"),         &clipboardHelper);
 
-    // Clean merger shutdown before Qt tears down its event loop.
-    QObject::connect(&app, &QGuiApplication::aboutToQuit, [&eventBuffer]() {
+    // Clean merger shutdown before Qt tears down its event loop. Shut the platform
+    // updater (WinSparkle on Windows) down first so its helper threads stop cleanly.
+    QObject::connect(&app, &QGuiApplication::aboutToQuit, [&eventBuffer, &updateController]() {
+        updateController.shutdownUpdater();
         eventBuffer.stop();
     });
 

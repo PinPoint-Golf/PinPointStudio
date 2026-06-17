@@ -25,9 +25,25 @@
 #define PINPOINT_VERSION_MINOR   1
 #define PINPOINT_VERSION_POSTFIX "-alpha2"
 
+// ── Monotonic build number ───────────────────────────────────────────────────
+// A single strictly-increasing integer used as the *comparison* key by the
+// Windows updater (WinSparkle's `sparkle:version` / win_sparkle_set_app_build_version;
+// see docs/design/windows_update.md §7). The human display version above stays the
+// source of truth for what the user sees; this is purely for ordering, because
+// string-comparing "-alpha2" vs a clean release is unreliable.
+//
+// MUST increase on every release. Recommended formula (keep in lockstep by hand):
+//   MAJOR*1_000_000 + MINOR*10_000 + PATCH*100 + prerelease
+// where prerelease ∈ [0,98] encodes alpha(0+N) < beta(25+N) < rc(50+N) < release(99).
+// v0.1-alpha2 → 0 + 10000 + 0 + 2 = 10002.
+#define PINPOINT_VERSION_BUILD   10002
+
 // ── Assembled string ─────────────────────────────────────────────────────────
 #define PP_STR_IMPL(x) #x
 #define PP_STR(x)      PP_STR_IMPL(x)
 
 #define PINPOINT_VERSION_STRING \
     "v" PP_STR(PINPOINT_VERSION_MAJOR) "." PP_STR(PINPOINT_VERSION_MINOR) PINPOINT_VERSION_POSTFIX
+
+// Build number as a string literal (for win_sparkle_set_app_build_version()).
+#define PINPOINT_VERSION_BUILD_STRING PP_STR(PINPOINT_VERSION_BUILD)

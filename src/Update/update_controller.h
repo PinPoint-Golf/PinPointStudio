@@ -23,6 +23,7 @@
 class AppSettings;
 class SessionController;
 class AppImageUpdater;
+class WinSparkleUpdater;
 class QNetworkAccessManager;
 class QNetworkReply;
 template <typename T> class QFutureWatcher;
@@ -88,6 +89,10 @@ public:
     // (a newer version overrides the skip). Settings always still shows the offer.
     Q_INVOKABLE void skipVersion();
 
+    // Shut the platform updater down cleanly on app exit (win_sparkle_cleanup on
+    // Windows; no-op elsewhere). Call from aboutToQuit, before Qt teardown.
+    void shutdownUpdater();
+
 signals:
     void stateChanged();
     void latestVersionChanged();
@@ -128,6 +133,7 @@ private:
     QNetworkAccessManager *m_net = nullptr;
     AppImageUpdater       *m_updater = nullptr;
     QFutureWatcher<bool>  *m_verifyWatcher = nullptr;
+    WinSparkleUpdater     *m_winSparkle = nullptr;   // Windows engine (façade), else null
 
     State   m_state = State::Idle;
     bool    m_supported = false;

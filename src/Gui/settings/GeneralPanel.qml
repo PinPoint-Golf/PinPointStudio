@@ -835,6 +835,94 @@ Item {
                 wrapMode:       Text.WordWrap
             }
 
+            // GPU acceleration row — hardware-adaptive CUDA runtime offer (Windows,
+            // CUDA-capable installed build only). Re-probes when the panel appears so a
+            // GPU added since launch is reflected without a restart (design §4.4).
+            RowLayout {
+                objectName: "setting_gpuAccel"
+                visible: cudaRuntime.supported
+                Layout.fillWidth: true
+                spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
+                Component.onCompleted: cudaRuntime.refresh()
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.sp(3)
+
+                    Text {
+                        text:           qsTr("GPU acceleration")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        color:          Theme.colorText
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: cudaRuntime.runtimeInstalled
+                                  ? qsTr("NVIDIA GPU runtime installed — speech and pose run on the GPU")
+                              : cudaRuntime.gpuPresent
+                                  ? qsTr("NVIDIA GPU detected — install the runtime to accelerate speech and pose")
+                                  : qsTr("No NVIDIA GPU detected — running on CPU / cloud")
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText3
+                        wrapMode:       Text.WordWrap
+                    }
+                }
+
+                // "Enabled" badge when installed.
+                Rectangle {
+                    visible: cudaRuntime.runtimeInstalled
+                    Layout.alignment: Qt.AlignVCenter
+                    implicitWidth:  gpuBadge.implicitWidth + Theme.sp(16)
+                    implicitHeight: Theme.sp(26)
+                    color:          Theme.colorGoodLight
+                    border.width:   1
+                    border.color:   Theme.colorGood
+                    radius:         Theme.radius
+                    Text {
+                        id: gpuBadge
+                        anchors.centerIn: parent
+                        text:           qsTr("✓  Enabled")
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorGood
+                    }
+                }
+
+                // Install action when a GPU is present but the runtime isn't (opens the
+                // official release page so the -cuda installer is fetched over HTTPS).
+                Rectangle {
+                    id: gpuInstall
+                    visible: cudaRuntime.shouldOffer
+                    Layout.alignment: Qt.AlignVCenter
+                    implicitWidth:  gpuInstallText.implicitWidth + Theme.sp(20)
+                    implicitHeight: Theme.sp(26)
+                    radius:         Theme.radius
+                    color:          gpuInstallMa.containsMouse ? Theme.colorAccentLight : "transparent"
+                    border.width:   1
+                    border.color:   Theme.colorAccent
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+                    Text {
+                        id: gpuInstallText
+                        anchors.centerIn: parent
+                        text:           qsTr("Install GPU acceleration")
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorAccent
+                    }
+                    MouseArea {
+                        id: gpuInstallMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape:  Qt.PointingHandCursor
+                        onClicked:    cudaRuntime.openDownloadPage()
+                    }
+                }
+            }
+
             PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
 
             // ── Group 4 — Cloud fallback ──────────────────────────────────────

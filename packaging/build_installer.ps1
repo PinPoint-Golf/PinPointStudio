@@ -72,7 +72,24 @@ $pkgName = "PinPointStudioSetup-$version"
 $cpackComponentArg = ''
 switch ($Components) {
     'core' { $cpackComponentArg = '-D CPACK_COMPONENTS_ALL=core'; $pkgName += '-core' }
-    'cuda' { $cpackComponentArg = '-D CPACK_COMPONENTS_ALL=cuda'; $pkgName += '-cuda' }
+    'cuda' {
+        $pkgName += '-cuda'
+        # CUDA runtime as its OWN Inno product (design §4.3): a distinct, stable AppId so
+        # a -core auto-update never lists or removes these files (separate uninstall log).
+        # Same install dir as core (CPACK_PACKAGE_INSTALL_DIRECTORY is unchanged), so the
+        # cuDNN/CUDA DLLs land next to the exe and need no DLL-search changes. No app
+        # shortcut / run-on-finish — this component carries no executable.
+        # NOTE: authored; validate on a clean VM (install core, install cuda, then run a
+        # -core upgrade and confirm the cuda DLLs survive).
+        $cudaAppId = '{{C8E2F1A4-7B3D-4E5F-9A1C-2D6B8F0E3A47}'
+        $cpackComponentArg =
+            '-D CPACK_COMPONENTS_ALL=cuda ' +
+            "-D `"CPACK_INNOSETUP_SETUP_AppId=$cudaAppId`" " +
+            '-D "CPACK_PACKAGE_NAME=PinPoint Studio GPU Runtime" ' +
+            '-D "CPACK_PACKAGE_EXECUTABLES=" ' +
+            '-D "CPACK_CREATE_DESKTOP_LINKS=" ' +
+            '-D "CPACK_INNOSETUP_RUN_EXECUTABLES="'
+    }
 }
 $bat = @"
 @echo on

@@ -210,6 +210,64 @@ artifacts to the GitHub Release. The in-app updater polls that release feed.
 
 ---
 
+## Packaging & Release (Windows — Installer with in-app update)
+
+Windows ships as a per-user **Inno Setup installer** kept up to date in place by
+**WinSparkle** (the Windows analogue of macOS Sparkle / the Linux AppImage updater),
+gated by a pinned **EdDSA (Ed25519)** signature. Design:
+[`docs/design/windows_update.md`](docs/design/windows_update.md); build plan:
+[`docs/implementation/windows_update_impl.md`](docs/implementation/windows_update_impl.md);
+**release runbook:** [`docs/implementation/windows_release_runbook.md`](docs/implementation/windows_release_runbook.md).
+
+### Prerequisites
+- **Inno Setup 6** (`ISCC.exe`) — `choco install innosetup` or [jrsoftware.org](https://jrsoftware.org/isdl.php).
+- The Release build toolchain (VS 2022, Qt 6.11 MSVC, CMake) from the Windows section above.
+- `WinSparkle` (incl. `winsparkle-tool.exe` for key-gen/sign/verify) is fetched by
+  CMake — no manual install.
+
+### Build the installer
+```powershell
+# Default: core + cuda in one installer (large, ~1.8 GB).
+pwsh -File packaging\build_installer.ps1
+# Small core-only installer — this is the WinSparkle auto-update payload:
+pwsh -File packaging\build_installer.ps1 -Components core
+# Standalone NVIDIA CUDA runtime (its OWN Inno AppId; same install dir as core):
+pwsh -File packaging\build_installer.ps1 -Components cuda
+```
+The installer is **per-user / no-UAC** (`PrivilegesRequired=lowest`) precisely so the
+in-app updater can replace files with no elevation. The version comes from
+`src/Core/version.h` (CMake derives `project(VERSION) = MAJOR.MINOR.BUILD` from it —
+bump `version.h` only).
+
+### Components & the auto-update payload
+- **core** — app + Qt + ORT (incl. the CUDA provider DLLs) + OpenCV + FFmpeg +
+  Spinnaker + models. Hardware-agnostic; runs CPU or GPU. **This is the only thing
+  WinSparkle updates.**
+- **cuda** — the NVIDIA CUDA + cuDNN runtime, packaged under its **own stable AppId**
+  so a `-core` auto-update never touches it. It is **not** in the appcast: the app
+  detects an NVIDIA GPU (`nvcuda.dll`) and whether the runtime is present
+  (`cudnn64_9.dll` next to the exe) and offers **Settings → General → GPU acceleration
+  → Install** when a GPU is present but the runtime isn't — so users who add a GPU
+  later adapt with no reinstall (design §4.4).
+
+### Releasing (in-app update)
+The full per-release procedure — bump version, build the `-core` installer, sign it
+offline with the EdDSA key, generate `appcast-win.xml` (`packaging\make_appcast.ps1`),
+upload, and publish — is in the
+**[Windows Release Runbook](docs/implementation/windows_release_runbook.md)**. The
+signing key never leaves your machine (it is not a CI secret); the pinned public half
+lives at `src/Resources/keys/pinpoint_release_win_eddsa.pub` and is compiled into the
+app. WinSparkle points at the stable
+`releases/latest/download/appcast-win.xml` redirect, so releases must be published
+**non-prerelease** for it to resolve.
+
+> **Not yet validated end-to-end.** As of this commit the WinSparkle wiring, signing
+> scripts, and CI Windows job are authored but the pinned key is still a placeholder
+> (the updater is inert until a real key ships) and the CI job + the CUDA `AppId`
+> split await a first run / clean-VM validation — see the impl plan.
+
+---
+
 ## Testing
 
 PinPoint Studio has six standalone unit-test suites. **None are part of the application build** — the root `CMakeLists.txt` forces `BUILD_TESTING OFF`, so building the app never compiles them. Each suite is configured against its own source root and is wired into CTest.
