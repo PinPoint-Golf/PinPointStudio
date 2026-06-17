@@ -19,6 +19,11 @@
 #
 # Secrets: NONE for signing — the private key stays offline (local signing). Only
 # the automatic GITHUB_TOKEN is used, to create the draft release.
+#
+# Path A vs Path B: this workflow is the CI-draft path (Path A). The maintainer can
+# instead publish a locally-built+signed release directly (Path B) — that also fires
+# this workflow via the v* tag, so the `guard` job below SKIPS the build jobs when a
+# PUBLISHED (non-draft) release already exists for the tag, to avoid clobbering it.
 
 name: release
 
@@ -31,7 +36,36 @@ permissions:
   contents: write   # create the draft GitHub Release + upload assets
 
 jobs:
+  # ── Guard: don't clobber a manually-published (Path B) release ────────────────
+  # The maintainer can publish a locally-built, locally-SIGNED release directly
+  # (runbook Path B) — `gh release create` makes the v* tag, which fires this
+  # workflow. If we built + uploaded here, we'd re-draft that published release and
+  # overwrite the signed installer with an unsigned CI build. So: if a PUBLISHED
+  # (non-draft) release already exists for this tag, skip the build jobs entirely.
+  # Path A (CI builds the draft) still works: there's no release yet, or only a
+  # draft, so the jobs proceed.
+  guard:
+    runs-on: ubuntu-latest
+    outputs:
+      proceed: ${{ steps.check.outputs.proceed }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          draft=$(gh release view "${GITHUB_REF_NAME}" -R "${GITHUB_REPOSITORY}" \
+                    --json isDraft --jq '.isDraft' 2>/dev/null || echo "none")
+          if [ "$draft" = "false" ]; then
+            echo "Published release already exists for ${GITHUB_REF_NAME} — skipping CI build (Path B)."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "No published release for ${GITHUB_REF_NAME} (state: $draft) — proceeding (Path A)."
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          fi
+
   appimage:
+    needs: guard
+    if: needs.guard.outputs.proceed == 'true'
     runs-on: ubuntu-22.04   # oldest supported glibc → widest AppImage compatibility
     steps:
       - uses: actions/checkout@v4
@@ -110,6 +144,8 @@ jobs:
   # STATUS: scaffolding — authored, not yet run. Heavy FetchContent (whisper/ViTPose/
   # ORT) makes the first run slow; validate by pushing a test tag.
   windows:
+    needs: guard
+    if: needs.guard.outputs.proceed == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

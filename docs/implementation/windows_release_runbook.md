@@ -112,6 +112,11 @@ gh release create $TAG -R PinPoint-Golf/PinPointStudio `
 **Publish non-draft AND non-prerelease** — `releases/latest/download/appcast-win.xml`
 (the URL baked into the app) only resolves to a non-prerelease release.
 
+> `gh release create` (Option B) creates the `v*` tag, which fires `release.yml`. Its
+> **`guard` job detects the already-published release and skips the build jobs**, so
+> CI won't re-draft your release or overwrite the signed installer — no need to cancel
+> the run by hand.
+
 ### 6. Confirm it's live
 ```bash
 gh release view "$TAG" -R PinPoint-Golf/PinPointStudio --json assets \
