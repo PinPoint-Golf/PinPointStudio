@@ -195,3 +195,57 @@ jobs:
           prerelease: false
           files: |
             build/PinPointStudioSetup-*-core.exe
+
+  # ── macOS: build the UNSIGNED .dmg (the Sparkle enclosure) and stage it on the same
+  # DRAFT release. The maintainer Developer ID-signs + notarizes the EXACT DMG locally,
+  # generates appcast-mac.xml (packaging/make_appcast_mac.sh), uploads both, and
+  # publishes — only then is it live to users (docs/implementation/macos_release_runbook.md,
+  # design docs/design/macos_update.md). No signing/notarization/EdDSA secrets here.
+  #
+  # Pinned to an INTEL runner (macos-13) so the x86_64 DMG is genuinely x86_64 — the v1
+  # target arch (runs under Rosetta 2 on Apple Silicon). GitHub's default macos-latest is
+  # arm64 now; a native arm64 build + second feed is a GA add (design §7).
+  #
+  # STATUS: scaffolding — authored, not yet run. Heavy FetchContent (whisper/ViTPose/ORT)
+  # + a full Release build make the first run slow; validate by pushing a test tag.
+  macos:
+    needs: guard
+    if: needs.guard.outputs.proceed == 'true'
+    runs-on: macos-13   # Intel x86_64 — matches the enclosure arch (NOT the arm64 default)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version (version.h → asset name)
+        run: |
+          maj=$(sed -n 's/^#define PINPOINT_VERSION_MAJOR[[:space:]]*\([0-9]*\).*/\1/p' src/Core/version.h)
+          min=$(sed -n 's/^#define PINPOINT_VERSION_MINOR[[:space:]]*\([0-9]*\).*/\1/p' src/Core/version.h)
+          pfx=$(sed -n 's/^#define PINPOINT_VERSION_POSTFIX[[:space:]]*"\([^"]*\)".*/\1/p' src/Core/version.h)
+          echo "asset version → v${maj}.${min}${pfx} (tag ${GITHUB_REF_NAME})"
+
+      # CMake probes Homebrew for these (CMakeLists ~1721–1937); absent on a fresh runner.
+      - name: Install Homebrew deps (OpenCV / FFmpeg / Aravis)
+        run: brew install opencv ffmpeg aravis
+
+      - name: Install Qt 6.11
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.11.0'
+          modules: 'qtmultimedia qtwebsockets qtquick3d qtshadertools qtserialport qtconnectivity'
+
+      # package_macos.sh builds Release (PINPOINT_INSTALLED=ON), runs macdeployqt,
+      # relocates the Homebrew closure, VERIFIES self-containment (fails the job if a
+      # build-machine path leaks), and emits the unsigned DMG. --no-sign: no cert in CI.
+      - name: Build + package UNSIGNED DMG
+        env:
+          CMAKE_PREFIX: ${{ env.QT_ROOT_DIR }}
+          JOBS: '3'   # hosted macOS runners are small
+        run: tools/package_macos.sh --no-sign
+
+      - name: Stage on draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          draft: true            # maintainer signs + notarizes + adds appcast-mac.xml + publishes
+          prerelease: false
+          files: |
+            dist/PinPointStudio-*-x86_64.dmg

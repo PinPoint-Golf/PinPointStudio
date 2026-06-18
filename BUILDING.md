@@ -210,6 +210,53 @@ artifacts to the GitHub Release. The in-app updater polls that release feed.
 
 ---
 
+## Packaging & Release (macOS — DMG with in-app update)
+
+macOS ships as a Developer ID-signed, notarized **`.app` inside a `.dmg`**, kept up to
+date in place by **Sparkle** (the framework WinSparkle is a port of), gated by a pinned
+**EdDSA (Ed25519)** signature. Design:
+[`docs/design/macos_update.md`](docs/design/macos_update.md) ·
+**release runbook:** [`docs/implementation/macos_release_runbook.md`](docs/implementation/macos_release_runbook.md).
+
+**Build the DMG:**
+```bash
+# Build deps come from Homebrew (CMake probes them): opencv, ffmpeg, aravis.
+#   brew install opencv ffmpeg aravis
+tools/package_macos.sh                         # → dist/PinPointStudio-<ver>-x86_64.dmg (signs+notarizes if creds set)
+tools/package_macos.sh --no-sign               # unsigned dev build (no in-app update trust)
+tools/package_macos.sh --app <prebuilt.app>    # package an already-built .app (copied, never mutated)
+```
+The script resolves the version from `src/Core/version.h`, builds Release, runs
+`macdeployqt`, then **recursively relocates the Homebrew dependency closure** macdeployqt
+leaves half-done (OpenCV → VTK → webp; the Qt sql plugin → libmimerapi) into
+`Contents/Frameworks` with `@rpath` install names, and **verifies** no build-machine path
+leaks before building the DMG (it fails loudly if one does — the clean-host gate). With a
+**Developer ID Application** identity in the keychain and a `NOTARY_PROFILE`, it also
+codesigns (Hardened Runtime, entitlements at `packaging/macos/entitlements.plist`),
+notarizes, and staples; without them it emits a valid **unsigned** DMG.
+
+- **v1 ships x86_64 only** (Intel; runs under Rosetta 2 on Apple Silicon). Native `arm64`
+  is a GA add (a second DMG + `appcast-mac-arm64.xml`). There is **no CUDA / no component
+  split** on macOS — the DMG is the whole, hardware-agnostic app (acceleration is
+  CoreML/Accelerate/Metal).
+- Developer ID signing + notarization are a **v1 requirement** on macOS (not optional
+  polish): an un-notarized app is quarantined and App Translocation stops Sparkle updating
+  in place. The cert + notary credential + the EdDSA private key all stay **offline, never
+  CI secrets**.
+
+> **Status:** scaffolding. `package_macos.sh` + the relocation/verify recipe are exercised
+> on a built bundle; a from-scratch Release build and the clean-second-Mac acceptance gate
+> (BLE + camera + STT + CoreML + x264 export, no Gatekeeper warning) are still open — see
+> the impl plan [`docs/implementation/macos_update_impl.md`](docs/implementation/macos_update_impl.md).
+
+**Releasing:** tag exactly the `version.h` string (e.g. `v0.1-alpha3`) and push; CI's
+`macos` job (Intel `macos-13`) builds the **unsigned** DMG and stages it on a **draft**
+release. The maintainer signs + notarizes the exact DMG locally, generates
+`appcast-mac.xml` (`packaging/make_appcast_mac.sh`), uploads both, and publishes
+non-prerelease — full steps in the runbook.
+
+---
+
 ## Packaging & Release (Windows — Installer with in-app update)
 
 Windows ships as a per-user **Inno Setup installer** kept up to date in place by
