@@ -1904,9 +1904,29 @@ if(OpenCV_VERSION VERSION_LESS "3.0")
     message(FATAL_ERROR "OpenCV 3.0 or higher is required (found ${OpenCV_VERSION})")
 endif()
 message(STATUS "OpenCV ${OpenCV_VERSION}: found")
+
+# Link ONLY the OpenCV modules the code actually uses (core, imgproc, imgcodecs —
+# verified: those are the only opencv2/ headers included anywhere in the tree). The
+# full ${OpenCV_LIBS} from a modular OpenCV (e.g. Homebrew) lists every module,
+# including opencv_viz — which links the entire VTK tree (hundreds of MB of dylibs
+# the app never calls). Pulling viz into the link makes macdeployqt bundle VTK,
+# bloating the macOS .app/.dmg ~3-4x. Linking just the three modules keeps VTK out
+# of the dependency graph entirely. Falls back to opencv_world (monolithic Windows
+# builds) or the full set if the modular imported targets aren't present.
+if(TARGET opencv_world)
+    set(PP_OPENCV_LIBS opencv_world)
+elseif(TARGET opencv_core AND TARGET opencv_imgproc AND TARGET opencv_imgcodecs)
+    set(PP_OPENCV_LIBS opencv_core opencv_imgproc opencv_imgcodecs)
+else()
+    set(PP_OPENCV_LIBS ${OpenCV_LIBS})
+    message(WARNING "OpenCV: modular targets (opencv_core/imgproc/imgcodecs) not found "
+                    "— linking the full ${OpenCV_LIBS}; the bundle may pull in VTK and be large.")
+endif()
+message(STATUS "OpenCV link set: ${PP_OPENCV_LIBS}")
+
 target_compile_definitions(PinPointStudio PRIVATE HAVE_OPENCV)
 target_include_directories(PinPointStudio PRIVATE ${OpenCV_INCLUDE_DIRS})
-target_link_libraries(PinPointStudio PRIVATE ${OpenCV_LIBS})
+target_link_libraries(PinPointStudio PRIVATE ${PP_OPENCV_LIBS})
 
 # Windows OpenCV runtime: previously resolved only from the dev PATH (e.g.
 # C:\tools\opencv\build\x64\vc16\bin) — nothing was copied or installed. Bundle
@@ -2275,7 +2295,7 @@ if(PINPOINT_BUILD_TOOLS)
     target_link_libraries(swinglab_run PRIVATE
         Qt6::Core Qt6::Gui Qt6::Multimedia
         pinpoint_buffer whisper
-        ${OpenCV_LIBS}
+        ${PP_OPENCV_LIBS}   # same core/imgproc/imgcodecs subset — no viz/VTK (see above)
     )
     if(WIN32)
         target_link_libraries(swinglab_run PRIVATE "${_ort_root}/lib/onnxruntime.lib")

@@ -70,6 +70,21 @@ the camera (`VideoInputApple`), Apple/Whisper STT, and CoreML/Metal inference al
   - `yt-dlp_macos` (already copied next to the binary; move into the bundle).
   - **Spinnaker** (proprietary): bundle if redistribution terms allow, else
     load-if-present and degrade (the device enumerator already tolerates absence).
+- ☑ **Bundle size — link only the OpenCV modules used (drop VTK).** `find_package(OpenCV)`
+  + `${OpenCV_LIBS}` links **every** module, including `opencv_viz` (→ the whole VTK tree)
+  and `opencv_dnn` (→ OpenVINO). The repo uses **only `core`/`imgproc`/`imgcodecs`**
+  (the only `opencv2/` headers included anywhere). CMake now links just those (`PP_OPENCV_LIBS`,
+  with `opencv_world`/full-set fallbacks), so macdeployqt never bundles viz/dnn and their
+  trees. **Measured on the actual bundle: −68 MB VTK (57 dylibs) − 25 MB unused opencv
+  modules (53 dylibs) − 14 MB OpenVINO ≈ −107 MB and ~115 fewer dylibs (265 → ~150).**
+  > **The dominant size drivers are elsewhere, and are not packaging defects:**
+  > **(a)** `Contents/Resources/models` ≈ **381 MB** of bundled ML weights (pose/voice/
+  > segmenter/ViTPose/Kokoro) — a *product* decision (which models must ship vs. fetch
+  > on demand), not something to silently strip; **(b)** the **Debug** main binary is
+  > ~218 MB vs ~30 MB in **Release** (~185 MB that disappears automatically in the shipped
+  > build — the local proof used a Debug bundle via `--app`). `libopenblas` (61 MB) is a
+  > hard dep of `opencv_core` and stays. A real Release DMG size lands at the CI/clean-VM
+  > gate; the OpenCV narrowing is the packaging-level win and is done here.
 - ☐ **DMG assembly.** Build a DMG with the `.app` + an `/Applications` symlink (the
   standard drag-install layout) — `hdiutil create`/`create-dmg`, scripted in
   `tools/package_macos.sh`. Filename `PinPointStudio-<ver>-x86_64.dmg`, `<ver>` from
