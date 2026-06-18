@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Hardened Runtime entitlements for the Developer ID-signed, notarized build.
+  Passed to `codesign --options runtime --entitlements` by tools/package_macos.sh
+  (docs/implementation/macos_update_impl.md S1·P1).
+
+  Philosophy: START MINIMAL. Hardened Runtime is required for notarization; every
+  entitlement below RELAXES it and weakens the sandbox, so add one only when a
+  dependency PROVES it needs it (the app crashes on launch / fails to load a lib
+  AFTER notarization). Re-test on a clean Mac after each change.
+
+  Included by default:
+  • disable-library-validation — PinPoint bundles many third-party dylibs/frameworks
+    (ONNX Runtime, OpenCV, FFmpeg, Aravis, Spinnaker, Qt). With library validation
+    on, the process is killed the moment it loads a library NOT signed by our Team ID
+    (or the same cert). Re-signing every nested binary with our Developer ID would
+    let us drop this, but for v1 we keep it — it is the single most common reason a
+    notarized Qt app passes notarization yet crashes on first launch. Revisit at GA.
+
+  Likely-needed-but-OMITTED until proven (uncomment + re-notarize + re-test if a
+  launch crash points at them — check Console.app for "Trace/BPT trap" or
+  "EXC_BAD_ACCESS" tied to JIT/codegen):
+    <key>com.apple.security.cs.allow-jit</key><true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key><true/>
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key><true/>
+
+  NOTE: camera / microphone / Bluetooth / speech are NOT entitlements here — they are
+  Info.plist NSxxxUsageDescription strings (already present), surfaced as TCC prompts.
+-->
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+</dict>
+</plist>

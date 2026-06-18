@@ -29,6 +29,10 @@ string(REGEX MATCH "#define[ \t]+PINPOINT_VERSION_MINOR[ \t]+([0-9]+)" _ "${_pp_
 set(_pp_ver_minor "${CMAKE_MATCH_1}")
 string(REGEX MATCH "#define[ \t]+PINPOINT_VERSION_BUILD[ \t]+([0-9]+)" _ "${_pp_version_h}")
 set(_pp_ver_build "${CMAKE_MATCH_1}")
+# POSTFIX is the prerelease suffix ("-alpha3", "" for a clean release). Used for the
+# human display version (macOS CFBundleShortVersionString / Sparkle shortVersionString).
+string(REGEX MATCH "#define[ \t]+PINPOINT_VERSION_POSTFIX[ \t]+\"([^\"]*)\"" _ "${_pp_version_h}")
+set(_pp_ver_postfix "${CMAKE_MATCH_1}")
 # Compare against "" (not NOT), since a valid MAJOR of 0 is falsey to CMake's if().
 if("${_pp_ver_major}" STREQUAL "" OR "${_pp_ver_minor}" STREQUAL "" OR "${_pp_ver_build}" STREQUAL "")
     message(FATAL_ERROR "Could not parse version from src/Core/version.h")
@@ -43,6 +47,15 @@ project(PinPointStudio
 # place the executable at the install-prefix root while the DLLs (DESTINATION bin)
 # land in bin/ — splitting the runtime tree. Including this pins BINDIR=bin.
 include(GNUInstallDirs)
+
+# ── Packaged-build marker ─────────────────────────────────────────────────────
+# OFF for plain dev builds (QtCreator, run-from-build/); the packaging scripts
+# configure with -DPINPOINT_INSTALLED=ON so the produced bundle/installer is
+# marked as a real distributable. The in-app update engines key off this (plus a
+# runtime check) to stay inert in a dev tree — the cross-platform analogue of the
+# Linux "$APPIMAGE unset" guard. macOS design §3; Windows uses its installer's
+# unins000.exe probe today, this is the portable knob.
+option(PINPOINT_INSTALLED "Mark this as a packaged/installed build" OFF)
 
 # ── Windows runtime bundling helper ───────────────────────────────────────────
 # Copy a list of DLLs/files next to the dev executable (POST_BUILD) AND register
@@ -471,13 +484,43 @@ set_target_properties(PinPointStudio PROPERTIES
     WIN32_EXECUTABLE TRUE
 )
 
+# Packaged-build marker (see the option() above) — compiled in only when the
+# packaging scripts pass -DPINPOINT_INSTALLED=ON.
+if(PINPOINT_INSTALLED)
+    target_compile_definitions(PinPointStudio PRIVATE PINPOINT_INSTALLED)
+endif()
+
+# ── Info.plist substitution variables (macOS) ────────────────────────────────
+# Single source of truth is src/Core/version.h (parsed above). These feed the
+# @VAR@ placeholders in Info.plist.in so the bundle version, the Sparkle compare
+# key, and the appcast can never drift (macOS design §7).
+#   • CFBundleShortVersionString = display version (e.g. 0.1-alpha3)
+#   • CFBundleVersion            = monotonic build int (Sparkle's compare key)
+set(PP_DISPLAY_VERSION "${_pp_ver_major}.${_pp_ver_minor}${_pp_ver_postfix}")
+set(PP_VERSION_BUILD   "${_pp_ver_build}")
+
+# Sparkle feed + pinned EdDSA public key (macOS design §4.1, §6). The feed URL is
+# static (GitHub latest-release redirect); the key is read from the repo's pinned
+# .pub so the generated Info.plist carries it as SUPublicEDKey. PLACEHOLDER until
+# the offline key is generated — the macOS updater (Stage 2) refuses to arm while
+# it is the placeholder, exactly as the Windows/Linux gates do.
+set(PP_SU_FEED_URL "https://github.com/PinPoint-Golf/PinPointStudio/releases/latest/download/appcast-mac.xml")
+set(_pp_mac_eddsa_pub "${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/keys/pinpoint_release_mac_eddsa.pub")
+if(EXISTS "${_pp_mac_eddsa_pub}")
+    file(READ "${_pp_mac_eddsa_pub}" PP_SU_PUBLIC_ED_KEY)
+    string(STRIP "${PP_SU_PUBLIC_ED_KEY}" PP_SU_PUBLIC_ED_KEY)
+else()
+    set(PP_SU_PUBLIC_ED_KEY "PLACEHOLDER")
+endif()
+
 # Qt's CMake infrastructure ignores MACOSX_BUNDLE_INFO_PLIST in some
-# configurations.  Generate the plist at configure time and copy it into
-# the bundle with a POST_BUILD step so it always wins.
+# configurations.  Generate the plist at configure time (substituting @VAR@ only,
+# so the XML's literal text is untouched) and copy it into the bundle with a
+# POST_BUILD step so it always wins.
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/Info.plist.in"
     "${CMAKE_CURRENT_BINARY_DIR}/Info.plist"
-    COPYONLY
+    @ONLY
 )
 
 
@@ -488,10 +531,17 @@ qt_add_resources(PinPointStudio "app_icons"
 )
 
 # Pinned release public keys for the in-app updaters' signature gates:
-#   *.asc → Linux AppImage GPG gate          (docs/design/linux_update.md §6)
-#   *.pub → Windows WinSparkle EdDSA gate     (docs/design/windows_update.md §6)
-# PLACEHOLDERS until the real keys are generated (P2) — the gates refuse every
-# update while the key is a placeholder.
+#   *.asc          → Linux AppImage GPG gate      (docs/design/linux_update.md §6)
+#   *_win_eddsa.pub → Windows WinSparkle EdDSA gate (docs/design/windows_update.md §6)
+#   *_mac_eddsa.pub → macOS Sparkle EdDSA gate     (docs/design/macos_update.md §6)
+# PLACEHOLDERS until the real keys are generated — the gates refuse every update
+# while the key is a placeholder.
+#
+# The Linux/Windows keys are compiled in as :/keys/ Qt resources (read by the
+# updater code at runtime). The macOS key is NOT a Qt resource: Sparkle reads it
+# from the bundle's Info.plist (SUPublicEDKey), which CMake fills from the .pub at
+# configure time (see the PP_SU_PUBLIC_ED_KEY block above). The file is committed
+# for transparency and as that single source of truth.
 qt_add_resources(PinPointStudio "app_keys"
     PREFIX "/keys"
     BASE "src/Resources/keys"

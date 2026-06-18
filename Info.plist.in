@@ -14,13 +14,25 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.1</string>
+    <string>@PP_DISPLAY_VERSION@</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>@PP_VERSION_BUILD@</string>
     <key>CFBundleIconFile</key>
     <string>PinPointStudio</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <!-- Sparkle in-app update (macOS) — docs/design/macos_update.md.
+         SUFeedURL: static GitHub latest-release redirect (the appcast is a release
+         asset). SUPublicEDKey: the pinned Ed25519 public key — Sparkle verifies every
+         update against it; PLACEHOLDER until the offline key is generated (the updater
+         refuses to arm meanwhile). All three are substituted from version.h / the
+         pinned .pub by CMake at configure time. -->
+    <key>SUFeedURL</key>
+    <string>@PP_SU_FEED_URL@</string>
+    <key>SUPublicEDKey</key>
+    <string>@PP_SU_PUBLIC_ED_KEY@</string>
+    <key>SUEnableAutomaticChecks</key>
+    <false/>
     <key>NSCameraUsageDescription</key>
     <string>PinPoint Studio uses the camera to capture and analyse your golf swing.</string>
     <key>NSBluetoothAlwaysUsageDescription</key>
