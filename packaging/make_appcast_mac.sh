@@ -88,7 +88,9 @@ log "signing $DMG_NAME with EdDSA key (sign_update)…"
 key_args=()
 [[ -n "$KEY_FILE" ]] && key_args=(-f "$KEY_FILE")
 # sign_update prints e.g.:  sparkle:edSignature="…" length="12345"
-sigline="$("$TOOL" "${key_args[@]}" "$DMG")"
+# NB: ${arr[@]+"${arr[@]}"} guards the empty-array expansion under `set -u` on the
+# bash 3.2 that ships with macOS (a bare "${key_args[@]}" trips "unbound variable").
+sigline="$("$TOOL" ${key_args[@]+"${key_args[@]}"} "$DMG")"
 ED_SIG="$(sed -n 's/.*sparkle:edSignature="\([^"]*\)".*/\1/p' <<<"$sigline")"
 sig_len="$(sed -n 's/.*length="\([0-9]*\)".*/\1/p' <<<"$sigline")"
 [[ -n "$ED_SIG" ]] || die "sign_update produced no signature (is the private key available? output: $sigline)"
