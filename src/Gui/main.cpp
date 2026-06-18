@@ -163,9 +163,10 @@ int main(int argc, char *argv[])
     LiveWristAngles         liveWrist(&imuManager, &appSettings, &athleteController);
     SessionController       sessionController;
     NavigationController    navController(&athleteController, &sessionController);
-    // Linux AppImage in-app updater (Sparkle/WinSparkle analogue). Constructed on
-    // all platforms for QML uniformity; inert ("unsupported"/"devbuild") off-Linux
-    // or when not running as an AppImage. See docs/design/linux_update.md.
+    // In-app updater façade: Linux AppImage engine, WinSparkle on Windows, Sparkle on
+    // macOS (all behind this one QML context property). Constructed on all platforms
+    // for QML uniformity; inert ("unsupported"/"devbuild") in a dev/build-tree run or
+    // where no engine is compiled in. See docs/design/{linux,windows,macos}_update.md.
     UpdateController        updateController(&appSettings, &sessionController);
     // Hardware-adaptive CUDA-runtime offer (Windows): detects an NVIDIA GPU and offers
     // the separately-packaged GPU runtime when present but not installed, so users who

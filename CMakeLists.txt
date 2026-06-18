@@ -716,6 +716,54 @@ if(WIN32)
         src/Update/win_sparkle_update.cpp)
 endif()
 
+# ── Sparkle (macOS in-app update engine) ──────────────────────────────────────
+# The macOS analogue of WinSparkle. See docs/design/macos_update.md. The prebuilt
+# universal Sparkle.framework is fetched like the ORT/WinSparkle packages, linked,
+# and (in tools/package_macos.sh §4e) embedded into Contents/Frameworks/ with its
+# Autoupdate/Updater.app/XPCServices helpers and re-signed bottom-up. EdDSA
+# verification + the XPC helpers require Sparkle >= 2.x. The .tar.xz also carries
+# bin/generate_keys + bin/sign_update — the offline release-key + appcast tools.
+if(APPLE)
+    set(SPARKLE_VERSION "2.9.3")
+    FetchContent_Declare(sparkle
+        URL "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz"
+        URL_HASH SHA256=74a07da821f92b79310009954c0e15f350173374a3abe39095b4fc5096916be6
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+    FetchContent_MakeAvailable(sparkle)
+
+    # The archive extracts Sparkle.framework at the top level; probe in case a CMake
+    # version nests it (mirrors the ORT/WinSparkle root probes above).
+    if(EXISTS "${sparkle_SOURCE_DIR}/Sparkle.framework/Headers/Sparkle.h")
+        set(_sparkle_root "${sparkle_SOURCE_DIR}")
+    else()
+        file(GLOB _sparkle_candidates LIST_DIRECTORIES true "${sparkle_SOURCE_DIR}/Sparkle-*")
+        list(GET _sparkle_candidates 0 _sparkle_root)
+    endif()
+
+    # -F<dir> so `#import <Sparkle/Sparkle.h>` resolves and `-framework Sparkle` links;
+    # BUILD_RPATH so a dev build run from the build tree loads the framework straight
+    # from _deps (its install name is @rpath/Sparkle.framework/...). The packaged build
+    # gets @executable_path/../Frameworks from macdeployqt + the §4e embed step.
+    target_compile_options(PinPointStudio PRIVATE "-F${_sparkle_root}")
+    target_link_options(PinPointStudio PRIVATE "-F${_sparkle_root}")
+    target_link_libraries(PinPointStudio PRIVATE "-framework Sparkle")
+    set_property(TARGET PinPointStudio APPEND PROPERTY BUILD_RPATH "${_sparkle_root}")
+    target_compile_definitions(PinPointStudio PRIVATE HAVE_SPARKLE)
+
+    # Expose the framework + tool paths to the packaging script (read from the build
+    # tree's CMakeCache) so it copies the exact fetched framework, not a guessed one.
+    set(PP_SPARKLE_FRAMEWORK "${_sparkle_root}/Sparkle.framework" CACHE INTERNAL "")
+    set(PP_SPARKLE_BIN "${_sparkle_root}/bin" CACHE INTERNAL "")
+
+    target_sources(PinPointStudio PRIVATE
+        src/Update/mac_sparkle_update.h
+        src/Update/mac_sparkle_update.mm)
+    # The shim manages two long-lived Cocoa objects via __bridge_retained/_transfer and
+    # holds the postponed-relaunch block in a copy property — compile it under ARC.
+    set_source_files_properties(src/Update/mac_sparkle_update.mm
+        PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+endif()
+
 # ── Azure cloud STT fallback ──────────────────────────────────────────────────
 # The Azure STT backend uses the same Cognitive Services Speech resource as the
 # TTS backend, so AZURE_TTS_API_KEY is checked automatically as a fallback when

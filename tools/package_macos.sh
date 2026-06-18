@@ -129,7 +129,7 @@ MACDEPLOYQT="${MACDEPLOYQT:-$CMAKE_PREFIX/bin/macdeployqt}"
 
 # ── 0. tool preflight ───────────────────────────────────────────────────────────
 [[ -x "$MACDEPLOYQT" ]] || die "macdeployqt not found at $MACDEPLOYQT (set CMAKE_PREFIX)"
-for t in hdiutil otool install_name_tool; do
+for t in hdiutil otool install_name_tool ditto; do
     have "$t" || die "required tool '$t' not on PATH"
 done
 
@@ -223,6 +223,27 @@ done
 log "relocating Homebrew dependency closure (OpenCV/FFmpeg/Aravis + transitive deps)"
 relocate_closure
 
+# 4e. Sparkle.framework — the macOS in-app update engine (docs/design/macos_update.md).
+#     macdeployqt does NOT reliably relocate a framework that carries nested helpers
+#     (Autoupdate, Updater.app, XPCServices), so copy the WHOLE framework verbatim AFTER
+#     macdeployqt, preserving its Versions/ symlink structure. The main binary's
+#     @executable_path/../Frameworks rpath (added by macdeployqt) resolves Sparkle's
+#     @rpath/Sparkle.framework/Versions/B/Sparkle install name; the nested helpers are
+#     signed bottom-up in §6. CMake fetched it to _deps/sparkle-src/.
+if [[ ! -d "$FW/Sparkle.framework" ]]; then
+    sparkle_fw=""
+    for cand in "$BUILD_DIR"/_deps/sparkle-src/Sparkle.framework \
+                "$REPO_ROOT"/build/*/_deps/sparkle-src/Sparkle.framework; do
+        [[ -d "$cand" ]] && { sparkle_fw="$cand"; break; }
+    done
+    if [[ -n "$sparkle_fw" ]]; then
+        log "bundling Sparkle.framework (+ Autoupdate/Updater.app/XPCServices helpers)"
+        ditto "$sparkle_fw" "$FW/Sparkle.framework"
+    else
+        log "WARN: Sparkle.framework not found under _deps — in-app update will be inert"
+    fi
+fi
+
 # ── 5. VERIFY relocatability — the clean-host gate ────────────────────────────────
 # No bundled Mach-O may still point at a build-machine-only absolute path. If any do,
 # the app will crash with "image not found" on a stock Mac. Fail loudly here.
@@ -274,6 +295,24 @@ codesign_bundle() {
     fi
     [[ -f "$ENTITLEMENTS" ]] || die "entitlements not found: $ENTITLEMENTS"
     log "codesigning with: $identity"
+    # Sparkle ships nested code the generic dylib/framework sweep below does NOT descend
+    # into — XPC services, Updater.app, and the Autoupdate helper. They must be signed
+    # bottom-up BEFORE the framework is sealed (the framework seal references them), or
+    # notarization rejects the unsigned nested code. --options runtime (Hardened
+    # Runtime), no entitlements (only the main app carries those). docs/design/macos_update.md §6.
+    sparkle_ver="$STAGE_APP/Contents/Frameworks/Sparkle.framework/Versions/B"
+    if [[ -d "$sparkle_ver" ]]; then
+        log "signing Sparkle helpers (XPCServices, Updater.app, Autoupdate)"
+        for item in \
+            "$sparkle_ver/XPCServices/Downloader.xpc" \
+            "$sparkle_ver/XPCServices/Installer.xpc" \
+            "$sparkle_ver/Updater.app" \
+            "$sparkle_ver/Autoupdate"; do
+            [[ -e "$item" ]] || continue
+            codesign --force --options runtime --timestamp \
+                     --sign "$identity" "$item" || die "codesign failed: ${item#"$STAGE_APP"/}"
+        done
+    fi
     # Sign inside-out: every nested dylib/framework/helper/plugin first, the .app last.
     # --options runtime (Hardened Runtime) + --timestamp are notarization prerequisites.
     while IFS= read -r f; do

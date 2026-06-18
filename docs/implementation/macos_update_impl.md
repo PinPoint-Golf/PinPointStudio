@@ -179,19 +179,28 @@ can consume — provable before the client exists, against a test key.
 
 # Stage 2 — Spot & auto-update
 
-## S2·P3 — Sparkle client: detect & update  ☐
+## S2·P3 — Sparkle client: detect & update  ◑
 
 Goal: an installed, signed macOS build notices a newer published release, shows
 Sparkle's native "update available" window (on launch and via Settings → Check now),
 verifies + installs after confirmation, and honours the session guard — with **no new
 state machine** (Sparkle owns it).
 
-- ☐ **Embed Sparkle 2.** Vendor/fetch `Sparkle.framework` (≥ 2.x for EdDSA) — `FetchContent`
-  of the release zip, or `third_party/`, mirroring the ORT/WinSparkle prebuilt pattern.
-  Embed it in `Contents/Frameworks/` (incl. its `Autoupdate`/`Updater` helper), link it,
-  set the `@rpath`, and **code-sign it** as part of S1·P1's bottom-up signing. Guard all
-  of this behind `if(APPLE)`.
-- ☐ **`src/Update/mac_sparkle_update.{h,mm}`** — `MacSparkleUpdater` (QObject, Obj-C++),
+> **Status (2026-06-18): the client is implemented and verified inert.** All the
+> implementation bullets below are done; the build compiles, links
+> `@rpath/Sparkle.framework` (Sparkle 2.9.3), launches, and stays correctly inert while
+> `SUPublicEDKey` is the placeholder (`[Sparkle] no pinned EdDSA key yet`). What remains
+> are the two **maintainer gates**: generate the offline EdDSA key (S1·P2's key bullet)
+> so the updater arms, then the end-to-end **Acceptance** item below.
+
+- ☑ **Embed Sparkle 2.** Sparkle **2.9.3** fetched via `FetchContent` (`.tar.xz`, SHA256
+  pinned) in the `if(APPLE)` block (twin of the `WIN32` WinSparkle block); linked with
+  `-F`/`-framework Sparkle` + `HAVE_SPARKLE`, with `BUILD_RPATH` → `_deps/sparkle-src` so a
+  dev/build-tree run loads it. `tools/package_macos.sh` §4e `ditto`-copies the whole
+  `Sparkle.framework` (incl. `Autoupdate`/`Updater.app`/`XPCServices`) into
+  `Contents/Frameworks/` **after** macdeployqt (which mangles nested-helper frameworks);
+  `codesign_bundle()` signs those helpers bottom-up before the framework seal.
+- ☑ **`src/Update/mac_sparkle_update.{h,mm}`** — `MacSparkleUpdater` (QObject, Obj-C++),
   the structural twin of `WinSparkleUpdater`:
   - `configureAndInit(AppSettings*, SessionController*)`: create
     `SPUStandardUpdaterController` (which reads `SUFeedURL` + `SUPublicEDKey` from
@@ -207,7 +216,7 @@ state machine** (Sparkle owns it).
     while `m_session->running()`, invoke it on `runningChanged`→idle (design §5.1).
     **Main-thread callbacks — touch `SessionController` directly, no atomic/queued
     dance** (the macOS simplification over Windows).
-- ☐ **`update_controller.{h,cpp}` macOS branch** — add an
+- ☑ **`update_controller.{h,cpp}` macOS branch** — add an
   `#elif defined(Q_OS_MACOS) && defined(HAVE_SPARKLE)` arm **mirroring** the existing
   Windows `#elif` (lines ~129–146): own a `MacSparkleUpdater`, `m_supported` from
   `configureAndInit`, `state()` stays `"idle"` (Sparkle owns transient states),
@@ -216,18 +225,17 @@ state machine** (Sparkle owns it).
   are **no-ops on macOS** (Sparkle's UI handles them) — keep them so the shared QML
   binds. Add a `MacSparkleUpdater *m_macSparkle = nullptr;` member next to
   `m_winSparkle`.
-- ☐ **`main.cpp`** — already constructs/registers `updateController` and already calls
-  `updateController.shutdownUpdater()` in `aboutToQuit` (lines ~169, 397, 410–413); the
-  macOS branch needs **no `main.cpp` change** beyond ensuring Sparkle is initialised
-  **after** the main window is shown (do it from the controller on first window-ready,
-  as Sparkle requires a live UI).
-- ☐ **`GeneralPanel.qml`** — **no change needed.** The existing `supported`/`uState`
-  switch already resolves macOS's `state == "idle"` to the "Check now" chip and the
-  neutral badge; the Linux-only states never fire (design §5B). Optionally hide the
-  status/error line on macOS (Sparkle surfaces its own errors), as the Windows branch
-  does.
-- ☐ **Error/diagnostics.** `SPUUpdaterDelegate` error hooks → `PpMessageLog`; a failed
-  automatic check is silent and never blocks startup (design §8).
+- ☑ **`main.cpp`** — confirmed **no functional change** needed (constructs/registers
+  `updateController`, calls `shutdownUpdater()` in `aboutToQuit`). Sparkle init is deferred
+  inside `MacSparkleUpdater` via a 3 s `QTimer::singleShot` → `-startUpdater` (created with
+  `startingUpdater:NO`), so it lands after the window is up without a `main.cpp` hook. (The
+  stale Linux-only updater comment was refreshed to name all three engines.)
+- ☑ **`GeneralPanel.qml`** — confirmed **no change needed.** The existing `supported`/`uState`
+  switch resolves macOS's `state == "idle"` to the "Check now" chip (line ~788/804) and the
+  inert `"devbuild"` to no-chip + neutral badge; the Linux-only states never fire (design §5B).
+- ☑ **Error/diagnostics.** `PPSparkleDelegate` implements `updater:didAbortWithError:` and
+  `updater:didFailToDownloadUpdate:error:` → `ppWarn()` (`PpMessageLog`); a failed automatic
+  check is silent and never blocks startup (design §8).
 - ☐ **Acceptance (end-to-end, design Done-when):** an installed build on `v<n>`, with a
   published `v<n+1>` release: launches → Sparkle's "update available" window appears
   (or via Settings → **Check now**); accepting downloads the DMG, Sparkle **verifies**

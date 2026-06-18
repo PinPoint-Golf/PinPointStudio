@@ -20,6 +20,8 @@
 #include "appimage_update.h"
 #if defined(Q_OS_WIN)
 #  include "win_sparkle_update.h"   // Windows in-app update engine (WinSparkle façade)
+#elif defined(Q_OS_MACOS)
+#  include "mac_sparkle_update.h"   // macOS in-app update engine (Sparkle façade)
 #endif
 #include "app_settings.h"         // checkForUpdates() / skippedUpdateVersion persistence
 #include "session_controller.h"   // running() for the relaunch session-safety guard
@@ -144,8 +146,27 @@ UpdateController::UpdateController(AppSettings *settings, SessionController *ses
         m_state = State::DevBuild;   // build-tree run → inert (analogue of $APPIMAGE unset)
         m_supported = false;
     }
+#elif defined(Q_OS_MACOS) && defined(HAVE_SPARKLE)
+    // macOS: Sparkle is the engine and brings its own native UI (design §5) — the
+    // structural twin of the Windows branch above. This controller is a thin façade:
+    // supported when installed AND a real pinned EdDSA key is configured; the rich
+    // Downloading/Verifying/Ready states stay Linux-only (Sparkle owns that UI).
+    if (MacSparkleUpdater::isInstalledBuild()) {
+        m_macSparkle = new MacSparkleUpdater(this);
+        m_supported  = m_macSparkle->configureAndInit(m_settings, m_session);
+        m_state      = m_supported ? State::Idle : State::Unsupported;
+        // Keep Sparkle's automatic-check pref in sync with the existing toggle.
+        if (m_supported && m_settings)
+            connect(m_settings, &AppSettings::checkForUpdatesChanged, this, [this] {
+                if (m_macSparkle)
+                    m_macSparkle->setAutomaticChecks(m_settings->checkForUpdates());
+            });
+    } else {
+        m_state = State::DevBuild;   // build-tree run → inert (analogue of $APPIMAGE unset)
+        m_supported = false;
+    }
 #else
-    // macOS → Sparkle handles updates natively; Windows without WinSparkle → inert.
+    // macOS without Sparkle / Windows without WinSparkle → inert.
     m_state = State::Unsupported;
     m_supported = false;
 #endif
@@ -217,6 +238,11 @@ void UpdateController::checkNow()
     // Hand off to WinSparkle's own check + UI (design §5B); no PinPoint state machine.
     if (m_winSparkle)
         m_winSparkle->checkNow();
+    return;
+#elif defined(Q_OS_MACOS) && defined(HAVE_SPARKLE)
+    // Hand off to Sparkle's own check + UI (design §5B); no PinPoint state machine.
+    if (m_macSparkle)
+        m_macSparkle->checkNow();
     return;
 #endif
 
@@ -480,5 +506,8 @@ void UpdateController::shutdownUpdater()
 #if defined(Q_OS_WIN) && defined(HAVE_WINSPARKLE)
     if (m_winSparkle)
         m_winSparkle->shutdown();
+#elif defined(Q_OS_MACOS) && defined(HAVE_SPARKLE)
+    if (m_macSparkle)
+        m_macSparkle->shutdown();
 #endif
 }

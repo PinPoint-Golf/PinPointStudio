@@ -24,6 +24,7 @@ class AppSettings;
 class SessionController;
 class AppImageUpdater;
 class WinSparkleUpdater;
+class MacSparkleUpdater;
 class QNetworkAccessManager;
 class QNetworkReply;
 template <typename T> class QFutureWatcher;
@@ -134,6 +135,7 @@ private:
     AppImageUpdater       *m_updater = nullptr;
     QFutureWatcher<bool>  *m_verifyWatcher = nullptr;
     WinSparkleUpdater     *m_winSparkle = nullptr;   // Windows engine (façade), else null
+    MacSparkleUpdater     *m_macSparkle = nullptr;   // macOS engine (façade), else null
 
     State   m_state = State::Idle;
     bool    m_supported = false;
