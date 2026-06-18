@@ -27,16 +27,18 @@ Clearing Gatekeeper needs **two** things, both done by you, both kept offline:
    malware and issues a **ticket**; you **staple** the ticket into the DMG so it's
    trusted even offline.
 
-A **third** layer applies only to **auto-update** (Stage 2, not yet shipped):
+A **third** layer applies to **auto-update** (Stage 2, now shipped):
 
 3. **EdDSA (Ed25519) signature** — Sparkle verifies each update against a public key
    *pinned inside the app*. This is independent of Apple; it stops anyone (even with a
    stolen Apple cert) from pushing an update unless they also have your EdDSA private key.
 
-> **Where we are now:** we are finishing **Stage 1** (build + sign + notarize + publish a
-> DMG). The **EdDSA / appcast** steps below are marked **[Stage 2]** — you can **skip
-> them** for the current release; they become required when the in-app updater (Sparkle)
-> ships. The first release that ships the updater will "bootstrap" auto-update.
+> **Where we are now:** both stages have shipped. The in-app updater (Sparkle) is embedded,
+> the offline EdDSA key is generated and its public half is committed + pinned, and
+> `v0.1-alpha3` is published with the Sparkle-capable signed DMG **and** `appcast-mac.xml`.
+> The **[Stage 2]** EdDSA / appcast steps below are therefore now a **required part of every
+> release**, not optional. (The one-time key generation in 0.6 is already done — it's kept
+> below for reference / disaster recovery.)
 
 ---
 
@@ -126,20 +128,21 @@ Notarization logs in to Apple as you. Don't use your real password — make an
 > Run this one yourself (it contains the password). In this session you can prefix it with
 > `! ` so it runs in your terminal and the secret never enters the chat.
 
-### 0.6 [Stage 2] EdDSA signing key + pin the public key
-*(Skip until the Sparkle updater ships.)* `generate_keys` / `sign_update` come from the
-Sparkle distribution's `bin/` (CMake will fetch it under `build/**/_deps/sparkle-*/bin/`
-once Stage 2 embeds Sparkle; until then download a Sparkle 2 release and use its `bin/`):
-```bash
-SPARKLE_BIN=/path/to/Sparkle/bin
-"$SPARKLE_BIN/generate_keys"                              # stores the key in your Keychain
-"$SPARKLE_BIN/generate_keys" -x pinpoint_mac_eddsa.key   # EXPORT private key — KEEP OFFLINE, BACK UP
-"$SPARKLE_BIN/generate_keys" -p                          # prints the PUBLIC key (base64)
-```
-Paste the public base64 into `src/Resources/keys/pinpoint_release_mac_eddsa.pub` (replace
-`PLACEHOLDER`) and commit. CMake injects it into the bundle's `Info.plist` (`SUPublicEDKey`).
-**Bootstrap:** the first release that ships both the updater **and** the real key lets all
-*later* releases auto-update; users install that one manually.
+### 0.6 [Stage 2] EdDSA signing key + pin the public key — ✅ DONE (kept for reference)
+The release key was generated on 2026-06-18; the public half is committed to
+`src/Resources/keys/pinpoint_release_mac_eddsa.pub` and CMake bakes it into the bundle's
+`Info.plist` (`SUPublicEDKey`). The private half lives in this Mac's **login Keychain**
+(default Sparkle account `ed25519`) — `sign_update` reads it automatically — with an offline
+backup at `~/pinpoint_release_mac_eddsa_PRIVATE.pem` (**move this to encrypted offline
+storage; it is the root of trust and is NOT a CI secret**). `generate_keys` / `sign_update`
+ship in `build/macos-release/_deps/sparkle-src/bin/` once CMake has fetched Sparkle.
+
+> You only ever do this once. To re-derive the steps (e.g. on a new machine, restoring from
+> the `.pem` backup): `generate_keys` creates/keeps the Keychain key, `generate_keys -x
+> <file>` exports the private half, `generate_keys -p` prints the public base64, and
+> `generate_keys -f <file>` imports a private key from the backup. **Bootstrap:** the first
+> release shipping both the updater and the real key (= `v0.1-alpha3`) lets all *later*
+> releases auto-update; users install that baseline manually.
 
 ---
 
@@ -205,17 +208,20 @@ codesign --verify --deep --strict --verbose=2 "$DMG"              # → valid on
 All three must pass before you publish. The most common first-time failure is a missing
 or wrong entitlement / an unsigned nested binary — see Troubleshooting.
 
-### 1.5 [Stage 2] EdDSA-sign the DMG + generate the appcast
-*(Skip for a Stage-1 release.)*
+### 1.5 [Stage 2] EdDSA-sign the DMG + generate the appcast — REQUIRED every release
 ```bash
-SPARKLE_BIN=/path/to/Sparkle/bin \
-packaging/make_appcast_mac.sh --tag "$TAG" --dmg "$DMG" --key-file /path/to/pinpoint_mac_eddsa.key
-# verify it before publishing:
-"$SPARKLE_BIN/sign_update" --verify -p "$(tr -d '\n' < src/Resources/keys/pinpoint_release_mac_eddsa.pub)" "$DMG" \
-  <<<"$(sed -n 's/.*edSignature="\([^"]*\)".*/\1/p' "$(dirname "$DMG")/appcast-mac.xml")"
+# Signs with the private key in your login Keychain (no --key-file needed); auto-finds
+# sign_update under build/**/_deps/sparkle-src/bin/. Writes appcast-mac.xml next to the DMG.
+packaging/make_appcast_mac.sh --tag "$TAG" --dmg "$DMG" \
+  --notes-url "https://github.com/PinPoint-Golf/PinPointStudio/releases/tag/$TAG"
+
+# Verify the signature against the published bytes before uploading (must exit 0):
+SU=$(find build -name sign_update -type f | head -1)
+SIG=$(sed -n 's/.*edSignature="\([^"]*\)".*/\1/p' "$(dirname "$DMG")/appcast-mac.xml")
+"$SU" --verify "$DMG" "$SIG"; echo "verify exit: $?"
 ```
-Sign the **notarized** DMG (its bytes are what users download). This writes
-`appcast-mac.xml` next to the DMG.
+Sign the **notarized** DMG (its bytes are what users download). If signing from the
+offline `.pem` instead of the Keychain, add `--key-file ~/pinpoint_release_mac_eddsa_PRIVATE.pem`.
 
 ### 1.6 Tag (if not already) + publish to GitHub
 ```bash

@@ -244,10 +244,13 @@ notarizes, and staples; without them it emits a valid **unsigned** DMG.
   in place. The cert + notary credential + the EdDSA private key all stay **offline, never
   CI secrets**.
 
-> **Status:** scaffolding. `package_macos.sh` + the relocation/verify recipe are exercised
-> on a built bundle; a from-scratch Release build and the clean-second-Mac acceptance gate
-> (BLE + camera + STT + CoreML + x264 export, no Gatekeeper warning) are still open — see
-> the impl plan [`docs/implementation/macos_update_impl.md`](docs/implementation/macos_update_impl.md).
+> **Status:** shipping. A Developer ID-signed, notarized, **Sparkle-capable** DMG (with the
+> in-app updater embedded and the real pinned EdDSA key) + an EdDSA-signed `appcast-mac.xml`
+> are published on the `v0.1-alpha3` release. Still open: the clean-second-Mac acceptance
+> gate (BLE + camera + STT + CoreML + x264 export, no Gatekeeper warning) and a real
+> update-**offer** test (needs a higher-versioned release, since Sparkle offers only when
+> `sparkle:version` strictly exceeds the installed `CFBundleVersion`) — see the impl plan
+> [`docs/implementation/macos_update_impl.md`](docs/implementation/macos_update_impl.md).
 
 **Releasing:** tag exactly the `version.h` string (e.g. `v0.1-alpha3`) and push; CI's
 `macos` job (Intel `macos-13`) builds the **unsigned** DMG and stages it on a **draft**

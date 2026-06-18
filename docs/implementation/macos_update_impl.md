@@ -4,8 +4,11 @@
 [`../design/macos_update.md`](../design/macos_update.md): ship the macOS build as a
 Sparkle-driven, EdDSA-signed, **Developer ID-notarized**, prompt-then-install
 auto-update over GitHub Releases. Status legend: ☐ todo · ◑ in progress · ☑ done.
-Nothing here is built yet — macOS currently falls through `update_controller.cpp`'s
-inert `#else` branch (`State::Unsupported`).*
+**Status (2026-06-18): Stage 1 + the Stage 2 client are built and shipped.** `v0.1-alpha3`
+is published with a Developer ID-signed, notarized, **Sparkle-capable** DMG (real EdDSA
+`SUPublicEDKey` baked in) + an EdDSA-signed `appcast-mac.xml`. The only items still open
+are the clean-second-Mac acceptance gate (S1·P0) and a real update **offer** test, which
+needs a higher-versioned release — see S2·P3 Acceptance.*
 
 The work splits into the **two stages the brief asked for**:
 

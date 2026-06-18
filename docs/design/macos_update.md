@@ -111,8 +111,8 @@ src/Update/
   with Linux/Windows). On macOS it is a *façade* over Sparkle; on Linux it is the full
   engine; on Windows it is the WinSparkle façade. The macOS branch is the structural
   twin of the existing `#elif defined(Q_OS_WIN) && defined(HAVE_WINSPARKLE)` block in
-  `update_controller.cpp` (currently macOS falls through to the inert `#else`,
-  `State::Unsupported` — this design replaces that).
+  `update_controller.cpp` (implemented as `#elif defined(Q_OS_MACOS) && defined(HAVE_SPARKLE)`;
+  before this, macOS fell through to the inert `#else`, `State::Unsupported`).
 - Sparkle is **only meaningful in an installed, signed build.** A dev build run from
   `build/Qt_…-Debug/PinPointStudio.app` has no notarized identity, no `SUFeedURL` it
   should act on, and updating it in place would be wrong. The macOS branch detects
