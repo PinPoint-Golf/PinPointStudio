@@ -1,198 +1,279 @@
 # macOS Release Runbook
 
-How to cut a macOS release that the in-app updater (Sparkle) will trust and offer to
-users. Design: [`../design/macos_update.md`](../design/macos_update.md).
+The complete, do-this-from-zero guide to cutting a macOS release of PinPoint Studio:
+version bump → build → **code sign** → **notarize** → publish, and (from Stage 2) the
+Sparkle EdDSA appcast that drives in-app updates. Design:
+[`../design/macos_update.md`](../design/macos_update.md). Siblings:
+[`windows_release_runbook.md`](windows_release_runbook.md),
+[`linux_release_runbook.md`](linux_release_runbook.md).
 
-**macOS has TWO trust layers, both your responsibility, both kept OFF GitHub:**
-1. **EdDSA signing key** — Sparkle's pinned update signature. GitHub only ever sees the
-   **public** key (committed) and the per-DMG **signature** (inside `appcast-mac.xml`).
-2. **Developer ID certificate + notarization** — Gatekeeper's trust. Without it the
-   download is quarantined and App Translocation stops Sparkle updating in place
-   (design §6), so on macOS this is a **v1 requirement**, not optional polish.
-
-If the EdDSA private key leaks, anyone can ship a "trusted" update to every user; if you
-lose it, you can't ship verifiable updates at all. Same for the Developer ID cert. Back
-both up offline. Neither is ever a CI secret — CI builds only the **unsigned** DMG.
+> **If this is your first time signing a Mac app, start at Part 0 and do every step in
+> order.** Part 0 is once-ever setup; Part 1 is what you repeat for each release. The
+> first time, budget ~30–45 min for Part 0 (mostly Apple web UI + one Xcode dialog).
 
 ---
 
-## Do this ONCE (first time only)
+## How macOS trust works (read this once)
 
-### A. Apple Developer ID + notarization credentials
-1. Enrol in the **Apple Developer Program** ($99/yr) if not already.
-2. Create + install a **"Developer ID Application"** certificate into your login
-   keychain (Xcode → Settings → Accounts → Manage Certificates → +, or the Developer
-   portal). Confirm:
-   ```bash
-   security find-identity -v -p codesigning | grep "Developer ID Application"
-   ```
-3. Store a **notarytool** credential profile (so the script can submit non-interactively):
+A Mac app downloaded from the internet must clear **Gatekeeper**, or users get scary
+"PinPoint Studio is damaged / can't be opened" warnings — and worse, **App
+Translocation** runs the app from a random read-only path where Sparkle can't update it.
+Clearing Gatekeeper needs **two** things, both done by you, both kept offline:
+
+1. **Developer ID code signature** — you sign the app + DMG with a *Developer ID
+   Application* certificate issued by Apple to your account. Proves "this came from
+   Mark Liversedge, team `<TEAMID>`, and hasn't been tampered with."
+2. **Notarization** — you upload the signed DMG to Apple; their service scans it for
+   malware and issues a **ticket**; you **staple** the ticket into the DMG so it's
+   trusted even offline.
+
+A **third** layer applies only to **auto-update** (Stage 2, not yet shipped):
+
+3. **EdDSA (Ed25519) signature** — Sparkle verifies each update against a public key
+   *pinned inside the app*. This is independent of Apple; it stops anyone (even with a
+   stolen Apple cert) from pushing an update unless they also have your EdDSA private key.
+
+> **Where we are now:** we are finishing **Stage 1** (build + sign + notarize + publish a
+> DMG). The **EdDSA / appcast** steps below are marked **[Stage 2]** — you can **skip
+> them** for the current release; they become required when the in-app updater (Sparkle)
+> ships. The first release that ships the updater will "bootstrap" auto-update.
+
+---
+
+## Part 0 — One-time setup (do this once, ever)
+
+### 0.1 Apple Developer Program ✅
+You've enrolled ($99/yr individual). That gives you a **Team ID** and the right to issue
+a Developer ID certificate. (Individual account = you are the "Account Holder", which is
+required to create Developer ID certs.)
+
+### 0.2 Create your "Developer ID Application" certificate
+
+This certificate + its private key live in your **login keychain**. The private key is
+generated *on your Mac* and never leaves it — Apple only signs the public half.
+
+**Method A — Xcode (recommended; you have Xcode installed):**
+1. Open **Xcode** → menu **Xcode ▸ Settings…** (⌘,) → **Accounts** tab.
+2. Click **+** (bottom-left) → **Apple ID** → sign in with your developer Apple ID.
+3. Select your team in the list → click **Manage Certificates…**
+4. Click the **+** (bottom-left of the sheet) → choose **Developer ID Application**.
+5. It appears in the list with today's date. Done — close the dialog. Xcode has created
+   the cert **and** installed it + its private key into your login keychain.
+
+> If **Developer ID Application** is greyed out / missing from the **+** menu: your Apple
+> ID isn't recognised as the Account Holder, or the membership is still activating. Wait a
+> few minutes after enrolment, or use Method B.
+
+**Method B — Developer portal + manual CSR (fallback):**
+1. **Keychain Access** → menu **Keychain Access ▸ Certificate Assistant ▸ Request a
+   Certificate From a Certificate Authority…**
+   - User Email: your Apple ID email · Common Name: "Mark Liversedge" ·
+     **Saved to disk** (not "emailed") · check **Let me specify key pair information** →
+     **2048 bits, RSA**. Save the `.certSigningRequest` file.
+2. Go to **developer.apple.com/account** → **Certificates, IDs & Profiles** →
+   **Certificates** → **+** → **Developer ID Application** → Continue → upload the
+   `.certSigningRequest` → Continue → **Download** the `.cer`.
+3. **Double-click the downloaded `.cer`** to install it into your login keychain (it pairs
+   with the private key Keychain Access made in step 1).
+
+**Verify either way** (this is the check the build script does too):
+```bash
+security find-identity -v -p codesigning | grep "Developer ID Application"
+```
+You should see one line like:
+`1) ABCD…1234 "Developer ID Application: Mark Liversedge (TEAMID9999)"`
+
+### 0.3 BACK UP the certificate + private key — do NOT skip
+
+A Developer ID certificate **cannot be re-downloaded with its private key**. If you lose
+this Mac or the keychain, you lose the ability to sign — and Sparkle/macOS treat updates
+signed by a *different* cert as a different app. Back it up now:
+1. **Keychain Access** → **login** keychain → **My Certificates**.
+2. Right-click **"Developer ID Application: … (TEAMID)"** → **Export…** → save as
+   `pinpoint_developer_id.p12`, set a strong password.
+3. Store the `.p12` + its password somewhere offline (password manager / encrypted drive).
+   **Never commit it. It is not a CI secret.**
+
+### 0.4 Note your Team ID
+It's the `(TEAMID9999)` in the identity name above, and on
+**developer.apple.com/account** → **Membership**. You'll use it for notarization. Below,
+`<TEAMID>` means this value and `<APPLE_ID>` means your developer Apple ID email.
+
+### 0.5 App-specific password + notarytool credentials
+Notarization logs in to Apple as you. Don't use your real password — make an
+**app-specific password**:
+1. Go to **appleid.apple.com** → **Sign-In and Security** → **App-Specific Passwords** →
+   **+** → label it `pinpoint-notary` → copy the generated `xxxx-xxxx-xxxx-xxxx`.
+2. Store it in your keychain as a reusable **notarytool profile** (so you never type it
+   again, and it stays out of scripts):
    ```bash
    xcrun notarytool store-credentials pinpoint-notary \
-     --apple-id "you@example.com" --team-id "<TEAMID>" --password "<app-specific-password>"
+     --apple-id "<APPLE_ID>" --team-id "<TEAMID>" --password "xxxx-xxxx-xxxx-xxxx"
    ```
-   (`<app-specific-password>` from appleid.apple.com → Sign-In and Security.) The profile
-   name `pinpoint-notary` is what you pass as `NOTARY_PROFILE`.
+   Now any `notarytool` call can use `--keychain-profile pinpoint-notary`.
 
-### B. EdDSA signing key (Sparkle)
-`generate_keys` / `sign_update` ship in the Sparkle distribution's `bin/` (once Stage 2
-embeds Sparkle, CMake fetches it under `build/**/_deps/sparkle-*/bin/`; until then,
-download a Sparkle 2 release and use its `bin/`). Then:
+> Run this one yourself (it contains the password). In this session you can prefix it with
+> `! ` so it runs in your terminal and the secret never enters the chat.
+
+### 0.6 [Stage 2] EdDSA signing key + pin the public key
+*(Skip until the Sparkle updater ships.)* `generate_keys` / `sign_update` come from the
+Sparkle distribution's `bin/` (CMake will fetch it under `build/**/_deps/sparkle-*/bin/`
+once Stage 2 embeds Sparkle; until then download a Sparkle 2 release and use its `bin/`):
 ```bash
 SPARKLE_BIN=/path/to/Sparkle/bin
-"$SPARKLE_BIN/generate_keys"                 # creates the key in your login Keychain
-"$SPARKLE_BIN/generate_keys" -x pinpoint_mac_eddsa.key   # EXPORT the private key — KEEP SECRET, BACK UP OFFLINE
-"$SPARKLE_BIN/generate_keys" -p              # prints the PUBLIC key (base64)
+"$SPARKLE_BIN/generate_keys"                              # stores the key in your Keychain
+"$SPARKLE_BIN/generate_keys" -x pinpoint_mac_eddsa.key   # EXPORT private key — KEEP OFFLINE, BACK UP
+"$SPARKLE_BIN/generate_keys" -p                          # prints the PUBLIC key (base64)
 ```
-Pin the public key: paste the base64 into
-`src/Resources/keys/pinpoint_release_mac_eddsa.pub`, replacing `PLACEHOLDER`. Commit it.
-CMake injects it into the bundle's `Info.plist` (`SUPublicEDKey`) at configure time.
-
-> **Bootstrap:** until a build carrying the real key is in users' hands, the updater is
-> inert by design (it refuses the placeholder). The **first** release that ships the
-> pinned key bootstraps auto-update — users install that one normally; every release
-> *after* it can auto-update. Plan the key rollout one release ahead.
+Paste the public base64 into `src/Resources/keys/pinpoint_release_mac_eddsa.pub` (replace
+`PLACEHOLDER`) and commit. CMake injects it into the bundle's `Info.plist` (`SUPublicEDKey`).
+**Bootstrap:** the first release that ships both the updater **and** the real key lets all
+*later* releases auto-update; users install that one manually.
 
 ---
 
-## Do this FOR EACH RELEASE
+## Part 1 — Cutting a release (repeat every time)
 
-### 1. Bump the version — `src/Core/version.h` only
-- `PINPOINT_VERSION_MAJOR` / `MINOR` / `POSTFIX` — the human version (e.g. `-alpha3`, or
-  `""` for a clean release) → `CFBundleShortVersionString` / `sparkle:shortVersionString`.
-- **`PINPOINT_VERSION_BUILD`** — the monotonic integer Sparkle compares
-  (`CFBundleVersion` / `sparkle:version`). **Must be strictly larger than the last
-  release** or Sparkle won't offer the update. Formula is in the file.
+### 1.1 Bump the version — `src/Core/version.h` only
+Edit and commit + push:
+- `PINPOINT_VERSION_MAJOR` / `MINOR` / `POSTFIX` — the human version (e.g. `-alpha4`, or
+  `""` for a clean release). Becomes `CFBundleShortVersionString` / the DMG filename.
+- **`PINPOINT_VERSION_BUILD`** — the monotonic integer (becomes `CFBundleVersion`, the key
+  Sparkle compares). **Must strictly increase every release.** Formula is in the file.
 
-CMake derives the bundle + DMG version from this; nothing else to bump. Commit + push.
+CMake derives the bundle version + DMG name from these — nothing else to edit.
 
-### 2. Build the DMG (the update payload)
-**Option A — CI builds it (recommended).** Push a tag; the `macos` job in
-`.github/workflows/release.yml` (Intel `macos-13`) builds the **unsigned** DMG and
-stages it on a **draft** release:
+### 1.2 Build the DMG
+Two paths — pick one.
+
+**Path A — CI builds it (recommended once the workflow is validated).** Push a tag; the
+`macos` job (Intel `macos-13`) builds the **unsigned** DMG onto a **draft** release:
 ```bash
-TAG=v0.1-alpha3
-git tag "$TAG" && git push origin "$TAG"     # → triggers the build; wait for it
-```
-Then download the *exact* bytes CI built (you sign these — never a rebuild):
-```bash
-mkdir -p /tmp/rel
+TAG=v0.1-alpha4
+git tag "$TAG" && git push origin "$TAG"      # wait for the Actions run to finish
 gh release download "$TAG" -R PinPoint-Golf/PinPointStudio -p '*-x86_64.dmg' -D /tmp/rel
-DMG=$(ls /tmp/rel/PinPointStudio-*-x86_64.dmg)
 ```
-> CI's DMG is **unsigned** — you sign + notarize it below. (Notarizing re-staples the
-> DMG in place, which does not change the bytes Sparkle signs, because you sign AFTER
-> notarizing — see step 3 order.)
+Then sign + notarize that exact downloaded DMG (it's unsigned from CI).
 
-**Option B — build locally** (signs + notarizes in one shot if your creds are set):
+**Path B — build locally (best for your first time — full control, signs in one shot).**
+With the cert + notary profile from Part 0 in place, the packaging script does the whole
+build → deploy → relocate → **sign → notarize → staple** → DMG automatically:
 ```bash
-export SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"   # or let it auto-detect
+brew install opencv ffmpeg aravis     # build deps (once)
+export SIGN_IDENTITY="Developer ID Application: Mark Liversedge (<TEAMID>)"   # or omit → auto-detect
 export NOTARY_PROFILE=pinpoint-notary
-tools/package_macos.sh            # builds Release, deploys, signs, notarizes, staples, makes the DMG
+tools/package_macos.sh                # ~build is slow the first time
 DMG=$(ls -t dist/PinPointStudio-*-x86_64.dmg | head -1)
 ```
+If `SIGN_IDENTITY`/`NOTARY_PROFILE` are unset, the script still builds a valid **unsigned**
+DMG and tells you it skipped signing.
 
-### 3. Sign + notarize the DMG (if Option A, or to re-do it)
-If you downloaded CI's unsigned DMG, sign + notarize it. The unit notarized is the DMG.
-The simplest path re-runs the packaging signing helpers, but you can also do it directly:
+### 1.3 What signing + notarizing actually does (so you understand the script)
+`tools/package_macos.sh` runs these for you; here's the manual equivalent, useful for
+learning and for re-signing a CI (Path A) DMG:
 ```bash
-export NOTARY_PROFILE=pinpoint-notary
-ID="Developer ID Application: Your Name (TEAMID)"
-# (the .app inside was unsigned in CI; for a fully-correct release prefer Option B, which
-#  signs the .app BEFORE wrapping. If signing CI's DMG directly, sign + notarize it:)
+ID="Developer ID Application: Mark Liversedge (<TEAMID>)"
+# (a) sign every nested dylib/framework, then the .app last, with Hardened Runtime:
+#     the script signs inside-out using packaging/macos/entitlements.plist.
+# (b) sign the DMG itself:
 codesign --force --timestamp --sign "$ID" "$DMG"
-xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
-xcrun stapler staple "$DMG" && xcrun stapler validate "$DMG"
-spctl -a -t open --context context:primary-signature -vv "$DMG"   # expect: accepted, source=Notarized Developer ID
+# (c) notarize — uploads, waits for Apple's scan (~1–5 min), returns Accepted/Invalid:
+xcrun notarytool submit "$DMG" --keychain-profile pinpoint-notary --wait
+# (d) staple the ticket into the DMG so it's trusted offline:
+xcrun stapler staple "$DMG"
 ```
-> For the cleanest result, **Option B** is preferred: it signs every nested dylib + the
-> `.app` (Hardened Runtime) before building the DMG, then signs + notarizes the DMG.
-> Signing only CI's outer DMG leaves the inner `.app` unsigned — acceptable for v1
-> testing but fix before GA.
+If notarization says **Invalid**, get the reason: `xcrun notarytool log <submission-id>
+--keychain-profile pinpoint-notary` (see Troubleshooting).
 
-### 4. Generate the EdDSA-signed appcast (sign the EXACT bytes)
+### 1.4 Verify — STOP if anything here fails
+```bash
+spctl -a -t open --context context:primary-signature -vv "$DMG"   # → accepted, source=Notarized Developer ID
+xcrun stapler validate "$DMG"                                      # → The validate action worked
+codesign --verify --deep --strict --verbose=2 "$DMG"              # → valid on disk
+```
+All three must pass before you publish. The most common first-time failure is a missing
+or wrong entitlement / an unsigned nested binary — see Troubleshooting.
+
+### 1.5 [Stage 2] EdDSA-sign the DMG + generate the appcast
+*(Skip for a Stage-1 release.)*
 ```bash
 SPARKLE_BIN=/path/to/Sparkle/bin \
 packaging/make_appcast_mac.sh --tag "$TAG" --dmg "$DMG" --key-file /path/to/pinpoint_mac_eddsa.key
+# verify it before publishing:
+"$SPARKLE_BIN/sign_update" --verify -p "$(tr -d '\n' < src/Resources/keys/pinpoint_release_mac_eddsa.pub)" "$DMG" \
+  <<<"$(sed -n 's/.*edSignature="\([^"]*\)".*/\1/p' "$(dirname "$DMG")/appcast-mac.xml")"
 ```
-Writes `appcast-mac.xml` next to the DMG (version, enclosure URL at the specific tag,
-EdDSA signature, length). Optional: `--notes-url https://…/release-notes-mac.html`.
-> Sign the **notarized** DMG (its bytes are what users download). Do step 4 after step 3.
+Sign the **notarized** DMG (its bytes are what users download). This writes
+`appcast-mac.xml` next to the DMG.
 
-### 5. Verify before publishing
+### 1.6 Tag (if not already) + publish to GitHub
 ```bash
-spctl -a -t open --context context:primary-signature -vv "$DMG"   # Notarized Developer ID
-xcrun stapler validate "$DMG"                                      # The validate action worked
-"$SPARKLE_BIN/sign_update" --verify \
-   -p "$(tr -d '\n' < src/Resources/keys/pinpoint_release_mac_eddsa.pub)" \
-   "$DMG" <<<"$(sed -n 's/.*edSignature="\([^"]*\)".*/\1/p' "$(dirname "$DMG")/appcast-mac.xml")"
-```
-If signature or notarization does not verify, **stop** — do not publish. (Most common
-cause: you signed a rebuild instead of the exact published DMG, or signed before
-notarizing changed the file.)
-
-### 6. Upload the assets + publish
-```bash
-APPCAST="$(dirname "$DMG")/appcast-mac.xml"
-# Option A (CI draft already has the (old unsigned) DMG): replace it with the signed one + add the appcast:
-gh release upload "$TAG" -R PinPoint-Golf/PinPointStudio "$DMG" "$APPCAST" --clobber
-gh release edit   "$TAG" -R PinPoint-Golf/PinPointStudio --draft=false --prerelease=false
-
-# Option B (local): create the release with BOTH assets:
+# Path B (local): create the release with the assets. For Stage 1, just the DMG:
 gh release create "$TAG" -R PinPoint-Golf/PinPointStudio \
-   --title "PinPoint Studio $TAG" --notes "…release notes…" "$DMG" "$APPCAST"
+   --title "PinPoint Studio $TAG" --notes "…release notes…" "$DMG"
+#   [Stage 2] also attach the appcast:  … "$DMG" "$(dirname "$DMG")/appcast-mac.xml"
+
+# Path A (CI draft already holds an unsigned DMG): replace it with your signed one + publish:
+gh release upload "$TAG" -R PinPoint-Golf/PinPointStudio "$DMG" --clobber
+gh release edit   "$TAG" -R PinPoint-Golf/PinPointStudio --draft=false --prerelease=false
 ```
-**Publish non-draft AND non-prerelease** — `releases/latest/download/appcast-mac.xml`
-(the `SUFeedURL` baked into the app) only resolves to a non-prerelease release.
+**Publish non-draft AND non-prerelease** — the `latest/download/…` URLs (Stage 2's
+`SUFeedURL`) only resolve to a non-prerelease release. The `gh release create` tag fires
+`release.yml`, whose `guard` job sees the published release and **skips** CI so it can't
+clobber your signed DMG.
 
-> `gh release create` (Option B) creates the `v*` tag, which fires `release.yml`. Its
-> **`guard` job detects the already-published release and skips the build jobs**, so CI
-> won't re-draft your release or clobber the signed DMG.
-
-### 7. Confirm it's live
+### 1.7 Confirm
 ```bash
-gh release view "$TAG" -R PinPoint-Golf/PinPointStudio --json assets \
-  --jq '.assets[].name'      # expect: PinPointStudio-<ver>-x86_64.dmg AND appcast-mac.xml
+gh release view "$TAG" -R PinPoint-Golf/PinPointStudio --json assets --jq '.assets[].name'
 ```
-On a machine running an **older installed** build: Settings → General → **Check now**
-(or wait for the launch check) → Sparkle offers it, downloads the DMG, verifies the
-EdDSA signature **and** the Developer ID Team-ID, and relaunches on the new version — no
-Gatekeeper warning.
+Download the DMG **in a browser** (so it gets the `com.apple.quarantine` flag a real user
+sees), open it, drag to /Applications, launch — it must open with **no** Gatekeeper
+warning. (Stage 2: an older installed build offers the update via Settings → Check now.)
 
 ---
 
 ## Quick checklist (per release)
-
-- [ ] Bump `PINPOINT_VERSION_BUILD` (+ MAJOR/MINOR/POSTFIX) in `version.h`, commit, push
-- [ ] Build the DMG (CI tag push, or `tools/package_macos.sh`)
-- [ ] If CI: `gh release download` the exact DMG
-- [ ] Sign (Developer ID) + notarize + staple the DMG
-- [ ] `make_appcast_mac.sh` → signs (EdDSA) + writes `appcast-mac.xml`
-- [ ] Verify: `spctl` notarized, `stapler validate`, `sign_update --verify` — stop if any fail
-- [ ] Upload DMG + `appcast-mac.xml`; publish **non-draft, non-prerelease**
-- [ ] Confirm assets + test an update from an older build
+- [ ] Bump `PINPOINT_VERSION_BUILD` (+ MAJOR/MINOR/POSTFIX) in `version.h`; commit, push
+- [ ] Build the DMG (Path A CI tag push, or Path B `tools/package_macos.sh`)
+- [ ] Sign (Developer ID) + notarize + staple — automatic in Path B with the env vars set
+- [ ] Verify: `spctl` → Notarized Developer ID, `stapler validate`, `codesign --verify`
+- [ ] [Stage 2] `make_appcast_mac.sh` → EdDSA signature + `appcast-mac.xml`; `--verify`
+- [ ] Publish DMG (+ appcast in Stage 2) **non-draft, non-prerelease**
+- [ ] Confirm: browser-download the DMG, open with no Gatekeeper warning
 
 ---
 
-## Gotchas & notes
-- **Sign the bytes you publish.** Sign/notarize the DMG you will upload, then EdDSA-sign
-  *that* exact file. A rebuild differs byte-for-byte and the signature won't verify, so
-  every client rejects the update.
-- **`BUILD` must always increase.** It's the only thing Sparkle compares. Forget to bump
-  it and installed apps see "no newer version".
-- **Never publish without `appcast-mac.xml`.** No appcast → no feed item. A missing or
-  mismatched EdDSA signature, or a Team-ID mismatch, → the update is rejected.
-- **No CUDA / no component split on macOS** (design §1, §4.3). The DMG is the whole,
-  hardware-agnostic app — there is nothing to factor out (unlike the Windows `-core`/CUDA
-  split). One artifact, one appcast item.
-- **x86_64 only for v1.** Runs natively on Intel and under Rosetta 2 on Apple Silicon. A
-  native `arm64` build is a GA add — a second DMG + `appcast-mac-arm64.xml`, selected by a
-  build-time `SUFeedURL` (design §7).
-- **Mixed-platform releases are fine.** The same GitHub release can also carry the Windows
-  (`appcast-win.xml`, `*-core.exe`) and Linux (`*.AppImage*`) assets; Sparkle only ever
-  looks at `appcast-mac.xml`.
-- **Rollback:** re-draft or delete the release (`gh release edit <tag> --draft=true` /
-  `gh release delete <tag>`) and the updater stops offering it immediately.
-- **Rotating the key:** generate a new key, pin the new public key, ship a release with
-  it — but only users who install that release can verify updates signed by the new key.
-  Keep signing with the *old* key until that release has propagated.
+## Troubleshooting (first-timer errors)
+- **`security find-identity` shows nothing / "Developer ID Application" greyed out in
+  Xcode** → membership still activating, or you're not the Account Holder. Wait, re-open
+  Xcode Accounts, or use Method B (portal + CSR).
+- **`errSecInternalComponent` during codesign** → the private key isn't accessible: open
+  Keychain Access, confirm the cert in **login ▸ My Certificates** has a disclosure
+  triangle revealing a private key. If not, the cert and key got separated (re-do 0.2).
+- **notarytool returns `Invalid`** → run `xcrun notarytool log <id> --keychain-profile
+  pinpoint-notary`. Usual causes: a nested binary wasn't signed, **Hardened Runtime not
+  enabled** (`--options runtime` — the script does this), or `get-task-allow` left on (a
+  Debug entitlement). Fix, re-sign, re-submit.
+- **`spctl` says "rejected" / "Unnotarized Developer ID"** → the ticket isn't stapled
+  (`xcrun stapler staple "$DMG"`), or notarization actually failed (check the log).
+- **App opens but immediately crashes after notarization** → a Hardened-Runtime
+  restriction. Check Console.app at launch time; you may need to add an entitlement in
+  `packaging/macos/entitlements.plist` (e.g. `allow-unsigned-executable-memory`/`allow-jit`)
+  and re-sign + re-notarize. Add the *minimum* needed.
+- **"damaged and can't be opened" on the test machine** → you skipped notarization or
+  stapling, or signed with the wrong identity. Re-verify §1.4.
+
+## Gotchas & key custody
+- **Sign the exact bytes you publish.** Sign + notarize the DMG you upload, then (Stage 2)
+  EdDSA-sign *that* file. A rebuild differs byte-for-byte and breaks the signature.
+- **`PINPOINT_VERSION_BUILD` must always increase** — it's the only thing Sparkle compares.
+- **No CUDA / no component split on macOS** — the DMG is the whole, hardware-agnostic app
+  (CoreML/Accelerate/Metal). The ViTPose model is bundled, same as the Windows `-core`
+  component.
+- **x86_64 only for v1** — runs natively on Intel, under Rosetta 2 on Apple Silicon. A
+  native `arm64` build (second DMG + feed) is a GA add.
+- **Custody:** the Developer ID `.p12` (0.3), the app-specific password (0.5), and the
+  [Stage 2] EdDSA private key all stay **offline, never CI secrets**. Losing the cert key
+  or the EdDSA key is the one thing that breaks future updates — back them up.
+- **Rollback:** `gh release edit <tag> --draft=true` (or `--prerelease=true`) immediately
+  stops the updater offering it.
