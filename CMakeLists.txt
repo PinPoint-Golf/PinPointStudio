@@ -2359,6 +2359,10 @@ if(PINPOINT_BUILD_TOOLS)
         Qt6::Core Qt6::Gui Qt6::Multimedia
         pinpoint_buffer whisper
         ${PP_OPENCV_LIBS}   # same core/imgproc/imgcodecs subset — no viz/VTK (see above)
+        # swinglab_run additionally reads recorded MP4s via cv::VideoCapture, which the
+        # app never does — pull in opencv_videoio for the tool only (no-op on opencv_world,
+        # which is monolithic, via TARGET_NAME_IF_EXISTS).
+        $<TARGET_NAME_IF_EXISTS:opencv_videoio>
     )
     if(WIN32)
         target_link_libraries(swinglab_run PRIVATE "${_ort_root}/lib/onnxruntime.lib")
