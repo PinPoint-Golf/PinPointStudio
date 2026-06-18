@@ -77,14 +77,17 @@ the camera (`VideoInputApple`), Apple/Whisper STT, and CoreML/Metal inference al
   with `opencv_world`/full-set fallbacks), so macdeployqt never bundles viz/dnn and their
   trees. **Measured on the actual bundle: −68 MB VTK (57 dylibs) − 25 MB unused opencv
   modules (53 dylibs) − 14 MB OpenVINO ≈ −107 MB and ~115 fewer dylibs (265 → ~150).**
-  > **The dominant size drivers are elsewhere, and are not packaging defects:**
-  > **(a)** `Contents/Resources/models` ≈ **381 MB** of bundled ML weights (pose/voice/
-  > segmenter/ViTPose/Kokoro) — a *product* decision (which models must ship vs. fetch
-  > on demand), not something to silently strip; **(b)** the **Debug** main binary is
-  > ~218 MB vs ~30 MB in **Release** (~185 MB that disappears automatically in the shipped
-  > build — the local proof used a Debug bundle via `--app`). `libopenblas` (61 MB) is a
-  > hard dep of `opencv_core` and stays. A real Release DMG size lands at the CI/clean-VM
-  > gate; the OpenCV narrowing is the packaging-level win and is done here.
+  > **The dominant size drivers are elsewhere, and are NOT packaging defects:**
+  > **(a)** `Contents/Resources/models` ≈ **381 MB**, of which `vitpose-b-wholebody.onnx`
+  > is **344 MB**. **Decision: bundle it, matching the Windows build** — on Windows the
+  > model installs into the `-core` component (`install(FILES … COMPONENT core)`,
+  > CMakeLists ~1555), so it ships in the primary artifact; macOS already bundles it into
+  > `Resources/models` the same way. Kept bundled for cross-platform consistency and
+  > offline use (not fetched on demand). **(b)** the **Debug** main binary is ~218 MB vs
+  > ~30 MB in **Release** (~185 MB that disappears automatically in the shipped build —
+  > the local proof used a Debug bundle via `--app`). `libopenblas` (61 MB) is a hard dep
+  > of `opencv_core` and stays. A real Release DMG size lands at the CI/clean-VM gate; the
+  > OpenCV narrowing is the packaging-level win and is done here.
 - ☐ **DMG assembly.** Build a DMG with the `.app` + an `/Applications` symlink (the
   standard drag-install layout) — `hdiutil create`/`create-dmg`, scripted in
   `tools/package_macos.sh`. Filename `PinPointStudio-<ver>-x86_64.dmg`, `<ver>` from
