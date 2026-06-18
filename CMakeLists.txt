@@ -1589,16 +1589,31 @@ endif()
 
 if(EXISTS "${_whisper_model_path}")
     message(STATUS "Whisper: model ready (${_whisper_model_path})")
-    add_custom_command(TARGET PinPointStudio POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory
-            "$<TARGET_FILE_DIR:PinPointStudio>/models/whisper"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${_whisper_model_path}"
-            "$<TARGET_FILE_DIR:PinPointStudio>/models/whisper/${_whisper_model_file}"
-        COMMENT "Copying Whisper model to output directory"
-    )
-    install(FILES "${_whisper_model_path}"
-            DESTINATION "${CMAKE_INSTALL_BINDIR}/models/whisper" COMPONENT core)
+    if(APPLE)
+        # macOS: data must live under Resources/, NOT MacOS/ — a data file in
+        # Contents/MacOS/ makes codesign treat it as unsigned nested code and the
+        # bundle fails to sign/notarize. Mirrors the other models' Apple branches;
+        # the STT resolver checks ../Resources/models/whisper/ (stt_processor.cpp).
+        add_custom_command(TARGET PinPointStudio POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_BUNDLE_CONTENT_DIR:PinPointStudio>/Resources/models/whisper"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_whisper_model_path}"
+                "$<TARGET_BUNDLE_CONTENT_DIR:PinPointStudio>/Resources/models/whisper/${_whisper_model_file}"
+            COMMENT "Bundling Whisper model into app (Resources/models/whisper)"
+        )
+    else()
+        add_custom_command(TARGET PinPointStudio POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:PinPointStudio>/models/whisper"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_whisper_model_path}"
+                "$<TARGET_FILE_DIR:PinPointStudio>/models/whisper/${_whisper_model_file}"
+            COMMENT "Copying Whisper model to output directory"
+        )
+        install(FILES "${_whisper_model_path}"
+                DESTINATION "${CMAKE_INSTALL_BINDIR}/models/whisper" COMPONENT core)
+    endif()
 else()
     message(STATUS "Whisper: model unavailable — STT will use cloud fallback")
 endif()

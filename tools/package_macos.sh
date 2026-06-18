@@ -122,6 +122,7 @@ relocate_closure() {
         log "relocate pass $pass — pulled $copied new lib(s) into Frameworks"
         [[ $pass -ge 15 ]] && { log "WARN: relocate did not converge in 15 passes"; break; }
     done
+    return 0   # the final [[ pass -ge 15 ]] test leaves $?=1; don't let `set -e` abort
 }
 
 MACDEPLOYQT="${MACDEPLOYQT:-$CMAKE_PREFIX/bin/macdeployqt}"
@@ -247,6 +248,16 @@ log "relocatability OK — bundle is self-contained"
 # the keychain) and NOTARY_PROFILE (a `notarytool store-credentials` profile). The DMG
 # itself is signed+stapled in §7 after it is built (the notarization unit on macOS is
 # the disk image the user downloads). docs/design/macos_update.md §6.
+# Hardened Runtime entitlements (required for notarization). Kept MINIMAL and
+# comment-free — codesign's AMFI parser rejects XML comments (an XML comment may not
+# contain a double hyphen, which any "--flag" rationale would). Rationale instead lives
+# here:
+#   - disable-library-validation: PinPoint bundles many third-party dylibs (ORT, OpenCV,
+#     FFmpeg, Aravis, Qt). Without it the process is killed when it loads a library not
+#     signed by our Team ID. Re-signing every nested binary could let us drop this later.
+#   - allow-jit / allow-unsigned-executable-memory / allow-dyld-environment-variables are
+#     deliberately OMITTED until a launch crash proves one is needed (add the minimum).
+# Camera/mic/Bluetooth/Speech are Info.plist NSxxxUsageDescription strings, not here.
 ENTITLEMENTS="$REPO_ROOT/packaging/macos/entitlements.plist"
 
 detect_identity() {   # echo a Developer ID Application identity if one exists, else nothing

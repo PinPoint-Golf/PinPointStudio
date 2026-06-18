@@ -298,7 +298,12 @@ QStringList STTProcessor::modelCandidates(const QString &filename) const
     candidates << QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
                   + QStringLiteral("/models/whisper/") + filename;
 
-    // 3. models/ subfolder next to the executable (dev builds and portable installs)
+    // 3. macOS app bundle: Contents/Resources/models/whisper/ (data must not live in
+    //    Contents/MacOS/ or codesign rejects it). Mirrors the pose estimators.
+    candidates << QCoreApplication::applicationDirPath()
+                  + QStringLiteral("/../Resources/models/whisper/") + filename;
+
+    // 4. models/ subfolder next to the executable (dev builds and portable installs)
     candidates << QCoreApplication::applicationDirPath()
                   + QStringLiteral("/models/whisper/") + filename;
 
