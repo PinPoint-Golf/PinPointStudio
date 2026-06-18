@@ -75,6 +75,17 @@ generated *on your Mac* and never leaves it — Apple only signs the public half
    `.certSigningRequest` → Continue → **Download** the `.cer`.
 3. **Double-click the downloaded `.cer`** to install it into your login keychain (it pairs
    with the private key Keychain Access made in step 1).
+4. **Install Apple's intermediate CA** (the manual path skips what Xcode does
+   automatically — without it the cert shows as *not trusted* / "0 valid identities").
+   Find your cert's issuer, then fetch the matching intermediate from
+   <https://www.apple.com/certificateauthority/>:
+   ```bash
+   # see the issuer (e.g. "Developer ID Certification Authority, OU=G2"):
+   security find-certificate -c "Developer ID Application" -p | openssl x509 -noout -issuer
+   # G2 issuer → fetch + install the G2 intermediate:
+   curl -fsSL -o /tmp/DeveloperIDG2CA.cer https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer
+   security import /tmp/DeveloperIDG2CA.cer -k ~/Library/Keychains/login.keychain-db
+   ```
 
 **Verify either way** (this is the check the build script does too):
 ```bash
@@ -247,6 +258,10 @@ warning. (Stage 2: an older installed build offers the update via Settings → C
 - **`security find-identity` shows nothing / "Developer ID Application" greyed out in
   Xcode** → membership still activating, or you're not the Account Holder. Wait, re-open
   Xcode Accounts, or use Method B (portal + CSR).
+- **`security find-identity -v` says "0 valid identities" but `-v` omitted shows the cert
+  with `CSSMERR_TP_NOT_TRUSTED`** → the Apple **intermediate CA is missing** (typical after
+  the manual Method B path). Install it per Method B step 4 above, then re-check — it
+  should flip to "1 valid identities found".
 - **`errSecInternalComponent` during codesign** → the private key isn't accessible: open
   Keychain Access, confirm the cert in **login ▸ My Certificates** has a disclosure
   triangle revealing a private key. If not, the cert and key got separated (re-do 0.2).
