@@ -38,8 +38,9 @@ Rectangle {
     property bool   camerasMet:       camerasOptional || camerasCount >= camerasRequired
     property bool   imusMet:          imusCount >= imusRequired
     property bool   isSelected:       false
-    // Non-startable "coming soon" tile: dimmed, badged, and inert (cannot be
-    // selected, hovered, or started).
+    // "Coming soon" tile: shows a COMING SOON badge but stays fully interactive
+    // (selectable, hover/lift, undimmed). Callers route its double-click straight
+    // to the associated placeholder screen instead of starting a session.
     property bool   comingSoon:       false
 
     signal clicked()
@@ -50,18 +51,16 @@ Rectangle {
     // selected — a small, smoothly-decelerated lift (no bounce/overshoot, which
     // is what grates on repeat) timed to move in lockstep with the illustration
     // backlight below, so the whole tile reacts as a single "switching on"
-    // gesture. A brief press dip adds tactile feedback. Coming-soon tiles stay
-    // inert. Motion is rendered via scale + Translate (render transforms, not
-    // layout geometry) so neighbouring tiles never reflow.
+    // gesture. A brief press dip adds tactile feedback. Motion is rendered via
+    // scale + Translate (render transforms, not layout geometry) so neighbouring
+    // tiles never reflow.
     property real _lift: {
-        if (comingSoon)                return 0
         if (hoverArea.pressed)         return -Theme.sp(2)   // tactile dip
         if (isSelected)                return -Theme.sp(7)   // settled forward
         if (hoverArea.containsMouse)   return -Theme.sp(5)   // hover rise
         return 0
     }
     property real _tileScale: {
-        if (comingSoon)                                return 1.0
         if (hoverArea.pressed)                         return 0.985 // press squish
         if (isSelected || hoverArea.containsMouse)     return 1.012
         return 1.0
@@ -69,7 +68,13 @@ Rectangle {
 
     implicitHeight: contentCol.implicitHeight + Theme.sp(24)
     radius: Theme.radiusLg
-    color:  (isSelected || hoverArea.containsMouse) ? Theme.colorAccentLight : Theme.colorSurface
+    // colorAccentLight is a low-alpha accent wash; animating the card colour
+    // straight to it would interpolate from opaque colorSurface through a bright,
+    // half-opaque midpoint and settle near-transparent — reading as "flash bright
+    // then dim". Compositing the wash over the opaque surface keeps both ends of
+    // the ColorAnimation opaque, so hover brightens monotonically and holds.
+    color:  (isSelected || hoverArea.containsMouse) ? Qt.tint(Theme.colorSurface, Theme.colorAccentLight)
+                                                    : Theme.colorSurface
     border.width: 1
     border.color: isSelected            ? Theme.colorAccent
                 : hoverArea.containsMouse ? Theme.colorAccentMid
@@ -131,10 +136,9 @@ Rectangle {
         // to near-full presence with a touch of added brightness and saturation,
         // as though the artwork is back-lit. Hover gives a gentler preview lift.
         // Behaviors animate the transition so selection feels like switching on.
-        opacity: (root.comingSoon ? 0.3 : 1.0)
-               * (root.isSelected            ? (Theme.dark ? 0.95 : 1.0)
+        opacity: root.isSelected            ? (Theme.dark ? 0.95 : 1.0)
                : hoverArea.containsMouse    ? (Theme.dark ? 0.66 : 0.86)
-               :                              (Theme.dark ? 0.5  : 0.75))  // lighter themes need more presence
+               :                              (Theme.dark ? 0.5  : 0.75)   // lighter themes need more presence
         brightness: root.isSelected         ? 0.22
                   : hoverArea.containsMouse  ? 0.08
                   :                            0.0
@@ -149,7 +153,6 @@ Rectangle {
         id: contentCol
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: Theme.sp(12) }
         spacing: 0
-        opacity: root.comingSoon ? 0.5 : 1.0
 
         Item { width: 1; height: Theme.sp(4) }
 
@@ -258,7 +261,6 @@ Rectangle {
     MouseArea {
         id: hoverArea
         anchors.fill: parent
-        enabled:      !root.comingSoon
         hoverEnabled: true
         cursorShape:  Qt.PointingHandCursor
         onClicked:       root.clicked()

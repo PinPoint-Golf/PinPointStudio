@@ -461,6 +461,11 @@ ApplicationWindow {
                         sessionWizard.reset(sessionTypeIndex)
                         navController.navigate(root.screenWizard)
                     }
+                    // Coming-soon types jump straight to their placeholder rail
+                    // screen (rail/stack index = sessionType + 1).
+                    onOpenSessionScreenRequested: function(sessionTypeIndex) {
+                        navController.navigate(sessionTypeIndex + 1)
+                    }
                 }
                 ScreenPlaceholder { iconText: "◑"; titleText: qsTr("Swing") }                   // screenSwing — coming soon
                 ScreenWrist {}                                             // screenWrist — Wrist Motion (sessionType 1)

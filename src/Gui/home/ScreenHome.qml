@@ -26,9 +26,13 @@ Item {
     signal addAthleteRequested()
     signal athletePickerRequested()
     signal startSessionRequested(int sessionTypeIndex)
+    // Coming-soon types skip the session wizard and jump straight to their
+    // (placeholder) rail screen.
+    signal openSessionScreenRequested(int sessionTypeIndex)
 
     property int    selectedType: 1   // default to Wrist — the only startable type today
-    // Session types not yet implemented: non-startable "coming soon" tiles.
+    // Session types not yet implemented: badged "coming soon" tiles that open
+    // their placeholder screen instead of starting a session.
     readonly property var comingSoonTypes: [0, 2, 3]
     property string selectedClub: "Driver"
 
@@ -357,7 +361,10 @@ Item {
                             onClicked:       root.selectedType = modelData.idx
                             onDoubleClicked: {
                                 root.selectedType = modelData.idx
-                                root.startSessionRequested(modelData.idx)
+                                if (root.comingSoonTypes.indexOf(modelData.idx) !== -1)
+                                    root.openSessionScreenRequested(modelData.idx)
+                                else
+                                    root.startSessionRequested(modelData.idx)
                             }
                         }
                     }
@@ -407,6 +414,8 @@ Item {
                         cursorShape:  Qt.PointingHandCursor
                         onClicked:    if (root.comingSoonTypes.indexOf(root.selectedType) === -1)
                                           root.startSessionRequested(root.selectedType)
+                                      else
+                                          root.openSessionScreenRequested(root.selectedType)
                     }
                 }
             }
