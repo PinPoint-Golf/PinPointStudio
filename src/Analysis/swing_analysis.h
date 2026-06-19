@@ -210,11 +210,12 @@ struct PoseTrack2D {
 };
 
 enum ShaftSampleFlags : uint8_t {
-    ShaftMeasured      = 0x01,  // vision measurement fused at this sample
-    ShaftImuBridged    = 0x02,  // IMU channel fused (no vision this sample)
-    ShaftCoasted       = 0x04,  // predict-only (neither channel)
-    ShaftWedge         = 0x08,  // vision measurement was a blur-wedge centroid
-    ShaftHeadProjected = 0x10,  // headPx projected from grip + L·dir(θ), not measured
+    ShaftMeasured          = 0x01,  // vision measurement fused at this sample
+    ShaftImuBridged        = 0x02,  // IMU channel fused (no vision this sample)
+    ShaftCoasted           = 0x04,  // predict-only (neither channel)
+    ShaftWedge             = 0x08,  // vision measurement was a blur-wedge centroid
+    ShaftHeadProjected     = 0x10,  // headPx projected from grip + L·dir(θ), not measured
+    ShaftKinematicPredicted= 0x20,  // pure R6 kinematic-model sample (predicted series / fallback)
 };
 
 struct ShaftSample2D {
@@ -235,7 +236,12 @@ struct ShaftTrack2D {
     float imuVisionCorr = 0.f;  // Pearson corr of vision vs IMU θ̇ (0 = no channel) — health metric
     int   frameWidth  = 0;      // camera dims so px samples can be normalized by consumers
     int   frameHeight = 0;
-    std::vector<ShaftSample2D> samples;
+    std::vector<ShaftSample2D> samples;     // ACTUAL — detector-inferred (vision+IMU fused)
+    // R7 dual output (skeleton-aware enhancement): the pure R6 kinematic-model
+    // prediction emitted per frame alongside `samples`, plus its agreement with
+    // the prior-free vision measurement. Empty / -1 until the K3 phase fills them.
+    std::vector<ShaftSample2D> predicted;        // PREDICTED — pure kinematic model, all flags = ShaftKinematicPredicted
+    float modelVisionResidualDeg = -1.f;         // RMS|actual − predicted| over prior-free measured frames (-1 = unset)
 };
 
 // The IMU→segment binding as persisted in swing.json (keyed by the device

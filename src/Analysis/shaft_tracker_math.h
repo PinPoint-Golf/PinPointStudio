@@ -96,6 +96,17 @@ struct ShaftDetectConfig {
     // --- Anchor-error tolerance ---
     float anchorPerturbPx  = 3.f;  // 3×3 grid step for anchor rescoring (0 disables)
     float headSeedRadiusPx = 10.f; // blob-centroid disc at the ridge terminus (clubhead seed)
+
+    // --- Skeleton-aware enhancement (R5/R6/R8) — caller-set per frame; defaults
+    //     reproduce current behaviour, and the consuming code lands in later
+    //     phases (K1/K2/K4). See docs/implementation/shaft_detection_skeleton_impl.md.
+    float minShaftLenPx   = 30.f;  // R5: arm-relative length floor (= max(minVisibleLenPx, minLenFracOfArm·armPx))
+    bool  hasEnvelope     = false; // R6: kinematic angle guardrail active this frame
+    float envelopeKSigma  = 3.0f;  //     soft-penalty arc half-width = k·σ_β
+    float envelopeHardK   = 4.0f;  //     hard-reject only beyond this AND wrong side
+    bool  blurMode        = false; // R8: high-ω fan-integration mode this frame
+    float predFanHalfRad  = 0.f;   //     predicted wedge half-width = 0.5·ω̂·t_exp
+    float blurThreshScale = 0.5f;  //     threshold multiplier inside the envelope in blur mode
 };
 
 struct AnchorPrior {
@@ -103,6 +114,12 @@ struct AnchorPrior {
     bool  hasInterHandDir = false; float interHandDirRad = 0.f;  // soft weight toward this θ
     bool  hasPredictedTheta = false; float predictedThetaRad = 0.f, predictedSigmaRad = 0.f;
     int   numElbowDirs = 0; float elbowDirRad[2] = {0.f, 0.f};   // hard clutter mask
+    // R6 kinematic direction (lead-arm → club, wrist-cock model): the predicted
+    // club angle φ_club_pred ± σ_β. When set, supersedes the inter-hand bump as
+    // the directional prior and (with cfg.hasEnvelope) bounds the angle guardrail.
+    // Consumed from the K2 phase; defaults leave current behaviour unchanged.
+    bool  hasKinematicDir = false; float kinematicDirRad = 0.f, kinematicSigmaRad = 0.f;
+    int   armSide = 0;                  // +1 club expected trail-side of arm, −1 lead-side, 0 unknown
 };
 
 struct ShaftCandidate {

@@ -171,6 +171,10 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
         tn::apply(ov, "shaft.interHandSigmaDeg", dcfg.interHandSigmaDeg);
         tn::apply(ov, "shaft.priorFloor",        dcfg.priorFloor);
         tn::apply(ov, "shaft.wedgeMinSpanDeg",   dcfg.wedgeMinSpanDeg);
+        // Skeleton-aware enhancement knobs (consumed from K2/K4; no-op until then).
+        tn::apply(ov, "shaft.envelopeKSigma",    dcfg.envelopeKSigma);
+        tn::apply(ov, "shaft.envelopeHardK",     dcfg.envelopeHardK);
+        tn::apply(ov, "shaft.blurThreshScale",   dcfg.blurThreshScale);
     }
     const double bodyFrac = medianPoseHeight(pose);
     const double pxPerM   = bodyFrac > 0.05 ? bodyFrac * h / kAssumedStatureM : 0.0;

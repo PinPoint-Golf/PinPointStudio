@@ -214,3 +214,9 @@ target_include_directories(shaft_track_test PRIVATE ${BUFFER} ${OpenCV_INCLUDE_D
 target_compile_options(shaft_track_test PRIVATE -O2)
 target_link_libraries(shaft_track_test PRIVATE Qt6::Core Qt6::Gui ${OpenCV_LIBS})
 add_test(NAME shaft_track_test COMMAND shaft_track_test)
+
+# ShaftTracker R6 kinematics (lead-arm → club wrist-cock model) — pure header-only
+# (no Qt, no OpenCV). K0 builds an empty passing stub; the seed-table / branch-flip /
+# angle-envelope assertions arrive in the K2a phase (skeleton-aware enhancement).
+add_executable(shaft_kinematics_test shaft_kinematics_test.cpp)
+add_test(NAME shaft_kinematics_test COMMAND shaft_kinematics_test)
