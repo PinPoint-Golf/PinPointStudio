@@ -147,14 +147,29 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a)
                 { QStringLiteral("lenPx"), s.visibleLenPx },
                 { QStringLiteral("conf"),  double(s.conf) },
                 { QStringLiteral("flags"), int(s.flags) } });
+        // R7 dual output (additive): the pure-model predicted series + its
+        // agreement with the prior-free vision measurement. Same normalized shape
+        // as `samples`; SwingLab consumes it for residual analysis / β̂ calibration.
+        QJsonArray predicted;
+        for (const ShaftSample2D &s : a.shaft.predicted)
+            predicted.append(QJsonObject{
+                { QStringLiteral("t_us"),  static_cast<qint64>(s.t_us) },
+                { QStringLiteral("grip"),  QJsonArray{ s.gripPx.x() * iw, s.gripPx.y() * ih } },
+                { QStringLiteral("head"),  QJsonArray{ s.headPx.x() * iw, s.headPx.y() * ih } },
+                { QStringLiteral("theta"), s.thetaRad },
+                { QStringLiteral("lenPx"), s.visibleLenPx },
+                { QStringLiteral("conf"),  double(s.conf) },
+                { QStringLiteral("flags"), int(s.flags) } });
         o[QStringLiteral("club")] = QJsonObject{
             { QStringLiteral("camera"),        int(a.shaft.camera) },
             { QStringLiteral("valid"),         a.shaft.valid },
             { QStringLiteral("coverage"),      double(a.shaft.coverage) },
             { QStringLiteral("imuVisionCorr"), double(a.shaft.imuVisionCorr) },
+            { QStringLiteral("modelVisionResidualDeg"), double(a.shaft.modelVisionResidualDeg) },
             { QStringLiteral("frameWidth"),    a.shaft.frameWidth },
             { QStringLiteral("frameHeight"),   a.shaft.frameHeight },
-            { QStringLiteral("samples"),       samples } };
+            { QStringLiteral("samples"),       samples },
+            { QStringLiteral("predicted"),     predicted } };
     }
     return o;
 }

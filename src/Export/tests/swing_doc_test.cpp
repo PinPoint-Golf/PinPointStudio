@@ -101,6 +101,12 @@ int main()
     a.shaft.samples.push_back({ 1010000, QPointF(950.0, 545.0), QPointF(700.0, 700.0),
                                 2.2, 30.0, 268.0, 0.8f,
                                 uint8_t(ShaftImuBridged | ShaftHeadProjected) });
+    // R7 dual output: pure-model predicted series + model/vision residual.
+    a.shaft.modelVisionResidualDeg = 4.2f;
+    a.shaft.predicted.push_back({ 1000000, QPointF(960.0, 540.0), QPointF(965.0, 800.0),
+                                  1.55, 0.0, 270.0, 0.7f, ShaftKinematicPredicted });
+    a.shaft.predicted.push_back({ 1010000, QPointF(950.0, 545.0), QPointF(720.0, 690.0),
+                                  2.15, 0.0, 268.0, 0.6f, ShaftKinematicPredicted });
 
     // IMU binding with the calibration-status snapshot (corpus provenance).
     BindingRecord bind;
@@ -222,6 +228,14 @@ int main()
         check(c0[QStringLiteral("flags")].toInt() == int(ShaftMeasured), "sample 0 flags");
         check(cs.at(1).toObject()[QStringLiteral("flags")].toInt()
                   == int(ShaftImuBridged | ShaftHeadProjected), "sample 1 flags");
+        const double mvr = cb[QStringLiteral("modelVisionResidualDeg")].toDouble();
+        check(mvr > 4.19 && mvr < 4.21, "club.modelVisionResidualDeg");
+        const QJsonArray cp = cb[QStringLiteral("predicted")].toArray();
+        check(cp.size() == 2, "club two predicted samples");
+        check(cp.at(0).toObject()[QStringLiteral("flags")].toInt() == int(ShaftKinematicPredicted),
+              "predicted flag ShaftKinematicPredicted");
+        check(qFuzzyCompare(cp.at(0).toObject()[QStringLiteral("grip")].toArray().at(0).toDouble(),
+                            960.0 / 1920.0), "predicted grip normalized by frame width");
     }
 
     std::printf("\n=== reader round-trip ===\n");
@@ -250,6 +264,9 @@ int main()
         const QVariantMap cs1 = cb.value(QStringLiteral("samples")).toList().at(1).toMap();
         check(cs1.value(QStringLiteral("flags")).toInt()
                   == int(ShaftImuBridged | ShaftHeadProjected), "reloaded sample flags");
+        check(cb.value(QStringLiteral("predicted")).toList().size() == 2, "reloaded predicted samples");
+        const double mvr2 = cb.value(QStringLiteral("modelVisionResidualDeg")).toDouble();
+        check(mvr2 > 4.19 && mvr2 < 4.21, "reloaded modelVisionResidualDeg");
         const QVariantList rbinds = ps.analysisDetail.value(QStringLiteral("bindings")).toList();
         check(rbinds.size() == 1, "reloaded bindings len 1");
         const QVariantMap rb0 = rbinds.at(0).toMap();

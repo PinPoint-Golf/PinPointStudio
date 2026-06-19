@@ -51,7 +51,8 @@ constexpr float kKpMinConf = 0.30f;
 // Nominal acromion→wrist length (m) — only the R1 arm-derived pixel scale uses
 // it, and only as a prior-quality scale (never a metric). Population average.
 constexpr double kArmNominalM = 0.52;
-constexpr double kDeg2Rad     = 3.14159265358979323846 / 180.0;
+constexpr double kPi          = 3.14159265358979323846;
+constexpr double kDeg2Rad     = kPi / 180.0;
 
 struct AnchorState {
     cv::Point2f grip;
@@ -345,6 +346,11 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
     dcfg.maxRadiusPx = float(std::clamp(radius, 80.0, double(std::min(w, h))));
     tuning::apply(job.tuningOverrides, "shaft.maxRadiusPx", dcfg.maxRadiusPx);
 
+    // Predicted full club length in px (R7 predicted-series headPx). Falls back
+    // to the search radius when there is no pixel scale at all.
+    const double clubLenPx = (pxPerM > 0.0) ? job.clubLengthM * pxPerM
+                                            : double(dcfg.maxRadiusPx) / 1.25;
+
     // R5: a shaft cannot image shorter than the club (≈ 2 arms); one arm is the
     // generous floor (≈ 50% occlusion headroom). 0 frac → current behaviour.
     dcfg.minShaftLenPx = dcfg.minVisibleLenPx;
@@ -362,6 +368,9 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
 
     std::vector<ShaftFrameObs> obs;
     obs.reserve(entries.size());
+    std::vector<ShaftSample2D> predicted;        // R7: pure model, one per frame with a prediction
+    double residSumSq = 0.0;                      // R7 residual (prior-free measured vs predicted)
+    int    residN     = 0;
     size_t poseIdx = 0, scanned = 0;
     int detected = 0;
     cv::Mat luma;
@@ -382,6 +391,28 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
         o.t_us   = e.timestamp_us;
         o.gripPx = a.grip;
 
+        // R6 prediction φ_club_pred = φ_arm + chirality·β̂(s) — pose-driven, so
+        // computed for every frame with a visible arm *independent of*
+        // useKinematicPrior (it feeds the prior, the R7 predicted series, and the
+        // residual). Falls back to the arm-hang direction when swing-progress is
+        // unavailable.
+        float predDirRad = 0.f, predSigmaRad = 0.f;
+        int   predSide   = 0;
+        bool  havePred   = false;
+        if (a.hasArm) {
+            float s = 0.f;
+            if (swingProgressAt(segmentation, e.timestamp_us, s)) {
+                kinematics::ClubAnglePrediction pr;
+                predDirRad   = kinematics::predictClubAngle(a.phiArmRad, s, chirality, &pr);
+                predSigmaRad = pr.sigmaRad;
+                predSide     = chirality * pr.side;
+            } else {
+                predDirRad   = a.phiArmRad;
+                predSigmaRad = float(armAxisSigmaDeg * kDeg2Rad);
+            }
+            havePred = true;
+        }
+
         const pinpoint::SourceRing::ReadHandle handle = window.payloadOf(e);
         if (pinpoint::decodeToLuma(*cfmt, handle.data, handle.bytes, luma)) {
             AnchorPrior prior;
@@ -391,45 +422,56 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
             prior.numElbowDirs    = a.numElbows;
             prior.elbowDirRad[0]  = a.elbowRad[0];
             prior.elbowDirRad[1]  = a.elbowRad[1];
-            // R6 directional prior: φ_club_pred = φ_arm + chirality·β̂(s). With a
-            // reliable swing-progress from the segmentation ladder we use the full
-            // wrist-cock model (centres the prior ~90° off the arm at the Top, the
-            // case the arm-hang interim gets wrong); otherwise fall back to the
-            // arm-hang direction with a wide width. Supersedes the inter-hand bump
-            // in buildThetaWeights. Gated OFF by default.
-            if (useKinematicPrior && a.hasArm) {
-                float s = 0.f;
-                if (swingProgressAt(segmentation, e.timestamp_us, s)) {
-                    kinematics::ClubAnglePrediction pr;
-                    prior.kinematicDirRad   = kinematics::predictClubAngle(a.phiArmRad, s, chirality, &pr);
-                    prior.kinematicSigmaRad = pr.sigmaRad;
-                    prior.armSide           = chirality * pr.side;
-                } else {
-                    prior.kinematicDirRad   = a.phiArmRad;
-                    prior.kinematicSigmaRad = float(armAxisSigmaDeg * kDeg2Rad);
-                    prior.armSide           = 0;
-                }
-                prior.hasKinematicDir = true;
+            // The kinematic prediction supersedes the inter-hand bump in
+            // buildThetaWeights when used. Gated OFF by default.
+            if (useKinematicPrior && havePred) {
+                prior.hasKinematicDir   = true;
+                prior.kinematicDirRad   = predDirRad;
+                prior.kinematicSigmaRad = predSigmaRad;
+                prior.armSide           = predSide;
             }
             o.candidates = detectShaft(luma, dcfg, prior);
             // R6 envelope guardrail: drop kinematically impossible candidates
-            // (> envelopeHardK·σ_β from the prediction). The soft down-weighting
-            // already happened in buildThetaWeights; this is the hard backstop for
-            // a strong off-axis clutter ridge. σ_β is wide at the turn points
-            // (table), so legitimate wide-club frames are not rejected.
-            if (useEnvelope && prior.hasKinematicDir && !o.candidates.empty()) {
-                const float predRad = prior.kinematicDirRad;
-                const float sig     = prior.kinematicSigmaRad;
-                const float hardK   = dcfg.envelopeHardK;
+            // (> envelopeHardK·σ_β from the prediction). Independent of the soft
+            // prior — it can hard-reject off-axis clutter without biasing the
+            // measurement. σ_β is wide at the turn points, so legitimate
+            // wide-club frames are not rejected.
+            if (useEnvelope && havePred && !o.candidates.empty()) {
+                const float hardK = dcfg.envelopeHardK;
                 o.candidates.erase(
                     std::remove_if(o.candidates.begin(), o.candidates.end(),
                         [&](const ShaftCandidate &c) {
-                            return kinematics::envelopeDeviationSigma(c.thetaRad, predRad, sig) > hardK;
+                            return kinematics::envelopeDeviationSigma(c.thetaRad, predDirRad, predSigmaRad) > hardK;
                         }),
                     o.candidates.end());
             }
             if (!o.candidates.empty())
                 ++detected;
+            // R7 residual: prior-free vision measurement vs the model prediction
+            // (only meaningful when the prior did not bias the measurement).
+            if (!useKinematicPrior && havePred && !o.candidates.empty()) {
+                const double d = std::remainder(double(o.candidates.front().thetaRad)
+                                                - double(predDirRad), 2.0 * kPi);
+                residSumSq += d * d;
+                ++residN;
+            }
+        }
+
+        // R7 predicted series: the pure model output for this frame, emitted
+        // regardless of useKinematicPrior so it can be overlaid against the
+        // (prior-free) actual track. Flagged ShaftKinematicPredicted.
+        if (havePred) {
+            ShaftSample2D ps;
+            ps.t_us         = e.timestamp_us;
+            ps.gripPx       = QPointF(a.grip.x, a.grip.y);
+            ps.headPx       = QPointF(a.grip.x + clubLenPx * std::cos(predDirRad),
+                                      a.grip.y + clubLenPx * std::sin(predDirRad));
+            ps.thetaRad     = predDirRad;
+            ps.visibleLenPx = clubLenPx;
+            const double sigDeg = predSigmaRad * 180.0 / kPi;
+            ps.conf  = float(std::clamp(1.0 - sigDeg / 60.0, 0.1, 0.9));
+            ps.flags = ShaftKinematicPredicted;
+            predicted.push_back(ps);
         }
 
         if (handStream && !streams.timeGrid.empty()) {
@@ -493,6 +535,13 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
     track.camera      = pose.camera;
     track.frameWidth  = w;
     track.frameHeight = h;
+    // R7 dual output: the pure-model series + its agreement with the prior-free
+    // vision measurement (−1 when biased by the prior or no measured frames).
+    track.predicted = std::move(predicted);
+    track.modelVisionResidualDeg =
+        (!useKinematicPrior && residN > 0)
+            ? float(std::sqrt(residSumSq / double(residN)) * 180.0 / kPi)
+            : -1.f;
 
     ppInfo() << "[ShaftTracker] frames" << qint64(obs.size())
              << "detected" << detected
@@ -501,6 +550,8 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
              << "imuVisionCorr" << track.imuVisionCorr
              << "scale" << scaleRung << "armPx" << armPxMed
              << "minShaftLenPx" << dcfg.minShaftLenPx
+             << "predicted" << qint64(track.predicted.size())
+             << "modelVisionResidualDeg" << track.modelVisionResidualDeg
              << "(" << wall.elapsed() << "ms )";
     return track;
 }
