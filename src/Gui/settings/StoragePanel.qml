@@ -664,9 +664,13 @@ Item {
                             width:        resLbl.implicitWidth + Theme.sp(20)
                             height:       Theme.sp(24)
                             radius:       Theme.radius
-                            color:        isSelected ? Theme.colorAccentLight : "transparent"
+                            color:        isSelected            ? Theme.colorAccentLight
+                                        : resMa.containsMouse   ? Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0.6)
+                                        :                         "transparent"
                             border.width: 1
-                            border.color: isSelected ? Theme.colorAccent : Theme.colorBorderStrong
+                            border.color: isSelected            ? Theme.colorAccent
+                                        : resMa.containsMouse   ? Theme.colorAccentMid
+                                        :                         Theme.colorBorderStrong
                             Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
                             Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
@@ -680,9 +684,8 @@ Item {
                                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                             }
 
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape:  Qt.PointingHandCursor
+                            PpPressable {
+                                id: resMa
                                 onClicked: {
                                     appSettings.videoResolutionMode = modelData.value
                                     recalcEstimate()
@@ -742,9 +745,13 @@ Item {
                             width:        codecLbl.implicitWidth + Theme.sp(20)
                             height:       Theme.sp(24)
                             radius:       Theme.radius
-                            color:        isSelected ? Theme.colorAccentLight : "transparent"
+                            color:        isSelected            ? Theme.colorAccentLight
+                                        : codecMa.containsMouse ? Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0.6)
+                                        :                         "transparent"
                             border.width: 1
-                            border.color: isSelected ? Theme.colorAccent : Theme.colorBorderStrong
+                            border.color: isSelected            ? Theme.colorAccent
+                                        : codecMa.containsMouse ? Theme.colorAccentMid
+                                        :                         Theme.colorBorderStrong
                             Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
                             Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
@@ -758,9 +765,8 @@ Item {
                                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                             }
 
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape:  Qt.PointingHandCursor
+                            PpPressable {
+                                id: codecMa
                                 onClicked: {
                                     appSettings.videoCodec = modelData.value
                                     recalcEstimate()
@@ -815,9 +821,13 @@ Item {
                             width:        qualLbl.implicitWidth + Theme.sp(20)
                             height:       Theme.sp(24)
                             radius:       Theme.radius
-                            color:        isSelected ? Theme.colorAccentLight : "transparent"
+                            color:        isSelected           ? Theme.colorAccentLight
+                                        : qualMa.containsMouse ? Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0.6)
+                                        :                        "transparent"
                             border.width: 1
-                            border.color: isSelected ? Theme.colorAccent : Theme.colorBorderStrong
+                            border.color: isSelected           ? Theme.colorAccent
+                                        : qualMa.containsMouse ? Theme.colorAccentMid
+                                        :                        Theme.colorBorderStrong
                             Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
                             Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
@@ -831,9 +841,8 @@ Item {
                                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                             }
 
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape:  Qt.PointingHandCursor
+                            PpPressable {
+                                id: qualMa
                                 onClicked: {
                                     appSettings.videoQuality = modelData.value
                                     recalcEstimate()
@@ -943,9 +952,13 @@ Item {
                             width:        contLbl.implicitWidth + Theme.sp(20)
                             height:       Theme.sp(24)
                             radius:       Theme.radius
-                            color:        isSelected ? Theme.colorAccentLight : "transparent"
+                            color:        isSelected           ? Theme.colorAccentLight
+                                        : contMa.containsMouse ? Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0.6)
+                                        :                        "transparent"
                             border.width: 1
-                            border.color: isSelected ? Theme.colorAccent : Theme.colorBorderStrong
+                            border.color: isSelected           ? Theme.colorAccent
+                                        : contMa.containsMouse ? Theme.colorAccentMid
+                                        :                        Theme.colorBorderStrong
                             Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
                             Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
@@ -959,9 +972,8 @@ Item {
                                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                             }
 
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape:  Qt.PointingHandCursor
+                            PpPressable {
+                                id: contMa
                                 onClicked: {
                                     appSettings.videoContainer = modelData.value
                                     recalcEstimate()
@@ -1195,9 +1207,13 @@ Item {
                             width:        imuFmtLbl.implicitWidth + Theme.sp(20)
                             height:       Theme.sp(24)
                             radius:       Theme.radius
-                            color:        isSelected ? Theme.colorAccentLight : "transparent"
+                            color:        isSelected             ? Theme.colorAccentLight
+                                        : imuFmtMa.containsMouse ? Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0.6)
+                                        :                          "transparent"
                             border.width: 1
-                            border.color: isSelected ? Theme.colorAccent : Theme.colorBorderStrong
+                            border.color: isSelected             ? Theme.colorAccent
+                                        : imuFmtMa.containsMouse ? Theme.colorAccentMid
+                                        :                          Theme.colorBorderStrong
                             Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
                             Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
@@ -1211,9 +1227,8 @@ Item {
                                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                             }
 
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape:  Qt.PointingHandCursor
+                            PpPressable {
+                                id: imuFmtMa
                                 onClicked:    appSettings.imuDataFormat = modelData.value
                             }
                         }

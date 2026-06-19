@@ -111,9 +111,13 @@ Item {
                     text: bannerRoot.showNotes ? qsTr("Hide notes") : qsTr("What's new")
                     font.family:    Theme.fontData
                     font.pixelSize: Theme.fontSzMicro
-                    color:          Theme.colorAccent
-                    TapHandler { onTapped: bannerRoot.showNotes = !bannerRoot.showNotes }
-                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                    color:          notesHover.hovered ? Qt.lighter(Theme.colorAccent, 1.08)
+                                                       : Theme.colorAccent
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    scale: notesTap.pressed ? 0.97 : notesHover.hovered ? 1.02 : 1.0
+                    Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
+                    TapHandler  { id: notesTap;   onTapped: bannerRoot.showNotes = !bannerRoot.showNotes }
+                    HoverHandler { id: notesHover; cursorShape: Qt.PointingHandCursor }
                 }
 
                 // Actions per state.

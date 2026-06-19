@@ -183,9 +183,12 @@ Item {
             implicitWidth:  revealLabel.implicitWidth + Theme.sp(20)
             implicitHeight: Theme.sp(34)
             radius:         Theme.radius
-            color:          "transparent"
             border.width:   1
-            border.color:   Theme.colorBorderStrong
+            border.color:   revealMa.containsMouse ? Theme.colorAccentMid : Theme.colorBorderStrong
+            color:          revealMa.containsMouse ? Theme.colorBg2
+                                                   : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
+            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
             Text {
                 id: revealLabel
@@ -196,9 +199,8 @@ Item {
                 color:          Theme.colorText2
             }
 
-            MouseArea {
-                anchors.fill: parent
-                cursorShape:  Qt.PointingHandCursor
+            PpPressable {
+                id: revealMa
                 onClicked:    revealBtn.revealed = !revealBtn.revealed
             }
         }
@@ -803,11 +805,8 @@ Item {
                                    ? Theme.colorAccent : Theme.colorText2
                         }
 
-                        MouseArea {
+                        PpPressable {
                             id: updActionMa
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape:  Qt.PointingHandCursor
                             onClicked: {
                                 if (updAction.mode === "download")      updateController.download()
                                 else if (updAction.mode === "restart")  updateController.relaunch()
@@ -908,11 +907,8 @@ Item {
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorAccent
                     }
-                    MouseArea {
+                    PpPressable {
                         id: gpuInstallMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape:  Qt.PointingHandCursor
                         onClicked:    cudaRuntime.openDownloadPage()
                     }
                 }

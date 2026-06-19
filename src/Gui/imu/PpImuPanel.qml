@@ -258,9 +258,16 @@ Item {
         signal triggered()
         width: (root.width - Theme.sp(24) - Theme.sp(16)) / 3
         height: Theme.sp(50); radius: Theme.radius
-        color:        primary ? Theme.colorAttentionLight : "transparent"
+        // Hover brighten + scale/dip — the PpButton language. Primary (amber)
+        // lightens; the outline variant fades a faint fill in (alpha-ramped rest
+        // so no colour flash).
+        readonly property color _rest: primary ? Theme.colorAttentionLight
+                                               : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
+        color:        saMa.containsMouse ? (primary ? Qt.lighter(_rest, 1.08) : Theme.colorBg2)
+                                         : _rest
         border.width: 1
         border.color: primary ? Theme.colorAttention : Theme.colorBorderStrong
+        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
         Column {
             anchors.centerIn: parent; spacing: Theme.sp(4)
             Text {
@@ -274,8 +281,7 @@ Item {
                 color: primary ? Theme.colorAttention : Theme.colorText
             }
         }
-        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                    onClicked: parent.triggered() }
+        PpPressable { id: saMa; onClicked: parent.triggered() }
     }
 
     // ── Per-IMU row ─────────────────────────────────────────────────────────

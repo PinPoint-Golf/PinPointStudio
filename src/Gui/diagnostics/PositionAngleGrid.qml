@@ -54,11 +54,14 @@ ColumnLayout {
 
     // ── Drawer toggle ───────────────────────────────────────────────────────────────
     property bool open: false
-    MouseArea {
+    Rectangle {
         Layout.fillWidth: true
         implicitHeight: toggleRow.implicitHeight + Theme.sp(6)
-        cursorShape: Qt.PointingHandCursor
-        onClicked: root.open = !root.open
+        radius: Theme.radius
+        color: dtMa.containsMouse
+               ? Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 1.0)
+               : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
+        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
         Row {
             id: toggleRow
             spacing: Theme.sp(2)
@@ -73,6 +76,7 @@ ColumnLayout {
                 color: Theme.colorText2
             }
         }
+        PpPressable { id: dtMa; hoverScale: 1.0; onClicked: root.open = !root.open }
     }
 
     // ── Table ─────────────────────────────────────────────────────────────────────

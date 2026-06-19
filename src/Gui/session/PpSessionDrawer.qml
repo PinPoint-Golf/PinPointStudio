@@ -80,10 +80,9 @@ Item {
                     font.family: Theme.fontSymbol; font.pixelSize: Theme.fontSzBody2
                     color: closeMa.containsMouse ? Theme.colorText2 : Theme.colorText3
                 }
-                MouseArea {
+                PpPressable {
                     id: closeMa
-                    anchors.fill: parent; anchors.margins: -Theme.sp(6)
-                    hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                    anchors.margins: -Theme.sp(6)
                     onClicked: drawer.closeRequested()
                 }
             }
@@ -151,11 +150,9 @@ Item {
             // Declared before the visuals so the kebab's own MouseArea (inside the
             // RowLayout below, drawn on top) wins for its slot, while clicks
             // anywhere else on the row fall through here to load the session.
-            MouseArea {
+            PpPressable {
                 id: rowMa
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
+                hoverScale: 1.0           // full-width list row — press-dip only
                 onClicked: {
                     if (rowBg.isLive) sessionReviewController.resumeLive()
                     else              sessionReviewController.loadSession(rowBg.sessionId)
@@ -273,11 +270,9 @@ Item {
                             color: Theme.colorText2
                         }
                     }
-                    MouseArea {
+                    PpPressable {
                         id: kebabMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
+                        held: rowMenu.opened       // stay grown while the menu is up
                         onClicked: rowMenu.opened ? rowMenu.close() : rowMenu.open()
                     }
 
@@ -325,11 +320,9 @@ Item {
                                         color: Theme.colorText
                                     }
                                 }
-                                MouseArea {
+                                PpPressable {
                                     id: exportMa
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
+                                    hoverScale: 1.0       // full-width menu item — press-dip only
                                     onClicked: {
                                         rowMenu.close()
                                         drawer.exportRequested(rowBg.sessionId)
@@ -373,11 +366,9 @@ Item {
                                         color: Theme.colorWarn
                                     }
                                 }
-                                MouseArea {
+                                PpPressable {
                                     id: trashMa
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
+                                    hoverScale: 1.0       // full-width menu item — press-dip only
                                     onClicked: {
                                         rowMenu.close()
                                         drawer.trashRequested(rowBg.sessionId)

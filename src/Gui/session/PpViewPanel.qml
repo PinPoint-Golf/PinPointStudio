@@ -152,10 +152,18 @@ Item {
         readonly property bool active: ViewLayout.arrangementFor(SessionMode.mode) === value
         height: Theme.sp(46)
         radius: Theme.radius
-        color: active ? Theme.colorAccentLight : "transparent"
+        // Selected: accent wash + accent border. Hover (unselected): faint bg fill
+        // (alpha-ramped → no flash) + border eases to accentMid — the chip/tile
+        // language; pairs with the PpPressable scale/dip below.
+        color: active              ? Theme.colorAccentLight
+             : cardMa.containsMouse ? Theme.colorBg2
+             :                        Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
         border.width: 1
-        border.color: active ? Theme.colorAccentMid : Theme.colorBorderMid
-        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+        border.color: active              ? Theme.colorAccent
+                    : cardMa.containsMouse ? Theme.colorAccentMid
+                    :                        Theme.colorBorderMid
+        Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
+        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
         Column {
             anchors.centerIn: parent
@@ -188,11 +196,7 @@ Item {
                 color: active ? Theme.colorAccent : Theme.colorText2
             }
         }
-        MouseArea {
-            anchors.fill: parent; hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: ViewLayout.setArrangement(SessionMode.mode, value)
-        }
+        PpPressable { id: cardMa; onClicked: ViewLayout.setArrangement(SessionMode.mode, value) }
     }
 
     // ── timeline orientation card (mirrors ArrangeCard, writes appSettings) ──
@@ -204,10 +208,18 @@ Item {
         readonly property bool active: appSettings.timelineOrientation === value
         height: Theme.sp(46)
         radius: Theme.radius
-        color: active ? Theme.colorAccentLight : "transparent"
+        // Selected: accent wash + accent border. Hover (unselected): faint bg fill
+        // (alpha-ramped → no flash) + border eases to accentMid — the chip/tile
+        // language; pairs with the PpPressable scale/dip below.
+        color: active                ? Theme.colorAccentLight
+             : orientMa.containsMouse ? Theme.colorBg2
+             :                          Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
         border.width: 1
-        border.color: active ? Theme.colorAccentMid : Theme.colorBorderMid
-        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+        border.color: active                ? Theme.colorAccent
+                    : orientMa.containsMouse ? Theme.colorAccentMid
+                    :                          Theme.colorBorderMid
+        Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
+        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
         Column {
             anchors.centerIn: parent
@@ -230,11 +242,7 @@ Item {
                 color: orientCard.active ? Theme.colorAccent : Theme.colorText2
             }
         }
-        MouseArea {
-            anchors.fill: parent; hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: appSettings.timelineOrientation = orientCard.value
-        }
+        PpPressable { id: orientMa; onClicked: appSettings.timelineOrientation = orientCard.value }
     }
 
     // ── compact on/off toggle ───────────────────────────────────────────────

@@ -108,10 +108,8 @@ Rectangle {
 
             Timer { id: copyConfirm; interval: 1200 }
 
-            MouseArea {
-                anchors.fill:    parent
+            PpPressable {
                 anchors.margins: -Theme.sp(6)
-                cursorShape:     Qt.PointingHandCursor
                 onClicked: {
                     clipboard.setText(root.copyText)
                     copyConfirm.restart()
@@ -136,10 +134,8 @@ Rectangle {
             font.letterSpacing: Theme.trackingLabel
             color:          Theme.colorAccent
 
-            MouseArea {
-                anchors.fill:    parent
+            PpPressable {
                 anchors.margins: -Theme.sp(6)
-                cursorShape:     Qt.PointingHandCursor
                 onClicked: {
                     root.visible = false
                     root.undoClicked()

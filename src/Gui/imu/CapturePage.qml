@@ -93,6 +93,9 @@ Item {
                     Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
                     Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
+                    scale: imuChipTap.pressed ? 0.97 : imuChipHover.hovered ? 1.02 : 1.0
+                    Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
+
                     Text {
                         id: imuChipLabel
                         anchors.centerIn: parent
@@ -125,9 +128,10 @@ Item {
                     }
 
                     TapHandler {
+                        id: imuChipTap
                         onTapped: imuManager.setSelected(modelData.index, !modelData.selected)
                     }
-                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                    HoverHandler { id: imuChipHover; cursorShape: Qt.PointingHandCursor }
                 }
             }
 
@@ -144,6 +148,9 @@ Item {
                 border.color: scanning ? Theme.colorAccent : Theme.colorBorderStrong
                 Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
                 Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                scale: scanTap.pressed ? 0.97 : scanHover.hovered ? 1.02 : 1.0
+                Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
 
                 Text {
                     id: scanMeasure
@@ -176,13 +183,14 @@ Item {
                 }
 
                 TapHandler {
+                    id: scanTap
                     onTapped: {
                         scanChip.scanning = true
                         imuManager.rescanImu()
                         scanTimer.restart()
                     }
                 }
-                HoverHandler { cursorShape: Qt.PointingHandCursor }
+                HoverHandler { id: scanHover; cursorShape: Qt.PointingHandCursor }
             }
         }
 

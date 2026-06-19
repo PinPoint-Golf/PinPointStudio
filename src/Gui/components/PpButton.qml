@@ -39,11 +39,23 @@ Rectangle {
     radius:         Theme.radius
     opacity:        root.enabled ? 1.0 : 0.4
 
-    color:        primary    ? Theme.colorAccent
-                : attention   ? Theme.colorAttention
-                : (destructive ? Theme.colorWarnLight : "transparent")
+    readonly property bool  _filled:    primary || attention || destructive
+    // Resting fill. The outline variant rests transparent but RGB-matched to its
+    // hover fill, so the hover ColorAnimation only ramps alpha — no colour flash
+    // (the same lesson as the home-tile hover).
+    readonly property color _restColor: primary     ? Theme.colorAccent
+                                       : attention   ? Theme.colorAttention
+                                       : destructive ? Theme.colorWarnLight
+                                       : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
+
+    // Hover brighten — filled variants lighten, the outline variant fades a faint
+    // bg fill in. Pairs with the PpPressable scale-grow / press-dip below so the
+    // button visibly responds (it previously only blipped opacity on press).
+    color:        btnMa.containsMouse ? (_filled ? Qt.lighter(_restColor, 1.08) : Theme.colorBg2)
+                                      : _restColor
     border.width: (primary || attention) ? 0 : 1
     border.color: destructive ? Theme.colorWarn : Theme.colorBorderStrong
+    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
     readonly property color contentColor: (primary || attention)
                                               ? (Theme.dark ? Theme.colorBg : "#FFFFFF")
@@ -71,12 +83,11 @@ Rectangle {
         }
     }
 
-    MouseArea {
-        anchors.fill: parent
-        cursorShape:  root.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-        enabled:      root.enabled
-        onClicked:    root.clicked()
-        onPressed:    root.opacity = 0.7
-        onReleased:   root.opacity = root.enabled ? 1.0 : 0.4
+    // Standard hover-grow / press-dip motion (drives root.scale). Replaces the old
+    // opacity-on-press blip; disabled dimming stays on root.opacity above.
+    PpPressable {
+        id: btnMa
+        enabled:   root.enabled
+        onClicked: root.clicked()
     }
 }

@@ -137,6 +137,7 @@ Item {
                 Repeater {
                     model: 8
                     delegate: Rectangle {
+                        id: themeCard
                         required property int index
 
                         readonly property var   tData:      root.themeData[index]
@@ -224,7 +225,9 @@ Item {
                         Rectangle {
                             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
                             height: Theme.sp(28)
-                            color:  Theme.colorSurface
+                            color:  (themeCardPress.containsMouse && !themeCard.isSelected)
+                                        ? Qt.lighter(Theme.colorSurface, 1.08) : Theme.colorSurface
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
                             Rectangle {
                                 anchors { top: parent.top; left: parent.left; right: parent.right }
@@ -278,14 +281,15 @@ Item {
                             anchors.fill: parent
                             radius:       parent.radius
                             color:        "transparent"
-                            border.width: isSelected ? 2 : 1
-                            border.color: isSelected ? Theme.colorAccent : Theme.colorBorderStrong
+                            border.width: themeCard.isSelected ? 2 : 1
+                            border.color: themeCard.isSelected ? Theme.colorAccent
+                                        : themeCardPress.containsMouse ? Theme.colorAccentMid
+                                        : Theme.colorBorderStrong
                             Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
                         }
 
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape:  Qt.PointingHandCursor
+                        PpPressable {
+                            id: themeCardPress
                             onClicked:    Theme.themeIndex = index
                         }
                     }

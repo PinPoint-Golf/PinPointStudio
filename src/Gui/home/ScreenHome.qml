@@ -398,7 +398,11 @@ Item {
                     width:  parent.width
                     height: Theme.sp(44)
                     radius: Theme.radius
-                    color:  Theme.colorAccent
+                    // Filled CTA: brighten on hover, dip on press. No hover grow —
+                    // it's full-width, so scaling up would bulge past the content
+                    // margins; the PpPressable press-dip (scale DOWN) stays in bounds.
+                    color:  startMa.containsMouse ? Qt.lighter(Theme.colorAccent, 1.08) : Theme.colorAccent
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
                     Text {
                         anchors.centerIn: parent
@@ -409,9 +413,9 @@ Item {
                         color:          Theme.dark ? Theme.colorBg : "#FFFFFF"
                     }
 
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape:  Qt.PointingHandCursor
+                    PpPressable {
+                        id: startMa
+                        hoverScale: 1.0   // full-width: brighten on hover, dip on press only
                         onClicked:    if (root.comingSoonTypes.indexOf(root.selectedType) === -1)
                                           root.startSessionRequested(root.selectedType)
                                       else

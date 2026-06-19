@@ -241,10 +241,8 @@ ApplicationWindow {
                         font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
                         color: Theme.colorAttention
                     }
-                    MouseArea {
+                    PpPressable {
                         id: confirmCloseMa
-                        anchors.fill: parent; hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             closeConfirm.close()
                             // Session-level teardown; the deeper shutdown (swing-save
@@ -272,10 +270,8 @@ ApplicationWindow {
                         font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
                         color: Theme.colorText2
                     }
-                    MouseArea {
+                    PpPressable {
                         id: cancelCloseMa
-                        anchors.fill: parent; hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
                         onClicked: closeConfirm.close()
                     }
                 }

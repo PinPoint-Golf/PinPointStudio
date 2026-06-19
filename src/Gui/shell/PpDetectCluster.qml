@@ -121,12 +121,9 @@ Item {
     // Click = manual shot (replaces the toolbar SHOT button). The central
     // shotController.triggerShot() gate matches `armed`, so a disarmed click is a
     // no-op even if the binding lags; `enabled` also suppresses hover/pointer.
-    MouseArea {
+    PpPressable {
         id: hoverMa
-        anchors.fill: parent
-        hoverEnabled: true
         enabled: root.armed
-        cursorShape: root.armed ? Qt.PointingHandCursor : Qt.ArrowCursor
         onClicked: {
             shotController.triggerShot()
             if (!Theme.reduceMotion) shotFlash.restart()

@@ -127,7 +127,12 @@ Item {
                     readonly property bool sel: index === stage.tabIndex
                     height: Theme.sp(30); width: tabTxt.implicitWidth + Theme.sp(26)
                     radius: Theme.radius
-                    color: sel ? Theme.colorBg2 : "transparent"
+                    // Contiguous tab strip — brighten only (no scale would break the seam);
+                    // unselected tab fades its fill in on hover (alpha-ramped colorBg2 rest).
+                    color: sel || tabMa.containsMouse
+                               ? Theme.colorBg2
+                               : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                     Rectangle {  // active underline
                         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
                         height: 2; color: sel ? Theme.colorAccent : "transparent"
@@ -138,7 +143,8 @@ Item {
                         color: sel ? Theme.colorText : Theme.colorText3
                     }
                     MouseArea {
-                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                        id: tabMa
+                        anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onClicked: stage.tabIndex = index
                     }
                 }

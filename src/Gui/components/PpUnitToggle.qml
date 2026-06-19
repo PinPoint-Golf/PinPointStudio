@@ -42,7 +42,10 @@ Row {
 
             width:  Theme.sp(36)
             height: Theme.sp(34)
-            color:  isActive ? Theme.colorAccentLight : Theme.colorBg2
+            color:  isActive           ? Theme.colorAccentLight
+                  : utMa.containsMouse ? Theme.colorBg3
+                  :                      Theme.colorBg2
+            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
             // Per-corner radius: left button gets left-side radius, right button gets right-side radius
             topLeftRadius:     isFirst ? Theme.radius : 0
@@ -70,8 +73,12 @@ Row {
                 color:          parent.isActive ? Theme.colorAccent : Theme.colorText3
             }
 
+            // Contiguous buttons share edges, so they brighten on hover rather than
+            // scale — a scale would break the seam between segments.
             MouseArea {
+                id: utMa
                 anchors.fill: parent
+                hoverEnabled: true
                 cursorShape:  Qt.PointingHandCursor
                 onClicked:    root.selectionChanged(modelData)
             }

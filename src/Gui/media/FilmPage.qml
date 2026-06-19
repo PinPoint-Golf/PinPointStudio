@@ -223,6 +223,8 @@ Item {
                                       ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.4)
                                       : Theme.colorBorderMid
                         border.width: 1
+                        scale: cardOpenTap.pressed ? 0.97 : cardHover.hovered ? 1.02 : 1.0
+                        Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
 
                         // Thumbnail area
                         Rectangle {
@@ -280,7 +282,10 @@ Item {
                                 anchors.right: parent.right
                                 anchors.margins: Theme.sp(4)
                                 width: Theme.sp(18); height: Theme.sp(18); radius: Theme.sp(9)
-                                color: Theme.colorWarn
+                                color: delHover.hovered ? Qt.lighter(Theme.colorWarn, 1.08) : Theme.colorWarn
+                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                scale: delTap.pressed ? 0.97 : delHover.hovered ? 1.02 : 1.0
+                                Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
 
                                 Text {
                                     anchors.centerIn: parent
@@ -290,8 +295,8 @@ Item {
                                     font.weight: Font.Normal
                                 }
 
-                                TapHandler { onTapped: filmController.deleteCacheFile(modelData.path) }
-                                HoverHandler { cursorShape: Qt.PointingHandCursor }
+                                TapHandler { id: delTap; onTapped: filmController.deleteCacheFile(modelData.path) }
+                                HoverHandler { id: delHover; cursorShape: Qt.PointingHandCursor }
                             }
                         }
 
@@ -311,7 +316,7 @@ Item {
                             elide: Text.ElideRight
                         }
 
-                        TapHandler { onTapped: filmController.openCacheFile(modelData.path) }
+                        TapHandler { id: cardOpenTap; onTapped: filmController.openCacheFile(modelData.path) }
                         HoverHandler { cursorShape: Qt.PointingHandCursor }
                     }
                 }
@@ -545,11 +550,14 @@ Item {
                     height: Theme.sp(20); width: lLabel.implicitWidth + Theme.sp(10)
                     topLeftRadius: Theme.radius; bottomLeftRadius: Theme.radius
                     topRightRadius: 0; bottomRightRadius: 0
-                    color: filmController.moveNetModel === 0 ? Theme.colorAccentMid : Theme.colorSurface
+                    color: filmController.moveNetModel === 0
+                           ? Theme.colorAccentMid
+                           : lHover.hovered ? Qt.lighter(Theme.colorSurface, 1.08) : Theme.colorSurface
                     border.width: 1
                     border.color: filmController.moveNetModel === 0
                                   ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.4)
-                                  : Theme.colorBorderMid
+                                  : lHover.hovered ? Theme.colorAccentMid : Theme.colorBorderMid
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                     Text {
                         id: lLabel; anchors.centerIn: parent
                         text: qsTr("Lightning")
@@ -559,7 +567,7 @@ Item {
                         font.weight: Font.Normal
                     }
                     TapHandler { onTapped: filmController.selectMoveNetModel(0) }
-                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                    HoverHandler { id: lHover; cursorShape: Qt.PointingHandCursor }
                 }
 
                 Rectangle {
@@ -567,11 +575,14 @@ Item {
                     height: Theme.sp(20); width: tLabel.implicitWidth + Theme.sp(10)
                     topRightRadius: Theme.radius; bottomRightRadius: Theme.radius
                     topLeftRadius: 0; bottomLeftRadius: 0
-                    color: filmController.moveNetModel === 1 ? Theme.colorAccentMid : Theme.colorSurface
+                    color: filmController.moveNetModel === 1
+                           ? Theme.colorAccentMid
+                           : tHover.hovered ? Qt.lighter(Theme.colorSurface, 1.08) : Theme.colorSurface
                     border.width: 1
                     border.color: filmController.moveNetModel === 1
                                   ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.4)
-                                  : Theme.colorBorderMid
+                                  : tHover.hovered ? Theme.colorAccentMid : Theme.colorBorderMid
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                     Text {
                         id: tLabel; anchors.centerIn: parent
                         text: qsTr("Thunder")
@@ -581,7 +592,7 @@ Item {
                         font.weight: Font.Normal
                     }
                     TapHandler { onTapped: filmController.selectMoveNetModel(1) }
-                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                    HoverHandler { id: tHover; cursorShape: Qt.PointingHandCursor }
                 }
             }
 

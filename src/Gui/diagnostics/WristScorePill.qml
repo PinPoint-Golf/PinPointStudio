@@ -38,6 +38,9 @@ ColumnLayout {
         Layout.alignment: Qt.AlignRight
         spacing: Theme.sp(3)
 
+        scale: pillTap.pressed ? 0.97 : pillHover.hovered ? 1.02 : 1.0
+        Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
+
         Text {
             anchors.verticalCenter: parent.verticalCenter
             text: "▲"
@@ -59,8 +62,8 @@ ColumnLayout {
             font.letterSpacing: Theme.trackingLabel
             color: Theme.qualityColor(root.score)
         }
-        TapHandler { onTapped: root._open = !root._open }
-        HoverHandler { cursorShape: Qt.PointingHandCursor }
+        TapHandler { id: pillTap; onTapped: root._open = !root._open }
+        HoverHandler { id: pillHover; cursorShape: Qt.PointingHandCursor }
     }
 
     Rectangle {

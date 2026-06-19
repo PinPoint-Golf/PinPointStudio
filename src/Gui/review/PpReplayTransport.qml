@@ -81,11 +81,8 @@ Item {
             font.pixelSize: Theme.sp(15)
             color: Theme.colorText2
         }
-        MouseArea {
+        PpPressable {
             id: tbma
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
             onClicked: parent.acted()
         }
     }

@@ -236,12 +236,10 @@ Item {
                     color:          Theme.colorText3
                 }
             }
-            MouseArea {
+            PpPressable {
                 id: allMa
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape:  Qt.PointingHandCursor
-                onClicked:    allMenu.opened ? allMenu.close() : allMenu.open()
+                held: allMenu.opened       // stay grown while the menu is up
+                onClicked: allMenu.opened ? allMenu.close() : allMenu.open()
             }
 
             // Opens UPWARD over the stage (dock convention), right-aligned to the control.
@@ -295,11 +293,9 @@ Item {
                             font.pixelSize: Theme.fontSzMicro
                             color:          Theme.colorText3
                         }
-                        MouseArea {
+                        PpPressable {
                             id: allExportMa
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
+                            hoverScale: 1.0       // full-width menu item — press-dip only
                             onClicked: { allMenu.close(); root.exportShown() }
                         }
                     }
@@ -347,11 +343,9 @@ Item {
                             color:          Theme.colorWarn
                             opacity:        0.7
                         }
-                        MouseArea {
+                        PpPressable {
                             id: allTrashMa
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
+                            hoverScale: 1.0       // full-width menu item — press-dip only
                             onClicked: { allMenu.close(); root.trashShown() }
                         }
                     }

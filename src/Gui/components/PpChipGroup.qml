@@ -36,12 +36,23 @@ Row {
             required property string modelData
             required property int    index
 
+            readonly property bool _sel: modelData === root.selected
+
             height:  Theme.sp(28)
             width:   chipLabel.implicitWidth + Theme.sp(24)
             radius:  Theme.radius
-            color:   modelData === root.selected ? Theme.colorAccentLight : "transparent"
+            // Selected: accent wash. Hover (unselected): a faint bg fill that only
+            // ramps alpha (RGB-matched rest) so there's no colour flash; the border
+            // eases to accent on hover — the home-tile / pill language.
+            color:   _sel                 ? Theme.colorAccentLight
+                   : chipMa.containsMouse ? Theme.colorBg2
+                   :                        Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
             border.width: 1
-            border.color: modelData === root.selected ? Theme.colorAccent : Theme.colorBorderStrong
+            border.color: _sel                 ? Theme.colorAccent
+                        : chipMa.containsMouse ? Theme.colorAccentMid
+                        :                        Theme.colorBorderStrong
+            Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
+            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
             Text {
                 id: chipLabel
@@ -49,14 +60,13 @@ Row {
                 text:           modelData
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody
-                font.weight:    modelData === root.selected ? Font.Normal : Theme.fontBodyWeight
-                color:          modelData === root.selected ? Theme.colorAccent : Theme.colorText2
+                font.weight:    _sel ? Font.Normal : Theme.fontBodyWeight
+                color:          _sel ? Theme.colorAccent : Theme.colorText2
             }
 
-            MouseArea {
-                anchors.fill: parent
-                cursorShape:  Qt.PointingHandCursor
-                onClicked:    root.selectionChanged(modelData)
+            PpPressable {
+                id: chipMa
+                onClicked: root.selectionChanged(modelData)
             }
         }
     }

@@ -52,6 +52,9 @@ Rectangle {
     border.color: Theme.colorBorder
     opacity: finding.lowConfidence ? 0.82 : 1.0
 
+    scale: cardTap.pressed ? 0.97 : cardHover.hovered ? 1.02 : 1.0
+    Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
+
     ColumnLayout {
         id: col
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.sp(10) }
@@ -178,6 +181,6 @@ Rectangle {
         }
     }
 
-    TapHandler { onTapped: { root._open = !root._open; if (root.finding.seekUs > 0) root.seek(root.finding.seekUs) } }
-    HoverHandler { cursorShape: Qt.PointingHandCursor }
+    TapHandler { id: cardTap; onTapped: { root._open = !root._open; if (root.finding.seekUs > 0) root.seek(root.finding.seekUs) } }
+    HoverHandler { id: cardHover; cursorShape: Qt.PointingHandCursor }
 }

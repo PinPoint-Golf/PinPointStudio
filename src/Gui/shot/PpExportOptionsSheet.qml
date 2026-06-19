@@ -115,10 +115,10 @@ Popup {
                 color:          Theme.colorText
             }
         }
-        MouseArea {
-            anchors.fill: parent
-            cursorShape:  Qt.PointingHandCursor
-            onClicked:    toggled()
+        PpPressable {
+            id: crMa
+            hoverScale: 1.0       // full-width row — press-dip only
+            onClicked:  toggled()
         }
     }
 

@@ -70,12 +70,15 @@ Rectangle {
         }
 
         // low-confidence toggle + cards
-        MouseArea {
+        Rectangle {
             Layout.fillWidth: true
             visible: root._low.length > 0
             implicitHeight: lowRow.implicitHeight + Theme.sp(4)
-            cursorShape: Qt.PointingHandCursor
-            onClicked: root._showLow = !root._showLow
+            radius: Theme.radius
+            color: lowMa.containsMouse
+                   ? Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 1.0)
+                   : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
+            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
             Row {
                 id: lowRow
                 spacing: Theme.sp(2)
@@ -86,6 +89,7 @@ Rectangle {
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel; color: Theme.colorText2
                 }
             }
+            PpPressable { id: lowMa; hoverScale: 1.0; onClicked: root._showLow = !root._showLow }
         }
         Repeater {
             model: root._showLow ? root._low : []

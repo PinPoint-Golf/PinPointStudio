@@ -74,6 +74,7 @@ Item {
         signal toggled()
         implicitHeight: Theme.sp(26)
         color: shMa.containsMouse ? Theme.colorBg3 : "transparent"
+        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
         Row {
             anchors { left: parent.left; leftMargin: Theme.sp(10); verticalCenter: parent.verticalCenter }
             spacing: Theme.sp(7)
@@ -83,8 +84,7 @@ Item {
                    font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingMicro
                    anchors.verticalCenter: parent.verticalCenter }
         }
-        MouseArea { id: shMa; anchors.fill: parent; hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor; onClicked: sh.toggled() }
+        PpPressable { id: shMa; hoverScale: 1.0; onClicked: sh.toggled() }
     }
 
     SwingDataSource {
@@ -163,8 +163,13 @@ Item {
             Rectangle {
                 Layout.preferredHeight: Theme.sp(28)
                 implicitWidth: propsLbl.implicitWidth + Theme.sp(22)
-                radius: Theme.radius; color: propsMa.containsMouse ? Theme.colorBg3 : "transparent"
-                border.width: 1; border.color: Theme.colorBorderMid
+                radius: Theme.radius
+                color: propsMa.containsMouse ? Theme.colorBg3
+                                             : Qt.rgba(Theme.colorBg3.r, Theme.colorBg3.g, Theme.colorBg3.b, 0)
+                border.width: 1
+                border.color: propsMa.containsMouse ? Theme.colorAccentMid : Theme.colorBorderMid
+                Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
+                Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
                 Row {
                     anchors.centerIn: parent; spacing: Theme.sp(5)
                     Text { text: "ⓘ"; color: Theme.colorText2; font.pixelSize: Theme.fontSzBody2
@@ -173,8 +178,7 @@ Item {
                            font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
                            anchors.verticalCenter: parent.verticalCenter }
                 }
-                MouseArea { id: propsMa; anchors.fill: parent; hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor; onClicked: propsPopup.open() }
+                PpPressable { id: propsMa; onClicked: propsPopup.open() }
             }
         }
 
@@ -214,12 +218,18 @@ Item {
                             height: Theme.sp(28); radius: height / 2
                             width: rcLbl.implicitWidth + Theme.sp(24)
                             opacity: (empty && !active) ? 0.45 : 1.0
-                            color: active ? Theme.colorAccentLight : "transparent"
-                            border.width: 1; border.color: active ? Theme.colorAccentMid : Theme.colorBorderMid
+                            color: active ? Theme.colorAccentLight
+                                          : rcMa.containsMouse ? Theme.colorAccentMid : "transparent"
+                            border.width: 1
+                            border.color: active ? Theme.colorAccentMid
+                                                 : rcMa.containsMouse ? Theme.colorAccentMid : Theme.colorBorderMid
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
                             Text { id: rcLbl; anchors.centerIn: parent; text: modelData
                                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
                                    color: active ? Theme.colorAccent : Theme.colorText2 }
-                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                            MouseArea { id: rcMa; anchors.fill: parent; hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
                                         onClicked: { src.region = modelData; root.persistRegion(modelData) } }
                         }
                     }
@@ -247,13 +257,19 @@ Item {
                                                          && src.windowEndUs === modelData.endUs
                             height: Theme.sp(24); radius: height / 2
                             width: segLbl.implicitWidth + Theme.sp(18)
-                            color: active ? Theme.colorAccentLight : "transparent"
-                            border.width: 1; border.color: active ? Theme.colorAccentMid : Theme.colorBorderMid
+                            color: active ? Theme.colorAccentLight
+                                          : segMa.containsMouse ? Theme.colorAccentMid : "transparent"
+                            border.width: 1
+                            border.color: active ? Theme.colorAccentMid
+                                                 : segMa.containsMouse ? Theme.colorAccentMid : Theme.colorBorderMid
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
                             Text { id: segLbl; anchors.centerIn: parent; text: modelData.label
                                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
                                    font.letterSpacing: Theme.trackingMicro
                                    color: active ? Theme.colorAccent : Theme.colorText2 }
-                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                            MouseArea { id: segMa; anchors.fill: parent; hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
                                         onClicked: src.setWindow(modelData.startUs, modelData.endUs) }
                         }
                     }
@@ -287,12 +303,13 @@ Item {
                                 Text { text: modelData.label; color: Theme.colorText
                                        anchors.verticalCenter: parent.verticalCenter
                                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2 }
-                                Text { visible: modelData.removable === true; text: "×"
-                                       color: Theme.colorText3; font.pixelSize: Theme.fontSzBody2
+                                Text { id: rmTag; visible: modelData.removable === true; text: "×"
+                                       color: rmMa.containsMouse ? Theme.colorText : Theme.colorText3
+                                       font.pixelSize: Theme.fontSzBody2
                                        anchors.verticalCenter: parent.verticalCenter
-                                       MouseArea { anchors.fill: parent; anchors.margins: -4
-                                                   cursorShape: Qt.PointingHandCursor
-                                                   onClicked: src.removeSource(index) } }
+                                       Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                       PpPressable { id: rmMa; anchors.margins: -4
+                                                     onClicked: src.removeSource(index) } }
                             }
                         }
                     }

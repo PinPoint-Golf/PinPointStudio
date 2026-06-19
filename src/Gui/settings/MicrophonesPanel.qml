@@ -160,9 +160,14 @@ Item {
         Layout.fillWidth: true
         implicitHeight:   Theme.sp(46)
         radius:           Theme.radius
-        color:            Theme.colorSurface
+        color:            devRow.isActive ? Theme.colorAccentLight
+                        : devRowPress.containsMouse ? Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0.5)
+                        : Theme.colorSurface
         border.width:     1
-        border.color:     isActive ? Theme.colorAccent : Theme.colorBorderStrong
+        border.color:     devRow.isActive ? Theme.colorAccent
+                        : devRowPress.containsMouse ? Theme.colorAccentMid
+                        : Theme.colorBorderStrong
+        Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
         Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
         RowLayout {
@@ -221,9 +226,9 @@ Item {
             }
         }
 
-        MouseArea {
-            anchors.fill: parent
-            cursorShape:  Qt.PointingHandCursor
+        PpPressable {
+            id: devRowPress
+            hoverScale: 1.0
             // Persisting the id triggers the main.cpp → controller.setInputDevice
             // wiring (restarts capture in place if currently listening).
             onClicked:    appSettings.audioInputDevice = devRow.devData.id
@@ -321,9 +326,11 @@ Item {
                     implicitWidth:  rescanLabel.implicitWidth + Theme.sp(24)
                     implicitHeight: Theme.sp(28)
                     radius: Theme.radius
-                    color:  "transparent"
+                    color:  rescanPress.containsMouse ? Theme.colorBg2 : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
                     border.width: 1
-                    border.color: Theme.colorBorderStrong
+                    border.color: rescanPress.containsMouse ? Theme.colorAccentMid : Theme.colorBorderStrong
+                    Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
+                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
                     Text {
                         id: rescanLabel
                         anchors.centerIn: parent
@@ -333,9 +340,8 @@ Item {
                         font.weight:    Theme.fontBodyWeight
                         color:          Theme.colorText2
                     }
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape:  Qt.PointingHandCursor
+                    PpPressable {
+                        id: rescanPress
                         onClicked:    root.refreshDevices()
                     }
                 }
@@ -388,9 +394,13 @@ Item {
                     implicitWidth:  calBtnSizer.implicitWidth + Theme.sp(24)
                     implicitHeight: Theme.sp(28)
                     radius: Theme.radius
-                    color:  root.calibrating ? Theme.colorAccentLight : "transparent"
+                    color:  root.calibrating ? Theme.colorAccentLight
+                          : calPress.containsMouse ? Theme.colorBg2
+                          : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
                     border.width: 1
-                    border.color: root.calibrating ? Theme.colorAccent : Theme.colorBorderStrong
+                    border.color: root.calibrating ? Theme.colorAccent
+                                : calPress.containsMouse ? Theme.colorAccentMid
+                                : Theme.colorBorderStrong
                     Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
                     Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
@@ -412,9 +422,8 @@ Item {
                         font.weight:    Theme.fontBodyWeight
                         color:          root.calibrating ? Theme.colorAccent : Theme.colorText2
                     }
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape:  Qt.PointingHandCursor
+                    PpPressable {
+                        id: calPress
                         onClicked: {
                             if (!root.calibrating) { meter.clear(); root.detectCount = 0 }
                             root.calibrating = !root.calibrating
@@ -671,12 +680,15 @@ Item {
                         Item { Layout.fillWidth: true; visible: root.detectCount === 0 }
 
                         Rectangle {
+                            id: resetBtn
                             implicitWidth:  resetLabel.implicitWidth + Theme.sp(20)
                             implicitHeight: Theme.sp(26)
                             radius: Theme.radius
-                            color:  "transparent"
+                            color:  resetPress.containsMouse ? Theme.colorBg2 : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
                             border.width: 1
-                            border.color: Theme.colorBorderStrong
+                            border.color: resetPress.containsMouse ? Theme.colorAccentMid : Theme.colorBorderStrong
+                            Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
+                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
                             Text {
                                 id: resetLabel
                                 anchors.centerIn: parent
@@ -685,9 +697,8 @@ Item {
                                 font.pixelSize: Theme.fontSzMicro
                                 color:          Theme.colorText2
                             }
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape:  Qt.PointingHandCursor
+                            PpPressable {
+                                id: resetPress
                                 onClicked: { root.detectCount = 0; meter.clear() }
                             }
                         }

@@ -180,10 +180,14 @@ Item {
                     implicitWidth: refRow.implicitWidth + Theme.sp(14)
                     implicitHeight: Theme.sp(28)
                     radius: Theme.radius
-                    color: isRef ? Theme.colorAccentLight : "transparent"
+                    color: isRef ? Theme.colorAccentLight
+                                 : refMa.containsMouse ? Theme.colorAccentMid : "transparent"
                     border.width: Theme.borderWidth
-                    border.color: isRef ? Theme.colorAccentMid : Theme.colorBorderMid
+                    border.color: isRef ? Theme.colorAccentMid
+                                        : refMa.containsMouse ? Theme.colorAccentMid : Theme.colorBorderMid
                     opacity: canSet ? 1.0 : 0.4
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
                     Row {
                         id: refRow
                         anchors.centerIn: parent
@@ -201,10 +205,9 @@ Item {
                             color: refBtn.isRef ? Theme.colorAccent : Theme.colorText2
                         }
                     }
-                    MouseArea {
-                        anchors.fill: parent
+                    PpPressable {
+                        id: refMa
                         enabled: refBtn.canSet
-                        cursorShape: Qt.PointingHandCursor
                         onClicked: appSettings.wristReferenceSwingDir = (refBtn.isRef ? "" : shotReplay.swingDir)
                     }
                 }

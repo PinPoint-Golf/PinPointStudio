@@ -151,9 +151,23 @@ Item {
             implicitWidth: captureLbl.implicitWidth + Theme.sp(28)
             implicitHeight: Theme.sp(40)
             radius: Theme.radius
-            color: root.captureLive ? Theme.colorErrorLight : Theme.colorAccent
+            readonly property color _baseColor: root.captureLive ? Theme.colorErrorLight : Theme.colorAccent
+            color: capMa.containsMouse ? Qt.lighter(_baseColor, 1.08) : _baseColor
             border.width: root.captureLive ? 1 : 0
             border.color: Theme.colorError
+
+            // Hover/press motion — the same language as the device pills, adapted
+            // to a filled CTA: it brightens and grows a touch on hover, dips on
+            // press. A filled button has no border to ease, so the brighten plays
+            // the role bg2↔bg3 does on the pills. The colour Behavior also smooths
+            // the Capture↔Stop swap. Theme.durationFast + OutCubic; reduceMotion
+            // zeroes it.
+            transformOrigin: Item.Center
+            scale: capMa.pressed       ? 0.97
+                 : capMa.containsMouse ? 1.02
+                 :                       1.0
+            Behavior on color { ColorAnimation  { duration: Theme.durationFast } }
+            Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
             Row {
                 id: captureLbl
                 anchors.centerIn: parent
@@ -173,7 +187,9 @@ Item {
                 }
             }
             MouseArea {
+                id: capMa
                 anchors.fill: parent
+                hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
                     if (root.captureLive) {
@@ -230,7 +246,18 @@ Item {
             color: endMa.containsMouse ? Theme.colorBg2 : "transparent"
             border.width: 1
             border.color: Theme.colorBorderMid
-            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+            // Hover/press motion — matches the device pills: subtle scale up on
+            // hover, held while the confirm popover is open, dip on press. The
+            // ghost fill (transparent↔bg2) already carries the hover brighten, and
+            // the border stays the quiet neutral — an End-session button shouldn't
+            // pull the accent. Theme.durationFast + OutCubic; reduceMotion zeroes it.
+            transformOrigin: Item.Center
+            scale: endMa.pressed                            ? 0.97
+                 : (endPopup.opened || endMa.containsMouse) ? 1.02
+                 :                                            1.0
+            Behavior on color { ColorAnimation  { duration: Theme.durationFast } }
+            Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
 
             Text {
                 id: endLbl
@@ -272,16 +299,15 @@ Item {
                             height: Theme.sp(30); radius: Theme.radius
                             color: confirmMa.containsMouse ? Theme.colorErrorLight : "transparent"
                             border.width: 1; border.color: Theme.colorError
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                             Text {
                                 id: confirmLbl
                                 anchors.centerIn: parent; text: qsTr("End")
                                 font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
                                 color: Theme.colorError
                             }
-                            MouseArea {
+                            PpPressable {
                                 id: confirmMa
-                                anchors.fill: parent; hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
                                 onClicked: {
                                     endPopup.close()
                                     cameraManager.stopCapture()
@@ -300,16 +326,15 @@ Item {
                             height: Theme.sp(30); radius: Theme.radius
                             color: cancelMa.containsMouse ? Theme.colorBg3 : Theme.colorBg2
                             border.width: 1; border.color: Theme.colorBorderMid
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                             Text {
                                 id: cancelLbl
                                 anchors.centerIn: parent; text: qsTr("Cancel")
                                 font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
                                 color: Theme.colorText2
                             }
-                            MouseArea {
+                            PpPressable {
                                 id: cancelMa
-                                anchors.fill: parent; hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
                                 onClicked: endPopup.close()
                             }
                         }
@@ -468,8 +493,25 @@ Item {
         radius: Theme.radius
         color: vpMa.containsMouse ? Theme.colorBg3 : Theme.colorBg2
         border.width: 1
-        border.color: active ? Theme.colorAccentMid : Theme.colorBorderMid
-        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+        border.color: active             ? Theme.colorAccent
+                    : vpMa.containsMouse ? Theme.colorAccentMid
+                    :                      Theme.colorBorderMid
+
+        // Hover/press motion — the home-tile / shot-card language adapted to a
+        // toolbar pill: a subtle scale (no vertical lift — a pill must not float
+        // out of the bar) that grows on hover, holds while its popup is open, and
+        // dips on press. OutCubic + Theme.durationFast keeps it calm and snappy
+        // (a frequently-touched control grates if it lingers), and reduceMotion
+        // zeroes it. Both colour endpoints are opaque (bg2↔bg3), so unlike the
+        // home card there is no tint-flash to guard against.
+        transformOrigin: Item.Center
+        scale: vpMa.pressed              ? 0.97
+             : (active || vpMa.containsMouse) ? 1.02
+             :                             1.0
+
+        Behavior on color        { ColorAnimation  { duration: Theme.durationFast } }
+        Behavior on border.color { ColorAnimation  { duration: Theme.durationFast } }
+        Behavior on scale        { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
 
         RowLayout {
             id: vpRow
@@ -533,8 +575,22 @@ Item {
         implicitHeight: Theme.sp(44)
         radius: Theme.radius
         color: pillMa.containsMouse ? Theme.colorBg3 : Theme.colorBg2
-        border.width: 1; border.color: Theme.colorBorderMid
-        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+        border.width: 1
+        border.color: active              ? Theme.colorAccent
+                    : pillMa.containsMouse ? Theme.colorAccentMid
+                    :                        Theme.colorBorderMid
+
+        // Same hover/press motion as ViewPill (see note there): subtle scale up
+        // on hover, held while the popup is open, dip on press. No lift — keeps
+        // the pill anchored in the bar.
+        transformOrigin: Item.Center
+        scale: pillMa.pressed              ? 0.97
+             : (active || pillMa.containsMouse) ? 1.02
+             :                               1.0
+
+        Behavior on color        { ColorAnimation  { duration: Theme.durationFast } }
+        Behavior on border.color { ColorAnimation  { duration: Theme.durationFast } }
+        Behavior on scale        { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
 
         RowLayout {
             id: pillRow

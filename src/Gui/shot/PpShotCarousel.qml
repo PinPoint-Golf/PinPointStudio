@@ -228,11 +228,9 @@ Item {
                         color:          Theme.colorText3
                     }
                 }
-                MouseArea {
+                PpPressable {
                     id: sessMa
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape:  Qt.PointingHandCursor
+                    held: sessionsPopup.opened       // stay grown while the drawer is up
                     onClicked: {
                         if (sessionsPopup.opened) {
                             sessionsPopup.close()
@@ -282,12 +280,10 @@ Item {
                         color:          Theme.colorText3
                     }
                 }
-                MouseArea {
+                PpPressable {
                     id: pillMa
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape:  Qt.PointingHandCursor
-                    onClicked:    filterPopup.opened ? filterPopup.close() : filterPopup.open()
+                    held: filterPopup.opened       // stay grown while the filter popover is up
+                    onClicked: filterPopup.opened ? filterPopup.close() : filterPopup.open()
                 }
             }
         }

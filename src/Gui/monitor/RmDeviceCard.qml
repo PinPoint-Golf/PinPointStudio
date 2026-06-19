@@ -271,10 +271,14 @@ Rectangle {
                 text: qsTr("Settings →")
                 font.family: Theme.fontBody
                 font.pixelSize: Theme.sp(10)
-                color: Theme.colorAccent
+                color: settingsLinkHover.hovered ? Qt.lighter(Theme.colorAccent, 1.08) : Theme.colorAccent
+                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                transformOrigin: Item.Right
+                scale: settingsLinkTap.pressed ? 0.97 : settingsLinkHover.hovered ? 1.02 : 1.0
+                Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
 
-                HoverHandler { cursorShape: Qt.PointingHandCursor }
-                TapHandler  { onTapped: root.openSettingsRequested() }
+                HoverHandler { id: settingsLinkHover; cursorShape: Qt.PointingHandCursor }
+                TapHandler  { id: settingsLinkTap; onTapped: root.openSettingsRequested() }
             }
         }
     }

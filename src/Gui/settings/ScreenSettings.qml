@@ -293,12 +293,10 @@ Item {
                                         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                                     }
 
-                                    MouseArea {
+                                    PpPressable {
                                         id: navArea
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape:  Qt.PointingHandCursor
-                                        onClicked:    root.activeNavIndex = modelData.navIdx
+                                        hoverScale: 1.0
+                                        onClicked:  root.activeNavIndex = modelData.navIdx
                                     }
                                 }
                             }
@@ -383,12 +381,10 @@ Item {
                                 }
                             }
 
-                            MouseArea {
-                                id:           resultMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape:  Qt.PointingHandCursor
-                                onClicked:    root.navigateToResult(modelData)
+                            PpPressable {
+                                id:         resultMouse
+                                hoverScale: 1.0
+                                onClicked:  root.navigateToResult(modelData)
                             }
                         }
                     }

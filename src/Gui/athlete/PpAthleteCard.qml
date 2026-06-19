@@ -29,10 +29,19 @@ Rectangle {
 
     height:       Theme.sp(116)
     radius:       Theme.radiusLg
-    color:        isSelected ? Theme.colorAccentLight : Theme.colorSurface
+    // Selected/hover brighten — composite the accent wash OVER the opaque surface
+    // (Qt.tint) so both ends of the ColorAnimation stay opaque and hover brightens
+    // monotonically (no bright-then-dim flash — the home-tile fix). Selected vs
+    // hover differ by border: accent vs accentMid.
+    color:        (isSelected || cardMa.containsMouse) ? Qt.tint(Theme.colorSurface, Theme.colorAccentLight)
+                                                       : Theme.colorSurface
     border.width: 1
-    border.color: isSelected ? Theme.colorAccent : Theme.colorBorderMid
+    border.color: isSelected           ? Theme.colorAccent
+                : cardMa.containsMouse ? Theme.colorAccentMid
+                :                        Theme.colorBorderMid
     clip:         true
+    Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
+    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
     readonly property var avatarColors: [
         "#A8C4E0", "#7EBFAA", "#E0C4A8", "#C4A8E0", "#A8E0C4", "#E0A8C4"
@@ -114,9 +123,11 @@ Rectangle {
         }
     }
 
-    MouseArea {
-        anchors.fill: parent
-        cursorShape:  Qt.PointingHandCursor
-        onClicked:    root.clicked()
+    // Hover-grow / press-dip; the selected card holds its grown state (like the
+    // home tiles) so the active athlete stays subtly raised.
+    PpPressable {
+        id: cardMa
+        held:      root.isSelected
+        onClicked: root.clicked()
     }
 }

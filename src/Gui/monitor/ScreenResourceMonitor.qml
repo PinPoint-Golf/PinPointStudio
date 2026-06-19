@@ -95,10 +95,17 @@ Item {
                     width: scanLbl.implicitWidth + Theme.sp(16)
                     height: Theme.sp(18)
                     radius: Theme.radius
-                    color: "transparent"
+                    color: scanBtnHover.hovered
+                           ? Theme.colorBg2
+                           : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
                     border.width: 1
-                    border.color: resourceMonitor.scanning ? Theme.colorBorderMid : Theme.colorBorderStrong
+                    border.color: resourceMonitor.scanning ? Theme.colorBorderMid
+                                : scanBtnHover.hovered    ? Theme.colorAccentMid
+                                :                           Theme.colorBorderStrong
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                     opacity: resourceMonitor.scanning ? 0.5 : 1.0
+                    scale: resourceMonitor.scanning ? 1.0 : (scanBtnTap.pressed ? 0.97 : scanBtnHover.hovered ? 1.02 : 1.0)
+                    Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
 
                     Text {
                         id: scanLbl
@@ -109,8 +116,8 @@ Item {
                         color: resourceMonitor.scanning ? Theme.colorText3 : Theme.colorText2
                     }
 
-                    TapHandler  { enabled: !resourceMonitor.scanning; onTapped: resourceMonitor.scanDevices() }
-                    HoverHandler { cursorShape: resourceMonitor.scanning ? Qt.ArrowCursor : Qt.PointingHandCursor }
+                    TapHandler  { id: scanBtnTap; enabled: !resourceMonitor.scanning; onTapped: resourceMonitor.scanDevices() }
+                    HoverHandler { id: scanBtnHover; cursorShape: resourceMonitor.scanning ? Qt.ArrowCursor : Qt.PointingHandCursor }
                 }
             }
         }
@@ -470,10 +477,14 @@ Item {
                             radius: Theme.sp(9)
                             opacity: profiler.deepAvailable ? 1.0 : 0.4
                             color: on ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.15)
-                                      : "transparent"
+                                      : deepHover.hovered ? Theme.colorBg2
+                                      : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
                             border.width: 1
                             border.color: on ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.4)
-                                             : Theme.colorBorderMid
+                                             : deepHover.hovered ? Theme.colorAccentMid : Theme.colorBorderMid
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            scale: profiler.deepAvailable ? (deepTap.pressed ? 0.97 : deepHover.hovered ? 1.02 : 1.0) : 1.0
+                            Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
 
                             Text {
                                 id: deepLbl
@@ -485,8 +496,8 @@ Item {
                                 color: parent.on ? Theme.colorAccent : Theme.colorText3
                             }
 
-                            TapHandler  { enabled: profiler.deepAvailable; onTapped: profiler.deepEnabled = !profiler.deepEnabled }
-                            HoverHandler { cursorShape: profiler.deepAvailable ? Qt.PointingHandCursor : Qt.ArrowCursor }
+                            TapHandler  { id: deepTap; enabled: profiler.deepAvailable; onTapped: profiler.deepEnabled = !profiler.deepEnabled }
+                            HoverHandler { id: deepHover; cursorShape: profiler.deepAvailable ? Qt.PointingHandCursor : Qt.ArrowCursor }
                         }
 
                         // Reset
@@ -494,9 +505,14 @@ Item {
                             width: resetLbl.implicitWidth + Theme.sp(16)
                             height: Theme.sp(18)
                             radius: Theme.radius
-                            color: "transparent"
+                            color: resetHover.hovered
+                                   ? Theme.colorBg2
+                                   : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
                             border.width: 1
-                            border.color: Theme.colorBorderMid
+                            border.color: resetHover.hovered ? Theme.colorAccentMid : Theme.colorBorderMid
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            scale: resetTap.pressed ? 0.97 : resetHover.hovered ? 1.02 : 1.0
+                            Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
                             Text {
                                 id: resetLbl
                                 anchors.centerIn: parent
@@ -505,8 +521,8 @@ Item {
                                 font.pixelSize: Theme.sp(10)
                                 color: Theme.colorText3
                             }
-                            TapHandler  { onTapped: profiler.reset() }
-                            HoverHandler { cursorShape: Qt.PointingHandCursor }
+                            TapHandler  { id: resetTap; onTapped: profiler.reset() }
+                            HoverHandler { id: resetHover; cursorShape: Qt.PointingHandCursor }
                         }
 
                         // Dump to log
@@ -514,9 +530,14 @@ Item {
                             width: dumpLbl.implicitWidth + Theme.sp(16)
                             height: Theme.sp(18)
                             radius: Theme.radius
-                            color: "transparent"
+                            color: dumpHover.hovered
+                                   ? Theme.colorBg2
+                                   : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
                             border.width: 1
-                            border.color: Theme.colorBorderMid
+                            border.color: dumpHover.hovered ? Theme.colorAccentMid : Theme.colorBorderMid
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            scale: dumpTap.pressed ? 0.97 : dumpHover.hovered ? 1.02 : 1.0
+                            Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
                             Text {
                                 id: dumpLbl
                                 anchors.centerIn: parent
@@ -525,8 +546,8 @@ Item {
                                 font.pixelSize: Theme.sp(10)
                                 color: Theme.colorText3
                             }
-                            TapHandler  { onTapped: profiler.dumpToLog() }
-                            HoverHandler { cursorShape: Qt.PointingHandCursor }
+                            TapHandler  { id: dumpTap; onTapped: profiler.dumpToLog() }
+                            HoverHandler { id: dumpHover; cursorShape: Qt.PointingHandCursor }
                         }
                     }
                 }
@@ -1109,6 +1130,9 @@ Item {
                 Item {
                     width: msgTabLbl.implicitWidth
                     height: Theme.sp(24)
+                    transformOrigin: Item.Left
+                    scale: msgTabTap.pressed ? 0.97 : msgTabHover.hovered ? 1.02 : 1.0
+                    Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
 
                     Text {
                         id: msgTabLbl
@@ -1117,7 +1141,9 @@ Item {
                         font.family: Theme.fontBody
                         font.pixelSize: Theme.fontSzMicro
                         font.letterSpacing: Theme.trackingMicro
-                        color: root.logTab === 0 ? Theme.colorText2 : Theme.colorText3
+                        color: root.logTab === 0 ? Theme.colorText2
+                             : msgTabHover.hovered ? Theme.colorText2 : Theme.colorText3
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                     }
                     Rectangle {
                         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
@@ -1126,8 +1152,8 @@ Item {
                         color: Theme.colorAccent
                         visible: root.logTab === 0
                     }
-                    TapHandler   { onTapped: root.logTab = 0 }
-                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                    TapHandler   { id: msgTabTap; onTapped: root.logTab = 0 }
+                    HoverHandler { id: msgTabHover; cursorShape: Qt.PointingHandCursor }
                 }
 
                 // Stats History tab — only when the profiler is compiled in
@@ -1135,6 +1161,9 @@ Item {
                     visible: profiler.available
                     width: statsTabLbl.implicitWidth
                     height: Theme.sp(24)
+                    transformOrigin: Item.Left
+                    scale: statsTabTap.pressed ? 0.97 : statsTabHover.hovered ? 1.02 : 1.0
+                    Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
 
                     Text {
                         id: statsTabLbl
@@ -1143,7 +1172,9 @@ Item {
                         font.family: Theme.fontBody
                         font.pixelSize: Theme.fontSzMicro
                         font.letterSpacing: Theme.trackingMicro
-                        color: root.logTab === 1 ? Theme.colorText2 : Theme.colorText3
+                        color: root.logTab === 1 ? Theme.colorText2
+                             : statsTabHover.hovered ? Theme.colorText2 : Theme.colorText3
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                     }
                     Rectangle {
                         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
@@ -1152,8 +1183,8 @@ Item {
                         color: Theme.colorAccent
                         visible: root.logTab === 1
                     }
-                    TapHandler   { onTapped: root.logTab = 1 }
-                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                    TapHandler   { id: statsTabTap; onTapped: root.logTab = 1 }
+                    HoverHandler { id: statsTabHover; cursorShape: Qt.PointingHandCursor }
                 }
             }
 
@@ -1219,9 +1250,14 @@ Item {
                         width: clearLbl.implicitWidth + Theme.sp(16)
                         height: Theme.sp(18)
                         radius: Theme.radius
-                        color: "transparent"
+                        color: clearHover.hovered
+                               ? Theme.colorBg2
+                               : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
                         border.width: 1
-                        border.color: Theme.colorBorderMid
+                        border.color: clearHover.hovered ? Theme.colorAccentMid : Theme.colorBorderMid
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                        scale: clearTap.pressed ? 0.97 : clearHover.hovered ? 1.02 : 1.0
+                        Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
 
                         Text {
                             id: clearLbl
@@ -1232,8 +1268,8 @@ Item {
                             color: Theme.colorText3
                         }
 
-                        TapHandler  { onTapped: resourceMonitor.clearLog() }
-                        HoverHandler { cursorShape: Qt.PointingHandCursor }
+                        TapHandler  { id: clearTap; onTapped: resourceMonitor.clearLog() }
+                        HoverHandler { id: clearHover; cursorShape: Qt.PointingHandCursor }
                     }
 
                     // Export button — writes the log to a text file in the home directory
@@ -1244,9 +1280,14 @@ Item {
                         width: exportLbl.implicitWidth + Theme.sp(16)
                         height: Theme.sp(18)
                         radius: Theme.radius
-                        color: "transparent"
+                        color: exportHover.hovered
+                               ? Theme.colorBg2
+                               : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
                         border.width: 1
-                        border.color: Theme.colorBorderMid
+                        border.color: exportHover.hovered ? Theme.colorAccentMid : Theme.colorBorderMid
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                        scale: exportTap.pressed ? 0.97 : exportHover.hovered ? 1.02 : 1.0
+                        Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
 
                         Text {
                             id: exportLbl
@@ -1258,6 +1299,7 @@ Item {
                         }
 
                         TapHandler {
+                            id: exportTap
                             onTapped: {
                                 var path = resourceMonitor.exportLog()
                                 exportToast.copyText = path   // empty on failure → copy icon hidden
@@ -1265,7 +1307,7 @@ Item {
                                 else                 exportToast.show(qsTr("Log export failed"))
                             }
                         }
-                        HoverHandler { cursorShape: Qt.PointingHandCursor }
+                        HoverHandler { id: exportHover; cursorShape: Qt.PointingHandCursor }
                     }
 
                     // Inline text filter box
@@ -1333,12 +1375,17 @@ Item {
                                 height: Theme.sp(18)
                                 radius: Theme.sp(9)
                                 color: active
-                                    ? Qt.rgba(sevColor.r, sevColor.g, sevColor.b, 0.15)
-                                    : "transparent"
+                                    ? Qt.rgba(sevColor.r, sevColor.g, sevColor.b, sevChipHover.hovered ? 0.22 : 0.15)
+                                    : sevChipHover.hovered
+                                      ? Qt.rgba(sevColor.r, sevColor.g, sevColor.b, 0.08)
+                                      : "transparent"
                                 border.width: 1
                                 border.color: active
-                                    ? Qt.rgba(sevColor.r, sevColor.g, sevColor.b, 0.4)
-                                    : Theme.colorBorderMid
+                                    ? Qt.rgba(sevColor.r, sevColor.g, sevColor.b, sevChipHover.hovered ? 0.55 : 0.4)
+                                    : sevChipHover.hovered
+                                      ? Qt.rgba(sevColor.r, sevColor.g, sevColor.b, 0.4)
+                                      : Theme.colorBorderMid
+                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
                                 Text {
                                     id: chipLbl
@@ -1351,7 +1398,7 @@ Item {
                                 }
 
                                 TapHandler  { onTapped: msgLogColumn.toggleFilter(parent.modelData) }
-                                HoverHandler { cursorShape: Qt.PointingHandCursor }
+                                HoverHandler { id: sevChipHover; cursorShape: Qt.PointingHandCursor }
                             }
                         }
                     }
@@ -1531,9 +1578,14 @@ Item {
                         width: statsClearLbl.implicitWidth + Theme.sp(16)
                         height: Theme.sp(18)
                         radius: Theme.radius
-                        color: "transparent"
+                        color: statsClearHover.hovered
+                               ? Theme.colorBg2
+                               : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
                         border.width: 1
-                        border.color: Theme.colorBorderMid
+                        border.color: statsClearHover.hovered ? Theme.colorAccentMid : Theme.colorBorderMid
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                        scale: statsClearTap.pressed ? 0.97 : statsClearHover.hovered ? 1.02 : 1.0
+                        Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
                         Text {
                             id: statsClearLbl
                             anchors.centerIn: parent
@@ -1542,8 +1594,8 @@ Item {
                             font.pixelSize: Theme.sp(10)
                             color: Theme.colorText3
                         }
-                        TapHandler  { onTapped: profiler.clearStats() }
-                        HoverHandler { cursorShape: Qt.PointingHandCursor }
+                        TapHandler  { id: statsClearTap; onTapped: profiler.clearStats() }
+                        HoverHandler { id: statsClearHover; cursorShape: Qt.PointingHandCursor }
                     }
 
                     // Export
@@ -1553,9 +1605,14 @@ Item {
                         width: statsExportLbl.implicitWidth + Theme.sp(16)
                         height: Theme.sp(18)
                         radius: Theme.radius
-                        color: "transparent"
+                        color: statsExportHover.hovered
+                               ? Theme.colorBg2
+                               : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
                         border.width: 1
-                        border.color: Theme.colorBorderMid
+                        border.color: statsExportHover.hovered ? Theme.colorAccentMid : Theme.colorBorderMid
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                        scale: statsExportTap.pressed ? 0.97 : statsExportHover.hovered ? 1.02 : 1.0
+                        Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
                         Text {
                             id: statsExportLbl
                             anchors.centerIn: parent
@@ -1565,6 +1622,7 @@ Item {
                             color: Theme.colorText3
                         }
                         TapHandler {
+                            id: statsExportTap
                             onTapped: {
                                 var path = profiler.exportStats()
                                 exportToast.copyText = path
@@ -1572,7 +1630,7 @@ Item {
                                 else                 exportToast.show(qsTr("Stats export failed"))
                             }
                         }
-                        HoverHandler { cursorShape: Qt.PointingHandCursor }
+                        HoverHandler { id: statsExportHover; cursorShape: Qt.PointingHandCursor }
                     }
 
                     // Category filter chips
@@ -1591,12 +1649,17 @@ Item {
                                 height: Theme.sp(18)
                                 radius: Theme.sp(9)
                                 color: active
-                                    ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.15)
-                                    : "transparent"
+                                    ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, statsChipHover.hovered ? 0.22 : 0.15)
+                                    : statsChipHover.hovered
+                                      ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.08)
+                                      : "transparent"
                                 border.width: 1
                                 border.color: active
-                                    ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.4)
-                                    : Theme.colorBorderMid
+                                    ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, statsChipHover.hovered ? 0.55 : 0.4)
+                                    : statsChipHover.hovered
+                                      ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.4)
+                                      : Theme.colorBorderMid
+                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
                                 Text {
                                     id: statsChipLbl
@@ -1609,7 +1672,7 @@ Item {
                                 }
 
                                 TapHandler  { onTapped: profiler.toggleStatsCategory(modelData.name) }
-                                HoverHandler { cursorShape: Qt.PointingHandCursor }
+                                HoverHandler { id: statsChipHover; cursorShape: Qt.PointingHandCursor }
                             }
                         }
                     }

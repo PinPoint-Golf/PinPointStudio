@@ -175,6 +175,10 @@ Item {
                                : controller.sttBackend !== "" && controller.sttBackend !== "CPU"
                                  ? Theme.colorGoodLight
                                  : Theme.colorBg3
+                        scale: controller.cloudSttFallbackAvailable
+                               ? (sttBackendTap.pressed ? 0.97 : sttBackendHover.hovered ? 1.02 : 1.0)
+                               : 1.0
+                        Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
                         border.width: 1
                         border.color: controller.sttBackend === "Cloud"
                                       ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.25)
@@ -197,6 +201,7 @@ Item {
                                          ? Qt.PointingHandCursor : Qt.ArrowCursor
                         }
                         TapHandler {
+                            id: sttBackendTap
                             enabled: controller.cloudSttFallbackAvailable
                             onTapped: controller.toggleSttBackend()
                         }
@@ -425,6 +430,10 @@ Item {
                                : ttsController.ttsBackend !== ""
                                  ? Theme.colorGoodLight
                                  : Theme.colorBg3
+                        scale: ttsController.cloudTtsFallbackAvailable
+                               ? (backendTap.pressed ? 0.97 : backendHover.hovered ? 1.02 : 1.0)
+                               : 1.0
+                        Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
                         border.width: 1
                         border.color: ttsController.ttsBackend === "Cloud"
                                       ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.25)
@@ -449,6 +458,7 @@ Item {
                                          ? Qt.PointingHandCursor : Qt.ArrowCursor
                         }
                         TapHandler {
+                            id: backendTap
                             enabled: ttsController.cloudTtsFallbackAvailable
                             onTapped: ttsController.toggleTtsBackend()
                         }

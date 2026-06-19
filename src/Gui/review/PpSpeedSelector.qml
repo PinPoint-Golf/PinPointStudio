@@ -58,6 +58,7 @@ Rectangle {
                 color: active ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g,
                                         Theme.colorAccent.b, 0.16)
                               : segMa.containsMouse ? Theme.colorBg3 : "transparent"
+                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
                 Text {
                     id: segText

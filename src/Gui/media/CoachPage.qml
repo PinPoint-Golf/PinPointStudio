@@ -114,6 +114,10 @@ Item {
                        : llmController.llmBackend !== "" && llmController.llmBackend !== "CPU"
                          ? Theme.colorGoodLight
                          : Theme.colorBg3
+                scale: llmController.cloudLlmFallbackAvailable
+                       ? (llmBadgeTap.pressed ? 0.97 : llmBadgeHover.hovered ? 1.02 : 1.0)
+                       : 1.0
+                Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
                 border.width: 1
                 border.color: llmController.llmBackend === "Cloud"
                               ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.25)
@@ -139,6 +143,7 @@ Item {
                                  ? Qt.PointingHandCursor : Qt.ArrowCursor
                 }
                 TapHandler {
+                    id: llmBadgeTap
                     enabled: llmController.cloudLlmFallbackAvailable
                     onTapped: llmController.toggleLlmBackend()
                 }
@@ -250,6 +255,8 @@ Item {
                 height: voiceInLabel.implicitHeight + Theme.sp(8)
                 radius: height / 2
                 color: llmController.voiceInputEnabled ? Theme.colorGoodLight  : Theme.colorBg3
+                scale: voiceInTap.pressed ? 0.97 : voiceInHover.hovered ? 1.02 : 1.0
+                Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
                 border.width: 1
                 border.color: llmController.voiceInputEnabled
                               ? Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.35)
@@ -259,7 +266,7 @@ Item {
                               ? qsTr("Voice input ON — STT sends to coach")
                               : qsTr("Voice input OFF — tap to enable")
                 HoverHandler { id: voiceInHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler   { onTapped: llmController.setVoiceInput(!llmController.voiceInputEnabled) }
+                TapHandler   { id: voiceInTap; onTapped: llmController.setVoiceInput(!llmController.voiceInputEnabled) }
                 Label {
                     id: voiceInLabel
                     anchors.centerIn: parent
@@ -277,6 +284,8 @@ Item {
                 height: voiceOutLabel.implicitHeight + Theme.sp(8)
                 radius: height / 2
                 color: llmController.voiceOutputEnabled ? Theme.colorGoodLight : Theme.colorBg3
+                scale: voiceOutTap.pressed ? 0.97 : voiceOutHover.hovered ? 1.02 : 1.0
+                Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
                 border.width: 1
                 border.color: llmController.voiceOutputEnabled
                               ? Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.35)
@@ -286,7 +295,7 @@ Item {
                               ? qsTr("Voice output ON — coach responses are spoken")
                               : qsTr("Voice output OFF — tap to enable")
                 HoverHandler { id: voiceOutHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler   { onTapped: llmController.setVoiceOutput(!llmController.voiceOutputEnabled) }
+                TapHandler   { id: voiceOutTap; onTapped: llmController.setVoiceOutput(!llmController.voiceOutputEnabled) }
                 Label {
                     id: voiceOutLabel
                     anchors.centerIn: parent

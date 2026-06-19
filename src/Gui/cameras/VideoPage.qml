@@ -51,13 +51,18 @@ Item {
                     width: camChipLabel.implicitWidth + Theme.sp(16)
                     height: Theme.sp(24)
                     radius: Theme.radius
-                    color: modelData.selected ? Theme.colorAccent : Theme.colorSurface
+                    color: modelData.selected
+                           ? Theme.colorAccent
+                           : camChipHover.hovered ? Qt.lighter(Theme.colorSurface, 1.08) : Theme.colorSurface
                     border.width: 1
                     border.color: modelData.selected
                                   ? Theme.colorAccent
-                                  : Theme.colorBorderMid
+                                  : camChipHover.hovered ? Theme.colorAccentMid : Theme.colorBorderMid
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                     readonly property bool chipLocked: cameraManager.isRecording || shotProcessor.isReplaying
                     opacity: chipLocked ? 0.5 : 1.0
+                    scale: chipLocked ? 1.0 : (camChipTap.pressed ? 0.97 : camChipHover.hovered ? 1.02 : 1.0)
+                    Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
 
                     Text {
                         id: camChipLabel
@@ -70,10 +75,12 @@ Item {
                     }
 
                     TapHandler {
+                        id: camChipTap
                         enabled: !parent.chipLocked
                         onTapped: cameraManager.setSelected(modelData.index, !modelData.selected)
                     }
                     HoverHandler {
+                        id: camChipHover
                         enabled: !parent.chipLocked
                         cursorShape: Qt.PointingHandCursor
                     }

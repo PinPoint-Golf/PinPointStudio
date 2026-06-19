@@ -825,9 +825,19 @@ Item {
                                                                          && root.selectedGoals.length > 0
                                                                          && root.selectedGoals[0] === modelData.key
 
-                                        color:        sel ? Theme.colorAccentLight : "transparent"
+                                        // Multi-select goal card — chip/tile language: selected shows the
+                                        // accent wash + accent border; hover (unselected) fades a faint bg
+                                        // fill in (alpha-ramped → no flash) and eases the border to accentMid.
+                                        // Pairs with the PpPressable scale-grow / press-dip below.
+                                        color:        sel                  ? Theme.colorAccentLight
+                                                    : goalMa.containsMouse ? Theme.colorBg2
+                                                    :                        Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
                                         border.width: 1
-                                        border.color: sel ? Theme.colorAccent : Theme.colorBorderMid
+                                        border.color: sel                  ? Theme.colorAccent
+                                                    : goalMa.containsMouse ? Theme.colorAccentMid
+                                                    :                        Theme.colorBorderMid
+                                        Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
+                                        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
                                         Column {
                                             id: chipCol
@@ -866,9 +876,8 @@ Item {
                                             }
                                         }
 
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            cursorShape:  Qt.PointingHandCursor
+                                        PpPressable {
+                                            id: goalMa
                                             onClicked: {
                                                 root.goalsInteracted = true
                                                 var k   = chip.modelData.key
@@ -1348,9 +1357,12 @@ Item {
                                     implicitWidth:  imuWizScanMeasure.implicitWidth + Theme.sp(24)
                                     implicitHeight: Theme.sp(28)
                                     radius: Theme.radius
-                                    color:  scanning ? Theme.colorAccentLight : "transparent"
+                                    color:  scanning ? Theme.colorAccentLight
+                                                     : (imuWizScanArea.containsMouse ? Theme.colorBg2
+                                                            : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0))
                                     border.width: 1
-                                    border.color: scanning ? Theme.colorAccent : Theme.colorBorderStrong
+                                    border.color: scanning ? Theme.colorAccent
+                                                           : (imuWizScanArea.containsMouse ? Theme.colorAccentMid : Theme.colorBorderStrong)
                                     Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
                                     Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
@@ -1381,9 +1393,8 @@ Item {
                                             imuWizScanBtn.scanning = false
                                         }
                                     }
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape:  Qt.PointingHandCursor
+                                    PpPressable {
+                                        id: imuWizScanArea
                                         onClicked: {
                                             imuWizScanBtn.scanning = true
                                             imuManager.rescanImu()
@@ -2052,9 +2063,11 @@ Item {
                         implicitWidth:  primaryLbl.implicitWidth + Theme.sp(28)
                         implicitHeight: Theme.sp(38)
                         radius: Theme.radius
-                        color: root.currentStep < root.lastStep
+                        readonly property color _primaryBase: root.currentStep < root.lastStep
                                    ? Theme.colorAccent
                                    : (root.fullyReady ? Theme.colorGood : Theme.colorWarn)
+                        color: primaryArea.containsMouse ? Qt.lighter(_primaryBase, 1.08) : _primaryBase
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                         // Dim only when there's nothing actionable: Calibrate not done, or
                         // IMU connect-mode with nothing left to connect (and not mid-connect).
                         // Uses primaryArea.pressed for press feedback — imperative opacity
@@ -2082,10 +2095,9 @@ Item {
                             color: Theme.dark ? Theme.colorBg : "#FFFFFF"
                         }
 
-                        MouseArea {
+                        PpPressable {
                             id: primaryArea
-                            anchors.fill: parent
-                            cursorShape:  Qt.PointingHandCursor
+                            hoverScale: 1.0   // full-width CTA — keep press-dip only
                             onClicked: {
                                 // Camera connect-mode: connect instead of advancing.
                                 if (primaryBtn.camConnectMode) {

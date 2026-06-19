@@ -233,6 +233,7 @@ Item {
         Layout.fillWidth: true
         implicitHeight: Theme.sp(24)
         color: shMa.containsMouse ? Theme.colorBg3 : "transparent"
+        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
         radius: Theme.sp(4)
         RowLayout {
             anchors.fill: parent
@@ -251,8 +252,7 @@ Item {
             }
             Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.colorBorder }
         }
-        MouseArea { id: shMa; anchors.fill: parent; hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor; onClicked: sh.toggled() }
+        PpPressable { id: shMa; hoverScale: 1.0; onClicked: sh.toggled() }
     }
 
     // ── Layout ────────────────────────────────────────────────────────────────────
@@ -343,9 +343,13 @@ Item {
                     readonly property bool active: root._preset === segChip.lbl
                     implicitWidth: segLblText.width + Theme.sp(20); height: Theme.sp(28)
                     radius: Theme.sp(7)
-                    color: active ? Theme.colorAccentLight : "transparent"
+                    color: active ? Theme.colorAccentLight
+                                  : segChipMa.containsMouse ? Theme.colorAccentMid : "transparent"
                     border.width: 1
-                    border.color: active ? Theme.colorAccent : Theme.colorBorderMid
+                    border.color: active ? Theme.colorAccent
+                                         : segChipMa.containsMouse ? Theme.colorAccentMid : Theme.colorBorderMid
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
                     Text {
                         id: segLblText
                         anchors.centerIn: parent
@@ -355,6 +359,7 @@ Item {
                         color: segChip.active ? Theme.colorAccent : Theme.colorText2
                     }
                     MouseArea {
+                        id: segChipMa
                         anchors.fill: parent; hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: root._selectSegment(segChip.modelData)

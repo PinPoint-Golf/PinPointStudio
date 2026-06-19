@@ -424,9 +424,16 @@ Item {
 
                     readonly property bool isMirrored: (appSettings.cameraIsMirrored[camData.cameraKey] === true)
 
-                    color:        isMirrored ? Theme.colorAccent : Theme.colorSurface
+                    color:        isMirrored ? Theme.colorAccent
+                                : mirrorPress.containsMouse
+                                    ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.6)
+                                    : Theme.colorSurface
                     border.width: 1
-                    border.color: isMirrored ? Theme.colorAccent : Theme.colorBorderMid
+                    border.color: isMirrored ? Theme.colorAccent
+                                : mirrorPress.containsMouse ? Theme.colorAccentMid
+                                : Theme.colorBorderMid
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
                     Text {
                         id: mirrorLabel
@@ -438,8 +445,9 @@ Item {
                         font.weight:    Font.Normal
                     }
 
-                    TapHandler {
-                        onTapped: {
+                    PpPressable {
+                        id: mirrorPress
+                        onClicked: {
                             var map = appSettings.cameraIsMirrored
                             if (mirrorChip.isMirrored)
                                 delete map[camData.cameraKey]
@@ -450,7 +458,6 @@ Item {
                                 cameraManager.setIsMirrored(camRow.realInstance, !mirrorChip.isMirrored)
                         }
                     }
-                    HoverHandler { cursorShape: Qt.PointingHandCursor }
                 }
             }
 
@@ -490,6 +497,7 @@ Item {
                         model: parent.fpsOptions
 
                         delegate: Rectangle {
+                            id: fpsChip
                             required property var modelData
 
                             readonly property bool isSelected: Math.abs(parent.selectedFps - modelData) < 0.5
@@ -497,9 +505,14 @@ Item {
                             width:  fpsLabel.implicitWidth + Theme.sp(20)
                             height: Theme.sp(24)
                             radius: Theme.radius
-                            color:  isSelected ? Theme.colorAccentLight : "transparent"
+                            color:  isSelected ? Theme.colorAccentLight
+                                  : fpsArea.containsMouse
+                                      ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                                      : "transparent"
                             border.width: 1
-                            border.color: isSelected ? Theme.colorAccent : Theme.colorBorderStrong
+                            border.color: isSelected ? Theme.colorAccent
+                                        : fpsArea.containsMouse ? Theme.colorAccentMid
+                                        : Theme.colorBorderStrong
                             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                             Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
@@ -509,12 +522,14 @@ Item {
                                 text:           (Math.round(modelData * 10) / 10) + qsTr(" fps")
                                 font.family:    Theme.fontData
                                 font.pixelSize: Theme.fontSzMicro
-                                color:          isSelected ? Theme.colorAccent : Theme.colorText2
+                                color:          fpsChip.isSelected ? Theme.colorAccent : Theme.colorText2
                                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                             }
 
                             MouseArea {
+                                id: fpsArea
                                 anchors.fill: parent
+                                hoverEnabled: true
                                 cursorShape:  Qt.PointingHandCursor
                                 onClicked: {
                                     var map = appSettings.cameraTargetFps
@@ -557,6 +572,7 @@ Item {
                                 : [{ label: qsTr("Free-run"), mode: "freerun" }]
 
                         delegate: Rectangle {
+                            id: trigChip
                             required property var modelData
 
                             readonly property bool isSelected: parent.selectedMode === modelData.mode
@@ -564,9 +580,14 @@ Item {
                             width:  trigLabel.implicitWidth + Theme.sp(20)
                             height: Theme.sp(24)
                             radius: Theme.radius
-                            color:  isSelected ? Theme.colorAccentLight : "transparent"
+                            color:  isSelected ? Theme.colorAccentLight
+                                  : trigArea.containsMouse
+                                      ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                                      : "transparent"
                             border.width: 1
-                            border.color: isSelected ? Theme.colorAccent : Theme.colorBorderStrong
+                            border.color: isSelected ? Theme.colorAccent
+                                        : trigArea.containsMouse ? Theme.colorAccentMid
+                                        : Theme.colorBorderStrong
                             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                             Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
@@ -576,12 +597,14 @@ Item {
                                 text:           modelData.label
                                 font.family:    Theme.fontData
                                 font.pixelSize: Theme.fontSzMicro
-                                color:          isSelected ? Theme.colorAccent : Theme.colorText2
+                                color:          trigChip.isSelected ? Theme.colorAccent : Theme.colorText2
                                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                             }
 
                             MouseArea {
+                                id: trigArea
                                 anchors.fill: parent
+                                hoverEnabled: true
                                 cursorShape:  Qt.PointingHandCursor
                                 onClicked: {
                                     var map = appSettings.cameraTriggerMode
@@ -657,13 +680,19 @@ Item {
 
                 // Set crop — always available (setRoi() is a software crop on every camera)
                 Rectangle {
+                    id: cropBtn
                     visible: true
                     width:  cropLabel.implicitWidth + Theme.sp(24)
                     height: Theme.sp(26)
                     radius: Theme.radius
-                    color:  camRow.roiOpen ? Theme.colorAccentLight : "transparent"
+                    color:  camRow.roiOpen ? Theme.colorAccentLight
+                          : cropPress.containsMouse
+                              ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                              : "transparent"
                     border.width: 1
-                    border.color: camRow.roiOpen ? Theme.colorAccent : Theme.colorBorderStrong
+                    border.color: camRow.roiOpen ? Theme.colorAccent
+                                : cropPress.containsMouse ? Theme.colorAccentMid
+                                : Theme.colorBorderStrong
                     Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                     Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
@@ -678,9 +707,8 @@ Item {
                         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                     }
 
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape:  Qt.PointingHandCursor
+                    PpPressable {
+                        id: cropPress
                         onClicked: {
                             if (camRow.roiOpen) {
                                 root.openRoiIndex = -1
@@ -720,13 +748,19 @@ Item {
                 // persists for a fixed-in-place camera, which the panel
                 // explains inline.
                 Rectangle {
+                    id: ballBtn
                     visible: camData.perspective === CameraInstance.FaceOn
                     width:  ballLabel.implicitWidth + Theme.sp(24)
                     height: Theme.sp(26)
                     radius: Theme.radius
-                    color:  camRow.ballOpen ? Theme.colorAccentLight : "transparent"
+                    color:  camRow.ballOpen ? Theme.colorAccentLight
+                          : ballPress.containsMouse
+                              ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                              : "transparent"
                     border.width: 1
-                    border.color: camRow.ballOpen ? Theme.colorAccent : Theme.colorBorderStrong
+                    border.color: camRow.ballOpen ? Theme.colorAccent
+                                : ballPress.containsMouse ? Theme.colorAccentMid
+                                : Theme.colorBorderStrong
                     Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                     Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
@@ -741,9 +775,8 @@ Item {
                         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                     }
 
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape:  Qt.PointingHandCursor
+                    PpPressable {
+                        id: ballPress
                         onClicked: {
                             if (camRow.ballOpen) {
                                 root.closeBallPanel()
@@ -1435,14 +1468,19 @@ Item {
                                     ]
 
                                     delegate: Rectangle {
+                                        id: presetChip
                                         required property var modelData
 
                                         width:  presetLabel.implicitWidth + Theme.sp(20)
                                         height: Theme.sp(24)
                                         radius: Theme.radius
-                                        color:  "transparent"
+                                        color:  presetArea.containsMouse
+                                                    ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                                                    : "transparent"
                                         border.width: 1
-                                        border.color: Theme.colorBorderStrong
+                                        border.color: presetArea.containsMouse ? Theme.colorAccentMid : Theme.colorBorderStrong
+                                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
                                         Text {
                                             id: presetLabel
@@ -1455,7 +1493,9 @@ Item {
                                         }
 
                                         MouseArea {
+                                            id: presetArea
                                             anchors.fill: parent
+                                            hoverEnabled: true
                                             cursorShape:  Qt.PointingHandCursor
                                             onClicked: {
                                                 if (!camRow.instance) return
@@ -1662,12 +1702,17 @@ Item {
                             spacing: Theme.sp(6)
 
                             Rectangle {
+                                id: resetBtn
                                 width:  resetLabel.implicitWidth + Theme.sp(20)
                                 height: Theme.sp(26)
                                 radius: Theme.radius
-                                color:  "transparent"
+                                color:  resetPress.containsMouse
+                                            ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                                            : "transparent"
                                 border.width: 1
-                                border.color: Theme.colorBorderStrong
+                                border.color: resetPress.containsMouse ? Theme.colorAccentMid : Theme.colorBorderStrong
+                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
                                 Text {
                                     id: resetLabel
@@ -1679,9 +1724,8 @@ Item {
                                     color:          Theme.colorText2
                                 }
 
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape:  Qt.PointingHandCursor
+                                PpPressable {
+                                    id: resetPress
                                     onClicked: {
                                         if (camRow.instance)
                                             camRow.instance.setCropRoi(Qt.rect(0, 0, 1, 1))
@@ -1692,12 +1736,14 @@ Item {
                             Item { Layout.fillWidth: true }
 
                             Rectangle {
+                                id: roiDoneBtn
                                 width:  doneLabel.implicitWidth + Theme.sp(24)
                                 height: Theme.sp(26)
                                 radius: Theme.radius
-                                color:  Theme.colorAccentLight
+                                color:  roiDonePress.containsMouse ? Qt.lighter(Theme.colorAccentLight, 1.08) : Theme.colorAccentLight
                                 border.width: 1
                                 border.color: Theme.colorAccent
+                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
                                 Text {
                                     id: doneLabel
@@ -1709,9 +1755,8 @@ Item {
                                     color:          Theme.colorAccent
                                 }
 
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape:  Qt.PointingHandCursor
+                                PpPressable {
+                                    id: roiDonePress
                                     onClicked:    root.openRoiIndex = -1
                                 }
                             }
@@ -2060,6 +2105,7 @@ Item {
                         model: parent.prerollOptions
 
                         delegate: Rectangle {
+                            id: prerollChip
                             required property var modelData
 
                             readonly property bool isSelected: Math.abs(appSettings.cameraPreroll - modelData.value) < 0.01
@@ -2067,9 +2113,14 @@ Item {
                             width:  prerollLabel.implicitWidth + Theme.sp(20)
                             height: Theme.sp(24)
                             radius: Theme.radius
-                            color:  isSelected ? Theme.colorAccentLight : "transparent"
+                            color:  isSelected ? Theme.colorAccentLight
+                                  : prerollPress.containsMouse
+                                      ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                                      : "transparent"
                             border.width: 1
-                            border.color: isSelected ? Theme.colorAccent : Theme.colorBorderStrong
+                            border.color: isSelected ? Theme.colorAccent
+                                        : prerollPress.containsMouse ? Theme.colorAccentMid
+                                        : Theme.colorBorderStrong
                             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                             Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
@@ -2079,13 +2130,12 @@ Item {
                                 text:           modelData.label
                                 font.family:    Theme.fontData
                                 font.pixelSize: Theme.fontSzMicro
-                                color:          isSelected ? Theme.colorAccent : Theme.colorText2
+                                color:          prerollChip.isSelected ? Theme.colorAccent : Theme.colorText2
                                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                             }
 
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape:  Qt.PointingHandCursor
+                            PpPressable {
+                                id: prerollPress
                                 onClicked:    appSettings.cameraPreroll = modelData.value
                             }
                         }

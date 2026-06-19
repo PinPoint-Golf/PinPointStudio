@@ -32,9 +32,11 @@ Item {
 
     Rectangle {
         anchors.fill: parent
+        readonly property color _restColor: root.rowIndex % 2 === 0 ? Theme.colorSurface : Theme.colorBg
         color: root.isSelected
                    ? Theme.colorAccentLight
-                   : (root.rowIndex % 2 === 0 ? Theme.colorSurface : Theme.colorBg)
+                   : (rowPress.containsMouse ? Qt.lighter(_restColor, 1.08) : _restColor)
+        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
     }
 
     readonly property var avatarColors: [
@@ -150,9 +152,9 @@ Item {
         }
     }
 
-    MouseArea {
-        anchors.fill: parent
-        cursorShape:  Qt.PointingHandCursor
-        onClicked:    root.clicked()
+    PpPressable {
+        id:         rowPress
+        hoverScale: 1.0
+        onClicked:  root.clicked()
     }
 }

@@ -55,12 +55,13 @@ Item {
                 text:           qsTr("Clear all")
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody2
-                color:          Theme.colorAccent
+                color:          clearMa.containsMouse ? Qt.lighter(Theme.colorAccent, 1.08)
+                                                      : Theme.colorAccent
+                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                 opacity:        root.proxy.filterActive ? 1.0 : 0.45
-                MouseArea {
-                    anchors.fill:    parent
+                PpPressable {
+                    id: clearMa
                     anchors.margins: -Theme.sp(4)
-                    cursorShape:     Qt.PointingHandCursor
                     onClicked:       root.proxy.clearAll()
                 }
             }
@@ -92,7 +93,10 @@ Item {
                     height: Theme.sp(32)
                     radius: Theme.radius
                     color:  bandSelected ? Theme.qualityColor(modelData.lo)
-                                         : Theme.qualityColorLight(modelData.lo)
+                          : bandMa.containsMouse
+                                ? Qt.lighter(Theme.qualityColorLight(modelData.lo), 1.08)
+                                : Theme.qualityColorLight(modelData.lo)
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                     border.width: 1
                     border.color: bandSelected ? Theme.colorSurface : Theme.qualityColor(modelData.lo)
 
@@ -115,9 +119,8 @@ Item {
                                                      : Theme.qualityColor(modelData.lo)
                     }
 
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape:  Qt.PointingHandCursor
+                    PpPressable {
+                        id: bandMa
                         // Single atomic call — see ShotFilterProxyModel::setQualityBand.
                         onClicked: root.proxy.setQualityBand(bandSelected ? -1 : modelData.lo,
                                                              bandSelected ? -1 : modelData.hi)

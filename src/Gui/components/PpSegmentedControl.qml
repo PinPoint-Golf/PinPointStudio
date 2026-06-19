@@ -52,8 +52,11 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 radius: height / 2
-                color: active ? (seg.solid ? Theme.colorAccent : Theme.colorBg3)
-                              : "transparent"
+                // Inactive segments brighten on hover (alpha-ramped rest → no
+                // colour flash). No scale — contiguous segments share the track.
+                color: active             ? (seg.solid ? Theme.colorAccent : Theme.colorBg3)
+                     : segMa.containsMouse ? Theme.colorBg3
+                     :                       Qt.rgba(Theme.colorBg3.r, Theme.colorBg3.g, Theme.colorBg3.b, 0)
                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
                 Text {
@@ -68,6 +71,7 @@ Rectangle {
                            : Theme.colorText2
                 }
                 MouseArea {
+                    id: segMa
                     anchors.fill: parent; hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: seg.activated(modelData)

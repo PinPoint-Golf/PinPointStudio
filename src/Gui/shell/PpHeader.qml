@@ -88,12 +88,9 @@ Item {
                     }
                 }
 
-                MouseArea {
+                PpPressable {
                     id:           backHover
-                    anchors.fill: parent
-                    hoverEnabled: true
                     enabled:      root.backEnabled
-                    cursorShape:  root.backEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                     onClicked:    root.backRequested()
                 }
             }
@@ -117,12 +114,9 @@ Item {
                     }
                 }
 
-                MouseArea {
+                PpPressable {
                     id:           fwdHover
-                    anchors.fill: parent
-                    hoverEnabled: true
                     enabled:      root.forwardEnabled
-                    cursorShape:  root.forwardEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                     onClicked:    root.forwardRequested()
                 }
             }
@@ -226,12 +220,9 @@ Item {
                 function onIconColorChanged() { fsCanvas.requestPaint() }
             }
 
-            MouseArea {
-                id:           fsHover
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape:  Qt.PointingHandCursor
-                onClicked:    root.fullscreenToggleRequested()
+            PpPressable {
+                id:        fsHover
+                onClicked: root.fullscreenToggleRequested()
             }
         }
 
@@ -253,12 +244,9 @@ Item {
                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
             }
 
-            MouseArea {
-                id:           closeHover
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape:  Qt.PointingHandCursor
-                onClicked:    root.closeRequested()
+            PpPressable {
+                id:        closeHover
+                onClicked: root.closeRequested()
             }
         }
 

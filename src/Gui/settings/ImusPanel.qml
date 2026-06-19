@@ -434,6 +434,7 @@ Item {
                                 model: rateChipRow.rateOptions
 
                                 delegate: Rectangle {
+                                    id: rateChip
                                     required property var modelData
 
                                     readonly property bool isSelected: rateChipRow.selectedRate === modelData
@@ -441,9 +442,14 @@ Item {
                                     width:  rateChipLabel.implicitWidth + Theme.sp(20)
                                     height: Theme.sp(24)
                                     radius: Theme.radius
-                                    color:  isSelected ? Theme.colorAccentLight : "transparent"
+                                    color:  isSelected ? Theme.colorAccentLight
+                                          : rateArea.containsMouse
+                                              ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                                              : "transparent"
                                     border.width: 1
-                                    border.color: isSelected ? Theme.colorAccent : Theme.colorBorderStrong
+                                    border.color: isSelected ? Theme.colorAccent
+                                                : rateArea.containsMouse ? Theme.colorAccentMid
+                                                : Theme.colorBorderStrong
                                     Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
                                     Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
@@ -453,12 +459,14 @@ Item {
                                         text:           modelData + qsTr(" Hz")
                                         font.family:    Theme.fontData
                                         font.pixelSize: Theme.fontSzMicro
-                                        color:          isSelected ? Theme.colorAccent : Theme.colorText2
+                                        color:          rateChip.isSelected ? Theme.colorAccent : Theme.colorText2
                                         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                                     }
 
                                     MouseArea {
+                                        id: rateArea
                                         anchors.fill: parent
+                                        hoverEnabled: true
                                         cursorShape:  Qt.PointingHandCursor
                                         onClicked: {
                                             var map = appSettings.imuOutputRateHz
@@ -482,9 +490,14 @@ Item {
                         width:  testBtnLabel.implicitWidth + Theme.sp(24)
                         height: Theme.sp(26)
                         radius: Theme.radius
-                        color:  active ? Theme.colorAccentLight : "transparent"
+                        color:  active ? Theme.colorAccentLight
+                              : testPress.containsMouse
+                                  ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                                  : "transparent"
                         border.width: 1
-                        border.color: active ? Theme.colorAccent : Theme.colorBorderStrong
+                        border.color: active ? Theme.colorAccent
+                                    : testPress.containsMouse ? Theme.colorAccentMid
+                                    : Theme.colorBorderStrong
                         Layout.alignment: Qt.AlignVCenter
                         Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
                         Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
@@ -500,9 +513,8 @@ Item {
                             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                         }
 
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape:  Qt.PointingHandCursor
+                        PpPressable {
+                            id: testPress
                             onClicked: {
                                 if (imuRow.testOpen) {
                                     root.openTestId = ""
@@ -640,10 +652,14 @@ Item {
                         width:  disconnectMeasure.implicitWidth + Theme.sp(24)
                         height: Theme.sp(26)
                         radius: Theme.radius
-                        color:  "transparent"
+                        color:  connPress.containsMouse
+                                    ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                                    : "transparent"
                         border.width: 1
                         border.color: connected ? Qt.rgba(Theme.colorWarn.r, Theme.colorWarn.g, Theme.colorWarn.b, 0.5)
-                                                : Theme.colorBorderStrong
+                                    : connPress.containsMouse ? Theme.colorAccentMid
+                                    : Theme.colorBorderStrong
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                         Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
                         // Invisible sizer — always measures the longer string so the button
@@ -668,9 +684,8 @@ Item {
                             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                         }
 
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape:  Qt.PointingHandCursor
+                        PpPressable {
+                            id: connPress
                             onClicked: {
                                 if (imuRow.isConnected)
                                     imuManager.setSelected(imuData.index, false)
@@ -682,12 +697,14 @@ Item {
 
                     // Done button — closes the test panel; does not disconnect
                     Rectangle {
+                        id: testDoneBtn
                         width:  doneBtnLabel.implicitWidth + Theme.sp(24)
                         height: Theme.sp(26)
                         radius: Theme.radius
-                        color:  Theme.colorAccentLight
+                        color:  testDonePress.containsMouse ? Qt.lighter(Theme.colorAccentLight, 1.08) : Theme.colorAccentLight
                         border.width: 1
                         border.color: Theme.colorAccent
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
                         Text {
                             id: doneBtnLabel
@@ -699,9 +716,8 @@ Item {
                             color:          Theme.colorAccent
                         }
 
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape:  Qt.PointingHandCursor
+                        PpPressable {
+                            id: testDonePress
                             onClicked:    root.openTestId = ""
                         }
                     }
@@ -953,13 +969,19 @@ Item {
 
                                 // Zero orientation
                                 Rectangle {
+                                    id: zeroBtn
                                     width:  zeroLabel.implicitWidth + Theme.sp(20)
                                     height: Theme.sp(24)
                                     radius: Theme.radius
-                                    color:  "transparent"
+                                    color:  (parent.parent.enabled && zeroPress.containsMouse)
+                                                ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                                                : "transparent"
                                     border.width: 1
-                                    border.color: parent.parent.enabled
-                                                    ? Theme.colorBorderStrong : Theme.colorBorderMid
+                                    border.color: !parent.parent.enabled ? Theme.colorBorderMid
+                                                : zeroPress.containsMouse ? Theme.colorAccentMid
+                                                : Theme.colorBorderStrong
+                                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
                                     Text {
                                         id: zeroLabel
@@ -972,9 +994,8 @@ Item {
                                                             ? Theme.colorText2 : Theme.colorText3
                                     }
 
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape:  Qt.PointingHandCursor
+                                    PpPressable {
+                                        id: zeroPress
                                         onClicked:    if (imuRow.inst) imuRow.inst.zeroOrientation()
                                     }
                                 }
@@ -1132,9 +1153,14 @@ Item {
                     width:  scanningMeasure.implicitWidth + Theme.sp(24)
                     height: Theme.sp(26)
                     radius: Theme.radius
-                    color:  scanning ? Theme.colorAccentLight : "transparent"
+                    color:  scanning ? Theme.colorAccentLight
+                          : scanPress.containsMouse
+                              ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                              : "transparent"
                     border.width: 1
-                    border.color: scanning ? Theme.colorAccent : Theme.colorBorderStrong
+                    border.color: scanning ? Theme.colorAccent
+                                : scanPress.containsMouse ? Theme.colorAccentMid
+                                : Theme.colorBorderStrong
                     Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
                     Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
@@ -1170,9 +1196,8 @@ Item {
                         function onImuEnumeratedCountChanged() { scanTimer.stop(); scanBtn.scanning = false }
                     }
 
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape:  Qt.PointingHandCursor
+                    PpPressable {
+                        id: scanPress
                         onClicked: {
                             scanBtn.scanning = true
                             imuManager.rescanImu()
@@ -1418,9 +1443,14 @@ Item {
                             implicitWidth: segLabel.implicitWidth + Theme.sp(28)
                             height:        Theme.sp(30)
                             radius:        Theme.radius
-                            color:         active ? Theme.colorAccentLight : "transparent"
+                            color:         active ? Theme.colorAccentLight
+                                         : fusionArea.containsMouse
+                                             ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                                             : "transparent"
                             border.width:  1
-                            border.color:  active ? Theme.colorAccent : Theme.colorBorderStrong
+                            border.color:  active ? Theme.colorAccent
+                                         : fusionArea.containsMouse ? Theme.colorAccentMid
+                                         : Theme.colorBorderStrong
                             Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
                             Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
@@ -1436,7 +1466,9 @@ Item {
                             }
 
                             MouseArea {
+                                id: fusionArea
                                 anchors.fill: parent
+                                hoverEnabled: true
                                 cursorShape:  Qt.PointingHandCursor
                                 onClicked:    imuManager.setOrientationFilter(fusionSeg.modelData.key)
                             }

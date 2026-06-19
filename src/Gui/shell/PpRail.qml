@@ -110,12 +110,10 @@ Item {
                                     ? Theme.colorAccent : Theme.colorText3
             }
 
-            MouseArea {
-                anchors.fill: parent
+            PpPressable {
                 // Athlete picker (index 7) is unreachable while the wizard is
                 // open or a session is active.
                 enabled:      !root.locked && root.sessionLockIndex < 0
-                cursorShape:  enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                 onClicked:    root.avatarClicked()
             }
         }
