@@ -314,6 +314,8 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
     double armAxisSigmaDeg   = 35.0;   // R2 interim prior width (fallback when no swing-progress)
     bool   useEnvelope       = false;  // R6: hard-reject kinematically impossible candidates
     int    chirality         = +1;     // handedness × mirror sign for predictClubAngle (K5/handedness refines)
+    bool   useBlurMode       = false;  // R8: blur-first detection in the delivery→impact zone
+    double expExposureUs     = 3000.0; // exposure-time estimate for the fan width (K4 two-pass refine later)
     {
         namespace tn = tuning;
         const QVariantMap &ov = job.tuningOverrides;
@@ -324,6 +326,8 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
         tn::apply(ov, "shaft.armAxisSigmaDeg",   armAxisSigmaDeg);
         tn::apply(ov, "shaft.useEnvelope",       useEnvelope);
         tn::apply(ov, "shaft.chirality",         chirality);
+        tn::apply(ov, "shaft.useBlurMode",       useBlurMode);
+        tn::apply(ov, "shaft.expExposureUs",     expExposureUs);
     }
     chirality = chirality < 0 ? -1 : +1;
     const double armPxMed = medianArmPx(pose, w, h);
@@ -356,6 +360,7 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
     dcfg.minShaftLenPx = dcfg.minVisibleLenPx;
     if (minLenFracOfArm > 0.0 && armPxMed > 5.0)
         dcfg.minShaftLenPx = std::max(dcfg.minVisibleLenPx, float(minLenFracOfArm * armPxMed));
+    const float sharpMinShaftLenPx = dcfg.minShaftLenPx;   // R8 relaxes from this in blur frames
 
     QElapsedTimer wall;
     wall.start();
@@ -371,6 +376,9 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
     std::vector<ShaftSample2D> predicted;        // R7: pure model, one per frame with a prediction
     double residSumSq = 0.0;                      // R7 residual (prior-free measured vs predicted)
     int    residN     = 0;
+    float   prevPredDir  = 0.f;                   // R8 ω̂ finite-difference state
+    int64_t prevPredT    = 0;
+    bool    havePrevPred = false;
     size_t poseIdx = 0, scanned = 0;
     int detected = 0;
     cv::Mat luma;
@@ -398,10 +406,12 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
         // unavailable.
         float predDirRad = 0.f, predSigmaRad = 0.f;
         int   predSide   = 0;
+        float frameS     = -1.f;
         bool  havePred   = false;
         if (a.hasArm) {
             float s = 0.f;
             if (swingProgressAt(segmentation, e.timestamp_us, s)) {
+                frameS = s;
                 kinematics::ClubAnglePrediction pr;
                 predDirRad   = kinematics::predictClubAngle(a.phiArmRad, s, chirality, &pr);
                 predSigmaRad = pr.sigmaRad;
@@ -412,6 +422,35 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
             }
             havePred = true;
         }
+
+        // R8 blur trigger (per-frame dcfg; detectShaft consumes blurMode in K4b).
+        // ω̂ from the model prediction's frame-to-frame rate (always available);
+        // fan angular width = ω̂·t_exp. Enter blur mode in the delivery→impact span
+        // or when the fan exceeds the ridge kernel, and relax the R5 length floor
+        // to the proximal-crisp extent (only the near-grip shaft stays sharp).
+        // Defaults reset every frame; gated OFF by default.
+        dcfg.blurMode       = false;
+        dcfg.predFanHalfRad = 0.f;
+        dcfg.minShaftLenPx  = sharpMinShaftLenPx;
+        if (useBlurMode && havePred) {
+            float omega = 0.f;                         // rad/s
+            if (havePrevPred && e.timestamp_us > prevPredT) {
+                const double dt  = double(e.timestamp_us - prevPredT) * 1e-6;
+                const double dth = std::remainder(double(predDirRad) - double(prevPredDir), 2.0 * kPi);
+                omega = float(std::abs(dth) / std::max(dt, 1e-4));
+            }
+            const float fanWidthRad = omega * float(expExposureUs * 1e-6);
+            const bool  inBlurPhase = frameS >= 0.78f && frameS <= 0.96f;   // Delivery→Release
+            if (fanWidthRad > float(4.0 * kDeg2Rad) || inBlurPhase) {
+                dcfg.blurMode       = true;
+                dcfg.predFanHalfRad = 0.5f * fanWidthRad;
+                const float proximal = (fanWidthRad > 1e-3f)
+                    ? 0.5f * float(dcfg.ridgeKernelPx) / fanWidthRad
+                    : sharpMinShaftLenPx;
+                dcfg.minShaftLenPx = std::clamp(proximal, dcfg.minVisibleLenPx, sharpMinShaftLenPx);
+            }
+        }
+        if (havePred) { prevPredDir = predDirRad; prevPredT = e.timestamp_us; havePrevPred = true; }
 
         const pinpoint::SourceRing::ReadHandle handle = window.payloadOf(e);
         if (pinpoint::decodeToLuma(*cfmt, handle.data, handle.bytes, luma)) {
