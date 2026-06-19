@@ -1,9 +1,17 @@
 # Shaft Detection — Skeleton-Aware Enhancement (Implementation Plan)
 
-> **Status:** **PLANNED — not started.** · **Date:** 2026-06-19 · **Grounded against:** `main`
-> @ `c71c73c` · **Implements:**
+> **Status:** **K0–K4b BUILT & PUSHED** (commits `69fbedf..4046832`, all dark behind `shaft.*`
+> flags — shipped behaviour byte-identical) · **K5 corpus validation + flag-flips PENDING**
+> (data-gated) · **R4 + all K4 deferrals deferred to post-K5** (see the *Deferred work register*
+> at the bottom). · **Date:** 2026-06-19 · **Grounded against:** `main` @ `4046832` ·
+> **Implements:**
 > [`docs/design/shaft_detection_skeleton_design.md`](../design/shaft_detection_skeleton_design.md)
 > (gaps G1–G6, revisions R1–R8).
+>
+> **As-built (K0–K4b):** analyzer-tests **28/28** green (incl. new R1/R2/R5/R6/R8 cases +
+> `shaft_kinematics_test` + the `predicted` swing-doc round-trip); app + `swinglab_run` build
+> clean; headless offscreen QML smoke clean. **Not yet validated:** anything needing a real
+> captured swing — all `shaft.*` flags stay OFF until K5.
 >
 > **Extends, does not replace.** The shipped ShaftTracker (stages **S0–S4**, see
 > [`shaft_tracker_impl.md`](shaft_tracker_impl.md) and `shot_analyzer_design.md` addendum
@@ -499,3 +507,95 @@ the SwingLab status memory.
 **Bottom line:** land K0→K4 dark behind flags, prove each on the SwingLab corpus in K5, then flip.
 The detection core change is confined to K4 and is envelope-bounded; everything else is anchor
 inputs, a pure header, additive output, and instrumentation.
+
+---
+
+## Deferred work register — DO AFTER THE K5 CORPUS
+
+> **Decision (2026-06-19):** after K0–K4b shipped, the next coding items (the R4 assembly seed and
+> the three K4 refinements) were **consciously deferred until a clean SwingLab corpus exists**, even
+> though all of them are *codeable* now behind flags. Reason: their **value/correctness is
+> fundamentally a real-footage question**, so building them blind risks rework or building the wrong
+> thing. This register is the long-form reminder so they are not lost. Each item is dark-by-default
+> and independent; pick them up in roughly the order below once K5 is underway.
+>
+> **Before starting any of these:** the headline first step is still **K5** — run the SwingLab A/B
+> on a clean corpus (calibrated/perspective-tagged, `/mnt/swingdata`; see the swing-capture-
+> provenance + swinglab-status memories), flip the K0–K4 flags that earn it, and **calibrate the R6
+> β̂ table from IMU-equipped clips** (`shaft_kinematics.h::detail::kKnots`). That calibration makes
+> the predictions below trustworthy; doing the refinements before it is premature.
+
+### D0 · R4 — seed the S2 assembly from φ_club_pred at Address  *(task #10; lowest risk)*
+
+- **What:** prime the track-assembly bootstrap with the kinematic prediction at Address instead of
+  letting it cold-start from vision alone.
+- **Why deferred (not why-blocked):** *codeable + synthetically testable now*, but its only real
+  benefit is faster / more robust convergence on real swings — measure it in K5, don't guess.
+- **Files / surface:** `src/Analysis/shaft_track_assembly.{h,cpp}` — `calibrateShaftInHand()` (seed
+  the ŝ_hand initial guess to narrow the blind 800-point Fibonacci lattice, `shaft_track_assembly.cpp:~210`)
+  and the first-Viterbi/KF node init (`~L433`, currently first vision measurement or IMU). Add an
+  optional `seedThetaRad` (+ valid flag) to `AssemblyConfig`; thread `φ_club_pred@Address` from
+  `ShaftTracker::track` into `assemble()`. `src/Analysis/tests/shaft_track_test.cpp` for the test.
+- **Validate (synthetic, legitimate):** on the existing synthetic candidate sequences assert the
+  seeded run **converges to the same θ track** (invariant — must not change the answer) in **fewer
+  iterations / with a worse initial guess** than cold-start. Acceptance: identical converged track,
+  measurable convergence speed-up; gated behind a flag (`assembly.seedFromAddress`, default off).
+
+### D1 · Residual-bounded blur aggressiveness  *(task #11a; ties R7 → R8)*
+
+- **What:** scale blur-mode aggressiveness by *this swing's* `modelVisionResidualDeg` — when the
+  model and the sharp-frame vision disagree (high residual), the prediction is untrustworthy, so
+  **widen the envelope and raise `blurThreshScale` toward 1.0** (lean on the model less). When they
+  agree, trust the envelope and integrate harder.
+- **Why deferred:** needs a **two-pass structure** (compute the residual over the sharp frames
+  *first*, then blur-process), and the right mapping (residual → envelope-width / threshold) is a
+  tuning curve only real swings can calibrate.
+- **Files / surface:** `src/Analysis/shaft_tracker.cpp::track()` — currently single-pass; split into
+  (1) sharp pass accumulating `residSumSq/residN` (already computed) and (2) a blur pass that reads
+  the finished `modelVisionResidualDeg`. Feed it into the per-frame `dcfg.predFanHalfRad` / a new
+  `dcfg.blurThreshScale` modulation. Possibly a new `shaft.blurResidualGainDeg` knob.
+- **Validate:** synthetic — assert that injecting a large model/vision residual widens the envelope
+  and raises the threshold (logic test); real benefit is K5. Acceptance: no fabrication increase;
+  blur coverage holds on agreeing swings, tightens on disagreeing ones.
+
+### D2 · Two-pass exposure estimation  *(task #11b)*
+
+- **What:** replace the fixed `shaft.expExposureUs` (3 ms default) with a per-shot estimate —
+  pass 1 detects wedges on moderate-ω frames, fit `t_exp = median(observedWedgeWidthRad / ω̂)`,
+  pass 2 re-runs blur with it. Drives the predicted fan width `predFanHalfRad = 0.5·ω̂·t_exp`.
+- **Why deferred:** the fit needs *observed* wedges; reliable only once blur mode is exercised on
+  real footage. Also feeds the **exposure-feedback** K6 item (write `t_exp` back into the
+  camera-capabilities block for next-shot priors).
+- **Files / surface:** `src/Analysis/shaft_tracker.cpp::track()` (the ω̂/exposure block, the
+  `expExposureUs` local). B.4 already notes per-camera exposure falls out of wedge widths.
+- **Validate (synthetic, *non-circular*):** render synthetic wedges with a **known planted
+  exposure** and assert the fit recovers it within tolerance. Acceptance: recovered `t_exp` within
+  ~20% of planted; graceful fallback to the default when too few wedges.
+
+### D3 · R8-T2 — temporal-difference / median-background smear pass  *(task #11c; the speculative one)*
+
+- **What:** the most sensitive faint-smear detector — build a **median background** over the swing
+  window and difference each frame to isolate the moving club from the near-static scene, then
+  integrate the diff inside the R6 envelope. Recovers smears too faint for even the K4b
+  single-frame integrator.
+- **Why deferred (the strongest case):** its *entire reason to exist* is the faintest **real**
+  semi-transparent motion blur, which the current synthetic renderer (`renderWedge`, averaged
+  sub-angle line draws) only crudely approximates. **Validating it needs real footage** — building
+  it against an unverified synthetic risks building the wrong thing. **Do not start until a corpus
+  shows whether single-frame K4b is insufficient** (it may already be enough on real swings).
+- **Files / surface:** new pass in `src/Analysis/shaft_tracker.cpp` (S0 already decodes every frame
+  to luma — `decodeToLuma`); a new helper for the background model. **Mask by the R6 envelope
+  before differencing** so the diff is club, not the fast-moving lead arm/hands. **Memory/perf:**
+  use a streaming / approximate median, NOT all-frames-in-RAM (large-export-stream memory caution);
+  the window can be multi-GB.
+- **Validate:** synthetic temporal sequence (moving shaft over static bg) → assert the diff isolates
+  the club and integration recovers a smear below the single-frame floor; **but treat the synthetic
+  result as indicative only** — the real acceptance is corpus blur-span coverage vs K4b-T1 alone,
+  with **zero** rise in off-axis false positives (the G5 counter).
+
+### Longer-horizon (already in K6 above, not blocked on K5 specifically)
+
+Per-subject `L_arm_nominal` (athlete-profile height→arm), DTL extension (view-specific β̂ table +
+σ), 3-D swing-plane β̂ (needs C1 intrinsics), and proper handedness/`mirroredSource`-driven
+`chirality` (currently the `shaft.chirality` override, default +1). These ride later subsystem work
+(athlete profiles, C1 calibration, DTL) rather than the K5 corpus.
