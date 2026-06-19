@@ -32,6 +32,7 @@
 #include "swing_window.h"
 #include "format_descriptor.h"
 #include "../Core/pp_debug.h"
+#include "../Core/pp_profiler.h"
 #include "../Export/frame_decode.h"
 
 namespace pinpoint::analysis {
@@ -278,6 +279,8 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
     }
     const int w = int(cfmt->width), h = int(cfmt->height);
 
+    PP_PROFILE_SCOPE("Shaft.track");   // whole per-shot tracker (config + per-frame loop + assembly)
+
     // Prior-quality pixel scale from the pose silhouette (sizes the search
     // radius only). Falls back to a half-frame radius when pose never sees a
     // full body. SwingLab "shaft.*" overrides apply first; maxRadiusPx is
@@ -454,7 +457,12 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
         if (havePred) { prevPredDir = predDirRad; prevPredT = e.timestamp_us; havePrevPred = true; }
 
         const pinpoint::SourceRing::ReadHandle handle = window.payloadOf(e);
-        if (pinpoint::decodeToLuma(*cfmt, handle.data, handle.bytes, luma)) {
+        bool decoded;
+        {
+            PP_PROFILE_SCOPE("Shaft.decode");   // per-frame frame → luma decode
+            decoded = pinpoint::decodeToLuma(*cfmt, handle.data, handle.bytes, luma);
+        }
+        if (decoded) {
             AnchorPrior prior;
             prior.gripPx          = a.grip;
             prior.hasInterHandDir = a.hasInterHand;
@@ -471,7 +479,10 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
                 prior.armSide           = predSide;
                 prior.hasKinematicDir   = useKinematicPrior;
             }
-            o.candidates = detectShaft(luma, dcfg, prior);
+            {
+                PP_PROFILE_SCOPE("Shaft.detect");   // per-frame radial detection (blur/fan/SNR cues)
+                o.candidates = detectShaft(luma, dcfg, prior);
+            }
             // R6 envelope guardrail: drop kinematically impossible candidates
             // (> envelopeHardK·σ_β from the prediction). Independent of the soft
             // prior — it can hard-reject off-axis clutter without biasing the
@@ -569,8 +580,12 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
         tn::apply(ov, "assembly.confSigmaRefRad",     acfg.confSigmaRefRad);
         tn::apply(ov, "assembly.coverageMin",         acfg.coverageMin);
     }
-    ShaftTrack2D track = ShaftTrackAssembly::assemble(
-        obs, spanLo, spanHi, acfg, trace ? &trace->assembly : nullptr);
+    ShaftTrack2D track;
+    {
+        PP_PROFILE_SCOPE("Shaft.assemble");   // Viterbi association + wrap-aware KF/RTS smoother
+        track = ShaftTrackAssembly::assemble(
+            obs, spanLo, spanHi, acfg, trace ? &trace->assembly : nullptr);
+    }
     if (trace)
         trace->obs = obs;
     track.camera      = pose.camera;

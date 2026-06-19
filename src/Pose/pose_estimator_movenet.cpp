@@ -246,6 +246,8 @@ void PoseEstimatorMoveNet::estimatePose(const cv::Mat &frame)
         return;
     }
 
+    PP_PROFILE_SCOPE("Pose.MoveNet.run");   // full per-frame estimate (preprocess + infer + decode)
+
     // Record arrival time for FPS (interval between successive calls).
     const qint64 nowNs = m_ort->wallTimer.nsecsElapsed();
 
@@ -264,6 +266,8 @@ void PoseEstimatorMoveNet::estimatePose(const cv::Mat &frame)
     inferTimer.start();
 
     try {
+        PP_PROFILE_SCOPE("Pose.MoveNet.infer");   // ORT Run() + keypoint decode
+
         Ort::MemoryInfo memInfo =
             Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 

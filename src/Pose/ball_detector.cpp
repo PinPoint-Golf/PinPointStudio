@@ -23,6 +23,8 @@
 #include <QElapsedTimer>
 #include <opencv2/imgproc.hpp>
 
+#include "pp_profiler.h"
+
 BallDetector::BallDetector(QObject *parent)
     : QObject(parent)
 {
@@ -77,6 +79,8 @@ void BallDetector::detect(const cv::Mat &frame)
         emit detectionSkipped();
         return;
     }
+
+    PP_PROFILE_SCOPE("Ball.detect");   // ROI extraction + calibrated detection (per frame)
 
     QElapsedTimer t;
     t.start();
