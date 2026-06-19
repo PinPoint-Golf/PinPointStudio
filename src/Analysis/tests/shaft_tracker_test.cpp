@@ -315,6 +315,109 @@ static void testTiming()
     CHECK("mean detect time < 10 ms (CI bound; design target 2 ms)", meanMs < 10.0);
 }
 
+// ---- Skeleton-aware enhancement (K1): R5 length gate, R2 kinematic prior ----
+
+static bool candNear(const std::vector<ShaftCandidate> &cands, double thetaDeg, double tolDeg)
+{
+    for (const ShaftCandidate &c : cands)
+        if (angDiffDeg(c.thetaRad, deg2rad(thetaDeg)) < tolDeg)
+            return true;
+    return false;
+}
+
+// R5: a candidate shorter than the arm-relative floor (cfg.minShaftLenPx) is
+// dropped at selection (kills the "impossibly small shaft"); a real full-length
+// shaft clears the same floor. The floor only ever tightens, so the default
+// config (minShaftLenPx == minVisibleLenPx) is unchanged — proven by the other
+// tests still passing.
+static void testR5LengthFloor()
+{
+    std::printf("=== R5 length floor — sub-arm ridge rejected, long shaft kept ===\n");
+    // A short, strong bright ridge (the glove-seam / logo false positive R5
+    // targets): 90 px, well above the default 30 px floor.
+    cv::Mat shortImg = makeBackground(false);
+    drawTaperedLine(shortImg, kGrip, deg2rad(kThetaDeg), 90.0, +110);
+    addNoise(shortImg, 6.0, 11);
+
+    ShaftDetectConfig def;                        // default floor (== minVisibleLenPx)
+    AnchorPrior prior; prior.gripPx = kGrip;
+    CHECK("short ridge detected at default floor",
+          candNear(detectShaft(shortImg, def, prior), kThetaDeg, 4.0));
+
+    ShaftDetectConfig hi = def;
+    hi.minShaftLenPx = 200.f;                     // ≈ one arm — longer than the 90 px ridge
+    CHECK("short ridge rejected above one-arm floor",
+          !candNear(detectShaft(shortImg, hi, prior), kThetaDeg, 4.0));
+
+    // A real, full-length shaft clears the same floor.
+    cv::Mat longImg = makeBackground(false);
+    drawTaperedLine(longImg, kGrip, deg2rad(kThetaDeg), kLenPx, +80);
+    addNoise(longImg, 6.0, 12);
+    CHECK("full-length shaft survives one-arm floor",
+          candNear(detectShaft(longImg, hi, prior), kThetaDeg, 4.0));
+}
+
+// R2: the kinematic-direction bump favours the pointed-at direction and, with
+// priorFloor, never zeroes the true bin even when it points the wrong way.
+static void testR2KinematicPrior()
+{
+    std::printf("=== R2 kinematic prior — bump favours true shaft, never hard-gates ===\n");
+    const double trueDeg = 65.0, clutterDeg = 115.0;
+    cv::Mat img = makeBackground(false);
+    drawTaperedLine(img, kGrip, deg2rad(trueDeg),    kLenPx, +70);   // true shaft
+    drawTaperedLine(img, kGrip, deg2rad(clutterDeg), kLenPx, +70);   // equal-strength off-axis clutter
+    addNoise(img, 6.0, 21);
+
+    AnchorPrior toTrue; toTrue.gripPx = kGrip;
+    toTrue.hasKinematicDir   = true;
+    toTrue.kinematicDirRad   = deg2rad(trueDeg);
+    toTrue.kinematicSigmaRad = static_cast<float>(deg2rad(25.0));
+    ShaftDetectConfig cfg;
+    const auto cands = detectShaft(img, cfg, toTrue);
+    CHECK("candidates found", !cands.empty());
+    if (!cands.empty())
+        CHECK_NEAR("top candidate pulled to kinematic direction",
+                   angDiffDeg(cands.front().thetaRad, deg2rad(trueDeg)), 0.0, 4.0);
+
+    // A prior pointing the wrong way must not erase a real shaft (floor 0.3).
+    cv::Mat solo = makeBackground(false);
+    drawTaperedLine(solo, kGrip, deg2rad(trueDeg), kLenPx, +70);
+    addNoise(solo, 6.0, 22);
+    AnchorPrior away; away.gripPx = kGrip;
+    away.hasKinematicDir   = true;
+    away.kinematicDirRad   = deg2rad(trueDeg + 180.0);
+    away.kinematicSigmaRad = static_cast<float>(deg2rad(25.0));
+    CHECK("true shaft survives an opposed prior (no hard gate)",
+          candNear(detectShaft(solo, cfg, away), trueDeg, 4.0));
+}
+
+// R1 (observable effect only): cfg.maxRadiusPx bounds the detection reach — the
+// lever the arm-scale ladder sets. The arm-vs-silhouette ladder itself lives in
+// the orchestrator (shaft_tracker.cpp) and is validated on real lower-body-cropped
+// clips in K5; here we only confirm the radius genuinely caps reach.
+static void testR1RadiusBound()
+{
+    std::printf("=== R1 search-radius bound — maxRadiusPx caps detection reach ===\n");
+    cv::Mat img = makeBackground(false);
+    drawTaperedLine(img, kGrip, deg2rad(kThetaDeg), kLenPx, +80);    // 320 px shaft
+    addNoise(img, 6.0, 31);
+    AnchorPrior prior; prior.gripPx = kGrip;
+
+    ShaftDetectConfig full;                        // maxRadiusPx = 400 default
+    const auto cf = detectShaft(img, full, prior);
+    CHECK("full-radius detects long shaft", !cf.empty());
+    const double fullLen = cf.empty() ? 0.0 : cf.front().visibleLenPx;
+
+    ShaftDetectConfig clipped = full;
+    clipped.maxRadiusPx = 150.f;                   // a small arm-scaled radius
+    const auto cc = detectShaft(img, clipped, prior);
+    CHECK("clipped radius still detects the shaft", candNear(cc, kThetaDeg, 4.0));
+    const double clipLen = cc.empty() ? 0.0 : cc.front().visibleLenPx;
+    std::printf("  (info) visibleLen: full=%.0f px, clipped=%.0f px\n", fullLen, clipLen);
+    CHECK("clipped reach bounded by maxRadius", clipLen <= clipped.maxRadiusPx + 10.0);
+    CHECK("full reach materially longer than clipped", fullLen > clipLen + 80.0);
+}
+
 int main()
 {
     testCleanBright();
@@ -323,6 +426,9 @@ int main()
     testClutterStickAndShadow();
     testAnchorError();
     testElbowMask();
+    testR5LengthFloor();
+    testR2KinematicPrior();
+    testR1RadiusBound();
     testTiming();
 
     std::printf("\n%s (%d failure%s)\n", g_fail ? "FAILED" : "ALL PASS",
