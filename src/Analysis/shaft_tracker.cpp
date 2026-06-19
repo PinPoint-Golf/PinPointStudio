@@ -41,9 +41,16 @@ namespace {
 constexpr double kAssumedStatureM = 1.70;
 
 // COCO keypoint indices used for anchors/clutter masks.
+constexpr int kLeftShoulder  = 5;
+constexpr int kRightShoulder = 6;
 constexpr int kLeftElbow  = 7;
 constexpr int kRightElbow = 8;
 constexpr float kKpMinConf = 0.30f;
+
+// Nominal acromion→wrist length (m) — only the R1 arm-derived pixel scale uses
+// it, and only as a prior-quality scale (never a metric). Population average.
+constexpr double kArmNominalM = 0.52;
+constexpr double kDeg2Rad     = 3.14159265358979323846 / 180.0;
 
 struct AnchorState {
     cv::Point2f grip;
@@ -51,6 +58,11 @@ struct AnchorState {
     float interHandRad = 0.f;
     int   numElbows    = 0;
     float elbowRad[2]  = { 0.f, 0.f };
+    // Lead-arm geometry (K1): "arms hang from the shoulders to the hands."
+    bool        hasArm    = false;
+    float       phiArmRad = 0.f;    // image angle shoulder(s)→grip (the arm-hang direction)
+    float       armPx     = 0.f;    // shoulder→grip length px (× forearm-scale on elbow fallback)
+    cv::Point2f shoulderRef;        // shoulder midpoint / single shoulder / elbow fallback, image px
 };
 
 // Linear interpolation of the per-frame anchor between bracketing pose
@@ -97,6 +109,42 @@ AnchorState anchorAt(const PoseTrack2D &pose, size_t lo, size_t hi, int64_t t,
         if (s.numElbows == 2)
             break;
     }
+
+    // Lead-arm geometry: handedness-free — the shoulder midpoint → grip vector is
+    // both the "arm hang" direction (R2 prior) and an arm-length proxy (R1 scale).
+    // Forearm (elbow→grip × ~full-arm/forearm ratio) is the fallback when the
+    // shoulders are occluded; nothing when neither is confident.
+    {
+        auto conf2 = [&](int j) { return std::min(a.conf[size_t(j)], b.conf[size_t(j)]); };
+        auto kpPx  = [&](int j) { return toPx(lerp(a.kp[size_t(j)], b.kp[size_t(j)])); };
+        const bool ls = conf2(kLeftShoulder)  >= kKpMinConf;
+        const bool rs = conf2(kRightShoulder) >= kKpMinConf;
+        cv::Point2f ref;
+        bool  haveRef  = false;
+        float lenScale = 1.f;
+        if (ls && rs) {
+            ref = 0.5f * (kpPx(kLeftShoulder) + kpPx(kRightShoulder));
+            haveRef = true;
+        } else if (ls || rs) {
+            ref = kpPx(ls ? kLeftShoulder : kRightShoulder);
+            haveRef = true;
+        } else {
+            const bool le = conf2(kLeftElbow)  >= kKpMinConf;
+            const bool re = conf2(kRightElbow) >= kKpMinConf;
+            if (le && re) { ref = 0.5f * (kpPx(kLeftElbow) + kpPx(kRightElbow)); haveRef = true; lenScale = 1.9f; }
+            else if (le || re) { ref = kpPx(le ? kLeftElbow : kRightElbow); haveRef = true; lenScale = 1.9f; }
+        }
+        if (haveRef) {
+            const cv::Point2f d = s.grip - ref;
+            const float len = std::hypot(d.x, d.y);
+            if (len > 8.f) {
+                s.shoulderRef = ref;
+                s.phiArmRad   = std::atan2(d.y, d.x);
+                s.armPx       = len * lenScale;
+                s.hasArm      = true;
+            }
+        }
+    }
     return s;
 }
 
@@ -122,6 +170,34 @@ double medianPoseHeight(const PoseTrack2D &pose)
         return 0.0;
     std::nth_element(heights.begin(), heights.begin() + heights.size() / 2, heights.end());
     return heights[heights.size() / 2];
+}
+
+// Median shoulder→grip ("arm hang") length in px over the track — the R1 arm
+// pixel scale and R5 length floor source. 0 when shoulders + hands are never
+// both confident (caller then falls back to the silhouette scale).
+double medianArmPx(const PoseTrack2D &pose, int w, int h)
+{
+    auto toPx = [&](const QPointF &p) { return cv::Point2f(float(p.x() * w), float(p.y() * h)); };
+    std::vector<double> lens;
+    lens.reserve(pose.frames.size());
+    for (const PoseFrame2D &f : pose.frames) {
+        const bool ls = f.conf[size_t(kLeftShoulder)]  >= kKpMinConf;
+        const bool rs = f.conf[size_t(kRightShoulder)] >= kKpMinConf;
+        if (!ls && !rs)
+            continue;
+        const cv::Point2f sh = (ls && rs)
+            ? 0.5f * (toPx(f.kp[size_t(kLeftShoulder)]) + toPx(f.kp[size_t(kRightShoulder)]))
+            : toPx(f.kp[size_t(ls ? kLeftShoulder : kRightShoulder)]);
+        const cv::Point2f grip = toPx(QPointF(0.5 * (f.leadHand.x() + f.trailHand.x()),
+                                              0.5 * (f.leadHand.y() + f.trailHand.y())));
+        const double len = std::hypot(grip.x - sh.x, grip.y - sh.y);
+        if (len > 8.0)
+            lens.push_back(len);
+    }
+    if (lens.empty())
+        return 0.0;
+    std::nth_element(lens.begin(), lens.begin() + lens.size() / 2, lens.end());
+    return lens[lens.size() / 2];
 }
 
 } // namespace
@@ -176,12 +252,46 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
         tn::apply(ov, "shaft.envelopeHardK",     dcfg.envelopeHardK);
         tn::apply(ov, "shaft.blurThreshScale",   dcfg.blurThreshScale);
     }
+    // Skeleton-aware enhancement gates (K1; all default OFF → current behaviour).
+    bool   useArmScale       = false;  // R1: arm-derived search radius
+    double armNominalLenM    = kArmNominalM;
+    double minLenFracOfArm   = 0.0;    // R5: arm-relative length floor (0 = disabled)
+    bool   useKinematicPrior = false;  // R2/R6: arm-direction soft prior (K1 interim = arm-hang dir)
+    double armAxisSigmaDeg   = 35.0;   // R2 interim prior width
+    {
+        namespace tn = tuning;
+        const QVariantMap &ov = job.tuningOverrides;
+        tn::apply(ov, "shaft.useArmScale",       useArmScale);
+        tn::apply(ov, "shaft.armNominalLenM",    armNominalLenM);
+        tn::apply(ov, "shaft.minLenFracOfArm",   minLenFracOfArm);
+        tn::apply(ov, "shaft.useKinematicPrior", useKinematicPrior);
+        tn::apply(ov, "shaft.armAxisSigmaDeg",   armAxisSigmaDeg);
+    }
+    const double armPxMed = medianArmPx(pose, w, h);
+
+    // R1 scale ladder: arm length (robust, framing-independent) → silhouette
+    // (needs the full body) → half-frame. Only the *source* of pxPerM changes;
+    // maxRadiusPx = 1.25 · clubLengthM · pxPerM as before.
     const double bodyFrac = medianPoseHeight(pose);
-    const double pxPerM   = bodyFrac > 0.05 ? bodyFrac * h / kAssumedStatureM : 0.0;
-    const double radius   = pxPerM > 0.0 ? 1.25 * job.clubLengthM * pxPerM
-                                         : 0.5 * std::min(w, h);
+    double      pxPerM    = 0.0;
+    const char *scaleRung = "halfframe";
+    if (useArmScale && armPxMed > 5.0 && armNominalLenM > 0.0) {
+        pxPerM    = armPxMed / armNominalLenM;
+        scaleRung = "arm";
+    } else if (bodyFrac > 0.05) {
+        pxPerM    = bodyFrac * h / kAssumedStatureM;
+        scaleRung = "silhouette";
+    }
+    const double radius = pxPerM > 0.0 ? 1.25 * job.clubLengthM * pxPerM
+                                       : 0.5 * std::min(w, h);
     dcfg.maxRadiusPx = float(std::clamp(radius, 80.0, double(std::min(w, h))));
     tuning::apply(job.tuningOverrides, "shaft.maxRadiusPx", dcfg.maxRadiusPx);
+
+    // R5: a shaft cannot image shorter than the club (≈ 2 arms); one arm is the
+    // generous floor (≈ 50% occlusion headroom). 0 frac → current behaviour.
+    dcfg.minShaftLenPx = dcfg.minVisibleLenPx;
+    if (minLenFracOfArm > 0.0 && armPxMed > 5.0)
+        dcfg.minShaftLenPx = std::max(dcfg.minVisibleLenPx, float(minLenFracOfArm * armPxMed));
 
     QElapsedTimer wall;
     wall.start();
@@ -223,6 +333,15 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
             prior.numElbowDirs    = a.numElbows;
             prior.elbowDirRad[0]  = a.elbowRad[0];
             prior.elbowDirRad[1]  = a.elbowRad[1];
+            // R2/R6 directional prior (K1 interim: the arm-hang direction itself;
+            // K2 replaces the mean with φ_arm + predicted wrist cock). Gated OFF
+            // by default — supersedes the inter-hand bump in buildThetaWeights.
+            if (useKinematicPrior && a.hasArm) {
+                prior.hasKinematicDir   = true;
+                prior.kinematicDirRad   = a.phiArmRad;
+                prior.kinematicSigmaRad = float(armAxisSigmaDeg * kDeg2Rad);
+                prior.armSide           = 0;   // sidedness arrives with K2
+            }
             o.candidates = detectShaft(luma, dcfg, prior);
             if (!o.candidates.empty())
                 ++detected;
@@ -295,6 +414,8 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
              << "coverage" << track.coverage
              << "valid" << track.valid
              << "imuVisionCorr" << track.imuVisionCorr
+             << "scale" << scaleRung << "armPx" << armPxMed
+             << "minShaftLenPx" << dcfg.minShaftLenPx
              << "(" << wall.elapsed() << "ms )";
     return track;
 }

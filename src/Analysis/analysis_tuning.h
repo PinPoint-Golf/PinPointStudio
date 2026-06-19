@@ -49,5 +49,10 @@ inline void apply(const QVariantMap &ov, const char *key, int64_t &field)
     const auto it = ov.constFind(QLatin1String(key));
     if (it != ov.cend()) field = it->toLongLong();
 }
+inline void apply(const QVariantMap &ov, const char *key, bool &field)
+{
+    const auto it = ov.constFind(QLatin1String(key));
+    if (it != ov.cend()) field = it->toBool();
+}
 
 } // namespace pinpoint::analysis::tuning

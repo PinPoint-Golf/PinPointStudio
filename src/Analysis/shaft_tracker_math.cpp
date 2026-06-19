@@ -175,7 +175,14 @@ std::vector<float> buildThetaWeights(const ShaftDetectConfig &cfg, const AnchorP
             continue;
         }
         float v = 1.f;
-        if (prior.hasInterHandDir)
+        // R6 kinematic direction (φ_club_pred ± σ_β), when present, is the
+        // long-baseline directional prior and supersedes the short, often-absent
+        // inter-hand bump. Default (hasKinematicDir == false) keeps prior behaviour.
+        if (prior.hasKinematicDir)
+            v *= priorBump(wrapPi(theta - prior.kinematicDirRad),
+                           prior.kinematicSigmaRad > 1e-4f ? prior.kinematicSigmaRad : ihSigma,
+                           cfg.priorFloor);
+        else if (prior.hasInterHandDir)
             v *= priorBump(wrapPi(theta - prior.interHandDirRad), ihSigma, cfg.priorFloor);
         if (prior.hasPredictedTheta)
             v *= priorBump(wrapPi(theta - prior.predictedThetaRad), predSigma, cfg.priorFloor);
@@ -301,11 +308,15 @@ std::vector<Peak> pickPeaks(const std::vector<ColumnInfo> &cols,
         return kept;
 
     const float minW = cfg.minScoreFrac * kept.front().w;
+    // R5 physical-length floor: a shaft cannot image shorter than ≈ one arm. The
+    // floor only ever tightens (max with minVisibleLenPx), so a default config
+    // (minShaftLenPx == minVisibleLenPx) is unchanged.
+    const float lenFloor = std::max(cfg.minVisibleLenPx, cfg.minShaftLenPx);
     std::vector<Peak> out;
     for (const Peak &p : kept) {
         const ColumnInfo &c = cols[static_cast<size_t>(p.bin)];
         const float visLen  = static_cast<float>(c.end - c.start + 1) * rhoScale;
-        if (p.w >= minW && visLen >= cfg.minVisibleLenPx)
+        if (p.w >= minW && visLen >= lenFloor)
             out.push_back(p);
     }
     return out;
