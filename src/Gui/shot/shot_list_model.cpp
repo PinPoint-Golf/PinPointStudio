@@ -236,6 +236,24 @@ QVariantList ShotListModel::swingDirsForIds(const QVariantList &ids) const
     return dirs;
 }
 
+QVariantMap ShotListModel::shotSummary(int id) const
+{
+    const int row = rowForId(id);
+    if (row < 0)
+        return { { QStringLiteral("valid"), false } };
+    const Shot &s = m_shots.at(row);
+    return {
+        { QStringLiteral("valid"),          true },
+        { QStringLiteral("ordinal"),        s.ordinal },
+        { QStringLiteral("club"),           s.club },
+        { QStringLiteral("timestampLabel"), s.timestampLabel },
+        { QStringLiteral("score"),          s.score },
+        { QStringLiteral("rating"),         s.rating },
+        { QStringLiteral("hasVideo"),       s.hasVideo },
+        { QStringLiteral("swingDir"),       s.swingDir },
+    };
+}
+
 QVariantMap ShotListModel::previousAnalysisDetail(const QString &swingDir) const
 {
     if (swingDir.isEmpty())

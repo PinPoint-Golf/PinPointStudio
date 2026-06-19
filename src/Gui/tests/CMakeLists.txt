@@ -26,11 +26,20 @@ set(GUI    ${CMAKE_CURRENT_SOURCE_DIR}/..)   # src/Gui
 set(SRC    ${GUI}/..)                         # src
 set(BUFFER ${SRC}/Buffer)                     # types.h (pulled in by Gui models)
 
+# Optional sanitizer pass: configure a separate build dir with e.g.
+#   -DPP_SANITIZE=address   (ShotListModel is single-threaded, so ASan is the
+# meaningful sanitizer here; thread has nothing to find).
+set(PP_SANITIZE "" CACHE STRING "Sanitizer to build the test suite with (e.g. address)")
+
 function(pp_add_test name)
     add_executable(${name} ${ARGN})
     set_target_properties(${name} PROPERTIES AUTOMOC ON)
-    target_include_directories(${name} PRIVATE ${GUI} ${GUI}/review ${SRC} ${BUFFER})
+    target_include_directories(${name} PRIVATE ${GUI} ${GUI}/review ${SRC} ${SRC}/Core ${BUFFER})
     target_link_libraries(${name} PRIVATE Qt6::Core Qt6::Gui Qt6::Qml)
+    if(PP_SANITIZE)
+        target_compile_options(${name} PRIVATE -fsanitize=${PP_SANITIZE} -g -fno-omit-frame-pointer)
+        target_link_options(${name}    PRIVATE -fsanitize=${PP_SANITIZE})
+    endif()
     add_test(NAME ${name} COMMAND ${name})
 endfunction()
 
@@ -43,3 +52,17 @@ pp_add_test(timeline_labels_test  timeline_labels_test.cpp
 # header-inline, so no swing_data_source.cpp link is needed.
 pp_add_test(swing_series_model_test  swing_series_model_test.cpp
                                     ${GUI}/review/swing_series_model.cpp)
+
+# ShotListModel::shotSummary — focused-shot metadata map for PpShotActionBar.
+# Links the model + the swing.json writer it references (persistReview) and a
+# stub PpLogStream (pp_debug.cpp drags in whisper/ggml — reuse the Core stub).
+pp_add_test(shot_list_model_test  shot_list_model_test.cpp
+                                  ${GUI}/shot/shot_list_model.cpp
+                                  ${SRC}/Export/swing_doc.cpp
+                                  ${SRC}/Export/swing_paths.cpp
+                                  ${SRC}/Core/tests/pp_log_stub.cpp)
+
+# ReanalysisController — the single re-analyse seam the carousel forwards to.
+pp_add_test(reanalysis_controller_test  reanalysis_controller_test.cpp
+                                        ${GUI}/shot/reanalysis_controller.cpp
+                                        ${SRC}/Core/tests/pp_log_stub.cpp)

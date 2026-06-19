@@ -56,6 +56,7 @@
 #include "../Export/swing_zip_exporter.h"
 #include "shot_processor.h"
 #include "shot_replay_controller.h"
+#include "reanalysis_controller.h"
 #include "live_wrist_angles.h"
 
 #ifdef Q_OS_WIN
@@ -257,6 +258,10 @@ int main(int argc, char *argv[])
                      &shotReplay, &ShotReplayController::stop);
     ClipboardHelper           clipboardHelper;
 
+    // Re-analyse seam for the carousel action bar — stub for now (logs + toasts);
+    // no dependencies, owns no shot state (kept off ShotProcessor by design).
+    ReanalysisController      reanalysisController;
+
     // IMU source register/deregister can change the shared EventBuffer state
     // (first-source auto-resume / last-source auto-pause). Re-apply the user
     // capture intent so cameraManager.bufferState — the QML-facing buffer
@@ -402,6 +407,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("shotProcessor"),     &shotProcessor);
     engine.rootContext()->setContextProperty(QStringLiteral("shotReplay"),        &shotReplay);
     engine.rootContext()->setContextProperty(QStringLiteral("shotModel"),         &shotModel);
+    engine.rootContext()->setContextProperty(QStringLiteral("reanalysisController"), &reanalysisController);
     engine.rootContext()->setContextProperty(QStringLiteral("swingExporter"),     &swingZipExporter);
     engine.rootContext()->setContextProperty(QStringLiteral("liveWrist"),         &liveWrist);
     engine.rootContext()->setContextProperty(QStringLiteral("clipboard"),         &clipboardHelper);

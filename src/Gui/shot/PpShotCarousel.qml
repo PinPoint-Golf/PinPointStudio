@@ -70,7 +70,27 @@ Item {
     readonly property real _stripTopMargin:    Theme.sp(3.5)   // halved top/bottom padding
     readonly property real _stripBottomMargin: Theme.sp(4)
     readonly property real _stripBandHeight:   Theme.sp(40)    // header band height when the transport shows
-    implicitHeight: Theme.carouselHeight + (_transportShown ? Theme.sp(20) : 0)
+
+    // Focused-shot metadata for the action bar. Re-resolved when the focused id
+    // changes OR the shot set mutates (touch activeCount) so a trashed focused
+    // shot drops the bar's focus identity instead of lingering stale.
+    readonly property var _focusSummary: {
+        void root.activeModel.activeCount
+        return root.activeModel.shotSummary(SessionMode.focusedShotId)
+    }
+    // The scope-aware action bar shows when there is a focused shot OR a filter
+    // is active; hidden otherwise (fresh Capture, nothing picked). Gating on the
+    // summary's validity (not the raw focused id) means a just-trashed focused
+    // shot hides the bar cleanly rather than leaving a stale identity.
+    readonly property bool _barShown: (_focusSummary.valid === true) || filterProxy.filterActive
+    readonly property real _barBandHeight: Theme.sp(36)
+
+    // Grow for the transport band (chips overlay) AND the action-bar band — same
+    // mechanism, summed. The bar band adds its height plus the railCol spacing it
+    // introduces above the chips row, so neither clips.
+    implicitHeight: Theme.carouselHeight
+                    + (_transportShown ? Theme.sp(20) : 0)
+                    + (_barShown ? _barBandHeight + railCol.spacing : 0)
 
     // Opens the export options sheet for a set of swing dirs. The ⋯ "export all
     // selected" action routes through here, sharing one options panel, one
@@ -111,9 +131,54 @@ Item {
                   topMargin: root._stripTopMargin; bottomMargin: root._stripBottomMargin }
         spacing: Theme.sp(7)
 
-        // ── Session chip + filter combo + bulk-action menu. The transport overlays this
-        //    row, centered (the Loader below railCol); reserve the band height so the
-        //    filmstrip clears it when the transport shows. ──
+        // ── Scope-aware action bar — focused-shot header + folded-in filtered-set
+        //    actions. Shown only when a shot is focused or a filter is active. ──
+        PpShotActionBar {
+            id: actionBar
+            visible: root._barShown
+            Layout.fillWidth: true
+            Layout.preferredHeight: root._barBandHeight
+
+            summary:      root._focusSummary
+            filterActive: filterProxy.filterActive
+            visibleCount: filterProxy.visibleCount
+            sourceCount:  filterProxy.sourceCount
+            filterLabel:  filterProxy.filterActive ? filterProxy.filterSummary : ""
+
+            onExportShot: root._openExportSheet(
+                              root.activeModel.swingDirsForIds([SessionMode.focusedShotId]),
+                              qsTr("Nothing to export"))
+            onExportShown: root._openExportSheet(
+                              root.activeModel.swingDirsForIds(filterProxy.visibleShotIds()),
+                              qsTr("No saved shots to export"))
+
+            onTrashShot: {
+                const ok = root.activeModel.moveToTrash(SessionMode.focusedShotId)
+                toast.showUndo = false   // OS trash is the recovery path, not an in-app undo
+                toast.copyText = ""
+                toast.glyph    = "🗑"
+                toast.show(ok ? qsTr("Shot moved to trash")
+                              : qsTr("Could not move shot to trash"))
+            }
+            onTrashShown: {
+                const ids = filterProxy.visibleShotIds()
+                const n = root.activeModel.moveAllToTrash(ids)
+                toast.showUndo = false   // OS trash is the recovery path, not an in-app undo
+                toast.copyText = ""
+                toast.glyph    = "🗑"
+                toast.show(ids.length === 0 ? qsTr("No shots to trash")
+                           : n === ids.length ? qsTr("%1 shots moved to trash").arg(n)
+                           : qsTr("Moved %1 of %2 shots to trash").arg(n).arg(ids.length))
+            }
+
+            // Re-analyse is single-shot only in v1 → forward the focused id to the
+            // seam. reanalyseShown() is never emitted (no all-shown re-analyse).
+            onReanalyseShot: reanalysisController.reanalyse([SessionMode.focusedShotId])
+        }
+
+        // ── Session chip + filter combo. The transport overlays this row, centered
+        //    (the Loader below railCol); reserve the band height so the filmstrip
+        //    clears it when the transport shows. ──
         RowLayout {
             id: chipsRow
             Layout.alignment: Qt.AlignLeft
@@ -225,160 +290,6 @@ Item {
                     onClicked:    filterPopup.opened ? filterPopup.close() : filterPopup.open()
                 }
             }
-
-            Rectangle {   // ⋯ bulk actions on the filtered set
-                id: bulkKebab
-                Layout.alignment: Qt.AlignVCenter
-                visible: filterProxy.filterActive
-                implicitWidth:  Theme.sp(22)
-                implicitHeight: Theme.sp(22)
-                radius: Theme.radius
-                color:  bulkMenu.opened || bulkMa.containsMouse ? Theme.colorBg3 : "transparent"
-                border.width: 1
-                border.color: bulkMenu.opened ? Theme.colorBorderMid : "transparent"
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-                Text {
-                    anchors.centerIn: parent
-                    text:           "⋯"
-                    font.family:    Theme.fontData
-                    font.pixelSize: Theme.fontSzBody
-                    color:          Theme.colorText2
-                }
-                MouseArea {
-                    id: bulkMa
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape:  Qt.PointingHandCursor
-                    onClicked:    bulkMenu.opened ? bulkMenu.close() : bulkMenu.open()
-                }
-
-                Connections {   // clearing the filter hides the kebab — drop its menu too
-                    target: filterProxy
-                    function onFilterChanged() {
-                        if (!filterProxy.filterActive)
-                            bulkMenu.close()
-                    }
-                }
-
-                // The bulk set is the filtered set — no filter, no menu.
-                Popup {
-                    id: bulkMenu
-                    parent: bulkKebab
-                    y: -height - Theme.sp(4)
-                    x: 0
-                    padding: Theme.sp(5)
-                    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-                    // Widest row plus left inset and right margin — the popup sizes
-                    // its contentItem from contentWidth, so the labels never run
-                    // tight to the menu's right edge.
-                    contentWidth: Math.max(bulkExportRow.implicitWidth, bulkTrashRow.implicitWidth)
-                                  + Theme.sp(28)
-                    background: Rectangle {
-                        color: Theme.colorSurface; radius: Theme.radiusLg
-                        border.width: 1; border.color: Theme.colorBorderStrong
-                    }
-
-                    contentItem: Column {
-
-                        Rectangle {   // Export all selected
-                            width: parent.width
-                            height: Theme.sp(34)
-                            radius: Theme.radius
-                            color: bulkExportMa.containsMouse ? Theme.colorBg2 : "transparent"
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            Row {
-                                id: bulkExportRow
-                                anchors { left: parent.left; leftMargin: Theme.sp(10)
-                                          verticalCenter: parent.verticalCenter }
-                                spacing: Theme.sp(10)
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: "⤓"
-                                    font.family: Theme.fontSymbol
-                                    font.pixelSize: Theme.fontSzBody
-                                    color: Theme.colorText2
-                                }
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: qsTr("Export all selected")
-                                    font.family: Theme.fontBody
-                                    font.pixelSize: Theme.fontSzBody
-                                    color: Theme.colorText
-                                }
-                            }
-                            MouseArea {
-                                id: bulkExportMa
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    bulkMenu.close()
-                                    root._openExportSheet(
-                                        root.activeModel.swingDirsForIds(filterProxy.visibleShotIds()),
-                                        qsTr("No saved shots to export"))
-                                }
-                            }
-                        }
-
-                        Rectangle {   // separator — destructive actions in their own group
-                            width: parent.width - Theme.sp(12)
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            height: 1
-                            color: Theme.colorBorderMid
-                            opacity: Theme.borderOpacityNormal
-                        }
-
-                        // "Move … to trash", not "Delete …" — project convention:
-                        // "Delete" is reserved for permanent removal (e.g. Delete
-                        // athlete); trash language signals the action is recoverable.
-                        Rectangle {   // Move all selected to trash (soft, undoable)
-                            width: parent.width
-                            height: Theme.sp(34)
-                            radius: Theme.radius
-                            color: bulkTrashMa.containsMouse ? Theme.colorWarnLight : "transparent"
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            Row {
-                                id: bulkTrashRow
-                                anchors { left: parent.left; leftMargin: Theme.sp(10)
-                                          verticalCenter: parent.verticalCenter }
-                                spacing: Theme.sp(10)
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: "🗑"
-                                    font.family: Theme.fontSymbol
-                                    font.pixelSize: Theme.fontSzBody
-                                    color: Theme.colorWarn
-                                }
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: qsTr("Move all selected to trash")
-                                    font.family: Theme.fontBody
-                                    font.pixelSize: Theme.fontSzBody
-                                    color: Theme.colorWarn
-                                }
-                            }
-                            MouseArea {
-                                id: bulkTrashMa
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    const ids = filterProxy.visibleShotIds()
-                                    bulkMenu.close()
-                                    const n = root.activeModel.moveAllToTrash(ids)
-                                    toast.showUndo = false   // OS trash is the recovery path, not an in-app undo
-                                    toast.copyText = ""
-                                    toast.glyph    = "🗑"
-                                    toast.show(ids.length === 0 ? qsTr("No shots to trash")
-                                               : n === ids.length ? qsTr("%1 shots moved to trash").arg(n)
-                                               : qsTr("Moved %1 of %2 shots to trash").arg(n).arg(ids.length))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         }
 
         // ── Film strip ───────────────────────────────────────────────────────
@@ -414,7 +325,12 @@ Item {
         id: transportLoader
         // Centred across the dock, but clamped so it never rides over the chips on the left:
         // true-centre on a wide dock; tucked just right of the chips on a narrow one.
-        y: root._stripTopMargin + (root._stripBandHeight - height) / 2
+        // When the action bar shows, the chips row shifts down by the bar band (+ the
+        // railCol spacing it introduces) — the transport follows so it stays centred on
+        // the chips row, not the bar. (x clamp keys off chipsRow.x, unchanged horizontally.)
+        y: root._stripTopMargin
+           + (root._barShown ? root._barBandHeight + railCol.spacing : 0)
+           + (root._stripBandHeight - height) / 2
         x: {
             var centreX = root.width / 2 - width / 2
             var minX    = chipsRow.x + chipsRow.width + Theme.sp(12)
@@ -516,6 +432,19 @@ Item {
                 toast.copyText = ""
                 toast.show(qsTr("Export failed: %1").arg(error))
             }
+        }
+    }
+
+    // Re-analyse seam feedback — the controller logs the request (PpMessageLog)
+    // and emits the queued count; we raise the same notice toast here.
+    Connections {
+        target: reanalysisController
+        function onReanalyseQueued(count) {
+            toast.showUndo = false
+            toast.copyText = ""
+            toast.glyph    = "↻"
+            toast.show(count === 1 ? qsTr("Re-analyse queued · 1 shot")
+                                   : qsTr("Re-analyse queued · %1 shots").arg(count))
         }
     }
 

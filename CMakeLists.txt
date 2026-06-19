@@ -213,6 +213,7 @@ qt_add_executable(PinPointStudio
     src/Gui/shot/shot_list_model.h          src/Gui/shot/shot_list_model.cpp
     src/Gui/shot/shot_processor.h           src/Gui/shot/shot_processor.cpp
     src/Gui/shot/shot_replay_controller.h   src/Gui/shot/shot_replay_controller.cpp
+    src/Gui/shot/reanalysis_controller.h    src/Gui/shot/reanalysis_controller.cpp
     src/Gui/shot/replay_source.h
     src/Gui/shot/disk_replay_source.h       src/Gui/shot/disk_replay_source.cpp
     src/Gui/viz/live_wrist_angles.h         src/Gui/viz/live_wrist_angles.cpp
@@ -355,6 +356,7 @@ qt_add_qml_module(PinPointStudio
         src/Gui/calibration/CameraCalibrationFlow.qml
         src/Gui/calibration/BallCalibrationFlow.qml
         src/Gui/shot/PpShotCarousel.qml
+        src/Gui/shot/PpShotActionBar.qml
         src/Gui/shot/PpExportOptionsSheet.qml
         src/Gui/shot/PpShotCard.qml
         src/Gui/session/PpSessionDrawer.qml

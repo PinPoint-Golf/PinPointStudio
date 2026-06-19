@@ -104,6 +104,15 @@ public:
     // on-disk folder. Backs the carousel's bulk export-to-zip flow.
     Q_INVOKABLE QVariantList swingDirsForIds(const QVariantList &ids) const;
 
+    // Focused-shot metadata for the carousel's PpShotActionBar (the scope-aware
+    // action header). Returns a map with the identity fields the bar renders:
+    //   { valid, ordinal, club, timestampLabel, score, rating, hasVideo, swingDir }
+    // Model-scoped, NOT proxy-scoped: a row filtered out of a carousel's proxy
+    // still resolves here (the focused swing on the stage may not be in view).
+    // An unknown / -1 id returns { valid: false } — present and false so QML can
+    // bind `summary.valid` safely without a null guard.
+    Q_INVOKABLE QVariantMap shotSummary(int id) const;
+
     // The analysisDetail of the swing captured just BEFORE the one at `swingDir` (the next-older
     // sibling; rows are newest-first). Empty if `swingDir` isn't in this model or has no predecessor.
     // Backs the wrist diagnostics "compare to previous" ghost.
