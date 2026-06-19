@@ -107,10 +107,11 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
 
     PP_PROFILE_SCOPE("Analysis.PoseRunner.run");
 
-    // Estimator built on this (worker) thread — same model-path resolution and
-    // ORT session options as the live path (load() already pins
-    // IntraOpNumThreads to 1, required offline: the exporter's x264 encode
-    // runs concurrently on another worker).
+    // Estimator built on this (worker) thread. ViTPose is offline-only; load()
+    // sizes its ORT intra-op pool to the physical-core count, and the post-shot
+    // pipeline sequences the x264 export AFTER this pose pass
+    // (ShotProcessor::onAnalysisFinished), so the inference is no longer starved
+    // by the encoder's threads (which inflated per-frame inference ~5×).
     PoseEstimatorViTPose estimator;
     estimator.load();
     if (!estimator.isReady()) {

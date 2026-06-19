@@ -10,7 +10,8 @@
 > `maybeFinishSwing()`, the resume gating) has **migrated to `ShotProcessor`**
 > (`src/Gui/shot_processor.{h,cpp}`), which drives it from
 > `ShotController::shotDetected` and runs a per-session-type `ShotAnalyzer`
-> concurrently with the export. The join is now `maybeJoin()`/`finishShot()`;
+> **before** the export (the two heavy workers are sequenced, not overlapped —
+> see the shot-analyzer guide §11). The join is now `maybeJoin()`/`finishShot()`;
 > the teardown stop-barrier is `ShotProcessor::finishNowBlocking()`; resume
 > gating keys off `EventBuffer::swingWindowLive()`. The exporter also writes an
 > impact thumbnail (`thumb.jpg`, via `QImage::save` — see CLAUDE.md for the
@@ -312,7 +313,7 @@ atomically with `QSaveFile`. All stream timestamps are **relative µs offsets fr
 type later is just another element of `streams[]` — readers must ignore unknown
 `kind`s.
 
-> **This is the exporter's *raw* manifest.** At the analyzer∥exporter join,
+> **This is the exporter's *raw* manifest.** At the analyzer→exporter join,
 > `SwingDocWriter::writeSwingJson()` (§15) composes this tree with the analyzer's
 > output into **one** `swing.json` — bumping the on-disk schema to **`pinpoint.swing/2`**
 > and adding inline `analysis` (`pinpoint.analysis/2`: score, tier, metric series,

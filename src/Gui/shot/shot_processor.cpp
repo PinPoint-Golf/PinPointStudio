@@ -395,11 +395,15 @@ void ShotProcessor::onSegmentationFinished()
         return;   // aborted while the pre-stage ran
     m_segmentation = m_segmentationWatcher.result();
 
-    // Both heavy workers read the same frozen window concurrently — const,
+    // Sequence the two heavy workers rather than overlapping them. The ViTPose
+    // pose pass dominates wall time and runs far faster with the cores to itself
+    // (multi-threaded intra-op); the export's x264 encode threads otherwise
+    // starved the pose pass, inflating per-frame inference roughly 5×. The
+    // export is launched once analysis completes (onAnalysisFinished). Analysis
+    // always launches a worker, so there is no synchronous-skip path to cover
+    // with maybeJoin() here. Both workers read the same frozen window — const,
     // zero-copy reads over stable memory (producers stopped while Paused).
     startAnalysis();
-    startSwingSave();
-    maybeJoin();   // covers the export-skipped path completing synchronously
 }
 
 ShotAnalysisJob ShotProcessor::buildAnalysisJob()
@@ -761,6 +765,11 @@ void ShotProcessor::onAnalysisFinished()
         ppInfo() << "[ShotProcessor] analysis done — score" << m_analysisResult.score;
     else
         emit analysisFailed(m_analysisResult.error);   // toast, not a log line
+
+    // Pose pass is done — only now launch the x264 export, so it has the cores
+    // to itself and never contends with the (just-finished) inference. maybeJoin()
+    // still covers the export-skipped path completing synchronously.
+    startSwingSave();
     maybeJoin();
 }
 

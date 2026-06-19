@@ -26,6 +26,8 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QLibrary>
+#include <algorithm>
+#include <thread>
 #include "pp_debug.h"
 #include "pp_profiler.h"
 
@@ -137,7 +139,19 @@ void PoseEstimatorViTPose::load()
     if (m_ort && m_ort->modelBytes > 0)   // reload: release the prior arena estimate
         PP_PROFILE_MEM_SUB("ONNX.Pose", m_ort->modelBytes);
     m_ort   = std::make_unique<OrtState>();
-    m_ort->opts.SetIntraOpNumThreads(1);
+
+    // ViTPose is used only on the offline analysis path (PoseRunner), and the
+    // post-shot pipeline now sequences the x264 export AFTER the pose pass
+    // (ShotProcessor::onAnalysisFinished) — so the estimator has the machine to
+    // itself and should spread the inference across cores. This model is heavily
+    // single-thread-bound otherwise: measured ~337 ms/frame at 1 intra-op thread
+    // versus ~83 ms at the physical-core count on a 6-core/12-thread CPU
+    // (hyperthreads past the physical-core count regress). hardware_concurrency()
+    // reports logical cores, so halve it as a physical-core proxy and clamp to a
+    // sane range. (The live 60 Hz path uses MoveNet, which stays pinned to 1.)
+    const unsigned hwThreads = std::thread::hardware_concurrency();
+    const int intraThreads = std::clamp(static_cast<int>(hwThreads ? hwThreads / 2 : 1), 1, 8);
+    m_ort->opts.SetIntraOpNumThreads(intraThreads);
     m_ort->opts.SetGraphOptimizationLevel(ORT_ENABLE_ALL);
 
     // Execution provider cascade — identical to PoseEstimatorMoveNet.
@@ -220,7 +234,8 @@ void PoseEstimatorViTPose::load()
 
     ppInfo() << "[ViTPose] Loaded — input:" << m_ort->inputName.c_str()
              << "output:" << m_ort->outputName.c_str()
-             << "size:" << kInputW << "×" << kInputH;
+             << "size:" << kInputW << "×" << kInputH
+             << "intraOpThreads:" << intraThreads;
 
     m_ort->wallTimer.start();
     m_lastCallNs = -1;

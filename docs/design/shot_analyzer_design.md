@@ -176,7 +176,7 @@ All rotation is `QQuaternion`/`Eigen::Quaterniond`; Euler appears only at UI rea
 
 ### Threading & performance
 
-`analyze()` already runs on a QtConcurrent worker concurrently with `SwingExporter::run()` over the same frozen window. Heavy ONNX inference (layer 1) reuses the existing EP cascade (CoreML→CUDA→DirectML→CPU) but with `IntraOpNumThreads(1)` to avoid contending with the exporter's x264 encode; sessions are constructed per-`analyze()` call (the factory is per-shot). **Memory:** decode is zero-copy `cv::Mat` views over ring slots; only per-frame keypoint arrays and the `SkeletonTimeline` are heap-allocated (~5 s × ~120 fps × small structs ≈ a few MB). **Latency budget** for a 5 s window on a GPU EP: decode+pose dominate (~2 detector passes × 1–2 cameras × ~300 frames). Target ≈ 2–4 s wall on GPU, ≤ 10 s CPU; the shot still lands on the carousel regardless (degrade to `ok=false` → score 0, no replay), so latency never blocks the UI.
+`analyze()` runs on a QtConcurrent worker over the same frozen window as `SwingExporter::run()`, but the two are now **sequenced, not overlapped** — the pipeline runs analysis first and launches the export only when analysis finishes (`ShotProcessor::onAnalysisFinished`). Heavy ONNX inference (layer 1) reuses the existing EP cascade (CoreML→CUDA→DirectML→CPU); ViTPose is offline-only, so with the export no longer running alongside it, `PoseEstimatorViTPose::load()` sizes its `IntraOpNumThreads` to the physical-core count instead of pinning it to 1 (the old pin existed to avoid contending with the exporter's x264 encode — exactly the contention the sequencing removes; measured ~337 ms/frame at 1 thread vs ~83 ms at the physical-core count, and overlapping the encoder inflated it ~5× further). Sessions are constructed per-`analyze()` call (the factory is per-shot). **Memory:** decode is zero-copy `cv::Mat` views over ring slots; only per-frame keypoint arrays and the `SkeletonTimeline` are heap-allocated (~5 s × ~120 fps × small structs ≈ a few MB). **Latency budget** for a 5 s window on a GPU EP: decode+pose dominate (~2 detector passes × 1–2 cameras × ~300 frames). Target ≈ 2–4 s wall on GPU, ≤ 10 s CPU; the shot still lands on the carousel regardless (degrade to `ok=false` → score 0, no replay), so latency never blocks the UI.
 
 ### Reconstruction tiers (revised)
 
@@ -600,7 +600,7 @@ The **`PhaseEvent` timeline is shared across all metrics** — it is computed on
 
 The full series + phase markers must survive replay-window destruction (`finishShot()` destroys `m_swingWindow`, `shot_processor.cpp:537-548`) **and** app restart — persisted in the **single** `swing.json` document, never a separate file.
 
-**One document, one writer, written once.** Raw manifest and derived analysis live in the same `swing.json` (schema bumped **`pinpoint.swing/1` → `pinpoint.swing/2`**; the additive `"analysis"` object is the only new content, so `/1` readers stay forward-compatible). Because the exporter and analyzer run concurrently over the frozen window, **neither writes the file**:
+**One document, one writer, written once.** Raw manifest and derived analysis live in the same `swing.json` (schema bumped **`pinpoint.swing/1` → `pinpoint.swing/2`**; the additive `"analysis"` object is the only new content, so `/1` readers stay forward-compatible). The exporter and analyzer are both workers over the frozen window (sequenced — analysis then export), and **neither writes the file**:
 
 - `SwingExporter::run()` writes **media only** (MP4s, `thumb.jpg`) and **returns** its already-assembled raw manifest by value in `SwingExportResult.manifest` (`QJsonObject`) — the JSON tree it builds in memory (`swing_exporter.cpp:341-456`) is handed out instead of written (the `QSaveFile` block at `:458-468` is deleted).
 - `ShotAnalyzer::analyze()` stays pure-return (`ShotAnalysisResult`), touching no disk.
@@ -891,7 +891,7 @@ validated against `mirroredSource`/handedness; occluded segments stay IMU-recons
   vs the calibration neutral)**, with the Address phase-sample carried so a scalar
   Δ-from-address is derived in the UI.
 - **Seam:** `ShotAnalyzer` ABC + `makeShotAnalyzer(sessionType)`; `WristAnalyzer` for type 1.
-  Runs as a `QtConcurrent` worker ∥ `SwingExporter` over the frozen `SwingWindow`.
+  Runs as a `QtConcurrent` worker, sequenced **before** `SwingExporter` over the frozen `SwingWindow`.
 - **Tier:** `Mono3DPlusImu` (IMU orientation, no triangulation). **Decision (single-camera-
   first):** degrade gracefully — no hard M2 triangulation gate.
 - **Source-layout decision:** `src/Analysis` is **flat**; standalone tests in
@@ -925,7 +925,7 @@ validated against `mirroredSource`/handedness; occluded segments stay IMU-recons
 
 ### Metric time series & sampling — as-built
 - **Persistence decision:** ONE unified `swing.json` (`schema pinpoint.swing/2`, additive
-  inline `analysis` block) written **once at the analyzer∥exporter join** by `SwingDocWriter`
+  inline `analysis` block) written **once at the analyzer→exporter join** by `SwingDocWriter`
   — exporter returns its raw manifest, analyzer is pure-return; no parallel-write race, no
   separate `analysis.json`. **Reload** (`SwingDocReader` + `addPersistedShot`) is **read-only**.
 - **Graphs decision:** `PpMetricGraph` overlays **all four** curves on a shared degree axis
@@ -1152,7 +1152,9 @@ Consumers:
 - **Free metrics:** `backswingMs = Top − Takeaway`, `downswingMs = Impact − Top`,
   `tempoRatio = backswing/downswing` (tour ≈ 3:1) join the catalog with no extra computation.
 
-**Sequencing change.** Today analysis ∥ export launch together and never share results. v2 runs
+**Sequencing change.** *(Landed: the segmentation pre-stage now runs first and gates the heavy
+stages, and the two heavy stages are themselves sequenced — analysis then export — so they no longer
+launch together; they still do not share each other's results.)* The original plan: v2 runs
 segmentation as a cheap **pre-stage on the worker before both heavy stages**: `ImuVisionFuser::fuse`
 + `PhaseSegmenter::segment` cost ~milliseconds on a 1000-sample grid. Simplest concrete shape:
 `ShotProcessor` runs the segmentation synchronously-on-worker first (a third small QtConcurrent
@@ -1830,7 +1832,7 @@ PinPoint Studio is a Qt6/C++20 app built from a single root CMakeLists.txt (1801
 - GPU story is Vulkan-PREFERRED only for whisper.cpp (GGML_VULKAN if Vulkan SDK found, else CUDA via nvcc, else CPU). ONNX Runtime does NOT use Vulkan — its EPs are CoreML/CUDA/DirectML/CPU. A new pose/biomech ONNX model inherits the ORT (CUDA/CoreML) acceleration path, NOT Vulkan.
 - SwingWindow is valid ONLY while the EventBuffer is Paused; payload pointers are dangling after resume(). The analyzer worker MUST finish (joined via QFutureWatcher in ShotProcessor) before the window is destroyed in finishShot()/finishNowBlocking(). Any heavier 3D pipeline must respect this freeze window (currently a 5s trailing ring) or copy data out first.
 - analyze() runs on a worker thread and is forbidden from touching AppSettings or controllers — all inputs must be pre-resolved into the value-type ShotAnalysisJob on the UI thread (same rule as SwingExportJob). New per-athlete calibration / model-selection state must be threaded through the job struct.
-- Analyzer + exporter run CONCURRENTLY as two QtConcurrent readers of the same const window. Heavy ONNX inference in the analyzer will contend with the exporter's H.264 encode for CPU/GPU — EP/thread budget must be considered (ViTPose sets IntraOpNumThreads(1)).
+- Analyzer + exporter are both QtConcurrent readers of the same const window, but they run SEQUENCED, not concurrently: ShotProcessor launches analysis first and the export only after analysis finishes (onAnalysisFinished). This was changed because the analyzer's heavy ONNX inference (ViTPose, offline-only) badly contends with the exporter's H.264 encode for CPU when overlapped (~5× slower per frame); with the encode out of the way, ViTPose's IntraOpNumThreads is sized to the physical-core count (no longer pinned to 1).
 
 **Gaps to fill**
 

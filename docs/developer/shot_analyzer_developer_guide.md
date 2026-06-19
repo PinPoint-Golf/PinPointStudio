@@ -43,8 +43,9 @@ analyse the same kind of window with entirely different pipelines. The
 The analyzer is **not** shot detection (deciding that/when a shot happened —
 see `docs/developer/shot_detector_developer_guide.md`) and **not** the media export
 (encoding MP4s + thumbnail — see `docs/developer/swing_export_developer_guide.md`). It
-runs *concurrently with* the export over the same frozen window, and the two
-join before anything is published.
+runs *ahead of* the export over the same frozen window — the two are **sequenced**,
+not overlapped (§11) — and the second to finish triggers the join before anything
+is published.
 
 ---
 
@@ -59,20 +60,22 @@ join before anything is published.
 │                                                                │             │
 │                                       pauseBuffer → captureSwingWindow(5 s)  │
 │                                                                │             │
-│                       ┌───────────────── PROCESSING ───────────┴──────────┐  │
-│                       ▼ (QtConcurrent)                    (QtConcurrent) ▼  │
-│              [ShotAnalyzer]                              [SwingExporter]     │
-│              makeShotAnalyzer(type)                      MP4s + thumb.jpg    │
-│              fuse → phases → metrics                     + raw manifest      │
-│              → score → detail                                  │             │
-│                       └───────────────► join ◄────────────────┘             │
-│                                          │  writeSwingJson (unified doc)     │
-│                                          │  ShotListModel::addShot (ALWAYS)  │
-│                                          ▼                                   │
-│                              REPLAYING (¼×, iff both OK)                     │
-│                                          │                                   │
-│                            finish: window destroyed →                        │
-│                            applyCaptureIntent() → Idle (trigger re-arms)     │
+│                              PROCESSING (sequenced)                          │
+│                       ▼ (QtConcurrent)                                       │
+│              [ShotAnalyzer]  makeShotAnalyzer(type)                          │
+│              fuse → phases → metrics → score → detail                        │
+│                       │ analysis done                                        │
+│                       ▼ (QtConcurrent)                                       │
+│              [SwingExporter]  MP4s + thumb.jpg + raw manifest                │
+│                       │                                                      │
+│                       ▼                                                      │
+│                      join   writeSwingJson (unified doc)                     │
+│                       │     ShotListModel::addShot (ALWAYS)                  │
+│                       ▼                                                      │
+│                  REPLAYING (¼×, iff both OK)                                 │
+│                       │                                                      │
+│            finish: window destroyed → applyCaptureIntent() → Idle           │
+│                    (trigger re-arms)                                         │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -172,14 +175,24 @@ the ring before it freezes.
 `pauseBuffer()` → `captureSwingWindow(5 s)`. If the user pressed Stop during
 the post-roll the rings froze early — still a valid (truncated) shot; only
 buffer teardown aborts. One `ReplayTrack` is built per live camera with frames
-in the window. Then **both** workers launch:
+in the window. After the segmentation pre-stage resolves
+(`onSegmentationFinished`), the two heavy workers run **sequenced, not
+overlapped** — analysis first, the x264 export only once analysis finishes:
 
 ```cpp
-// Both read the SAME frozen window concurrently — const, zero-copy reads
-// over stable memory (producers stopped while Paused).
+// onSegmentationFinished(): launch analysis alone.
 startAnalysis();    // QtConcurrent: makeShotAnalyzer(type)->analyze(*win, job)
+
+// onAnalysisFinished(): pose pass done — now launch the export, which has the
+// cores to itself.
 startSwingSave();   // QtConcurrent: SwingExporter::run(*win, exportJob)
 ```
+
+Both read the SAME frozen window — const, zero-copy reads over stable memory
+(producers stopped while Paused). They no longer run at the same time: the
+offline ViTPose pose pass inside `analyze()` is the wall-time bottleneck and is
+far faster multi-threaded, so it gets the machine to itself; overlapping it with
+the export's encode threads inflated per-frame inference ~5× (§11).
 
 ### Job building — `startAnalysis`
 
@@ -195,8 +208,8 @@ Runs when **both** outcomes are non-Pending (each watcher calls it; so does
 the synchronous export-skip path):
 
 1. **The one unified `swing.json`** is written here, on the GUI thread, after
-   both workers returned — so the two concurrent workers never write the same
-   file. Export OK → exporter manifest + inline `"analysis"` block. Export
+   both workers returned — so neither worker ever writes the file itself. Export
+   OK → exporter manifest + inline `"analysis"` block. Export
    failed/skipped but analysis OK → a **synthesised minimal manifest**
    (`buildSynthManifest`) so an analysis-only shot still survives a restart.
 2. **`ShotListModel::addShot()` always runs** — with whatever the pipeline
@@ -428,8 +441,10 @@ The pipeline's safety reduces to four rules:
    `ShotAnalysisJob` and fill it in `startAnalysis()`.
 2. **The window is frozen and shared read-only.** While the buffer is Paused,
    producers cannot write (`slot.valid == false`) and the merger is quiesced —
-   so the analyzer and exporter reading the same rings concurrently is safe
-   *because both are const*. Never mutate anything reachable from the window.
+   so the analyzer and exporter both reading the same rings is safe *because
+   both are const*. (They are sequenced rather than overlapped today, but the
+   safety rests on const-ness, not on the ordering.) Never mutate anything
+   reachable from the window.
 3. **The window outlives both workers, and only just.** The
    `std::optional<SwingWindow>` storage is stable; the window is destroyed
    only in `finishShot()` (after replay) or `finishNowBlocking()` (which
@@ -451,14 +466,25 @@ process and SIGSEGV through libjpeg's error-handler longjmp (observed).
 
 ## 11. Internals — Design Decisions Explained
 
-### Why analysis and export run concurrently rather than sequentially
+### Why analysis and export run sequentially rather than concurrently
 
-Both are pure readers of the same frozen memory, and the export (FFmpeg
-encode) dominates wall-clock. Running the analyzer inside that shadow makes
-analysis effectively free; the join is two `QFutureWatcher`s and an
-outcome-pair check. The price — and it is the load-bearing constraint of the
-whole design — is rule 4 above: neither worker may produce side effects that
-could collide.
+They *used* to run concurrently — both are pure readers of the same frozen
+memory, and overlapping the analyzer with the FFmpeg encode looked like it made
+analysis "free". On the **offline analysis path that wall-clock assumption is
+backwards**: the analyzer's heavy stage is the per-frame ViTPose pose pass
+(`PoseRunner`), and on a CPU-only host (no GPU EP) it dominates — a 65-frame
+pass is ~100× longer than the few-second x264 encode. ViTPose is also strongly
+multi-threaded-friendly (measured ~337 ms/frame at 1 intra-op thread vs ~83 ms
+at the physical-core count); running it *concurrently* with the multi-threaded
+encoder starved its threads and inflated per-frame inference roughly **5×**.
+
+So the post-shot pipeline now **sequences** them: analysis runs alone with the
+cores to itself (and `PoseEstimatorViTPose::load()` sizes its intra-op pool to
+the physical-core count, no longer pinned to 1), then `onAnalysisFinished()`
+launches the export. Total wall-clock dropped from ~125 s to ~10 s for a typical
+shot. The join is unchanged — still two `QFutureWatcher`s and an outcome-pair
+check; the export simply starts later. Rule 4 above (neither worker writes the
+shared file) remains the load-bearing invariant, independent of the ordering.
 
 ### Why Impact comes from the marker, not the segmenter
 
@@ -544,9 +570,10 @@ lacks something you need, extend the job.
 
 ### Writing files from an analyzer
 
-The join owns persistence. An analyzer that writes into `swingDir` races the
-exporter and breaks the one-writer-per-file invariant that makes the unified
-swing.json safe. Return data; let `maybeJoin` write it.
+The join owns persistence. An analyzer that writes into `swingDir` collides with
+the exporter (which writes the same directory namespace afterward) and breaks the
+one-writer-per-file invariant that makes the unified swing.json safe. Return data;
+let `maybeJoin` write it.
 
 ### Throwing (or crashing) instead of degrading
 
@@ -613,7 +640,7 @@ src/Gui/
 └── shot_list_model.*           Carousel rows: addShot (live) / addPersistedShot (reload)
 
 src/Export/
-├── swing_exporter.{h,cpp}      The concurrent media worker (separate guide)
+├── swing_exporter.{h,cpp}      The media-export worker, run after analysis (separate guide)
 ├── swing_doc.{h,cpp}           SwingDocWriter/Reader — the unified swing.json
 └── swing_paths.{h,cpp}         Session/swing directory allocation
 ```
