@@ -18,6 +18,17 @@ project(pinpoint_analyzer_tests LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# MSVC's <cmath> does not expose M_PI without this; the vendored imu_ekf ESKF.cpp
+# (reached via eskf_orientation_filter.cpp) relies on it. The app target defines
+# the same (see root CMakeLists.txt).
+if(MSVC)
+    add_compile_definitions(_USE_MATH_DEFINES)
+    # The shaft_tracker/shaft_track timing targets request -O2 (→ /O2 on cl.exe),
+    # which is incompatible with the /RTC1 runtime checks a Debug configuration
+    # injects (cl error D8016). Drop /RTC1 for this test suite.
+    string(REPLACE "/RTC1" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+endif()
+
 find_package(Qt6 REQUIRED COMPONENTS Core Gui)
 enable_testing()
 

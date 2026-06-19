@@ -166,7 +166,11 @@ TEST(Profiler, DeepTierGate)
 
     Profiler::setDeepEnabled(true);
     p.reset();
-    for (int i = 0; i < 3; ++i) { PP_PROFILE_SCOPE_DEEP("D.scope"); burn(300); }
+    // Each scope must burn well past the per-thread CPU clock granularity so the
+    // deep tier attributes a non-zero cpu_ns_total. Windows' GetThreadTimes only
+    // advances on the scheduler tick (~15 ms), so 300 us would round to 0 there;
+    // 30 ms per scope clears the tick on every platform.
+    for (int i = 0; i < 3; ++i) { PP_PROFILE_SCOPE_DEEP("D.scope"); burn(30000); }
     {
         const auto snap = p.snapshot();
         const auto *s = findScope(snap, "D.scope");

@@ -131,6 +131,8 @@ int main()
     QFile f(dir + QStringLiteral("/swing.json"));
     if (!f.open(QIODevice::ReadOnly))  return 1;
     const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+    f.close();   // release the handle: on Windows an open reader blocks the
+                 // QSaveFile atomic replace that updateReview()/writeSwingJson() do below
 
     check(root[QStringLiteral("schema")].toString() == QStringLiteral("pinpoint.swing/2"), "schema bumped to pinpoint.swing/2");
     check(root.contains(QStringLiteral("streams")), "raw streams preserved");
@@ -284,6 +286,7 @@ int main()
         QFile fr(dir + QStringLiteral("/swing.json"));
         if (!fr.open(QIODevice::ReadOnly)) return 1;
         const QJsonObject r = QJsonDocument::fromJson(fr.readAll()).object();
+        fr.close();   // release before the updateReview() rewrite below (Windows replace)
         check(r.contains(QStringLiteral("analysis")), "analysis block survives review write");
         const QJsonObject rv = r[QStringLiteral("review")].toObject();
         check(rv[QStringLiteral("rating")].toInt() == 4, "review.rating == 4");
@@ -310,6 +313,7 @@ int main()
     QFile f2(dir + QStringLiteral("/swing.json"));
     if (!f2.open(QIODevice::ReadOnly)) return 1;
     const QJsonObject root2 = QJsonDocument::fromJson(f2.readAll()).object();
+    f2.close();
     check(!root2.contains(QStringLiteral("analysis")), "no analysis block when null");
     check(root2[QStringLiteral("schema")].toString() == QStringLiteral("pinpoint.swing/2"), "schema still /2");
 

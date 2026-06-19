@@ -45,7 +45,13 @@ pp_add_test(ball_detector_contract_test
     ball_detector_contract_test.cpp
     pose_test_stubs.cpp
     ../ball_detector.cpp
-    ../ball_detector.h)
+    ../ball_detector.h
+    # ball_detector.cpp now carries a baseline PP_PROFILE_SCOPE (default-ON tier),
+    # so the profiler core must be linked. pose_test_stubs.cpp supplies PpLogStream;
+    # mirrors src/Core/tests' PROFILER_CORE set.
+    ../../Core/pp_profiler.cpp
+    ../../Core/pp_os_metrics.cpp
+    ../../Core/PpStatsLog.cpp)
 target_compile_definitions(ball_detector_contract_test PRIVATE HAVE_OPENCV)
 target_include_directories(ball_detector_contract_test PRIVATE .. ../../Core)
 target_link_libraries(ball_detector_contract_test PRIVATE Qt6::Core Qt6::Gui)

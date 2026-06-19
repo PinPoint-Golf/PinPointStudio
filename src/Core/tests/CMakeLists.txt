@@ -105,9 +105,17 @@ add_test(NAME pp_profiler_compileout_test COMMAND pp_profiler_compileout_test)
 add_executable(profiler_controller_test
     profiler_controller_test.cpp
     ${MONITOR}/profiler_controller.cpp
+    ${CORE}/pp_gpu_metrics.cpp   # profiler_controller.cpp calls gpumetrics::init/sample/reset
     ${PROFILER_CORE})
 target_include_directories(profiler_controller_test PRIVATE ${CORE} ${MONITOR})
 target_compile_definitions(profiler_controller_test PRIVATE PINPOINT_PROFILE_BASELINE=1 PINPOINT_PROFILE=1)
 target_link_libraries(profiler_controller_test PRIVATE Qt6::Core Threads::Threads GTest::gtest)
+if(APPLE)
+    target_sources(profiler_controller_test PRIVATE ${CORE}/pp_gpu_metrics_mac.mm)
+    set_source_files_properties(${CORE}/pp_gpu_metrics_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    target_link_libraries(profiler_controller_test PRIVATE "-framework Metal" "-framework Foundation")
+elseif(WIN32)
+    target_link_libraries(profiler_controller_test PRIVATE dxgi)
+endif()
 pinpoint_apply_sanitizers(profiler_controller_test)
 add_test(NAME profiler_controller_test COMMAND profiler_controller_test)
