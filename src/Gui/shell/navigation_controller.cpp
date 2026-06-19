@@ -87,11 +87,6 @@ void NavigationController::forward()
 
 void NavigationController::push(int index)
 {
-    if ((index == 2 || index == 3 || index == 4)
-            && m_athletes->athletes().isEmpty()) {
-        index = 0;
-    }
-
     if (blockedDuringSession(index)) return;
 
     if (index == m_current) return;

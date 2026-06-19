@@ -243,13 +243,13 @@ Item {
 
     readonly property var sessionTypes: [
         { icon: "◑", name: qsTr("Swing Analysis"),
-          requiredCameras: 2, requiredImus: 3, railIndex: 1 },
+          requiredCameras: 2, requiredImus: 3, railIndex: 1, comingSoon: true },
         { icon: "⌖", name: qsTr("Wrist Motion"),
           requiredCameras: 1, requiredImus: 2, railIndex: 2 },
         { icon: "⇅", name: qsTr("Ground Forces"),
-          requiredCameras: 2, requiredImus: 3, railIndex: 3 },
+          requiredCameras: 2, requiredImus: 3, railIndex: 3, comingSoon: true },
         { icon: "✦", name: qsTr("AI Coach"),
-          requiredCameras: 2, requiredImus: 3, railIndex: 4 }
+          requiredCameras: 2, requiredImus: 3, railIndex: 4, comingSoon: true }
     ]
 
     // ── IMU placement requirements per session type ───────────────────────────
@@ -2100,7 +2100,9 @@ Item {
                                 if (root.currentStep < root.lastStep) {
                                     // goNext gates an incomplete Calibrate step internally.
                                     root.goNext("done")
-                                } else {
+                                } else if (!root.curType.comingSoon) {
+                                    // Defensive: Swing/GRF/Coach are not startable yet
+                                    // (the home picker already blocks reaching here).
                                     var goals = root.selectedGoals.length > 0
                                                     ? root.selectedGoals
                                                     : [root.curGoalDefs[0].key]

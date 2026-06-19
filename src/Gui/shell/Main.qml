@@ -462,10 +462,10 @@ ApplicationWindow {
                         navController.navigate(root.screenWizard)
                     }
                 }
-                ScreenSessionMode { iconText: "◑"; titleText: qsTr("Swing"); sessionType: 0 }   // screenSwing
+                ScreenPlaceholder { iconText: "◑"; titleText: qsTr("Swing") }                   // screenSwing — coming soon
                 ScreenWrist {}                                             // screenWrist — Wrist Motion (sessionType 1)
-                ScreenSessionMode { iconText: "⇅"; titleText: qsTr("GRF");   sessionType: 2 }   // screenGrf
-                ScreenSessionMode { iconText: "✦"; titleText: qsTr("Coach"); sessionType: 3 }   // screenCoach
+                ScreenPlaceholder { iconText: "⇅"; titleText: qsTr("GRF") }                     // screenGrf — coming soon
+                ScreenPlaceholder { iconText: "✦"; titleText: qsTr("Coach") }                   // screenCoach — coming soon
                 PlayPage {}                                                // screenPlay — dev-hatch only
                 ScreenAthleteForm {                                        // screenNewAthlete — new athlete form
                     onCancelled:       navController.navigate(root.screenHome)

@@ -27,7 +27,9 @@ Item {
     signal athletePickerRequested()
     signal startSessionRequested(int sessionTypeIndex)
 
-    property int    selectedType: 0
+    property int    selectedType: 1   // default to Wrist — the only startable type today
+    // Session types not yet implemented: non-startable "coming soon" tiles.
+    readonly property var comingSoonTypes: [0, 2, 3]
     property string selectedClub: "Driver"
 
     property var athMap: {
@@ -331,10 +333,10 @@ Item {
 
                     Repeater {
                         model: [
-                            { icon: "◑", name: qsTr("Swing analysis"), desc: qsTr("Capture golf shots with IMUs on your spine and review your sequencing and key swing metrics to assess your swing"), img: "qrc:/assets/tiles/golfswing.png", reqCameras: 2, reqImus: 3, idx: 0 },
+                            { icon: "◑", name: qsTr("Swing analysis"), desc: qsTr("Capture golf shots with IMUs on your spine and review your sequencing and key swing metrics to assess your swing"), img: "qrc:/assets/tiles/golfswing.png", reqCameras: 2, reqImus: 3, idx: 0, comingSoon: true },
                             { icon: "⌖", name: qsTr("Wrist motion"),   desc: qsTr("Hit shots with IMUs on your lead wrist and hand to assess how your wrist angles impact club delivery"),              img: "qrc:/assets/tiles/grip.png",      reqCameras: 1, reqImus: 2, idx: 1 },
-                            { icon: "⇅", name: qsTr("Ground forces"),  desc: qsTr("Hit shots with IMUs on your hips to assess how you use the ground to generate power"),                              img: "qrc:/assets/tiles/feet.png",      reqCameras: 2, reqImus: 3, idx: 2 },
-                            { icon: "✦", name: qsTr("AI coach"),       desc: qsTr("Work with an AI coach to hit shots and get feedback on your swing and how to improve"),                             img: "qrc:/assets/tiles/coach.png",     reqCameras: 2, reqImus: 3, idx: 3 }
+                            { icon: "⇅", name: qsTr("Ground forces"),  desc: qsTr("Hit shots with IMUs on your hips to assess how you use the ground to generate power"),                              img: "qrc:/assets/tiles/feet.png",      reqCameras: 2, reqImus: 3, idx: 2, comingSoon: true },
+                            { icon: "✦", name: qsTr("AI coach"),       desc: qsTr("Work with an AI coach to hit shots and get feedback on your swing and how to improve"),                             img: "qrc:/assets/tiles/coach.png",     reqCameras: 2, reqImus: 3, idx: 3, comingSoon: true }
                         ]
 
                         delegate: HmTypeCard {
@@ -350,6 +352,7 @@ Item {
                             imusRequired:    modelData.reqImus
                             camerasCount:    cameraManager.cameraList.length
                             imusCount:       imuManager.imuEnumeratedCount
+                            comingSoon:      modelData.comingSoon || false
                             isSelected:      root.selectedType === modelData.idx
                             onClicked:       root.selectedType = modelData.idx
                             onDoubleClicked: {
@@ -402,7 +405,8 @@ Item {
                     MouseArea {
                         anchors.fill: parent
                         cursorShape:  Qt.PointingHandCursor
-                        onClicked:    root.startSessionRequested(root.selectedType)
+                        onClicked:    if (root.comingSoonTypes.indexOf(root.selectedType) === -1)
+                                          root.startSessionRequested(root.selectedType)
                     }
                 }
             }

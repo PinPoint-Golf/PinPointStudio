@@ -38,6 +38,9 @@ Rectangle {
     property bool   camerasMet:       camerasOptional || camerasCount >= camerasRequired
     property bool   imusMet:          imusCount >= imusRequired
     property bool   isSelected:       false
+    // Non-startable "coming soon" tile: dimmed, badged, and inert (cannot be
+    // selected, hovered, or started).
+    property bool   comingSoon:       false
 
     signal clicked()
     signal doubleClicked()
@@ -92,9 +95,10 @@ Rectangle {
         // to near-full presence with a touch of added brightness and saturation,
         // as though the artwork is back-lit. Hover gives a gentler preview lift.
         // Behaviors animate the transition so selection feels like switching on.
-        opacity: root.isSelected            ? (Theme.dark ? 0.95 : 1.0)
+        opacity: (root.comingSoon ? 0.3 : 1.0)
+               * (root.isSelected            ? (Theme.dark ? 0.95 : 1.0)
                : hoverArea.containsMouse    ? (Theme.dark ? 0.66 : 0.86)
-               :                              (Theme.dark ? 0.5  : 0.75)   // lighter themes need more presence
+               :                              (Theme.dark ? 0.5  : 0.75))  // lighter themes need more presence
         brightness: root.isSelected         ? 0.22
                   : hoverArea.containsMouse  ? 0.08
                   :                            0.0
@@ -109,6 +113,7 @@ Rectangle {
         id: contentCol
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: Theme.sp(12) }
         spacing: 0
+        opacity: root.comingSoon ? 0.5 : 1.0
 
         Item { width: 1; height: Theme.sp(4) }
 
@@ -192,9 +197,32 @@ Rectangle {
         Item { width: 1; height: Theme.sp(4) }
     }
 
+    // "Coming soon" badge — top-right, shown only for non-startable tiles.
+    Rectangle {
+        visible: root.comingSoon
+        anchors { top: parent.top; right: parent.right; margins: Theme.sp(10) }
+        radius: Theme.radius
+        color:  Theme.colorBg3
+        border.width: 1
+        border.color: Theme.colorBorderStrong
+        width:  csLabel.implicitWidth + Theme.sp(12)
+        height: csLabel.implicitHeight + Theme.sp(6)
+
+        Text {
+            id: csLabel
+            anchors.centerIn:   parent
+            text:               qsTr("COMING SOON")
+            font.family:        Theme.fontData
+            font.pixelSize:     Theme.fontSzMicro
+            font.letterSpacing: Theme.trackingMicro
+            color:              Theme.colorText3
+        }
+    }
+
     MouseArea {
         id: hoverArea
         anchors.fill: parent
+        enabled:      !root.comingSoon
         hoverEnabled: true
         cursorShape:  Qt.PointingHandCursor
         onClicked:       root.clicked()
