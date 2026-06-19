@@ -25,6 +25,7 @@
 #include <QElapsedTimer>
 
 #include "analysis_tuning.h"
+#include "shaft_kinematics.h"
 #include "imu_vision_fuser.h"
 #include "pose_runner.h"
 #include "shot_analyzer.h"
@@ -200,6 +201,58 @@ double medianArmPx(const PoseTrack2D &pose, int w, int h)
     return lens[lens.size() / 2];
 }
 
+// Canonical swing-progress for each phase knot (matches the R6 seed table). −1
+// for phases that are not progress anchors.
+float progressForPhase(Phase p)
+{
+    switch (p) {
+    case Phase::Address:       return 0.00f;
+    case Phase::Takeaway:      return 0.15f;
+    case Phase::MidBackswing:  return 0.35f;
+    case Phase::Top:           return 0.50f;
+    case Phase::Transition:    return 0.60f;
+    case Phase::Delivery:      return 0.80f;
+    case Phase::MaxSpeed:      return 0.85f;
+    case Phase::Impact:        return 0.90f;
+    case Phase::Release:       return 0.95f;
+    case Phase::FollowThrough: return 0.98f;
+    case Phase::Finish:        return 1.00f;
+    default:                   return -1.f;
+    }
+}
+
+// Map a frame timestamp to monotone swing-progress s ∈ [0,1] by interpolating
+// between the segmentation event anchors. Returns false (no reliable s) when
+// fewer than two anchors exist — the caller then falls back to the arm-hang dir.
+bool swingProgressAt(const Segmentation &seg, int64_t t_us, float &sOut)
+{
+    struct Anchor { int64_t t; float s; };
+    std::vector<Anchor> anchors;
+    anchors.reserve(seg.events.size());
+    for (const PhaseEvent &e : seg.events) {
+        const float s = progressForPhase(e.phase);
+        if (s >= 0.f)
+            anchors.push_back({ e.t_us, s });
+    }
+    if (anchors.size() < 2)
+        return false;
+    std::sort(anchors.begin(), anchors.end(),
+              [](const Anchor &x, const Anchor &y) { return x.t < y.t; });
+    if (t_us <= anchors.front().t) { sOut = anchors.front().s; return true; }
+    if (t_us >= anchors.back().t)  { sOut = anchors.back().s;  return true; }
+    for (size_t i = 1; i < anchors.size(); ++i) {
+        if (t_us <= anchors[i].t) {
+            const Anchor &a = anchors[i - 1], &b = anchors[i];
+            const float f = (b.t == a.t) ? 0.f
+                                         : float(double(t_us - a.t) / double(b.t - a.t));
+            sOut = a.s + (b.s - a.s) * f;
+            return true;
+        }
+    }
+    sOut = anchors.back().s;
+    return true;
+}
+
 } // namespace
 
 ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
@@ -257,7 +310,9 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
     double armNominalLenM    = kArmNominalM;
     double minLenFracOfArm   = 0.0;    // R5: arm-relative length floor (0 = disabled)
     bool   useKinematicPrior = false;  // R2/R6: arm-direction soft prior (K1 interim = arm-hang dir)
-    double armAxisSigmaDeg   = 35.0;   // R2 interim prior width
+    double armAxisSigmaDeg   = 35.0;   // R2 interim prior width (fallback when no swing-progress)
+    bool   useEnvelope       = false;  // R6: hard-reject kinematically impossible candidates
+    int    chirality         = +1;     // handedness × mirror sign for predictClubAngle (K5/handedness refines)
     {
         namespace tn = tuning;
         const QVariantMap &ov = job.tuningOverrides;
@@ -266,7 +321,10 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
         tn::apply(ov, "shaft.minLenFracOfArm",   minLenFracOfArm);
         tn::apply(ov, "shaft.useKinematicPrior", useKinematicPrior);
         tn::apply(ov, "shaft.armAxisSigmaDeg",   armAxisSigmaDeg);
+        tn::apply(ov, "shaft.useEnvelope",       useEnvelope);
+        tn::apply(ov, "shaft.chirality",         chirality);
     }
+    chirality = chirality < 0 ? -1 : +1;
     const double armPxMed = medianArmPx(pose, w, h);
 
     // R1 scale ladder: arm length (robust, framing-independent) → silhouette
@@ -333,16 +391,43 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
             prior.numElbowDirs    = a.numElbows;
             prior.elbowDirRad[0]  = a.elbowRad[0];
             prior.elbowDirRad[1]  = a.elbowRad[1];
-            // R2/R6 directional prior (K1 interim: the arm-hang direction itself;
-            // K2 replaces the mean with φ_arm + predicted wrist cock). Gated OFF
-            // by default — supersedes the inter-hand bump in buildThetaWeights.
+            // R6 directional prior: φ_club_pred = φ_arm + chirality·β̂(s). With a
+            // reliable swing-progress from the segmentation ladder we use the full
+            // wrist-cock model (centres the prior ~90° off the arm at the Top, the
+            // case the arm-hang interim gets wrong); otherwise fall back to the
+            // arm-hang direction with a wide width. Supersedes the inter-hand bump
+            // in buildThetaWeights. Gated OFF by default.
             if (useKinematicPrior && a.hasArm) {
-                prior.hasKinematicDir   = true;
-                prior.kinematicDirRad   = a.phiArmRad;
-                prior.kinematicSigmaRad = float(armAxisSigmaDeg * kDeg2Rad);
-                prior.armSide           = 0;   // sidedness arrives with K2
+                float s = 0.f;
+                if (swingProgressAt(segmentation, e.timestamp_us, s)) {
+                    kinematics::ClubAnglePrediction pr;
+                    prior.kinematicDirRad   = kinematics::predictClubAngle(a.phiArmRad, s, chirality, &pr);
+                    prior.kinematicSigmaRad = pr.sigmaRad;
+                    prior.armSide           = chirality * pr.side;
+                } else {
+                    prior.kinematicDirRad   = a.phiArmRad;
+                    prior.kinematicSigmaRad = float(armAxisSigmaDeg * kDeg2Rad);
+                    prior.armSide           = 0;
+                }
+                prior.hasKinematicDir = true;
             }
             o.candidates = detectShaft(luma, dcfg, prior);
+            // R6 envelope guardrail: drop kinematically impossible candidates
+            // (> envelopeHardK·σ_β from the prediction). The soft down-weighting
+            // already happened in buildThetaWeights; this is the hard backstop for
+            // a strong off-axis clutter ridge. σ_β is wide at the turn points
+            // (table), so legitimate wide-club frames are not rejected.
+            if (useEnvelope && prior.hasKinematicDir && !o.candidates.empty()) {
+                const float predRad = prior.kinematicDirRad;
+                const float sig     = prior.kinematicSigmaRad;
+                const float hardK   = dcfg.envelopeHardK;
+                o.candidates.erase(
+                    std::remove_if(o.candidates.begin(), o.candidates.end(),
+                        [&](const ShaftCandidate &c) {
+                            return kinematics::envelopeDeviationSigma(c.thetaRad, predRad, sig) > hardK;
+                        }),
+                    o.candidates.end());
+            }
             if (!o.candidates.empty())
                 ++detected;
         }
