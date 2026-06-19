@@ -53,7 +53,33 @@ Edit these and commit + push:
 That's the *only* version edit — CMake derives the installer version from it, and the
 app's WinSparkle display/build version comes from it too. Nothing else to bump.
 
-### 2. Build the `-core` installer (the update payload)
+### 2. Run the full test suite — ALL must pass (MANDATORY GATE)
+**A release MUST NOT be cut while any test is failing or not building.** PinPoint has
+seven standalone CTest suites (they are *not* part of the app build — see
+[`../../BUILDING.md`](../../BUILDING.md) § Testing). Build and run every one; each must
+report `100% tests passed`. Run this from a Developer (vcvars64) shell with CMake +
+Ninja on `PATH`:
+```powershell
+$Qt  = 'C:/Qt/6.11.0/msvc2022_64'
+$OCV = 'C:/tools/opencv/build'                          # Analysis & Pose need OpenCV
+$env:PATH = "$Qt/bin;$OCV/x64/vc16/bin;$env:PATH"       # so test exes resolve Qt/OpenCV DLLs
+$fail = @()
+foreach ($s in @('Buffer=src/Buffer','Analysis=src/Analysis/tests','Audio=src/Audio/tests',
+                 'Core=src/Core/tests','Gui=src/Gui/tests','IMU=src/IMU/tests','Pose=src/Pose/tests')) {
+  $n,$d = $s -split '='
+  cmake -S $d -B "build/tests-$n" -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=$Qt -DOpenCV_DIR=$OCV
+  if ($LASTEXITCODE) { $fail += "$n (configure)"; continue }
+  cmake --build "build/tests-$n" -j
+  if ($LASTEXITCODE) { $fail += "$n (build)"; continue }
+  ctest --test-dir "build/tests-$n" --output-on-failure
+  if ($LASTEXITCODE) { $fail += "$n (tests)" }
+}
+if ($fail) { Write-Error "RELEASE BLOCKED — failing suites: $($fail -join ', ')" } else { 'ALL SUITES PASSED' }
+```
+**If any suite fails to build or any test fails, STOP — fix it and re-run before you
+tag.** Do not proceed to the build/sign steps below.
+
+### 3. Build the `-core` installer (the update payload)
 Either let CI do it, or build locally — pick one.
 
 **Option A — CI builds it (recommended).** Push a tag; the `windows` job in
@@ -78,7 +104,7 @@ $exe = (Get-ChildItem build\Release-Installer -Recurse -Filter 'PinPointStudioSe
         Sort-Object LastWriteTime -Desc | Select-Object -First 1).FullName
 ```
 
-### 3. Sign it + generate the appcast
+### 4. Sign it + generate the appcast
 ```powershell
 pwsh -File packaging\make_appcast.ps1 -PrivateKeyFile C:\keys\pinpoint_win.key -Tag $TAG -Installer $exe
 ```
@@ -87,7 +113,7 @@ feed item: version, enclosure URL, signature, length). Optional: add
 `-NotesUrl https://github.com/PinPoint-Golf/PinPointStudio/releases/download/$TAG/release-notes-win.html`
 to show "what's new" in WinSparkle's window.
 
-### 4. Verify the signature locally (exactly as the app will)
+### 5. Verify the signature locally (exactly as the app will)
 ```powershell
 $WS  = (Get-ChildItem build -Recurse -Filter winsparkle-tool.exe | Select-Object -First 1).FullName
 $pub = (Get-Content src\Resources\keys\pinpoint_release_win_eddsa.pub -Raw).Trim()
@@ -98,7 +124,7 @@ $sig = ([regex]::Match((Get-Content (Join-Path (Split-Path $exe) appcast-win.xml
 If this doesn't verify, **stop** — do not publish. (Most common cause: you signed a
 rebuild instead of the exact CI bytes.)
 
-### 5. Upload the assets + publish
+### 6. Upload the assets + publish
 ```powershell
 $appcast = Join-Path (Split-Path $exe) 'appcast-win.xml'
 # Option A (CI): the -core .exe is already on the draft — just add the appcast:
@@ -117,7 +143,7 @@ gh release create $TAG -R PinPoint-Golf/PinPointStudio `
 > CI won't re-draft your release or overwrite the signed installer — no need to cancel
 > the run by hand.
 
-### 6. Confirm it's live
+### 7. Confirm it's live
 ```bash
 gh release view "$TAG" -R PinPoint-Golf/PinPointStudio --json assets \
   --jq '.assets[].name'      # expect: PinPointStudioSetup-<ver>-core.exe AND appcast-win.xml
@@ -131,6 +157,7 @@ installer, verifies the signature, and relaunches on the new version — no UAC 
 ## Quick checklist (per release)
 
 - [ ] Bump `PINPOINT_VERSION_BUILD` (+ MAJOR/MINOR/POSTFIX) in `version.h`, commit, push
+- [ ] **Run all 7 CTest suites — every one `100% tests passed` (mandatory; stop if any fail)**
 - [ ] Build the `-core` installer (CI tag push, or `build_installer.ps1 -Components core`)
 - [ ] If CI: `gh release download` the exact `-core.exe`
 - [ ] `make_appcast.ps1` → signs + writes `appcast-win.xml`

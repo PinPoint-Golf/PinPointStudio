@@ -157,7 +157,26 @@ Edit and commit + push:
 
 CMake derives the bundle version + DMG name from these — nothing else to edit.
 
-### 1.2 Build the DMG
+### 1.2 Run the full test suite — ALL must pass (MANDATORY GATE)
+**A release MUST NOT be cut while any test is failing or not building.** PinPoint has
+seven standalone CTest suites (they are *not* part of the app build — see
+[`../../BUILDING.md`](../../BUILDING.md) § Testing). Build and run every one; each must
+report `100% tests passed` (OpenCV comes from Homebrew, so no `OpenCV_DIR` needed):
+```bash
+QT=~/Qt/6.11.0/macos
+for s in Buffer=src/Buffer Analysis=src/Analysis/tests Audio=src/Audio/tests \
+         Core=src/Core/tests Gui=src/Gui/tests IMU=src/IMU/tests Pose=src/Pose/tests; do
+  n=${s%%=*}; d=${s#*=}
+  cmake -S "$d" -B "build/tests-$n" -DCMAKE_PREFIX_PATH="$QT" \
+    && cmake --build "build/tests-$n" -j \
+    && ctest --test-dir "build/tests-$n" --output-on-failure \
+    || { echo "❌ RELEASE BLOCKED — $n failed"; break; }
+done
+```
+**If any suite fails to build or any test fails, STOP — fix it and re-run before you
+tag.** Do not proceed to the build/sign steps below.
+
+### 1.3 Build the DMG
 Two paths — pick one.
 
 **Path A — CI builds it (recommended once the workflow is validated).** Push a tag; the
@@ -182,7 +201,7 @@ DMG=$(ls -t dist/PinPointStudio-*-x86_64.dmg | head -1)
 If `SIGN_IDENTITY`/`NOTARY_PROFILE` are unset, the script still builds a valid **unsigned**
 DMG and tells you it skipped signing.
 
-### 1.3 What signing + notarizing actually does (so you understand the script)
+### 1.4 What signing + notarizing actually does (so you understand the script)
 `tools/package_macos.sh` runs these for you; here's the manual equivalent, useful for
 learning and for re-signing a CI (Path A) DMG:
 ```bash
@@ -199,7 +218,7 @@ xcrun stapler staple "$DMG"
 If notarization says **Invalid**, get the reason: `xcrun notarytool log <submission-id>
 --keychain-profile pinpoint-notary` (see Troubleshooting).
 
-### 1.4 Verify — STOP if anything here fails
+### 1.5 Verify — STOP if anything here fails
 ```bash
 spctl -a -t open --context context:primary-signature -vv "$DMG"   # → accepted, source=Notarized Developer ID
 xcrun stapler validate "$DMG"                                      # → The validate action worked
@@ -208,7 +227,7 @@ codesign --verify --deep --strict --verbose=2 "$DMG"              # → valid on
 All three must pass before you publish. The most common first-time failure is a missing
 or wrong entitlement / an unsigned nested binary — see Troubleshooting.
 
-### 1.5 [Stage 2] EdDSA-sign the DMG + generate the appcast — REQUIRED every release
+### 1.6 [Stage 2] EdDSA-sign the DMG + generate the appcast — REQUIRED every release
 ```bash
 # Signs with the private key in your login Keychain (no --key-file needed); auto-finds
 # sign_update under build/**/_deps/sparkle-src/bin/. Writes appcast-mac.xml next to the DMG.
@@ -223,7 +242,7 @@ SIG=$(sed -n 's/.*edSignature="\([^"]*\)".*/\1/p' "$(dirname "$DMG")/appcast-mac
 Sign the **notarized** DMG (its bytes are what users download). If signing from the
 offline `.pem` instead of the Keychain, add `--key-file ~/pinpoint_release_mac_eddsa_PRIVATE.pem`.
 
-### 1.6 Tag (if not already) + publish to GitHub
+### 1.7 Tag (if not already) + publish to GitHub
 ```bash
 # Path B (local): create the release with the assets. For Stage 1, just the DMG:
 gh release create "$TAG" -R PinPoint-Golf/PinPointStudio \
@@ -239,7 +258,7 @@ gh release edit   "$TAG" -R PinPoint-Golf/PinPointStudio --draft=false --prerele
 `release.yml`, whose `guard` job sees the published release and **skips** CI so it can't
 clobber your signed DMG.
 
-### 1.7 Confirm
+### 1.8 Confirm
 ```bash
 gh release view "$TAG" -R PinPoint-Golf/PinPointStudio --json assets --jq '.assets[].name'
 ```
@@ -251,6 +270,7 @@ warning. (Stage 2: an older installed build offers the update via Settings → C
 
 ## Quick checklist (per release)
 - [ ] Bump `PINPOINT_VERSION_BUILD` (+ MAJOR/MINOR/POSTFIX) in `version.h`; commit, push
+- [ ] **Run all 7 CTest suites — every one `100% tests passed` (mandatory; stop if any fail)**
 - [ ] Build the DMG (Path A CI tag push, or Path B `tools/package_macos.sh`)
 - [ ] Sign (Developer ID) + notarize + staple — automatic in Path B with the env vars set
 - [ ] Verify: `spctl` → Notarized Developer ID, `stapler validate`, `codesign --verify`
@@ -282,7 +302,7 @@ warning. (Stage 2: an older installed build offers the update via Settings → C
   `packaging/macos/entitlements.plist` (e.g. `allow-unsigned-executable-memory`/`allow-jit`)
   and re-sign + re-notarize. Add the *minimum* needed.
 - **"damaged and can't be opened" on the test machine** → you skipped notarization or
-  stapling, or signed with the wrong identity. Re-verify §1.4.
+  stapling, or signed with the wrong identity. Re-verify §1.5.
 
 ## Gotchas & key custody
 - **Sign the exact bytes you publish.** Sign + notarize the DMG you upload, then (Stage 2)

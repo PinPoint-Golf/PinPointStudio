@@ -320,7 +320,9 @@ app. WinSparkle points at the stable
 
 ## Testing
 
-PinPoint Studio has six standalone unit-test suites. **None are part of the application build** — the root `CMakeLists.txt` forces `BUILD_TESTING OFF`, so building the app never compiles them. Each suite is configured against its own source root and is wired into CTest.
+PinPoint Studio has seven standalone unit-test suites. **None are part of the application build** — the root `CMakeLists.txt` forces `BUILD_TESTING OFF`, so building the app never compiles them. Each suite is configured against its own source root and is wired into CTest.
+
+> On Windows/MSVC: the Analysis and Pose suites need `-DOpenCV_DIR=C:/tools/opencv/build` at configure (the app's OpenCV auto-probe is not in the test projects), and ctest needs Qt's `bin` plus OpenCV's `bin` on `PATH` or the test exes fail with `0xc0000135` (DLL not found).
 
 ### EventBuffer suite (`src/Buffer/tests`)
 
@@ -392,6 +394,18 @@ cmake -S src/Gui/tests -B build/gui-tests -DCMAKE_PREFIX_PATH=/path/to/Qt/6.11.x
 cmake --build build/gui-tests -j
 ctest --test-dir build/gui-tests --output-on-failure
 ```
+
+### Resource profiler suite (`src/Core/tests`)
+
+Covers the resource profiler (`pp_profiler`, `pp_os_metrics`, `PpStatsLog`) and the Gui `profiler_controller` bridge: baseline vs deep-tier gating, scope interning identity, wall/CPU timing aggregation, concurrency, OS/process metrics, the per-platform GPU-metrics graceful-degradation contract, the zero-overhead compile-out claim (both tiers off), and the Q_OBJECT controller (7 tests). Uses GoogleTest (fetched automatically); each test compiles the Core sources it needs directly plus a `PpLogStream` stub (no whisper/ggml dependency). Requires Qt6 Core; on Windows it also links `dxgi`.
+
+```bash
+cmake -S src/Core/tests -B build/core-tests -DCMAKE_PREFIX_PATH=/path/to/Qt/6.11.x/gcc_64
+cmake --build build/core-tests -j
+ctest --test-dir build/core-tests --output-on-failure
+```
+
+Sanitizers are opt-in cache options (separate build dir per config), as in the EventBuffer suite — e.g. `-DPINPOINT_ENABLE_ASAN=ON -DPINPOINT_ENABLE_UBSAN=ON` or `-DPINPOINT_ENABLE_TSAN=ON`.
 
 ---
 

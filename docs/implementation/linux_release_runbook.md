@@ -32,6 +32,25 @@ Edit `src/Core/version.h` (`PINPOINT_VERSION_MAJOR/MINOR/POSTFIX`), commit, push
 The new version must be **strictly newer** than what's installed in the wild or the
 updater won't offer it.
 
+## 0.5 Run the full test suite — ALL must pass (MANDATORY GATE)
+**A release MUST NOT be cut while any test is failing or not building.** PinPoint has
+seven standalone CTest suites (they are *not* part of the app build — see
+[`../../BUILDING.md`](../../BUILDING.md) § Testing). Build and run every one; each must
+report `100% tests passed` (OpenCV is found from the system, so no `OpenCV_DIR` needed):
+```bash
+QT=~/Qt/6.11.0/gcc_64
+for s in Buffer=src/Buffer Analysis=src/Analysis/tests Audio=src/Audio/tests \
+         Core=src/Core/tests Gui=src/Gui/tests IMU=src/IMU/tests Pose=src/Pose/tests; do
+  n=${s%%=*}; d=${s#*=}
+  cmake -S "$d" -B "build/tests-$n" -DCMAKE_PREFIX_PATH="$QT" \
+    && cmake --build "build/tests-$n" -j \
+    && ctest --test-dir "build/tests-$n" --output-on-failure \
+    || { echo "❌ RELEASE BLOCKED — $n failed"; break; }
+done
+```
+**If any suite fails to build or any test fails, STOP — fix it and re-run before you
+tag.** Do not proceed to Path A/B below.
+
 ## Path A — CI builds, you sign locally (recommended)
 CI builds a reproducible **unsigned draft**; you sign that exact artifact and publish.
 
