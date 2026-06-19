@@ -159,15 +159,29 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
                 { QStringLiteral("lenPx"), s.visibleLenPx },
                 { QStringLiteral("conf"),  double(s.conf) },
                 { QStringLiteral("flags"), int(s.flags) } });
+        // R7 predicted series (pure R6 model) for the ghost overlay — same
+        // normalized shape as `samples`; σ_β recoverable from conf for the cone.
+        QVariantList predicted;
+        for (const ShaftSample2D &s : a.shaft.predicted)
+            predicted.append(QVariantMap{
+                { QStringLiteral("t_us"),  static_cast<qlonglong>(s.t_us) },
+                { QStringLiteral("grip"),  QVariantList{ s.gripPx.x() * iw, s.gripPx.y() * ih } },
+                { QStringLiteral("head"),  QVariantList{ s.headPx.x() * iw, s.headPx.y() * ih } },
+                { QStringLiteral("theta"), s.thetaRad },
+                { QStringLiteral("lenPx"), s.visibleLenPx },
+                { QStringLiteral("conf"),  double(s.conf) },
+                { QStringLiteral("flags"), int(s.flags) } });
         detail.insert(QStringLiteral("club"),
                       QVariantMap{
                           { QStringLiteral("camera"),        int(a.shaft.camera) },
                           { QStringLiteral("valid"),         a.shaft.valid },
                           { QStringLiteral("coverage"),      double(a.shaft.coverage) },
                           { QStringLiteral("imuVisionCorr"), double(a.shaft.imuVisionCorr) },
+                          { QStringLiteral("modelVisionResidualDeg"), double(a.shaft.modelVisionResidualDeg) },
                           { QStringLiteral("frameWidth"),    a.shaft.frameWidth },
                           { QStringLiteral("frameHeight"),   a.shaft.frameHeight },
-                          { QStringLiteral("samples"),       samples } });
+                          { QStringLiteral("samples"),       samples },
+                          { QStringLiteral("predicted"),     predicted } });
     }
     return detail;
 }

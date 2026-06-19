@@ -66,6 +66,8 @@ Item {
     property bool showStatsOverlay:     true   // resolution / fps
     property bool showReplayBadge:      true
     property bool showReplayOverlay:    true   // analyzed skeleton + club shaft during replay
+    property bool showPredictedShaft:   false  // R7 dev overlay: dashed ghost of the kinematic-model club
+    property bool showPredictedEnvelope:false  // R7 dev overlay: faint ±k·σ_β kinematic cone (needs showPredictedShaft)
 
     // Skeleton edge definitions, shared by the live pose canvas and the
     // replay overlay — colours mapped to theme tokens. Left-body edges use
@@ -396,6 +398,11 @@ Item {
                 var d = root._replayDetail
                 return (d && d.club && d.club.valid && d.club.samples) ? d.club.samples : []
             }
+            // R7 predicted (pure R6 model) series — drawn as a dashed ghost.
+            readonly property var _clubPredicted: {
+                var d = root._replayDetail
+                return (d && d.club && d.club.predicted) ? d.club.predicted : []
+            }
             readonly property int kTrail: 10
 
             // Greatest index with t_us <= t (−1 when empty).
@@ -502,6 +509,48 @@ Item {
                     ctx.beginPath()
                     ctx.arc(hx, hy, 4, 0, Math.PI * 2)
                     ctx.fill()
+                }
+
+                // Predicted (R6 kinematic-model) shaft — dashed ghost behind the
+                // solid actual line; lets you watch model vs measurement diverge.
+                // Dev/test chrome: off by default. σ_β recovered from conf for the
+                // optional envelope cone (conf = 1 − σ_βDeg/60 in the analyzer).
+                if (root.showPredictedShaft && _clubPredicted.length > 0) {
+                    var ppi = _indexFor(_clubPredicted, t)
+                    if (ppi >= 0) {
+                        var ps  = _clubPredicted[ppi]
+                        var pgx = ps.grip[0] * cr.width + cr.x, pgy = ps.grip[1] * cr.height + cr.y
+                        var phx = ps.head[0] * cr.width + cr.x, phy = ps.head[1] * cr.height + cr.y
+                        if (root.showPredictedEnvelope) {
+                            var sigDeg = (1.0 - ps.conf) * 60.0
+                            var half   = (3.0 * sigDeg) * Math.PI / 180.0
+                            var ang    = Math.atan2(phy - pgy, phx - pgx)
+                            var len    = Math.sqrt((phx - pgx) * (phx - pgx) + (phy - pgy) * (phy - pgy))
+                            ctx.strokeStyle = cAccent
+                            ctx.globalAlpha = 0.15
+                            ctx.lineWidth   = 1
+                            ctx.setLineDash([])
+                            for (var sgn = -1; sgn <= 1; sgn += 2) {
+                                ctx.beginPath()
+                                ctx.moveTo(pgx, pgy)
+                                ctx.lineTo(pgx + len * Math.cos(ang + sgn * half),
+                                           pgy + len * Math.sin(ang + sgn * half))
+                                ctx.stroke()
+                            }
+                        }
+                        ctx.strokeStyle = cAccent
+                        ctx.globalAlpha = 0.40
+                        ctx.lineWidth   = 2
+                        ctx.setLineDash([6, 5])
+                        ctx.beginPath()
+                        ctx.moveTo(pgx, pgy)
+                        ctx.lineTo(phx, phy)
+                        ctx.stroke()
+                        ctx.setLineDash([])
+                        ctx.beginPath()
+                        ctx.arc(phx, phy, 4, 0, Math.PI * 2)
+                        ctx.stroke()
+                    }
                 }
                 ctx.globalAlpha = 1.0
             }
