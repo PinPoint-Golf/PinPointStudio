@@ -45,6 +45,7 @@ Rectangle {
     required property string swingDir
 
     property bool selected: false
+    property bool hovered:  hover.hovered
 
     signal tapped()
     signal rated(int newValue)
@@ -54,55 +55,78 @@ Rectangle {
     // idiom (legibility over media beats theme adaptation).
     readonly property color scrimColor: Qt.rgba(0.08, 0.06, 0.04, 0.55)
 
+    // ── Hover / select motion (mirrors the home tiles' language, adapted to a
+    //    media card). The film-strip viewport is clipped and the card fills it
+    //    exactly, so growing the card would crop its border at the strip edges.
+    //    Instead the media leans toward the viewer (inner zoom, contained by the
+    //    card's own clip) on hover, holds a touch larger when selected, and the
+    //    whole card dips on press (scaling DOWN never clips). Durations come from
+    //    Theme so reduceMotion zeroes them. ──
+    readonly property real _mediaZoom: selected ? 1.06 : hovered ? 1.035 : 1.0
+    readonly property real _cardScale: clickArea.pressed ? 0.97 : 1.0
+
     // 16:9 media aspect
     width:  Theme.sp(139)
     height: Math.round(width * 9 / 16)
     radius: Theme.radius
     clip:   true
     color:  Theme.colorBg
+    transformOrigin: Item.Center
+    scale: _cardScale
+    Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
 
-    // ── Media: video still → placeholder → IMU trace fallback ───────────────
-    Image {
+    // ── Media (leans toward the viewer on hover/select — an inner zoom kept
+    //    inside the frame by the card's clip): video still → placeholder →
+    //    IMU trace fallback ────────────────────────────────────────────────────
+    Item {
+        id: media
         anchors.fill: parent
-        visible:  card.hasVideo && card.thumbnailSource.toString() !== ""
-        source:   card.thumbnailSource
-        fillMode: Image.PreserveAspectCrop
-        asynchronous: true
-    }
+        transformOrigin: Item.Center
+        scale: card._mediaZoom
+        Behavior on scale { NumberAnimation { duration: Theme.durationNormal; easing.type: Easing.OutCubic } }
 
-    Rectangle {   // stub placeholder until real thumbnail extraction lands
-        anchors.fill: parent
-        visible: card.hasVideo && card.thumbnailSource.toString() === ""
-        color:   Theme.colorBg3
+        Image {
+            anchors.fill: parent
+            visible:  card.hasVideo && card.thumbnailSource.toString() !== ""
+            source:   card.thumbnailSource
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+        }
+
+        Rectangle {   // stub placeholder until real thumbnail extraction lands
+            anchors.fill: parent
+            visible: card.hasVideo && card.thumbnailSource.toString() === ""
+            color:   Theme.colorBg3
+            Text {
+                anchors.centerIn: parent
+                text:           "◑"
+                font.family:    Theme.fontSymbol
+                font.pixelSize: Math.round(Theme.sp(22) * Theme.symbolScale("◑"))
+                color:          Theme.colorText3
+            }
+        }
+
+        PpTrace {
+            anchors {
+                left: parent.left; right: parent.right
+                verticalCenter: parent.verticalCenter; verticalCenterOffset: -Theme.sp(6)
+                leftMargin: Theme.sp(7); rightMargin: Theme.sp(7)
+            }
+            height:  Theme.sp(34)
+            visible: !card.hasVideo
+            points:  card.tracePoints
+        }
+
         Text {
-            anchors.centerIn: parent
-            text:           "◑"
-            font.family:    Theme.fontSymbol
-            font.pixelSize: Math.round(Theme.sp(22) * Theme.symbolScale("◑"))
+            anchors { left: parent.left; bottom: parent.bottom
+                      leftMargin: Theme.sp(7); bottomMargin: Theme.sp(22) }
+            visible:        !card.hasVideo
+            text:           qsTr("IMU ONLY")
+            font.family:    Theme.fontData
+            font.pixelSize: Theme.fontSzMicro
+            font.letterSpacing: Theme.trackingLabel
             color:          Theme.colorText3
         }
-    }
-
-    PpTrace {
-        anchors {
-            left: parent.left; right: parent.right
-            verticalCenter: parent.verticalCenter; verticalCenterOffset: -Theme.sp(6)
-            leftMargin: Theme.sp(7); rightMargin: Theme.sp(7)
-        }
-        height:  Theme.sp(34)
-        visible: !card.hasVideo
-        points:  card.tracePoints
-    }
-
-    Text {
-        anchors { left: parent.left; bottom: parent.bottom
-                  leftMargin: Theme.sp(7); bottomMargin: Theme.sp(22) }
-        visible:        !card.hasVideo
-        text:           qsTr("IMU ONLY")
-        font.family:    Theme.fontData
-        font.pixelSize: Theme.fontSzMicro
-        font.letterSpacing: Theme.trackingLabel
-        color:          Theme.colorText3
     }
 
     // ── Overlays ─────────────────────────────────────────────────────────────
@@ -151,10 +175,18 @@ Rectangle {
         radius: card.radius
         color:  "transparent"
         border.width: 1
-        border.color: card.selected ? Theme.colorAccent : Theme.colorBorderMid
+        border.color: card.selected ? Theme.colorAccent
+                    : card.hovered  ? Theme.colorAccentMid
+                    :                 Theme.colorBorderMid
+        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
     }
 
+    // Hover lives on a HoverHandler (not the click MouseArea) so the interactive
+    // star row below doesn't steal the card's hover state as the cursor crosses it.
+    HoverHandler { id: hover }
+
     MouseArea {
+        id: clickArea
         anchors.fill: parent
         cursorShape:  Qt.PointingHandCursor
         onClicked:    card.tapped()

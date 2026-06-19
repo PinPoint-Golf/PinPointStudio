@@ -96,6 +96,18 @@ QtObject {
         autoReturnToCapture = (fromCapture === true)
     }
 
+    // Deselect the focused swing — re-clicking the on-stage card in the carousel
+    // clears the stage. Replay and Analyse fall back to their empty state (nothing
+    // focused, replay stopped); the active mode is left unchanged so the user stays
+    // on the same view, just emptied. Mirrors the "fresh, nothing focused" half of
+    // enterLoadedSession without forcing a mode switch.
+    function clearFocus() {
+        autoReturnToCapture = false
+        focusedShotId   = -1
+        focusedSwingDir = ""
+        shotReplay.stop()
+    }
+
     // A past session was just loaded (data-source → Loaded): show it in Replay,
     // fresh — its own carousel supplies the swings, nothing focused yet. Capture is
     // live-only, so a loaded session never lands there.

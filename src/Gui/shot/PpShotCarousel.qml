@@ -305,12 +305,20 @@ Item {
             delegate: PpShotCard {
                 id: cardDelegate
                 // Highlight follows the swing currently on the stage (filmstrip
-                // → loupe). Single click promotes this swing into Replay.
+                // → loupe). Single click promotes this swing into Replay; clicking
+                // the already-focused card again deselects it and resets the
+                // Replay/Analyse stage to its empty state.
                 selected: shotId === SessionMode.focusedShotId
                 onTapped: {
-                    root.selectedShotId = shotId
-                    root.selectedCard   = cardDelegate
-                    SessionMode.enterReplay(shotId, swingDir)
+                    if (shotId === SessionMode.focusedShotId) {
+                        root.selectedShotId = -1
+                        root.selectedCard   = null
+                        SessionMode.clearFocus()
+                    } else {
+                        root.selectedShotId = shotId
+                        root.selectedCard   = cardDelegate
+                        SessionMode.enterReplay(shotId, swingDir)
+                    }
                 }
                 onRated: (n) => root.activeModel.setRating(shotId, n)
             }
