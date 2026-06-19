@@ -418,6 +418,42 @@ static void testR1RadiusBound()
     CHECK("full reach materially longer than clipped", fullLen > clipLen + 80.0);
 }
 
+// R8: a faint motion-blur fan that the anchored run scan misses is recovered by
+// the blur-mode integrator inside the kinematic envelope — and blur mode does
+// not fabricate a fan on a blank frame (never invent a shaft that is not there).
+static void testR8BlurWedge()
+{
+    std::printf("=== R8 blur mode — faint fan recovered inside the envelope ===\n");
+    const double cdeg = 70.0;
+    // A motion-blur fan: spread over a wide span so each pixel is only partly on
+    // the shaft (semi-transparent), the response broken — the anchored run scan
+    // struggles; integrating the partial pixels in the envelope recovers it.
+    cv::Mat fan = renderWedge(kGrip, deg2rad(cdeg), 12.0, kLenPx, 60, 9, 5.0);
+
+    ShaftDetectConfig sharp;
+    AnchorPrior pp; pp.gripPx = kGrip;
+    const auto sc = detectShaft(fan, sharp, pp);
+    const bool sharpHit = candNear(sc, cdeg, 8.0);
+    std::printf("  (info) sharp path: %d cands, hit=%d\n", int(sc.size()), sharpHit ? 1 : 0);
+
+    ShaftDetectConfig blur;
+    blur.blurMode       = true;
+    blur.predFanHalfRad = float(deg2rad(5.0));
+    AnchorPrior bp; bp.gripPx = kGrip;
+    bp.kinematicDirRad   = float(deg2rad(cdeg));
+    bp.kinematicSigmaRad = float(deg2rad(20.0));
+    const auto bc = detectShaft(fan, blur, bp);
+    std::printf("  (info) blur path: %d cands, hit=%d\n", int(bc.size()), candNear(bc, cdeg, 8.0) ? 1 : 0);
+    CHECK("blur mode detects the faint fan", candNear(bc, cdeg, 8.0));
+
+    // No fabrication: same blur config over a blank noisy frame must not invent
+    // a fan in the envelope.
+    cv::Mat blank = makeBackground(false);
+    addNoise(blank, 5.0, 71);
+    CHECK("blur mode does not fabricate on a blank frame",
+          !candNear(detectShaft(blank, blur, bp), cdeg, 12.0));
+}
+
 int main()
 {
     testCleanBright();
@@ -429,6 +465,7 @@ int main()
     testR5LengthFloor();
     testR2KinematicPrior();
     testR1RadiusBound();
+    testR8BlurWedge();
     testTiming();
 
     std::printf("\n%s (%d failure%s)\n", g_fail ? "FAILED" : "ALL PASS",

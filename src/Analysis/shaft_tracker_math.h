@@ -107,6 +107,7 @@ struct ShaftDetectConfig {
     bool  blurMode        = false; // R8: high-ω fan-integration mode this frame
     float predFanHalfRad  = 0.f;   //     predicted wedge half-width = 0.5·ω̂·t_exp
     float blurThreshScale = 0.5f;  //     threshold multiplier inside the envelope in blur mode
+    float blurSnrMargin   = 1.6f;  //     in-envelope fan must beat the out-of-envelope noise peak ×this
 };
 
 struct AnchorPrior {

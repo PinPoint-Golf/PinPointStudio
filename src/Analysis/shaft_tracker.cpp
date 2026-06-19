@@ -305,6 +305,7 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
         tn::apply(ov, "shaft.envelopeKSigma",    dcfg.envelopeKSigma);
         tn::apply(ov, "shaft.envelopeHardK",     dcfg.envelopeHardK);
         tn::apply(ov, "shaft.blurThreshScale",   dcfg.blurThreshScale);
+        tn::apply(ov, "shaft.blurSnrMargin",     dcfg.blurSnrMargin);
     }
     // Skeleton-aware enhancement gates (K1; all default OFF → current behaviour).
     bool   useArmScale       = false;  // R1: arm-derived search radius
@@ -461,13 +462,14 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
             prior.numElbowDirs    = a.numElbows;
             prior.elbowDirRad[0]  = a.elbowRad[0];
             prior.elbowDirRad[1]  = a.elbowRad[1];
-            // The kinematic prediction supersedes the inter-hand bump in
-            // buildThetaWeights when used. Gated OFF by default.
-            if (useKinematicPrior && havePred) {
-                prior.hasKinematicDir   = true;
+            // Carry the prediction on the prior whenever we have one (the R8 blur
+            // window needs the envelope centre even with the soft prior off); the
+            // soft bump in buildThetaWeights stays gated on useKinematicPrior.
+            if (havePred) {
                 prior.kinematicDirRad   = predDirRad;
                 prior.kinematicSigmaRad = predSigmaRad;
                 prior.armSide           = predSide;
+                prior.hasKinematicDir   = useKinematicPrior;
             }
             o.candidates = detectShaft(luma, dcfg, prior);
             // R6 envelope guardrail: drop kinematically impossible candidates

@@ -140,6 +140,36 @@ inline float runScore(const RunAcc &a, int nRho, int rhoMinBin)
            std::sqrt(static_cast<float>(runLen) / avail);
 }
 
+// Blur-mode integrator (R8): sums the supra-(lowered-threshold) response over
+// ALL ρ — NOT a contiguous run starting at the grip. A fast shaft images as a
+// faint, broken motion-blur fan whose per-pixel response never clears the sharp
+// threshold and whose support is gappy; integrating the coherent signal at a
+// lowered threshold recovers it where the anchored run scan gives up. Used only
+// inside the kinematic envelope (so the lowered threshold can't raise far-field
+// false positives), and scored with runScore's shape so the peak-finding,
+// minScoreFrac and wedge-plateau stages downstream are unchanged.
+struct BlurAcc {
+    int   first = -1, last = -1, count = 0;
+    float sum   = 0.f;
+    inline void push(int r, int v, int loweredThr)
+    {
+        if (v > loweredThr) {
+            if (first < 0) first = r;
+            last = r;
+            sum += static_cast<float>(v - loweredThr);
+            ++count;
+        }
+    }
+};
+inline float blurScore(const BlurAcc &a, int nRho, int rhoMinBin)
+{
+    if (a.count <= 0)
+        return 0.f;
+    const float avail = static_cast<float>(std::max(1, nRho - rhoMinBin));
+    return (a.sum / static_cast<float>(a.count)) *
+           std::sqrt(static_cast<float>(a.count) / avail);
+}
+
 // Soft von-Mises-style prior bump: 1 at dTheta = 0, decaying to floorW.
 // Multiplicative weighting only — a prior must never hard-gate a measurement.
 inline float priorBump(float dTheta, float sigmaRad, float floorW)
@@ -206,13 +236,17 @@ void scanAllAnchors(const cv::Mat *top, const cv::Mat *black,
                     const ShaftDetectConfig &cfg, int thrTop, int thrBlack,
                     const std::vector<float> &thetaWeight,
                     float rhoScale, int nRho,
-                    std::vector<std::vector<ColumnInfo>> &colsA)
+                    std::vector<std::vector<ColumnInfo>> &colsA,
+                    bool blurMode)
 {
     const int rhoMinBin = std::clamp(static_cast<int>(std::lround(cfg.rhoMinPx / rhoScale)),
                                      0, nRho - 1);
     const int startLimit = std::min(nRho - 1,
         rhoMinBin + std::max(0, static_cast<int>(std::lround(cfg.runStartGapPx / rhoScale))));
     const int maxGap = std::max(0, static_cast<int>(std::lround(cfg.runMaxGapPx / rhoScale)));
+    // R8 lowered thresholds inside the blur window (integrate the faint fan).
+    const int lthrTop   = std::max(1, static_cast<int>(static_cast<float>(thrTop)   * cfg.blurThreshScale));
+    const int lthrBlack = std::max(1, static_cast<int>(static_cast<float>(thrBlack) * cfg.blurThreshScale));
 
     const cv::Mat &ref   = top ? *top : *black;
     const int      w     = ref.cols, h = ref.rows;
@@ -226,37 +260,71 @@ void scanAllAnchors(const cv::Mat *top, const cv::Mat *black,
         for (int t = range.start; t < range.end; ++t) {
             const float ct = std::cos(static_cast<float>(t) * binW) * rhoScale;
             const float st = std::sin(static_cast<float>(t) * binW) * rhoScale;
+            // Blur mode (R8): score every column by integration instead of the
+            // anchored run — recovers the broken, faint motion-blur fan. The
+            // envelope restriction + SNR gate are applied in detectShaft (which
+            // needs the out-of-envelope columns as the noise/clutter baseline).
+            const bool inBlur = blurMode;
             for (int a = 0; a < nAnchors; ++a) {
                 const float ax = anchors[a].x, ay = anchors[a].y;
-                RunAcc rt, rb;
-                rt.dead = (tData == nullptr);
-                rb.dead = (bData == nullptr);
-                for (int r = rhoMinBin; r < nRho; ++r) {
-                    const int x = static_cast<int>(ax + static_cast<float>(r) * ct + 0.5f);
-                    const int y = static_cast<int>(ay + static_cast<float>(r) * st + 0.5f);
-                    const bool in = static_cast<unsigned>(x) < static_cast<unsigned>(w) &&
-                                    static_cast<unsigned>(y) < static_cast<unsigned>(h);
-                    if (!rt.dead)
-                        rt.push(r, in ? tData[static_cast<size_t>(y) * tStep + x] : 0,
-                                thrTop, startLimit, maxGap);
-                    if (!rb.dead)
-                        rb.push(r, in ? bData[static_cast<size_t>(y) * bStep + x] : 0,
-                                thrBlack, startLimit, maxGap);
-                    if (rt.dead && rb.dead)
-                        break;
+                float score;
+                bool  dark;
+                int   cStart, cEnd;
+                if (inBlur) {
+                    BlurAcc bt, bb;
+                    for (int r = rhoMinBin; r < nRho; ++r) {
+                        const int x = static_cast<int>(ax + static_cast<float>(r) * ct + 0.5f);
+                        const int y = static_cast<int>(ay + static_cast<float>(r) * st + 0.5f);
+                        const bool in = static_cast<unsigned>(x) < static_cast<unsigned>(w) &&
+                                        static_cast<unsigned>(y) < static_cast<unsigned>(h);
+                        if (tData) bt.push(r, in ? tData[static_cast<size_t>(y) * tStep + x] : 0, lthrTop);
+                        if (bData) bb.push(r, in ? bData[static_cast<size_t>(y) * bStep + x] : 0, lthrBlack);
+                    }
+                    const float sT = blurScore(bt, nRho, rhoMinBin);
+                    const float sB = blurScore(bb, nRho, rhoMinBin);
+                    dark   = sB > sT;
+                    score  = dark ? sB : sT;
+                    const BlurAcc &bbest = dark ? bb : bt;
+                    cStart = bbest.first;
+                    cEnd   = bbest.last;
+                } else {
+                    RunAcc rt, rb;
+                    rt.dead = (tData == nullptr);
+                    rb.dead = (bData == nullptr);
+                    for (int r = rhoMinBin; r < nRho; ++r) {
+                        const int x = static_cast<int>(ax + static_cast<float>(r) * ct + 0.5f);
+                        const int y = static_cast<int>(ay + static_cast<float>(r) * st + 0.5f);
+                        const bool in = static_cast<unsigned>(x) < static_cast<unsigned>(w) &&
+                                        static_cast<unsigned>(y) < static_cast<unsigned>(h);
+                        if (!rt.dead)
+                            rt.push(r, in ? tData[static_cast<size_t>(y) * tStep + x] : 0,
+                                    thrTop, startLimit, maxGap);
+                        if (!rb.dead)
+                            rb.push(r, in ? bData[static_cast<size_t>(y) * bStep + x] : 0,
+                                    thrBlack, startLimit, maxGap);
+                        if (rt.dead && rb.dead)
+                            break;
+                    }
+                    const float sTop   = runScore(rt, nRho, rhoMinBin);
+                    const float sBlack = runScore(rb, nRho, rhoMinBin);
+                    dark   = sBlack > sTop;
+                    score  = dark ? sBlack : sTop;
+                    const RunAcc &best = dark ? rb : rt;
+                    cStart = best.first;
+                    cEnd   = best.last;
                 }
-                const float sTop   = runScore(rt, nRho, rhoMinBin);
-                const float sBlack = runScore(rb, nRho, rhoMinBin);
-                const bool  dark   = sBlack > sTop;
-                const RunAcc &best = dark ? rb : rt;
-                const float score  = dark ? sBlack : sTop;
                 if (score <= 0.f)
                     continue;
                 ColumnInfo &c = colsA[static_cast<size_t>(a)][static_cast<size_t>(t)];
-                c.start  = best.first;
-                c.end    = best.last;
+                c.start  = cStart;
+                c.end    = cEnd;
                 c.dark   = dark;
-                c.wScore = score * thetaWeight[static_cast<size_t>(t)];
+                // Blur columns carry the raw integral with only the hard elbow
+                // mask (0/1) — so in- and out-of-envelope scores are comparable
+                // for the SNR baseline. Sharp columns keep the full soft weighting.
+                c.wScore = inBlur
+                    ? (thetaWeight[static_cast<size_t>(t)] > 0.f ? score : 0.f)
+                    : score * thetaWeight[static_cast<size_t>(t)];
             }
         }
     });
@@ -584,6 +652,38 @@ bool tlsRefine(const cv::Mat &resp, int thr, cv::Point2f anchor,
     return any;
 }
 
+// R8 SNR gate: restrict the integrated blur scores to the kinematic envelope and
+// zero the in-envelope winner unless it beats the out-of-envelope noise/clutter
+// peak by snrMargin — the "never fabricate" backstop for the lowered-threshold
+// integrator (a blank/noisy frame scores the same in and out of the envelope, so
+// nothing survives). Operates on one anchor's column scores in place.
+void gateBlurEnvelope(std::vector<ColumnInfo> &cols, int thetaBins,
+                      float centerRad, float halfRad, float snrMargin)
+{
+    const float binW = kTwoPi / static_cast<float>(thetaBins);
+    // Baseline = a high percentile of the out-of-envelope scores (the typical
+    // strong-noise / clutter level), NOT the max — a single noise outlier must
+    // not set the bar and kill a genuine faint fan.
+    std::vector<float> outScores;
+    outScores.reserve(static_cast<size_t>(thetaBins));
+    for (int t = 0; t < thetaBins; ++t)
+        if (angAbsDiff(static_cast<float>(t) * binW, centerRad) > halfRad)
+            outScores.push_back(cols[static_cast<size_t>(t)].wScore);
+    float baseline = 0.f;
+    if (!outScores.empty()) {
+        const size_t k = std::min(outScores.size() - 1,
+                                  static_cast<size_t>(0.97f * static_cast<float>(outScores.size())));
+        std::nth_element(outScores.begin(), outScores.begin() + k, outScores.end());
+        baseline = outScores[k];
+    }
+    const float floorW = snrMargin * baseline;
+    for (int t = 0; t < thetaBins; ++t) {
+        ColumnInfo &c = cols[static_cast<size_t>(t)];
+        if (angAbsDiff(static_cast<float>(t) * binW, centerRad) > halfRad || c.wScore <= floorW)
+            c.wScore = 0.f;
+    }
+}
+
 } // namespace
 
 std::vector<ShaftCandidate> detectShaft(const cv::Mat &luma,
@@ -650,14 +750,25 @@ std::vector<ShaftCandidate> detectShaft(const cv::Mat &luma,
     std::vector<std::vector<ColumnInfo>> colsA(
         static_cast<size_t>(nAnchors),
         std::vector<ColumnInfo>(static_cast<size_t>(cfg.thetaBins)));
+    // R8 blur window: integrate inside the kinematic envelope (needs a prediction
+    // for the centre; half-width = the R6 envelope, floored to fit the fan).
+    const bool  blurOn   = cfg.blurMode && prior.kinematicSigmaRad > 1e-4f;
+    const float blurHalf = blurOn
+        ? std::max(cfg.envelopeKSigma * prior.kinematicSigmaRad,
+                   cfg.predFanHalfRad + 5.f * kPi / 180.f)
+        : 0.f;
+    const bool blurActive = blurOn && blurHalf > 0.f;
     scanAllAnchors(topP, blackP, anchors, nAnchors, cfg, thrTop, thrBlack,
-                   thetaWeight, rhoScale, nRho, colsA);
+                   thetaWeight, rhoScale, nRho, colsA, blurActive);
 
     // 6. NMS top-K per anchor; keep the best-scoring detection set.
     std::vector<Peak> bestPeaks;
     int               bestA = 0;
     float             bestW = -1.f;
     for (int a = 0; a < nAnchors; ++a) {
+        if (blurActive)
+            gateBlurEnvelope(colsA[static_cast<size_t>(a)], cfg.thetaBins,
+                             prior.kinematicDirRad, blurHalf, cfg.blurSnrMargin);
         std::vector<Peak> peaks = pickPeaks(colsA[static_cast<size_t>(a)], cfg, rhoScale);
         const float w = peaks.empty() ? 0.f : peaks.front().w;
         if (w > bestW) {            // strict '>' — ties prefer the centre anchor
