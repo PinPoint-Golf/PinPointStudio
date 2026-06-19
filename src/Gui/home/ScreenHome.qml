@@ -87,14 +87,9 @@ Item {
                 }
                 Item { width: 1; height: Theme.sp(12) }
 
-                Text {
+                PpDisplayText {
                     width:          parent.width
                     text:           qsTr("Welcome to Pinpoint Studio")
-                    font.family:    Theme.fontDisplay
-                    font.italic:    Theme.fontDisplayItalic
-                    font.weight: Theme.fontDisplayWeight
-                    font.pixelSize: Theme.fontSzDisplay
-                    color:          Theme.colorText
                     wrapMode:       Text.WordWrap
                     lineHeight:     1.1
                 }
@@ -315,13 +310,9 @@ Item {
                 Item { width: 1; height: Theme.sp(40) }
 
                 // Banner — title font at double the largest theme title size.
-                Text {
+                PpDisplayText {
                     text:           qsTr("PinPoint Studio")
-                    font.family:    Theme.fontDisplay
-                    font.italic:    Theme.fontDisplayItalic
-                    font.weight:    Theme.fontDisplayWeight
-                    font.pixelSize: Theme.fontSzDisplay * 2
-                    color:          Theme.colorText
+                    pixelSize:      Theme.fontSzDisplay * 2
                 }
                 Item { width: 1; height: Theme.sp(20) }
 

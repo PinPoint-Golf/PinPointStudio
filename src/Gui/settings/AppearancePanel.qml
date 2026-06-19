@@ -27,8 +27,8 @@ Item {
     // Hardcoded preview colours for each themeIndex (0–5).
     // These must NOT use Theme.* tokens — cards always show their own colours.
     readonly property var themeData: [
-        { aesthetic: "Instrument", mode: "Light", railBg: "#FDFAF6", sidenavBg: "#FDFAF6", contentBg: "#F5F2ED", dot: "#2B4A3F" },
-        { aesthetic: "Instrument", mode: "Dark",  railBg: "#1A1816", sidenavBg: "#1A1816", contentBg: "#161412", dot: "#7EBFAA" },
+        { aesthetic: "Instrument", mode: "Light", railBg: "#FBF8F0", sidenavBg: "#FBF8F0", contentBg: "#F4EFE3", dot: "#B5701A" },
+        { aesthetic: "Instrument", mode: "Dark",  railBg: "#0A0F13", sidenavBg: "#0A0F13", contentBg: "#05080A", dot: "#E6AC54" },
         { aesthetic: "Editorial",  mode: "Light", railBg: "#FFFFFF", sidenavBg: "#FFFFFF", contentBg: "#FAFAF8", dot: "#1A3A5C" },
         { aesthetic: "Editorial",  mode: "Dark",  railBg: "#181816", sidenavBg: "#181816", contentBg: "#141412", dot: "#A8C4E0" },
         { aesthetic: "Studio",     mode: "Light", railBg: "#FAFAF9", sidenavBg: "#FAFAF9", contentBg: "#F6F6F5", dot: "#0066FF" },
@@ -99,13 +99,8 @@ Item {
                 color: Theme.colorText3
             }
 
-            Text {
+            PpDisplayText {
                 text: qsTr("Appearance")
-                font.family:  Theme.fontDisplay
-                font.italic:  Theme.fontDisplayItalic
-                font.weight: Theme.fontDisplayWeight
-                font.pixelSize: Theme.fontSzDisplay
-                color: Theme.colorText
             }
 
             Text {
@@ -642,6 +637,60 @@ Item {
                         anchors.fill: parent
                         cursorShape:  Qt.PointingHandCursor
                         onClicked:    Theme.reduceMotion = !Theme.reduceMotion
+                    }
+                }
+            }
+
+            // Gradient titles row
+            RowLayout {
+                objectName: "setting_gradientTitles"
+                Layout.fillWidth: true
+                spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.sp(3)
+
+                    Text {
+                        text:           qsTr("Gradient titles")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        color:          Theme.colorText
+                    }
+                    Text {
+                        text:           qsTr("Warm→cool brand gradient on large display headings")
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText3
+                    }
+                }
+
+                // Toggle — Behavior on x is intentionally exempt from reduceMotion
+                // (it controls the thumb itself, not content)
+                Rectangle {
+                    Layout.alignment: Qt.AlignVCenter
+                    width:  Theme.sp(34)
+                    height: Theme.sp(18)
+                    radius: Theme.sp(9)
+                    color:  Theme.gradientTitles ? Theme.colorAccent : Theme.colorBg3
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+                    Rectangle {
+                        width:  Theme.sp(12)
+                        height: Theme.sp(12)
+                        radius: Theme.sp(6)
+                        color:  "white"
+                        anchors.verticalCenter: parent.verticalCenter
+                        x: Theme.gradientTitles ? parent.width - width - Theme.sp(3) : Theme.sp(3)
+                        Behavior on x { NumberAnimation { duration: 120 } }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape:  Qt.PointingHandCursor
+                        onClicked:    Theme.gradientTitles = !Theme.gradientTitles
                     }
                 }
             }

@@ -59,6 +59,7 @@ class AppSettings : public QObject
     Q_PROPERTY(QString wristReferenceSwingDir READ wristReferenceSwingDir WRITE setWristReferenceSwingDir NOTIFY wristReferenceSwingDirChanged)
     Q_PROPERTY(bool    timelineSnapToPhases READ timelineSnapToPhases WRITE setTimelineSnapToPhases NOTIFY timelineSnapToPhasesChanged)
     Q_PROPERTY(bool    reduceMotion READ reduceMotion WRITE setReduceMotion NOTIFY reduceMotionChanged)
+    Q_PROPERTY(bool    gradientTitles READ gradientTitles WRITE setGradientTitles NOTIFY gradientTitlesChanged)
     Q_PROPERTY(double  overlayOpacity  READ overlayOpacity  WRITE setOverlayOpacity  NOTIFY overlayOpacityChanged)
     Q_PROPERTY(bool    windowMaximized READ windowMaximized WRITE setWindowMaximized NOTIFY windowMaximizedChanged)
     Q_PROPERTY(int     windowX         READ windowX         WRITE setWindowX         NOTIFY windowXChanged)
@@ -187,6 +188,7 @@ public:
         m_wristReferenceSwingDir = ppSettings().value(QStringLiteral("ui/wristReferenceSwingDir"), QString()).toString();
         m_timelineSnapToPhases = ppSettings().value(QStringLiteral("ui/timelineSnapToPhases"), false).toBool();
         m_reduceMotion    = ppSettings().value(QStringLiteral("ui/reduceMotion"),    false).toBool();
+        m_gradientTitles  = ppSettings().value(QStringLiteral("ui/gradientTitles"),  true).toBool();
         m_overlayOpacity  = ppSettings().value(QStringLiteral("ui/overlayOpacity"),  0.7).toDouble();
         m_windowMaximized = ppSettings().value(QStringLiteral("ui/windowMaximized"), false).toBool();
         m_windowX         = ppSettings().value(QStringLiteral("ui/windowX"),         -1).toInt();
@@ -288,6 +290,7 @@ public:
     QString wristReferenceSwingDir() const { return m_wristReferenceSwingDir; }
     bool    timelineSnapToPhases() const { return m_timelineSnapToPhases; }
     bool    reduceMotion()  const { return m_reduceMotion; }
+    bool    gradientTitles() const { return m_gradientTitles; }
     double  overlayOpacity()  const { return m_overlayOpacity; }
     bool    windowMaximized() const { return m_windowMaximized; }
     int     windowX()         const { return m_windowX; }
@@ -446,6 +449,14 @@ public:
         m_reduceMotion = v;
         ppSettings().setValue(QStringLiteral("ui/reduceMotion"), v);
         emit reduceMotionChanged();
+    }
+
+    void setGradientTitles(bool v)
+    {
+        if (m_gradientTitles == v) return;
+        m_gradientTitles = v;
+        ppSettings().setValue(QStringLiteral("ui/gradientTitles"), v);
+        emit gradientTitlesChanged();
     }
 
     void setOverlayOpacity(double v)
@@ -1021,6 +1032,7 @@ signals:
     void wristReferenceSwingDirChanged();
     void timelineSnapToPhasesChanged();
     void reduceMotionChanged();
+    void gradientTitlesChanged();
     void overlayOpacityChanged();
     void windowMaximizedChanged();
     void windowXChanged();
@@ -1102,6 +1114,7 @@ private:
     QString m_wristReferenceSwingDir;
     bool    m_timelineSnapToPhases = false;
     bool    m_reduceMotion    = false;
+    bool    m_gradientTitles  = true;
     double  m_overlayOpacity  = 0.7;
     bool    m_windowMaximized = false;
     int     m_windowX         = -1;

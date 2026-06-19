@@ -79,15 +79,10 @@ Item {
                 color:              Theme.colorText3
                 bottomPadding:      10
             }
-            Text {
-                text:            qsTr("New athlete")
-                font.family:     Theme.fontDisplay
-                font.italic:     Theme.fontDisplayItalic
-                font.weight: Theme.fontDisplayWeight
-                font.pixelSize:  Theme.fontSzDisplay
-                color:           Theme.colorText
-                bottomPadding:   6
+            PpDisplayText {
+                text: qsTr("New athlete")
             }
+            Item { width: 1; height: 6 }
             Text {
                 width:          parent.width
                 text:           qsTr("Only the first two fields are required. The rest sharpen analysis and personalise coaching output.")

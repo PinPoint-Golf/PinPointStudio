@@ -34,14 +34,9 @@ Item {
             color:          Theme.colorText3
         }
 
-        Text {
+        PpDisplayText {
             anchors.horizontalCenter: parent.horizontalCenter
             text:           titleText
-            font.family:    Theme.fontDisplay
-            font.italic:    Theme.fontDisplayItalic
-            font.weight: Theme.fontDisplayWeight
-            font.pixelSize: Theme.fontSzDisplay
-            color:          Theme.colorText
         }
 
         Text {

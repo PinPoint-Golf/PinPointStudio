@@ -325,6 +325,7 @@ qt_add_qml_module(PinPointStudio
         src/Gui/components/PpChipGroup.qml
         src/Gui/components/PpUnitToggle.qml
         src/Gui/components/PpButton.qml
+        src/Gui/components/PpDisplayText.qml
         src/Gui/athlete/PpAthleteCard.qml
         src/Gui/athlete/PpAthleteRow.qml
         src/Gui/monitor/ScreenResourceMonitor.qml

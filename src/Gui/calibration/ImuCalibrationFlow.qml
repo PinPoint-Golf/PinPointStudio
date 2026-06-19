@@ -566,15 +566,11 @@ Item {
                     color:              Theme.colorText3
                 }
 
-                Text {
+                PpDisplayText {
                     visible:        flow.showHeader
                     width:          parent.width
                     text:           qsTr("Calibrate Sensors")
-                    font.family:    Theme.fontDisplay
-                    font.italic:    Theme.fontDisplayItalic
-                    font.weight:    Theme.fontDisplayWeight
-                    font.pixelSize: Math.min(Theme.sp(18), Theme.fontSzDisplay)
-                    color:          Theme.colorText
+                    pixelSize:      Math.min(Theme.sp(18), Theme.fontSzDisplay)
                     wrapMode:       Text.WordWrap
                 }
 

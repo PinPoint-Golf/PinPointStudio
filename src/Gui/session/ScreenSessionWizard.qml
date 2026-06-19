@@ -1578,14 +1578,10 @@ Item {
                                     color:              Theme.colorText3
                                 }
 
-                                Text {
+                                PpDisplayText {
                                     width:          parent.width
                                     text:           qsTr("Check your sensor")
-                                    font.family:    Theme.fontDisplay
-                                    font.italic:    Theme.fontDisplayItalic
-                                    font.weight:    Theme.fontDisplayWeight
-                                    font.pixelSize: Math.min(Theme.sp(22), Theme.fontSzDisplay)
-                                    color:          Theme.colorText
+                                    pixelSize:      Math.min(Theme.sp(22), Theme.fontSzDisplay)
                                     wrapMode:       Text.WordWrap
                                 }
 
@@ -2133,14 +2129,10 @@ Item {
             font.letterSpacing: Theme.trackingMicro
             color:              Theme.colorText3
         }
-        Text {
+        PpDisplayText {
             width:          parent.width
             text:           heading
-            font.family:    Theme.fontDisplay
-            font.italic:    Theme.fontDisplayItalic
-            font.weight: Theme.fontDisplayWeight
-            font.pixelSize: Math.min(Theme.sp(20), Theme.fontSzDisplay)
-            color:          Theme.colorText
+            pixelSize:      Math.min(Theme.sp(20), Theme.fontSzDisplay)
             wrapMode:       Text.WordWrap
         }
         Text {

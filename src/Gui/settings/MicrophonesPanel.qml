@@ -255,13 +255,8 @@ Item {
                 font.capitalization: Font.AllUppercase
                 color:               Theme.colorText3
             }
-            Text {
-                text:           qsTr("Microphone")
-                font.family:    Theme.fontDisplay
-                font.italic:    Theme.fontDisplayItalic
-                font.weight:    Theme.fontDisplayWeight
-                font.pixelSize: Theme.fontSzDisplay
-                color:          Theme.colorText
+            PpDisplayText {
+                text: qsTr("Microphone")
             }
             Text {
                 text: qsTr("Select the audio input used for acoustic shot detection, then calibrate its sensitivity so every struck ball registers. Voice control uses the same microphone and is unaffected by the toggle below.")

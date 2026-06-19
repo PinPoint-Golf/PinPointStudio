@@ -38,6 +38,7 @@ QtObject {
         density        = appSettings.density
         reduceMotion   = appSettings.reduceMotion
         overlayOpacity = appSettings.overlayOpacity
+        gradientTitles = appSettings.gradientTitles
     }
     onThemeIndexChanged: appSettings.themeIndex = themeIndex
 
@@ -67,25 +68,25 @@ QtObject {
     // ── Colour tokens ────────────────────────────────────────────────────────
 
     readonly property color colorBg: {
-        if (aesthetic === "instrument") return dark ? "#161412" : "#F5F2ED"
+        if (aesthetic === "instrument") return dark ? "#05080A" : "#F4EFE3"
         if (aesthetic === "editorial")  return dark ? "#141412" : "#FAFAF8"
         if (aesthetic === "vector")     return dark ? "#0A0B0D" : "#F0F1F4"
         return dark ? "#111110" : "#F6F6F5"
     }
     readonly property color colorBg2: {
-        if (aesthetic === "instrument") return dark ? "#1E1C19" : "#EDE9E2"
+        if (aesthetic === "instrument") return dark ? "#0A1115" : "#ECE6D7"
         if (aesthetic === "editorial")  return dark ? "#1C1C1A" : "#F2F1ED"
         if (aesthetic === "vector")     return dark ? "#0F1114" : "#E4E6EB"
         return dark ? "#191918" : "#EEEEED"
     }
     readonly property color colorBg3: {
-        if (aesthetic === "instrument") return dark ? "#252220" : "#E4DFD6"
+        if (aesthetic === "instrument") return dark ? "#111B20" : "#E1DACA"
         if (aesthetic === "editorial")  return dark ? "#242422" : "#E8E7E2"
         if (aesthetic === "vector")     return dark ? "#151719" : "#D8DBE3"
         return dark ? "#212120" : "#E4E4E3"
     }
     readonly property color colorSurface: {
-        if (aesthetic === "instrument") return dark ? "#1A1816" : "#FDFAF6"
+        if (aesthetic === "instrument") return dark ? "#0A0F13" : "#FBF8F0"
         if (aesthetic === "editorial")  return dark ? "#181816" : "#FFFFFF"
         if (aesthetic === "vector")     return dark ? "#13151A" : "#FAFBFC"
         return dark ? "#161615" : "#FAFAF9"
@@ -93,19 +94,19 @@ QtObject {
 
     // Borders — 1 px at these opacities simulate 0.5 px
     readonly property color colorBorder: {
-        if (aesthetic === "instrument") return dark ? "#14fff8eb" : "#1f504637"
+        if (aesthetic === "instrument") return dark ? "#1ff2ede2" : "#1f3a322a"
         if (aesthetic === "editorial")  return dark ? "#12fffff5" : "#12000000"
         if (aesthetic === "vector")     return dark ? "#0fffffff" : "#12000000"
         return dark ? "#0effffff" : "#0f000000"
     }
     readonly property color colorBorderMid: {
-        if (aesthetic === "instrument") return dark ? "#1cfff8eb" : "#2b504637"
+        if (aesthetic === "instrument") return dark ? "#2bf2ede2" : "#2b3a322a"
         if (aesthetic === "editorial")  return dark ? "#1cfffff5" : "#1a000000"
         if (aesthetic === "vector")     return dark ? "#1affffff" : "#1c000000"
         return dark ? "#17ffffff" : "#19000000"
     }
     readonly property color colorBorderStrong: {
-        if (aesthetic === "instrument") return dark ? "#24fff8eb" : "#38504637"
+        if (aesthetic === "instrument") return dark ? "#38f2ede2" : "#383a322a"
         if (aesthetic === "editorial")  return dark ? "#26fffff5" : "#21000000"
         if (aesthetic === "vector")     return dark ? "#2effffff" : "#2e000000"
         return dark ? "#21ffffff" : "#26000000"
@@ -113,19 +114,19 @@ QtObject {
 
     // Text
     readonly property color colorText: {
-        if (aesthetic === "instrument") return dark ? "#F0EBE1" : "#1C1810"
+        if (aesthetic === "instrument") return dark ? "#F2EDE2" : "#0A1115"
         if (aesthetic === "editorial")  return dark ? "#F0EFE8" : "#111110"
         if (aesthetic === "vector")     return dark ? "#E8EAF0" : "#0A0B10"
         return dark ? "#EDEDEC" : "#0A0A09"
     }
     readonly property color colorText2: {
-        if (aesthetic === "instrument") return dark ? "#A09880" : "#5C5448"
+        if (aesthetic === "instrument") return dark ? "#CFD3CC" : "#5A5246"
         if (aesthetic === "editorial")  return dark ? "#9A9A92" : "#4A4A47"
         if (aesthetic === "vector")     return dark ? "#8B90A0" : "#4A4E5E"
         return dark ? "#878786" : "#525251"
     }
     readonly property color colorText3: {
-        if (aesthetic === "instrument") return dark ? "#665E52" : "#9A9087"
+        if (aesthetic === "instrument") return dark ? "#94A09E" : "#998F82"
         if (aesthetic === "editorial")  return dark ? "#5A5A55" : "#9B9B97"
         if (aesthetic === "vector")     return dark ? "#484E5E" : "#9098B0"
         return dark ? "#4A4A48" : "#ABABAA"
@@ -133,33 +134,76 @@ QtObject {
 
     // Accent
     readonly property color colorAccent: {
-        if (aesthetic === "instrument") return dark ? "#7EBFAA" : "#2B4A3F"
+        if (aesthetic === "instrument") return dark ? "#E6AC54" : "#9A5E12"
         if (aesthetic === "editorial")  return dark ? "#A8C4E0" : "#1A3A5C"
         if (aesthetic === "vector")     return dark ? "#FF5500" : "#CC3300"
         return dark ? "#4D90FF" : "#0066FF"
     }
     readonly property color colorAccentLight: {
-        if (aesthetic === "instrument") return dark ? "#177ebfaa" : "#142b4a3f"
+        if (aesthetic === "instrument") return dark ? "#17e6ac54" : "#149a5e12"
         if (aesthetic === "editorial")  return dark ? "#12a8c4e0" : "#0f1a3a5c"
         if (aesthetic === "vector")     return dark ? "#12ff5500" : "#0fcc3300"
         return dark ? "#124d90ff" : "#0d0066ff"
     }
     readonly property color colorAccentMid: {
-        if (aesthetic === "instrument") return dark ? "#297ebfaa" : "#2e2b4a3f"
+        if (aesthetic === "instrument") return dark ? "#29e6ac54" : "#2e9a5e12"
         if (aesthetic === "editorial")  return dark ? "#24a8c4e0" : "#241a3a5c"
         if (aesthetic === "vector")     return dark ? "#24ff5500" : "#24cc3300"
         return dark ? "#264d90ff" : "#1f0066ff"
     }
 
+    // ── Brand gradient tokens ────────────────────────────────────────────────
+    // Signature warm→cool sweep from the marketing site: pelvis-amber through
+    // light-amber to club-cyan — the kinematic-sequence colours. Used for large
+    // display titles (via PpDisplayText) and accent bars. Each aesthetic supplies
+    // its own warm/cool pair so the sweep feels native; instrument matches the
+    // site 1:1. Light variants are deepened to hold contrast on pale grounds.
+    readonly property color gradientWarm: {
+        if (aesthetic === "instrument") return dark ? "#E6AC54" : "#B5701A"
+        if (aesthetic === "editorial")  return dark ? "#E6C25A" : "#8A6A14"
+        if (aesthetic === "vector")     return dark ? "#FF8C35" : "#B85A00"
+        return dark ? "#F5C451" : "#9C6F12"   // studio
+    }
+    readonly property color gradientWarmLit: {
+        if (aesthetic === "instrument") return dark ? "#F3C987" : "#CC9A45"
+        if (aesthetic === "editorial")  return dark ? "#EBD089" : "#A88A3A"
+        if (aesthetic === "vector")     return dark ? "#FFB066" : "#D67A2A"
+        return dark ? "#F8D484" : "#C29545"   // studio
+    }
+    readonly property color gradientCool: {
+        if (aesthetic === "instrument") return dark ? "#7BC0DB" : "#2B6E7A"
+        if (aesthetic === "editorial")  return dark ? "#A8C4E0" : "#1A3A5C"
+        if (aesthetic === "vector")     return dark ? "#3399FF" : "#0066CC"
+        return dark ? "#4D90FF" : "#0066FF"   // studio
+    }
+
+    // Sweep angle (deg). Site uses 96° for titles, 180° for vertical accent bars.
+    // Native Rectangle gradients are H/V only, so PpDisplayText uses Horizontal;
+    // 96° reads as horizontal. Use Shapes LinearGradient for the exact tilt later.
+    readonly property real gradientAngle: 96
+
+    // Programmatic stop list — for charts, Shapes, or custom paint.
+    readonly property var gradientBrandStops: [
+        { position: 0.0,  color: gradientWarm },
+        { position: 0.55, color: gradientWarmLit },
+        { position: 1.0,  color: gradientCool }
+    ]
+
+    // Master switch for gradient display titles. Persisted to AppSettings.
+    // gradientTitlesActive folds in reduceMotion so callers test one flag.
+    property bool gradientTitles: true
+    onGradientTitlesChanged: appSettings.gradientTitles = gradientTitles
+    readonly property bool gradientTitlesActive: gradientTitles && !reduceMotion
+
     // Good (success / go / connected)
     readonly property color colorGood: {
-        if (aesthetic === "instrument") return dark ? "#7EBFAA" : "#1E4D3A"
+        if (aesthetic === "instrument") return dark ? "#8AB389" : "#357058"
         if (aesthetic === "editorial")  return dark ? "#8ABFA0" : "#1A4A2E"
         if (aesthetic === "vector")     return dark ? "#2EE8A0" : "#006B45"
         return dark ? "#30C983" : "#0A7A4A"
     }
     readonly property color colorGoodLight: {
-        if (aesthetic === "instrument") return dark ? "#177ebfaa" : "#171e4d3a"
+        if (aesthetic === "instrument") return dark ? "#178ab389" : "#14357058"
         if (aesthetic === "editorial")  return dark ? "#128abfa0" : "#121a4a2e"
         if (aesthetic === "vector")     return dark ? "#122ee8a0" : "#0f006b45"
         return dark ? "#1230c983" : "#0f0a7a4a"
@@ -167,13 +211,13 @@ QtObject {
 
     // Warn (caution / unexpected)
     readonly property color colorWarn: {
-        if (aesthetic === "instrument") return dark ? "#D4896A" : "#7A3B1E"
+        if (aesthetic === "instrument") return dark ? "#E07E64" : "#A8482A"
         if (aesthetic === "editorial")  return dark ? "#D4896A" : "#8B2500"
         if (aesthetic === "vector")     return dark ? "#FF8C35" : "#7A3800"
         return dark ? "#FF6B35" : "#D94A00"
     }
     readonly property color colorWarnLight: {
-        if (aesthetic === "instrument") return dark ? "#17d4896a" : "#147a3b1e"
+        if (aesthetic === "instrument") return dark ? "#17e07e64" : "#14a8482a"
         if (aesthetic === "editorial")  return dark ? "#12d4896a" : "#0f8b2500"
         if (aesthetic === "vector")     return dark ? "#14ff8c35" : "#0f7a3800"
         return dark ? "#14ff6b35" : "#0fd94a00"
@@ -181,13 +225,13 @@ QtObject {
 
     // Error (critical failure / fatal — distinctly red, darker than warn)
     readonly property color colorError: {
-        if (aesthetic === "instrument") return dark ? "#C46868" : "#7A2020"
+        if (aesthetic === "instrument") return dark ? "#E0595B" : "#9C2A2A"
         if (aesthetic === "editorial")  return dark ? "#C46868" : "#8B1E1E"
         if (aesthetic === "vector")     return dark ? "#FF4455" : "#8B0014"
         return dark ? "#FF5555" : "#CC2000"
     }
     readonly property color colorErrorLight: {
-        if (aesthetic === "instrument") return dark ? "#17c46868" : "#147a2020"
+        if (aesthetic === "instrument") return dark ? "#17e0595b" : "#149c2a2a"
         if (aesthetic === "editorial")  return dark ? "#12c46868" : "#0f8b1e1e"
         if (aesthetic === "vector")     return dark ? "#14ff4455" : "#0f8b0014"
         return dark ? "#14ff5555" : "#0fcc2000"
@@ -198,13 +242,13 @@ QtObject {
     // (orange-red caution) and colorError (red failure): this is a confident amber
     // "do this next" frame. Strong variant = border/text, Light variant = fill.
     readonly property color colorAttention: {
-        if (aesthetic === "instrument") return dark ? "#E8B54A" : "#9A6B12"
+        if (aesthetic === "instrument") return dark ? "#F2C84A" : "#8A6612"
         if (aesthetic === "editorial")  return dark ? "#E6C25A" : "#8A6A14"
         if (aesthetic === "vector")     return dark ? "#FFD60A" : "#B58900"
         return dark ? "#F5C451" : "#9C6F12"
     }
     readonly property color colorAttentionLight: {
-        if (aesthetic === "instrument") return dark ? "#17e8b54a" : "#149a6b12"
+        if (aesthetic === "instrument") return dark ? "#17f2c84a" : "#148a6612"
         if (aesthetic === "editorial")  return dark ? "#12e6c25a" : "#0f8a6a14"
         if (aesthetic === "vector")     return dark ? "#14ffd60a" : "#0fb58900"
         return dark ? "#14f5c451" : "#0f9c6f12"
@@ -223,13 +267,13 @@ QtObject {
     // (~0x24) so the player line and points read on top; greener/amber than the ~0x14 *Light
     // fills, which are too faint to mark a corridor.
     readonly property color colorBandGreen: {
-        if (aesthetic === "instrument") return dark ? "#247ebfaa" : "#241e4d3a"
+        if (aesthetic === "instrument") return dark ? "#248ab389" : "#24357058"
         if (aesthetic === "editorial")  return dark ? "#248abfa0" : "#241a4a2e"
         if (aesthetic === "vector")     return dark ? "#242ee8a0" : "#24006b45"
         return dark ? "#2430c983" : "#240a7a4a"
     }
     readonly property color colorBandAmber: {
-        if (aesthetic === "instrument") return dark ? "#24e8b54a" : "#249a6b12"
+        if (aesthetic === "instrument") return dark ? "#24f2c84a" : "#248a6612"
         if (aesthetic === "editorial")  return dark ? "#24e6c25a" : "#248a6a14"
         if (aesthetic === "vector")     return dark ? "#24ffd60a" : "#24b58900"
         return dark ? "#24f5c451" : "#249c6f12"
@@ -251,8 +295,8 @@ QtObject {
     // tuned light/dark; index with chartSeriesColor(i) to wrap safely.
     readonly property var chartSeries: {
         if (aesthetic === "instrument") return dark
-            ? ["#7EBFAA", "#6FA8C7", "#E0935F", "#E0B84A", "#B79AD6", "#E08FA8"]
-            : ["#2B4A3F", "#3E6E8C", "#B5602A", "#9A6B12", "#6B4E8C", "#A0405A"]
+            ? ["#E6AC54", "#E07E64", "#8AB389", "#7BC0DB", "#B79AD6", "#E08FA8"]
+            : ["#B5701A", "#A8482A", "#3E7E68", "#2B6E7A", "#6B4E8C", "#A0405A"]
         if (aesthetic === "editorial")  return dark
             ? ["#A8C4E0", "#8ABFA0", "#D8A06A", "#C99AC8", "#E6C25A", "#D98FA0"]
             : ["#1A3A5C", "#3E7E68", "#A85A2A", "#7A3B6E", "#8A6A14", "#8B2E45"]

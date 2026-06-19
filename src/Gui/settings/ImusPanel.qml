@@ -1096,13 +1096,8 @@ Item {
                 color:               Theme.colorText3
             }
 
-            Text {
-                text:           qsTr("IMUs")
-                font.family:    Theme.fontDisplay
-                font.italic:    Theme.fontDisplayItalic
-                font.weight: Theme.fontDisplayWeight
-                font.pixelSize: Theme.fontSzDisplay
-                color:          Theme.colorText
+            PpDisplayText {
+                text: qsTr("IMUs")
             }
 
             Text {

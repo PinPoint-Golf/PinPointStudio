@@ -61,17 +61,13 @@ Item {
                 color: Theme.colorText3
             }
 
-            Text {
+            PpDisplayText {
                 Layout.fillWidth: true
                 Layout.leftMargin: Theme.sp(20); Layout.rightMargin: Theme.sp(20)
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
                 text: qsTr("Stereo camera calibration runs here")
-                font.family: Theme.fontDisplay
-                font.italic: Theme.fontDisplayItalic
-                font.weight: Theme.fontDisplayWeight
-                font.pixelSize: Math.min(Theme.sp(18), Theme.fontSzDisplay)
-                color: Theme.colorText
+                pixelSize: Math.min(Theme.sp(18), Theme.fontSzDisplay)
             }
 
             Text {

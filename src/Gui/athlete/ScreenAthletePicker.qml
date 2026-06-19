@@ -64,15 +64,10 @@ Item {
                 color:              Theme.colorText3
                 bottomPadding:      Theme.sp(10)
             }
-            Text {
-                text:           qsTr("Choose athlete")
-                font.family:    Theme.fontDisplay
-                font.italic:    Theme.fontDisplayItalic
-                font.weight: Theme.fontDisplayWeight
-                font.pixelSize: Theme.fontSzDisplay
-                color:          Theme.colorText
-                bottomPadding:  Theme.sp(24)
+            PpDisplayText {
+                text: qsTr("Choose athlete")
             }
+            Item { width: 1; height: Theme.sp(24) }
 
             // ── Recent section ───────────────────────────────────────────────
             Column {
