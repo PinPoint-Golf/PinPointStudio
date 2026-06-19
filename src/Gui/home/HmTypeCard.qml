@@ -45,6 +45,28 @@ Rectangle {
     signal clicked()
     signal doubleClicked()
 
+    // ── Hover / select motion ────────────────────────────────────────────────
+    // The tile rises toward the viewer on hover and settles a touch higher when
+    // selected — a small, smoothly-decelerated lift (no bounce/overshoot, which
+    // is what grates on repeat) timed to move in lockstep with the illustration
+    // backlight below, so the whole tile reacts as a single "switching on"
+    // gesture. A brief press dip adds tactile feedback. Coming-soon tiles stay
+    // inert. Motion is rendered via scale + Translate (render transforms, not
+    // layout geometry) so neighbouring tiles never reflow.
+    property real _lift: {
+        if (comingSoon)                return 0
+        if (hoverArea.pressed)         return -Theme.sp(2)   // tactile dip
+        if (isSelected)                return -Theme.sp(7)   // settled forward
+        if (hoverArea.containsMouse)   return -Theme.sp(5)   // hover rise
+        return 0
+    }
+    property real _tileScale: {
+        if (comingSoon)                                return 1.0
+        if (hoverArea.pressed)                         return 0.985 // press squish
+        if (isSelected || hoverArea.containsMouse)     return 1.012
+        return 1.0
+    }
+
     implicitHeight: contentCol.implicitHeight + Theme.sp(24)
     radius: Theme.radiusLg
     color:  (isSelected || hoverArea.containsMouse) ? Theme.colorAccentLight : Theme.colorSurface
@@ -52,6 +74,20 @@ Rectangle {
     border.color: isSelected            ? Theme.colorAccent
                 : hoverArea.containsMouse ? Theme.colorAccentMid
                 : Theme.colorBorderMid
+
+    // Raised/scaled tile draws above its neighbours so the lift never tucks under.
+    z: (isSelected || hoverArea.containsMouse) ? 1 : 0
+
+    transformOrigin: Item.Center
+    scale: _tileScale
+    transform: Translate {
+        y: root._lift
+        Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+    }
+
+    Behavior on scale        { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+    Behavior on color        { ColorAnimation  { duration: 180; easing.type: Easing.OutCubic } }
+    Behavior on border.color { ColorAnimation  { duration: 180; easing.type: Easing.OutCubic } }
 
     // Square illustration at the top of the tile, drawn at 50% opacity and
     // masked to the card's rounded top corners (square bottom edge).
