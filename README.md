@@ -530,11 +530,9 @@ Pending or deferred development gathered from the design and implementation docu
 | shot_analyzer_design | Extrinsic polish via Ceres bundle adjustment (MVP uses raw solvePnP) |
 | shot_analyzer_design | Learned GolfDB/SwingNet ONNX phase-segmentation event detector |
 | shot_analyzer_design | Band calibration vs coach ratings (corpus work) |
-| shot_analyzer_m1_wrist | Phase 3 in-replay metric graph — compile-verified only, not on hardware |
+| shot_analyzer_m1_wrist | Phase 3 in-replay metric graph — shipped; hardware/real-shot verification pending |
 | shot_analyzer_m1_wrist | Right-arm sign verification for left-handed golfers |
 | shot_analyzer_m1_wrist | Finalize kWristBands centres/σ from real-swing data (currently provisional) |
-| shot_analyzer_m1_wrist | Rating/note persistence into swing.json (reloaded shots come back cleared) |
-| shot_analyzer_m1_wrist | MP4-backed replay for reloaded shots |
 | shot_analyzer_m1_wrist | Exact quaternion-referenced Δ-from-address curve |
 | shot_analyzer_m1_wrist | Body-schematic 3D Y-bot visualization |
 | shot_analyzer_viz | Exact quaternion-referenced Δ curve (deferred) |
@@ -546,7 +544,6 @@ Pending or deferred development gathered from the design and implementation docu
 |---|---|
 | wristmotion_assessment_design | Trail-side full IMU instrumentation (F9–F11; awaits trail/shoulder producers) |
 | wristmotion_assessment_design | PlayerBaselineBandProvider (reference player's own shots) |
-| wristmotion_assessment_design | ArchetypeBandProvider for style-matched scoring |
 | wristmotion_assessment_design | Phase 4 — population/ML-tuned reference bands |
 | wristmotion_assessment_design | Phase 4 — drill-library integration |
 | wristmotion_assessment_design | Phase 4 — club-specific ideal models / per-club band tuning |
@@ -591,12 +588,8 @@ Pending or deferred development gathered from the design and implementation docu
 
 | Document | Pending / Deferred Item |
 |---|---|
-| imu_rearchitecture | Phase 0 characterization harness (prerequisite) — pending |
-| imu_rearchitecture | Phase 1 frame contract + storage fix — pending |
-| imu_rearchitecture | Phase 2 explicit scene conversion — pending |
 | imu_rearchitecture | Phase 3 native-quaternion / 9-axis (optional, hardware-gated) |
-| imu_rearchitecture | Open questions #1–8 need hardware verification; CLAUDE.md Rotations fix |
-| imu_frame_contract | Explicit `worldToScene()` helper for Quick3D basis change (Phase 2) |
+| imu_rearchitecture | Open questions #1–8 need hardware verification |
 | imu_pipeline_audit | Studio/hardware + SwingLab-replay validation pending |
 | imu_pipeline_audit | R1-4 stop() watchdog (Windows), R3-3 device pruning, R3-4 dead-code deletion |
 | imu_io_thread_impl | W4 studio validation pass |
@@ -606,8 +599,6 @@ Pending or deferred development gathered from the design and implementation docu
 | Document | Pending / Deferred Item |
 |---|---|
 | segmentation_v3_impl | S5/G6 ShaftTracker hardware validation; G5 vision-only fallback ladder (may defer) |
-| reload_replay_design | R4 multi-camera sync (face-on + DTL master/slave players) |
-| reload_replay_design | R5 export-fail degraded header (minor) |
 | swing_export_developer_guide | Frame restoration/denoise/sharpen hook (TODO, not implemented) |
 | swing_export_developer_guide | Pose / metrics / launch-monitor streams schema-ready but no producer |
 | swing_export_developer_guide | 12/16-bit Bayer handling; MJPEG/H264_NAL passthrough; per-camera parallel encode |
@@ -624,20 +615,17 @@ Pending or deferred development gathered from the design and implementation docu
 
 | Document | Pending / Deferred Item |
 |---|---|
-| linux_update_impl | P0 clean-VM acceptance (BLE/cameras/GPU/x264/sig); P3 e2e blocked on 1st release |
+| linux_update_impl | P0 clean-VM acceptance (BLE/cameras/GPU/x264/sig validate) pending |
 | linux_update | Channels (Stable/Beta) deferred to GA; embed libappimageupdate (future) |
-| macos_update_impl | S1 P0–P2 acceptance (DMG/notarize/EdDSA keygen); S2 P3 e2e blocked on 1st release |
+| macos_update_impl | S1 clean-second-Mac acceptance + real update-offer test (needs v>alpha3) |
 | macos_update | Native arm64 feed (GA, currently x86_64/Rosetta); binary deltas (GA) |
-| windows_update_impl | P0–P2 WinSparkle/UpdateController/EdDSA keygen + pipeline pending |
-| windows_update_impl | P3 CUDA AppId split validation; one-click GPU fetch deferred to GA |
+| windows_update_impl | P3 CUDA AppId split clean-VM validation; one-click GPU fetch deferred to GA |
 | windows_update | Authenticode signing & channels deferred to GA |
-| *_release_runbook (all 3) | EdDSA key generation (one-time) + first signed release not yet performed |
 | vendor_neutral_gpu | Phase 0 WebGPU validation spike not started; DirectML wiring as fallback only |
 
 ### Tooling / Tests / Misc
 
 | Document | Pending / Deferred Item |
 |---|---|
-| resource_profiler_developer_guide | Phase 3 seeding instrumentation (controller, monitor panel, standard set) |
 | testing_developer_guide | Step 5 — add umbrella to CI; migrate Buffer/tests off private helpers |
 | .claude/videoissue | Single-copy display/buffer frame path + format-conversion path not implemented |
