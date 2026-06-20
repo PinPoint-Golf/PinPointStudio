@@ -309,8 +309,11 @@ void reset()
     g_procPeakRss      = 0;
     g_procPeakCpuPct   = 0.0;
     g_threadsPrevWallNs = 0;
-    for (auto &e : g_threads)
+    for (auto &e : g_threads) {
+        if (!e.alive)
+            continue;   // dead thread's handle dangles (see sampleThreads) — querying it segfaults
         e.prevCpuNs = threadCpuNowNs(e.handle);
+    }
 }
 
 } // namespace pinpoint::osmetrics
