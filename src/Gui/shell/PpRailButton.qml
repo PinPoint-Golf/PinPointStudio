@@ -48,24 +48,40 @@ Item {
             height: Theme.sp(60)
             radius: Theme.radius
 
-            color: {
-                if (isActive && (Theme.aesthetic === "editorial" || Theme.aesthetic === "vector")) return Theme.colorAccentLight
-                if (isActive) return Theme.colorSurface
-                if (!isMuted && mouseArea.containsMouse) return Theme.colorBg3
-                return "transparent"
+            // Hover fill only (fast). The active treatment is a separate layer
+            // below so selection can cross-fade independently of hover.
+            color: (!root.isMuted && !root.isActive && mouseArea.containsMouse)
+                       ? Theme.colorBg3 : "transparent"
+            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+            // Active treatment — fill (+ Instrument border), cross-fading in/out
+            // at durationNormal so the selection glides between rail buttons
+            // rather than snapping. Synced with the page cross-fade in Main.qml.
+            // (Editorial / Vector use the accent bar below instead of a border.)
+            Rectangle {
+                anchors.fill: parent
+                radius:       parent.radius
+                color: (Theme.aesthetic === "editorial" || Theme.aesthetic === "vector")
+                           ? Theme.colorAccentLight : Theme.colorSurface
+                border.width: (Theme.aesthetic === "editorial" || Theme.aesthetic === "vector") ? 0 : 1
+                border.color: Theme.colorBorderMid
+                opacity:      root.isActive ? 1 : 0
+                Behavior on opacity {
+                    NumberAnimation { duration: Theme.durationNormal; easing.type: Easing.OutCubic }
+                }
             }
 
-            border.width: (isActive && Theme.aesthetic !== "editorial" && Theme.aesthetic !== "vector") ? 1 : 0
-            border.color: Theme.colorBorderMid
-
-            // Editorial / Vector active: 2px left-edge accent bar
+            // Editorial / Vector active: 2px left-edge accent bar (cross-fades too)
             Rectangle {
-                visible: root.isActive && (Theme.aesthetic === "editorial" || Theme.aesthetic === "vector")
                 x: 0
                 y: 0
-                width:  2
-                height: parent.height
-                color:  Theme.colorAccent
+                width:   2
+                height:  parent.height
+                color:   Theme.colorAccent
+                opacity: (root.isActive && (Theme.aesthetic === "editorial" || Theme.aesthetic === "vector")) ? 1 : 0
+                Behavior on opacity {
+                    NumberAnimation { duration: Theme.durationNormal; easing.type: Easing.OutCubic }
+                }
             }
 
             Text {
@@ -109,12 +125,13 @@ Item {
         }
     }
 
-    MouseArea {
+    // Layer 1: shared hover-grow / press-dip motion (matches every other
+    // clickable surface app-wide — the rail had missed this rollout). Drives
+    // root.scale; cursor + muted gating come from `enabled`. Keeps the
+    // `mouseArea` id so the glyph/label hover-colour bindings still resolve.
+    PpPressable {
         id: mouseArea
-        anchors.fill: parent
-        hoverEnabled: !root.isMuted
-        enabled:      !root.isMuted
-        cursorShape:  root.isMuted ? Qt.ArrowCursor : Qt.PointingHandCursor
-        onClicked:    root.clicked()
+        enabled:   !root.isMuted
+        onClicked: root.clicked()
     }
 }
