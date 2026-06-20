@@ -510,3 +510,134 @@ The app only contacts external services when explicitly configured:
 - **Smartphone companion** — once core concepts are proven on desktop
 
 It will be published as an open-source desktop application for use in golf studios and coaching facilities.
+
+---
+
+## Backlog
+
+Pending or deferred development gathered from the design and implementation documents — work that was started, planned, or explicitly deferred but not yet finished. Grouped by area; see the referenced doc under `docs/` for detail.
+
+### Shot Analyzer / Pose / Metrics
+
+| Document | Pending / Deferred Item |
+|---|---|
+| shot_analyzer_design | M2 — single-camera metric calibration + monocular lift (MotionBERT) |
+| shot_analyzer_design | M3 — second-camera triangulation + IMU slot-map fix |
+| shot_analyzer_design | M4 — temporal smoothing + IK skeleton solver |
+| shot_analyzer_design | M5 — reference-swing scoring & ranked fault feedback |
+| shot_analyzer_design | M6 — cross-platform validation & performance polish |
+| shot_analyzer_design | Learned motion priors (conv-autoencoder/ReMP) for gap fill |
+| shot_analyzer_design | Extrinsic polish via Ceres bundle adjustment (MVP uses raw solvePnP) |
+| shot_analyzer_design | Learned GolfDB/SwingNet ONNX phase-segmentation event detector |
+| shot_analyzer_design | Band calibration vs coach ratings (corpus work) |
+| shot_analyzer_m1_wrist | Phase 3 in-replay metric graph — compile-verified only, not on hardware |
+| shot_analyzer_m1_wrist | Right-arm sign verification for left-handed golfers |
+| shot_analyzer_m1_wrist | Finalize kWristBands centres/σ from real-swing data (currently provisional) |
+| shot_analyzer_m1_wrist | Rating/note persistence into swing.json (reloaded shots come back cleared) |
+| shot_analyzer_m1_wrist | MP4-backed replay for reloaded shots |
+| shot_analyzer_m1_wrist | Exact quaternion-referenced Δ-from-address curve |
+| shot_analyzer_m1_wrist | Body-schematic 3D Y-bot visualization |
+| shot_analyzer_viz | Exact quaternion-referenced Δ curve (deferred) |
+| shot_analyzer_developer_guide | Swing / GRF / Coach analyzers still deterministic stubs awaiting pipelines |
+
+### Wrist / Motion Assessment
+
+| Document | Pending / Deferred Item |
+|---|---|
+| wristmotion_assessment_design | Trail-side full IMU instrumentation (F9–F11; awaits trail/shoulder producers) |
+| wristmotion_assessment_design | PlayerBaselineBandProvider (reference player's own shots) |
+| wristmotion_assessment_design | ArchetypeBandProvider for style-matched scoring |
+| wristmotion_assessment_design | Phase 4 — population/ML-tuned reference bands |
+| wristmotion_assessment_design | Phase 4 — drill-library integration |
+| wristmotion_assessment_design | Phase 4 — club-specific ideal models / per-club band tuning |
+| wrist_assessment | Per-athlete reference scope (currently global) + carousel "set as reference" |
+
+### Shaft Detection / Tracking
+
+| Document | Pending / Deferred Item |
+|---|---|
+| shaft_detection_skeleton_impl | K5 corpus validation & flag-flips (data-gated) |
+| shaft_detection_skeleton_impl | R8-T2 temporal-difference faint-smear detector (blur-first follow-on) |
+| shaft_detection_skeleton_design | Per-subject arm length from athlete profile (R1) |
+| shaft_detection_skeleton_design | Lead-arm ID when handedness metadata is plumbed |
+| shaft_detection_skeleton_design | DTL extension for shaft detection (R2/R6, addendum B.10) |
+| shaft_detection_skeleton_design | Learned wrist-cock correlation table from IMU calibration (R6) |
+| shaft_detection_skeleton_design | 3D swing-plane projection of wrist-cock angle (R6) |
+| shaft_detection_skeleton_design | Putting/chipping gating of full-swing beta curve (R6) |
+| shaft_tracker_impl | S5 hardware verification (overlay registration, threshold tuning, θ̇ correlation >0.9) |
+
+### Ball Detection
+
+| Document | Pending / Deferred Item |
+|---|---|
+| ball_detector_design | Phase 2 — YOLO model training & hosting |
+| ball_detector_design | Phase 3 — offline trajectory refinement worker + ShotProcessor integration |
+| ball_detector_design | Phase 4 — ball-based shot triggering via ballLaunched hook |
+| ball_detection_calibration | Studio/hardware field validation (B5) before deprecating legacy Hough path |
+| ball_detection_calibration | Ball-detection CNN + Kalman flight tracking (planned, not started) |
+
+### Shot Detection
+
+| Document | Pending / Deferred Item |
+|---|---|
+| shot_detection_impl | Phase 2.5 — audio as EventBuffer source (offline acoustic re-pinpointing) |
+| shot_detection_impl | Phase 4 — audio-in-ring + ML IMU detector (not started) |
+| shot_detector_developer_guide | Vision modality `ballLaunched` producer (detector live, launch hook not) |
+| shot_detector_developer_guide | Phase 4 — auto-calibrate per-source latency via peak cross-correlation |
+| shotdetection | Vision shot-detection latency/accuracy benchmarking (needs golf validation) |
+| shotdetection | Cross-source clock alignment + fusion/arbitration policy (open questions) |
+
+### IMU
+
+| Document | Pending / Deferred Item |
+|---|---|
+| imu_rearchitecture | Phase 0 characterization harness (prerequisite) — pending |
+| imu_rearchitecture | Phase 1 frame contract + storage fix — pending |
+| imu_rearchitecture | Phase 2 explicit scene conversion — pending |
+| imu_rearchitecture | Phase 3 native-quaternion / 9-axis (optional, hardware-gated) |
+| imu_rearchitecture | Open questions #1–8 need hardware verification; CLAUDE.md Rotations fix |
+| imu_frame_contract | Explicit `worldToScene()` helper for Quick3D basis change (Phase 2) |
+| imu_pipeline_audit | Studio/hardware + SwingLab-replay validation pending |
+| imu_pipeline_audit | R1-4 stop() watchdog (Windows), R3-3 device pruning, R3-4 dead-code deletion |
+| imu_io_thread_impl | W4 studio validation pass |
+
+### Segmentation / Export / Replay
+
+| Document | Pending / Deferred Item |
+|---|---|
+| segmentation_v3_impl | S5/G6 ShaftTracker hardware validation; G5 vision-only fallback ladder (may defer) |
+| reload_replay_design | R4 multi-camera sync (face-on + DTL master/slave players) |
+| reload_replay_design | R5 export-fail degraded header (minor) |
+| swing_export_developer_guide | Frame restoration/denoise/sharpen hook (TODO, not implemented) |
+| swing_export_developer_guide | Pose / metrics / launch-monitor streams schema-ready but no producer |
+| swing_export_developer_guide | 12/16-bit Bayer handling; MJPEG/H264_NAL passthrough; per-camera parallel encode |
+| event_buffer_design | Mobile profile config; hardware-sync placeholders; per-camera exposure estimate |
+
+### SwingLab / Corpus
+
+| Document | Pending / Deferred Item |
+|---|---|
+| swinglab_impl | L0 real-data missions await clean corpus v1 (pre-2026-06-11 recordings unreliable) |
+| swinglab_developer_guide | First real-data missions pending clean corpus v1 |
+
+### Platform Updates / Release (Linux / macOS / Windows)
+
+| Document | Pending / Deferred Item |
+|---|---|
+| linux_update_impl | P0 clean-VM acceptance (BLE/cameras/GPU/x264/sig); P3 e2e blocked on 1st release |
+| linux_update | Channels (Stable/Beta) deferred to GA; embed libappimageupdate (future) |
+| macos_update_impl | S1 P0–P2 acceptance (DMG/notarize/EdDSA keygen); S2 P3 e2e blocked on 1st release |
+| macos_update | Native arm64 feed (GA, currently x86_64/Rosetta); binary deltas (GA) |
+| windows_update_impl | P0–P2 WinSparkle/UpdateController/EdDSA keygen + pipeline pending |
+| windows_update_impl | P3 CUDA AppId split validation; one-click GPU fetch deferred to GA |
+| windows_update | Authenticode signing & channels deferred to GA |
+| *_release_runbook (all 3) | EdDSA key generation (one-time) + first signed release not yet performed |
+| vendor_neutral_gpu | Phase 0 WebGPU validation spike not started; DirectML wiring as fallback only |
+
+### Tooling / Tests / Misc
+
+| Document | Pending / Deferred Item |
+|---|---|
+| resource_profiler_developer_guide | Phase 3 seeding instrumentation (controller, monitor panel, standard set) |
+| testing_developer_guide | Step 5 — add umbrella to CI; migrate Buffer/tests off private helpers |
+| .claude/videoissue | Single-copy display/buffer frame path + format-conversion path not implemented |
