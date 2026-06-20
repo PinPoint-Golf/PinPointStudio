@@ -693,6 +693,14 @@ Item {
                                     imuManager.setSelected(imuData.index, true)
                             }
                         }
+
+                        // Traveling-light frame while this device's BLE connect
+                        // is in flight (busy spans the retry/backoff/watchdog).
+                        PpConnectingFrame {
+                            anchors.fill: parent
+                            radius:  parent.radius
+                            running: imuRow.inst !== null && imuRow.inst.busy && !connBtn.connected
+                        }
                     }
 
                     // Done button — closes the test panel; does not disconnect

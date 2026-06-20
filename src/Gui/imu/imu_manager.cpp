@@ -290,6 +290,13 @@ int ImuManager::imuCount() const
     return n;
 }
 
+bool ImuManager::anyConnecting() const
+{
+    for (const auto &entry : m_selected)
+        if (entry.instance && entry.instance->busy()) return true;
+    return false;
+}
+
 int ImuManager::lowBatteryPercent() const
 {
     int lowest = -1;
@@ -491,6 +498,7 @@ ImuInstance *ImuManager::createInstance(const Device &device)
     });
     connect(inst, &ImuInstance::busyChanged, this, [this]() {
         emit imuListChanged();
+        emit anyConnectingChanged();   // aggregate connect-in-flight changed
     });
     // Forward live battery updates to the aggregate lowBatteryPercent property.
     connect(inst, &ImuInstance::batteryPercentChanged, this, &ImuManager::batteryChanged);

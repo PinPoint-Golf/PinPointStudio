@@ -57,6 +57,10 @@ class ImuManager : public QObject
     // ── Aggregate state (any connected / count) ───────────────────────────
     Q_PROPERTY(bool imuConnected READ imuConnected NOTIFY instancesChanged)
     Q_PROPERTY(int  imuCount     READ imuCount     NOTIFY instancesChanged)
+    // True while ANY live IMU instance has a connect attempt in flight (busy:
+    // from start() through retry/backoff/watchdog until success or final
+    // failure). Drives the aggregate Connect button's "connecting" animation.
+    Q_PROPERTY(bool anyConnecting READ anyConnecting NOTIFY anyConnectingChanged)
     // Lowest battery % across all *connected* IMUs (−1 when none report a
     // level). Drives the toolbar IMU-pill low-battery warning. Notifies on live
     // battery updates as well as connect/disconnect (both change the minimum).
@@ -89,6 +93,7 @@ public:
     int          imuEnumeratedCount() const;
     bool         imuConnected()       const;
     int          imuCount()           const;
+    bool         anyConnecting()      const;
     int          lowBatteryPercent()  const;
 
     // Teardown stop-barrier (same contract as CameraManager): deregistering an
@@ -147,6 +152,7 @@ public:
 signals:
     void imuListChanged();
     void instancesChanged();
+    void anyConnectingChanged();
     void imuEnumeratedCountChanged();
     void imuDeviceListChanged();
     void sessionImuExcludedChanged();

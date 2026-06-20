@@ -411,6 +411,7 @@ void CameraInstance::setupPipeline()
     connect(m_videoInput, &VideoInputBase::stateChanged,
             this, [this](VideoInputBase::State s) {
                 if (s == VideoInputBase::State::Active) {
+                    setConnecting(false);   // device live — connect window over
                     updateBufferDescriptor();
                     emit needsDebayerChanged();
 
@@ -665,7 +666,15 @@ void CameraInstance::connectVideoInput()
 // ---------------------------------------------------------------------------
 
 bool   CameraInstance::isRecording()    const { return m_recording; }
+bool   CameraInstance::isConnecting()   const { return m_connecting; }
 bool   CameraInstance::isAravis()       const { return VideoInputFactory::backendType(m_videoInput) == VideoInputFactory::Backend::Aravis; }
+
+void CameraInstance::setConnecting(bool on)
+{
+    if (m_connecting == on) return;
+    m_connecting = on;
+    emit isConnectingChanged();
+}
 bool   CameraInstance::isSpinnaker()    const { return VideoInputFactory::backendType(m_videoInput) == VideoInputFactory::Backend::Spinnaker; }
 bool   CameraInstance::needsDebayer()   const { return isSpinnaker() && m_videoInput->emitsRawBayer(); }
 double  CameraInstance::preprocessAvgMs()        const { return m_preprocessAvgMs; }
@@ -1064,11 +1073,13 @@ void CameraInstance::startRecording()
                         if (!self) return;
                         self->m_recording = false;
                         emit self->isRecordingChanged();
+                        self->setConnecting(false);
                     }, Qt::QueuedConnection);
                 }
             }, Qt::QueuedConnection);
             self->m_recording = true;
             emit self->isRecordingChanged();
+            self->setConnecting(true);   // connect attempt in flight
         }, Qt::QueuedConnection);
     });
 #else
@@ -1083,6 +1094,8 @@ void CameraInstance::startRecording()
         m_previewOnly.store(false, std::memory_order_relaxed);
         return;
     }
+
+    setConnecting(true);   // entering the real device-start window
 
     QMetaObject::invokeMethod(m_videoInput, [this]() {
         // Prime the hardware ROI (no-op for software-cropped backends) with
@@ -1117,6 +1130,7 @@ void CameraInstance::startRecording()
                             QMetaObject::invokeMethod(this, [this]() {
                                 m_recording = false;
                                 emit isRecordingChanged();
+                                setConnecting(false);
                             }, Qt::QueuedConnection);
                         }
                     }, Qt::QueuedConnection);
@@ -1125,6 +1139,7 @@ void CameraInstance::startRecording()
                 QMetaObject::invokeMethod(this, [this]() {
                     m_recording = false;
                     emit isRecordingChanged();
+                    setConnecting(false);
                 }, Qt::QueuedConnection);
             }
         } else {
@@ -1132,6 +1147,7 @@ void CameraInstance::startRecording()
             QMetaObject::invokeMethod(this, [this]() {
                 m_recording = false;
                 emit isRecordingChanged();
+                setConnecting(false);
             }, Qt::QueuedConnection);
         }
     }, Qt::QueuedConnection);
@@ -1152,6 +1168,7 @@ void CameraInstance::stopRecording()
     }
     m_recording = false;
     emit isRecordingChanged();
+    setConnecting(false);   // user cancelled before the device came up
     m_poseKeypoints.clear();
     emit poseKeypointsChanged();
     if (m_ballDetected) {
@@ -1318,6 +1335,8 @@ void CameraInstance::onPoseEstimated(const PoseResult &result)
 void CameraInstance::onVideoError(const QString &message)
 {
     ppWarn() << "[Video]" << message;
+    // A device error during a connect attempt ends the in-flight window.
+    setConnecting(false);
 }
 
 void CameraInstance::onPreprocessStats(double avgMs)

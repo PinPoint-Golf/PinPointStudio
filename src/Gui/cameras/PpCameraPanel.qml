@@ -142,6 +142,7 @@ Item {
             ScopedAction {
                 glyph: "⇄"
                 label: root.allConnected ? qsTr("Disconnect") : qsTr("Connect")
+                connecting: !root.allConnected && cameraManager.anyConnecting
                 onTriggered: root.allConnected ? root.disconnectAll() : root.startConnect()
             }
             ScopedAction {
@@ -227,6 +228,8 @@ Item {
 
     component ScopedAction: Rectangle {
         property string glyph: ""; property string label: ""; property bool primary: false
+        // Drives the traveling-light frame while a connect attempt is in flight.
+        property bool connecting: false
         signal triggered()
         width: (root.width - Theme.sp(24) - Theme.sp(16)) / 3
         height: Theme.sp(50); radius: Theme.radius
@@ -250,6 +253,7 @@ Item {
                    color: primary ? Theme.colorAttention : Theme.colorText }
         }
         PpPressable { id: saMa; onClicked: parent.triggered() }
+        PpConnectingFrame { anchors.fill: parent; radius: parent.radius; running: parent.connecting }
     }
 
     component TogglePill: Rectangle {

@@ -2122,6 +2122,19 @@ Item {
                                 }
                             }
                         }
+
+                        // Traveling-light frame while the CTA is connecting devices.
+                        // Cameras connect synchronously (brief), IMUs span the paced
+                        // BLE queue + each sensor's connect window. Light hue to read
+                        // against the filled accent/good/warn background.
+                        PpConnectingFrame {
+                            anchors.fill: parent
+                            radius:  parent.radius
+                            color:   Theme.dark ? Theme.colorBg : "#FFFFFF"
+                            running: (root.currentStep === root.stepCameras && cameraManager.anyConnecting)
+                                  || (root.currentStep === root.stepImus
+                                      && (imusCol._connecting || imuManager.anyConnecting))
+                        }
                     }
                 }
             }

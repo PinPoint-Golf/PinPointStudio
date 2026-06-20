@@ -279,6 +279,13 @@ bool CameraManager::anySelected() const
     return false;
 }
 
+bool CameraManager::anyConnecting() const
+{
+    for (const auto &cam : m_cameras)
+        if (cam.controller && cam.controller->isConnecting()) return true;
+    return false;
+}
+
 // ---------------------------------------------------------------------------
 // Invokables
 // ---------------------------------------------------------------------------
@@ -338,6 +345,7 @@ void CameraManager::setSelected(int index, bool selected)
 
     emit cameraListChanged();
     emit instancesChanged();
+    emit anyConnectingChanged();   // a connecting instance may have just been created/destroyed
 }
 
 void CameraManager::startAll()
@@ -749,6 +757,11 @@ CameraInstance *CameraManager::createController(const Device &device)
     auto *ctrl = new CameraInstance(device, m_eventBuffer, m_appSettings, this);
     // Ball presence is signal-only: CameraInstance::ballPresentChanged feeds the
     // QML overlays (and future shot detection) but never touches buffer state.
+
+    // Re-emit the aggregate connecting state whenever this instance's connect
+    // window opens or closes, so the aggregate Connect button animates.
+    connect(ctrl, &CameraInstance::isConnectingChanged,
+            this, &CameraManager::anyConnectingChanged);
 
     // Apply the session-wide pipeline configuration to the new instance.
     ctrl->setPoseEnabled(m_livePoseEnabled);

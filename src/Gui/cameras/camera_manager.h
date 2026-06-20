@@ -41,6 +41,9 @@ class CameraManager : public QObject
     Q_PROPERTY(QVariantList instances   READ instances   NOTIFY instancesChanged)
     Q_PROPERTY(bool isRecording         READ isRecording NOTIFY isRecordingChanged)
     Q_PROPERTY(bool anySelected         READ anySelected NOTIFY instancesChanged)
+    // True while ANY live camera instance has a connect attempt in flight —
+    // drives the aggregate Connect button's "connecting" animation.
+    Q_PROPERTY(bool anyConnecting       READ anyConnecting NOTIFY anyConnectingChanged)
     Q_PROPERTY(QString bufferState      READ bufferState NOTIFY bufferStateChanged)
     // Per-session camera enablement (cameraKey list). Seeded from
     // AppSettings::cameraExcluded at startup but NEVER written back — global
@@ -61,6 +64,7 @@ public:
     QVariantList instances()  const;
     bool isRecording()        const;
     bool anySelected()        const;
+    bool anyConnecting()      const;
     QString bufferState()     const;
     // The user's capture intent (set by startCapture/stopCapture). Unlike
     // bufferState this stays stable across a session — it doesn't toggle when
@@ -152,6 +156,7 @@ signals:
     void cameraListChanged();
     void instancesChanged();
     void isRecordingChanged();
+    void anyConnectingChanged();
     void bufferStateChanged();
     void captureIntentChanged();
     void sessionCameraExcludedChanged();

@@ -61,6 +61,10 @@ class CameraInstance : public QObject
     QML_UNCREATABLE("CameraInstance is created by CameraManager")
 
     Q_PROPERTY(bool isRecording READ isRecording NOTIFY isRecordingChanged)
+    // True while a connect attempt is in flight (device start posted, not yet
+    // confirmed Active). Cleared on first Active frame, start failure, video
+    // error, or stop. Drives the Connect-button "connecting" animation.
+    Q_PROPERTY(bool isConnecting READ isConnecting NOTIFY isConnectingChanged)
     Q_PROPERTY(bool isAravis READ isAravis NOTIFY isAravisChanged)
     Q_PROPERTY(bool isSpinnaker READ isSpinnaker NOTIFY isSpinnakerChanged)
     Q_PROPERTY(bool needsDebayer READ needsDebayer NOTIFY needsDebayerChanged)
@@ -119,6 +123,7 @@ public:
     ~CameraInstance() override;
 
     bool   isRecording() const;
+    bool   isConnecting() const;
     bool   isAravis() const;
     bool   isSpinnaker() const;
     bool   needsDebayer() const;
@@ -212,6 +217,7 @@ public:
 
 signals:
     void isRecordingChanged();
+    void isConnectingChanged();
     void isAravisChanged();
     void isSpinnakerChanged();
     void needsDebayerChanged();
@@ -276,7 +282,11 @@ private:
     // format can no longer be read back from "the" sink).
     QVideoFrame            m_lastDeliveredFrame;
     bool                   m_recording        = false;
+    bool                   m_connecting       = false;
     bool                   m_previewing       = false;
+
+    // Guarded setter for m_connecting — emits isConnectingChanged only on change.
+    void setConnecting(bool on);
     std::atomic<bool>      m_previewOnly{false}; // true = camera running but pipeline suppressed
     QString                m_deviceId;
     QString                m_deviceDescription;

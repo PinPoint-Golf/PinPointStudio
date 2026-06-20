@@ -193,6 +193,7 @@ Item {
             ScopedAction {
                 glyph: "⇄"
                 label: root.allConnected ? qsTr("Disconnect") : qsTr("Connect")
+                connecting: !root.allConnected && (root._connecting || imuManager.anyConnecting)
                 onTriggered: {
                     if (root.allConnected)          root.disconnectAll()
                     else if (!root._connecting)     root.startConnect()
@@ -255,6 +256,8 @@ Item {
         property string glyph:   ""
         property string label:   ""
         property bool   primary: false
+        // Drives the traveling-light frame while a connect attempt is in flight.
+        property bool   connecting: false
         signal triggered()
         width: (root.width - Theme.sp(24) - Theme.sp(16)) / 3
         height: Theme.sp(50); radius: Theme.radius
@@ -282,6 +285,7 @@ Item {
             }
         }
         PpPressable { id: saMa; onClicked: parent.triggered() }
+        PpConnectingFrame { anchors.fill: parent; radius: parent.radius; running: parent.connecting }
     }
 
     // ── Per-IMU row ─────────────────────────────────────────────────────────
