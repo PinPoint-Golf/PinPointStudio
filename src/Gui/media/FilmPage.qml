@@ -61,44 +61,11 @@ Item {
                 Keys.onEnterPressed:  downloadBtn.clicked()
             }
 
-            ComboBox {
+            PpComboBox {
                 id: browserBox
                 model: ["chrome", "firefox", "safari", "edge", "brave"]
                 currentIndex: Qt.platform.os === "linux" ? 4 : 0
-                implicitWidth: 90
-                contentItem: Text {
-                    leftPadding: 8
-                    text: browserBox.displayText
-                    color: Theme.colorText
-                    font.family: Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    color: Theme.colorSurface
-                    radius: Theme.radius
-                    border.width: 1
-                    border.color: Theme.colorBorderMid
-                }
-                popup.background: Rectangle {
-                    color: Theme.colorSurface
-                    radius: Theme.radius
-                    border.width: 1
-                    border.color: Theme.colorBorderMid
-                }
-                delegate: ItemDelegate {
-                    width: browserBox.width
-                    contentItem: Text {
-                        text: modelData
-                        color: Theme.colorText
-                        font.family: Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody2
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    background: Rectangle {
-                        color: hovered ? Theme.colorBg3 : Theme.colorSurface
-                    }
-                }
+                implicitWidth: Theme.sp(90)
             }
 
             Button {

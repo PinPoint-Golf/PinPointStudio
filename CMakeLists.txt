@@ -322,6 +322,7 @@ qt_add_qml_module(PinPointStudio
         src/Gui/athlete/ScreenAthleteForm.qml
         src/Gui/athlete/ScreenAthletePicker.qml
         src/Gui/components/PpTextField.qml
+        src/Gui/components/PpComboBox.qml
         src/Gui/components/PpChipGroup.qml
         src/Gui/components/PpUnitToggle.qml
         src/Gui/components/PpButton.qml

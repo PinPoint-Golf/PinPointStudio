@@ -401,10 +401,11 @@ Item {
                         }
 
                         // Rate selector
-                        ComboBox {
+                        PpComboBox {
                             id: rateCombo
                             enabled: ctrl && ctrl.imuConnected
                             model: [10, 50, 100, 200]
+                            displaySuffix: " Hz"
                             currentIndex: {
                                 if (!ctrl) return 2
                                 var idx = model.indexOf(ctrl.outputRateHz)
@@ -412,61 +413,6 @@ Item {
                             }
                             onActivated: if (ctrl) ctrl.setOutputRateHz(model[currentIndex])
                             implicitWidth: Theme.sp(90)
-
-                            contentItem: Text {
-                                leftPadding: Theme.sp(8)
-                                text: rateCombo.displayText + " Hz"
-                                color: rateCombo.enabled ? Theme.colorText : Theme.colorText3
-                                font.family:    Theme.fontBody
-                                font.pixelSize: Theme.fontSzBody
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            background: Rectangle {
-                                color:        Theme.colorSurface
-                                border.color: rateCombo.enabled ? Theme.colorBorderMid : Theme.colorBorder
-                                border.width: 1
-                                radius:       Theme.radius
-                            }
-                            indicator: Text {
-                                x: rateCombo.width - width - Theme.sp(8)
-                                anchors.verticalCenter: parent.verticalCenter
-                                text:  "⌄"
-                                font.family:    Theme.fontBody
-                                font.pixelSize: Theme.fontSzBody
-                                color: Theme.colorText3
-                            }
-                            popup: Popup {
-                                y: rateCombo.height + 2
-                                width: rateCombo.width
-                                padding: Theme.sp(4)
-                                background: Rectangle {
-                                    color:        Theme.colorSurface
-                                    radius:       Theme.radius
-                                    border.width: 1
-                                    border.color: Theme.colorBorderMid
-                                }
-                                contentItem: ListView {
-                                    implicitHeight: contentHeight
-                                    model: rateCombo.delegateModel
-                                    clip:  true
-                                }
-                            }
-                            delegate: ItemDelegate {
-                                required property var modelData
-                                required property int index
-                                width: rateCombo.width
-                                contentItem: Text {
-                                    text: modelData + " Hz"
-                                    color: rateCombo.currentIndex === index ? Theme.colorText : Theme.colorText3
-                                    font.family:    Theme.fontBody
-                                    font.pixelSize: Theme.fontSzBody
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-                                background: Rectangle {
-                                    color:  hovered ? Theme.colorBg3 : "transparent"
-                                    radius: Theme.radius - 1
-                                }
-                            }
                         }
 
                         // Zero button

@@ -347,48 +347,13 @@ Item {
                         font.pixelSize: Theme.fontSzBody
                     }
 
-                    ComboBox {
+                    PpComboBox {
                         id: voiceSelector
                         visible: ttsController.ttsBackend !== "Cloud"
                         model: ttsController.voices
                         currentIndex: ttsController.voices.indexOf(ttsController.voice)
                         onActivated: ttsController.voice = currentText
                         implicitWidth: Theme.sp(130)
-                        contentItem: Text {
-                            leftPadding: 8
-                            text: voiceSelector.displayText
-                            color: Theme.colorText
-                            font.family: Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                        background: Rectangle {
-                            color: Theme.colorSurface
-                            radius: Theme.radius
-                            border.color: voiceSelector.activeFocus ? Theme.colorAccent : Theme.colorBorderMid
-                            border.width: 1
-                        }
-                        popup.background: Rectangle {
-                            color: Theme.colorSurface
-                            radius: Theme.radius
-                            border.width: 1
-                            border.color: Theme.colorBorderMid
-                        }
-                        delegate: ItemDelegate {
-                            required property var modelData
-                            width: voiceSelector.width
-                            contentItem: Text {
-                                text: modelData
-                                color: Theme.colorText
-                                font.family: Theme.fontBody
-                                font.pixelSize: Theme.fontSzBody
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            background: Rectangle {
-                                color: hovered ? Theme.colorBg3 : "transparent"
-                                radius: Theme.radius - 1
-                            }
-                        }
                     }
 
                     Item { Layout.fillWidth: true }

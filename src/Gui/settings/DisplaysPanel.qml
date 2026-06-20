@@ -306,7 +306,7 @@ Item {
                     }
                 }
 
-                ComboBox {
+                PpComboBox {
                     id: launchOnCombo
                     Layout.alignment: Qt.AlignVCenter
                     implicitWidth: Theme.sp(220)
@@ -327,76 +327,6 @@ Item {
                         if (index === 0)      appSettings.mainDisplayMode = "primary"
                         else if (index === 1) appSettings.mainDisplayMode = "cursor"
                         else                  appSettings.mainDisplayMode = root.screenModel[index - 2].value
-                    }
-
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Theme.fontBodyWeight
-
-                    contentItem: Text {
-                        leftPadding: Theme.sp(10)
-                        text:           launchOnCombo.displayText
-                        font:           launchOnCombo.font
-                        color:          Theme.colorText
-                        verticalAlignment: Text.AlignVCenter
-                        elide: Text.ElideRight
-                    }
-
-                    background: Rectangle {
-                        color:        Theme.colorSurface
-                        border.width: 1
-                        border.color: Theme.colorBorderStrong
-                        radius:       Theme.radius
-                    }
-
-                    indicator: Text {
-                        x: launchOnCombo.width - width - Theme.sp(10)
-                        anchors.verticalCenter: parent.verticalCenter
-                        text:           "⌄"
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText3
-                    }
-
-                    popup: Popup {
-                        y: launchOnCombo.height
-                        width: launchOnCombo.width
-                        padding: 0
-
-                        background: Rectangle {
-                            color:        Theme.colorSurface
-                            border.width: 1
-                            border.color: Theme.colorBorderStrong
-                            radius:       Theme.radius
-                        }
-
-                        contentItem: ListView {
-                            implicitHeight: contentHeight
-                            model: launchOnCombo.delegateModel
-                            clip: true
-                        }
-                    }
-
-                    delegate: ItemDelegate {
-                        required property string modelData
-                        required property int    index
-
-                        width: launchOnCombo.width
-                        highlighted: launchOnCombo.highlightedIndex === index
-
-                        contentItem: Text {
-                            leftPadding: Theme.sp(10)
-                            text:           modelData
-                            font.family:    Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody2
-                            font.weight:    Theme.fontBodyWeight
-                            color:          Theme.colorText
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        background: Rectangle {
-                            color: parent.highlighted ? Theme.colorAccentLight : "transparent"
-                        }
                     }
                 }
             }
@@ -549,7 +479,7 @@ Item {
                     }
                 }
 
-                ComboBox {
+                PpComboBox {
                     id: secondaryDisplayCombo
                     Layout.alignment: Qt.AlignVCenter
                     implicitWidth: Theme.sp(220)
@@ -566,76 +496,6 @@ Item {
                     onActivated: (index) => {
                         if (index === 0) appSettings.secondaryDisplayMode = "none"
                         else             appSettings.secondaryDisplayMode = root.screenModel[index - 1].value
-                    }
-
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Theme.fontBodyWeight
-
-                    contentItem: Text {
-                        leftPadding: Theme.sp(10)
-                        text:           secondaryDisplayCombo.displayText
-                        font:           secondaryDisplayCombo.font
-                        color:          Theme.colorText
-                        verticalAlignment: Text.AlignVCenter
-                        elide: Text.ElideRight
-                    }
-
-                    background: Rectangle {
-                        color:        Theme.colorSurface
-                        border.width: 1
-                        border.color: Theme.colorBorderStrong
-                        radius:       Theme.radius
-                    }
-
-                    indicator: Text {
-                        x: secondaryDisplayCombo.width - width - Theme.sp(10)
-                        anchors.verticalCenter: parent.verticalCenter
-                        text:           "⌄"
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText3
-                    }
-
-                    popup: Popup {
-                        y: secondaryDisplayCombo.height
-                        width: secondaryDisplayCombo.width
-                        padding: 0
-
-                        background: Rectangle {
-                            color:        Theme.colorSurface
-                            border.width: 1
-                            border.color: Theme.colorBorderStrong
-                            radius:       Theme.radius
-                        }
-
-                        contentItem: ListView {
-                            implicitHeight: contentHeight
-                            model: secondaryDisplayCombo.delegateModel
-                            clip: true
-                        }
-                    }
-
-                    delegate: ItemDelegate {
-                        required property string modelData
-                        required property int    index
-
-                        width: secondaryDisplayCombo.width
-                        highlighted: secondaryDisplayCombo.highlightedIndex === index
-
-                        contentItem: Text {
-                            leftPadding: Theme.sp(10)
-                            text:           modelData
-                            font.family:    Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody2
-                            font.weight:    Theme.fontBodyWeight
-                            color:          Theme.colorText
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        background: Rectangle {
-                            color: parent.highlighted ? Theme.colorAccentLight : "transparent"
-                        }
                     }
                 }
             }

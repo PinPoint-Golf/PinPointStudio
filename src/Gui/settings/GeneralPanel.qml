@@ -281,7 +281,7 @@ Item {
                     }
                 }
 
-                ComboBox {
+                PpComboBox {
                     id: languageCombo
                     Layout.alignment: Qt.AlignVCenter
                     implicitWidth: Theme.sp(160)
@@ -300,76 +300,6 @@ Item {
 
                     onActivated: (index) => {
                         appSettings.language = root.languageModel[index].tag
-                    }
-
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Theme.fontBodyWeight
-
-                    contentItem: Text {
-                        leftPadding: Theme.sp(10)
-                        text:           languageCombo.displayText
-                        font:           languageCombo.font
-                        color:          Theme.colorText
-                        verticalAlignment: Text.AlignVCenter
-                        elide: Text.ElideRight
-                    }
-
-                    background: Rectangle {
-                        color:        Theme.colorSurface
-                        border.width: 1
-                        border.color: Theme.colorBorderStrong
-                        radius:       Theme.radius
-                    }
-
-                    indicator: Text {
-                        x: languageCombo.width - width - Theme.sp(10)
-                        anchors.verticalCenter: parent.verticalCenter
-                        text:           "⌄"
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText3
-                    }
-
-                    popup: Popup {
-                        y: languageCombo.height
-                        width: languageCombo.width
-                        padding: 0
-
-                        background: Rectangle {
-                            color:        Theme.colorSurface
-                            border.width: 1
-                            border.color: Theme.colorBorderStrong
-                            radius:       Theme.radius
-                        }
-
-                        contentItem: ListView {
-                            implicitHeight: contentHeight
-                            model: languageCombo.delegateModel
-                            clip: true
-                        }
-                    }
-
-                    delegate: ItemDelegate {
-                        required property string modelData
-                        required property int    index
-
-                        width: languageCombo.width
-                        highlighted: languageCombo.highlightedIndex === index
-
-                        contentItem: Text {
-                            leftPadding: Theme.sp(10)
-                            text:           modelData
-                            font.family:    Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody2
-                            font.weight:    Theme.fontBodyWeight
-                            color:          Theme.colorText
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        background: Rectangle {
-                            color: parent.highlighted ? Theme.colorAccentLight : "transparent"
-                        }
                     }
                 }
             }

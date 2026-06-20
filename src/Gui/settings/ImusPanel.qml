@@ -275,7 +275,7 @@ Item {
                             color:               Theme.colorText3
                         }
 
-                        ComboBox {
+                        PpComboBox {
                             id: placementCombo
                             implicitWidth: Theme.sp(200)
 
@@ -303,6 +303,12 @@ Item {
                                 return false
                             }
 
+                            // Disable placements already assigned to another connected IMU.
+                            itemEnabledFn: function(index) {
+                                return !placementCombo.placementTakenBy(
+                                            placementCombo.placementOptions[index].value)
+                            }
+
                             Component.onCompleted: {
                                 var saved = appSettings.imuPlacement[imuData.id] || ""
                                 for (var i = 0; i < placementOptions.length; i++) {
@@ -326,78 +332,6 @@ Item {
                                 var map = appSettings.imuPlacement
                                 map[imuData.id] = placementOptions[idx].value
                                 appSettings.imuPlacement = map
-                            }
-
-                            font.family:    Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody2
-                            font.weight:    Theme.fontBodyWeight
-
-                            contentItem: Text {
-                                leftPadding: Theme.sp(10)
-                                text:  placementCombo.displayText
-                                font:  placementCombo.font
-                                color: Theme.colorText
-                                verticalAlignment: Text.AlignVCenter
-                                elide: Text.ElideRight
-                            }
-
-                            background: Rectangle {
-                                color:        Theme.colorSurface
-                                border.width: 1
-                                border.color: Theme.colorBorderStrong
-                                radius:       Theme.radius
-                            }
-
-                            indicator: Text {
-                                x: placementCombo.width - width - Theme.sp(10)
-                                anchors.verticalCenter: parent.verticalCenter
-                                text:           "⌄"
-                                font.family:    Theme.fontBody
-                                font.pixelSize: Theme.fontSzBody
-                                color:          Theme.colorText3
-                            }
-
-                            popup: Popup {
-                                y:       placementCombo.height
-                                width:   placementCombo.width
-                                padding: 0
-
-                                background: Rectangle {
-                                    color:        Theme.colorSurface
-                                    border.width: 1
-                                    border.color: Theme.colorBorderStrong
-                                    radius:       Theme.radius
-                                }
-
-                                contentItem: ListView {
-                                    implicitHeight: contentHeight
-                                    model: placementCombo.delegateModel
-                                    clip:  true
-                                }
-                            }
-
-                            delegate: ItemDelegate {
-                                required property string modelData
-                                required property int    index
-
-                                width:       placementCombo.width
-                                highlighted: placementCombo.highlightedIndex === index
-                                enabled:     !placementCombo.placementTakenBy(
-                                                 placementCombo.placementOptions[index].value)
-
-                                contentItem: Text {
-                                    leftPadding: Theme.sp(10)
-                                    text:  modelData
-                                    font.family:    Theme.fontBody
-                                    font.pixelSize: Theme.fontSzBody2
-                                    font.weight:    Theme.fontBodyWeight
-                                    color: parent.enabled ? Theme.colorText : Theme.colorText3
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-
-                                background: Rectangle {
-                                    color: parent.highlighted ? Theme.colorAccentLight : "transparent"
-                                }
                             }
                         }
                     }

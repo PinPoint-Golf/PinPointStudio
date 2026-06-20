@@ -286,7 +286,7 @@ Item {
                     color:          Theme.colorText3
                 }
 
-                ComboBox {
+                PpComboBox {
                     id: viewCombo
                     implicitWidth: Theme.sp(168)
 
@@ -328,76 +328,6 @@ Item {
                         appSettings.cameraPerspective = map
                         if (camRow.realInstance)
                             cameraManager.setPerspective(camRow.realInstance, p)
-                    }
-
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Theme.fontBodyWeight
-
-                    contentItem: Text {
-                        leftPadding: Theme.sp(10)
-                        text:           viewCombo.displayText
-                        font:           viewCombo.font
-                        color:          Theme.colorText
-                        verticalAlignment: Text.AlignVCenter
-                        elide:          Text.ElideRight
-                    }
-
-                    background: Rectangle {
-                        color:        Theme.colorSurface
-                        border.width: 1
-                        border.color: Theme.colorBorderStrong
-                        radius:       Theme.radius
-                    }
-
-                    indicator: Text {
-                        x: viewCombo.width - width - Theme.sp(10)
-                        anchors.verticalCenter: parent.verticalCenter
-                        text:           "⌄"
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText3
-                    }
-
-                    popup: Popup {
-                        y: viewCombo.height
-                        width: viewCombo.width
-                        padding: 0
-
-                        background: Rectangle {
-                            color:        Theme.colorSurface
-                            border.width: 1
-                            border.color: Theme.colorBorderStrong
-                            radius:       Theme.radius
-                        }
-
-                        contentItem: ListView {
-                            implicitHeight: contentHeight
-                            model: viewCombo.delegateModel
-                            clip: true
-                        }
-                    }
-
-                    delegate: ItemDelegate {
-                        required property string modelData
-                        required property int    index
-
-                        width: viewCombo.width
-                        highlighted: viewCombo.highlightedIndex === index
-
-                        contentItem: Text {
-                            leftPadding: Theme.sp(10)
-                            text:           modelData
-                            font.family:    Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody2
-                            font.weight:    Theme.fontBodyWeight
-                            color:          parent.enabled ? Theme.colorText : Theme.colorText3
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        background: Rectangle {
-                            color: parent.highlighted ? Theme.colorAccentLight : "transparent"
-                        }
                     }
                 }
             }
