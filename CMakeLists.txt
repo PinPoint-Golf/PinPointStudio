@@ -2213,6 +2213,25 @@ if(APPLE)
         VERBATIM
     )
     add_dependencies(PinPointStudio_force_plist PinPointStudio)
+
+    # Sign the finished bundle with a stable self-signed identity so macOS TCC
+    # retains the camera / microphone / speech / Bluetooth grants across rebuilds
+    # (see cmake/DevCodesign.cmake).  This is the LAST thing to touch the bundle:
+    # it depends on PinPointStudio_force_plist so the plist copy lands before the
+    # signature, and like that target it is always out of date so it re-signs on
+    # every build (the plist copy would otherwise invalidate a prior seal).
+    set(PINPOINT_DEV_CODESIGN_IDENTITY "PinPoint Dev" CACHE STRING
+        "Keychain identity used to sign the dev bundle so TCC permission grants persist across rebuilds")
+    add_custom_target(PinPointStudio_codesign ALL
+        COMMAND ${CMAKE_COMMAND}
+            "-DBUNDLE=$<TARGET_BUNDLE_DIR:PinPointStudio>"
+            "-DIDENTITY=${PINPOINT_DEV_CODESIGN_IDENTITY}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/DevCodesign.cmake"
+        COMMENT "Signing dev bundle with '${PINPOINT_DEV_CODESIGN_IDENTITY}' (TCC-stable identity)"
+        VERBATIM
+    )
+    add_dependencies(PinPointStudio_codesign PinPointStudio_force_plist)
+
     target_link_libraries(PinPointStudio PRIVATE
         "-framework AVFoundation"
         "-framework CoreMedia"
