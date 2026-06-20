@@ -1,0 +1,36 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 21 },
+  "configurePresets": [
+    {
+      "name": "tests",
+      "displayName": "PinPoint unit tests (all suites)",
+      "binaryDir": "${sourceDir}/../build/tests",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "tests-asan",
+      "displayName": "PinPoint unit tests — ASan + UBSan",
+      "inherits": "tests",
+      "binaryDir": "${sourceDir}/../build/tests-asan",
+      "cacheVariables": { "PP_SANITIZE": "address;undefined" }
+    },
+    {
+      "name": "tests-tsan",
+      "displayName": "PinPoint unit tests — TSan",
+      "inherits": "tests",
+      "binaryDir": "${sourceDir}/../build/tests-tsan",
+      "cacheVariables": { "PP_SANITIZE": "thread" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "tests",      "configurePreset": "tests",      "jobs": 6 },
+    { "name": "tests-asan", "configurePreset": "tests-asan", "jobs": 6 },
+    { "name": "tests-tsan", "configurePreset": "tests-tsan", "jobs": 6 }
+  ],
+  "testPresets": [
+    { "name": "tests",      "configurePreset": "tests",      "output": { "outputOnFailure": true } },
+    { "name": "tests-asan", "configurePreset": "tests-asan", "output": { "outputOnFailure": true } },
+    { "name": "tests-tsan", "configurePreset": "tests-tsan", "output": { "outputOnFailure": true } }
+  ]
+}

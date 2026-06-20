@@ -1,57 +1,53 @@
-# Standalone CTest suite for the calibrated ball detection core (ball_model.h).
-# Self-contained — NOT part of the app build (the root CMake keeps
-# BUILD_TESTING OFF), mirroring src/Analysis/tests, src/Audio/tests and
-# src/IMU/tests.
+# CTest suite for the calibrated ball-detection core (ball_model.h) + detector
+# throttle contract. Self-contained — NOT part of the app build. Runs standalone
+# or under the tests/ umbrella; shared infra lives in tests/cmake/PinPointTests.cmake.
 #
-# Configure + run:
 #   cmake -S src/Pose/tests -B build/pose-tests
-#   cmake --build build/pose-tests -j
-#   ctest --test-dir build/pose-tests --output-on-failure
-#
-# ball_model.h is OpenCV-only (no Qt), so only OpenCV is required.
+#   cmake --build build/pose-tests -j && ctest --test-dir build/pose-tests --output-on-failure
 
-cmake_minimum_required(VERSION 3.16)
-project(pinpoint_pose_tests LANGUAGES CXX)
+if(NOT COMMAND pp_add_test)
+    cmake_minimum_required(VERSION 3.16)
+    project(pinpoint_pose_tests LANGUAGES CXX)
+    list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/../../../tests/cmake)
+    include(PinPointTests)
+    enable_testing()
+endif()
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
+# ball_model.h is OpenCV-only (no Qt); ball_detector.cpp pulls in Qt + the profiler.
 find_package(OpenCV REQUIRED COMPONENTS core imgproc features2d)
-find_package(Qt6 REQUIRED COMPONENTS Core Gui)
-set(CMAKE_AUTOMOC ON)
-enable_testing()
 
-function(pp_add_test name)
-    add_executable(${name} ${ARGN})
-    target_link_libraries(${name} PRIVATE ${OpenCV_LIBS})
-    target_include_directories(${name} PRIVATE ${OpenCV_INCLUDE_DIRS})
-    add_test(NAME ${name} COMMAND ${name})
-endfunction()
+set(POSE ${CMAKE_CURRENT_SOURCE_DIR}/..)   # src/Pose
+set(CORE ${POSE}/../Core)                  # profiler core
 
 # Calibrated detection core: background/ball model fitting, theta derivation,
 # multi-cue scoring (dim-studio golden case), gain invariance, drift severity.
-pp_add_test(ball_model_test  ball_model_test.cpp)
+pp_add_test(ball_model_test
+    SOURCES ball_model_test.cpp
+    INCLUDE ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    NO_QT)
 
 # Calibration protocol: round bookkeeping (consecutive-clean pass rule,
 # failed-round evidence retention, exhaustion) + profile save/load round-trip
-# (FileStorage, schema-version rejection, detector-equivalence of the loaded
-# profile).
-pp_add_test(ball_calibration_test  ball_calibration_test.cpp)
+# (FileStorage, schema-version rejection, detector-equivalence of loaded profile).
+pp_add_test(ball_calibration_test
+    SOURCES ball_calibration_test.cpp
+    INCLUDE ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    NO_QT)
 
-# BallDetector throttle contract: exactly one ballDetected/detectionSkipped
-# per detect() on every path (legacy, calibrated, fallback, guards). Builds
-# the real ball_detector.cpp with a PpLogStream stub (no whisper dependency).
+# BallDetector throttle contract: exactly one ballDetected/detectionSkipped per
+# detect() on every path (legacy, calibrated, fallback, guards). Builds the real
+# ball_detector.cpp (Q_OBJECT → AUTOMOC) with a PpLogStream stub (no whisper) and
+# the profiler core (ball_detector.cpp carries a baseline PP_PROFILE_SCOPE).
 pp_add_test(ball_detector_contract_test
-    ball_detector_contract_test.cpp
-    pose_test_stubs.cpp
-    ../ball_detector.cpp
-    ../ball_detector.h
-    # ball_detector.cpp now carries a baseline PP_PROFILE_SCOPE (default-ON tier),
-    # so the profiler core must be linked. pose_test_stubs.cpp supplies PpLogStream;
-    # mirrors src/Core/tests' PROFILER_CORE set.
-    ../../Core/pp_profiler.cpp
-    ../../Core/pp_os_metrics.cpp
-    ../../Core/PpStatsLog.cpp)
-target_compile_definitions(ball_detector_contract_test PRIVATE HAVE_OPENCV)
-target_include_directories(ball_detector_contract_test PRIVATE .. ../../Core)
-target_link_libraries(ball_detector_contract_test PRIVATE Qt6::Core Qt6::Gui)
+    SOURCES ball_detector_contract_test.cpp
+            pose_test_stubs.cpp
+            ${POSE}/ball_detector.cpp
+            ${CORE}/pp_profiler.cpp
+            ${CORE}/pp_os_metrics.cpp
+            ${CORE}/PpStatsLog.cpp
+    INCLUDE ${POSE} ${CORE} ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    DEFINES HAVE_OPENCV
+    AUTOMOC)

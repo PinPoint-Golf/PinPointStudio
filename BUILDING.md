@@ -320,92 +320,62 @@ app. WinSparkle points at the stable
 
 ## Testing
 
-PinPoint Studio has seven standalone unit-test suites. **None are part of the application build** — the root `CMakeLists.txt` forces `BUILD_TESTING OFF`, so building the app never compiles them. Each suite is configured against its own source root and is wired into CTest.
+PinPoint Studio has seven standalone unit-test suites (54 tests). **None are part of the application build** — the root `CMakeLists.txt` forces `BUILD_TESTING OFF`, so building the app never compiles them. Each suite recompiles only the handful of `.cpp` it needs (there is no test-linkable library except `pinpoint_buffer`) and stubs out anything that would drag in the heavy app dependencies — so the tests configure and build in seconds, independent of whisper/FFmpeg/OpenCV/QML.
+
+There are two ways to build and run them: the **umbrella** (all suites in one configure/build/ctest) and **per-suite standalone** (fastest single-suite iteration). Both use the shared CMake infrastructure in `tests/`. For the architecture, `pp_add_test` reference, and how to add a test or a new suite, see **[docs/developer/testing_developer_guide.md](docs/developer/testing_developer_guide.md)**.
 
 > On Windows/MSVC: the Analysis and Pose suites need `-DOpenCV_DIR=C:/tools/opencv/build` at configure (the app's OpenCV auto-probe is not in the test projects), and ctest needs Qt's `bin` plus OpenCV's `bin` on `PATH` or the test exes fail with `0xc0000135` (DLL not found).
 
-### EventBuffer suite (`src/Buffer/tests`)
-
-Lock-free ring, timeline merger, swing window, wait-flag, watchdog and thread-policy coverage, plus an adversarial producer/consumer fuzz test (8 tests). Uses GoogleTest (fetched automatically) and links the standalone `pinpoint_buffer` library. Tests are included only when `src/Buffer` is the top-level project.
+### Run all suites (umbrella)
 
 ```bash
-cmake -S src/Buffer -B build/buffer-tests
-cmake --build build/buffer-tests -j
-ctest --test-dir build/buffer-tests --output-on-failure
+cmake -S tests -B build/tests
+cmake --build build/tests -j6
+ctest --test-dir build/tests --output-on-failure
 ```
 
-Sanitizers are opt-in cache options on the `src/Buffer` project — use a separate build dir for each:
+The Qt prefix is auto-resolved per platform; pass `-DCMAKE_PREFIX_PATH=/path/to/Qt/6.11.x/<abi>` only if Qt is installed somewhere non-standard. Eigen is found automatically (explicit `-DPP_EIGEN_DIR`, then the app build's `build/*/_deps/eigen-src`, then a 3.4.0 fetch) — configuring the app once first lets the tests reuse its copy with no extra download.
+
+Equivalent via the presets in `tests/CMakePresets.json` (CMake reads `CMakePresets.json` from the current directory, so run them **from `tests/`**):
 
 ```bash
-cmake -S src/Buffer -B build/buffer-asan -DPINPOINT_ENABLE_ASAN=ON   # (also -DPINPOINT_ENABLE_UBSAN=ON)
-cmake -S src/Buffer -B build/buffer-tsan -DPINPOINT_ENABLE_TSAN=ON   # ThreadSanitizer
+cd tests
+cmake --preset tests && cmake --build --preset tests && ctest --preset tests
 ```
 
-`latency_benchmark` is built but intentionally **not** registered with CTest — run it by hand: `./build/buffer-tests/tests/latency_benchmark`.
-
-### Analysis suite (`src/Analysis/tests`)
-
-Covers the Wrist Motion assessment engine (windowed-median sampler over the input contract, reference/archetype bands + Tier-1 banding, the Tier-2 rule engine — faults, strengths, relationships, confidence — composite score v2, and the live `analysisDetail` → engine adapter), the shot-analyzer / segmentation chain (phase signals, phase segmenter, metric extractor + full pipeline, banded swing scorer), wrist-angle math (static + live), IMU anatomical calibration, the host-side orientation filters (Madgwick + ESKF), the WT9011DCL / WT901BLE67 driver frame-parse and `eulerToQuat` override, the 3D-viz binding chain, the stored IMU sample frame, the shaft tracker (radial-detection math, track assembly, lead-arm → club wrist-cock kinematics), the multi-modal shot arbiter, the per-session summary, the raw-frame decode, and the unified `swing.json` writer/reader round-trip from the Export subsystem (28 tests). Self-contained — own `main()` + `CHECK_NEAR`, no GoogleTest — compiling the handful of needed `.cpp` directly rather than linking an analysis library.
+**Sanitizers** are a single knob shared by every suite — use a separate build dir per config:
 
 ```bash
-cmake -S src/Analysis/tests -B build/analyzer-tests -DCMAKE_PREFIX_PATH=/path/to/Qt/6.11.x/gcc_64
-cmake --build build/analyzer-tests -j
-ctest --test-dir build/analyzer-tests --output-on-failure
+cmake -S tests -B build/tests-asan -DPP_SANITIZE="address;undefined"   # ASan + UBSan
+cmake -S tests -B build/tests-tsan -DPP_SANITIZE=thread                # ThreadSanitizer
+# (or the tests-asan / tests-tsan presets, run from tests/)
 ```
 
-Requires Qt6 Core/Gui (and Bluetooth, for the driver test) plus Eigen. Eigen is resolved automatically — first from an explicit `-DEIGEN_INCLUDE_DIR=…`, then from the app build's FetchContent copy (`build/*/_deps/eigen-src`), and finally by fetching 3.4.0 if neither is present. Configuring the app at least once first lets the tests reuse its Eigen with no extra download.
+### Run a single suite (standalone)
 
-### Shot impact-detector suite (`src/IMU/tests`)
-
-Truth-table coverage for the IMU impact detector (shot detection P1): a real strike fires exactly once; mat/ground taps, waggles, and slow swells are rejected; the refractory collapses double-hits; the orientation gate holds; `est_t` is the back-dated peak; 100 Hz and 200 Hz traces behave identically. Self-contained — own `main()` + printf `CHECK` macros, no GoogleTest. `impact_detector.h` is pure math, so the suite needs neither BLE nor an app build (Qt is linked only for parity with the other suites).
+Each suite's `src/<Sub>/tests/CMakeLists.txt` also configures on its own — same file, no umbrella required:
 
 ```bash
-cmake -S src/IMU/tests -B build/imu-tests -DCMAKE_PREFIX_PATH=/path/to/Qt/6.11.x/gcc_64
-cmake --build build/imu-tests -j
+cmake -S src/IMU/tests -B build/imu-tests
+cmake --build build/imu-tests -j6
 ctest --test-dir build/imu-tests --output-on-failure
 ```
 
-### Acoustic onset-detector suite (`src/Audio/tests`)
+Filter within any built tree with `ctest --test-dir <build> -R <regex>`.
 
-Truth-table coverage for the acoustic onset detector (shot detection P2 / P4): a click fires sample-accurately; speech bursts, a sustained tone, tone cutoff, and ambient noise are rejected; the refractory holds; the onset → `est_t` back-dating math is checked; reverberant strikes still confirm (case G); and the absolute amplitude gate rejects quiet sounds while passing loud impacts and still rejecting a loud sustained tone (case H). Same self-contained harness — `onset_detector.h` is pure math, no audio device needed.
+### Suite catalog
 
-```bash
-cmake -S src/Audio/tests -B build/audio-tests -DCMAKE_PREFIX_PATH=/path/to/Qt/6.11.x/gcc_64
-cmake --build build/audio-tests -j
-ctest --test-dir build/audio-tests --output-on-failure
-```
+| Suite | Source root | Tests | Coverage |
+|---|---|---|---|
+| **EventBuffer** | `src/Buffer/tests` | 8 | Lock-free ring, timeline merger, swing window, wait-flag, watchdog, thread-policy + adversarial producer/consumer fuzz. GoogleTest; links the `pinpoint_buffer` library. |
+| **Analysis** | `src/Analysis/tests` | 28 | Wrist Motion assessment engine (bands, Tier-1/Tier-2 rules, composite score v2, live adapter); segmentation chain (phase signals/segmenter, metric extractor, swing scorer); wrist-angle math; IMU anatomical calibration; orientation filters (Madgwick + ESKF); WT9011DCL/WT901BLE67 driver frame-parse; 3D-viz binding; ShaftTracker (radial detection, track assembly, kinematics); shot arbiter; session summary; frame decode; `swing.json` round-trip. |
+| **Resource profiler** | `src/Core/tests` | 7 | `pp_profiler`/`pp_os_metrics`/`PpStatsLog` + the `profiler_controller` bridge: tier gating, scope interning, timing aggregation, concurrency, OS/GPU metrics graceful degradation, zero-overhead compile-out. GoogleTest; on Windows links `dxgi`. |
+| **Gui model/helper** | `src/Gui/tests` | 4 | `TimelineLabels` (label solver, nearest/active, phase names), `SwingSeriesModel` (playhead→row), `ShotListModel::shotSummary`, `ReanalysisController`. Needs Qt6 Qml (`QML_ELEMENT`). |
+| **Shot impact-detector** | `src/IMU/tests` | 3 | IMU impact detector truth table (fires once; taps/waggles/swells rejected; refractory; orientation gate; back-dated `est_t`; 100↔200 Hz parity); `ImuIoWorker` thread/EventBuffer contract; ESKF gyro-unit pin. |
+| **Calibrated ball-detection** | `src/Pose/tests` | 3 | `ball_model.h` core (model fitting, theta, multi-cue scoring, gain invariance, drift); calibration protocol (round bookkeeping, profile save/load); `BallDetector` throttle contract. Needs OpenCV (core/imgproc/features2d). |
+| **Acoustic onset-detector** | `src/Audio/tests` | 1 | Onset detector truth table (click fires sample-accurately; speech/tone/ambient rejected; refractory; back-dating; reverb confirm; absolute amplitude gate). |
 
-### Calibrated ball-detection suite (`src/Pose/tests`)
-
-Covers the OpenCV-only calibrated ball-detection core (`ball_model.h`): background/ball model fitting, theta derivation, multi-cue scoring (dim-studio golden case), gain invariance, drift severity; the calibration protocol (consecutive-clean round bookkeeping, failed-round evidence retention, profile save/load round-trip with schema-version rejection); and the `BallDetector` throttle contract (exactly one `ballDetected`/`detectionSkipped` per `detect()` on every path). Requires OpenCV (core/imgproc/features2d) and Qt6 Core/Gui — no app build.
-
-```bash
-cmake -S src/Pose/tests -B build/pose-tests -DCMAKE_PREFIX_PATH=/path/to/Qt/6.11.x/gcc_64
-cmake --build build/pose-tests -j
-ctest --test-dir build/pose-tests --output-on-failure
-```
-
-### Gui model/helper suite (`src/Gui/tests`)
-
-Covers the review-screen model logic: `TimelineLabels` (the train-map 1-D label distribution solver, nearest/active searches, phase names) and `SwingSeriesModel` (playhead → table-row mapping). Self-contained — own `main()` + printf asserts, no GoogleTest — compiling the handful of Gui `.cpp` directly. Requires Qt6 Core/Gui/Qml (Qml because the Gui headers use `QML_ELEMENT`).
-
-```bash
-cmake -S src/Gui/tests -B build/gui-tests -DCMAKE_PREFIX_PATH=/path/to/Qt/6.11.x/gcc_64
-cmake --build build/gui-tests -j
-ctest --test-dir build/gui-tests --output-on-failure
-```
-
-### Resource profiler suite (`src/Core/tests`)
-
-Covers the resource profiler (`pp_profiler`, `pp_os_metrics`, `PpStatsLog`) and the Gui `profiler_controller` bridge: baseline vs deep-tier gating, scope interning identity, wall/CPU timing aggregation, concurrency, OS/process metrics, the per-platform GPU-metrics graceful-degradation contract, the zero-overhead compile-out claim (both tiers off), and the Q_OBJECT controller (7 tests). Uses GoogleTest (fetched automatically); each test compiles the Core sources it needs directly plus a `PpLogStream` stub (no whisper/ggml dependency). Requires Qt6 Core; on Windows it also links `dxgi`.
-
-```bash
-cmake -S src/Core/tests -B build/core-tests -DCMAKE_PREFIX_PATH=/path/to/Qt/6.11.x/gcc_64
-cmake --build build/core-tests -j
-ctest --test-dir build/core-tests --output-on-failure
-```
-
-Sanitizers are opt-in cache options (separate build dir per config), as in the EventBuffer suite — e.g. `-DPINPOINT_ENABLE_ASAN=ON -DPINPOINT_ENABLE_UBSAN=ON` or `-DPINPOINT_ENABLE_TSAN=ON`.
+Framework note: Buffer and Core use GoogleTest (fetched automatically); the other five use a self-contained `main()` + `CHECK`/`CHECK_NEAR` (no GoogleTest). `src/Buffer/tests` also builds `latency_benchmark`, intentionally **not** registered with CTest — run it by hand: `./build/tests/Buffer/latency_benchmark` (umbrella) or `./build/buffer-tests/tests/latency_benchmark` (standalone `-S src/Buffer`).
 
 ---
 
