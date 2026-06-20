@@ -25,7 +25,26 @@
 BleImuTransport::BleImuTransport(const UuidConfig &uuids, QObject *parent)
     : QObject(parent)
     , m_uuids(uuids)
-{}
+{
+    // Connect/discovery watchdog — see kConnectWatchdogMs. Started in doConnect(),
+    // stopped on reaching Ready (descriptorWritten) or on any teardown. If it
+    // fires the attempt is wedged: fail it so the owner's retry path engages.
+    //
+    // Parent it to this transport so it MOVES WITH US to the I/O thread. The
+    // transport is constructed on the GUI thread and then moveToThread'd (as a
+    // child of WT9011DCL_BLE) onto the IMU I/O thread; moveToThread carries
+    // QObject children but NOT parentless value members, so without this the
+    // timer would keep GUI-thread affinity and start()ing it from doConnect() (on
+    // the I/O thread) trips "QObject::startTimer: Timers cannot be started from
+    // another thread" — and a fire would run failConnection() on the wrong thread.
+    m_connectWatchdog.setParent(this);
+    m_connectWatchdog.setSingleShot(true);
+    connect(&m_connectWatchdog, &QTimer::timeout, this, [this]() {
+        failConnection(
+            QStringLiteral("Connect/discovery timed out after %1 ms — GATT never became ready")
+                .arg(m_connectTimer.isValid() ? m_connectTimer.elapsed() : kConnectWatchdogMs));
+    });
+}
 
 BleImuTransport::~BleImuTransport()
 {
@@ -46,6 +65,7 @@ void BleImuTransport::setState(State s)
 
 void BleImuTransport::teardownController()
 {
+    m_connectWatchdog.stop();   // controller is going away — disarm the connect watchdog
     // On Windows/WinRT, QLowEnergyController::disconnectFromDevice() emits
     // disconnected() *synchronously*, which re-enters this function via
     // onControllerDisconnected(). (On Linux/BlueZ the signal is async, so the
@@ -70,6 +90,20 @@ void BleImuTransport::teardownController()
     }
     m_writeChar  = QLowEnergyCharacteristic{};
     m_notifyChar = QLowEnergyCharacteristic{};
+}
+
+void BleImuTransport::failConnection(const QString &message)
+{
+    // Every connect/discovery/service error funnels here so the failure leaves a
+    // CLEAN slate: drop the connect-phase scan, tear the controller/service down
+    // (releasing the HCI link and severing the still-armed descriptorWritten
+    // lambda), then transition to Error. Previously the error exits only
+    // setState(Error)+emit, leaking the link and lambda until the next connect.
+    m_waitingForScanConfirm = false;
+    stopScan();
+    teardownController();
+    setState(State::Error);
+    emit errorOccurred(message);
 }
 
 // ---------------------------------------------------------------------------
@@ -148,8 +182,9 @@ void BleImuTransport::onScanFinished()
 void BleImuTransport::onScanError(QBluetoothDeviceDiscoveryAgent::Error error)
 {
     Q_UNUSED(error)
-    setState(State::Error);
-    emit errorOccurred(m_scanner->errorString());
+    // m_scanner outlives failConnection() (teardownController only touches the
+    // controller/service), so its errorString() is still valid here.
+    failConnection(m_scanner->errorString());
 }
 
 // ---------------------------------------------------------------------------
@@ -214,6 +249,7 @@ void BleImuTransport::doConnect()
             .arg(m_pendingDevice.rssi()));
 
     m_connectTimer.start();
+    m_connectWatchdog.start(kConnectWatchdogMs);   // armed until Ready or teardown
 
     connect(m_controller, &QLowEnergyController::connected,
             this,         &BleImuTransport::onControllerConnected);
@@ -243,9 +279,15 @@ bool BleImuTransport::matchesPendingDevice(const QBluetoothDeviceInfo &d) const
 
 void BleImuTransport::disconnectFromDevice()
 {
+    // Only signal disconnected() if we were actually connected/connecting — a
+    // disconnectFromDevice() call from an already-Disconnected state (e.g. owner
+    // teardown after a controller-initiated disconnect already fired) must not
+    // emit a second, spurious disconnected(). setState already dedupes the state
+    // transition; mirror that for the raw signal.
+    const bool notify = (m_state != State::Disconnected);
     teardownController();
     setState(State::Disconnected);
-    emit disconnected();
+    if (notify) emit disconnected();
 }
 
 // ---------------------------------------------------------------------------
@@ -266,9 +308,10 @@ void BleImuTransport::onControllerConnected()
 
 void BleImuTransport::onControllerDisconnected()
 {
+    const bool notify = (m_state != State::Disconnected);
     teardownController();
     setState(State::Disconnected);
-    emit disconnected();
+    if (notify) emit disconnected();
 }
 
 void BleImuTransport::onServiceDiscovered(const QBluetoothUuid &uuid)
@@ -283,11 +326,10 @@ void BleImuTransport::onServiceDiscoveryFinished()
 
 void BleImuTransport::onControllerError(QLowEnergyController::Error error)
 {
-    stopScan();
-    setState(State::Error);
+    // Read the errorString() BEFORE failConnection() tears the controller down.
     const QString errStr = m_controller ? m_controller->errorString()
                                         : QStringLiteral("(controller already torn down)");
-    emit errorOccurred(
+    failConnection(
         QStringLiteral("Controller error %1: %2 (after %3 ms)")
         .arg(static_cast<int>(error))
         .arg(errStr)
@@ -314,9 +356,8 @@ void BleImuTransport::setupService()
         QString found;
         for (const QBluetoothUuid &uuid : m_controller->services())
             found += QStringLiteral("\n  ") + uuid.toString();
-        setState(State::Error);
-        emit errorOccurred(QStringLiteral("BLE service '%1' not found. Device has:%2")
-                           .arg(m_uuids.serviceFragment, found));
+        failConnection(QStringLiteral("BLE service '%1' not found. Device has:%2")
+                       .arg(m_uuids.serviceFragment, found));
         return;
     }
 
@@ -332,8 +373,7 @@ void BleImuTransport::setupService()
 
     m_service = m_controller->createServiceObject(m_resolvedServiceUuid, this);
     if (!m_service) {
-        setState(State::Error);
-        emit errorOccurred(QStringLiteral("Failed to create BLE service object"));
+        failConnection(QStringLiteral("Failed to create BLE service object"));
         return;
     }
 
@@ -355,8 +395,7 @@ void BleImuTransport::enableNotifications()
     m_writeChar  = m_service->characteristic(m_resolvedWriteUuid);
 
     if (!m_notifyChar.isValid() || !m_writeChar.isValid()) {
-        setState(State::Error);
-        emit errorOccurred(QStringLiteral("Required BLE characteristics not found"));
+        failConnection(QStringLiteral("Required BLE characteristics not found"));
         return;
     }
 
@@ -364,9 +403,8 @@ void BleImuTransport::enableNotifications()
     const bool canIndicate = m_notifyChar.properties() & QLowEnergyCharacteristic::Indicate;
 
     if (!canNotify && !canIndicate) {
-        setState(State::Error);
-        emit errorOccurred(QStringLiteral("Notify characteristic supports neither Notify nor Indicate (props=0x%1)")
-                           .arg(static_cast<int>(m_notifyChar.properties()), 0, 16));
+        failConnection(QStringLiteral("Notify characteristic supports neither Notify nor Indicate (props=0x%1)")
+                       .arg(static_cast<int>(m_notifyChar.properties()), 0, 16));
         return;
     }
 
@@ -374,8 +412,7 @@ void BleImuTransport::enableNotifications()
         QBluetoothUuid::DescriptorType::ClientCharacteristicConfiguration);
 
     if (!cccd.isValid()) {
-        setState(State::Error);
-        emit errorOccurred(QStringLiteral("Notify characteristic has no CCCD descriptor"));
+        failConnection(QStringLiteral("Notify characteristic has no CCCD descriptor"));
         return;
     }
 
@@ -388,6 +425,7 @@ void BleImuTransport::enableNotifications()
         if (d.type() != QBluetoothUuid::DescriptorType::ClientCharacteristicConfiguration)
             return;
         disconnect(svc, &QLowEnergyService::descriptorWritten, this, nullptr);
+        m_connectWatchdog.stop();   // reached Ready — disarm (controller stays alive)
         // Notify the owning class so it can send device-specific init commands
         // before we advertise ourselves as Ready.
         emit gattReady();
@@ -419,8 +457,7 @@ void BleImuTransport::onCharacteristicChanged(const QLowEnergyCharacteristic &c,
 
 void BleImuTransport::onServiceError(QLowEnergyService::ServiceError error)
 {
-    setState(State::Error);
-    emit errorOccurred(QStringLiteral("BLE service error (%1)").arg(static_cast<int>(error)));
+    failConnection(QStringLiteral("BLE service error (%1)").arg(static_cast<int>(error)));
 }
 
 // ---------------------------------------------------------------------------

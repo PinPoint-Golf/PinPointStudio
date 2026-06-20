@@ -93,6 +93,11 @@ signals:
     // Emitted when the asynchronous IMU BLE scan finishes (timeout or explicit stop).
     void imuScanFinished();
 
+    // Emitted when an IMU BLE discovery agent reports an error (e.g. Bluetooth
+    // powered off, no adapter, permission denied). Lets the IMU UI distinguish a
+    // genuine "no devices in range" from "discovery couldn't run".
+    void imuScanError(const QString &message);
+
 private:
     explicit DeviceEnumerator(QObject *parent = nullptr);
 

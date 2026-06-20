@@ -302,6 +302,11 @@ void ImuInstance::start()
 {
     if (m_attemptingConn) return;
 
+    // A fresh attempt supersedes any pending backoff retry (this is also the
+    // entry point the retry timer calls — stop() on an already-fired single-shot
+    // is a harmless no-op).
+    m_retryTimer.stop();
+
     // Look up fresh from the enumerator at connection time — the same path the
     // old ImuManager::connectToEnumeratedDevice() used.
     QBluetoothDeviceInfo deviceInfo;
@@ -319,7 +324,7 @@ void ImuInstance::start()
     }
 
     m_attemptingConn = true;
-    m_inConnectPhase = true;
+    m_connecting     = true;
     appendLog(timestamp() + QStringLiteral("  >>> Connecting to: ")
               + m_deviceDescription + QStringLiteral(" [") + m_deviceId + QStringLiteral("]"));
 
@@ -349,7 +354,7 @@ void ImuInstance::stop()
 {
     m_retryTimer.stop();
     m_retryCount     = 0;
-    m_inConnectPhase = false;
+    m_connecting     = false;
     m_attemptingConn = false;
 
     // Producer stop barrier, ON the I/O thread (blocking): sever the
@@ -677,44 +682,91 @@ void ImuInstance::setOutputRateHz(int hz)
     // Always sync the driver's internal rate register so initializeDevice() uses
     // the right value from the first connection. writeToDevice() is a no-op when
     // disconnected so this is safe to call at any time. Driver state — I/O thread.
-    QMetaObject::invokeMethod(m_imu, [imu = m_imu, rate, connected = m_connected]() {
+    QMetaObject::invokeMethod(m_imu, [imu = m_imu, rate, hz, connected = m_connected]() {
         imu->setOutputRate(rate);
+        imu->setNominalSampleRateHz(hz);   // keep fusion's integration dt in lockstep
         if (connected)
             imu->reinitialize();
     }, Qt::QueuedConnection);
+}
+
+void ImuInstance::resetStreamingState()
+{
+    m_logTimer.stop();
+    m_batteryTimer.stop();
+    m_gimbalPollTimer.stop();
+    if (m_dataRateHz != 0.0)    { m_dataRateHz = 0.0; emit dataRateHzChanged(); }
+    if (m_batteryPercent != -1) { m_batteryPercent = -1; emit batteryPercentChanged(); }
+}
+
+int ImuInstance::retryDelayMs(int attempt) const
+{
+    // Exponential backoff from kRetryBaseDelayMs (attempt 1 = base), capped at
+    // kRetryMaxDelayMs: 2s, 4s, 8s, 16s, 30s(cap)…
+    const long long d = static_cast<long long>(kRetryBaseDelayMs) << (attempt - 1);
+    return static_cast<int>(qMin<long long>(d, kRetryMaxDelayMs));
+}
+
+void ImuInstance::handleConnectFailure()
+{
+    // Exactly one call per failed connect attempt (the first of BlueZ's
+    // error+disconnect pair consumed m_connecting in onConnectionLost).
+    if (m_retryCount < kMaxRetries) {
+        ++m_retryCount;
+        const int delayMs = retryDelayMs(m_retryCount);
+        setStateLabel(QStringLiteral("Retrying…"));
+        if (!m_busy) { m_busy = true; emit busyChanged(); }   // still working
+        appendLog(timestamp()
+                  + QStringLiteral("  Connection failed — auto-retry %1/%2 in %3 s")
+                    .arg(m_retryCount).arg(kMaxRetries).arg((delayMs + 999) / 1000));
+        m_retryTimer.start(delayMs);
+    } else {
+        m_retryCount = 0;
+        setStateLabel(QStringLiteral("Error"));
+        if (m_busy) { m_busy = false; emit busyChanged(); }
+        appendLog(timestamp()
+                  + QStringLiteral("  Connection failed — all %1 retries exhausted."
+                                   " Check device is powered on and within range.")
+                    .arg(kMaxRetries));
+    }
+}
+
+void ImuInstance::onConnectionLost(bool fromError)
+{
+    m_attemptingConn = false;
+    resetStreamingState();
+    if (m_connected) { m_connected = false; emit imuConnectedChanged(); }
+
+    if (m_connecting) {
+        // An unresolved connect attempt failed. BlueZ pairs errorOccurred() and
+        // disconnected() in EITHER order; whichever lands first consumes
+        // m_connecting and owns the retry decision, so it is taken exactly once
+        // (the old code keyed off m_inConnectPhase, which both handlers cleared —
+        // a Disconnected-before-Error ordering silently dropped the retry).
+        m_connecting = false;
+        handleConnectFailure();
+    } else if (m_retryTimer.isActive()) {
+        // The paired signal already scheduled a retry — this is the second half
+        // of the pair. Leave the retry, the "Retrying…" label and busy intact.
+        const int remainSec = (m_retryTimer.remainingTime() + 999) / 1000;
+        appendLog(timestamp()
+                  + QStringLiteral("  BLE %1 (post-failure cleanup) — retry %2/%3 still due in ~%4 s")
+                    .arg(fromError ? QStringLiteral("error") : QStringLiteral("disconnected"))
+                    .arg(m_retryCount).arg(kMaxRetries).arg(remainSec));
+    } else {
+        // A genuine disconnect/loss outside any connect attempt (user disconnect,
+        // mid-stream drop, or retries already exhausted).
+        m_retryCount = 0;
+        if (m_busy) { m_busy = false; emit busyChanged(); }
+        setStateLabel(fromError ? QStringLiteral("Error") : QStringLiteral("Disconnected"));
+    }
 }
 
 void ImuInstance::onStateChanged(WT9011DCL_BLE::State s)
 {
     switch (s) {
     case WT9011DCL_BLE::State::Disconnected:
-        m_attemptingConn = false;
-        m_inConnectPhase = false;
-        m_logTimer.stop();
-        m_batteryTimer.stop();
-        m_gimbalPollTimer.stop();
-        if (m_dataRateHz != 0.0)    { m_dataRateHz = 0.0; emit dataRateHzChanged(); }
-        if (m_batteryPercent != -1) { m_batteryPercent = -1; emit batteryPercentChanged(); }
-        if (m_connected || m_busy) {
-            m_connected = false;
-            m_busy      = false;
-            emit imuConnectedChanged();
-            emit busyChanged();
-        }
-        // On Linux/BlueZ, QLowEnergyController fires both errorOccurred and
-        // disconnected when a connection fails. If the retry timer is already
-        // running we must NOT reset m_retryCount here — doing so would undo the
-        // kMaxRetries accounting and turn a one-shot retry into an infinite loop.
-        if (m_retryTimer.isActive()) {
-            const int remainSec = (m_retryTimer.remainingTime() + 999) / 1000;
-            appendLog(timestamp()
-                      + QStringLiteral("  BLE disconnected (post-error cleanup) — "
-                                       "retry %1/%2 still due in ~%3 s")
-                        .arg(m_retryCount).arg(kMaxRetries).arg(remainSec));
-        } else {
-            m_retryCount = 0;
-            setStateLabel(QStringLiteral("Disconnected"));
-        }
+        onConnectionLost(/*fromError=*/false);
         break;
 
     case WT9011DCL_BLE::State::Scanning:
@@ -724,7 +776,6 @@ void ImuInstance::onStateChanged(WT9011DCL_BLE::State s)
         break;
 
     case WT9011DCL_BLE::State::Connecting:
-        m_inConnectPhase = true;
         setStateLabel(QStringLiteral("Connecting…"));
         appendLog(timestamp() + "  Connecting…");
         break;
@@ -737,7 +788,7 @@ void ImuInstance::onStateChanged(WT9011DCL_BLE::State s)
     case WT9011DCL_BLE::State::Ready:
         setStateLabel(QStringLiteral("Connected"));
         m_attemptingConn = false;
-        m_inConnectPhase = false;
+        m_connecting     = false;
         m_retryCount     = 0;
         m_connected = true;
         m_busy      = false;
@@ -765,25 +816,16 @@ void ImuInstance::onStateChanged(WT9011DCL_BLE::State s)
         break;
 
     case WT9011DCL_BLE::State::Error:
-        m_attemptingConn = false;
-        if (m_inConnectPhase && m_retryCount < kMaxRetries) {
-            // After a failed attempt BlueZ corrects its stored address type; retry succeeds.
-            ++m_retryCount;
-            m_inConnectPhase = false;
-            const int delaySec = kRetryDelayMs / 1000;
-            setStateLabel(QStringLiteral("Retrying…"));
-            appendLog(timestamp()
-                      + QStringLiteral("  Connection failed — auto-retry %1/%2 in %3 s")
-                        .arg(m_retryCount).arg(kMaxRetries).arg(delaySec));
-            m_retryTimer.start(kRetryDelayMs);
-        } else {
-            m_inConnectPhase = false;
-            m_retryCount     = 0;
-            setStateLabel(QStringLiteral("Error"));
+        // A connect-phase failure (m_connecting) or a mid-stream controller error
+        // (m_connected) is a connection loss — route through the shared path so
+        // the retry decision stays order-independent vs the paired disconnected().
+        // A stray Error with neither set (and no retry pending) just shows Error.
+        if (m_connecting || m_connected) {
+            onConnectionLost(/*fromError=*/true);
+        } else if (!m_retryTimer.isActive()) {
+            m_attemptingConn = false;
             if (m_busy) { m_busy = false; emit busyChanged(); }
-            appendLog(timestamp()
-                      + QStringLiteral("  Connection failed — all retries exhausted."
-                                       " Check device is powered on and within range."));
+            setStateLabel(QStringLiteral("Error"));
         }
         break;
     }

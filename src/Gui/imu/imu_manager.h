@@ -21,6 +21,7 @@
 #include <QList>
 #include <QMap>
 #include <QObject>
+#include <QSet>
 #include <QStringList>
 #include <QThread>
 #include <QVariantList>
@@ -67,6 +68,11 @@ class ImuManager : public QObject
     // wizard on open); NEVER written back — global enablement is owned by the
     // Settings screen.
     Q_PROPERTY(QStringList sessionImuExcluded READ sessionImuExcluded NOTIFY sessionImuExcludedChanged)
+    // Last BLE discovery error (e.g. "Bluetooth is powered off"), or "" when
+    // discovery is healthy. The IMU UI shows this when no devices are enumerated
+    // so an empty list is distinguishable from "discovery couldn't run". Cleared
+    // when a device is found or a fresh scan starts.
+    Q_PROPERTY(QString imuScanError READ imuScanError NOTIFY imuScanErrorChanged)
 
 public:
     explicit ImuManager(pinpoint::EventBuffer *buffer = nullptr,
@@ -100,6 +106,7 @@ public:
     Q_INVOKABLE void disconnectAll();
 
     QStringList sessionImuExcluded() const;
+    QString     imuScanError() const { return m_imuScanError; }
 
     // Per-session enablement toggle. Disabling a selected/connected device also
     // disconnects it; enabling never auto-connects (Connect does that).
@@ -143,6 +150,7 @@ signals:
     void imuEnumeratedCountChanged();
     void imuDeviceListChanged();
     void sessionImuExcludedChanged();
+    void imuScanErrorChanged();
     // Aggregate battery state changed — a connected IMU reported a new level, or
     // the connected set changed. Backs the lowBatteryPercent property.
     void batteryChanged();
@@ -181,10 +189,21 @@ private:
     ShotProcessor              *m_shotProcessor = nullptr;
     QMap<QString, ImuEntry>     m_selected;    // keyed by device id
 
+    // Device ids whose previous instance is still pending deletion (deselect
+    // schedules deleteLater via singleShot(0)). A re-select for such an id is
+    // ignored until teardown settles, so a fast select→deselect→select can't
+    // create two instances / overlap connects on the same HCI adapter.
+    QSet<QString>               m_pendingDelete;
+
     // Per-session exclusion (device ids). Seeded from AppSettings::imuExcluded;
     // m_lastGlobalExcluded snapshots the global list so mid-session Settings
     // changes can be diffed into the session list (CameraManager::setExcluded
     // does the same sync for cameras).
     QStringList m_sessionExcluded;
     QStringList m_lastGlobalExcluded;
+
+    // Last BLE discovery error surfaced to QML (empty = healthy). Helper keeps the
+    // set-and-notify in one place.
+    QString m_imuScanError;
+    void setImuScanError(const QString &msg);
 };

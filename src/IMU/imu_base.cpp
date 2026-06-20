@@ -20,7 +20,8 @@
 
 #include "orientation_filter.h"        // MadgwickFilter (concrete)
 #include "eskf_orientation_filter.h"   // EskfOrientationFilter (concrete)
-#include "event_buffer.h"              // nowMicros()
+
+#include <cmath>                        // std::sqrt / std::abs (stillness gate)
 
 ImuBase::ImuBase(QObject *parent)
     : QObject(parent)
@@ -39,7 +40,7 @@ void ImuBase::applyPendingFilterSwap()
         m_fusion = std::make_unique<MadgwickFilter>();
         break;
     }
-    m_lastFusionUs = 0;   // re-seed dt and (via uninitialised filter) orientation
+    m_initSeedAttempts = 0;   // re-evaluate the stillness gate for the new filter
 }
 
 ImuBase::QuaternionData ImuBase::fuseRawImu(float ax, float ay, float az,
@@ -49,15 +50,31 @@ ImuBase::QuaternionData ImuBase::fuseRawImu(float ax, float ay, float az,
     // on the packet-consumer thread, so the swap is race-free).
     applyPendingFilterSwap();
 
-    // Per-sample dt from the software clock; clamp to absorb transport stalls/gaps.
-    const qint64 nowUs = static_cast<qint64>(pinpoint::EventBuffer::nowMicros());
-    float dt = (m_lastFusionUs != 0) ? (nowUs - m_lastFusionUs) * 1e-6f : 0.01f;
-    m_lastFusionUs = nowUs;
-    if (dt < 0.0005f) dt = 0.0005f;
-    if (dt > 0.05f)   dt = 0.05f;
+    // Integrate with the device's NOMINAL sample period rather than host-arrival
+    // deltas: BLE delivers samples in bursts (several per connection interval),
+    // so arrival deltas alias to ~0 within a burst and a large gap across it —
+    // jitter injected exactly during fast motion. The configured rate is the true
+    // average cadence and is burst-immune. (setNominalSampleRateHz keeps m_nominalDtS
+    // in lockstep with the device rate.)
+    const float dt = m_nominalDtS;
 
-    if (!m_fusion->initialized())
+    // Stillness-gated seeding (R2-4): don't seed orientation from a sample taken
+    // mid-motion — gravity would be wrong and the filter would converge slowly.
+    // Wait for an approximately-still sample, with a bounded fallback so we always
+    // seed eventually. Until seeded the filter holds identity (safe — see header).
+    if (!m_fusion->initialized()) {
+        const float aMag = std::sqrt(ax * ax + ay * ay + az * az);            // g
+        const float gMag = std::sqrt(gxRad * gxRad + gyRad * gyRad + gzRad * gzRad); // rad/s
+        const bool  still = std::abs(aMag - 1.0f) <= kInitAccelTolG
+                            && gMag <= kInitGyroMaxRadps;
+        if (!still && m_initSeedAttempts < kInitMaxSeedAttempts) {
+            ++m_initSeedAttempts;
+            return QuaternionData{ m_fusion->w(), m_fusion->x(),
+                                   m_fusion->y(), m_fusion->z() };
+        }
         m_fusion->initFromAccel(ax, ay, az);
+        m_initSeedAttempts = 0;
+    }
     m_fusion->update(ax, ay, az, gxRad, gyRad, gzRad, dt);
 
     return QuaternionData{ m_fusion->w(), m_fusion->x(), m_fusion->y(), m_fusion->z() };

@@ -233,6 +233,15 @@ private:
     void setStateLabel(const QString &s);
     void onStateChanged(WT9011DCL_BLE::State s);
 
+    // Connection-failure / loss handling. BlueZ emits errorOccurred() and
+    // disconnected() (in either order) for a failed connect; both funnel through
+    // onConnectionLost(), and the first to arrive consumes m_connecting so the
+    // retry decision is made exactly once regardless of signal ordering.
+    void resetStreamingState();          // stop live timers, clear rate/battery
+    void onConnectionLost(bool fromError);
+    void handleConnectFailure();         // schedule a backoff retry, or give up
+    int  retryDelayMs(int attempt) const;
+
     pinpoint::EventBuffer *m_eventBuffer  = nullptr;
     pinpoint::SourceId     m_imuSourceId  = pinpoint::kInvalidSourceId;
 
@@ -247,10 +256,14 @@ private:
     QString        m_deviceDescription;
     QStringList    m_logEntries;
 
-    // Retry
+    // Retry. m_connecting = "a connect attempt is in flight and its outcome is
+    // unresolved" — set in start(), cleared on Ready or by the first failure
+    // signal of the connect attempt. This is the single source of truth the
+    // retry decision keys off (it is NOT mutated by both the Error and
+    // Disconnected handlers, which was the old m_inConnectPhase ordering bug).
     QTimer m_retryTimer;
     int    m_retryCount     = 0;
-    bool   m_inConnectPhase = false;
+    bool   m_connecting     = false;
     bool   m_attemptingConn = false;
 
     // Battery polling
@@ -331,7 +344,11 @@ private:
     quint64 m_totalRecords    = 0;
     quint64 m_recordsSinceLog = 0;
 
-    static constexpr int kMaxRetries      = 1;
-    static constexpr int kRetryDelayMs    = 30'000;
-    static constexpr int kLogIntervalMs   = 10'000;
+    // Auto-retry: a few attempts with exponential backoff (2s, 4s, 8s, …) capped
+    // at kRetryMaxDelayMs. The old single 30 s retry was too thin/slow for a
+    // flaky BLE link (the documented real-world failure mode).
+    static constexpr int kMaxRetries       = 4;
+    static constexpr int kRetryBaseDelayMs = 2'000;
+    static constexpr int kRetryMaxDelayMs  = 30'000;
+    static constexpr int kLogIntervalMs    = 10'000;
 };

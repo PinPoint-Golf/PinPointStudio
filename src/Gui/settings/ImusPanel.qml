@@ -1223,15 +1223,20 @@ Item {
                     }
                 }
 
-                // Empty state
+                // Empty state — distinguishes "discovery couldn't run" (e.g.
+                // Bluetooth off / no adapter, surfaced via imuScanError) from a
+                // genuine "no devices in range".
                 Text {
                     visible:        imuManager.imuDeviceList.length === 0
-                    text:           qsTr("No IMU devices found. Click Scan to search for BLE devices.")
+                    text:           imuManager.imuScanError !== ""
+                                        ? qsTr("Bluetooth discovery error: %1").arg(imuManager.imuScanError)
+                                        : qsTr("No IMU devices found. Click Scan to search for BLE devices.")
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
                     font.weight:    Theme.fontBodyWeight
                     font.italic:    true
-                    color:          Theme.colorText3
+                    color:          imuManager.imuScanError !== "" ? Theme.colorWarn : Theme.colorText3
+                    wrapMode:       Text.WordWrap
                     Layout.fillWidth: true
                 }
             }

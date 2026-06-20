@@ -24,6 +24,7 @@
 #include <QBluetoothDeviceInfo>
 #include <QBluetoothUuid>
 #include <QElapsedTimer>
+#include <QTimer>
 #include <QLowEnergyController>
 #include <QLowEnergyService>
 #include <QLowEnergyCharacteristic>
@@ -134,6 +135,11 @@ private slots:
 private:
     void setState(State s);
     void teardownController();
+    // Single failure path for every connect/discovery error: tears the
+    // controller/service down, drops any connect-phase scan, transitions to
+    // Error and emits errorOccurred(). Leaves the transport in a clean state so
+    // the owner's retry starts from scratch (no leaked HCI link / armed lambda).
+    void failConnection(const QString &message);
     void setupService();
     void enableNotifications();
     void ensureScannerCreated();
@@ -141,6 +147,11 @@ private:
     bool matchesPendingDevice(const QBluetoothDeviceInfo &d) const;
 
     static constexpr int kConnectScanMs = 10'000;
+    // Watchdog covering the post-scan connect→service-discovery→CCCD-write phase.
+    // BlueZ/WinRT can wedge mid-discovery (esp. the CCCD write) without ever
+    // emitting errorOccurred(), leaving the UI stuck in "Connecting…"/"Discovering
+    // services…" forever. On expiry we fail the attempt so the owner's retry runs.
+    static constexpr int kConnectWatchdogMs = 20'000;
 
     UuidConfig m_uuids;
     State      m_state = State::Disconnected;
@@ -155,6 +166,7 @@ private:
     QBluetoothUuid           m_resolvedNotifyUuid;
     QBluetoothUuid           m_resolvedWriteUuid;
     QElapsedTimer            m_connectTimer;
+    QTimer                   m_connectWatchdog;   // fires if connect/discovery never reaches Ready
 
     QBluetoothDeviceInfo m_pendingDevice;
     QBluetoothAddress    m_localAdapter;

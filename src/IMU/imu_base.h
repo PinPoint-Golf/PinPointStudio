@@ -105,9 +105,20 @@ public:
         return m_pendingFilterType.load(std::memory_order_relaxed);
     }
 
-    // Re-seed the filter (drops orientation state and dt history) so tracking
-    // restarts from the current pose. Call on (re)connection.
-    void resetOrientationFilter() { if (m_fusion) m_fusion->reset(); m_lastFusionUs = 0; }
+    // Re-seed the filter (drops orientation state) so tracking restarts from the
+    // current pose. Call on (re)connection. Clears the stillness-seed counter so
+    // the next seed re-evaluates the stillness gate.
+    void resetOrientationFilter() { if (m_fusion) m_fusion->reset(); m_initSeedAttempts = 0; }
+
+    // Inform the fusion of the device's configured output rate (Hz). The fusion
+    // integrates gyro with the NOMINAL sample period (1/rate) rather than
+    // host-arrival deltas — BLE batches several samples per connection interval,
+    // so arrival deltas alias to ~0 within a burst and a large gap across it,
+    // which under-/over-integrates the gyro exactly during fast motion. A fixed
+    // nominal dt is burst-immune and matches the device's true average cadence.
+    // Called from ImuInstance::setOutputRateHz on the I/O thread (same thread as
+    // fuseRawImu), so no locking is needed.
+    void setNominalSampleRateHz(int hz) { if (hz > 0) m_nominalDtS = 1.0f / static_cast<float>(hz); }
 
 signals:
     void connected();
@@ -145,5 +156,17 @@ private:
     std::unique_ptr<IOrientationFilter> m_fusion;
     std::atomic<OrientationFilterType>  m_pendingFilterType{ OrientationFilterType::Madgwick };
     std::atomic<bool>                   m_filterSwapPending{ false };
-    qint64                              m_lastFusionUs = 0;
+
+    // Nominal integration period (seconds), kept in lockstep with the device's
+    // configured output rate via setNominalSampleRateHz(). Default 100 Hz.
+    float                               m_nominalDtS = 0.01f;
+
+    // Stillness-gated seeding: defer initFromAccel() until the device is roughly
+    // at rest (gravity-only accel, near-zero gyro) so the filter isn't seeded from
+    // a sample taken mid-motion (wrong gravity → slow convergence). Falls back to
+    // seeding unconditionally after kInitMaxSeedAttempts samples.
+    int                                 m_initSeedAttempts = 0;
+    static constexpr float kInitAccelTolG     = 0.15f;   // |a| within 1g ± this
+    static constexpr float kInitGyroMaxRadps  = 0.5f;    // ~28 °/s
+    static constexpr int   kInitMaxSeedAttempts = 200;   // ~1 s @200 Hz, ~2 s @100 Hz
 };

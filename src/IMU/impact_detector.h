@@ -110,9 +110,15 @@ public:
         // spike barely moves it; dt from timestamps keeps it rate-blind).
         if (m_size > 0) {
             const float dtS = static_cast<float>(s.t_us - at(0).t_us) * 1e-6f;
-            if (dtS > 0.0f && dtS < 0.5f) {
+            if (dtS > 0.0f && dtS < kEmaMaxGapS) {
                 const float alpha = 1.0f - std::exp(-dtS / kEmaTauS);
                 m_emaAccel += alpha * (s.accelMag - m_emaAccel);
+            } else if (dtS >= kEmaMaxGapS) {
+                // Long transport stall (>= kEmaMaxGapS): the rolling history is
+                // stale, so the adaptive floor must not freeze at its pre-stall
+                // value and judge the first post-stall jerk against it. Re-seed to
+                // the resting gravity magnitude (|a| ≈ 1 g in any orientation).
+                m_emaAccel = kRestingAccelG;
             }
         }
 
@@ -177,15 +183,22 @@ public:
         m_hasImpact     = true;
         m_lastImpactTUs = peak.t_us;
         res.impact      = true;
-        res.est_t_us    = peak.t_us - m_cfg.bleLatencyUs;
+        // Back-date to the estimated true impact, but never before the oldest
+        // sample we still hold: a large (P4-calibrated) bleLatencyUs must not push
+        // the marker outside the captured window. Monotonic by construction —
+        // est_t_us ∈ [oldest retained sample, peak].
+        res.est_t_us    = std::max<int64_t>(peak.t_us - m_cfg.bleLatencyUs,
+                                            at(m_size - 1).t_us);
         // 0.5 at the swing-energy threshold → 1.0 at twice it.
         res.confidence  = std::min(1.0f, gyroPeak / (2.0f * gyroPeakMin));
         return res;
     }
 
 private:
-    static constexpr int   kCapacity = 512;   // > 2.5 s at 200 Hz
-    static constexpr float kEmaTauS  = 1.0f;
+    static constexpr int   kCapacity     = 512;   // > 2.5 s at 200 Hz
+    static constexpr float kEmaTauS      = 1.0f;
+    static constexpr float kEmaMaxGapS   = 0.5f;   // gap beyond this re-seeds the floor
+    static constexpr float kRestingAccelG = 1.0f;  // |a| at rest (gravity), any orientation
 
     // at(0) = newest sample.
     const ImpactSample &at(int back) const

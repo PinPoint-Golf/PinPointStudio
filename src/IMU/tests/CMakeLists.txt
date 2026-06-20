@@ -60,3 +60,25 @@ if(IMU_TESTS_TSAN)
         target_link_options(${t}    PRIVATE -fsanitize=thread)
     endforeach()
 endif()
+
+# ── EskfOrientationFilter gyro-unit pin (R2-7) ───────────────────────────────
+# Pins the rad/s gyro convention through the vendored ESKF (correctGyr converts
+# deg/s internally; the adapter pre-scales rad→deg). Needs Eigen + the vendored
+# imu_ekf headers, so it is GATED on Eigen being present — the lean detector
+# suite still configures offline without it. PINPOINT_EIGEN_DIR defaults to the
+# main build's FetchContent copy; override -DPINPOINT_EIGEN_DIR=... if elsewhere.
+set(PINPOINT_EIGEN_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../build/Desktop_Qt_6_11_0-Debug/_deps/eigen-src"
+    CACHE PATH "Eigen source tree (for the ESKF unit test)")
+if(EXISTS "${PINPOINT_EIGEN_DIR}/Eigen/Core")
+    pp_add_test(eskf_gyro_units_test
+        eskf_gyro_units_test.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../eskf_orientation_filter.cpp)
+    target_include_directories(eskf_gyro_units_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+        ${PINPOINT_EIGEN_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../third_party/imu_ekf_compat
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../third_party/imu_ekf)
+else()
+    message(STATUS "Eigen not found at ${PINPOINT_EIGEN_DIR} — skipping eskf_gyro_units_test")
+endif()

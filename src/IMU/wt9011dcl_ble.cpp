@@ -154,6 +154,7 @@ void WT9011DCL_BLE::zeroToCurrentPose()
     // dispatchReadResponse() all three CALSW writes above have been delivered.
     // If the device does not respond, ImuInstance's settle timer confirms after
     // 500 ms as a fallback.
+    m_zeroFenceInFlight = true;   // arm: dispatchReadResponse() now honours the RegCalSw 0x71
     readRegisters(RegCalSw, 0);
 }
 

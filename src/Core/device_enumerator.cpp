@@ -31,8 +31,9 @@
 // ---------------------------------------------------------------------------
 // ImuBleScanner — internal, runs in a QThread started by DeviceEnumerator.
 //
-// Uses the same WT901 filter as WT9011DCL_BLE::onDeviceDiscovered():
-//   accept if name starts with "WT901" OR service UUID contains "ffe5".
+// WT901 accept filter: name starts with "WT901" OR service UUID contains "ffe5".
+// (The connect-phase scan in BleImuTransport applies the equivalent match in
+// matchesPendingDevice(); this is the only place that filters during DISCOVERY.)
 // ---------------------------------------------------------------------------
 
 class ImuBleScanner : public QObject
@@ -60,11 +61,12 @@ public slots:
 signals:
     void deviceFound(const QBluetoothDeviceInfo &info);
     void finished();
+    void scanError(const QString &message);
 
 private slots:
     void onDeviceDiscovered(const QBluetoothDeviceInfo &device)
     {
-        // Same filter logic as WT9011DCL_BLE::onDeviceDiscovered().
+        // WT901 accept filter (name prefix OR ffe5 service UUID).
         const bool hasKnownName   = device.name().startsWith(
                                         QStringLiteral("WT901"), Qt::CaseInsensitive);
         const bool hasServiceUuid = device.serviceUuids().contains(
@@ -90,8 +92,12 @@ private slots:
     void onScanError(QBluetoothDeviceDiscoveryAgent::Error error)
     {
         auto *agent = qobject_cast<QBluetoothDeviceDiscoveryAgent *>(sender());
-        ppWarn() << "[IMU] BLE scan error:" << error
-                 << (agent ? agent->errorString() : QString{});
+        const QString msg = agent ? agent->errorString()
+                                  : QStringLiteral("Bluetooth discovery error");
+        ppWarn() << "[IMU] BLE scan error:" << error << msg;
+        // Surface to the UI (e.g. Bluetooth off / no adapter) so an empty list is
+        // distinguishable from "no IMUs in range". Forwarded by DeviceEnumerator.
+        emit scanError(msg);
         if (--m_pendingAgents <= 0)
             emit finished();
     }
@@ -197,9 +203,16 @@ void DeviceEnumerator::registerImuDevice(ImuBase::Transport transport,
                                           const ImuCapabilities &capabilities,
                                           const QVariant &platformHandle)
 {
-    for (const Device &dev : m_devices) {
-        if (dev.type == DeviceType::Imu && dev.imuTransport == transport && dev.id == id)
+    for (Device &dev : m_devices) {
+        if (dev.type == DeviceType::Imu && dev.imuTransport == transport && dev.id == id) {
+            // Already known — refresh the platform handle. A re-scan (or a second
+            // advertisement) carries newer data (RSSI, and on some platforms the
+            // address type), and ImuInstance::start() connects on whatever handle
+            // is stored here. Keep the entry + alias stable; the device list is
+            // unchanged, so no deviceAdded re-emit.
+            dev.platformHandle = platformHandle;
             return;
+        }
     }
     Device dev;
     dev.type           = DeviceType::Imu;
@@ -235,6 +248,12 @@ void DeviceEnumerator::scanImu()
     // scanner is cleaned up when the thread finishes
     connect(m_imuScanThread, &QThread::finished, scanner, &QObject::deleteLater);
 
+    // Surface discovery errors (Bluetooth off / no adapter) to the main thread so
+    // the IMU UI can show an actionable message instead of an empty list.
+    connect(scanner, &ImuBleScanner::scanError,
+            this, [this](const QString &msg) { emit imuScanError(msg); },
+            Qt::QueuedConnection);
+
     // Each matched BLE device is forwarded to the main thread via queued connection
     connect(scanner, &ImuBleScanner::deviceFound,
             this, [this](const QBluetoothDeviceInfo &info) {
@@ -261,16 +280,28 @@ void DeviceEnumerator::scanImu()
 
     connect(scanner, &ImuBleScanner::finished,
             this, [this]() {
-                m_imuScanActive = false;
-                m_imuScanThread->quit();
+                // Do NOT clear m_imuScanActive here. quit() only POSTS the exit
+                // request; the thread keeps running until its loop processes it
+                // and QThread::finished fires (below). Clearing the guard now
+                // opens a window where rescanImu() passes the m_imuScanActive
+                // gate and overwrites m_imuScanThread — leaking the old thread,
+                // and then the OLD thread's finished slot nulls the NEW thread's
+                // pointer (so aboutToQuit can't stop it → fatal abort). Keep the
+                // guard set until the thread has fully stopped.
+                if (m_imuScanThread) m_imuScanThread->quit();
                 emit imuScanFinished();
                 ppInfo() << "[IMU] Scan complete —"
                           << devices(DeviceType::Imu).count() << "IMU device(s) registered";
             }, Qt::QueuedConnection);
 
-    // Null the pointer after the thread has fully stopped
-    connect(m_imuScanThread, &QThread::finished, this, [this]() {
-        m_imuScanThread = nullptr;
+    // Clear the bookkeeping only after the thread has FULLY stopped. Capture the
+    // thread by value and null the member only if it still points at this very
+    // thread, so a (defensively) newer scan can't have its pointer clobbered.
+    QThread *scanThread = m_imuScanThread;
+    connect(m_imuScanThread, &QThread::finished, this, [this, scanThread]() {
+        if (m_imuScanThread == scanThread)
+            m_imuScanThread = nullptr;
+        m_imuScanActive = false;
     });
 
     m_imuScanThread->start();

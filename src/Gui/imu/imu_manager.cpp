@@ -68,6 +68,11 @@ ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, 
         });
     }
 
+    // Surface BLE discovery errors (Bluetooth off / no adapter) so the IMU UI can
+    // show an actionable message rather than an empty list.
+    connect(DeviceEnumerator::instance(), &DeviceEnumerator::imuScanError,
+            this, [this](const QString &msg) { setImuScanError(msg); });
+
     // Start the async BLE scan.  Results arrive via deviceAdded and are
     // automatically reflected by imuList() / imuDeviceList() reading directly
     // from DeviceEnumerator — no local list copy needed.
@@ -78,6 +83,7 @@ ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, 
     connect(DeviceEnumerator::instance(), &DeviceEnumerator::deviceAdded,
             this, [this](const Device &dev) {
         if (dev.type != DeviceType::Imu) return;
+        setImuScanError(QString());   // a device appeared — discovery is healthy
         // Seed alias for newly-seen device so it always has a value.
         const QString imuKey = dev.description + QStringLiteral("|") + dev.id;
         AppSettings  fallback;
@@ -101,19 +107,29 @@ ImuManager::~ImuManager()
     if (m_shotProcessor)
         m_shotProcessor->finishNowBlocking();
 
-    // Stop and deregister all active instances.
+    // Producer stop-barrier for EVERY live instance, UNCONDITIONALLY. stop()
+    // (sever driver→worker, BLE disconnect, detachBuffer) is valid in any buffer
+    // state and MUST run even on app-quit — where aboutToQuit has already called
+    // eventBuffer.stop() (buffer → Idle), so the state-gated deregister block
+    // below is skipped. Without this the BLE link would be dropped only by
+    // ~BleImuTransport instead of a clean disconnectFromDevice(), and the worker's
+    // detachBuffer() barrier would rely on the ring's isCapturing() guard rather
+    // than running by contract. It also severs the queued impactDetected wire
+    // before the synchronous delete below (P2-7).
+    for (auto &entry : m_selected)
+        if (entry.instance) entry.instance->stop();
+
+    // Deregistration requires the buffer paused (EventBuffer producer contract —
+    // deregisterSource() asserts it). Only reachable while the buffer is still
+    // live; on app-quit it is already Idle and there is nothing to deregister.
     if (m_eventBuffer) {
         const bool wasCapturing =
             m_eventBuffer->state() == pinpoint::BufferState::Capturing;
         if (wasCapturing) m_eventBuffer->pause();
 
         if (m_eventBuffer->state() == pinpoint::BufferState::Paused) {
-            for (auto &entry : m_selected) {
-                if (entry.instance) {
-                    entry.instance->stop();
-                    entry.instance->deregisterFromBuffer();
-                }
-            }
+            for (auto &entry : m_selected)
+                if (entry.instance) entry.instance->deregisterFromBuffer();
         }
     }
     for (auto &entry : m_selected)
@@ -298,6 +314,13 @@ void ImuManager::setSelected(int index, bool selected)
     const Device &device = devs[index];
     const QString  id    = device.id;
 
+    // Re-entrancy guard: a previous instance for this device may still be
+    // tearing down (deleteLater pending from a just-issued deselect). Ignore a
+    // re-select until that settles — otherwise two instances briefly coexist and
+    // can overlap connects on the same HCI adapter. The user can re-tap once the
+    // deferred deletion has run (next event-loop turn).
+    if (selected && m_pendingDelete.contains(id)) return;
+
     ImuEntry &entry = m_selected[id];   // creates entry with defaults if absent
     if (entry.selected == selected) return;
 
@@ -340,9 +363,11 @@ void ImuManager::setSelected(int index, bool selected)
         emit imuListChanged();
         emit batteryChanged();   // entry.instance already cleared above
         if (inst) {
-            QTimer::singleShot(0, this, [this, inst]() {
+            m_pendingDelete.insert(id);   // block re-select until teardown settles
+            QTimer::singleShot(0, this, [this, inst, id]() {
                 emit instancesChanged();
                 inst->deleteLater();
+                m_pendingDelete.remove(id);
             });
         } else {
             emit instancesChanged();
@@ -368,7 +393,15 @@ void ImuManager::disconnectAll()
 
 void ImuManager::rescanImu()
 {
+    setImuScanError(QString());   // clear any stale error; a fresh scan may succeed
     DeviceEnumerator::instance()->scanImu();
+}
+
+void ImuManager::setImuScanError(const QString &msg)
+{
+    if (m_imuScanError == msg) return;
+    m_imuScanError = msg;
+    emit imuScanErrorChanged();
 }
 
 QObject *ImuManager::instanceFor(const QString &deviceId) const

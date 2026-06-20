@@ -127,6 +127,7 @@ void WT9011DCL_Base::requestBattery()
 {
     // FF AA 27 64 00 — write READADDR (register 0x27) with address 0x64 (battery voltage).
     // Count byte is 0x00; the device always returns a fixed 20-byte 0x71 response regardless.
+    m_batteryReadInFlight = true;   // arm: only honour a VBat 0x71 we actually asked for
     readRegisters(RegVBat, 0);
 }
 
@@ -185,8 +186,21 @@ void WT9011DCL_Base::processBuffer()
         if (static_cast<quint8>(m_buffer[1]) == CombinedFrameType) {
             if (m_buffer.size() < CombinedFrameSize)
                 return;
-            dispatchCombinedPacket(m_buffer.left(CombinedFrameSize));
-            m_buffer.remove(0, CombinedFrameSize);
+            // This frame carries NO checksum, so a dropped/split notification can
+            // leave indexOf(0x55) locked onto a payload byte. Two cheap resync
+            // guards before trusting 20 bytes: (a) in a contiguous stream the NEXT
+            // frame must start with 0x55 — if the byte after this one isn't a
+            // header we're mis-aligned; (b) the accel magnitude must be physically
+            // plausible. On either failure, drop ONE byte and resync rather than
+            // consuming (and fusing / impact-testing) a garbage 20-byte frame.
+            const bool nextIsHeader = m_buffer.size() <= CombinedFrameSize
+                || static_cast<quint8>(m_buffer[CombinedFrameSize]) == FrameHeader;
+            if (nextIsHeader && combinedFrameAccelPlausible(m_buffer)) {
+                dispatchCombinedPacket(m_buffer.left(CombinedFrameSize));
+                m_buffer.remove(0, CombinedFrameSize);
+            } else {
+                m_buffer.remove(0, 1);   // false header — resync one byte
+            }
             continue;
         }
 
@@ -196,8 +210,15 @@ void WT9011DCL_Base::processBuffer()
         if (static_cast<quint8>(m_buffer[1]) == ReadRespFrameType) {
             if (m_buffer.size() < ReadRespFrameSize)
                 return;
-            dispatchReadResponse(m_buffer.left(ReadRespFrameSize));
-            m_buffer.remove(0, ReadRespFrameSize);
+            // Same checksum-less resync guard: the following frame must be a header.
+            const bool nextIsHeader = m_buffer.size() <= ReadRespFrameSize
+                || static_cast<quint8>(m_buffer[ReadRespFrameSize]) == FrameHeader;
+            if (nextIsHeader) {
+                dispatchReadResponse(m_buffer.left(ReadRespFrameSize));
+                m_buffer.remove(0, ReadRespFrameSize);
+            } else {
+                m_buffer.remove(0, 1);   // false header — resync one byte
+            }
             continue;
         }
 
@@ -253,6 +274,17 @@ void WT9011DCL_Base::dispatchCombinedPacket(const QByteArray &frame)
                         qDegreesToRadians(m_gyro.y),
                         qDegreesToRadians(m_gyro.z));
     emit quaternionUpdated(m_quat);
+}
+
+bool WT9011DCL_Base::combinedFrameAccelPlausible(const QByteArray &frame)
+{
+    // Bytes 2-7: accel xyz (int16 LE, /32768 * 16 g). Reject |a| beyond the
+    // sensor's physical range — a mis-aligned lock-on yields random int16s whose
+    // magnitude routinely exceeds it; a real (even saturated) strike never does.
+    const float ax = le16(frame, 2) / 32768.0f * 16.0f;
+    const float ay = le16(frame, 4) / 32768.0f * 16.0f;
+    const float az = le16(frame, 6) / 32768.0f * 16.0f;
+    return (ax * ax + ay * ay + az * az) <= kCombinedAccelMaxG * kCombinedAccelMaxG;
 }
 
 bool WT9011DCL_Base::verifyChecksum(const QByteArray &packet) const
@@ -356,6 +388,16 @@ void WT9011DCL_Base::dispatchReadResponse(const QByteArray &frame)
                         .arg(raw));
 
     if (startReg == RegCalSw) {
+        // Only honour the fence if we actually issued the RegCalSw read
+        // (zeroToCurrentPose armed it). An unsolicited / mis-framed RegCalSw 0x71
+        // must not prematurely satisfy the calibration-zeroing fence.
+        if (!m_zeroFenceInFlight) {
+            emit diagnosticInfo(QStringLiteral(
+                "[calsw] unsolicited RegCalSw 0x71 (readback=0x%1) — ignored")
+                .arg(static_cast<quint16>(raw), 4, 16, QLatin1Char('0')));
+            return;
+        }
+        m_zeroFenceInFlight = false;
         ppWarn() << "[IMU] zeroing fence response: RegCalSw readback=0x"
                  << Qt::hex << raw << Qt::dec
                  << "— hardware ACK received, zero confirmed";
@@ -397,10 +439,15 @@ void WT9011DCL_Base::dispatchReadResponse(const QByteArray &frame)
     if (startReg != RegVBat)
         return;
 
+    // Only honour a battery response we requested — drops mis-framed VBat 0x71s.
+    if (!m_batteryReadInFlight)
+        return;
+
     if (raw == 0) {
-        emit batteryReadRetry();
+        emit batteryReadRetry();   // keep armed — the retry re-requests
         return;
     }
+    m_batteryReadInFlight = false;
 
     // Stepped lookup table from WitmotionSDK — units of 0.01 V.
     int percent;

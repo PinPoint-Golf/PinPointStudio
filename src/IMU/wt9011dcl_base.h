@@ -189,6 +189,13 @@ protected:
     // Subclasses call this whenever bytes arrive from the device.
     void receiveData(const QByteArray &data);
 
+    // Set true by a subclass's zeroToCurrentPose() when it issues the RegCalSw
+    // pipeline-fence read; dispatchReadResponse() only honours a RegCalSw 0x71
+    // response (→ zeroingConfirmed()) while this is armed, then clears it. Stops a
+    // mis-framed 0x71 (no checksum on this frame) from prematurely satisfying the
+    // calibration-zeroing fence.
+    bool m_zeroFenceInFlight = false;
+
     enum Register : quint8 {
         RegSave     = 0x00,
         RegCalSw    = 0x01,
@@ -234,6 +241,10 @@ private:
 
     void processBuffer();
     bool verifyChecksum(const QByteArray &packet) const;
+    // Cheap plausibility gate for a checksum-less 0x61 combined frame: the accel
+    // magnitude must be within the sensor's physical range. Catches gross
+    // corruption a mis-aligned resync can otherwise feed into fusion + impact.
+    static bool combinedFrameAccelPlausible(const QByteArray &frame);
     void dispatchPacket(const QByteArray &packet);
     void dispatchCombinedPacket(const QByteArray &frame);
 
@@ -256,6 +267,12 @@ private:
     static constexpr quint8 ReadRespFrameType    = 0x71;
     static constexpr int    ReadRespFrameSize    = 20;
 
+    // Physical-range bound on |accel| for a combined frame. Per-axis full scale is
+    // ±16 g, so the largest legitimate magnitude (all axes saturated) is √3·16 ≈
+    // 27.7 g; 32 g leaves margin so a real saturated strike is never rejected,
+    // while genuine corruption (random int16s) is still caught.
+    static constexpr float kCombinedAccelMaxG = 32.0f;
+
     QByteArray     m_buffer;
     AccelData      m_accel;
     GyroData       m_gyro;
@@ -263,6 +280,7 @@ private:
     QuaternionData m_quat;
     EulerAngles    m_euler;
     std::atomic<int> m_gimbalDropCount{0};
+    bool             m_batteryReadInFlight = false;   // gates spurious 0x71 battery responses
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(WT9011DCL_Base::OutputFlags)

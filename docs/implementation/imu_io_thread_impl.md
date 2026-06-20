@@ -148,3 +148,12 @@ Re-run: `imu-tests` (+TSAN), the full Buffer suite, and the headless app start.
 Camera and microphone I/O (already threaded — see the audit at the top); moving
 `DeviceEnumerator`'s BLE scan (low-rate, stays GUI); per-device threads (one shared
 I/O thread is sufficient and simpler to tear down).
+
+## Related
+
+A later end-to-end audit of the IMU discovery/connect/stream pipeline (and its
+remediation, R0–R4) lives in
+[`imu_pipeline_audit.md`](imu_pipeline_audit.md) — it hardens the connect/retry
+state machine, the app-quit stop-barrier (W3's barrier extended to fire
+unconditionally on quit), the checksum-less frame resync, and the fusion `dt`
+(nominal-rate integration), among others.
