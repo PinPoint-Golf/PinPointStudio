@@ -49,6 +49,13 @@ MouseArea {
     // is open (mirrors the toolbar pills holding while their popup is up).
     property bool held:       false
 
+    // Opt-in one-shot "tap" confirmation, layered on top of the hover/press scale.
+    // Off by default so existing buttons are unchanged — turn it on for MOMENTARY
+    // action buttons (back/forward nav, athlete selector) where there is no lasting
+    // state change to confirm the click landed. The hold-press dip is tied to how
+    // long the mouse is down; this fires a fixed quick recoil on the completed click.
+    property bool confirmOnClick: false
+
     anchors.fill: parent
     hoverEnabled: true
     cursorShape:  enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
@@ -62,10 +69,28 @@ MouseArea {
                         :                           1.0
     Behavior on _scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
 
+    // One-shot confirmation factor — rests at 1.0, dips and recovers on click.
+    // Multiplied into the scale below so it composes with the hover/press state
+    // instead of fighting its binding. reduceMotion zeroes the durations.
+    property real _pulse: 1.0
+    SequentialAnimation {
+        id: confirmAnim
+        NumberAnimation { target: root; property: "_pulse"; to: 0.90
+                          duration: Math.round(Theme.durationFast * 0.5); easing.type: Easing.OutCubic }
+        NumberAnimation { target: root; property: "_pulse"; to: 1.0
+                          duration: Theme.durationFast; easing.type: Easing.OutCubic }
+    }
+    // Separate slot on the same signal, so the caller's inline onClicked still runs.
+    Connections {
+        target:  root
+        enabled: root.confirmOnClick
+        function onClicked() { confirmAnim.restart() }
+    }
+
     Binding {
         target:   root.parent
         property: "scale"
-        value:    root._scale
+        value:    root._scale * root._pulse
         when:     root.parent !== null
     }
 }

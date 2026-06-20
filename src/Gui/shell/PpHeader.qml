@@ -89,9 +89,10 @@ Item {
                 }
 
                 PpPressable {
-                    id:           backHover
-                    enabled:      root.backEnabled
-                    onClicked:    root.backRequested()
+                    id:             backHover
+                    enabled:        root.backEnabled
+                    confirmOnClick: true
+                    onClicked:      root.backRequested()
                 }
             }
 
@@ -115,9 +116,10 @@ Item {
                 }
 
                 PpPressable {
-                    id:           fwdHover
-                    enabled:      root.forwardEnabled
-                    onClicked:    root.forwardRequested()
+                    id:             fwdHover
+                    enabled:        root.forwardEnabled
+                    confirmOnClick: true
+                    onClicked:      root.forwardRequested()
                 }
             }
         }

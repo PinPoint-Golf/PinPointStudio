@@ -113,8 +113,9 @@ Item {
             PpPressable {
                 // Athlete picker (index 7) is unreachable while the wizard is
                 // open or a session is active.
-                enabled:      !root.locked && root.sessionLockIndex < 0
-                onClicked:    root.avatarClicked()
+                enabled:        !root.locked && root.sessionLockIndex < 0
+                confirmOnClick: true
+                onClicked:      root.avatarClicked()
             }
         }
 
