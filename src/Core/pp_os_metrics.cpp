@@ -146,12 +146,14 @@ uint64_t threadCpuNowNs(ThreadHandle h)
 
 // ── Shared sampler state ──────────────────────────────────────────────────────
 
+// An entry exists in g_threads only while its thread is live and registered:
+// unregisterThread() erases it on exit. No tombstone flag is needed — the
+// table never holds a dangling handle, so sample/reset can query every entry.
 struct ThreadEntry {
     uint64_t     tid  = 0;
     std::string  name;
     ThreadHandle handle{};
     uint64_t     prevCpuNs = 0;
-    bool         alive     = true;
 };
 
 std::mutex             g_mutex;
@@ -243,7 +245,6 @@ void registerThread(const std::string &name)
     e.name      = name;
     e.handle    = currentThreadHandle();
     e.prevCpuNs = threadCpuNowNs(e.handle);
-    e.alive     = true;
 
     std::lock_guard<std::mutex> lk(g_mutex);
     // Replace a stale entry for the same tid (thread ids are recycled by the OS).
@@ -263,12 +264,18 @@ void unregisterThread()
 {
     const uint64_t tid = currentTid();
     std::lock_guard<std::mutex> lk(g_mutex);
-    for (auto &e : g_threads) {
-        if (e.tid == tid) {
-            e.alive = false;
+    // Drop the entry outright: keeping a dead row only invites someone to query
+    // its dangling handle (the reset() crash), and an unbounded session of
+    // connect/disconnect/export cycles would otherwise grow the table forever.
+    // We can erase here because no live sample/reset can run concurrently — they
+    // all take g_mutex — and the exiting thread is the sole owner of its handle.
+    for (auto it = g_threads.begin(); it != g_threads.end(); ++it) {
+        if (it->tid == tid) {
 #if defined(_WIN32)
-            if (e.handle) { CloseHandle(e.handle); e.handle = nullptr; }
+            if (it->handle) CloseHandle(it->handle);
 #endif
+            g_threads.erase(it);
+            return;
         }
     }
 }
@@ -287,8 +294,6 @@ std::vector<ThreadSample> sampleThreads()
     std::vector<ThreadSample> out;
     out.reserve(g_threads.size());
     for (auto &e : g_threads) {
-        if (!e.alive)
-            continue;
         const uint64_t cpuNs = threadCpuNowNs(e.handle);
         ThreadSample ts;
         ts.tid  = e.tid;
@@ -309,11 +314,8 @@ void reset()
     g_procPeakRss      = 0;
     g_procPeakCpuPct   = 0.0;
     g_threadsPrevWallNs = 0;
-    for (auto &e : g_threads) {
-        if (!e.alive)
-            continue;   // dead thread's handle dangles (see sampleThreads) — querying it segfaults
+    for (auto &e : g_threads)
         e.prevCpuNs = threadCpuNowNs(e.handle);
-    }
 }
 
 } // namespace pinpoint::osmetrics
