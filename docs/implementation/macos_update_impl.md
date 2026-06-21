@@ -18,9 +18,9 @@ The work splits into the **two stages the brief asked for**:
   Releases publish step. This is the macOS **80%** — the analogue of "produce a
   relocatable signed AppImage" on Linux. No Sparkle client code is needed to prove
   Stage 1: a notarized DMG that installs cleanly on a second Mac is the gate.
-- **Stage 2 — Spot & auto-update.** Embed Sparkle, wire the `UpdateController` macOS
-  branch (a thin façade — Sparkle does the download/verify/UI/relaunch we hand-rolled
-  on Linux), add the Info.plist feed + pinned key, the session-safety delegate, and the
+- **Stage 2 — Spot & auto-update.** Embed Sparkle, add the `MacSparkleBackend`
+  (factory-selected — Sparkle does the download/verify/UI/relaunch we hand-rolled in the
+  Linux backend), the Info.plist feed + pinned key, the session-safety delegate, and the
   Settings reuse. This is the **easy 20%** — structurally a copy of the existing Windows
   WinSparkle branch.
 
@@ -39,7 +39,7 @@ it first and prove a notarized DMG installs on a clean Mac before writing Sparkl
 | **S1·P0** | `macdeployqt`'d, relocatable `PinPointStudio.app` + `.dmg` that launches on a clean Mac (Qt/ORT/OpenCV/FFmpeg all bundled, BLE + camera + STT work) | **High** — bundling + framework rpaths |
 | **S1·P1** | Developer ID codesign + notarize + staple the DMG; version unification (Info.plist ← version.h) | **High** — signing identity, notarytool, entitlements |
 | **S1·P2** | EdDSA key (offline) + appcast generator + GitHub release pipeline (CI draft → local sign/notarize → publish) | Medium — key custody + release wiring |
-| **S2·P3** | Embed Sparkle; `MacSparkleUpdater` shim + `UpdateController` macOS branch + session-safety delegate + Settings reuse + launch check | Low — mirrors the Windows branch |
+| **S2·P3** | Embed Sparkle; `MacSparkleUpdater` shim + `MacSparkleBackend` (factory-selected) + session-safety delegate + Settings reuse + launch check | Low — mirrors `WinSparkleBackend` |
 
 S2·P3 (the client) can be prototyped against a hand-written test appcast on a throwaway
 release in parallel with S1·P2, but **S1·P0–P1 must land first** — Sparkle cannot update
@@ -219,15 +219,19 @@ state machine** (Sparkle owns it).
     while `m_session->running()`, invoke it on `runningChanged`→idle (design §5.1).
     **Main-thread callbacks — touch `SessionController` directly, no atomic/queued
     dance** (the macOS simplification over Windows).
-- ☑ **`update_controller.{h,cpp}` macOS branch** — add an
-  `#elif defined(Q_OS_MACOS) && defined(HAVE_SPARKLE)` arm **mirroring** the existing
-  Windows `#elif` (lines ~129–146): own a `MacSparkleUpdater`, `m_supported` from
-  `configureAndInit`, `state()` stays `"idle"` (Sparkle owns transient states),
-  `checkNow()` delegates; forward `checkForUpdatesChanged` to `setAutomaticChecks`. Dev
-  tree → `"devbuild"`, inert. `download()/relaunch()/installOnNextLaunch()/skipVersion()`
-  are **no-ops on macOS** (Sparkle's UI handles them) — keep them so the shared QML
-  binds. Add a `MacSparkleUpdater *m_macSparkle = nullptr;` member next to
-  `m_winSparkle`.
+- ☑ **`src/Update/mac_sparkle_backend.{h,cpp}`** — `MacSparkleBackend` (an
+  `UpdateBackend`), the structural twin of `WinSparkleBackend`, selected by
+  `makeUpdateBackend()` under `Q_OS_MACOS && HAVE_SPARKLE`. (Refactor note: the updater
+  moved to a polymorphic `UpdateBackend` hierarchy, so macOS is a **new backend class**,
+  not an `#elif` arm inside `update_controller.cpp` — the only platform `#ifdef` is in
+  `update_backend_factory.cpp`, and `UpdateController` is unchanged.) It owns a
+  `MacSparkleUpdater`, `supported()` from `configureAndInit`, `ownsStateMachine()==false`
+  (Sparkle owns transient states), `checkNow()`/`setAutomaticChecks()`/`shutdown()`
+  delegate; the controller wires `checkForUpdatesChanged` → the active backend's
+  `setAutomaticChecks()`. Dev tree (`isInstalledBuild()==false`) → initial `DevBuild`,
+  inert. `download()/relaunch()/installOnNextLaunch()` inherit the base no-ops (Sparkle's
+  UI handles them); `skipVersion()` stays in `UpdateController`. The backend is plain
+  C++ — Cocoa stays behind `MacSparkleUpdater`'s `void*` handles.
 - ☑ **`main.cpp`** — confirmed **no functional change** needed (constructs/registers
   `updateController`, calls `shutdownUpdater()` in `aboutToQuit`). Sparkle init is deferred
   inside `MacSparkleUpdater` via a 3 s `QTimer::singleShot` → `-startUpdater` (created with
@@ -255,6 +259,7 @@ NEW  docs/design/macos_update.md                        (the contract)          
 NEW  docs/implementation/macos_update_impl.md           (this plan)                            S1·P0
 NEW  tools/package_macos.sh                             (build → macdeployqt → sign → dmg)     S1·P0/P1
 NEW  src/Update/mac_sparkle_update.{h,mm}               (Sparkle shim: config/init/delegate)   S2·P3
+NEW  src/Update/mac_sparkle_backend.{h,cpp}             (MacSparkleBackend: UpdateBackend over the shim) S2·P3
 NEW  src/Resources/keys/pinpoint_release_mac_eddsa.pub  (pinned Ed25519 public key)            S1·P2
 NEW  packaging/make_appcast_mac.sh                      (sign + emit appcast-mac.xml)          S1·P2
 NEW  docs/implementation/macos_release_runbook.md       (local sign+notarize release runbook)  S1·P2
@@ -262,7 +267,7 @@ EDIT Info.plist.in                                       (version ← version.h;
 EDIT CMakeLists.txt                                      (macdeployqt/dmg target; FetchContent
                                                           Sparkle; embed+link+sign; sources;
                                                           PINPOINT_INSTALLED define)            S1/S2
-EDIT src/Update/update_controller.{h,cpp}               (macOS branch → Sparkle façade)         S2·P3
+(UpdateController is NOT edited — the factory + MacSparkleBackend carry the macOS port)
 EDIT src/Gui/main.cpp                                    (Sparkle init after window-ready)       S2·P3
 EDIT .github/workflows/release.yml                       (macOS draft-build job, macos-13)       S1·P2
 EDIT BUILDING.md                                         (macOS packaging + release section)     S1·P1/P2

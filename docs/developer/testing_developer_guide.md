@@ -3,7 +3,7 @@
 **Audience**: Developers adding or running unit tests in PinPoint Studio
 **Location**: `tests/` (umbrella + shared CMake module + presets), `src/<Sub>/tests/` (the suites)
 **Language**: CMake + C++17/20 (GoogleTest or a hand-rolled `main()`)
-**Status**: 7 suites, 54 tests, runnable as one umbrella build or individually
+**Status**: 8 suites, 57 tests, runnable as one umbrella build or individually
 
 ---
 
@@ -96,7 +96,7 @@ enable_testing()
 add_subdirectory("${PP_SRC}/Buffer"       "${CMAKE_BINARY_DIR}/Buffer-lib")
 add_subdirectory("${PP_SRC}/Buffer/tests" "${CMAKE_BINARY_DIR}/Buffer")
 
-foreach(suite Analysis Audio Core Gui IMU Pose)
+foreach(suite Analysis Audio Core Gui IMU Pose Update)
     add_subdirectory("${PP_SRC}/${suite}/tests" "${CMAKE_BINARY_DIR}/${suite}")
 endforeach()
 ```
@@ -128,7 +128,7 @@ One configure produces one CTest registry spanning all suites:
 ```bash
 cmake -S tests -B build/tests
 cmake --build build/tests -j6
-ctest --test-dir build/tests --output-on-failure   # all 54 tests
+ctest --test-dir build/tests --output-on-failure   # all 57 tests
 ```
 
 ---
@@ -145,7 +145,7 @@ What it provides:
 |---|---|
 | **Repo layout** | `PP_REPO_ROOT`, `PP_SRC`, `PP_BUFFER`, `PP_CORE`, `PP_THIRD` |
 | **Qt prefix** | Per-platform default (`~/Qt/6.11.0/macos`, `…/gcc_64`, `…/msvc2022_64`) unless `-DCMAKE_PREFIX_PATH` / env already set. Replaces the stale `gcc_64`-everywhere docs. |
-| **Qt + Threads** | `find_package(Qt6 Core Gui)` and `find_package(Threads)` once. Suites needing more (Qml, Bluetooth, OpenCV) add their own — cheap and additive. |
+| **Qt + Threads** | `find_package(Qt6 Core Gui)` and `find_package(Threads)` once. Suites needing more (Qml, Bluetooth, OpenCV, Test for `QSignalSpy`) add their own — cheap and additive. |
 | **C++ standard** | Default C++20 (app/Buffer parity); per-target `STD` overrides. |
 | **`pp_find_eigen(<out>)`** | One Eigen locator: explicit `-DPP_EIGEN_DIR`, then any app build's `build/*/_deps/eigen-src` (matched regardless of build-dir name), then fetch 3.4.0. |
 | **`pp_apply_sanitizers(<tgt>)`** | Applied automatically by `pp_add_test` from the `PP_SANITIZE` cache var. |
@@ -331,13 +331,29 @@ Qt6::Qml), `find_package` it in the suite — that is additive and cached.
 
 ## 9. Conventions and gotchas
 
-- **Test framework is per-suite, not enforced.** Buffer and Core use GoogleTest;
-  Analysis, Audio, Gui, IMU and Pose use a hand-rolled `main()` + `CHECK`/
-  `CHECK_NEAR` macros. Both are fine — match the suite you're editing.
+- **Test framework is per-suite, not enforced.** Buffer, Core and Update use
+  GoogleTest; Analysis, Audio, Gui, IMU and Pose use a hand-rolled `main()` +
+  `CHECK`/`CHECK_NEAR` macros. Both are fine — match the suite you're editing.
 - **`AUTOMOC` is per-target now.** The old suites set a global `CMAKE_AUTOMOC ON`;
   with `pp_add_test` you pass `AUTOMOC` on the targets that have `Q_OBJECT` /
   `QML_ELEMENT`. Forgetting it shows up as undefined-symbol link errors for the
   class's signals/vtable.
+- **A `Q_OBJECT` header with no paired `.cpp` must be listed in `SOURCES`.** AUTOMOC
+  moc's a header automatically when it shares a basename with a compiled `.cpp`
+  (e.g. `foo.h` ↔ `foo.cpp`). A pure-interface or test-double header that has *no*
+  matching `.cpp` (e.g. an abstract base, or a `FakeXxx` test double) is **not**
+  picked up just by being `#include`d — list the `.h` itself in `SOURCES` so AUTOMOC
+  generates its `moc_*.cpp`. Symptom otherwise: `undefined reference to vtable` /
+  `staticMetaObject` for that class. (The Update suite lists `update_backend.h` and
+  `fake_update_backend.h` for exactly this reason.)
+- **`QSignalSpy` lives in `Qt6::Test`, not Core/Gui.** A suite that spies on signal
+  emissions/ordering must `find_package(Qt6 COMPONENTS Test)` and `LINK Qt6::Test`.
+- **Compiling a real settings-backed class? Isolate QSettings.** The Update policy
+  test compiles the real `AppSettings`/`SessionController` (they expose exactly the
+  API the controller touches) rather than maintaining doubles. Because `AppSettings`
+  uses a fixed `QSettings` org/app, the test's `main()` calls
+  `QStandardPaths::setTestModeEnabled(true)` **before** `QCoreApplication` so it
+  never reads or writes the developer's real settings file.
 - **Never link `pp_debug.cpp`.** It pulls in whisper/ggml. Use a `PpLogStream`
   stub instead. Three exist today (`Core/tests/pp_log_stub.cpp`,
   `Analysis/tests/imu_test_stubs.cpp`, `Pose/tests/pose_test_stubs.cpp`); reuse
@@ -370,6 +386,7 @@ Qt6::Qml), `find_package` it in the suite — that is additive and cached.
 | `src/IMU/tests/` | Impact detector, ImuIoWorker, ESKF gyro-unit pin (3) |
 | `src/Pose/tests/` | Calibrated ball-model, calibration protocol, BallDetector throttle (3) |
 | `src/Audio/tests/` | Acoustic onset detector (1) |
+| `src/Update/tests/` | Linux updater pure logic (version compare, arch-aware AppImage asset selection, GPG VALIDSIG parse, placeholder-key refusal), `PlatformTarget` arch tokens, and `UpdateController` state-machine + relaunch session-safety policy via a `FakeUpdateBackend` (3, GoogleTest; policy test needs Qt6 Qml + Test) |
 
 See also: the per-subsystem developer guides in this folder (e.g.
 `shot_detector_developer_guide.md`, `resource_profiler_developer_guide.md`) for

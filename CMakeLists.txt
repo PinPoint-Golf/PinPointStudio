@@ -677,18 +677,38 @@ target_sources(PinPointStudio PRIVATE
     src/Secrets/SecretsBridge.cpp
 )
 
-# ── In-app update (Linux AppImage; inert elsewhere) ───────────────────────────
-# See docs/design/linux_update.md. Pure Qt (Network/Concurrent/Process) — drives
-# the bundled appimageupdatetool via QProcess; no libappimageupdate/gpgme deps.
+# ── In-app update ─────────────────────────────────────────────────────────────
+# UpdateController is the QML façade on ALL platforms; the platform engine behind
+# it is one UpdateBackend chosen by makeUpdateBackend() (the sole #ifdef). See
+# docs/design/{linux,windows,macos}_update.md.
 target_sources(PinPointStudio PRIVATE
-    src/Update/appimage_update.h
-    src/Update/appimage_update.cpp
     src/Update/update_controller.h
     src/Update/update_controller.cpp
+    src/Update/update_backend.h
+    src/Update/update_backend_factory.h
+    src/Update/update_backend_factory.cpp
+    src/Update/inert_update_backend.h
+    # (OS,CPU) target — arch-aware asset/feed selection; cheap, platform-agnostic.
+    src/Update/platform_target.h
+    src/Update/platform_target.cpp
     # Hardware-adaptive CUDA runtime offer (Windows; inert elsewhere) — design §4.4.
     src/Update/cuda_runtime_controller.h
     src/Update/cuda_runtime_controller.cpp
 )
+
+# Linux AppImage backend + its pure logic + the appimageupdatetool driver — the
+# only backend that drives a full state machine. Compiled where the factory
+# instantiates it (UNIX-non-Apple, matching the Q_OS_LINUX path). Pure Qt
+# (Network/Concurrent/Process); no libappimageupdate/gpgme deps — design linux_update.md.
+if(UNIX AND NOT APPLE)
+    target_sources(PinPointStudio PRIVATE
+        src/Update/linux_appimage_backend.h
+        src/Update/linux_appimage_backend.cpp
+        src/Update/linux_update_logic.h
+        src/Update/linux_update_logic.cpp
+        src/Update/appimage_update.h
+        src/Update/appimage_update.cpp)
+endif()
 
 # ── WinSparkle (Windows in-app update engine) ─────────────────────────────────
 # The WinSparkle/Sparkle analogue for Windows. See docs/design/windows_update.md.
@@ -719,7 +739,9 @@ if(WIN32)
 
     target_sources(PinPointStudio PRIVATE
         src/Update/win_sparkle_update.h
-        src/Update/win_sparkle_update.cpp)
+        src/Update/win_sparkle_update.cpp
+        src/Update/win_sparkle_backend.h     # UpdateBackend over WinSparkleUpdater
+        src/Update/win_sparkle_backend.cpp)
 endif()
 
 # ── Sparkle (macOS in-app update engine) ──────────────────────────────────────
@@ -763,7 +785,9 @@ if(APPLE)
 
     target_sources(PinPointStudio PRIVATE
         src/Update/mac_sparkle_update.h
-        src/Update/mac_sparkle_update.mm)
+        src/Update/mac_sparkle_update.mm
+        src/Update/mac_sparkle_backend.h     # UpdateBackend over MacSparkleUpdater
+        src/Update/mac_sparkle_backend.cpp)  # plain C++ — Cocoa stays behind the shim
     # The shim manages two long-lived Cocoa objects via __bridge_retained/_transfer and
     # holds the postponed-relaunch block in a copy property — compile it under ARC.
     set_source_files_properties(src/Update/mac_sparkle_update.mm

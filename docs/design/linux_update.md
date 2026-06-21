@@ -58,25 +58,49 @@ and serve different parts of the flow.
 
 ```
 src/Update/
-  update_controller.h/.cpp   UpdateController — QML context property `updateController`
-                             Owns the state machine, GitHub feed query, the
-                             appimageupdatetool driver, signature gate, and relaunch.
-                             GUI-thread + async I/O.
-  appimage_update.h/.cpp     Thin wrapper that drives `appimageupdatetool` via QProcess
-                             (check / download-to-temp / progress parse), isolating the
-                             tool invocation and the "never overwrite before verify" rule.
-  (Qt resource)              pinpoint_release_pubkey.asc — the project's GPG public key,
-                             compiled in as a :/keys/ resource for signature pinning.
+  update_controller.h/.cpp       UpdateController — QML context property `updateController`
+                                 on ALL platforms. A thin façade: owns the QML property
+                                 surface, the State→string mapping (the single source of
+                                 truth for the banner strings), the relaunch session-safety
+                                 guard, and ONE polymorphic UpdateBackend chosen by
+                                 makeUpdateBackend(). No platform #ifdef in its body.
+  update_backend.h               UpdateBackend — abstract base + pp::update::{State,OfferInfo}.
+                                 One concrete subclass per OS engine family.
+  update_backend_factory.h/.cpp  makeUpdateBackend() — the SOLE platform #ifdef ladder.
+  linux_appimage_backend.h/.cpp  LinuxAppImageBackend — the Linux engine and the only
+                                 backend that drives the rich state machine: GitHub feed
+                                 query, the appimageupdatetool driver, signature gate, and
+                                 relaunch. GUI-thread + async I/O. (This is where the flow
+                                 below lives; it used to be inline in UpdateController.)
+  linux_update_logic.h/.cpp      Pure decision logic (version compare, AppImage asset
+                                 selection, gpg-status parse, placeholder-key refusal) —
+                                 no QObject/network/process, unit-tested in isolation.
+  appimage_update.h/.cpp         Thin wrapper that drives `appimageupdatetool` via QProcess
+                                 (download-to-temp / progress parse), isolating the tool
+                                 invocation and the "never overwrite before verify" rule.
+  platform_target.h/.cpp         PlatformTarget{os,arch} — CPU arch as DATA, so the AppImage
+                                 asset token (x86_64 / aarch64) is selected, not hardcoded.
+  inert_update_backend.h         Unsupported fallback (a build with no engine for its OS).
+  (Qt resource)                  pinpoint_release_pubkey.asc — the project's GPG public key,
+                                 compiled in as a :/keys/ resource for signature pinning.
+  tests/                         src/Update/tests — pure-logic + controller-policy suites
+                                 (FakeUpdateBackend), wired into the test umbrella.
 ```
 
+- The macOS (Sparkle) and Windows (WinSparkle) backends are the structural twins of
+  `LinuxAppImageBackend` — thin `UpdateBackend`s whose engines own their own UI, so
+  they report `ownsStateMachine() == false` and never enter the rich Downloading/
+  Verifying/Ready states. See [`macos_update.md`](macos_update.md) /
+  [`windows_update.md`](windows_update.md).
 - `UpdateController` follows the established controller idiom (cf. `TtsController`,
   `SecretsBridge`): a `QObject` with `Q_PROPERTY`s for QML, registered in `main.cpp`
-  as `updateController`. It is **Linux-only**; on other platforms it is not
-  constructed (their updaters are native).
-- It is compiled behind a CMake option `WITH_APPIMAGE_UPDATE` (Linux, default ON).
-  When OFF, or when the process is **not running as an AppImage** (`$APPIMAGE`
-  unset — dev builds, run-from-`build/`), the controller degrades to an inert
-  "Development build" state and never touches the network.
+  as `updateController` on **all** platforms (so the shared QML binds uniformly). The
+  Linux *engine* — `LinuxAppImageBackend` — is what is Linux-only; the factory returns
+  the native backend on macOS/Windows and an inert fallback elsewhere.
+- The Linux backend + its logic compile under `if(UNIX AND NOT APPLE)` (the factory only
+  instantiates it there). When the process is **not running as an AppImage** (`$APPIMAGE`
+  unset — dev builds, run-from-`build/`), the backend reports an inert `DevBuild` state
+  and never touches the network.
 
 ## 4. The feed and the transport
 
@@ -90,9 +114,11 @@ Accept: application/vnd.github+json
 ```
 
 From the JSON we read:
-- `assets[]`   → the `*-x86_64.AppImage` (+ `.AppImage.sig`); the **offered version is
-  parsed from the AppImage asset filename** (`PinPointStudio-<ver>-x86_64.AppImage`,
-  derived from `version.h`), **not** from `tag_name` — see §7
+- `assets[]`   → the same-arch `*.AppImage` (+ its `.AppImage.sig`); the **offered version
+  is parsed from the AppImage asset filename** (`PinPointStudio-<ver>-<arch>.AppImage`,
+  derived from `version.h`), **not** from `tag_name` — see §7. The `<arch>` token is the
+  running binary's own (`PlatformTarget::assetArchToken()` → `x86_64` today, `aarch64`
+  for an ARM build), so an other-arch asset is never mistaken for an offer.
 - `body`       → Markdown changelog shown in the prompt ("what's new")
 - `published_at` → date shown in the prompt
 - `tag_name`   → **not used** by the updater (the release process constrains its
@@ -206,7 +232,7 @@ present" validation is **not** acceptable.
 passphrase-protected) **never leaves the maintainer's machine** — it is *not* a CI
 secret. Its **public** half lives in the repo, compiled in as the Qt resource
 `:/keys/pinpoint_release_pubkey.asc`, and its fingerprint is pinned in
-`update_controller.cpp` (`kPinnedKeyFpr`). At release time the maintainer produces a
+`linux_appimage_backend.cpp` (`kPinnedKeyFpr`). At release time the maintainer produces a
 detached **`*.AppImage.sig`** with `gpg --detach-sign` (passphrase via the local
 agent) and uploads it; CI only builds the *unsigned* AppImage and stages a **draft**
 release. Step-by-step: [`../implementation/linux_release_runbook.md`](../implementation/linux_release_runbook.md).
@@ -221,8 +247,8 @@ published, non-prerelease, and carries the `.sig` — drafts are skipped.)
 
 **Client side (the gate).** After the update engine assembles the new file **into a
 temp/working path** (never the live `$APPIMAGE` — see §9) and **before** any swap or
-relaunch, `UpdateController` verifies it was signed by **exactly** the pinned key
-fingerprint:
+relaunch, `LinuxAppImageBackend` verifies it was signed by **exactly** the pinned key
+fingerprint (`verifySignatureBlocking()`, off the GUI thread):
 1. create an **ephemeral** GnuPG home (temp `GNUPGHOME`, never the user's keyring)
    and import `:/keys/pinpoint_release_pubkey.asc`,
 2. download the release's detached `*.AppImage.sig` asset,
@@ -258,12 +284,12 @@ Pinning, not mere presence, is the requirement. The verify runs off the GUI thre
 
 ## 8. Threading & failure modes
 
-- **No new threads.** `appimage::update::Updater::start()` spawns its own worker;
-  `UpdateController` polls it from a single GUI-thread `QTimer` (~200 ms),
-  reading `isDone()`/`hasError()`/`progress()`/`nextStatusMessage()` — the same
-  poll-a-self-threaded-source idiom as `BodyPoseAdapter`. The feed query is async
-  `QNetworkAccessManager`. Signature verification is a short blocking subprocess
-  run on a `QtConcurrent` task so the UI never stalls.
+- **No GUI-thread stalls.** `AppImageUpdater::start()` does the multi-GB working-copy
+  on a `QtConcurrent` worker, then drives `appimageupdatetool` as a `QProcess`,
+  emitting `progress`/`status`/`finished` signals; `LinuxAppImageBackend` relays them
+  to the controller (no GUI-thread polling loop). The feed query is async
+  `QNetworkAccessManager`. Signature verification is a short blocking subprocess run on
+  a `QtConcurrent` task so the UI never stalls.
 - **Network down / GitHub 5xx / rate-limit:** `Checking` → `Error` with a quiet,
   non-blocking message; never blocks startup, never retries aggressively
   (one launch check; manual "Check now" otherwise).

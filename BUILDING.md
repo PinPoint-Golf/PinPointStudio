@@ -320,7 +320,7 @@ app. WinSparkle points at the stable
 
 ## Testing
 
-PinPoint Studio has seven standalone unit-test suites (54 tests). **None are part of the application build** — the root `CMakeLists.txt` forces `BUILD_TESTING OFF`, so building the app never compiles them. Each suite recompiles only the handful of `.cpp` it needs (there is no test-linkable library except `pinpoint_buffer`) and stubs out anything that would drag in the heavy app dependencies — so the tests configure and build in seconds, independent of whisper/FFmpeg/OpenCV/QML.
+PinPoint Studio has eight standalone unit-test suites (57 tests). **None are part of the application build** — the root `CMakeLists.txt` forces `BUILD_TESTING OFF`, so building the app never compiles them. Each suite recompiles only the handful of `.cpp` it needs (there is no test-linkable library except `pinpoint_buffer`) and stubs out anything that would drag in the heavy app dependencies — so the tests configure and build in seconds, independent of whisper/FFmpeg/OpenCV/QML.
 
 There are two ways to build and run them: the **umbrella** (all suites in one configure/build/ctest) and **per-suite standalone** (fastest single-suite iteration). Both use the shared CMake infrastructure in `tests/`. For the architecture, `pp_add_test` reference, and how to add a test or a new suite, see **[docs/developer/testing_developer_guide.md](docs/developer/testing_developer_guide.md)**.
 
@@ -374,8 +374,9 @@ Filter within any built tree with `ctest --test-dir <build> -R <regex>`.
 | **Shot impact-detector** | `src/IMU/tests` | 3 | IMU impact detector truth table (fires once; taps/waggles/swells rejected; refractory; orientation gate; back-dated `est_t`; 100↔200 Hz parity); `ImuIoWorker` thread/EventBuffer contract; ESKF gyro-unit pin. |
 | **Calibrated ball-detection** | `src/Pose/tests` | 3 | `ball_model.h` core (model fitting, theta, multi-cue scoring, gain invariance, drift); calibration protocol (round bookkeeping, profile save/load); `BallDetector` throttle contract. Needs OpenCV (core/imgproc/features2d). |
 | **Acoustic onset-detector** | `src/Audio/tests` | 1 | Onset detector truth table (click fires sample-accurately; speech/tone/ambient rejected; refractory; back-dating; reverb confirm; absolute amplitude gate). |
+| **In-app update** | `src/Update/tests` | 3 | Linux updater pure logic (version compare, AppImage asset selection across x86_64/aarch64, GPG VALIDSIG parse, placeholder-key refusal); `PlatformTarget` arch-token map; `UpdateController` state-machine + relaunch session-safety policy + QML state-string contract, driven by a `FakeUpdateBackend`. GoogleTest; the policy test needs Qt6 Qml + Test. |
 
-Framework note: Buffer and Core use GoogleTest (fetched automatically); the other five use a self-contained `main()` + `CHECK`/`CHECK_NEAR` (no GoogleTest). `src/Buffer/tests` also builds `latency_benchmark`, intentionally **not** registered with CTest — run it by hand: `./build/tests/Buffer/latency_benchmark` (umbrella) or `./build/buffer-tests/tests/latency_benchmark` (standalone `-S src/Buffer`).
+Framework note: Buffer, Core and In-app update use GoogleTest (fetched automatically); the other five use a self-contained `main()` + `CHECK`/`CHECK_NEAR` (no GoogleTest). `src/Buffer/tests` also builds `latency_benchmark`, intentionally **not** registered with CTest — run it by hand: `./build/tests/Buffer/latency_benchmark` (umbrella) or `./build/buffer-tests/tests/latency_benchmark` (standalone `-S src/Buffer`).
 
 ---
 

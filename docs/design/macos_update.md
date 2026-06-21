@@ -81,24 +81,30 @@ Sparkle from updating in place. So Developer ID + notarization is pulled forward
 
 ```
 src/Update/
-  mac_sparkle_update.h/.mm    MacSparkleUpdater — thin Qt/Cocoa shim around Sparkle 2:
-                              owns an SPUStandardUpdaterController (SPUUpdater +
-                              SPUStandardUserDriver + its native UI), exposes
-                              checkNow() + setAutomaticChecks(), and implements the
-                              SPUUpdaterDelegate relaunch-postpone hook wired to the
-                              session guard. Compiled on macOS only (.mm — Obj-C++).
-  update_controller.h/.cpp    EXISTING. Gains a macOS branch mirroring the Windows
-                              WinSparkle branch: on macOS it owns a MacSparkleUpdater,
-                              reports supported=true on an installed signed bundle, and
-                              its checkNow() delegates to Sparkle. The rich
-                              Downloading/Verifying/ReadyToRelaunch states stay
-                              Linux-only (Sparkle owns that UI).
-  (embedded framework)        Sparkle.framework — vendored/fetched, embedded in
-                              Contents/Frameworks/, code-signed; carries Sparkle's own
-                              Autoupdate/Updater helper that performs the post-quit swap.
-  (Info.plist keys)           SUFeedURL (static GitHub latest-release URL, §4.1),
-                              SUPublicEDKey (the pinned Ed25519 public key, base64, §6),
-                              SUEnableAutomaticChecks (mapped to the user pref, §5).
+  mac_sparkle_update.h/.mm     MacSparkleUpdater — thin Qt/Cocoa shim around Sparkle 2:
+                               owns an SPUStandardUpdaterController (SPUUpdater +
+                               SPUStandardUserDriver + its native UI), exposes
+                               checkNow() + setAutomaticChecks(), and implements the
+                               SPUUpdaterDelegate relaunch-postpone hook wired to the
+                               session guard. Compiled on macOS only (.mm — Obj-C++).
+  mac_sparkle_backend.h/.cpp   MacSparkleBackend — the macOS UpdateBackend: owns a
+                               MacSparkleUpdater, reports supported + ownsStateMachine()
+                               == false, and forwards checkNow()/setAutomaticChecks()/
+                               shutdown() to it. Plain C++ (Cocoa stays behind the shim's
+                               void* handles), so no test ever compiles Obj-C. The
+                               structural twin of WinSparkleBackend.
+  update_backend_factory.h/.cpp  makeUpdateBackend() returns a MacSparkleBackend under
+                               `Q_OS_MACOS && HAVE_SPARKLE` — the SOLE platform #ifdef.
+  update_controller.h/.cpp     UNCHANGED by the macOS port — the shared QML façade (it
+                               already delegates to whatever backend the factory returns).
+                               The rich Downloading/Verifying/ReadyToRelaunch states never
+                               light up here (Sparkle owns that UI).
+  (embedded framework)         Sparkle.framework — vendored/fetched, embedded in
+                               Contents/Frameworks/, code-signed; carries Sparkle's own
+                               Autoupdate/Updater helper that performs the post-quit swap.
+  (Info.plist keys)            SUFeedURL (static GitHub latest-release URL, §4.1),
+                               SUPublicEDKey (the pinned Ed25519 public key, base64, §6),
+                               SUEnableAutomaticChecks (mapped to the user pref, §5).
 ```
 
 - **Sparkle is an Objective-C framework.** We embed `Sparkle.framework`, link it, and
@@ -106,17 +112,19 @@ src/Update/
   (`SPUStandardUpdaterController` is the batteries-included entry point — it constructs
   the updater, the standard user driver, and the UI). EdDSA is Sparkle 2's native
   signature scheme (`SUPublicEDKey` + the `sign_update`/`generate_keys` tools).
-- `UpdateController` keeps its role as the single QML context property
-  `updateController` (already registered in `main.cpp` on all platforms; design parity
-  with Linux/Windows). On macOS it is a *façade* over Sparkle; on Linux it is the full
-  engine; on Windows it is the WinSparkle façade. The macOS branch is the structural
-  twin of the existing `#elif defined(Q_OS_WIN) && defined(HAVE_WINSPARKLE)` block in
-  `update_controller.cpp` (implemented as `#elif defined(Q_OS_MACOS) && defined(HAVE_SPARKLE)`;
-  before this, macOS fell through to the inert `#else`, `State::Unsupported`).
+- `UpdateController` is the single QML context property `updateController`, registered
+  in `main.cpp` on all platforms. It is **always** a thin façade over an `UpdateBackend`;
+  on macOS the factory hands it a `MacSparkleBackend`, on Linux a `LinuxAppImageBackend`,
+  on Windows a `WinSparkleBackend`, else an inert fallback. `MacSparkleBackend` is the
+  structural twin of `WinSparkleBackend`; the only platform `#ifdef` is the one
+  `#elif defined(Q_OS_MACOS) && defined(HAVE_SPARKLE)` arm in `update_backend_factory.cpp`
+  (before the macOS port, that arm did not exist and macOS got the inert
+  `InertUpdateBackend`, `State::Unsupported`).
 - Sparkle is **only meaningful in an installed, signed build.** A dev build run from
   `build/Qt_…-Debug/PinPointStudio.app` has no notarized identity, no `SUFeedURL` it
-  should act on, and updating it in place would be wrong. The macOS branch detects
-  "this is a packaged build" via a CMake `-DPINPOINT_INSTALLED` define baked **only**
+  should act on, and updating it in place would be wrong. `MacSparkleBackend` detects
+  "this is a packaged build" (via `MacSparkleUpdater::isInstalledBuild()`) using a CMake
+  `-DPINPOINT_INSTALLED` define baked **only**
   into the release-packaged target (the same mechanism the Windows design uses), and
   stays inert otherwise — the analogue of the Linux `$APPIMAGE`-unset → `devbuild`
   check. (Belt-and-braces: also treat an App-Translocated / read-only bundle path as
@@ -249,9 +257,10 @@ already fits.
 (`objectName: "setting_version"`) is the manual surface, shared with Linux/Windows but
 behaving per-platform:
 - The existing **"Check for updates automatically"** toggle binds to
-  `appSettings.checkForUpdates`; on macOS its setter also flips Sparkle's
-  `automaticallyChecksForUpdates` (via `UpdateController` → `MacSparkleUpdater`),
-  exactly as the Windows branch forwards it to WinSparkle.
+  `appSettings.checkForUpdates`; the controller forwards the change to the active
+  backend's `setAutomaticChecks()`, which on macOS flips Sparkle's
+  `automaticallyChecksForUpdates` (`MacSparkleBackend` → `MacSparkleUpdater`), exactly
+  as `WinSparkleBackend` forwards it to WinSparkle.
 - The **Version badge + action chip**: on macOS the rich live states
   (`downloading`/`verifying`/`ready`) never appear — those are Sparkle's window. The
   controller's `state` stays `"idle"`, so the QML falls to the `"check"` mode: the chip
@@ -261,7 +270,7 @@ behaving per-platform:
   chip is shown whenever `updateController.supported` (true on an installed, signed
   macOS build).
 
-So `GeneralPanel.qml` needs **no** change beyond what the Windows branch already
+So `GeneralPanel.qml` needs **no** change beyond what the Windows port already
 required — its existing `supported`/`uState` switch (the `pal` palette and the
 `updAction` chip, lines ~697–822) already resolves to the neutral "Check now" path when
 `state == "idle"`. The Linux-specific badge palette (`downloading N%`, `verifying`,

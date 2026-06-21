@@ -24,7 +24,7 @@ hand-rolled on Linux, so there is *no* state machine to write here.
 | Phase | Outcome | Risk |
 |---|---|---|
 | **P0** | WinSparkle linked, shipped, initialised; manual "Check for updates" shows WinSparkle UI against a test appcast | Low |
-| **P1** | `UpdateController` Windows branch + `main.cpp` wiring + session-safety callbacks + Settings action | Low |
+| **P1** | `WinSparkleBackend` (factory-selected) + `main.cpp` wiring + session-safety callbacks + Settings action | Low |
 | **P2** | EdDSA signing key (offline) + appcast generator + release pipeline; version unification | Medium — key custody + version reconciliation |
 | **P3** | CUDA runtime split to its own `AppId` + hardware-adaptive "enable GPU acceleration" sidecar; polish; runbook | Medium — Inno AppId surgery + a second install flow |
 
@@ -76,21 +76,28 @@ appcast.
   (hosted on a scratch release) offering a higher `sparkle:version`; with a test
   EdDSA key the signed test installer downloads and runs. No real key/release yet.
 
-## P1 — UpdateController Windows branch + QML wiring  ☐
+## P1 — Windows backend (WinSparkleBackend) + QML wiring  ☐
 
 Goal: the existing `updateController` QML property drives WinSparkle on Windows with
 no new state machine, and the session guard is honoured.
 
-- ☐ **`update_controller.{h,cpp}` Windows branch** (mirrors the existing
-  `#if defined(Q_OS_LINUX)` / `#else` structure):
-  - On Windows in an installed build: `m_supported = true`, owns a
-    `WinSparkleUpdater`, `state()` stays `"idle"` (WinSparkle owns the transient
-    states), `checkNow()` → `WinSparkleUpdater::checkNow()`. Dev tree → `"devbuild"`,
-    inert. (The Linux branch is unchanged.)
-  - Forward the `appSettings.checkForUpdates` change to
-    `WinSparkleUpdater::setAutomaticChecks()` so the toggle stays live.
-  - `download()/relaunch()/installOnNextLaunch()/skipVersion()` are **no-ops on
-    Windows** (WinSparkle's UI handles those) — keep them so the shared QML binds.
+> **Refactor note.** Since this plan was written, the updater moved to a polymorphic
+> `UpdateBackend` hierarchy, so the Windows engine is a **new backend class**, not a
+> branch inside `update_controller.cpp`. `UpdateController` is now the unchanged shared
+> façade; the only platform `#ifdef` is in `update_backend_factory.cpp`. The bullet
+> below is restated against that structure — see [`../design/windows_update.md`](../design/windows_update.md) §3.
+
+- ☐ **`src/Update/win_sparkle_backend.{h,cpp}`** — `WinSparkleBackend` (an
+  `UpdateBackend`), selected by `makeUpdateBackend()` under `Q_OS_WIN && HAVE_WINSPARKLE`:
+  - On Windows in an installed build: `supported()==true`, `ownsStateMachine()==false`,
+    owns a `WinSparkleUpdater`, `checkNow()` → `WinSparkleUpdater::checkNow()`. Dev tree
+    (`isInstalledBuild()==false`) → initial state `DevBuild`, inert.
+  - `setAutomaticChecks()` forwards to `WinSparkleUpdater::setAutomaticChecks()`; the
+    controller wires `appSettings.checkForUpdates` → the active backend's
+    `setAutomaticChecks()` once, unconditionally, so the toggle stays live.
+  - `download()/relaunch()/installOnNextLaunch()` inherit the base no-ops (WinSparkle's
+    UI handles those); `skipVersion()` stays in `UpdateController`. `UpdateController` is
+    **not** edited.
 - ☐ **`main.cpp`:** the `UpdateController updateController(&appSettings,
   &sessionController)` already exists and is registered. Add (Windows-only) the
   `win_sparkle_cleanup()` hook into the existing `aboutToQuit` lambda (next to
@@ -201,13 +208,14 @@ no new state machine, and the session guard is honoured.
 NEW  docs/design/windows_update.md                     (the contract)                        P0
 NEW  docs/implementation/windows_update_impl.md        (this plan)                            P0
 NEW  src/Update/win_sparkle_update.{h,cpp}             (WinSparkle shim: config/init/cb)      P0/P1
+NEW  src/Update/win_sparkle_backend.{h,cpp}            (WinSparkleBackend: UpdateBackend over the shim) P1
 NEW  src/Update/cuda_runtime_controller.{h,cpp}        (hardware-adaptive GPU-runtime offer)  P3
 NEW  src/Resources/keys/pinpoint_release_win_eddsa.pub (pinned Ed25519 public key)            P2
 NEW  packaging/make_appcast.ps1                         (sign + emit appcast-win.xml)         P2
 NEW  docs/implementation/windows_release_runbook.md     (local-signing release runbook)       P2
 EDIT CMakeLists.txt                                     (FetchContent WinSparkle; link; bundle
                                                          core; sources; version derive; key)  P0/P2/P3
-EDIT src/Update/update_controller.{h,cpp}              (Windows branch → WinSparkle façade)    P1
+(UpdateController is NOT edited — the factory + WinSparkleBackend carry the Windows port)
 EDIT src/Gui/main.cpp                                   (updater init/cleanup; cudaRuntime)    P1/P3
 EDIT src/Gui/settings/GeneralPanel.qml                 (updater row reuse; GPU-accel row)      P1/P3
 EDIT src/Core/version.h                                 (monotonic build version for compare)  P2

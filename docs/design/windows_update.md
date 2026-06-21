@@ -56,53 +56,62 @@ are deliberately symmetric.*
 | UX | Sparkle's native UI | **WinSparkle's native UI** (§5) | PinPoint QML banner |
 | Signing custody | local/offline key | **local/offline key** (§6) | local/offline key |
 
-The asymmetry worth internalising up front: on **Linux** we hand-rolled
-`UpdateController` (feed query + zsync driver + GPG gate + QML UI) because there is
-no "Sparkle for Linux" we trust to bundle. On **Windows there is** — WinSparkle —
-so the app code shrinks to *configuration + a "Check now" button + session-safety
-callbacks*, and WinSparkle owns the feed parse, version compare, download, signature
-verify, progress UI, and installer launch. **Less PinPoint code, not more.** The
-shared QML state-machine UI (`PpUpdateBanner.qml`, the live Settings badge) stays
-**Linux-only**; on Windows the update UI is WinSparkle's, exactly as on macOS it is
-Sparkle's.
+The asymmetry worth internalising up front: on **Linux** we hand-rolled a full
+backend (`LinuxAppImageBackend` — feed query + zsync driver + GPG gate, behind the
+shared QML UI) because there is no "Sparkle for Linux" we trust to bundle. On
+**Windows there is** — WinSparkle — so the Windows backend shrinks to *configuration
++ a "Check now" button + session-safety callbacks*, and WinSparkle owns the feed
+parse, version compare, download, signature verify, progress UI, and installer
+launch. **Less PinPoint code, not more.** Both are concrete `UpdateBackend`s behind
+the same `UpdateController` façade (the WinSparkle one reports
+`ownsStateMachine() == false`); the rich QML state-machine UI (`PpUpdateBanner.qml`,
+the live Settings badge) only lights up for the Linux backend — on Windows the update
+UI is WinSparkle's, exactly as on macOS it is Sparkle's.
 
 ## 3. Components
 
 ```
 src/Update/
-  win_sparkle_update.h/.cpp   WinSparkleUpdater — thin Qt/Win32 shim: configures
-                              WinSparkle (appcast URL, app details, pinned EdDSA
-                              key, automatic-check pref), wires the can-shutdown /
-                              shutdown-request callbacks to the session guard,
-                              and exposes checkNow() + setAutomaticChecks().
-                              Compiled on Windows only.
-  update_controller.h/.cpp    EXISTING. Gains a Windows branch: on Windows it owns
-                              a WinSparkleUpdater and reports supported=true; its
-                              checkNow() delegates to WinSparkle. The rich
-                              Downloading/Verifying/ReadyToRelaunch states stay
-                              Linux-only (WinSparkle owns that UI).
-  (linked DLL)                WinSparkle.dll — prebuilt, fetched by CMake
-                              (FetchContent), copied next to the exe and installed
-                              under bin/ in the "core" component.
-  (embedded key)              Ed25519 release public key, base64, passed to
-                              win_sparkle_set_eddsa_public_key() at init (or via the
-                              "EdDSAPub"/"EDDSA" Win32 resource).
+  win_sparkle_update.h/.cpp    WinSparkleUpdater — thin Qt/Win32 shim: configures
+                               WinSparkle (appcast URL, app details, pinned EdDSA
+                               key, automatic-check pref), wires the can-shutdown /
+                               shutdown-request callbacks to the session guard,
+                               and exposes checkNow() + setAutomaticChecks().
+                               Compiled on Windows only (HAVE_WINSPARKLE).
+  win_sparkle_backend.h/.cpp   WinSparkleBackend — the Windows UpdateBackend: owns a
+                               WinSparkleUpdater, reports supported + ownsStateMachine()
+                               == false, and forwards checkNow()/setAutomaticChecks()/
+                               shutdown() to it. The structural twin of MacSparkleBackend.
+  update_backend_factory.h/.cpp  makeUpdateBackend() returns a WinSparkleBackend under
+                               `Q_OS_WIN && HAVE_WINSPARKLE` — the SOLE platform #ifdef.
+  update_controller.h/.cpp     UNCHANGED by the Windows port — the shared QML façade
+                               (it already delegates to whatever backend the factory
+                               returns). The rich Downloading/Verifying/ReadyToRelaunch
+                               states never light up here (WinSparkle owns that UI).
+  (linked DLL)                 WinSparkle.dll — prebuilt, fetched by CMake
+                               (FetchContent), copied next to the exe and installed
+                               under bin/ in the "core" component.
+  (embedded key)               Ed25519 release public key, base64, passed to
+                               win_sparkle_set_eddsa_public_key() at init (or via the
+                               "EdDSAPub"/"EDDSA" Win32 resource).
 ```
 
 - **WinSparkle is a C DLL.** We link `WinSparkle.lib`, ship `WinSparkle.dll`, and
   call its C API (`<winsparkle.h>`). No COM, no extra runtime. EdDSA support is
   WinSparkle ≥ 0.9.0 (`win_sparkle_set_eddsa_public_key`) — pin a release at or
   above that.
-- `UpdateController` keeps its role as the single QML context property
-  `updateController` (registered in `main.cpp` on all platforms, design parity with
-  Linux). On Windows it is a *façade* over WinSparkle; on Linux it is the full
-  engine. Off both it is inert (`unsupported`).
+- `UpdateController` is the single QML context property `updateController`, registered
+  in `main.cpp` on all platforms. It is **always** a thin façade over an
+  `UpdateBackend`; on Windows the factory hands it a `WinSparkleBackend`, on Linux a
+  `LinuxAppImageBackend`, and off both an inert fallback (`unsupported`). The port adds
+  the Windows backend — it does **not** touch `UpdateController`.
 - WinSparkle is **only meaningful in an installed build.** A dev build run from
   `build/…` has no installer to relaunch and (deliberately) no signed appcast it
-  trusts. The Windows branch detects "running from the install tree" (the exe lives
-  under `%LOCALAPPDATA%\Programs\PinPointStudio`, or simpler: a CMake
-  `-DPINPOINT_INSTALLED` define baked only into packaged builds) and stays inert
-  otherwise — the analogue of the Linux `$APPIMAGE`-unset → `devbuild` check.
+  trusts. `WinSparkleBackend` detects "running from the install tree" (via
+  `WinSparkleUpdater::isInstalledBuild()` — the exe lives under
+  `%LOCALAPPDATA%\Programs\PinPointStudio`, or simpler: a CMake `-DPINPOINT_INSTALLED`
+  define baked only into packaged builds) and reports `devbuild` otherwise — the
+  analogue of the Linux `$APPIMAGE`-unset → `devbuild` check.
 
 ## 4. The feed and the transport
 
@@ -290,8 +299,9 @@ without confirmation") already fits.
 **B. Settings → General (active).** The **Version row** in `GeneralPanel.qml` is the
 manual surface, shared with Linux but behaving per-platform:
 - The exis­ting **"Check for updates automatically"** toggle binds to
-  `appSettings.checkForUpdates`; on Windows its setter also calls
-  `win_sparkle_set_automatic_check_for_updates()` (via `UpdateController`).
+  `appSettings.checkForUpdates`; the controller forwards the change to the active
+  backend's `setAutomaticChecks()`, which on Windows calls
+  `win_sparkle_set_automatic_check_for_updates()` (`WinSparkleBackend` → `WinSparkleUpdater`).
 - The **Version badge + action chip**: on Windows the rich live states
   (`downloading`/`verifying`/`ready`) never appear — those are WinSparkle's window.
   The badge shows the current version and the action chip is **"Check for updates"**,

@@ -67,6 +67,17 @@ and GPU inference all work.
 
 Goal: the full prompt-then-install flow against a real (or stub) AppImage feed.
 
+> **Refactor note (post-P1).** The flow built here was later extracted from
+> `UpdateController` into a polymorphic `UpdateBackend` hierarchy. The Linux state
+> machine + signature gate now live in **`src/Update/linux_appimage_backend.{h,cpp}`**
+> (selected by `makeUpdateBackend()` in `update_backend_factory.cpp`), the pure decision
+> logic in `linux_update_logic.{h,cpp}`, and arch-aware asset selection in
+> `platform_target.{h,cpp}`. `UpdateController` is now the thin shared QML façade (it
+> keeps the property surface, the State→string mapping, the relaunch session-safety
+> guard, and `skipVersion()`). Behaviour is unchanged; only the file layout moved — see
+> [`../design/linux_update.md`](../design/linux_update.md) §3. A `src/Update/tests`
+> suite now locks the pure logic + the controller policy.
+
 - ☑ **Transport = `appimageupdatetool` via `QProcess`** (design §3 as-built) — **no**
   libappimageupdate submodule, **no** gpgme/libcurl/zsync2 build deps. Controller is
   pure Qt (Network + Core + Concurrent, already linked). The CLI binary is bundled in
@@ -159,7 +170,12 @@ NEW  docs/design/linux_update.md                      (the contract)            
 NEW  docs/implementation/linux_update_impl.md         (this plan)                           P0
 NEW  tools/package_appimage.sh                         (build → bundle → sign → zsync)      P0
 NEW  src/Update/appimage_update.{h,cpp}                (appimageupdatetool QProcess driver) P1
-NEW  src/Update/update_controller.{h,cpp}              (state machine + signature gate)     P1
+NEW  src/Update/update_controller.{h,cpp}              (P1: state machine; now thin façade — refactor) P1
+NEW  src/Update/linux_appimage_backend.{h,cpp}         (Linux UpdateBackend: state machine + gate) refactor
+NEW  src/Update/linux_update_logic.{h,cpp}             (pure version/asset/gpg logic, unit-tested)  refactor
+NEW  src/Update/update_backend.h + update_backend_factory.{h,cpp} + inert_update_backend.h  refactor
+NEW  src/Update/platform_target.{h,cpp}                (OS/CPU target → arch-aware asset token)     refactor
+NEW  src/Update/tests/                                 (pure-logic + controller-policy suites)      refactor
 NEW  src/Resources/keys/pinpoint_release_pubkey.asc    (pinned pubkey — PLACEHOLDER)        P1
 NEW  src/Gui/shell/PpUpdateBanner.qml                  (launch banner)                      P3
 NEW  .github/workflows/release.yml                     (tag-triggered: build unsigned draft) P2
