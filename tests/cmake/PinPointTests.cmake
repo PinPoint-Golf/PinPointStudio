@@ -24,6 +24,15 @@ if(NOT CMAKE_CXX_STANDARD)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
 endif()
 
+# --- MSVC math constants ------------------------------------------------------
+# MSVC's <cmath> does not expose M_PI without this. Several suites need it: the
+# vendored imu_ekf ESKF/Quaternion headers (reached via eskf_orientation_filter.cpp
+# in both the Analysis and IMU suites) and other angle math. The app target defines
+# the same globally (see root CMakeLists.txt), so centralise it here for parity.
+if(MSVC)
+    add_compile_definitions(_USE_MATH_DEFINES)
+endif()
+
 # --- Repo layout --------------------------------------------------------------
 # This file lives at <repo>/tests/cmake/, so the repo root is two levels up.
 get_filename_component(PP_REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)

@@ -22,6 +22,14 @@ endif()
 set(ANALYSIS ${CMAKE_CURRENT_SOURCE_DIR}/..)   # src/Analysis
 set(SRC      ${ANALYSIS}/..)                    # src
 
+if(MSVC)
+    # The shaft_tracker/shaft_track timing targets request -O2 (→ /O2 on cl.exe),
+    # which is incompatible with the /RTC1 runtime checks a Debug configuration
+    # injects (cl error D8016). Drop /RTC1 for this test suite. (_USE_MATH_DEFINES
+    # is provided globally by tests/cmake/PinPointTests.cmake.)
+    string(REPLACE "/RTC1" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+endif()
+
 # --- Pure angle math (header-only) -------------------------------------------
 pp_add_test(wrist_angles_test         SOURCES wrist_angles_test.cpp)
 pp_add_test(wrist_angle_sampling_test SOURCES wrist_angle_sampling_test.cpp)
