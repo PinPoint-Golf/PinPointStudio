@@ -201,7 +201,33 @@ DMG=$(ls -t dist/PinPointStudio-*-x86_64.dmg | head -1)
 If `SIGN_IDENTITY`/`NOTARY_PROFILE` are unset, the script still builds a valid **unsigned**
 DMG and tells you it skipped signing.
 
-### 1.4 What signing + notarizing actually does (so you understand the script)
+### 1.4 Smoke-launch the bundle before signing — STOP if it crashes (MANDATORY GATE)
+The test suite (1.2) and the relocatability check (1.3's §5 gate) are both **static** — they
+never actually load the bundled dylib closure. A **load-time** crash slips past both: e.g. a
+stray build-machine `LC_RPATH` left in the binary makes dyld load a *second* copy of OpenMP
+(Homebrew's, ahead of the bundled one), and `libomp` aborts in `__kmp_register_library_startup`
+("OMP: Error #15") **before `main()` runs**. The app dies instantly on launch. Notarization is
+the slow, irreversible step — never spend it on a bundle you haven't watched open.
+
+So launch the freshly-built bundle once, **unsigned**, and confirm the window actually appears:
+```bash
+tools/package_macos.sh --no-sign            # build + deploy + relocate, no sign/notarize
+open build/macos-pkg/PinPointStudio.app     # the main window MUST appear — quit it after a few seconds
+```
+If it crashes on launch, open the crash report and read the **faulting library** before
+re-running:
+- `__kmp_register_library_startup` / `__kmp_fatal` / "OMP Error #15" → a duplicate OpenMP
+  runtime: a build-machine rpath (or absolute dep) leaked into the bundle. `package_macos.sh`
+  now strips these (`strip_build_rpaths`) and its §5 gate fails the build on any stray
+  `/usr/local`, `/opt/homebrew`, or build-tree rpath — so a clean re-run should fix it. If the
+  gate *didn't* catch it, widen the prefixes it checks.
+- "image not found" / dyld → an unrelocated dependency; same §5 gate territory.
+
+Only once it launches cleanly, re-run with your signing env vars (1.5, Path B) to produce the
+signed DMG. (Path A / CI DMG: `hdiutil attach` it and launch the `.app` from the mounted
+volume the same way before you sign the downloaded DMG.)
+
+### 1.5 What signing + notarizing actually does (so you understand the script)
 `tools/package_macos.sh` runs these for you; here's the manual equivalent, useful for
 learning and for re-signing a CI (Path A) DMG:
 ```bash
@@ -218,7 +244,7 @@ xcrun stapler staple "$DMG"
 If notarization says **Invalid**, get the reason: `xcrun notarytool log <submission-id>
 --keychain-profile pinpoint-notary` (see Troubleshooting).
 
-### 1.5 Verify — STOP if anything here fails
+### 1.6 Verify — STOP if anything here fails
 ```bash
 spctl -a -t open --context context:primary-signature -vv "$DMG"   # → accepted, source=Notarized Developer ID
 xcrun stapler validate "$DMG"                                      # → The validate action worked
@@ -227,7 +253,7 @@ codesign --verify --deep --strict --verbose=2 "$DMG"              # → valid on
 All three must pass before you publish. The most common first-time failure is a missing
 or wrong entitlement / an unsigned nested binary — see Troubleshooting.
 
-### 1.6 [Stage 2] EdDSA-sign the DMG + generate the appcast — REQUIRED every release
+### 1.7 [Stage 2] EdDSA-sign the DMG + generate the appcast — REQUIRED every release
 ```bash
 # Signs with the private key in your login Keychain (no --key-file needed); auto-finds
 # sign_update under build/**/_deps/sparkle-src/bin/. Writes appcast-mac.xml next to the DMG.
@@ -242,7 +268,7 @@ SIG=$(sed -n 's/.*edSignature="\([^"]*\)".*/\1/p' "$(dirname "$DMG")/appcast-mac
 Sign the **notarized** DMG (its bytes are what users download). If signing from the
 offline `.pem` instead of the Keychain, add `--key-file ~/pinpoint_release_mac_eddsa_PRIVATE.pem`.
 
-### 1.7 Tag (if not already) + publish to GitHub
+### 1.8 Tag (if not already) + publish to GitHub
 ```bash
 # Path B (local): create the release with the assets. For Stage 1, just the DMG:
 gh release create "$TAG" -R PinPoint-Golf/PinPointStudio \
@@ -258,7 +284,7 @@ gh release edit   "$TAG" -R PinPoint-Golf/PinPointStudio --draft=false --prerele
 `release.yml`, whose `guard` job sees the published release and **skips** CI so it can't
 clobber your signed DMG.
 
-### 1.8 Confirm
+### 1.9 Confirm
 ```bash
 gh release view "$TAG" -R PinPoint-Golf/PinPointStudio --json assets --jq '.assets[].name'
 ```
@@ -272,6 +298,7 @@ warning. (Stage 2: an older installed build offers the update via Settings → C
 - [ ] Bump `PINPOINT_VERSION_BUILD` (+ MAJOR/MINOR/POSTFIX) in `version.h`; commit, push
 - [ ] **Run all 7 CTest suites — every one `100% tests passed` (mandatory; stop if any fail)**
 - [ ] Build the DMG (Path A CI tag push, or Path B `tools/package_macos.sh`)
+- [ ] **Smoke-launch the unsigned bundle (`--no-sign` → `open …`) — main window appears, no crash**
 - [ ] Sign (Developer ID) + notarize + staple — automatic in Path B with the env vars set
 - [ ] Verify: `spctl` → Notarized Developer ID, `stapler validate`, `codesign --verify`
 - [ ] [Stage 2] `make_appcast_mac.sh` → EdDSA signature + `appcast-mac.xml`; `--verify`
@@ -302,7 +329,7 @@ warning. (Stage 2: an older installed build offers the update via Settings → C
   `packaging/macos/entitlements.plist` (e.g. `allow-unsigned-executable-memory`/`allow-jit`)
   and re-sign + re-notarize. Add the *minimum* needed.
 - **"damaged and can't be opened" on the test machine** → you skipped notarization or
-  stapling, or signed with the wrong identity. Re-verify §1.5.
+  stapling, or signed with the wrong identity. Re-verify §1.6.
 
 ## Gotchas & key custody
 - **Sign the exact bytes you publish.** Sign + notarize the DMG you upload, then (Stage 2)

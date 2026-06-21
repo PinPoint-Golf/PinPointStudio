@@ -21,8 +21,11 @@
 #      into Contents/Frameworks with @rpath install names.
 #   4. Bundle the deps macdeployqt misses — the @rpath ONNX Runtime dylib (from the
 #      build's _deps tree) and, if present, Spinnaker (dlopen'd, so not in NEEDED).
+#   4d′. Strip build-machine LC_RPATH entries (Homebrew + build-tree) the linker baked in
+#      — a stray /usr/local rpath makes dyld load a duplicate Homebrew dylib (e.g. a second
+#      libomp → OMP Error #15 launch crash) ahead of the bundled one.
 #   5. VERIFY relocatability: no Mach-O in the bundle may still reference an absolute
-#      /usr/local or /opt/homebrew path (the clean-host gate).
+#      /usr/local or /opt/homebrew path — as a dependency OR an LC_RPATH (the clean-host gate).
 #   6. (§5, guarded) codesign --options runtime + notarytool + stapler.
 #   7. Assemble PinPointStudio-<ver>-x86_64.dmg (the .app + an /Applications symlink).
 #
@@ -125,6 +128,39 @@ relocate_closure() {
     return 0   # the final [[ pass -ge 15 ]] test leaves $?=1; don't let `set -e` abort
 }
 
+# List the LC_RPATH entries of a Mach-O, one per line (path only).
+list_rpaths() {
+    otool -l "$1" 2>/dev/null \
+        | awk '/ cmd LC_RPATH$/{f=1;next} f&&/ path /{sub(/^[[:space:]]*path /,"");sub(/ \(offset [0-9]+\)$/,"");print;f=0}'
+}
+
+# Strip build-machine LC_RPATH entries from every bundled Mach-O. macdeployqt adds an
+# @executable_path/../Frameworks rpath but does NOT remove the rpaths the linker baked
+# in at build time — notably the Homebrew OpenCV lib dir (/usr/local/opt/opencv/lib,
+# from `brew --prefix opencv` on CMAKE_PREFIX_PATH) and the build tree's _deps/sparkle-src.
+# Those survive into the shipped bundle, and because a stray Homebrew rpath is searched
+# BEFORE @executable_path/../Frameworks, dyld resolves @rpath/libopencv_*.dylib to the
+# Homebrew copy on any host that has Homebrew OpenCV installed — loading a SECOND
+# OpenMP/OpenBLAS stack alongside the bundled one. Two libomp runtimes make
+# __kmp_register_library_startup abort before main() (the classic OMP Error #15 launch
+# crash). Delete every rpath that points at the build host so only @executable_path/
+# @loader_path/@rpath relative entries remain.
+strip_build_rpaths() {
+    local macho rp stripped=0
+    while IFS= read -r macho; do
+        [[ -f "$macho" ]] || continue
+        chmod u+w "$macho" 2>/dev/null || true
+        while IFS= read -r rp; do
+            case "$rp" in
+                /usr/local/*|/opt/homebrew/*|"$REPO_ROOT"/*)
+                    install_name_tool -delete_rpath "$rp" "$macho" 2>/dev/null \
+                        && { log "  stripped rpath $rp from ${macho#"$STAGE_APP"/}"; stripped=$((stripped+1)); } || true ;;
+            esac
+        done < <(list_rpaths "$macho")
+    done < <(list_macho)
+    log "stripped $stripped build-machine rpath(s)"
+}
+
 MACDEPLOYQT="${MACDEPLOYQT:-$CMAKE_PREFIX/bin/macdeployqt}"
 
 # ── 0. tool preflight ───────────────────────────────────────────────────────────
@@ -223,6 +259,13 @@ done
 log "relocating Homebrew dependency closure (OpenCV/FFmpeg/Aravis + transitive deps)"
 relocate_closure
 
+# 4d′. Strip build-machine LC_RPATH entries the linker/macdeployqt left behind. Without
+#      this a stray /usr/local/opt/opencv/lib rpath makes dyld load the Homebrew OpenCV
+#      (→ Homebrew OpenBLAS → a 2nd libomp) on hosts that have Homebrew OpenCV, which
+#      aborts at launch with OMP Error #15. See strip_build_rpaths above.
+log "stripping build-machine rpaths (Homebrew + build-tree leftovers)"
+strip_build_rpaths
+
 # 4e. Sparkle.framework — the macOS in-app update engine (docs/design/macos_update.md).
 #     macdeployqt does NOT reliably relocate a framework that carries nested helpers
 #     (Autoupdate, Updater.app, XPCServices), so copy the WHOLE framework verbatim AFTER
@@ -245,20 +288,30 @@ if [[ ! -d "$FW/Sparkle.framework" ]]; then
 fi
 
 # ── 5. VERIFY relocatability — the clean-host gate ────────────────────────────────
-# No bundled Mach-O may still point at a build-machine-only absolute path. If any do,
-# the app will crash with "image not found" on a stock Mac. Fail loudly here.
-log "verifying relocatability (no /usr/local or /opt/homebrew references)"
+# No bundled Mach-O may still point at a build-machine-only absolute path — neither as a
+# dependency (LC_LOAD_DYLIB) nor as a search path (LC_RPATH). A bad dependency crashes
+# with "image not found" on a stock Mac; a bad rpath silently loads a Homebrew copy of a
+# dylib ahead of the bundled one (the OMP Error #15 double-libomp launch crash). Fail
+# loudly on either here.
+log "verifying relocatability (no /usr/local or /opt/homebrew deps or rpaths)"
 bad=0
 while IFS= read -r macho; do
     [[ -f "$macho" ]] || continue
     if otool -L "$macho" 2>/dev/null | tail -n +2 | grep -E '^[[:space:]]+(/usr/local|/opt/homebrew)' >/dev/null; then
-        printf '\033[1;31m  UNRELOCATED:\033[0m %s\n' "${macho#"$STAGE_APP"/}"
+        printf '\033[1;31m  UNRELOCATED DEP:\033[0m %s\n' "${macho#"$STAGE_APP"/}"
         otool -L "$macho" 2>/dev/null | tail -n +2 | grep -E '^[[:space:]]+(/usr/local|/opt/homebrew)' | sed 's/^/      /'
         bad=1
     fi
+    while IFS= read -r rp; do
+        case "$rp" in
+            /usr/local/*|/opt/homebrew/*|"$REPO_ROOT"/*)
+                printf '\033[1;31m  STRAY RPATH:\033[0m %s → %s\n' "${macho#"$STAGE_APP"/}" "$rp"
+                bad=1 ;;
+        esac
+    done < <(list_rpaths "$macho")
 done < <(list_macho)
 if [[ "$bad" == 1 ]]; then
-    die "bundle still references build-machine paths (see UNRELOCATED above) — would crash on a clean Mac"
+    die "bundle still references build-machine paths (see above) — would crash or load Homebrew dylibs on a clean Mac"
 fi
 log "relocatability OK — bundle is self-contained"
 
