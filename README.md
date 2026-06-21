@@ -332,7 +332,8 @@ PinPoint Studio reads and writes files in several locations. Platform paths show
 | Path | What | When |
 |---|---|---|
 | `models/whisper/<model>.bin` | Whisper STT model | Copied from the CMake build cache at build time |
-| `models/kokoro/` | Kokoro TTS ONNX model + voice data | Downloaded from HuggingFace on first launch when a GPU is detected |
+| `models/kokoro/` | Kokoro TTS ONNX model + voice data | Downloaded from HuggingFace on first launch (skipped when cloud TTS is configured) |
+| `models/llm/phi4-mini/` | Phi-4-mini AI-coach LLM (ONNX, ~4.9 GB) | Downloaded from HuggingFace on first launch when a local GPU is present |
 | `film-cache/<video_id>.mp4` | Downloaded YouTube videos | Written by yt-dlp on demand; never auto-deleted |
 
 ### Application settings
@@ -492,11 +493,38 @@ These are copied from the CMake build cache automatically — no manual placemen
 | `~/pinpoint_audio_<timestamp>.wav` | Recorded audio session | Save Audio button |
 | `~/imu_log_<MAC>_<timestamp>.txt` | IMU session log (one per device) | Save Log button |
 
-### External network activity
-The app only contacts external services when explicitly configured:
-- **Azure Speech** (STT / TTS) — if an Azure Cognitive Services key is present
-- **AssemblyAI** (STT) — if an AssemblyAI API key is present
-- **YouTube** (via yt-dlp) — when downloading a video in the Film tab, using your browser's stored cookies
+---
+
+## Network activity
+
+PinPoint Studio is **local-first**: capture, pose estimation, swing analysis, speech-to-text, text-to-speech, and the AI coach all run on-device by default. No swing data, audio, or video is ever sent to a third party unless you turn on a cloud backend and supply the matching API key. There is **no telemetry, analytics, or crash reporting** of any kind.
+
+The table below lists every point at which the application opens a network connection, what it is for, and when it happens.
+
+**Classification** — 🟢 always-on by default (no key or opt-in needed) · 📦 automatic first-run (downloads a model the app needs, once) · ⚙️ configured (only with a Settings toggle on *and* an API key present) · 🔵 optional (only on an explicit user action)
+
+| Activity | Destination | Scope | Sends | When | Class |
+|---|---|---|---|---|---|
+| **Update check** | `api.github.com` / GitHub releases (Linux); `github.com/.../appcast-{win,mac}.xml` (Windows / macOS) | Internet | Nothing (GET only) | ~4 s after launch, installed builds only; `General/checkForUpdates` (default **on**) | 🟢 |
+| **Update download** | GitHub release assets (AppImage zsync / signed installer + signature) | Internet | Nothing (GET only) | After you accept an offered update | 🔵 |
+| **Kokoro TTS model** | `huggingface.co/onnx-community/Kokoro-82M-ONNX` | Internet | Nothing (GET only) | First run, when the model isn't cached and cloud TTS is off | 📦 |
+| **Phi-4 LLM model** (~4.9 GB) | `huggingface.co/microsoft/Phi-4-mini-instruct-onnx` | Internet | Nothing (GET only) | First run, **only if a local GPU is present** and the model isn't cached | 📦 |
+| **Azure Speech — STT** | `ukwest.stt.speech.microsoft.com` | Internet | **Microphone audio** + key | Per utterance, while cloud STT is selected | ⚙️ `cloudFallbackStt` (default off) + Azure key |
+| **Azure Speech — TTS** | `ukwest.tts.speech.microsoft.com` | Internet | **Text to speak** + key | Per synthesis, while cloud TTS is selected | ⚙️ `cloudFallbackTts` (default off) + Azure key |
+| **Gemini — AI coach** | `generativelanguage.googleapis.com` | Internet | **Coach conversation** + prompt + key | Per coach message | ⚙️ `cloudFallbackLlm` **or no local GPU**, + Gemini key |
+| **Film download** | YouTube etc. via the bundled `yt-dlp` binary | Internet | Video URL; optionally your **browser cookies** | When you download a video on the Film page | 🔵 |
+| **Industrial cameras** | GigE Vision camera over Ethernet (Aravis / Spinnaker) | Local LAN | Camera control + video stream | When such a camera is connected and started | 🔵 |
+| **GPU runtime page** | `github.com/.../releases/latest` | Internet | Opens your **browser** (not an in-app connection) | When you tap *Get GPU runtime* (Windows + CUDA only) | 🔵 |
+
+Notes:
+
+- **Cloud features are off out of the box.** STT, TTS, and the AI coach all run locally by default; the only content that ever leaves the device — audio, spoken text, or coach conversation — does so through the three ⚙️ rows above, each gated on both a Settings toggle and a stored API key.
+- **The one automatic exception is the AI coach on a machine with no GPU.** With no local GPU there is no on-device LLM, so if a Gemini key is configured the coach uses Gemini cloud automatically (without the `cloudFallbackLlm` toggle); with no key, the coach is simply unavailable.
+- **Model downloads are bootstrap, not telemetry.** On first run the app fetches its local AI models from HuggingFace (Kokoro TTS always; the Phi-4 coach model only when a GPU can run it). These are plain downloads, cached under the app-data directory, and never re-fetched once present.
+- **Update checks default on**, but only run from an installed build, send no data beyond the HTTP request, and can be turned off (General → check for updates). A downloaded update is GPG / EdDSA signature-verified against a pinned key before it is applied.
+- **API keys in transit:** Azure keys travel in request headers; the Gemini key is passed as a URL query parameter — keep it out of shared logs or proxies.
+- **Not network traffic:** the WT901 IMU connects over **Bluetooth LE**, not IP. The bundled ONNX Runtime execution providers and the `yt-dlp` binary are fetched at *build* time by CMake, not at runtime.
+- **Inactive code:** an AssemblyAI streaming-STT backend (`wss://streaming.assemblyai.com`) is compiled in but not wired into backend selection, so it never connects in the current build.
 
 ---
 
