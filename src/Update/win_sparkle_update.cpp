@@ -22,6 +22,7 @@
 #include "version.h"             // PINPOINT_VERSION_STRING / PINPOINT_VERSION_BUILD_STRING
 
 #include <QCoreApplication>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QTimer>
@@ -101,11 +102,14 @@ WinSparkleUpdater::~WinSparkleUpdater() { shutdown(); }
 
 bool WinSparkleUpdater::isInstalledBuild()
 {
-    // Inno Setup drops `unins000.exe` next to the installed executable; a build-tree
-    // run has none. Specific to our installer and reliable, unlike path heuristics.
-    const QString uninst =
-        QCoreApplication::applicationDirPath() + QStringLiteral("/unins000.exe");
-    return QFileInfo::exists(uninst);
+    // Inno Setup drops `unins000.exe` in the install ROOT ({app}). Our exe installs to
+    // {app}\bin (GNUInstallDirs → CMAKE_INSTALL_BINDIR=bin), so the uninstaller is one
+    // directory ABOVE applicationDirPath(), not beside it. Check the parent first, then
+    // the same dir as a fallback for any flat (non-bin) layout. A build-tree run has
+    // neither. Specific to our installer and reliable, unlike path heuristics.
+    const QDir appDir(QCoreApplication::applicationDirPath());
+    return QFileInfo::exists(appDir.filePath(QStringLiteral("../unins000.exe")))
+        || QFileInfo::exists(appDir.filePath(QStringLiteral("unins000.exe")));
 }
 
 bool WinSparkleUpdater::configureAndInit(AppSettings *settings, SessionController *session)
@@ -160,9 +164,10 @@ bool WinSparkleUpdater::configureAndInit(AppSettings *settings, SessionControlle
     win_sparkle_set_error_callback(&errorCb);
 
     // WinSparkle requires the main window to be up before init(). The controller is
-    // constructed before the QML engine loads, so defer init briefly — past startup
-    // and device bring-up, like the Linux 4s launch check.
-    QTimer::singleShot(3000, this, &WinSparkleUpdater::doInit);
+    // constructed before the QML engine loads, so defer init + the passive launch
+    // check briefly — past startup and device bring-up, mirroring the Linux 4s launch
+    // check (LinuxAppImageBackend schedules checkNow() the same way).
+    QTimer::singleShot(3000, this, &WinSparkleUpdater::launchCheck);
     return true;
 #else
     Q_UNUSED(settings);
@@ -180,6 +185,33 @@ void WinSparkleUpdater::doInit()
     m_initialised = true;
     ppInfo() << "[WinSparkle] initialised —" << QString::fromStdWString(m_appVersion)
              << "(build" << QString::fromStdWString(m_buildVersion) << ")";
+#endif
+}
+
+void WinSparkleUpdater::launchCheck()
+{
+#ifdef HAVE_WINSPARKLE
+    doInit();
+    // Explicit passive launch check — the Windows parity for the Linux 4s launch check.
+    // WinSparkle's built-in automatic check (inside win_sparkle_init) only fires once
+    // its stored interval has elapsed, and never on the first run after install, so on
+    // its own it is NOT a per-launch check. Force a SILENT check when the pref is on:
+    // check_update_without_ui() shows no "checking…"/"up to date" UI and surfaces
+    // WinSparkle's update window only if a newer version exists — quiet when up to date,
+    // exactly like the Linux passive launch banner. WinSparkle's interval timer still
+    // covers long-running sessions on top of this.
+    if (!(m_settings && m_settings->checkForUpdates())) {
+        ppInfo() << "[WinSparkle] launch check skipped — checkForUpdates is off";
+        return;
+    }
+    // Defer the check OFF the init tick. win_sparkle_init() spins up WinSparkle's worker
+    // thread asynchronously; a check posted in the same tick can be dropped before that
+    // thread's message queue exists (the manual check works precisely because it fires
+    // later, against a settled engine). A short delay lets the engine come up first.
+    QTimer::singleShot(2000, this, [] {
+        ppInfo() << "[WinSparkle] launch check — querying appcast (silent)";
+        win_sparkle_check_update_without_ui();
+    });
 #endif
 }
 

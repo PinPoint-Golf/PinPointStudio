@@ -61,7 +61,11 @@ appcast.
     details (display = `PINPOINT_VERSION_STRING`), build version (the monotonic int,
     §P2), **EdDSA public key (assert the call returns 1 — refuse to init if not)**,
     automatic-check from `appSettings.checkForUpdates`, check interval, the two
-    shutdown callbacks, the error callback; then `win_sparkle_init()`.
+    shutdown callbacks, the error callback; then schedule `launchCheck()` ~3 s out.
+  - `launchCheck()` → `doInit()` (`win_sparkle_init()`) then, when
+    `appSettings.checkForUpdates`, a silent `win_sparkle_check_update_without_ui()` —
+    the **per-launch** check (Linux 4 s-launch parity; WinSparkle's own automatic check
+    is interval-gated and never fires on first run — design §5A).
   - `checkNow()` → `win_sparkle_check_update_with_ui()`.
   - `setAutomaticChecks(bool)` → `win_sparkle_set_automatic_check_for_updates()`.
   - `shutdown()` → `win_sparkle_cleanup()`.
@@ -158,10 +162,11 @@ no new state machine, and the session guard is honoured.
   ship bootstrap, never-publish-without-the-appcast, the `latest/download` non-prerelease
   rule, CUDA-is-separate, and rollback.
 - ◑ **Acceptance:** generate the key + publish a release per the runbook; an older
-  installed build → "Check for updates" (or the automatic launch check) offers the new
-  version, downloads the `-core` enclosure, WinSparkle **verifies** the EdDSA signature
-  against the pin, relaunches; a tampered/wrong-key installer is **rejected** (never
-  runs). Blocked on the offline key + a first published release.
+  installed build → the passive **launch check** (`launchCheck()`, ~3 s after startup)
+  **or** the manual "Check for updates" offers the new version, downloads the `-core`
+  enclosure, WinSparkle **verifies** the EdDSA signature against the pin, relaunches; a
+  tampered/wrong-key installer is **rejected** (never runs). Blocked on the offline key +
+  a first published release.
 
 ## P3 — CUDA `AppId` split + hardware-adaptive sidecar + polish  ◑ (app side built; packaging authored, awaits clean-VM validation)
 

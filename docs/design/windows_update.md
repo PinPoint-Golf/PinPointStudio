@@ -288,13 +288,30 @@ that to re-skin it in QML is exactly the kind of effort the "use WinSparkle" dec
 exists to avoid. So:
 
 **A. Launch check (passive).** Gated on the existing `appSettings.checkForUpdates`
-pref, mapped 1:1 to `win_sparkle_set_automatic_check_for_updates()`. With it on,
-WinSparkle checks on startup (and on its interval, ≥ 1 h) and shows **its own**
-"update available" window **only when** an update exists — never nags when up to
-date. This replaces the Linux QML launch banner on Windows; the product behaviour
-("checks on launch, never downloads without confirmation") is identical and the
-existing toggle copy in `GeneralPanel.qml` ("Checks on launch — never downloads
-without confirmation") already fits.
+pref (default **on**). On every startup the backend fires a **silent** check ~3 s in
+(`WinSparkleUpdater::launchCheck()` → `win_sparkle_check_update_without_ui()`), which
+shows **WinSparkle's own** "update available" window **only when** an update exists —
+never nags when up to date. This is the Windows parity for the Linux 4 s launch check;
+the existing toggle copy in `GeneralPanel.qml` ("Checks on launch — never downloads
+without confirmation") fits exactly.
+
+> **Why an explicit launch check rather than relying on WinSparkle's automatic check.**
+> `win_sparkle_set_automatic_check_for_updates(pref)` + `win_sparkle_init()` give
+> WinSparkle a built-in background check, but it is **interval-gated**, not per-launch:
+> `init()` only checks if the configured interval (`win_sparkle_set_update_check_interval`,
+> 24 h; floored by WinSparkle at 1 h) has elapsed since WinSparkle's last-check timestamp
+> (stored in the registry, `HKCU\Software\Mark Liversedge\PinPoint Studio\WinSparkle`).
+> So on its own it would **not** fire on the first run after install (no prior timestamp →
+> it records a baseline and waits) nor on launches inside the interval. The **Linux**
+> backend (`LinuxAppImageBackend`) instead fires an explicit
+> `QTimer::singleShot(4000, …, &checkNow)` on **every** startup. To match that, the
+> Windows backend forces a silent `win_sparkle_check_update_without_ui()` from
+> `launchCheck()` each startup (gated on the same pref). The two layers coexist: our
+> explicit call covers **every launch**; WinSparkle's interval timer covers **long-running
+> sessions** that never restart. (A redundant check on the rare launch where the interval
+> has also elapsed is harmless — WinSparkle serialises checks.) The automatic-check pref
+> is still mapped to WinSparkle via `win_sparkle_set_automatic_check_for_updates()` so the
+> interval timer and the launch check are governed by the **same** toggle.
 
 **B. Settings → General (active).** The **Version row** in `GeneralPanel.qml` is the
 manual surface, shared with Linux but behaving per-platform:
@@ -490,6 +507,7 @@ linked against `WinSparkle.dll`):
 | `win_sparkle_set_can_shutdown_callback(cb)` / `…_shutdown_request_callback(cb)` | session-safety gate + graceful quit (§5.1, §9) |
 | `win_sparkle_set_error_callback(cb)` | optional → log to `PpMessageLog` |
 | `win_sparkle_init()` | start (after the main window is shown) |
+| `win_sparkle_check_update_without_ui()` | the passive **launch check** — silent, every startup, surfaces UI only if an update exists (§5A) |
 | `win_sparkle_check_update_with_ui()` | the Settings "Check for updates" action (§5B) |
 | `win_sparkle_cleanup()` | on `aboutToQuit`, before Qt teardown (§8) |
 

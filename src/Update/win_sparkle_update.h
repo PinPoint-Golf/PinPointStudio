@@ -76,6 +76,14 @@ private:
     // Deferred init target (scheduled by configureAndInit once the loop is up).
     void doInit();
 
+    // Passive launch check — the Windows mirror of the Linux 4s launch check. Runs
+    // doInit() then, when the checkForUpdates pref is on, forces a SILENT background
+    // check (win_sparkle_check_update_without_ui): WinSparkle's own automatic check is
+    // interval-gated and never fires on first run, so this is what makes Windows
+    // actually look for an update shortly after EVERY launch. Quiet when up to date;
+    // surfaces WinSparkle's window only if an update exists.
+    void launchCheck();
+
     AppSettings       *m_settings = nullptr;
     SessionController *m_session  = nullptr;
 
