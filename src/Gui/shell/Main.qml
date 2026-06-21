@@ -357,7 +357,7 @@ ApplicationWindow {
         qsTr("Developer"),        // screenPlay
         qsTr("New athlete"),      // screenNewAthlete
         qsTr("Athletes"),         // screenAthletes
-        qsTr("Resource Monitor"), // screenSystem
+        qsTr("System"),           // screenSystem
         qsTr("Settings"),         // screenSettings
         qsTr("New session")       // screenWizard
     ]
@@ -485,7 +485,6 @@ ApplicationWindow {
                 }
                 ScreenSettings {                                           // screenSettings — settings
                     id: settingsScreen
-                    onDeveloperRequested:       navController.navigate(root.screenPlay)
                     onResourceMonitorRequested: navController.navigate(root.screenSystem)
                 }
                 ScreenSessionWizard {                                      // screenWizard — session setup wizard

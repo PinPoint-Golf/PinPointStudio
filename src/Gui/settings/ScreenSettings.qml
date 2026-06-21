@@ -29,9 +29,8 @@ Item {
     property int    activeNavIndex: 0
     property string searchQuery:    ""
 
-    // Emitted by the pinned bottom actions; Main.qml jumps to the Developer
-    // / Resource Monitor screens (each its own screen — back returns here).
-    signal developerRequested()
+    // Emitted by the pinned bottom action; Main.qml jumps to the System Info
+    // screen (its own screen — back returns here).
     signal resourceMonitorRequested()
 
     // ── Full-text search ──────────────────────────────────────────────────────
@@ -391,8 +390,8 @@ Item {
                 }
             }
 
-            // ── Pinned bottom actions: Developer + Resource Monitor ──────────
-            // Not panels: each jumps to its own screen (Main.qml navigate);
+            // ── Pinned bottom action: System Info ────────────────────────────
+            // Not a panel: jumps to its own screen (Main.qml navigate);
             // the header back arrow returns here.
             Column {
                 id: pinnedActions
@@ -401,65 +400,7 @@ Item {
                 anchors.bottom: parent.bottom
                 spacing: 0
 
-                // Developer (index 5) — blocked while a session is locked
-                Item {
-                    id: devNav
-                    width:  parent.width
-                    height: Theme.sp(46)
-
-                    readonly property bool hovered: devArea.containsMouse
-
-                    Rectangle {
-                        anchors { top: parent.top; left: parent.left; right: parent.right }
-                        height:  1
-                        color:   Theme.colorBorderMid
-                        opacity: Theme.borderOpacityNormal
-                    }
-
-                    Rectangle {
-                        anchors.fill:      parent
-                        anchors.topMargin: 1
-                        color: devNav.hovered ? Theme.colorBg2 : "transparent"
-                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                    }
-
-                    Text {
-                        id: devIcon
-                        anchors.left:           parent.left
-                        anchors.leftMargin:     Theme.sp(16)
-                        anchors.verticalCenter: parent.verticalCenter
-                        text:           "▸"
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzBody
-                        color: devNav.hovered ? Theme.colorText2 : Theme.colorText3
-                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                    }
-
-                    Text {
-                        anchors.left:           devIcon.right
-                        anchors.leftMargin:     Theme.sp(10)
-                        anchors.right:          parent.right
-                        anchors.rightMargin:    Theme.sp(10)
-                        anchors.verticalCenter: parent.verticalCenter
-                        text:           qsTr("Developer")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody2
-                        font.weight:    Theme.fontBodyWeight
-                        color: devNav.hovered ? Theme.colorText : Theme.colorText2
-                        elide: Text.ElideRight
-                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                    }
-
-                    MouseArea {
-                        id: devArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape:  Qt.PointingHandCursor
-                        onClicked:    root.developerRequested()
-                    }
-                }
-
-                // Resource Monitor (index 8)
+                // System Info (index 8)
                 Item {
                     id: rmNav
                     width:  parent.width
@@ -499,7 +440,7 @@ Item {
                         anchors.right:          parent.right
                         anchors.rightMargin:    Theme.sp(10)
                         anchors.verticalCenter: parent.verticalCenter
-                        text:           qsTr("Resource Monitor")
+                        text:           qsTr("System")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody2
                         font.weight:    Theme.fontBodyWeight
