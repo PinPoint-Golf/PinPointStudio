@@ -33,13 +33,9 @@
 // The generic BLE connection state machine (scanning, GATT setup, Linux 6.x
 // scan-before-connect fix) lives entirely in BleImuTransport.
 //
-// Usage:
-//   WT9011DCL_BLE imu;
-//   connect(&imu, &WT9011DCL_BLE::deviceDiscovered, &imu, [&](auto &info){
-//       imu.connectToDevice(info);
-//   });
-//   connect(&imu, &WT9011DCL_BLE::eulerAnglesUpdated, this, &MyClass::onAngles);
-//   imu.scan();
+// Device discovery (the scan that populates the chip list) is owned separately
+// by DeviceEnumerator::ImuBleScanner, not by this driver — connectToDevice() is
+// called with a QBluetoothDeviceInfo already chosen from that enumerated list.
 
 class WT9011DCL_BLE : public WT9011DCL_Base
 {
@@ -59,10 +55,6 @@ public:
     State state()   const { return m_transport->state(); }
     bool  isReady() const { return m_transport->isReady(); }
 
-    // Scan for nearby BLE devices; durationMs=0 scans until stopScan().
-    void scan(int durationMs = 10000) { m_transport->scan(durationMs); }
-    void stopScan()                   { m_transport->stopScan(); }
-
     void connectToDevice(const QBluetoothDeviceInfo &device,
                          const QBluetoothAddress &localAdapter = QBluetoothAddress())
     { m_transport->connectToDevice(device, localAdapter); }
@@ -70,9 +62,6 @@ public:
 
 signals:
     void stateChanged(WT9011DCL_BLE::State state);
-    void deviceDiscovered(const QBluetoothDeviceInfo &device);
-    void rawDeviceFound(const QBluetoothDeviceInfo &device);
-    void scanFinished();
 
 public:
     void reinitialize() override { initializeDevice(); }

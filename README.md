@@ -618,8 +618,8 @@ Pending or deferred development gathered from the design and implementation docu
 |---|---|
 | imu_rearchitecture | Phase 3 native-quaternion / 9-axis (optional, hardware-gated) |
 | imu_rearchitecture | Open questions #1–8 need hardware verification |
-| imu_pipeline_audit | Studio/hardware + SwingLab-replay validation pending |
-| imu_pipeline_audit | R1-4 stop() watchdog (Windows), R3-3 device pruning, R3-4 dead-code deletion |
+| imu_pipeline_audit | Studio/hardware + SwingLab-replay validation pending (incl. R3-3 power-off → rescan chip-drop) |
+| imu_pipeline_audit | R1-4 stop() watchdog (Windows) — deferred until a WinRT shutdown wedge is observed |
 | imu_io_thread_impl | W4 studio validation pass |
 
 ### Segmentation / Export / Replay

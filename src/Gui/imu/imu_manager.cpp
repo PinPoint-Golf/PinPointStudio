@@ -73,6 +73,17 @@ ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, 
     connect(DeviceEnumerator::instance(), &DeviceEnumerator::imuScanError,
             this, [this](const QString &msg) { setImuScanError(msg); });
 
+    // A completed scan may have left a previously-seen device behind (powered
+    // off / out of range). Re-emit so the chip lists re-evaluate each device's
+    // "present" flag and hide/dim the ones absent from this scan. A still-
+    // selected device stays visible (isImuPresent), so this can't drop a
+    // connected IMU that simply stopped advertising.
+    connect(DeviceEnumerator::instance(), &DeviceEnumerator::imuScanFinished,
+            this, [this]() {
+        emit imuListChanged();
+        emit imuDeviceListChanged();
+    });
+
     // Start the async BLE scan.  Results arrive via deviceAdded and are
     // automatically reflected by imuList() / imuDeviceList() reading directly
     // from DeviceEnumerator — no local list copy needed.
@@ -147,6 +158,16 @@ ImuManager::~ImuManager()
 // Properties — both list accessors read from DeviceEnumerator directly
 // ---------------------------------------------------------------------------
 
+bool ImuManager::isImuPresent(const Device &dev) const
+{
+    // Seen in the most recently completed scan (or a later in-progress one), or
+    // currently selected — a connected device stops advertising and so would be
+    // absent from the scan, but must stay visible.
+    const int completedGen = DeviceEnumerator::instance()->completedImuScanGeneration();
+    return dev.lastSeenScanGeneration >= completedGen
+        || m_selected.value(dev.id).selected;
+}
+
 QVariantList ImuManager::imuList() const
 {
     const QList<Device> devs = DeviceEnumerator::instance()->devices(DeviceType::Imu);
@@ -171,6 +192,7 @@ QVariantList ImuManager::imuList() const
         m[QStringLiteral("selected")]    = entry.selected;
         m[QStringLiteral("connected")]   = connected;
         m[QStringLiteral("connecting")]  = connecting;
+        m[QStringLiteral("present")]     = isImuPresent(dev);
         list.append(m);
     }
     return list;
@@ -220,6 +242,7 @@ QVariantList ImuManager::imuDeviceList() const
         entry[QStringLiteral("supportsAccelGyroCalibration")] = cap.supportsAccelGyroCalibration;
         entry[QStringLiteral("supportsConfigPersistence")]   = cap.supportsConfigPersistence;
         entry[QStringLiteral("sessionEnabled")] = !m_sessionExcluded.contains(dev.id);
+        entry[QStringLiteral("present")]        = isImuPresent(dev);
         list.append(entry);
     }
     return list;

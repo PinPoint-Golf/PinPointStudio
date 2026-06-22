@@ -218,6 +218,10 @@ Item {
                 devName: modelData.alias && modelData.alias !== "" ? modelData.alias
                                                                    : modelData.description
                 deviceEnabled: modelData.sessionEnabled
+                // Dim when absent from the latest scan (kept listed so a known
+                // device stays manageable); a selected device stays present.
+                opacity: modelData.present ? 1.0 : 0.45
+                Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
                 placement: {
                     var p = appSettings.imuPlacement
                     return p[modelData.id] ? p[modelData.id] : ""

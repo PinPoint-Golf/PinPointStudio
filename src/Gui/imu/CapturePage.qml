@@ -78,6 +78,10 @@ Item {
                     readonly property bool isConnecting: modelData.connecting
                     readonly property bool isConnected:  modelData.connected
 
+                    // Drop devices absent from the latest scan (powered off / out
+                    // of range). A still-selected device stays present, so a
+                    // connected IMU that stopped advertising is never hidden.
+                    visible: modelData.present
                     width:  imuChipLabel.implicitWidth + Theme.sp(16)
                     height: Theme.sp(24)
                     radius: Theme.radius

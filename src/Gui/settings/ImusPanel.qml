@@ -1162,6 +1162,10 @@ Item {
                         required property var modelData
                         imuData:          modelData
                         Layout.fillWidth: true
+                        // Dim (but keep listed + interactive) when absent from the
+                        // latest scan, so a known device can still be renamed/forgotten.
+                        opacity: modelData.present ? 1.0 : 0.45
+                        Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
                     }
                 }
 

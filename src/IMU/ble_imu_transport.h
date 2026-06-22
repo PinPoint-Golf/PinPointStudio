@@ -80,10 +80,6 @@ public:
     State state()   const { return m_state; }
     bool  isReady() const { return m_state == State::Ready; }
 
-    // Scan for nearby BLE devices; durationMs=0 scans until stopScan().
-    void scan(int durationMs = 10000);
-    void stopScan();
-
     // localAdapter: the HCI adapter to use for scanning and GATT connection.
     // Pass QBluetoothAddress() (null) to use the system default (single-adapter path).
     void connectToDevice(const QBluetoothDeviceInfo &device,
@@ -95,9 +91,6 @@ public:
 
 signals:
     void stateChanged(BleImuTransport::State state);
-    void deviceDiscovered(const QBluetoothDeviceInfo &device);
-    void rawDeviceFound(const QBluetoothDeviceInfo &device);
-    void scanFinished();
 
     // Emitted when CCCD descriptor has been written and the device is ready to
     // receive commands.  The owning class should perform device initialisation
@@ -143,6 +136,9 @@ private:
     void setupService();
     void enableNotifications();
     void ensureScannerCreated();
+    // Stops the discovery agent if active. Internal-only — used by teardown,
+    // failConnection, the non-Linux connect path, and once the HCI link is up.
+    void stopScan();
     void doConnect();
     bool matchesPendingDevice(const QBluetoothDeviceInfo &d) const;
 

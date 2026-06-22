@@ -52,6 +52,11 @@ struct Device {
     // --- Common ---
     QString id;           // camera: device id; IMU BLE: MAC address or UUID; serial: port name
     QString description;  // human-readable label
+
+    // IMU only: the scan generation in which this device was last discovered
+    // (see DeviceEnumerator::scanImu). Lets a consumer tell whether the device
+    // appeared in the most recently completed scan; -1 = never seen.
+    int lastSeenScanGeneration = -1;
 };
 
 class DeviceEnumerator : public QObject
@@ -69,6 +74,11 @@ public:
     // Safe to call multiple times; ignored if a scan is already in progress.
     void scanImu();
     bool isImuScanActive() const { return m_imuScanActive; }
+
+    // Generation of the most recently COMPLETED IMU scan (0 before the first
+    // scan finishes). A device is "current" if its lastSeenScanGeneration is
+    // >= this value; a lower value means it was absent from the last scan.
+    int completedImuScanGeneration() const { return m_imuScanGenerationCompleted; }
 
     // Returns all registered devices, optionally filtered by type.
     QList<Device> devices() const;
@@ -107,4 +117,11 @@ private:
     bool m_audioOutputEnumerated = false;
     bool m_imuScanActive        = false;
     QThread *m_imuScanThread    = nullptr;
+
+    // IMU scan generation. Incremented at the START of each scan and stamped onto
+    // every device registered during it; the value of the just-finished scan is
+    // copied into m_imuScanGenerationCompleted when the scan completes. Together
+    // these let consumers prune devices absent from the latest completed scan.
+    int m_imuScanGeneration          = 0;
+    int m_imuScanGenerationCompleted = 0;
 };

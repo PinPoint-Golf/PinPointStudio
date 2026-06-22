@@ -183,6 +183,12 @@ private:
     // swingDetectionSensitivity ("Low"/"Medium"/"High") → detector threshold scale.
     static float impactScaleFor(const QString &sensitivity);
 
+    // True if the device appeared in the most recently completed BLE scan, OR is
+    // currently selected (a connected device stops advertising, so it would
+    // otherwise wrongly vanish). Drives the "present" flag in the chip lists —
+    // absent devices are hidden in the chip rows and dimmed in the Settings list.
+    bool isImuPresent(const Device &dev) const;
+
     // The shared IMU I/O thread (imu_io_thread_impl.md): hosts every device's
     // BLE driver + ImuIoWorker, so packet parse / fusion / impact detection /
     // ring writes never touch the GUI thread. One thread for all devices —

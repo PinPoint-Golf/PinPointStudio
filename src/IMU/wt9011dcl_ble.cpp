@@ -57,15 +57,11 @@ WT9011DCL_BLE::WT9011DCL_BLE(QObject *parent)
     : WT9011DCL_Base(parent)
     , m_transport(new BleImuTransport({"ffe5", "ffe4", "ffe9"}, this))
 {
-    // Forward transport signals as our own so callers need not know about BleImuTransport.
+    // Forward transport state changes as our own so callers need not know about
+    // BleImuTransport. (Device discovery is owned by DeviceEnumerator, so there
+    // is no deviceDiscovered/scanFinished surface to forward here.)
     connect(m_transport, &BleImuTransport::stateChanged,
             this,        &WT9011DCL_BLE::stateChanged);
-    connect(m_transport, &BleImuTransport::deviceDiscovered,
-            this,        &WT9011DCL_BLE::deviceDiscovered);
-    connect(m_transport, &BleImuTransport::rawDeviceFound,
-            this,        &WT9011DCL_BLE::rawDeviceFound);
-    connect(m_transport, &BleImuTransport::scanFinished,
-            this,        &WT9011DCL_BLE::scanFinished);
 
     // Forward transport-level connection events to ImuBase signals.
     connect(m_transport, &BleImuTransport::connected,

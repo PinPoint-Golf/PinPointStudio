@@ -32,8 +32,9 @@
 // ImuBleScanner — internal, runs in a QThread started by DeviceEnumerator.
 //
 // WT901 accept filter: name starts with "WT901" OR service UUID contains "ffe5".
-// (The connect-phase scan in BleImuTransport applies the equivalent match in
-// matchesPendingDevice(); this is the only place that filters during DISCOVERY.)
+// This is the ONLY WT901 discovery filter in the codebase. (BleImuTransport's
+// connect-phase scan is a different concern — it matches one already-selected
+// device by address/UUID in matchesPendingDevice(), not a discovery filter.)
 // ---------------------------------------------------------------------------
 
 class ImuBleScanner : public QObject
@@ -209,8 +210,10 @@ void DeviceEnumerator::registerImuDevice(ImuBase::Transport transport,
             // advertisement) carries newer data (RSSI, and on some platforms the
             // address type), and ImuInstance::start() connects on whatever handle
             // is stored here. Keep the entry + alias stable; the device list is
-            // unchanged, so no deviceAdded re-emit.
-            dev.platformHandle = platformHandle;
+            // unchanged, so no deviceAdded re-emit. Stamp the current scan
+            // generation so consumers know it was seen this scan.
+            dev.platformHandle        = platformHandle;
+            dev.lastSeenScanGeneration = m_imuScanGeneration;
             return;
         }
     }
@@ -221,6 +224,7 @@ void DeviceEnumerator::registerImuDevice(ImuBase::Transport transport,
     dev.description    = description;
     dev.imuCapabilities = capabilities;
     dev.platformHandle = platformHandle;
+    dev.lastSeenScanGeneration = m_imuScanGeneration;
     m_devices.append(dev);
     ppInfo() << "[IMU] Device found:" << description << id;
     emit deviceAdded(dev);
@@ -230,6 +234,9 @@ void DeviceEnumerator::scanImu()
 {
     if (m_imuScanActive) return;
     m_imuScanActive = true;
+    // New scan generation — devices re-discovered below get stamped with it, so
+    // anything left on an older generation was absent from this scan.
+    ++m_imuScanGeneration;
 
     // --- Serial ---
     // TODO: enumerate serial ports (e.g. /dev/ttyUSB*, /dev/ttyACM*, COM*) and
@@ -289,6 +296,9 @@ void DeviceEnumerator::scanImu()
                 // pointer (so aboutToQuit can't stop it → fatal abort). Keep the
                 // guard set until the thread has fully stopped.
                 if (m_imuScanThread) m_imuScanThread->quit();
+                // Publish the just-finished generation so consumers can prune
+                // devices that didn't re-appear this scan.
+                m_imuScanGenerationCompleted = m_imuScanGeneration;
                 emit imuScanFinished();
                 ppInfo() << "[IMU] Scan complete —"
                           << devices(DeviceType::Imu).count() << "IMU device(s) registered";

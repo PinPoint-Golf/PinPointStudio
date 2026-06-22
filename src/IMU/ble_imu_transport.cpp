@@ -131,15 +131,6 @@ void BleImuTransport::ensureScannerCreated()
             this, &BleImuTransport::onScanError);
 }
 
-void BleImuTransport::scan(int durationMs)
-{
-    if (m_state == State::Scanning) return;
-    ensureScannerCreated();
-    m_scanner->setLowEnergyDiscoveryTimeout(durationMs);
-    setState(State::Scanning);
-    m_scanner->start(QBluetoothDeviceDiscoveryAgent::LowEnergyMethod);
-}
-
 void BleImuTransport::stopScan()
 {
     if (m_scanner && m_scanner->isActive())
@@ -148,9 +139,6 @@ void BleImuTransport::stopScan()
 
 void BleImuTransport::onDeviceDiscovered(const QBluetoothDeviceInfo &device)
 {
-    emit rawDeviceFound(device);
-    emit deviceDiscovered(device);
-
 #ifdef Q_OS_LINUX
     // If we are waiting for the target device to appear in the scan (connect phase),
     // call doConnect() as soon as we see it — the scan is still active so the BlueZ
@@ -160,23 +148,25 @@ void BleImuTransport::onDeviceDiscovered(const QBluetoothDeviceInfo &device)
         emit diagnosticInfo(QStringLiteral("Target seen in scan — connecting now (scan still active)"));
         doConnect();
     }
+#else
+    Q_UNUSED(device)
 #endif
 }
 
 void BleImuTransport::onScanFinished()
 {
-    if (m_state == State::Scanning) {
-        setState(State::Disconnected);
+    // The discovery agent is only ever started here for the Linux connect-phase
+    // scan (warming the BlueZ advertising cache before connectToDevice). If it
+    // finishes/cancels while we were still waiting for the target, the device
+    // never appeared — fail so the owning class can retry. Any other finish
+    // (e.g. cancel after the link is up) is a no-op.
 #ifdef Q_OS_LINUX
-    } else if (m_waitingForScanConfirm) {
-        // Scan timed out (kConnectScanMs) before the target device was seen.
-        // Treat as a connection failure so the owning class can retry.
+    if (m_waitingForScanConfirm) {
         m_waitingForScanConfirm = false;
         setState(State::Error);
         emit errorOccurred(QStringLiteral("Device not found during connection scan — check device is powered on and advertising"));
-#endif
     }
-    emit scanFinished();
+#endif
 }
 
 void BleImuTransport::onScanError(QBluetoothDeviceDiscoveryAgent::Error error)

@@ -20,13 +20,27 @@ and the new `eskf_gyro_units_test`) passes 3/3.
 | **R0** Connection robustness | R0-1 watchdog · R0-2 failConnection+dedupe · R0-3 retry rework | ✅ done |
 | **R1** Lifecycle & shutdown   | R1-1 quit stop-barrier · R1-2 rapid-toggle guard · R1-3 rescan race · R1-4 stop() watchdog | ✅ R1-1/2/3 done · R1-4 deferred (needs Windows wedge evidence) |
 | **R2** Streaming integrity    | R2-1 nominal-dt · R2-2 frame resync · R2-3 0x71 gate · R2-4 stillness · R2-5 EMA · R2-6 clamp · R2-7 ESKF test | ✅ done (SwingLab-replay validation still pending) |
-| **R3** Discovery UX/hygiene   | R3-1 surface BT errors · R3-2 refresh handle · R3-3 prune · R3-4 dead code | ✅ R3-1/2 done · R3-4 comments fixed · R3-3 + dead-code deletion deferred |
+| **R3** Discovery UX/hygiene   | R3-1 surface BT errors · R3-2 refresh handle · R3-3 prune · R3-4 dead code | ✅ done (R3-3 + R3-4 landed 2026-06-22) |
 | **R4** Documentation          | R4-1 CLAUDE.md · R4-2 cross-link/status | ✅ done |
 
 **Deferred (with rationale):** R1-4 (bounded stop() watchdog — only warranted with an observed
-WinRT shutdown wedge); R3-3 (device pruning — a connected BLE device stops advertising, so
-"not seen this scan" would wrongly drop active devices without ImuManager connection-state
-coupling); R3-4 dead-code *deletion* (3-file, low-value; the comment fix landed).
+WinRT shutdown wedge).
+
+**Landed 2026-06-22 (the previously-deferred R3 items):**
+- **R3-4 dead-code deletion** — removed the unused `BleImuTransport::scan()`/`stopScan()`
+  public surface and the `deviceDiscovered`/`rawDeviceFound`/`scanFinished` signals + their
+  `WT9011DCL_BLE` forwarders. The shared scanner (`m_scanner`/`ensureScannerCreated()`) and the
+  internal `stopScan()` helper are kept — the Linux connect-phase scan reuses them. The audit's
+  "triplicated WT901 accept-filter" was inaccurate: the only discovery filter is in
+  `ImuBleScanner` (`device_enumerator.cpp`); `matchesPendingDevice()` is a generic
+  selected-device matcher, not a discovery filter (comment corrected, nothing to factor).
+- **R3-3 device pruning** — the connection-state coupling that made this safe now exists.
+  `DeviceEnumerator` carries a scan-generation counter; each device records the generation it
+  was last seen in, and the just-completed generation is published. `ImuManager` derives a
+  per-device `present` flag (`seen-in-latest-completed-scan OR currently selected`) so a
+  connected IMU that stops advertising is never dropped. Absent devices are hidden in the
+  CapturePage chip row and dimmed in the Settings / toolbar device lists. Behaviour validation
+  on real hardware (power-off → rescan → chip drops) remains an open gate.
 
 **Validation gates still open:** TSAN re-run for the R1 threading changes; a SwingLab replay
 pass over recorded swings to confirm the R2 fidelity changes reduce jitter without a
@@ -351,14 +365,18 @@ swings to confirm no orientation/detection regression.
 - [ ] **R3-2 (P2-8)** On re-discovery of a known `id`, update the stored `platformHandle`
   (`QBluetoothDeviceInfo`) instead of early-returning. *Accept:* a power-cycled device connects on
   fresh advertisement data on macOS/Windows.
-- [ ] **R3-3 (P3-1)** Mark devices "last seen" and prune/grey entries absent from the most recent
+- [x] **R3-3 (P3-1)** Mark devices "last seen" and prune/grey entries absent from the most recent
   completed scan (or add a `deviceRemoved` path). *Accept:* a powered-off IMU drops out of the
-  chip row after a re-scan.
-- [ ] **R3-4 (P3-7)** Remove the unused `BleImuTransport::scan()`/`deviceDiscovered` surface and
+  chip row after a re-scan. *Done 2026-06-22 via a scan-generation counter + derived `present`
+  flag coupled to ImuManager selection state; chip rows hide / Settings rows dim absent devices.
+  Hardware behaviour validation still pending.*
+- [x] **R3-4 (P3-7)** Remove the unused `BleImuTransport::scan()`/`deviceDiscovered` surface and
   the `WT9011DCL_BLE` forwarders (keep the Linux connect-phase scan, which is used), or factor the
   WT901 accept-filter into one shared helper; fix the stale comment referencing the deleted
   `WT9011DCL_BLE::onDeviceDiscovered()`. *Accept:* one discovery filter implementation; no dead
-  symbols; builds clean.
+  symbols; builds clean. *Done 2026-06-22; no accept-filter to factor (only one exists) — comment
+  corrected instead. Umbrella test suite (incl. imu_driver_frame_test, which compiles the driver
+  stack) green.*
 
 ### R4 — Documentation
 *Covers the documentation-drift items + landing this audit.*
