@@ -1,6 +1,6 @@
 # Pinpoint — The Lesson Model
 
-**Version:** 0.2 (draft)
+**Version:** 0.3 (draft)
 **Status:** Design paradigm — not yet implemented. Supersedes the flat "session" framing in [`pinpoint-ux-design.md`](pinpoint-ux-design.md).
 **Companion to:** [`personas.md`](personas.md) — every decision here traces to TP / EA / WN.
 
@@ -116,6 +116,12 @@ its spread**. Golf improvement is largely spread reduction, and no incumbent sur
 body-kinematic dispersion well. The assess headline is not "low point 2 cm back" — it is
 **"2 cm back, ±1 cm, *consistently*."** Consistency is the read.
 
+**A read may name one thing — or one relationship.** Some faults only make sense as a
+pair: swing path and face-to-path, or pelvis and thorax separation (X-factor). The block
+read carries the relationship and still resolves to one plain-language sentence. This is
+selectivity (§10), not a metric dump — and the surface renders it with one generic
+component, not a bespoke screen per pair (§15).
+
 Blocks are **emergent, not a wizard.** Default: the coach proposes the boundary as part of
 the conversation ("let me see five normal" opens an Assess block). The system may also
 *auto-segment* on intent shifts (club change, a pause) and offer a boundary to confirm. A
@@ -138,13 +144,31 @@ lesson + selectable lenses) and is the cleanest expression of "coach, not mirror
 produces the take-home. Whether the AI narrates or stays quiet is a setting — it never
 forks the product, and it never overrides her authority.
 
+Concretely, the coach becomes the right-hand **coach stream** (§7), and the Swing / Wrist /
+GRF lenses live in the per-shot **deep dive** (§15).
+
 ---
 
-## 7. The surface: a lesson feed
+## 7. The surface: a swing, a coach stream, a record
 
-The session view stops being a fixed panel layout (`live | replay | metrics | carousel`)
-and becomes a **chaptered coaching feed** — a lesson you scroll, like a transcript, with
-rich media inline as evidence:
+The surface does **not** dissolve into a single scroll, and it does **not** stay a fixed
+metrics dashboard. It folds onto the layout the app already has — **cameras on the left, a
+content chooser on the right** — and changes what the right-hand side is *for*:
+
+- **Cameras stay on the left, unchanged** — live, dual-angle, with pose and club-path
+  overlay. The swing is the evidence and keeps its real estate.
+- **The right-hand chooser becomes the coach stream** — a vertical, chaptered feed of the
+  coach *getting involved* (read · prescription · progress), plain-language, newest entry
+  live at the foot. This is where the four-mode chooser used to be: coaching replaces
+  "pick a panel."
+- **The carousel stays along the bottom** — the stream of recorded blocks and shots.
+  Structure crystallizes *here*, as a record of what happened.
+- **The full instrument demotes to a per-shot deep dive** — the EA taps a shot and the old
+  content fills the screen for that one swing, with Swing / Wrist / GRF as **lenses**
+  (§6, §15). "Show me everything" is allowed to be a mirror precisely because it is a
+  deliberate drill-down, not the default.
+
+The coach stream, chaptered (a zoom-in on the right pane):
 
 ```
 ┌ ASSESS · Driver · 6 ──────────────────────┐
@@ -161,6 +185,45 @@ rich media inline as evidence:
 │ Next lesson: re-test, then face control   │
 └───────────────────────────────────────────┘
 ```
+
+And the whole screen — cameras, stream, carousel, and the deep dive it opens:
+
+```
+┌ Lesson · Sam · 7-iron      Coach · prescribing            [ Wrap up ] ┐
+├─────────────────────────────────────────────┬────────────────────────┤
+│  CAMERAS — left, unchanged                   │  COACH STREAM — right   │
+│  ┌───────────────────────┐  ┌─────────┐      │  Assess   start line →  │
+│  │ down-the-line+overlay │  │ face-on │      │  Read     path × face,  │
+│  │ pose · club path      │  └─────────┘      │           starts right  │
+│  └───────────────────────┘                   │  Prescribe ▸ feel·drill │
+│  ▷ impact · shot 3         [ deep dive ]      │  ▸ talk to coach  on    │
+├──────────────────────────────────────────────┴────────────────────────┤
+│ CAROUSEL  [ Assess · 7i · ▣▣▣▣▣ ]   mark·drill·re-test    + hit to go   │
+└────────────────────────────────────────────────────────────────────────┘
+        tap a shot ──► DEEP DIVE   [ Swing | Wrist | GRF ]   full metrics
+```
+
+**The coach stream is the lesson arc — without a wizard.** The stages — *scope · assess ·
+read · prescribe · practice · re-test · wrap-up* — are not steps you click through; they
+are the shapes the **focus** at the head of the stream takes as the coach's attention
+moves. There is no "step 3 of 7, Next." The only forward action is **hitting another ball
+or talking to the coach**; structure appears *behind* you in the carousel as blocks get
+recorded. **Progress lives in the rear-view, not the windshield** — which is exactly what
+lets a tightly-run lesson still feel *discovered* (§3) rather than marched.
+
+| Stage | What the focus shows | What the carousel does |
+|-------|----------------------|------------------------|
+| **Scope** | intent — or "just hit, I'll find it" | empty; *hit to begin* |
+| **Assess** | dispersion forming; no verdict yet | the Assess block accrues |
+| **Read** | the pattern named — one thing **or one relationship** (path × face; pelvis × thorax) | Assess block completes |
+| **Prescribe** | one feel, one drill, one target | a Drill block opens |
+| **Practice** | target-progress: in-zone · trend · spread | the Drill block accrues |
+| **Re-test** | held-up read (optional, quick) | a Re-test block |
+| **Wrap-up** | the takeaway → seeds Practice Mode (§14) | the lesson, collapsed to a record |
+
+Tapping a block in the carousel rewinds the focus to that block's read: **the carousel is
+the navigation, the focus is the detail.** Moving through a lesson is browsing your own
+record, never advancing a flow.
 
 **Keep / demote discipline:**
 
@@ -207,7 +270,7 @@ User-facing name for a Block is an open decision (§11) — current lean is **"s
 Check every new surface against these, the way PRs are checked against `personas.md`:
 
 - **Does it coach, or does it mirror?** If the screen's job is to render numbers for the
-  user to interpret, it is a mirror. Find the one thing and say it.
+  user to interpret, it is a mirror. Find the one thing — or the one relationship — and say it.
 - **Is the unit a group or a shot?** Assessment and progress live at the **block** level.
   A screen that can only show one swing cannot diagnose.
 - **Does it conclude?** A lesson surface should move toward a takeaway, not just display
@@ -223,18 +286,18 @@ Check every new surface against these, the way PRs are checked against `personas
 
 ---
 
-## 11. Open decisions
+## 11. Decisions
 
-1. **Collapse Coach-as-mode into the lesson frame?** *Recommended: yes.* It simplifies the
-   rail, the start flow, and the IA, and it is the real differentiator. The alternative —
-   keep four peer modes and bolt "lesson" on top — preserves the current architecture but
-   keeps us one refactor away from the Trackman clone. This decision drives the rail and
-   the wizard, so settle it first.
-2. **Is the lesson a coaching *agent* or a coaching *document* for the TP?** Does she get a
-   manual lesson-builder (she structures the blocks) or does the coach drive and she edits?
-   Determines whether the block layer is active or passive for the professional.
-3. **User-facing name for a Block.** Lean "**set**"; role as the label ("Baseline",
-   "Drill: low point", "Re-test").
+1. **Collapse Coach-as-mode into the lesson frame? — Resolved: yes.** The right-hand
+   content chooser becomes the **coach stream** (§7); Swing / Wrist / GRF survive as
+   per-shot **lenses** (§6, §15). It simplifies the rail, the start flow, and the IA, and
+   it is the real differentiator.
+2. **Coaching *agent* or *document* for the TP? — Resolved: both, through one seam.** The
+   coach **engine drives** (it emits the structured stream) and the TP **edits**;
+   `AppSettings.coachNarration` decides only whether it also narrates aloud (§15). The
+   block layer is active, not a separate manual builder.
+3. **User-facing name for a Block — still open.** Internal model is `Block`; user-facing
+   lean remains "**set**", role as the label ("Baseline", "Drill: low point", "Re-test").
 
 ---
 
@@ -324,7 +387,146 @@ Do not rebuild the session shell first. Each slice ships standalone and earns th
    pattern. Validates that the group read feels truer than the shot read.
 3. **Drill block + target-progress + felt cue** — the prospective loop.
 4. **Cross-lesson thread** — last takeaway → this lesson's opening hypothesis.
-5. **Coach as frame** — only after 1–4 land, restructure the rail/start flow (decision §11.1).
+5. **Coach as frame** — only after 1–4 land, restructure the rail/start flow (decision
+   §11.1): swap the right-hand chooser for `PpCoachStream` (§15).
+
+**Where the templates first live.** Slices 2–3 ship inside **Practice Mode** (§14) — a far
+smaller shell than the full lesson screen — so the focus-zone templates (§15) accumulate
+there before the right-hand side is ever swapped (slice 5). The shell is never rebuilt up
+front.
+
+---
+
+## 14. Practice Mode — the between-lessons loop
+
+A lesson is an occasional event; **practice is the habit.** The most-used surface is not
+the lesson — it is the loop the golfer runs *between* lessons, and it falls out of the
+take-home for free.
+
+When a lesson concludes, its takeaway (target metric · goal zone · the one feel · the
+drill) **seeds a standalone Practice Mode session.** Same vocabulary as the lesson,
+stripped to the loop: the feel pinned, reps measured against the prescribed target, and —
+critically — **honest reads only.** No synthetic score.
+
+```
+┌ Practice · from your last lesson                 session 2 of the week ┐
+│ 📌 release the face — logo left of target                              │
+│ goal: face-to-path square · ±2°                                        │
+│ ● ● ●   ● ●   ●●●●●  ──[ square ]──                                     │
+│ in zone 13/20   ·   vs lesson 5/8 → 13/20   ·   spread ±3° → ±1.2°      │
+│ starting to stick → next lesson: re-test face control                  │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+Three reads, never a 0–100: **rate in zone** (efficacy), **trend vs the lesson baseline**
+(improvement), and **spread** (stickiness — dispersion is first-class, §5). All three are
+real measurements against the *one* prescribed metric. This is the §10 / §12.2 discipline
+applied to a *scoring* surface — the place most likely to regress into a mirror, where a
+fake composite would be the mirror's sin.
+
+The result threads forward (§8): "was 5/8, now 13/20" becomes the next lesson's opening
+hypothesis. The loop closes:
+
+```
+Lesson  ──prescribes──►  Practice Mode  ──measures──►  next Lesson
+(occasional, coached)    (daily, mostly silent)        (re-scopes)
+```
+
+Per persona: the WN's emotional fuel (visible progress on a *named* thing), the EA's "what
+to work on next" made actionable, the TP's take-home turned into measured homework. And it
+is **cheap** — Practice Mode reuses the lesson's own focus-zone templates (§15);
+`PpReadProgress` is the Drill view, standalone. It is therefore the natural *first host*
+for build slices §13.2–§13.3.
+
+---
+
+## 15. The QML surface architecture
+
+The fold is mostly a **navigation refactor**, not a rebuild. The right pane stops being a
+chooser and becomes a model-driven coach stream; the old modes stop being top-level
+destinations and become per-shot lenses. The tree, with what is reused / refactored /
+net-new:
+
+```
+PpLessonScreen
+├─ PpLessonTopBar
+├─ RowLayout
+│  ├─ PpCameraStage ........... LEFT — current camera side, ~unchanged    [reuse]
+│  │  ├─ PpCameraView + PpSwingOverlay   (RHI / VideoOutput + Shapes)
+│  │  ├─ PpCameraPip (face-on)
+│  │  └─ PpScrubBar
+│  └─ PpCoachStream .......... RIGHT — replaces the content chooser       [new]
+│     ├─ ListView(CoachStreamModel) → DelegateChooser → PpRead* templates
+│     └─ PpCoachComposer (mic / coach on·off)
+├─ PpShotCarousel ............ BOTTOM — existing component                [reuse]
+└─ StackView → PpShotDeepDive ....... per-shot drill-down                 [refactor]
+   ├─ PpLensBar (Swing | Wrist | GRF)
+   └─ Loader → Pp{Swing,Wrist,Grf}Lens   (current modes, as lenses)
+```
+
+**The focus zone is a state machine, not seven screens.** Each lesson stage (§7) is one
+delegate template — `PpReadIntent / Dispersion / Relationship / Prescription / Progress /
+Held / Takeaway` — chosen by entry `kind`. The same templates render compact in the stream
+and full-size in Practice Mode (§14): **one component, two hosts.** `PpReadRelationship` is
+generic over its *levers*, so path × face and pelvis × thorax X-factor are the same
+component with different data — the "related things" requirement (§5) lives in the data,
+not in bespoke screens.
+
+```qml
+// PpCoachStream.qml — the coach getting involved, model-driven
+ListView {
+    model: coachStreamModel
+    onCountChanged: positionViewAtEnd()          // keep the live entry in view
+    delegate: DelegateChooser {                  // Qt.labs.qmlmodels (mobile-safe)
+        role: "kind"
+        DelegateChoice { roleValue: "read"
+            PpReadRelationship {
+                headline: model.headline
+                levers:   model.levers           // [{label,value,token}] ← kinematic Theme tokens
+                outcome:  model.outcome
+                live:     model.state === "live"
+                onActivated: carousel.scrollToBlock(model.blockId)   // tap entry → rewind focus
+            }
+        }
+        // intent · dispersion · prescribe · progress · held · takeaway · chat …
+    }
+}
+```
+
+**The coach that "gets involved" is an abstract + factory seam — the §12.1 wire made real:**
+
+```cpp
+class ICoach : public QObject {                  // base; RuleCoach now, LlmCoach later
+    virtual void observe(const Block&) = 0;       // -> emits CoachEntry
+signals: void entryProduced(CoachEntry); void statusChanged(QString);
+};
+// CoachEngineFactory::create(AppSettings::coachKind()) -> ICoach*
+// RuleCoach reuses WristAssessmentEngine / Fault{title,cause,drill,pointsLost,phase}
+// CoachStreamModel : QAbstractListModel
+//   roles: Kind, Headline, Levers, Outcome, BlockId, ShotId, State, Ts
+//   fed by entryProduced — this IS the §12.1 latent asset, wired to the screen.
+```
+
+**Silent coach (§6, decision §11.2):** `AppSettings.coachNarration = false` forks nothing.
+The engine still emits the structured entries — the stream still builds, the TP can still
+edit — it merely suppresses voice / auto-narration. The coach *drives but is editable.*
+
+**Lenses are a registry/factory:** `LensRegistry` maps an id to a `Component`, so a new
+lens never edits `PpShotDeepDive`. `ModeSwingAnalysis / ModeWrist / ModeGrf` become
+`Pp{Swing,Wrist,Grf}Lens`, re-parameterised to take a `shot` instead of owning capture; the
+**AI-Coach mode is deleted** — it became the stream.
+
+**Reused / refactored / net-new.** Reused as-is: `PpShotCarousel`, `Theme`, the camera
+stage, EventBuffer / analysis, `WristAssessmentEngine` / `Fault`. Refactored, not rebuilt:
+RHS chooser → `PpCoachStream`; modes → `Pp*Lens(shot)`; AI-Coach → removed. Net-new:
+`PpCoachStream` + the `PpRead*` templates, `ICoach` / `CoachEngine` + `CoachStreamModel`,
+the `Lesson` / `Block` model + repository, `LensRegistry`.
+
+**Slice mapping (§13).** Slice 1 (Wrap-up) needs only `PpReadTakeaway` + a
+`CoachStreamModel` run over an existing session's shots — no capture changes. Slices 2–3
+are `PpReadDispersion` + `PpReadProgress`, first hosted in Practice Mode (§14). The RHS swap
+to `PpCoachStream` is the *last* step, once the templates already exist. The templates ship
+one at a time before the screen ever changes; the shell is never rebuilt up front.
 
 ---
 
@@ -334,3 +536,8 @@ it as slices land; preserve prior versions with a date stamp rather than overwri
 
 *v0.2 (2026-06-22): added §12 — current-state audit mapping the functionality gap analysis onto
 the model; build path renumbered §12 → §13.*
+
+*v0.3 (2026-06-22): folded the resolved capture surface into §7 (cameras left · coach stream
+right · carousel · per-shot deep-dive lenses; the lesson arc as an emergent, non-wizard focus
+zone); added §14 (Practice Mode — the between-lessons loop) and §15 (QML surface architecture);
+resolved decisions §11.1–§11.2; noted related-pair reads in §5 and §10.*
