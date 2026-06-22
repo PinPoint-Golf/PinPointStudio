@@ -1,6 +1,6 @@
 # Pinpoint — The Lesson Model
 
-**Version:** 0.1 (draft)
+**Version:** 0.2 (draft)
 **Status:** Design paradigm — not yet implemented. Supersedes the flat "session" framing in [`pinpoint-ux-design.md`](pinpoint-ux-design.md).
 **Companion to:** [`personas.md`](personas.md) — every decision here traces to TP / EA / WN.
 
@@ -94,7 +94,7 @@ Open ──────────► In progress ─────────�
 The new moment that does not exist today is **Wrap-up**. Ending a lesson *produces
 something* — the takeaway — instead of merely stopping a recording. "End session" becomes
 **"Wrap up."** It is the smallest surface that proves the whole reframe, and the first
-thing to build (§12).
+thing to build (§13).
 
 ---
 
@@ -238,7 +238,81 @@ Check every new surface against these, the way PRs are checked against `personas
 
 ---
 
-## 12. Build path (de-risked slices)
+## 12. Where the product stands against this model
+
+A June 2026 functionality audit — *what would a user expect to do here, and can't?* — maps
+cleanly onto this reframe. The gaps sort into four kinds. Three bear directly on the lesson
+model and are recorded here; the fourth is operational debt the model deliberately keeps off
+the lesson surface (§10) but which still gates whether a lesson can be captured at all. Within
+each, highest-leverage first.
+
+### 12.1 Latent assets — built, waiting to be surfaced
+
+The shortest path to "coach, not mirror" is wiring up capability that already exists.
+
+- **The coaching read for Wrist is built but invisible.** `WristAssessmentEngine` and the
+  fault rules are implemented and unit-tested (Cast, Flip, Over-rotation, Holding-off,
+  Chicken-wing, Open-face-at-top); the `Fault{title, cause, drill, pointsLost, phase}` object
+  is defined. But `WristAnalyzer::analyze()` never calls the engine, `detail->faults` is never
+  populated, and no surface renders it. **This is the §1 thesis — the coach's "one thing" plus
+  its drill — sitting one wire from the screen.** It is the cheapest proof of the reframe after
+  Wrap-up, and should be built alongside slice §13.1. [WN: the plain-language read. EA: what to
+  work on. TP: corroborates her eye.]
+- **Thumbnails.** The exporter writes `thumb.jpg`, yet the shot card still draws a placeholder
+  — likely a missing binding, not missing capability. *(Verify the wiring.)*
+
+### 12.2 Mirror-debt — where the product still reflects instead of coaching
+
+These are the §10 heuristic violations the model exists to correct.
+
+- **A number wearing authority it hasn't earned.** The Swing / GRF / Coach analyzers emit a
+  *deterministic placeholder score* (seeded from the impact timestamp) and an empty metric set.
+  For a lens that does not yet produce a real read, a fake score is worse than silence — it is
+  the mirror's sin (a value to interpret) with none of the mirror's honesty. **Until a lens
+  produces a genuine read, it must show no score.** [heuristic: "find the one thing and say it."]
+  *(These modes are gated behind "coming soon" today; confirm no capture path reaches them.)*
+- **A lesson that cannot conclude.** "End session" still only stops a recording — there is no
+  Wrap-up and no takeaway. This is exactly the missing moment §4 names; it is build slice §13.1
+  for a reason.
+
+### 12.3 Missing journey scaffolding — the across-lessons layer (§8)
+
+The coaching journey has no data layer yet.
+
+- **Every shot is analysed in isolation.** There is no aggregation, no spread across a block,
+  no named thread tracked over lessons; the only comparison that exists is a pairwise
+  "vs. previous" ghost on the wrist chart, and re-analysis is stubbed. The dispersion read (§5)
+  and the curriculum (§8) both depend on this layer and neither has it. [EA: "what next." WN:
+  visible progress on a named thing.]
+- **No takeaway object to thread.** Nothing carries one lesson's conclusion into the next
+  lesson's opening hypothesis (§8).
+- **History is a log, not a curriculum.** Shot history filters on quality / rating / video but
+  cannot search or sort by date or club, and offers no shot-to-shot comparison beyond the wrist
+  ghost.
+
+### 12.4 Operational debt — real, but off the lesson surface
+
+The model keeps engineering and reliability concerns in **System**, never the feed (§10), so
+these get no lesson surface. They are recorded here only so the reframe is not mistaken for
+"the plumbing is fine": they gate whether a lesson can be captured at all, and belong in the
+engineering backlog, not this document.
+
+- Camera connection failures are silent — no error shown, no retry (IMUs retry; cameras don't).
+- Mid-session device dropouts and low battery are not surfaced during capture.
+- Calibration status is invisible on the capture screen — a whole lesson can be recorded on a
+  stale or failed calibration.
+- Settings that silently don't take effect (live framerate, camera trigger mode).
+- No storage visibility or cleanup; no per-shot export (bulk ZIP only); no in-app trash recovery.
+- Multi-IMU wrist rig: no placement guidance and no mismount detection — sensors can be swapped
+  and record the wrong segment with no warning.
+
+**Read against the build path (§13):** surfacing the Wrist coaching read (§12.1) alongside the
+Wrap-up view (§13.1) converts the largest latent asset into the cheapest proof of the reframe;
+the journey scaffolding (§12.3) is the data layer that slices §13.2–§13.4 depend on.
+
+---
+
+## 13. Build path (de-risked slices)
 
 Do not rebuild the session shell first. Each slice ships standalone and earns the next.
 
@@ -254,6 +328,9 @@ Do not rebuild the session shell first. Each slice ships standalone and earns th
 
 ---
 
-*Maintained alongside `personas.md` and `pinpoint-ux-design.md`. This document describes
-intended paradigm, not current implementation. Update it as slices land; preserve prior
-versions with a date stamp rather than overwriting.*
+*Maintained alongside `personas.md` and `pinpoint-ux-design.md`. This document describes the
+intended paradigm; §12 is the one exception, auditing current implementation against it. Update
+it as slices land; preserve prior versions with a date stamp rather than overwriting.*
+
+*v0.2 (2026-06-22): added §12 — current-state audit mapping the functionality gap analysis onto
+the model; build path renumbered §12 → §13.*
