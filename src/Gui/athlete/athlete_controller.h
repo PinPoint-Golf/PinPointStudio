@@ -45,6 +45,23 @@ public:
     QVariantList athletes()          const { return m_athletes; }
     QVariantList recentSessions()    const { return {}; }
 
+    // Upsert: empty uuid creates a new athlete (returns its new uuid); a non-empty,
+    // existing uuid updates in place (returns that uuid). Returns "" on failure
+    // (empty name, or unknown uuid on update). Performs cm->ft / kg->lb conversion.
+    Q_INVOKABLE QString saveAthlete(
+        const QString &uuid,                                    // "" = create
+        const QString &name,
+        const QString &handedness  = QStringLiteral("Right"),
+        double         heightValue = 0.0,
+        const QString &heightUnit  = QStringLiteral("ft"),
+        double         weightValue = 0.0,
+        const QString &weightUnit  = QStringLiteral("lb"),
+        double         handicap    = -999.0,
+        const QString &primaryClub = QStringLiteral("Driver"),
+        double         speedTarget = 0.0,
+        const QString &notes       = QString()
+    );
+
     Q_INVOKABLE QString createAthlete(
         const QString &name,
         const QString &handedness  = QStringLiteral("Right"),

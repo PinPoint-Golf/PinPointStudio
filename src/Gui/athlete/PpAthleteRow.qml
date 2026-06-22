@@ -27,6 +27,7 @@ Item {
     property int  rowIndex:    0
 
     signal clicked()
+    signal editRequested()
 
     height: Theme.sp(44)
 
@@ -140,21 +141,43 @@ Item {
             }
         }
 
-        // Chevron
-        Text {
-            width:          Theme.sp(16)
-            horizontalAlignment: Text.AlignRight
+        // Edit affordance — pencil-on-hover (display only; the hit-target is the
+        // root-level chevronMa below, stacked above rowPress).
+        Item {
+            width:  Theme.sp(16)
+            height: parent.height
             anchors.verticalCenter: parent.verticalCenter
-            text:           "›"
-            font.family:    Theme.fontBody
-            font.pixelSize: Theme.fontSzBody
-            color:          Theme.colorText3
+
+            Text {
+                anchors.centerIn: parent
+                text: (chevronMa.containsMouse || rowPress.containsMouse) ? "✎" : "›"
+                font.family:    Theme.fontBody
+                font.pixelSize: Theme.fontSzBody
+                color:          chevronMa.containsMouse ? Theme.colorAccent : Theme.colorText3
+            }
         }
     }
 
     PpPressable {
-        id:         rowPress
-        hoverScale: 1.0
-        onClicked:  root.clicked()
+        id:              rowPress
+        hoverScale:      1.0
+        onClicked:       root.clicked()
+        onDoubleClicked: root.editRequested()
+    }
+
+    // Dedicated edit hit-target over the chevron column. Declared AFTER rowPress
+    // so it sits on top: a click on the pencil routes to edit, while clicks
+    // anywhere else on the row fall through to rowPress and select.
+    MouseArea {
+        id: chevronMa
+        anchors {
+            right:  parent.right
+            top:    parent.top
+            bottom: parent.bottom
+        }
+        width:        Theme.sp(28)
+        hoverEnabled: true
+        cursorShape:  Qt.PointingHandCursor
+        onClicked:    root.editRequested()
     }
 }

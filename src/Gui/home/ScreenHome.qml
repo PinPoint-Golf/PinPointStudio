@@ -25,6 +25,7 @@ Item {
 
     signal addAthleteRequested()
     signal athletePickerRequested()
+    signal editCurrentAthleteRequested()
     signal startSessionRequested(int sessionTypeIndex)
     // Coming-soon types skip the session wizard and jump straight to their
     // (placeholder) rail screen.
@@ -242,7 +243,8 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     color:        Theme.colorAccentLight
                     border.width: 1
-                    border.color: Theme.colorAccentMid
+                    border.color: avatarPress.containsMouse ? Theme.colorAccent : Theme.colorAccentMid
+                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
                     Text {
                         anchors.centerIn: parent
@@ -250,6 +252,12 @@ Item {
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.sp(16)
                         color:          Theme.colorAccent
+                    }
+
+                    // Click the athlete avatar to edit the current athlete's profile.
+                    PpPressable {
+                        id:        avatarPress
+                        onClicked: root.editCurrentAthleteRequested()
                     }
                 }
 

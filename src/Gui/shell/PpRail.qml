@@ -86,8 +86,13 @@ Item {
             color:  athleteController.hasCurrentAthlete
                         ? Theme.colorAccentLight : "transparent"
             border.width: athleteController.hasCurrentAthlete ? 1 : 1
+            // Brighten the border on hover, matching the home-screen avatar.
             border.color: athleteController.hasCurrentAthlete
-                              ? Theme.colorAccentMid : Theme.colorBorderStrong
+                              ? (railAvatarPress.containsMouse ? Theme.colorAccent
+                                                              : Theme.colorAccentMid)
+                              : (railAvatarPress.containsMouse ? Theme.colorText3
+                                                              : Theme.colorBorderStrong)
+            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
             // Dashed border for the "no athlete" state — overlay a dotted Rectangle
             Rectangle {
@@ -95,8 +100,10 @@ Item {
                 radius:        parent.radius
                 color:         "transparent"
                 border.width:  1
-                border.color:  Theme.colorBorderStrong
+                border.color:  railAvatarPress.containsMouse ? Theme.colorText3
+                                                            : Theme.colorBorderStrong
                 visible:       !athleteController.hasCurrentAthlete
+                Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
                 // QML doesn't support dashed borders natively; solid low-opacity suffices
             }
 
@@ -113,6 +120,7 @@ Item {
             PpPressable {
                 // Athlete picker (index 7) is unreachable while the wizard is
                 // open or a session is active.
+                id:             railAvatarPress
                 enabled:        !root.locked && root.sessionLockIndex < 0
                 confirmOnClick: true
                 onClicked:      root.avatarClicked()

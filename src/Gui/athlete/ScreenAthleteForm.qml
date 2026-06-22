@@ -35,6 +35,57 @@ Item {
     property string weightUnit:     "lb"
     property string primaryClub:    "Driver"
 
+    // "" = create mode; a uuid = edit that athlete.
+    property string editUuid: ""
+
+    onEditUuidChanged: loadForEdit()
+    Component.onCompleted: loadForEdit()
+
+    function resetForm() {
+        nameField.text     = ""
+        handedness         = "Right"
+        heightField.text   = ""
+        heightUnit         = "ft"
+        weightField.text   = ""
+        weightUnit         = "lb"
+        handicapField.text = ""
+        primaryClub        = "Driver"
+        speedField.text    = ""
+        notesField.text    = ""
+        nameError          = false
+    }
+
+    function loadForEdit() {
+        if (editUuid === "") { resetForm(); return }
+
+        const a = athleteController.athletes.find(function(x) { return x.uuid === editUuid })
+        if (!a) { resetForm(); return }
+
+        nameField.text     = a.name || ""
+        handedness         = a.handedness  || "Right"
+        primaryClub        = a.primaryClub || "Driver"
+        handicapField.text = (a.handicap !== undefined && a.handicap > -900) ? String(a.handicap) : ""
+        speedField.text    = (a.speedTarget && a.speedTarget > 0) ? String(a.speedTarget) : ""
+        notesField.text    = a.notes || ""
+
+        // Height/weight are STORED in base units (ft / lb) but the athlete carries a
+        // saved display-unit preference. Convert the stored value back into that unit
+        // so the number and the toggle agree.
+        heightUnit = (a.heightUnit === "cm") ? "cm" : "ft"
+        heightField.text = (a.heightValue && a.heightValue > 0)
+            ? (heightUnit === "cm" ? (a.heightValue * 30.48).toFixed(1)
+                                   : a.heightValue.toFixed(2))
+            : ""
+
+        weightUnit = (a.weightUnit === "kg") ? "kg" : "lb"
+        weightField.text = (a.weightValue && a.weightValue > 0)
+            ? (weightUnit === "kg" ? (a.weightValue / 2.20462).toFixed(1)
+                                   : a.weightValue.toFixed(1))
+            : ""
+
+        nameError = false
+    }
+
     function validate(): bool {
         nameError = nameField.text.trim() === ""
         return !nameError
@@ -47,7 +98,8 @@ Item {
         const handicap = isNaN(hcp) ? -999.0 : hcp
         const speed = parseFloat(speedField.text) || 0.0
 
-        return athleteController.createAthlete(
+        return athleteController.saveAthlete(
+            root.editUuid,            // "" creates, uuid updates
             nameField.text.trim(),
             handedness,
             hv, heightUnit,
@@ -80,7 +132,7 @@ Item {
                 bottomPadding:      10
             }
             PpDisplayText {
-                text: qsTr("New athlete")
+                text: root.editUuid === "" ? qsTr("New athlete") : qsTr("Edit athlete")
             }
             Item { width: 1; height: 6 }
             Text {
@@ -545,7 +597,8 @@ Item {
                     onClicked: root.cancelled()
                 }
                 PpButton {
-                    label: qsTr("Save")
+                    label:   root.editUuid === "" ? qsTr("Save") : qsTr("Save changes")
+                    primary: root.editUuid !== ""        // primary in edit mode (no Save-and-start there)
                     onClicked: {
                         if (!validate()) return
                         const uuid = doSave()
@@ -553,7 +606,8 @@ Item {
                     }
                 }
                 PpButton {
-                    label: qsTr("Save and start ↗")
+                    visible: root.editUuid === ""        // create flow only
+                    label:   qsTr("Save and start ↗")
                     primary: true
                     onClicked: {
                         if (!validate()) return

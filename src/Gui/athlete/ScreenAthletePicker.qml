@@ -26,6 +26,7 @@ Item {
 
     signal athleteSelected(string uuid)
     signal newAthleteRequested()
+    signal editAthleteRequested(string uuid)
 
     property string selectedUuid: athleteController.currentUuid
 
@@ -193,6 +194,10 @@ Item {
                         rowIndex:    index
                         isSelected:  modelData.uuid === root.selectedUuid
                         onClicked:   root.selectedUuid = modelData.uuid
+                        onEditRequested: {
+                            root.selectedUuid = modelData.uuid
+                            root.editAthleteRequested(modelData.uuid)
+                        }
                     }
                 }
             }
@@ -211,6 +216,11 @@ Item {
                 PpButton {
                     label:    qsTr("Import roster")
                     onClicked: console.log("Import roster pressed")
+                }
+                PpButton {
+                    label:   qsTr("Edit athlete")
+                    enabled: root.selectedUuid !== ""
+                    onClicked: root.editAthleteRequested(root.selectedUuid)
                 }
                 Item { Layout.fillWidth: true }
                 PpButton {

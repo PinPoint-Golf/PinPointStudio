@@ -134,7 +134,8 @@ void AthleteController::reload()
     emit currentAthleteChanged();
 }
 
-QString AthleteController::createAthlete(
+QString AthleteController::saveAthlete(
+    const QString &uuid,
     const QString &name,
     const QString &handedness,
     double         heightValue,
@@ -149,10 +150,22 @@ QString AthleteController::createAthlete(
     if (name.trimmed().isEmpty())
         return {};
 
-    const QString uuid = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    const qint64  now  = QDateTime::currentSecsSinceEpoch();
+    const bool creating = uuid.isEmpty();
+    QString    targetUuid = uuid;
 
-    // Convert to base unit before storing (always ft / lb)
+    QSettings s = ppSettings();
+
+    if (creating) {
+        targetUuid = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    } else {
+        s.beginGroup(kGroup);
+        const bool exists = s.childGroups().contains(uuid);
+        s.endGroup();
+        if (!exists)
+            return {};                       // unknown uuid -> no-op
+    }
+
+    // Convert to base unit before storing (always ft / lb).
     double storedHeight = heightValue;
     if (heightUnit == QLatin1String("cm") && heightValue > 0.0)
         storedHeight = heightValue / 30.48;
@@ -161,32 +174,57 @@ QString AthleteController::createAthlete(
     if (weightUnit == QLatin1String("kg") && weightValue > 0.0)
         storedWeight = weightValue * 2.20462;
 
-    QSettings s = ppSettings();
     s.beginGroup(kGroup);
-    s.beginGroup(uuid);
+    s.beginGroup(targetUuid);
 
-    s.setValue(kName,          name.trimmed());
-    s.setValue(kHandedness,    handedness);
-    s.setValue(kHeightValue,   storedHeight);
-    s.setValue(kHeightUnit,    heightUnit);
-    s.setValue(kWeightValue,   storedWeight);
-    s.setValue(kWeightUnit,    weightUnit);
-    s.setValue(kHandicap,      handicap);
-    s.setValue(kPrimaryClub,   primaryClub);
-    s.setValue(kSpeedTarget,   speedTarget);
-    s.setValue(kNotes,         notes);
-    s.setValue(kCreatedAt,     now);
-    s.setValue(kLastSessionAt, 0LL);
-    s.setValue(kSessionCount,  0);
+    s.setValue(kName,        name.trimmed());
+    s.setValue(kHandedness,  handedness);
+    s.setValue(kHeightValue, storedHeight);
+    s.setValue(kHeightUnit,  heightUnit);
+    s.setValue(kWeightValue, storedWeight);
+    s.setValue(kWeightUnit,  weightUnit);
+    s.setValue(kHandicap,    handicap);
+    s.setValue(kPrimaryClub, primaryClub);
+    s.setValue(kSpeedTarget, speedTarget);
+    s.setValue(kNotes,       notes);
+
+    if (creating) {
+        const qint64 now = QDateTime::currentSecsSinceEpoch();
+        s.setValue(kCreatedAt,     now);
+        s.setValue(kLastSessionAt, 0LL);
+        s.setValue(kSessionCount,  0);
+    }
+    // On update: createdAt / lastSessionAt / sessionCount are intentionally
+    // left untouched.
 
     s.endGroup(); // uuid
     s.endGroup(); // athletes
 
-    s.setValue(kCurrentUuid, uuid);
-    s.sync();
+    if (creating)
+        s.setValue(kCurrentUuid, targetUuid);   // auto-select new athlete
+    // On update: do NOT change the current selection.
 
+    s.sync();
     reload();
-    return uuid;
+    return targetUuid;
+}
+
+QString AthleteController::createAthlete(
+    const QString &name,
+    const QString &handedness,
+    double         heightValue,
+    const QString &heightUnit,
+    double         weightValue,
+    const QString &weightUnit,
+    double         handicap,
+    const QString &primaryClub,
+    double         speedTarget,
+    const QString &notes)
+{
+    return saveAthlete(QString(), name, handedness,
+                       heightValue, heightUnit,
+                       weightValue, weightUnit,
+                       handicap, primaryClub, speedTarget, notes);
 }
 
 bool AthleteController::updateAthlete(const QString &uuid, const QString &fieldName, const QVariant &value)

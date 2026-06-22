@@ -401,8 +401,11 @@ ApplicationWindow {
             PpHeader {
                 id: appHeader
                 Layout.fillWidth: true
-                screenName: navController.currentIndex < screenNames.length
-                            ? screenNames[navController.currentIndex] : ""
+                screenName: navController.currentIndex === root.screenNewAthlete
+                            ? (athleteFormScreen.editUuid === "" ? qsTr("New athlete")
+                                                                 : qsTr("Edit athlete"))
+                            : (navController.currentIndex < screenNames.length
+                               ? screenNames[navController.currentIndex] : "")
                 showVersionPill: navController.currentIndex === root.screenSettings
                 // Session screens (Swing/Wrist/GRF/Coach) gate the centred DETECT
                 // cluster the header hosts during live Capture.
@@ -451,8 +454,17 @@ ApplicationWindow {
                 currentIndex: navController.currentIndex
 
                 ScreenHome {                                               // screenHome — home / default
-                    onAddAthleteRequested:    navController.navigate(root.screenNewAthlete)
+                    onAddAthleteRequested: {
+                        athleteFormScreen.editUuid = ""
+                        navController.navigate(root.screenNewAthlete)
+                    }
                     onAthletePickerRequested: navController.navigate(root.screenAthletes)
+                    // Tapping the home avatar edits the current athlete's profile.
+                    onEditCurrentAthleteRequested: {
+                        athleteFormScreen.editUuid = athleteController.currentUuid
+                        athleteFormScreen.loadForEdit()   // force a fresh load even if uuid is unchanged
+                        navController.navigate(root.screenNewAthlete)
+                    }
                     onStartSessionRequested: function(sessionTypeIndex) {
                         sessionWizard.reset(sessionTypeIndex)
                         navController.navigate(root.screenWizard)
@@ -469,13 +481,30 @@ ApplicationWindow {
                 ScreenPlaceholder { iconText: "✦"; titleText: qsTr("Coach") }                   // screenCoach — coming soon
                 PlayPage {}                                                // screenPlay — dev-hatch only
                 ScreenAthleteForm {                                        // screenNewAthlete — new athlete form
-                    onCancelled:       navController.navigate(root.screenHome)
-                    onSaved:           navController.navigate(root.screenAthletes)
-                    onSavedAndStarted: navController.navigate(root.screenAthletes)
+                    id: athleteFormScreen
+                    // Dismiss (Cancel / close ✕) returns to the origin screen, the
+                    // same target the header ‹ arrow reaches.
+                    onCancelled: {
+                        athleteFormScreen.editUuid = ""
+                        navController.back()
+                    }
+                    onSaved: {
+                        const wasEdit = athleteFormScreen.editUuid !== ""
+                        athleteFormScreen.editUuid = ""
+                        // Edit: return to the origin (home or picker). Create: land on
+                        // the picker so the new athlete is visible and selected.
+                        if (wasEdit) navController.back()
+                        else         navController.navigate(root.screenAthletes)
+                    }
+                    onSavedAndStarted: { athleteFormScreen.editUuid = ""; navController.navigate(root.screenAthletes) }
                 }
                 ScreenAthletePicker {                                      // screenAthletes — athlete picker
                     onAthleteSelected:     navController.navigate(root.screenHome)
-                    onNewAthleteRequested: navController.navigate(root.screenNewAthlete)
+                    onNewAthleteRequested: { athleteFormScreen.editUuid = ""; navController.navigate(root.screenNewAthlete) }
+                    onEditAthleteRequested: function(uuid) {
+                        athleteFormScreen.editUuid = uuid
+                        navController.navigate(root.screenNewAthlete)
+                    }
                 }
                 ScreenResourceMonitor {                                    // screenSystem — system resource monitor
                     onNavigateToSettings: function(panelIndex) {
