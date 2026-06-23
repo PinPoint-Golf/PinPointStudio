@@ -308,7 +308,7 @@ Item {
 
             // Controls (right)
             Rectangle {
-                Layout.preferredWidth: Theme.sp(248)
+                Layout.preferredWidth: Theme.sp(496)
                 Layout.fillHeight: true
                 color: Theme.colorBg
                 ScrollView {
@@ -323,7 +323,10 @@ Item {
                     // ScrollViews, e.g. ScreenAthleteForm.)
                     contentWidth: width
                     Column {
-                    width: ctrlScroll.width
+                    // Reserve a constant right gutter (independent of scrollbar
+                    // state, so no binding loop) so an overlay vertical scrollbar
+                    // never paints over the right-anchored row controls.
+                    width: ctrlScroll.width - Theme.sp(12)
                     spacing: Theme.sp(14)
 
                     // CLUB / SHAFT
@@ -407,21 +410,51 @@ Item {
                                     font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody; color: Theme.colorText
                                 }
                                 Text {
-                                    anchors { left: parent.left; leftMargin: Theme.sp(8); right: timeLbl.left; rightMargin: Theme.sp(6)
+                                    anchors { left: parent.left; leftMargin: Theme.sp(8); right: jumpChip.left; rightMargin: Theme.sp(6)
                                               bottom: parent.bottom; bottomMargin: Theme.sp(5) }
                                     text: modelData.desc; elide: Text.ElideRight
                                     font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText3
                                 }
-                                Text {
-                                    id: timeLbl
-                                    anchors { right: dot.left; rightMargin: Theme.sp(8); top: parent.top; topMargin: Theme.sp(4) }
-                                    text: ev ? (ev.sec.toFixed(2) + "s") : "—"
-                                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm
-                                    color: ev ? Theme.colorAccentLight : Theme.colorText3
+                                // Timestamp + arrow = the jump affordance. Outlined when
+                                // set and highlights on hover, so it reads as "click to
+                                // jump to this frame" — distinct from clicking the row
+                                // body to set/replace the position.
+                                Rectangle {
+                                    id: jumpChip
+                                    anchors { right: dot.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
+                                    height: Theme.sp(24)
+                                    width: jumpRow.implicitWidth + Theme.sp(14)
+                                    radius: Theme.radius
+                                    color: jumpMa.containsMouse ? Theme.colorAccentMid : "transparent"
+                                    border.width: ev ? 1 : 0
+                                    border.color: jumpMa.containsMouse ? Theme.colorAccent : Theme.colorBorderStrong
+                                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                    Row {
+                                        id: jumpRow
+                                        anchors.centerIn: parent
+                                        spacing: Theme.sp(5)
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: ev ? (ev.sec.toFixed(2) + "s") : "—"
+                                            font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm
+                                            color: !ev ? Theme.colorText3
+                                                 : jumpMa.containsMouse ? Theme.colorAccent : Theme.colorText
+                                        }
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            visible: !!ev
+                                            text: "→"
+                                            font.pixelSize: Theme.fontSzBody; font.bold: true
+                                            color: Theme.colorAccent
+                                        }
+                                    }
                                     MouseArea {
-                                        anchors.fill: parent; anchors.margins: -Theme.sp(4); enabled: !!ev
+                                        id: jumpMa
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        enabled: !!ev
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: if (ev) markupController.setFrameIndex(ev.frame)
+                                        onClicked: { markupController.setFrameIndex(ev.frame); root.forceActiveFocus() }
                                     }
                                 }
                                 Text {
