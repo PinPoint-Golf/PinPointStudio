@@ -19,7 +19,7 @@
 #pragma once
 
 // MarkupImageProvider — the QML image source for the Markup Lab's exact-frame
-// view. MarkupController decodes one MP4 frame on demand (cv::VideoCapture) and
+// view. MarkupController decodes one MP4 frame on demand (Qt Multimedia) and
 // pushes it here; QML pulls it via `image://markup/<token>`. A bumped token in
 // the URL busts the QML pipeline cache so the new frame is re-requested. The
 // QImage is implicitly shared and copied under a mutex (requestImage may run off

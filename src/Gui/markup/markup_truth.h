@@ -76,6 +76,7 @@ struct FaceOnInfo {
     int             srcWidth = 0;
     int             srcHeight = 0;
     QVector<qint64> frameTimesUs;     // window-relative µs, ascending
+    double          playbackFps = 30.0;  // MP4 encode fps (sequential PTS); for frame→ms seeks
 
     int frameCount() const { return frameTimesUs.size(); }
 };

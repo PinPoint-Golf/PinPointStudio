@@ -91,6 +91,12 @@ FaceOnInfo readFaceOn(const QString &swingDir, const QString &faceNeedle)
     fo.srcWidth  = src.value(QStringLiteral("width")).toInt();
     fo.srcHeight = src.value(QStringLiteral("height")).toInt();
 
+    // MP4 encode fps (fixed-rate, sequential PTS) — used to map frame index → ms
+    // for QMediaPlayer seeks. Same field DiskReplaySource reads.
+    fo.playbackFps = pick.value(QStringLiteral("playback")).toObject()
+                         .value(QStringLiteral("fps")).toDouble(30.0);
+    if (fo.playbackFps <= 0.0) fo.playbackFps = 30.0;
+
     const QJsonArray tarr = pick.value(QStringLiteral("frames")).toObject()
                                 .value(QStringLiteral("t_us")).toArray();
     fo.frameTimesUs.reserve(tarr.size());

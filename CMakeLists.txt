@@ -2013,10 +2013,10 @@ message(STATUS "OpenCV ${OpenCV_VERSION}: found")
 if(TARGET opencv_world)
     set(PP_OPENCV_LIBS opencv_world)
 elseif(TARGET opencv_core AND TARGET opencv_imgproc AND TARGET opencv_imgcodecs)
-    # videoio: the Markup Lab decodes recorded MP4 frames (cv::VideoCapture) for
-    # ground-truth labelling. No-op where the modular target is absent.
-    set(PP_OPENCV_LIBS opencv_core opencv_imgproc opencv_imgcodecs
-        $<TARGET_NAME_IF_EXISTS:opencv_videoio>)
+    # The app never decodes MP4s via OpenCV — the Markup Lab uses Qt Multimedia
+    # (QMediaPlayer/QVideoSink), so opencv_videoio is deliberately omitted.
+    # (swinglab_run re-adds it for the offline tool.)
+    set(PP_OPENCV_LIBS opencv_core opencv_imgproc opencv_imgcodecs)
 else()
     set(PP_OPENCV_LIBS ${OpenCV_LIBS})
     message(WARNING "OpenCV: modular targets (opencv_core/imgproc/imgcodecs) not found "
@@ -2030,8 +2030,9 @@ target_link_libraries(PinPointStudio PRIVATE ${PP_OPENCV_LIBS})
 
 # Windows OpenCV runtime: previously resolved only from the dev PATH (e.g.
 # C:\tools\opencv\build\x64\vc16\bin) — nothing was copied or installed. Bundle
-# the world DLL (config-aware via the imported target) plus the videoio FFmpeg
-# backend (a loose DLL loaded on demand by cv::VideoCapture).
+# the world DLL (config-aware via the imported target). The app no longer uses
+# OpenCV's videoio, so its loose FFmpeg backend DLL is not bundled here (the
+# swinglab_run tool, which does use videoio, bundles it under its own target).
 if(WIN32)
     set(_opencv_runtime_files "")
     if(TARGET opencv_world)
@@ -2040,11 +2041,6 @@ if(WIN32)
         message(WARNING "OpenCV: 'opencv_world' target not found — modular OpenCV "
             "build? The world DLL will not be bundled; installer may be incomplete.")
     endif()
-    file(GLOB _opencv_ffmpeg_dlls
-        "${OpenCV_DIR}/x64/*/bin/opencv_videoio_ffmpeg*.dll"
-        "${OpenCV_DIR}/../bin/opencv_videoio_ffmpeg*.dll"
-        "${OpenCV_DIR}/bin/opencv_videoio_ffmpeg*.dll")
-    list(APPEND _opencv_runtime_files ${_opencv_ffmpeg_dlls})
     if(_opencv_runtime_files)
         pp_win_bundle_dll(core ${_opencv_runtime_files})
         message(STATUS "OpenCV runtime: bundling ${_opencv_runtime_files}")

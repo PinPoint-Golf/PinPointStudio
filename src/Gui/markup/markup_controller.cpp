@@ -21,17 +21,40 @@
 
 #include <QDir>
 #include <QImage>
-
-#include <opencv2/imgproc.hpp>
+#include <QMediaPlayer>
+#include <QUrl>
+#include <QVideoFrame>
+#include <QVideoSink>
 
 #include <algorithm>
 #include <cmath>
 
 using namespace pinpoint::markup;
 
-MarkupController::MarkupController(QObject *parent) : QObject(parent) {}
+MarkupController::MarkupController(QObject *parent) : QObject(parent)
+{
+    // One reused player/sink for the whole session — recreating per swing would
+    // join decode threads on the GUI thread (see DiskReplaySource). We never
+    // play; we only seek to stills and pull each seeked frame off the sink.
+    m_player = new QMediaPlayer(this);
+    m_sink   = new QVideoSink(this);
+    m_player->setVideoSink(m_sink);
 
-MarkupController::~MarkupController() { m_cap.release(); }
+    connect(m_sink, &QVideoSink::videoFrameChanged, this, &MarkupController::onFrame);
+    connect(m_player, &QMediaPlayer::mediaStatusChanged, this,
+            [this](QMediaPlayer::MediaStatus st) {
+                if (st == QMediaPlayer::LoadedMedia || st == QMediaPlayer::BufferedMedia) {
+                    if (!m_sourceReady) {
+                        m_sourceReady = true;
+                        decodeFrame(m_requestedIdx >= 0 ? m_requestedIdx : 0);
+                    }
+                } else if (st == QMediaPlayer::InvalidMedia) {
+                    emit message(QStringLiteral("Could not open %1").arg(m_fo.videoFile));
+                }
+            });
+}
+
+MarkupController::~MarkupController() = default;
 
 // ── queue ────────────────────────────────────────────────────────────────────
 
@@ -59,7 +82,9 @@ void MarkupController::loadSwing(const QString &swingDir)
         m_fo = {};
         m_truth = {};
         m_pose = {};
-        m_cap.release();
+        m_player->setSource(QUrl());
+        m_sourceReady = false;
+        m_requestedIdx = -1;
         m_dirty = false;
         emit swingsChanged();
         emit currentChanged();
@@ -115,23 +140,28 @@ void MarkupController::openSwing(int queueIndex)
     const QString dir = m_swingDirs.at(queueIndex);
 
     m_fo = readFaceOn(dir);
-    m_cap.release();
-    if (m_fo.ok)
-        m_cap.open(QDir(dir).filePath(m_fo.videoFile).toStdString());
     m_truth = m_fo.ok ? readTruth(dir, m_fo) : TruthDoc{};
     m_pose  = m_fo.ok ? readPose2d(dir)     : PoseTrack{};
     m_dirty = false;
     m_frameIndex = 0;
 
+    // Load the MP4 into the reused player. setSource is async; the first decode
+    // happens once mediaStatus reaches LoadedMedia (handled in the ctor lambda).
+    m_sourceReady = false;
+    m_requestedIdx = 0;
+    if (m_fo.ok) {
+        m_player->setSource(QUrl::fromLocalFile(QDir(dir).filePath(m_fo.videoFile)));
+        m_player->pause();
+    } else {
+        m_player->setSource(QUrl());
+    }
+
     emit currentChanged();
     emit labelsChanged();
     emit dirtyChanged();
-    decodeFrame(0);
 
     if (!m_fo.ok)
         emit message(QStringLiteral("No face-on stream in %1").arg(currentSwingName()));
-    else if (!m_cap.isOpened())
-        emit message(QStringLiteral("Could not open %1").arg(m_fo.videoFile));
 }
 
 void MarkupController::nextSwing() { if (m_currentIndex + 1 < m_swingDirs.size()) openSwing(m_currentIndex + 1); }
@@ -141,21 +171,46 @@ void MarkupController::prevSwing() { if (m_currentIndex > 0)                    
 
 void MarkupController::decodeFrame(int idx)
 {
-    if (!m_fo.ok || !m_cap.isOpened() || m_fo.frameCount() <= 0) return;
+    if (!m_fo.ok || m_fo.frameCount() <= 0) return;
     idx = std::clamp(idx, 0, m_fo.frameCount() - 1);
+    m_requestedIdx = idx;
+    m_nudged = false;
+    if (!m_sourceReady) return;   // the LoadedMedia handler will seek once ready
 
-    m_cap.set(cv::CAP_PROP_POS_FRAMES, idx);
-    cv::Mat bgr;
-    if (!m_cap.read(bgr) || bgr.empty()) {
-        emit message(QStringLiteral("Decode failed at frame %1").arg(idx));
-        return;
+    // Seek by milliseconds (QMediaPlayer's domain). The MP4 has fixed-rate
+    // sequential PTS, so target the mid-point of the frame's interval — rounding
+    // then never lands on a neighbouring frame boundary. onFrame() bumps the
+    // token when the decoded still arrives.
+    const qint64 ms = qint64(std::llround((idx + 0.5) * 1000.0 / m_fo.playbackFps));
+    m_player->setPosition(ms);
+}
+
+void MarkupController::onFrame(const QVideoFrame &frame)
+{
+    if (!m_fo.ok || m_requestedIdx < 0 || !frame.isValid()) return;
+
+    // Exactness guard: startTime() is the frame PTS (µs). If the decoder landed
+    // on the wrong frame, nudge once toward the requested index before accepting.
+    const qint64 ptsUs = frame.startTime();
+    if (ptsUs >= 0 && !m_nudged) {
+        const int landed = int(std::llround(double(ptsUs) * m_fo.playbackFps / 1e6));
+        if (landed != m_requestedIdx) {
+            m_nudged = true;
+            // Landed early (L<R) → aim later in R's interval (0.75); landed late
+            // → aim earlier (0.25). Stays well clear of the frame boundaries.
+            const double frac = (landed < m_requestedIdx) ? 0.75 : 0.25;
+            const qint64 ms = qint64(std::llround(
+                (m_requestedIdx + frac) * 1000.0 / m_fo.playbackFps));
+            m_player->setPosition(std::max<qint64>(0, ms));
+            return;   // wait for the corrected frame (accepted regardless, m_nudged set)
+        }
     }
-    cv::Mat rgb;
-    cv::cvtColor(bgr, rgb, cv::COLOR_BGR2RGB);
-    const QImage img(rgb.data, rgb.cols, rgb.rows, int(rgb.step), QImage::Format_RGB888);
-    if (m_provider) m_provider->setImage(img.copy());   // detach from the cv::Mat buffer
 
-    m_frameIndex = idx;
+    const QImage img = frame.toImage();
+    if (img.isNull()) return;
+    if (m_provider) m_provider->setImage(img);
+
+    m_frameIndex = m_requestedIdx;
     ++m_frameToken;
     emit frameChanged();
     emit poseChanged();   // currentPose tracks the active frame

@@ -20,13 +20,15 @@
 
 // MarkupController (QML context property `markupController`) — backs the Markup
 // Lab screen: a queue of recorded swings to label, an exact-frame view of the
-// active swing's face-on MP4 (decoded on demand via cv::VideoCapture), and the
-// in-memory shaft/event labels. Labels are held NORMALIZED (resolution-agnostic)
-// and persisted as a SwingLab-compatible <swingDir>/truth.json via markup_truth
-// (proven byte-compatible against tools/swinglab score.py).
+// active swing's face-on MP4 (decoded on demand via Qt Multimedia — the same
+// QMediaPlayer/QVideoSink path used by replay), and the in-memory shaft/event
+// labels. Labels are held NORMALIZED (resolution-agnostic) and persisted as a
+// SwingLab-compatible <swingDir>/truth.json via markup_truth (proven
+// byte-compatible against tools/swinglab score.py).
 //
-// Frame display: each decode pushes the QImage to a MarkupImageProvider and bumps
-// `frameToken`; QML binds `image://markup/<frameToken>` so the new frame renders.
+// Frame display: a seek decodes one still asynchronously; onFrame() pushes the
+// QImage to a MarkupImageProvider and bumps `frameToken`; QML binds
+// `image://markup/<frameToken>` so the new frame renders.
 
 #include "markup_truth.h"
 
@@ -36,9 +38,10 @@
 #include <QVariantList>
 #include <QVariantMap>
 
-#include <opencv2/videoio.hpp>
-
 class MarkupImageProvider;
+class QMediaPlayer;
+class QVideoSink;
+class QVideoFrame;
 
 class MarkupController : public QObject
 {
@@ -145,6 +148,7 @@ signals:
 private:
     void rebuildSwingsCache();
     void decodeFrame(int idx);
+    void onFrame(const QVideoFrame &frame);   // QVideoSink::videoFrameChanged
     void setDirty(bool d);
 
     MarkupImageProvider          *m_provider = nullptr;
@@ -155,7 +159,11 @@ private:
     pinpoint::markup::FaceOnInfo  m_fo;
     pinpoint::markup::TruthDoc    m_truth;
     pinpoint::markup::PoseTrack   m_pose;
-    cv::VideoCapture              m_cap;
+    QMediaPlayer                 *m_player = nullptr;   // owned (child); decodes recorded MP4
+    QVideoSink                   *m_sink = nullptr;     // owned (child); receives seeked stills
+    int                           m_requestedIdx = -1;  // latest frame asked for (async seek)
+    bool                          m_nudged = false;     // exactness guard fired once per seek
+    bool                          m_sourceReady = false;// media reached LoadedMedia
     int                           m_frameIndex = 0;
     int                           m_frameToken = 0;
     int                           m_stride = 10;

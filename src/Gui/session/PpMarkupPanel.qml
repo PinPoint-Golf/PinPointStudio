@@ -173,7 +173,10 @@ Item {
                     cache: false
                     asynchronous: false
                     smooth: true
-                    source: markupController.hasSwing
+                    // frameToken is 0 until the first frame decodes (async); only
+                    // request once a real frame exists, else the provider has no
+                    // image yet and QML logs "Failed to get image from provider".
+                    source: (markupController.hasSwing && markupController.frameToken > 0)
                             ? "image://markup/" + markupController.frameToken : ""
 
                     readonly property real pw: paintedWidth
@@ -314,9 +317,13 @@ Item {
                     anchors.margins: Theme.sp(14)
                     clip: true
                     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                    contentWidth: availableWidth
+                    // Bind to width, not availableWidth: the latter subtracts the
+                    // vertical scrollbar, coupling width↔contentHeight through text
+                    // wrapping → contentWidth binding loop. (Matches the app's other
+                    // ScrollViews, e.g. ScreenAthleteForm.)
+                    contentWidth: width
                     Column {
-                    width: ctrlScroll.availableWidth
+                    width: ctrlScroll.width
                     spacing: Theme.sp(14)
 
                     // CLUB / SHAFT
