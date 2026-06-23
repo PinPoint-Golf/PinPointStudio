@@ -68,6 +68,7 @@ Item {
     property bool showReplayOverlay:    true   // analyzed skeleton + club shaft during replay
     property bool showPredictedShaft:   false  // R7 dev overlay: dashed ghost of the kinematic-model club
     property bool showPredictedEnvelope:false  // R7 dev overlay: faint ±k·σ_β kinematic cone (needs showPredictedShaft)
+    property bool annotationsEnabled:   false  // telestrator overlay (analyse view only)
 
     // Skeleton edge definitions, shared by the live pose canvas and the
     // replay overlay — colours mapped to theme tokens. Left-body edges use
@@ -111,6 +112,18 @@ Item {
                                                      && instance.frameHeight > 0)
                                          ? instance.frameWidth / instance.frameHeight
                                          : placeholderAspect
+
+    // The on-screen video rectangle (x,y,w,h in frame pixels) — the ONE mapping
+    // every overlay uses to place normalized [0..1] source coordinates. Accounts
+    // for the video inset and the letterboxing (PreserveAspectFit) inside it. The
+    // skeleton / club canvases recompute this inline at paint time; the annotation
+    // layer binds to it so it reflows the marks live on resize.
+    readonly property bool _useBayer: instance !== null && instance.needsDebayer
+    readonly property rect contentRect: _useBayer
+        ? Qt.rect(videoInset, videoInset, bayerView.width, bayerView.height)
+        : Qt.rect(videoInset + videoOut.contentRect.x,
+                  videoInset + videoOut.contentRect.y,
+                  videoOut.contentRect.width, videoOut.contentRect.height)
 
     // ── Frame subscription ───────────────────────────────────────────────────
     // The CameraInstance publishes every display/replay frame to all subscribed
@@ -554,6 +567,19 @@ Item {
                 }
                 ctx.globalAlpha = 1.0
             }
+        }
+
+        // ── Telestrator annotation layer (analyse view only) ──────────────
+        // Draw/edit circles, lines and hollow squares over the replay video.
+        // Marks are normalized to contentRect (reflow on resize) and held in the
+        // AnnotationTool store, cleared when the focused swing is deselected.
+        PpAnnotationLayer {
+            anchors.fill: parent
+            z: 28
+            active: root.annotationsEnabled
+            contentRect: root.contentRect
+            tileKey: (root.annotationsEnabled && root._isReplay && shotReplay.swingDir !== "")
+                     ? shotReplay.swingDir + "#" + root.replayStreamIndex : ""
         }
 
         // ── Faint hitting-area hint ───────────────────────────────────────

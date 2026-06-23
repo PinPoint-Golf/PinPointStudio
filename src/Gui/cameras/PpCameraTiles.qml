@@ -110,6 +110,8 @@ Item {
                 showPoseOverlay: false        // live-pose canvas — replay uses replayOverlay
                 showStatsOverlay: false
                 showPerspectiveBadge: false
+                // Telestrator is an Analyse-only affordance (not plain Replay).
+                annotationsEnabled: SessionMode.mode === SessionMode.analyse
             }
         }
 
@@ -170,5 +172,19 @@ Item {
             color: Theme.colorText3; font.family: Theme.fontData
             font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingData
         }
+    }
+
+    // ── Telestrator palette (Analyse only) ────────────────────────────────────
+    // One shared bar over the camera tiles; drives the AnnotationTool state every
+    // tile's PpAnnotationLayer reads. Shown only with a swing loaded for analysis.
+    PpAnnotationToolbar {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        anchors.topMargin: Theme.sp(12)
+        z: 50
+        visible: SessionMode.mode === SessionMode.analyse
+                 && shotReplay.active && shotReplay.streams.length > 0
+        opacity: visible ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
     }
 }

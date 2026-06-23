@@ -288,6 +288,7 @@ set_source_files_properties(src/Gui/theme/Theme.qml            PROPERTIES QT_QML
 set_source_files_properties(src/Gui/settings/SettingsIndex.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set_source_files_properties(src/Gui/session/ViewLayout.qml     PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set_source_files_properties(src/Gui/session/SessionMode.qml    PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set_source_files_properties(src/Gui/cameras/AnnotationTool.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
 qt_add_qml_module(PinPointStudio
     URI PinPointStudio
@@ -305,6 +306,9 @@ qt_add_qml_module(PinPointStudio
         src/Gui/media/FilmPage.qml
         src/Gui/cameras/VideoPage.qml
         src/Gui/cameras/PpCameraFrame.qml
+        src/Gui/cameras/AnnotationTool.qml
+        src/Gui/cameras/PpAnnotationLayer.qml
+        src/Gui/cameras/PpAnnotationToolbar.qml
         src/Gui/components/PpSegmentedControl.qml
         src/Gui/session/PpStagePanel.qml
         src/Gui/session/PpViewPanel.qml
