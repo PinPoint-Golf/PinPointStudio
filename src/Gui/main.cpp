@@ -58,6 +58,8 @@
 #include "shot_replay_controller.h"
 #include "reanalysis_controller.h"
 #include "live_wrist_angles.h"
+#include "markup_controller.h"
+#include "markup_image_provider.h"
 
 #ifdef Q_OS_WIN
 #  ifndef NOMINMAX
@@ -262,6 +264,12 @@ int main(int argc, char *argv[])
     // no dependencies, owns no shot state (kept off ShotProcessor by design).
     ReanalysisController      reanalysisController;
 
+    // Markup Lab — in-app ground-truth labelling of recorded swings; reads its own
+    // swing.json/MP4 from disk (no buffer/SessionMode coupling), writes a
+    // SwingLab-compatible truth.json sibling. The image provider is owned by the
+    // engine (addImageProvider, below).
+    MarkupController          markupController;
+
     // IMU source register/deregister can change the shared EventBuffer state
     // (first-source auto-resume / last-source auto-pause). Re-apply the user
     // capture intent so cameraManager.bufferState — the QML-facing buffer
@@ -386,6 +394,11 @@ int main(int argc, char *argv[])
                      &llmController,  &LlmController::refreshCloudAvailability);
 
     QQmlApplicationEngine engine;
+    // Markup Lab frame source — engine takes ownership of the provider; the
+    // controller keeps a non-owning pointer to push decoded frames into it.
+    auto *markupProvider = new MarkupImageProvider();
+    markupController.setImageProvider(markupProvider);
+    engine.addImageProvider(QStringLiteral("markup"), markupProvider);
     engine.rootContext()->setContextProperty(QStringLiteral("appSettings"),       &appSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("secrets"),           &secrets);
     engine.rootContext()->setContextProperty(QStringLiteral("athleteController"), &athleteController);
@@ -410,6 +423,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("reanalysisController"), &reanalysisController);
     engine.rootContext()->setContextProperty(QStringLiteral("swingExporter"),     &swingZipExporter);
     engine.rootContext()->setContextProperty(QStringLiteral("liveWrist"),         &liveWrist);
+    engine.rootContext()->setContextProperty(QStringLiteral("markupController"),  &markupController);
     engine.rootContext()->setContextProperty(QStringLiteral("clipboard"),         &clipboardHelper);
 
     // Clean merger shutdown before Qt tears down its event loop. Shut the platform

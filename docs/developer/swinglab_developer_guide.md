@@ -272,7 +272,7 @@ file-based. Run with the SwingLab venv: `~/.swinglab-venv/bin/python lab.py …`
 | `report <run_root>` | Regenerate `REPORT.md` from `summary.json`. |
 | `diff <run_a> <run_b>` | Per-swing regression diff (≥ 5 points down = regression). Writes `DIFF.md` into run_b; **exit 1 when any regression** — the soak-loop gate. |
 | `sweep <corpus> <runs> <space.json> [--trials N]` | Tier-0 random search. `space.json` = `{"shaft.ridgeKernelPx": [5, 15, "int"], "assembly.coverageMin": [0.4, 0.8]}`; objective = mean scorecard score; keeps best params + full history in `sweep-result.json`. No model involved. |
-| `label <swing> [--every N]` | OpenCV click-UI (needs a display): step frames, click grip→head, mark P-positions with keys 1–6; writes `truth.json`. |
+| `label <swing> [--every N]` | OpenCV click-UI (needs a display): step frames, click grip→head, mark P-positions with keys 1–6; writes `truth.json`. **In-app alternative:** the PinPoint **Markup** panel (`src/Gui/session/PpMarkupPanel.qml`; enable via the session toolbar's View menu → "Markup") loads/edits/saves the same `truth.json` from inside the app on the focused swing (frame-accurate cv::VideoCapture view; P1–P10 + club; byte-compatible with the scorecard). |
 
 The contact sheet (`plots.py`) is a 16:9 PNG: five overlay frames at the
 ladder's key instants (Address/Top/Impact/Release/Finish) with the recovered

@@ -116,6 +116,16 @@ Item {
                                 : (modeCarousel.selectedCard ? modeCarousel.selectedCard.swingDir : "")
                     }
                 }
+                // Markup panel — ground-truth labelling of the focused swing. Only the
+                // visible screen's panel drives the shared markupController (panelActive).
+                markupDelegate: Component {
+                    PpMarkupPanel {
+                        sessionType: root.sessionType
+                        panelActive: root._screenActive
+                        targetSwingDir: shotReplay.swingDir !== "" ? shotReplay.swingDir
+                                : (modeCarousel.selectedCard ? modeCarousel.selectedCard.swingDir : "")
+                    }
+                }
             }
         }
 

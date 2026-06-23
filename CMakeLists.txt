@@ -214,6 +214,9 @@ qt_add_executable(PinPointStudio
     src/Gui/shot/shot_processor.h           src/Gui/shot/shot_processor.cpp
     src/Gui/shot/shot_replay_controller.h   src/Gui/shot/shot_replay_controller.cpp
     src/Gui/shot/reanalysis_controller.h    src/Gui/shot/reanalysis_controller.cpp
+    src/Gui/markup/markup_truth.h           src/Gui/markup/markup_truth.cpp
+    src/Gui/markup/markup_controller.h      src/Gui/markup/markup_controller.cpp
+    src/Gui/markup/markup_image_provider.h
     src/Gui/shot/replay_source.h
     src/Gui/shot/disk_replay_source.h       src/Gui/shot/disk_replay_source.cpp
     src/Gui/viz/live_wrist_angles.h         src/Gui/viz/live_wrist_angles.cpp
@@ -276,7 +279,7 @@ target_include_directories(PinPointStudio PRIVATE
     src/Gui
     src/Gui/app src/Gui/shell src/Gui/athlete src/Gui/monitor src/Gui/cameras
     src/Gui/imu src/Gui/viz src/Gui/session src/Gui/shot src/Gui/review
-    src/Gui/media src/Gui/calibration src/Gui/diagnostics
+    src/Gui/media src/Gui/calibration src/Gui/diagnostics src/Gui/markup
     src/IMU src/Audio src/Video src/Pose src/STT src/TTS src/LLM src/Secrets src/Core src/Buffer
     src/Update
     "${CMAKE_BINARY_DIR}/generated")
@@ -384,6 +387,7 @@ qt_add_qml_module(PinPointStudio
         src/Gui/diagnostics/FindingCard.qml
         src/Gui/diagnostics/FindingsList.qml
         src/Gui/diagnostics/StrengthsList.qml
+        src/Gui/session/PpMarkupPanel.qml
     SOURCES
         src/Audio/ting_player.h
         src/Audio/ting_player.cpp
@@ -2009,7 +2013,10 @@ message(STATUS "OpenCV ${OpenCV_VERSION}: found")
 if(TARGET opencv_world)
     set(PP_OPENCV_LIBS opencv_world)
 elseif(TARGET opencv_core AND TARGET opencv_imgproc AND TARGET opencv_imgcodecs)
-    set(PP_OPENCV_LIBS opencv_core opencv_imgproc opencv_imgcodecs)
+    # videoio: the Markup Lab decodes recorded MP4 frames (cv::VideoCapture) for
+    # ground-truth labelling. No-op where the modular target is absent.
+    set(PP_OPENCV_LIBS opencv_core opencv_imgproc opencv_imgcodecs
+        $<TARGET_NAME_IF_EXISTS:opencv_videoio>)
 else()
     set(PP_OPENCV_LIBS ${OpenCV_LIBS})
     message(WARNING "OpenCV: modular targets (opencv_core/imgproc/imgcodecs) not found "

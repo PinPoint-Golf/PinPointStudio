@@ -138,14 +138,61 @@ def truth_metrics(run: RunResult, swing: Swing):
     ev = truth.get("events", {})
     if ev:
         t0 = ev.get("t0_us", 0)
-        want = {2: ev.get("top_s"), 1: ev.get("takeaway_s"), 7: ev.get("finish_s")}
         phases = {p["phase"]: p["t_us"] for p in run.analysis.get("phases", [])}
-        for ph, name, tol in ((2, "top", 0.03), (1, "takeaway", 0.08), (7, "finish", 0.12)):
-            if want.get(ph) is None or ph not in phases:
+
+        # P-system event keys → analyzer Phase enum (swing_analysis.h):
+        #   p1→Address(0) p3→MidBackswing(8) p4→Top(2) p6→Delivery(9)
+        #   p7→Impact(5) p9→FollowThrough(11) p10→Finish(7).
+        # p2/p5/p8 (shaft/arm parallel) have no analyzer event — see the parallel
+        # check below. (key, enum, label, tol_s, severity)
+        P_CHECKS = [
+            ("p1",  0,  "p1_address",      0.05, "warn"),
+            ("p3",  8,  "p3_armpar_back",  0.06, "warn"),
+            ("p4",  2,  "p4_top",          0.03, "fail"),
+            ("p6",  9,  "p6_delivery",     0.04, "warn"),
+            ("p7",  5,  "p7_impact",       0.03, "warn"),  # impact is often an input, not output
+            ("p9",  11, "p9_armpar_fwd",   0.08, "warn"),
+            ("p10", 7,  "p10_finish",      0.12, "warn"),
+        ]
+        # Legacy vocabulary (pre-P fixtures); applied only if the P-key for that
+        # enum was not present, so we never double-check one phase.
+        LEGACY = [("takeaway", 1, "takeaway", 0.08, "warn"),
+                  ("top",      2, "top",      0.03, "fail"),
+                  ("finish",   7, "finish",   0.12, "warn")]
+
+        checked = set()
+        for key, ph, name, tol, sev in P_CHECKS:
+            want = ev.get(f"{key}_s")
+            if want is None or ph not in phases:
                 continue
-            err = abs((phases[ph] - t0) / 1e6 - want[ph])
-            out.append(_check(f"truth.event_{name}_s", err <= tol, round(err, 3),
-                              f"<={tol}s", severity="warn" if ph != 2 else "fail"))
+            err = abs((phases[ph] - t0) / 1e6 - want)
+            out.append(_check(f"truth.event_{name}_s", err <= tol, round(err, 3), f"<={tol}s", severity=sev))
+            checked.add(ph)
+        for key, ph, name, tol, sev in LEGACY:
+            if ph in checked:
+                continue
+            want = ev.get(f"{key}_s")
+            if want is None or ph not in phases:
+                continue
+            err = abs((phases[ph] - t0) / 1e6 - want)
+            out.append(_check(f"truth.event_{name}_s", err <= tol, round(err, 3), f"<={tol}s", severity=sev))
+
+        # Parallel-geometry consistency (label sanity): at P2/P6/P8 the shaft is
+        # ~parallel to the ground, so the labelled club angle should be ~horizontal
+        # in a face-on frame. theta = atan2(dy, dx); |sin(theta)| is the vertical
+        # fraction → asin gives degrees off horizontal (0=flat, 90=vertical).
+        shaft_by_tus = {f["t_us"]: f for f in truth.get("shaft", [])}
+        for pkey in ("p2", "p6", "p8"):
+            wsec = ev.get(f"{pkey}_s")
+            if wsec is None or not shaft_by_tus:
+                continue
+            tus = t0 + int(round(wsec * 1e6))
+            nearest = min(shaft_by_tus, key=lambda t: abs(t - tus))
+            if abs(nearest - tus) > 30000:          # no labelled club within 30 ms of this P
+                continue
+            off_deg = math.degrees(math.asin(min(1.0, abs(math.sin(shaft_by_tus[nearest]["theta"])))))
+            out.append(_check(f"truth.parallel_{pkey}_deg", off_deg <= 20.0, round(off_deg, 1),
+                              "<=20 deg (shaft ~horizontal)", severity="warn"))
     return out
 
 
