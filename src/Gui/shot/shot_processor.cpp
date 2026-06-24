@@ -366,6 +366,23 @@ void ShotProcessor::captureWindowAndLaunch()
              << static_cast<qint64>(m_swingWindow->entries().size()) << "entries,"
              << m_replayTracks.size() << "camera track(s)";
 
+    // Corpus capture: when saving raw frames with "skip analysis" on, export the
+    // frames only — bypass segmentation + analysis and suppress replay (see
+    // maybeJoin) — so each shot captures instantly and is re-analysed later. The
+    // raw-only swing.json (analysis-skipped) still carries capture.impactUs, so
+    // offline re-analysis has its impact reference.
+    {
+        AppSettings  fallback;
+        AppSettings *s = m_appSettings ? m_appSettings : &fallback;
+        m_skipAnalysisCapture = s->saveRawFrames() && s->skipAnalysisForRawCapture();
+    }
+    if (m_skipAnalysisCapture) {
+        ppInfo() << "[ShotProcessor] skip-analysis corpus capture — export only";
+        m_analysisOutcome = Outcome::Skipped;   // maybeJoin → raw-only swing.json
+        startSwingSave();                        // onSwingSaveFinished() joins
+        return;
+    }
+
     // Segmentation pre-stage (v3 G2): a milliseconds-cheap fuse + inertial
     // ladder over the frozen window, gating both heavy workers — its swing
     // bounds trim the export encode span and the replay. The job is resolved
@@ -651,6 +668,11 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
     // Impact thumbnail from the face-on camera, else the exporter falls back
     // to the first exported stream.
     job.thumbnailTimestampUs = m_impactUs;
+    // Window-relative impact for swing.json's capture.impactUs — the re-analysis
+    // impact reference (survives analysis-skipped corpus captures).
+    job.impactUs = (m_impactUs >= 0 && m_swingWindow)
+                       ? m_impactUs - m_swingWindow->startTimestampUs()
+                       : -1;
     for (const ReplayTrack &track : m_replayTracks) {
         if (track.ctrl->perspective() == CameraInstance::FaceOn) {
             job.thumbnailSourceId = track.sourceId;
@@ -695,6 +717,21 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
                 auto *imu = qobject_cast<ImuInstance *>(v.value<QObject *>());
                 if (imu && imu->deviceId() == dev.id) {
                     info.outputRateHz = imu->outputRateHz();
+                    // A/M calibration snapshot baked into the stream — lets an
+                    // analysis-skipped corpus swing be re-analysed (no
+                    // analysis.bindings). Mirrors buildAnalysisJob's resolution.
+                    info.hasCalibration = true;
+                    info.alignA         = imu->alignA();
+                    info.mountM         = imu->mountM();
+                    info.anatCalibrated = imu->anatCalibrated();
+                    info.calibrated     = imu->fullyCalibrated();
+                    info.mountDeviationDeg    = imu->mountDeviationDeg();
+                    info.mountGravityErrorDeg = imu->mountGravityErrorDeg();
+                    if (imu->calibratedAtUtc().isValid()) {
+                        info.calibratedAtUtc = imu->calibratedAtUtc().toString(Qt::ISODateWithMs);
+                        info.calibAgeSec     = imu->calibratedAtUtc()
+                                                   .msecsTo(QDateTime::currentDateTimeUtc()) / 1000.0;
+                    }
                     break;
                 }
             }
@@ -878,11 +915,14 @@ void ShotProcessor::maybeJoin()
     // just made.
     if (reviewableOnDisk) {
         finishShot();
-    } else if (!m_replayTracks.empty()) {
+    } else if (!m_skipAnalysisCapture && !m_replayTracks.empty()) {
         startReplay();
     } else {
-        ppInfo() << "[ShotProcessor] replay skipped — no captured camera tracks"
-                 << "(analysisOk" << analysisOk << "exportOk" << exportOk << ")";
+        if (m_skipAnalysisCapture)
+            ppInfo() << "[ShotProcessor] replay skipped — skip-analysis corpus capture";
+        else
+            ppInfo() << "[ShotProcessor] replay skipped — no captured camera tracks"
+                     << "(analysisOk" << analysisOk << "exportOk" << exportOk << ")";
         finishShot();
     }
 }

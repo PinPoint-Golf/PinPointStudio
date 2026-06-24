@@ -28,10 +28,8 @@
 //   2. focus, no filter — identity left; this-shot actions only
 //   3. no focus, filter — set descriptor left; the actions act on the SET
 //
-// Re-analyse is single-shot only in v1, so it appears ONLY in the focused-shot
-// action group — there is deliberately no "Re-analyse all shown" row in the menu
-// and no Re-analyse button in the set-scope (state 3) layout. The reanalyseShown()
-// signal is declared for API symmetry but never emitted yet (reserved).
+// Re-analyse appears both as the focused-shot button (reanalyseShot) and, in the
+// "all shown" menu, as a set-scope action (reanalyseShown) for bulk corpus re-runs.
 //
 // Host-injected: the bar owns no model lookups. Pure bindings — handlers only
 // forward a signal or open/close the menu; no computation lives here.
@@ -58,8 +56,7 @@ Item {
     signal exportShot()
     signal reanalyseShot()
     signal trashShot()
-    // Filtered-set actions ("all shown"). reanalyseShown() is reserved — never
-    // emitted in v1 (re-analyse is single-shot only); kept for API symmetry.
+    // Filtered-set actions ("all shown") — emitted from the overflow menu.
     signal exportShown()
     signal reanalyseShown()
     signal trashShown()
@@ -297,6 +294,46 @@ Item {
                             id: allExportMa
                             hoverScale: 1.0       // full-width menu item — press-dip only
                             onClicked: { allMenu.close(); root.exportShown() }
+                        }
+                    }
+
+                    Rectangle {   // Re-analyse all shown — re-run the latest analysis
+                        width: parent.width
+                        height: Theme.sp(34)
+                        radius: Theme.radius
+                        color: allReanalyseMa.containsMouse ? Theme.colorBg2 : "transparent"
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                        Row {
+                            anchors { left: parent.left; leftMargin: Theme.sp(10)
+                                      verticalCenter: parent.verticalCenter }
+                            spacing: Theme.sp(10)
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "↻"
+                                font.family: Theme.fontSymbol
+                                font.pixelSize: Theme.fontSzBody
+                                color: Theme.colorText2
+                            }
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: qsTr("Re-analyse all shown")
+                                font.family: Theme.fontBody
+                                font.pixelSize: Theme.fontSzBody
+                                color: Theme.colorText
+                            }
+                        }
+                        Text {   // count tail
+                            anchors { right: parent.right; rightMargin: Theme.sp(10)
+                                      verticalCenter: parent.verticalCenter }
+                            text:           qsTr("%1 shots").arg(root.visibleCount)
+                            font.family:    Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          Theme.colorText3
+                        }
+                        PpPressable {
+                            id: allReanalyseMa
+                            hoverScale: 1.0       // full-width menu item — press-dip only
+                            onClicked: { allMenu.close(); root.reanalyseShown() }
                         }
                     }
 

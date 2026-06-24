@@ -1,0 +1,560 @@
+/*
+ * Copyright (c) 2026 Mark Liversedge (liversedge@gmail.com)
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc., 51
+ * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
+#include "swing_reanalyzer.h"
+
+#include <QFile>
+#include <QHash>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QQuaternion>
+
+#include <opencv2/core.hpp>
+#include <opencv2/videoio.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cstdint>
+#include <cstring>
+#include <exception>
+#include <memory>
+#include <unordered_map>
+#include <vector>
+
+#include "format_descriptor.h"
+#include "imu_sample.h"
+#include "pixel_format_names.h"
+#include "source_ring.h"
+#include "swing_analysis.h"
+#include "swing_payload_source.h"
+#include "types.h"
+
+#include "../Core/pp_debug.h"
+
+using namespace pinpoint;
+
+namespace pinpoint::analysis {
+
+namespace {
+
+std::vector<int64_t> readTimestamps(const QJsonArray& a)
+{
+    std::vector<int64_t> out;
+    out.reserve(size_t(a.size()));
+    for (const QJsonValue& v : a)
+        out.push_back(int64_t(v.toDouble()));
+    return out;
+}
+
+// Parse one IMU→segment binding from a JSON object carrying role + the A/M
+// quaternions ([scalar,x,y,z]) + calibration provenance. Shared by both binding
+// sources: analysis.bindings[] (analysed swings) and the per-stream device.*
+// fallback (analysis-skipped corpus swings) — keeping the field set in one place.
+ImuSegmentBinding parseBinding(const QJsonObject& b, SourceId source)
+{
+    const QJsonArray A = b[QStringLiteral("alignA")].toArray();
+    const QJsonArray M = b[QStringLiteral("mountM")].toArray();
+    ImuSegmentBinding bind;
+    bind.source = source;
+    bind.role   = SegmentRole(b[QStringLiteral("role")].toInt());
+    bind.alignA = QQuaternion(float(A[0].toDouble()), float(A[1].toDouble()),
+                              float(A[2].toDouble()), float(A[3].toDouble()));
+    bind.mountM = QQuaternion(float(M[0].toDouble()), float(M[1].toDouble()),
+                              float(M[2].toDouble()), float(M[3].toDouble()));
+    bind.calibrated = !b.contains(QStringLiteral("calibrated"))
+                   || b[QStringLiteral("calibrated")].toBool();
+    bind.anatCalibrated       = b[QStringLiteral("anatCalibrated")].toBool(bind.calibrated);
+    bind.mountDeviationDeg     = b[QStringLiteral("mountDeviationDeg")].toDouble();
+    bind.mountGravityErrorDeg  = b[QStringLiteral("mountGravityErrorDeg")].toDouble();
+    bind.calibratedAtUtc       = b[QStringLiteral("calibratedAt")].toString();
+    bind.calibAgeSec           = b[QStringLiteral("calibAgeSec")].toDouble(-1.0);
+    return bind;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Per-camera lazy frame readers. read(seq) streams ONE frame from disk into a
+// single reusable buffer and returns a handle to it — valid until the next read()
+// on the same reader (the analysis stages read frames strictly one-at-a-time, so
+// a single buffer per camera satisfies the SwingPayloadSource contract). Memory
+// stays bounded to one decoded frame per camera, never the whole window.
+// ─────────────────────────────────────────────────────────────────────────────
+class CameraReader {
+public:
+    virtual ~CameraReader() = default;
+    virtual SourceRing::ReadHandle read(uint64_t seq) const noexcept = 0;
+    FormatDescriptor fd;
+};
+
+// Raw sidecar: fixed-stride payloads, frame i at byte offset i*frameBytes — the
+// exact bytes the live analyzer saw (bit-faithful). Random access is a seek+read.
+class RawFrameReader final : public CameraReader {
+public:
+    QString path;
+    qint64  frameBytes = 0;
+
+    SourceRing::ReadHandle read(uint64_t seq) const noexcept override
+    {
+        if (!opened_) {
+            file_.setFileName(path);
+            opened_ = file_.open(QIODevice::ReadOnly);
+        }
+        if (!opened_ || frameBytes <= 0)
+            return {};
+        if (!file_.seek(qint64(seq) * frameBytes))
+            return {};
+        buf_.resize(size_t(frameBytes));
+        const qint64 n = file_.read(reinterpret_cast<char*>(buf_.data()), frameBytes);
+        if (n != frameBytes)
+            return {};
+        SourceRing::ReadHandle h;
+        h.data  = buf_.data();
+        h.bytes = size_t(frameBytes);
+        return h;
+    }
+
+private:
+    mutable QFile                  file_;
+    mutable std::vector<std::byte> buf_;
+    mutable bool                   opened_ = false;
+};
+
+// MP4 fallback (no raw sidecar): decode to BGR24. Decode-forward to the target
+// frame (rewind on a back-seek) so the result is frame-accurate regardless of the
+// container's keyframe layout — lossy, slower, used only when raw is absent.
+class Mp4FrameReader final : public CameraReader {
+public:
+    QString path;
+
+    SourceRing::ReadHandle read(uint64_t seq) const noexcept override
+    {
+        try {
+            if (!opened_) {
+                opened_   = cap_.open(path.toStdString());
+                nextFrame_ = 0;
+            }
+            if (!opened_ || !cap_.isOpened())
+                return {};
+            if (int64_t(seq) < nextFrame_) {
+                cap_.set(cv::CAP_PROP_POS_FRAMES, 0);
+                nextFrame_ = 0;
+            }
+            while (nextFrame_ < int64_t(seq)) {
+                if (!cap_.grab())
+                    return {};
+                ++nextFrame_;
+            }
+            cv::Mat bgr;
+            if (!cap_.read(bgr) || bgr.empty())
+                return {};
+            ++nextFrame_;
+            if (!bgr.isContinuous())
+                bgr = bgr.clone();
+            const auto* p = reinterpret_cast<const std::byte*>(bgr.data);
+            const size_t bytes = size_t(bgr.total() * bgr.elemSize());
+            buf_.assign(p, p + bytes);
+            SourceRing::ReadHandle h;
+            h.data  = buf_.data();
+            h.bytes = buf_.size();
+            return h;
+        } catch (...) {
+            return {};
+        }
+    }
+
+private:
+    mutable cv::VideoCapture       cap_;
+    mutable int64_t                nextFrame_ = 0;
+    mutable std::vector<std::byte> buf_;
+    mutable bool                   opened_ = false;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Disk-backed SwingPayloadSource: IMU samples fully in RAM (tiny), camera frames
+// streamed via the readers above. The validate() seqlock check is moot (the bytes
+// are stable on disk / in our owned vectors) so it always succeeds.
+// ─────────────────────────────────────────────────────────────────────────────
+class SwingDiskSource final : public SwingPayloadSource {
+public:
+    void addImu(SourceId id, FormatDescriptor fd, std::vector<ImuSample> samples)
+    {
+        imu_[id] = ImuStream{ std::move(fd), std::move(samples) };
+    }
+    void addCamera(SourceId id, std::unique_ptr<CameraReader> reader)
+    {
+        cam_[id] = std::move(reader);
+    }
+
+    SourceRing::ReadHandle payloadOf(SourceId id, uint64_t sequence) const noexcept override
+    {
+        if (auto it = imu_.find(id); it != imu_.end()) {
+            const ImuStream& s = it->second;
+            if (sequence >= s.samples.size())
+                return {};
+            SourceRing::ReadHandle h;
+            h.data  = reinterpret_cast<const std::byte*>(&s.samples[sequence]);
+            h.bytes = sizeof(ImuSample);
+            return h;
+        }
+        if (auto it = cam_.find(id); it != cam_.end())
+            return it->second->read(sequence);
+        return {};
+    }
+
+    const FormatDescriptor& formatOf(SourceId id) const noexcept override
+    {
+        if (auto it = imu_.find(id); it != imu_.end())
+            return it->second.fd;
+        if (auto it = cam_.find(id); it != cam_.end())
+            return it->second->fd;
+        static const FormatDescriptor kEmpty{};
+        return kEmpty;
+    }
+
+    bool validate(SourceId, const SourceRing::ReadHandle&) const noexcept override
+    {
+        return true;   // bytes are stable (disk / owned RAM) — no seqlock race
+    }
+
+private:
+    struct ImuStream {
+        FormatDescriptor       fd;
+        std::vector<ImuSample> samples;
+    };
+    std::unordered_map<SourceId, ImuStream>                     imu_;
+    std::unordered_map<SourceId, std::unique_ptr<CameraReader>> cam_;
+};
+
+} // namespace
+
+LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOptions& opts)
+{
+    LoadedSwing out;
+
+    QFile f(swingDir + QStringLiteral("/swing.json"));
+    if (!f.open(QIODevice::ReadOnly)) {
+        out.error = QStringLiteral("cannot open %1/swing.json").arg(swingDir);
+        return out;
+    }
+    const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+    if (root.isEmpty()) {
+        out.error = QStringLiteral("swing.json parse failed");
+        return out;
+    }
+    const QJsonObject analysisIn = root[QStringLiteral("analysis")].toObject();
+    const QJsonObject captureIn  = root[QStringLiteral("capture")].toObject();
+
+    auto src = std::make_unique<SwingDiskSource>();
+    std::vector<IndexEntry> entries;
+    ShotAnalysisJob         job;
+    QHash<QString, SourceId> imuSerialToId;
+    // Bindings rebuilt from each IMU stream's device.* calibration — the fallback
+    // used when analysis.bindings is absent (analysis-skipped corpus swings).
+    std::vector<ImuSegmentBinding> deviceBindings;
+
+    int64_t  tMin   = INT64_MAX, tMax = INT64_MIN;
+    SourceId nextId = 0;
+    bool     anyRaw = false;
+
+    struct VidTmp { SourceId id; bool faceOn; };
+    std::vector<VidTmp> vids;
+
+    for (const QJsonValue& sv : root[QStringLiteral("streams")].toArray()) {
+        const QJsonObject s    = sv.toObject();
+        const QString     kind = s[QStringLiteral("kind")].toString();
+
+        if (kind == QLatin1String("video")) {
+            std::vector<int64_t> tUs =
+                readTimestamps(s[QStringLiteral("frames")].toObject()[QStringLiteral("t_us")].toArray());
+            if (tUs.empty())
+                continue;
+
+            const QString alias  = s[QStringLiteral("alias")].toString();
+            const QString serial = s[QStringLiteral("source")].toObject()[QStringLiteral("serial")].toString();
+            const int encW = s[QStringLiteral("encoded")].toObject()[QStringLiteral("width")].toInt();
+            const int encH = s[QStringLiteral("encoded")].toObject()[QStringLiteral("height")].toInt();
+            int fpsNum = 150, fpsDen = 1;
+            if (s.contains(QStringLiteral("capture"))) {
+                const QJsonObject c = s[QStringLiteral("capture")].toObject();
+                if (c[QStringLiteral("fps_num")].toInt() > 0 && c[QStringLiteral("fps_den")].toInt() > 0) {
+                    fpsNum = c[QStringLiteral("fps_num")].toInt();
+                    fpsDen = c[QStringLiteral("fps_den")].toInt();
+                }
+            }
+
+            // Prefer the raw sidecar (bit-faithful) when present on disk.
+            bool    useRaw = false;
+            QString rawPath, rawPf;
+            int     rawW = 0, rawH = 0;
+            qint64  rawStride = 0, rawFrameBytes = 0;
+            if (s.contains(QStringLiteral("raw"))) {
+                const QJsonObject r = s[QStringLiteral("raw")].toObject();
+                rawPath = swingDir + QLatin1Char('/') + r[QStringLiteral("file")].toString();
+                if (QFile::exists(rawPath)) {
+                    useRaw        = true;
+                    rawW          = r[QStringLiteral("width")].toInt();
+                    rawH          = r[QStringLiteral("height")].toInt();
+                    rawPf         = r[QStringLiteral("pixelFormat")].toString();
+                    rawStride     = qint64(r[QStringLiteral("stride")].toDouble());
+                    rawFrameBytes = qint64(r[QStringLiteral("frameBytes")].toDouble());
+                }
+            }
+            anyRaw |= useRaw;
+
+            FormatDescriptor fd;
+            fd.device        = DeviceKind::Camera_UVC;
+            fd.device_serial = serial.toStdString();
+            CameraFormat cf{};
+            cf.fps_numerator   = uint32_t(fpsNum);
+            cf.fps_denominator = uint32_t(fpsDen);
+            std::unique_ptr<CameraReader> reader;
+            if (useRaw) {
+                cf.pixel_format      = pixelFormatFromName(rawPf.toStdString());
+                cf.width             = uint32_t(rawW);
+                cf.height            = uint32_t(rawH);
+                cf.max_payload_bytes = uint32_t(rawFrameBytes);
+                cf.plane_strides[0]  = uint32_t(rawStride);
+                auto rr      = std::make_unique<RawFrameReader>();
+                rr->path     = rawPath;
+                rr->frameBytes = rawFrameBytes;
+                reader       = std::move(rr);
+            } else {
+                cf.pixel_format      = PixelFormat::BGR24;
+                cf.width             = uint32_t(encW);
+                cf.height            = uint32_t(encH);
+                cf.max_payload_bytes = uint32_t(encW * encH * 3);
+                cf.plane_strides[0]  = uint32_t(encW * 3);
+                auto mr  = std::make_unique<Mp4FrameReader>();
+                mr->path = swingDir + QLatin1Char('/') + s[QStringLiteral("file")].toString();
+                reader   = std::move(mr);
+            }
+            fd.format  = cf;
+            reader->fd = fd;
+
+            // Face-on: recorded perspective (FaceOn == 2) unless the tool forces a
+            // substring match; legacy streams without "setup" fall back to it too.
+            bool faceOn;
+            if (s.contains(QStringLiteral("setup")) && !opts.faceOnExplicit)
+                faceOn = (s[QStringLiteral("setup")].toObject()[QStringLiteral("perspective")].toInt() == 2);
+            else
+                faceOn = alias.contains(opts.faceOnSubstring, Qt::CaseInsensitive)
+                      || s[QStringLiteral("file")].toString().contains(opts.faceOnSubstring, Qt::CaseInsensitive);
+
+            const SourceId id = nextId++;
+            for (size_t i = 0; i < tUs.size(); ++i)
+                entries.push_back(IndexEntry{ tUs[i], id, uint64_t(i) });
+            tMin = std::min(tMin, tUs.front());
+            tMax = std::max(tMax, tUs.back());
+
+            src->addCamera(id, std::move(reader));
+            vids.push_back({ id, faceOn });
+
+        } else if (kind == QLatin1String("imu")) {
+            const QJsonObject samples = s[QStringLiteral("samples")].toObject();
+            std::vector<int64_t> tUs = readTimestamps(samples[QStringLiteral("t_us")].toArray());
+
+            std::vector<ImuSample> rows;
+            rows.reserve(size_t(samples[QStringLiteral("data")].toArray().size()));
+            for (const QJsonValue& dv : samples[QStringLiteral("data")].toArray()) {
+                const QJsonArray d = dv.toArray();
+                std::array<float, 10> a{};
+                for (int i = 0; i < 10 && i < d.size(); ++i)
+                    a[size_t(i)] = float(d.at(i).toDouble());
+                rows.push_back(makeImuSample(a[0], a[1], a[2], a[3], a[4],
+                                             a[5], a[6], a[7], a[8], a[9]));
+            }
+            if (rows.size() != tUs.size() || rows.empty())
+                continue;
+
+            const QString alias  = s[QStringLiteral("alias")].toString();
+            const QString serial = s[QStringLiteral("source")].toObject()[QStringLiteral("serial")].toString();
+            int rateHz = 200;
+            if (s[QStringLiteral("device")].toObject()[QStringLiteral("outputRateHz")].toInt() > 0)
+                rateHz = s[QStringLiteral("device")].toObject()[QStringLiteral("outputRateHz")].toInt();
+
+            FormatDescriptor fd;
+            fd.device        = DeviceKind::IMU_WitMotion;
+            fd.device_serial = serial.toStdString();
+            ImuFormat imf{};
+            imf.device         = DeviceKind::IMU_WitMotion;
+            imf.sample_rate_hz = uint32_t(rateHz);
+            imf.packet_bytes   = sizeof(ImuSample);
+            imf.packet_schema  = "imu_sample_v2";
+            fd.format          = imf;
+
+            const SourceId id = nextId++;
+            for (size_t i = 0; i < tUs.size(); ++i)
+                entries.push_back(IndexEntry{ tUs[i], id, uint64_t(i) });
+            tMin = std::min(tMin, tUs.front());
+            tMax = std::max(tMax, tUs.back());
+
+            job.imuSources.push_back(id);
+            if (!serial.isEmpty())
+                imuSerialToId.insert(serial, id);
+            src->addImu(id, fd, std::move(rows));
+
+            // Fallback binding from the stream's device.* calibration (present only
+            // when the exporter baked it in — every capture since corpus support).
+            const QJsonObject deviceObj = s[QStringLiteral("device")].toObject();
+            if (deviceObj[QStringLiteral("alignA")].toArray().size() == 4
+                && deviceObj[QStringLiteral("mountM")].toArray().size() == 4)
+                deviceBindings.push_back(parseBinding(deviceObj, id));
+        }
+    }
+
+    if (vids.empty()) {
+        out.error = QStringLiteral("no video streams in swing.json");
+        return out;
+    }
+
+    // Camera order: face-on first (analyzers prefer it without re-sorting).
+    for (const VidTmp& v : vids) {
+        if (v.faceOn) {
+            job.cameraSources.insert(job.cameraSources.begin(), v.id);
+            ++job.faceOnCameraCount;
+        } else {
+            job.cameraSources.push_back(v.id);
+        }
+    }
+
+    // Match the live window's time-ordered index (stable: per-source order kept).
+    std::stable_sort(entries.begin(), entries.end(),
+                     [](const IndexEntry& a, const IndexEntry& b) {
+                         return a.timestamp_us < b.timestamp_us;
+                     });
+
+    // Session type — recorded capture.sessionType (caller may override later).
+    if (captureIn.contains(QStringLiteral("sessionType"))
+        && captureIn[QStringLiteral("sessionType")].toInt() >= 0)
+        job.sessionType = captureIn[QStringLiteral("sessionType")].toInt();
+
+    // Impact, most-precise source first (all WINDOW-RELATIVE µs to match the
+    // reconstructed timeline): capture.impactUs (exact back-dated estimate, already
+    // relative — corpus swings incl. analysis-skipped) → the recorded Impact phase
+    // (analysed swings) → thumbnail's nearest-captured-frame instant (quantized,
+    // last resort).
+    //   NB: analysis.phases t_us are ABSOLUTE (nowMicros — the analyzer ran on the
+    //   live absolute window), unlike streams/thumbnail/capture.impactUs which are
+    //   relative. Convert by subtracting clock.t0_us (the absolute window start).
+    //   Synthetic swings have no clock block (t0=0) and already store relative
+    //   phases, so the subtraction is a no-op there.
+    const qint64 t0Us =
+        qint64(root[QStringLiteral("clock")].toObject()[QStringLiteral("t0_us")].toDouble(0));
+    qint64 impact = -1;
+    if (captureIn.contains(QStringLiteral("impactUs")))
+        impact = qint64(captureIn[QStringLiteral("impactUs")].toDouble(-1));
+    if (impact <= 0) {
+        for (const QJsonValue& pv : analysisIn[QStringLiteral("phases")].toArray())
+            if (pv.toObject()[QStringLiteral("phase")].toInt() == int(Phase::Impact))
+                impact = qint64(pv.toObject()[QStringLiteral("t_us")].toDouble()) - t0Us;
+    }
+    if (impact <= 0 && root.contains(QStringLiteral("thumbnail")))
+        impact = qint64(root[QStringLiteral("thumbnail")].toObject()[QStringLiteral("t_us")].toDouble(-1));
+    job.impactUs = impact;
+
+    const QString hand = root[QStringLiteral("athlete")].toObject()[QStringLiteral("handedness")].toString();
+    job.handedness = hand.compare(QLatin1String("Left"), Qt::CaseInsensitive) == 0  ? 2
+                   : hand.compare(QLatin1String("Right"), Qt::CaseInsensitive) == 0 ? 1
+                                                                                     : 0;
+
+    // IMU → segment bindings: the persisted session A/M calibration, serial-keyed.
+    // Identity A/M is NOT synthesised — re-fusing without the recorded calibration
+    // would be fabrication (mirrors swinglab_run).
+    for (const QJsonValue& bv : analysisIn[QStringLiteral("bindings")].toArray()) {
+        const QJsonObject b  = bv.toObject();
+        const auto        it = imuSerialToId.constFind(b[QStringLiteral("serial")].toString());
+        if (it == imuSerialToId.constEnd())
+            continue;
+        job.imuBindings.push_back(parseBinding(b, it.value()));
+    }
+
+    // No analysis.bindings (analysis-skipped corpus swing) → use the per-stream
+    // device.* calibration the exporter baked into each IMU stream.
+    if (job.imuBindings.empty())
+        job.imuBindings = std::move(deviceBindings);
+
+    // Re-fusing on an uncalibrated A/M snapshot yields a confident-looking but
+    // unreliable result — flag it, the way swinglab_run used to (don't silently
+    // trust it into a corpus).
+    for (const ImuSegmentBinding& b : job.imuBindings)
+        if (!b.calibrated)
+            ppWarn() << "[Reanalysis]" << swingDir << "binding role" << int(b.role)
+                     << "recorded UNCALIBRATED (mount dev"
+                     << b.mountDeviationDeg << "deg, gravity err"
+                     << b.mountGravityErrorDeg << "deg) — results unreliable";
+
+    out.window.emplace(std::move(src), std::move(entries), tMin, tMax);
+    out.job     = std::move(job);
+    out.usedRaw = anyRaw;
+    out.ok      = true;
+    return out;
+}
+
+ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOptions& opts)
+{
+    ReanalyzeResult out;
+
+    LoadedSwing ls = SwingDiskLoader::load(swingDir);
+    if (!ls.ok) {
+        out.error = ls.error;
+        return out;
+    }
+    out.usedRaw = ls.usedRaw;
+
+    if (!opts.tuningOverrides.isEmpty())
+        ls.job.tuningOverrides = opts.tuningOverrides;
+    if (opts.sessionTypeOverride >= 0)
+        ls.job.sessionType = opts.sessionTypeOverride;
+    if (!opts.poseTrackPath.isEmpty())
+        ls.job.poseTrackPath = opts.poseTrackPath;
+    // Fail closed on an unknown discipline rather than silently analysing as Wrist
+    // and writing a wrong-discipline analysis block back (our exports always carry
+    // capture.sessionType; swinglab_run resolves its own default before analyze()).
+    if (ls.job.sessionType < 0) {
+        out.error = QStringLiteral("This shot's recording doesn't note its session type — "
+                                   "it was captured before re-analysis was supported.");
+        return out;
+    }
+    if (ls.job.impactUs <= 0) {
+        out.error = QStringLiteral("This shot has no recorded impact time, so it can't be re-analysed.");
+        return out;
+    }
+    // Wrist analysis is IMU-driven: with no A/M bindings the fuser produces nothing
+    // and the analyzer would return a degenerate score-0 result that the caller
+    // would write back OVER the original valid analysis. Refuse instead — a swing
+    // exported before calibration/binding persistence simply cannot be re-fused.
+    if (ls.job.sessionType == 1 && ls.job.imuBindings.empty()) {
+        out.error = QStringLiteral("No IMU calibration was saved with this shot, so it can't be "
+                                   "re-analysed — it was captured before calibration was recorded.");
+        return out;
+    }
+
+    try {
+        auto analyzer = makeShotAnalyzer(ls.job.sessionType);
+        out.analysis  = analyzer->analyze(*ls.window, ls.job);
+        out.ok        = out.analysis.ok;
+        out.error     = out.analysis.error;
+    } catch (const std::exception& e) {
+        out.error = QStringLiteral("analyzer threw: %1").arg(QString::fromUtf8(e.what()));
+    } catch (...) {
+        out.error = QStringLiteral("analyzer threw an unknown exception");
+    }
+    return out;
+}
+
+} // namespace pinpoint::analysis

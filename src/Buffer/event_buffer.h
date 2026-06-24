@@ -41,6 +41,11 @@
 
 namespace pinpoint {
 
+// The ring-backed SwingPayloadSource (defined in event_buffer.cpp). It owns the
+// swing_window_live_ resume guard and validates read handles against the live ring,
+// so it needs friend access to those private members.
+class RingPayloadSource;
+
 enum class LogSeverity { Info, Warn, Error };
 using LogCallback = std::function<void(LogSeverity, const char *)>;
 
@@ -194,7 +199,7 @@ public:
     static int64_t nowMicros() noexcept;
 
 private:
-    friend class SwingWindow;
+    friend class RingPayloadSource;
 
     struct SourceSlot {
         SourceDescriptor        desc;

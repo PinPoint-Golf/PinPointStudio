@@ -171,9 +171,15 @@ Item {
                            : qsTr("Moved %1 of %2 shots to trash").arg(n).arg(ids.length))
             }
 
-            // Re-analyse is single-shot only in v1 → forward the focused id to the
-            // seam. reanalyseShown() is never emitted (no all-shown re-analyse).
-            onReanalyseShot: reanalysisController.reanalyse([SessionMode.focusedShotId])
+            // Re-analyse: focused shot, or every shot in the filtered set ("all
+            // shown"). Resolve swing dirs from the ACTIVE model (live or the loaded
+            // session under review) — passing ids would resolve against the wrong
+            // model and silently no-op. The controller drains them sequentially,
+            // writing each fresh analysis back to swing.json.
+            onReanalyseShot:  reanalysisController.reanalyse(
+                                  root.activeModel.swingDirsForIds([SessionMode.focusedShotId]))
+            onReanalyseShown: reanalysisController.reanalyse(
+                                  root.activeModel.swingDirsForIds(filterProxy.visibleShotIds()))
         }
 
         // ── Session chip + filter combo. The transport overlays this row, centered
@@ -439,16 +445,35 @@ Item {
         }
     }
 
-    // Re-analyse seam feedback — the controller logs the request (PpMessageLog)
-    // and emits the queued count; we raise the same notice toast here.
+    // Re-analyse feedback — a notice toast when a batch is queued and again when it
+    // drains; each finished swing refreshes its row in the active model.
     Connections {
         target: reanalysisController
         function onReanalyseQueued(count) {
             toast.showUndo = false
             toast.copyText = ""
             toast.glyph    = "↻"
-            toast.show(count === 1 ? qsTr("Re-analyse queued · 1 shot")
-                                   : qsTr("Re-analyse queued · %1 shots").arg(count))
+            toast.show(count === 1 ? qsTr("Re-analysing · 1 shot")
+                                   : qsTr("Re-analysing · %1 shots").arg(count))
+        }
+        function onReanalysed(swingDir) {
+            root.activeModel.refreshShot(swingDir)
+        }
+        function onReanalyseFinished(succeeded, failed, lastError) {
+            toast.showUndo = false
+            toast.copyText = ""
+            toast.glyph    = "↻"
+            const total = succeeded + failed
+            if (total === 1) {
+                // Single shot: show the actual outcome/reason, not a "0 of 1" count.
+                toast.show(failed === 0
+                    ? qsTr("Shot re-analysed")
+                    : (lastError && lastError.length ? lastError
+                                                     : qsTr("Couldn't re-analyse this shot")))
+            } else {
+                toast.show(failed === 0 ? qsTr("Re-analysed %1 shots").arg(succeeded)
+                                        : qsTr("Re-analysed %1, %2 failed").arg(succeeded).arg(failed))
+            }
         }
     }
 

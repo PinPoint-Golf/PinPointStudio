@@ -40,6 +40,7 @@
 #include "format_descriptor.h"
 #include "frame_decode.h"
 #include "imu_sample.h"
+#include "pixel_format_names.h"   // canonical pixelFormatName (shared with the reanalyzer)
 #include "swing_paths.h"
 #include "swing_window.h"
 #include "video_encoder.h"
@@ -48,35 +49,6 @@
 namespace pinpoint {
 
 namespace {
-
-const char* pixelFormatName(PixelFormat fmt)
-{
-    switch (fmt) {
-    case PixelFormat::Mono8:        return "Mono8";
-    case PixelFormat::Mono12:       return "Mono12";
-    case PixelFormat::Mono12Packed: return "Mono12Packed";
-    case PixelFormat::Mono16:       return "Mono16";
-    case PixelFormat::BayerRG8:     return "BayerRG8";
-    case PixelFormat::BayerRG12:    return "BayerRG12";
-    case PixelFormat::BayerRG16:    return "BayerRG16";
-    case PixelFormat::BayerBG8:     return "BayerBG8";
-    case PixelFormat::BayerGR8:     return "BayerGR8";
-    case PixelFormat::BayerGB8:     return "BayerGB8";
-    case PixelFormat::BayerGB16:    return "BayerGB16";
-    case PixelFormat::YUV422:       return "YUV422";
-    case PixelFormat::YUYV:         return "YUYV";
-    case PixelFormat::UYVY:         return "UYVY";
-    case PixelFormat::NV12:         return "NV12";
-    case PixelFormat::YUV420P:      return "YUV420P";
-    case PixelFormat::BGR24:        return "BGR24";
-    case PixelFormat::RGB24:        return "RGB24";
-    case PixelFormat::BGRA32:       return "BGRA32";
-    case PixelFormat::RGBA32:       return "RGBA32";
-    case PixelFormat::MJPEG:        return "MJPEG";
-    case PixelFormat::H264_NAL:     return "H264_NAL";
-    default:                        return "Unknown";
-    }
-}
 
 QJsonArray toJsonTimestamps(const std::vector<int64_t>& tUs)
 {
@@ -502,7 +474,7 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
             // replaces SwingLab's hardcoded 200 Hz assumption.
             if (job.imuDeviceBySerial.contains(serial)) {
                 const SwingImuDeviceInfo& dev = job.imuDeviceBySerial[serial];
-                s[QStringLiteral("device")] = QJsonObject{
+                QJsonObject deviceObj{
                     {QStringLiteral("outputRateHz"),      dev.outputRateHz},
                     {QStringLiteral("fusionMode"),        dev.fusionMode},
                     {QStringLiteral("orientationFilter"), dev.orientationFilter},
@@ -510,6 +482,24 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
                     {QStringLiteral("role"),              dev.role},
                     {QStringLiteral("roleName"),          dev.roleName},
                 };
+                // A/M calibration snapshot — present for every capture so an
+                // analysis-skipped corpus swing remains re-analysable. Same
+                // [scalar,x,y,z] quaternion order as analysis.bindings.
+                if (dev.hasCalibration) {
+                    auto quatJson = [](const QQuaternion& q) {
+                        return QJsonArray{ q.scalar(), q.x(), q.y(), q.z() };
+                    };
+                    deviceObj[QStringLiteral("alignA")]               = quatJson(dev.alignA);
+                    deviceObj[QStringLiteral("mountM")]               = quatJson(dev.mountM);
+                    deviceObj[QStringLiteral("calibrated")]           = dev.calibrated;
+                    deviceObj[QStringLiteral("anatCalibrated")]       = dev.anatCalibrated;
+                    deviceObj[QStringLiteral("mountDeviationDeg")]    = dev.mountDeviationDeg;
+                    deviceObj[QStringLiteral("mountGravityErrorDeg")] = dev.mountGravityErrorDeg;
+                    deviceObj[QStringLiteral("calibAgeSec")]          = dev.calibAgeSec;
+                    if (!dev.calibratedAtUtc.isEmpty())
+                        deviceObj[QStringLiteral("calibratedAt")]     = dev.calibratedAtUtc;
+                }
+                s[QStringLiteral("device")] = deviceObj;
             }
             s[QStringLiteral("units")]  = QJsonObject{
                 {QStringLiteral("accel"), QStringLiteral("g")},
@@ -671,6 +661,9 @@ QJsonObject SwingExporter::captureBlock(const SwingExportJob& job)
     return QJsonObject{
         {QStringLiteral("sessionType"), job.sessionType},
         {QStringLiteral("shotSource"),  job.shotSource},
+        // Window-relative impact (-1 = unknown) — the re-analysis impact reference,
+        // present even for analysis-skipped corpus swings (no analysis.phases block).
+        {QStringLiteral("impactUs"),    static_cast<qint64>(job.impactUs)},
         {QStringLiteral("swingDetectionSensitivity"), job.swingDetectionSensitivity},
         {QStringLiteral("latencyUs"), QJsonObject{
             {QStringLiteral("imuBle"),      static_cast<qint64>(job.imuBleLatencyUs)},

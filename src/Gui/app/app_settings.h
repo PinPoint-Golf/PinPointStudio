@@ -148,6 +148,7 @@ class AppSettings : public QObject
     Q_PROPERTY(QString videoQuality          READ videoQuality          WRITE setVideoQuality          NOTIFY videoQualityChanged)
     Q_PROPERTY(QString videoContainer        READ videoContainer        WRITE setVideoContainer        NOTIFY videoContainerChanged)
     Q_PROPERTY(bool    saveRawFrames         READ saveRawFrames         WRITE setSaveRawFrames         NOTIFY saveRawFramesChanged)
+    Q_PROPERTY(bool    skipAnalysisForRawCapture READ skipAnalysisForRawCapture WRITE setSkipAnalysisForRawCapture NOTIFY skipAnalysisForRawCaptureChanged)
     Q_PROPERTY(bool    savePoseKeypoints     READ savePoseKeypoints     WRITE setSavePoseKeypoints     NOTIFY savePoseKeypointsChanged)
     Q_PROPERTY(bool    saveImuStreams        READ saveImuStreams        WRITE setImuStreams            NOTIFY saveImuStreamsChanged)
     Q_PROPERTY(QString imuDataFormat         READ imuDataFormat         WRITE setImuDataFormat         NOTIFY imuDataFormatChanged)
@@ -274,6 +275,7 @@ public:
         m_videoQuality          = ppSettings().value(QStringLiteral("storage/videoQuality"),          QStringLiteral("medium")).toString();
         m_videoContainer        = ppSettings().value(QStringLiteral("storage/videoContainer"),        QStringLiteral("mp4")).toString();
         m_saveRawFrames         = ppSettings().value(QStringLiteral("storage/saveRawFrames"),         false).toBool();
+        m_skipAnalysisForRawCapture = ppSettings().value(QStringLiteral("storage/skipAnalysisForRawCapture"), false).toBool();
         m_savePoseKeypoints     = ppSettings().value(QStringLiteral("storage/savePoseKeypoints"),     true).toBool();
         m_saveImuStreams         = ppSettings().value(QStringLiteral("storage/saveImuStreams"),        true).toBool();
         m_imuDataFormat         = ppSettings().value(QStringLiteral("storage/imuDataFormat"),         QStringLiteral("json")).toString();
@@ -362,6 +364,7 @@ public:
     QString videoQuality()          const { return m_videoQuality; }
     QString videoContainer()        const { return m_videoContainer; }
     bool    saveRawFrames()         const { return m_saveRawFrames; }
+    bool    skipAnalysisForRawCapture() const { return m_skipAnalysisForRawCapture; }
     bool    savePoseKeypoints()     const { return m_savePoseKeypoints; }
     bool    saveImuStreams()        const { return m_saveImuStreams; }
     QString imuDataFormat()         const { return m_imuDataFormat; }
@@ -989,6 +992,13 @@ public:
         ppSettings().setValue(QStringLiteral("storage/saveRawFrames"), v);
         emit saveRawFramesChanged();
     }
+    void setSkipAnalysisForRawCapture(bool v)
+    {
+        if (m_skipAnalysisForRawCapture == v) return;
+        m_skipAnalysisForRawCapture = v;
+        ppSettings().setValue(QStringLiteral("storage/skipAnalysisForRawCapture"), v);
+        emit skipAnalysisForRawCaptureChanged();
+    }
 
     void setSavePoseKeypoints(bool v)
     {
@@ -1099,6 +1109,7 @@ signals:
     void videoQualityChanged();
     void videoContainerChanged();
     void saveRawFramesChanged();
+    void skipAnalysisForRawCaptureChanged();
     void savePoseKeypointsChanged();
     void saveImuStreamsChanged();
     void imuDataFormatChanged();
@@ -1187,6 +1198,7 @@ private:
     QString m_videoQuality          = QStringLiteral("medium");
     QString m_videoContainer        = QStringLiteral("mp4");
     bool    m_saveRawFrames         = false;
+    bool    m_skipAnalysisForRawCapture = false;
     bool    m_savePoseKeypoints     = true;
     bool    m_saveImuStreams        = true;
     QString m_imuDataFormat         = QStringLiteral("json");

@@ -84,6 +84,13 @@ public:
                           int score, int rating, const QString &note,
                           const QVariantMap &metrics, const QVariantMap &analysisDetail);
 
+    // Re-read <swingDir>/swing.json (SwingDocReader) and update the matching row's
+    // score / metrics / analysisDetail in place — emits dataChanged for just those
+    // roles, so the row keeps its identity, focus and ordering. Called from QML on
+    // the carousel's ACTIVE model after ReanalysisController writes a fresh analysis
+    // back. No-op if the dir isn't in this model or the doc can't be read.
+    Q_INVOKABLE void refreshShot(const QString &swingDir);
+
     // Drop every row (model reset). Used by SessionReviewController when swapping
     // the loaded session into its private review instance; the live shotModel
     // never calls this.

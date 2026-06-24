@@ -816,6 +816,43 @@ Item {
                 }
             }
 
+            // Skip analysis for raw captures — corpus capture: export frames only,
+            // analyse later from the Shots view. Only meaningful with raw frames on.
+            RowLayout {
+                objectName: "setting_skipAnalysisRaw"
+                Layout.fillWidth: true
+                spacing: Theme.sp(16)
+                opacity: appSettings.saveRawFrames ? 1.0 : 0.4
+                Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.sp(3)
+
+                    Text {
+                        text:           qsTr("Skip analysis for raw captures")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        color:          Theme.colorText
+                    }
+                    Text {
+                        text:           qsTr("Captures frames only — re-analyse later from the Shots view (corpus capture)")
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText3
+                    }
+                }
+
+                TogglePill {
+                    checked:  appSettings.skipAnalysisForRawCapture
+                    enabled:  appSettings.saveRawFrames
+                    onToggled: (v) => appSettings.skipAnalysisForRawCapture = v
+                    Layout.alignment: Qt.AlignVCenter
+                }
+            }
+
             // Raw frames warning strip
             Rectangle {
                 Layout.fillWidth: true

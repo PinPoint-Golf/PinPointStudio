@@ -21,21 +21,30 @@
 #include "types.h"
 #include "source_ring.h"
 #include "format_descriptor.h"
+#include "swing_payload_source.h"
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <span>
 #include <vector>
 
 namespace pinpoint {
 
-class EventBuffer;
-
-// Frozen, zero-copy, bounded view of a time range within a paused EventBuffer.
-// Only valid while the buffer remains in Paused state. Payload access after
-// resume() is undefined — destroy the window before calling resume().
+// Frozen, bounded view of a time range, served by a pluggable SwingPayloadSource.
+// Backed either by a paused EventBuffer's ring (live capture/export — valid only
+// while Paused; destroy the window before resume()) or by a disk streamer (offline
+// re-analysis). The window owns its source for its whole lifetime.
 class SwingWindow {
 public:
+    // Construct from a payload source + the frozen index slice. Public so both the
+    // live factory (EventBuffer::captureSwingWindow) and the offline loader
+    // (SwingDiskLoader) can build one; each supplies the matching backing.
+    SwingWindow(std::unique_ptr<const SwingPayloadSource> source,
+                std::vector<IndexEntry> entries,
+                int64_t start_us,
+                int64_t end_us);
+
     SwingWindow(const SwingWindow&)            = delete;
     SwingWindow& operator=(const SwingWindow&) = delete;
 
@@ -72,17 +81,10 @@ public:
                         std::byte* out, size_t out_bytes) const noexcept;
 
 private:
-    friend class EventBuffer;
-
-    SwingWindow(EventBuffer* buffer,
-                std::vector<IndexEntry> entries,
-                int64_t start_us,
-                int64_t end_us);
-
-    EventBuffer*            buffer_;
-    std::vector<IndexEntry> entries_;
-    int64_t                 start_us_;
-    int64_t                 end_us_;
+    std::unique_ptr<const SwingPayloadSource> source_;
+    std::vector<IndexEntry>                   entries_;
+    int64_t                                   start_us_;
+    int64_t                                   end_us_;
 };
 
 } // namespace pinpoint

@@ -21,6 +21,7 @@
 #include <QDateTime>
 #include <QHash>
 #include <QJsonObject>
+#include <QQuaternion>
 #include <QString>
 #include <vector>
 
@@ -61,6 +62,21 @@ struct SwingImuDeviceInfo {
     QString placementSlot;       // "A"/"B"/"C" (AppSettings imuPlacement)
     int     role = 0;            // pinpoint::analysis::SegmentRole (0 = Unknown)
     QString roleName;            // stable role name, e.g. "LeadHand" (segmentRoleName)
+
+    // Live A/M calibration snapshot, baked into the stream's "device" block so a
+    // swing captured with analysis SKIPPED (corpus capture — no analysis.bindings)
+    // can still be re-analysed: the disk loader rebuilds the IMU→segment bindings
+    // from here when analysis.bindings is absent. alignA: fusion-world →
+    // anatomical-world (A); mountM: anatomical-body → sensor-body (M).
+    bool        hasCalibration = false;   // false → omit the calibration keys entirely
+    QQuaternion alignA;
+    QQuaternion mountM;
+    bool        anatCalibrated = false;
+    bool        calibrated     = false;
+    double      mountDeviationDeg     = 0.0;
+    double      mountGravityErrorDeg  = 0.0;
+    QString     calibratedAtUtc;          // ISO8601; empty = never calibrated
+    double      calibAgeSec = -1.0;       // age at shot time; -1 = never calibrated
 };
 
 // Host/app provenance recorded under capture.host — explains cross-host
@@ -131,6 +147,12 @@ struct SwingExportJob {
     // stream as a fallback). -1 disables thumbnail extraction.
     SourceId thumbnailSourceId    = kInvalidSourceId;
     int64_t  thumbnailTimestampUs = -1;
+
+    // Impact instant, WINDOW-RELATIVE microseconds (impact − window.start), written
+    // to capture.impactUs. This is the re-analysis impact reference: a corpus swing
+    // captured with analysis skipped has no analysis.phases[Impact], so offline
+    // re-analysis recovers impact from here. -1 = unknown.
+    int64_t  impactUs = -1;
 
     // NOTE (product decision, 2026-06-11): exports are NEVER trimmed to the
     // detected swing — the saved artifact preserves every captured frame.

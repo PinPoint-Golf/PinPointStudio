@@ -218,6 +218,11 @@ private:
     bool    m_analysisInFlight  = false;
     Outcome m_exportOutcome     = Outcome::Pending;
     Outcome m_analysisOutcome   = Outcome::Pending;
+    // Corpus capture: saveRawFrames && skipAnalysisForRawCapture, resolved per shot
+    // at window capture. When set, the pipeline exports frames only — no analysis,
+    // no segmentation, no on-screen replay — leaving the swing to be re-analysed
+    // later from the Shots view.
+    bool    m_skipAnalysisCapture = false;
     ShotAnalysisResult m_analysisResult;
     QString m_swingDir;          // cached from the export job for the join
     pinpoint::SwingExportJob m_exportJob;  // cached job — synth header on export fail/skip

@@ -17,7 +17,6 @@
  */
 
 #include "swing_window.h"
-#include "event_buffer.h"
 #include "imu_sample.h"
 
 #include <algorithm>
@@ -26,45 +25,26 @@
 
 namespace pinpoint {
 
-SwingWindow::SwingWindow(EventBuffer* buffer,
+// The resume/deregister guard (EventBuffer::swing_window_live_) is owned by the
+// ring backing (RingPayloadSource), set/cleared from its ctor/dtor — so a moved
+// window keeps the guard held until its source is finally destroyed, with no
+// special-casing here. A disk-backed source has no such guard.
+SwingWindow::SwingWindow(std::unique_ptr<const SwingPayloadSource> source,
                          std::vector<IndexEntry> entries,
                          int64_t start_us,
                          int64_t end_us)
-    : buffer_(buffer)
+    : source_(std::move(source))
     , entries_(std::move(entries))
     , start_us_(start_us)
     , end_us_(end_us)
 {
-    if (buffer_)
-        buffer_->swing_window_live_.store(true, std::memory_order_release);
 }
 
-SwingWindow::~SwingWindow() {
-    if (buffer_)
-        buffer_->swing_window_live_.store(false, std::memory_order_release);
-}
+SwingWindow::~SwingWindow() = default;
 
-SwingWindow::SwingWindow(SwingWindow&& o) noexcept
-    : buffer_(o.buffer_)
-    , entries_(std::move(o.entries_))
-    , start_us_(o.start_us_)
-    , end_us_(o.end_us_)
-{
-    o.buffer_ = nullptr;
-}
+SwingWindow::SwingWindow(SwingWindow&& o) noexcept = default;
 
-SwingWindow& SwingWindow::operator=(SwingWindow&& o) noexcept {
-    if (this != &o) {
-        if (buffer_)
-            buffer_->swing_window_live_.store(false, std::memory_order_release);
-        buffer_   = o.buffer_;
-        entries_  = std::move(o.entries_);
-        start_us_ = o.start_us_;
-        end_us_   = o.end_us_;
-        o.buffer_ = nullptr;
-    }
-    return *this;
-}
+SwingWindow& SwingWindow::operator=(SwingWindow&& o) noexcept = default;
 
 std::vector<IndexEntry> SwingWindow::entriesFor(SourceId id) const {
     std::vector<IndexEntry> out;
@@ -86,12 +66,12 @@ size_t SwingWindow::imuSampleCount(SourceId imu_id) const noexcept {
 }
 
 SourceRing::ReadHandle SwingWindow::payloadOf(const IndexEntry& e) const noexcept {
-    if (!buffer_) return {};
-    return buffer_->acquireReadHandle(e.source_id, e.source_sequence);
+    if (!source_) return {};
+    return source_->payloadOf(e.source_id, e.source_sequence);
 }
 
 const FormatDescriptor& SwingWindow::formatOf(SourceId id) const noexcept {
-    return buffer_->formatOf(id);
+    return source_->formatOf(id);
 }
 
 bool SwingWindow::interpolateImu(SourceId imu_id, int64_t target_us,
@@ -164,8 +144,8 @@ bool SwingWindow::interpolateImu(SourceId imu_id, int64_t target_us,
         o.quat_y = s0*py + s1*ny; o.quat_z = s0*pz + s1*nz;
     }
 
-    return prev_h.validate(*buffer_->sources_[imu_id]->ring)
-        && next_h.validate(*buffer_->sources_[imu_id]->ring);
+    return source_->validate(imu_id, prev_h)
+        && source_->validate(imu_id, next_h);
 }
 
 } // namespace pinpoint

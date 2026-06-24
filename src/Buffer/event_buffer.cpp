@@ -17,6 +17,7 @@
  */
 
 #include "event_buffer.h"
+#include "swing_payload_source.h"
 #include "thread_policy.h"
 #include "platform.h"
 
@@ -325,12 +326,40 @@ int64_t EventBuffer::nowMicros() noexcept {
 // SwingWindow
 // ---------------------------------------------------------------------------
 
+// Ring-backed payload source: zero-copy reads from the paused buffer's rings, and
+// the owner of the swing_window_live_ resume/deregister guard (set on construction,
+// cleared on destruction — i.e. for the captured window's whole lifetime).
+class RingPayloadSource final : public SwingPayloadSource {
+public:
+    explicit RingPayloadSource(EventBuffer* buffer) noexcept : buffer_(buffer) {
+        buffer_->swing_window_live_.store(true, std::memory_order_release);
+    }
+    ~RingPayloadSource() override {
+        buffer_->swing_window_live_.store(false, std::memory_order_release);
+    }
+
+    SourceRing::ReadHandle payloadOf(SourceId id, uint64_t sequence) const noexcept override {
+        return buffer_->acquireReadHandle(id, sequence);
+    }
+    const FormatDescriptor& formatOf(SourceId id) const noexcept override {
+        return buffer_->formatOf(id);
+    }
+    bool validate(SourceId id, const SourceRing::ReadHandle& h) const noexcept override {
+        const auto& slot = buffer_->sources_[id];
+        return slot && slot->ring && h.validate(*slot->ring);
+    }
+
+private:
+    EventBuffer* buffer_;
+};
+
 SwingWindow EventBuffer::captureSwingWindow(int64_t t_start_us,
                                              int64_t t_end_us) {
     assert(state_.load(std::memory_order_acquire) == BufferState::Paused
            && "captureSwingWindow requires Paused state");
     auto entries = index_.snapshot(t_start_us, t_end_us);
-    return SwingWindow(this, std::move(entries), t_start_us, t_end_us); // sets swing_window_live_
+    return SwingWindow(std::make_unique<RingPayloadSource>(this),  // sets swing_window_live_
+                       std::move(entries), t_start_us, t_end_us);
 }
 
 SwingWindow EventBuffer::captureSwingWindow(

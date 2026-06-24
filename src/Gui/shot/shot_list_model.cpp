@@ -146,6 +146,31 @@ void ShotListModel::addPersistedShot(const QString &swingDir, int ordinal,
     emit activeCountChanged();
 }
 
+void ShotListModel::refreshShot(const QString &swingDir)
+{
+    if (swingDir.isEmpty())
+        return;
+    int row = -1;
+    for (int i = 0; i < m_shots.size(); ++i) {
+        if (m_shots.at(i).swingDir == swingDir) { row = i; break; }
+    }
+    if (row < 0)
+        return;
+
+    const pinpoint::PersistedShot p = pinpoint::SwingDocReader::readSwingJson(swingDir);
+    if (!p.ok) {
+        ppWarn() << "[ShotListModel] refreshShot: could not read" << swingDir;
+        return;
+    }
+
+    Shot &s = m_shots[row];
+    s.score          = p.score;
+    s.metrics        = p.metrics;
+    s.analysisDetail = p.analysisDetail;
+    emit dataChanged(index(row), index(row),
+                     { ScoreRole, MetricsRole, AnalysisDetailRole });
+}
+
 void ShotListModel::clear()
 {
     if (m_shots.isEmpty())

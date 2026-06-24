@@ -260,8 +260,10 @@ int main(int argc, char *argv[])
                      &shotReplay, &ShotReplayController::stop);
     ClipboardHelper           clipboardHelper;
 
-    // Re-analyse seam for the carousel action bar — stub for now (logs + toasts);
-    // no dependencies, owns no shot state (kept off ShotProcessor by design).
+    // Re-analyse funnel for the carousel action bar: reloads each exported swing
+    // (streaming SwingDiskLoader), re-runs the analyzer on a worker, writes the
+    // result back, and emits reanalysed(dir) so the carousel refreshes the row in
+    // whichever model is active (live or review). Owns no live shot state.
     ReanalysisController      reanalysisController;
 
     // Markup Lab — in-app ground-truth labelling of recorded swings; reads its own
@@ -291,6 +293,12 @@ int main(int argc, char *argv[])
     QObject::connect(&shotProcessor,  &ShotProcessor::busyChanged,
                      &shotController, [&shotController, &shotProcessor] {
         shotController.setProcessorBusy(shotProcessor.busy());
+    });
+    // Hold any in-progress re-analysis batch between swings while a live shot is
+    // processing — keeps two ViTPose passes from oversubscribing the CPU / OOMing.
+    QObject::connect(&shotProcessor,      &ShotProcessor::busyChanged,
+                     &reanalysisController, [&reanalysisController, &shotProcessor] {
+        reanalysisController.setLiveBusy(shotProcessor.busy());
     });
 
     // IMU impact auto-detection (shot detection P1, re-pointed at the P3

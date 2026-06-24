@@ -2018,10 +2018,12 @@ message(STATUS "OpenCV ${OpenCV_VERSION}: found")
 if(TARGET opencv_world)
     set(PP_OPENCV_LIBS opencv_world)
 elseif(TARGET opencv_core AND TARGET opencv_imgproc AND TARGET opencv_imgcodecs)
-    # The app never decodes MP4s via OpenCV — the Markup Lab uses Qt Multimedia
-    # (QMediaPlayer/QVideoSink), so opencv_videoio is deliberately omitted.
-    # (swinglab_run re-adds it for the offline tool.)
-    set(PP_OPENCV_LIBS opencv_core opencv_imgproc opencv_imgcodecs)
+    # opencv_videoio is needed by the offline re-analysis MP4 fallback (SwingDiskSource
+    # in swing_reanalyzer.cpp) when a swing has no raw sidecar. It pulls FFmpeg backends,
+    # NOT VTK (that's opencv_viz, still omitted), so the macOS-bundle bloat concern that
+    # drove the modular link does not apply. No-op on monolithic opencv_world.
+    set(PP_OPENCV_LIBS opencv_core opencv_imgproc opencv_imgcodecs
+        $<TARGET_NAME_IF_EXISTS:opencv_videoio>)
 else()
     set(PP_OPENCV_LIBS ${OpenCV_LIBS})
     message(WARNING "OpenCV: modular targets (opencv_core/imgproc/imgcodecs) not found "
@@ -2158,6 +2160,8 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/pose_runner.cpp
     src/Analysis/shot_analyzer.h
     src/Analysis/shot_analyzer.cpp
+    src/Analysis/swing_reanalyzer.h
+    src/Analysis/swing_reanalyzer.cpp
 )
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)
@@ -2376,8 +2380,11 @@ endif()
 # dependency set (OpenCV incl. videoio, ONNX Runtime, ViTPose model).
 option(PINPOINT_BUILD_TOOLS "Build the SwingLab offline analysis tools" OFF)
 if(PINPOINT_BUILD_TOOLS)
-    add_executable(swinglab_run
-        tools/swinglab/src/swinglab_run.cpp
+    # Shared offline reconstruction + analysis sources (the disk → SwingWindow →
+    # analyzer stack), used by both the SwingLab runner and the parity test. The
+    # parity test additionally compiles the exporter to build its fixture.
+    set(_pinpoint_offline_sources
+        src/Analysis/swing_reanalyzer.cpp
         src/Analysis/shot_analyzer.cpp
         src/Analysis/wrist_analyzer.cpp
         src/Analysis/imu_vision_fuser.cpp
@@ -2400,36 +2407,59 @@ if(PINPOINT_BUILD_TOOLS)
         src/Core/pp_profiler.cpp
         src/Core/pp_os_metrics.cpp
     )
-    target_include_directories(swinglab_run PRIVATE
-        src/Buffer src/Analysis src/Export src/Pose src/Core src/IMU
-        "${_ort_root}/include"
-        ${OpenCV_INCLUDE_DIRS}
-        ${whisper_SOURCE_DIR}/include
-        ${whisper_SOURCE_DIR}/ggml/include
-    )
-    target_compile_definitions(swinglab_run PRIVATE
-        HAVE_OPENCV HAVE_ONNXRUNTIME
-        $<$<BOOL:${_vitpose_model_file}>:HAVE_VITPOSE>
-        $<$<BOOL:${_vitpose_model_file}>:VITPOSE_MODEL_FILE="${_vitpose_model_file}">
-    )
-    target_link_libraries(swinglab_run PRIVATE
-        Qt6::Core Qt6::Gui Qt6::Multimedia
-        pinpoint_buffer whisper
-        ${PP_OPENCV_LIBS}   # same core/imgproc/imgcodecs subset — no viz/VTK (see above)
-        # swinglab_run additionally reads recorded MP4s via cv::VideoCapture, which the
-        # app never does — pull in opencv_videoio for the tool only (no-op on opencv_world,
-        # which is monolithic, via TARGET_NAME_IF_EXISTS).
-        $<TARGET_NAME_IF_EXISTS:opencv_videoio>
-    )
-    if(WIN32)
-        target_link_libraries(swinglab_run PRIVATE "${_ort_root}/lib/onnxruntime.lib")
-    elseif(APPLE)
-        target_link_libraries(swinglab_run PRIVATE "${_ort_dylib_path}")
-    else()
-        target_link_libraries(swinglab_run PRIVATE "${_ort_root}/lib/libonnxruntime.so")
-    endif()
+
+    # Common include/define/link wiring for an offline tool target.
+    function(pinpoint_configure_offline_target tgt)
+        target_include_directories(${tgt} PRIVATE
+            src/Buffer src/Analysis src/Export src/Pose src/Core src/IMU
+            "${_ort_root}/include"
+            ${OpenCV_INCLUDE_DIRS}
+            ${whisper_SOURCE_DIR}/include
+            ${whisper_SOURCE_DIR}/ggml/include
+        )
+        target_compile_definitions(${tgt} PRIVATE
+            HAVE_OPENCV HAVE_ONNXRUNTIME
+            $<$<BOOL:${_vitpose_model_file}>:HAVE_VITPOSE>
+            $<$<BOOL:${_vitpose_model_file}>:VITPOSE_MODEL_FILE="${_vitpose_model_file}">
+        )
+        target_link_libraries(${tgt} PRIVATE
+            Qt6::Core Qt6::Gui Qt6::Multimedia
+            pinpoint_buffer whisper
+            ${PP_OPENCV_LIBS}   # same core/imgproc/imgcodecs subset — no viz/VTK (see above)
+            # The offline tools read recorded MP4s via cv::VideoCapture — pull in
+            # opencv_videoio (no-op on monolithic opencv_world via TARGET_NAME_IF_EXISTS).
+            $<TARGET_NAME_IF_EXISTS:opencv_videoio>
+        )
+        if(WIN32)
+            target_link_libraries(${tgt} PRIVATE "${_ort_root}/lib/onnxruntime.lib")
+        elseif(APPLE)
+            target_link_libraries(${tgt} PRIVATE "${_ort_dylib_path}")
+        else()
+            target_link_libraries(${tgt} PRIVATE "${_ort_root}/lib/libonnxruntime.so")
+        endif()
+    endfunction()
+
+    add_executable(swinglab_run tools/swinglab/src/swinglab_run.cpp ${_pinpoint_offline_sources})
+    pinpoint_configure_offline_target(swinglab_run)
     # The runner resolves the ViTPose model next to its own binary, same as the app.
     message(STATUS "SwingLab tools: swinglab_run enabled")
+
+    # RAM-vs-disk SwingWindow parity test — builds its fixture with the real
+    # exporter, so it additionally compiles the Export encoder stack + FFmpeg.
+    add_executable(swing_window_parity_test
+        src/Analysis/tests/swing_window_parity_test.cpp
+        ${_pinpoint_offline_sources}
+        src/Export/swing_exporter.cpp
+        src/Export/video_encoder.cpp
+    )
+    pinpoint_configure_offline_target(swing_window_parity_test)
+    if(FFMPEG_FOUND)
+        target_sources(swing_window_parity_test PRIVATE src/Export/ffmpeg_video_encoder.cpp)
+        target_compile_definitions(swing_window_parity_test PRIVATE HAVE_FFMPEG)
+        target_link_libraries(swing_window_parity_test PRIVATE PkgConfig::FFMPEG)
+    endif()
+    add_test(NAME swing_window_parity COMMAND swing_window_parity_test)
+    message(STATUS "SwingLab tools: swing_window_parity_test enabled")
 endif()
 
 # ── Windows installer packaging (CPack + Inno Setup) ─────────────────────────
