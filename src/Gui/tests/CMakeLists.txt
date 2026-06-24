@@ -17,7 +17,7 @@ if(NOT COMMAND pp_add_test)
     enable_testing()
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Qml)
+find_package(Qt6 REQUIRED COMPONENTS Qml Concurrent)
 
 set(GUI ${CMAKE_CURRENT_SOURCE_DIR}/..)   # src/Gui
 set(SRC ${GUI}/..)                         # src
@@ -47,9 +47,12 @@ pp_add_test(shot_list_model_test
     LINK    Qt6::Qml  AUTOMOC)
 
 # ReanalysisController — the single re-analyse seam the carousel forwards to.
+# The controller's worker body (reanalyzeSwingDir / writeSwingJson) is satisfied
+# by reanalysis_stubs.cpp so the funnel test stays free of the analysis pipeline.
 pp_add_test(reanalysis_controller_test
     SOURCES reanalysis_controller_test.cpp
+            reanalysis_stubs.cpp
             ${GUI}/shot/reanalysis_controller.cpp
             ${SRC}/Core/tests/pp_log_stub.cpp
     INCLUDE ${GUI} ${GUI}/review ${SRC} ${SRC}/Core
-    LINK    Qt6::Qml  AUTOMOC)
+    LINK    Qt6::Qml Qt6::Concurrent  AUTOMOC)

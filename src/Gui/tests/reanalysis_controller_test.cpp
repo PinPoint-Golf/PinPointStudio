@@ -20,7 +20,8 @@
 // Asserts that reanalyse() emits reanalyseQueued with the right count for the
 // focused-shot path ([id]) and for a wider id list (the funnel is scope-agnostic
 // even though v1's bar only feeds it the focused shot), and that an empty list
-// is a no-op. reanalysing stays false in this stubbed phase.
+// is a no-op. The first non-empty call starts a swing immediately, so reanalysing
+// flips true (the worker body is stubbed; see reanalysis_stubs.cpp).
 
 #include "shot/reanalysis_controller.h"
 
@@ -58,7 +59,10 @@ int main()
     ctrl.reanalyse(QVariantList{ 42 });
     checkInt ("emissions",     emissions, 1);
     checkInt ("queued count",  lastCount, 1);
-    checkBool("reanalysing stays false", ctrl.reanalysing(), false);
+    // The funnel now starts the first swing immediately (no live shot busy), so the
+    // controller reports busy. onWorkerFinished only runs under an event loop (which
+    // this test never spins), so it stays busy for the rest of the run.
+    checkBool("reanalysing after queue", ctrl.reanalysing(), true);
 
     std::printf("\n-- scope-agnostic funnel: reanalyse([7,8,9]) --\n");
     ctrl.reanalyse(QVariantList{ 7, 8, 9 });
