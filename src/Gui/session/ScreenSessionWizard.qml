@@ -1189,7 +1189,6 @@ Item {
                                         roiEditable:          true
                                         showPerspectiveBadge: false
                                         showStatsOverlay:     false
-                                        showReplayBadge:      false
                                         showReplayOverlay:    false
                                     }
                                 }
@@ -2316,7 +2315,6 @@ Item {
                     showHittingArea:      false
                     showPerspectiveBadge: false
                     showStatsOverlay:     false
-                    showReplayBadge:      false
                 }
             }
 

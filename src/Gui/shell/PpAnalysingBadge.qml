@@ -20,8 +20,8 @@
 // progress bar (sweeping sheen + leading-edge twinkles) beneath. Lifted out of
 // PpSessionToolbar so the title bar (PpHeader) can host it in the centre slot,
 // taking the DETECT cluster's place while a shot is processed (post-roll +
-// analysis + export; it hides again once the on-screen replay runs, which has
-// its own REPLAY badge on the camera frames). Pure presentation: the PLACEMENT
+// analysis + export; it hides again once the on-screen replay runs). Pure
+// presentation: the PLACEMENT
 // SITE owns the visibility gate. All motion is gated on Theme.reduceMotion; the
 // plain filling bar remains. Reads the global shotProcessor context property.
 

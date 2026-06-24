@@ -64,7 +64,6 @@ Item {
     property bool roiEditable:          false  // enables the ROI drag-select interaction
     property bool showPerspectiveBadge: true
     property bool showStatsOverlay:     true   // resolution / fps
-    property bool showReplayBadge:      true
     property bool showReplayOverlay:    true   // analyzed skeleton + club shaft during replay
     property bool showPredictedShaft:   false  // R7 dev overlay: dashed ghost of the kinematic-model club
     property bool showPredictedEnvelope:false  // R7 dev overlay: faint ±k·σ_β kinematic cone (needs showPredictedShaft)
@@ -685,66 +684,6 @@ Item {
             width:  screenR * 2
             height: screenR * 2
             radius: screenR
-        }
-
-        // ── Replay badge ──────────────────────────────────────────────────
-        Rectangle {
-            id: replayBadge
-            visible: root.showReplayBadge
-                     && ((root.instance !== null && root.instance.isReplaying)
-                         || (root._isReplay && shotReplay.active))
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: parent.top
-            anchors.topMargin: Theme.sp(12)
-            width: replayRow.implicitWidth + Theme.sp(24)
-            height: Theme.sp(28)
-            radius: Theme.sp(14)
-            color: Qt.rgba(Theme.colorBg.r, Theme.colorBg.g, Theme.colorBg.b, 0.8)
-            border.width: 1
-            border.color: Theme.colorBorderMid
-            z: 30
-
-            Row {
-                id: replayRow
-                anchors.centerIn: parent
-                spacing: Theme.sp(6)
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("REPLAY")
-                    color: Theme.colorWarn
-                    font.family: Theme.fontData
-                    font.pixelSize: Theme.fontSzBody
-                    font.weight: Font.Normal
-                    font.letterSpacing: Theme.trackingMicro
-                    font.capitalization: Font.AllUppercase
-                }
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "¼×"
-                    color: Theme.colorAccent
-                    font.family: Theme.fontData
-                    font.pixelSize: Theme.fontSzLabel
-                }
-
-                // Muted skip hint — ESC cancels the replay (Main.qml Shortcut).
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("ESC")
-                    color: Theme.colorText3
-                    font.family: Theme.fontData
-                    font.pixelSize: Theme.fontSzMicro
-                    font.letterSpacing: Theme.trackingMicro
-                }
-            }
-
-            SequentialAnimation on opacity {
-                running: replayBadge.visible
-                loops: Animation.Infinite
-                NumberAnimation { to: 0.5; duration: 800; easing.type: Easing.InOutSine }
-                NumberAnimation { to: 1.0; duration: 800; easing.type: Easing.InOutSine }
-            }
         }
 
         // ── Unified ROI editor MouseArea (crop-editor interaction model) ──

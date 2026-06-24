@@ -1775,7 +1775,6 @@ Item {
                             roiEditable:          true
                             showPerspectiveBadge: false
                             showStatsOverlay:     false
-                            showReplayBadge:      false
                             showReplayOverlay:    false
                         }
                     }
