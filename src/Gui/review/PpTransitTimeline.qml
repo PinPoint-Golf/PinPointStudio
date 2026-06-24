@@ -85,6 +85,16 @@ Item {
         && markupController.currentSwingDir === shotReplay.swingDir)
         ? markupController.eventList : []
 
+    // Every frame on the current swing that has a club/shaft laid, same domain and
+    // visibility gate as the diamonds above. Drawn as thin ticks straddling the line
+    // so the spread of shaft markings reads at a glance — complementing the diamonds,
+    // which only flag the named P-positions.
+    readonly property var _shaftMarkers: (shotReplay.active
+        && markupController.panelVisible
+        && markupController.hasSwing
+        && markupController.currentSwingDir === shotReplay.swingDir)
+        ? markupController.shaftList : []
+
     // Readout chip values at the playhead.
     readonly property string _activeName: (_activeIdx >= 0 && _activeIdx < _stations.length)
                                           ? _stations[_activeIdx].name : ""
@@ -130,6 +140,32 @@ Item {
             y: root._horizontal ? (root._lineCross - height / 2) : root._insetMain
             width:  root._horizontal ? (root._playFrac * root._lineLen) : Theme.sp(4)
             height: root._horizontal ? Theme.sp(4) : (root._playFrac * root._lineLen)
+        }
+
+        // ── Shaft ticks — frames carrying a club/shaft label ────────────────────
+        // One thin tick per shaft-marked frame, straddling the line at its true
+        // proportional time. Subtle and non-interactive (the diamonds own the seek
+        // affordance): they just show where the club has been laid along the swing.
+        // Declared before the dots/labels/diamonds/playhead so all of those draw over.
+        Repeater {
+            model: root._shaftMarkers
+            delegate: Rectangle {
+                id: tick
+                required property var modelData
+                readonly property real frac: Math.max(0, Math.min(1,
+                    (tick.modelData.tUs - shotReplay.startUs) / root._span))
+                readonly property real tickMain: root._insetMain + frac * root._lineLen
+                readonly property real len:  Theme.sp(11)
+                readonly property real thick: Theme.sp(2)
+                width:  root._horizontal ? thick : len
+                height: root._horizontal ? len   : thick
+                radius: Theme.sp(1)
+                antialiasing: true
+                color: Theme.colorGood
+                opacity: 0.5
+                x: (root._horizontal ? tickMain : root._lineCross) - width / 2
+                y: (root._horizontal ? root._lineCross : tickMain) - height / 2
+            }
         }
 
         // Elbow connectors (dot → label). Horizontal always draws the drop; the

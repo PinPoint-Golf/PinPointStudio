@@ -359,6 +359,26 @@ QVariantList MarkupController::labelledFrames() const
     return out;
 }
 
+// Render-ready list of every frame carrying a shaft (club) label, each with its
+// WINDOW-RELATIVE t_us — the same domain as eventList() and the discovered
+// stations. The Transit timeline draws a thin tick per entry so the frames where
+// the club has actually been laid read at a glance, complementing the per-position
+// diamonds (which only mark the named P-positions). m_truth.shaft is a QMap keyed
+// by frame index, so this is already in ascending frame (hence time) order.
+QVariantList MarkupController::shaftList() const
+{
+    QVariantList out;
+    for (auto it = m_truth.shaft.constBegin(); it != m_truth.shaft.constEnd(); ++it) {
+        const int idx = it.key();
+        if (idx < 0 || idx >= m_fo.frameCount()) continue;
+        QVariantMap e;
+        e.insert(QStringLiteral("frame"), idx);
+        e.insert(QStringLiteral("tUs"),   qlonglong(m_fo.frameTimesUs[idx]));
+        out.push_back(e);
+    }
+    return out;
+}
+
 void MarkupController::setShaft(double gripNx, double gripNy, double headNx, double headNy)
 {
     if (!hasSwing()) return;

@@ -68,6 +68,7 @@ class MarkupController : public QObject
     Q_PROPERTY(QVariantMap  currentShaft  READ currentShaft  NOTIFY frameChanged)
     Q_PROPERTY(QVariantMap  events        READ events        NOTIFY labelsChanged)
     Q_PROPERTY(QVariantList eventList     READ eventList     NOTIFY labelsChanged)
+    Q_PROPERTY(QVariantList shaftList     READ shaftList     NOTIFY labelsChanged)
     Q_PROPERTY(QVariantList labelledFrames READ labelledFrames NOTIFY labelsChanged)
     // ── panel presence ───────────────────────────────────────────────────────
     // True while the (active screen's) Markup panel is on-screen — the Transit
@@ -110,6 +111,7 @@ public:
     QVariantMap  currentShaft()  const;
     QVariantMap  events()        const;
     QVariantList eventList()     const;
+    QVariantList shaftList()     const;
     QVariantList labelledFrames() const;
     bool         panelVisible()  const { return m_panelRefs > 0; }
 
