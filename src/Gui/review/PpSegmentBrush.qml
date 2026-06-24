@@ -149,12 +149,6 @@ Item {
         width: Math.max(1, root._xR - root._xL); height: root._plotH
         color: Theme.colorAccent; opacity: 0.06
     }
-    Rectangle {                                   // window outline
-        x: root._xL; y: root._plotT
-        width: Math.max(1, root._xR - root._xL); height: root._plotH
-        color: "transparent"
-        border.width: Theme.sp(1.5); border.color: Theme.colorAccent
-    }
     Repeater {                                     // L / R edge handles
         model: [{ x: root._xL }, { x: root._xR }]
         delegate: Item {
