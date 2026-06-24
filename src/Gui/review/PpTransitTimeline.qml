@@ -57,6 +57,9 @@ Item {
     readonly property real _labelBand: _horizontal ? Theme.sp(74) : Theme.sp(48)
     readonly property real _lineLen:   Math.max(1, (_horizontal ? width : height) - 2 * _insetMain)
     readonly property real _beadMain:  _insetMain + _playFrac * _lineLen
+    // Markup diamonds ride the side of the line OPPOSITE the labels (above when
+    // horizontal, left when vertical); this is the cross-axis offset of their centre.
+    readonly property real _diamondGap: Theme.sp(13)
 
     // Natural cross-axis extent of the horizontal layout: line → elbow drop to the
     // label band → one upright label row (+ a little breathing room). Hosts bind the
@@ -70,6 +73,17 @@ Item {
         ? solver.stationLayout(_phases, shotReplay.startUs, shotReplay.endUs, _horizontal,
                                _lineLen, Theme.sp(12), Theme.fontData, Theme.fontSzLabel)
         : []
+
+    // Ground-truth markup positions for the swing currently on the line, in the same
+    // window-relative µs domain as the stations. Shown only while the Markup panel is
+    // actually on-screen (panelVisible) and focused on THIS swing — so the diamonds
+    // are a live markup-workflow affordance that disappears when the panel is toggled
+    // out of the View, not always-on chrome.
+    readonly property var _markupMarkers: (shotReplay.active
+        && markupController.panelVisible
+        && markupController.hasSwing
+        && markupController.currentSwingDir === shotReplay.swingDir)
+        ? markupController.eventList : []
 
     // Readout chip values at the playhead.
     readonly property string _activeName: (_activeIdx >= 0 && _activeIdx < _stations.length)
@@ -237,6 +251,47 @@ Item {
                 y: root._horizontal ? (root._labelBand + Theme.sp(2)) : (labelMain - height / 2)
                 TapHandler { onTapped: shotReplay.seekToUs(lbl.modelData.tUs) }
                 HoverHandler { cursorShape: Qt.PointingHandCursor }
+            }
+        }
+
+        // ── Markup overlay — ground-truth P-positions as diamonds ───────────────
+        // One diamond per marked position, sitting just off the line on the side away
+        // from the labels, at its TRUE proportional time — so a manual markup can be
+        // eyeballed against the discovered station directly across the line. Solid =
+        // the position also has a club/shaft laid; hollow = time only. Tap to seek.
+        Repeater {
+            model: root._markupMarkers
+            delegate: Item {
+                id: mk
+                required property var modelData
+                anchors.fill: parent
+                readonly property real frac: Math.max(0, Math.min(1,
+                    (mk.modelData.tUs - shotReplay.startUs) / root._span))
+                readonly property real markMain:  root._insetMain + frac * root._lineLen
+                readonly property real markCross: root._lineCross - root._diamondGap
+
+                Rectangle {
+                    readonly property real dsz: Theme.sp(9)
+                    width: dsz; height: dsz
+                    rotation: 45
+                    radius: Theme.sp(1)
+                    antialiasing: true
+                    color: mk.modelData.hasClub ? Theme.colorGood : "transparent"
+                    border.width: mk.modelData.hasClub ? 0 : Theme.sp(2)
+                    border.color: Theme.colorGood
+                    x: (root._horizontal ? mk.markMain : mk.markCross) - width / 2
+                    y: (root._horizontal ? mk.markCross : mk.markMain) - height / 2
+                }
+                // Un-rotated hit target (a touch larger than the diamond) — seeks the
+                // playhead to this markup time, mirroring a station tap.
+                Item {
+                    readonly property real hsz: Theme.sp(20)
+                    width: hsz; height: hsz
+                    x: (root._horizontal ? mk.markMain : mk.markCross) - hsz / 2
+                    y: (root._horizontal ? mk.markCross : mk.markMain) - hsz / 2
+                    TapHandler { onTapped: shotReplay.seekToUs(mk.modelData.tUs) }
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                }
             }
         }
 

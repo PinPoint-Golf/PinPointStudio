@@ -82,9 +82,24 @@ Item {
         if (root.panelActive && root.targetSwingDir !== "")
             markupController.loadSwing(root.targetSwingDir)
     }
+
+    // Mark this panel present on the shared controller while it is on-screen — the
+    // panel only exists when the View shows Markup (PpModeStage loads/unloads it),
+    // and panelActive narrows that to the visible session screen. The Transit
+    // timeline gates its markup diamonds on this, so toggling Markup out of the View
+    // (or switching tab/screen) destroys the panel → releases → diamonds vanish.
+    property bool _retained: false
+    function _syncRetain() {
+        if (root.panelActive === root._retained) return
+        root._retained = root.panelActive
+        if (root._retained) markupController.retainPanel()
+        else                markupController.releasePanel()
+    }
+
     onTargetSwingDirChanged: _syncSwing()
-    onPanelActiveChanged: _syncSwing()
-    Component.onCompleted: _syncSwing()
+    onPanelActiveChanged: { _syncSwing(); _syncRetain() }
+    Component.onCompleted: { _syncSwing(); _syncRetain() }
+    Component.onDestruction: if (root._retained) markupController.releasePanel()
 
     focus: true
     Keys.onPressed: function (e) {

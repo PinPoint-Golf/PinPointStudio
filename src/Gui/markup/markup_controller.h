@@ -67,7 +67,14 @@ class MarkupController : public QObject
     Q_PROPERTY(bool         dirty         READ dirty         NOTIFY dirtyChanged)
     Q_PROPERTY(QVariantMap  currentShaft  READ currentShaft  NOTIFY frameChanged)
     Q_PROPERTY(QVariantMap  events        READ events        NOTIFY labelsChanged)
+    Q_PROPERTY(QVariantList eventList     READ eventList     NOTIFY labelsChanged)
     Q_PROPERTY(QVariantList labelledFrames READ labelledFrames NOTIFY labelsChanged)
+    // ── panel presence ───────────────────────────────────────────────────────
+    // True while the (active screen's) Markup panel is on-screen — the Transit
+    // timeline only paints its markup-diamond overlay while this holds, so toggling
+    // the panel out of the View hides the diamonds. Maintained by retain/release
+    // claims so the StackLayout's off-screen duplicate panel can't interfere.
+    Q_PROPERTY(bool         panelVisible  READ panelVisible  NOTIFY panelVisibleChanged)
     // ── recorded pose overlay (display only) ─────────────────────────────────
     Q_PROPERTY(bool         poseAvailable READ poseAvailable NOTIFY currentChanged)
     Q_PROPERTY(bool         showSkeleton  READ showSkeleton  WRITE setShowSkeleton NOTIFY skeletonChanged)
@@ -102,7 +109,9 @@ public:
     bool         dirty()         const { return m_dirty; }
     QVariantMap  currentShaft()  const;
     QVariantMap  events()        const;
+    QVariantList eventList()     const;
     QVariantList labelledFrames() const;
+    bool         panelVisible()  const { return m_panelRefs > 0; }
 
     bool         poseAvailable() const { return m_pose.ok; }
     bool         showSkeleton()  const { return m_showSkeleton; }
@@ -134,6 +143,12 @@ public:
     Q_INVOKABLE bool save();
     Q_INVOKABLE void revert();
 
+    // Panel presence claims — the visible Markup panel retains on show / releases on
+    // hide+destroy (see panelVisible). Balanced, refcounted, so transient overlaps
+    // between screens never flip the state spuriously.
+    Q_INVOKABLE void retainPanel();
+    Q_INVOKABLE void releasePanel();
+
 signals:
     void swingsChanged();
     void currentChanged();
@@ -143,6 +158,7 @@ signals:
     void strideChanged();
     void skeletonChanged();
     void poseChanged();
+    void panelVisibleChanged();
     void message(const QString &text);
 
 private:
@@ -169,4 +185,5 @@ private:
     int                           m_stride = 10;
     bool                          m_dirty = false;
     bool                          m_showSkeleton = true;
+    int                           m_panelRefs = 0;       // live visible-panel claims
 };

@@ -328,6 +328,29 @@ QVariantMap MarkupController::events() const
     return m;
 }
 
+// Render-ready list of the marked positions, each carrying its WINDOW-RELATIVE
+// t_us (the raw face-on frame timestamp — the same domain ShotReplayController's
+// startUs/endUs and the analysis phases live in). The Transit timeline binds this
+// directly so it can place a comparison diamond per markup position with the very
+// formula it uses for the discovered stations.
+QVariantList MarkupController::eventList() const
+{
+    QVariantList out;
+    const qint64 t0 = m_fo.frameTimesUs.isEmpty() ? 0 : m_fo.frameTimesUs.first();
+    for (auto it = m_truth.events.constBegin(); it != m_truth.events.constEnd(); ++it) {
+        const int idx = it.value();
+        if (idx < 0 || idx >= m_fo.frameCount()) continue;
+        QVariantMap e;
+        e.insert(QStringLiteral("name"),    it.key());
+        e.insert(QStringLiteral("frame"),   idx);
+        e.insert(QStringLiteral("tUs"),     qlonglong(m_fo.frameTimesUs[idx]));
+        e.insert(QStringLiteral("sec"),     double(m_fo.frameTimesUs[idx] - t0) / 1e6);
+        e.insert(QStringLiteral("hasClub"), m_truth.shaft.contains(idx));
+        out.push_back(e);
+    }
+    return out;
+}
+
 QVariantList MarkupController::labelledFrames() const
 {
     QVariantList out;
@@ -396,6 +419,16 @@ void MarkupController::revert()
     setDirty(false);
     emit labelsChanged();
     emit frameChanged();
+}
+
+void MarkupController::retainPanel()
+{
+    if (++m_panelRefs == 1) emit panelVisibleChanged();
+}
+
+void MarkupController::releasePanel()
+{
+    if (m_panelRefs > 0 && --m_panelRefs == 0) emit panelVisibleChanged();
 }
 
 void MarkupController::setDirty(bool d)
