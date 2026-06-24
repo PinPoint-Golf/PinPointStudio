@@ -36,6 +36,9 @@ QtObject {
     // ── Shared tool state (the one toolbar writes these) ───────────────────────
     property string tool: "select"            // select | circle | line | rect
     property color  strokeColor: Theme.colorAccent
+    // Palette collapsed/expanded. Held here so the choice survives tile churn
+    // (Replay↔Analyse rebuilds the toolbar). Session-only; resets on app restart.
+    property bool   paletteOpen: true
 
     // ── Per-swing, per-tile mark store ────────────────────────────────────────
     // key = "<swingDir>#<streamIndex>" → array of shape objects

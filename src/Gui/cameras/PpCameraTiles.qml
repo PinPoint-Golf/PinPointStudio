@@ -33,6 +33,18 @@ Item {
     property int  sessionType: -1
     property bool showHittingArea: false
 
+    // Analyse-only telestrator gutter: a reserved LHS margin that hosts the
+    // annotation palette's open/collapse button, so the affordance lives beside
+    // the footage rather than on top of it. Reserved whenever the palette can show
+    // (regardless of open/closed) so the tiles never reflow as you toggle it.
+    readonly property bool _annotate: SessionMode.mode === SessionMode.analyse
+                                      && shotReplay.active && shotReplay.streams.length > 0
+    property real _leftGutter: _annotate ? Theme.sp(54) : Theme.sp(12)
+    Behavior on _leftGutter {
+        enabled: !Theme.reduceMotion
+        NumberAnimation { duration: Theme.durationNormal; easing.type: Easing.InOutQuad }
+    }
+
     // Live cameras show ONLY in Capture; Review and Analyse both render the loaded
     // shot's disk streams. The fork is data-source-driven (not Review-specific), so
     // one loaded shotReplay carries the video across the Review↔Analyse mode toggle.
@@ -65,8 +77,12 @@ Item {
         ? shotProcessor.replayAnalysisDetail.series : []
 
     RowLayout {
+        id: tilesRow
         anchors.fill: parent
-        anchors.margins: Theme.sp(12)
+        anchors.topMargin: Theme.sp(12)
+        anchors.bottomMargin: Theme.sp(12)
+        anchors.rightMargin: Theme.sp(12)
+        anchors.leftMargin: root._leftGutter   // reserve the telestrator gutter
         spacing: Theme.sp(8)
 
         // ── Live camera tiles (Capture only) ───────────────────────────────
@@ -114,6 +130,13 @@ Item {
                 annotationsEnabled: SessionMode.mode === SessionMode.analyse
             }
         }
+
+        // Trailing fill absorbs the dead space to the RIGHT of the left-aligned
+        // replay tiles (their original layout). Its left edge marks the camera
+        // cluster's right boundary, so the telestrator bar can centre over the
+        // cluster without altering the tiles. (Capture uses the metric graph as
+        // its fillWidth element instead.)
+        Item { id: tilesEnd; Layout.fillWidth: true; Layout.fillHeight: true; visible: root._replay }
 
         // In-replay metric graph — the Capture-mode ¼× auto-replay transient
         // (shotProcessor; degraded shots only). Review/Analyse draw their curves
@@ -174,16 +197,50 @@ Item {
         }
     }
 
-    // ── Telestrator palette (Analyse only) ────────────────────────────────────
-    // One shared bar over the camera tiles; drives the AnnotationTool state every
-    // tile's PpAnnotationLayer reads. Shown only with a swing loaded for analysis.
-    PpAnnotationToolbar {
-        anchors.horizontalCenter: parent.horizontalCenter
+    // ── Telestrator open button (in the gutter, off the footage) ──────────────
+    // A ">" chevron that opens the palette; shown only while collapsed (the
+    // matching "<" collapse button lives on the palette itself). Docked top-left
+    // in the reserved gutter so the affordance never sits on the video.
+    Rectangle {
+        id: annoOpen
+        visible: root._annotate && !AnnotationTool.paletteOpen
+        anchors.left: parent.left
         anchors.top: parent.top
-        anchors.topMargin: Theme.sp(12)
+        anchors.leftMargin: Math.max(Theme.sp(4), (root._leftGutter - width) / 2)
+        anchors.topMargin: Theme.sp(10)
+        width: Theme.sp(32); height: Theme.sp(32)
+        radius: Theme.radius
         z: 50
-        visible: SessionMode.mode === SessionMode.analyse
-                 && shotReplay.active && shotReplay.streams.length > 0
+        color: annoOpenMa.containsMouse ? Theme.colorBg2 : "transparent"
+        border.width: 1
+        border.color: Theme.colorBorderMid
+        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+        PpAnnotationIcon {
+            anchors.centerIn: parent
+            width: Theme.sp(17); height: Theme.sp(17)
+            kind: "chevronRight"
+            iconColor: Theme.colorText2
+        }
+        PpPressable {
+            id: annoOpenMa
+            onClicked: AnnotationTool.paletteOpen = true
+        }
+    }
+
+    // ── Telestrator palette (Analyse only) ────────────────────────────────────
+    // Centred over the camera cluster (gutter edge → tilesEnd's left edge) so its
+    // position reads as "applies to all cameras" — without moving the left-aligned
+    // tiles. Drives the AnnotationTool state every tile's PpAnnotationLayer reads.
+    PpAnnotationToolbar {
+        id: annoBar
+        // cluster spans root-x [_leftGutter, _leftGutter + tilesEnd.x - spacing];
+        // place this bar's centre at the cluster centre.
+        x: root._leftGutter + (tilesEnd.x - tilesRow.spacing - width) / 2
+        anchors.top: parent.top
+        anchors.topMargin: Theme.sp(10)
+        z: 50
+        visible: root._annotate && AnnotationTool.paletteOpen
         opacity: visible ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
     }

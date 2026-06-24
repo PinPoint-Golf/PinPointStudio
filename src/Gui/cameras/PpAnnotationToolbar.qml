@@ -16,18 +16,20 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// The one telestrator palette — floats over the analyse-view camera tiles and
-// drives the shared AnnotationTool state (active tool + ink colour) that every
-// PpAnnotationLayer reads. Marks themselves live per tile; this bar is global.
-// Content-sized, flat-panel chrome (no shadow), matching the toolbar idiom.
+// The one telestrator palette — the controls only (active tool + ink colour +
+// delete/clear), driving the shared AnnotationTool state every PpAnnotationLayer
+// reads. The host floats it CENTRED over the camera tiles so its position reads
+// as "applies to all cameras"; the open/collapse toggle lives separately in the
+// LHS gutter. Content-sized, flat-panel chrome (no shadow).
 
 import QtQuick
+import QtQuick.Layouts
 import PinPointStudio
 
 Rectangle {
     id: bar
 
-    implicitWidth:  content.implicitWidth + Theme.sp(20)
+    implicitWidth:  content.implicitWidth + Theme.sp(16)
     implicitHeight: Theme.sp(46)
     radius: Theme.radiusLg
     color: Qt.rgba(Theme.colorSurface.r, Theme.colorSurface.g, Theme.colorSurface.b, 0.96)
@@ -40,23 +42,81 @@ Rectangle {
     readonly property var _swatches: [ Theme.colorAccent, Theme.colorGood,
                                        Theme.colorWarn, Theme.colorError, "#F5F5F5" ]
 
-    readonly property var _tools:  [ "select", "circle", "line", "rect" ]
-    readonly property var _labels: [ "Select", "Circle", "Line", "Square" ]
-    function _toolLabel(t) { var i = _tools.indexOf(t); return i >= 0 ? _labels[i] : "Select" }
-    function _labelTool(l) { var i = _labels.indexOf(l); return i >= 0 ? _tools[i] : "select" }
+    // Tool segments: cursor / line / ellipse / hollow square.
+    readonly property var _tools: [
+        { tool: "select", kind: "select" },
+        { tool: "line",   kind: "line"   },
+        { tool: "circle", kind: "circle" },
+        { tool: "rect",   kind: "rect"   }
+    ]
 
     Row {
         id: content
         anchors.centerIn: parent
         spacing: Theme.sp(10)
 
-        // ── Tool selector ─────────────────────────────────────────────────────
-        PpSegmentedControl {
+        // ── Collapse the palette (back to the gutter open button) ─────────────
+        Rectangle {
+            id: collapseBtn
             anchors.verticalCenter: parent.verticalCenter
-            width: Theme.sp(208)
-            options:  bar._labels
-            selected: bar._toolLabel(AnnotationTool.tool)
-            onActivated: (value) => { AnnotationTool.tool = bar._labelTool(value) }
+            width: Theme.sp(30); height: Theme.sp(30)
+            radius: Theme.radius
+            color: collapseMa.containsMouse ? Theme.colorBg2 : "transparent"
+            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+            PpAnnotationIcon {
+                anchors.centerIn: parent
+                width: Theme.sp(16); height: Theme.sp(16)
+                kind: "chevronLeft"
+                iconColor: Theme.colorText2
+            }
+            PpPressable { id: collapseMa; onClicked: AnnotationTool.paletteOpen = false }
+        }
+
+        // ── Tool selector pill (icons) ────────────────────────────────────────
+        Rectangle {
+            id: toolPill
+            anchors.verticalCenter: parent.verticalCenter
+            width: Theme.sp(148); height: Theme.sp(30)
+            radius: height / 2
+            color: Theme.colorBg
+            border.width: 1
+            border.color: Theme.colorBorderMid
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.margins: Theme.sp(3)
+                spacing: Theme.sp(2)
+                Repeater {
+                    model: bar._tools
+                    delegate: Rectangle {
+                        id: seg
+                        required property var modelData
+                        readonly property bool active: AnnotationTool.tool === seg.modelData.tool
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        radius: height / 2
+                        color: seg.active        ? Theme.colorAccent
+                             : segMa.containsMouse ? Theme.colorBg3
+                             :                       "transparent"
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+                        PpAnnotationIcon {
+                            anchors.centerIn: parent
+                            width: Theme.sp(16); height: Theme.sp(16)
+                            kind: seg.modelData.kind
+                            iconColor: seg.active ? (Theme.dark ? Theme.colorBg : "#FFFFFF")
+                                                  : Theme.colorText2
+                        }
+                        MouseArea {
+                            id: segMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: AnnotationTool.tool = seg.modelData.tool
+                        }
+                    }
+                }
+            }
         }
 
         Rectangle {  // separator

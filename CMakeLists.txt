@@ -307,6 +307,7 @@ qt_add_qml_module(PinPointStudio
         src/Gui/cameras/VideoPage.qml
         src/Gui/cameras/PpCameraFrame.qml
         src/Gui/cameras/AnnotationTool.qml
+        src/Gui/cameras/PpAnnotationIcon.qml
         src/Gui/cameras/PpAnnotationLayer.qml
         src/Gui/cameras/PpAnnotationToolbar.qml
         src/Gui/components/PpSegmentedControl.qml
