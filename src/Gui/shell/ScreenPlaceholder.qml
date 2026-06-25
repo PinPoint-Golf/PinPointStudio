@@ -20,8 +20,44 @@ import QtQuick
 import PinPointStudio
 
 Item {
+    id: root
     property string iconText:  ""
     property string titleText: ""
+    // Opt-in ambient topo background — on for the Swing/GRF/Coach rail holding
+    // screens, off for the inert Settings sub-panel placeholders. Hidden when
+    // off, so its shader never renders or animates there.
+    property bool ambientBackground: false
+
+    // Theme-reactive contour field over the window's Theme.colorBg. Pauses when
+    // off-screen / backgrounded; respects reduced-motion. Hover lifts the terrain
+    // under the cursor; click/tap sends a ripple.
+    PpTopoBackground {
+        id: topo
+        anchors.fill: parent
+        z: -1
+        visible:  root.ambientBackground
+        animated: root.ambientBackground && !appSettings.reduceMotion
+        colorLow:  Theme.gradientWarm
+        colorMid:  Theme.gradientWarmLit
+        colorHigh: Theme.gradientCool
+        hoverPoint: topoHover.hovered
+            ? Qt.point(topoHover.point.position.x / width,
+                       topoHover.point.position.y / height)
+            : Qt.point(-1, -1)
+    }
+
+    // Passive pointer handlers — inert on the Settings sub-panel placeholders
+    // (topo.animated is false there), live on the Swing/GRF/Coach holding screens.
+    HoverHandler {
+        id: topoHover
+        enabled: topo.animated
+    }
+    TapHandler {
+        enabled: topo.animated
+        gesturePolicy: TapHandler.DragThreshold
+        onTapped: (ep) => topo.ripple(ep.position.x / topo.width,
+                                      ep.position.y / topo.height)
+    }
 
     Column {
         anchors.centerIn: parent

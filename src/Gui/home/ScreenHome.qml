@@ -62,11 +62,46 @@ Item {
 
     Rectangle { anchors.fill: parent; color: Theme.colorBg }
 
+    // Ambient theme-reactive contour field over the solid background. Subtle by
+    // default; pauses when off-screen / backgrounded; respects reduced-motion.
+    // Hover lifts the terrain under the cursor; click/tap sends a ripple.
+    PpTopoBackground {
+        id: topo
+        anchors.fill: parent
+        colorLow:  Theme.gradientWarm
+        colorMid:  Theme.gradientWarmLit
+        colorHigh: Theme.gradientCool
+        animated:  !appSettings.reduceMotion
+        hoverPoint: topoHover.hovered
+            ? Qt.point(topoHover.point.position.x / width,
+                       topoHover.point.position.y / height)
+            : Qt.point(-1, -1)
+    }
+
     Flickable {
         anchors.fill:  parent
         contentWidth:  width
         contentHeight: mainCol.implicitHeight + 80
         clip:          true
+
+        // Pointer handlers live on the Flickable, not the screen root: the
+        // full-bleed Flickable sits above the fixed background and intercepts
+        // presses for flick-detection, so root-level handlers never see a
+        // completed tap (the holding screens have no Flickable, so root works
+        // there). Hosted here they share the viewport coordinate space the
+        // background uses. HoverHandler never blocks; TapHandler's DragThreshold
+        // keeps only a passive grab, so cards/buttons still get their clicks and
+        // a vertical drag flicks the list instead of spawning a ripple.
+        HoverHandler {
+            id: topoHover
+            enabled: topo.animated
+        }
+        TapHandler {
+            enabled: topo.animated
+            gesturePolicy: TapHandler.DragThreshold
+            onTapped: (ep) => topo.ripple(ep.position.x / topo.width,
+                                          ep.position.y / topo.height)
+        }
 
         Column {
             id: mainCol

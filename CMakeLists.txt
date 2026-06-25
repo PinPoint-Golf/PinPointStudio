@@ -376,6 +376,7 @@ qt_add_qml_module(PinPointStudio
         src/Gui/components/PpQualityPill.qml
         src/Gui/components/PpStarRating.qml
         src/Gui/components/PpTrace.qml
+        src/Gui/components/PpTopoBackground.qml
         src/Gui/review/PpMetricChart.qml
         src/Gui/review/PpChartPlot.qml
         src/Gui/review/PpSegmentBrush.qml
@@ -441,6 +442,16 @@ qt6_add_shaders(PinPointStudio "bayer_demosaic_shaders"
     FILES
         "src/Shaders/bayer_demosaic.vert"
         "src/Shaders/bayer_demosaic.frag"
+)
+
+qt6_add_shaders(PinPointStudio "topo_shaders"
+    BATCHABLE
+    PRECOMPILE
+    OPTIMIZED
+    PREFIX "/shaders"
+    FILES
+        "src/Shaders/topo.vert"
+        "src/Shaders/topo.frag"
 )
 
 target_compile_definitions(PinPointStudio PRIVATE

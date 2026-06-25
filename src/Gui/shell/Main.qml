@@ -475,10 +475,10 @@ ApplicationWindow {
                         navController.navigate(sessionTypeIndex + 1)
                     }
                 }
-                ScreenPlaceholder { iconText: "◑"; titleText: qsTr("Swing") }                   // screenSwing — coming soon
+                ScreenPlaceholder { iconText: "◑"; titleText: qsTr("Swing"); ambientBackground: true }      // screenSwing — coming soon
                 ScreenWrist {}                                             // screenWrist — Wrist Motion (sessionType 1)
-                ScreenPlaceholder { iconText: "⇅"; titleText: qsTr("GRF") }                     // screenGrf — coming soon
-                ScreenPlaceholder { iconText: "✦"; titleText: qsTr("Coach") }                   // screenCoach — coming soon
+                ScreenPlaceholder { iconText: "⇅"; titleText: qsTr("GRF"); ambientBackground: true }        // screenGrf — coming soon
+                ScreenPlaceholder { iconText: "✦"; titleText: qsTr("Coach"); ambientBackground: true }      // screenCoach — coming soon
                 PlayPage {}                                                // screenPlay — dev-hatch only
                 ScreenAthleteForm {                                        // screenNewAthlete — new athlete form
                     id: athleteFormScreen

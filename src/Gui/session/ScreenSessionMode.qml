@@ -50,6 +50,37 @@ Item {
     // is visible — otherwise an off-screen timeline re-lays-out on every swing reload.
     readonly property bool _screenActive: navController.currentIndex === root.sessionType + 1
 
+    // Ambient theme-reactive contour field behind the session layout, over the
+    // window's Theme.colorBg. Subtle; pauses off-screen / backgrounded; respects
+    // reduced-motion. Live camera tiles fully occlude it during Capture. Hover
+    // lifts the terrain under the cursor; click/tap sends a ripple.
+    PpTopoBackground {
+        id: topo
+        anchors.fill: parent
+        z: -1
+        colorLow:  Theme.gradientWarm
+        colorMid:  Theme.gradientWarmLit
+        colorHigh: Theme.gradientCool
+        animated:  !appSettings.reduceMotion
+        hoverPoint: topoHover.hovered
+            ? Qt.point(topoHover.point.position.x / width,
+                       topoHover.point.position.y / height)
+            : Qt.point(-1, -1)
+    }
+
+    // Passive pointer handlers drive the background. DragThreshold keeps a passive
+    // grab so the toolbar/stage controls still receive their clicks and drags.
+    HoverHandler {
+        id: topoHover
+        enabled: topo.animated
+    }
+    TapHandler {
+        enabled: topo.animated
+        gesturePolicy: TapHandler.DragThreshold
+        onTapped: (ep) => topo.ripple(ep.position.x / topo.width,
+                                      ep.position.y / topo.height)
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
