@@ -351,6 +351,57 @@ Item {
             Layout.fillWidth: true; title: qsTr("TABLE"); collapsed: root.tableCollapsed
             onToggled: { root.tableCollapsed = !root.tableCollapsed
                          root._persistSection("table", root.tableCollapsed) }
+
+            // Copy the whole table to the clipboard, or export it to a CSV file.
+            // These sit on top of the header's toggle area, so a click here acts on
+            // the table rather than collapsing the section.
+            Row {
+                anchors { right: parent.right; rightMargin: Theme.sp(12); verticalCenter: parent.verticalCenter }
+                spacing: Theme.sp(14)
+
+                Text {        // copy as tab-separated text → pastes straight into Excel/Sheets
+                    anchors.verticalCenter: parent.verticalCenter
+                    text:           tblCopyConfirm.running ? "✓" : "⧉"
+                    font.family:    Theme.fontSymbol
+                    font.pixelSize: Theme.fontSzBody
+                    color:          tblCopyConfirm.running ? Theme.colorGood
+                                  : tblCopyMa.containsMouse ? Theme.colorText : Theme.colorText3
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+                    Timer { id: tblCopyConfirm; interval: 1200 }
+                    PpPressable {
+                        id: tblCopyMa
+                        anchors.margins: -Theme.sp(6)
+                        onClicked: { clipboard.setText(src.table.toClipboardText()); tblCopyConfirm.restart() }
+                    }
+                }
+
+                Text {        // export to a CSV file in the home directory
+                    anchors.verticalCenter: parent.verticalCenter
+                    text:           "⤓"
+                    font.family:    Theme.fontSymbol
+                    font.pixelSize: Theme.fontSzBody
+                    color:          tblExportMa.containsMouse ? Theme.colorText : Theme.colorText3
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+                    PpPressable {
+                        id: tblExportMa
+                        anchors.margins: -Theme.sp(6)
+                        onClicked: {
+                            var p = src.exportCsv()
+                            if (p.length === 0) {
+                                exportToast.severity = "error"
+                                exportToast.copyText = ""
+                                exportToast.show(qsTr("Couldn't export the table"))
+                            } else {
+                                exportToast.severity = "info"
+                                exportToast.copyText = p   // copy action yields the full path
+                                exportToast.show(qsTr("Saved %1").arg(p.substring(p.lastIndexOf("/") + 1)))
+                            }
+                        }
+                    }
+                }
+            }
         }
         Item {
             id: tableArea
@@ -483,5 +534,16 @@ Item {
         background: Rectangle { color: Theme.colorSurface; radius: Theme.radiusLg
                                 border.width: 1; border.color: Theme.colorBorderStrong }
         contentItem: PpPropertiesPanel { metadata: src.metadata; swingDir: root.swingDir }
+    }
+
+    // CSV-export result. Informational (no undo); the copy action puts the file's
+    // full path on the clipboard so it can be pasted into a terminal or file dialog.
+    PpToast {
+        id: exportToast
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: parent.height - height - Theme.sp(16)
+        z: 50
+        glyph: "⤓"
+        showUndo: false
     }
 }

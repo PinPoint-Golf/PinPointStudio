@@ -24,9 +24,12 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QRegularExpression>
+#include <QTextStream>
 
 #include <algorithm>
 #include <array>
@@ -264,6 +267,34 @@ void SwingDataSource::setWindow(qint64 startUs, qint64 endUs)
     m_windowStartUs = startUs;
     m_windowEndUs   = endUs;
     rebuild();
+}
+
+QString SwingDataSource::exportCsv() const
+{
+    if (!m_loaded || !m_table) return {};
+    const QString csv = m_table->toCsv();
+    if (csv.isEmpty()) return {};
+
+    // Name from the swing folder (its stable id) + the active region, so exports of
+    // different regions of the same swing don't collide. Sanitise to a safe filename.
+    QString base = QFileInfo(m_swingDir).fileName();
+    if (base.isEmpty()) base = QStringLiteral("swing");
+    QString stem = base + QLatin1Char('-') + m_region;
+    stem.replace(QRegularExpression(QStringLiteral("[^A-Za-z0-9._-]+")), QStringLiteral("-"));
+
+    const QDir home(QDir::homePath());
+    QString path = home.filePath(stem + QStringLiteral(".csv"));
+    for (int n = 2; QFileInfo::exists(path); ++n)   // never overwrite an existing file
+        path = home.filePath(stem + QStringLiteral(" (%1).csv").arg(n));
+
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) return {};
+    QTextStream ts(&f);
+    ts.setEncoding(QStringConverter::Utf8);
+    // Lead with a UTF-8 BOM so Excel reads the °, ·, Δ and em-dash glyphs correctly.
+    ts << QChar(0xFEFF) << csv << '\n';
+    f.close();
+    return f.error() == QFileDevice::NoError ? path : QString();
 }
 
 // ── parse ────────────────────────────────────────────────────────────────────

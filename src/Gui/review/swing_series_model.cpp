@@ -18,6 +18,8 @@
 
 #include "swing_series_model.h"
 
+#include <QStringList>
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -199,6 +201,46 @@ QString SwingSeriesModel::columnColorKey(int col) const
     if (col < 0 || col >= m_cols.size()) return {};
     return m_cols.at(col).colorKey;
 }
+
+namespace {
+// RFC-4180: a field is quoted (and embedded quotes doubled) only when it contains
+// the separator, a double quote, or a newline. The grid's headers/values never do
+// today, but the table is faithful to whatever configure() produced.
+QString csvField(const QString &v, QChar sep)
+{
+    if (!v.contains(sep) && !v.contains(QLatin1Char('"')) && !v.contains(QLatin1Char('\n')))
+        return v;
+    QString q = v;
+    q.replace(QLatin1Char('"'), QStringLiteral("\"\""));
+    return QLatin1Char('"') + q + QLatin1Char('"');
+}
+} // namespace
+
+QString SwingSeriesModel::serialize(QChar sep, bool quote) const
+{
+    if (m_cols.isEmpty()) return {};
+
+    QStringList lines;
+    lines.reserve(m_rows.size() + 1);
+
+    QStringList head;
+    head.reserve(m_cols.size());
+    for (const Column &c : m_cols)
+        head << (quote ? csvField(c.header, sep) : c.header);
+    lines << head.join(sep);
+
+    for (const QVector<Cell> &row : m_rows) {
+        QStringList cells;
+        cells.reserve(row.size());
+        for (const Cell &c : row)
+            cells << (quote ? csvField(c.text, sep) : c.text);
+        lines << cells.join(sep);
+    }
+    return lines.join(QLatin1Char('\n'));
+}
+
+QString SwingSeriesModel::toClipboardText() const { return serialize(QLatin1Char('\t'), false); }
+QString SwingSeriesModel::toCsv() const           { return serialize(QLatin1Char(','),  true);  }
 
 int SwingSeriesModel::rowForTimeUs(qint64 us) const
 {

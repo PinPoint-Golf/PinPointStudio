@@ -140,6 +140,12 @@ public:
     // Window the detail table to a phase segment in a single rebuild.
     Q_INVOKABLE void setWindow(qint64 startUs, qint64 endUs);
 
+    // Write the current table (as configured: region/window/fill mode) to a CSV file
+    // in the user's home directory and return its absolute path, or "" on failure.
+    // The name derives from the swing folder + active region, sanitised, and is
+    // uniquified so an existing file is never overwritten.
+    Q_INVOKABLE QString exportCsv() const;
+
 signals:
     void swingDirChanged();
     void loadedChanged();

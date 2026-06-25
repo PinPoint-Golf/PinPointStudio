@@ -57,6 +57,14 @@ public:
 
     Q_INVOKABLE QString columnColorKey(int col) const;  // header top-border tint
 
+    // Faithful WYSIWYG dump of the configured grid (header row + every data row,
+    // exactly as displayed including the "—" holes), honouring the active region /
+    // window / fill mode. toClipboardText() is tab-separated so it pastes straight
+    // into Excel / Sheets; toCsv() is comma-separated with RFC-4180 quoting. Both
+    // return "" when the grid is empty.
+    Q_INVOKABLE QString toClipboardText() const;
+    Q_INVOKABLE QString toCsv() const;
+
     // Nearest row index to a window-relative timestamp `us` (same µs domain as
     // shotReplay.positionUs), or -1 when `us` falls outside [windowStartUs,
     // windowEndUs] — lets the replay playhead drive the table's current row while a
@@ -69,6 +77,9 @@ public:
                    qint64 windowEndUs, const QString &fillMode);
 
 private:
+    // Header row + data rows joined with `sep`; CSV-quotes each field when `quote`.
+    QString serialize(QChar sep, bool quote) const;
+
     struct Cell { QString text; int state = Ok; int align = Qt::AlignRight; };
     struct Column {
         ColKind kind = Time;
