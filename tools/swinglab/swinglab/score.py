@@ -15,8 +15,11 @@ def _check(name, ok, value, threshold, severity="fail"):
             "threshold": threshold, "severity": severity}
 
 
-def invariants(run: RunResult):
-    """Tier 1+2 — no labels needed."""
+def invariants(run: RunResult, scope="full"):
+    """Tier 1+2 — no labels needed. `scope` is the markup swing scope
+    (full/pitch/chip/putt); full-swing-only checks are skipped for partial
+    swings, whose arc/tempo legitimately fall outside the full-swing bounds."""
+    full = (scope or "full") == "full"
     checks = []
     an = run.analysis
     club = run.club
@@ -50,11 +53,14 @@ def invariants(run: RunResult):
                              round(math.degrees(worst), 1), "<25 deg/frame"))
 
         # Downswing sweep: total |theta| travel in the 400 ms before impact.
+        # Full-swing-only: a pitch/chip/putt has far less arc, so the [86, 458]
+        # band doesn't apply — skip it rather than fail it.
         if impact_us is not None:
-            win = (t >= impact_us - 400_000) & (t <= impact_us)
-            sweep = float(np.sum(np.abs(np.diff(th[win])))) if np.sum(win) > 3 else 0.0
-            checks.append(_check("track.downswing_sweep", 1.5 <= sweep <= 8.0,
-                                 round(math.degrees(sweep), 0), "[86, 458] deg"))
+            if full:
+                win = (t >= impact_us - 400_000) & (t <= impact_us)
+                sweep = float(np.sum(np.abs(np.diff(th[win])))) if np.sum(win) > 3 else 0.0
+                checks.append(_check("track.downswing_sweep", 1.5 <= sweep <= 8.0,
+                                     round(math.degrees(sweep), 0), "[86, 458] deg"))
 
             # theta_dot peak near impact.
             dt = np.diff(t) / 1e6
@@ -89,7 +95,9 @@ def invariants(run: RunResult):
     phases = {p["phase"]: p for p in an.get("phases", [])}
     ts = [p["t_us"] for p in an.get("phases", [])]
     checks.append(_check("seg.monotone", ts == sorted(ts), 0, "ordered"))
-    if 1 in phases and 2 in phases and 5 in phases:
+    # Tempo ratio is a full-swing notion (backswing vs downswing); partial swings
+    # don't have a comparable top, so skip it for pitch/chip/putt.
+    if full and 1 in phases and 2 in phases and 5 in phases:
         back = (phases[2]["t_us"] - phases[1]["t_us"]) / 1e6
         down = (phases[5]["t_us"] - phases[2]["t_us"]) / 1e6
         ratio = back / down if down > 0 else 0
@@ -199,7 +207,8 @@ def truth_metrics(run: RunResult, swing: Swing):
 def scorecard(run_dir, swing_dir):
     run = RunResult(run_dir)
     swing = Swing(swing_dir)
-    checks = invariants(run) + truth_metrics(run, swing)
+    conditions = swing.truth_meta()
+    checks = invariants(run, conditions.get("scope")) + truth_metrics(run, swing)
     fails = [c for c in checks if not c["pass"] and c["severity"] == "fail"]
     warns = [c for c in checks if not c["pass"] and c["severity"] == "warn"]
     score = round(100.0 * sum(c["pass"] for c in checks) / max(len(checks), 1))
@@ -209,6 +218,7 @@ def scorecard(run_dir, swing_dir):
         "ok": run.meta.get("ok", False),
         "frames": run.meta.get("frames"),
         "analyzeMs": run.meta.get("analyzeMs"),
+        "conditions": conditions,   # markup meta: scope/tempo/contact/club/shaft/lighting
         "sha": git_sha(),
         "failures": [c["name"] for c in fails],
         "warnings": [c["name"] for c in warns],

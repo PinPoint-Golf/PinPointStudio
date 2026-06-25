@@ -39,13 +39,44 @@ int main(int argc, char **argv)
         std::printf("  event %-9s -> frame %d (t=%.3fs)\n", it.key().toLocal8Bit().constData(),
                     it.value(), double(fo.frameTimesUs[it.value()] - fo.frameTimesUs.first()) / 1e6);
 
+    // Capture-conditions meta round-trip: stamp it onto the parsed doc, write,
+    // read back, and verify it survives (additive "meta" block).
+    TruthDoc stamped = doc;
+    stamped.meta.lighting = QStringLiteral("bright");
+    stamped.meta.shaft    = QStringLiteral("steel");
+    stamped.meta.club     = QStringLiteral("7-IRON");
+    stamped.meta.scope    = QStringLiteral("pitch");
+    stamped.meta.tempo    = QStringLiteral("slow");
+    stamped.meta.contact  = QStringLiteral("air");
+    stamped.meta.clubLeavesFrame = true;
+
     QString err;
-    if (!writeTruth(swingDir, doc, fo, &err)) {
+    if (!writeTruth(swingDir, stamped, fo, &err)) {
         std::fprintf(stderr, "writeTruth failed: %s\n", err.toLocal8Bit().constData());
         return 1;
     }
     const TruthSummary after = summarize(swingDir);
     std::printf("after:  exists=%d shaft=%d events=%d\n", after.exists, after.shaftCount, after.eventCount);
+
+    const TruthDoc reread = readTruth(swingDir, fo);
+    std::printf("meta:   lighting=%s shaft=%s club=%s scope=%s tempo=%s contact=%s leavesFrame=%d\n",
+                reread.meta.lighting.toLocal8Bit().constData(),
+                reread.meta.shaft.toLocal8Bit().constData(),
+                reread.meta.club.toLocal8Bit().constData(),
+                reread.meta.scope.toLocal8Bit().constData(),
+                reread.meta.tempo.toLocal8Bit().constData(),
+                reread.meta.contact.toLocal8Bit().constData(),
+                reread.meta.clubLeavesFrame);
+    if (reread.meta.lighting != QLatin1String("bright")
+        || reread.meta.shaft != QLatin1String("steel")
+        || reread.meta.club != QLatin1String("7-IRON")
+        || reread.meta.scope != QLatin1String("pitch")
+        || reread.meta.tempo != QLatin1String("slow")
+        || reread.meta.contact != QLatin1String("air")
+        || !reread.meta.clubLeavesFrame) {
+        std::fprintf(stderr, "meta round-trip FAILED\n");
+        return 1;
+    }
     std::printf("OK\n");
     return 0;
 }

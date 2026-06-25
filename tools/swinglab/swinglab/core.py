@@ -73,6 +73,10 @@ def ingest(corpus_root):
             "impact": s.impact_us() is not None,
             "bindings": len(s.bindings()),
             "truth": (d / "truth.json").exists(),
+            # Markup capture conditions (scope/tempo/contact/club/shaft/lighting);
+            # None when unlabelled. Filter/stratify the corpus on these (e.g. run
+            # only scope=="full", or segment results by tempo).
+            "conditions": s.truth_meta() or None,
             # Capture provenance (None on legacy swings lacking the fields) —
             # filter the corpus on these before tuning.
             "sessionType": cap.get("sessionType"),

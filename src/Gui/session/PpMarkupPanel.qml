@@ -63,6 +63,29 @@ Item {
     ]
     readonly property real kpMinConf: 0.30
 
+    // ── RHS tabs (0 = Positions, 1 = Metadata) ──────────────────────────────────
+    property int rhsTab: 0
+
+    // Capture-conditions choices. Display labels are decoupled from the canonical
+    // stored values (lowercase, what SwingLab reads from truth.json "meta") so the
+    // mapping survives translation. Club is stored verbatim (its own label list).
+    readonly property var lightingOpts: [qsTr("Bright"), qsTr("Normal"), qsTr("Dark")]
+    readonly property var lightingVals: ["bright", "normal", "dark"]
+    readonly property var shaftOpts:    [qsTr("Graphite"), qsTr("Steel")]
+    readonly property var shaftVals:    ["graphite", "steel"]
+    readonly property var scopeOpts:    [qsTr("Full"), qsTr("Pitch"), qsTr("Chip"), qsTr("Putt")]
+    readonly property var scopeVals:    ["full", "pitch", "chip", "putt"]
+    readonly property var tempoOpts:    [qsTr("Slow"), qsTr("Normal"), qsTr("Fast")]
+    readonly property var tempoVals:    ["slow", "normal", "fast"]
+    readonly property var contactOpts:  [qsTr("Ball"), qsTr("Air"), qsTr("Mishit")]
+    readonly property var contactVals:  ["ball", "air", "mishit"]
+    readonly property var clubList: [
+        "DRIVER", "3-WOOD", "5-WOOD", "7-WOOD",
+        "3-HYBRID", "4-HYBRID", "5-HYBRID",
+        "2-IRON", "3-IRON", "4-IRON", "5-IRON", "6-IRON", "7-IRON", "8-IRON", "9-IRON",
+        "PW", "GW", "AW", "SW", "LW", "PUTTER"
+    ]
+
     function markEventByKey(k) {
         for (var i = 0; i < pDefs.length; ++i)
             if (pDefs[i].key === k) { markupController.setEvent(pDefs[i].name); return }
@@ -326,10 +349,57 @@ Item {
                 Layout.preferredWidth: Theme.sp(496)
                 Layout.fillHeight: true
                 color: Theme.colorBg
-                ScrollView {
-                    id: ctrlScroll
+
+                ColumnLayout {
                     anchors.fill: parent
                     anchors.margins: Theme.sp(14)
+                    spacing: Theme.sp(6)
+
+                    // Tab header — underline tabs, same aesthetic as PpModeStage's
+                    // "tabs" arrangement: a contiguous strip, subtle colorBg2 fill on
+                    // select/hover, 2px accent underline on the selected tab.
+                    Row {
+                        spacing: Theme.sp(5)
+                        Repeater {
+                            model: [qsTr("Positions"), qsTr("Metadata")]
+                            delegate: Rectangle {
+                                id: tabDel
+                                required property string modelData
+                                required property int index
+                                readonly property bool sel: root.rhsTab === index
+                                height: Theme.sp(30); width: tabTxt.implicitWidth + Theme.sp(26)
+                                radius: Theme.radius
+                                color: sel || tabMa.containsMouse
+                                           ? Theme.colorBg2
+                                           : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
+                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                Rectangle {  // active underline
+                                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                                    height: 2; color: tabDel.sel ? Theme.colorAccent : "transparent"
+                                }
+                                Text {
+                                    id: tabTxt; anchors.centerIn: parent; text: tabDel.modelData
+                                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                                    color: tabDel.sel ? Theme.colorText : Theme.colorText3
+                                }
+                                MouseArea {
+                                    id: tabMa
+                                    anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                    onClicked: { root.rhsTab = tabDel.index; root.forceActiveFocus() }
+                                }
+                            }
+                        }
+                    }
+
+                    // Index 0 = Positions, 1 = Metadata. Both stay instantiated.
+                    StackLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        currentIndex: root.rhsTab
+
+                    // ── Positions ───────────────────────────────────────────────
+                    ScrollView {
+                    id: ctrlScroll
                     clip: true
                     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                     // Bind to width, not availableWidth: the latter subtracts the
@@ -514,7 +584,180 @@ Item {
                         }
                     }
                     }
-                }
+                    }   // ── end Positions ScrollView ───────────────────────────
+
+                    // ── Metadata: capture conditions recorded into truth.json ────
+                    ScrollView {
+                        id: metaScroll
+                        clip: true
+                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                        contentWidth: width
+                        Column {
+                            width: metaScroll.width - Theme.sp(12)
+                            spacing: Theme.sp(18)
+
+                            Text {
+                                width: parent.width; wrapMode: Text.WordWrap
+                                text: qsTr("Capture conditions saved into truth.json for SwingLab. Set what you can verify — leave anything unknown unset.")
+                                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel; color: Theme.colorText3
+                            }
+
+                            // SWING SCOPE — gates SwingLab's full-swing-only checks.
+                            Column {
+                                width: parent.width; spacing: Theme.sp(8)
+                                MlSection { text: qsTr("SWING SCOPE") }
+                                PpSegmentedControl {
+                                    width: parent.width
+                                    options: root.scopeOpts
+                                    selected: {
+                                        var i = root.scopeVals.indexOf(markupController.metaScope)
+                                        return i >= 0 ? root.scopeOpts[i] : ""
+                                    }
+                                    onActivated: function (v) {
+                                        var i = root.scopeOpts.indexOf(v)
+                                        if (i >= 0) markupController.metaScope = root.scopeVals[i]
+                                        root.forceActiveFocus()
+                                    }
+                                }
+                                Text {
+                                    width: parent.width; wrapMode: Text.WordWrap
+                                    text: qsTr("Partial swings (pitch / chip / putt) skip the full-swing sweep & tempo checks.")
+                                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel; color: Theme.colorText3
+                                }
+                            }
+
+                            // TEMPO
+                            Column {
+                                width: parent.width; spacing: Theme.sp(8)
+                                MlSection { text: qsTr("TEMPO") }
+                                PpSegmentedControl {
+                                    width: parent.width
+                                    options: root.tempoOpts
+                                    selected: {
+                                        var i = root.tempoVals.indexOf(markupController.metaTempo)
+                                        return i >= 0 ? root.tempoOpts[i] : ""
+                                    }
+                                    onActivated: function (v) {
+                                        var i = root.tempoOpts.indexOf(v)
+                                        if (i >= 0) markupController.metaTempo = root.tempoVals[i]
+                                        root.forceActiveFocus()
+                                    }
+                                }
+                            }
+
+                            // BALL CONTACT
+                            Column {
+                                width: parent.width; spacing: Theme.sp(8)
+                                MlSection { text: qsTr("BALL CONTACT") }
+                                PpSegmentedControl {
+                                    width: parent.width
+                                    options: root.contactOpts
+                                    selected: {
+                                        var i = root.contactVals.indexOf(markupController.metaContact)
+                                        return i >= 0 ? root.contactOpts[i] : ""
+                                    }
+                                    onActivated: function (v) {
+                                        var i = root.contactOpts.indexOf(v)
+                                        if (i >= 0) markupController.metaContact = root.contactVals[i]
+                                        root.forceActiveFocus()
+                                    }
+                                }
+                            }
+
+                            // LIGHTING
+                            Column {
+                                width: parent.width; spacing: Theme.sp(8)
+                                MlSection { text: qsTr("LIGHTING") }
+                                PpSegmentedControl {
+                                    width: parent.width
+                                    options: root.lightingOpts
+                                    selected: {
+                                        var i = root.lightingVals.indexOf(markupController.metaLighting)
+                                        return i >= 0 ? root.lightingOpts[i] : ""
+                                    }
+                                    onActivated: function (v) {
+                                        var i = root.lightingOpts.indexOf(v)
+                                        if (i >= 0) markupController.metaLighting = root.lightingVals[i]
+                                        root.forceActiveFocus()
+                                    }
+                                }
+                            }
+
+                            // SHAFT
+                            Column {
+                                width: parent.width; spacing: Theme.sp(8)
+                                MlSection { text: qsTr("SHAFT") }
+                                PpSegmentedControl {
+                                    width: parent.width
+                                    options: root.shaftOpts
+                                    selected: {
+                                        var i = root.shaftVals.indexOf(markupController.metaShaft)
+                                        return i >= 0 ? root.shaftOpts[i] : ""
+                                    }
+                                    onActivated: function (v) {
+                                        var i = root.shaftOpts.indexOf(v)
+                                        if (i >= 0) markupController.metaShaft = root.shaftVals[i]
+                                        root.forceActiveFocus()
+                                    }
+                                }
+                            }
+
+                            // CLUB
+                            Column {
+                                width: parent.width; spacing: Theme.sp(8)
+                                MlSection { text: qsTr("CLUB") }
+                                Text {
+                                    width: parent.width; wrapMode: Text.WordWrap
+                                    text: qsTr("Defaulted from the session; change it here if the club for this swing differs.")
+                                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel; color: Theme.colorText3
+                                }
+                                PpComboBox {
+                                    id: clubCombo
+                                    width: parent.width
+                                    enabled: markupController.hasSwing
+                                    model: root.clubList
+                                    onActivated: function (i) {
+                                        markupController.metaClub = root.clubList[i]
+                                        root.forceActiveFocus()
+                                    }
+                                    // Sync imperatively (not a currentIndex binding) so
+                                    // picking an item — which sets currentIndex internally
+                                    // — doesn't break the link to the controller on the next
+                                    // swing load.
+                                    function syncFromController() {
+                                        var i = root.clubList.indexOf(markupController.metaClub)
+                                        currentIndex = i >= 0 ? i : 0
+                                    }
+                                    Component.onCompleted: syncFromController()
+                                    Connections {
+                                        target: markupController
+                                        function onMetaChanged() { clubCombo.syncFromController() }
+                                    }
+                                }
+                            }
+
+                            // CLUB LEAVES FRAME — explains a legitimately low coverage.
+                            Column {
+                                width: parent.width; spacing: Theme.sp(8)
+                                MlSection { text: qsTr("TRACKING") }
+                                MlButton {
+                                    text: markupController.metaClubLeavesFrame
+                                          ? qsTr("Club leaves frame: yes")
+                                          : qsTr("Club leaves frame: no")
+                                    accent: markupController.metaClubLeavesFrame
+                                    enabled: markupController.hasSwing
+                                    onClicked: markupController.metaClubLeavesFrame = !markupController.metaClubLeavesFrame
+                                }
+                                Text {
+                                    width: parent.width; wrapMode: Text.WordWrap
+                                    text: qsTr("Flag when the clubhead exits the frame mid-swing, so low shaft coverage isn't read as a tracker failure.")
+                                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel; color: Theme.colorText3
+                                }
+                            }
+                        }
+                    }
+                    }   // ── end StackLayout ───────────────────────────────────────
+                }       // ── end ColumnLayout ──────────────────────────────────────
             }
         }
 

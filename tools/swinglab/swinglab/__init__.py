@@ -90,6 +90,12 @@ class Swing:
         t = self.path / "truth.json"
         return load_json(t) if t.exists() else None
 
+    def truth_meta(self):
+        """Capture conditions the markup tool records under truth.json "meta"
+        (lighting / shaft / club); {} when absent. For corpus filtering and
+        reporting — not scored."""
+        return (self.truth() or {}).get("meta", {})
+
 
 class RunResult:
     """One swinglab_run output dir."""

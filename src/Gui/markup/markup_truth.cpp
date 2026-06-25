@@ -151,6 +151,19 @@ QJsonObject toJson(const TruthDoc &doc, const FaceOnInfo &fo)
 
     root.insert(QStringLiteral("shaft"),  shaftArr);
     root.insert(QStringLiteral("events"), ev);
+
+    // Capture conditions — additive, set fields only. Omitted entirely when unset
+    // so a swing with no conditions keeps the legacy shaft/events-only shape.
+    QJsonObject meta;
+    if (!doc.meta.lighting.isEmpty()) meta.insert(QStringLiteral("lighting"), doc.meta.lighting);
+    if (!doc.meta.shaft.isEmpty())    meta.insert(QStringLiteral("shaft"),    doc.meta.shaft);
+    if (!doc.meta.club.isEmpty())     meta.insert(QStringLiteral("club"),     doc.meta.club);
+    if (!doc.meta.scope.isEmpty())    meta.insert(QStringLiteral("scope"),    doc.meta.scope);
+    if (!doc.meta.tempo.isEmpty())    meta.insert(QStringLiteral("tempo"),    doc.meta.tempo);
+    if (!doc.meta.contact.isEmpty())  meta.insert(QStringLiteral("contact"),  doc.meta.contact);
+    if (doc.meta.clubLeavesFrame)     meta.insert(QStringLiteral("clubLeavesFrame"), true);
+    if (!meta.isEmpty()) root.insert(QStringLiteral("meta"), meta);
+
     return root;
 }
 
@@ -213,6 +226,17 @@ TruthDoc readTruth(const QString &swingDir, const FaceOnInfo &fo)
         const int idx = frameIndexForUs(fo, tu);
         if (idx >= 0) doc.events.insert(it.value(), idx);
     }
+
+    // Capture conditions (additive; absent on legacy files → all unset).
+    const QJsonObject meta = root.value(QStringLiteral("meta")).toObject();
+    doc.meta.lighting = meta.value(QStringLiteral("lighting")).toString();
+    doc.meta.shaft    = meta.value(QStringLiteral("shaft")).toString();
+    doc.meta.club     = meta.value(QStringLiteral("club")).toString();
+    doc.meta.scope    = meta.value(QStringLiteral("scope")).toString();
+    doc.meta.tempo    = meta.value(QStringLiteral("tempo")).toString();
+    doc.meta.contact  = meta.value(QStringLiteral("contact")).toString();
+    doc.meta.clubLeavesFrame = meta.value(QStringLiteral("clubLeavesFrame")).toBool();
+
     return doc;
 }
 

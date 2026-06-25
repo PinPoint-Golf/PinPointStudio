@@ -29,7 +29,10 @@
 //                  "grip": [px,py], "head": [px,py],   // PIXELS @ source W×H
 //                  "theta": atan2(hy-gy, hx-gx), "len": hypot } ... ],
 //     "events": { "t0_us": frames.t_us[0],
-//                 "<name>_s": (frame_t_us - t0)/1e6 } }   // only marked events
+//                 "<name>_s": (frame_t_us - t0)/1e6 },     // only marked events
+//     "meta":   { "lighting":, "shaft":, "club":, "scope":, "tempo":,
+//                 "contact":, "clubLeavesFrame": } }       // additive; only set
+//                                                     // fields, omitted if none
 //
 // In memory labels are held NORMALIZED (0..1) so the UI is resolution-agnostic;
 // the pixel conversion happens only at write time, against FaceOnInfo dims.
@@ -87,10 +90,36 @@ struct ShaftLabel {
     double headNx = 0.0, headNy = 0.0;
 };
 
+// Capture-conditions metadata, persisted additively under truth.json "meta".
+// Free-form strings so the SwingLab corpus can be filtered/segmented by capture
+// conditions; canonical lowercase for the enums, a label for club. An empty
+// string (or false bool) means "unset" — that key is omitted on write, preserving
+// the legacy (shaft/events-only) byte-shape score.py was proven against.
+//
+// `scope` is the one SwingLab validation actively *consumes*: full-swing-only
+// checks (track.downswing_sweep, seg.tempo_ratio) are skipped when it isn't
+// "full", so a pitch/chip/putt doesn't spuriously fail the full-swing bounds.
+struct TruthMeta {
+    QString lighting;   // "bright" | "normal" | "dark" | ""
+    QString shaft;      // "graphite" | "steel" | ""
+    QString club;       // e.g. "DRIVER", "7-IRON"; "" = unset
+    QString scope;      // "full" | "pitch" | "chip" | "putt" | ""
+    QString tempo;      // "slow" | "normal" | "fast" | ""
+    QString contact;    // "ball" | "air" | "mishit" | ""
+    bool    clubLeavesFrame = false;   // head exits frame mid-swing (explains low coverage)
+
+    bool isEmpty() const {
+        return lighting.isEmpty() && shaft.isEmpty() && club.isEmpty()
+            && scope.isEmpty() && tempo.isEmpty() && contact.isEmpty()
+            && !clubLeavesFrame;
+    }
+};
+
 // The full in-memory label set for one swing. Keyed by face-on frame index.
 struct TruthDoc {
     QMap<int, ShaftLabel> shaft;   // frameIndex -> endpoints
     QMap<QString, int>    events;  // eventName  -> frameIndex
+    TruthMeta             meta;    // capture conditions (lighting / shaft / club)
 };
 
 // Parse the face-on stream from <swingDir>/swing.json. Face-on selection:

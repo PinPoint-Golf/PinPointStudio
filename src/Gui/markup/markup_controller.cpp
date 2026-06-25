@@ -91,6 +91,7 @@ void MarkupController::loadSwing(const QString &swingDir)
         emit labelsChanged();
         emit dirtyChanged();
         emit frameChanged();
+        emit metaChanged();
         return;
     }
     if (hasSwing() && currentSwingDir() == swingDir) return;   // already focused — keep edits
@@ -145,6 +146,15 @@ void MarkupController::openSwing(int queueIndex)
     m_dirty = false;
     m_frameIndex = 0;
 
+    // Seed the common-case defaults so the panel reads coherently and validation
+    // always has a scope to gate on: club from the system default (clubs aren't
+    // persisted in swing.json yet — see SwingDocReader), and scope/tempo/contact
+    // to the dominant corpus case (full swing, normal tempo, ball struck) — the
+    // labeller overrides the exceptions. lighting/shaft have no dominant default
+    // so they stay unset until picked. Seeding initial state does not mark the
+    // swing dirty — it is written on the next save like any other label.
+    seedMetaDefaults();
+
     // Load the MP4 into the reused player. setSource is async; the first decode
     // happens once mediaStatus reaches LoadedMedia (handled in the ctor lambda).
     m_sourceReady = false;
@@ -159,6 +169,7 @@ void MarkupController::openSwing(int queueIndex)
     emit currentChanged();
     emit labelsChanged();
     emit dirtyChanged();
+    emit metaChanged();
 
     if (!m_fo.ok)
         emit message(QStringLiteral("No face-on stream in %1").arg(currentSwingName()));
@@ -416,6 +427,70 @@ void MarkupController::clearEvent(const QString &name)
     }
 }
 
+// ── capture conditions ───────────────────────────────────────────────────────
+
+void MarkupController::setMetaLighting(const QString &v)
+{
+    const QString t = v.trimmed();
+    if (!hasSwing() || t == m_truth.meta.lighting) return;
+    m_truth.meta.lighting = t;
+    setDirty(true);
+    emit metaChanged();
+}
+
+void MarkupController::setMetaShaft(const QString &v)
+{
+    const QString t = v.trimmed();
+    if (!hasSwing() || t == m_truth.meta.shaft) return;
+    m_truth.meta.shaft = t;
+    setDirty(true);
+    emit metaChanged();
+}
+
+void MarkupController::setMetaClub(const QString &v)
+{
+    const QString t = v.trimmed();
+    if (!hasSwing() || t == m_truth.meta.club) return;
+    m_truth.meta.club = t;
+    setDirty(true);
+    emit metaChanged();
+}
+
+void MarkupController::setMetaScope(const QString &v)
+{
+    const QString t = v.trimmed();
+    if (!hasSwing() || t == m_truth.meta.scope) return;
+    m_truth.meta.scope = t;
+    setDirty(true);
+    emit metaChanged();
+}
+
+void MarkupController::setMetaTempo(const QString &v)
+{
+    const QString t = v.trimmed();
+    if (!hasSwing() || t == m_truth.meta.tempo) return;
+    m_truth.meta.tempo = t;
+    setDirty(true);
+    emit metaChanged();
+}
+
+void MarkupController::setMetaContact(const QString &v)
+{
+    const QString t = v.trimmed();
+    if (!hasSwing() || t == m_truth.meta.contact) return;
+    m_truth.meta.contact = t;
+    setDirty(true);
+    emit metaChanged();
+}
+
+void MarkupController::setMetaClubLeavesFrame(bool v)
+{
+    if (!hasSwing() || v == m_truth.meta.clubLeavesFrame) return;
+    m_truth.meta.clubLeavesFrame = v;
+    setDirty(true);
+    emit metaChanged();
+}
+
 bool MarkupController::save()
 {
     if (!hasSwing() || !m_fo.ok) { emit message(QStringLiteral("Nothing to save")); return false; }
@@ -436,9 +511,22 @@ void MarkupController::revert()
 {
     if (!hasSwing()) return;
     m_truth = m_fo.ok ? readTruth(currentSwingDir(), m_fo) : TruthDoc{};
+    seedMetaDefaults();
     setDirty(false);
     emit labelsChanged();
     emit frameChanged();
+    emit metaChanged();
+}
+
+// Fill the common-case capture conditions when truth.json doesn't carry them, so
+// the panel starts coherent and SwingLab always has a scope to gate on. Does not
+// touch fields that are already set (an edited swing keeps its choices).
+void MarkupController::seedMetaDefaults()
+{
+    if (m_truth.meta.club.isEmpty())    m_truth.meta.club    = QStringLiteral("DRIVER");
+    if (m_truth.meta.scope.isEmpty())   m_truth.meta.scope   = QStringLiteral("full");
+    if (m_truth.meta.tempo.isEmpty())   m_truth.meta.tempo   = QStringLiteral("normal");
+    if (m_truth.meta.contact.isEmpty()) m_truth.meta.contact = QStringLiteral("ball");
 }
 
 void MarkupController::retainPanel()

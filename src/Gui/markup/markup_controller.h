@@ -70,6 +70,18 @@ class MarkupController : public QObject
     Q_PROPERTY(QVariantList eventList     READ eventList     NOTIFY labelsChanged)
     Q_PROPERTY(QVariantList shaftList     READ shaftList     NOTIFY labelsChanged)
     Q_PROPERTY(QVariantList labelledFrames READ labelledFrames NOTIFY labelsChanged)
+    // ── capture conditions (truth.json "meta", for SwingLab) ─────────────────
+    // Free-form strings; "" = unset. Canonical lowercase for the enums, a label
+    // for club. Written additively, omitted when unset (see markup_truth). `scope`
+    // is consumed by SwingLab validation: full-swing-only checks are skipped when
+    // it isn't "full" (so a pitch/chip/putt doesn't fail the full-swing bounds).
+    Q_PROPERTY(QString      metaLighting  READ metaLighting  WRITE setMetaLighting NOTIFY metaChanged)
+    Q_PROPERTY(QString      metaShaft     READ metaShaft     WRITE setMetaShaft    NOTIFY metaChanged)
+    Q_PROPERTY(QString      metaClub      READ metaClub      WRITE setMetaClub     NOTIFY metaChanged)
+    Q_PROPERTY(QString      metaScope     READ metaScope     WRITE setMetaScope    NOTIFY metaChanged)
+    Q_PROPERTY(QString      metaTempo     READ metaTempo     WRITE setMetaTempo    NOTIFY metaChanged)
+    Q_PROPERTY(QString      metaContact   READ metaContact   WRITE setMetaContact  NOTIFY metaChanged)
+    Q_PROPERTY(bool         metaClubLeavesFrame READ metaClubLeavesFrame WRITE setMetaClubLeavesFrame NOTIFY metaChanged)
     // ── panel presence ───────────────────────────────────────────────────────
     // True while the (active screen's) Markup panel is on-screen — the Transit
     // timeline only paints its markup-diamond overlay while this holds, so toggling
@@ -114,6 +126,21 @@ public:
     QVariantList shaftList()     const;
     QVariantList labelledFrames() const;
     bool         panelVisible()  const { return m_panelRefs > 0; }
+
+    QString      metaLighting()  const { return m_truth.meta.lighting; }
+    QString      metaShaft()     const { return m_truth.meta.shaft; }
+    QString      metaClub()      const { return m_truth.meta.club; }
+    QString      metaScope()     const { return m_truth.meta.scope; }
+    QString      metaTempo()     const { return m_truth.meta.tempo; }
+    QString      metaContact()   const { return m_truth.meta.contact; }
+    bool         metaClubLeavesFrame() const { return m_truth.meta.clubLeavesFrame; }
+    void         setMetaLighting(const QString &v);
+    void         setMetaShaft(const QString &v);
+    void         setMetaClub(const QString &v);
+    void         setMetaScope(const QString &v);
+    void         setMetaTempo(const QString &v);
+    void         setMetaContact(const QString &v);
+    void         setMetaClubLeavesFrame(bool v);
 
     bool         poseAvailable() const { return m_pose.ok; }
     bool         showSkeleton()  const { return m_showSkeleton; }
@@ -161,6 +188,7 @@ signals:
     void skeletonChanged();
     void poseChanged();
     void panelVisibleChanged();
+    void metaChanged();
     void message(const QString &text);
 
 private:
@@ -168,6 +196,7 @@ private:
     void decodeFrame(int idx);
     void onFrame(const QVideoFrame &frame);   // QVideoSink::videoFrameChanged
     void setDirty(bool d);
+    void seedMetaDefaults();                  // common-case capture conditions
 
     MarkupImageProvider          *m_provider = nullptr;
     QStringList                   m_swingDirs;
