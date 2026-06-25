@@ -25,7 +25,24 @@ import PinPointStudio
 
 Item {
     id: panel
-    property var metadata: []
+    property var    metadata: []
+    property string swingDir: ""        // native folder to reveal; "" disables the folder action
+
+    // Flatten the grouped metadata into a plain-text block for the clipboard:
+    //   GROUP
+    //     key: value
+    function _copyText() {
+        var out = []
+        for (var i = 0; i < panel.metadata.length; ++i) {
+            var g = panel.metadata[i]
+            if (g.group) out.push(String(g.group).toUpperCase())
+            var rows = g.rows || []
+            for (var j = 0; j < rows.length; ++j)
+                out.push("  " + rows[j].k + ": " + rows[j].v)
+            out.push("")
+        }
+        return out.join("\n").trim()
+    }
 
     Text {
         anchors { left: parent.left; top: parent.top; leftMargin: Theme.sp(14); topMargin: Theme.sp(12) }
@@ -33,6 +50,45 @@ Item {
         font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingMicro
         color: Theme.colorText3
         id: title
+    }
+
+    // Top-right action icons: copy all properties, reveal the swing folder.
+    Row {
+        anchors { right: parent.right; rightMargin: Theme.sp(12); verticalCenter: title.verticalCenter }
+        spacing: Theme.sp(12)
+
+        Text {        // copy-to-clipboard; flashes a check as feedback
+            anchors.verticalCenter: parent.verticalCenter
+            text:           copyConfirm.running ? "✓" : "⧉"
+            font.family:    Theme.fontSymbol
+            font.pixelSize: Theme.fontSzBody
+            color:          copyConfirm.running ? Theme.colorGood
+                          : copyMa.containsMouse ? Theme.colorText : Theme.colorText3
+            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+            Timer { id: copyConfirm; interval: 1200 }
+            PpPressable {
+                id: copyMa
+                anchors.margins: -Theme.sp(6)
+                onClicked: { clipboard.setText(panel._copyText()); copyConfirm.restart() }
+            }
+        }
+
+        Text {        // reveal the swing folder in the native file manager
+            anchors.verticalCenter: parent.verticalCenter
+            visible:        panel.swingDir !== ""
+            text:           "🗁"
+            font.family:    Theme.fontSymbol
+            font.pixelSize: Theme.fontSzBody
+            color:          folderMa.containsMouse ? Theme.colorText : Theme.colorText3
+            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+            PpPressable {
+                id: folderMa
+                anchors.margins: -Theme.sp(6)
+                onClicked: Qt.openUrlExternally(appSettings.fileUrlFor(panel.swingDir))
+            }
+        }
     }
 
     Flickable {

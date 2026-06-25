@@ -482,6 +482,6 @@ Item {
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
         background: Rectangle { color: Theme.colorSurface; radius: Theme.radiusLg
                                 border.width: 1; border.color: Theme.colorBorderStrong }
-        contentItem: PpPropertiesPanel { metadata: src.metadata }
+        contentItem: PpPropertiesPanel { metadata: src.metadata; swingDir: root.swingDir }
     }
 }
