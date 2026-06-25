@@ -21,6 +21,7 @@
 #include <QIcon>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QQuickStyle>
 
 #include <cmath>
 
@@ -95,6 +96,14 @@ int main(int argc, char *argv[])
     }, nullptr);
 #endif
     QGuiApplication app(argc, argv);
+
+    // Force the Basic Qt Quick Controls style on all platforms. Without this, files
+    // that import plain `QtQuick.Controls` fall back to the platform-native style; on
+    // Windows that style paints an opaque ScrollBar groove (palette.window → white)
+    // that ignores our dark Theme. Basic's track is transparent, matching macOS/Linux.
+    // Most QML already imports QtQuick.Controls.Basic explicitly; this enforces the
+    // same intent app-wide. Must be called before the engine instantiates any Control.
+    QQuickStyle::setStyle(QStringLiteral("Basic"));
 
     // Register the GUI thread with the resource profiler so it shows a labelled
     // per-thread CPU row (the sampler that reads it runs on this thread too).
