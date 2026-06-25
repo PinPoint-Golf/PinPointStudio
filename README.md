@@ -366,6 +366,10 @@ The app forces `QSettings::IniFormat` (see `src/Core/pp_settings.h`), so on Wind
 | `ui/density` | `"default"` | ✅ | UI density (`"default"`, `"compact"`, or `"spacious"`) |
 | `ui/reduceMotion` | `false` | ✅ | Disable animated transitions |
 | `ui/overlayOpacity` | `0.7` | ✅ | Opacity of the pose skeleton overlay (0.0–1.0) |
+| `ui/gradientTitles` | `true` | ✅ | Gradient fill on display titles; `Theme.qml` → `Theme.gradientTitlesActive` → `PpDisplayText` (flat text when off) |
+| `ui/timelineOrientation` | `"horizontal"` | ✅ | Session timeline rail orientation (`"horizontal"` top rail / `"vertical"` side rail); read by `PpViewPanel`, `ScreenSessionMode`, `ScreenWrist`, `PpTransitTimeline` |
+| `ui/timelineSnapToPhases` | `false` | ✅ | Snap timeline scrubbing to swing-phase boundaries; read by `PpViewPanel` + the `PpTransitTimeline` instances |
+| `ui/wristReferenceSwingDir` | _(empty)_ | ✅ | On-disk `swing_NNNN` directory used as the Wrist-diagnostics reference comparison; set/read by `WristDiagnostics.qml` |
 
 **General**
 
@@ -379,8 +383,14 @@ The app forces `QSettings::IniFormat` (see `src/Core/pp_settings.h`), so on Wind
 | `General/audioInputDevice` | _(empty)_ | ✅ | Persistent id of the selected microphone (empty = system default) |
 | `General/acousticShotDetectionEnabled` | `true` | ✅ | Gate for the acoustic shot-detection modality; independent of voice/STT |
 | `General/acousticSensitivity` | `0.5` | ✅ | Acoustic onset sensitivity (`0.0` least … `1.0` most); maps to the absolute amplitude gate |
+| `General/athleteLibraryPath` | _(empty)_ | ✅ | Root folder for session/swing output; read by `SwingPaths`, `swing_exporter`, `shot_processor`, `session_review_controller` (empty → default root) |
+| `General/cloudFallbackStt` | `false` | ✅ | Force cloud STT even when a local GPU is present; selects the backend in `TranscriptionController` |
+| `General/cloudFallbackTts` | `false` | ✅ | Force cloud TTS even when a local GPU is present; selects the backend in `TtsController` |
+| `General/cloudFallbackLlm` | `false` | ✅ | Force cloud LLM (Gemini); selects the backend in `LlmController` (cloud is also used automatically when no local GPU) |
+| `General/skippedUpdateVersion` | _(empty)_ | ✅ | Release version the user chose to skip; suppresses the update banner (`PpUpdateBanner.qml`) for that version |
+| `General/autoSaveSession` | `true` | 📋 | Auto-save session data on capture end (persisted; no consumer yet) |
 | `General/aiCoachingOnSessionEnd` | `true` | 📋 | Auto-generate a Claude coaching observation after each session |
-| `General/checkForUpdates` | `true` | 📋 | Check on launch for a newer release |
+| `General/checkForUpdates` | `true` | ✅ | Gate for the launch / automatic update check; read by `update_controller`, `linux_appimage_backend`, `win_sparkle_update` |
 | `General/sendDiagnostics` | `false` | 📋 | Send anonymous crash/performance data |
 
 **Display**
@@ -407,6 +417,8 @@ The app forces `QSettings::IniFormat` (see `src/Core/pp_settings.h`), so on Wind
 | `camera/perspective` | _(empty map)_ | ✅ | Per-camera view assignment; key → `0` (unassigned), `1` (down-the-line), `2` (face-on), `3` (other) |
 | `camera/isMirrored` | _(empty map)_ | ✅ | Per-camera mirror flag; key → `true` when the camera delivers a horizontally mirrored image (typical webcam); absent for non-mirrored industrial cameras. Controls x-axis convention in `BodyPoseAdapter`. |
 | `camera/fixedInPlace` | _(empty map)_ | ✅ | Per-camera wall-mount flag; a non-fixed connected camera drives the session toolbar's "calibrate" attention. Read by the session wizard and toolbar; not yet by capture |
+| `camera/ballRoi` | _(empty map)_ | ✅ | Per-camera ball-detection ROI; key → normalised rect; read by `CameraManager` / `CameraInstance` |
+| `camera/alias` | _(empty map)_ | ✅ | Per-camera display alias; key → name; read by `CameraManager`, `CameraInstance`, resource monitor, and the exporter |
 | `camera/preroll` | `1.0` | 📋 | Pre-roll buffer in seconds (0.5 / 1.0 / 2.0); ring buffer still sized at fixed 5 s |
 | `camera/syncEnabled` | `true` | 📋 | Lock frame timing across all enabled cameras |
 
@@ -418,19 +430,27 @@ The app forces `QSettings::IniFormat` (see `src/Core/pp_settings.h`), so on Wind
 | `imu/orientationFilter` | `"Madgwick"` | ✅ | Global software orientation-fusion filter (`"Madgwick"` or `"ESKF"`); applied to all connected IMUs immediately |
 | `imu/outputRateHz` | _(empty map)_ | ⚙️ | Per-device output rate; applied immediately when chip is tapped, not restored on reconnect |
 | `imu/placement` | _(empty map)_ | ✅ | Per-device body placement; read by session wizard and resource monitor |
-| `imu/defaultFusionMode` | `"9axis"` | 📋 | Unused — backing key for the removed per-device fusion chips; superseded by `imu/orientationFilter` |
-| `imu/fusionMode` | _(empty map)_ | 📋 | Unused — backing key for the removed per-device fusion chips |
+| `imu/alias` | _(empty map)_ | ✅ | Per-device display alias; read by `ImuManager` + `swing_exporter` |
+| `imu/calibration` | _(empty map)_ | 📋 | Per-device calibration payload; persisted but no consumer yet |
+| `imu/defaultFusionMode` | `"9axis"` | ✅ | Default fusion-mode label; read by the exporter (`shot_processor`) to stamp fusion provenance into `swing.json` when the per-device map has no entry |
+| `imu/fusionMode` | _(empty map)_ | ✅ | Per-device fusion-mode label; read by the exporter for `swing.json` provenance (falls back to `imu/defaultFusionMode`). The per-device UI chips were removed, so the map is normally empty |
 | `imu/mountOrientation` | _(empty map)_ | 📋 | Unused — backing key for the removed per-device mount chips; connect always forces vertical mount |
 | `imu/autoConnect` | `true` | 📋 | Connect all enabled IMUs automatically before recording begins |
 | `imu/autoReconnect` | `true` | 📋 | Attempt reconnect if the BLE link drops during a session |
 | `imu/saveCalibrationToFlash` | `false` | 📋 | Persist zero-orientation and mag calibration to device flash |
 
-**Session**
+**Session & view layout**
 
 | Key | Default | Status | What |
 |---|---|---|---|
 | `session/goalsByType` | _(empty map)_ | ✅ | Per-session-type speed goals; key → target mph value |
 | `session/lastType` | `0` | ✅ | Index of the last-used session type; pre-selects on next wizard open |
+| `view/layoutByMode` | _(empty map)_ | ✅ | Session-stage layout per mode (`0`=Capture, `1`=Review, `2`=Analyse); read by `ViewLayout.qml` |
+| `view/dataRegionByType` | _(empty map)_ | ✅ | Active data-viewer region per session type (Axial/Lower/Upper/Delivery/Custom); read by `PpDataViewer.qml` |
+| `view/sectionCollapse` | _(empty map)_ | ✅ | Collapsed/expanded section state per screen+mode; read by `PpDataViewer` + `PpMetricChart` |
+| `view/panelsByType` | _(empty map)_ | 📋 | Enabled panels per type — persisted, no consumer (vestigial; superseded by `view/layoutByMode`) |
+| `view/arrangementByType` | _(empty map)_ | 📋 | Panel arrangement (tabs/split/stage) per type — persisted, no consumer (vestigial) |
+| `view/presetByType` | _(empty map)_ | 📋 | Named layout preset per type — persisted, no consumer (vestigial) |
 
 **Storage** — honored by the swing exporter (each shot writes one `swing.json` + per-camera clips into the session folder); see the [Swing Export Developer Guide](docs/developer/swing_export_developer_guide.md)
 
@@ -442,6 +462,7 @@ The app forces `QSettings::IniFormat` (see `src/Core/pp_settings.h`), so on Wind
 | `storage/videoQuality` | `"medium"` | ✅ | Encoding quality → CRF (`"low"`=28, `"medium"`=23, `"high"`=18, `"lossless"`=0) |
 | `storage/videoContainer` | `"mp4"` | ✅ | Container / clip extension (`"mp4"`, `"mov"`, `"mkv"`); selects the muxer |
 | `storage/saveRawFrames` | `false` | ✅ | Also dump undecoded sensor payloads to an `<alias>.raw` sidecar per camera |
+| `storage/skipAnalysisForRawCapture` | `false` | ✅ | Corpus capture: with raw-frame saving on, skip the analysis pass (capture-only); read by `ShotProcessor` (`saveRawFrames() && skipAnalysisForRawCapture()`) |
 | `storage/savePoseKeypoints` | `true` | ✅ | Gate is wired — the exporter serialises pose streams when present, but no pose producer exists yet, so nothing is written today |
 | `storage/saveImuStreams` | `true` | ✅ | Embed IMU quaternion/accelerometer streams in `swing.json` |
 | `storage/imuDataFormat` | `"json"` | ✅ | IMU export format (`"json"` inline, or `"csv"`/`"binary"` sidecar) |
@@ -458,7 +479,7 @@ The app forces `QSettings::IniFormat` (see `src/Core/pp_settings.h`), so on Wind
 | `athletes/<uuid>/heightUnit` | `"ft"` | Unit used when the value was entered (`"ft"` or `"cm"`) |
 | `athletes/<uuid>/weightValue` | `0.0` | Weight stored in lb regardless of entry unit |
 | `athletes/<uuid>/weightUnit` | `"lb"` | Unit used when the value was entered (`"lb"` or `"kg"`) |
-| `athletes/<uuid>/handicap` | `-1.0` | Golf handicap index (`-1.0` = not set) |
+| `athletes/<uuid>/handicap` | `-999.0` | Golf handicap index (`-999.0` = not set) |
 | `athletes/<uuid>/primaryClub` | `"Driver"` | Default club |
 | `athletes/<uuid>/speedTarget` | `0.0` | Driver speed target in mph (`0.0` = not set) |
 | `athletes/<uuid>/notes` | _(empty)_ | Free-text notes/tags |
@@ -479,6 +500,7 @@ The app forces `QSettings::IniFormat` (see `src/Core/pp_settings.h`), so on Wind
 | `secrets/assemblyaiApiKey` | `ASSEMBLYAI_API_KEY` | AssemblyAI streaming STT key (also settable via cmake `-DASSEMBLYAI_API_KEY=`) |
 | `secrets/azureTtsApiKey` | `AZURE_TTS_API_KEY` | Azure Cognitive Services key for TTS (also covers STT if no dedicated STT key is set) |
 | `secrets/azureSttApiKey` | `AZURE_STT_API_KEY` | Azure Cognitive Services key for STT (overrides `azureTtsApiKey` when present) |
+| `secrets/geminiApiKey` | `GEMINI_API_KEY` | Google Gemini key for cloud AI coaching (LLM); read by `LlmController` / `GeminiLlmEngine` |
 
 > **Note:** Keys written to settings persist even after the env var is removed. To clear a key, delete the relevant `secrets/` entry from the settings file directly (see `SecretsManager` in `src/Secrets/`).
 
