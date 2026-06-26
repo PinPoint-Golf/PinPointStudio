@@ -923,5 +923,52 @@ src/IMU/orientation_filter.h          # Madgwick m_beta / ESKF
 
 ---
 
+## Appendix A — Implementation follow-ups & open work
+
+The dotted-key tunability infrastructure is **built, unit-tested, and committed** (every analysis
+parameter is now injectable and diff-gated; the frozen defaults live in
+`src/Core/pp_tuned_constants.h`; see [`tunable_parameters_reference.md`](tunable_parameters_reference.md)
+for the catalog + developer guide). What remains is the validation *campaign* plus a few code gaps. This
+appendix is the honest punch-list, ordered within each bucket by leverage.
+
+### A.1 Code follow-ups — desk work, unlock observability
+
+| # | Item | Why it matters | Size |
+|---|---|---|---|
+| 1 | **Populate a real per-sample pitch-proxy** in `MetricExtractor` and thread it through `buildWristAngleSource` / `parseAnalysisDetail` (today `pitchProxyDeg = 0`). | `sampler.gimbalThresholdDeg` is wired but **inert** offline — the Gap/Indeterminate gate never fires, so the knob is unobservable in `diag.*`. | S–M |
+| 2 | **Finish C5** — the two remaining §5.3.1 filter checks: **per-phase `imu_vision_corr`** and **net-drift-vs-gravity** at the still finish. Also confirm `filter.impact_continuity` actually *responds* (it returned a constant on synth — likely no impact shock to act on, possibly a gyro-prediction frame subtlety) before promoting it from `warn` to a real objective. | `filter.*` currently leans on `imu_vision_corr`/`diag.*`; these add the IMU-only, vision-independent objectives the schedule was designed against. | M |
+| 3 | **Run a full app build** (`pinpoint` target). Only `swinglab_run` + the standalone test suites were built; the changes are additive/header-only but the GUI link through the `swing_analysis.h → wrist_assessment_result.h` include ripple is unverified. | Closes a verification gap. | S |
+
+### A.2 Test / synth enhancements — de-risk A.1
+
+| # | Item | Unlocks |
+|---|---|---|
+| 4 | **Synth swing with a deliberate impact-saturation spike** (`±16 g` clip + ringing near `impactUs`). | The whole impact-handling path (blanking + saturation gate + `filter.impact_continuity`) is currently untested on data — the existing synth models no impact. |
+| 5 | **Scripted-fault synth** (cast/flip generated to deliberately trip a specific rule). | Makes `diag.recall` a true known-answer regression test; today the synth's "cast" finding is incidental, not designed. |
+
+### A.3 Blocked on data / studio — the validation campaign itself
+
+This is the point of the whole programme; the machinery now exists to execute it (tracked by the
+three-corpus progression §2 and `corpus_v1_validation_plan.md`):
+
+| # | Item | Gated on |
+|---|---|---|
+| 6 | **No sweep has been run on a real corpus.** Partition, regression gate, coordinate descent, `diag.*`, `filter.*` are all built and unit-tested — the *tuning* awaits a blessed corpus. | **Corpus 1** (existing data unreliable). |
+| 7 | **`score.*` band re-seating** (μ/σ/weight) — has no lab-scorecard objective; validated against the criterion. | **Corpus 2 / HackMotion**. |
+| 8 | **`rules.*` / `bands.*` recall/specificity tuning.** | Labelled **known-groups** swings (scripted faults). |
+| 9 | **`filter.*` schedule values** (`betaDynamic`, gates, blank widths) — the synth cannot produce good values. | Real swings (+ Corpus-2 HackMotion for the impact-window check). |
+
+### A.4 Deferred by design — revisit only if requirements change
+
+| # | Item | Condition to revisit |
+|---|---|---|
+| 10 | **Expose ESKF `R`** — `third_party/imu_ekf` is kept verbatim and ESKF cannot warm-start, so it sits outside the re-fusion loop. | Only if ESKF replaces Madgwick as the production filter. |
+| 11 | **Bayesian / CMA-ES optimiser backends** (`--method bayesian/cmaes`). | If coordinate-descent + random plateau on a real high-dimensional surface (the existing escalation trigger). |
+
+**Bottom line:** the door is open — what's left is mostly the data-gated validation campaign (A.3), two
+small observability gaps (A.1 #1–#2), and a full-app build (A.1 #3).
+
+---
+
 *This document is the reference; the corpus plan is the runbook; the `/swinglab` skill is the operator
 contract. When the three disagree, fix the disagreement — do not pick one silently.*
