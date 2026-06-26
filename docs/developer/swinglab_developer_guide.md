@@ -48,10 +48,24 @@ Three design principles drive everything:
    **scorecard.json** (named checks with values vs thresholds), a
    **contact_sheet.png** (the track overlaid on key frames — how a model
    "watches" a swing), and an aggregate **REPORT.md**.
-3. **Parameters change without rebuilds.** All tuning knobs
-   (`SegmentationConfig` / `ShaftDetectConfig` / `AssemblyConfig`) are
-   injectable from a params JSON via `ShotAnalysisJob::tuningOverrides`, so
-   a sweep iterates at binary speed with zero tokens.
+3. **Parameters change without rebuilds.** All tuning knobs are injectable from a
+   params JSON via `ShotAnalysisJob::tuningOverrides`, so a sweep iterates at binary
+   speed with zero tokens. Namespaces by config owner:
+   - `seg.*` (`SegmentationConfig`), `shaft.*` (`ShaftDetectConfig`),
+     `assembly.*` (`AssemblyConfig`) — track/segmentation, always on.
+   - `score.*` (`SwingScorer` bands + deadbands) — moves `r.score` directly; e.g.
+     `score.leadWristFlexExt.mu`, `score.zOut`.
+   - `sampler.*` / `rules.*` / `bands.*` (Tier-2 wrist assessment) — observable only
+     when the offline analyzer runs assessment (`ShotAnalysisJob::runAssessment`, set by
+     `swinglab_run`); they drive the `analysis.assessment.findings[]` block and the
+     score.py `diag.*` known-groups checks. E.g. `rules.confidenceFloor`,
+     `sampler.gimbalThresholdDeg`, `bands.flexExtMargin`.
+   - `filter.*` (orientation re-fusion gain/schedule) — via the `--refuse-orientation`
+     re-fuser; feeds the main wrist metric only once re-fusion-into-analysis is enabled.
+
+   Frozen defaults all live in `src/Core/pp_tuned_constants.h` (`pinpoint::tuned::*`) —
+   the single edit-point when validation locks a value (the override path does not consult
+   it). Unknown keys are logged and ignored, so a typo silently no-ops — check `runner.log`.
 
 SwingLab is **not** part of the shipping app. The production hooks it relies
 on (`tuningOverrides`, `poseTrackPath`, trace out-params, the
@@ -404,10 +418,13 @@ model sessions):
    recording, missing bindings, uncalibrated — report, don't tune around
    it), or **algorithmic** (the method fails structurally — escalate).
 3. **Parametric fixes**: a params JSON with dotted keys matching the config
-   struct fields (`seg.* / shaft.* / assembly.*`), then `run --id candidate
-   --params p.json`, then **always** `diff baseline candidate`. Keep the
-   change only if the mean improves and `regressions: 0`. Prefer
-   `sweep` over hand-iterating more than ~3 times.
+   struct fields (`seg.* / shaft.* / assembly.* / score.* / sampler.* /
+   rules.* / bands.* / filter.*` — see the namespace list above), then
+   `run --id candidate --params p.json`, then **always** `diff baseline
+   candidate`. Keep the change only if the mean improves and `regressions:
+   0`. Prefer `sweep` over hand-iterating more than ~3 times; the sweep
+   loop applies the diff gate per trial and respects the Tune/Validation/
+   Held-out partition (`--baseline` / `--partition` / `--freeze`).
 4. **Record** findings in `<runs>/TRIAGE.md`; escalate via
    `<runs>/ESCALATION.md` on the mechanical triggers (sweep plateau ×2, one
    invariant failing >30 % of the corpus, ≥2 identical algorithmic failures,

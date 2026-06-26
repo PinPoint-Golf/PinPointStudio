@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "swing_analysis.h"   // SegmentRole, ImuSegmentBinding
+#include "../IMU/orientation_refuser.h"   // RefuseConfig (optional offline re-fusion)
 
 namespace pinpoint { class SwingWindow; }
 
@@ -65,9 +66,16 @@ public:
     // resampled (slerp) via SwingWindow::interpolateImu. Bindings whose role is
     // Unknown or that have < 2 in-window samples are skipped. Returns an empty grid
     // if nothing is fusable.
+    //
+    // q_raw(t) is normally the STORED live-fused quaternion. When `refusion` is non-null
+    // (SwingLab filter.refuse — validation §5.3.1), orientation is instead RE-DERIVED offline
+    // from each source's raw accel+gyro under that RefuseConfig (warm-started from the stored
+    // quat), so the phase-adaptive filter actually drives the wrist metric. Null ⇒ the
+    // production path, byte-identical to the stored quaternion.
     static FusedStreams fuse(const SwingWindow &window,
                              const std::vector<ImuSegmentBinding> &bindings,
-                             double gridHz = 200.0);
+                             double gridHz = 200.0,
+                             const pinpoint::RefuseConfig *refusion = nullptr);
 };
 
 } // namespace pinpoint::analysis

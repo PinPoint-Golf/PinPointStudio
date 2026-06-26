@@ -72,6 +72,39 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a)
                                    { QStringLiteral("segment"), int(e.provenance) } });
     o[QStringLiteral("phases")] = phases;
 
+    // Additive Tier-2 assessment block (SwingLab known-groups diagnosis — only written when the
+    // offline analyzer ran assessment, i.e. ShotAnalysisJob::runAssessment). Absent in the live
+    // GUI / production pipeline, so existing swing.json baselines are unchanged. score.py reads
+    // `findings[]` for fault recall / false-positive on clean controls.
+    if (a.assessmentScore >= 0) {
+        QJsonArray findings;
+        for (const PpWristFinding &f : a.findings) {
+            QJsonArray dofs, positions;
+            for (const PpJointDof d : f.dofs)      dofs.append(int(d));
+            for (const PpSwingPosition p : f.positions) positions.append(int(p));
+            findings.append(QJsonObject{
+                { QStringLiteral("id"),            f.id },
+                { QStringLiteral("name"),          f.name },
+                { QStringLiteral("category"),      f.category },
+                { QStringLiteral("severity"),      QString::fromLatin1(severityName(f.severity)) },
+                { QStringLiteral("magnitudeDeg"),  f.magnitudeDeg },
+                { QStringLiteral("weight"),        f.weight },
+                { QStringLiteral("confidence"),    double(f.confidence) },
+                { QStringLiteral("lowConfidence"), f.lowConfidence },
+                { QStringLiteral("dofs"),          dofs },
+                { QStringLiteral("positions"),     positions } });
+        }
+        o[QStringLiteral("assessment")] = QJsonObject{
+            { QStringLiteral("scoreV2"),  a.assessmentScore },
+            { QStringLiteral("findings"), findings } };
+    }
+
+    // Additive orientation-filter quality block (SwingLab filter.refuse — §5.3.1). Only present when
+    // offline re-fusion drove the orientation, giving filter.* an IMU-only objective (score.py filter.*).
+    if (a.filterImpactStepDeg >= 0.0)
+        o[QStringLiteral("filter")] = QJsonObject{
+            { QStringLiteral("impactStepDeg"), a.filterImpactStepDeg } };
+
     // Additive segmentation block (v3 G2, design A.7): the swing bounds +
     // ladder meta. Missing block on reload = full-window bounds.
     if (a.segmentation.swingEndUs > a.segmentation.swingStartUs)

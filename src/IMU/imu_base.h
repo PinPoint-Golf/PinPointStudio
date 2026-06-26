@@ -26,6 +26,7 @@
 #include <memory>
 
 #include "iorientation_filter.h"
+#include "../Core/pp_tuned_constants.h"
 
 struct ImuCapabilities;
 
@@ -166,7 +167,7 @@ private:
     // a sample taken mid-motion (wrong gravity → slow convergence). Falls back to
     // seeding unconditionally after kInitMaxSeedAttempts samples.
     int                                 m_initSeedAttempts = 0;
-    static constexpr float kInitAccelTolG     = 0.15f;   // |a| within 1g ± this
-    static constexpr float kInitGyroMaxRadps  = 0.5f;    // ~28 °/s
-    static constexpr int   kInitMaxSeedAttempts = 200;   // ~1 s @200 Hz, ~2 s @100 Hz
+    static constexpr float kInitAccelTolG     = pinpoint::tuned::seed::kInitAccelTolG;   // |a| within 1g ± this
+    static constexpr float kInitGyroMaxRadps  = pinpoint::tuned::seed::kInitGyroMaxRadps;  // ~28 °/s
+    static constexpr int   kInitMaxSeedAttempts = pinpoint::tuned::seed::kInitMaxSeedAttempts; // ~1 s @200 Hz, ~2 s @100 Hz
 };

@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "iorientation_filter.h"
+#include "../Core/pp_tuned_constants.h"
 
 // Offline orientation RE-FUSION + parity — the load-bearing capability for
 // post-hoc tuning of the orientation filter (phase-adaptive gain + impact
@@ -70,8 +71,49 @@ struct RefuseSample {
 struct RefuseConfig {
     float outputRateHz = 200.0f;   // nominal cadence -> dt = 1/rate (matches ImuBase)
     bool  warmStart    = true;     // warm-start from samples[0] stored quat
-    // (phase-adaptive / impact-handling knobs extend this struct in a later phase)
+
+    // Phase-adaptive gain + impact handling (§5.3.1). adaptive=false ⇒ the fixed-beta filter
+    // (refuseOrientation), byte-identical to the live path. adaptive=true ⇒ refuseOrientationAdaptive:
+    //   * continuous dynamics gate — accel trust ramps betaStatic→betaDynamic as the accel-magnitude
+    //     residual e=|‖a‖−1g| and the gyro magnitude ‖ω‖ rise (gyro-dominant through the downswing);
+    //   * saturation gate — any |a_axis| ≥ accelSatG (±16 g clip) ⇒ reject the accel update;
+    //   * impact-blanking window — over [impactUs−preMs, impactUs+postMs] propagate by gyro alone.
+    // All three are implemented by driving the Madgwick gain to 0 (gyro-only) for that sample.
+    bool    adaptive          = false;
+    float   betaStatic        = pinpoint::tuned::filter::kBeta; // gain when quasi-static (address/finish)
+    float   betaDynamic       = 0.0f;     // gain when dynamic (≈gyro-only)
+    float   accelErrGateG     = 0.30f;    // |‖a‖−1g| (g) at/above which trust→betaDynamic
+    float   gyroGateDps       = 200.0f;   // ‖ω‖ (deg/s) at/above which trust→betaDynamic
+    float   accelSatG         = 16.0f;    // |a_axis| (g) at/above ⇒ reject accel (saturation clip)
+    int64_t impactUs          = -1;       // impact instant (offline-known); <0 ⇒ no blanking window
+    float   impactBlankPreMs  = 5.0f;
+    float   impactBlankPostMs = 15.0f;
 };
+
+// The per-sample Madgwick gain under the adaptive schedule (header-tested in isolation). t_us is the
+// sample time; impactUs<0 disables the blanking window. Returns 0 (gyro-only) under saturation or
+// inside the impact window, else a betaStatic→betaDynamic ramp on the worse of the two dynamics gates.
+inline float adaptiveBeta(float ax, float ay, float az, float gx, float gy, float gz,
+                          int64_t t_us, const RefuseConfig &cfg)
+{
+    const float amag = std::sqrt(ax * ax + ay * ay + az * az);   // g
+    const float wmag = std::sqrt(gx * gx + gy * gy + gz * gz);   // deg/s
+    const bool sat = std::fabs(ax) >= cfg.accelSatG || std::fabs(ay) >= cfg.accelSatG
+                   || std::fabs(az) >= cfg.accelSatG;
+    bool blank = false;
+    if (cfg.impactUs >= 0) {
+        const int64_t lo = cfg.impactUs - int64_t(cfg.impactBlankPreMs  * 1000.0f);
+        const int64_t hi = cfg.impactUs + int64_t(cfg.impactBlankPostMs * 1000.0f);
+        blank = (t_us >= lo && t_us <= hi);
+    }
+    if (sat || blank)
+        return 0.0f;
+    const float te = std::fabs(amag - 1.0f) / std::max(cfg.accelErrGateG, 1e-6f);
+    const float tw = wmag / std::max(cfg.gyroGateDps, 1e-6f);
+    float t = std::max(te, tw);
+    t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
+    return cfg.betaStatic + (cfg.betaDynamic - cfg.betaStatic) * t;
+}
 
 struct RefuseResult {
     std::vector<std::array<float, 4>> quat;  // re-fused quaternion per sample (wxyz)
@@ -123,6 +165,44 @@ inline RefuseResult refuseOrientation(IOrientationFilter &filt,
     for (size_t i = 1; i < s.size(); ++i) {
         filt.update(s[i].ax, s[i].ay, s[i].az,
                     s[i].gx * kDegToRad, s[i].gy * kDegToRad, s[i].gz * kDegToRad, dt);
+        out.quat[i] = { filt.w(), filt.x(), filt.y(), filt.z() };
+    }
+    return out;
+}
+
+// Adaptive re-fusion: same warm-start + dt/units fidelity as refuseOrientation, but the Madgwick gain
+// is recomputed per sample by adaptiveBeta (continuous dynamics gate + saturation + impact blanking).
+// Templated on the filter type so the header stays free of the concrete MadgwickFilter dependency;
+// requires a filter exposing setBeta() (Madgwick). With betaStatic==betaDynamic and no gate tripped,
+// this reduces exactly to the fixed-beta refuseOrientation path.
+template <class MadgwickLike>
+inline RefuseResult refuseOrientationAdaptive(MadgwickLike &filt,
+                                              const std::vector<RefuseSample> &s,
+                                              const RefuseConfig &cfg)
+{
+    RefuseResult out;
+    out.quat.resize(s.size());
+    if (s.empty()) return out;
+
+    const float dt = (cfg.outputRateHz > 0.f) ? (1.0f / cfg.outputRateHz) : 0.005f;
+    constexpr float kDegToRad = 0.01745329251994329577f;
+
+    filt.reset();
+    if (cfg.warmStart && filt.setOrientation(s[0].qw, s[0].qx, s[0].qy, s[0].qz)) {
+        out.warmStarted = true;
+        out.quat[0] = { s[0].qw, s[0].qx, s[0].qy, s[0].qz };
+    } else {
+        filt.initFromAccel(s[0].ax, s[0].ay, s[0].az);
+        out.warmStarted = false;
+        out.quat[0] = { filt.w(), filt.x(), filt.y(), filt.z() };
+    }
+    out.seededAt = 0;
+
+    for (size_t i = 1; i < s.size(); ++i) {
+        const RefuseSample &k = s[i];
+        filt.setBeta(adaptiveBeta(k.ax, k.ay, k.az, k.gx, k.gy, k.gz, k.t_us, cfg));
+        filt.update(k.ax, k.ay, k.az,
+                    k.gx * kDegToRad, k.gy * kDegToRad, k.gz * kDegToRad, dt);
         out.quat[i] = { filt.w(), filt.x(), filt.y(), filt.z() };
     }
     return out;

@@ -79,6 +79,15 @@ def main():
     p.add_argument("runs_root")
     p.add_argument("space")
     p.add_argument("--trials", type=int, default=20)
+    p.add_argument("--seed", type=int, default=1)
+    p.add_argument("--method", choices=["random", "coordinate"], default="random",
+                   help="search strategy (coordinate descent is the §7.1 default for separable knobs)")
+    p.add_argument("--baseline", default=None,
+                   help="a prior run dir; trials that regress any swing vs it (per-swing 5pt) are rejected")
+    p.add_argument("--partition", default=None,
+                   help="partitions.json {tune:[],validation:[],heldout:[]}: sweep Tune, select Validation")
+    p.add_argument("--freeze", action="store_true",
+                   help="permit running the held-out set (the one-time freeze evaluation)")
 
     p = sub.add_parser("label")
     p.add_argument("swing_dir")
@@ -121,7 +130,8 @@ def main():
     elif a.cmd == "diff":
         sys.exit(1 if diff(a.run_a, a.run_b) else 0)
     elif a.cmd == "sweep":
-        sweep(a.corpus_root, a.runs_root, a.space, trials=a.trials)
+        sweep(a.corpus_root, a.runs_root, a.space, trials=a.trials, seed=a.seed,
+              baseline=a.baseline, partition=a.partition, method=a.method, freeze=a.freeze)
     elif a.cmd == "label":
         from swinglab.label import label
         label(a.swing_dir, every_n=a.every)

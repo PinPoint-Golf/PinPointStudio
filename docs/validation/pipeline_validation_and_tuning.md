@@ -178,7 +178,7 @@ next layer on top. Every change, at every corpus, also obeys the universal gate:
 |---|---|---|---|
 | **BLE discovery / reconnect** (`kConnectWatchdogMs`, `kMaxRetries`, `kRetryBaseDelayMs`) | pre-C1 (live) | discovery completeness 100 %; reconnect ≥ 99 % | code |
 | **Capture gate** (no tuning — a census) | C1 | Tier-0 pass = 100 % (a gate, never "tuned around") | n/a |
-| **Orientation filter — phase-adaptive gain + impact handling** (`filter.betaStatic/betaDynamic/accelErrGateG/gyroGateDps/impactBlankPreMs/impactBlankPostMs/accelSatG`) | **C1 → C2 → C3** | C1: per-phase `imu_vision_corr` ↑, impact-continuity, bounded net drift; **C2: wrist FE/RUD/PS *just after impact* within HackMotion LoA**; C3: one schedule generalises, or scales with measured per-swing dynamics | **escalation** (today only fixed `m_beta`; needs offline re-fusion §5.3.1 + dotted keys) |
+| **Orientation filter — phase-adaptive gain + impact handling** (`filter.refuse/adaptive/betaStatic/betaDynamic/accelErrGateG/gyroGateDps/impactBlankPreMs/impactBlankPostMs/accelSatG`) | **C1 → C2 → C3** | C1: per-phase `imu_vision_corr` ↑, impact-continuity, bounded net drift; **C2: wrist FE/RUD/PS *just after impact* within HackMotion LoA**; C3: one schedule generalises, or scales with measured per-swing dynamics | **dotted-key (`filter.*`)** — `filter.refuse` feeds the re-fused (optionally phase-adaptive) orientation into `ImuVisionFuser`, so it moves the wrist metric; observable via `xmodal.imu_vision_corr` (vision) + `diag.*` (labels) + the provisional `filter.impact_continuity` check |
 | **Filter choice** Madgwick vs ESKF (`orientationFilter`/stream) | C1 A/B (per phase) → confirmed C2/C3 | higher per-phase corr / lower jitter; better behaviour through the impact window | code (runtime-selectable) |
 | **Seed tolerances** (`kInitAccelTolG`, `kInitGyroMaxRadps`, `kInitMaxSeedAttempts`) | C1 | converged before Takeaway | code |
 | **Anatomical calibration `A·M`** + **wrist-axis signs** | **C2 (signs LOCKED here)** | constant per-axis bias / cross-axis leakage vs HackMotion → diagnosed & corrected; static-pose anchors agree | escalation (signs not dotted-key) |
@@ -187,15 +187,25 @@ next layer on top. Every change, at every corpus, also obeys the universal gate:
 | **Shaft detection** (`shaft.*`: `ridgeKernelPx`, `noiseSigmaK`, `thresholdFloor`, `nmsSeparationDeg`, `clutterMaskDeg`, `minScoreFrac`, `runMaxGapPx`, `interHandSigmaDeg`) | C1 (raw subset for pixel-θ) | coverage ≥ 0.6; continuity; `theta_rms < 3°` / `head < 25 px` on labelled | dotted-key |
 | **Shaft skeleton-aware flags** (`shaft.useArmScale`/`minLenFracOfArm`/`useKinematicPrior`/`useEnvelope`/`useBlurMode`/`emitPredicted`) | C1 (flag-flip A/B) | each flag's own gate (0 regressions / 0 legit samples lost / 0 false rejections) | dotted-key (default OFF) |
 | **Shaft assembly** (`assembly.*`: `coverageMin`, `jerkPsd`, `transSigma*`, `visionSigmaFloorRad`, `calibAcceptRad`) | C1 | coverage; ŝ_hand fit residual < ~7° | dotted-key |
-| **Wrist-angle sampler** (`windowHalfUs`, `gimbalThresholdDeg`, `minValidSamples`) | C1 (repeatability) → C2 (gimbal logic validated vs HackMotion) | repeatability RMSE < 5° FE / 8° RUD; < 2 % Indeterminate; C2 confirms gimbal threshold | escalation (not dotted-key) |
-| **Scoring bands** (`kWristBands` μ/σ/oneSided/weight) | **C2 (re-seated)** | match the observed + HackMotion tour-range distribution; score monotone | escalation |
-| **Assessment rules** (`RuleTuning`: `confidenceFloor`, `scoreScale`, severity weights, `corroborationBoost`) | C1 (known-groups) → **C3 (coach κ/ICC)** | scripted-fault recall / FP; C3: κ (fault) + ICC (score) vs blinded coach | code |
+| **Wrist-angle sampler** (`windowHalfUs`, `gimbalThresholdDeg`, `minValidSamples`) | C1 (repeatability) → C2 (gimbal logic validated vs HackMotion) | repeatability RMSE < 5° FE / 8° RUD; < 2 % Indeterminate; C2 confirms gimbal threshold | **dotted-key (`sampler.*`)** — observable via the offline assessment pass (`runAssessment`) |
+| **Scoring bands** (`kWristBands` μ/σ/oneSided/weight; deadbands `zIn/zOut/p`) | **C2 (re-seated)** | match the observed + HackMotion tour-range distribution; score monotone | **dotted-key (`score.*`)** — moves `r.score` directly |
+| **Assessment rules** (`RuleTuning`: `confidenceFloor`, `scoreScale`, severity weights, `corroborationBoost`) + **reference-band margins** (`bands.*`) | C1 (known-groups) → **C3 (coach κ/ICC)** | scripted-fault recall / FP; C3: κ (fault) + ICC (score) vs blinded coach | **dotted-key (`rules.*` / `bands.*`)** — observable via offline assessment + score.py `diag.*` group |
 | **Shot-detection sensitivity / latency** (`swingDetectionSensitivity` 1.5/1.0/0.7; `kImuBleLatencyUs`/`audioDeviceLatencyUs`) | C1 (precision/recall, self) → Ext (impact-truth markup, future) | recall ≥ 0.95 real strikes / ≈ 0 FP; latency ± 1 frame *needs* impact-truth markup | code |
 | **Camera 2D calibration** (ChArUco intrinsics + ground-plane extrinsic) | **C3** | reproj RMS < 0.5 px; wand QA within 0.5 % | code (calibration flow) |
 
 > **The wrist-angle layer is locked at Corpus 2**, not Corpus 1: signs, `A·M` alignment, the sampler's
 > gimbal threshold, and the scoring bands all need the HackMotion criterion to settle. Corpus 1 produces
 > their *provisional* values from repeatability + plausibility; Corpus 3 only confirms they generalise.
+
+> **The freeze edit-point is one header.** Every parameter that is *tuned during validation and then
+> frozen* draws its compiled-in default from **`src/Core/pp_tuned_constants.h`** (`pinpoint::tuned::*`):
+> Madgwick `kBeta`, the seed tolerances, the mount quats + axis-angle bounds, the `kWristBands` numerics +
+> deadbands, the sampler defaults, and the `RuleTuning` defaults. During tuning, SwingLab injects
+> candidate values at run time via the dotted keys (the header is not consulted on the override path);
+> when validation locks a value, edit the single literal here and every consumer — live IMU path *and*
+> offline analyzer — picks it up. `tuned_constants_parity_test` guards that the indirection stays
+> byte-identical. (Wrist axis *sign conventions* stay in `wrist_angles.h` — they are sign/axis choices in
+> code structure, not single numeric literals.)
 
 ---
 
@@ -476,13 +486,20 @@ trust starts collapsing), `filter.gyroGateDps` (the `‖ω‖` threshold), `filt
 `filter.impactBlankPostMs`, `filter.accelSatG` (= 16). Sweep them with `lab.py sweep` against the per-phase
 objectives below; **diff-gated** like every other parameter.
 
-**Offline re-fusion is the load-bearing capability — and it is NOT implemented today.** Verified against
-the code (2026-06-26): the orientation filter runs only on the **live** I/O thread
-(`ImuBase::fuseRawImu`), and its output quaternion is stored per sample. The analyzer does **not** re-run
-it — `ImuVisionFuser::fuse()` reads the **stored live-fused quaternion** (`imu_vision_fuser.cpp:80`,
-`qRaw = ImuSample.quat_*`) and applies only the *downstream* anatomical transform `A·qRaw·M`; the raw
-accel/gyro it also reads are mount-rotated into rate/accel *series*, never used to re-derive orientation.
-So **the schedule of this section cannot be tuned on real data until a re-fusion path is built.**
+**Offline re-fusion is the load-bearing capability — and it is now IMPLEMENTED (C3, behind a flag).**
+Originally (2026-06-26) the orientation filter ran only on the **live** I/O thread
+(`ImuBase::fuseRawImu`) and the analyzer read the **stored** quaternion. As of the tunable-parameter
+work, `ImuVisionFuser::fuse()` takes an optional `RefuseConfig*`: when `filter.refuse` is set, it
+re-derives each source's orientation offline from the persisted raw accel+gyro
+(`refuseOrientationAdaptive`, warm-started from the stored quat at the window's first sample) under the
+phase-adaptive schedule, and feeds *that* as `qRaw` into the `A·qRaw·M` transform — so the schedule
+**moves the wrist metric**. Off by default ⇒ the stored quaternion (production, byte-identical). The
+schedule is therefore tunable on real data: `filter.*` is observable via `xmodal.imu_vision_corr`
+(vision), `diag.*` (labelled), and the provisional `filter.impact_continuity` check. *Open tail:* the
+ESKF `R` covariance is **not** exposed (the vendored `third_party/imu_ekf` is kept verbatim and ESKF
+cannot warm-start, so it stays outside the re-fusion loop — a separate escalation only if ESKF becomes
+the production filter), and the `impact_continuity` threshold + per-phase/net-drift checks await a real
+impact-shock swing to calibrate (the synthetic corpus models no impact saturation).
 
 The good news, also verified: **the data needed to re-fuse is already persisted.** `ImuSample`
 (`imu_sample_v2`, 40 B) stores raw accel (g) + raw gyro (°/s) in the sensor frame, the exporter writes
@@ -751,6 +768,45 @@ a small sample. Controls, in force for every sweep, **on every corpus**:
 - **Pre-register hypotheses and thresholds** — the §5/§6 acceptance numbers are written *before* the runs.
   Moving a threshold is a documented decision, not a silent edit.
 - **Re-baseline on check changes; same-host only; bless before conclude; no silent caps.**
+
+### 7.1 Parameter-optimisation method — how the sweep actually searches
+
+The governance above says *what must hold*; this says *how to search the space without fooling yourself*.
+The harness (`lab.py sweep`) injects dotted-key candidates and scores each trial on the corpus; the
+question is which candidates to try, on which partition, and when to stop.
+
+**Algorithm — escalate, don't over-engineer.** Match the optimiser to the surface:
+
+1. **Coordinate descent (default).** One knob at a time, accept on the §7 diff gate, move on; revisit in a
+   second pass. Interpretable, diff-friendly, no dependencies, and every accepted step is a documented
+   single-variable decision. The right tool for the `seg.*`/`shaft.*`/`assembly.*`/`score.*` knobs, which
+   are largely separable and where a coach needs to understand *why* a value moved.
+2. **Bayesian optimisation (GP/TPE) — on plateau.** When coordinate descent plateaus (the existing
+   ESCALATION trigger "sweep plateau ×2") and interactions are suspected, a sample-efficient global
+   optimiser earns its dependency: ~14 `seg.*` + ~8 `shaft.*` against ~50 swings is exactly the
+   *expensive-evaluation, modest-dimension* regime TPE/GP target. Keep uniform random as the reproducible
+   baseline to beat.
+3. **CMA-ES — for the filter schedule.** The §5.3.1 phase-adaptive filter knobs
+   (`filter.betaStatic/betaDynamic/accelErrGateG/gyroGateDps/impactBlank*`) are continuous, non-separable,
+   and gradient-free — CMA-ES is the standard fit. Reserve it for that surface; it is overkill for the
+   separable corridor knobs.
+
+**Partition the search, not just the report.** Tie the optimiser loop directly to the `CORPUS.md`
+Tune/Validation/Held-out roles (§7): **sweep on Tune**, **select the winner on Validation** (so the reported
+score is not the optimistic selection score — nested CV in practice), **touch Held-out exactly once at
+freeze**. A knob that wins on Tune but regresses Validation is overfit and rejected before it ever sees
+Held-out. The harness enforces this — Held-out is refused without an explicit `--freeze`.
+
+**Regression-gated objective (not mean-only).** The objective is *composite*: **maximise mean corpus score
+SUBJECT TO per-swing `regressions == 0`** (the 5-pt diff vs the baseline run). A trial that lifts the mean
+but regresses any single swing is rejected *inside the sweep loop*, not in a separate manual `diff` step —
+this is why the gate is per-swing (§3.6): a small mean gain must never hide a large regression on two
+swings. Implement as a hard reject (preferred) or a large penalty proportional to the regression count.
+
+**Convergence / early stopping.** Stop on (a) **no Validation improvement over N consecutive trials**
+(plateau — also the escalation trigger), (b) Bayesian acquisition-value below a floor, or (c) a trial /
+wall-clock **budget**. Never run a fixed trial count and report the best — log what was explored and why it
+stopped (no silent caps, §4).
 
 ---
 

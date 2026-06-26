@@ -30,6 +30,8 @@
 using pinpoint::RefuseSample;
 using pinpoint::RefuseConfig;
 using pinpoint::refuseOrientation;
+using pinpoint::refuseOrientationAdaptive;
+using pinpoint::adaptiveBeta;
 using pinpoint::parity;
 
 static int g_fail = 0;
@@ -132,6 +134,46 @@ int main()
         std::snprintf(buf, sizeof buf, "warmStarted=%s, produced %zu quats",
                       r.warmStarted ? "true" : "false", r.quat.size());
         check("ESKF re-fuses (fallback, no crash)", !r.warmStarted && r.quat.size() == kN, buf);
+    }
+
+    // -- E. Phase-adaptive schedule (§5.3.1) --
+    std::printf("\n-- E. adaptive gain + impact blanking --\n");
+    {
+        const auto stored = genStored(0.05f);   // fixed beta=0.05 reference
+
+        // E1. Flat schedule (betaStatic==betaDynamic, no gates tripped) ≡ fixed-beta path.
+        RefuseConfig flat{ kRate, true };
+        flat.adaptive = true; flat.betaStatic = 0.05f; flat.betaDynamic = 0.05f;
+        flat.accelSatG = 16.0f; flat.impactUs = -1;
+        MadgwickFilter mf(0.05f);
+        const auto pe = parity(stored, refuseOrientationAdaptive(mf, stored, flat));
+        std::snprintf(buf, sizeof buf, "max %.6f deg over %zu", pe.maxDeg, pe.n);
+        check("flat adaptive == fixed beta (parity)", pe.maxDeg < 1e-2, buf);
+
+        // E2. Impact-blanking window forces gyro-only (beta 0) inside, normal outside.
+        RefuseConfig blank = flat;
+        const int64_t tImp = stored[300].t_us;
+        blank.impactUs = tImp; blank.impactBlankPreMs = 5.0f; blank.impactBlankPostMs = 15.0f;
+        const float bIn   = adaptiveBeta(kAx, kAy, kAz, kGx, kGy, kGz, tImp, blank);             // at impact
+        const float bPre  = adaptiveBeta(kAx, kAy, kAz, kGx, kGy, kGz, tImp - 3000, blank);      // 3 ms before (<5)
+        const float bPost = adaptiveBeta(kAx, kAy, kAz, kGx, kGy, kGz, tImp + 10000, blank);     // 10 ms after (<15)
+        const float bOut  = adaptiveBeta(kAx, kAy, kAz, kGx, kGy, kGz, tImp + 30000, blank);     // 30 ms after (>15)
+        std::snprintf(buf, sizeof buf, "in=%.3f pre=%.3f post=%.3f out=%.3f", bIn, bPre, bPost, bOut);
+        check("impact window blanks accel (beta 0)",
+              bIn == 0.0f && bPre == 0.0f && bPost == 0.0f && bOut > 0.0f, buf);
+
+        // E3. Continuous gate: high gyro drives the gain toward betaDynamic.
+        RefuseConfig cont = flat;
+        cont.betaStatic = 0.05f; cont.betaDynamic = 0.0f; cont.gyroGateDps = 200.0f;
+        const float bQuiet = adaptiveBeta(0.0f, 0.0f, 1.0f, 5.0f, 0.0f, 0.0f, 0, cont);    // ~quiet → static
+        const float bFast  = adaptiveBeta(0.0f, 0.0f, 1.0f, 250.0f, 0.0f, 0.0f, 0, cont);  // >gate → dynamic
+        std::snprintf(buf, sizeof buf, "quiet=%.4f fast=%.4f", bQuiet, bFast);
+        check("gain collapses as dynamics rise", bQuiet > 0.04f && bFast == 0.0f, buf);
+
+        // E4. Saturation gate: a ±16 g clip on any axis rejects the accel update.
+        RefuseConfig sat = flat; sat.accelSatG = 16.0f;
+        const float bSat = adaptiveBeta(0.0f, 0.0f, 16.5f, 10.0f, 0.0f, 0.0f, 0, sat);
+        check("saturation rejects accel (beta 0)", bSat == 0.0f, "az=16.5g → 0");
     }
 
     std::printf("\n=== %s (%d failure%s) ===\n", g_fail ? "FAILED" : "PASSED",

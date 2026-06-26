@@ -120,7 +120,10 @@ committed; Claude-specific artefacts stay out of the repo) so any model
 follows the same recipe:
 
 ```
-TIER 0 (no model)   lab.py sweep — parameter search is a for-loop, not a prompt.
+TIER 0 (no model)   lab.py sweep — parameter search is a loop, not a prompt.
+                    random | coordinate-descent over space.json, with the per-swing
+                    regression gate (--baseline) and Tune/Validation/Held-out partition
+                    (--partition / --freeze) enforced in-loop (see pipeline_validation_and_tuning §7.1).
 TIER 1 (Haiku)      Operator loop: lab.py run → score → report; triage worst
                     swings from scorecards + contact sheets; classify each
                     failure against a rubric (parametric? data? algorithmic?);
@@ -171,7 +174,9 @@ $P lab.py one   /tmp/corpus/synth_0001 /tmp/runs/x  # run+score+contact sheet
 $P lab.py ingest /path/to/corpus                  # corpus.json manifest
 $P lab.py run    /path/to/corpus /tmp/runs --id baseline [--params p.json]
 $P lab.py diff   /tmp/runs/baseline /tmp/runs/candidate   # exit 1 = regressions
-$P lab.py sweep  /path/to/corpus /tmp/runs space.json --trials 20
+$P lab.py sweep  /path/to/corpus /tmp/runs space.json --trials 20 \
+                 [--method random|coordinate] [--baseline /tmp/runs/baseline] \
+                 [--partition partitions.json] [--freeze]   # gate + Tune/Val/Held-out in-loop
 $P lab.py label  /path/to/swing                   # truth.json click-UI (needs display)
 ```
 

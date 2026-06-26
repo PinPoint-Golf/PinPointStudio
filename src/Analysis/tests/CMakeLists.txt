@@ -83,6 +83,10 @@ pp_add_test(pipeline_test
 # --- Banded weighted-geometric-mean scorer -----------------------------------
 pp_add_test(swing_scorer_test SOURCES swing_scorer_test.cpp ${ANALYSIS}/swing_scorer.cpp)
 
+# --- Tunable-parameter plumbing: frozen-constant parity + dotted-key overrides
+pp_add_test(tuned_constants_parity_test SOURCES tuned_constants_parity_test.cpp)
+pp_add_test(tuning_overrides_test SOURCES tuning_overrides_test.cpp ${ANALYSIS}/swing_scorer.cpp ${ANALYSIS}/reference_bands.cpp)
+
 # --- Header-only review/shot helpers -----------------------------------------
 pp_add_test(session_summary_test SOURCES session_summary_test.cpp)   # session_summary.h
 pp_add_test(arbiter_test         SOURCES arbiter_test.cpp)           # shot_arbiter.h

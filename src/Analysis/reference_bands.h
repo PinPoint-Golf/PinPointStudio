@@ -29,12 +29,38 @@
 
 namespace pinpoint::analysis {
 
+// SwingLab `bands.*` overrides — per-DOF amber margin (degrees either side of green). A negative
+// value means "use the compiled-in table default", so a default-constructed BandTuning is a no-op
+// and the bands are byte-identical to the frozen corridors. Full corridor (lo/hi) tuning is a
+// Corpus-2 re-seat (pipeline_validation_and_tuning.md §6.6), not a sweep target — only the margins
+// are exposed here.
+struct BandTuning {
+    double radUlnMargin     = -1.0;
+    double flexExtMargin    = -1.0;
+    double forearmMargin    = -1.0;
+    double trailWristMargin = -1.0;
+    double elbowMargin      = -1.0;
+
+    double marginFor(PpJointDof dof) const
+    {
+        switch (dof) {
+        case PpJointDof::LeadWristRadUln:   return radUlnMargin;
+        case PpJointDof::LeadWristFlexExt:  return flexExtMargin;
+        case PpJointDof::LeadForearmRot:    return forearmMargin;
+        case PpJointDof::TrailWristFlexExt: return trailWristMargin;
+        case PpJointDof::LeadElbowFlex:     return elbowMargin;
+        default:                            return -1.0;
+        }
+    }
+};
+
 // Context the bands are keyed by (design §6 "context parameterisation"). v1 hard-defaults to
 // neutral archetype / mid-iron / neutral shape and exposes the seam; the provider may ignore it.
 struct BandContext {
-    int archetype = 0;   // 0 = neutral (future: bowed-tour / cupped-tour …)
-    int club      = 0;   // 0 = mid-iron
-    int shape     = 0;   // 0 = neutral (future: draw / fade bias)
+    int        archetype = 0;   // 0 = neutral (future: bowed-tour / cupped-tour …)
+    int        club      = 0;   // 0 = mid-iron
+    int        shape     = 0;   // 0 = neutral (future: draw / fade bias)
+    BandTuning tuning;          // SwingLab bands.* margin overrides (default = no-op)
 };
 
 // A resolved band for one cell. `valid == false` means "no band for this cell" (not in the table,

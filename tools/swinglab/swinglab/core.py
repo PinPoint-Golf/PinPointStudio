@@ -77,6 +77,11 @@ def ingest(corpus_root):
             # None when unlabelled. Filter/stratify the corpus on these (e.g. run
             # only scope=="full", or segment results by tempo).
             "conditions": s.truth_meta() or None,
+            # Known-groups label for diagnosis validation (scripted fault id like
+            # "cast"/"flip", or "clean"/"control"); None when unlabelled. Drives the
+            # score.py diag.* recall/specificity checks (validation doc §5.6).
+            "knownGroup": (s.truth_meta() or {}).get("knownGroup",
+                                                     (s.truth_meta() or {}).get("known_group")),
             # Capture provenance (None on legacy swings lacking the fields) —
             # filter the corpus on these before tuning.
             "sessionType": cap.get("sessionType"),
@@ -135,13 +140,19 @@ def run_one(swing_dir, run_dir, params=None, trace=True, pose=None, binary=None)
     return r.returncode == 0, run_dir
 
 
-def run_corpus(corpus_root, runs_root, run_id=None, params=None, trace=True):
-    """Run + score every swing in the corpus; returns the run summary path."""
+def run_corpus(corpus_root, runs_root, run_id=None, params=None, trace=True,
+               swing_filter=None):
+    """Run + score every swing in the corpus; returns the run summary path.
+    swing_filter (a set/list of swing names) restricts the run to a partition subset —
+    used by `sweep` to optimise on Tune+Validation without touching Held-out."""
     manifest = load_json(Path(corpus_root) / "corpus.json")
     run_id = run_id or time.strftime("%Y%m%d-%H%M%S")
     out_root = Path(runs_root) / run_id
+    names = set(swing_filter) if swing_filter is not None else None
     cards = []
     for sw in manifest["swings"]:
+        if names is not None and sw["name"] not in names:
+            continue
         rd = out_root / sw["name"]
         ok, _ = run_one(sw["path"], rd, params=params, trace=trace)
         card = scorecard(rd, sw["path"]) if (rd / "runmeta.json").exists() else {
@@ -205,31 +216,112 @@ def diff(run_a, run_b, regression_pts=5):
     return regressions
 
 
-def sweep(corpus_root, runs_root, space_file, trials=20, seed=1):
-    """Tier-0 random search over a parameter space:
-       space.json = {"shaft.ridgeKernelPx": [5, 15, "int"], "assembly.coverageMin": [0.4, 0.8]}
-       Objective = mean scorecard score. Keeps the best params + full history."""
+def _spec_bounds(spec):
+    lo, hi = spec[0], spec[1]
+    is_int = len(spec) > 2 and spec[2] == "int"
+    return lo, hi, is_int
+
+
+def _coerce(v, is_int):
+    return int(round(v)) if is_int else v
+
+
+def _mean(vals):
+    return round(sum(vals) / max(len(vals), 1), 1)
+
+
+def _load_partition(partition_file):
+    """Return (tune_names, select_names) or (None, None) for no partitioning. The partition
+    file maps roles to swing-name lists: {"tune": [...], "validation": [...], "heldout": [...]}.
+    Held-out is intentionally NOT returned — sweeps must never see it (touched once, at --freeze)."""
+    if not partition_file:
+        return None, None
+    p = load_json(partition_file)
+    tune = list(p.get("tune", []))
+    val = list(p.get("validation", [])) or tune   # no explicit validation ⇒ select on tune
+    return tune, val
+
+
+def sweep(corpus_root, runs_root, space_file, trials=20, seed=1,
+          baseline=None, partition=None, method="random", freeze=False):
+    """Parameter search over space.json = {"shaft.ridgeKernelPx": [5, 15, "int"], ...}.
+
+    Optimise on the Tune partition, SELECT the winner on Validation (so the reported score is
+    not the optimistic selection score), and REJECT any trial that regresses a swing vs the
+    `baseline` run (per-swing 5-pt diff — the §7 gate, enforced inside the loop, not as a
+    separate manual step). Held-out is never run here unless `freeze` is set (a deliberate,
+    one-time evaluation). method ∈ {"random", "coordinate"}. Keeps best params + full history."""
     space = load_json(space_file)
+    keys = list(space.keys())
     rng = random.Random(seed)
-    history, best = [], None
-    for k in range(trials):
-        params = {}
-        for key, spec in space.items():
-            lo, hi = spec[0], spec[1]
-            v = rng.uniform(lo, hi)
-            if len(spec) > 2 and spec[2] == "int":
-                v = int(round(v))
-            params[key] = v
+    tune_names, select_names = _load_partition(partition)
+    run_filter = None
+    if tune_names is not None and not freeze:
+        run_filter = list(dict.fromkeys(list(tune_names) + list(select_names)))
+
+    history = []
+    best = None
+
+    def evaluate(params, k):
         pfile = Path(runs_root) / f"sweep-params-{k:03d}.json"
         save_json(pfile, params)
         out = run_corpus(corpus_root, runs_root, run_id=f"sweep-{k:03d}",
-                         params=pfile, trace=False)
-        mean = load_json(out / "summary.json")["mean_score"]
-        history.append({"trial": k, "params": params, "mean_score": mean})
-        if best is None or mean > best["mean_score"]:
-            best = history[-1]
-        print(f"[sweep] trial {k}: {mean} (best {best['mean_score']})")
+                         params=pfile, trace=False, swing_filter=run_filter)
+        summ = load_json(out / "summary.json")
+        scores = {c["swing"]: c["score"] for c in summ["swings"]}
+        tun = [scores[n] for n in (tune_names if tune_names is not None else scores) if n in scores]
+        sel = [scores[n] for n in (select_names if select_names is not None else scores) if n in scores]
+        regressions = diff(baseline, out) if baseline else 0
+        gated = baseline is not None and regressions > 0
+        rec = {"trial": k, "params": params, "tune_mean": _mean(tun),
+               "val_mean": _mean(sel), "regressions": regressions, "gated": gated,
+               "run": str(out)}
+        history.append(rec)
+        print(f"[sweep] trial {k}: tune {rec['tune_mean']} val {rec['val_mean']} "
+              f"reg {regressions} {'GATED' if gated else 'ok'}")
+        return rec
+
+    def better(rec):
+        return (not rec["gated"]) and (best is None or rec["val_mean"] > best["val_mean"])
+
+    k = 0
+    if method == "coordinate":
+        # Coordinate descent: midpoint start, then sweep each key across a small grid and fix the
+        # best (gated) value before moving on. Interpretable + diff-friendly (the §7.1 default).
+        cur = {key: _coerce((lo + hi) / 2.0, is_int)
+               for key, (lo, hi, is_int) in ((key, _spec_bounds(space[key])) for key in keys)}
+        rec = evaluate(dict(cur), k); k += 1
+        if better(rec): best = rec
+        steps = max(2, trials // max(len(keys), 1))
+        for key in keys:
+            lo, hi, is_int = _spec_bounds(space[key])
+            local_best = None
+            for j in range(steps):
+                cand = dict(cur)
+                cand[key] = _coerce(lo + (hi - lo) * (j / max(steps - 1, 1)), is_int)
+                rec = evaluate(cand, k); k += 1
+                if better(rec):
+                    best = rec
+                if not rec["gated"] and (local_best is None or rec["val_mean"] > local_best[1]):
+                    local_best = (cand[key], rec["val_mean"])
+            if local_best is not None:
+                cur[key] = local_best[0]   # fix this coordinate, descend the next
+    else:  # uniform random — the reproducible baseline
+        for _ in range(trials):
+            params = {}
+            for key in keys:
+                lo, hi, is_int = _spec_bounds(space[key])
+                params[key] = _coerce(rng.uniform(lo, hi), is_int)
+            rec = evaluate(params, k); k += 1
+            if better(rec): best = rec
+
     save_json(Path(runs_root) / "sweep-result.json",
-              {"space": space, "trials": history, "best": best})
-    print(f"[sweep] BEST mean={best['mean_score']} params={best['params']}")
+              {"space": space, "method": method, "partition": partition,
+               "baseline": str(baseline) if baseline else None,
+               "trials": history, "best": best})
+    if best:
+        print(f"[sweep] BEST val={best['val_mean']} (tune {best['tune_mean']}) "
+              f"params={best['params']}")
+    else:
+        print("[sweep] no trial passed the regression gate")
     return best

@@ -21,6 +21,7 @@
 #include <cmath>
 
 #include "iorientation_filter.h"
+#include "../Core/pp_tuned_constants.h"
 
 // Madgwick 6-axis (IMU: gyroscope + accelerometer) orientation filter.
 //
@@ -45,7 +46,7 @@
 class MadgwickFilter : public IOrientationFilter
 {
 public:
-    explicit MadgwickFilter(float beta = 0.05f) : m_beta(beta) {}
+    explicit MadgwickFilter(float beta = pinpoint::tuned::filter::kBeta) : m_beta(beta) {}
 
     // Filter gain: higher trusts the accelerometer more (better gravity tracking,
     // more sensitive to linear-acceleration noise during fast motion); lower

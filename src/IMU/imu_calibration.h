@@ -22,6 +22,8 @@
 #include <QVector3D>
 #include <cmath>
 
+#include "../Core/pp_tuned_constants.h"
+
 // Anatomical calibration solve for an IMU strapped to a limb segment.
 //
 // Given a faithful sensor orientation q_raw (see orientation_filter.h) the goal
@@ -70,7 +72,9 @@ namespace imu_calibration {
 // All three arm segments share the strap convention, so one nominal serves all.
 inline QQuaternion nominalArmMount()
 {
-    return QQuaternion(0.5f, -0.5f, -0.5f, -0.5f);
+    using pinpoint::tuned::calib::kNominalArmMount;
+    return QQuaternion(kNominalArmMount[0], kNominalArmMount[1],
+                       kNominalArmMount[2], kNominalArmMount[3]);
 }
 
 // Hand sensor (back of hand): solved numerically from a characterization capture
@@ -81,7 +85,9 @@ inline QQuaternion nominalArmMount()
 // back-and-forth swing can't resolve) verified by a static flexed-pose log.
 inline QQuaternion nominalHandMount()
 {
-    return QQuaternion(0.4388f, 0.6054f, 0.4965f, -0.4409f);
+    using pinpoint::tuned::calib::kNominalHandMount;
+    return QQuaternion(kNominalHandMount[0], kNominalHandMount[1],
+                       kNominalHandMount[2], kNominalHandMount[3]);
 }
 
 struct Alignment {
@@ -135,7 +141,8 @@ inline Alignment solveSegment(const QQuaternion &refRaw,
     // A places the reference pose at identity: A = conj(refRaw * M).
     out.A = (refRaw * out.M).conjugated().normalized();
 
-    out.valid = (out.axisAngleDeg >= 60.0f && out.axisAngleDeg <= 120.0f);
+    out.valid = (out.axisAngleDeg >= pinpoint::tuned::calib::kAxisAngleMinDeg
+                 && out.axisAngleDeg <= pinpoint::tuned::calib::kAxisAngleMaxDeg);
     return out;
 }
 

@@ -231,6 +231,13 @@ def generate(out_dir, seed=7, waggle=True, clutter=False):
                    "t0_us": T0_US},
         "expected": {"sHandSign": -1, "sHandDeltaDeg": 90.0,
                      "downswingSweepDeg": 140.0},
+        # Known-groups label for the diagnosis check group (score.py diag.*). The synthetic
+        # downswing releases its wrist angle early (the smoothstep φ(t) u²-profile), which the
+        # Tier-2 engine reads as an early release → diag.recall expects a "cast" fault. This is a
+        # plumbing/regression fixture proving the offline-assessment → swing.json → score.py path
+        # works end to end; a richer deliberately-scripted fault library is future work (real
+        # known-groups capture, validation doc §5.6).
+        "meta": {"knownGroup": "cast"},
     })
     print(f"[synth] wrote {out} ({n_frames} frames, impact {IMPACT_S}s)")
     return out

@@ -100,4 +100,53 @@ InMemoryWristAngleSource parseAnalysisDetail(const QVariantMap &analysisDetail)
     return src;
 }
 
+InMemoryWristAngleSource buildWristAngleSource(const std::vector<MetricSeries> &series,
+                                               const std::vector<PhaseEvent> &phases)
+{
+    InMemoryWristAngleSource src;
+    src.setHandedness(PpHandedness::Right);   // producer values are lead-arm convention — no mirror
+
+    for (const MetricSeries &m : series) {
+        const std::optional<PpJointDof> dof = dofForMetricKey(m.key);
+        if (!dof)
+            continue;                          // not a wrist DOF (or unknown key)
+        const int n = static_cast<int>(std::min(m.t_us.size(), m.value.size()));
+        if (n == 0)
+            continue;
+
+        PpJointAngleSeries ser;
+        ser.dof            = *dof;
+        ser.present        = true;
+        ser.baseConfidence = baseConfFor(*dof);
+        ser.samples.reserve(n);
+        for (int i = 0; i < n; ++i) {
+            PpJointAngleSample s;
+            s.t_us          = m.t_us[i];
+            s.valueDeg      = m.value[i];
+            s.available     = true;
+            s.confidence    = 1.0f;
+            s.pitchProxyDeg = 0.0;             // no gimbal proxy in MetricSeries yet
+            ser.samples.push_back(s);
+        }
+        src.setSeries(ser);
+    }
+
+    const WristCheckpoint *cps = wristCheckpoints();
+    PpSwingPositionTimeline tl;
+    for (int c = 0; c < kNumPos; ++c) {
+        for (const PhaseEvent &e : phases) {
+            if (static_cast<int>(e.phase) != cps[c].phase)
+                continue;
+            PpSwingPositionTimeline::Entry en;
+            en.present = true;
+            en.t_us    = e.t_us;
+            en.conf    = e.conf;
+            tl.positions[c] = en;
+            break;
+        }
+    }
+    src.setTimeline(tl);
+    return src;
+}
+
 } // namespace pinpoint::analysis

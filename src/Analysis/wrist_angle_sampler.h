@@ -19,6 +19,7 @@
 #pragma once
 
 #include "wrist_assessment_contract.h"
+#include "../Core/pp_tuned_constants.h"
 
 #include <algorithm>
 #include <cmath>
@@ -41,9 +42,9 @@
 namespace pinpoint::analysis {
 
 struct PpWristSamplingConfig {
-    int64_t windowHalfUs       = 15000;   // ±15 ms about Pn (≈ ±1 frame-cluster). tunable
-    double  gimbalThresholdDeg = 75.0;    // windowed pitch-proxy ≥ this ⇒ Indeterminate (design §2.3)
-    int     minValidSamples    = 1;       // fewer valid samples in the window ⇒ Gap
+    int64_t windowHalfUs       = pinpoint::tuned::sampler::kWindowHalfUs;       // ±15 ms about Pn (≈ ±1 frame-cluster). tunable
+    double  gimbalThresholdDeg = pinpoint::tuned::sampler::kGimbalThresholdDeg; // windowed pitch-proxy ≥ this ⇒ Indeterminate (design §2.3)
+    int     minValidSamples    = pinpoint::tuned::sampler::kMinValidSamples;    // fewer valid samples in the window ⇒ Gap
 };
 
 namespace detail {

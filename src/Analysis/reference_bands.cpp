@@ -77,16 +77,18 @@ const DofBands *bandsFor(PpJointDof dof)
 
 Band ConfigReferenceBandProvider::band(PpJointDof dof, PpSwingPosition pos, const BandContext &ctx) const
 {
-    Q_UNUSED(ctx);   // v1: neutral archetype / mid-iron / neutral shape — seam exposed, unused
     const DofBands *t = bandsFor(dof);
     const int p = static_cast<int>(pos);
     if (t == nullptr || p < 0 || p >= kNumPos || !t->has[p])
         return {};                 // invalid — engine greys the cell
+    // SwingLab bands.* margin override (negative ⇒ table default).
+    const double ovMargin = ctx.tuning.marginFor(dof);
+    const double margin   = (ovMargin >= 0.0) ? ovMargin : t->margin;
     Band b;
     b.greenLo = t->lo[p];
     b.greenHi = t->hi[p];
-    b.amberLo = b.greenLo - t->margin;
-    b.amberHi = b.greenHi + t->margin;
+    b.amberLo = b.greenLo - margin;
+    b.amberHi = b.greenHi + margin;
     b.valid   = true;
     return b;
 }

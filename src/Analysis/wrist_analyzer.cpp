@@ -26,12 +26,16 @@
 
 #include "analysis_tuning.h"
 #include "imu_vision_fuser.h"
+#include "orientation_refuse_tuning.h"
 #include "metric_extractor.h"
 #include "phase_segmenter.h"
 #include "pose_runner.h"
 #include "shaft_tracker.h"
 #include "swing_scorer.h"
 #include "wrist_angles.h"
+#include "wrist_analysis_adapter.h"
+#include "wrist_assessment_engine.h"
+#include "wrist_assessment_tuning.h"
 #include "swing_window.h"
 #include "../Core/pp_debug.h"
 
@@ -199,6 +203,45 @@ QVariantList buildTrace(const std::vector<MetricSeries> &series,
     return out;
 }
 
+// Impact-continuity diagnostic (§5.3.1): the max orientation discontinuity across [impactUs ± halfUs]
+// BEYOND what gyro propagation predicts — i.e. the accel-correction (or shock-glitch) contribution,
+// NOT the legitimate fast downswing rotation (which the raw step would be dominated by). For each
+// step we predict q[i] by integrating the body-frame gyro from q[i-1] and measure the geodesic
+// residual against the actual fused q[i]. A filter trusting a saturated impact accel spikes this;
+// the adaptive schedule's blanking / saturation-reject / gyro-dominant gain drive it toward 0. So it
+// rises with accel trust (beta) and falls under blanking — a genuine filter.* objective. Returns -1
+// if no usable window.
+double impactContinuityDeg(const FusedStreams &streams, int64_t impactUs, int64_t halfUs = 25000)
+{
+    if (streams.segments.empty() || streams.timeGrid.empty() || impactUs <= 0)
+        return -1.0;
+    const SegmentStream &seg = streams.segments.front();
+    const std::vector<QQuaternion> &q    = seg.qAnat;
+    const std::vector<QVector3D>   &gyro = seg.gyroDps;   // deg/s, anatomical body frame
+    const std::vector<int64_t>     &grid = streams.timeGrid;
+    const size_t n = std::min({ q.size(), gyro.size(), grid.size() });
+    double maxRes = -1.0;
+    for (size_t i = 1; i < n; ++i) {
+        if (std::llabs(grid[i] - impactUs) > halfUs || std::llabs(grid[i - 1] - impactUs) > halfUs)
+            continue;
+        const double dtS = double(grid[i] - grid[i - 1]) * 1e-6;
+        if (dtS <= 0.0)
+            continue;
+        // Gyro-predicted orientation: body-frame ω post-multiplies (q_new = q_old ⊗ Δq_body).
+        const QVector3D w = gyro[i - 1];
+        const float wmag = w.length();           // deg/s
+        QQuaternion dq;                           // identity when (near-)still
+        if (wmag > 1e-6f)
+            dq = QQuaternion::fromAxisAndAngle(w.normalized(), float(wmag * dtS));
+        const QQuaternion qPred = (q[i - 1] * dq).normalized();
+        double d = std::abs(static_cast<double>(QQuaternion::dotProduct(qPred, q[i])));
+        d = std::min(1.0, d);
+        const double resDeg = 2.0 * std::acos(d) * 57.29577951308232;
+        maxRes = std::max(maxRes, resDeg);
+    }
+    return maxRes;
+}
+
 } // namespace
 
 ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
@@ -210,7 +253,16 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
     // (pose + shaft) analysis, so absent IMU streams DEGRADE the result rather
     // than failing it: phase segmentation and wrist metrics are IMU-derived and
     // simply don't run, but the pose pass below still populates analysis.pose2d.
-    const FusedStreams streams = ImuVisionFuser::fuse(window, job.imuBindings);
+    //
+    // filter.refuse (SwingLab §5.3.1): re-derive orientation offline from raw accel+gyro under the
+    // filter.* schedule and feed THAT into the fusion, so the adaptive filter drives the wrist metric.
+    // Off by default ⇒ the stored live quaternion (production), byte-identical.
+    pinpoint::RefuseConfig refusion;
+    const bool doRefuse = tuningWantsRefusion(job.tuningOverrides);
+    if (doRefuse)
+        refusion = refuseConfigFromTuning(job.tuningOverrides, job.impactUs);
+    const FusedStreams streams = ImuVisionFuser::fuse(window, job.imuBindings, 200.0,
+                                                      doRefuse ? &refusion : nullptr);
     const bool hasImu = !streams.timeGrid.empty() && !streams.segments.empty();
     if (!hasImu)
         ppInfo() << "[WristAnalysis] no fusable IMU streams — camera-only (pose) analysis";
@@ -304,7 +356,26 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
     }
     detail->tier   = static_cast<int>(hasImu ? ReconstructionTier::Mono3DPlusImu
                                               : ReconstructionTier::Angles2D);
-    detail->score  = SwingScorer::score(series, job.sessionType);
+    detail->score  = SwingScorer::score(series, job.sessionType, job.tuningOverrides);
+
+    // Filter-quality objective (only when re-fusion drove the orientation): the impact-continuity
+    // diagnostic gives filter.* an IMU-only score.py check, independent of a vision shaft track.
+    if (doRefuse && hasImu)
+        detail->filterImpactStepDeg = impactContinuityDeg(streams, job.impactUs);
+
+    // Tier-2 wrist assessment (faults/strengths + score v2), offline opt-in (SwingLab). The live
+    // GUI runs this in its own diagnostics model; here it is gated on job.runAssessment so the
+    // sampler.*/rules.*/bands.* knobs become observable in swing.json without changing production.
+    if (job.runAssessment && hasImu && !series.empty()) {
+        const InMemoryWristAngleSource src = buildWristAngleSource(detail->series, detail->phases);
+        const auto provider = makeReferenceBandProvider(BandProviderKind::Archetype);
+        const WristAssessmentConfig acfg = wristAssessmentConfigFor(job.tuningOverrides);
+        const PpWristAssessmentResult ar = WristAssessmentEngine::assess(src, *provider, acfg);
+        detail->findings        = ar.findings;
+        detail->assessmentScore = ar.score.total;
+        ppInfo() << "[WristAnalysis] assessment:" << detail->findings.size() << "findings, score v2"
+                 << detail->assessmentScore;
+    }
 
     r.metrics     = buildMetricsMap(series);
     r.tracePoints = buildTrace(series, phases);

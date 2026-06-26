@@ -66,7 +66,8 @@
 #include "../../../src/Analysis/shaft_tracker.h"
 #include "../../../src/Export/swing_doc.h"
 #include "../../../src/IMU/orientation_filter.h"     // MadgwickFilter (header-only)
-#include "../../../src/IMU/orientation_refuser.h"    // refuseOrientation / parity
+#include "../../../src/IMU/orientation_refuser.h"    // refuseOrientation / refuseOrientationAdaptive / parity
+#include "../../../src/Analysis/analysis_tuning.h"   // tuning::apply (filter.* keys)
 
 using namespace pinpoint;
 using namespace pinpoint::analysis;
@@ -108,12 +109,38 @@ int fail(const QString &msg)
 // disagreement means an ESKF capture OR a schema gap — which is exactly what E1
 // must catch before bulk capture. --refuse-beta perturbs the gain on purpose, to
 // confirm the tool can see a parameter change (parity should then diverge).
+// Build a RefuseConfig from `filter.*` tuning keys (validation §5.3.1). `fixedBeta` is the CLI
+// --refuse-beta value (or the production default); `filter.beta`/`filter.betaStatic` override it.
+// `filter.adaptive` switches on the phase-adaptive schedule (continuous gate + saturation + impact
+// blanking); the blanking window is armed only then, anchored on the recorded impact.
+RefuseConfig refuseConfigFor(const QVariantMap &ov, float fixedBeta, int64_t impactUs)
+{
+    namespace tn = pinpoint::analysis::tuning;
+    RefuseConfig cfg;
+    cfg.warmStart  = true;
+    cfg.betaStatic = fixedBeta;
+    tn::apply(ov, "filter.adaptive",          cfg.adaptive);
+    tn::apply(ov, "filter.beta",              cfg.betaStatic);   // alias for the static gain
+    tn::apply(ov, "filter.betaStatic",        cfg.betaStatic);
+    tn::apply(ov, "filter.betaDynamic",       cfg.betaDynamic);
+    tn::apply(ov, "filter.accelErrGateG",     cfg.accelErrGateG);
+    tn::apply(ov, "filter.gyroGateDps",       cfg.gyroGateDps);
+    tn::apply(ov, "filter.accelSatG",         cfg.accelSatG);
+    tn::apply(ov, "filter.impactBlankPreMs",  cfg.impactBlankPreMs);
+    tn::apply(ov, "filter.impactBlankPostMs", cfg.impactBlankPostMs);
+    if (cfg.adaptive)
+        cfg.impactUs = impactUs;   // impact-blanking window (offline-known)
+    return cfg;
+}
+
 int runRefusionParity(const SwingWindow &window,
                       const std::vector<ImuSegmentBinding> &bindings,
-                      const QString &outDir, double betaOverride)
+                      const QString &outDir, double betaOverride,
+                      const QVariantMap &tuning, int64_t impactUs)
 {
     constexpr double kThreshDeg = 0.5;
     const float beta = betaOverride > 0.0 ? float(betaOverride) : MadgwickFilter().beta();
+    const RefuseConfig baseCfg = refuseConfigFor(tuning, beta, impactUs);
 
     QJsonArray perSource;
     int nChecked = 0, nPass = 0;
@@ -165,13 +192,15 @@ int runRefusionParity(const SwingWindow &window,
         if (samples.size() < 2)
             continue;
 
-        RefuseConfig cfg;
+        RefuseConfig cfg = baseCfg;
         cfg.outputRateHz = rate;
-        cfg.warmStart    = true;
-        MadgwickFilter filt(beta);
-        const RefuseResult r = refuseOrientation(filt, samples, cfg);
+        MadgwickFilter filt(cfg.betaStatic);
+        // Adaptive re-fusion intentionally DEPARTS from the live fixed-beta quat, so parity is not a
+        // gate there (it is the exploration signal); the fixed-beta path keeps the strict E1 parity gate.
+        const RefuseResult r = cfg.adaptive ? refuseOrientationAdaptive(filt, samples, cfg)
+                                            : refuseOrientation(filt, samples, cfg);
         const ParityStats  p = parity(samples, r);
-        const bool pass = r.warmStarted && p.maxDeg < kThreshDeg;
+        const bool pass = cfg.adaptive ? r.warmStarted : (r.warmStarted && p.maxDeg < kThreshDeg);
         ++nChecked;
         if (pass) ++nPass;
         worst = std::max(worst, p.maxDeg);
@@ -280,12 +309,13 @@ int main(int argc, char **argv)
         std::fprintf(stderr, "[swinglab] window rebuilt: %zu entries (%s)\n",
                      window.entries().size(), ls.usedRaw ? "raw" : "mp4");
         const double beta = cli.isSet(optRefuseBeta) ? cli.value(optRefuseBeta).toDouble() : -1.0;
-        return runRefusionParity(window, job.imuBindings, outDir, beta);
+        return runRefusionParity(window, job.imuBindings, outDir, beta, tuning, job.impactUs);
     }
 
     // CLI overrides on the resolved job. Session type: explicit option wins; else
     // the recorded capture.sessionType (load()); else the option default (1).
     job.tuningOverrides = tuning;
+    job.runAssessment   = true;   // SwingLab: emit Tier-2 findings into swing.json (known-groups)
     if (cli.isSet(optPose))
         job.poseTrackPath = cli.value(optPose);
     if (cli.isSet(optSession) || job.sessionType < 0)

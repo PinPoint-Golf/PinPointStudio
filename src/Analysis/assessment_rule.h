@@ -19,6 +19,7 @@
 #pragma once
 
 #include "wrist_assessment_result.h"
+#include "../Core/pp_tuned_constants.h"
 
 #include <optional>
 
@@ -47,12 +48,12 @@ struct RuleContext {
 
 // Tunable Tier-2 knobs (design §7.6 / §11 — starting heuristics). Owned by WristAssessmentConfig.
 struct RuleTuning {
-    float  confidenceFloor   = 0.45f;   // confidence below this → lowConfidence (demoted, not dropped)
-    double scoreScale        = 18.0;    // score v2 penalty scale
-    double severityWeightFault = 1.0;
-    double severityWeightWatch = 0.5;
-    double corroborationBoost  = 0.30;  // confidence multiplier add when corroborated (capped at 1.0)
-    bool   strengthsRequireAdjacentFault = true;   // curated "protect this" — see assessment_rules.cpp
+    float  confidenceFloor   = pinpoint::tuned::rules::kConfidenceFloor;   // confidence below this → lowConfidence (demoted, not dropped)
+    double scoreScale        = pinpoint::tuned::rules::kScoreScale;        // score v2 penalty scale
+    double severityWeightFault = pinpoint::tuned::rules::kSeverityWeightFault;
+    double severityWeightWatch = pinpoint::tuned::rules::kSeverityWeightWatch;
+    double corroborationBoost  = pinpoint::tuned::rules::kCorroborationBoost;  // confidence multiplier add when corroborated (capped at 1.0)
+    bool   strengthsRequireAdjacentFault = pinpoint::tuned::rules::kStrengthsRequireAdjacentFault;   // curated "protect this" — see assessment_rules.cpp
 };
 
 // The abstract rule seam. A concrete rule inspects the context and optionally emits one finding.

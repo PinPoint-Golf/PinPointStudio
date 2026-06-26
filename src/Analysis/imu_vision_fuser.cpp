@@ -20,22 +20,90 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstring>
+#include <utility>
 
 #include "imu_calibration.h"   // toAnatomical (shared A*q*M)
 #include "imu_sample.h"
 #include "swing_window.h"
+#include "format_descriptor.h"            // ImuFormat (nominal rate)
+#include "../IMU/orientation_filter.h"    // MadgwickFilter (re-fusion)
+#include "../IMU/orientation_refuser.h"   // refuseOrientationAdaptive
 
 namespace pinpoint::analysis {
 
+namespace {
+
+// Re-derive a source's orientation offline from its raw accel+gyro under `cfg` (warm-started from the
+// stored quat at the first sample), returning (t_us, q_refused) pairs aligned to the source's samples.
+// The nominal cadence is taken from the IMU format so dt matches the live ImuBase::fuseRawImu exactly.
+std::vector<std::pair<int64_t, QQuaternion>>
+refuseSource(const SwingWindow &window, SourceId src, const pinpoint::RefuseConfig &cfg)
+{
+    std::vector<pinpoint::RefuseSample> samples;
+    const std::vector<IndexEntry> entries = window.entriesFor(src);
+    samples.reserve(entries.size());
+    for (const IndexEntry &e : entries) {
+        const SourceRing::ReadHandle h = window.payloadOf(e);
+        if (!h.data || h.bytes < sizeof(ImuSample))
+            continue;
+        ImuSample s{};
+        std::memcpy(&s, h.data, sizeof(ImuSample));
+        samples.push_back(pinpoint::RefuseSample{ e.timestamp_us,
+                                                  s.accel_x, s.accel_y, s.accel_z,
+                                                  s.gyro_x,  s.gyro_y,  s.gyro_z,
+                                                  s.quat_w,  s.quat_x,  s.quat_y, s.quat_z });
+    }
+    std::vector<std::pair<int64_t, QQuaternion>> seq;
+    if (samples.size() < 2)
+        return seq;
+
+    pinpoint::RefuseConfig c = cfg;
+    if (const auto *imf = std::get_if<ImuFormat>(&window.formatOf(src).format))
+        if (imf->sample_rate_hz > 0)
+            c.outputRateHz = float(imf->sample_rate_hz);
+
+    MadgwickFilter filt(c.betaStatic);
+    const pinpoint::RefuseResult r = pinpoint::refuseOrientationAdaptive(filt, samples, c);
+    seq.reserve(samples.size());
+    for (std::size_t i = 0; i < samples.size(); ++i)
+        seq.emplace_back(samples[i].t_us,
+                         QQuaternion(r.quat[i][0], r.quat[i][1], r.quat[i][2], r.quat[i][3]));
+    return seq;
+}
+
+// Slerp a re-fused (t_us → quat) sequence at grid time t (clamped at the ends).
+QQuaternion slerpAt(const std::vector<std::pair<int64_t, QQuaternion>> &seq, int64_t t)
+{
+    if (seq.empty())            return QQuaternion();
+    if (t <= seq.front().first) return seq.front().second;
+    if (t >= seq.back().first)  return seq.back().second;
+    std::size_t lo = 0, hi = seq.size() - 1;
+    while (hi - lo > 1) {
+        const std::size_t mid = (lo + hi) / 2;
+        if (seq[mid].first <= t) lo = mid; else hi = mid;
+    }
+    const float u = (seq[hi].first > seq[lo].first)
+                        ? float(double(t - seq[lo].first) / double(seq[hi].first - seq[lo].first))
+                        : 0.0f;
+    return QQuaternion::slerp(seq[lo].second, seq[hi].second, u).normalized();
+}
+
+} // namespace
+
 FusedStreams ImuVisionFuser::fuse(const SwingWindow &window,
                                   const std::vector<ImuSegmentBinding> &bindings,
-                                  double gridHz)
+                                  double gridHz,
+                                  const pinpoint::RefuseConfig *refusion)
 {
     FusedStreams out;
 
     // Gather usable bindings (known role + ≥2 samples) and intersect their coverage
     // with the window span so every grid instant is interpolatable for every segment.
-    struct Bound { const ImuSegmentBinding *b; };
+    struct Bound {
+        const ImuSegmentBinding *b;
+        std::vector<std::pair<int64_t, QQuaternion>> refused;   // empty unless filter.refuse is on
+    };
     std::vector<Bound> bound;
     int64_t gridStart = window.startTimestampUs();
     int64_t gridEnd   = window.endTimestampUs();
@@ -47,7 +115,10 @@ FusedStreams ImuVisionFuser::fuse(const SwingWindow &window,
             continue;
         gridStart = std::max(gridStart, entries.front().timestamp_us);
         gridEnd   = std::min(gridEnd,   entries.back().timestamp_us);
-        bound.push_back({ &b });
+        Bound bb{ &b, {} };
+        if (refusion)
+            bb.refused = refuseSource(window, b.source, *refusion);
+        bound.push_back(std::move(bb));
     }
     if (bound.empty() || gridEnd <= gridStart)
         return out;
@@ -77,7 +148,10 @@ FusedStreams ImuVisionFuser::fuse(const SwingWindow &window,
             QVector3D   gyro, accel;
             if (window.interpolateImu(bd.b->source, t,
                                       reinterpret_cast<std::byte *>(&smp), sizeof(smp))) {
-                const QQuaternion qRaw(smp.quat_w, smp.quat_x, smp.quat_y, smp.quat_z);
+                // q_raw: the re-fused orientation when filter.refuse is on, else the stored quat.
+                const QQuaternion qRaw = bd.refused.empty()
+                    ? QQuaternion(smp.quat_w, smp.quat_x, smp.quat_y, smp.quat_z)
+                    : slerpAt(bd.refused, t);
                 qAnat     = imu_calibration::toAnatomical(bd.b->alignA, qRaw, bd.b->mountM);
                 gyro      = mountInv.rotatedVector(QVector3D(smp.gyro_x, smp.gyro_y, smp.gyro_z));
                 accel     = mountInv.rotatedVector(QVector3D(smp.accel_x, smp.accel_y, smp.accel_z));

@@ -20,6 +20,8 @@
 
 #include <vector>
 
+#include <QVariantMap>
+
 #include "swing_analysis.h"   // MetricSeries, ScoreBreakdown
 
 namespace pinpoint::analysis {
@@ -34,9 +36,16 @@ namespace pinpoint::analysis {
 // Reference bands are a versioned table per session type. The wrist bands are
 // PROVISIONAL pending the FE/RUD/pronation sign-lock on the "check your sensors"
 // wizard page (see wrist_angles.h) — the band centres/directions, not the math.
+//
+// SwingLab tuning: the band μ/σ/weight/oneSidedDir and the deadband shape are
+// injectable via dotted-key `overrides` (empty in production — a no-op):
+//   score.<metricKey>.mu / .sigma / .weight / .oneSidedDir   (e.g. score.leadWristFlexExt.mu)
+//   score.zIn / score.zOut / score.p                          (deadband shape)
+// Defaults live in src/Core/pp_tuned_constants.h (the freeze edit-point).
 class SwingScorer {
 public:
-    static ScoreBreakdown score(const std::vector<MetricSeries> &series, int sessionType);
+    static ScoreBreakdown score(const std::vector<MetricSeries> &series, int sessionType,
+                                const QVariantMap &overrides = {});
 };
 
 } // namespace pinpoint::analysis

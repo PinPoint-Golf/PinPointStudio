@@ -19,8 +19,10 @@
 #pragma once
 
 #include "wrist_assessment_contract.h"
+#include "swing_analysis.h"   // MetricSeries, PhaseEvent (in-memory analyzer types)
 
 #include <QVariantMap>
+#include <vector>
 
 // The live adapter: turns a focused swing's `shotReplay.analysisDetail` (the real MetricExtractor
 // series + PhaseSegmenter phases) into the engine's input contract. It also owns the canonical
@@ -60,5 +62,12 @@ inline const WristCheckpoint *wristCheckpoints()
 // key is not a wrist DOF are ignored; a checkpoint whose phase is absent stays unavailable. The
 // source is right-handed (producer convention; no mirror).
 InMemoryWristAngleSource parseAnalysisDetail(const QVariantMap &analysisDetail);
+
+// In-memory sibling of parseAnalysisDetail: build the angle source straight from the analyzer's
+// MetricSeries + PhaseEvent vectors (no QVariantMap round-trip), for the offline WristAnalyzer's
+// Tier-2 assessment pass. Same conventions: only wrist DOFs kept, right-handed (lead-arm) producer
+// convention, a checkpoint whose phase the swing didn't produce stays unavailable.
+InMemoryWristAngleSource buildWristAngleSource(const std::vector<MetricSeries> &series,
+                                               const std::vector<PhaseEvent> &phases);
 
 } // namespace pinpoint::analysis

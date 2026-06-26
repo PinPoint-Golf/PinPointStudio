@@ -18,8 +18,13 @@
 
 #include "swing_scorer.h"
 
+#include "analysis_tuning.h"
+#include "../Core/pp_tuned_constants.h"
+
+#include <QByteArray>
 #include <QHash>
 #include <QString>
+#include <QVariantMap>
 #include <algorithm>
 #include <cmath>
 
@@ -44,18 +49,51 @@ struct ScoreBand {
 // the weakest IMU axis and a secondary speed contributor (Buchanan/Zhang handicap study:
 // high-HCP golfers carry ~7 deg more deviation at impact). Centres/signs are confirmed on
 // the wizard "check your sensors" page; the math/aggregation are correct regardless.
+namespace tb = pinpoint::tuned::scoring::bands;
 constexpr ScoreBand kWristBands[] = {
-    { "leadWristFlexExt", Phase::Impact, 15.0, 12.0, +1, 0.45, "wrist"   },  // bow/cup — speed driver; cupping penalised
-    { "leadWristRadUln",  Phase::Impact,  0.0, 12.0,  0, 0.15, "wrist"   },  // hinge — weak IMU axis, low weight
-    { "forearmPronation", Phase::Impact,  0.0, 25.0,  0, 0.20, "forearm" },  // roll — no published benchmark
-    { "leadArmFlexion",   Phase::Impact,  5.0, 12.0, -1, 0.20, "arm"     },  // near-straight lead arm
+    { "leadWristFlexExt", Phase::Impact, tb::kFlexExtMu, tb::kFlexExtSigma, tb::kFlexExtOneSided, tb::kFlexExtWeight, "wrist"   },  // bow/cup — speed driver; cupping penalised
+    { "leadWristRadUln",  Phase::Impact, tb::kRadUlnMu,  tb::kRadUlnSigma,  tb::kRadUlnOneSided,  tb::kRadUlnWeight,  "wrist"   },  // hinge — weak IMU axis, low weight
+    { "forearmPronation", Phase::Impact, tb::kPronationMu, tb::kPronationSigma, tb::kPronationOneSided, tb::kPronationWeight, "forearm" },  // roll — no published benchmark
+    { "leadArmFlexion",   Phase::Impact, tb::kArmFlexionMu, tb::kArmFlexionSigma, tb::kArmFlexionOneSided, tb::kArmFlexionWeight, "arm" },  // near-straight lead arm
 };
 
-std::vector<ScoreBand> bandsFor(int sessionType)
+// Deadband shape (design §B.1) — defaults frozen in pp_tuned_constants.h, overridable.
+struct ScoreDeadband {
+    double zIn  = pinpoint::tuned::scoring::kZIn;
+    double zOut = pinpoint::tuned::scoring::kZOut;
+    double p    = pinpoint::tuned::scoring::kFalloffPow;
+};
+
+// Per-session bands with SwingLab `score.*` overrides applied onto a mutable copy of the
+// frozen defaults. Empty map ⇒ byte-identical to the constexpr table (apply is a no-op on miss).
+std::vector<ScoreBand> scoreBandsFor(int sessionType, const QVariantMap &ov)
 {
-    if (sessionType == 1)   // Wrist Motion
-        return { std::begin(kWristBands), std::end(kWristBands) };
-    return {};
+    if (sessionType != 1)   // only Wrist Motion is scored in v1
+        return {};
+    std::vector<ScoreBand> bands(std::begin(kWristBands), std::end(kWristBands));
+    if (ov.isEmpty())
+        return bands;
+    namespace tn = pinpoint::analysis::tuning;
+    for (ScoreBand &b : bands) {
+        const QByteArray pfx = QByteArray("score.") + b.key + '.';
+        tn::apply(ov, (pfx + "mu").constData(),          b.mu);
+        tn::apply(ov, (pfx + "sigma").constData(),       b.sigma);
+        tn::apply(ov, (pfx + "weight").constData(),      b.weight);
+        tn::apply(ov, (pfx + "oneSidedDir").constData(), b.oneSidedDir);
+    }
+    return bands;
+}
+
+ScoreDeadband deadbandFor(const QVariantMap &ov)
+{
+    ScoreDeadband d;
+    if (!ov.isEmpty()) {
+        namespace tn = pinpoint::analysis::tuning;
+        tn::apply(ov, "score.zIn",  d.zIn);
+        tn::apply(ov, "score.zOut", d.zOut);
+        tn::apply(ov, "score.p",    d.p);
+    }
+    return d;
 }
 
 const MetricSeries *findSeries(const std::vector<MetricSeries> &v, const QString &key)
@@ -81,9 +119,9 @@ QString phaseName(Phase p)
 
 // Deadband + bounded falloff (design §B.1). |z|<=zIn → 100; ramps to ~0 at zOut; then 1.
 // One-sided: the "good" side is clamped to 100. Sets *band to green/yellow/red.
-double bandSubScore(double value, const ScoreBand &b, QString *band)
+double bandSubScore(double value, const ScoreBand &b, const ScoreDeadband &dz, QString *band)
 {
-    constexpr double zIn = 1.0, zOut = 3.0, p = 2.0;
+    const double zIn = dz.zIn, zOut = dz.zOut, p = dz.p;
     double z = (value - b.mu) / b.sigma;
     if (b.oneSidedDir > 0 && z > 0) z = 0.0;   // good side (above mu) — no penalty
     if (b.oneSidedDir < 0 && z < 0) z = 0.0;   // good side (below mu) — no penalty
@@ -109,10 +147,12 @@ int weightedGeoMean(const std::vector<std::pair<double, double>> &sw)
 
 } // namespace
 
-ScoreBreakdown SwingScorer::score(const std::vector<MetricSeries> &series, int sessionType)
+ScoreBreakdown SwingScorer::score(const std::vector<MetricSeries> &series, int sessionType,
+                                  const QVariantMap &overrides)
 {
     ScoreBreakdown sb;
-    const std::vector<ScoreBand> bands = bandsFor(sessionType);
+    const std::vector<ScoreBand> bands = scoreBandsFor(sessionType, overrides);
+    const ScoreDeadband          deadband = deadbandFor(overrides);
 
     std::vector<std::pair<double, double>> overall;            // (subScore, weight)
     QHash<QString, std::vector<std::pair<double, double>>> byRegion, byPhase;
@@ -131,7 +171,7 @@ ScoreBreakdown SwingScorer::score(const std::vector<MetricSeries> &series, int s
         sm.oneSided = (b.oneSidedDir != 0);
         sm.phase    = b.phase;
         sm.weight   = b.weight;
-        sm.subScore = bandSubScore(value, b, &sm.band);
+        sm.subScore = bandSubScore(value, b, deadband, &sm.band);
         sb.metrics.push_back(sm);
 
         overall.push_back({ sm.subScore, b.weight });

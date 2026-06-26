@@ -70,6 +70,13 @@ struct ShotAnalysisJob {
     // the offline runner fills it from a params JSON so the lab can iterate
     // without rebuilds. Unknown keys are logged and ignored.
     QVariantMap tuningOverrides;
+
+    // SwingLab: run the Tier-2 wrist assessment engine (faults/strengths + score v2) inside
+    // the offline analyzer and emit findings into swing.json, so known-groups diagnosis is
+    // observable/tunable (sampler.*/rules.*/bands.* — pipeline_validation_and_tuning.md §5.6).
+    // Default OFF: the production GUI runs assessment in its own diagnostics model; only the
+    // lab opts in, so live behaviour and existing baselines are untouched.
+    bool runAssessment = false;
 };
 
 // Result shapes mirror the ShotListModel roles so the join can hand them to

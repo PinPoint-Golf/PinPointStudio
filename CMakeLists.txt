@@ -2403,6 +2403,11 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/phase_signals.cpp
         src/Analysis/metric_extractor.cpp
         src/Analysis/swing_scorer.cpp
+        # Tier-2 wrist assessment (offline known-groups, ShotAnalysisJob::runAssessment)
+        src/Analysis/wrist_analysis_adapter.cpp
+        src/Analysis/wrist_assessment_engine.cpp
+        src/Analysis/assessment_rules.cpp
+        src/Analysis/reference_bands.cpp
         src/Analysis/pose_runner.cpp
         src/Analysis/shaft_tracker.cpp
         src/Analysis/shaft_tracker_math.cpp

@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "types.h"   // pinpoint::SourceId, kInvalidSourceId
+#include "wrist_assessment_result.h"   // PpWristFinding (Tier-2 offline assessment)
 
 // Canonical intermediate + output data structures for the shot analyzer
 // (design: docs/design/shot_analyzer_design.md). All rotation is QQuaternion — Euler
@@ -268,6 +269,17 @@ struct SwingAnalysis {
     std::vector<PhaseEvent>   phases;
     ScoreBreakdown            score;
     std::vector<Fault>        faults;
+    // Tier-2 wrist assessment (faults + strengths) and its score-v2 total. Populated only when
+    // the job opts in (ShotAnalysisJob::runAssessment — the SwingLab offline path); empty + -1
+    // otherwise, so the live/GUI pipeline and existing swing.json baselines are unchanged.
+    std::vector<PpWristFinding> findings;
+    int                       assessmentScore = -1;   // score v2 (0..100); -1 = assessment not run
+    // Orientation-filter quality diagnostics, populated ONLY when offline re-fusion ran
+    // (filter.refuse — validation §5.3.1), so filter.* has an IMU-only objective even without a
+    // vision shaft track. -1 = not computed. Max geodesic step (deg) between consecutive fused
+    // samples across the impact window — a filter that lets the impact shock in spikes here;
+    // blanking/saturation-reject smooth it (lower is better).
+    double                    filterImpactStepDeg = -1.0;
     // Swing bounds + ladder meta (phases above IS segmentation.events — the
     // doc writer persists only the bounds/conf/version from here).
     Segmentation              segmentation;

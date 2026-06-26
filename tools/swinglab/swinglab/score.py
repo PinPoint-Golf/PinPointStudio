@@ -204,11 +204,71 @@ def truth_metrics(run: RunResult, swing: Swing):
     return out
 
 
+def diagnosis_metrics(run: RunResult, swing: Swing):
+    """Tier-2-Ext — known-groups diagnosis. Only contributes checks when the offline
+    analyzer emitted a Tier-2 assessment block (ShotAnalysisJob::runAssessment ⇒
+    analysis.assessment.findings[]) AND the swing declares a known group in its truth.json
+    meta (`knownGroup`: a scripted fault id like "cast"/"flip", or "clean"/"control").
+
+    No label ⇒ no checks (returns []), so swings without a ground-truth group do NOT shift
+    the 100-point normalisation — the additive-reader contract (validation doc §6.4/§8).
+    A clean control must raise no confident fault (specificity); a scripted-fault swing must
+    flag the matching fault (recall), matched by finding id or a name substring."""
+    assessment = run.analysis.get("assessment")
+    if not assessment:
+        return []
+    meta = swing.truth_meta()
+    known = meta.get("knownGroup", meta.get("known_group"))
+    if not known:
+        return []
+
+    findings = assessment.get("findings", [])
+    faults = [f for f in findings if f.get("severity") == "fault"]
+    label = str(known).lower()
+
+    if label in ("clean", "control", "none", "neutral"):
+        # Specificity: a clean control must raise no CONFIDENT false fault. A low-confidence
+        # finding is demoted (not dropped) by the engine and is tolerable noise on a clean swing.
+        confident = [f for f in faults if not f.get("lowConfidence", False)]
+        return [_check("diag.clean_no_fault", len(confident) == 0, len(confident),
+                       "0 confident faults")]
+    # Recall: the scripted fault must be SURFACED (matched by id or name substring), even if the
+    # engine demoted it to low confidence — "did the engine see it at all?".
+    ids = {str(f.get("id", "")).lower() for f in faults}
+    names = [str(f.get("name", "")).lower() for f in faults]
+    hit = (label in ids) or any(label in n for n in names)
+    return [_check("diag.recall", hit, label, "fault surfaced")]
+
+
+def filter_metrics(run: RunResult):
+    """Tier-2-Ext — orientation-filter quality. Only contributes when offline re-fusion ran
+    (filter.refuse ⇒ analysis.filter). NOTE: after C3, filter.* is ALSO observable through the
+    existing checks — `xmodal.imu_vision_corr` (filter → IMU shaft angle vs vision) on camera
+    swings, and `diag.*` (filter → wrist angles → findings) on labelled swings — so a filter sweep
+    is not blind even without this group.
+
+    impact-continuity: the orientation discontinuity across the impact window beyond what the gyro
+    predicts (validation §5.3.1). PROVISIONAL — emitted as a `warn` until calibrated/validated on a
+    real swing with an actual impact shock (the synthetic corpus models no impact saturation, so it
+    cannot exercise the blanking/saturation gates). Treat the value as advisory until then."""
+    f = run.analysis.get("filter")
+    if not f or "impactStepDeg" not in f:
+        return []
+    step = f["impactStepDeg"]
+    # Provisional threshold (validation §5.3.1) — re-seat on the real corpus before promoting to fail.
+    return [_check("filter.impact_continuity", step is not None and step < 12.0,
+                   round(step, 2) if step is not None else None, "<12 deg (provisional)",
+                   severity="warn")]
+
+
 def scorecard(run_dir, swing_dir):
     run = RunResult(run_dir)
     swing = Swing(swing_dir)
     conditions = swing.truth_meta()
-    checks = invariants(run, conditions.get("scope")) + truth_metrics(run, swing)
+    checks = (invariants(run, conditions.get("scope"))
+              + truth_metrics(run, swing)
+              + diagnosis_metrics(run, swing)
+              + filter_metrics(run))
     fails = [c for c in checks if not c["pass"] and c["severity"] == "fail"]
     warns = [c for c in checks if not c["pass"] and c["severity"] == "warn"]
     score = round(100.0 * sum(c["pass"] for c in checks) / max(len(checks), 1))
