@@ -79,6 +79,16 @@ public:
         m_initialized = true;
     }
 
+    // Warm-start to an exact orientation (offline re-fusion — see IOrientationFilter).
+    bool setOrientation(float w, float x, float y, float z) override
+    {
+        const float n = std::sqrt(w * w + x * x + y * y + z * z);
+        if (n < 1e-9f) return false;
+        m_q[0] = w / n; m_q[1] = x / n; m_q[2] = y / n; m_q[3] = z / n;
+        m_initialized = true;
+        return true;
+    }
+
     // One filter step. gx/gy/gz in rad/s; ax/ay/az any consistent units; dt in seconds.
     void update(float ax, float ay, float az, float gx, float gy, float gz, float dt) override
     {

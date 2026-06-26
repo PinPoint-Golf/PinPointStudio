@@ -63,6 +63,19 @@ void EskfOrientationFilter::initFromAccel(float ax, float ay, float az)
     cacheAttitude();
 }
 
+bool EskfOrientationFilter::setOrientation(float /*w*/, float /*x*/, float /*y*/, float /*z*/)
+{
+    // The vendored ESKF holds its reference quaternion (qref_) and nominal state
+    // (x_) privately and exposes no attitude setter; the library is kept verbatim
+    // (third_party/imu_ekf), so an EXACT warm-start to an arbitrary quaternion is
+    // not available. Return false so offline re-fusion falls back to re-seeding
+    // within the window (initFromAccel on the address still segment) and reports
+    // the result as approximate. (Exposing a setAttitude() in the vendored lib —
+    // or migrating ESKF tuning off the verbatim copy — is a separate escalation,
+    // only worthwhile if ESKF, not Madgwick, becomes the production filter.)
+    return false;
+}
+
 void EskfOrientationFilter::update(float ax, float ay, float az,
                                    float gx, float gy, float gz, float dt)
 {

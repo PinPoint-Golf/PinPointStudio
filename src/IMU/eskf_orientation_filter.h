@@ -44,6 +44,7 @@ public:
     void reset() override;
     bool initialized() const override { return m_initialized; }
     void initFromAccel(float ax, float ay, float az) override;
+    bool setOrientation(float w, float x, float y, float z) override;
     void update(float ax, float ay, float az, float gx, float gy, float gz, float dt) override;
 
     float w() const override { return m_w; }

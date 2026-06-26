@@ -52,6 +52,18 @@ public:
     // vector is normalised internally.
     virtual void initFromAccel(float ax, float ay, float az) = 0;
 
+    // Warm-start the filter to a known orientation and mark it initialised, so
+    // the next update() proceeds without the gravity-seed gate. Used by offline
+    // RE-FUSION (orientation_refuser.h): a recorded swing's stored quaternion at
+    // the capture window's first sample already encodes pre-window history (seed
+    // convergence + accumulated yaw drift), so re-seeding from gravity would lose
+    // the yaw — inject the stored quaternion instead. Returns true if the filter
+    // could be set to this EXACT orientation (Madgwick); false if it cannot (ESKF
+    // — the vendored library exposes no attitude setter), in which case the caller
+    // falls back to initFromAccel() and treats early-window samples as approximate.
+    // (w,x,y,z) is normalised internally; a near-zero quaternion returns false.
+    virtual bool setOrientation(float w, float x, float y, float z) = 0;
+
     // One filter step. gx/gy/gz in rad/s; ax/ay/az any consistent units; dt in s.
     virtual void update(float ax, float ay, float az,
                         float gx, float gy, float gz, float dt) = 0;

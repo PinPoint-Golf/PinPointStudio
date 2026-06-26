@@ -100,6 +100,12 @@ pp_add_test(orientation_filter_test
     SOURCES orientation_filter_test.cpp ${SRC}/IMU/eskf_orientation_filter.cpp
     INCLUDE ${PP_THIRD}/imu_ekf_compat ${PP_THIRD}/imu_ekf ${EIGEN_DIR})
 
+# Offline orientation re-fusion + parity (the post-hoc tuning substrate; corpus-1
+# pre-collection gate E1). Same ESKF/Eigen deps; the refuser is header-only.
+pp_add_test(orientation_refuse_test
+    SOURCES orientation_refuse_test.cpp ${SRC}/IMU/eskf_orientation_filter.cpp
+    INCLUDE ${SRC}/IMU ${PP_THIRD}/imu_ekf_compat ${PP_THIRD}/imu_ekf ${EIGEN_DIR})
+
 # --- IMU driver frame-parse + WT901BLE67 eulerToQuat override (Phase 0.3) -----
 # Exercises the REAL driver stack. imu_test_stubs.cpp supplies EventBuffer::nowMicros
 # and PpLogStream so we link neither the Buffer library nor pp_debug.cpp. The
