@@ -61,6 +61,7 @@ Item {
         colorLow:  Theme.gradientWarm
         colorMid:  Theme.gradientWarmLit
         colorHigh: Theme.gradientCool
+        accentColor: Theme.colorAccent
         animated:  !appSettings.reduceMotion
         hoverPoint: topoHover.hovered
             ? Qt.point(topoHover.point.position.x / width,

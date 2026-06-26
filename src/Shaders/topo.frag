@@ -42,6 +42,8 @@ layout(std140, binding = 0) uniform buf {
     float rippleRadius;     // max ring travel (UV)
     float rippleWidth;      // ring thickness (UV)
     float rippleAmp;        // ring height
+    vec4  accentColor;      // theme accent, tints the ripple ring
+    float rippleTint;       // 0..1 strength of the accent tint on the ring
 };
 
 // Compact hash (iq-style) -> [0,1)
@@ -108,28 +110,46 @@ void main() {
     float dm = distance(auv, am);
     h += hover * hoverLift * exp(-(dm * dm) / max(hoverRadius * hoverRadius, 1e-5));
 
-    // Click / tap ripples.
-    h += ripContribution(ripple0, auv, aspect);
-    h += ripContribution(ripple1, auv, aspect);
-    h += ripContribution(ripple2, auv, aspect);
+    // Click / tap ripples. Accumulate their ring energy separately so it can
+    // also tint the contour colour, not just bend the terrain.
+    float rip = ripContribution(ripple0, auv, aspect)
+              + ripContribution(ripple1, auv, aspect)
+              + ripContribution(ripple2, auv, aspect);
+    h += rip;
+
+    // Normalised ripple-ring strength at this pixel (0 away from any ring,
+    // ~1 on a ring crest); drives both the line-thickening and the tint so
+    // they track together.
+    float ripN = clamp(rip / max(rippleAmp, 1e-4), 0.0, 1.0);
 
     // Distance to the nearest contour line, normalised to screen pixels via
     // fwidth so line thickness stays constant regardless of terrain slope.
+    // Lines fatten where a ripple ring passes (up to 2.5x) so the accent tint
+    // has more area to read in.
     float v  = h * levels;
     float df = 0.5 - abs(fract(v) - 0.5);          // 0 at a line, 0.5 between
     float g  = df / max(fwidth(v), 1e-5);          // distance in "line units"
-    float line = 1.0 - smoothstep(0.0, lineWidth, g);
+    float lw = lineWidth * (1.0 + ripN * 1.5);     // thicker within the ring
+    float line = 1.0 - smoothstep(0.0, lw, g);
 
     vec3 lineCol = ramp(h);
+
+    // Tint the contour colour toward the theme accent where the ripple ring
+    // passes (fades with the ring as it expands; rip decays via 1 - progress).
+    lineCol = mix(lineCol, accentColor.rgb, ripN * rippleTint);
+
+    // Brighten the ring lines as well as fattening them — same ripN curve as
+    // the thickening, clamped so it never exceeds full opacity.
+    float lineI = min(intensity * (1.0 + ripN * 1.5), 1.0);
 
     vec3 rgb;
     float a;
     if (fillBackground > 0.5) {
-        rgb = mix(backgroundColor.rgb, lineCol, line * intensity);
+        rgb = mix(backgroundColor.rgb, lineCol, line * lineI);
         a = 1.0;
     } else {
         rgb = lineCol;
-        a = line * intensity;
+        a = line * lineI;
     }
 
     // Premultiplied alpha for the Qt scene graph.

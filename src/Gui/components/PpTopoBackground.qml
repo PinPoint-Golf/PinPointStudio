@@ -86,6 +86,11 @@ Item {
     property real rippleAmp:     0.36 // ring height
     property real rippleDuration: 1.6 // seconds from tap to fully faded
 
+    // Accent tint on the ripple ring's contour lines. Bind accentColor to
+    // Theme.colorAccent at the call site; rippleTint scales the accent mix.
+    property color accentColor:  colorHigh
+    property real  rippleTint:   1.0
+
     // --- Interaction input (set from handlers at the screen root) ---
     // Normalised 0..1 cursor position; (-1,-1) = no hover.
     property point hoverPoint: Qt.point(-1, -1)
@@ -153,6 +158,8 @@ Item {
         property real rippleRadius: root.rippleRadius
         property real rippleWidth:  root.rippleWidth
         property real rippleAmp:    root.rippleAmp
+        property color accentColor: root.accentColor
+        property real rippleTint:   root.rippleTint
 
         // Compiled by qt6_add_shaders (PREFIX "/shaders", no BASE) — the qrc
         // path is PREFIX + the source path relative to the repo root + ".qsb".

@@ -35,6 +35,8 @@ layout(std140, binding = 0) uniform buf {
     float rippleRadius;
     float rippleWidth;
     float rippleAmp;
+    vec4  accentColor;
+    float rippleTint;
 };
 
 void main() {

@@ -40,6 +40,7 @@ Item {
         colorLow:  Theme.gradientWarm
         colorMid:  Theme.gradientWarmLit
         colorHigh: Theme.gradientCool
+        accentColor: Theme.colorAccent
         hoverPoint: topoHover.hovered
             ? Qt.point(topoHover.point.position.x / width,
                        topoHover.point.position.y / height)
