@@ -57,6 +57,7 @@ public:
         MetricsRole,
         AnalysisDetailRole,
         SwingDirRole,
+        DataWarningRole,   // IMU re-fusion parity failed → shot not re-analysable
     };
 
     explicit ShotListModel(QObject *parent = nullptr);   // starts empty
@@ -75,14 +76,15 @@ public:
     int addShot(const QString &swingDir, const QString &timestampLabel, const QString &club,
                 bool hasVideo, const QUrl &thumbnailSource, const QVariantList &tracePoints,
                 int score, const QVariantMap &metrics,
-                const QVariantMap &analysisDetail = {});
+                const QVariantMap &analysisDetail = {}, bool dataWarning = false);
 
     // Reload a shot from disk (SwingDocReader): uses the stored ordinal and links the
     // row to its swingDir; rating/note are restored from the persisted "review" block.
     void addPersistedShot(const QString &swingDir, int ordinal, const QString &timestampLabel,
                           const QString &club, bool hasVideo, const QUrl &thumbnailSource,
                           int score, int rating, const QString &note,
-                          const QVariantMap &metrics, const QVariantMap &analysisDetail);
+                          const QVariantMap &metrics, const QVariantMap &analysisDetail,
+                          bool dataWarning = false);
 
     // Re-read <swingDir>/swing.json (SwingDocReader) and update the matching row's
     // score / metrics / analysisDetail in place — emits dataChanged for just those
@@ -147,6 +149,7 @@ private:
         QVariantMap  metrics;         // key → { label, value }
         QVariantMap  analysisDetail;  // { tier, overall, series:[…], phases:[…] } for the graph
         QString      swingDir;        // on-disk folder, for reloaded shots (replay-from-MP4 later)
+        bool         dataWarning = false;  // IMU re-fusion parity failed → not re-analysable
     };
 
     int  rowForId(int id) const;

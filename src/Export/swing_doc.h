@@ -68,6 +68,7 @@ struct PersistedShot {
     QString     note;               // free-text user note (from the "review" block)
     QVariantMap metrics;            // key -> { label, value } at Impact
     QVariantMap analysisDetail;     // { tier, overall, series, phases } for the graph
+    bool        dataWarning = false;// IMU re-fusion parity failed (imuIntegrity block) → not re-analysable
 };
 
 // Reads the single unified swing.json back into reloadable shots.

@@ -25,6 +25,7 @@
 // where this card doesn't render them.
 
 import QtQuick
+import QtQuick.Controls
 import PinPointStudio
 
 Rectangle {
@@ -43,6 +44,7 @@ Rectangle {
     required property var    metrics
     required property var    analysisDetail
     required property string swingDir
+    required property bool   dataWarning   // IMU re-fusion parity failed → not re-analysable
 
     property bool selected: false
     property bool hovered:  hover.hovered
@@ -179,6 +181,35 @@ Rectangle {
                     : card.hovered  ? Theme.colorAccentMid
                     :                 Theme.colorBorderMid
         Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+    }
+
+    // IMU data-integrity warning (bottom-right): re-fusion parity failed, so the
+    // recorded motion is internally inconsistent and the shot can't be re-analysed.
+    Rectangle {
+        id: dataWarnBadge
+        visible: card.dataWarning
+        anchors { right: parent.right; bottom: parent.bottom; margins: Theme.sp(6) }
+        width:  warnGlyph.implicitWidth + Theme.sp(8)
+        height: warnGlyph.implicitHeight + Theme.sp(4)
+        radius: Theme.sp(4)
+        color:  card.scrimColor
+        z: 2    // above the star scrim (z:1) and the border
+
+        Text {
+            id: warnGlyph
+            anchors.centerIn: parent
+            text:           "⚠"            // ⚠ warning triangle with exclamation
+            font.family:    Theme.fontSymbol
+            font.pixelSize: Theme.sp(13)
+            color:          Theme.colorWarn
+        }
+
+        HoverHandler { id: warnHover }
+        ToolTip.visible: warnHover.hovered
+        ToolTip.delay:   400
+        ToolTip.text:    qsTr("IMU data integrity check failed — the recorded motion data is "
+                            + "inconsistent (orientation re-fusion mismatch), so this shot "
+                            + "cannot be re-analysed.")
     }
 
     // Hover lives on a HoverHandler (not the click MouseArea) so the interactive

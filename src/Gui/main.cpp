@@ -215,7 +215,7 @@ int main(int argc, char *argv[])
             shotModel.addPersistedShot(ps.swingDir, ps.ordinal, ps.timestampLabel, ps.club,
                 ps.hasVideo,
                 ps.thumbnailPath.isEmpty() ? QUrl() : QUrl::fromLocalFile(ps.thumbnailPath),
-                ps.score, ps.rating, ps.note, ps.metrics, ps.analysisDetail);
+                ps.score, ps.rating, ps.note, ps.metrics, ps.analysisDetail, ps.dataWarning);
             ++restored;
         }
         if (restored)

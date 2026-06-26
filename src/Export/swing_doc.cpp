@@ -327,6 +327,14 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
         ps.note   = rv[QStringLiteral("note")].toString();
     }
 
+    // IMU data-integrity verdict (additive top-level block from ShotProcessor's
+    // offline re-fusion parity check). Legacy swings lack it → no warning.
+    if (root.contains(QStringLiteral("imuIntegrity"))) {
+        const QJsonObject ii = root[QStringLiteral("imuIntegrity")].toObject();
+        if (ii.value(QStringLiteral("sourcesChecked")).toInt() > 0)
+            ps.dataWarning = !ii.value(QStringLiteral("refusionOk")).toBool(true);
+    }
+
     ps.ok = true;
     return ps;
 }

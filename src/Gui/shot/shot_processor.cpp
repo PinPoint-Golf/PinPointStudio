@@ -28,6 +28,7 @@
 #include "imu_manager.h"
 #include "session_controller.h"
 #include "shot_list_model.h"
+#include "../Analysis/imu_refusion_check.h"
 #include "../Analysis/imu_vision_fuser.h"
 #include "../Analysis/phase_segmenter.h"
 #include "../Analysis/swing_analysis.h"
@@ -840,6 +841,33 @@ void ShotProcessor::maybeJoin()
     const bool analysisOk = m_analysisOutcome == Outcome::Succeeded;
     const bool exportOk   = m_exportOutcome   == Outcome::Succeeded;
 
+    // IMU data-integrity (offline re-fusion parity): re-fuse each IMU source from its
+    // recorded raw accel+gyro and confirm it reproduces the stored quaternion. A
+    // mismatch means the IMU record is internally inconsistent — the shot can't be
+    // re-analysed offline — so the carousel item is flagged (⚠) and an "imuIntegrity"
+    // block is persisted to swing.json. Only meaningful for the Madgwick default (the
+    // only exactly-warm-startable filter); skip under ESKF to avoid a false warning.
+    bool imuDataWarning = false;
+    if (m_swingWindow
+        && (!m_appSettings
+            || m_appSettings->imuOrientationFilter().compare(QStringLiteral("ESKF"),
+                                                             Qt::CaseInsensitive) != 0)) {
+        const pinpoint::ImuRefusionVerdict v = pinpoint::checkImuRefusion(*m_swingWindow);
+        if (v.sourcesChecked > 0) {
+            imuDataWarning = v.warns();
+            m_exportManifest[QStringLiteral("imuIntegrity")] = QJsonObject{
+                { QStringLiteral("refusionOk"),     v.ok },
+                { QStringLiteral("worstMaxDeg"),    v.worstMaxDeg },
+                { QStringLiteral("sourcesChecked"), v.sourcesChecked },
+                { QStringLiteral("thresholdDeg"),   v.thresholdDeg },
+                { QStringLiteral("filter"),         QStringLiteral("madgwick") } };
+            if (imuDataWarning)
+                ppInfo() << "[ShotProcessor] IMU re-fusion parity FAILED — worst"
+                         << v.worstMaxDeg << "deg over" << v.sourcesChecked
+                         << "source(s); shot flagged not re-analysable";
+        }
+    }
+
     // The ONE unified swing.json (raw manifest + inline "analysis"), written here on the
     // GUI thread now that both workers have finished — no parallel-write race (the workers
     // wrote only media + returned values). savedSwingDir is set only when a swing.json was
@@ -862,8 +890,11 @@ void ShotProcessor::maybeJoin()
         // Degraded persist: export failed/skipped but analysis succeeded — write a
         // minimal, analysis-only swing.json so the shot reloads after a restart.
         QString werr;
+        QJsonObject synthManifest = buildSynthManifest();
+        if (m_exportManifest.contains(QStringLiteral("imuIntegrity")))
+            synthManifest[QStringLiteral("imuIntegrity")] = m_exportManifest[QStringLiteral("imuIntegrity")];
         if (pinpoint::SwingDocWriter::writeSwingJson(
-                m_swingDir, buildSynthManifest(), m_analysisResult.detail.get(), &werr)) {
+                m_swingDir, synthManifest, m_analysisResult.detail.get(), &werr)) {
             savedSwingDir = m_swingDir;
             ppInfo() << "[SwingDoc] wrote analysis-only" << m_swingDir + QStringLiteral("/swing.json");
         } else {
@@ -893,7 +924,8 @@ void ShotProcessor::maybeJoin()
                              analysisOk ? m_analysisResult.tracePoints : QVariantList{},
                              analysisOk ? m_analysisResult.score : 0,
                              analysisOk ? m_analysisResult.metrics : QVariantMap{},
-                             m_replayAnalysisDetail);
+                             m_replayAnalysisDetail,
+                             imuDataWarning);
     }
 
     // "Reviewable on disk": analysis + export both succeeded AND a swing.json was

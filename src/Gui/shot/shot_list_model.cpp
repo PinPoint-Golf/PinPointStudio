@@ -52,6 +52,7 @@ QVariant ShotListModel::data(const QModelIndex &index, int role) const
     case MetricsRole:         return s.metrics;
     case AnalysisDetailRole:  return s.analysisDetail;
     case SwingDirRole:        return s.swingDir;
+    case DataWarningRole:     return s.dataWarning;
     default:                  return {};
     }
 }
@@ -72,6 +73,7 @@ QHash<int, QByteArray> ShotListModel::roleNames() const
         { MetricsRole,         "metrics"         },
         { AnalysisDetailRole,  "analysisDetail"  },
         { SwingDirRole,        "swingDir"        },
+        { DataWarningRole,     "dataWarning"     },
     };
 }
 
@@ -92,7 +94,7 @@ int ShotListModel::addShot(const QString &swingDir, const QString &timestampLabe
                            const QString &club, bool hasVideo, const QUrl &thumbnailSource,
                            const QVariantList &tracePoints, int score,
                            const QVariantMap &metrics,
-                           const QVariantMap &analysisDetail)
+                           const QVariantMap &analysisDetail, bool dataWarning)
 {
     int maxOrdinal = 0;
     for (const Shot &s : m_shots)
@@ -110,6 +112,7 @@ int ShotListModel::addShot(const QString &swingDir, const QString &timestampLabe
     shot.score           = score;
     shot.metrics         = metrics;
     shot.analysisDetail  = analysisDetail;
+    shot.dataWarning     = dataWarning;
 
     // Newest first, matching the mockup's right-of-cap ordering.
     beginInsertRows(QModelIndex(), 0, 0);
@@ -123,7 +126,8 @@ void ShotListModel::addPersistedShot(const QString &swingDir, int ordinal,
                                      const QString &timestampLabel, const QString &club,
                                      bool hasVideo, const QUrl &thumbnailSource, int score,
                                      int rating, const QString &note,
-                                     const QVariantMap &metrics, const QVariantMap &analysisDetail)
+                                     const QVariantMap &metrics, const QVariantMap &analysisDetail,
+                                     bool dataWarning)
 {
     Shot shot;
     shot.id              = m_nextId++;
@@ -138,6 +142,7 @@ void ShotListModel::addPersistedShot(const QString &swingDir, int ordinal,
     shot.note            = note;
     shot.metrics         = metrics;
     shot.analysisDetail  = analysisDetail;
+    shot.dataWarning     = dataWarning;
 
     // Prepend (newest first); callers reload ascending so the highest ordinal lands first.
     beginInsertRows(QModelIndex(), 0, 0);
