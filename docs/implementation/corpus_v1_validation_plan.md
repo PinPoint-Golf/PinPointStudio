@@ -1,10 +1,20 @@
 # Corpus v1 — Verification, Validation & Tuning Plan
 
-**Status**: Draft for review (2026-06-23). Awaiting corpus v1 capture (50 real golf swings, native video format).
+**Status**: Operational runbook (updated 2026-06-26). Awaiting corpus v1 capture (50 real golf swings, native video format).
 **Owner**: Mark Liversedge
 **Harness**: SwingLab (`tools/swinglab/`, `swinglab_run` + `lab.py`) — see `docs/developer/swinglab_developer_guide.md`.
 **Scope**: Use the 50-swing corpus to verify, validate, and tune the offline analysis pipeline:
 IMU fusion + calibration → phase segmentation → shaft tracking (incl. skeleton-aware) → shot detection → wrist metrics + scoring.
+
+> **This is now the Corpus-1 operational slice of a three-corpus programme.** The methodological backbone — the
+> validity ladder, the three-corpus progression, sample-size/power per statistic, and the per-stage V&V&T — lives in
+> [`docs/validation/pipeline_validation_and_tuning.md`](../validation/pipeline_validation_and_tuning.md) (the *reference*),
+> with the full tunable-parameter catalog + injection/sweep machinery in
+> [`docs/validation/tunable_parameters_reference.md`](../validation/tunable_parameters_reference.md). The reference
+> **supersedes the "external reference: none" decision in §5/§10 below** (HackMotion is now the Corpus-2 concurrent
+> criterion, piloted in Corpus 1) and adds the `score.* / sampler.* / rules.* / bands.* / filter.*` tuning surfaces that
+> this runbook predates. Where this doc and the reference disagree, the reference wins — the inline notes below mark each
+> superseded point.
 
 ---
 
@@ -42,8 +52,12 @@ bound+calibrated IMU, a real impact instant, and (ideally) ball calibration — 
   reimplement analysis math in Python — the scorecard *judges* outputs, it never recomputes them.
 - **Physics invariants carry the load.** The Tier-1/2 scorecard checks need *no labels* and run on all 50 swings — that is
   the soak backbone. Hand-labelling (Tier-3) is reserved for a small subset.
-- **Tune params, not code, first.** All knobs (`seg.* / shaft.* / assembly.*`) inject from a params JSON via
-  `tuningOverrides` — sweeps iterate at binary speed. C++ changes are an escalation, gated by a reproduced failure.
+- **Tune params, not code, first.** All analysis knobs — `seg.* / shaft.* / assembly.*` (track/segmentation) **plus
+  `score.* / sampler.* / rules.* / bands.* / filter.*`** (scoring, wrist-assessment, orientation re-fusion) — inject from a
+  params JSON via `tuningOverrides`, so sweeps iterate at binary speed. Frozen defaults are consolidated in
+  `src/Core/pp_tuned_constants.h` (the single freeze edit-point); the full catalog + injection contract is in
+  `docs/validation/tunable_parameters_reference.md`. Only a few surfaces stay rebuild-only **code** (live-thread `seed.*`,
+  runtime Madgwick-vs-ESKF choice, wrist-axis sign conventions); changing those is an escalation, gated by a reproduced failure.
 - **The diff gate is law.** A params change lands only if mean score improves **and** `lab.py diff` reports
   `regressions: 0` (a +3 mean can hide a −20 on two swings). Same-host diffs only (CPU vs CUDA pose differs).
 - **Bless before you conclude.** A corpus root needs `CORPUS.md` (date + calibration provenance) or `ingest` won't bless
@@ -72,7 +86,7 @@ Tier 0 is added by this plan because the existing data fails *capture* gates tha
 | **C1** | Baseline run + triage | `run --id baseline`; `REPORT.md` read; every failure classified parametric/data/algorithmic in `TRIAGE.md` |
 | **C2** | Self-validation (Tier 1/2) | Tier-1/2 pass-rate measured per subsystem; data-failures pruned from the tuning set |
 | **C3** | Ground-truth labelling | `truth.json` on the labelled subset; 1 external-reference swing measured |
-| **C4** | Tuning + flag-flip A/B | Each `seg.*/shaft.*/assembly.*` sweep + each dark flag (K1–K4, R5/R6/R8) decided via diff gate |
+| **C4** | Tuning + flag-flip A/B | Each `seg.*/shaft.*/assembly.*/score.*/sampler.*/rules.*/bands.*/filter.*` sweep + each dark flag (K1–K4, R5/R6/R8) decided via the per-swing regression gate on the Tune/Validation partition (§6) |
 | **C5** | Acceptance & freeze | Per-subsystem acceptance targets met; defaults updated; scorecard re-baselined; findings written up |
 
 ---
@@ -91,9 +105,13 @@ Notation: **Self** = no labels needed; **Label** = needs `truth.json`; **Ext** =
 | IMU↔vision angular-rate agreement | `xmodal.imu_vision_corr` (Pearson θ̇) | Self | (fusion + shaft assembly) | **≥ 0.9** on bound+calibrated swings |
 | Calibration mount gates hold | `axisAngleDeg ∈ [60°,120°]`; composite `calibrated` (anat valid ∧ mount ≤15° ∧ gravity ≤25°) | Self | gate constants (`imu_calibration.h:138`) | all corpus bindings `calibrated: true` |
 | Madgwick vs ESKF choice | side-by-side corr + jitter on same swings | Self | `orientationFilter` per stream | pick the higher-corr / lower-jitter default |
+| Offline re-fusion reproduces the live quat | re-fuse from recorded raw accel+gyro, warm-started from the stored quat (nominal `dt = 1/outputRateHz`, °/s→rad/s) → geodesic disagreement vs stored | Self | — (parity gate) | `maxDeg < 0.5°`, `warmStarted: true` — the **pre-collection E1 gate** (`corpus1_collection_protocol.md` §0a, tool BUILT: `swinglab_run --refuse-orientation`) |
+| Phase-adaptive gain + impact handling | per-phase `imu_vision_corr`; impact-continuity across `impactUs`; bounded net drift at the still finish | Self (+ Ext at C2 vs HackMotion) | `filter.*` (`refuse/adaptive/betaStatic/betaDynamic/accelErrGateG/gyroGateDps/impactBlankPreMs/impactBlankPostMs/accelSatG`, `orientation_refuser.h`) | reference §5.3.1 — `filter.refuse` feeds re-fused orientation into `ImuVisionFuser` so the schedule moves the wrist metric; observable via `xmodal.imu_vision_corr` + `diag.*` + provisional `filter.impact_continuity` |
 
 *Corpus dependency*: every swing must carry **bound, calibrated** lead-forearm + lead-hand IMU (optionally lead-upper-arm).
-Without bindings this entire matrix is unrunnable.
+Without bindings this entire matrix is unrunnable. **The `filter.*` re-fusion schedule is the deepest IMU-path tuning surface
+(reference §5.3.1); its *values* await real swings (the synth models no impact shock), but the machinery is built and the E1
+parity gate must pass on ~3 pilot swings before collection.**
 
 ### B. Phase segmentation  (`src/Analysis/phase_segmenter.*`, `SegmentationConfig`, prefix `seg.*`)
 
@@ -166,9 +184,13 @@ contact frame). Sensitivity mapping Low/Med/High → 1.5/1.0/0.7 (`imu_manager.c
 | `score` | — | weights sum 1.0; sub-scores ∈ [0,100]; geometric mean | Self | stable & monotonic w.r.t. metric quality |
 
 *Gimbal handling*: pitch-proxy ≥ `gimbalThresholdDeg=75°` → `Indeterminate` (`wrist_angle_sampler.h`). Expect < 2% of samples.
-*Knobs*: `windowHalfUs=15 ms`, `gimbalThresholdDeg=75`, `minValidSamples=1` (sampler); scoring bands `kWristBands`
-(`swing_scorer.cpp:22`, currently *provisional* — corpus may refine μ/σ). These are not yet dotted-key exposed — exposing them
-is a small C++ change (escalation) if the corpus shows they need sweeping.
+*Knobs (now dotted-key — no escalation needed)*: sampler `sampler.windowHalfUs` (15 ms) / `sampler.gimbalThresholdDeg` (75) /
+`sampler.minValidSamples` (1); scoring bands `score.<metric>.mu/.sigma/.weight/.oneSidedDir` + deadbands
+`score.zIn/.zOut/.p` (`swing_scorer.cpp`; frozen in `pp_tuned_constants.h::scoring`, *provisional* — **re-seated at Corpus 2**
+against the observed + HackMotion tour-range distribution). Two caveats for the operator: (1) `score.*` moves `r.score` but
+has **no Tier-1 scorecard check** — its objective is the HackMotion criterion, so it is swept but validated against HackMotion,
+not the lab pass-rate; (2) `sampler.gimbalThresholdDeg` is injectable but currently **inert offline** — the analysis adapter
+sets `pitchProxyDeg = 0`, so the Indeterminate gate never fires (open follow-up A.1 #1, reference Appendix A).
 *Corpus dependency*: lead-forearm + lead-hand IMU mandatory; lead-upper-arm optional (enables pronation + IMU-elbow).
 Repeatability needs **repeated swings of the same motion** by one golfer.
 
@@ -197,10 +219,16 @@ Tier-3 is the only way to validate *absolute* track/phase accuracy. Budget it de
 - **Insurance: a 2–3 swing dense-labelled subset** (every ~10th frame) kept as a high-resolution θ(t) reference to confirm the
   P-sampling doesn't miss between-point errors. The lab supports both workflows (dense placement via stride stepping).
 - **Budget: 10–15 P-labelled swings minimum**, and because each is cheap, scale up opportunistically toward the full 50.
-- **No external wrist reference (decided).** No HackMotion / goniometer / high-speed is available, so wrist-metric validation
-  is **repeatability + plausibility bounds only** — no absolute-accuracy claim — and shot-detection latency constants
-  (30 ms IMU / 20 ms audio) stay as fixed estimates rather than ground-truthed (P4 cross-correlation can still *estimate* an
-  offset from the corpus, but without a true-impact reference it can't be validated to ±1 frame).
+- **No concurrent wrist criterion *within Corpus 1 itself*.** Corpus-1 wrist-metric validation is **repeatability +
+  plausibility bounds only** — no absolute-accuracy claim — and shot-detection latency constants (30 ms IMU / 20 ms audio)
+  stay fixed estimates (P4 cross-correlation can *estimate* an offset from the corpus, but without a true-impact reference it
+  can't be validated to ±1 frame). **⚠ Superseded for the wider programme:** HackMotion is now the **Corpus-2 concurrent
+  criterion** for FE/RUD/PS, with a **single-session pilot run during Corpus 1** to de-risk the protocol and *size* Corpus 2 —
+  see reference §6 and `corpus1_collection_protocol.md` §0b. The "Decided: none" in §10.3 refers to Corpus 1 only.
+- **Known-group labels drive the diagnosis knobs.** Scripted-fault and clean/control swings get a `truth.json`
+  `meta.knownGroup` tag; this is what makes the new `rules.*` / `bands.*` knobs observable, via `score.py`'s `diag.recall` /
+  `diag.clean_no_fault` checks (the offline assessment pass, `runAssessment`). Without the `knownGroup` tag those knobs are
+  injected but unmeasured (tunable-params reference §4.2).
 - **Self-validating evidence covers the rest**: IMU↔vision correlation, coverage, monotonicity, and repeatability across the
   repeated-swing sets — these run on all 50 with zero labelling and carry the bulk of the validation.
 
@@ -213,8 +241,13 @@ The loop (binding for operator sessions, encoded in the `/swinglab` skill):
 1. `ingest <corpus>` → `run --id baseline` → read `REPORT.md` (mean + worst-first table).
 2. **Triage** worst swings from `scorecard.json` (named checks) + `contact_sheet.png` + `trace.jsonl`. Classify each:
    **parametric** (fixable by params), **data** (recapture/exclude — do not tune around), **algorithmic** (escalate).
-3. **Parametric fix** → params JSON (dotted keys) → `run --id candidate --params p.json` → **always**
-   `diff baseline candidate`. Keep only if mean ↑ and `regressions: 0`. Prefer `sweep` over >3 hand-iterations.
+3. **Parametric fix** → params JSON (dotted keys, any of the eight namespaces) → `run --id candidate --params p.json` →
+   **always** `diff baseline candidate`. Keep only if mean ↑ and `regressions: 0`. Prefer `sweep` over >3 hand-iterations —
+   the sweep loop now enforces the **per-swing regression gate in-loop** (`--baseline`) and the **Tune/Validation/Held-out
+   partition** (`--partition` / `--freeze`): sweep on Tune, select the winner on Validation (nested CV in practice), touch
+   Held-out exactly once at freeze. Optimiser: **coordinate descent** (`--method coordinate` — the recommended default for the
+   largely-separable corridor/scoring knobs; pass it explicitly, the CLI defaults to `random`); escalate to Bayesian (TPE/GP)
+   or CMA-ES (the continuous `filter.*` schedule) only on plateau (reference §7.1).
 4. **Record** in `<runs>/TRIAGE.md`; **escalate** via `<runs>/ESCALATION.md` on the mechanical triggers (sweep plateau ×2;
    one invariant failing >30% of corpus; ≥2 identical algorithmic failures; any C++ change needed).
 
@@ -235,9 +268,13 @@ Per subsystem, corpus v1 "passes" when:
 - **Shot detection**: recall ≥ 0.95 on real strikes; ≈0 FP on the trap set; arbiter matches truth table; latency constants
   confirmed or re-derived within ±1 frame.
 - **Wrist metrics**: between-swing repeatability RMSE < 5° (FE) / < 8° (RUD); < 2% Indeterminate; (if reference recorded)
-  absolute bias < 5°/8°; scoring bands reviewed against the observed distribution.
+  absolute bias < 5°/8°; scoring bands (`score.*`) reviewed against the observed distribution (re-seated at Corpus 2 vs HackMotion).
+- **Orientation re-fusion (`filter.*`)**: re-fusion parity `maxDeg < 0.5°` (E1 gate); per-phase `imu_vision_corr` not
+  regressed by the schedule; `filter.impact_continuity` within its (provisional) bound. Schedule *values* are Corpus-1
+  self-validated and confirmed against HackMotion *just after impact* at Corpus 2 (reference §5.3.1).
 
-Outputs: updated config defaults (params merged into production), a re-baselined scorecard, `TRIAGE.md`/`ESCALATION.md`
+Outputs: locked values edited into `src/Core/pp_tuned_constants.h` (the single freeze edit-point; `tuned_constants_parity_test`
+guards byte-identity), a re-baselined scorecard, `TRIAGE.md`/`ESCALATION.md`
 archived on SwingData, and per-subsystem sign-off notes appended to the relevant `*_impl.md` docs.
 
 ---
@@ -270,10 +307,17 @@ Every swing must clear this **before** it counts toward the corpus. A swing fail
 **Blessing**: write `CORPUS.md` at the corpus root (recording date, calibration provenance, IMU config, raw-subset list,
 known deviations). `lab.py ingest` refuses to bless without it.
 
-**Proposed pre-flight validator** (small, high-value): a `lab.py`-side check (or one-off script) run after capture that, per
+**Pre-flight validator** (small, high-value): a `lab.py`-side check (or one-off script) run after capture that, per
 swing, asserts *imu-stream present ∧ bindings>0 ∧ calibrated:true ∧ impact-phase present*, and prints a red/green table — so a
 bad swing is caught at the studio, not three weeks later in a baseline run. `ingest`'s `corpus.json` already surfaces
 `calibrated / calibAgeSec / perspectives / ballCalibrated / ballMargin / frames`; this gate adds the bindings/impact asserts.
+
+**Re-fusion parity gate (E1 — BUILT).** Beyond the provenance asserts, run the offline re-fusion parity tool on ~3 pilot
+swings *before* committing the studio to the full 50: `swinglab_run <pilot_swing> --out <run> --refuse-orientation` re-runs
+Madgwick from each IMU's recorded raw accel+gyro (warm-started from the stored quat) and writes `refusion.json` — pass =
+`warmStarted: true` ∧ `maxDeg < 0.5°` per source. This proves the captured data is genuinely post-hoc tunable (the `filter.*`
+schedule re-fuses from exactly this raw data); a re-fusion gap discovered after capture wastes the corpus. See
+`corpus1_collection_protocol.md` §0a.
 
 ---
 
@@ -301,13 +345,17 @@ Run batch/sweeps on the Windows studio PC (RTX 5080, CUDA pose, corpus on local 
 2. **IMU sensor count.** ✅ *Decided: mixed 2- and 3-sensor.* The 3-sensor swings validate pronation + IMU-elbow; the
    2-sensor swings additionally exercise the **slot-C-absent degradation path** (pronation suppressed, elbow→2D fallback) —
    add a check that this degradation is graceful, not a failure.
-3. **External reference.** ✅ *Decided: none.* Wrist metrics validate on **repeatability + plausibility only** (no
-   absolute-accuracy claim); latency constants stay fixed estimates (§5).
+3. **External reference.** ✅ *Decided: none **for Corpus 1 itself***. Corpus-1 wrist metrics validate on **repeatability +
+   plausibility only**. **⚠ Superseded for the programme:** HackMotion is the **Corpus-2 concurrent criterion** for FE/RUD/PS,
+   piloted in a single Corpus-1 session to de-risk + size it (reference §6, `corpus1_collection_protocol.md` §0b). Latency
+   constants stay fixed estimates until impact-truth markup (reference §8).
 4. **Labelling.** ✅ *Decided: 10–15 swings, labelled via the new in-app Markup Lab* (`src/Gui/markup/`), not `lab.py label`.
 5. **Stub analyzers.** Swing/GRF/Coach are stubs; corpus v1 validates Wrist only. Tuning those is future work once they're real.
 6. **`ballLaunched` not implemented.** Vision shot-trigger validation is deferred until the Kalman-track producer lands.
-7. **Scoring bands are provisional.** `kWristBands` μ/σ are empirical; the corpus distribution may justify revising them
-   (a small C++ change — escalation).
+7. **Scoring bands are provisional — and now sweepable.** `kWristBands` μ/σ are empirical, exposed as **`score.*` dotted keys**
+   (frozen default in `pp_tuned_constants.h::scoring`) and **re-seated at Corpus 2** against the observed + HackMotion
+   tour-range distribution. No longer a C++ escalation — but note `score.*` moves `r.score` with **no Tier-1 scorecard check**,
+   so it is swept yet validated against the HackMotion criterion, not the lab pass-rate (reference §6.6).
 
 ---
 
@@ -315,15 +363,22 @@ Run batch/sweeps on the Windows studio PC (RTX 5080, CUDA pose, corpus on local 
 
 ```
 tools/swinglab/lab.py                          # ingest / run / one / diff / sweep / label
-tools/swinglab/src/swinglab_run.cpp            # offline runner (rebuild after any analysis C++ change)
+tools/swinglab/src/swinglab_run.cpp            # offline runner (rebuild after any analysis C++ change; --refuse-orientation)
+docs/validation/pipeline_validation_and_tuning.md   # REFERENCE / backbone (3-corpus, sample size, per-stage V&V&T)
+docs/validation/tunable_parameters_reference.md     # parameter catalog + injection/sweep developer guide
+docs/validation/corpus1_collection_protocol.md      # Corpus-1 capture protocol (E1 re-fusion parity gate, HackMotion pilot)
 docs/developer/swinglab_developer_guide.md     # harness reference
 docs/developer/swing_export_developer_guide.md # swing-dir / swing.json schema
+src/Core/pp_tuned_constants.h                  # FROZEN defaults — single freeze edit-point (seed/scoring/sampler/rules/mount)
 src/Analysis/phase_segmenter.h                 # SegmentationConfig  (seg.*)
 src/Analysis/shaft_tracker_math.h              # ShaftDetectConfig   (shaft.*)
 src/Analysis/shaft_track_assembly.h            # AssemblyConfig      (assembly.*)
-src/Analysis/wrist_analyzer.cpp                # M1 real Wrist analyzer
-src/Analysis/swing_scorer.cpp                  # kWristBands scoring
+src/Analysis/wrist_angle_sampler.h             # PpWristSamplingConfig (sampler.*)
+src/Analysis/swing_scorer.cpp                  # kWristBands scoring (score.*)
+src/Analysis/assessment_rule.h                 # RuleTuning (rules.*);  reference_bands.h → BandTuning (bands.*)
+src/Analysis/wrist_analyzer.cpp                # M1 real Wrist analyzer (segConfigFor / scoreBandsFor / refuseConfigFromTuning)
+src/IMU/orientation_refuser.h                  # offline phase-adaptive re-fusion (filter.*)
 src/IMU/impact_detector.h  src/Audio/onset_detector.h  src/Gui/shot/shot_arbiter.h
-<SwingData>/corpus-v1/CORPUS.md                # blessing (required)
+<SwingData>/corpus-v1/CORPUS.md                # blessing (required) + corpus tier + Tune/Validation/Held-out partition
 <SwingData>/runs/                              # scorecards, contact sheets, REPORT/TRIAGE/ESCALATION
 ```
