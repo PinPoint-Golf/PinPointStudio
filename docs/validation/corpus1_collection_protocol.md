@@ -47,18 +47,25 @@ data. Status, verified against the code (2026-06-26):
   parameter-injection harness must be **built** — but it operates on captured data, so it can follow
   collection.
 
-**Therefore, before Corpus 1, complete this one cheap de-risk** (engineering, not capture):
+**Therefore, before Corpus 1, run this one cheap de-risk** (engineering, not capture):
 
 | # | Pre-collection check | Why it must precede 50 swings |
 |---|---|---|
-| E1 | Build a **minimal offline re-fusion + parity tool**: instantiate the filter → feed stored raw (gyro °/s→rad/s, accel g, **nominal `dt = 1/outputRateHz`** — *not* per-sample Δt) → **warm-start from the stored quat at the window's first sample** → compare to the stored live quat | proves the captured corpus is genuinely tunable; a re-fusion gap found *after* capture wastes the corpus |
-| E2 | Confirm the **collection build writes `imu_sample_v2`** with genuine raw vectors (not legacy v1 display-frame, not zeroed) at **200 Hz** | pre-corpus recordings predate trustworthy provenance; one pilot swing settles it |
+| E1 | **Run the re-fusion parity gate** (the tool is BUILT): `swinglab_run <pilot_swing> --out <run> --refuse-orientation`. It re-runs Madgwick from each IMU's recorded raw accel+gyro (gyro °/s→rad/s, accel g, **nominal `dt = 1/outputRateHz`** — *not* per-sample Δt), **warm-started from the stored quat at the window's first sample**, and writes `refusion.json` with the per-source geodesic disagreement vs the stored live quaternion | proves the captured corpus is genuinely tunable; a re-fusion gap found *after* capture wastes the corpus |
+| E2 | Confirm the **collection build writes `imu_sample_v2`** with genuine raw vectors (not legacy v1 display-frame, not zeroed) at **200 Hz** | pre-corpus recordings predate trustworthy provenance; the E1 run surfaces this (samples count + rate per source) |
 | E3 | Confirm each capture **window contains a still address segment** (the 5 s trailing window normally spans backswing+address) | the warm-start/seed and gravity-lock checks need a low-dynamics anchor |
 
-E1 parity criterion: `refuse(stored raw, production params, warm-started) ≈ stored live quat` on ~3 pilot
-swings. **Pass → collection is safe.** Fail → fix the capture schema before committing studio time. The
-*full* tuning harness (filter-param `tuningOverrides` + `lab.py sweep` over the §5.3.1 schedule) can be
-built after collection. Record E1–E3 outcomes in §15 (deviations) or a pre-flight note in `CORPUS.md`.
+**E1 pass criterion:** every IMU source `warmStarted: true` and `maxDeg < 0.5°` (`refusion.json` `pass: true`,
+exit 0) on ~3 pilot swings. **Pass → collection is safe.** Fail → fix the capture schema before committing
+studio time. Two caveats the tool reports for you:
+- Parity is exact **only for swings captured with the Madgwick default filter** (the ship default and the
+  only filter that warm-starts exactly — ESKF's vendored state is not settable). If a whole swing fails,
+  first confirm the IMU orientation filter setting is Madgwick (Settings → IMUs), not ESKF.
+- `--refuse-beta <g>` deliberately perturbs the gain to confirm the gate is live: parity should *diverge*
+  (e.g. on a clean swing, β 0.05→0.20 grows the disagreement, β→0 collapses it toward gyro-only).
+
+The *full* tuning harness (filter-param `tuningOverrides` + `lab.py sweep` over the §5.3.1 schedule) is
+built *after* collection. Record E1–E3 outcomes in §15 (deviations) or a pre-flight note in `CORPUS.md`.
 
 ---
 

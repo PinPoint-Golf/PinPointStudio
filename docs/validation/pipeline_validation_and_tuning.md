@@ -510,11 +510,15 @@ reasons unrelated to the parameters under test.
    (§5.2). Parity confirms the captured data is genuinely sufficient; a parity *failure* is a
    capture-schema gap you want to find on one pilot swing, not after 50.
 
-**Pre-collection action (small, escalation-class):** build the minimal **offline re-fusion + parity tool**
-(instantiate the filter → feed stored raw + `dt` → warm-start → compare to stored quat) *before* Corpus 1,
-as cheap insurance that the corpus will be tunable. The **full** tuning harness (filter-param
-`tuningOverrides` + `lab.py sweep` over the schedule) can follow collection. See
-`corpus1_collection_protocol.md` §0a.
+**Pre-collection action — DONE.** The minimal **offline re-fusion + parity tool** is built: header-only
+`src/IMU/orientation_refuser.h` (`refuseOrientation`/`parity`, warm-started from the stored quat at the
+window's first sample) + `IOrientationFilter::setOrientation`; exposed on real swings as
+`swinglab_run <swing> --out <run> --refuse-orientation` (writes `refusion.json`; `--refuse-beta` perturbs
+the gain to confirm sensitivity), and proven exact on synthetic data by the standalone
+`orientation_refuse_test` (warm-start reproduces the stored trajectory to ~2e-6°; a β change diverges
+50°). Run it on ~3 pilot swings as the corpus-1 E1 gate (`corpus1_collection_protocol.md` §0a). The
+**full** tuning harness (filter-param `tuningOverrides` + `lab.py sweep` over the schedule) follows
+collection.
 
 **Per-phase validation (how the corpora decide it).**
 - *Verification (synth):* the closed-form synth swing has a known `φ(t)` with a waggle burst and a

@@ -48,9 +48,15 @@
 #include <QSysInfo>
 #include <QVariantMap>
 
+#include <algorithm>
 #include <cstdio>
+#include <cstring>
+#include <variant>
+#include <vector>
 
 #include "swing_window.h"
+#include "imu_sample.h"
+#include "format_descriptor.h"
 
 #include "../../../src/Analysis/shot_analyzer.h"
 #include "../../../src/Analysis/swing_reanalyzer.h"
@@ -59,6 +65,8 @@
 #include "../../../src/Analysis/pose_runner.h"
 #include "../../../src/Analysis/shaft_tracker.h"
 #include "../../../src/Export/swing_doc.h"
+#include "../../../src/IMU/orientation_filter.h"     // MadgwickFilter (header-only)
+#include "../../../src/IMU/orientation_refuser.h"    // refuseOrientation / parity
 
 using namespace pinpoint;
 using namespace pinpoint::analysis;
@@ -86,6 +94,129 @@ int fail(const QString &msg)
     return 1;
 }
 
+// Offline orientation RE-FUSION parity — the corpus-1 pre-collection gate E1
+// (docs/validation/pipeline_validation_and_tuning.md §5.2, §5.3.1). For each
+// bound IMU, re-runs the MADGWICK filter from the recorded raw accel+gyro,
+// warm-started from the stored quaternion at the window's first sample
+// (RefuseSample carries the same imu_sample_v2 fields the live filter saw), and
+// reports the per-binding geodesic disagreement vs the stored live quaternion.
+// Writes refusion.json + a stderr summary; returns 0 on PASS.
+//
+// Madgwick only: it is the ship default and the only filter that warm-starts
+// EXACTLY (ESKF's vendored reference quaternion is not settable). The parity gate
+// therefore assumes the swing was captured with the Madgwick default; a wholesale
+// disagreement means an ESKF capture OR a schema gap — which is exactly what E1
+// must catch before bulk capture. --refuse-beta perturbs the gain on purpose, to
+// confirm the tool can see a parameter change (parity should then diverge).
+int runRefusionParity(const SwingWindow &window,
+                      const std::vector<ImuSegmentBinding> &bindings,
+                      const QString &outDir, double betaOverride)
+{
+    constexpr double kThreshDeg = 0.5;
+    const float beta = betaOverride > 0.0 ? float(betaOverride) : MadgwickFilter().beta();
+
+    QJsonArray perSource;
+    int nChecked = 0, nPass = 0;
+    double worst = 0.0;
+
+    // Re-fusion is binding-INDEPENDENT — it needs each IMU's raw samples, not the
+    // A/M. Enumerate IMU sources straight from the window so a swing with
+    // bindings=0 (the existing-recordings failure mode) is still parity-checkable;
+    // the role is looked up from bindings only as a label when present.
+    std::vector<SourceId> imuIds;
+    for (const IndexEntry &e : window.entries())
+        if (std::holds_alternative<ImuFormat>(window.formatOf(e.source_id).format)
+            && std::find(imuIds.begin(), imuIds.end(), e.source_id) == imuIds.end())
+            imuIds.push_back(e.source_id);
+    const auto roleOf = [&](SourceId id) -> int {
+        for (const ImuSegmentBinding &b : bindings)
+            if (b.source == id) return int(b.role);
+        return -1;   // unbound source (re-fusion still valid)
+    };
+
+    for (const SourceId sid : imuIds) {
+        const std::vector<IndexEntry> entries = window.entriesFor(sid);
+        if (entries.size() < 2)
+            continue;
+
+        // Nominal cadence from the IMU format descriptor -> dt = 1/rate, matching
+        // ImuBase::fuseRawImu (burst-immune; NOT per-sample timestamp deltas).
+        float rate = 200.0f;
+        const FormatDescriptor &fd = window.formatOf(sid);
+        const QString serial = QString::fromStdString(fd.device_serial);
+        if (const auto *imf = std::get_if<ImuFormat>(&fd.format)) {
+            if (imf->sample_rate_hz > 0)
+                rate = float(imf->sample_rate_hz);
+        }
+
+        std::vector<RefuseSample> samples;
+        samples.reserve(entries.size());
+        for (const IndexEntry &e : entries) {
+            const SourceRing::ReadHandle h = window.payloadOf(e);
+            if (!h.data || h.bytes < sizeof(ImuSample))
+                continue;
+            ImuSample s;
+            std::memcpy(&s, h.data, sizeof(ImuSample));   // alignment-safe
+            samples.push_back(RefuseSample{ e.timestamp_us,
+                                            s.accel_x, s.accel_y, s.accel_z,
+                                            s.gyro_x,  s.gyro_y,  s.gyro_z,
+                                            s.quat_w,  s.quat_x,  s.quat_y, s.quat_z });
+        }
+        if (samples.size() < 2)
+            continue;
+
+        RefuseConfig cfg;
+        cfg.outputRateHz = rate;
+        cfg.warmStart    = true;
+        MadgwickFilter filt(beta);
+        const RefuseResult r = refuseOrientation(filt, samples, cfg);
+        const ParityStats  p = parity(samples, r);
+        const bool pass = r.warmStarted && p.maxDeg < kThreshDeg;
+        ++nChecked;
+        if (pass) ++nPass;
+        worst = std::max(worst, p.maxDeg);
+
+        perSource.append(QJsonObject{
+            { "serial", serial }, { "role", roleOf(sid) },
+            { "samples", int(samples.size()) }, { "rateHz", rate },
+            { "warmStarted", r.warmStarted },
+            { "meanDeg", p.meanDeg }, { "rmsDeg", p.rmsDeg },
+            { "maxDeg", p.maxDeg }, { "p95Deg", p.p95Deg },
+            { "maxAtSample", int(p.maxAt) }, { "pass", pass } });
+
+        std::fprintf(stderr,
+            "[refuse] %-12s role=%d n=%zu rate=%.0fHz warm=%d  max=%.5f mean=%.5f p95=%.5f deg  %s\n",
+            serial.isEmpty() ? "(imu)" : serial.toUtf8().constData(),
+            roleOf(sid), samples.size(), double(rate), int(r.warmStarted),
+            p.maxDeg, p.meanDeg, p.p95Deg, pass ? "PASS" : "FAIL");
+    }
+
+    const bool ok = nChecked > 0 && nPass == nChecked;
+    const QJsonObject doc{
+        { "schema", "pinpoint.refusion/1" }, { "filter", "madgwick" }, { "beta", double(beta) },
+        { "thresholdDeg", kThreshDeg },
+        { "sourcesChecked", nChecked }, { "sourcesPassed", nPass },
+        { "worstMaxDeg", worst }, { "pass", ok }, { "sources", perSource },
+        { "note", "Warm-start parity reproduces the live Madgwick fusion exactly when the "
+                  "swing was captured with the Madgwick default filter; a large disagreement "
+                  "means an ESKF capture or a schema gap (the corpus-1 E1 gate catches the "
+                  "latter before bulk capture)." } };
+    QFile of(outDir + "/refusion.json");
+    if (of.open(QIODevice::WriteOnly))
+        of.write(QJsonDocument(doc).toJson());
+    else
+        std::fprintf(stderr, "[refuse] cannot write refusion.json: %s\n",
+                     of.errorString().toUtf8().constData());
+
+    if (nChecked == 0) {
+        std::fprintf(stderr, "[refuse] no IMU sources in the window to re-fuse (check capture)\n");
+        return 1;
+    }
+    std::fprintf(stderr, "[refuse] %d/%d IMU sources pass (worst max %.5f deg, threshold %.2f) -> %s\n",
+                 nPass, nChecked, worst, kThreshDeg, ok ? "PASS" : "FAIL");
+    return ok ? 0 : 3;
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -101,7 +232,15 @@ int main(int argc, char **argv)
     QCommandLineOption optFaceOn("face-on", "Face-on stream alias substring", "str", "Face");
     QCommandLineOption optImpact("impact-us", "Impact instant override", "us");
     QCommandLineOption optPose("pose", "Inject PoseTrack2D JSON (skip ViTPose)", "file");
-    cli.addOptions({ optOut, optParams, optTrace, optSession, optFaceOn, optImpact, optPose });
+    QCommandLineOption optRefuse("refuse-orientation",
+        "Offline orientation re-fusion parity (corpus-1 gate E1): re-run Madgwick "
+        "from the recorded raw accel+gyro and report disagreement vs the stored "
+        "quaternion. Writes refusion.json and exits (no pose/shaft pipeline).");
+    QCommandLineOption optRefuseBeta("refuse-beta",
+        "Madgwick gain for re-fusion (default = production 0.05; perturb to confirm "
+        "the tool detects a parameter change).", "float");
+    cli.addOptions({ optOut, optParams, optTrace, optSession, optFaceOn, optImpact, optPose,
+                     optRefuse, optRefuseBeta });
     cli.process(app);
 
     if (cli.positionalArguments().isEmpty() || !cli.isSet(optOut))
@@ -130,6 +269,19 @@ int main(int argc, char **argv)
         return fail(ls.error);
     SwingWindow     &window = *ls.window;
     ShotAnalysisJob &job    = ls.job;
+
+    // ── Orientation re-fusion parity (corpus-1 gate E1) ──────────────────────
+    // Independent of impact / pose / shaft: re-fuse the IMU offline and compare to
+    // the stored quaternion, then exit. Run this on pilot swings BEFORE bulk
+    // capture to prove the corpus is post-hoc-tunable (the raw data is persisted
+    // but the live filter must reproduce from it). bindings=0 here is the same
+    // fatal capture gap the Tier-0 gate guards against.
+    if (cli.isSet(optRefuse)) {
+        std::fprintf(stderr, "[swinglab] window rebuilt: %zu entries (%s)\n",
+                     window.entries().size(), ls.usedRaw ? "raw" : "mp4");
+        const double beta = cli.isSet(optRefuseBeta) ? cli.value(optRefuseBeta).toDouble() : -1.0;
+        return runRefusionParity(window, job.imuBindings, outDir, beta);
+    }
 
     // CLI overrides on the resolved job. Session type: explicit option wins; else
     // the recorded capture.sessionType (load()); else the option default (1).
