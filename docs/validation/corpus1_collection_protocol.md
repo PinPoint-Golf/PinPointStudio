@@ -33,6 +33,35 @@ explicitly deferred to Corpus 3 (reference §3.5).
 
 ---
 
+## 0a. Pre-collection engineering dependency — orientation re-fusion parity (BLOCKING the *tuning*, not the *capture*)
+
+A critical Corpus-1 outcome is **tuning the orientation filter post-hoc** (phase-adaptive gain + impact
+handling — reference §5.3.1). This requires re-running the filter offline from the recorded raw inertial
+data. Status, verified against the code (2026-06-26):
+
+- **Capture is already sufficient — collection is NOT blocked.** The raw accel (g) + raw gyro (°/s) are
+  persisted per sample (`imu_sample_v2`), with per-sample `t_us` and the per-device `alignA`/`mountM`
+  snapshot. A swing captured on the current build **is re-fusable post-hoc**.
+- **Offline re-fusion is NOT implemented.** The analyzer consumes the *stored live-fused* quaternion
+  (`ImuVisionFuser` applies `A·qRaw·M`); nothing re-runs Madgwick/ESKF offline. The re-fusion + filter
+  parameter-injection harness must be **built** — but it operates on captured data, so it can follow
+  collection.
+
+**Therefore, before Corpus 1, complete this one cheap de-risk** (engineering, not capture):
+
+| # | Pre-collection check | Why it must precede 50 swings |
+|---|---|---|
+| E1 | Build a **minimal offline re-fusion + parity tool**: instantiate the filter → feed stored raw (gyro °/s→rad/s, accel g, **nominal `dt = 1/outputRateHz`** — *not* per-sample Δt) → **warm-start from the stored quat at the window's first sample** → compare to the stored live quat | proves the captured corpus is genuinely tunable; a re-fusion gap found *after* capture wastes the corpus |
+| E2 | Confirm the **collection build writes `imu_sample_v2`** with genuine raw vectors (not legacy v1 display-frame, not zeroed) at **200 Hz** | pre-corpus recordings predate trustworthy provenance; one pilot swing settles it |
+| E3 | Confirm each capture **window contains a still address segment** (the 5 s trailing window normally spans backswing+address) | the warm-start/seed and gravity-lock checks need a low-dynamics anchor |
+
+E1 parity criterion: `refuse(stored raw, production params, warm-started) ≈ stored live quat` on ~3 pilot
+swings. **Pass → collection is safe.** Fail → fix the capture schema before committing studio time. The
+*full* tuning harness (filter-param `tuningOverrides` + `lab.py sweep` over the §5.3.1 schedule) can be
+built after collection. Record E1–E3 outcomes in §15 (deviations) or a pre-flight note in `CORPUS.md`.
+
+---
+
 ## 2. Objectives, hypotheses & pre-registered acceptance
 
 Pre-register these *before* collection; do not move a threshold to make a result pass (reference §7).

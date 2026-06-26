@@ -163,6 +163,40 @@ HackMotion = PILOT          HackMotion = STUDY            HackMotion = VERIFICAT
  │  tests ───────────────────►  superset ───────────────────► superset
 ```
 
+### 2.4 Tuning ledger — what is refined at each corpus, and the deciding criterion
+
+The criterion **escalates** corpus by corpus: Corpus 1 decides on **internal evidence** (physics
+invariants, cross-modal agreement, repeatability, hand labels, known-groups); Corpus 2 adds the
+**external criterion** (HackMotion concurrent agreement) and is where the wrist-angle layer is *locked*;
+Corpus 3 adds **generalisation** (across golfers) and the camera/diagnosis arbiters. **A tuning surface
+locked at corpus N is not re-opened at N+1** — later corpora confirm it as a regression net and build the
+next layer on top. Every change, at every corpus, also obeys the universal gate: **kept only if mean ↑ and
+`lab.py diff` = `regressions: 0`** (reference §7). "Status" marks whether the knob is injectable today
+(dotted-key `tuningOverrides`) or needs a small C++ change first (**escalation**).
+
+| Tuning surface (knobs) | Refined at | Deciding criterion | Status |
+|---|---|---|---|
+| **BLE discovery / reconnect** (`kConnectWatchdogMs`, `kMaxRetries`, `kRetryBaseDelayMs`) | pre-C1 (live) | discovery completeness 100 %; reconnect ≥ 99 % | code |
+| **Capture gate** (no tuning — a census) | C1 | Tier-0 pass = 100 % (a gate, never "tuned around") | n/a |
+| **Orientation filter — phase-adaptive gain + impact handling** (`filter.betaStatic/betaDynamic/accelErrGateG/gyroGateDps/impactBlankPreMs/impactBlankPostMs/accelSatG`) | **C1 → C2 → C3** | C1: per-phase `imu_vision_corr` ↑, impact-continuity, bounded net drift; **C2: wrist FE/RUD/PS *just after impact* within HackMotion LoA**; C3: one schedule generalises, or scales with measured per-swing dynamics | **escalation** (today only fixed `m_beta`; needs offline re-fusion §5.3.1 + dotted keys) |
+| **Filter choice** Madgwick vs ESKF (`orientationFilter`/stream) | C1 A/B (per phase) → confirmed C2/C3 | higher per-phase corr / lower jitter; better behaviour through the impact window | code (runtime-selectable) |
+| **Seed tolerances** (`kInitAccelTolG`, `kInitGyroMaxRadps`, `kInitMaxSeedAttempts`) | C1 | converged before Takeaway | code |
+| **Anatomical calibration `A·M`** + **wrist-axis signs** | **C2 (signs LOCKED here)** | constant per-axis bias / cross-axis leakage vs HackMotion → diagnosed & corrected; static-pose anchors agree | escalation (signs not dotted-key) |
+| **Temporal cleanup** (RTS `jerkPsd`/joint; Kabsch still-window) | C1 | track-continuity invariants; no lag at impact | dotted-key (jerkPsd) |
+| **Phase segmentation** (`seg.*`: `fcEnvelopeHz`, `top*`, `takeaway*`, `voteAgreeUs`, `finish*`, stillness gates) | C1 | `seg.monotone` 100 %; **Top ≤ 30 ms** vs labels; tempo distribution sane | dotted-key |
+| **Shaft detection** (`shaft.*`: `ridgeKernelPx`, `noiseSigmaK`, `thresholdFloor`, `nmsSeparationDeg`, `clutterMaskDeg`, `minScoreFrac`, `runMaxGapPx`, `interHandSigmaDeg`) | C1 (raw subset for pixel-θ) | coverage ≥ 0.6; continuity; `theta_rms < 3°` / `head < 25 px` on labelled | dotted-key |
+| **Shaft skeleton-aware flags** (`shaft.useArmScale`/`minLenFracOfArm`/`useKinematicPrior`/`useEnvelope`/`useBlurMode`/`emitPredicted`) | C1 (flag-flip A/B) | each flag's own gate (0 regressions / 0 legit samples lost / 0 false rejections) | dotted-key (default OFF) |
+| **Shaft assembly** (`assembly.*`: `coverageMin`, `jerkPsd`, `transSigma*`, `visionSigmaFloorRad`, `calibAcceptRad`) | C1 | coverage; ŝ_hand fit residual < ~7° | dotted-key |
+| **Wrist-angle sampler** (`windowHalfUs`, `gimbalThresholdDeg`, `minValidSamples`) | C1 (repeatability) → C2 (gimbal logic validated vs HackMotion) | repeatability RMSE < 5° FE / 8° RUD; < 2 % Indeterminate; C2 confirms gimbal threshold | escalation (not dotted-key) |
+| **Scoring bands** (`kWristBands` μ/σ/oneSided/weight) | **C2 (re-seated)** | match the observed + HackMotion tour-range distribution; score monotone | escalation |
+| **Assessment rules** (`RuleTuning`: `confidenceFloor`, `scoreScale`, severity weights, `corroborationBoost`) | C1 (known-groups) → **C3 (coach κ/ICC)** | scripted-fault recall / FP; C3: κ (fault) + ICC (score) vs blinded coach | code |
+| **Shot-detection sensitivity / latency** (`swingDetectionSensitivity` 1.5/1.0/0.7; `kImuBleLatencyUs`/`audioDeviceLatencyUs`) | C1 (precision/recall, self) → Ext (impact-truth markup, future) | recall ≥ 0.95 real strikes / ≈ 0 FP; latency ± 1 frame *needs* impact-truth markup | code |
+| **Camera 2D calibration** (ChArUco intrinsics + ground-plane extrinsic) | **C3** | reproj RMS < 0.5 px; wand QA within 0.5 % | code (calibration flow) |
+
+> **The wrist-angle layer is locked at Corpus 2**, not Corpus 1: signs, `A·M` alignment, the sampler's
+> gimbal threshold, and the scoring bands all need the HackMotion criterion to settle. Corpus 1 produces
+> their *provisional* values from repeatability + plausibility; Corpus 3 only confirms they generalise.
+
 ---
 
 ## 3. Sample size & statistical power
@@ -343,7 +377,11 @@ gate**.
 - **Verify.** **A·q·M golden** bit-identical live (`imu_instance.cpp:213`) vs offline
   (`imu_vision_fuser.cpp:72`); **RAM-vs-disk SwingWindow parity** (the streaming `SwingPayloadSource` must
   reconstruct byte-identical); **merger semantics** (the `gen=odd` mid-write vs genuine-overrun
-  distinction — a regression silently discards frames).
+  distinction — a regression silently discards frames); **orientation re-fusion parity** — re-running the
+  filter offline from the persisted raw accel+gyro (warm-started from the stored quat) must reproduce the
+  stored live-fused quaternion under production parameters (§5.3.1). This last one is a **pre-collection
+  gate for Corpus 1** — it proves the captured corpus is post-hoc-tunable (the data is persisted but the
+  re-fusion path is not yet built).
 - **Validate (Tier-0 pre-flight, *every* swing, all three corpora).** IMU present ∧ `bindings > 0` ∧
   `calibrated: true` ∧ Impact phase (5) present; sample-rate fidelity (measured inter-arrival vs nominal
   `outputRateHz`; at 45 m/s, 1 ms = 45 mm — rate fidelity is a metric-accuracy precondition); timestamp
@@ -372,11 +410,149 @@ gate**.
   partition, confirmed on held-out). *Sample size:* corr-pass is a proportion → **50 swings → ±~14 %** on
   "≥ 90 % of bound swings pass" (Corpus 1's 50 is adequate for the gate, not a tight estimate).
 - **Tune.** `m_beta`, ESKF noise, seed tolerances, RTS **jerk PSD per joint** (high hands, low torso),
-  Kabsch still-window length.
+  Kabsch still-window length — **and the phase-adaptive gain schedule + impact handling of §5.3.1, which is
+  the substantive orientation-filter tuning work.**
 - **Accept/Refine.** corr ≥ 0.9 on ≥ 90 % bound; converged before Takeaway; all calibrated. **Corpus-2
   refinement:** a *constant* per-axis wrist bias vs HackMotion localises *here* — an `A·M` alignment error
   or a filter sign — versus random LoA (noise). HackMotion is the tool that separates "noisy filter" from
   "mis-aligned frame".
+
+#### 5.3.1 Orientation-filter fine-tuning — phase-adaptive gain & impact handling
+
+This is the deepest tuning problem in the IMU path, because a golf swing **violates the core assumption of
+every gravity-aided orientation filter** — that the accelerometer measures gravity. It does, at address and
+finish; it does **not** during the downswing or at impact. The filter must be made to *know which phase it
+is in* and weight the accelerometer accordingly.
+
+**The current state (what we are refining from).** `MadgwickFilter::update()` applies the accelerometer
+gravity-correction (gradient-descent step, gain `m_beta = 0.05`) **unconditionally** on every sample where
+`|a| > 1e-6` — there is *no* dependence on how far `|a|` is from 1 g, no impact rejection, and no
+saturation handling. The `EskfOrientationFilter` likewise runs `predict → correctGyr → correctAcc` every
+sample with fixed measurement noise. Only the *seed* is dynamics-aware (stillness-gated:
+`|‖a‖ − 1g| ≤ kInitAccelTolG ∧ ‖g‖ ≤ kInitGyroMaxRadps`). So today the running filter trusts a 12 g
+downswing accelerometer reading — almost all *linear* acceleration, not gravity — as if it were a gravity
+correction. Fine-tuning = replacing the fixed gain with a **dynamics-/phase-adaptive** gain and adding
+explicit impact handling.
+
+**Two distinct high-acceleration regimes, handled differently.**
+
+1. **Sustained swing acceleration (continuous).** Through the backswing→downswing the wrist IMU sees large
+   *linear* acceleration — centripetal `ω²r` + tangential `αr` — that can reach many g and points in a
+   direction unrelated to gravity. This is a *smooth, sustained* corruption of the gravity reference. It is
+   handled by **continuously down-weighting the accelerometer as the dynamics rise**: scale the Madgwick
+   `β` (or inflate the ESKF accelerometer measurement covariance `R`) as a function of the
+   **accel-magnitude residual** `e = |‖a‖ − 1g|` and the **gyro magnitude** `‖ω‖`. When `e` is small and
+   `‖ω‖` is low (address/finish) → full trust (correct accumulated drift fast). When `e` is large or `‖ω‖`
+   is high (downswing) → `β → ~0` / `R → ∞`, i.e. **gyro-only integration**. This is the standard adaptive-
+   gain / innovation-gated formulation; it is *continuous*, not a hard switch.
+
+2. **Impact shock (transient + saturating).** At impact the clubhead decelerates violently and a shock
+   propagates through the shaft and hands. The wrist accelerometer sees a sharp spike **plus ringing**, and
+   — critically — it **saturates at the ±16 g full scale** (confirmed in `impact_detector.h`: confidence is
+   "never from peak g, which clips at the ±16 g full scale"). A saturated, ringing vector carries **no**
+   usable gravity information, and it lands on the single most coaching-critical instant ("wrist at
+   impact"). This is handled by a **discrete impact-blanking window**: because the analyzer runs *offline
+   with the impact instant already known* (`job.impactUs`, the back-dated marker), the accelerometer
+   correction is **frozen** over `[impactUs − preMs, impactUs + postMs]` and orientation is propagated by
+   **gyro integration alone** across it, resuming accel correction only once `‖a‖` has re-settled toward
+   1 g. A hard **saturation gate** (`|aₖ| ≥ accelSatG ≈ 16 g` on any axis → reject the accel update for
+   that sample) backs this up everywhere, independent of the window.
+
+**The per-phase gain schedule (what to tune, and against what objective).** The `PhaseSegmenter` already
+labels phases, so the schedule is expressed and validated *per phase*:
+
+| Phase | Dynamics | Accel trust (β / R) | Per-phase tuning objective |
+|---|---|---|---|
+| **Address** | still, `‖a‖≈1g` | **high** (fast convergence + drift-lock; this is also where the seed fires) | converge before Takeaway; low jitter; gravity-locked |
+| **Takeaway → Backswing** | rising | **declining** as `e`,`‖ω‖` grow | per-phase `imu_vision_corr` high; no accel pull-in as speed builds |
+| **Top / Transition** | brief low-speed reversal; `‖a‖` dips | **brief re-anchor** allowed | stable "wrist at top" reading (the scored phase) |
+| **Downswing / Delivery** | peak `‖ω‖`, peak linear `‖a‖` | **minimum** (gyro-dominant) | peak `imu_vision_corr`; no orientation glitch entering impact |
+| **Impact** | saturating shock + ringing | **off** (blanking window + saturation gate) | **orientation continuous across impact**; post-impact pose matches the gyro prediction (and, Corpus 2, HackMotion) |
+| **Follow-through → Finish** | decaying → still | **ramps back up** as `‖a‖` re-settles | gravity-up at finish; **bounded net drift** over the swing |
+
+**Proposed tuning knobs (dotted-key; a small C++ change = an escalation — today only fixed `m_beta`
+exists):** `filter.betaStatic`, `filter.betaDynamic`, `filter.accelErrGateG` (the `e` threshold at which
+trust starts collapsing), `filter.gyroGateDps` (the `‖ω‖` threshold), `filter.impactBlankPreMs`,
+`filter.impactBlankPostMs`, `filter.accelSatG` (= 16). Sweep them with `lab.py sweep` against the per-phase
+objectives below; **diff-gated** like every other parameter.
+
+**Offline re-fusion is the load-bearing capability — and it is NOT implemented today.** Verified against
+the code (2026-06-26): the orientation filter runs only on the **live** I/O thread
+(`ImuBase::fuseRawImu`), and its output quaternion is stored per sample. The analyzer does **not** re-run
+it — `ImuVisionFuser::fuse()` reads the **stored live-fused quaternion** (`imu_vision_fuser.cpp:80`,
+`qRaw = ImuSample.quat_*`) and applies only the *downstream* anatomical transform `A·qRaw·M`; the raw
+accel/gyro it also reads are mount-rotated into rate/accel *series*, never used to re-derive orientation.
+So **the schedule of this section cannot be tuned on real data until a re-fusion path is built.**
+
+The good news, also verified: **the data needed to re-fuse is already persisted.** `ImuSample`
+(`imu_sample_v2`, 40 B) stores raw accel (g) + raw gyro (°/s) in the sensor frame, the exporter writes
+those plus the fused quat **verbatim with per-sample `t_us`** and the per-device `alignA`/`mountM`
+snapshot (`swing_exporter.cpp`). So **collection is not blocked**: a Corpus-1 swing captured on the current
+build is re-fusable, and the re-fusion/tuning harness can be built *after* collection and applied
+retroactively. **Two fidelity details the harness must match exactly** (verified in `ImuBase::fuseRawImu`):
+the live filter integrates with the **nominal period `dt = 1/outputRateHz`** (recorded in
+`device.outputRateHz`), *not* per-sample timestamp deltas — BLE delivers bursts, so arrival deltas alias
+to ~0 within a burst and a gap across it; and the filter takes **gyro in rad/s** while `ImuSample` stores
+**°/s**, so re-fusion converts °/s → rad/s (accel stays in g). Get either wrong and parity fails for
+reasons unrelated to the parameters under test.
+
+**Two subtleties the re-fusion harness must handle (do NOT skip):**
+1. **Warm-start from captured state.** The live quaternion at the *window start* already encodes
+   pre-window history — seed convergence, accumulated yaw drift, and (ESKF) a converged gyro-bias — and
+   the 5 s *trailing* capture window may not contain the original seed instant. Re-fusing from the first
+   window sample re-seeds from scratch ⇒ divergence (worst in yaw). **Warm-start the offline filter from
+   the stored quaternion at the first window sample, then re-run with the candidate parameters across the
+   window**, so re-fusion faithfully tests behaviour through backswing→impact→finish from a captured-state
+   anchor. (ESKF gyro-bias is not stored ⇒ it re-converges within the window — acceptable for within-window
+   tuning, but noted.)
+2. **Parity is the verification gate.** Before any tuning, prove `refuse(stored raw, production params,
+   warm-started) ≈ stored live quat` on pilot swings — the orientation-filter analogue of the A·q·M golden
+   (§5.2). Parity confirms the captured data is genuinely sufficient; a parity *failure* is a
+   capture-schema gap you want to find on one pilot swing, not after 50.
+
+**Pre-collection action (small, escalation-class):** build the minimal **offline re-fusion + parity tool**
+(instantiate the filter → feed stored raw + `dt` → warm-start → compare to stored quat) *before* Corpus 1,
+as cheap insurance that the corpus will be tunable. The **full** tuning harness (filter-param
+`tuningOverrides` + `lab.py sweep` over the schedule) can follow collection. See
+`corpus1_collection_protocol.md` §0a.
+
+**Per-phase validation (how the corpora decide it).**
+- *Verification (synth):* the closed-form synth swing has a known `φ(t)` with a waggle burst and a
+  downswing `u²` profile; re-fusing from synth raw accel+gyro must reproduce truth through the high-`‖ω‖`
+  region — the controlled test that the adaptive schedule is implemented correctly before real data.
+- *Corpus 1 (self-validating, no labels):* stratify `imu_vision_corr` **per phase** (a new Tier-2 check
+  group), add an **impact-continuity invariant** (no orientation discontinuity > threshold across
+  `impactUs` beyond what gyro propagation predicts), and a **net-drift-over-swing** check (orientation at
+  the still finish vs gravity-up — bounds the drift accumulated during gyro-only spans). The escalation
+  trigger is a *per-phase* corr failing, which a whole-swing average hides.
+- *Corpus 2 (criterion, HackMotion):* the decisive test that **impact handling did not corrupt the angle
+  where it matters** — does the lead-wrist FE/RUD/PS *just after impact* agree with HackMotion within the
+  Corpus-2 LoA? A schedule that scores well on continuity but disagrees with HackMotion at impact has
+  blanked too aggressively (drifted through the window) or too little (let the shock in).
+- *Corpus 3 (generalisation):* peak `‖a‖`/`‖ω‖` scale with swing speed, so a schedule tuned on one golfer
+  may not fit a faster/slower one. Corpus 3 tests whether **one fixed schedule generalises**, or whether
+  the gates must **scale with measured per-swing dynamics** (e.g. normalise `accelErrGateG` by the swing's
+  own peak `‖ω‖`) — the latter is the more robust design if the cohort shows it.
+
+**Madgwick vs ESKF, decided *per phase*.** The A/B is not a single winner: ESKF can inflate `R` and carries
+explicit **gyro-bias** states (better through the long gyro-only impact window and at re-anchor), while
+Madgwick's single `β` is cruder but cheaper and is what ships live. The per-phase scorecard may favour ESKF
+for the impact/downswing window and either for the quasi-static phases; record the decision per phase.
+
+**Honest caveats.**
+- The ±16 g clip means the impact spike's magnitude is **unrecoverable** from this sensor — we *exclude* it,
+  never try to use it; a higher-range accelerometer is the only way to *measure* through impact (future HW).
+- Gyro-only propagation across the blanking window accumulates drift; the window width is a genuine
+  trade-off (too short → saturated/ringing samples leak into the correction; too long → excess drift). The
+  follow-through re-anchor bounds it, but the residual is real — keep the window minimal.
+- Gravity aids **pitch/roll only**; **yaw** is unobservable in this 6-axis (no-mag) filter, so the adaptive
+  accel weighting does nothing for yaw. Per-shot yaw is handled by the Kabsch re-alignment in
+  `ImuVisionFuser`; within-swing yaw drift across the gyro-only impact window is a residual bounded only by
+  the finish re-anchor — note it, and prefer the shortest viable blanking window.
+- This is the **offline analyzer** path (impact known). The **live** 60 Hz display path cannot blank on a
+  future impact, so it uses only the *continuous* dynamics-adaptive gating (the `e`/`‖ω‖` gate + saturation
+  reject), not the impact-anchored window. The wrist *metric* is taken from the offline re-fusion, so the
+  blanking applies where it counts.
 
 ### 5.4 Pose detection *(Corpus 1 track/elbow; Corpus 3 camera-metric)*
 
