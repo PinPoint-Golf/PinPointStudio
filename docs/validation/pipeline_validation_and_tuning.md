@@ -970,5 +970,260 @@ small observability gaps (A.1 #1–#2), and a full-app build (A.1 #3).
 
 ---
 
+## Appendix B — Data-Science Review (academic critique)
+
+*Added 2026-06-27 as an external data-science critique (measurement-science lens) of `src/Analysis/**` and
+the methodology in the body above. It is a static read of code + docs — not yet run against a corpus; claims
+reasoned from the band models are flagged where they await empirical confirmation. It records open conceptual
+concerns and does not supersede the decisions in the body, which remain the reference until a finding is
+actioned.*
+
+The body of this reference is, frankly, already stronger than most published sports-science pipelines — the
+verification/validation/tuning trichotomy (§1.1), the sample-size/power reasoning (§3), the
+partition-and-diff-gate discipline (§7), and the "criterion not gold-standard" honesty (§1.3, §6.7) are
+textbook-correct. So this appendix spends little time praising and most of it on the **structural** gaps that
+survive even a careful design: where the *problem* is under-specified, where the *solution* says two
+different things at once, where an *approach* is subtly circular, and where the *optimisation/validation*
+could be reframed to be more honest or more powerful.
+
+The single most important theme: **the pipeline is being validated as if it measures something, but the
+headline product — a 0–100 swing score — is currently an *index* with no defined estimand and no criterion.**
+Most findings below are facets of that one gap.
+
+### B.1 What is already right (kept brief, for calibration)
+
+- **V/V/T separation + "tuning a metric then reporting it as validation is the cardinal sin"** (§1.1) —
+  correct and rare.
+- **Sample size set by the statistic, not the stage** (§3): rule-of-three on all-pass results, LoA SE, χ² CI
+  on a variance, and the **clustering/design-effect caveat** ("more *golfers*, not more swings", §3.5).
+- **Reproducibility hygiene** (§4): replay production code, attribution hashes, same-host-only diffs, no
+  silent truncation.
+- **Cross-talk-safe angle math**: swing–twist decomposition before Cardan (`wrist_angles.h:68–134`).
+- **Aggregation that resists averaging-away**: the weighted **geometric** mean in `SwingScorer`
+  (`swing_scorer.cpp:141`) — one severe sub-score can't be hidden by good ones.
+- **Offline re-fusion + parity gate** (`imu_refusion_check.h`, `imu_vision_fuser.cpp:40`): proves the
+  captured corpus is post-hoc tunable.
+
+These are real. The rest of this appendix is the part worth acting on.
+
+### B.2 Findings
+
+Grouped by the four lenses; each carries a **severity** (how much it threatens a defensible coaching number)
+and concrete `file:line` evidence.
+
+#### A. Problem-space definition
+
+**A1 — The headline score has no estimand.** *(Severity: high)*
+`r.score` is `SwingScorer::score(...).overall` (`wrist_analyzer.cpp:359,382`): a weighted geometric mean of
+deadband sub-scores, each a Gaussian z-distance of one angle-at-impact from a hand-chosen centre
+(`swing_scorer.cpp:122–146`). Nothing in the construction ties the number to a quantity that exists outside
+the formula — not a probability, not an expected outcome, not a percentile, not a coach rating. It is a
+**distance from a heuristic prior**, presented as a 0–100 measurement. The body correctly defers predictive
+validity and external arbiters to Corpus 3+ (§1.2, §8, §11) — but that means **today the score is an index
+whose only justification is face validity**, and indices must be *constructed* deliberately (estimand stated,
+weights justified, normalisation defined). The estimand is currently unstated.
+
+> Framing fix is cheap and clarifying: **declare, in one sentence, what the score estimates** — (i) percentile
+> within a tour-pro reference distribution (norm-referenced — needs a norm sample, A2), (ii) deviation index
+> from a coaching ideal in arbitrary units, not comparable across players (criterion-referenced — needs the
+> scale defended), or (iii) an expected strike-quality proxy (predictive — needs outcomes). Each choice
+> dictates a *different* validation.
+
+**A2 — Norm-referenced bands cannot be estimated from a single-golfer corpus.** *(Severity: high)*
+`reference_bands.cpp` corridors and `kWristBands` μ/σ are "where good comes from" — population norms. The plan
+re-seats `kWristBands` at **Corpus 2** on "(1) the observed corpus distribution and (2) HackMotion's published
+tour ranges" (§5.6, §6.6). But Corpus 1 **and** Corpus 2 are *single-golfer by design* (§3.5, §11). A one-golfer
+"observed distribution" is *within-subject* variation, not the *between-subject* spread a norm corridor must
+encode; re-seating on it will systematically **under-estimate σ** (one golfer is more self-consistent than a
+population), making corridors too tight and the score too sensitive. **Norm-referencing is a Corpus-3
+(multi-golfer) capability, yet the plan locks bands at Corpus 2.** Before Corpus 3 the only legitimate anchor
+is the *external* published tour range — so frame the Corpus-2 re-seat as "anchor to external norms + check our
+golfer falls in-range", not "estimate norms from our data."
+
+**A3 — σ conflates population spread with measurement tolerance.** *(Severity: medium-high)*
+In `bandSubScore` (`swing_scorer.cpp:126`) the score is `z = (value − μ)/σ` with a deadband |z|≤1 and falloff
+to ~0 at |z|=3 (`pp_tuned_constants.h` `scoring::kZIn=1, kZOut=3`). So σ sets *both* how much natural variation
+is "fine" (a population statement) **and**, because IMU error is 5–8° with 10–15° FE↔RUD cross-talk
+(`wristmetrics.md` (c); `wrist_angles.h:51–53`), how much measurement noise is absorbed before the score moves
+(a tolerance statement). With σ_FE = 12° and error ~5–8°, **much of the deadband is spent on instrument noise,
+not biomechanics.** A principled model carries σ_population and σ_measurement as distinct terms.
+
+#### B. Solution clarity
+
+**B1 — Two parallel scoring systems, different conventions, can contradict.** *(Severity: high — top structural issue)*
+The pipeline computes **two independent 0–100 numbers and two band models for the same swing**, both persisted
+to `swing.json` (`swing_doc.cpp`):
+
+| | `SwingScorer` (headline `r.score`) | `WristAssessmentEngine` (`assessmentScore` + findings) |
+|---|---|---|
+| Band model | Gaussian μ/σ (`kWristBands`, `swing_scorer.cpp:53`) | Green/amber Δ-corridors (`reference_bands.cpp:48`) |
+| Reference frame | **absolute** neutral-relative value | **Δ-from-address** |
+| Sampled where | **Impact only** | **8 P-positions** (P1–P8) |
+| Aggregation | weighted **geometric mean** | **additive penalty** `100 − Σ pen` |
+| Drives | the headline number | the coaching words + a *second* number |
+
+Wired at `wrist_analyzer.cpp:359` (scorer) and `:369–375` (engine). The **number** comes from the Gaussian
+model, the **words** from the corridor model — different references, positions, weights — so they can disagree:
+the corridor engine can raise a red **"early release (cast)"** finding on RUD@P6 (`assessment_rules.cpp:109`)
+while the Gaussian headline stays high (it never looks at P6 and weights RUD only 0.15 at impact). A user sees
+*"cast — Fault"* next to a green-ish score. **Decide which model is the measurement model and make the other
+derive from it (or retire it).** (The body has the same blind spot — §5.6 treats `kWristBands` as "the bands"
+and barely acknowledges the engine bands its own way.)
+
+**B2 — Penalty weighting by confidence makes a noisier sensor read as a better swing.** *(Severity: medium-high)*
+Score v2 penalty per finding is `severityW × confidence × weight × scoreScale`
+(`wrist_assessment_engine.cpp:114`). Defensible *as expected loss*, but unstated as such and perverse: lower
+confidence → smaller penalty → **higher score.** A poorly-seated sensor (low cell confidence) is penalised
+*less* and scores *better* than the same swing measured cleanly. Confidence should drive an **uncertainty band
+on the score**, not its central value.
+
+**B3 — The two aggregators encode opposite philosophies.** *(Severity: medium)*
+`SwingScorer` uses a geometric mean so one severe fault dominates (`swing_scorer.cpp:141`); the engine uses
+linear additive penalties (`wrist_assessment_engine.cpp:108–118`) where correlated findings stack — and the
+rules *know* they correlate (`cast`↔`flip` linked, `assessment_rules.cpp:302–307`; F6/F7 mutually exclusive,
+`:281–292`). Linear addition of correlated penalties **double-counts** one underlying flaw. The two subsystems
+should share an aggregation philosophy.
+
+**B4 — A wired-but-inert knob is a tuning trap.** *(Severity: medium)*
+`pitchProxyDeg` is hard-set to `0` wherever the offline source is built (`wrist_analysis_adapter.cpp:76,128`),
+so the sampler's gimbal/`Indeterminate` gate (`wrist_angle_sampler.h:108`) **can never fire offline.** A sweep
+over `sampler.gimbalThresholdDeg` will report "no effect" and a reader will conclude the threshold is robustly
+chosen and the `<2%` Indeterminate target (§10) is met. A dead knob inside a tuning framework manufactures
+false confidence. (Appendix A.1 #1 — flagged here as a *methodological* hazard: any sampler-touching sweep
+result is currently meaningless.)
+
+#### C. Approach / correctness
+
+**C1 — The most behaviourally-decisive rule thresholds are frozen literals outside the tunable surface.** *(Severity: high)*
+The "everything is dotted-key tunable and diff-gated" claim (§2.4) is the backbone of the optimisation story,
+but the parameters that most directly set fault recall/specificity are not in it. The flip rule fires on raw
+literals — `der < −8.0 → Fault`, `< −5.0 → Watch` (`assessment_rules.cpp:104–105`) — and the archetype
+auto-detector switches on `topDelta > 10 / < −10` (`wrist_assessment_engine.cpp:37–38`). Neither is reachable
+through `RuleTuning`, which exposes only `confidenceFloor / scoreScale / severityWeights / corroborationBoost /
+strengthsRequireAdjacentFault` (`wrist_assessment_tuning.h:48–53`). So when Corpus 1 known-groups tuning
+arrives (§5.6), the **discrimination boundaries cannot be swept** — only the cosmetics around them. The
+framework's central promise doesn't reach its most important knobs.
+
+**C2 — Archetype normalisation adapts the corridor to the swing it is judging.** *(Severity: medium-high)*
+`detectArchetype` reads FE Δ@Top and, if strongly cupped/bowed, shifts the FE corridor ±10° toward that style
+(`wrist_assessment_engine.cpp:31–40` → `reference_bands.cpp:99–117`). Fault F1 "open face at top" is defined
+on *the same axis at the same position* (`assessment_rules.cpp:70–79`), so a cupped swing nudges its own
+corridor cup-ward, **reducing the very sensitivity that should flag it** — a self-referential coupling
+resembling label leakage. It may be the right coaching call, but it needs an explicit **sensitivity analysis**
+(F1 recall loss across the ±10° shift; stability of the ±10° gate), not assertion.
+
+**C3 — Segmentation→sampling error is not propagated into the wrist-angle error budget.** *(Severity: medium-high)*
+Every wrist cell is a windowed median *at a phase timestamp* (`wrist_angle_sampler.h:95–113`) from
+`PhaseSegmenter`. The plan validates Top timing ≤30 ms (§5.5) and wrist repeatability (§5.5) as **independent
+stages** — but during the downswing FE/RUD change fast, so a 30 ms timing error injects degrees into the
+*value* being banded, atop the sensor's 5–8°. P6 ("Delivery") is an explicit low-confidence proxy capped at
+conf ≤ 0.4 (`phase_segmenter.cpp:351,357`), and F3/F4 read P5/P6/P7. The real per-cell budget is
+`σ_sensor ⊕ σ_crosstalk ⊕ (dFE/dt · σ_phase-timing)` — only the first is tracked. Derive a per-cell error bar
+that includes local slope × timing jitter and fold it into cell confidence.
+
+**C4 — Systematic cross-talk is invisible to the Corpus-1 reliability checks meant to catch it.** *(Severity: medium)*
+`wrist_angles.h:51–53` documents ~10–15° residual FE↔RUD cross-talk — a **bias**, not random error. Corpus 1's
+wrist gate is *repeatability* (test–retest RMSE, §10), which a constant bias passes cleanly while corrupting
+every absolute reading. The plan correctly locates the fix at Corpus 2 (HackMotion bias/leakage, §6.6 #2) —
+the point here is a caveat the Corpus-1 acceptance table should carry explicitly: "reliability < X° does not
+bound accuracy; a 10–15° systematic FE/RUD leak passes every Corpus-1 wrist gate." (This is the body's own
+reliability≠agreement principle, §1.3, applied to a concrete failure mode it doesn't name.)
+
+**C5 — No uncertainty is attached to the displayed number.** *(Severity: medium)*
+The headline is `int` 0–100 (`swing_analysis.h`, `wrist_analyzer.cpp:382`). Given ~5–8° sensor error,
+~10–15° cross-talk, and σ-scaled bands ~12°, the propagated uncertainty is plausibly ±10–20 points per swing.
+A bare integer is exactly the "precise, confident, wrong" failure the body warns against (§0). The cell-level
+machinery (`confidence`, `lowConfidence`, `Indeterminate`) exists but stops at the cells and never reaches the
+headline.
+
+#### D. Optimisation & validation methodology
+
+**D1 — The diagnosis/score layer is not yet an optimisation problem — it has no loss function.** *(Severity: high — the key reframe)*
+The optimiser maximises "mean corpus score subject to per-swing `regressions == 0`" (§7.1). For the
+self-consistency stages (`seg.*`, `shaft.*`, `assembly.*`, `filter.*`) the objective is well-posed
+(`imu_vision_corr`, coverage, Top-vs-label RMSE). **But for `score.*`, `rules.*`, `bands.*` there is no
+objective until coach labels (κ/ICC) or outcomes exist** (Appendix A.3 #6–#8 admits this). Tuning a coaching
+score to maximise self-consistency is **circular** — optimising the score to agree with the angles it is
+computed from. Reframe by **splitting the diagnosis layer into two genuinely different problems:**
+
+1. **Measurement-model fitting (unsupervised, distributional).** Calibrating `kWristBands` μ/σ and corridor
+   lo/hi is *fitting a reference distribution* — a goodness-of-fit task against a (multi-golfer, A2) sample +
+   external tour ranges. **Not** a recall/score sweep; never diff-gated on corpus score.
+2. **Fault-rule calibration (supervised classification).** F1–F8 recall/specificity is a labelled
+   classification problem; its loss is a confusion-matrix objective (e.g. F-β), needing labels — and its
+   decision thresholds (C1) must be in the swept surface.
+
+Until labels exist, the correct action on `score.*`/`rules.*` is **freeze, don't sweep** — which Appendix A.3
+nearly says but the unified objective in §7.1 blurs.
+
+**D2 — Coordinate descent + a per-swing hard-reject gate can deadlock on correlated knobs and bias the search.** *(Severity: medium)*
+`seg.*` is not separable: `fcEnvelopeHz` sets the envelope smoothing every downstream crossing keys off
+(`phase_segmenter.cpp:93–101,329,353`), so one-at-a-time moves can wall off regions a joint move reaches; the
+escalation to TPE/CMA-ES (§7.1) is the right instinct but triggers only "on plateau", which a hard-reject gate
+can manufacture prematurely (one regressing swing blocks a step that improves the mean and 49/50). A hard
+reject also makes the search **order-dependent.** Use a **soft** regression penalty for the *search*, keeping
+the hard gate only for the *accept/freeze* decision.
+
+**D3 — Self-consistency (`imu_vision_corr`) validates fusion, not accuracy.** *(Severity: medium)*
+Two sensors of the same rigid motion agreeing tells you the fusion is consistent, not that the anatomical
+frame is correct — a wrong-but-consistent `A·M` makes both agree on the wrong angle. The body knows this
+(absolute correctness → HackMotion at Corpus 2) — **label `imu_vision_corr` explicitly as a
+verification/consistency statistic** in the acceptance tables (§10); it currently sits in the "Validate"
+column (§5.3), slightly over-stating what it earns.
+
+**D4 — The synthetic corpus models none of the hard cases the filter work targets.** *(Severity: medium)*
+The §5.3.1 phase-adaptive filter targets impact saturation (±16 g + ringing) and downswing linear-accel
+corruption, but the synth models **no impact shock** (Appendix A.2 #4; `filterImpactStepDeg` "returned a
+constant on synth", Appendix A.1 #2). So the impact-handling path (blanking, saturation gate,
+`filter.impact_continuity`) is un-exercised by any data. The synth impact-spike (A.2 #4) should be a *blocking
+prerequisite* for claiming the impact-window machinery works — it is the only pre-Corpus-2 way to verify the
+code path.
+
+**D5 — Validate the score against itself before validating it against the world.** *(Severity: low-medium, cheap)*
+Independent of any corpus, cheap internal-consistency properties of the scoring *construction* can be
+unit-tested today: monotonicity (score non-increasing as any metric moves from μ), boundedness, continuity at
+the deadband seams (`swing_scorer.cpp:130–137`), and **agreement between the two scoring systems** (B1 — even
+a Bland–Altman of `r.score` vs `assessmentScore` across the synthetic corpus quantifies how badly they
+disagree before real data). Verification, not validation — but free, and it surfaces B1/B3 numerically.
+
+### B.3 Prioritised recommendations
+
+Ordered by leverage-to-cost. "Cost" is rough engineering size; "Unblocks" names the validity rung it buys.
+
+| # | Priority | Recommendation | Addresses | Cost | Unblocks |
+|---|---|---|---|---|---|
+| 1 | **P0** | **Declare the score's estimand in one sentence**, then make band/aggregation choices follow from it (index vs norm-referenced vs predictive). | A1 | XS (doc) | every downstream validation target |
+| 2 | **P0** | **Reconcile the two scoring systems**: pick one measurement model, make the other a *view* of it or retire it. Interim: synth-corpus Bland–Altman of `r.score` vs `assessmentScore`, **gate release on their agreement**. | B1, B3, D5 | S–M | a coherent product number |
+| 3 | **P0** | **Reframe diagnosis tuning as two problems** — distributional band-fitting (unsupervised) vs fault-rule classification (supervised) — and **freeze `score.*`/`rules.*` until labels/outcomes exist** instead of sweeping under the self-consistency objective. | D1 | S (doc + sweep cfg) | non-circular tuning |
+| 4 | **P1** | **Expose per-rule decision magnitudes** (`flip` −8/−5, archetype ±10, …) as `rules.*` dotted keys so discrimination boundaries are sweepable. | C1 | S | meaningful recall/specificity tuning |
+| 5 | **P1** | **Separate σ_population from σ_measurement**: score the probability the true value is outside the corridor *given* the per-cell error bar. | A3, C5 | M | honest score + interval |
+| 6 | **P1** | **Attach an uncertainty interval to the headline score**; gate full-precision display on confidence; stop multiplying the *central* penalty by confidence (widen the interval instead). | B2, C5 | M | "precise-confident-wrong" guard |
+| 7 | **P1** | **Build a per-cell error budget including phase-timing jitter × local slope**; validate segmentation and wrist *jointly*. | C3 | M | defensible cell confidence |
+| 8 | **P1** | **Fix the inert `pitchProxyDeg`** before any sampler sweep is trusted; until then mark sampler sweeps "inert, do not interpret." | B4 | S–M | valid sampler tuning |
+| 9 | **P1** | **Build the synth impact-saturation swing**; make it a blocking prerequisite for any impact-filter claim. | D4 | S–M | filter verification |
+| 10 | **P2** | **Re-label `imu_vision_corr` as verification, not validation** in the acceptance tables; add the explicit caveat that Corpus-1 reliability gates do not bound cross-talk bias. | C4, D3 | XS (doc) | honest acceptance reporting |
+| 11 | **P2** | **Sensitivity-analyse archetype normalisation** (F1 recall loss across the ±10° shift; ±10° gate stability). | C2 | S | trustworthy style normalisation |
+| 12 | **P2** | **Soft regression penalty for the search operator** (hard gate only at accept/freeze); acknowledge `seg.*` non-separability. | D2 | S | better-conditioned sweeps |
+| 13 | **P2** | **Correct the norm-referencing claim**: Corpus-2 band re-seat anchors to *external* tour ranges + in-range check, not a one-golfer distribution; defer norm estimation to Corpus-3. | A2 | XS (doc) | logically valid bands |
+| 14 | **P2** | **Internal-consistency unit tests** of the scoring construction (monotonicity, boundedness, deadband-seam continuity, two-system agreement). | D5 | S | cheap regression net |
+
+**Sequencing.** Do the three P0 *framing* items first — mostly decision/documentation, and they change what
+every later experiment is *for*. Items 4–9 are the desk-work that makes the corpus campaign *interpretable*
+(without them, sweeps produce confident-but-meaningless results). Items 10–14 are correctness-of-claim and
+conditioning improvements that ride along.
+
+### B.4 Bottom line
+
+The engineering and the methodology body are strong; the gap is conceptual and concentrated in the
+diagnosis/score layer. The product ships a precise number for a quantity that has never been defined (A1),
+computes it two incompatible ways that can contradict each other (B1), rests its scale on an eyeballed σ that
+silently mixes biology with sensor noise (A3), would (if tuned now) optimise that number against itself for
+lack of any external objective (D1), and reports it with no uncertainty even though its inputs carry 5–15° of
+error (C5). None of this needs new hardware to begin: the highest-leverage moves are *definitional* — state the
+estimand, unify the model, split the tuning problem, and stop calling self-consistency "validation." Those four
+decisions convert an impressive pile of machinery into a defensible measurement.
+
+---
+
 *This document is the reference; the corpus plan is the runbook; the `/swinglab` skill is the operator
 contract. When the three disagree, fix the disagreement — do not pick one silently.*
