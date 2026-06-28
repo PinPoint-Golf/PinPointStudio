@@ -40,6 +40,13 @@ def main():
     p.add_argument("out_dir")
     p.add_argument("--clutter", action="store_true")
     p.add_argument("--seed", type=int, default=7)
+    p.add_argument("--impact-spike", action="store_true",
+                   help="add a ±16g saturation+ringing burst at impact (exercises blanking/saturation, D4)")
+    p.add_argument("--archetype", choices=["bowed", "neutral", "cupped"], default=None,
+                   help="script a lead-wrist archetype (forearm FE bias) + stamp truth.meta.archetype")
+    p.add_argument("--fault", default=None,
+                   help="known-groups fault label stamped in truth.meta.knownGroup "
+                        "(default: 'cast' for a plain synth, none for an --archetype variant)")
 
     sub.add_parser("doctor")
 
@@ -102,7 +109,11 @@ def main():
         sys.exit(0 if doctor() else 1)
     elif a.cmd == "synth":
         from swinglab.synth import generate
-        generate(a.out_dir, seed=a.seed, clutter=a.clutter)
+        # Default fault label: 'cast' for a plain synth (the geometry casts), none for an archetype
+        # variant (the FE bias changes the wrist read, so don't assert an unrelated fault).
+        fault = a.fault if a.fault is not None else ("" if a.archetype else "cast")
+        generate(a.out_dir, seed=a.seed, clutter=a.clutter,
+                 impact_spike=a.impact_spike, archetype=a.archetype, fault=fault)
     elif a.cmd == "ingest":
         ingest(a.corpus_root)
     elif a.cmd == "run":

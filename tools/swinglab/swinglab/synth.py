@@ -80,31 +80,55 @@ def quat_axis(axis, deg):
 RX_M80 = quat_axis((1, 0, 0), -80.0)
 
 
-def imu_stream(scale, rate_hz=200):
-    """t_us[], samples[[ax..az gx..gz qw qx qy qz]] with FD-consistent gyro."""
+# Impact-saturation transient (A.2 #4 / validation D4): a damped-sinusoid acceleration spike
+# clipped to ±IMPACT_CLIP_G near impact, so the blanking / saturation-reject / impact-continuity
+# path has data to exercise (the smooth synth otherwise models NO impact shock). Added to the raw
+# accel BEFORE clipping; the quaternion/gyro are untouched (the shock is translational).
+IMPACT_CLIP_G = 16.0
+
+
+def imu_stream(scale, rate_hz=200, impact_spike=False, fe_bias_deg=0.0):
+    """t_us[], samples[[ax..az gx..gz qw qx qy qz]] with FD-consistent gyro.
+
+    fe_bias_deg post-multiplies the anatomical-frame orientation by Rz (the lead-wrist flex/ext
+    axis, wrist_angles.h), so a constant bias on ONE segment shifts the hand-vs-forearm FE by that
+    much — used to script bowed/neutral/cupped archetype fixtures. The accel (gravity-in-body)
+    follows the biased q automatically; the gyro is unchanged (a constant offset adds no rate)."""
     n = int(T_END * rate_hz) + 1
     t_us, samples = [], []
     prev_phi = None
+    rz = quat_axis((0, 0, 1), fe_bias_deg) if fe_bias_deg else None
     for i in range(n):
         t = i / rate_hz
         phi = scale * phi_at(t)
         q = quat_mul(quat_axis((0, 1, 0), phi), RX_M80)
+        if rz is not None:
+            q = quat_mul(q, rz)              # bias in the anat-aligned local frame
         # body gyro for q(t) = Ry(phi)*C: world rate is phi_dot about Y; body
         # rate = C^-1 applied... For the segmentation envelope only magnitude
         # and a consistent axis matter; use the exact world-Y FD rate rotated
         # into the body frame of the CONSTANT part (Rx80 * y_hat).
         dphi = 0.0 if prev_phi is None else (phi - prev_phi) * rate_hz
         prev_phi = phi
-        gy_world = (0.0, dphi, 0.0)
         # body = (Ry*C)^-1 * world * (Ry*C): for axis Y, Ry leaves it fixed ->
         # body axis = C^-1 * y_hat = Rx(+80) * y_hat
         c80, s80 = math.cos(math.radians(80)), math.sin(math.radians(80))
         gyro = (0.0, dphi * c80, dphi * s80)
         # accel = gravity (unit, world +Z up) in the body frame: q^-1 * z_hat
         w, x, y, z = q
-        az = (2 * (x * z + w * y), 2 * (y * z - w * x), 1 - 2 * (x * x + y * y))
+        ax, ay, azc = (2 * (x * z + w * y), 2 * (y * z - w * x), 1 - 2 * (x * x + y * y))
+        if impact_spike:
+            dt = t - IMPACT_S
+            if abs(dt) < 0.06:              # damped ringing burst, peak ~2× the clip
+                ring = 2.0 * IMPACT_CLIP_G * math.exp(-((dt / 0.012) ** 2)) \
+                    * math.cos(2 * math.pi * 110.0 * dt)
+                ax += ring
+                ay += 0.5 * ring
+            ax = max(-IMPACT_CLIP_G, min(IMPACT_CLIP_G, ax))   # saturate (clip)
+            ay = max(-IMPACT_CLIP_G, min(IMPACT_CLIP_G, ay))
+            azc = max(-IMPACT_CLIP_G, min(IMPACT_CLIP_G, azc))
         t_us.append(T0_US + int(round(t * 1e6)))
-        samples.append([round(az[0], 6), round(az[1], 6), round(az[2], 6),
+        samples.append([round(ax, 6), round(ay, 6), round(azc, 6),
                         round(gyro[0], 4), round(gyro[1], 4), round(gyro[2], 4),
                         round(w, 6), round(x, 6), round(y, 6), round(z, 6)])
     return t_us, samples
@@ -135,12 +159,21 @@ def pose_frames(frame_t_us):
     return frames
 
 
-def generate(out_dir, seed=7, waggle=True, clutter=False):
+# Archetype → forearm FE bias (degrees). A constant Rz on the forearm shifts the lead-wrist FE by
+# ~−bias, so these signs are chosen (and empirically verified through swinglab_run) to land the
+# scripted swing on each resemblance centre. PROVISIONAL like the centres themselves (re-seat at
+# Corpus 2); the value is the scripted ground truth stamped in truth.meta.archetype.
+ARCHETYPE_FE_BIAS = {"bowed": -20.0, "neutral": 0.0, "cupped": 25.0}
+
+
+def generate(out_dir, seed=7, waggle=True, clutter=False,
+             impact_spike=False, archetype=None, fault="cast"):
     import cv2
     from pathlib import Path
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(seed)
+    arch_bias = ARCHETYPE_FE_BIAS.get(archetype, 0.0) if archetype else 0.0
 
     n_frames = int(T_END * FPS) + 1
     frame_t_us = [T0_US + int(round(i / FPS * 1e6)) for i in range(n_frames)]
@@ -165,8 +198,8 @@ def generate(out_dir, seed=7, waggle=True, clutter=False):
                              "len": round(L, 1)})
     vw.release()
 
-    hand_t, hand_s = imu_stream(1.0)
-    fore_t, fore_s = imu_stream(0.95)
+    hand_t, hand_s = imu_stream(1.0, impact_spike=impact_spike)
+    fore_t, fore_s = imu_stream(0.95, impact_spike=impact_spike, fe_bias_deg=arch_bias)
     identity = [1.0, 0.0, 0.0, 0.0]
     doc = {
         "schema": "pinpoint.swing/2",
@@ -231,13 +264,14 @@ def generate(out_dir, seed=7, waggle=True, clutter=False):
                    "t0_us": T0_US},
         "expected": {"sHandSign": -1, "sHandDeltaDeg": 90.0,
                      "downswingSweepDeg": 140.0},
-        # Known-groups label for the diagnosis check group (score.py diag.*). The synthetic
-        # downswing releases its wrist angle early (the smoothstep φ(t) u²-profile), which the
-        # Tier-2 engine reads as an early release → diag.recall expects a "cast" fault. This is a
-        # plumbing/regression fixture proving the offline-assessment → swing.json → score.py path
-        # works end to end; a richer deliberately-scripted fault library is future work (real
-        # known-groups capture, validation doc §5.6).
-        "meta": {"knownGroup": "cast"},
+        # Known-groups labels for the score.py check groups. `knownGroup` drives diag.* (default
+        # "cast": the smoothstep φ(t) u²-downswing reads as an early release). `archetype`, when a
+        # bowed/neutral/cupped variant is generated, drives score.resemblance_recall. Both are
+        # plumbing/regression fixtures proving offline-assessment → swing.json → score.py end to
+        # end; a richer scripted-fault library is future work (real capture, validation §5.6).
+        "meta": ({"knownGroup": fault} | ({"archetype": archetype} if archetype else {})),
     })
-    print(f"[synth] wrote {out} ({n_frames} frames, impact {IMPACT_S}s)")
+    extra = f", impact-spike" if impact_spike else ""
+    extra += f", archetype={archetype}" if archetype else ""
+    print(f"[synth] wrote {out} ({n_frames} frames, impact {IMPACT_S}s{extra})")
     return out
