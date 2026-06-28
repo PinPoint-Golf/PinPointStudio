@@ -231,13 +231,13 @@ std::vector<float> buildThetaWeights(const ShaftDetectConfig &cfg, const AnchorP
 // which (with no intermediate polar images and no per-anchor resample) is
 // why this outruns 18 warpPolar/remap passes by an order of magnitude.
 // Parallel over θ rows; writes are disjoint per (anchor, θ).
-void scanAllAnchors(const cv::Mat *top, const cv::Mat *black,
+void scanAllAnchors(const cv::Mat *top, const cv::Mat *black, const cv::Mat *diffImage,
                     const cv::Point2f *anchors, int nAnchors,
-                    const ShaftDetectConfig &cfg, int thrTop, int thrBlack,
+                    const ShaftDetectConfig &cfg, int thrTop, int thrBlack, int thrDiff,
                     const std::vector<float> &thetaWeight,
                     float rhoScale, int nRho,
                     std::vector<std::vector<ColumnInfo>> &colsA,
-                    bool blurMode)
+                    bool blurMode, float centerRad, float halfRad)
 {
     const int rhoMinBin = std::clamp(static_cast<int>(std::lround(cfg.rhoMinPx / rhoScale)),
                                      0, nRho - 1);
@@ -247,13 +247,16 @@ void scanAllAnchors(const cv::Mat *top, const cv::Mat *black,
     // R8 lowered thresholds inside the blur window (integrate the faint fan).
     const int lthrTop   = std::max(1, static_cast<int>(static_cast<float>(thrTop)   * cfg.blurThreshScale));
     const int lthrBlack = std::max(1, static_cast<int>(static_cast<float>(thrBlack) * cfg.blurThreshScale));
+    const int lthrDiff  = std::max(1, static_cast<int>(static_cast<float>(thrDiff)  * cfg.blurThreshScale));
 
-    const cv::Mat &ref   = top ? *top : *black;
+    const cv::Mat &ref   = top ? *top : (black ? *black : *diffImage);
     const int      w     = ref.cols, h = ref.rows;
     const uchar   *tData = top ? top->ptr<uchar>(0) : nullptr;
     const uchar   *bData = black ? black->ptr<uchar>(0) : nullptr;
+    const uchar   *dData = diffImage ? diffImage->ptr<uchar>(0) : nullptr;
     const size_t   tStep = top ? top->step : 0;
     const size_t   bStep = black ? black->step : 0;
+    const size_t   dStep = diffImage ? diffImage->step : 0;
     const float    binW  = kTwoPi / static_cast<float>(cfg.thetaBins);
 
     cv::parallel_for_(cv::Range(0, cfg.thetaBins), [&](const cv::Range &range) {
@@ -271,7 +274,8 @@ void scanAllAnchors(const cv::Mat *top, const cv::Mat *black,
                 bool  dark;
                 int   cStart, cEnd;
                 if (inBlur) {
-                    BlurAcc bt, bb;
+                    BlurAcc bt, bb, bd;
+                    bool hasDiff = (dData != nullptr);
                     for (int r = rhoMinBin; r < nRho; ++r) {
                         const int x = static_cast<int>(ax + static_cast<float>(r) * ct + 0.5f);
                         const int y = static_cast<int>(ay + static_cast<float>(r) * st + 0.5f);
@@ -279,14 +283,30 @@ void scanAllAnchors(const cv::Mat *top, const cv::Mat *black,
                                         static_cast<unsigned>(y) < static_cast<unsigned>(h);
                         if (tData) bt.push(r, in ? tData[static_cast<size_t>(y) * tStep + x] : 0, lthrTop);
                         if (bData) bb.push(r, in ? bData[static_cast<size_t>(y) * bStep + x] : 0, lthrBlack);
+                        if (hasDiff) bd.push(r, in ? dData[static_cast<size_t>(y) * dStep + x] : 0, lthrDiff);
                     }
                     const float sT = blurScore(bt, nRho, rhoMinBin);
                     const float sB = blurScore(bb, nRho, rhoMinBin);
-                    dark   = sB > sT;
-                    score  = dark ? sB : sT;
-                    const BlurAcc &bbest = dark ? bb : bt;
-                    cStart = bbest.first;
-                    cEnd   = bbest.last;
+                    float sD = 0.f;
+                    // Only use diff image inside the kinematic envelope
+                    const float theta = static_cast<float>(t) * binW;
+                    const bool inEnvelope = (halfRad > 0.f) && (angAbsDiff(theta, centerRad) <= halfRad);
+                    if (hasDiff && inEnvelope) {
+                        sD = blurScore(bd, nRho, rhoMinBin);
+                    }
+
+                    if (sD > sT && sD > sB) {
+                        dark   = false;
+                        score  = sD;
+                        cStart = bd.first;
+                        cEnd   = bd.last;
+                    } else {
+                        dark   = sB > sT;
+                        score  = dark ? sB : sT;
+                        const BlurAcc &bbest = dark ? bb : bt;
+                        cStart = bbest.first;
+                        cEnd   = bbest.last;
+                    }
                 } else {
                     RunAcc rt, rb;
                     rt.dead = (tData == nullptr);
@@ -688,7 +708,8 @@ void gateBlurEnvelope(std::vector<ColumnInfo> &cols, int thetaBins,
 
 std::vector<ShaftCandidate> detectShaft(const cv::Mat &luma,
                                         const ShaftDetectConfig &cfg,
-                                        const AnchorPrior &prior)
+                                        const AnchorPrior &prior,
+                                        const cv::Mat &diffImage)
 {
     std::vector<ShaftCandidate> out;
     if (luma.empty() || luma.type() != CV_8UC1 || cfg.thetaBins < 16 ||
@@ -729,7 +750,20 @@ std::vector<ShaftCandidate> detectShaft(const cv::Mat &luma,
     const int  minSupra = std::max(8, static_cast<int>(cfg.minVisibleLenPx) / 2);
     const cv::Mat *topP   = (tiTop.supraCount   >= minSupra) ? &top   : nullptr;
     const cv::Mat *blackP = (tiBlack.supraCount >= minSupra) ? &black : nullptr;
-    if (!topP && !blackP)
+
+    cv::Mat diffRoi;
+    const cv::Mat *diffP = nullptr;
+    int thrDiff = 8;
+    if (!diffImage.empty() && diffImage.size() == luma.size()) {
+        diffRoi = diffImage(roiRect);
+        const ThresholdInfo tiDiff = madThreshold(diffRoi, cfg.noiseSigmaK, cfg.thresholdFloor);
+        if (tiDiff.supraCount >= minSupra) {
+            diffP = &diffRoi;
+            thrDiff = tiDiff.thr;
+        }
+    }
+
+    if (!topP && !blackP && !diffP)
         return out;
 
     const int   nRho     = std::max(8, static_cast<int>(std::lround(cfg.maxRadiusPx)));
@@ -758,8 +792,9 @@ std::vector<ShaftCandidate> detectShaft(const cv::Mat &luma,
                    cfg.predFanHalfRad + 5.f * kPi / 180.f)
         : 0.f;
     const bool blurActive = blurOn && blurHalf > 0.f;
-    scanAllAnchors(topP, blackP, anchors, nAnchors, cfg, thrTop, thrBlack,
-                   thetaWeight, rhoScale, nRho, colsA, blurActive);
+    scanAllAnchors(topP, blackP, diffP, anchors, nAnchors, cfg, thrTop, thrBlack, thrDiff,
+                   thetaWeight, rhoScale, nRho, colsA, blurActive,
+                   prior.kinematicDirRad, blurHalf);
 
     // 6. NMS top-K per anchor; keep the best-scoring detection set.
     std::vector<Peak> bestPeaks;

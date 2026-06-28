@@ -18,6 +18,7 @@
 
 #include "shaft_tracker.h"
 
+#include <opencv2/imgproc.hpp>
 #include <algorithm>
 #include <cmath>
 #include <variant>
@@ -255,6 +256,100 @@ bool swingProgressAt(const Segmentation &seg, int64_t t_us, float &sOut)
     return true;
 }
 
+PoseFrame2D lerpPoseFrame(const PoseTrack2D &pose, size_t lo, size_t hi, int64_t t)
+{
+    const PoseFrame2D &a = pose.frames[lo];
+    const PoseFrame2D &b = pose.frames[hi];
+    const double f = (hi == lo || b.t_us == a.t_us)
+                         ? 0.0
+                         : std::clamp(double(t - a.t_us) / double(b.t_us - a.t_us), 0.0, 1.0);
+    PoseFrame2D out;
+    out.t_us = t;
+    for (size_t i = 0; i < 17; ++i) {
+        out.kp[i] = QPointF(a.kp[i].x() + (b.kp[i].x() - a.kp[i].x()) * f,
+                            a.kp[i].y() + (b.kp[i].y() - a.kp[i].y()) * f);
+        out.conf[i] = a.conf[i] + (b.conf[i] - a.conf[i]) * float(f);
+    }
+    out.leadHand  = QPointF(a.leadHand.x() + (b.leadHand.x() - a.leadHand.x()) * f,
+                            a.leadHand.y() + (b.leadHand.y() - a.leadHand.y()) * f);
+    out.trailHand = QPointF(a.trailHand.x() + (b.trailHand.x() - a.trailHand.x()) * f,
+                            a.trailHand.y() + (b.trailHand.y() - a.trailHand.y()) * f);
+    out.handConf  = a.handConf + (b.handConf - a.handConf) * float(f);
+    return out;
+}
+
+void drawBodyMask(cv::Mat &mask, const PoseFrame2D &f, int w, int h)
+{
+    auto toPx = [&](const QPointF &p) {
+        return cv::Point(int(p.x() * w), int(p.y() * h));
+    };
+
+    // COCO keypoint indices connections
+    static const std::vector<std::pair<int, int>> connections = {
+        {5, 6},     // shoulders
+        {5, 7}, {7, 9},     // left arm
+        {6, 8}, {8, 10},    // right arm
+        {11, 12},           // hips
+        {5, 11}, {6, 12},   // torso sides
+        {11, 13}, {13, 15}, // left leg
+        {12, 14}, {14, 16}  // right leg
+    };
+
+    int thickness = std::max(20, int(h * 0.10));
+    for (const auto &conn : connections) {
+        if (f.conf[size_t(conn.first)] >= kKpMinConf && f.conf[size_t(conn.second)] >= kKpMinConf) {
+            cv::line(mask, toPx(f.kp[size_t(conn.first)]), toPx(f.kp[size_t(conn.second)]), cv::Scalar(255), thickness);
+        }
+    }
+
+    // Also draw a circle around the hands anchor
+    QPointF handsMid = 0.5 * (f.leadHand + f.trailHand);
+    int handRadius = std::max(30, int(h * 0.12));
+    cv::circle(mask, toPx(handsMid), handRadius, cv::Scalar(255), -1);
+}
+
+cv::Mat computeMedianLuma(const std::vector<pinpoint::IndexEntry> &entries,
+                          const pinpoint::CameraFormat &cfmt,
+                          const pinpoint::SwingWindow &window)
+{
+    std::vector<cv::Mat> bgFrames;
+    size_t numBgFrames = 15;
+    size_t step = std::max(size_t(1), entries.size() / numBgFrames);
+    for (size_t i = 0; i < entries.size(); i += step) {
+        const pinpoint::SourceRing::ReadHandle handle = window.payloadOf(entries[i]);
+        cv::Mat luma;
+        if (pinpoint::decodeToLuma(cfmt, handle.data, handle.bytes, luma)) {
+            bgFrames.push_back(luma.clone());
+        }
+        if (bgFrames.size() >= numBgFrames)
+            break;
+    }
+    if (bgFrames.empty())
+        return cv::Mat();
+
+    int h = bgFrames[0].rows;
+    int w = bgFrames[0].cols;
+    cv::Mat medianFrame(h, w, CV_8UC1);
+    size_t n = bgFrames.size();
+    std::vector<uchar> vals(n);
+    
+    for (int r = 0; r < h; ++r) {
+        uchar *outRow = medianFrame.ptr<uchar>(r);
+        std::vector<const uchar*> rowPtrs(n);
+        for (size_t i = 0; i < n; ++i) {
+            rowPtrs[i] = bgFrames[i].ptr<uchar>(r);
+        }
+        for (int c = 0; c < w; ++c) {
+            for (size_t i = 0; i < n; ++i) {
+                vals[i] = rowPtrs[i][c];
+            }
+            std::sort(vals.begin(), vals.end());
+            outRow[c] = vals[n / 2];
+        }
+    }
+    return medianFrame;
+}
+
 } // namespace
 
 ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
@@ -320,18 +415,92 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
     int    chirality         = +1;     // handedness × mirror sign for predictClubAngle (K5/handedness refines)
     bool   useBlurMode       = false;  // R8: blur-first detection in the delivery→impact zone
     double expExposureUs     = 3000.0; // exposure-time estimate for the fan width (K4 two-pass refine later)
+    bool   useBackgroundSub  = false;  // Rec 4: median background subtraction
+    bool   twoPassCalibration = false; // Rec 1/2: two-pass calibration loop
+    bool   autoChirality      = true;   // Rec 3: automated chirality detection
     {
         namespace tn = tuning;
         const QVariantMap &ov = job.tuningOverrides;
-        tn::apply(ov, "shaft.useArmScale",       useArmScale);
-        tn::apply(ov, "shaft.armNominalLenM",    armNominalLenM);
-        tn::apply(ov, "shaft.minLenFracOfArm",   minLenFracOfArm);
-        tn::apply(ov, "shaft.useKinematicPrior", useKinematicPrior);
-        tn::apply(ov, "shaft.armAxisSigmaDeg",   armAxisSigmaDeg);
-        tn::apply(ov, "shaft.useEnvelope",       useEnvelope);
-        tn::apply(ov, "shaft.chirality",         chirality);
-        tn::apply(ov, "shaft.useBlurMode",       useBlurMode);
-        tn::apply(ov, "shaft.expExposureUs",     expExposureUs);
+        tn::apply(ov, "shaft.useArmScale",        useArmScale);
+        tn::apply(ov, "shaft.armNominalLenM",     armNominalLenM);
+        tn::apply(ov, "shaft.minLenFracOfArm",    minLenFracOfArm);
+        tn::apply(ov, "shaft.useKinematicPrior",  useKinematicPrior);
+        tn::apply(ov, "shaft.armAxisSigmaDeg",    armAxisSigmaDeg);
+        tn::apply(ov, "shaft.useEnvelope",        useEnvelope);
+        tn::apply(ov, "shaft.chirality",          chirality);
+        tn::apply(ov, "shaft.useBlurMode",        useBlurMode);
+        tn::apply(ov, "shaft.expExposureUs",      expExposureUs);
+        tn::apply(ov, "shaft.useBackgroundSub",   useBackgroundSub);
+        tn::apply(ov, "shaft.twoPassCalibration", twoPassCalibration);
+        tn::apply(ov, "shaft.autoChirality",      autoChirality);
+    }
+
+    // Rec 3: Automated Chirality Detection
+    if (autoChirality) {
+        bool resolved = false;
+        const PhaseEvent *addrEvent = segmentation.eventFor(Phase::Address);
+        const PhaseEvent *topEvent = segmentation.eventFor(Phase::Top);
+        if (addrEvent && topEvent) {
+            double xAddr = 0.0, xTop = 0.0;
+            bool haveAddr = false, haveTop = false;
+            for (const PoseFrame2D &f : pose.frames) {
+                if (std::abs(f.t_us - addrEvent->t_us) < 10000) {
+                    xAddr = 0.5 * (f.leadHand.x() + f.trailHand.x()) * w;
+                    haveAddr = true;
+                }
+                if (std::abs(f.t_us - topEvent->t_us) < 10000) {
+                    xTop = 0.5 * (f.leadHand.x() + f.trailHand.x()) * w;
+                    haveTop = true;
+                }
+            }
+            if (haveAddr && haveTop) {
+                double dx = xTop - xAddr;
+                if (std::abs(dx) > 5.0) {
+                    chirality = (dx > 0.0) ? +1 : -1;
+                    resolved = true;
+                }
+            }
+        }
+        if (!resolved && pose.frames.size() >= 10) {
+            double xStart = 0.0;
+            int nStart = std::min(5, int(pose.frames.size() / 2));
+            for (int i = 0; i < nStart; ++i) {
+                const auto &f = pose.frames[size_t(i)];
+                xStart += 0.5 * (f.leadHand.x() + f.trailHand.x()) * w;
+            }
+            xStart /= nStart;
+            double maxDx = 0.0;
+            int halfSize = int(pose.frames.size() / 2);
+            for (int i = nStart; i < halfSize; ++i) {
+                const auto &f = pose.frames[size_t(i)];
+                double xVal = 0.5 * (f.leadHand.x() + f.trailHand.x()) * w;
+                double dx = xVal - xStart;
+                if (std::abs(dx) > std::abs(maxDx)) {
+                    maxDx = dx;
+                }
+            }
+            if (std::abs(maxDx) > 5.0) {
+                chirality = (maxDx > 0.0) ? +1 : -1;
+                resolved = true;
+            }
+        }
+        if (!resolved) {
+            chirality = (job.handedness == 2) ? -1 : +1;
+        }
+
+        // Hand centroid sequence verification
+        if (!pose.frames.empty()) {
+            const PoseFrame2D &firstF = pose.frames.front();
+            double leadX = firstF.leadHand.x() * w;
+            double trailX = firstF.trailHand.x() * w;
+            if (firstF.handConf > 0.f && std::abs(trailX - leadX) > 4.0) {
+                bool mismatch = (chirality == +1 && trailX < leadX) || (chirality == -1 && trailX > leadX);
+                if (mismatch) {
+                    ppWarn() << "[ShaftTracker] Hand centroid sequence mismatch with resolved chirality"
+                             << chirality << "leadX:" << leadX << "trailX:" << trailX;
+                }
+            }
+        }
     }
     chirality = chirality < 0 ? -1 : +1;
     const double armPxMed = medianArmPx(pose, w, h);
@@ -366,14 +535,158 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
         dcfg.minShaftLenPx = std::max(dcfg.minVisibleLenPx, float(minLenFracOfArm * armPxMed));
     const float sharpMinShaftLenPx = dcfg.minShaftLenPx;   // R8 relaxes from this in blur frames
 
+    const auto entries = window.entriesFor(pose.camera);
+
     QElapsedTimer wall;
     wall.start();
+
+    // Rec 4: background difference luma map preparation
+    cv::Mat medianBg;
+    if (useBackgroundSub) {
+        medianBg = computeMedianLuma(entries, *cfmt, window);
+        if (medianBg.empty()) {
+            ppWarn() << "[ShaftTracker] Median background estimation failed";
+        }
+    }
+
+    // Rec 1 & 2: Two-Pass Calibration pre-pass (Pass 1)
+    std::vector<double> expSamples;
+    double pass1ResidSumSq = 0.0;
+    int pass1ResidN = 0;
+
+    if (twoPassCalibration) {
+        size_t tempPoseIdx = 0;
+        float tempPrevPredDir = 0.f;
+        int64_t tempPrevPredT = 0;
+        bool tempHavePrevPred = false;
+        cv::Mat tempLuma;
+        for (const pinpoint::IndexEntry &e : entries) {
+            if (e.timestamp_us < pose.frames.front().t_us || e.timestamp_us > pose.frames.back().t_us)
+                continue;
+            while (tempPoseIdx + 1 < pose.frames.size() && pose.frames[tempPoseIdx + 1].t_us <= e.timestamp_us)
+                ++tempPoseIdx;
+            const size_t hiIdx = std::min(tempPoseIdx + 1, pose.frames.size() - 1);
+            const AnchorState a = anchorAt(pose, tempPoseIdx, hiIdx, e.timestamp_us, w, h);
+
+            float predDirRad = 0.f, predSigmaRad = 0.f;
+            int   predSide   = 0;
+            float frameS     = -1.f;
+            bool  havePred   = false;
+            if (a.hasArm) {
+                float s = 0.f;
+                if (swingProgressAt(segmentation, e.timestamp_us, s)) {
+                    frameS = s;
+                    kinematics::ClubAnglePrediction pr;
+                    predDirRad   = kinematics::predictClubAngle(a.phiArmRad, s, chirality, &pr);
+                    predSigmaRad = pr.sigmaRad;
+                    predSide     = chirality * pr.side;
+                } else {
+                    predDirRad   = a.phiArmRad;
+                    predSigmaRad = float(armAxisSigmaDeg * kDeg2Rad);
+                }
+                havePred = true;
+            }
+
+            ShaftDetectConfig fdcfg = dcfg;
+            fdcfg.blurMode = false;
+            fdcfg.predFanHalfRad = 0.f;
+            fdcfg.minShaftLenPx = sharpMinShaftLenPx;
+            double tempExposureUs = 3000.0; // default 3ms for Pass 1
+
+            float omega = 0.f;
+            if (useBlurMode && havePred) {
+                if (tempHavePrevPred && e.timestamp_us > tempPrevPredT) {
+                    const double dt  = double(e.timestamp_us - tempPrevPredT) * 1e-6;
+                    const double dth = std::remainder(double(predDirRad) - double(tempPrevPredDir), 2.0 * kPi);
+                    omega = float(std::abs(dth) / std::max(dt, 1e-4));
+                }
+                const float fanWidthRad = omega * float(tempExposureUs * 1e-6);
+                const bool inBlurPhase = frameS >= 0.78f && frameS <= 0.96f;
+                if (fanWidthRad > float(4.0 * kDeg2Rad) || inBlurPhase) {
+                    fdcfg.blurMode = true;
+                    fdcfg.predFanHalfRad = 0.5f * fanWidthRad;
+                    const float proximal = (fanWidthRad > 1e-3f)
+                        ? 0.5f * float(fdcfg.ridgeKernelPx) / fanWidthRad
+                        : sharpMinShaftLenPx;
+                    fdcfg.minShaftLenPx = std::clamp(proximal, fdcfg.minVisibleLenPx, sharpMinShaftLenPx);
+                }
+            }
+            if (havePred) { tempPrevPredDir = predDirRad; tempPrevPredT = e.timestamp_us; tempHavePrevPred = true; }
+
+            const pinpoint::SourceRing::ReadHandle handle = window.payloadOf(e);
+            if (pinpoint::decodeToLuma(*cfmt, handle.data, handle.bytes, tempLuma)) {
+                cv::Mat diffImage;
+                if (useBackgroundSub && !medianBg.empty() && tempLuma.size() == medianBg.size()) {
+                    cv::absdiff(tempLuma, medianBg, diffImage);
+                    cv::Mat bodyMask = cv::Mat::zeros(tempLuma.rows, tempLuma.cols, CV_8UC1);
+                    PoseFrame2D f = lerpPoseFrame(pose, tempPoseIdx, hiIdx, e.timestamp_us);
+                    drawBodyMask(bodyMask, f, w, h);
+                    diffImage.setTo(0, bodyMask);
+                }
+
+                AnchorPrior prior;
+                prior.gripPx          = a.grip;
+                prior.hasInterHandDir = a.hasInterHand;
+                prior.interHandDirRad = a.interHandRad;
+                prior.numElbowDirs    = a.numElbows;
+                prior.elbowDirRad[0]  = a.elbowRad[0];
+                prior.elbowDirRad[1]  = a.elbowRad[1];
+                if (havePred) {
+                    prior.kinematicDirRad   = predDirRad;
+                    prior.kinematicSigmaRad = predSigmaRad;
+                    prior.armSide           = predSide;
+                    prior.hasKinematicDir   = false; // prior-free
+                }
+
+                std::vector<ShaftCandidate> cands = detectShaft(tempLuma, fdcfg, prior, diffImage);
+                if (useEnvelope && havePred && !cands.empty()) {
+                    const float hardK = fdcfg.envelopeHardK;
+                    cands.erase(
+                        std::remove_if(cands.begin(), cands.end(),
+                            [&](const ShaftCandidate &c) {
+                                return kinematics::envelopeDeviationSigma(c.thetaRad, predDirRad, predSigmaRad) > hardK;
+                            }),
+                        cands.end());
+                }
+
+                if (!cands.empty() && cands.front().wedge && omega >= 5.f) {
+                    double obsWedgeWidth = 2.0 * cands.front().sigmaThetaRad;
+                    expSamples.push_back(obsWedgeWidth / double(omega));
+                }
+
+                if (havePred && !cands.empty()) {
+                    const double d = std::remainder(double(cands.front().thetaRad) - double(predDirRad), 2.0 * kPi);
+                    pass1ResidSumSq += d * d;
+                    ++pass1ResidN;
+                }
+            }
+        }
+
+        // Calibrate parameters
+        if (!expSamples.empty()) {
+            std::nth_element(expSamples.begin(), expSamples.begin() + expSamples.size() / 2, expSamples.end());
+            double medT = expSamples[expSamples.size() / 2];
+            expExposureUs = std::clamp(medT * 1e6, 500.0, 10000.0);
+            ppInfo() << "[ShaftTracker] Two-pass exposure calibrated to" << expExposureUs << "us";
+        }
+        if (pass1ResidN > 0) {
+            double residDeg = std::sqrt(pass1ResidSumSq / double(pass1ResidN)) * 180.0 / kPi;
+            ppInfo() << "[ShaftTracker] Two-pass residual calculated:" << residDeg << "deg";
+            if (residDeg > 5.0) {
+                double errFrac = std::clamp((residDeg - 5.0) / 10.0, 0.0, 1.0);
+                dcfg.envelopeKSigma *= float(1.0 + errFrac);
+                dcfg.envelopeHardK *= float(1.0 + errFrac);
+                dcfg.blurThreshScale = float(double(dcfg.blurThreshScale) + (1.0 - double(dcfg.blurThreshScale)) * errFrac);
+                ppInfo() << "[ShaftTracker] Adjusted blur mode aggressiveness. envelopeKSigma:" << dcfg.envelopeKSigma
+                         << "envelopeHardK:" << dcfg.envelopeHardK << "blurThreshScale:" << dcfg.blurThreshScale;
+            }
+        }
+    }
 
     // Per-frame detection over EVERY camera frame in the window, anchors
     // interpolated between pose samples. qHand from the fused LeadHand stream
     // (nearest 200 Hz grid sample) when bound.
     const SegmentStream *handStream = streams.streamFor(SegmentRole::LeadHand);
-    const auto entries = window.entriesFor(pose.camera);
 
     std::vector<ShaftFrameObs> obs;
     obs.reserve(entries.size());
@@ -463,6 +776,16 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
             decoded = pinpoint::decodeToLuma(*cfmt, handle.data, handle.bytes, luma);
         }
         if (decoded) {
+            // Rec 4: background difference luma map
+            cv::Mat diffImage;
+            if (useBackgroundSub && !medianBg.empty() && luma.size() == medianBg.size()) {
+                cv::absdiff(luma, medianBg, diffImage);
+                cv::Mat bodyMask = cv::Mat::zeros(luma.rows, luma.cols, CV_8UC1);
+                PoseFrame2D f = lerpPoseFrame(pose, poseIdx, hiIdx, e.timestamp_us);
+                drawBodyMask(bodyMask, f, w, h);
+                diffImage.setTo(0, bodyMask);
+            }
+
             AnchorPrior prior;
             prior.gripPx          = a.grip;
             prior.hasInterHandDir = a.hasInterHand;
@@ -481,7 +804,7 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
             }
             {
                 PP_PROFILE_SCOPE("Shaft.detect");   // per-frame radial detection (blur/fan/SNR cues)
-                o.candidates = detectShaft(luma, dcfg, prior);
+                o.candidates = detectShaft(luma, dcfg, prior, diffImage);
             }
             // R6 envelope guardrail: drop kinematically impossible candidates
             // (> envelopeHardK·σ_β from the prediction). Independent of the soft

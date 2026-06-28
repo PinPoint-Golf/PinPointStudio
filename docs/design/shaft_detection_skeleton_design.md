@@ -478,11 +478,11 @@ wedge handling is the right *representation* (a fan with `θ_centroid` and `σ =
 makes it **predictive** by spending the two things R1/R6/IMU now give us — a known angle and a
 known angular rate — so vision keeps contributing through the blur instead of coasting.
 
-**Trigger.** Enter blur mode when the predicted rate is high — `ω̂ = φ̇_arm·(1 + dβ̂/ds·ṡ)` from
+**Trigger & Calibration.** Enter blur mode when the predicted rate is high — `ω̂ = φ̇_arm·(1 + dβ̂/ds·ṡ)` from
 R6, or the IMU `θ̇` when bound, exceeds a threshold (≈ the rate at which `ω·t_exp` exceeds the
-ridge kernel) — *or* simply when phase ∈ {delivery, impact, early follow-through}. Exposure
-`t_exp` comes from the per-camera estimate B.4 already recovers from wedge widths (bootstrap with
-a default).
+ridge kernel) — *or* simply when phase ∈ {delivery, impact, early follow-through}. Shutter exposure
+`t_exp` is calibrated dynamically using a two-pass pre-pass: we fit `t_exp = median(observedWedgeWidthRad / ω̂)`
+over moderate-speed wedge frames where $\omega \ge 5.0\text{ rad/s}$ (bootstrapping with a default of 3 ms).
 
 **Predict the fan, then verify it (matched filter, not peak-hunt).** We know the fan *before
 looking*: centre `φ_club_pred` (R6), angular extent `≈ ω̂·t_exp`. So:
@@ -494,7 +494,10 @@ looking*: centre `φ_club_pred` (R6), angular extent `≈ ω̂·t_exp`. So:
    per-pixel (each pixel is occluded only `~shaft_width/(ω·ρ·t_exp)` of the exposure) but
    **coherent over the predicted region** — integration recovers it where a per-pixel ridge
    threshold cannot. Because the R6 envelope is tight, we can **lower the threshold inside it**
-   without inviting false positives.
+   without inviting false positives. The threshold scale `blurThreshScale` and envelope width
+   are scaled dynamically based on the prior-free tracking residual calculated in the pre-pass:
+   larger residuals (e.g. from atypical stances) expand the prior bounds and scale the threshold
+   toward 1.0 to avoid false positive accumulation.
 3. **Proximal anchoring (B.4's insight, now phase-gated).** Weight toward small ρ where the
    shaft stays crisp; the proximal tangent is the reliable `θ`, the distal fan sets `σ`.
 4. **Relax R5 here.** Length plausibility uses the fan's proximal-crisp extent + swept area, not
@@ -505,17 +508,17 @@ low-but-nonzero `conf`, `flags |= Wedge`. It already flows through B.5's KF (whi
 width into `R`) and through R7 (the **envelope cone is literally the fan we expect** — the
 test overlay shows the predicted wedge, and `actual` either lands in it or the model bridges).
 
-**Two tiers (be honest about cost).**
-- **T1 — surgical, most of the value.** Reuses the existing response maps: phase/ω-gated
+**Implementation of T1 & T2 Tiers:**
+- **T1 — surgical, most of the value (Implemented):** Reuses the existing response maps: phase/ω-gated
   proximal weighting + lowered threshold + matched-filter integration *inside the R6 envelope* +
-  R5 relaxation. No new buffers; ~tens of lines in `shaft_tracker_math.cpp` + the gate.
-- **T2 — follow-on.** A **temporal-difference / median-background** pass over the swing window
-  (S0 already holds every frame) to isolate the faint swept club from the near-static
-  background — the most sensitive faint-smear detector, but a real addition. Defer until T1 is
-  measured.
+  R5 relaxation.
+- **T2 — Background Subtraction Smear Pass (Implemented):** Decodes a median background luma map
+  from 15 evenly-spaced window frames, computes absolute difference maps, dynamically masks out the moving
+  golfer's body using skeleton joint coordinates, and passes this motion-only difference matrix to the
+  swept-energy integrator inside the R6 kinematic prior envelope. This isolates the faint club sweep from static background clutter.
 
-**When even T2 drowns** (very fast + low light + low contrast): emit no vision measurement and
-let R6/IMU bridge — the layer-4 "never fabricate" rule stands. R8 *widens the band* where vision
+If even the background-difference pass drowns (very fast + low light + low contrast): emit no vision measurement
+and let R6/IMU bridge — the layer-4 "never fabricate" rule stands. R8 *widens the band* where vision
 still contributes; it does not pretend to see a shaft that is not there.
 
 ---

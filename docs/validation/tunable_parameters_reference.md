@@ -62,9 +62,8 @@ every wrist metric is sampled *at a phase*, so a Top-timing error propagates int
 ### 2.2 `shaft.*` / `assembly.*` — club track (≈30 + ≈12 keys)
 Ridge/Hough detection (`ridgeKernelPx`, `noiseSigmaK`, `thresholdFloor`, `nmsSeparationDeg`,
 `clutterMaskDeg`, `minScoreFrac`, `runMaxGapPx`, `interHandSigmaDeg`, …) and assembly/fusion
-(`coverageMin`, `jerkPsd`, `transSigma*`, `visionSigmaFloorRad`, `calibAcceptRad`, …), plus the
-skeleton-aware flag-flips (`useArmScale`, `useKinematicPrior`, `useEnvelope`, `useBlurMode`,
-`emitPredicted`, default OFF/byte-identical).
+(`coverageMin`, `jerkPsd`, `transSigma*`, `visionSigmaFloorRad`, `calibAcceptRad`, …), plus the skeleton-aware flag-flips (`useArmScale`, `useKinematicPrior`, `useEnvelope`, `useBlurMode`,
+`emitPredicted`, `useBackgroundSub`, `twoPassCalibration`, `autoChirality`, default OFF/byte-identical).
 
 ### 2.3 `score.*` — wrist scoring bands
 Per metric × phase: `score.<metricKey>.mu / .sigma / .weight / .oneSidedDir`, plus the deadband shape

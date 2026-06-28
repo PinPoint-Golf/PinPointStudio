@@ -138,6 +138,7 @@ struct ShaftCandidate {
 // (empty when nothing plausible is found — never fabricates a measurement).
 std::vector<ShaftCandidate> detectShaft(const cv::Mat &luma,
                                         const ShaftDetectConfig &cfg,
-                                        const AnchorPrior &prior);
+                                        const AnchorPrior &prior,
+                                        const cv::Mat &diffImage = cv::Mat());
 
 } // namespace pinpoint::analysis

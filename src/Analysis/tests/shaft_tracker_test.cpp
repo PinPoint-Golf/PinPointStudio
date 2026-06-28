@@ -454,6 +454,71 @@ static void testR8BlurWedge()
           !candNear(detectShaft(blank, blur, bp), cdeg, 12.0));
 }
 
+static void testBackgroundSubtraction()
+{
+    std::printf("=== Rec 4 Background Subtraction — Faint Blur Smear ===\n");
+    
+    // Create clean background
+    cv::Mat bg_clean = makeBackground(false);
+    
+    // Create wedge image with delta=120 (realistic club brightness)
+    const double cdeg = 45.0;
+    double spanDeg = 25.0;
+    int nSub = 15;
+    int thick[4] = {24, 24, 24, 24};
+    cv::Mat acc(bg_clean.size(), CV_32FC1, cv::Scalar(0));
+    for (int i = 0; i < nSub; ++i) {
+        cv::Mat frame = bg_clean.clone();
+        const double off = -spanDeg / 2.0 + spanDeg * i / (nSub - 1);
+        drawTaperedLine(frame, kGrip, deg2rad(cdeg) + deg2rad(off), kLenPx, 120, thick);
+        cv::Mat f32;
+        frame.convertTo(f32, CV_32F);
+        acc += f32;
+    }
+    acc /= static_cast<float>(nSub);
+    cv::Mat img_clean;
+    acc.convertTo(img_clean, CV_8U);
+    
+    // Share the exact same noise field (sigma = 5.0)
+    cv::Mat noise(bg_clean.size(), CV_16SC1);
+    cv::RNG rng(12345);
+    rng.fill(noise, cv::RNG::NORMAL, 0, 5.0);
+    
+    cv::Mat bg = bg_clean.clone();
+    cv::Mat tmp1;
+    bg.convertTo(tmp1, CV_16S);
+    tmp1 += noise;
+    tmp1.convertTo(bg, CV_8U);
+    
+    cv::Mat img = img_clean.clone();
+    cv::Mat tmp2;
+    img.convertTo(tmp2, CV_16S);
+    tmp2 += noise;
+    tmp2.convertTo(img, CV_8U);
+    
+    cv::Mat diffImage;
+    cv::absdiff(img, bg, diffImage);
+    
+    ShaftDetectConfig cfg;
+    cfg.blurMode = true;
+    cfg.predFanHalfRad = float(deg2rad(12.5));
+    AnchorPrior bp;
+    bp.gripPx = kGrip;
+    bp.kinematicDirRad = float(deg2rad(cdeg));
+    bp.kinematicSigmaRad = float(deg2rad(25.0));
+    
+    const auto candsNoSub = detectShaft(img, cfg, bp);
+    const auto candsWithSub = detectShaft(img, cfg, bp, diffImage);
+    
+    std::printf("  (info) without background sub: %d cands\n", int(candsNoSub.size()));
+    std::printf("  (info) with background sub: %d cands\n", int(candsWithSub.size()));
+    
+    CHECK("background subtraction successfully detects faint fan",
+          !candsWithSub.empty() && candNear(candsWithSub, cdeg, 8.0));
+    CHECK("without background subtraction, wide blur fan is rejected by ridge filter",
+          candsNoSub.empty());
+}
+
 int main()
 {
     testCleanBright();
@@ -466,6 +531,7 @@ int main()
     testR2KinematicPrior();
     testR1RadiusBound();
     testR8BlurWedge();
+    testBackgroundSubtraction();
     testTiming();
 
     std::printf("\n%s (%d failure%s)\n", g_fail ? "FAILED" : "ALL PASS",

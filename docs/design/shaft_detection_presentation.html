@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tracking the Blade: Shaft Detection in PinPointStudio</title>
+    <!-- Import Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-dark: #0a0b10;
+            --card-bg: rgba(20, 22, 37, 0.6);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #6366f1;
+            --primary-glow: rgba(99, 102, 241, 0.35);
+            --accent: #10b981;
+            --accent-glow: rgba(16, 185, 129, 0.3);
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --purple: #a855f7;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+        }
+
+        /* Ambient Glow Backgrounds */
+        .ambient-glow-1 {
+            position: absolute;
+            top: -20%;
+            left: -10%;
+            width: 60%;
+            height: 60%;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, rgba(0,0,0,0) 70%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .ambient-glow-2 {
+            position: absolute;
+            bottom: -20%;
+            right: -10%;
+            width: 60%;
+            height: 60%;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(168, 85, 247, 0.08) 0%, rgba(0,0,0,0) 70%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* Presentation Container */
+        .presentation {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            padding: 2rem;
+        }
+
+        /* Slide Styles */
+        .slide {
+            position: absolute;
+            width: 90%;
+            max-width: 1200px;
+            height: 80vh;
+            max-height: 700px;
+            opacity: 0;
+            transform: translateY(30px) scale(0.98);
+            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .slide.active {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            pointer-events: auto;
+            z-index: 10;
+        }
+
+        /* Glassmorphism Slide Content Card */
+        .slide-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 24px;
+            padding: 3rem;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            height: 100%;
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 3rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .slide.title-slide .slide-card {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            grid-template-columns: 1fr;
+        }
+
+        /* Typography */
+        h1, h2, h3 {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 800;
+            line-height: 1.15;
+        }
+
+        .title-slide h1 {
+            font-size: 4rem;
+            background: linear-gradient(135deg, #fff 30%, var(--primary) 70%, var(--purple) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1.5rem;
+            letter-spacing: -0.02em;
+        }
+
+        .title-slide h2 {
+            font-size: 1.5rem;
+            font-weight: 400;
+            color: var(--text-muted);
+            max-width: 700px;
+            margin-bottom: 2rem;
+        }
+
+        .slide h2.slide-title {
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(135deg, #fff 50%, var(--text-muted) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .slide-text {
+            color: var(--text-muted);
+            font-size: 1.05rem;
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+        }
+
+        /* Bullet lists */
+        .bullet-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 1.2rem;
+        }
+
+        .bullet-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .bullet-icon {
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--primary);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.85rem;
+            flex-shrink: 0;
+            margin-top: 0.15rem;
+        }
+
+        .bullet-content h4 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.15rem;
+            color: var(--text-main);
+            margin-bottom: 0.25rem;
+        }
+
+        .bullet-content p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        /* Highlight boxes */
+        .highlight-box {
+            background: rgba(255, 255, 255, 0.03);
+            border-left: 4px solid var(--primary);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin-top: 1.5rem;
+        }
+
+        .highlight-box.accent {
+            border-left-color: var(--accent);
+        }
+
+        .highlight-box p {
+            font-size: 0.95rem;
+            line-height: 1.5;
+            color: var(--text-main);
+        }
+
+        /* Visual Container */
+        .slide-visual {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            overflow: hidden;
+            position: relative;
+            height: 100%;
+        }
+
+        /* Navigation Controls */
+        .controls-bar {
+            background: rgba(10, 11, 16, 0.8);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 1.5rem 3rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .slide-counter {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-main);
+            padding: 0.75rem 1.5rem;
+            border-radius: 12px;
+            cursor: pointer;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: var(--primary);
+            border-color: var(--primary);
+            box-shadow: 0 0 20px var(--primary-glow);
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        /* SVG Diagrams Style */
+        svg {
+            width: 100%;
+            height: 100%;
+            max-height: 400px;
+        }
+
+        /* Keyframe Animations for SVGs */
+        @keyframes scan-ray {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { filter: drop-shadow(0 0 2px var(--primary)); }
+            50% { filter: drop-shadow(0 0 15px var(--primary)); }
+        }
+
+        @keyframes swing-motion {
+            0% { transform: rotate(-50deg); }
+            50% { transform: rotate(90deg); }
+            100% { transform: rotate(180deg); }
+        }
+
+        .animated-scanner {
+            transform-origin: 200px 200px;
+            animation: scan-ray 6s linear infinite;
+        }
+
+        .pulsing-shaft {
+            animation: pulse-glow 2s infinite ease-in-out;
+        }
+
+        /* Progress Dots */
+        .progress-dots {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .dot.active {
+            background: var(--primary);
+            transform: scale(1.3);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        /* Badge design */
+        .badge {
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--primary);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            padding: 0.25rem 0.75rem;
+            border-radius: 30px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: inline-block;
+            margin-bottom: 1rem;
+        }
+
+        .badge.accent {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent);
+            border-color: rgba(16, 185, 129, 0.3);
+        }
+
+        .badge.warning {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+            border-color: rgba(245, 158, 11, 0.3);
+        }
+
+        /* Responsive changes */
+        @media(max-width: 900px) {
+            .slide-card {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+                padding: 1.5rem;
+                overflow-y: auto;
+            }
+            .slide-visual {
+                height: 250px;
+            }
+            body {
+                overflow-y: auto;
+            }
+            .slide {
+                height: auto;
+                max-height: none;
+                position: relative;
+                opacity: 1;
+                transform: none !important;
+                display: none;
+            }
+            .slide.active {
+                display: flex;
+            }
+            .title-slide h1 {
+                font-size: 2.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ambient-glow-1"></div>
+    <div class="ambient-glow-2"></div>
+
+    <div class="presentation">
+        
+        <!-- SLIDE 1: TITLE SLIDE -->
+        <div class="slide active title-slide" id="slide-1">
+            <div class="slide-card">
+                <span class="badge">Innovation Spotlight</span>
+                <h1>Bringing Light to the Blur</h1>
+                <h2>How PinPointStudio uses anatomy, physics, and kinematics to track a golf club shaft in high-speed motion</h2>
+                <div class="highlight-box" style="max-width: 600px; text-align: center; border-left: none; border-bottom: 4px solid var(--primary); border-radius: 8px;">
+                    <p><strong>A Non-Technical Deep Dive:</strong> Learn how we solved the hardest challenge in golf tracking—spotting a dark 1/4-inch stick moving at 100+ mph against busy backgrounds.</p>
+                </div>
+                <p style="margin-top: 2rem; color: var(--text-muted); font-size: 0.85rem;">Use Left / Right arrow keys or the buttons below to navigate</p>
+            </div>
+        </div>
+
+        <!-- SLIDE 2: THE CHALLENGE -->
+        <div class="slide" id="slide-2">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge warning">The Problem</span>
+                    <h2 class="slide-title">The Fastest Move in Sports</h2>
+                    <p class="slide-text">A golf swing lasts less than two seconds. The critical downswing takes just a fraction of a second. This speed introduces severe issues for standard camera tracking:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon">!</span>
+                            <div class="bullet-content">
+                                <h4>Severe Motion Blur</h4>
+                                <p>At 100+ mph, a thin golf shaft turns into a semi-transparent, faint gray smear (or wedge) on camera, rather than a solid line.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon">!</span>
+                            <div class="bullet-content">
+                                <h4>Background Clutter</h4>
+                                <p>Vertical alignment sticks on the ground, wrinkles in trousers, shadows, and seams on turf confuse the algorithm into "detecting" a club where none exists.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <circle cx="200" cy="120" r="25" fill="#f8fafc" opacity="0.1"/>
+                        <!-- Target/hands -->
+                        <circle cx="200" cy="220" r="10" fill="var(--primary)"/>
+                        
+                        <!-- Blurred wedge/fan representing downswing -->
+                        <path d="M200 220 L310 330 A 150 150 0 0 1 230 370 Z" fill="rgba(255,255,255,0.06)" />
+                        <path d="M200 220 L290 350 A 150 150 0 0 1 250 365 Z" fill="rgba(255,255,255,0.1)" />
+                        
+                        <!-- Background clutter lines -->
+                        <line x1="50" y1="350" x2="350" y2="350" stroke="#f59e0b" stroke-width="3" stroke-dasharray="5 5" opacity="0.6"/>
+                        <text x="60" y="335" fill="#f59e0b" font-size="12" font-family="sans-serif">Alignment Stick (Clutter)</text>
+                        
+                        <!-- Labels -->
+                        <text x="210" y="215" fill="var(--primary)" font-size="14" font-weight="bold" font-family="sans-serif">Hands (Pivot)</text>
+                        <text x="280" y="290" fill="#94a3b8" font-size="14" font-family="sans-serif">Motion Blur Fan</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 3: HOW THE RADIAL SCAN WORKS -->
+        <div class="slide" id="slide-3">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge">Baseline Math</span>
+                    <h2 class="slide-title">How the Computer Looks</h2>
+                    <p class="slide-text">The base algorithm does not scan the whole screen at once; it works outward from what it already knows:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon">1</span>
+                            <div class="bullet-content">
+                                <h4>Anchor on the Hands</h4>
+                                <p>First, it locates the golfer's hands using AI body-pose detection. This acts as the pivot center.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon">2</span>
+                            <div class="bullet-content">
+                                <h4>Radial Search (Rays)</h4>
+                                <p>It projects search lines (rays) outward in a 360-degree circle from the hands up to a maximum radius.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon">3</span>
+                            <div class="bullet-content">
+                                <h4>Ridge Profiling</h4>
+                                <p>Along each ray, it looks for high-contrast, linear dark pixels. A long, solid sequence of dark pixels indicates a candidate shaft.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Search Circle -->
+                        <circle cx="200" cy="200" r="140" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="2"/>
+                        <circle cx="200" cy="200" r="140" fill="none" stroke="var(--primary)" stroke-width="1" stroke-dasharray="4 8" opacity="0.3"/>
+                        
+                        <!-- Ray lines radiating from center -->
+                        <g opacity="0.25">
+                            <line x1="200" y1="200" x2="340" y2="200" stroke="#fff" stroke-width="1"/>
+                            <line x1="200" y1="200" x2="299" y2="299" stroke="#fff" stroke-width="1"/>
+                            <line x1="200" y1="200" x2="200" y2="340" stroke="#fff" stroke-width="1"/>
+                            <line x1="200" y1="200" x2="101" y2="299" stroke="#fff" stroke-width="1"/>
+                            <line x1="200" y1="200" x2="60" y2="200" stroke="#fff" stroke-width="1"/>
+                            <line x1="200" y1="200" x2="101" y2="101" stroke="#fff" stroke-width="1"/>
+                            <line x1="200" y1="200" x2="200" y2="60" stroke="#fff" stroke-width="1"/>
+                            <line x1="200" y1="200" x2="299" y2="101" stroke="#fff" stroke-width="1"/>
+                        </g>
+                        
+                        <!-- Hands Anchor -->
+                        <circle cx="200" cy="200" r="12" fill="var(--primary)"/>
+                        <circle cx="200" cy="200" r="20" fill="none" stroke="var(--primary)" stroke-width="1.5" opacity="0.5"/>
+                        
+                        <!-- Actual Shaft -->
+                        <line x1="200" y1="200" x2="290" y2="310" stroke="var(--accent)" stroke-width="4" class="pulsing-shaft"/>
+                        
+                        <!-- Animated Scanning Ray -->
+                        <g class="animated-scanner">
+                            <line x1="200" y1="200" x2="340" y2="200" stroke="var(--primary)" stroke-width="2"/>
+                            <polygon points="200,200 340,180 340,200" fill="var(--primary-glow)"/>
+                        </g>
+
+                        <text x="210" y="190" fill="var(--primary)" font-size="12" font-family="sans-serif">Hands Pivot</text>
+                        <text x="260" y="335" fill="var(--accent)" font-size="12" font-family="sans-serif">Detected Shaft</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 4: THE SKELETON-BLIND GAP -->
+        <div class="slide" id="slide-4">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge warning">The Blind Spots</span>
+                    <h2 class="slide-title">Where the Old Way Failed</h2>
+                    <p class="slide-text">Because the tracker was blind to the golfer's anatomy, it fell into two classic traps:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon">✗</span>
+                            <div class="bullet-content">
+                                <h4>Cropping Collapse (G1)</h4>
+                                <p>To estimate sizing, the system guessed the golfer was 1.70 meters tall. But if the camera cropped out the feet, the system panicked, expanded the search region to the whole screen, and got lost in background noise.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon">✗</span>
+                            <div class="bullet-content">
+                                <h4>Obsession with Tiny Lines (G4)</h4>
+                                <p>A club is physically longer than a human arm. Yet the algorithm would lock onto a 2-inch sleeve crease or watch band next to the hands and confidently declare it a "shaft" because it was bright and high-contrast.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Cropped Body silhouette -->
+                        <path d="M120 40 Q200 10 280 40 L260 200 L140 200 Z" fill="rgba(255,255,255,0.05)" />
+                        <!-- Red Crop Box -->
+                        <rect x="50" y="10" width="300" height="220" fill="none" stroke="var(--danger)" stroke-width="2" stroke-dasharray="5 5"/>
+                        <text x="60" y="30" fill="var(--danger)" font-size="12" font-family="sans-serif">Camera Viewport (Cropped Legs)</text>
+                        
+                        <!-- Watch/glove crease false positive -->
+                        <circle cx="200" cy="180" r="10" fill="var(--primary)"/>
+                        <line x1="200" y1="180" x2="215" y2="210" stroke="var(--danger)" stroke-width="5"/>
+                        <circle cx="207" cy="195" r="15" fill="none" stroke="var(--danger)" stroke-width="1.5"/>
+                        <text x="230" y="195" fill="var(--danger)" font-size="11" font-family="sans-serif">Wrist Crease False Positive (Too Short!)</text>
+
+                        <!-- Real Shaft (partially occluded/ignored) -->
+                        <line x1="200" y1="180" x2="280" y2="330" stroke="var(--text-muted)" stroke-width="2" opacity="0.4"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 5: R1 & R5: BODY-AWARE CONSTRAINTS -->
+        <div class="slide" id="slide-5">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge accent">Enhancements R1 & R5</span>
+                    <h2 class="slide-title">Scaling and Gating by the Arm</h2>
+                    <p class="slide-text">We solved these errors by linking the shaft search directly to the skeleton's arm geometry:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon">✓</span>
+                            <div class="bullet-content">
+                                <h4>R1: Arm-Based Sizing (No Crop Panic)</h4>
+                                <p>Instead of guessing height, we measure the pixel length of the arm (shoulder-to-wrist). Since a club is always ~1.8 to 2.2 times arm length, we set a precise maximum search radius, no matter how the video is cropped.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon">✓</span>
+                            <div class="bullet-content">
+                                <h4>R5: The Physical-Length Gate</h4>
+                                <p>A club is physically longer than a human arm. The system now enforces a strict rule: <strong>any detection shorter than one arm length is rejected instantly.</strong> Sleeve folds and watches are filtered out before they can confuse the pathfinder.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Shoulder to Hands -->
+                        <line x1="160" y1="100" x2="200" y2="200" stroke="var(--primary)" stroke-width="4"/>
+                        <circle cx="160" cy="100" r="6" fill="#fff"/>
+                        <circle cx="200" cy="200" r="8" fill="var(--primary)"/>
+                        
+                        <text x="110" y="90" fill="#fff" font-size="12" font-family="sans-serif">Shoulder</text>
+                        <text x="175" y="150" fill="var(--primary)" font-size="12" font-family="sans-serif">Arm Length</text>
+                        
+                        <!-- R1: Radius from Arm -->
+                        <circle cx="200" cy="200" r="180" fill="none" stroke="rgba(16, 185, 129, 0.2)" stroke-width="1.5" stroke-dasharray="3 3"/>
+                        <line x1="200" y1="200" x2="327" y2="327" stroke="var(--accent)" stroke-width="2" stroke-dasharray="4 4"/>
+                        <text x="240" y="250" fill="var(--accent)" font-size="11" font-family="sans-serif">Max Radius = 2.1x Arm</text>
+
+                        <!-- R5: Reject Region -->
+                        <circle cx="200" cy="200" r="100" fill="rgba(239, 68, 68, 0.05)" stroke="rgba(239, 68, 68, 0.2)" stroke-width="1"/>
+                        <text x="140" y="295" fill="var(--danger)" font-size="11" font-family="sans-serif">Rejection Zone (&lt; 1 Arm Length)</text>
+                        
+                        <!-- Real Shaft -->
+                        <line x1="200" y1="200" x2="300" y2="350" stroke="var(--accent)" stroke-width="4"/>
+                        <text x="310" y="340" fill="var(--accent)" font-size="12" font-weight="bold" font-family="sans-serif">Passes Length Gate</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 6: R6: THE DOUBLE PENDULUM -->
+        <div class="slide" id="slide-6">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge accent">Enhancement R6</span>
+                    <h2 class="slide-title">The Double-Pendulum Model</h2>
+                    <p class="slide-text">A golf swing behaves mechanically like a two-link double pendulum. We use this physics-based constraint to create a dynamic angle guardrail:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon">✓</span>
+                            <div class="bullet-content">
+                                <h4>Predictable Wrist-Cock Angle</h4>
+                                <p>The angle between the lead arm and the club follows a strict biomechanical curve based on the phase of the swing (e.g., 0° at address, ~90° at the top, holding lag, releasing to 0° at impact).</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon">✓</span>
+                            <div class="bullet-content">
+                                <h4>Dynamic Angle Guardrail</h4>
+                                <p>Knowing the swing phase and lead-arm angle, the system predicts where the club *should* be. It places a soft sector around this angle and hard-rejects anything grossly violating the model.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        
+                        <!-- Double pendulum representation -->
+                        <!-- Shoulder to Hands -->
+                        <line x1="200" y1="80" x2="200" y2="200" stroke="#94a3b8" stroke-width="4"/>
+                        <text x="210" y="140" fill="#94a3b8" font-size="12" font-family="sans-serif">Lead Arm (Link 1)</text>
+                        
+                        <!-- Dynamic Prior/Envelope Cone -->
+                        <path d="M200 200 L270 330 A 150 150 0 0 1 130 330 Z" fill="rgba(99, 102, 241, 0.08)" stroke="rgba(99, 102, 241, 0.2)" stroke-width="1" stroke-dasharray="2 4"/>
+                        <text x="140" y="350" fill="var(--primary)" font-size="12" font-family="sans-serif">Kinematic Prior Envelope (±25°)</text>
+
+                        <!-- Wrist joint -->
+                        <circle cx="200" cy="200" r="8" fill="var(--primary)"/>
+                        
+                        <!-- Club shaft (Link 2) -->
+                        <line x1="200" y1="200" x2="230" y2="340" stroke="var(--accent)" stroke-width="4"/>
+                        <text x="240" y="300" fill="var(--accent)" font-size="12" font-weight="bold" font-family="sans-serif">Predicted Club</text>
+                        
+                        <!-- Wrist Cock Angle arc -->
+                        <path d="M 200 240 A 40 40 0 0 0 208 238" fill="none" stroke="var(--primary)" stroke-width="2"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 7: R8: BEATING THE BLUR -->
+        <div class="slide" id="slide-7">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge accent">Enhancement R8</span>
+                    <h2 class="slide-title">Don't Fight the Blur, Predict It</h2>
+                    <p class="slide-text">In the fastest downswing phase, the club is a ghost. We stopped looking for a crisp straight line and rewrote the rules for the high-speed zone:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon">✓</span>
+                            <div class="bullet-content">
+                                <h4>Wedge Integration</h4>
+                                <p>Instead of trying to threshold a thin line (which fails because the line is blurred out), the system calculates the swept fan width based on club head speed ($\omega$) and exposure time ($t_{\text{exp}}$).</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon">✓</span>
+                            <div class="bullet-content">
+                                <h4>Swept Energy Summing</h4>
+                                <p>The system sums the faint image energy across the predicted fan. A single pixel is faint, but the aggregate energy of the sweep is strong enough to mathematically prove the club is there.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        
+                        <!-- Hand anchor -->
+                        <circle cx="200" cy="150" r="10" fill="var(--primary)"/>
+                        
+                        <!-- Blurred wedge/fan showing energy integration -->
+                        <!-- Background arc pattern of integration -->
+                        <path d="M200 150 L270 330 A 200 200 0 0 1 130 330 Z" fill="none" stroke="rgba(16, 185, 129, 0.15)" stroke-width="20" stroke-dasharray="10 10"/>
+                        <path d="M200 150 L270 330 A 200 200 0 0 1 130 330 Z" fill="rgba(16, 185, 129, 0.08)" stroke="rgba(16, 185, 129, 0.4)" stroke-width="2"/>
+                        
+                        <!-- Rays showing integration grid -->
+                        <line x1="200" y1="150" x2="200" y2="340" stroke="rgba(16, 185, 129, 0.3)" stroke-width="1.5"/>
+                        <line x1="200" y1="150" x2="170" y2="335" stroke="rgba(16, 185, 129, 0.3)" stroke-width="1.5"/>
+                        <line x1="200" y1="150" x2="230" y2="335" stroke="rgba(16, 185, 129, 0.3)" stroke-width="1.5"/>
+                        
+                        <text x="210" y="145" fill="var(--primary)" font-size="12" font-family="sans-serif">Hands Pivot</text>
+                        <text x="145" y="360" fill="var(--accent)" font-size="12" font-family="sans-serif">Swept Energy Integrator (Wedge)</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 8: DUAL OUTPUT & REPLAY OVERLAY -->
+        <div class="slide" id="slide-8">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge">Replay Overlay & QA</span>
+                    <h2 class="slide-title">Replay and Self-Diagnosis</h2>
+                    <p class="slide-text">To visualize and test these improvements, we built a dual-track output and diagnostic overlay:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon">1</span>
+                            <div class="bullet-content">
+                                <h4>Actual vs. Predicted Output (R7)</h4>
+                                <p>The system computes two paths: <strong>Actual</strong> (derived from the pixels) and <strong>Predicted</strong> (derived from the physics model). Comparing them yields a "residual error" indicating tracker health.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon">2</span>
+                            <div class="bullet-content">
+                                <h4>Ghost Overlay Mode</h4>
+                                <p>For QA and testing, developers can overlay a semi-transparent, dashed "ghost" line of the physics prediction behind the solid detected club line.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon">3</span>
+                            <div class="bullet-content">
+                                <h4>Glowing Clubhead Trail</h4>
+                                <p>Replay renderings feature a beautifully faded, glowing trail of the last 10 clubhead positions to help visualize swing path and release.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Skeleton joints -->
+                        <line x1="200" y1="80" x2="200" y2="180" stroke="rgba(255,255,255,0.2)" stroke-width="2"/>
+                        <circle cx="200" cy="180" r="6" fill="#fff"/>
+                        
+                        <!-- Actual detected shaft -->
+                        <line x1="200" y1="180" x2="310" y2="300" stroke="var(--accent)" stroke-width="3"/>
+                        <circle cx="310" cy="300" r="6" fill="var(--accent)"/>
+                        <text x="320" y="300" fill="var(--accent)" font-size="12" font-family="sans-serif">Actual Track</text>
+
+                        <!-- Predicted ghost shaft -->
+                        <line x1="200" y1="180" x2="280" y2="315" stroke="var(--primary)" stroke-width="2" stroke-dasharray="4 4"/>
+                        <circle cx="280" cy="315" r="4" fill="var(--primary)"/>
+                        <text x="290" y="330" fill="var(--primary)" font-size="12" font-family="sans-serif">Predicted (Ghost)</text>
+                        
+                        <!-- Fading trail -->
+                        <path d="M 310 300 Q 280 250 200 200" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="2 2" opacity="0.5"/>
+                        <circle cx="282" cy="275" r="4" fill="var(--accent)" opacity="0.6"/>
+                        <circle cx="258" cy="250" r="3" fill="var(--accent)" opacity="0.4"/>
+                        <circle cx="230" cy="225" r="2" fill="var(--accent)" opacity="0.2"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 9: IMPLEMENTED ACCURACY ENHANCEMENTS -->
+        <div class="slide" id="slide-9">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge accent">Completed Upgrades</span>
+                    <h2 class="slide-title">Implemented Accuracy Upgrades</h2>
+                    <p class="slide-text">We have successfully implemented and verified the four approved accuracy recommendations:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon">1</span>
+                            <div class="bullet-content">
+                                <h4>Dynamic Exposure Calibration (Rec 1)</h4>
+                                <p>Instead of a fixed 3 ms default, the system runs a pre-pass to measure observed wedge widths over moderate swing-rate frames, fitting the camera exposure time $t_{\text{exp}}$ dynamically.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon">2</span>
+                            <div class="bullet-content">
+                                <h4>Residual-Bounded Aggressiveness (Rec 2)</h4>
+                                <p>Calculates the prior-free tracking residual in the pre-pass to automatically scale prior widths and relax blur detection thresholds for custom/non-standard stances.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon">3</span>
+                            <div class="bullet-content">
+                                <h4>Chirality Lock & Handedness (Rec 3)</h4>
+                                <p>Autodetects left/right-handedness and mirror flips from initial displacement trajectories during the backswing, locking swing direction safely.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon">4</span>
+                            <div class="bullet-content">
+                                <h4>Temporal Background Subtraction (Rec 4)</h4>
+                                <p>Estimates a median background to isolate motion, subtracting it dynamically and masking out the moving golfer's body skeleton to maximize blur-smear tracking sensitivity.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <div style="padding: 2rem; display: flex; flex-direction: column; justify-content: center; gap: 1rem; width: 100%;">
+                        <div class="highlight-box accent" style="margin:0;">
+                            <p><strong>Rec 1 & 2: Pre-Pass Calibration</strong><br><span style="font-size: 0.85rem; color: var(--text-muted)">Exposure fitting and residual prior envelope scaling are fully functional.</span></p>
+                        </div>
+                        <div class="highlight-box accent" style="margin:0;">
+                            <p><strong>Rec 3: Trajectory Chirality</strong><br><span style="font-size: 0.85rem; color: var(--text-muted)">Resolves golfer handedness automatically during backswing displacement.</span></p>
+                        </div>
+                        <div class="highlight-box accent" style="margin:0;">
+                            <p><strong>Rec 4: Temporal background Smear</strong><br><span style="font-size: 0.85rem; color: var(--text-muted)">Decodes median background and masks moving body silhouettes to isolate the club.</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 10: FUTURE RECOMMENDATIONS -->
+        <div class="slide" id="slide-10">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge">Next Horizon</span>
+                    <h2 class="slide-title">Roadmap to 99%+ Accuracy</h2>
+                    <p class="slide-text">To push the boundaries of tracking accuracy further, we recommend the following next steps:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon">1</span>
+                            <div class="bullet-content">
+                                <h4>3D Swing-Plane Projection (Rec 5)</h4>
+                                <p>Use camera intrinsics to project the 3D wrist-cock prior onto the 2D camera coordinate plane to resolve perspective distortions and foreshortening issues.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon">2</span>
+                            <div class="bullet-content">
+                                <h4>Corpus-Wide Calibration (K5)</h4>
+                                * Run validation A/B sweeps against empirical IMU data to refine kinematic tables ($q_{\text{Hand}}$ angular offsets).
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon">3</span>
+                            <div class="bullet-content">
+                                <h4>Down-The-Line (DTL) Support</h4>
+                                <p>Extend the double-pendulum constraint equations to support down-the-line camera setups with modified angular priors.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- 3D coordinate system projection grid -->
+                        <line x1="200" y1="200" x2="350" y2="200" stroke="#ef4444" stroke-width="2" stroke-dasharray="2 2"/>
+                        <line x1="200" y1="200" x2="200" y2="50" stroke="#10b981" stroke-width="2" stroke-dasharray="2 2"/>
+                        <line x1="200" y1="200" x2="80" y2="300" stroke="#6366f1" stroke-width="2" stroke-dasharray="2 2"/>
+                        
+                        <!-- Projection cone -->
+                        <polygon points="200,200 280,100 320,130" fill="rgba(99, 102, 241, 0.1)" stroke="var(--primary)" stroke-width="1.5"/>
+                        <circle cx="200" cy="200" r="6" fill="#fff"/>
+                        
+                        <text x="320" y="220" fill="#ef4444" font-size="10" font-family="sans-serif">X (3D)</text>
+                        <text x="210" y="70" fill="#10b981" font-size="10" font-family="sans-serif">Y (3D)</text>
+                        <text x="90" y="280" fill="#6366f1" font-size="10" font-family="sans-serif">Z (3D)</text>
+                        
+                        <text x="140" y="350" fill="var(--primary)" font-size="12" font-family="sans-serif">3D Swing-Plane Projection</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- CONTROLS FOOTER -->
+    <div class="controls-bar">
+        <div class="slide-counter">SLIDE <span id="current-slide-num">1</span> OF <span id="total-slides-num">10</span></div>
+        <div class="progress-dots" id="dots-container"></div>
+        <div class="nav-buttons">
+            <button class="btn" id="prev-btn" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                Back
+            </button>
+            <button class="btn" id="next-btn">
+                Next
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const slides = document.querySelectorAll('.slide');
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const currentSlideNum = document.getElementById('current-slide-num');
+        const totalSlidesNum = document.getElementById('total-slides-num');
+        const dotsContainer = document.getElementById('dots-container');
+
+        let currentSlideIndex = 0;
+        const totalSlides = slides.length;
+
+        // Set total slides count
+        totalSlidesNum.textContent = totalSlides;
+
+        // Create navigation dots
+        for (let i = 0; i < totalSlides; i++) {
+            const dot = document.createElement('div');
+            dot.classList.add('dot');
+            if (i === 0) dot.classList.add('active');
+            dot.addEventListener('click', () => goToSlide(i));
+            dotsContainer.appendChild(dot);
+        }
+
+        const dots = document.querySelectorAll('.dot');
+
+        function updateButtons() {
+            prevBtn.disabled = currentSlideIndex === 0;
+            if (currentSlideIndex === totalSlides - 1) {
+                nextBtn.innerHTML = 'Finish <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+            } else {
+                nextBtn.innerHTML = 'Next <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>';
+            }
+        }
+
+        function updateCounter() {
+            currentSlideNum.textContent = currentSlideIndex + 1;
+        }
+
+        function updateDots() {
+            dots.forEach((dot, index) => {
+                if (index === currentSlideIndex) {
+                    dot.classList.add('active');
+                } else {
+                    dot.classList.remove('active');
+                }
+            });
+        }
+
+        function goToSlide(index) {
+            if (index < 0 || index >= totalSlides) return;
+            
+            // Remove active class from current slide
+            slides[currentSlideIndex].classList.remove('active');
+            
+            // Set new current slide index
+            currentSlideIndex = index;
+            
+            // Add active class to new slide
+            slides[currentSlideIndex].classList.add('active');
+            
+            updateButtons();
+            updateCounter();
+            updateDots();
+        }
+
+        prevBtn.addEventListener('click', () => {
+            goToSlide(currentSlideIndex - 1);
+        });
+
+        nextBtn.addEventListener('click', () => {
+            if (currentSlideIndex === totalSlides - 1) {
+                // Return to first slide or show completion
+                goToSlide(0);
+            } else {
+                goToSlide(currentSlideIndex + 1);
+            }
+        });
+
+        // Key listeners for keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') {
+                nextBtn.click();
+            } else if (e.key === 'ArrowLeft') {
+                prevBtn.click();
+            }
+        });
+    </script>
+</body>
+</html>
