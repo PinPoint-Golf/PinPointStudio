@@ -2165,6 +2165,8 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/shaft_tracker.cpp
     src/Analysis/swing_scorer.h
     src/Analysis/swing_scorer.cpp
+    src/Analysis/wrist_resemblance.h
+    src/Analysis/wrist_resemblance.cpp
     src/Analysis/wrist_analyzer.h
     src/Analysis/wrist_analyzer.cpp
     src/Analysis/pose_runner.h
@@ -2403,6 +2405,7 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/phase_signals.cpp
         src/Analysis/metric_extractor.cpp
         src/Analysis/swing_scorer.cpp
+        src/Analysis/wrist_resemblance.cpp
         # Tier-2 wrist assessment (offline known-groups, ShotAnalysisJob::runAssessment)
         src/Analysis/wrist_analysis_adapter.cpp
         src/Analysis/wrist_assessment_engine.cpp

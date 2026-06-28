@@ -90,6 +90,20 @@ inline constexpr int    kPronationOneSided = 0;  // two-sided
 inline constexpr double kArmFlexionMu = 5.0, kArmFlexionSigma = 12.0, kArmFlexionWeight = 0.20;
 inline constexpr int    kArmFlexionOneSided = -1; // penalise ABOVE μ (bent lead arm)
 } // namespace bands
+
+// PROVISIONAL per-archetype lead-wrist FE resemblance centres (design §B.0a; validation
+// §5.6/§6.3). Flexion-positive, neutral-relative degrees, sampled at Top and Impact. v1
+// scores FE only. σ_p is the pattern's COACHING TOLERANCE (its natural spread), NOT sensor
+// noise (§B.7). Externally anchored to HackMotion published tour ranges (top −30/+5, impact
+// −15/−40, extension-positive → ×−1 to flexion-positive here): the bowed centre IS the tour
+// reference; neutral and cupped are extrapolated away from it. NOT FINAL — re-seated against
+// the corpus + HackMotion concurrent capture at Corpus 2; frozen (not swept) until then.
+namespace resemblance {
+inline constexpr double kBlendedDeltaPts = 10.0;   // top-two within this ⇒ "blended"
+inline constexpr double kBowedMuTop   =  13.0, kBowedMuImpact   =  27.0, kBowedSigma   = 18.0;
+inline constexpr double kNeutralMuTop =  -8.0, kNeutralMuImpact =   5.0, kNeutralSigma = 18.0;
+inline constexpr double kCuppedMuTop  = -30.0, kCuppedMuImpact  = -18.0, kCuppedSigma  = 18.0;
+} // namespace resemblance
 } // namespace scoring
 
 // --- Wrist-angle windowed-median sampler (src/Analysis/wrist_angle_sampler.h) -------

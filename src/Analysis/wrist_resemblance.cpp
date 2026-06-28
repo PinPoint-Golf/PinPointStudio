@@ -1,0 +1,105 @@
+/*
+ * Copyright (c) 2026 Mark Liversedge (liversedge@gmail.com)
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc., 51
+ * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
+#include "wrist_resemblance.h"
+
+#include "analysis_tuning.h"
+#include "../Core/pp_tuned_constants.h"
+
+#include <algorithm>
+#include <cmath>
+
+namespace pinpoint::analysis {
+namespace {
+
+namespace tr = pinpoint::tuned::scoring::resemblance;
+
+const MetricSeries *findSeries(const std::vector<MetricSeries> &v, const QString &key)
+{
+    for (const MetricSeries &m : v)
+        if (m.key == key) return &m;
+    return nullptr;
+}
+
+// FE value at a scored phase: the labelled phaseSample if present, else the last curve sample.
+double phaseValue(const MetricSeries &m, Phase p)
+{
+    for (const PhaseSample &s : m.phaseSamples)
+        if (s.phase == p) return s.value;
+    return m.value.empty() ? 0.0 : m.value.back();
+}
+
+// One archetype's FE centres + spread (degrees, flexion-positive, neutral-relative).
+struct Pattern { const char *label; double muTop, muImpact, sigma; };
+
+} // namespace
+
+ScoreBreakdown WristResemblanceScorer::score(const std::vector<MetricSeries> &series,
+                                             const QVariantMap &ov)
+{
+    ScoreBreakdown sb;
+    sb.kind = ScoreKind::Resemblance;
+
+    Pattern pats[] = {
+        { "bowed",   tr::kBowedMuTop,   tr::kBowedMuImpact,   tr::kBowedSigma   },
+        { "neutral", tr::kNeutralMuTop, tr::kNeutralMuImpact, tr::kNeutralSigma },
+        { "cupped",  tr::kCuppedMuTop,  tr::kCuppedMuImpact,  tr::kCuppedSigma  },
+    };
+    double blendedDelta = tr::kBlendedDeltaPts;
+
+    // Discrimination literals are exposed as dotted keys but FROZEN — empty map ⇒ defaults
+    // (validation A.5 #15; the SwingLab sweep refuses score.* until labels exist).
+    if (!ov.isEmpty()) {
+        namespace tn = pinpoint::analysis::tuning;
+        for (Pattern &p : pats) {
+            const QByteArray pfx = QByteArray("score.resemblance.") + p.label + '.';
+            tn::apply(ov, (pfx + "muTop").constData(),    p.muTop);
+            tn::apply(ov, (pfx + "muImpact").constData(), p.muImpact);
+            tn::apply(ov, (pfx + "sigma").constData(),    p.sigma);
+        }
+        tn::apply(ov, "score.resemblance.blendedDeltaPts", blendedDelta);
+    }
+
+    const MetricSeries *fe = findSeries(series, QStringLiteral("leadWristFlexExt"));
+    if (!fe) {                       // no FE channel ⇒ resemblance is undefined
+        sb.overall      = 0;
+        sb.patternLabel = QStringLiteral("unknown");
+        return sb;
+    }
+    const double xTop    = phaseValue(*fe, Phase::Top);
+    const double xImpact = phaseValue(*fe, Phase::Impact);
+
+    int best = 0, bestR = -1, secondR = -1;
+    for (int i = 0; i < 3; ++i) {
+        const Pattern &p = pats[i];
+        const double dTop = (xTop    - p.muTop)    / p.sigma;
+        const double dImp = (xImpact - p.muImpact) / p.sigma;
+        const double d2   = dTop * dTop + dImp * dImp;
+        const int R = int(std::lround(100.0 * std::exp(-0.5 * d2)));
+        sb.resemblance.insert(QString::fromLatin1(p.label), R);
+        if (R > bestR)      { secondR = bestR; bestR = R; best = i; }
+        else if (R > secondR) { secondR = R; }
+    }
+
+    sb.overall      = std::max(bestR, 0);
+    sb.patternLabel = QString::fromLatin1(pats[best].label);
+    sb.blended      = (secondR >= 0) && (bestR - secondR) <= int(std::lround(blendedDelta));
+    return sb;
+}
+
+} // namespace pinpoint::analysis
