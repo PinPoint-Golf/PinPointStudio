@@ -182,8 +182,33 @@ struct Fault {
     Phase   phase      = Phase::Impact;
 };
 
+// Which estimand `overall` represents (design §B.0). Adherence = closeness to a
+// defined-good action (Swing/GRF, weighted geometric mean). Resemblance = which
+// lead-wrist archetype the motion most resembles, and how strongly (Wrist; the
+// per-archetype R_p map below carries the detail).
+enum class ScoreKind { Adherence, Resemblance };
+
+// Measurement-uncertainty interval on the score (design §B.7) — a SEPARATE track
+// from the band σ (which is coaching tolerance only). Low confidence WIDENS this
+// interval; it never moves `overall`. -1 = not computed.
+struct ScoreInterval {
+    int halfWidth = -1;   // e.g. 9 means "±9"
+    int lo = -1, hi = -1; // clamped [0,100]; convenience for UI/checks
+    bool valid() const { return halfWidth >= 0; }
+};
+
 struct ScoreBreakdown {
-    int                overall = 0;       // 0..100, weighted geometric mean
+    ScoreKind          kind    = ScoreKind::Adherence;
+    int                overall = 0;       // adherence: weighted geo-mean | resemblance: max R_p
+    // Resemblance estimand (Wrist) — independent absolute resemblances in 0..100,
+    // keyed "bowed"/"neutral"/"cupped"; NOT normalised to sum 100 (design §B.0a).
+    // Empty for adherence scores.
+    QHash<QString,int> resemblance;
+    QString            patternLabel;      // argmax label, e.g. "bowed" (empty for adherence)
+    bool               blended = false;   // top-two within blendedDeltaPts (~10)
+    // Measurement-uncertainty interval (both kinds; §B.7). valid() false until WP-4 fills it.
+    ScoreInterval      interval;
+    // Adherence estimand (Swing/GRF), unchanged.
     QHash<QString,int> perRegion;         // "rotation","wrist","tempo",...
     QHash<QString,int> perPhase;
     std::vector<ScoredMetric> metrics;    // full audit trail

@@ -34,16 +34,43 @@
 namespace pinpoint {
 namespace {
 
+// Serialise the score breakdown into the "score" object (schema /3+, design §B.0/§B.7).
+// Always carries kind + overall; resemblance fields only for the Wrist estimand; the
+// uncertainty interval only once computed (WP-4). Pre-/3 docs stored a bare int here —
+// readSwingJson() stays tolerant of both forms.
+QJsonObject serializeScore(const analysis::ScoreBreakdown &s)
+{
+    QJsonObject o;
+    o[QStringLiteral("kind")] = (s.kind == analysis::ScoreKind::Resemblance)
+                                    ? QStringLiteral("resemblance") : QStringLiteral("adherence");
+    o[QStringLiteral("overall")] = s.overall;
+    if (s.kind == analysis::ScoreKind::Resemblance) {
+        QJsonObject res;
+        for (auto it = s.resemblance.constBegin(); it != s.resemblance.constEnd(); ++it)
+            res[it.key()] = it.value();
+        o[QStringLiteral("resemblance")] = res;
+        o[QStringLiteral("pattern")]     = s.patternLabel;
+        o[QStringLiteral("blended")]     = s.blended;
+    }
+    if (s.interval.valid())
+        o[QStringLiteral("interval")] = QJsonObject{
+            { QStringLiteral("halfWidth"), s.interval.halfWidth },
+            { QStringLiteral("lo"),        s.interval.lo },
+            { QStringLiteral("hi"),        s.interval.hi } };
+    return o;
+}
+
 // Serialise the analyzed swing into the additive "analysis" object (schema
-// pinpoint.analysis/2 — versions the embedded block, distinct from the document's
+// pinpoint.analysis/3 — versions the embedded block, distinct from the document's
 // pinpoint.swing/2). Mirrors the QML analysisDetail shape, t_us as JSON numbers.
+// /3 promotes "score" from a bare int to the ScoreBreakdown object (design §B.0a/§B.7).
 QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a)
 {
     using namespace analysis;
     QJsonObject o;
-    o[QStringLiteral("schema")] = QStringLiteral("pinpoint.analysis/2");
+    o[QStringLiteral("schema")] = QStringLiteral("pinpoint.analysis/3");
     o[QStringLiteral("tier")]   = a.tier;
-    o[QStringLiteral("score")]  = a.score.overall;
+    o[QStringLiteral("score")]  = serializeScore(a.score);
 
     QJsonArray metrics;
     for (const MetricSeries &m : a.series) {
@@ -305,15 +332,38 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
 
     if (root.contains(QStringLiteral("analysis"))) {
         const QJsonObject an = root[QStringLiteral("analysis")].toObject();
-        ps.score = an[QStringLiteral("score")].toInt();
+        // "score" is a bare int in /2 docs, a ScoreBreakdown object in /3+ (design §B.0a).
+        const QJsonValue scoreVal = an[QStringLiteral("score")];
+        const QJsonObject scoreObj = scoreVal.toObject();   // empty if /2 (a number)
+        const int overall = scoreVal.isObject()
+                                ? scoreObj[QStringLiteral("overall")].toInt()
+                                : scoreVal.toInt();
+        ps.score = overall;
 
         // analysisDetail in the live QML-role shape (metrics→series, score→overall).
         ps.analysisDetail = QVariantMap{
             { QStringLiteral("tier"),    an[QStringLiteral("tier")].toInt() },
-            { QStringLiteral("overall"), an[QStringLiteral("score")].toInt() },
+            { QStringLiteral("overall"), overall },
             { QStringLiteral("series"),  an[QStringLiteral("metrics")].toArray().toVariantList() },
             { QStringLiteral("phases"),  an[QStringLiteral("phases")].toArray().toVariantList() },
         };
+        // Resemblance estimand + uncertainty interval (/3): surfaced as sibling keys so
+        // QML reads detail.pattern / .resemblance / .interval directly. Absent for /2 or
+        // for adherence (Swing/GRF) scores.
+        if (scoreVal.isObject()) {
+            if (scoreObj.contains(QStringLiteral("pattern")))
+                ps.analysisDetail.insert(QStringLiteral("pattern"),
+                                         scoreObj[QStringLiteral("pattern")].toString());
+            if (scoreObj.contains(QStringLiteral("blended")))
+                ps.analysisDetail.insert(QStringLiteral("blended"),
+                                         scoreObj[QStringLiteral("blended")].toBool());
+            if (scoreObj.contains(QStringLiteral("resemblance")))
+                ps.analysisDetail.insert(QStringLiteral("resemblance"),
+                                         scoreObj[QStringLiteral("resemblance")].toObject().toVariantMap());
+            if (scoreObj.contains(QStringLiteral("interval")))
+                ps.analysisDetail.insert(QStringLiteral("interval"),
+                                         scoreObj[QStringLiteral("interval")].toObject().toVariantMap());
+        }
         // Additive ShaftTracker + segmentation blocks — same variant shapes as
         // the live toAnalysisDetail (shot_processor.cpp); absent in older files
         // (missing segmentation = full-window bounds).

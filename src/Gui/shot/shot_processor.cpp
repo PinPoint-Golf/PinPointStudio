@@ -111,6 +111,22 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
                         { QStringLiteral("series"),  series },
                         { QStringLiteral("phases"),  phases } };
 
+    // Resemblance estimand + uncertainty interval (design §B.0a/§B.7) — same sibling-key
+    // shape SwingDocReader reloads, so live and reloaded swings expose identical detail.
+    if (a.score.kind == ScoreKind::Resemblance) {
+        QVariantMap res;
+        for (auto it = a.score.resemblance.constBegin(); it != a.score.resemblance.constEnd(); ++it)
+            res.insert(it.key(), it.value());
+        detail.insert(QStringLiteral("resemblance"), res);
+        detail.insert(QStringLiteral("pattern"), a.score.patternLabel);
+        detail.insert(QStringLiteral("blended"), a.score.blended);
+    }
+    if (a.score.interval.valid())
+        detail.insert(QStringLiteral("interval"),
+                      QVariantMap{ { QStringLiteral("halfWidth"), a.score.interval.halfWidth },
+                                   { QStringLiteral("lo"),        a.score.interval.lo },
+                                   { QStringLiteral("hi"),        a.score.interval.hi } });
+
     // Swing bounds + ladder meta (v3 G2) — same shape the doc reader reloads.
     if (a.segmentation.swingEndUs > a.segmentation.swingStartUs)
         detail.insert(QStringLiteral("segmentation"),

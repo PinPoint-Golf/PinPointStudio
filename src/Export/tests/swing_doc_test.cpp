@@ -139,8 +139,11 @@ int main()
     check(root[QStringLiteral("swing")].toObject()[QStringLiteral("id")].toString() == QStringLiteral("swing_0007"), "raw swing block preserved");
     check(root.contains(QStringLiteral("analysis")), "inline analysis block present");
     const QJsonObject an = root[QStringLiteral("analysis")].toObject();
-    check(an[QStringLiteral("schema")].toString() == QStringLiteral("pinpoint.analysis/2"), "analysis schema /2");
-    check(an[QStringLiteral("score")].toInt() == 82, "analysis score = 82");
+    check(an[QStringLiteral("schema")].toString() == QStringLiteral("pinpoint.analysis/3"), "analysis schema /3");
+    // /3: "score" is now a ScoreBreakdown object (design §B.0a); overall preserved, default kind=adherence.
+    const QJsonObject scoreObj = an[QStringLiteral("score")].toObject();
+    check(scoreObj[QStringLiteral("overall")].toInt() == 82, "analysis score.overall = 82");
+    check(scoreObj[QStringLiteral("kind")].toString() == QStringLiteral("adherence"), "analysis score.kind = adherence");
     check(an[QStringLiteral("tier")].toInt() == int(ReconstructionTier::Mono3DPlusImu), "tier");
     const QJsonArray mets = an[QStringLiteral("metrics")].toArray();
     check(mets.size() == 1, "one metric series");
