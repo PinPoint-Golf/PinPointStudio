@@ -261,6 +261,54 @@ def filter_metrics(run: RunResult):
                    severity="warn")]
 
 
+def score_metrics(run: RunResult, swing: Swing):
+    """Tier-2-Ext — wrist resemblance score construction (design §B.0a/§B.7, A.5 #12/#13/#18).
+    Reads analysis.score (the /3 ScoreBreakdown object; /2 docs carried a bare int and are skipped).
+    These are INTERNAL-CONSISTENCY checks of the construction — robust to the (frozen) tuned values:
+    each R_p bounded, overall == max R_p, the headline label is the argmax, and the uncertainty
+    interval brackets the central score. When truth.json meta declares an `archetype`, also checks
+    resemblance recall (the surfaced pattern matches the scripted archetype)."""
+    score = run.analysis.get("score")
+    if not isinstance(score, dict) or score.get("kind") != "resemblance":
+        return []   # /2 int score, or an adherence (Swing/GRF) score — nothing to check here
+    checks = []
+    res = score.get("resemblance", {}) or {}
+    vals = [int(v) for v in res.values()]
+    overall = score.get("overall")
+
+    checks.append(_check("score.resemblance_bounded", bool(vals) and all(0 <= v <= 100 for v in vals),
+                         vals, "each R_p in [0,100]"))
+    if vals:
+        mx = max(vals)
+        checks.append(_check("score.headline_consistent", overall == mx, overall, f"== max R_p ({mx})"))
+        argmax = max(res.items(), key=lambda kv: int(kv[1]))[0]
+        checks.append(_check("score.pattern_is_argmax", score.get("pattern") == argmax,
+                             score.get("pattern"), argmax))
+        srt = sorted(vals, reverse=True)
+        gap = (srt[0] - srt[1]) if len(srt) >= 2 else 999
+        # Advisory: if flagged blended the top-two must be close (lenient — the exact delta is a
+        # frozen, overridable engine constant, so this is a sanity check, not an equality).
+        checks.append(_check("score.blended_sane", (not score.get("blended", False)) or gap <= 20,
+                             {"blended": score.get("blended"), "gap": gap}, "blended ⇒ gap<=20",
+                             severity="warn"))
+
+    iv = score.get("interval")
+    if isinstance(iv, dict):
+        lo, hi, hw = iv.get("lo"), iv.get("hi"), iv.get("halfWidth")
+        ok = (None not in (lo, hi, hw, overall)
+              and 0 <= lo <= overall <= hi <= 100 and hw >= 0)
+        checks.append(_check("score.interval_valid", ok, iv, "0<=lo<=overall<=hi<=100"))
+    else:
+        checks.append(_check("score.interval_present", False, None, "interval present", severity="warn"))
+
+    arch = swing.truth_meta().get("archetype")
+    if arch:
+        checks.append(_check("score.resemblance_recall",
+                             str(score.get("pattern", "")).lower() == str(arch).lower(),
+                             score.get("pattern"), str(arch)))
+    return checks
+
+
 def scorecard(run_dir, swing_dir):
     run = RunResult(run_dir)
     swing = Swing(swing_dir)
@@ -268,7 +316,8 @@ def scorecard(run_dir, swing_dir):
     checks = (invariants(run, conditions.get("scope"))
               + truth_metrics(run, swing)
               + diagnosis_metrics(run, swing)
-              + filter_metrics(run))
+              + filter_metrics(run)
+              + score_metrics(run, swing))
     fails = [c for c in checks if not c["pass"] and c["severity"] == "fail"]
     warns = [c for c in checks if not c["pass"] and c["severity"] == "warn"]
     score = round(100.0 * sum(c["pass"] for c in checks) / max(len(checks), 1))
