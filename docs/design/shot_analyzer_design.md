@@ -1995,6 +1995,20 @@ _Sources consulted during the domain research phase, grouped by topic. Recommend
 > inline). Headline: the analyzer is real and unexpectedly deep — **for the Wrist session only** —
 > and has been validated **exclusively against synthetic data**. No live golfer swing has been
 > analyzed end-to-end.
+>
+> **Update (2026-06-28) — score-estimand alignment landed.** The §B.0/§B.0a/§B.7 estimand rework
+> (plan: [`docs/implementation/score_estimand_alignment_plan.md`](../implementation/score_estimand_alignment_plan.md))
+> is now implemented in code + SwingLab. Changes reflected below: the **Wrist headline is the
+> per-archetype resemblance score** (`WristResemblanceScorer`), not the impact-only one-sided
+> `SwingScorer` (retired for Wrist, kept for Swing/GRF adherence); **faults are produced on every
+> live Wrist shot and persisted as the coach feed**, decoupled from the score; the score carries a
+> **measurement-uncertainty interval** (`ScoreUncertainty`, §B.7) and the `severity×confidence`
+> central term is gone; the discrimination literals are **frozen dotted keys**; the gimbal
+> pitch-proxy is wired (gate observable); `swing.json` is **`pinpoint.analysis/3`** (score is now a
+> ScoreBreakdown object). SwingLab reads/checks the resemblance + interval, refuses to sweep
+> `score.*`/`rules.*`/`bands.*`, uses a soft regression penalty, and can synth an impact-saturation
+> spike + scripted archetypes. **Still synthetic-only**: no real corpus, and the resemblance
+> `μ_p/σ_p` + bands stay provisional/frozen until Corpus 2.
 
 ### What shipped vs the plan
 
@@ -2011,8 +2025,8 @@ the chain below over the frozen window.
 | **L6 Metrics** `MetricExtractor` (wrist FE/RUD, pronation, elbow) | **Done** | |
 | **L1 Detection** `PoseRunner` (offline **ViTPose**, swing-span bounded) | **Done** | deferred out of the M1 ship; now in production, v3-G3 bounded |
 | **`ShaftTracker`** (face-on club, classical CV) → `impactShaftLean` series | **Done (S0–S4)** | unscored/provisional sign; degrades to invalid track; S5 pending |
-| **L7 Scoring** `SwingScorer` (banded weighted geometric mean) | **Done** | bands **provisional / untuned** |
-| Wrist **assessment engine** (`WristAssessmentEngine` + `reference_bands` + findings) | **Done** | a *separate* checkpoint-RAG system for the Wrist Motion review UI — **not** called by `WristAnalyzer` |
+| **L7 Scoring** Wrist = `WristResemblanceScorer` (per-archetype resemblance, §B.0a); Swing/GRF = `SwingScorer` (banded geo-mean adherence) | **Done** | resemblance `μ_p/σ_p` **provisional/frozen** (Corpus 2); + `ScoreUncertainty` interval (§B.7). `SwingScorer` retired for Wrist |
+| Wrist **assessment engine** (`WristAssessmentEngine` + `reference_bands` + findings) | **Done** | the **coach feed** now (faults, not the score, §B.0): run on every live Wrist shot, persisted in `swing.json`. Still also the checkpoint-RAG diagnostics UI. Bands stay neutral in the analyzer pass (avoids the C2 archetype-shift) |
 | **SwingLab** offline harness (L1–L5) + ~27 synthetic CTest targets | **Done** | synthetic corpus only |
 
 The analyzer has quietly absorbed work the original M-plan placed much later: the offline pose pass
@@ -2081,13 +2095,14 @@ been analyzed end-to-end. Compounding it:
    risk is a large synthetic-only-validated stack with provisional bands and unverified signs, while
    the data that would validate it does not exist. Every metric/analyzer added pre-corpus-v1
    compounds untested surface area.
-2. **Resolve the two parallel wrist banding systems.** `SwingScorer` (post-shot summary card) and
-   `WristAssessmentEngine`/`reference_bands` (checkpoint-RAG diagnostics UI) both grade lead-wrist
-   FE/RUD + pronation with **independent provisional band tables** that can disagree (a green RAG
-   matrix alongside a mediocre overall score). Converge on one band source of truth — the
-   `IReferenceBandProvider` seam is the better-designed, archetype-aware one — or document precisely
-   why the two legitimately need different thresholds. Tuning two sets against corpus-v1
-   independently is wasted effort and a divergence trap.
+2. **Resolve the two parallel wrist banding systems.** *(Largely RESOLVED 2026-06-28 by the
+   estimand-alignment rework.)* The contradiction is gone: `SwingScorer` is **retired for Wrist**, so
+   it no longer grades lead-wrist FE/RUD as a competing headline (it remains the Swing/GRF adherence
+   model). The Wrist headline is now the resemblance score (`WristResemblanceScorer`, its own
+   provisional `μ_p/σ_p`), and `WristAssessmentEngine`/`reference_bands` is the **coach feed** (faults,
+   not a score) — different *purposes*, no longer disagreeing numbers. Remaining: only ONE score band
+   set per purpose to tune at Corpus 2 (resemblance centres + the engine corridors), both frozen until
+   then; the old `SwingScorer.kWristBands` Wrist rows are now dead for the headline.
 3. **De-risk (or drop) the MotionBERT-lift / IK-skeleton branch (M4).** It is the heaviest, most
    model/license-fragile, hardest-to-validate part, and the value actually shipped needs none of it
    (`BodyVizView` is already IMU-driven). Confirm a concrete metric or replay feature that genuinely
