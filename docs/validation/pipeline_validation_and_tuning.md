@@ -779,8 +779,10 @@ question is which candidates to try, on which partition, and when to stop.
 
 1. **Coordinate descent (default).** One knob at a time, accept on the §7 diff gate, move on; revisit in a
    second pass. Interpretable, diff-friendly, no dependencies, and every accepted step is a documented
-   single-variable decision. The right tool for the `seg.*`/`shaft.*`/`assembly.*`/`score.*` knobs, which
+   single-variable decision. The right tool for the `seg.*`/`shaft.*`/`assembly.*` knobs, which
    are largely separable and where a coach needs to understand *why* a value moved.
+   (`score.*`/`rules.*`/`bands.*` are **not** in this surface — they are frozen until labels exist; see the
+   freeze note below.)
 2. **Bayesian optimisation (GP/TPE) — on plateau.** When coordinate descent plateaus (the existing
    ESCALATION trigger "sweep plateau ×2") and interactions are suspected, a sample-efficient global
    optimiser earns its dependency: ~14 `seg.*` + ~8 `shaft.*` against ~50 swings is exactly the
@@ -791,17 +793,33 @@ question is which candidates to try, on which partition, and when to stop.
    and gradient-free — CMA-ES is the standard fit. Reserve it for that surface; it is overkill for the
    separable corridor knobs.
 
+**Freeze the diagnosis/score layer until labels exist (D1).** `score.*`, `rules.*` and `bands.*` are
+**frozen, not swept** — calibrating them by maximising corpus self-consistency is circular (optimising the
+score to agree with the angles it is computed from). They split into two genuinely different problems,
+*neither a corpus-score sweep*: (1) **measurement-model fitting** — the resemblance `μ_p`/`σ_p` and corridor
+lo/hi are a **distributional goodness-of-fit** against external tour ranges + the multi-golfer corpus
+distribution (Corpus 2/3), never diff-gated on corpus score; (2) **fault-rule calibration** — F1–F8
+recall/specificity is a **supervised classification** problem (confusion-matrix / F-β loss) needing labels,
+with its decision thresholds (the now-exposed `rules.flipFaultDeg`, `rules.archetypeTopDeltaDeg`, … — §A.5
+#15) in the swept surface *only once labels exist*. Until then the discrimination keys are exposed-but-frozen
+and the harness refuses to sweep them (SwingLab `--allow-frozen` is reserved for the post-label pass). The
+swept surface in the meantime is `seg.*`/`shaft.*`/`assembly.*`/`filter.*` only.
+
 **Partition the search, not just the report.** Tie the optimiser loop directly to the `CORPUS.md`
 Tune/Validation/Held-out roles (§7): **sweep on Tune**, **select the winner on Validation** (so the reported
 score is not the optimistic selection score — nested CV in practice), **touch Held-out exactly once at
 freeze**. A knob that wins on Tune but regresses Validation is overfit and rejected before it ever sees
 Held-out. The harness enforces this — Held-out is refused without an explicit `--freeze`.
 
-**Regression-gated objective (not mean-only).** The objective is *composite*: **maximise mean corpus score
-SUBJECT TO per-swing `regressions == 0`** (the 5-pt diff vs the baseline run). A trial that lifts the mean
-but regresses any single swing is rejected *inside the sweep loop*, not in a separate manual `diff` step —
-this is why the gate is per-swing (§3.6): a small mean gain must never hide a large regression on two
-swings. Implement as a hard reject (preferred) or a large penalty proportional to the regression count.
+**Regression-aware objective (soft in search, hard at freeze).** The objective balances **mean corpus
+score** against **per-swing regressions** (the 5-pt diff vs the baseline run, §3.6). During the *search*,
+regressions enter as a **soft penalty proportional to the regression count** — a candidate that lifts the
+mean and 49/50 swings must not be blocked by a single regressor, and coordinate descent over the partly
+*non-separable* `seg.*` knobs must not deadlock or turn order-dependent on a per-step hard reject (D2). The
+**hard `regressions == 0` gate is applied once, at the accept/freeze decision** (§3.6): a tuned default is
+merged only if it lifts the mean *and* regresses no swing. This keeps the per-swing guarantee at the
+boundary that actually ships, without letting it distort the search. (Earlier drafts implemented the gate as
+a hard reject *inside* the sweep loop — that is the behaviour D2 corrects.)
 
 **Convergence / early stopping.** Stop on (a) **no Validation improvement over N consecutive trials**
 (plateau — also the escalation trigger), (b) Bayesian acquisition-value below a floor, or (c) a trial /
@@ -861,11 +879,18 @@ Run batch/sweeps on the Windows studio PC (RTX 5080, CUDA pose); the Linux box r
 |---|---|---|---|
 | **Discovery** | 100 % over ≥ 35 cycles; reconnect ≥ 99 % | (regression) | (regression) |
 | **Streaming/ingest** | Tier-0 100 %; golden + parity bit-identical | (regression) | (regression) |
-| **Filtering** | `imu_vision_corr ≥ 0.9` (≥ 90 % bound, ±14 %); converged < 500 ms | wrist bias localises `A·M` | calibration cross-checked |
+| **Filtering** | `imu_vision_corr ≥ 0.9` *(verification/consistency — **not** validation, D3)* (≥ 90 % bound, ±14 %); converged < 500 ms | wrist bias localises `A·M` | calibration cross-checked |
 | **Pose / shaft** | coverage ≥ 0.6 (≥ 90 % clean); θ-RMSE < 3° / head < 25 px (10–15 labelled) | (regression) | + metric-scale camera metrics |
 | **Segmentation** | monotone 100 %; Top ≤ 30 ms; tempo ∈ [1.2,6.0] | (regression) | (regression) |
 | **Wrist metrics** | repeatability < 5° FE / < 8° RUD (≥ 25–30 repeats); < 2 % Indeterminate | **FE/PS RMSE ≤ 4–5°, ICC ≥ 0.90; RUD ≤ 8°; traj r ≥ 0.95 (≥ 50 paired)** | + between-golfer LoA |
 | **Diagnosis** | scripted-fault recall point-estimate high; ≈ 0 FP on clean | bands vs HackMotion ranges | κ/ICC vs coach; outcome predictivity |
+
+> **Reliability ≠ accuracy (C4/D3).** The Corpus-1 Wrist row gates *repeatability*, not accuracy:
+> reliability < X° does **not** bound accuracy — a ~10–15° systematic FE↔RUD cross-talk leak passes every
+> Corpus-1 wrist gate cleanly while corrupting every absolute reading; it is only caught at Corpus 2
+> (HackMotion bias/leakage, §6.3). Likewise `imu_vision_corr` (Filtering row) is a fusion-consistency /
+> verification statistic, **not** anatomical validation: a wrong-but-consistent `A·M` makes IMU and vision
+> agree on the *same wrong* angle. Neither Corpus-1 gate licenses an accuracy claim.
 
 ---
 
