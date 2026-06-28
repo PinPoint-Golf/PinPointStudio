@@ -32,6 +32,7 @@
 #include "pose_runner.h"
 #include "shaft_tracker.h"
 #include "wrist_resemblance.h"
+#include "score_uncertainty.h"
 #include "wrist_angles.h"
 #include "wrist_analysis_adapter.h"
 #include "wrist_assessment_engine.h"
@@ -359,6 +360,10 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
     // Wrist estimand = per-archetype resemblance (design §B.0a). SwingScorer's impact-only
     // one-sided model is retired here; it remains the Swing/GRF adherence scorer.
     detail->score  = WristResemblanceScorer::score(series, job.tuningOverrides);
+    // Measurement-uncertainty interval (§B.7): propagate the per-cell FE error budget through
+    // the winning pattern. Low confidence widens it; the central score is unchanged.
+    detail->score.interval = ScoreUncertainty::wristInterval(detail->score, series, phases,
+                                                             job.tuningOverrides);
 
     // Filter-quality objective (only when re-fusion drove the orientation): the impact-continuity
     // diagnostic gives filter.* an IMU-only score.py check, independent of a vision shaft track.

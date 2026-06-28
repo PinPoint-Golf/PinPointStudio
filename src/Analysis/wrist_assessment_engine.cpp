@@ -101,8 +101,11 @@ PpWristAssessmentResult WristAssessmentEngine::assess(const IWristAngleSource &s
     const AssessmentRuleRegistry registry = AssessmentRuleRegistry::makeDefault();
     result.findings = registry.run(ctx, cfg.rules);
 
-    // Composite score v2 (design §7.6) — base minus a penalty per fault/watch finding, weighted by
-    // severity × confidence × rule weight × scale. Strengths don't penalise. Explainable + clamped.
+    // Composite score v2 — telemetry only (the Wrist headline is the resemblance score, §B.0).
+    // Penalty per fault/watch finding = severity × rule weight × scale. Confidence is DELIBERATELY
+    // NOT a factor: the old severity×confidence central term let a noisier swing score higher
+    // (validation B2); confidence now widens the score interval (§B.7, score_uncertainty), never
+    // the central value. Strengths don't penalise. Explainable + clamped.
     PpScoreBreakdown &b = result.score;
     b.base = 100;
     double penalty = 0.0;
@@ -111,7 +114,7 @@ PpWristAssessmentResult WristAssessmentEngine::assess(const IWristAngleSource &s
             continue;
         const double sevW = (f.severity == PpFindingSeverity::Fault)
                             ? cfg.rules.severityWeightFault : cfg.rules.severityWeightWatch;
-        const double pen = sevW * static_cast<double>(f.confidence) * f.weight * cfg.rules.scoreScale;
+        const double pen = sevW * f.weight * cfg.rules.scoreScale;
         penalty += pen;
         b.contributions.push_back({ f.id, f.name, pen });
     }

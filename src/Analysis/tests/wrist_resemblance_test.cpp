@@ -8,6 +8,7 @@
 // these checks are about the construction, not the specific centres.
 
 #include "../wrist_resemblance.h"
+#include "../score_uncertainty.h"
 #include "../../Core/pp_tuned_constants.h"
 
 #include <cstdio>
@@ -102,6 +103,51 @@ int main()
     {
         const ScoreBreakdown b = WristResemblanceScorer::score({});
         check(b.overall == 0 && b.patternLabel == QStringLiteral("unknown"), "no FE ⇒ unknown/0");
+    }
+
+    // --- Uncertainty interval (§B.7, WP-4) ---------------------------------------------
+    // Realistic FE series (µs grid with neighbours so dθ/dt is sane) + Top/Impact phases.
+    auto feRealistic = [](double top, double impact) {
+        MetricSeries m;
+        m.key = QStringLiteral("leadWristFlexExt"); m.label = m.key; m.unit = QStringLiteral("°");
+        m.t_us  = { 900000, 1000000, 1100000, 1400000, 1500000, 1600000 };
+        m.value = { top - 5, top, top + 5, impact - 5, impact, impact + 5 };
+        m.phaseSamples.push_back({ Phase::Top,    1000000, top,    QString() });
+        m.phaseSamples.push_back({ Phase::Impact, 1500000, impact, QString() });
+        return std::vector<MetricSeries>{ m };
+    };
+    auto phasesAt = [](float conf) {
+        return std::vector<PhaseEvent>{ { Phase::Top, 1000000, conf, SegmentRole::Unknown },
+                                        { Phase::Impact, 1500000, conf, SegmentRole::Unknown } };
+    };
+
+    // 7. Interval is valid and bounded: 0 <= lo <= overall <= hi <= 100.
+    {
+        const auto fe = feRealistic(tr::kBowedMuTop, tr::kBowedMuImpact);
+        const ScoreBreakdown b = WristResemblanceScorer::score(fe);
+        const ScoreInterval iv = ScoreUncertainty::wristInterval(b, fe, phasesAt(0.9f));
+        check(iv.valid(), "interval computed");
+        check(iv.lo >= 0 && iv.lo <= b.overall && b.overall <= iv.hi && iv.hi <= 100,
+              "0 <= lo <= overall <= hi <= 100");
+    }
+
+    // 8. Low confidence WIDENS the interval; the central score is UNCHANGED (B2/§B.7).
+    {
+        const auto fe = feRealistic(tr::kBowedMuTop, tr::kBowedMuImpact);
+        const ScoreBreakdown b = WristResemblanceScorer::score(fe);
+        const ScoreInterval hiC = ScoreUncertainty::wristInterval(b, fe, phasesAt(0.95f));
+        const ScoreInterval loC = ScoreUncertainty::wristInterval(b, fe, phasesAt(0.30f));
+        check(loC.halfWidth >= hiC.halfWidth, "low conf widens interval", loC.halfWidth, hiC.halfWidth);
+        // central score does not depend on confidence (it is computed from FE only)
+        check(b.overall == WristResemblanceScorer::score(fe).overall, "central score confidence-invariant");
+    }
+
+    // 9. No phases ⇒ invalid interval (cannot build the budget).
+    {
+        const auto fe = feRealistic(tr::kBowedMuTop, tr::kBowedMuImpact);
+        const ScoreBreakdown b = WristResemblanceScorer::score(fe);
+        const ScoreInterval iv = ScoreUncertainty::wristInterval(b, fe, {});
+        check(!iv.valid(), "no phases ⇒ invalid interval");
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);

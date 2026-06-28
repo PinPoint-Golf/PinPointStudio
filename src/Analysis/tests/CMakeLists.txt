@@ -83,8 +83,9 @@ pp_add_test(pipeline_test
 # --- Banded weighted-geometric-mean scorer (Swing/GRF adherence) -------------
 pp_add_test(swing_scorer_test SOURCES swing_scorer_test.cpp ${ANALYSIS}/swing_scorer.cpp)
 
-# --- Per-archetype resemblance scorer (Wrist estimand, §B.0a) -----------------
-pp_add_test(wrist_resemblance_test SOURCES wrist_resemblance_test.cpp ${ANALYSIS}/wrist_resemblance.cpp)
+# --- Per-archetype resemblance scorer + uncertainty interval (Wrist, §B.0a/§B.7)
+pp_add_test(wrist_resemblance_test SOURCES wrist_resemblance_test.cpp
+    ${ANALYSIS}/wrist_resemblance.cpp ${ANALYSIS}/score_uncertainty.cpp)
 
 # --- Tunable-parameter plumbing: frozen-constant parity + dotted-key overrides
 pp_add_test(tuned_constants_parity_test SOURCES tuned_constants_parity_test.cpp)

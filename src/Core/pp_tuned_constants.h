@@ -104,6 +104,20 @@ inline constexpr double kBowedMuTop   =  13.0, kBowedMuImpact   =  27.0, kBowedS
 inline constexpr double kNeutralMuTop =  -8.0, kNeutralMuImpact =   5.0, kNeutralSigma = 18.0;
 inline constexpr double kCuppedMuTop  = -30.0, kCuppedMuImpact  = -18.0, kCuppedSigma  = 18.0;
 } // namespace resemblance
+
+// Score measurement-uncertainty budget (design §B.7) — the per-cell angle error that
+// PROPAGATES INTO a score interval, kept strictly separate from the band σ (which is
+// coaching tolerance). σ_sensor + σ_crosstalk are the FE error floor; the timing term is
+// dθ/dt × phase-timing jitter, inflated by low phase confidence (so low confidence WIDENS
+// the interval, never moves the central score). σ_crosstalk is the ~10–15° systematic
+// FE↔RUD leak carried conservatively as uncertainty until Corpus 2 localises it (C4).
+namespace uncertainty {
+inline constexpr double       kSensorSigmaDeg    = 6.0;     // IMU FE noise (~5–8°)
+inline constexpr double       kCrosstalkSigmaDeg = 12.0;    // FE↔RUD leak (~10–15°), until Corpus 2
+inline constexpr std::int64_t kTimingSigmaUs     = 10000;   // phase-timing jitter (~10 ms) × dθ/dt
+inline constexpr double       kConfInflate       = 1.5;     // σ_x ×= 1 + (1−conf)·this — low conf widens
+inline constexpr double       kIntervalSigmas    = 1.0;     // coverage factor on σ(d²)
+} // namespace uncertainty
 } // namespace scoring
 
 // --- Wrist-angle windowed-median sampler (src/Analysis/wrist_angle_sampler.h) -------

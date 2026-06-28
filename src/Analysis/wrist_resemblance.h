@@ -40,10 +40,15 @@
 
 #include "swing_analysis.h"
 
+#include <QString>
 #include <QVariantMap>
+#include <array>
 #include <vector>
 
 namespace pinpoint::analysis {
+
+// One archetype's lead-wrist FE centres + spread (degrees, flexion-positive, neutral-relative).
+struct ResemblancePattern { QString label; double muTop = 0, muImpact = 0, sigma = 1; };
 
 class WristResemblanceScorer {
 public:
@@ -52,6 +57,13 @@ public:
     // defaults). Returns a ScoreBreakdown with kind = Resemblance.
     static ScoreBreakdown score(const std::vector<MetricSeries> &series,
                                 const QVariantMap &overrides = {});
+
+    // The three archetype centres with overrides applied — one source of truth shared with
+    // the uncertainty pass (score_uncertainty.*). Order: bowed, neutral, cupped.
+    static std::array<ResemblancePattern, 3> patterns(const QVariantMap &overrides = {});
+
+    // Blended-flag threshold (points) with overrides applied.
+    static double blendedDeltaPts(const QVariantMap &overrides = {});
 };
 
 } // namespace pinpoint::analysis

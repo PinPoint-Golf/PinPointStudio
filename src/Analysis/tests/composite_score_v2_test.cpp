@@ -52,12 +52,24 @@ int main()
         check(rounded == b.total, "round(base − Σpenalty) == total", rounded, long(b.total));
     }
 
-    // 3. A low-confidence finding penalises proportionally less → a higher score.
+    // 3. The central penalty is confidence-INDEPENDENT (validation B2 / §B.7): each contribution
+    //    equals severityWeight × weight × scale, with NO confidence factor. Confidence widens the
+    //    score interval (score_uncertainty), it never moves the central value.
     {
-        std::printf("-- 3. low confidence → smaller penalty --\n");
-        const int normal = WristAssessmentEngine::assess(makeCastSwing(), provider).score.total;
-        const int weak   = WristAssessmentEngine::assess(withSegConf(makeCastSwing(), 0.30f), provider).score.total;
-        check(weak > normal, "low-confidence cast costs less", weak, normal);
+        std::printf("-- 3. penalty independent of confidence (B2) --\n");
+        const PpWristAssessmentResult r = WristAssessmentEngine::assess(makeCastSwing(), provider);
+        const RuleTuning rt;   // defaults — matches the 2-arg assess() cfg.rules
+        bool ok = !r.score.contributions.empty();
+        for (const PpScoreContribution &c : r.score.contributions) {
+            const PpWristFinding *f = nullptr;
+            for (const PpWristFinding &x : r.findings)
+                if (x.id == c.id) { f = &x; break; }
+            const double sevW = (f && f->severity == PpFindingSeverity::Fault)
+                                ? rt.severityWeightFault : rt.severityWeightWatch;
+            const double expected = sevW * (f ? f->weight : 0.0) * rt.scoreScale;
+            if (std::abs(c.penalty - expected) > 1e-6) ok = false;
+        }
+        check(ok, "penalty = sevW*weight*scale (no confidence)");
     }
 
     // 4. Deterministic.

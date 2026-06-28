@@ -44,10 +44,36 @@ double phaseValue(const MetricSeries &m, Phase p)
     return m.value.empty() ? 0.0 : m.value.back();
 }
 
-// One archetype's FE centres + spread (degrees, flexion-positive, neutral-relative).
-struct Pattern { const char *label; double muTop, muImpact, sigma; };
-
 } // namespace
+
+std::array<ResemblancePattern, 3> WristResemblanceScorer::patterns(const QVariantMap &ov)
+{
+    std::array<ResemblancePattern, 3> pats = {{
+        { QStringLiteral("bowed"),   tr::kBowedMuTop,   tr::kBowedMuImpact,   tr::kBowedSigma   },
+        { QStringLiteral("neutral"), tr::kNeutralMuTop, tr::kNeutralMuImpact, tr::kNeutralSigma },
+        { QStringLiteral("cupped"),  tr::kCuppedMuTop,  tr::kCuppedMuImpact,  tr::kCuppedSigma  },
+    }};
+    // Discrimination literals are exposed as dotted keys but FROZEN — empty map ⇒ defaults
+    // (validation A.5 #15; the SwingLab sweep refuses score.* until labels exist).
+    if (!ov.isEmpty()) {
+        namespace tn = pinpoint::analysis::tuning;
+        for (ResemblancePattern &p : pats) {
+            const QByteArray pfx = QByteArray("score.resemblance.") + p.label.toLatin1() + '.';
+            tn::apply(ov, (pfx + "muTop").constData(),    p.muTop);
+            tn::apply(ov, (pfx + "muImpact").constData(), p.muImpact);
+            tn::apply(ov, (pfx + "sigma").constData(),    p.sigma);
+        }
+    }
+    return pats;
+}
+
+double WristResemblanceScorer::blendedDeltaPts(const QVariantMap &ov)
+{
+    double d = tr::kBlendedDeltaPts;
+    if (!ov.isEmpty())
+        pinpoint::analysis::tuning::apply(ov, "score.resemblance.blendedDeltaPts", d);
+    return d;
+}
 
 ScoreBreakdown WristResemblanceScorer::score(const std::vector<MetricSeries> &series,
                                              const QVariantMap &ov)
@@ -55,25 +81,8 @@ ScoreBreakdown WristResemblanceScorer::score(const std::vector<MetricSeries> &se
     ScoreBreakdown sb;
     sb.kind = ScoreKind::Resemblance;
 
-    Pattern pats[] = {
-        { "bowed",   tr::kBowedMuTop,   tr::kBowedMuImpact,   tr::kBowedSigma   },
-        { "neutral", tr::kNeutralMuTop, tr::kNeutralMuImpact, tr::kNeutralSigma },
-        { "cupped",  tr::kCuppedMuTop,  tr::kCuppedMuImpact,  tr::kCuppedSigma  },
-    };
-    double blendedDelta = tr::kBlendedDeltaPts;
-
-    // Discrimination literals are exposed as dotted keys but FROZEN — empty map ⇒ defaults
-    // (validation A.5 #15; the SwingLab sweep refuses score.* until labels exist).
-    if (!ov.isEmpty()) {
-        namespace tn = pinpoint::analysis::tuning;
-        for (Pattern &p : pats) {
-            const QByteArray pfx = QByteArray("score.resemblance.") + p.label + '.';
-            tn::apply(ov, (pfx + "muTop").constData(),    p.muTop);
-            tn::apply(ov, (pfx + "muImpact").constData(), p.muImpact);
-            tn::apply(ov, (pfx + "sigma").constData(),    p.sigma);
-        }
-        tn::apply(ov, "score.resemblance.blendedDeltaPts", blendedDelta);
-    }
+    const std::array<ResemblancePattern, 3> pats = patterns(ov);
+    const double blendedDelta = blendedDeltaPts(ov);
 
     const MetricSeries *fe = findSeries(series, QStringLiteral("leadWristFlexExt"));
     if (!fe) {                       // no FE channel ⇒ resemblance is undefined
@@ -86,18 +95,18 @@ ScoreBreakdown WristResemblanceScorer::score(const std::vector<MetricSeries> &se
 
     int best = 0, bestR = -1, secondR = -1;
     for (int i = 0; i < 3; ++i) {
-        const Pattern &p = pats[i];
+        const ResemblancePattern &p = pats[size_t(i)];
         const double dTop = (xTop    - p.muTop)    / p.sigma;
         const double dImp = (xImpact - p.muImpact) / p.sigma;
         const double d2   = dTop * dTop + dImp * dImp;
         const int R = int(std::lround(100.0 * std::exp(-0.5 * d2)));
-        sb.resemblance.insert(QString::fromLatin1(p.label), R);
+        sb.resemblance.insert(p.label, R);
         if (R > bestR)      { secondR = bestR; bestR = R; best = i; }
         else if (R > secondR) { secondR = R; }
     }
 
     sb.overall      = std::max(bestR, 0);
-    sb.patternLabel = QString::fromLatin1(pats[best].label);
+    sb.patternLabel = pats[size_t(best)].label;
     sb.blended      = (secondR >= 0) && (bestR - secondR) <= int(std::lround(blendedDelta));
     return sb;
 }
