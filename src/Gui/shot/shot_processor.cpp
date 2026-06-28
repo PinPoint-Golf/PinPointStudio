@@ -446,6 +446,11 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
     job.sessionType = m_sessionType;
     job.shotSource  = static_cast<int>(m_shotSource);
     job.impactUs    = m_impactUs;
+    // Produce WristAssessmentEngine findings on the live Wrist pipeline (design §B.0:
+    // faults are the AI-coach feedback layer, decoupled from the headline resemblance
+    // score — D-3). Was offline-only (SwingLab); now always-on for Wrist so swing.json
+    // carries the coach feed. Other session types leave it off (no producer yet).
+    job.runAssessment = (m_sessionType == 1);
 
     // Face-on first so analyzers can prefer it without re-sorting; the count
     // makes "face-on first" verifiable from the worker (0 = none captured).

@@ -365,9 +365,13 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
     if (doRefuse && hasImu)
         detail->filterImpactStepDeg = impactContinuityDeg(streams, job.impactUs);
 
-    // Tier-2 wrist assessment (faults/strengths + score v2), offline opt-in (SwingLab). The live
-    // GUI runs this in its own diagnostics model; here it is gated on job.runAssessment so the
-    // sampler.*/rules.*/bands.* knobs become observable in swing.json without changing production.
+    // Wrist faults/strengths = the AI-COACH feedback feed (design §B.0), NOT a score: the headline
+    // is the resemblance score above; these findings never feed it. runAssessment is now ON for the
+    // live Wrist pipeline (ShotProcessor) so swing.json always carries the coach feed, and stays the
+    // SwingLab observability hook for sampler.*/rules.*/bands.*. score v2 is retained as telemetry
+    // only (its severity×confidence central term is removed in WP-4). Bands stay neutral (archetype
+    // 0): the resemblance scorer owns archetype classification now, and a fixed fault reference
+    // avoids the archetype-shift sensitivity loss (validation C2).
     if (job.runAssessment && hasImu && !series.empty()) {
         const InMemoryWristAngleSource src = buildWristAngleSource(detail->series, detail->phases);
         const auto provider = makeReferenceBandProvider(BandProviderKind::Archetype);

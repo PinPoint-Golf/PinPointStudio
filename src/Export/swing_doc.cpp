@@ -99,10 +99,12 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a)
                                    { QStringLiteral("segment"), int(e.provenance) } });
     o[QStringLiteral("phases")] = phases;
 
-    // Additive Tier-2 assessment block (SwingLab known-groups diagnosis — only written when the
-    // offline analyzer ran assessment, i.e. ShotAnalysisJob::runAssessment). Absent in the live
-    // GUI / production pipeline, so existing swing.json baselines are unchanged. score.py reads
-    // `findings[]` for fault recall / false-positive on clean controls.
+    // Additive "assessment" block = the AI-COACH feedback feed (design §B.0): lead-wrist
+    // faults/strengths, decoupled from the headline resemblance score. Now written on every live
+    // Wrist shot (ShotProcessor sets runAssessment for type 1), and the SwingLab known-groups
+    // diagnosis input. score.py reads `findings[]` for fault recall / FP-on-clean. scoreV2 is
+    // retained as telemetry only — it is NOT a score (its confidence-coupled central term is
+    // removed in WP-4); the resemblance "score" object above is the Wrist headline.
     if (a.assessmentScore >= 0) {
         QJsonArray findings;
         for (const PpWristFinding &f : a.findings) {
