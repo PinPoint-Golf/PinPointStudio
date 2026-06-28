@@ -22,6 +22,7 @@
 #include <QVariantList>
 
 #include <algorithm>
+#include <cmath>
 #include <optional>
 
 namespace pinpoint::analysis {
@@ -49,6 +50,16 @@ InMemoryWristAngleSource parseAnalysisDetail(const QVariantMap &analysisDetail)
 
     // series[] → per-DOF angle time series (continuous; the sampler medians at each checkpoint).
     const QVariantList series = analysisDetail.value(QStringLiteral("series")).toList();
+
+    // Gimbal proxy (A.1 #1): |RUD| is the FE/RUD middle-axis angle (wrist_angles.h); surface it
+    // per sample so the sampler's Indeterminate gate can fire (was hard-wired to 0, finding B4).
+    QVariantList rudVals;
+    for (const QVariant &sv : series)
+        if (sv.toMap().value(QStringLiteral("key")).toString() == QLatin1String("leadWristRadUln")) {
+            rudVals = sv.toMap().value(QStringLiteral("value")).toList();
+            break;
+        }
+
     for (const QVariant &sv : series) {
         const QVariantMap m = sv.toMap();
         const std::optional<PpJointDof> dof =
@@ -73,7 +84,7 @@ InMemoryWristAngleSource parseAnalysisDetail(const QVariantMap &analysisDetail)
             s.valueDeg      = val.at(i).toDouble();
             s.available     = true;
             s.confidence    = 1.0f;
-            s.pitchProxyDeg = 0.0;             // no gimbal proxy in live MetricSeries yet
+            s.pitchProxyDeg = (i < rudVals.size()) ? std::abs(rudVals.at(i).toDouble()) : 0.0;
             ser.samples.push_back(s);
         }
         src.setSeries(ser);
@@ -106,6 +117,14 @@ InMemoryWristAngleSource buildWristAngleSource(const std::vector<MetricSeries> &
     InMemoryWristAngleSource src;
     src.setHandedness(PpHandedness::Right);   // producer values are lead-arm convention — no mirror
 
+    // Gimbal proxy (A.1 #1): in the ZXY wrist decomposition (wrist_angles.h) radial/ulnar is the
+    // middle axis (the asin term), so |RUD| approaching ±90° is the FE/RUD gimbal singularity.
+    // Surface it per sample (index-aligned on the shared grid) so the sampler's Indeterminate
+    // gate (sampler.gimbalThresholdDeg) can actually fire — it was hard-wired to 0 (finding B4).
+    const MetricSeries *rud = nullptr;
+    for (const MetricSeries &m : series)
+        if (m.key == QLatin1String("leadWristRadUln")) { rud = &m; break; }
+
     for (const MetricSeries &m : series) {
         const std::optional<PpJointDof> dof = dofForMetricKey(m.key);
         if (!dof)
@@ -125,7 +144,8 @@ InMemoryWristAngleSource buildWristAngleSource(const std::vector<MetricSeries> &
             s.valueDeg      = m.value[i];
             s.available     = true;
             s.confidence    = 1.0f;
-            s.pitchProxyDeg = 0.0;             // no gimbal proxy in MetricSeries yet
+            s.pitchProxyDeg = (rud && i < static_cast<int>(rud->value.size()))
+                                  ? std::abs(rud->value[size_t(i)]) : 0.0;
             ser.samples.push_back(s);
         }
         src.setSeries(ser);

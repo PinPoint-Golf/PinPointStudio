@@ -10,6 +10,7 @@
 
 #include "../reference_bands.h"
 #include "../wrist_analysis_adapter.h"
+#include "../wrist_angle_sampler.h"
 #include "../wrist_assessment_engine.h"
 
 #include <QVariantList>
@@ -106,6 +107,23 @@ int main()
     check(r.row(PpJointDof::LeadForearmRot).present, "forearm row present");
     check(!r.row(PpJointDof::LeadElbowFlex).present, "lead elbow row absent (no series)");
     check(!r.row(PpJointDof::TrailWristFlexExt).present, "trail wrist row absent (no producer)");
+
+    // 4. Gimbal proxy is now wired and the sampler.gimbalThresholdDeg knob is OBSERVABLE (A.1 #1 /
+    //    finding B4): the proxy = |RUD| (the FE/RUD middle axis). At P4 RUD = 38°, so the FE cell is
+    //    Ok at the default 75° threshold but flips to Indeterminate once the threshold drops below 38.
+    std::printf("-- 4. gimbal proxy wired + knob observable --\n");
+    {
+        using P = PpSwingPosition;
+        const PpJointDof FE = PpJointDof::LeadWristFlexExt;
+        PpWristSamplingConfig def;                       // gimbalThresholdDeg = 75
+        const PpWristAngleSet s75 = WristAngleSampler::sample(src, def);
+        check(s75.cell(FE, P::P4).status != PpCellStatus::Indeterminate,
+              "RUD 38 < 75 ⇒ FE P4 not Indeterminate");
+        PpWristSamplingConfig low; low.gimbalThresholdDeg = 20.0;
+        const PpWristAngleSet s20 = WristAngleSampler::sample(src, low);
+        check(s20.cell(FE, P::P4).status == PpCellStatus::Indeterminate,
+              "RUD 38 ≥ 20 ⇒ FE P4 Indeterminate (knob now observable)");
+    }
 
     std::printf("\n=== %s (%d failures) ===\n", g_fail ? "FAILURES" : "ALL PASS", g_fail);
     return g_fail ? 1 : 0;
