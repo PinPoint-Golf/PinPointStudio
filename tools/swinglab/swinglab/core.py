@@ -242,17 +242,34 @@ def _load_partition(partition_file):
     return tune, val
 
 
+# Tuning families that are FROZEN until labels exist (validation §7.1 / A.5 #15 / D1): the score /
+# fault-rule / band layer is calibrated distributionally or by supervised labels, NOT by maximising a
+# corpus score (that is circular). Refused by sweep() unless --allow-frozen (the post-label pass).
+FROZEN_PREFIXES = ("score.", "rules.", "bands.")
+
+# Soft regression penalty applied DURING THE SEARCH (validation §7.1 / A.5 #16 / D2): points docked
+# from the objective per regressing swing, so one regressor can't block a step that lifts the mean
+# and 49/50 — while the hard `regressions == 0` gate still decides what is FREEZE-ELIGIBLE.
+REGRESSION_PENALTY = 5.0
+
+
 def sweep(corpus_root, runs_root, space_file, trials=20, seed=1,
-          baseline=None, partition=None, method="random", freeze=False):
+          baseline=None, partition=None, method="random", freeze=False, allow_frozen=False):
     """Parameter search over space.json = {"shaft.ridgeKernelPx": [5, 15, "int"], ...}.
 
-    Optimise on the Tune partition, SELECT the winner on Validation (so the reported score is
-    not the optimistic selection score), and REJECT any trial that regresses a swing vs the
-    `baseline` run (per-swing 5-pt diff — the §7 gate, enforced inside the loop, not as a
-    separate manual step). Held-out is never run here unless `freeze` is set (a deliberate,
-    one-time evaluation). method ∈ {"random", "coordinate"}. Keeps best params + full history."""
+    Optimise on the Tune partition, SELECT the winner on Validation (so the reported score is not the
+    optimistic selection score). Regressions vs `baseline` enter the SEARCH as a SOFT penalty (D2),
+    not a hard reject — the hard per-swing `regressions == 0` gate decides only what is freeze-eligible
+    (reported separately). score.*/rules.*/bands.* are refused unless `allow_frozen` (A.5 #15). Held-out
+    is never run unless `freeze` is set. method ∈ {"random", "coordinate"}. Keeps best + full history."""
     space = load_json(space_file)
     keys = list(space.keys())
+    frozen_hits = [k for k in keys if k.startswith(FROZEN_PREFIXES)]
+    if frozen_hits and not allow_frozen:
+        raise SystemExit(
+            f"[sweep] refusing to sweep frozen keys {frozen_hits}: score.*/rules.*/bands.* are frozen "
+            f"until labels exist (validation §7.1 / A.5 #15 — distributional/supervised calibration, "
+            f"not a corpus-score sweep). Pass --allow-frozen only for the post-label supervised pass.")
     rng = random.Random(seed)
     tune_names, select_names = _load_partition(partition)
     run_filter = None
@@ -281,8 +298,12 @@ def sweep(corpus_root, runs_root, space_file, trials=20, seed=1,
               f"reg {regressions} {'GATED' if gated else 'ok'}")
         return rec
 
+    def soft_objective(rec):
+        # Soft: lift the validation mean, docked by the regression penalty (D2). NOT a hard gate.
+        return rec["val_mean"] - REGRESSION_PENALTY * rec["regressions"]
+
     def better(rec):
-        return (not rec["gated"]) and (best is None or rec["val_mean"] > best["val_mean"])
+        return best is None or soft_objective(rec) > soft_objective(best)
 
     k = 0
     if method == "coordinate":
@@ -302,8 +323,8 @@ def sweep(corpus_root, runs_root, space_file, trials=20, seed=1,
                 rec = evaluate(cand, k); k += 1
                 if better(rec):
                     best = rec
-                if not rec["gated"] and (local_best is None or rec["val_mean"] > local_best[1]):
-                    local_best = (cand[key], rec["val_mean"])
+                if local_best is None or soft_objective(rec) > local_best[1]:
+                    local_best = (cand[key], soft_objective(rec))
             if local_best is not None:
                 cur[key] = local_best[0]   # fix this coordinate, descend the next
     else:  # uniform random — the reproducible baseline
@@ -315,13 +336,25 @@ def sweep(corpus_root, runs_root, space_file, trials=20, seed=1,
             rec = evaluate(params, k); k += 1
             if better(rec): best = rec
 
+    # Hard per-swing gate, applied ONLY at the accept/freeze boundary (D2): the freeze-eligible winner
+    # is the highest val_mean among trials with zero regressions. `best` is the soft-objective search
+    # winner and may carry a regression — never merge it without re-checking the gate.
+    accepted = None
+    for rec in history:
+        if rec["regressions"] == 0 and (accepted is None or rec["val_mean"] > accepted["val_mean"]):
+            accepted = rec
+
     save_json(Path(runs_root) / "sweep-result.json",
               {"space": space, "method": method, "partition": partition,
                "baseline": str(baseline) if baseline else None,
-               "trials": history, "best": best})
+               "regressionPenalty": REGRESSION_PENALTY,
+               "trials": history, "best": best, "accepted": accepted})
     if best:
-        print(f"[sweep] BEST val={best['val_mean']} (tune {best['tune_mean']}) "
-              f"params={best['params']}")
+        print(f"[sweep] BEST (soft) val={best['val_mean']} (tune {best['tune_mean']}) "
+              f"reg={best['regressions']} params={best['params']}")
+    if accepted:
+        print(f"[sweep] FREEZE-ELIGIBLE (0 regressions) val={accepted['val_mean']} "
+              f"params={accepted['params']}")
     else:
-        print("[sweep] no trial passed the regression gate")
+        print("[sweep] no trial had 0 regressions — nothing is freeze-eligible")
     return best

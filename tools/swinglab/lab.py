@@ -88,6 +88,8 @@ def main():
                    help="partitions.json {tune:[],validation:[],heldout:[]}: sweep Tune, select Validation")
     p.add_argument("--freeze", action="store_true",
                    help="permit running the held-out set (the one-time freeze evaluation)")
+    p.add_argument("--allow-frozen", action="store_true",
+                   help="permit sweeping score.*/rules.*/bands.* (frozen until labels — post-label pass only)")
 
     p = sub.add_parser("label")
     p.add_argument("swing_dir")
@@ -131,7 +133,8 @@ def main():
         sys.exit(1 if diff(a.run_a, a.run_b) else 0)
     elif a.cmd == "sweep":
         sweep(a.corpus_root, a.runs_root, a.space, trials=a.trials, seed=a.seed,
-              baseline=a.baseline, partition=a.partition, method=a.method, freeze=a.freeze)
+              baseline=a.baseline, partition=a.partition, method=a.method, freeze=a.freeze,
+              allow_frozen=a.allow_frozen)
     elif a.cmd == "label":
         from swinglab.label import label
         label(a.swing_dir, every_n=a.every)
