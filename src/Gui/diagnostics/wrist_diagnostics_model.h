@@ -59,6 +59,7 @@ class WristDiagnosticsModel : public QObject
     Q_PROPERTY(QStringList  archetypes       READ archetypes       CONSTANT)
     Q_PROPERTY(int          effectiveArchetype     READ effectiveArchetype     NOTIFY resultChanged)
     Q_PROPERTY(QString      effectiveArchetypeName READ effectiveArchetypeName NOTIFY resultChanged)
+    Q_PROPERTY(QVariantMap  resemblance      READ resemblance      NOTIFY resultChanged)
     Q_PROPERTY(QString      compareTo        READ compareTo        WRITE setCompareTo  NOTIFY resultChanged)
     Q_PROPERTY(QVariantMap  previousAnalysisDetail  READ previousAnalysisDetail  WRITE setPreviousAnalysisDetail  NOTIFY resultChanged)
     Q_PROPERTY(QVariantMap  referenceAnalysisDetail READ referenceAnalysisDetail WRITE setReferenceAnalysisDetail NOTIFY resultChanged)
@@ -90,6 +91,7 @@ public:
                                                QStringLiteral("Bowed"), QStringLiteral("Cupped") }; }
     int          effectiveArchetype() const { return m_result.archetype; }   // the RESOLVED model (0/1/2)
     QString      effectiveArchetypeName() const;
+    QVariantMap  resemblance() const;
     QString      compareTo() const { return m_compareTo; }
     void         setCompareTo(const QString &mode);   // "address" (no ghost) | "previous" | "reference"
     QVariantMap  previousAnalysisDetail() const { return m_previousAnalysisDetail; }

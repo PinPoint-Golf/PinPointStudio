@@ -618,8 +618,7 @@ metric-scale camera branch (sway/lift/tilt) is **Corpus 3** (it needs ChArUco ca
 
 ### 5.6 Diagnosis — scoring, faults, assessment engine *(Corpus 1 known-groups; Corpus 2 bands; Corpus 3 coach)*
 
-*Modules:* `SwingScorer` (`kWristBands`), `WristAssessmentEngine` (Tier-1 bands + Tier-2 rules F1–F8 +
-strengths + archetype), score v2.
+*Modules:* `WristAssessmentEngine` (Tier-1 bands + Tier-2 rules F1–F8 + strengths + archetype), score v2.
 
 - **Verify.** Golden-tested against synthetic fixtures (`makeCast`/`makeFlip`/`makeOpenFaceTop`/…): each
   scripted fault produces its finding; score v2 contributions sum to the score; banding monotone.
@@ -628,17 +627,13 @@ strengths + archetype), score v2.
     **not** flag it on the clean control. Report recall + FP rate **per rule** — *with the §3.1 honesty*:
     **~10–15 scripted swings/fault** gives a point estimate + wide CI ("the rule fires and is specific"),
     **not** a recall ≥ 0.95 guarantee (that needs ~60/fault, deferred to a pooled fault library).
-  - **Band calibration (Corpus 2).** `kWristBands` μ/σ and the Tier-1 corridors are *provisional*. Anchor
-    on (1) the **observed corpus distribution** and (2) **HackMotion's published tour ranges** (top
-    −30/+5, impact −15/−40, extension-positive) — external content-validity for where corridors sit.
-  - **Score internal consistency.** Monotone w.r.t. metric quality; weighted **geometric** mean prevents
-    one severe fault being averaged away.
+  - **Band calibration (Corpus 2).** Wrist corridors are *provisional*. Anchor on (1) the **observed corpus distribution** and (2) **HackMotion's published tour ranges** (top −30/+5, impact −15/−40, extension-positive) — external content-validity for where corridors sit.
+  - **Score internal consistency.** Monotone w.r.t. metric quality; the score is computed additively by deducting penalties for faults and watches from a baseline of 100.
   - **Inter-rater (Corpus 3+).** Coach annotations (§8): **Cohen's κ** (fault presence), **ICC** (score).
     Today the diagnosis has **no external arbiter** — the biggest validity gap. *Sample size:* κ needs
     enough swings *with the fault present*; ~30–50 annotated swings for a usable κ CI, more golfers for
     generalisation.
-- **Tune.** `kWristBands` (μ/σ/one-sided/weight: FE 0.45 / RUD 0.15 / PS 0.20 / elbow 0.20); `RuleTuning`
-  (`confidenceFloor 0.45`, `scoreScale 18`, Fault 1.0 / Watch 0.5, `corroborationBoost 0.30`,
+- **Tune.** `RuleTuning` (`confidenceFloor 0.45`, `scoreScale 18`, Fault 1.0 / Watch 0.5, `corroborationBoost 0.30`,
   `strengthsRequireAdjacentFault`); archetype shifts (bowed/cupped ±10°).
 - **Accept.** scripted-fault recall point-estimate high + ≈ 0 FP on clean; bands consistent with observed +
   HackMotion ranges; score monotone; (Corpus 3) κ/ICC vs coach.
@@ -1076,20 +1071,8 @@ weights justified, normalisation defined). The estimand is currently unstated.
 > scale defended), or (iii) an expected strike-quality proxy (predictive — needs outcomes). Each choice
 > dictates a *different* validation.
 
-> **Resolution (2026-06-28) — estimand declared.** Scores are **per session type, criterion-referenced, and
-> never aggregated across types** (B3 at the cross-session level: a wrist and a swing score are different
-> measurements, never combined). They are **not** between-golfer percentiles (A1/A2) and **not** outcome
-> predictions. Two flavours: **Swing/GRF** have a defined-good reference → an *adherence* score (closeness to
-> an efficient, well-sequenced action); the **Wrist** score has **no defined-good** (bowed and cupped both
-> work) → a **per-archetype resemblance diagnostic** that, for each of bowed/neutral/cupped, measures how
-> closely the lead-wrist pattern resembles it and surfaces the closest + its strength — *diagnostic, not a
-> quality grade*. Quality/fault reads (open-face, cast, flip) are the **AI-coach feedback layer**, not the
-> score. Canonical wording: `shot_analyzer_design.md` §B.0/§B.7. Consequences here: wrist bands anchor to
-> **external** tour corridors + an in-range check, never a one-golfer distribution (A2); the wrist score is
-> the archetype-resemblance model and its faults move to the coach layer, retiring the duplicate `SwingScorer`
-> headline for Wrist (B1); **σ is coaching tolerance only and the score carries a measurement-uncertainty
-> interval — low confidence widens it, never raises the score** (A3/B2/C5); and `score.*`/`rules.*` stay
-> **frozen, not swept**, until labels exist (D1).
+
+> **Resolution (2026-06-28) — estimand updated.** Scores are **per session type, criterion-referenced, and never aggregated across types**. The wrist headline overall score is the penalty-based assessment score (`assessmentScore`) computed by `WristAssessmentEngine` (Score v2), which deducts points for faults and watches from a baseline of 100. This provides a direct measure of wrist movement quality (adherence to reference bands without executing faults). Archetype resemblance (Bowed/Neutral/Cupped) is retained as a descriptive style classification, but it no longer defines the headline quality grade.
 
 **A2 — Norm-referenced bands cannot be estimated from a single-golfer corpus.** *(Severity: high)*
 `reference_bands.cpp` corridors and `kWristBands` μ/σ are "where good comes from" — population norms. The plan

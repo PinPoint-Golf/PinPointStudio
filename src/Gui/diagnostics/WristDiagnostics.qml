@@ -215,6 +215,40 @@ Item {
                 Item { Layout.fillWidth: true }
             }
 
+            // ── Resemblance readouts ─────────────────────────────────────────────────
+            RowLayout {
+                Layout.fillWidth: true
+                visible: dx.resemblance && dx.resemblance.neutral !== undefined
+                spacing: Theme.sp(8)
+                Text {
+                    text: qsTr("Resemblance")
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                    font.capitalization: Font.AllUppercase; font.letterSpacing: Theme.trackingMicro
+                    color: Theme.colorText3
+                }
+                Text {
+                    text: qsTr("Neutral %1%").arg(dx.resemblance.neutral !== undefined ? dx.resemblance.neutral : 0)
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
+                    font.weight: dx.effectiveArchetype === 0 ? Font.Bold : Font.Normal
+                    color: dx.effectiveArchetype === 0 ? Theme.colorAccent : Theme.colorText2
+                }
+                Text { text: "·"; color: Theme.colorText3 }
+                Text {
+                    text: qsTr("Bowed %1%").arg(dx.resemblance.bowed !== undefined ? dx.resemblance.bowed : 0)
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
+                    font.weight: dx.effectiveArchetype === 1 ? Font.Bold : Font.Normal
+                    color: dx.effectiveArchetype === 1 ? Theme.colorAccent : Theme.colorText2
+                }
+                Text { text: "·"; color: Theme.colorText3 }
+                Text {
+                    text: qsTr("Cupped %1%").arg(dx.resemblance.cupped !== undefined ? dx.resemblance.cupped : 0)
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
+                    font.weight: dx.effectiveArchetype === 2 ? Font.Bold : Font.Normal
+                    color: dx.effectiveArchetype === 2 ? Theme.colorAccent : Theme.colorText2
+                }
+                Item { Layout.fillWidth: true }
+            }
+
             // ── Body: trajectory strips + grid (left) · Working-well + Findings dock (right) ──
             GridLayout {
                 Layout.fillWidth: true

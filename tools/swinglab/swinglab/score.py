@@ -279,8 +279,10 @@ def score_metrics(run: RunResult, swing: Swing):
     checks.append(_check("score.resemblance_bounded", bool(vals) and all(0 <= v <= 100 for v in vals),
                          vals, "each R_p in [0,100]"))
     if vals:
-        mx = max(vals)
-        checks.append(_check("score.headline_consistent", overall == mx, overall, f"== max R_p ({mx})"))
+        assessment = run.analysis.get("assessment", {})
+        score_v2 = assessment.get("scoreV2")
+        if score_v2 is not None:
+            checks.append(_check("score.headline_matches_assessment", overall == score_v2, overall, f"== scoreV2 ({score_v2})"))
         argmax = max(res.items(), key=lambda kv: int(kv[1]))[0]
         checks.append(_check("score.pattern_is_argmax", score.get("pattern") == argmax,
                              score.get("pattern"), argmax))

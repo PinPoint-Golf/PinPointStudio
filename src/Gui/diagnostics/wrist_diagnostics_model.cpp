@@ -105,6 +105,11 @@ QString WristDiagnosticsModel::effectiveArchetypeName() const
     }
 }
 
+QVariantMap WristDiagnosticsModel::resemblance() const
+{
+    return m_analysisDetail.value(QStringLiteral("resemblance")).toMap();
+}
+
 void WristDiagnosticsModel::setCompareTo(const QString &mode)
 {
     if (mode == m_compareTo)
