@@ -135,6 +135,14 @@ inline constexpr double kSeverityWeightFault          = 1.0;
 inline constexpr double kSeverityWeightWatch          = 0.5;
 inline constexpr double kCorroborationBoost           = 0.30;  // confidence add when corroborated
 inline constexpr bool   kStrengthsRequireAdjacentFault = true;
+// Discrimination thresholds (validation C1 / A.5 #15) — the most behaviourally-decisive cut
+// points, lifted out of the .cpp so they are one source of truth + parity-guarded + sweepable.
+// FROZEN until labels exist (supervised fault-rule calibration; SwingLab refuses score.*/rules.*).
+inline constexpr double kFlipFaultDeg          = -8.0;  // F3: P6→P7 FE drop ≤ this ⇒ Fault
+inline constexpr double kFlipWatchDeg          = -5.0;  // F3: ≤ this ⇒ Watch
+inline constexpr double kTrailFlattenDeg       = -8.0;  // flip corroboration: trail-wrist P6→P7 drop
+inline constexpr double kArchetypeTopDeltaDeg  = 10.0;  // detectArchetype: |FE Δ@Top| ⇒ bowed/cupped
+inline constexpr double kArchetypeFaceOffsetDeg = 10.0; // archetype face-corridor shift (±)
 } // namespace rules
 
 } // namespace pinpoint::tuned

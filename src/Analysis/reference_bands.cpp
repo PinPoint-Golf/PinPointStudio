@@ -17,6 +17,7 @@
  */
 
 #include "reference_bands.h"
+#include "../Core/pp_tuned_constants.h"
 
 #include <array>
 
@@ -95,12 +96,16 @@ Band ConfigReferenceBandProvider::band(PpJointDof dof, PpSwingPosition pos, cons
 
 namespace {
 // Face-corridor shift per archetype (degrees on lead-wrist flex-ext): bowed-tour tolerates more bow,
-// cupped-tour more cup. Starting heuristics (design §11).
+// cupped-tour more cup. Frozen discrimination literal — one source of truth in pp_tuned_constants.h
+// (validation C1 / A.5 #15). NB the resemblance scorer now owns archetype classification; this shift
+// is the assessment engine's legacy face-corridor adjust (live diagnostics view), kept neutral in the
+// analyzer's coach pass (WP-3) to avoid the archetype-shift sensitivity loss (C2).
 double archetypeFaceOffset(int archetype)
 {
+    const double off = pinpoint::tuned::rules::kArchetypeFaceOffsetDeg;
     switch (archetype) {
-    case 1:  return 10.0;    // bowed
-    case 2:  return -10.0;   // cupped
+    case 1:  return  off;    // bowed
+    case 2:  return -off;    // cupped
     default: return 0.0;     // neutral
     }
 }

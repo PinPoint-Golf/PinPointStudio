@@ -30,10 +30,28 @@
 
 namespace pinpoint::analysis {
 
-// What a rule reads. Thin accessors over the Tier-1 result + the segmentation timeline.
+// Tunable Tier-2 knobs (design §7.6 / §11 — starting heuristics). Owned by WristAssessmentConfig.
+struct RuleTuning {
+    float  confidenceFloor   = pinpoint::tuned::rules::kConfidenceFloor;   // confidence below this → lowConfidence (demoted, not dropped)
+    double scoreScale        = pinpoint::tuned::rules::kScoreScale;        // score v2 penalty scale
+    double severityWeightFault = pinpoint::tuned::rules::kSeverityWeightFault;
+    double severityWeightWatch = pinpoint::tuned::rules::kSeverityWeightWatch;
+    double corroborationBoost  = pinpoint::tuned::rules::kCorroborationBoost;  // confidence multiplier add when corroborated (capped at 1.0)
+    bool   strengthsRequireAdjacentFault = pinpoint::tuned::rules::kStrengthsRequireAdjacentFault;   // curated "protect this" — see assessment_rules.cpp
+    // Discrimination thresholds (validation C1 / A.5 #15) — frozen until labels exist.
+    double flipFaultDeg         = pinpoint::tuned::rules::kFlipFaultDeg;          // F3 Fault cut
+    double flipWatchDeg         = pinpoint::tuned::rules::kFlipWatchDeg;          // F3 Watch cut
+    double trailFlattenDeg      = pinpoint::tuned::rules::kTrailFlattenDeg;       // flip corroboration
+    double archetypeTopDeltaDeg = pinpoint::tuned::rules::kArchetypeTopDeltaDeg;  // bowed/cupped cut
+};
+
+// What a rule reads. Thin accessors over the Tier-1 result + the segmentation timeline, plus
+// the tunable discrimination thresholds (default-constructed ⇒ frozen defaults, so existing
+// two-arg aggregate inits keep working).
 struct RuleContext {
     const PpWristAssessmentResult &result;
     const PpSwingPositionTimeline &timeline;
+    RuleTuning tuning{};
 
     bool present(PpJointDof d) const { return result.row(d).present; }
     const PpRagCell &cell(PpJointDof d, PpSwingPosition p) const
@@ -44,16 +62,6 @@ struct RuleContext {
     double delta(PpJointDof d, PpSwingPosition p) const { return cell(d, p).deltaDeg; }
     PpRag  rag(PpJointDof d, PpSwingPosition p) const { return cell(d, p).rag; }
     bool   banded(PpJointDof d, PpSwingPosition p) const { return cell(d, p).banded; }
-};
-
-// Tunable Tier-2 knobs (design §7.6 / §11 — starting heuristics). Owned by WristAssessmentConfig.
-struct RuleTuning {
-    float  confidenceFloor   = pinpoint::tuned::rules::kConfidenceFloor;   // confidence below this → lowConfidence (demoted, not dropped)
-    double scoreScale        = pinpoint::tuned::rules::kScoreScale;        // score v2 penalty scale
-    double severityWeightFault = pinpoint::tuned::rules::kSeverityWeightFault;
-    double severityWeightWatch = pinpoint::tuned::rules::kSeverityWeightWatch;
-    double corroborationBoost  = pinpoint::tuned::rules::kCorroborationBoost;  // confidence multiplier add when corroborated (capped at 1.0)
-    bool   strengthsRequireAdjacentFault = pinpoint::tuned::rules::kStrengthsRequireAdjacentFault;   // curated "protect this" — see assessment_rules.cpp
 };
 
 // The abstract rule seam. A concrete rule inspects the context and optionally emits one finding.

@@ -68,6 +68,20 @@ int main()
           && t::rules::kSeverityWeightFault == 1.0 && t::rules::kSeverityWeightWatch == 0.5
           && t::rules::kCorroborationBoost == 0.30 && t::rules::kStrengthsRequireAdjacentFault,
           "rules defaults == (0.45,18,1,0.5,0.30,true)");
+    check(t::rules::kFlipFaultDeg == -8.0 && t::rules::kFlipWatchDeg == -5.0
+          && t::rules::kTrailFlattenDeg == -8.0 && t::rules::kArchetypeTopDeltaDeg == 10.0
+          && t::rules::kArchetypeFaceOffsetDeg == 10.0,
+          "rules discrimination literals == (-8,-5,-8,10,10)");
+
+    check(t::scoring::resemblance::kBlendedDeltaPts == 10.0
+          && t::scoring::resemblance::kBowedMuTop == 13.0 && t::scoring::resemblance::kBowedMuImpact == 27.0
+          && t::scoring::resemblance::kNeutralMuImpact == 5.0 && t::scoring::resemblance::kCuppedMuTop == -30.0
+          && t::scoring::resemblance::kBowedSigma == 18.0,
+          "scoring::resemblance provisional centres");
+    check(t::scoring::uncertainty::kSensorSigmaDeg == 6.0 && t::scoring::uncertainty::kCrosstalkSigmaDeg == 12.0
+          && t::scoring::uncertainty::kTimingSigmaUs == 10000 && t::scoring::uncertainty::kConfInflate == 1.5
+          && t::scoring::uncertainty::kIntervalSigmas == 1.0,
+          "scoring::uncertainty budget");
 
     // --- Default-constructed consumers match their pre-refactor defaults ---------
     check(MadgwickFilter().beta() == 0.05f, "MadgwickFilter() default beta == 0.05");
@@ -88,6 +102,9 @@ int main()
           && rt.severityWeightWatch == 0.5 && rt.corroborationBoost == 0.30
           && rt.strengthsRequireAdjacentFault,
           "RuleTuning{} defaults");
+    check(rt.flipFaultDeg == -8.0 && rt.flipWatchDeg == -5.0 && rt.trailFlattenDeg == -8.0
+          && rt.archetypeTopDeltaDeg == 10.0,
+          "RuleTuning{} discrimination thresholds");
 
     std::printf("\n=== %s (%d failures) ===\n", g_fail ? "FAILURES" : "ALL PASS", g_fail);
     return g_fail ? 1 : 0;

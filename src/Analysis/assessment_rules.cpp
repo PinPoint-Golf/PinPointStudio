@@ -101,8 +101,8 @@ std::vector<RuleDef> defaultRuleDefs()
             // Δ falls into impact = extension added. A good swing releases a few degrees; flag only a
             // clear extension event (a mild P6→P7 drop is normal lead-wrist release, not a flip).
             const double der = c.delta(FE, P7) - c.delta(FE, P6);
-            if (der < -8.0) return std::make_pair(Sev::Fault, -der);
-            if (der < -5.0) return std::make_pair(Sev::Watch, -der);
+            if (der < c.tuning.flipFaultDeg) return std::make_pair(Sev::Fault, -der);
+            if (der < c.tuning.flipWatchDeg) return std::make_pair(Sev::Watch, -der);
             return std::nullopt; } });
 
     // F4 — Casting / early release: lead-wrist radial set dumped below corridor by P6.
@@ -218,7 +218,7 @@ PpWristFinding *findById(std::vector<PpWristFinding> &v, const QString &id)
 bool trailWristFlattens(const RuleContext &c)
 {
     if (!c.present(TW) || !c.ok(TW, P6) || !c.ok(TW, P7)) return false;
-    return (c.delta(TW, P7) - c.delta(TW, P6)) < -8.0;
+    return (c.delta(TW, P7) - c.delta(TW, P6)) < c.tuning.trailFlattenDeg;
 }
 
 // Clean downstream compensation for an open face at the top: the face squares by impact (lead-wrist

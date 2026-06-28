@@ -29,6 +29,7 @@
 //   sampler.windowHalfUs / .gimbalThresholdDeg / .minValidSamples
 //   rules.confidenceFloor / .scoreScale / .severityWeightFault / .severityWeightWatch
 //          / .corroborationBoost / .strengthsRequireAdjacentFault
+//          / .flipFaultDeg / .flipWatchDeg / .trailFlattenDeg / .archetypeTopDeltaDeg (frozen, C1)
 //   bands.radUlnMargin / .flexExtMargin / .forearmMargin / .trailWristMargin / .elbowMargin
 // Empty map ⇒ all frozen defaults (the production path). Defaults live in pp_tuned_constants.h.
 
@@ -51,6 +52,11 @@ inline WristAssessmentConfig wristAssessmentConfigFor(const QVariantMap &ov)
     tn::apply(ov, "rules.severityWeightWatch",           cfg.rules.severityWeightWatch);
     tn::apply(ov, "rules.corroborationBoost",            cfg.rules.corroborationBoost);
     tn::apply(ov, "rules.strengthsRequireAdjacentFault", cfg.rules.strengthsRequireAdjacentFault);
+    // Discrimination thresholds (C1 / A.5 #15) — exposed but FROZEN (SwingLab refuses rules.* sweeps).
+    tn::apply(ov, "rules.flipFaultDeg",                  cfg.rules.flipFaultDeg);
+    tn::apply(ov, "rules.flipWatchDeg",                  cfg.rules.flipWatchDeg);
+    tn::apply(ov, "rules.trailFlattenDeg",               cfg.rules.trailFlattenDeg);
+    tn::apply(ov, "rules.archetypeTopDeltaDeg",          cfg.rules.archetypeTopDeltaDeg);
 
     tn::apply(ov, "bands.radUlnMargin",     cfg.band.tuning.radUlnMargin);
     tn::apply(ov, "bands.flexExtMargin",    cfg.band.tuning.flexExtMargin);

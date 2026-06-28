@@ -27,15 +27,15 @@ namespace pinpoint::analysis {
 namespace {
 // Auto-detect the band archetype from the lead-wrist face reading at the Top (design §12 Q3).
 // Δ-from-address of flex-ext @P4: strongly bowed → Bowed, strongly cupped → Cupped, else Neutral.
-int detectArchetype(const PpWristAngleSet &set)
+int detectArchetype(const PpWristAngleSet &set, double topDeltaDeg)
 {
     const PpWristAngleCell &p1 = set.cell(PpJointDof::LeadWristFlexExt, PpSwingPosition::P1);
     const PpWristAngleCell &p4 = set.cell(PpJointDof::LeadWristFlexExt, PpSwingPosition::P4);
     if (p1.status != PpCellStatus::Ok || p4.status != PpCellStatus::Ok)
         return 0;                                  // no Top reading → neutral
     const double topDelta = p4.valueDeg - p1.valueDeg;
-    if (topDelta > 10.0)  return 1;                // bowed
-    if (topDelta < -10.0) return 2;                // cupped
+    if (topDelta >  topDeltaDeg) return 1;         // bowed
+    if (topDelta < -topDeltaDeg) return 2;         // cupped
     return 0;                                      // neutral
 }
 } // namespace
@@ -51,7 +51,8 @@ PpWristAssessmentResult WristAssessmentEngine::assess(const IWristAngleSource &s
 
     // Resolve the band model: archetype < 0 = Auto (detect from this swing), else the manual choice.
     BandContext bandCtx = cfg.band;
-    bandCtx.archetype   = (cfg.band.archetype < 0) ? detectArchetype(set) : cfg.band.archetype;
+    bandCtx.archetype   = (cfg.band.archetype < 0)
+                              ? detectArchetype(set, cfg.rules.archetypeTopDeltaDeg) : cfg.band.archetype;
     result.archetype    = bandCtx.archetype;
 
     for (int d = 0; d < kNumDof; ++d) {
@@ -97,7 +98,7 @@ PpWristAssessmentResult WristAssessmentEngine::assess(const IWristAngleSource &s
     // Tier-2 rule engine → findings (faults + strengths), with corroboration / suppression /
     // confidence / linkage applied in the registry post-pass.
     const PpSwingPositionTimeline timeline = source.timeline();
-    const RuleContext ctx{ result, timeline };
+    const RuleContext ctx{ result, timeline, cfg.rules };
     const AssessmentRuleRegistry registry = AssessmentRuleRegistry::makeDefault();
     result.findings = registry.run(ctx, cfg.rules);
 
