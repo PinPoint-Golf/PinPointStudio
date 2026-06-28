@@ -1,6 +1,9 @@
 # Score-Estimand Alignment — Implementation Plan
 
-**Created:** 2026-06-28 · **Status:** draft for review (no code changed yet) · **Owner:** scoring/analysis
+**Created:** 2026-06-28 · **Status:** ✅ IMPLEMENTED 2026-06-28 (WP-1…WP-12 all landed; commits
+`cf84c15`…`d9b1977`, local/unpushed). Analyzer suite green 32/32; SwingLab end-to-end verified.
+Decisions D-1/D-2/D-3 locked. Data-gated work (resemblance `μ_p/σ_p` + band re-seat) remains frozen
+until Corpus 2. · **Owner:** scoring/analysis
 
 **Purpose.** Sequence the work that aligns three surfaces to the clarified score estimands so they
 stop drifting: (A) the application code that *computes* the score, (B) the SwingLab harness that
