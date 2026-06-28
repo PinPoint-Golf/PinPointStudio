@@ -99,10 +99,9 @@ ScoreInterval ScoreUncertainty::wristInterval(const ScoreBreakdown &sb,
     struct Cell { Phase phase; double mu; const PhaseEvent *ev; };
     const Cell cells[2] = { { Phase::Top, win->muTop, top }, { Phase::Impact, win->muImpact, imp } };
 
-    double d2 = 0.0, varD2 = 0.0;
+    double d2_min = 0.0, d2_max = 0.0;
     for (const Cell &c : cells) {
         const double x = phaseValue(*fe, c.phase);
-        const double z = (x - c.mu) / win->sigma;
 
         // Per-cell FE error budget; the timing term is dθ/dt × jitter. Low phase confidence
         // inflates the whole budget (poorly-seated/badly-segmented ⇒ less certain), so it widens
@@ -113,16 +112,29 @@ ScoreInterval ScoreUncertainty::wristInterval(const ScoreBreakdown &sb,
         const double sigmaX     = cf * std::sqrt(tu::kSensorSigmaDeg * tu::kSensorSigmaDeg
                                                + tu::kCrosstalkSigmaDeg * tu::kCrosstalkSigmaDeg
                                                + timingTerm * timingTerm);
-        const double v = (sigmaX / win->sigma) * (sigmaX / win->sigma);
 
-        d2    += z * z;
-        varD2 += 2.0 * v * v + 4.0 * z * z * v;
+        const double deltaX = tu::kIntervalSigmas * sigmaX;
+        const double x_min = x - deltaX;
+        const double x_max = x + deltaX;
+
+        // Calculate max squared z-score within [x - deltaX, x + deltaX]
+        const double z_min_bound = (x_min - c.mu) / win->sigma;
+        const double z_max_bound = (x_max - c.mu) / win->sigma;
+        const double z2_max = std::max(z_min_bound * z_min_bound, z_max_bound * z_max_bound);
+
+        // Calculate min squared z-score within [x - deltaX, x + deltaX]
+        double z2_min = 0.0;
+        if (c.mu < x_min || c.mu > x_max) {
+            z2_min = std::min(z_min_bound * z_min_bound, z_max_bound * z_max_bound);
+        }
+
+        d2_min += z2_min;
+        d2_max += z2_max;
     }
 
-    const double sigmaD2 = tu::kIntervalSigmas * std::sqrt(std::max(0.0, varD2));
     const int central = sb.overall;
-    const int hi = std::clamp(int(std::lround(R_of(std::max(0.0, d2 - sigmaD2)))), 0, 100);
-    const int lo = std::clamp(int(std::lround(R_of(d2 + sigmaD2))), 0, 100);
+    const int hi = std::clamp(int(std::lround(R_of(d2_min))), 0, 100);
+    const int lo = std::clamp(int(std::lround(R_of(d2_max))), 0, 100);
 
     iv.lo        = std::min(lo, central);
     iv.hi        = std::max(hi, central);

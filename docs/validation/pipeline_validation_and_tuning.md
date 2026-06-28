@@ -739,10 +739,8 @@ Via the tuning/escalation discipline (§7), never by silently fitting to the cri
   criterion's LoA*, not zero difference.
 - **Single-sensor vs two-sensor PS** — disagreement may be a genuine construct difference; interpret,
   don't auto-"fix".
-- **Co-mounting perturbation, single golfer, modest N** — LoA are estimates with CIs; **within-subject
-  only** until Corpus 3 adds golfers (§3.5).
-- **Correlation ≠ agreement; regression-to-criterion trap** — always Bland–Altman; never tune a sign or
-  offset to chase the criterion without the static-pose anchor.
+- **Pseudo-replication and Clustered Data (Pseudo-Replication Caution):** The 50 swings in Corpus 2 are from a single golfer. Swings from a single subject are highly clustered and are *not* independent observations for population generalisation. Therefore, the Bland-Altman Limits of Agreement (LoA) measured here are strictly **within-subject agreement limits**. They under-estimate the true population-level LoA because they omit between-subject anatomical and sensor-mounting variations. Any population-level validation or generalizability claims are strictly deferred to Corpus 3, requiring a minimum of **8–12 different golfers** (§3.5).
+- **Correlation ≠ agreement; regression-to-criterion trap** — always Bland–Altman; never tune a sign or offset to chase the criterion without the static-pose anchor.
 
 ---
 
