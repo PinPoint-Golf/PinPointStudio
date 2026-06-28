@@ -40,6 +40,14 @@ analyse the same kind of window with entirely different pipelines. The
 `ShotAnalyzer` interface plus a factory keyed on
 `SessionController::Type` keep that polymorphism out of the orchestration code.
 
+Each assessment type — **Wrist, Swing, GRF** — produces its **own**
+session-appropriate score (its own bands and weights, so the number reflects
+what is being assessed); the **Coach** type is the AI-coach **feedback layer on
+top**, not a fourth independent score. Every analyzer is **maximal and
+degradable**: it extracts as many metrics as the present cameras/IMUs support —
+degrading per-metric on confidence — and never fails the whole result for a
+missing sensor (`ok=false` is reserved for *no* usable data).
+
 The analyzer is **not** shot detection (deciding that/when a shot happened —
 see `docs/developer/shot_detector_developer_guide.md`) and **not** the media export
 (encoding MP4s + thumbnail — see `docs/developer/swing_export_developer_guide.md`). It
@@ -358,6 +366,22 @@ verified.
 ---
 
 ## 7. The Scoring Model
+
+**What the score estimates (estimand).** Scores are **per session type and
+never aggregated** (a wrist score and a swing score are different
+measurements). Every score is **criterion-referenced** — compared to defined
+references, **not** a between-golfer percentile and **not** a predicted
+ball-flight outcome — and carries an **uncertainty interval** (band σ is
+coaching tolerance; sensor/timing error is propagated separately, and low
+confidence widens the interval, never raises the score). Two flavours:
+**Swing / GRF** have a defined-good reference, so their score is *adherence*
+(closeness to an efficient, well-sequenced action); the **Wrist** score has no
+defined-good — bowed and cupped both work — so it is a **per-archetype
+resemblance diagnostic** that surfaces the closest pattern + strength
+("bowed · 86"). The wrist resemblance is the `WristAssessmentEngine` archetype
+machinery; its **faults are coach-layer feedback**, and the impact-only
+`SwingScorer` below (with its cupping penalty) is **superseded for Wrist**.
+Canonical definition: `shot_analyzer_design.md` §B.0.
 
 `SwingScorer` (design: `shot_analyzer_design.md` §B) is deliberately
 transparent and **non-compensatory**:

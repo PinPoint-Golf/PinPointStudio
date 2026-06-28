@@ -965,8 +965,30 @@ three-corpus progression §2 and `corpus_v1_validation_plan.md`):
 | 10 | **Expose ESKF `R`** — `third_party/imu_ekf` is kept verbatim and ESKF cannot warm-start, so it sits outside the re-fusion loop. | Only if ESKF replaces Madgwick as the production filter. |
 | 11 | **Bayesian / CMA-ES optimiser backends** (`--method bayesian/cmaes`). | If coordinate-descent + random plateau on a real high-dimensional surface (the existing escalation trigger). |
 
-**Bottom line:** the door is open — what's left is mostly the data-gated validation campaign (A.3), two
-small observability gaps (A.1 #1–#2), and a full-app build (A.1 #3).
+### A.5 Score & diagnosis layer — Appendix B resolution (estimand decided 2026-06-28)
+
+The estimand decisions (design §B.0/§B.0a/§B.7, and the A1 resolution note above) convert the Appendix B
+critique into a defined engineering list — each item is now scheduled work, not an open question.
+(`pitchProxyDeg` = A.1 #1 and the synth impact-saturation swing = A.2 #4 already cover findings **B4** and
+**D4** and are not repeated here.)
+
+| # | Item | Addresses | Size |
+|---|---|---|---|
+| 12 | **Re-cast the wrist scorer as per-archetype resemblance** (design §B.0a): resemblance to each of bowed/neutral/cupped, surface max + label + blended flag; **move `WristAssessmentEngine` findings to the AI-coach feedback layer**; retire the impact-only one-sided `SwingScorer` headline for Wrist. | B1 | M |
+| 13 | **Attach a score uncertainty interval** (§B.7): decouple the central score from confidence (remove the `severity × confidence` term on the central value), propagate per-cell measurement error into an interval, low confidence **widens** it. | A3, B2, C5 | M |
+| 14 | **Per-cell error budget** = `σ_sensor ⊕ σ_crosstalk ⊕ (dθ/dt · σ_phase-timing)`, folded into cell confidence and the §B.7 interval — validate segmentation timing and wrist angle **jointly**, not as independent stages. | C3 | M |
+| 15 | **Expose the discrimination literals as dotted keys** (resemblance `μ_p`/`σ_p`; archetype top-delta; `flip −8/−5`) so the boundaries are sweepable — **kept frozen until labels exist**. | C1 | S |
+| 16 | **Soft regression penalty for the sweep search operator** (hard `regressions==0` gate only at accept/freeze); acknowledge `seg.*` non-separability. | D2 | S |
+| 17 | **Re-label `imu_vision_corr` as verification/consistency** (not validation) in the acceptance tables (§10); add the explicit caveat that a Corpus-1 reliability gate does **not** bound the ~10–15° systematic FE↔RUD cross-talk. | D3, C4 | XS (doc) |
+| 18 | **Internal-consistency unit tests** of the scoring construction (monotonicity, boundedness, deadband-seam continuity); the two-system Bland–Altman becomes moot once #12 lands. | D5 | S |
+
+**Sequencing:** #12–#13 are the load-bearing rework (they make the score mean what §B.0 says); #14–#15 make
+the corpus sweeps interpretable; #16–#18 are claim-correctness and conditioning. None needs new hardware —
+only #12's `μ_p`/`σ_p` and the band re-seat are data-gated (Corpus 2).
+
+**Bottom line:** the door is open — what's left is the data-gated validation campaign (A.3), the
+score/diagnosis rework now that the estimand is decided (A.5 — mostly desk work; only the `μ_p`/`σ_p` re-seat
+is data-gated), two small observability gaps (A.1 #1–#2), and a full-app build (A.1 #3).
 
 ---
 
@@ -1028,6 +1050,21 @@ weights justified, normalisation defined). The estimand is currently unstated.
 > from a coaching ideal in arbitrary units, not comparable across players (criterion-referenced — needs the
 > scale defended), or (iii) an expected strike-quality proxy (predictive — needs outcomes). Each choice
 > dictates a *different* validation.
+
+> **Resolution (2026-06-28) — estimand declared.** Scores are **per session type, criterion-referenced, and
+> never aggregated across types** (B3 at the cross-session level: a wrist and a swing score are different
+> measurements, never combined). They are **not** between-golfer percentiles (A1/A2) and **not** outcome
+> predictions. Two flavours: **Swing/GRF** have a defined-good reference → an *adherence* score (closeness to
+> an efficient, well-sequenced action); the **Wrist** score has **no defined-good** (bowed and cupped both
+> work) → a **per-archetype resemblance diagnostic** that, for each of bowed/neutral/cupped, measures how
+> closely the lead-wrist pattern resembles it and surfaces the closest + its strength — *diagnostic, not a
+> quality grade*. Quality/fault reads (open-face, cast, flip) are the **AI-coach feedback layer**, not the
+> score. Canonical wording: `shot_analyzer_design.md` §B.0/§B.7. Consequences here: wrist bands anchor to
+> **external** tour corridors + an in-range check, never a one-golfer distribution (A2); the wrist score is
+> the archetype-resemblance model and its faults move to the coach layer, retiring the duplicate `SwingScorer`
+> headline for Wrist (B1); **σ is coaching tolerance only and the score carries a measurement-uncertainty
+> interval — low confidence widens it, never raises the score** (A3/B2/C5); and `score.*`/`rules.*` stay
+> **frozen, not swept**, until labels exist (D1).
 
 **A2 — Norm-referenced bands cannot be estimated from a single-golfer corpus.** *(Severity: high)*
 `reference_bands.cpp` corridors and `kWristBands` μ/σ are "where good comes from" — population norms. The plan
