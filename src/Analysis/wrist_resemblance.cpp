@@ -24,6 +24,12 @@
 #include <algorithm>
 #include <cmath>
 
+// WristResemblanceScorer computes the Archetype Similarity Index (descriptive resemblance
+// to bowed, neutral, and cupped templates based on flexion-extension at Top and Impact).
+// Because a static two-frame FE slice is biomechanically blind to secondary axes (RUD/PS)
+// and release rate dynamics, this index functions strictly as a style classification, while
+// the headline quality score is driven by the penalty-based assessment engine.
+
 namespace pinpoint::analysis {
 namespace {
 

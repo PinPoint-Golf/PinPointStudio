@@ -221,7 +221,7 @@ Item {
                 visible: dx.resemblance && dx.resemblance.neutral !== undefined
                 spacing: Theme.sp(8)
                 Text {
-                    text: qsTr("Resemblance")
+                    text: qsTr("Archetype Similarity Index")
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
                     font.capitalization: Font.AllUppercase; font.letterSpacing: Theme.trackingMicro
                     color: Theme.colorText3
