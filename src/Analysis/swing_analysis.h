@@ -190,7 +190,11 @@ enum class ScoreKind { Adherence, Resemblance };
 
 // Measurement-uncertainty interval on the score (design §B.7) — a SEPARATE track
 // from the band σ (which is coaching tolerance only). Low confidence WIDENS this
-// interval; it never moves `overall`. -1 = not computed.
+// interval; it never moves `overall`. Invariant: it always brackets `overall`
+// (0 ≤ lo ≤ overall ≤ hi). -1 = not computed. For the Wrist session the headline is
+// the penalty-based assessment score, whose own error model is deferred, so the
+// interval is left unset there (the §B.7 budget is computed on the resemblance value
+// and only kept while that value is itself `overall` — see wrist_analyzer.cpp).
 struct ScoreInterval {
     int halfWidth = -1;   // e.g. 9 means "±9"
     int lo = -1, hi = -1; // clamped [0,100]; convenience for UI/checks
@@ -206,7 +210,9 @@ struct ScoreBreakdown {
     QHash<QString,int> resemblance;
     QString            patternLabel;      // argmax label, e.g. "bowed" (empty for adherence)
     bool               blended = false;   // top-two within blendedDeltaPts (~10)
-    // Measurement-uncertainty interval (both kinds; §B.7). valid() false until WP-4 fills it.
+    // Measurement-uncertainty interval that brackets `overall` (§B.7). Filled by WP-4 for the
+    // resemblance value; unset once the Wrist headline becomes the penalty-based assessment score
+    // (its own interval is deferred). valid() false when not computed/unset.
     ScoreInterval      interval;
     // Adherence estimand (Swing/GRF), unchanged.
     QHash<QString,int> perRegion;         // "rotation","wrist","tempo",...

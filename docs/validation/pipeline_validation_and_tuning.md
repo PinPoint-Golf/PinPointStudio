@@ -1179,6 +1179,16 @@ A bare integer is exactly the "precise, confident, wrong" failure the body warns
 machinery (`confidence`, `lowConfidence`, `Indeterminate`) exists but stops at the cells and never reaches the
 headline.
 
+> **Resolution (2026-06-29) — partial; interval scoped to the resemblance, headline interval deferred.** WP-4
+> built the §B.7 FE-budget interval, but the unifying decision (A1, 2026-06-28) made the wrist **headline** the
+> penalty-based assessment score, whose honest interval would propagate *finding confidence*, not the FE
+> z-score budget. Those are different quantities, so the FE-budget interval brackets the **resemblance value**,
+> not the headline. The analyzer now keeps the interval only while `overall` *is* the resemblance value and
+> clears it once the assessment score takes over (`wrist_analyzer.cpp`), preserving `0 ≤ lo ≤ overall ≤ hi`
+> (and satisfying `score.py::score.interval_valid`). **Outstanding:** the assessment-score headline still has
+> no interval — item 6 below remains open until a finding-confidence error model is built; the live wrist
+> headline therefore shows a bare integer for now.
+
 #### D. Optimisation & validation methodology
 
 **D1 — The diagnosis/score layer is not yet an optimisation problem — it has no loss function.** *(Severity: high — the key reframe)*

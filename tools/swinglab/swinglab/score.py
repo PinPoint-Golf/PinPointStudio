@@ -265,9 +265,13 @@ def score_metrics(run: RunResult, swing: Swing):
     """Tier-2-Ext — wrist resemblance score construction (design §B.0a/§B.7, A.5 #12/#13/#18).
     Reads analysis.score (the /3 ScoreBreakdown object; /2 docs carried a bare int and are skipped).
     These are INTERNAL-CONSISTENCY checks of the construction — robust to the (frozen) tuned values:
-    each R_p bounded, overall == max R_p, the headline label is the argmax, and the uncertainty
-    interval brackets the central score. When truth.json meta declares an `archetype`, also checks
-    resemblance recall (the surfaced pattern matches the scripted archetype)."""
+    each R_p bounded, the headline matches the penalty-based assessment score (`scoreV2`) when present,
+    the surfaced label is the resemblance argmax, and — *when an interval is present* — it brackets the
+    central score (`0<=lo<=overall<=hi`). The live wrist headline is the assessment score, which has no
+    interval model yet, so its interval is absent (a `warn`, not a fail); the resemblance FE-budget
+    interval is cleared once the assessment score becomes `overall` (see wrist_analyzer.cpp). When
+    truth.json meta declares an `archetype`, also checks resemblance recall (the surfaced pattern
+    matches the scripted archetype)."""
     score = run.analysis.get("score")
     if not isinstance(score, dict) or score.get("kind") != "resemblance":
         return []   # /2 int score, or an adherence (Swing/GRF) score — nothing to check here

@@ -196,7 +196,12 @@ only** with the resemblance scorer; `r.score = detail->score.overall` (`:382`) n
   segmentation and wrist-angle error validated **jointly**, not as independent stages. New helper
   `src/Analysis/score_uncertainty.{h,cpp}`.
 - **Propagate to interval** (`#13`): turn the per-cell budget into `ScoreBreakdown::interval` on the
-  resemblance score (e.g. "82 ± 9"). **Low confidence widens the interval; it never changes `overall`.**
+  resemblance value (e.g. "82 ± 9"). **Low confidence widens the interval; it never changes `overall`.**
+  **Headline caveat (post-WP-2):** WP-2 made the wrist headline the penalty-based assessment score, so
+  this FE-budget interval brackets the *resemblance descriptor*, not the headline. To preserve the
+  `interval brackets overall` invariant, the analyzer keeps the interval only while `overall` is the
+  resemblance value and **clears it once the assessment score becomes `overall`** (`wrist_analyzer.cpp`).
+  The assessment score's own interval — propagating finding confidence — is **deferred** (no model yet).
 - **Remove the perverse central term:** formally retire the `severity × confidence` term from any score
   path (`wrist_assessment_engine.cpp:113-118` score-v2). Score v2 is no longer a headline (WP-2); if its
   number is kept at all it is telemetry only and must not feed `overall`.
@@ -207,7 +212,9 @@ only** with the resemblance scorer; `r.score = detail->score.overall` (`:382`) n
   `wrist_assessment_engine.cpp:113-118` (strip central coupling); `pp_tuned_constants.h`;
   `swing_analysis.h`/`swing_doc.cpp` (interval field — shape from WP-1).
 - **Test:** interval **widens** monotonically as cell confidence drops; `overall` is **invariant** to
-  confidence (kills B2); interval present and `0 ≤ lo ≤ overall ≤ hi ≤ 100`.
+  confidence (kills B2); when present, `0 ≤ lo ≤ overall ≤ hi ≤ 100`. (For the live wrist headline the
+  interval is **absent** — `overall` is the assessment score, which has no interval model yet; the
+  bracketing invariant is exercised on the resemblance value in `wrist_resemblance_test.cpp`.)
 - **Data-gated:** **No**.
 - **Satisfies:** §B.7, A.5 #13 (A3,B2,C5), #14 (C3).
 
@@ -265,9 +272,12 @@ Lift the inline literals into `pp_tuned_constants.h` + the dotted-key override p
   lands via SwingDocWriter).
 - `tools/swinglab/swinglab/score.py` — add checks that **read `analysis.score`** (today it never does):
   - `score.resemblance_bounded` — each `R_p` ∈ [0,100] (fail).
-  - `score.headline_consistent` — `overall == max(resemblance)`, `pattern == argmax` (fail).
-  - `score.blended_flag` — `blended` iff top-two ≤ `blendedDeltaPts` (warn).
-  - `score.interval_present` — interval present, `0 ≤ lo ≤ overall ≤ hi ≤ 100` (fail).
+  - `score.headline_matches_assessment` — `overall == scoreV2` when the assessment block is present
+    (fail). *(Supersedes the original `overall == max(resemblance)`: post-WP-2 the headline is the
+    assessment score, not the resemblance max.)* `score.pattern_is_argmax` — `pattern == argmax` (fail).
+  - `score.blended_sane` — flagged `blended` ⇒ top-two gap small (warn).
+  - `score.interval_valid` — **when an interval is present**, `0 ≤ lo ≤ overall ≤ hi ≤ 100` (fail);
+    `score.interval_present` is a **warn** when absent (the live assessment headline carries none).
   - `score.resemblance_recall` — on a known bowed/neutral/cupped synth (WP-10), `pattern` matches the
     stamped archetype (fail; Tier-2-Ext, gated on `truth.meta.archetype`).
 - **Files:** `score.py` (`scorecard()` + new check group), `swinglab_run.cpp` (rebuild only).

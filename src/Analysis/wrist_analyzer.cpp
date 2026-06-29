@@ -360,8 +360,12 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
     // Wrist estimand = per-archetype resemblance (design §B.0a). SwingScorer's impact-only
     // one-sided model is retired here; it remains the Swing/GRF adherence scorer.
     detail->score  = WristResemblanceScorer::score(series, job.tuningOverrides);
-    // Measurement-uncertainty interval (§B.7): propagate the per-cell FE error budget through
-    // the winning pattern. Low confidence widens it; the central score is unchanged.
+    // Measurement-uncertainty interval (§B.7) on the RESEMBLANCE value (max R_p): propagate the
+    // per-cell FE error budget through the winning pattern. Low confidence widens it; the central
+    // value is unchanged. NOTE this brackets `overall` only while `overall` IS that resemblance
+    // value — i.e. when the penalty-based assessment headline below does not run. The moment the
+    // assessment score takes over the headline the interval is cleared (see below), so the
+    // ScoreBreakdown invariant "interval brackets overall" always holds.
     detail->score.interval = ScoreUncertainty::wristInterval(detail->score, series, phases,
                                                              job.tuningOverrides);
 
@@ -384,8 +388,14 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
         detail->findings        = ar.findings;
         detail->assessmentScore = ar.score.total;
         
-        // Headline overall score is now the penalty-based assessment score (0-100)
+        // Headline overall score is now the penalty-based assessment score (0-100).
         detail->score.overall   = ar.score.total;
+        // The §B.7 interval computed above brackets the resemblance value, NOT this penalty-based
+        // score — attaching it here would show a ± band that belongs to a different quantity (and
+        // would fail score.py's `0 ≤ lo ≤ overall ≤ hi` check). The assessment score's own
+        // measurement-uncertainty model (propagating finding confidence rather than the FE z-score
+        // budget) is deferred, so clear the interval until that model exists.
+        detail->score.interval  = ScoreInterval{};
 
         ppInfo() << "[WristAnalysis] assessment:" << detail->findings.size() << "findings, score v2"
                  << detail->assessmentScore;
