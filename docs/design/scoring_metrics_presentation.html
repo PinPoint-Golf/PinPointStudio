@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decoding the Perfect Swing: Scoring & Metrics in PinPointStudio</title>
+    <!-- Import Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-dark: #0a0b10;
+            --card-bg: rgba(20, 22, 37, 0.6);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #6366f1;
+            --primary-glow: rgba(99, 102, 241, 0.35);
+            --accent: #10b981;
+            --accent-glow: rgba(16, 185, 129, 0.3);
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --purple: #a855f7;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+        }
+
+        /* Ambient Glow Backgrounds */
+        .ambient-glow-1 {
+            position: absolute;
+            top: -20%;
+            left: -10%;
+            width: 60%;
+            height: 60%;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, rgba(0,0,0,0) 70%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .ambient-glow-2 {
+            position: absolute;
+            bottom: -20%;
+            right: -10%;
+            width: 60%;
+            height: 60%;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(168, 85, 247, 0.08) 0%, rgba(0,0,0,0) 70%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* Presentation Container */
+        .presentation {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            padding: 2rem;
+        }
+
+        /* Slide Styles */
+        .slide {
+            position: absolute;
+            width: 90%;
+            max-width: 1200px;
+            height: 80vh;
+            max-height: 700px;
+            opacity: 0;
+            transform: translateY(30px) scale(0.98);
+            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .slide.active {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            pointer-events: auto;
+            z-index: 10;
+        }
+
+        /* Glassmorphism Slide Content Card */
+        .slide-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 24px;
+            padding: 3rem;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            height: 100%;
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 3rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .slide.title-slide .slide-card {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            grid-template-columns: 1fr;
+        }
+
+        /* Typography */
+        h1, h2, h3 {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 800;
+            line-height: 1.15;
+        }
+
+        .title-slide h1 {
+            font-size: 3.5rem;
+            background: linear-gradient(135deg, #fff 30%, var(--primary) 70%, var(--purple) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1.5rem;
+            letter-spacing: -0.02em;
+        }
+
+        .title-slide h2 {
+            font-size: 1.4rem;
+            font-weight: 400;
+            color: var(--text-muted);
+            max-width: 800px;
+            margin-bottom: 2rem;
+            line-height: 1.5;
+        }
+
+        .slide h2.slide-title {
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(135deg, #fff 50%, var(--text-muted) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .slide-text {
+            color: var(--text-muted);
+            font-size: 1.05rem;
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+        }
+
+        /* Bullet lists */
+        .bullet-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 1.1rem;
+        }
+
+        .bullet-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .bullet-icon {
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--primary);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.85rem;
+            flex-shrink: 0;
+            margin-top: 0.15rem;
+        }
+
+        .bullet-icon.accent {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent);
+        }
+
+        .bullet-icon.warning {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+        }
+
+        .bullet-icon.danger {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--danger);
+        }
+
+        .bullet-content h4 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.1rem;
+            color: var(--text-main);
+            margin-bottom: 0.25rem;
+        }
+
+        .bullet-content p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        /* Highlight boxes */
+        .highlight-box {
+            background: rgba(255, 255, 255, 0.03);
+            border-left: 4px solid var(--primary);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin-top: 1.2rem;
+        }
+
+        .highlight-box.accent {
+            border-left-color: var(--accent);
+        }
+
+        .highlight-box.warning {
+            border-left-color: var(--warning);
+        }
+
+        .highlight-box p {
+            font-size: 0.92rem;
+            line-height: 1.45;
+            color: var(--text-main);
+        }
+
+        /* Visual Container */
+        .slide-visual {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            overflow: hidden;
+            position: relative;
+            height: 100%;
+        }
+
+        /* Navigation Controls */
+        .controls-bar {
+            background: rgba(10, 11, 16, 0.8);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 1.5rem 3rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .slide-counter {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-main);
+            padding: 0.75rem 1.5rem;
+            border-radius: 12px;
+            cursor: pointer;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: var(--primary);
+            border-color: var(--primary);
+            box-shadow: 0 0 20px var(--primary-glow);
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        /* SVG Diagrams Style */
+        svg {
+            width: 100%;
+            height: 100%;
+            max-height: 400px;
+        }
+
+        /* Keyframe Animations for SVGs */
+        @keyframes pulse-dot {
+            0%, 100% { transform: scale(1); opacity: 0.6; }
+            50% { transform: scale(1.4); opacity: 1; filter: drop-shadow(0 0 8px var(--primary)); }
+        }
+
+        @keyframes wave-flow {
+            0% { stroke-dashoffset: 0; }
+            100% { stroke-dashoffset: -40; }
+        }
+
+        @keyframes twist-loop {
+            0%, 100% { transform: rotate(0deg); }
+            50% { transform: rotate(15deg); }
+        }
+
+        @keyframes lift-motion {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+
+        .pulsing-node {
+            animation: pulse-dot 2s infinite ease-in-out;
+            transform-origin: center;
+        }
+
+        .flowing-line {
+            stroke-dasharray: 8 4;
+            animation: wave-flow 1.5s linear infinite;
+        }
+
+        .twisting-segment {
+            animation: twist-loop 3s infinite ease-in-out;
+            transform-origin: 200px 200px;
+        }
+
+        .lifting-element {
+            animation: lift-motion 2.5s infinite ease-in-out;
+        }
+
+        /* Progress Dots */
+        .progress-dots {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .dot.active {
+            background: var(--primary);
+            transform: scale(1.3);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        /* Badge design */
+        .badge {
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--primary);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            padding: 0.25rem 0.75rem;
+            border-radius: 30px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: inline-block;
+            margin-bottom: 1rem;
+        }
+
+        .badge.accent {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent);
+            border-color: rgba(16, 185, 129, 0.3);
+        }
+
+        .badge.warning {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+            border-color: rgba(245, 158, 11, 0.3);
+        }
+
+        .badge.purple {
+            background: rgba(168, 85, 247, 0.15);
+            color: var(--purple);
+            border-color: rgba(168, 85, 247, 0.3);
+        }
+
+        /* Responsive changes */
+        @media(max-width: 900px) {
+            .slide-card {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+                padding: 1.5rem;
+                overflow-y: auto;
+            }
+            .slide-visual {
+                height: 250px;
+            }
+            body {
+                overflow-y: auto;
+            }
+            .slide {
+                height: auto;
+                max-height: none;
+                position: relative;
+                opacity: 1;
+                transform: none !important;
+                display: none;
+            }
+            .slide.active {
+                display: flex;
+            }
+            .title-slide h1 {
+                font-size: 2.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ambient-glow-1"></div>
+    <div class="ambient-glow-2"></div>
+
+    <div class="presentation">
+        
+        <!-- SLIDE 1: TITLE SLIDE -->
+        <div class="slide active title-slide" id="slide-1">
+            <div class="slide-card">
+                <span class="badge">Biomechanical Intelligence</span>
+                <h1>Science Behind the Score</h1>
+                <h2>How PinPointStudio analyzes your swing using multi-camera fusion, motion sensors, and physics—and how to use the data to shoot lower scores.</h2>
+                <div class="highlight-box" style="max-width: 700px; text-align: center; border-left: none; border-bottom: 4px solid var(--primary); border-radius: 8px;">
+                    <p><strong>A Golfer's Guide to Swing Metrics:</strong> No academic fluff, just plain English explanations of the metrics that control your ball flight and a roadmap to target your biggest faults.</p>
+                </div>
+                <p style="margin-top: 2rem; color: var(--text-muted); font-size: 0.85rem;">Use Left / Right arrow keys or the buttons below to navigate</p>
+            </div>
+        </div>
+
+        <!-- SLIDE 2: THE PIPELINE -->
+        <div class="slide" id="slide-2">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge">How We Analyze</span>
+                    <h2 class="slide-title">The Nine-Layer Swing Pipeline</h2>
+                    <p class="slide-text">To map your swing in milliseconds, PinPointStudio runs your shot through a sequential, nine-stage analysis process:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon">1</span>
+                            <div class="bullet-content">
+                                <h4>AI Pose & Tracker (Layers 0-1)</h4>
+                                <p>Extracts raw frames and runs high-precision AI models (ViTPose-L/H) to trace 133 joint landmarks on your body, hands, and fingers, while tracking the clubhead and ball.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon">2</span>
+                            <div class="bullet-content">
+                                <h4>3D Reconstruction & Fusion (Layers 2-3)</h4>
+                                <p>Triangulates camera angles and fuses them with 100 Hz IMU (motion sensor) quaternions. This maps your rotations in a virtual metric 3D space, resolving occlusion.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon">3</span>
+                            <div class="bullet-content">
+                                <h4>Anatomical Skeleton & Scores (Layers 4-8)</h4>
+                                <p>Smoothes joint paths with Kalman/RTS filters, fits them to a stable physical skeleton, anchors events on impact, computes scores, and ranks faults with targeted drills.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Layers stacked vertically -->
+                        <!-- Layer 3: Skeleton & Scores -->
+                        <polygon points="50,110 350,110 320,150 80,150" fill="rgba(168, 85, 247, 0.2)" stroke="var(--purple)" stroke-width="1.5"/>
+                        <text x="200" y="135" fill="var(--text-main)" font-size="12" font-family="sans-serif" text-anchor="middle" font-weight="bold">3. Skeleton &amp; Metrics (Layers 4-8)</text>
+                        
+                        <!-- Connecting arrows -->
+                        <line x1="200" y1="180" x2="200" y2="150" stroke="var(--purple)" stroke-width="2" stroke-dasharray="3 3" class="flowing-line"/>
+                        
+                        <!-- Layer 2: 3D Reconstruction & Fusion -->
+                        <polygon points="50,190 350,190 320,230 80,230" fill="rgba(16, 185, 129, 0.2)" stroke="var(--accent)" stroke-width="1.5"/>
+                        <text x="200" y="215" fill="var(--text-main)" font-size="12" font-family="sans-serif" text-anchor="middle" font-weight="bold">2. 3D Fusion &amp; Smoothing (Layers 2-3)</text>
+                        
+                        <!-- Connecting arrows -->
+                        <line x1="200" y1="260" x2="200" y2="230" stroke="var(--accent)" stroke-width="2" stroke-dasharray="3 3" class="flowing-line"/>
+                        
+                        <!-- Layer 1: AI Camera & Sensors -->
+                        <polygon points="50,270 350,270 320,310 80,310" fill="rgba(99, 102, 241, 0.2)" stroke="var(--primary)" stroke-width="1.5"/>
+                        <text x="200" y="295" fill="var(--text-main)" font-size="12" font-family="sans-serif" text-anchor="middle" font-weight="bold">1. AI Frame Detection (Layers 0-1)</text>
+
+                        <text x="200" y="50" fill="var(--text-muted)" font-size="14" font-family="sans-serif" text-anchor="middle">Processing Stages</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 3: HARDWARE TIERS -->
+        <div class="slide" id="slide-3">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge accent">Flexible Technology</span>
+                    <h2 class="slide-title">Graceful Degradation</h2>
+                    <p class="slide-text">PinPointStudio adapts dynamically to your hardware. The system is designed to provide full-fidelity metrics even with a single camera:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon accent">1</span>
+                            <div class="bullet-content">
+                                <h4>Mono3D + IMU (Flagship Tier)</h4>
+                                <p><strong>One calibrated face-on camera + body/wrist sensors.</strong> This is a first-class setup, not a backup! Sensors map absolute X-factor, wrist hinge, and sequence timing, while the camera tracks posture and tempo.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon accent">2</span>
+                            <div class="bullet-content">
+                                <h4>Stereo3D (Accuracy Upgrade)</h4>
+                                <p><strong>Adds a second down-the-line camera.</strong> This resolves depth occlusion and unlocks critical club delivery metrics like club path, attack angle, and 3D swing plane.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon accent">3</span>
+                            <div class="bullet-content">
+                                <h4>Club Instrumented (Sensor Upgrade)</h4>
+                                <p>Adding a lightweight sensor to the club shaft unlocks direct, high-fidelity clubhead speed and shaft lean without needing a second camera.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Golfer skeleton sketch -->
+                        <g stroke="rgba(255,255,255,0.15)" stroke-width="2">
+                            <!-- Spine & Legs -->
+                            <line x1="200" y1="120" x2="200" y2="220"/>
+                            <line x1="200" y1="220" x2="160" y2="340"/>
+                            <line x1="200" y1="220" x2="240" y2="340"/>
+                            <!-- Shoulders & Arms -->
+                            <line x1="160" y1="140" x2="240" y2="140"/>
+                            <line x1="160" y1="140" x2="180" y2="240"/>
+                            <line x1="240" y1="140" x2="180" y2="240"/>
+                            <!-- Club -->
+                            <line x1="180" y1="240" x2="120" y2="330" stroke="var(--primary)" stroke-width="3"/>
+                        </g>
+                        
+                        <!-- Glowing Sensor Points -->
+                        <!-- Chest Sensor -->
+                        <circle cx="200" cy="150" r="6" fill="var(--purple)"/>
+                        <circle cx="200" cy="150" r="14" fill="none" stroke="var(--purple)" stroke-width="1.5" class="pulsing-node"/>
+                        
+                        <!-- Pelvis Sensor -->
+                        <circle cx="200" cy="210" r="6" fill="var(--accent)"/>
+                        <circle cx="200" cy="210" r="14" fill="none" stroke="var(--accent)" stroke-width="1.5" class="pulsing-node"/>
+                        
+                        <!-- Wrist Sensor -->
+                        <circle cx="180" cy="240" r="6" fill="var(--warning)"/>
+                        <circle cx="180" cy="240" r="14" fill="none" stroke="var(--warning)" stroke-width="1.5" class="pulsing-node"/>
+                        
+                        <!-- Text indicators -->
+                        <text x="220" y="154" fill="var(--purple)" font-size="10" font-family="sans-serif">Thorax IMU</text>
+                        <text x="220" y="214" fill="var(--accent)" font-size="10" font-family="sans-serif">Pelvis IMU</text>
+                        <text x="200" y="250" fill="var(--warning)" font-size="10" font-family="sans-serif">Wrist IMU</text>
+                        
+                        <!-- Camera view indicator -->
+                        <path d="M 40 100 L 100 70 L 100 130 Z" fill="rgba(99, 102, 241, 0.2)" stroke="var(--primary)" stroke-width="1"/>
+                        <circle cx="45" cy="100" r="4" fill="#fff"/>
+                        <text x="35" y="150" fill="var(--text-muted)" font-size="11" font-family="sans-serif">Face-On Camera</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 4: X-FACTOR -->
+        <div class="slide" id="slide-4">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge warning">Power Generation</span>
+                    <h2 class="slide-title">The Power Coil: X-Factor</h2>
+                    <p class="slide-text">Speed in golf isn't about arm strength; it is about building elastic tension in your core, which we measure in degrees of separation:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon warning">1</span>
+                            <div class="bullet-content">
+                                <h4>X-Factor (The Backswing Coil)</h4>
+                                <p>The difference in rotation between your shoulders (thorax) and hips (pelvis) at the top of the backswing. A strong coil separates the two axes by <strong>40° to 50°</strong>, stretching the core muscles.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon warning">2</span>
+                            <div class="bullet-content">
+                                <h4>X-Factor Stretch (The Downswing Sling)</h4>
+                                <p>As the downswing begins, the hips start turning *first*, while the shoulders remain coiled. This increases the separation briefly, creating an extra stretch (ideal is <strong>+5°</strong>) that acts like a released slingshot.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon warning">3</span>
+                            <div class="bullet-content">
+                                <h4>How to use it</h4>
+                                <p>If your X-Factor is low, focus on hip stability. Letting your hips drift or turn too much limits the coil. If your stretch is low, focus on starting your downswing from the ground up, not with your upper body.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Top-down view coordinates -->
+                        <circle cx="200" cy="200" r="130" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="2"/>
+                        
+                        <!-- Hip axis line (coiled to ~45 deg) -->
+                        <g transform="rotate(45, 200, 200)">
+                            <line x1="80" y1="200" x2="320" y2="200" stroke="var(--accent)" stroke-width="4"/>
+                            <circle cx="80" cy="200" r="8" fill="var(--accent)"/>
+                            <circle cx="320" cy="200" r="8" fill="var(--accent)"/>
+                            <text x="290" y="190" fill="var(--accent)" font-size="10" font-family="sans-serif" transform="rotate(-45, 290, 190)">Hips (45°)</text>
+                        </g>
+
+                        <!-- Shoulder axis line (coiled to ~90 deg) -->
+                        <g transform="rotate(90, 200, 200)">
+                            <line x1="60" y1="200" x2="340" y2="200" stroke="var(--primary)" stroke-width="4"/>
+                            <circle cx="60" cy="200" r="10" fill="var(--primary)"/>
+                            <circle cx="340" cy="200" r="10" fill="var(--primary)"/>
+                            <text x="310" y="185" fill="var(--primary)" font-size="10" font-family="sans-serif" transform="rotate(-90, 310, 185)">Shoulders (90°)</text>
+                        </g>
+
+                        <!-- Separation Arc -->
+                        <path d="M 270 130 A 100 100 0 0 1 200 100" fill="none" stroke="var(--warning)" stroke-width="3" stroke-dasharray="2 2"/>
+                        <text x="260" y="90" fill="var(--warning)" font-size="14" font-weight="bold" font-family="sans-serif">X-Factor Separation: 45°</text>
+                        
+                        <!-- Target direction line -->
+                        <line x1="200" y1="200" x2="200" y2="50" stroke="#fff" stroke-dasharray="4 4" opacity="0.3"/>
+                        <text x="205" y="65" fill="var(--text-muted)" font-size="10" font-family="sans-serif">Target Line (0°)</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 5: KINEMATIC SEQUENCE -->
+        <div class="slide" id="slide-5">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge">Swing Timing</span>
+                    <h2 class="slide-title">The Kinematic Sequence</h2>
+                    <p class="slide-text">Like cracking a whip, speed in a golf swing travels through your body parts in a highly specific sequence:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon">1</span>
+                            <div class="bullet-content">
+                                <h4>The Proper Order</h4>
+                                <p>Energy must peak and transfer from bottom to top: <strong>Hips (Pelvis) → Chest (Thorax) → Lead Arm → Club</strong>. Each section acts as a pivot, passing speed forward.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon">2</span>
+                            <div class="bullet-content">
+                                <h4>Energy Peak & Deceleration</h4>
+                                <p>To transfer speed, a segment must rapidly decelerate. When your hips brake, that energy surges into your chest; when your chest brakes, it snaps into your arms.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon">3</span>
+                            <div class="bullet-content">
+                                <h4>The "Over the Top" Fault</h4>
+                                <p>If your shoulders or arms peak before your hips (out of order), you are "casting." This destroys clubhead speed, changes the swing path, and causes slices.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Grid Lines -->
+                        <line x1="50" y1="350" x2="350" y2="350" stroke="rgba(255,255,255,0.1)"/>
+                        <line x1="50" y1="50" x2="50" y2="350" stroke="rgba(255,255,255,0.1)"/>
+                        
+                        <!-- Impact Line -->
+                        <line x1="310" y1="50" x2="310" y2="350" stroke="var(--danger)" stroke-width="1.5" stroke-dasharray="4 4"/>
+                        <text x="315" y="70" fill="var(--danger)" font-size="11" font-family="sans-serif">Impact</text>
+
+                        <!-- Kinematic Sequence curves -->
+                        <!-- 1. Hips (yellow) -->
+                        <path d="M 50 330 Q 120 180 180 180 T 260 330 T 310 345" fill="none" stroke="var(--accent)" stroke-width="3"/>
+                        <circle cx="180" cy="180" r="4" fill="var(--accent)"/>
+                        <text x="185" y="175" fill="var(--accent)" font-size="10" font-family="sans-serif">1. Hips</text>
+
+                        <!-- 2. Chest (purple) -->
+                        <path d="M 50 340 Q 130 320 200 130 T 280 320 T 310 345" fill="none" stroke="var(--purple)" stroke-width="3"/>
+                        <circle cx="200" cy="130" r="4" fill="var(--purple)"/>
+                        <text x="205" y="125" fill="var(--purple)" font-size="10" font-family="sans-serif">2. Chest</text>
+
+                        <!-- 3. Lead Arm (blue) -->
+                        <path d="M 50 345 Q 150 340 230 90 T 295 330 T 310 345" fill="none" stroke="var(--primary)" stroke-width="3"/>
+                        <circle cx="230" cy="90" r="4" fill="var(--primary)"/>
+                        <text x="235" y="85" fill="var(--primary)" font-size="10" font-family="sans-serif">3. Arm</text>
+
+                        <!-- 4. Club (white) -->
+                        <path d="M 50 348 Q 180 348 290 60 L 310 335" fill="none" stroke="#fff" stroke-width="3"/>
+                        <circle cx="290" cy="60" r="4" fill="#fff"/>
+                        <text x="260" y="50" fill="#fff" font-size="10" font-family="sans-serif">4. Clubhead</text>
+
+                        <text x="200" y="380" fill="var(--text-muted)" font-size="11" font-family="sans-serif" text-anchor="middle">Time (Transition to Downswing)</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 6: WRIST ANGLE -->
+        <div class="slide" id="slide-6">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge warning">Clubface Control</span>
+                    <h2 class="slide-title">Lead Wrist: Flexion &amp; Extension</h2>
+                    <p class="slide-text">The direction of your shot is dictated by the clubface angle, which is controlled directly by your lead wrist position:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon warning">1</span>
+                            <div class="bullet-content">
+                                <h4>Flexion (Bowed / Palm Down)</h4>
+                                <p>Bowing the wrist forward toward your palm. This rotates the clubface <strong>closed</strong>. If you struggle with slicing, increasing flexion will help square or close the face.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon warning">2</span>
+                            <div class="bullet-content">
+                                <h4>Extension (Cupped / Knuckles Up)</h4>
+                                <p>Bending the wrist backward like you're cup-handling. This rotates the clubface <strong>open</strong>. Excessive cupping is the number one cause of high, weak slices.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon warning">3</span>
+                            <div class="bullet-content">
+                                <h4>Radial / Ulnar Hinge</h4>
+                                <p>Cocking the wrist up (radial) creates the angle that stores "lag" during the downswing. Releasing it down (ulnar) snaps the club straight at impact.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Side view of forearm and hand -->
+                        <!-- Forearm -->
+                        <line x1="80" y1="200" x2="200" y2="200" stroke="#94a3b8" stroke-width="8"/>
+                        <text x="80" y="180" fill="#94a3b8" font-size="12" font-family="sans-serif">Forearm</text>
+
+                        <!-- Neutral Hand (dashed) -->
+                        <line x1="200" y1="200" x2="320" y2="200" stroke="rgba(255,255,255,0.2)" stroke-width="5" stroke-dasharray="4 4"/>
+                        
+                        <!-- Bowed Hand (Flexion, curves down) -->
+                        <g class="lifting-element">
+                            <line x1="200" y1="200" x2="300" y2="270" stroke="var(--accent)" stroke-width="6"/>
+                            <text x="310" y="275" fill="var(--accent)" font-size="12" font-weight="bold" font-family="sans-serif">Bowed (Closed Face)</text>
+                            <path d="M 230 200 A 30 30 0 0 1 223 218" fill="none" stroke="var(--accent)" stroke-width="2"/>
+                        </g>
+
+                        <!-- Cupped Hand (Extension, curves up) -->
+                        <g>
+                            <line x1="200" y1="200" x2="300" y2="130" stroke="var(--danger)" stroke-width="6" opacity="0.8"/>
+                            <text x="310" y="130" fill="var(--danger)" font-size="12" font-family="sans-serif">Cupped (Open Face)</text>
+                            <path d="M 230 200 A 30 30 0 0 0 223 182" fill="none" stroke="var(--danger)" stroke-width="2"/>
+                        </g>
+
+                        <circle cx="200" cy="200" r="10" fill="var(--primary)"/>
+                        <text x="180" y="235" fill="var(--text-main)" font-size="12" font-family="sans-serif">Wrist Joint</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 7: POSTURE AND SWAY -->
+        <div class="slide" id="slide-7">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge warning">Stability & Posture</span>
+                    <h2 class="slide-title">Body Stability: Sway, Thrust &amp; Lift</h2>
+                    <p class="slide-text">Consistency requires rotating around a solid spine angle without swaying side-to-side or thrusting your hips toward the ball:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon warning">1</span>
+                            <div class="bullet-content">
+                                <h4>Sway (Side-to-Side Drift)</h4>
+                                <p>Lateral movement of your hips. You want a small shift away from the target in the backswing, followed by a strong drive *toward* the target on the downswing.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon warning">2</span>
+                            <div class="bullet-content">
+                                <h4>Thrust (Early Extension)</h4>
+                                <p>Hips moving toward the ball. This is a massive fault: it crowds your arms, forces you to stand up out of your posture, and causes blocks or shanks.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon warning">3</span>
+                            <div class="bullet-content">
+                                <h4>Lift (Up &amp; Down)</h4>
+                                <p>Vertical displacement. Keeping your height stable through backswing, then pushing off the ground at impact (controlled vertical lift) creates power.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Target line grid -->
+                        <line x1="50" y1="320" x2="350" y2="320" stroke="rgba(255,255,255,0.1)" stroke-width="2"/>
+                        
+                        <!-- Posture Axis line -->
+                        <line x1="200" y1="100" x2="200" y2="320" stroke="#94a3b8" stroke-dasharray="4 4" stroke-width="2"/>
+                        <text x="210" y="110" fill="#94a3b8" font-size="11" font-family="sans-serif">Ideal Rotation Center</text>
+
+                        <!-- Golfer hips representation in turn -->
+                        <ellipse cx="200" cy="240" rx="40" ry="20" fill="none" stroke="var(--primary)" stroke-width="3"/>
+                        
+                        <!-- Sway drift arrow (horizontal) -->
+                        <g>
+                            <line x1="200" y1="240" x2="270" y2="240" stroke="var(--accent)" stroke-width="2"/>
+                            <polygon points="270,235 280,240 270,245" fill="var(--accent)"/>
+                            <text x="230" y="230" fill="var(--accent)" font-size="10" font-family="sans-serif">Sway Target</text>
+                        </g>
+
+                        <!-- Thrust early extension arrow (forward toward ball) -->
+                        <g>
+                            <line x1="200" y1="240" x2="200" y2="170" stroke="var(--danger)" stroke-width="2"/>
+                            <polygon points="195,170 200,160 205,170" fill="var(--danger)"/>
+                            <text x="210" y="185" fill="var(--danger)" font-size="10" font-family="sans-serif" font-weight="bold">Thrust / Early Extension</text>
+                        </g>
+
+                        <circle cx="200" cy="240" r="5" fill="#fff"/>
+                        <text x="140" y="345" fill="var(--text-muted)" font-size="11" font-family="sans-serif">Golfer Setup (Facing Bottom)</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 8: THE ADHERENCE SCORE -->
+        <div class="slide" id="slide-8">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge warning">Scoring Math</span>
+                    <h2 class="slide-title">Adherence Score: The Weakest Link</h2>
+                    <p class="slide-text">For Swing and GRF sessions, we do not use simple averages. We score using a **weighted geometric mean** so a major error cannot be hidden:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon warning">1</span>
+                            <div class="bullet-content">
+                                <h4>Non-Compensatory Scoring</h4>
+                                <p>If you have five perfect metrics (100) and one critical fault like massive early extension (20), a simple average would reward you with a good <strong>86</strong> score.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon warning">2</span>
+                            <div class="bullet-content">
+                                <h4>Geometric Mean Penalty</h4>
+                                <p>By multiplying scores together and taking the root, a single low number pulls the entire score down. Your final score becomes a realistic <strong>40</strong>.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon warning">3</span>
+                            <div class="bullet-content">
+                                <h4>Coaching Philosophy</h4>
+                                <p>You cannot compensate for a critical mechanical fault by making another part of your swing "perfect." The score keeps you honest about what to fix.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Simple Average vs Geometric Mean Comparison -->
+                        
+                        <!-- Simple Average Bar (Looks inflated) -->
+                        <text x="40" y="90" fill="#94a3b8" font-size="14" font-family="sans-serif">Simple Average (Misleading)</text>
+                        <rect x="40" y="105" width="280" height="30" fill="rgba(255,255,255,0.05)" rx="6"/>
+                        <rect x="40" y="105" width="240" height="30" fill="var(--danger)" rx="6"/>
+                        <text x="250" y="125" fill="#fff" font-size="14" font-weight="bold" font-family="sans-serif">86</text>
+
+                        <!-- Geometric Mean Bar (Realistic/Penalized) -->
+                        <text x="40" y="190" fill="#94a3b8" font-size="14" font-family="sans-serif">Weighted Geometric Mean (Realistic)</text>
+                        <rect x="40" y="205" width="280" height="30" fill="rgba(255,255,255,0.05)" rx="6"/>
+                        <rect x="40" y="205" width="112" height="30" fill="var(--accent)" rx="6"/>
+                        <text x="120" y="225" fill="#fff" font-size="14" font-weight="bold" font-family="sans-serif">40</text>
+
+                        <!-- Formula display -->
+                        <rect x="40" y="270" width="320" height="80" fill="rgba(0,0,0,0.3)" stroke="var(--card-border)" rx="12"/>
+                        <text x="60" y="300" fill="var(--text-main)" font-size="12" font-family="monospace">Score = (M1ʷ¹ × M2ʷ² × ... × Mnʷⁿ) ^ (1/Σw)</text>
+                        <text x="60" y="325" fill="var(--text-muted)" font-size="11" font-family="sans-serif">If any metric (M) drops to 0, overall score drops to 0.</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 9: WRIST ARCHETYPES -->
+        <div class="slide" id="slide-9">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge accent">Style Diagnostics</span>
+                    <h2 class="slide-title">Wrist Resemblance: Your Swing Style</h2>
+                    <p class="slide-text">Unlike body posture, there is no single "correct" wrist shape. Great players swing differently. PinPointStudio diagnoses your unique style:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon accent">1</span>
+                            <div class="bullet-content">
+                                <h4>Archetype Resemblance</h4>
+                                <p>We evaluate your wrist angles at the top of the backswing and at impact, matching you to three styles: **Bowed** (closed/strong face), **Neutral**, or **Cupped** (open/weak face).</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon accent">2</span>
+                            <div class="bullet-content">
+                                <h4>Resemblance Match (0-100)</h4>
+                                <p>You receive independent scores for each archetype. Your highest score designates your pattern. A high score means you are consistent with that specific style.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon accent">3</span>
+                            <div class="bullet-content">
+                                <h4>Blended Badge</h4>
+                                <p>If your top two resemblance scores are within <strong>10 points</strong>, you get a "Blended" badge. This means your wrist movements are hybrid. Focus on stabilizing one style rather than blending styles.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Resemblance comparison bar chart -->
+                        
+                        <!-- Bowed -->
+                        <text x="40" y="80" fill="var(--accent)" font-size="12" font-family="sans-serif" font-weight="bold">BOWED ARCHETYPE (Dustin Johnson Style)</text>
+                        <rect x="40" y="90" width="320" height="20" fill="rgba(255,255,255,0.05)" rx="4"/>
+                        <rect x="40" y="90" width="275" height="20" fill="var(--accent)" rx="4"/>
+                        <text x="325" y="105" fill="#fff" font-size="12" font-weight="bold" font-family="sans-serif">86%</text>
+
+                        <!-- Neutral -->
+                        <text x="40" y="150" fill="var(--primary)" font-size="12" font-family="sans-serif">NEUTRAL ARCHETYPE (Tiger Woods Style)</text>
+                        <rect x="40" y="160" width="320" height="20" fill="rgba(255,255,255,0.05)" rx="4"/>
+                        <rect x="40" y="160" width="128" height="20" fill="var(--primary)" rx="4"/>
+                        <text x="178" y="175" fill="#fff" font-size="12" font-family="sans-serif">40%</text>
+
+                        <!-- Cupped -->
+                        <text x="40" y="220" fill="var(--danger)" font-size="12" font-family="sans-serif">CUPPED ARCHETYPE (Fred Couples Style)</text>
+                        <rect x="40" y="230" width="320" height="20" fill="rgba(255,255,255,0.05)" rx="4"/>
+                        <rect x="40" y="230" width="25" height="20" fill="var(--danger)" rx="4"/>
+                        <text x="75" y="245" fill="#fff" font-size="12" font-family="sans-serif">8%</text>
+
+                        <!-- Blended badge display -->
+                        <rect x="40" y="280" width="320" height="80" fill="rgba(16, 185, 129, 0.05)" stroke="var(--accent)" stroke-width="1" rx="12"/>
+                        <text x="60" y="315" fill="var(--accent)" font-size="16" font-family="sans-serif" font-weight="bold">Pattern: BOWED (Highly Consistent)</text>
+                        <text x="60" y="338" fill="var(--text-muted)" font-size="11" font-family="sans-serif">Blended: FALSE (No hybrid wrist movements detected)</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 10: CONFIDENCE AND INTERVAL -->
+        <div class="slide" id="slide-10">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge accent">Data Trust</span>
+                    <h2 class="slide-title">Confidence &amp; Score Intervals</h2>
+                    <p class="slide-text">Tracking devices operate in the real world where shadows and noise exist. We communicate this using an honest confidence range:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon accent">1</span>
+                            <div class="bullet-content">
+                                <h4>The "82 (±9)" Interval</h4>
+                                <p>Instead of a single arbitrary score, we present your result as an interval (e.g. 73 to 91, centered at 82). This represents the mathematical margin of timing and sensor noise.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon accent">2</span>
+                            <div class="bullet-content">
+                                <h4>Data Quality Dictates the Width</h4>
+                                <p>Perfect lighting, snug sensor straps, and dual calibrated cameras result in narrow intervals (e.g. ±3). Poor lighting or loose straps widen it (e.g. ±12).</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon accent">3</span>
+                            <div class="bullet-content">
+                                <h4>No Penalty for Noise</h4>
+                                <p>Crucially, **lower confidence only widens the interval; it never lowers your score**. We protect your performance history from environment glitches.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Visual scale showing interval -->
+                        
+                        <!-- Horizontal gauge line -->
+                        <line x1="50" y1="200" x2="350" y2="200" stroke="rgba(255,255,255,0.1)" stroke-width="6" stroke-linecap="round"/>
+                        
+                        <!-- Interval band (shaded box) -->
+                        <rect x="180" y="185" width="100" height="30" fill="var(--primary-glow)" stroke="var(--primary)" stroke-width="1.5" rx="4"/>
+                        <line x1="180" y1="180" x2="180" y2="220" stroke="var(--primary)" stroke-width="2"/>
+                        <line x1="280" y1="180" x2="280" y2="220" stroke="var(--primary)" stroke-width="2"/>
+                        
+                        <!-- Headline score marker -->
+                        <circle cx="230" cy="200" r="8" fill="var(--purple)"/>
+                        <circle cx="230" cy="200" r="16" fill="none" stroke="var(--purple)" stroke-width="2" class="pulsing-node"/>
+
+                        <!-- Labels -->
+                        <text x="230" y="150" fill="var(--text-main)" font-size="28" font-family="sans-serif" font-weight="bold" text-anchor="middle">82 (±9)</text>
+                        <text x="180" y="240" fill="var(--text-muted)" font-size="12" font-family="sans-serif" text-anchor="middle">Min: 73</text>
+                        <text x="280" y="240" fill="var(--text-muted)" font-size="12" font-family="sans-serif" text-anchor="middle">Max: 91</text>
+
+                        <!-- Scale guides -->
+                        <text x="50" y="225" fill="var(--text-muted)" font-size="10" font-family="sans-serif" text-anchor="middle">0</text>
+                        <text x="350" y="225" fill="var(--text-muted)" font-size="10" font-family="sans-serif" text-anchor="middle">100</text>
+
+                        <text x="200" y="320" fill="var(--text-muted)" font-size="12" font-family="sans-serif" text-anchor="middle">Uncertainty Band Width = Timing Jitter + Sensor Noise</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 11: HOW TO IMPROVE -->
+        <div class="slide" id="slide-11">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge warning">Action Plan</span>
+                    <h2 class="slide-title">How to Use the Data to Improve</h2>
+                    <p class="slide-text">Don't try to fix everything at once. Use PinPointStudio's prioritized step-by-step method to change your swing:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon warning">1</span>
+                            <div class="bullet-content">
+                                <h4>Identify Your Style first</h4>
+                                <p>Check your Wrist Resemblance. If you are a bowed-wrist player, do not copy neutral or cupped wrist tips—consistency within your style is the goal.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon warning">2</span>
+                            <div class="bullet-content">
+                                <h4>Attack the Top-Ranked Fault</h4>
+                                <p>The AI Coach ranks faults based on <strong>points lost</strong> (using the geometric mean). The top fault is what's holding your score back the most. Focus only on that one.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon warning">3</span>
+                            <div class="bullet-content">
+                                <h4>Execute the Drill &amp; Re-Test</h4>
+                                <p>Every ranked fault has a plain-English drill. Work on the drill, capture a new swing, and monitor the specific metric drift toward green.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Staircase visualization -->
+                        
+                        <!-- Step 4 -->
+                        <rect x="260" y="100" width="100" height="40" fill="rgba(16, 185, 129, 0.2)" stroke="var(--accent)" stroke-width="1.5" rx="6"/>
+                        <text x="310" y="125" fill="var(--accent)" font-size="11" font-weight="bold" font-family="sans-serif" text-anchor="middle">4. Repeat &amp; Score</text>
+
+                        <!-- Step 3 -->
+                        <rect x="190" y="170" width="100" height="40" fill="rgba(99, 102, 241, 0.2)" stroke="var(--primary)" stroke-width="1.5" rx="6"/>
+                        <text x="240" y="195" fill="var(--primary)" font-size="11" font-weight="bold" font-family="sans-serif" text-anchor="middle">3. Specific Drill</text>
+
+                        <!-- Step 2 (Highlighted/Action Step) -->
+                        <rect x="120" y="240" width="100" height="40" fill="rgba(245, 158, 11, 0.4)" stroke="var(--warning)" stroke-width="2.5" rx="6" class="lifting-element"/>
+                        <text x="170" y="265" fill="var(--warning)" font-size="11" font-weight="bold" font-family="sans-serif" text-anchor="middle">2. Top Fault</text>
+                        <circle cx="210" cy="235" r="5" fill="var(--warning)"/>
+                        <circle cx="210" cy="235" r="12" fill="none" stroke="var(--warning)" stroke-width="1.5" class="pulsing-node"/>
+
+                        <!-- Step 1 -->
+                        <rect x="50" y="310" width="100" height="40" fill="rgba(255, 255, 255, 0.05)" stroke="var(--card-border)" stroke-width="1.5" rx="6"/>
+                        <text x="100" y="335" fill="var(--text-main)" font-size="11" font-weight="bold" font-family="sans-serif" text-anchor="middle">1. Find Archetype</text>
+
+                        <!-- Connecting lines/stairs -->
+                        <line x1="150" y1="310" x2="170" y2="280" stroke="rgba(255,255,255,0.2)" stroke-width="2"/>
+                        <line x1="220" y1="240" x2="240" y2="210" stroke="rgba(255,255,255,0.2)" stroke-width="2"/>
+                        <line x1="290" y1="170" x2="310" y2="140" stroke="rgba(255,255,255,0.2)" stroke-width="2"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 12: KEY TAKEAWAYS -->
+        <div class="slide" id="slide-12">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge accent">Summary</span>
+                    <h2 class="slide-title">Trust the Physics</h2>
+                    <p class="slide-text">Improvement isn't about guessing "feel"—it's about measuring motion. Here is your key takeaway:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon accent">✓</span>
+                            <div class="bullet-content">
+                                <h4>Consistency is Measured, Not Guessed</h4>
+                                <p>Watch your score interval trend. A narrowing interval (e.g. ±12 going down to ±4) means your mechanics are becoming highly repeatable and stable.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon accent">✓</span>
+                            <div class="bullet-content">
+                                <h4>Hips Control Posture, Wrist Controls Face</h4>
+                                <p>If your balls slice, fix your wrist flexion (bowing). If you hit fat or thin shots, fix your thrust (early extension) and sway.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon accent">✓</span>
+                            <div class="bullet-content">
+                                <h4>Work on One Change at a Time</h4>
+                                <p>Use the points-lost ranking. Correct the top fault. Do not attempt to overhaul your entire swing in one practice session.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Target crosshair representing accuracy -->
+                        <circle cx="200" cy="200" r="100" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="4"/>
+                        <circle cx="200" cy="200" r="70" fill="none" stroke="rgba(99, 102, 241, 0.1)" stroke-width="3"/>
+                        <circle cx="200" cy="200" r="40" fill="none" stroke="var(--primary-glow)" stroke-width="2"/>
+                        <circle cx="200" cy="200" r="15" fill="none" stroke="var(--accent)" stroke-width="2"/>
+                        
+                        <!-- Crosshair lines -->
+                        <line x1="200" y1="70" x2="200" y2="330" stroke="rgba(255,255,255,0.05)" stroke-width="1.5"/>
+                        <line x1="70" y1="200" x2="330" y2="200" stroke="rgba(255,255,255,0.05)" stroke-width="1.5"/>
+                        
+                        <!-- Golden Shot Bullseye point -->
+                        <circle cx="200" cy="200" r="5" fill="var(--accent)"/>
+                        <circle cx="200" cy="200" r="15" fill="none" stroke="var(--accent)" stroke-width="1.5" class="pulsing-node"/>
+
+                        <text x="200" y="325" fill="var(--accent)" font-size="16" font-weight="bold" font-family="sans-serif" text-anchor="middle">Ready for the Tee</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- CONTROLS FOOTER -->
+    <div class="controls-bar">
+        <div class="slide-counter">SLIDE <span id="current-slide-num">1</span> OF <span id="total-slides-num">12</span></div>
+        <div class="progress-dots" id="dots-container"></div>
+        <div class="nav-buttons">
+            <button class="btn" id="prev-btn" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                Back
+            </button>
+            <button class="btn" id="next-btn">
+                Next
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const slides = document.querySelectorAll('.slide');
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const currentSlideNum = document.getElementById('current-slide-num');
+        const totalSlidesNum = document.getElementById('total-slides-num');
+        const dotsContainer = document.getElementById('dots-container');
+
+        let currentSlideIndex = 0;
+        const totalSlides = slides.length;
+
+        // Set total slides count
+        totalSlidesNum.textContent = totalSlides;
+
+        // Create navigation dots
+        for (let i = 0; i < totalSlides; i++) {
+            const dot = document.createElement('div');
+            dot.classList.add('dot');
+            if (i === 0) dot.classList.add('active');
+            dot.addEventListener('click', () => goToSlide(i));
+            dotsContainer.appendChild(dot);
+        }
+
+        const dots = document.querySelectorAll('.dot');
+
+        function updateButtons() {
+            prevBtn.disabled = currentSlideIndex === 0;
+            if (currentSlideIndex === totalSlides - 1) {
+                nextBtn.innerHTML = 'Finish <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+            } else {
+                nextBtn.innerHTML = 'Next <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>';
+            }
+        }
+
+        function updateCounter() {
+            currentSlideNum.textContent = currentSlideIndex + 1;
+        }
+
+        function updateDots() {
+            dots.forEach((dot, index) => {
+                if (index === currentSlideIndex) {
+                    dot.classList.add('active');
+                } else {
+                    dot.classList.remove('active');
+                }
+            });
+        }
+
+        function goToSlide(index) {
+            if (index < 0 || index >= totalSlides) return;
+            
+            // Remove active class from current slide
+            slides[currentSlideIndex].classList.remove('active');
+            
+            // Set new current slide index
+            currentSlideIndex = index;
+            
+            // Add active class to new slide
+            slides[currentSlideIndex].classList.add('active');
+            
+            updateButtons();
+            updateCounter();
+            updateDots();
+        }
+
+        prevBtn.addEventListener('click', () => {
+            goToSlide(currentSlideIndex - 1);
+        });
+
+        nextBtn.addEventListener('click', () => {
+            if (currentSlideIndex === totalSlides - 1) {
+                // Return to first slide
+                goToSlide(0);
+            } else {
+                goToSlide(currentSlideIndex + 1);
+            }
+        });
+
+        // Key listeners for keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') {
+                nextBtn.click();
+            } else if (e.key === 'ArrowLeft') {
+                prevBtn.click();
+            }
+        });
+    </script>
+</body>
+</html>
