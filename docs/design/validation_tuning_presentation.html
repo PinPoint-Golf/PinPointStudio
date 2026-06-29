@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Science of Trust: Statistical Validation & Tuning in PinPointStudio</title>
+    <!-- Import Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-dark: #0a0b10;
+            --card-bg: rgba(20, 22, 37, 0.65);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #6366f1;
+            --primary-glow: rgba(99, 102, 241, 0.35);
+            --accent: #10b981;
+            --accent-glow: rgba(16, 185, 129, 0.3);
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --purple: #a855f7;
+            --purple-glow: rgba(168, 85, 247, 0.3);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+        }
+
+        /* Ambient Glow Backgrounds */
+        .ambient-glow-1 {
+            position: absolute;
+            top: -20%;
+            left: -10%;
+            width: 60%;
+            height: 60%;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, rgba(0,0,0,0) 70%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .ambient-glow-2 {
+            position: absolute;
+            bottom: -20%;
+            right: -10%;
+            width: 60%;
+            height: 60%;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(168, 85, 247, 0.08) 0%, rgba(0,0,0,0) 70%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* Presentation Container */
+        .presentation {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            padding: 2rem;
+        }
+
+        /* Slide Styles */
+        .slide {
+            position: absolute;
+            width: 95%;
+            max-width: 1300px;
+            height: 82vh;
+            max-height: 750px;
+            opacity: 0;
+            transform: translateY(30px) scale(0.98);
+            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .slide.active {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            pointer-events: auto;
+            z-index: 10;
+        }
+
+        /* Glassmorphism Slide Content Card */
+        .slide-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 24px;
+            padding: 2.5rem 3rem;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            height: 100%;
+            display: grid;
+            grid-template-columns: 1.35fr 1fr;
+            gap: 2.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .slide.title-slide .slide-card {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            grid-template-columns: 1fr;
+        }
+
+        /* Typography */
+        h1, h2, h3 {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 800;
+            line-height: 1.15;
+        }
+
+        .title-slide h1 {
+            font-size: 3.5rem;
+            background: linear-gradient(135deg, #fff 30%, var(--primary) 70%, var(--purple) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+            letter-spacing: -0.02em;
+        }
+
+        .title-slide h2 {
+            font-size: 1.35rem;
+            font-weight: 400;
+            color: var(--text-muted);
+            max-width: 850px;
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+        }
+
+        .slide h2.slide-title {
+            font-size: 2.1rem;
+            margin-bottom: 0.8rem;
+            background: linear-gradient(135deg, #fff 50%, var(--text-muted) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .slide-text {
+            color: var(--text-muted);
+            font-size: 0.98rem;
+            line-height: 1.55;
+            margin-bottom: 1.2rem;
+        }
+
+        /* Bullet lists */
+        .bullet-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 0.95rem;
+        }
+
+        .bullet-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.85rem;
+        }
+
+        .bullet-icon {
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--primary);
+            border-radius: 50%;
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.8rem;
+            flex-shrink: 0;
+            margin-top: 0.15rem;
+        }
+
+        .bullet-icon.accent {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent);
+        }
+
+        .bullet-icon.warning {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+        }
+
+        .bullet-icon.danger {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--danger);
+        }
+
+        .bullet-icon.purple {
+            background: rgba(168, 85, 247, 0.15);
+            color: var(--purple);
+        }
+
+        .bullet-content h4 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.05rem;
+            color: var(--text-main);
+            margin-bottom: 0.15rem;
+        }
+
+        .bullet-content p {
+            color: var(--text-muted);
+            font-size: 0.88rem;
+            line-height: 1.4;
+        }
+
+        /* Formulas & Code symbols */
+        code, var, kbd {
+            font-family: 'Fira Code', monospace;
+            font-size: 0.88rem;
+            font-style: normal;
+        }
+
+        var {
+            color: var(--purple);
+            font-weight: 500;
+        }
+
+        .formula-box {
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 0.5rem 0.75rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.85rem;
+            color: var(--text-main);
+            display: inline-block;
+            margin: 0.25rem 0;
+        }
+
+        /* Highlight boxes */
+        .highlight-box {
+            background: rgba(255, 255, 255, 0.02);
+            border-left: 4px solid var(--primary);
+            padding: 1rem 1.2rem;
+            border-radius: 0 8px 8px 0;
+            margin-top: 1rem;
+        }
+
+        .highlight-box.accent {
+            border-left-color: var(--accent);
+        }
+
+        .highlight-box.warning {
+            border-left-color: var(--warning);
+            background: rgba(245, 158, 11, 0.01);
+        }
+
+        .highlight-box.danger {
+            border-left-color: var(--danger);
+            background: rgba(239, 68, 68, 0.01);
+        }
+
+        .highlight-box p {
+            font-size: 0.92rem;
+            line-height: 1.45;
+            color: var(--text-main);
+        }
+
+        .highlight-box p strong {
+            font-family: 'Outfit', sans-serif;
+        }
+
+        /* Visual Container */
+        .slide-visual {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            overflow: hidden;
+            position: relative;
+            height: 100%;
+        }
+
+        /* Navigation Controls */
+        .controls-bar {
+            background: rgba(10, 11, 16, 0.8);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 1.5rem 3rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .slide-counter {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-main);
+            padding: 0.75rem 1.5rem;
+            border-radius: 12px;
+            cursor: pointer;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: var(--primary);
+            border-color: var(--primary);
+            box-shadow: 0 0 20px var(--primary-glow);
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        /* SVG Diagrams Style */
+        svg {
+            width: 100%;
+            height: 100%;
+            max-height: 400px;
+        }
+
+        /* Keyframe Animations for SVGs */
+        @keyframes pulse-glow {
+            0%, 100% { filter: drop-shadow(0 0 2px var(--primary)); opacity: 0.8; }
+            50% { filter: drop-shadow(0 0 12px var(--primary)); opacity: 1; }
+        }
+
+        @keyframes pulse-glow-green {
+            0%, 100% { filter: drop-shadow(0 0 2px var(--accent)); opacity: 0.8; }
+            50% { filter: drop-shadow(0 0 12px var(--accent)); opacity: 1; }
+        }
+
+        @keyframes flowing-dash {
+            to {
+                stroke-dashoffset: -20;
+            }
+        }
+
+        @keyframes float-item {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-6px); }
+        }
+
+        .flowing-line {
+            stroke-dasharray: 6 4;
+            animation: flowing-dash 1.5s linear infinite;
+        }
+
+        .pulsing-node {
+            animation: pulse-glow 2.5s infinite ease-in-out;
+        }
+
+        .pulsing-node-green {
+            animation: pulse-glow-green 2s infinite ease-in-out;
+        }
+
+        .floating-group {
+            animation: float-item 4s infinite ease-in-out;
+        }
+
+        /* Progress Dots */
+        .progress-dots {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .dot.active {
+            background: var(--primary);
+            transform: scale(1.3);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        /* Badge design */
+        .badge {
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--primary);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            padding: 0.25rem 0.75rem;
+            border-radius: 30px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: inline-block;
+            margin-bottom: 0.8rem;
+        }
+
+        .badge.accent {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent);
+            border-color: rgba(16, 185, 129, 0.3);
+        }
+
+        .badge.warning {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+            border-color: rgba(245, 158, 11, 0.3);
+        }
+
+        .badge.danger {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--danger);
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .badge.purple {
+            background: rgba(168, 85, 247, 0.15);
+            color: var(--purple);
+            border-color: rgba(168, 85, 247, 0.3);
+        }
+
+        /* Responsive changes */
+        @media(max-width: 900px) {
+            .slide-card {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+                padding: 1.5rem;
+                overflow-y: auto;
+            }
+            .slide-visual {
+                height: 250px;
+            }
+            body {
+                overflow-y: auto;
+            }
+            .slide {
+                height: auto;
+                max-height: none;
+                position: relative;
+                opacity: 1;
+                transform: none !important;
+                display: none;
+            }
+            .slide.active {
+                display: flex;
+            }
+            .title-slide h1 {
+                font-size: 2.3rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ambient-glow-1"></div>
+    <div class="ambient-glow-2"></div>
+
+    <div class="presentation">
+        
+        <!-- SLIDE 1: TITLE SLIDE -->
+        <div class="slide active title-slide" id="slide-1">
+            <div class="slide-card">
+                <span class="badge">Measurement Science</span>
+                <h1>The Science of Trust</h1>
+                <h2>Methodological protocols, statistical power limits, and physical calibration models driving the PinPointStudio swing engine.</h2>
+                <div class="highlight-box" style="max-width: 800px; text-align: center; border-left: none; border-bottom: 4px solid var(--primary); border-radius: 8px;">
+                    <p><strong>A Rigorous Biomechanical Review:</strong> How we separate Verification, Validation, and Calibration, compute statistical sample sizes, benchmark against clinical criterion devices, and model physical studio constraints.</p>
+                </div>
+                <p style="margin-top: 2rem; color: var(--text-muted); font-size: 0.85rem;">Use Left / Right arrow keys or the buttons below to navigate</p>
+            </div>
+        </div>
+
+        <!-- SLIDE 2: VERIFICATION vs. VALIDATION vs. TUNING -->
+        <div class="slide" id="slide-2">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge">Core Framework</span>
+                    <h2 class="slide-title">Three Disciplines, Never Conflated</h2>
+                    <p class="slide-text">To prevent mathematical circularity, we enforce a strict separation between verification, validation, and calibration across our pipeline layers:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon">1</span>
+                            <div class="bullet-content">
+                                <h4>Verification: "Did we build the math right?"</h4>
+                                <p>We run bit-identical golden tests, determinism checks, and closed-form synthetic models to ensure our C++ code has zero logical bugs before processing real signals.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon">2</span>
+                            <div class="bullet-content">
+                                <h4>Tuning (Calibration): "Which variables optimize performance?"</h4>
+                                <p>We optimize parameters (e.g., filter gains, detection thresholds) strictly on isolated, designated <i>Tuning partitions</i> of our database.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon">3</span>
+                            <div class="bullet-content">
+                                <h4>Validation: "Did we build the right measurement?"</h4>
+                                <p>The cardinal sin is reporting validation scores on data used for tuning. We evaluate our pipeline's accuracy using independent reference data that the tuning phase never touched.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Venn diagram / Process flow representing V&V&T -->
+                        <g class="floating-group">
+                            <!-- Verification Bubble -->
+                            <circle cx="150" cy="160" r="70" fill="rgba(99, 102, 241, 0.05)" stroke="var(--primary)" stroke-width="1.5"/>
+                            <text x="110" y="145" fill="var(--primary)" font-size="11" font-weight="bold" font-family="sans-serif">VERIFICATION</text>
+                            <text x="110" y="160" fill="var(--text-muted)" font-size="9" font-family="sans-serif">Math &amp; Code Golden Tests</text>
+
+                            <!-- Tuning Bubble -->
+                            <circle cx="250" cy="160" r="70" fill="rgba(245, 158, 11, 0.05)" stroke="var(--warning)" stroke-width="1.5"/>
+                            <text x="290" y="145" fill="var(--warning)" font-size="11" font-weight="bold" font-family="sans-serif" text-anchor="end">TUNING</text>
+                            <text x="290" y="160" fill="var(--text-muted)" font-size="9" font-family="sans-serif" text-anchor="end">Parameter Optimization</text>
+
+                            <!-- Validation Envelope (Surrounds both on independent data) -->
+                            <rect x="60" y="240" width="280" height="80" fill="rgba(16, 185, 129, 0.05)" stroke="var(--accent)" stroke-width="2" rx="12"/>
+                            <text x="200" y="270" fill="var(--accent)" font-size="13" font-weight="bold" font-family="sans-serif" text-anchor="middle">VALIDATION (Held-Out Data Only)</text>
+                            <text x="200" y="290" fill="var(--text-muted)" font-size="10" font-family="sans-serif" text-anchor="middle">Agreement with external reference</text>
+                        </g>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 3: THE VALIDITY HIERARCHY -->
+        <div class="slide" id="slide-3">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge accent">Measurement Validity</span>
+                    <h2 class="slide-title">The Validity Hierarchy</h2>
+                    <p class="slide-text">A biomechanical metric is meaningless without context. We establish trust by proving our metrics climb the classic measurement science ladder:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon accent">1</span>
+                            <div class="bullet-content">
+                                <h4>Face &amp; Content Validity</h4>
+                                <p>We verify that metrics match anatomical ranges (e.g., Ryu ROM limits: $\le 54^\circ$ Flex, $\le 60^\circ$ Ext) and fully cover wrist DOFs defined by the ISB 2005 standard.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon accent">2</span>
+                            <div class="bullet-content">
+                                <h4>Construct &amp; Concurrent Validity</h4>
+                                <p>We prove scripted swing faults separate cleanly (Construct), and establish agreement against an independent, simultaneous criterion reference—HackMotion (Concurrent).</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon accent">3</span>
+                            <div class="bullet-content">
+                                <h4>External &amp; Predictive Validity</h4>
+                                <p>We validate that measurements generalize across different body shapes/swings (External), and ultimately forecast launch monitor flight results (Predictive).</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Ladder steps for Validity -->
+                        <!-- Rung 4: Predictive / External -->
+                        <line x1="80" y1="100" x2="320" y2="100" stroke="rgba(255,255,255,0.1)" stroke-width="6"/>
+                        <line x1="120" y1="100" x2="280" y2="100" stroke="var(--purple)" stroke-width="6"/>
+                        <text x="200" y="85" fill="var(--purple)" font-size="11" font-weight="bold" font-family="sans-serif" text-anchor="middle">PREDICTIVE &amp; EXTERNAL (Corpus 3+)</text>
+                        
+                        <!-- Rung 3: Concurrent -->
+                        <line x1="80" y1="170" x2="320" y2="170" stroke="rgba(255,255,255,0.1)" stroke-width="6"/>
+                        <line x1="120" y1="170" x2="280" y2="170" stroke="var(--accent)" stroke-width="6"/>
+                        <text x="200" y="155" fill="var(--accent)" font-size="11" font-weight="bold" font-family="sans-serif" text-anchor="middle">CONCURRENT CRITERION (Corpus 2)</text>
+
+                        <!-- Rung 2: Construct -->
+                        <line x1="80" y1="240" x2="320" y2="240" stroke="rgba(255,255,255,0.1)" stroke-width="6"/>
+                        <line x1="120" y1="240" x2="280" y2="240" stroke="var(--primary)" stroke-width="6"/>
+                        <text x="200" y="225" fill="var(--primary)" font-size="11" font-weight="bold" font-family="sans-serif" text-anchor="middle">CONSTRUCT / KNOWN-GROUPS (Corpus 1)</text>
+
+                        <!-- Rung 1: Face / Content -->
+                        <line x1="80" y1="310" x2="320" y2="310" stroke="rgba(255,255,255,0.1)" stroke-width="6"/>
+                        <line x1="120" y1="310" x2="280" y2="310" stroke="var(--text-muted)" stroke-width="6"/>
+                        <text x="200" y="295" fill="var(--text-muted)" font-size="11" font-weight="bold" font-family="sans-serif" text-anchor="middle">FACE &amp; CONTENT (Corpus 1)</text>
+
+                        <!-- Rails -->
+                        <line x1="100" y1="60" x2="100" y2="350" stroke="rgba(255,255,255,0.2)" stroke-width="8"/>
+                        <line x1="300" y1="60" x2="300" y2="350" stroke="rgba(255,255,255,0.2)" stroke-width="8"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 4: THE MATHEMATICS OF SAMPLE SIZE -->
+        <div class="slide" id="slide-4">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge warning">Statistical Power</span>
+                    <h2 class="slide-title">The Mathematics of Sample Size</h2>
+                    <p class="slide-text">Sample size is governed by the specific statistic we compute, not by the project phase. We determine our dataset sizes using strict statistical power formulas:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon warning">1</span>
+                            <div class="bullet-content">
+                                <h4>Proportions (Pass-Rates, Fault Recall)</h4>
+                                <p>Using binomial power <span class="formula-box">n = z²·p(1-p)/E²</span>, a $\pm5\%$ confidence margin ($E=0.05, p\approx0.9$) requires <b>n = 138</b> swings. Furthermore, by the <i>Rule of Three</i>, catching $k$ consecutive faults yields a lower recall bound of only $1 - 3/k$ (e.g., 12/12 caught faults implies recall is $\ge 75\%$). To claim recall $\ge 95\%$, we need <b>~60 clean trials per fault</b>.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon warning">2</span>
+                            <div class="bullet-content">
+                                <h4>Bland-Altman Agreement Limits (LoA)</h4>
+                                <p>The standard error of our limits of agreement maps to <span class="formula-box">SE ≈ 1.71·s / √n</span>. With <b>n = 50</b> paired swings, we size the half-width of our 95% LoA confidence interval to a tight <b>$\pm0.48 \cdot s$</b> (where $s$ is the standard deviation of differences measured in the pilot).</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon warning">3</span>
+                            <div class="bullet-content">
+                                <h4>Reliability Floor (SEM &amp; MDC)</h4>
+                                <p>Typical error (SEM) has a sampling coefficient of variation of <span class="formula-box">CV ≈ 1 / √(2(n-1))</span>. A baseline floor of <b>n = 25–30</b> repeated swings bounds the typical error margin to a precision of $\pm14\%$.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Confidence interval error bars shrinking with N -->
+                        <g stroke="rgba(255,255,255,0.05)" stroke-width="1">
+                            <line x1="50" y1="100" x2="350" y2="100"/>
+                            <line x1="50" y1="200" x2="350" y2="200"/>
+                            <line x1="50" y1="300" x2="350" y2="300"/>
+                        </g>
+                        
+                        <!-- n = 15 -->
+                        <g>
+                            <text x="50" y="95" fill="var(--text-muted)" font-size="11" font-family="sans-serif">n = 15 (SEM Precision ±19%)</text>
+                            <line x1="100" y1="110" x2="300" y2="110" stroke="var(--danger)" stroke-width="3"/>
+                            <line x1="100" y1="100" x2="100" y2="120" stroke="var(--danger)" stroke-width="2"/>
+                            <line x1="300" y1="100" x2="300" y2="120" stroke="var(--danger)" stroke-width="2"/>
+                            <circle cx="200" cy="110" r="5" fill="#fff"/>
+                        </g>
+
+                        <!-- n = 30 -->
+                        <g>
+                            <text x="50" y="195" fill="var(--text-muted)" font-size="11" font-family="sans-serif">n = 30 (SEM Precision ±14%)</text>
+                            <line x1="130" y1="210" x2="270" y2="210" stroke="var(--warning)" stroke-width="3"/>
+                            <line x1="130" y1="200" x2="130" y2="220" stroke="var(--warning)" stroke-width="2"/>
+                            <line x1="270" y1="200" x2="270" y2="220" stroke="var(--warning)" stroke-width="2"/>
+                            <circle cx="200" cy="210" r="5" fill="#fff"/>
+                        </g>
+
+                        <!-- n = 50 -->
+                        <g>
+                            <text x="50" y="295" fill="var(--text-muted)" font-size="11" font-family="sans-serif">n = 50 (BA LoA half-width ±0.48s)</text>
+                            <line x1="150" y1="310" x2="250" y2="310" stroke="var(--accent)" stroke-width="3"/>
+                            <line x1="150" y1="300" x2="150" y2="320" stroke="var(--accent)" stroke-width="2"/>
+                            <line x1="250" y1="300" x2="250" y2="320" stroke="var(--accent)" stroke-width="2"/>
+                            <circle cx="200" cy="310" r="5" fill="#fff"/>
+                        </g>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 5: HACKMOTION CRITERION STUDY -->
+        <div class="slide" id="slide-5">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge purple">Corpus 2 Study</span>
+                    <h2 class="slide-title">The Concurrent Agreement Protocol</h2>
+                    <p class="slide-text">To establish concurrent validity, Corpus 2 co-captures swings using PinPoint and HackMotion. We analyze three statistical measures per axis, per phase:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon purple">1</span>
+                            <div class="bullet-content">
+                                <h4>Bland-Altman Limits of Agreement</h4>
+                                <p>We report mean bias <span class="formula-box">d = 1/n·∑dᵢ</span> and 95% Limits of Agreement <span class="formula-box">LoA = d ± 1.96·SD_diff</span>. We map differences against average values to detect proportional bias or heteroscedasticity.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon purple">2</span>
+                            <div class="bullet-content">
+                                <h4>Intraclass Correlation (ICC(A,1))</h4>
+                                <p>Correlation coefficients (<var>r</var>) can inflate values if a constant offset is present. We compute <b>ICC(A,1)</b>—the two-way mixed, single-measure absolute agreement coefficient—to strictly punish systematic shifts.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon purple">3</span>
+                            <div class="bullet-content">
+                                <h4>Pre-Registered Thresholds</h4>
+                                <p>We enforce pre-declared boundaries: <b>Flexion/Extension &amp; Forearm Roll</b> must satisfy <span class="formula-box">RMSE ≤ 4–5°, ICC ≥ 0.90, Bias ±2°</span>. <b>Radial-Ulnar Hinge</b>, bounded by the criterion's own noise floor (~5°), targets <span class="formula-box">RMSE ≤ 8°</span>.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Bland Altman Bland-Altman Style Plot -->
+                        <g opacity="0.3">
+                            <line x1="50" y1="200" x2="350" y2="200" stroke="#fff" stroke-width="1.5"/>
+                            <line x1="50" y1="120" x2="350" y2="120" stroke="#fff" stroke-width="1" stroke-dasharray="2 2"/>
+                            <line x1="50" y1="280" x2="350" y2="280" stroke="#fff" stroke-width="1" stroke-dasharray="2 2"/>
+                        </g>
+                        
+                        <text x="355" y="124" fill="var(--text-muted)" font-size="9" font-family="sans-serif">+1.96 SD (+4.2°)</text>
+                        <text x="355" y="204" fill="var(--text-muted)" font-size="9" font-family="sans-serif">Mean Bias (+0.6°)</text>
+                        <text x="355" y="284" fill="var(--text-muted)" font-size="9" font-family="sans-serif">-1.96 SD (-3.0°)</text>
+                        
+                        <!-- Scatter points of differences -->
+                        <circle cx="90" cy="180" r="3.5" fill="var(--purple)" opacity="0.8"/>
+                        <circle cx="120" cy="210" r="3.5" fill="var(--purple)" opacity="0.8"/>
+                        <circle cx="150" cy="160" r="3.5" fill="var(--purple)" opacity="0.8"/>
+                        <circle cx="180" cy="205" r="3.5" fill="var(--purple)" opacity="0.8"/>
+                        <circle cx="210" cy="220" r="3.5" fill="var(--purple)" opacity="0.8"/>
+                        <circle cx="240" cy="150" r="3.5" fill="var(--purple)" opacity="0.8"/>
+                        <circle cx="270" cy="245" r="3.5" fill="var(--purple)" opacity="0.8"/>
+                        <circle cx="300" cy="195" r="3.5" fill="var(--purple)" opacity="0.8"/>
+                        <circle cx="320" cy="185" r="3.5" fill="var(--purple)" opacity="0.8"/>
+                        <circle cx="140" cy="230" r="3.5" fill="var(--purple)" opacity="0.8"/>
+                        <circle cx="260" cy="190" r="3.5" fill="var(--purple)" opacity="0.8"/>
+                        
+                        <!-- Labels -->
+                        <text x="200" y="50" fill="var(--text-main)" font-size="14" font-weight="bold" font-family="sans-serif" text-anchor="middle">Bland-Altman Difference Plot</text>
+                        <text x="200" y="350" fill="var(--text-muted)" font-size="11" font-family="sans-serif" text-anchor="middle">Average of Methods (PinPoint &amp; HackMotion) vs. Difference</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 6: ANATOMICAL ALIGNMENT & DEGREES OF FREEDOM -->
+        <div class="slide" id="slide-6">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge danger">Degrees of Freedom</span>
+                    <h2 class="slide-title">Anatomical Alignment &amp; Axis Leakage</h2>
+                    <p class="slide-text">Sensors are mounted to soft tissue, not bone. Minor physical misalignments introduce systematic cross-axis coordinate leaks:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon danger">!</span>
+                            <div class="bullet-content">
+                                <h4>Anatomical Coordinate Transform</h4>
+                                <p>We convert raw sensor rotations into anatomical joint angles using the transform matrix: <span class="formula-box">q_anat = A·q_raw·M</span> (where <var>A</var> is the forearm joint frame, and <var>M</var> is the sensor mount rotation). A $5^\circ$ error in sensor placement leaks flexion data directly into the radial-ulnar hinge reading.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon danger">!</span>
+                            <div class="bullet-content">
+                                <h4>Static Calibration Pose</h4>
+                                <p>To resolve the <var>A·M</var> alignment window, players execute a mandatory 1-second static address pose. The system runs a Kabsch yaw-alignment algorithm against the gravity vector to calculate and freeze correction offsets.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon warning">!</span>
+                            <div class="bullet-content">
+                                <h4>Pronation-Supination Mismatch</h4>
+                                <p>HackMotion calculates forearm roll using one glove sensor (inferring rotation). PinPoint measures roll directly using forearm + hand sensor pairs. Disagreements can be real anatomical details, not errors.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Biomechanical coordinate systems representation -->
+                        <!-- Forearm bone lines -->
+                        <g stroke="rgba(255,255,255,0.2)" stroke-width="3">
+                            <line x1="120" y1="200" x2="280" y2="200"/>
+                        </g>
+                        <!-- Joint node -->
+                        <circle cx="280" cy="200" r="10" fill="var(--primary)"/>
+                        <circle cx="280" cy="200" r="18" fill="none" stroke="var(--primary)" stroke-width="1.5" opacity="0.5"/>
+                        
+                        <!-- Coordinate Frame A (Forearm Joint) -->
+                        <g transform="translate(160, 200)">
+                            <line x1="0" y1="0" x2="60" y2="0" stroke="var(--accent)" stroke-width="2.5"/>
+                            <text x="65" y="4" fill="var(--accent)" font-size="10" font-family="sans-serif">X (Anat)</text>
+                            
+                            <line x1="0" y1="0" x2="0" y2="-60" stroke="#ef4444" stroke-width="2.5"/>
+                            <text x="-5" y="-68" fill="#ef4444" font-size="10" font-family="sans-serif">Y (Anat)</text>
+                        </g>
+
+                        <!-- Coordinate Frame M (Misaligned Sensor Mount) -->
+                        <g transform="translate(160, 200) rotate(22)">
+                            <line x1="0" y1="0" x2="60" y2="0" stroke="var(--warning)" stroke-width="2" stroke-dasharray="3 3"/>
+                            <text x="65" y="4" fill="var(--warning)" font-size="9" font-family="sans-serif">X (Sensor)</text>
+                            
+                            <line x1="0" y1="0" x2="0" y2="-60" stroke="var(--warning)" stroke-width="2" stroke-dasharray="3 3"/>
+                            <text x="-5" y="-68" fill="var(--warning)" font-size="9" font-family="sans-serif">Y (Sensor)</text>
+                        </g>
+                        
+                        <text x="200" y="330" fill="var(--text-muted)" font-size="11" font-family="sans-serif" text-anchor="middle">A·M transform maps raw sensor axes to skeletal bones</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 7: FILTER DYNAMICS & ACCEL SATURATION -->
+        <div class="slide" id="slide-7">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge warning">Filter Dynamics</span>
+                    <h2 class="slide-title">Conquering Accelerometer Saturation</h2>
+                    <p class="slide-text">Golf swing dynamics violate the core assumption of orientation filters: that the accelerometer only measures gravity. We implement a dual-action correction:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon warning">1</span>
+                            <div class="bullet-content">
+                                <h4>Continuous Down-Weighted Accel Gain</h4>
+                                <p>Sustained swing speed creates extreme linear forces. We continuously scale down the Madgwick gain $\beta$ (or inflate the ESKF covariance $R$) based on the accelerometer residual and gyroscope magnitude: <span class="formula-box">e = |‖a‖ - 1g|</span> and <span class="formula-box">‖ω‖</span>. In high dynamics, we switch to pure gyro integration.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon warning">2</span>
+                            <div class="bullet-content">
+                                <h4>Discrete Impact-Blanking Window</h4>
+                                <p>At ball strike, forces exceed the physical range of the sensor, saturating and clipping at $\pm16g$. Since the impact frame is back-dated, we freeze all accelerometer corrections across a narrow window: <span class="formula-box">[impactUs - 15ms, impactUs + 30ms]</span>, avoiding shock wave contamination.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon warning">3</span>
+                            <div class="bullet-content">
+                                <h4>Yaw Observability Caveat</h4>
+                                <p>Gravity vectors only calibrate pitch and roll. Wrist yaw (rotation in the horizontal plane) is unobservable via accelerometers and accumulates drift. Yaw is locked using still-window Kabsch re-alignment.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Dynamic Trust Function Graph -->
+                        <g opacity="0.3">
+                            <line x1="50" y1="320" x2="350" y2="320" stroke="#fff" stroke-width="1.5"/>
+                            <line x1="50" y1="320" x2="50" y2="80" stroke="#fff" stroke-width="1.5"/>
+                        </g>
+                        <text x="35" y="90" fill="var(--text-muted)" font-size="10" font-family="sans-serif">Trust (β)</text>
+                        <text x="200" y="340" fill="var(--text-muted)" font-size="10" font-family="sans-serif" text-anchor="middle">Dynamics (innov error 'e' or angular velocity 'ω')</text>
+                        
+                        <!-- Trust decaying curve (Exponential decay curve) -->
+                        <path d="M 50 100 C 120 100, 150 320, 350 320" fill="none" stroke="var(--warning)" stroke-width="3"/>
+                        <circle cx="90" cy="100" r="5" fill="var(--accent)"/>
+                        <text x="100" y="95" fill="var(--accent)" font-size="10" font-family="sans-serif">Address: Full Trust (1g, still)</text>
+                        
+                        <circle cx="160" cy="220" r="5" fill="var(--primary)"/>
+                        <text x="175" y="215" fill="var(--primary)" font-size="10" font-family="sans-serif">Transition: Down-weighted</text>
+
+                        <circle cx="280" cy="320" r="5" fill="var(--danger)"/>
+                        <text x="290" y="305" fill="var(--danger)" font-size="10" font-family="sans-serif">Impact: Zero Trust (&gt;16g)</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 8: MOTION BLUR WEDGE INTEGRATION -->
+        <div class="slide" id="slide-8">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge purple">Vision Tracking</span>
+                    <h2 class="slide-title">Motion Blur &amp; Wedge Integration</h2>
+                    <p class="slide-text">At 100+ mph swing speeds, the club shaft does not appear as a solid line on camera. We bypass motion blur limits using dynamic wedge integration:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon purple">1</span>
+                            <div class="bullet-content">
+                                <h4>Exposure-Based Fan Width Calculation</h4>
+                                <p>Instead of thresholding a thin line, the camera module calculates the expected angular swept wedge width: <span class="formula-box">Δθ ≈ ω · t_exp</span> (where <var>ω</var> is the clubhead angular velocity, and <var>t_exp</var> is the exposure time).</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon purple">2</span>
+                            <div class="bullet-content">
+                                <h4>Swept Energy Summing</h4>
+                                <p>Our algorithm sums faint pixel intensities across the predicted fan path. While single pixels are faint and noisy, the aggregated path energy provides mathematically robust tracking verification.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon purple">3</span>
+                            <div class="bullet-content">
+                                <h4>Arm-Scale Constraints (R1 &amp; R5)</h4>
+                                <p>Standard search algorithms panic if feet are cropped. We measure the pixel length of the player's arm (Shoulder-to-Wrist) to set a dynamic search radius ($R_{max} \approx 2.1 \times Arm$). Any candidate lines shorter than one arm length are rejected to filter out watch bands or clothing folds.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Motion blur wedge schematic -->
+                        <!-- Pivot hands -->
+                        <circle cx="200" cy="180" r="10" fill="var(--primary)"/>
+                        
+                        <!-- Blur fan -->
+                        <path d="M 200 180 L 290 320 A 150 150 0 0 1 110 320 Z" fill="rgba(168, 85, 247, 0.08)" stroke="var(--purple)" stroke-width="1.5" stroke-dasharray="2 4"/>
+                        
+                        <!-- Integration rays -->
+                        <line x1="200" y1="180" x2="200" y2="330" stroke="rgba(168, 85, 247, 0.4)" stroke-width="1.5"/>
+                        <line x1="200" y1="180" x2="160" y2="325" stroke="rgba(168, 85, 247, 0.4)" stroke-width="1.5"/>
+                        <line x1="200" y1="180" x2="240" y2="325" stroke="rgba(168, 85, 247, 0.4)" stroke-width="1.5"/>
+                        
+                        <text x="200" y="350" fill="var(--purple)" font-size="11" font-weight="bold" font-family="sans-serif" text-anchor="middle">Swept Energy Integration (Δθ ≈ ω · t_exp)</text>
+                        <circle cx="200" cy="180" r="4" fill="#fff"/>
+                        <text x="212" y="176" fill="var(--primary)" font-size="11" font-weight="bold" font-family="sans-serif">Hands Pivot</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 9: POPULATION GENERALIZATION & CLUSTERED DATA -->
+        <div class="slide" id="slide-9">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge danger">Population Statistics</span>
+                    <h2 class="slide-title">The Clustered Data Risk</h2>
+                    <p class="slide-text">Swings captured from a single golfer are highly correlated. Treating them as independent observations for population claims is a fatal statistical error:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon danger">!</span>
+                            <div class="bullet-content">
+                                <h4>The Design Effect (Deff) Inflation</h4>
+                                <p>Repeated measures carry a design effect: <span class="formula-box">Deff = 1 + (m-1)·ρ</span> (where <var>m</var> is swings per player, and <var>ρ</var> is the intra-golfer correlation). If a single golfer repeats 50 swings and the intra-golfer correlation is high ($\rho \approx 0.5$), the design effect is <b>25.5</b>. This reduces our effective sample size from 50 to <b>only 1.96 independent swings</b>!</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon danger">!</span>
+                            <div class="bullet-content">
+                                <h4>Within-Subject vs. Between-Subject Agreement</h4>
+                                <p>Corpora 1 &amp; 2 validate <i>within-subject</i> agreement (sensor/mount consistency). We cannot make population-level accuracy claims before Corpus 3, which collects data from <b>8–12 different golfers</b> to account for physical diversity.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon accent">✓</span>
+                            <div class="bullet-content">
+                                <h4>The Multi-Golfer Floor</h4>
+                                <p>By evaluating 8–12 independent golfers, we measure true between-subject anatomical and sensor-mounting variances. This allows us to publish a statistically robust, generalizable accuracy standard.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Statistical chart showing clustered data vs independent data -->
+                        <g opacity="0.3">
+                            <line x1="50" y1="320" x2="350" y2="320" stroke="#fff" stroke-width="1.5"/>
+                            <line x1="50" y1="320" x2="50" y2="80" stroke="#fff" stroke-width="1.5"/>
+                        </g>
+                        
+                        <!-- Clusters of points -->
+                        <circle cx="120" cy="150" r="25" fill="none" stroke="var(--primary)" stroke-dasharray="2 4"/>
+                        <circle cx="110" cy="140" r="3" fill="var(--primary)"/>
+                        <circle cx="130" cy="160" r="3" fill="var(--primary)"/>
+                        <circle cx="125" cy="142" r="3" fill="var(--primary)"/>
+                        <circle cx="115" cy="155" r="3" fill="var(--primary)"/>
+                        <text x="120" y="115" fill="var(--primary)" font-size="11" font-weight="bold" font-family="sans-serif" text-anchor="middle">Golfer A Cluster</text>
+
+                        <circle cx="280" cy="220" r="25" fill="none" stroke="var(--purple)" stroke-dasharray="2 4"/>
+                        <circle cx="270" cy="210" r="3" fill="var(--purple)"/>
+                        <circle cx="290" cy="230" r="3" fill="var(--purple)"/>
+                        <circle cx="285" cy="212" r="3" fill="var(--purple)"/>
+                        <circle cx="275" cy="225" r="3" fill="var(--purple)"/>
+                        <text x="280" y="185" fill="var(--purple)" font-size="11" font-weight="bold" font-family="sans-serif" text-anchor="middle">Golfer B Cluster</text>
+
+                        <path d="M 120 150 L 280 220" fill="none" stroke="var(--danger)" stroke-width="2" stroke-dasharray="3 3"/>
+                        <text x="200" y="270" fill="var(--danger)" font-size="12" font-weight="bold" font-family="sans-serif" text-anchor="middle">Effective N ≈ 2 (Not 50)</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 10: GOVERNANCE & HYPERPARAMETER SWEEPS -->
+        <div class="slide" id="slide-10">
+            <div class="slide-card">
+                <div class="slide-content">
+                    <span class="badge accent">Governance</span>
+                    <h2 class="slide-title">Governance &amp; Sweep Optimization</h2>
+                    <p class="slide-text">Tuning our ~34 variables against small samples risks severe overfitting. We apply mathematical controls and parameter sweeps to govern code changes:</p>
+                    <ul class="bullet-list">
+                        <li class="bullet-item">
+                            <span class="bullet-icon accent">1</span>
+                            <div class="bullet-content">
+                                <h4>Data Partitioning (Tune, Val, Held-out)</h4>
+                                <p>Sweeps search for parameters strictly on the <b>Tuning</b> partition. The selection is cross-validated on <b>Validation</b>, and the final parameters are evaluated exactly once on the locked <b>Held-out</b> set at freeze.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon accent">2</span>
+                            <div class="bullet-content">
+                                <h4>Optimization Algorithms</h4>
+                                <p>We match the optimiser to the mathematical surface: <b>Coordinate Descent</b> for independent variables, <b>Bayesian Optimization (TPE/GP)</b> for complex coordinate interactions, and <b>CMA-ES</b> for continuous, non-separable filter gain tables.</p>
+                            </div>
+                        </li>
+                        <li class="bullet-item">
+                            <span class="bullet-icon accent">3</span>
+                            <div class="bullet-content">
+                                <h4>Double-Gated Objectives</h4>
+                                <p>During sweeps, we apply a soft regression penalty to keep search algorithms from deadlocking. At final code freeze, we apply a hard gate: <b>Regressions = 0</b>. Every default parameter in <kbd>pp_tuned_constants.h</kbd> must improve average scores without breaking a single existing swing.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="slide-visual">
+                    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="400" height="400" fill="#151724"/>
+                        <!-- Locked folder and database gate visual -->
+                        <g class="floating-group">
+                            <rect x="100" y="100" width="200" height="140" fill="rgba(255, 255, 255, 0.02)" stroke="rgba(255,255,255,0.08)" stroke-width="2" rx="12"/>
+                            <rect x="120" y="80" width="80" height="20" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.08)" rx="4"/>
+                            
+                            <!-- Large lock icon -->
+                            <circle cx="200" cy="155" r="22" fill="none" stroke="var(--warning)" stroke-width="3" opacity="0.6"/>
+                            <rect x="180" y="155" width="40" height="30" fill="var(--warning)" rx="6"/>
+                            <circle cx="200" cy="170" r="4" fill="#000"/>
+                            
+                            <text x="200" y="270" fill="var(--text-main)" font-size="14" font-weight="bold" font-family="sans-serif" text-anchor="middle">Held-Out Test Set</text>
+                            <text x="200" y="290" fill="var(--warning)" font-size="11" font-family="sans-serif" text-anchor="middle">LOCKED UNTIL MERGE FREEZE</text>
+                        </g>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- CONTROLS FOOTER -->
+    <div class="controls-bar">
+        <div class="slide-counter">SLIDE <span id="current-slide-num">1</span> OF <span id="total-slides-num">10</span></div>
+        <div class="progress-dots" id="dots-container"></div>
+        <div class="nav-buttons">
+            <button class="btn" id="prev-btn" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                Back
+            </button>
+            <button class="btn" id="next-btn">
+                Next
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const slides = document.querySelectorAll('.slide');
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const currentSlideNum = document.getElementById('current-slide-num');
+        const totalSlidesNum = document.getElementById('total-slides-num');
+        const dotsContainer = document.getElementById('dots-container');
+
+        let currentSlideIndex = 0;
+        const totalSlides = slides.length;
+
+        // Set total slides count
+        totalSlidesNum.textContent = totalSlides;
+
+        // Create navigation dots
+        for (let i = 0; i < totalSlides; i++) {
+            const dot = document.createElement('div');
+            dot.classList.add('dot');
+            if (i === 0) dot.classList.add('active');
+            dot.addEventListener('click', () => goToSlide(i));
+            dotsContainer.appendChild(dot);
+        }
+
+        const dots = document.querySelectorAll('.dot');
+
+        function updateButtons() {
+            prevBtn.disabled = currentSlideIndex === 0;
+            if (currentSlideIndex === totalSlides - 1) {
+                nextBtn.innerHTML = 'Finish <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+            } else {
+                nextBtn.innerHTML = 'Next <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>';
+            }
+        }
+
+        function updateCounter() {
+            currentSlideNum.textContent = currentSlideIndex + 1;
+        }
+
+        function updateDots() {
+            dots.forEach((dot, index) => {
+                if (index === currentSlideIndex) {
+                    dot.classList.add('active');
+                } else {
+                    dot.classList.remove('active');
+                }
+            });
+        }
+
+        function goToSlide(index) {
+            if (index < 0 || index >= totalSlides) return;
+            
+            // Remove active class from current slide
+            slides[currentSlideIndex].classList.remove('active');
+            
+            // Set new current slide index
+            currentSlideIndex = index;
+            
+            // Add active class to new slide
+            slides[currentSlideIndex].classList.add('active');
+            
+            updateButtons();
+            updateCounter();
+            updateDots();
+        }
+
+        prevBtn.addEventListener('click', () => {
+            goToSlide(currentSlideIndex - 1);
+        });
+
+        nextBtn.addEventListener('click', () => {
+            if (currentSlideIndex === totalSlides - 1) {
+                // Return to first slide or show completion
+                goToSlide(0);
+            } else {
+                goToSlide(currentSlideIndex + 1);
+            }
+        });
+
+        // Key listeners for keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') {
+                nextBtn.click();
+            } else if (e.key === 'ArrowLeft') {
+                prevBtn.click();
+            }
+        });
+    </script>
+</body>
+</html>
