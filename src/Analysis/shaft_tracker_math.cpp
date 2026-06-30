@@ -396,9 +396,11 @@ std::vector<Peak> pickPeaks(const std::vector<ColumnInfo> &cols,
         return kept;
 
     const float minW = cfg.minScoreFrac * kept.front().w;
-    // R5 physical-length floor: a shaft cannot image shorter than ≈ one arm. The
-    // floor only ever tightens (max with minVisibleLenPx), so a default config
-    // (minShaftLenPx == minVisibleLenPx) is unchanged.
+    // R5 length floor: drop runs shorter than the configured minimum. This is a
+    // conservative noise gate, NOT a "shaft must be ≥ one arm" claim — under
+    // foreshortening a real shaft can image far shorter than an arm near the top
+    // and impact. The floor only ever tightens (max with minVisibleLenPx), so a
+    // default config (minShaftLenPx == minVisibleLenPx) is unchanged.
     const float lenFloor = std::max(cfg.minVisibleLenPx, cfg.minShaftLenPx);
     std::vector<Peak> out;
     for (const Peak &p : kept) {

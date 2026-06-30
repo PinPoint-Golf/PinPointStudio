@@ -53,6 +53,13 @@ constexpr float kKpMinConf = 0.30f;
 // Nominal acromion→wrist length (m) — only the R1 arm-derived pixel scale uses
 // it, and only as a prior-quality scale (never a metric). Population average.
 constexpr double kArmNominalM = 0.52;
+
+// Empirical full-arm / forearm proxy ratio (~1.9): scales a measured elbow→grip
+// segment up to a shoulder→grip arm-length proxy in the shoulder-occluded
+// fallback below. This is an anthropometric *body* proportion (the forearm is
+// roughly half the arm), NOT a club↔arm relation — there is no fixed club/arm
+// factor (a real club spans ~1.2–2.1× the arm across driver→wedge; see R5).
+constexpr float kForearmToFullArmRatio = 1.9f;
 constexpr double kPi          = 3.14159265358979323846;
 constexpr double kDeg2Rad     = kPi / 180.0;
 
@@ -135,8 +142,8 @@ AnchorState anchorAt(const PoseTrack2D &pose, size_t lo, size_t hi, int64_t t,
         } else {
             const bool le = conf2(kLeftElbow)  >= kKpMinConf;
             const bool re = conf2(kRightElbow) >= kKpMinConf;
-            if (le && re) { ref = 0.5f * (kpPx(kLeftElbow) + kpPx(kRightElbow)); haveRef = true; lenScale = 1.9f; }
-            else if (le || re) { ref = kpPx(le ? kLeftElbow : kRightElbow); haveRef = true; lenScale = 1.9f; }
+            if (le && re) { ref = 0.5f * (kpPx(kLeftElbow) + kpPx(kRightElbow)); haveRef = true; lenScale = kForearmToFullArmRatio; }
+            else if (le || re) { ref = kpPx(le ? kLeftElbow : kRightElbow); haveRef = true; lenScale = kForearmToFullArmRatio; }
         }
         if (haveRef) {
             const cv::Point2f d = s.grip - ref;
@@ -523,13 +530,26 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
     dcfg.maxRadiusPx = float(std::clamp(radius, 80.0, double(std::min(w, h))));
     tuning::apply(job.tuningOverrides, "shaft.maxRadiusPx", dcfg.maxRadiusPx);
 
-    // Predicted full club length in px (R7 predicted-series headPx). Falls back
-    // to the search radius when there is no pixel scale at all.
+    // Predicted full club length in px (R7 predicted-series headPx) — used ONLY to
+    // draw the diagnostic predicted-head overlay, never to validate or reject a
+    // real detection. Note that when the arm-derived scale is active this folds the
+    // fixed clubLengthM through pxPerM = armPx / kArmNominalM, i.e. it implies a
+    // club ≈ (clubLengthM / kArmNominalM) · arm overlay length. That is a
+    // prior-quality drawing scale only, not a measured or asserted club/arm factor.
+    // Falls back to the search radius when there is no pixel scale at all.
     const double clubLenPx = (pxPerM > 0.0) ? job.clubLengthM * pxPerM
                                             : double(dcfg.maxRadiusPx) / 1.25;
 
-    // R5: a shaft cannot image shorter than the club (≈ 2 arms); one arm is the
-    // generous floor (≈ 50% occlusion headroom). 0 frac → current behaviour.
+    // R5: arm-relative minimum-length floor. The ONLY defensible length relation
+    // between a club and an arm is a *lower bound* — a real club is at least as
+    // long as the lead arm. There is NO reliable "club = k · arm" factor: across
+    // driver→wedge the 3-D length ratio spans ~1.2–2.1×, so never encode a fixed
+    // multiple here. And crucially, the *imaged* shaft foreshortens hard through
+    // the top and impact (the club swings out of the image plane), so it can
+    // image far shorter than even one arm in exactly the frames that matter most.
+    // Keep this purely a conservative noise gate, not a "club must be this long"
+    // assertion — set minLenFracOfArm well below 1.0 if enabled at all. Default
+    // frac = 0 → the floor stays at the px noise floor (current behaviour).
     dcfg.minShaftLenPx = dcfg.minVisibleLenPx;
     if (minLenFracOfArm > 0.0 && armPxMed > 5.0)
         dcfg.minShaftLenPx = std::max(dcfg.minVisibleLenPx, float(minLenFracOfArm * armPxMed));
