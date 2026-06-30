@@ -74,13 +74,18 @@ struct AnchorState {
     float       phiArmRad = 0.f;    // image angle shoulder(s)→grip (the arm-hang direction)
     float       armPx     = 0.f;    // shoulder→grip length px (× forearm-scale on elbow fallback)
     cv::Point2f shoulderRef;        // shoulder midpoint / single shoulder / elbow fallback, image px
+    // Lead-forearm extension — the phase-stable hinge reference for the plausibility
+    // sector (the club is a wrist-cocked continuation of the forearm at every phase).
+    bool        hasArmAxis      = false;
+    float       armAxisRad      = 0.f;   // lead elbow→grip continued (forearm extension), image angle
+    bool        armAxisIsForearm = false;// true = forearm (tight sector); false = shoulder→grip fallback
 };
 
 // Linear interpolation of the per-frame anchor between bracketing pose
 // frames (the sparse zone poses every 4th frame; hands move smoothly and the
 // detector tolerates ±3 px of anchor error by design).
 AnchorState anchorAt(const PoseTrack2D &pose, size_t lo, size_t hi, int64_t t,
-                     int w, int h)
+                     int w, int h, int handedness)
 {
     const PoseFrame2D &a = pose.frames[lo];
     const PoseFrame2D &b = pose.frames[hi];
@@ -154,6 +159,29 @@ AnchorState anchorAt(const PoseTrack2D &pose, size_t lo, size_t hi, int64_t t,
                 s.armPx       = len * lenScale;
                 s.hasArm      = true;
             }
+        }
+    }
+
+    // Lead-forearm extension — the phase-stable reference for the plausibility
+    // sector: the club is a wrist-cocked continuation of the lead forearm, within
+    // the anatomical cock limit, at EVERY phase. Lead side from handedness
+    // (RH ⇒ left arm leads; handedness == 2 ⇒ left-handed ⇒ right arm leads).
+    // The wrist ≈ the grip, so elbow→grip continued is the forearm extension.
+    {
+        const int leadElbow = (handedness == 2) ? kRightElbow : kLeftElbow;
+        if (std::min(a.conf[size_t(leadElbow)], b.conf[size_t(leadElbow)]) >= kKpMinConf) {
+            const cv::Point2f el = toPx(lerp(a.kp[size_t(leadElbow)], b.kp[size_t(leadElbow)]));
+            const cv::Point2f d  = s.grip - el;   // elbow → grip, continued = forearm extension
+            if (std::hypot(d.x, d.y) > 8.f) {
+                s.hasArmAxis       = true;
+                s.armAxisRad       = std::atan2(d.y, d.x);
+                s.armAxisIsForearm = true;
+            }
+        }
+        if (!s.hasArmAxis && s.hasArm) {          // fallback: shoulder→grip (full arm), looser sector
+            s.hasArmAxis       = true;
+            s.armAxisRad       = s.phiArmRad;
+            s.armAxisIsForearm = false;
         }
     }
     return s;
@@ -425,6 +453,10 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
     bool   useBackgroundSub  = false;  // Rec 4: median background subtraction
     bool   twoPassCalibration = false; // Rec 1/2: two-pass calibration loop
     bool   autoChirality      = true;   // Rec 3: automated chirality detection
+    // Phase-1: restrict the angular search to the plausible lead-forearm sector
+    // (phase- & chirality-independent). Default OFF → byte-identical behaviour.
+    bool   useArmPlausibility    = false;
+    double armPlausibilityMaxDeg = 120.0;  // sector half-width vs the lead-forearm extension
     {
         namespace tn = tuning;
         const QVariantMap &ov = job.tuningOverrides;
@@ -440,6 +472,8 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
         tn::apply(ov, "shaft.useBackgroundSub",   useBackgroundSub);
         tn::apply(ov, "shaft.twoPassCalibration", twoPassCalibration);
         tn::apply(ov, "shaft.autoChirality",      autoChirality);
+        tn::apply(ov, "shaft.useArmPlausibility",    useArmPlausibility);
+        tn::apply(ov, "shaft.armPlausibilityMaxDeg", armPlausibilityMaxDeg);
     }
 
     // Rec 3: Automated Chirality Detection
@@ -586,7 +620,7 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
             while (tempPoseIdx + 1 < pose.frames.size() && pose.frames[tempPoseIdx + 1].t_us <= e.timestamp_us)
                 ++tempPoseIdx;
             const size_t hiIdx = std::min(tempPoseIdx + 1, pose.frames.size() - 1);
-            const AnchorState a = anchorAt(pose, tempPoseIdx, hiIdx, e.timestamp_us, w, h);
+            const AnchorState a = anchorAt(pose, tempPoseIdx, hiIdx, e.timestamp_us, w, h, job.handedness);
 
             float predDirRad = 0.f, predSigmaRad = 0.f;
             int   predSide   = 0;
@@ -730,7 +764,7 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
                && pose.frames[poseIdx + 1].t_us <= e.timestamp_us)
             ++poseIdx;
         const size_t hiIdx = std::min(poseIdx + 1, pose.frames.size() - 1);
-        const AnchorState a = anchorAt(pose, poseIdx, hiIdx, e.timestamp_us, w, h);
+        const AnchorState a = anchorAt(pose, poseIdx, hiIdx, e.timestamp_us, w, h, job.handedness);
 
         ShaftFrameObs o;
         o.t_us   = e.timestamp_us;
@@ -821,6 +855,18 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow &window,
                 prior.kinematicSigmaRad = predSigmaRad;
                 prior.armSide           = predSide;
                 prior.hasKinematicDir   = useKinematicPrior;
+            }
+            // Phase-1 search-space restriction: confine the angular scan to the
+            // anatomically plausible sector about the lead-forearm extension
+            // (phase- & chirality-independent). The forearm gets the tight sector;
+            // the shoulder→grip fallback (not phase-stable at the top) is widened so
+            // it only excludes the gross "club folded back up the arm" impossibility.
+            if (useArmPlausibility && a.hasArmAxis) {
+                prior.armAxisRad = a.armAxisRad;
+                const double halfDeg = a.armAxisIsForearm
+                                       ? armPlausibilityMaxDeg
+                                       : std::min(armPlausibilityMaxDeg + 30.0, 175.0);
+                prior.armPlausMaxRad = float(halfDeg * kDeg2Rad);
             }
             {
                 PP_PROFILE_SCOPE("Shaft.detect");   // per-frame radial detection (blur/fan/SNR cues)

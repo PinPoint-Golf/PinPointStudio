@@ -147,7 +147,13 @@ change; never diff across hosts** (CPU vs CUDA pose differs).
 - `swinglab_run` + `score.py` run IMU-less out of the box; impact + session-type passthrough added to
   `lab.py`/`core.py`; `lab.py synth --no-imu` provides the deterministic camera-only fixture.
 - Markup already labels shaft line + P7 impact.
-- **Pending:** the real corpus capture + markup, then the sweeps and K-flag flips above.
+- **Detector accuracy work** is tracked separately in
+  [`../implementation/shaft_detection_phase2_plan.md`](../implementation/shaft_detection_phase2_plan.md):
+  **Phase 1** (lead-arm plausibility sector, `shaft.useArmPlausibility`) is implemented + validated on one
+  swing (fixes the address arm-as-club pick; detection 57→63 %); **Phase 2** (blur-line / line-integral
+  wedge detector for the fast downswing) is designed and **corpus-gated**.
+- **Pending:** the real corpus capture + markup, then the sweeps, K-flag flips, the Phase-1 default flip,
+  and the Phase-2 build above.
 
 > **Production note (out of scope here):** the tracker is invoked only from `WristAnalyzer` today
 > (camera-gated). Running it under whichever analyzer owns the spine-IMU session is a separate

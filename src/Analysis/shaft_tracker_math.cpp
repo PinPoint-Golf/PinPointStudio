@@ -193,6 +193,16 @@ std::vector<float> buildThetaWeights(const ShaftDetectConfig &cfg, const AnchorP
     const int   nElbow    = std::clamp(prior.numElbowDirs, 0, 2);
     for (int t = 0; t < cfg.thetaBins; ++t) {
         const float theta = static_cast<float>(t) * binW;
+        // Phase-1 plausibility sector: hard-restrict the search to within
+        // ±armPlausMaxRad of the lead-forearm extension. The club cannot fold back
+        // up the arm at any phase, so zeroing the implausible bins both forbids the
+        // arm-as-club pick AND frees the top-K so the (often weaker) true club ridge
+        // is no longer crowded out. Phase- & chirality-independent; 0 ⇒ disabled.
+        if (prior.armPlausMaxRad > 0.f
+            && angAbsDiff(theta, prior.armAxisRad) > prior.armPlausMaxRad) {
+            w[static_cast<size_t>(t)] = 0.f;
+            continue;
+        }
         bool masked = false;
         for (int e = 0; e < nElbow; ++e) {
             if (angAbsDiff(theta, prior.elbowDirRad[e]) <= maskRad) {

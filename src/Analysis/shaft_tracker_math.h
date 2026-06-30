@@ -121,6 +121,12 @@ struct AnchorPrior {
     // Consumed from the K2 phase; defaults leave current behaviour unchanged.
     bool  hasKinematicDir = false; float kinematicDirRad = 0.f, kinematicSigmaRad = 0.f;
     int   armSide = 0;                  // +1 club expected trail-side of arm, −1 lead-side, 0 unknown
+    // Lead-forearm plausibility sector (Phase-1 search-space restriction): the club is
+    // anatomically within ±armPlausMaxRad of the lead-forearm extension at EVERY phase
+    // (phase- & chirality-independent — the wrist cannot fold the club back up the arm).
+    // 0 ⇒ disabled (byte-identical default behaviour).
+    float armAxisRad = 0.f;        // sector centre — lead elbow→grip continued (forearm extension)
+    float armPlausMaxRad = 0.f;    // sector half-width; > 0 hard-restricts the angular search to it
 };
 
 struct ShaftCandidate {
