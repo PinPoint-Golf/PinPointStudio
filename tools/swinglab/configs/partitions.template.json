@@ -1,0 +1,5 @@
+{
+  "tune":       ["swing_0001", "swing_0002", "swing_0003", "swing_0004", "swing_0005"],
+  "validation": ["swing_0006", "swing_0007", "swing_0008"],
+  "heldout":    ["swing_0009", "swing_0010"]
+}

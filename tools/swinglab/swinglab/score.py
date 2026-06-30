@@ -275,8 +275,12 @@ def score_metrics(run: RunResult, swing: Swing):
     score = run.analysis.get("score")
     if not isinstance(score, dict) or score.get("kind") != "resemblance":
         return []   # /2 int score, or an adherence (Swing/GRF) score — nothing to check here
-    checks = []
     res = score.get("resemblance", {}) or {}
+    if not res:
+        return []   # empty resemblance map = no wrist score was produced (camera-only / IMU-less
+                    # swing): there is no construction to validate, and — like diag/filter when their
+                    # data is absent — it must not shift the 100-pt normalisation (additive-reader §8).
+    checks = []
     vals = [int(v) for v in res.values()]
     overall = score.get("overall")
 

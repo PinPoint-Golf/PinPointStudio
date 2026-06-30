@@ -47,6 +47,9 @@ def main():
     p.add_argument("--fault", default=None,
                    help="known-groups fault label stamped in truth.meta.knownGroup "
                         "(default: 'cast' for a plain synth, none for an --archetype variant)")
+    p.add_argument("--no-imu", action="store_true",
+                   help="camera-only fixture: omit IMU streams + bindings (the IMU-independent "
+                        "shaft-track loop — every IMU/wrist check then skips)")
 
     sub.add_parser("doctor")
 
@@ -59,12 +62,17 @@ def main():
     p.add_argument("--params")
     p.add_argument("--id")
     p.add_argument("--no-trace", action="store_true")
+    p.add_argument("--session-type", type=int, default=None,
+                   help="force the analyzer session type (1=Wrist, the only analyzer with a shaft "
+                        "tracker); omit to respect each swing's recorded type (runner defaults to 1)")
 
     p = sub.add_parser("one")
     p.add_argument("swing_dir")
     p.add_argument("run_dir")
     p.add_argument("--params")
     p.add_argument("--no-trace", action="store_true")
+    p.add_argument("--session-type", type=int, default=None,
+                   help="force the analyzer session type (1=Wrist); omit to respect the recording")
 
     p = sub.add_parser("score")
     p.add_argument("run_dir")
@@ -111,17 +119,18 @@ def main():
         from swinglab.synth import generate
         # Default fault label: 'cast' for a plain synth (the geometry casts), none for an archetype
         # variant (the FE bias changes the wrist read, so don't assert an unrelated fault).
-        fault = a.fault if a.fault is not None else ("" if a.archetype else "cast")
+        fault = a.fault if a.fault is not None else ("" if (a.archetype or a.no_imu) else "cast")
         generate(a.out_dir, seed=a.seed, clutter=a.clutter,
-                 impact_spike=a.impact_spike, archetype=a.archetype, fault=fault)
+                 impact_spike=a.impact_spike, archetype=a.archetype, fault=fault,
+                 no_imu=a.no_imu)
     elif a.cmd == "ingest":
         ingest(a.corpus_root)
     elif a.cmd == "run":
         run_corpus(a.corpus_root, a.runs_root, run_id=a.id, params=a.params,
-                   trace=not a.no_trace)
+                   trace=not a.no_trace, session_type=a.session_type)
     elif a.cmd == "one":
         ok, rd = run_one(a.swing_dir, a.run_dir, params=a.params,
-                         trace=not a.no_trace)
+                         trace=not a.no_trace, session_type=a.session_type)
         card = scorecard(rd, a.swing_dir)
         save_json(Path(rd) / "scorecard.json", card)
         print(json.dumps({k: card[k] for k in

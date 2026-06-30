@@ -167,12 +167,19 @@ ARCHETYPE_FE_BIAS = {"bowed": -20.0, "neutral": 0.0, "cupped": 25.0}
 
 
 def generate(out_dir, seed=7, waggle=True, clutter=False,
-             impact_spike=False, archetype=None, fault="cast"):
+             impact_spike=False, archetype=None, fault="cast", no_imu=False):
+    """Write a synthetic swing dir. no_imu=True omits the two IMU streams +
+    bindings (a camera-only fixture for the IMU-independent shaft-track loop):
+    the rendered Face-On.mp4 + injected pose.json + truth.json shaft labels +
+    the Impact phase are kept, so swinglab_run + score.py exercise the full
+    vision-only shaft path with zero IMU (every IMU/wrist check then skips)."""
     import cv2
     from pathlib import Path
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(seed)
+    if no_imu:
+        archetype = None   # no wrist semantics without inertial data
     arch_bias = ARCHETYPE_FE_BIAS.get(archetype, 0.0) if archetype else 0.0
 
     n_frames = int(T_END * FPS) + 1
@@ -198,9 +205,45 @@ def generate(out_dir, seed=7, waggle=True, clutter=False,
                              "len": round(L, 1)})
     vw.release()
 
-    hand_t, hand_s = imu_stream(1.0, impact_spike=impact_spike)
-    fore_t, fore_s = imu_stream(0.95, impact_spike=impact_spike, fe_bias_deg=arch_bias)
     identity = [1.0, 0.0, 0.0, 0.0]
+    video_stream = {
+        "kind": "video", "alias": "Face-On", "file": "Face-On.mp4",
+        "source": {"pixelFormat": "BGR24", "width": W, "height": H},
+        "encoded": {"width": W, "height": H},
+        "capture": {"fps_num": FPS, "fps_den": 1},
+        "setup": {"perspective": 2, "perspectiveName": "FaceOn",
+                  "mirrored": False, "fixedInPlace": True,
+                  "ballDetection": {"calibrated": True, "margin": 0.40,
+                                    "calibratedAt": None, "driftAtCapture": 0.0}},
+        "frames": {"count": n_frames, "t_us": frame_t_us}}
+    imu_streams, bindings = [], []
+    if not no_imu:
+        hand_t, hand_s = imu_stream(1.0, impact_spike=impact_spike)
+        fore_t, fore_s = imu_stream(0.95, impact_spike=impact_spike, fe_bias_deg=arch_bias)
+        imu_streams = [
+            {"kind": "imu", "alias": "Synth Hand", "schema": "imu_sample_v2",
+             "source": {"serial": "SYNTH-HAND"},
+             "device": {"outputRateHz": 200, "fusionMode": "6axis",
+                        "orientationFilter": "Madgwick", "placementSlot": "B"},
+             "units": {"accel": "g", "gyro": "deg/s", "quat": "wxyz"},
+             "samples": {"count": len(hand_t), "t_us": hand_t, "data": hand_s}},
+            {"kind": "imu", "alias": "Synth Forearm", "schema": "imu_sample_v2",
+             "source": {"serial": "SYNTH-FORE"},
+             "device": {"outputRateHz": 200, "fusionMode": "6axis",
+                        "orientationFilter": "Madgwick", "placementSlot": "A"},
+             "units": {"accel": "g", "gyro": "deg/s", "quat": "wxyz"},
+             "samples": {"count": len(fore_t), "t_us": fore_t, "data": fore_s}},
+        ]
+        bindings = [
+            {"serial": "SYNTH-HAND", "role": 6, "alignA": identity, "mountM": identity,
+             "calibrated": True, "anatCalibrated": True,
+             "mountDeviationDeg": 0.0, "mountGravityErrorDeg": 0.0,
+             "calibratedAt": "2026-06-11T00:00:00.000Z", "calibAgeSec": 60.0},
+            {"serial": "SYNTH-FORE", "role": 5, "alignA": identity, "mountM": identity,
+             "calibrated": True, "anatCalibrated": True,
+             "mountDeviationDeg": 0.0, "mountGravityErrorDeg": 0.0,
+             "calibratedAt": "2026-06-11T00:00:00.000Z", "calibAgeSec": 60.0},
+        ]
     doc = {
         "schema": "pinpoint.swing/2",
         "swing": {"id": "synth", "index": 1},
@@ -218,60 +261,35 @@ def generate(out_dir, seed=7, waggle=True, clutter=False,
             "host": {"app": "swinglab-synth", "version": "0", "gitSha": "synth",
                      "hostname": "synth", "platform": "synth", "poseBackend": ""},
         },
-        "streams": [
-            {"kind": "video", "alias": "Face-On", "file": "Face-On.mp4",
-             "source": {"pixelFormat": "BGR24", "width": W, "height": H},
-             "encoded": {"width": W, "height": H},
-             "capture": {"fps_num": FPS, "fps_den": 1},
-             "setup": {"perspective": 2, "perspectiveName": "FaceOn",
-                       "mirrored": False, "fixedInPlace": True,
-                       "ballDetection": {"calibrated": True, "margin": 0.40,
-                                         "calibratedAt": None, "driftAtCapture": 0.0}},
-             "frames": {"count": n_frames, "t_us": frame_t_us}},
-            {"kind": "imu", "alias": "Synth Hand", "schema": "imu_sample_v2",
-             "source": {"serial": "SYNTH-HAND"},
-             "device": {"outputRateHz": 200, "fusionMode": "6axis",
-                        "orientationFilter": "Madgwick", "placementSlot": "B"},
-             "units": {"accel": "g", "gyro": "deg/s", "quat": "wxyz"},
-             "samples": {"count": len(hand_t), "t_us": hand_t, "data": hand_s}},
-            {"kind": "imu", "alias": "Synth Forearm", "schema": "imu_sample_v2",
-             "source": {"serial": "SYNTH-FORE"},
-             "device": {"outputRateHz": 200, "fusionMode": "6axis",
-                        "orientationFilter": "Madgwick", "placementSlot": "A"},
-             "units": {"accel": "g", "gyro": "deg/s", "quat": "wxyz"},
-             "samples": {"count": len(fore_t), "t_us": fore_t, "data": fore_s}},
-        ],
+        "streams": [video_stream] + imu_streams,
         "analysis": {
             "phases": [{"phase": 5, "t_us": T0_US + int(IMPACT_S * 1e6), "conf": 1.0}],
-            "bindings": [
-                {"serial": "SYNTH-HAND", "role": 6, "alignA": identity, "mountM": identity,
-                 "calibrated": True, "anatCalibrated": True,
-                 "mountDeviationDeg": 0.0, "mountGravityErrorDeg": 0.0,
-                 "calibratedAt": "2026-06-11T00:00:00.000Z", "calibAgeSec": 60.0},
-                {"serial": "SYNTH-FORE", "role": 5, "alignA": identity, "mountM": identity,
-                 "calibrated": True, "anatCalibrated": True,
-                 "mountDeviationDeg": 0.0, "mountGravityErrorDeg": 0.0,
-                 "calibratedAt": "2026-06-11T00:00:00.000Z", "calibAgeSec": 60.0},
-            ],
+            "bindings": bindings,
         },
     }
     save_json(out / "swing.json", doc)
     save_json(out / "pose.json", {"frames": pose_frames(frame_t_us)})
+    # IMU-derived expectations (sHand fit) and the known-groups/archetype labels (which drive the
+    # wrist/diag/score checks) are meaningless without inertial data, so a no_imu fixture omits them —
+    # leaving only the vision ground truth (shaft labels + downswing sweep + event times).
+    expected = ({"downswingSweepDeg": 140.0} if no_imu
+                else {"sHandSign": -1, "sHandDeltaDeg": 90.0, "downswingSweepDeg": 140.0})
+    # Known-groups labels for the score.py check groups. `knownGroup` drives diag.* (default
+    # "cast": the smoothstep φ(t) u²-downswing reads as an early release). `archetype`, when a
+    # bowed/neutral/cupped variant is generated, drives score.resemblance_recall. Both are
+    # plumbing/regression fixtures proving offline-assessment → swing.json → score.py end to
+    # end; a richer scripted-fault library is future work (real capture, validation §5.6).
+    meta = {} if no_imu else ({"knownGroup": fault} | ({"archetype": archetype} if archetype else {}))
     save_json(out / "truth.json", {
         "shaft": truth_frames,
         "events": {"takeaway_s": TAKEAWAY_S, "top_s": TOP_S,
                    "impact_s": IMPACT_S, "finish_s": FOLLOW_END_S,
                    "t0_us": T0_US},
-        "expected": {"sHandSign": -1, "sHandDeltaDeg": 90.0,
-                     "downswingSweepDeg": 140.0},
-        # Known-groups labels for the score.py check groups. `knownGroup` drives diag.* (default
-        # "cast": the smoothstep φ(t) u²-downswing reads as an early release). `archetype`, when a
-        # bowed/neutral/cupped variant is generated, drives score.resemblance_recall. Both are
-        # plumbing/regression fixtures proving offline-assessment → swing.json → score.py end to
-        # end; a richer scripted-fault library is future work (real capture, validation §5.6).
-        "meta": ({"knownGroup": fault} | ({"archetype": archetype} if archetype else {})),
+        "expected": expected,
+        "meta": meta,
     })
     extra = f", impact-spike" if impact_spike else ""
     extra += f", archetype={archetype}" if archetype else ""
+    extra += ", no-imu (camera-only)" if no_imu else ""
     print(f"[synth] wrote {out} ({n_frames} frames, impact {IMPACT_S}s{extra})")
     return out

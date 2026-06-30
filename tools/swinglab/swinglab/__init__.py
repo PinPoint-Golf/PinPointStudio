@@ -80,11 +80,36 @@ class Swing:
                 if b.get("calibAgeSec", -1) >= 0]
         return max(ages) if ages else None
 
-    def impact_us(self):
+    def impact_from_swingjson(self):
+        """Impact the runner can resolve from swing.json ALONE (no truth.json):
+           recorded capture.impactUs, else a recorded Impact phase (enum 5).
+           None ⇒ swing.json carries no impact (an IMU-less capture before markup)."""
+        iu = self.capture().get("impactUs")
+        if isinstance(iu, (int, float)) and iu > 0:
+            return int(iu)
         for p in self.doc.get("analysis", {}).get("phases", []):
             if p.get("phase") == 5:
                 return int(p["t_us"])
         return None
+
+    def impact_from_truth(self):
+        """Impact from the markup ground-truth label: the P7 (impact) event, or the
+           legacy "impact" event — t0_us + seconds. This is how an IMU-less swing,
+           which has no recorded impact, gets a usable impact once it is marked up
+           (score.py maps p7 → Impact phase)."""
+        ev = (self.truth() or {}).get("events", {}) or {}
+        t0 = ev.get("t0_us")
+        if t0 is None:
+            return None
+        for key in ("p7_s", "impact_s"):
+            s = ev.get(key)
+            if s is not None:
+                return int(t0) + int(round(float(s) * 1e6))
+        return None
+
+    def impact_us(self):
+        """Best available impact: swing.json first, then the markup label."""
+        return self.impact_from_swingjson() or self.impact_from_truth()
 
     def truth(self):
         t = self.path / "truth.json"

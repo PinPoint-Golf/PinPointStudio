@@ -342,6 +342,44 @@ int main()
         CHECK_LT("gate coverage", double(track.coverage), 0.60);
     }
 
+    // ===== 5. IMU-independence guarantee (clean vision-only baseline) =========
+    // The shaft tracker is used in production with IMUs on the SPINE (no club /
+    // lead-hand sensor), so it MUST yield a full, valid track from vision alone.
+    // This is the explicit, named invariant (test 3 stresses clutter/dropouts;
+    // this asserts the clean no-IMU case + that the IMU channel is truly inert —
+    // a guard against any future change that hard-couples the tracker to an IMU).
+    std::printf("== Vision-only baseline (IMU-independence) ==\n");
+    {
+        SynthOptions so;
+        so.imu = false;                 // no qHand on ANY frame; no clutter, no drops
+        const Synth s = makeSynth(so);
+        AssemblyConfig cfg;
+
+        const ShaftInHandFit fit = ShaftTrackAssembly::calibrateShaftInHand(s.obs, cfg);
+        CHECK("no IMU -> no s_hand fit", !fit.ok);
+
+        const ShaftTrack2D track = ShaftTrackAssembly::assemble(
+            s.obs, s.obs.front().t_us, s.obs.back().t_us, cfg);
+        CHECK("vision-only track valid (no IMU)", track.valid);
+        CHECK_LT("coverage meets the gate without IMU", cfg.coverageMin - double(track.coverage), 1e-6);
+        CHECK_LT("near-full coverage shortfall", 1.0 - double(track.coverage), 0.05);
+        CHECK_NEAR("imuVisionCorr == 0 (channel inert, not fabricated)",
+                   track.imuVisionCorr, 0.0, 1e-6);
+
+        bool anyImuBridged = false;
+        for (const ShaftSample2D &smp : track.samples)
+            if (smp.flags & ShaftImuBridged) anyImuBridged = true;
+        CHECK("no sample claims ImuBridged (channel never engaged)", !anyImuBridged);
+
+        const double off = alignOffset(track.samples.front().thetaRad, s.trueThetaRad.front());
+        double rms = 0.0;
+        for (size_t k = 0; k < track.samples.size(); ++k) {
+            const double err = track.samples[k].thetaRad - off - s.trueThetaRad[k];
+            rms += err * err;
+        }
+        CHECK_LT("vision-only baseline RMS (deg)", std::sqrt(rms / track.samples.size()) / kDeg, 1.5);
+    }
+
     std::printf("%s (%d failure%s)\n", g_fail == 0 ? "ALL PASS" : "FAILURES",
                 g_fail, g_fail == 1 ? "" : "s");
     return g_fail == 0 ? 0 : 1;

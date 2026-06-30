@@ -114,11 +114,23 @@ def ingest(corpus_root):
               "stating recording date, calibration state, and reliability)")
     save_json(root / "corpus.json", manifest)
     print(f"[ingest] {len(swings)} swings -> {root / 'corpus.json'}")
+    cam_only = sum(1 for s in swings if s["imus"] == 0)
+    if cam_only:
+        print(f"[ingest] {cam_only} camera-only (IMU-less) swing(s): IMU/wrist checks are "
+              f"intentionally inert; shaft track.* + truth.theta_rms/head are still scored "
+              f"(impact comes from the markup P7 label when swing.json has none).")
     return manifest
 
 
-def run_one(swing_dir, run_dir, params=None, trace=True, pose=None, binary=None):
-    """Invoke swinglab_run for one swing; returns (ok, run_dir)."""
+def run_one(swing_dir, run_dir, params=None, trace=True, pose=None, binary=None,
+            session_type=None, impact_us=None):
+    """Invoke swinglab_run for one swing; returns (ok, run_dir).
+
+    session_type (int): forces --session-type (1=Wrist, the only analyzer with a shaft tracker);
+        None ⇒ respect the recorded type (the runner defaults to 1 when unset).
+    impact_us (int): explicit impact override. When None, an IMU-less swing whose swing.json carries
+        NO impact (no capture.impactUs / Impact phase) is rescued from its markup label (truth.json
+        P7) so it can run at all — swing.json itself is never mutated."""
     swing_dir, run_dir = Path(swing_dir), Path(run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
     cmd = [str(binary or default_binary()), str(swing_dir), "--out", str(run_dir)]
@@ -129,6 +141,17 @@ def run_one(swing_dir, run_dir, params=None, trace=True, pose=None, binary=None)
     pose_file = Path(pose) if pose else swing_dir / "pose.json"
     if pose_file.exists():
         cmd += ["--pose", str(pose_file)]
+    if session_type is not None:
+        cmd += ["--session-type", str(int(session_type))]
+    if impact_us is None:
+        try:
+            s = Swing(swing_dir)
+            if s.impact_from_swingjson() is None:   # only rescue when the runner can't self-resolve
+                impact_us = s.impact_from_truth()
+        except Exception:
+            pass
+    if impact_us is not None:
+        cmd += ["--impact-us", str(int(impact_us))]
     # Windows: the runner's DLLs (Qt, OpenCV) are not on the service PATH —
     # SWINGLAB_DLL_PATH (set once per host via setx) is prepended for the child.
     env = os.environ.copy()
@@ -141,10 +164,11 @@ def run_one(swing_dir, run_dir, params=None, trace=True, pose=None, binary=None)
 
 
 def run_corpus(corpus_root, runs_root, run_id=None, params=None, trace=True,
-               swing_filter=None):
+               swing_filter=None, session_type=None):
     """Run + score every swing in the corpus; returns the run summary path.
     swing_filter (a set/list of swing names) restricts the run to a partition subset —
-    used by `sweep` to optimise on Tune+Validation without touching Held-out."""
+    used by `sweep` to optimise on Tune+Validation without touching Held-out.
+    session_type forwards --session-type to every run (None ⇒ respect each recording)."""
     manifest = load_json(Path(corpus_root) / "corpus.json")
     run_id = run_id or time.strftime("%Y%m%d-%H%M%S")
     out_root = Path(runs_root) / run_id
@@ -154,7 +178,7 @@ def run_corpus(corpus_root, runs_root, run_id=None, params=None, trace=True,
         if names is not None and sw["name"] not in names:
             continue
         rd = out_root / sw["name"]
-        ok, _ = run_one(sw["path"], rd, params=params, trace=trace)
+        ok, _ = run_one(sw["path"], rd, params=params, trace=trace, session_type=session_type)
         card = scorecard(rd, sw["path"]) if (rd / "runmeta.json").exists() else {
             "swing": sw["name"], "score": 0, "ok": False, "failures": ["runner_crashed"]}
         card["runner_ok"] = ok

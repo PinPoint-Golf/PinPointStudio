@@ -1,0 +1,13 @@
+{
+  "shaft.ridgeKernelPx":     [5, 15, "int"],
+  "shaft.noiseSigmaK":       [2.0, 6.0],
+  "shaft.thresholdFloor":    [4, 16, "int"],
+  "shaft.nmsSeparationDeg":  [3.0, 10.0],
+  "shaft.clutterMaskDeg":    [6.0, 20.0],
+  "shaft.minScoreFrac":      [0.05, 0.25],
+  "shaft.runMaxGapPx":       [10, 35, "int"],
+  "shaft.interHandSigmaDeg": [15.0, 40.0],
+  "assembly.transSigmaBaseRad":   [0.03, 0.15],
+  "assembly.visionSigmaFloorRad": [0.002, 0.02],
+  "assembly.lenSigmaFloorPx":     [8, 30, "int"]
+}

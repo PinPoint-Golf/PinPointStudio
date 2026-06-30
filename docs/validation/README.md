@@ -10,6 +10,7 @@ protocol for the corpus you are capturing (the *how*).
 | [`corpus1_collection_protocol.md`](corpus1_collection_protocol.md) | **Corpus 1** capture protocol — IMU-only; internal consistency, reliability, known-groups (HackMotion = pilot) | data collection team |
 | [`corpus2_collection_protocol.md`](corpus2_collection_protocol.md) | **Corpus 2** capture protocol — IMU + HackMotion concurrent; criterion validity (locks signs, `A·M`, bands) | data collection team |
 | [`corpus3_collection_protocol.md`](corpus3_collection_protocol.md) | **Corpus 3** capture protocol — calibrated cameras + IMU + HackMotion verification, multi-golfer; external validity + camera metrics + coach/outcome | data collection team |
+| [`shaft_validation_protocol.md`](shaft_validation_protocol.md) | **Shaft tracker** V&V&T — *standalone, IMU-independent* (2D image-plane θ/head/length): capture spec, blinded markup, IMU-less SwingLab run, `shaft.*`/`assembly.*` sweep + K-flag A/B | analysts running the vision-only shaft programme |
 
 **The three corpora build on each other** (tests are supersets): Corpus 2 runs Corpus 1's suite as a
 regression net and adds criterion agreement; Corpus 3 runs both and adds external validity + the camera
