@@ -211,7 +211,6 @@ Item {
     property int _prevStep: -1
 
     onCurrentStepChanged: {
-        var prev    = _prevStep
         _prevStep   = currentStep
 
         if (currentStep === root.stepCalibrate) {
@@ -224,18 +223,18 @@ Item {
                 return
             }
 
-            if (prev >= root.stepCalibrate) {
-                // Navigating backward from a later step — retain completed state.
+            // Restore the completed state only if the lead IMU actually carries a
+            // calibration from this session — true whether we arrived forward
+            // (already calibrated) or backward from a later step. The Skip button
+            // advances past Calibrate to Confirm WITHOUT calibrating, so backward
+            // nav must not assume completion; doing so flipped calibrationDone
+            // false→true, dinging the success chime and falsely marking
+            // calibration done.
+            var imu = calibFlow.leadImu
+            if (imu !== null && imu.calibrated)
                 calibFlow.showCompleted()
-            } else {
-                // Going forward to the Calibrate step — if the lead IMU instance
-                // already has calibration from this session, restore; else start fresh.
-                var imu = calibFlow.leadImu
-                if (imu !== null && imu.calibrated)
-                    calibFlow.showCompleted()
-                else
-                    calibFlow.begin()
-            }
+            else
+                calibFlow.begin()
         }
     }
 
