@@ -125,6 +125,8 @@ int main(int argc, char *argv[])
         ":/fonts/DMMono-Regular.ttf",
         ":/fonts/DMMono-Medium.ttf",
         ":/fonts/DMSerifDisplay-Regular.ttf",
+        ":/fonts/Fraunces-Variable.ttf",
+        ":/fonts/Fraunces-Italic-Variable.ttf",
         ":/fonts/InstrumentSans-Variable.ttf",
         ":/fonts/JetBrainsMono-Variable.ttf",
         ":/fonts/PlayfairDisplay-Variable.ttf",

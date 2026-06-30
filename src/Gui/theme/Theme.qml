@@ -20,17 +20,18 @@ pragma Singleton
 import QtQuick
 
 // Single source of truth for all visual tokens.
-// Set aesthetic ("studio" | "instrument" | "editorial") and dark (bool)
-// to switch the entire UI. Never hardcode colours, fonts, or sizes in components.
+// Set aesthetic ("studio" | "instrument" | "editorial" | "vector" | "terrain")
+// and dark (bool) to switch the entire UI. Never hardcode colours, fonts, or
+// sizes in components.
 //
 // Each token is computed inline to avoid nested-QtObject initialization-order
 // issues that cause "Unable to assign [undefined]" warnings.
 QtObject {
     id: root
 
-    // Theme cycle index: 0–7 maps to instrument-light, instrument-dark,
+    // Theme cycle index: 0–9 maps to instrument-light, instrument-dark,
     // editorial-light, editorial-dark, studio-light, studio-dark,
-    // vector-light, vector-dark.
+    // vector-light, vector-dark, terrain-light, terrain-dark.
     property int themeIndex: 0
 
     Component.onCompleted: {
@@ -54,7 +55,7 @@ QtObject {
     property real overlayOpacity: 0.7
     onOverlayOpacityChanged: appSettings.overlayOpacity = overlayOpacity
 
-    function cycleTheme() { themeIndex = (themeIndex + 1) % 8 }
+    function cycleTheme() { themeIndex = (themeIndex + 1) % 10 }
 
     // Scale-aware pixel helper — use Theme.sp(n) instead of hardcoded pixel values
     // so all dimensions respond to the user's text size preference.
@@ -62,7 +63,7 @@ QtObject {
 
     // Active aesthetic and mode — derived from themeIndex.
     // Can also be set directly to bind to C++ AppSettings at startup.
-    readonly property string aesthetic: ["instrument","instrument","editorial","editorial","studio","studio","vector","vector"][themeIndex]
+    readonly property string aesthetic: ["instrument","instrument","editorial","editorial","studio","studio","vector","vector","terrain","terrain"][themeIndex]
     readonly property bool   dark:      (themeIndex % 2) === 1
 
     // ── Colour tokens ────────────────────────────────────────────────────────
@@ -71,24 +72,28 @@ QtObject {
         if (aesthetic === "instrument") return dark ? "#05080A" : "#F4EFE3"
         if (aesthetic === "editorial")  return dark ? "#141412" : "#FAFAF8"
         if (aesthetic === "vector")     return dark ? "#0A0B0D" : "#F0F1F4"
+        if (aesthetic === "terrain")    return dark ? "#080D0A" : "#F2F4EC"
         return dark ? "#111110" : "#F6F6F5"
     }
     readonly property color colorBg2: {
         if (aesthetic === "instrument") return dark ? "#0A1115" : "#ECE6D7"
         if (aesthetic === "editorial")  return dark ? "#1C1C1A" : "#F2F1ED"
         if (aesthetic === "vector")     return dark ? "#0F1114" : "#E4E6EB"
+        if (aesthetic === "terrain")    return dark ? "#0D140F" : "#E8EBDF"
         return dark ? "#191918" : "#EEEEED"
     }
     readonly property color colorBg3: {
         if (aesthetic === "instrument") return dark ? "#111B20" : "#E1DACA"
         if (aesthetic === "editorial")  return dark ? "#242422" : "#E8E7E2"
         if (aesthetic === "vector")     return dark ? "#151719" : "#D8DBE3"
+        if (aesthetic === "terrain")    return dark ? "#121B15" : "#DCE1D1"
         return dark ? "#212120" : "#E4E4E3"
     }
     readonly property color colorSurface: {
         if (aesthetic === "instrument") return dark ? "#0A0F13" : "#FBF8F0"
         if (aesthetic === "editorial")  return dark ? "#181816" : "#FFFFFF"
         if (aesthetic === "vector")     return dark ? "#13151A" : "#FAFBFC"
+        if (aesthetic === "terrain")    return dark ? "#0B110D" : "#FAFBF5"
         return dark ? "#161615" : "#FAFAF9"
     }
 
@@ -97,18 +102,21 @@ QtObject {
         if (aesthetic === "instrument") return dark ? "#1ff2ede2" : "#1f3a322a"
         if (aesthetic === "editorial")  return dark ? "#12fffff5" : "#12000000"
         if (aesthetic === "vector")     return dark ? "#0fffffff" : "#12000000"
+        if (aesthetic === "terrain")    return dark ? "#12eef3ec" : "#1227392b"
         return dark ? "#0effffff" : "#0f000000"
     }
     readonly property color colorBorderMid: {
         if (aesthetic === "instrument") return dark ? "#2bf2ede2" : "#2b3a322a"
         if (aesthetic === "editorial")  return dark ? "#1cfffff5" : "#1a000000"
         if (aesthetic === "vector")     return dark ? "#1affffff" : "#1c000000"
+        if (aesthetic === "terrain")    return dark ? "#1ceef3ec" : "#1c27392b"
         return dark ? "#17ffffff" : "#19000000"
     }
     readonly property color colorBorderStrong: {
         if (aesthetic === "instrument") return dark ? "#38f2ede2" : "#383a322a"
         if (aesthetic === "editorial")  return dark ? "#26fffff5" : "#21000000"
         if (aesthetic === "vector")     return dark ? "#2effffff" : "#2e000000"
+        if (aesthetic === "terrain")    return dark ? "#2aeef3ec" : "#2a27392b"
         return dark ? "#21ffffff" : "#26000000"
     }
 
@@ -117,18 +125,21 @@ QtObject {
         if (aesthetic === "instrument") return dark ? "#F2EDE2" : "#0A1115"
         if (aesthetic === "editorial")  return dark ? "#F0EFE8" : "#111110"
         if (aesthetic === "vector")     return dark ? "#E8EAF0" : "#0A0B10"
+        if (aesthetic === "terrain")    return dark ? "#ECF3EC" : "#16221A"
         return dark ? "#EDEDEC" : "#0A0A09"
     }
     readonly property color colorText2: {
         if (aesthetic === "instrument") return dark ? "#CFD3CC" : "#5A5246"
         if (aesthetic === "editorial")  return dark ? "#9A9A92" : "#4A4A47"
         if (aesthetic === "vector")     return dark ? "#8B90A0" : "#4A4E5E"
+        if (aesthetic === "terrain")    return dark ? "#AEB9AD" : "#47554B"
         return dark ? "#878786" : "#525251"
     }
     readonly property color colorText3: {
         if (aesthetic === "instrument") return dark ? "#94A09E" : "#998F82"
         if (aesthetic === "editorial")  return dark ? "#5A5A55" : "#9B9B97"
         if (aesthetic === "vector")     return dark ? "#484E5E" : "#9098B0"
+        if (aesthetic === "terrain")    return dark ? "#5C685D" : "#8C988D"
         return dark ? "#4A4A48" : "#ABABAA"
     }
 
@@ -137,18 +148,21 @@ QtObject {
         if (aesthetic === "instrument") return dark ? "#E6AC54" : "#9A5E12"
         if (aesthetic === "editorial")  return dark ? "#A8C4E0" : "#1A3A5C"
         if (aesthetic === "vector")     return dark ? "#FF5500" : "#CC3300"
+        if (aesthetic === "terrain")    return dark ? "#4FCB8C" : "#1E7A4E"
         return dark ? "#4D90FF" : "#0066FF"
     }
     readonly property color colorAccentLight: {
         if (aesthetic === "instrument") return dark ? "#17e6ac54" : "#149a5e12"
         if (aesthetic === "editorial")  return dark ? "#12a8c4e0" : "#0f1a3a5c"
         if (aesthetic === "vector")     return dark ? "#12ff5500" : "#0fcc3300"
+        if (aesthetic === "terrain")    return dark ? "#174fcb8c" : "#0f1e7a4e"
         return dark ? "#124d90ff" : "#0d0066ff"
     }
     readonly property color colorAccentMid: {
         if (aesthetic === "instrument") return dark ? "#29e6ac54" : "#2e9a5e12"
         if (aesthetic === "editorial")  return dark ? "#24a8c4e0" : "#241a3a5c"
         if (aesthetic === "vector")     return dark ? "#24ff5500" : "#24cc3300"
+        if (aesthetic === "terrain")    return dark ? "#294fcb8c" : "#241e7a4e"
         return dark ? "#264d90ff" : "#1f0066ff"
     }
 
@@ -162,18 +176,21 @@ QtObject {
         if (aesthetic === "instrument") return dark ? "#E6AC54" : "#B5701A"
         if (aesthetic === "editorial")  return dark ? "#E6C25A" : "#8A6A14"
         if (aesthetic === "vector")     return dark ? "#FF8C35" : "#B85A00"
+        if (aesthetic === "terrain")    return dark ? "#E0C766" : "#8A6A1E"
         return dark ? "#F5C451" : "#9C6F12"   // studio
     }
     readonly property color gradientWarmLit: {
         if (aesthetic === "instrument") return dark ? "#F3C987" : "#CC9A45"
         if (aesthetic === "editorial")  return dark ? "#EBD089" : "#A88A3A"
         if (aesthetic === "vector")     return dark ? "#FFB066" : "#D67A2A"
+        if (aesthetic === "terrain")    return dark ? "#A8C96A" : "#5E8A3A"
         return dark ? "#F8D484" : "#C29545"   // studio
     }
     readonly property color gradientCool: {
         if (aesthetic === "instrument") return dark ? "#7BC0DB" : "#2B6E7A"
         if (aesthetic === "editorial")  return dark ? "#A8C4E0" : "#1A3A5C"
         if (aesthetic === "vector")     return dark ? "#3399FF" : "#0066CC"
+        if (aesthetic === "terrain")    return dark ? "#3EC79A" : "#1C7A5A"
         return dark ? "#4D90FF" : "#0066FF"   // studio
     }
 
@@ -200,12 +217,14 @@ QtObject {
         if (aesthetic === "instrument") return dark ? "#8AB389" : "#357058"
         if (aesthetic === "editorial")  return dark ? "#8ABFA0" : "#1A4A2E"
         if (aesthetic === "vector")     return dark ? "#2EE8A0" : "#006B45"
+        if (aesthetic === "terrain")    return dark ? "#86C49A" : "#3A7A56"
         return dark ? "#30C983" : "#0A7A4A"
     }
     readonly property color colorGoodLight: {
         if (aesthetic === "instrument") return dark ? "#178ab389" : "#14357058"
         if (aesthetic === "editorial")  return dark ? "#128abfa0" : "#121a4a2e"
         if (aesthetic === "vector")     return dark ? "#122ee8a0" : "#0f006b45"
+        if (aesthetic === "terrain")    return dark ? "#1786c49a" : "#0f3a7a56"
         return dark ? "#1230c983" : "#0f0a7a4a"
     }
 
@@ -214,12 +233,14 @@ QtObject {
         if (aesthetic === "instrument") return dark ? "#E07E64" : "#A8482A"
         if (aesthetic === "editorial")  return dark ? "#D4896A" : "#8B2500"
         if (aesthetic === "vector")     return dark ? "#FF8C35" : "#7A3800"
+        if (aesthetic === "terrain")    return dark ? "#E6915A" : "#A8531E"
         return dark ? "#FF6B35" : "#D94A00"
     }
     readonly property color colorWarnLight: {
         if (aesthetic === "instrument") return dark ? "#17e07e64" : "#14a8482a"
         if (aesthetic === "editorial")  return dark ? "#12d4896a" : "#0f8b2500"
         if (aesthetic === "vector")     return dark ? "#14ff8c35" : "#0f7a3800"
+        if (aesthetic === "terrain")    return dark ? "#17e6915a" : "#0fa8531e"
         return dark ? "#14ff6b35" : "#0fd94a00"
     }
 
@@ -228,12 +249,14 @@ QtObject {
         if (aesthetic === "instrument") return dark ? "#E0595B" : "#9C2A2A"
         if (aesthetic === "editorial")  return dark ? "#C46868" : "#8B1E1E"
         if (aesthetic === "vector")     return dark ? "#FF4455" : "#8B0014"
+        if (aesthetic === "terrain")    return dark ? "#E66B66" : "#A82E2A"
         return dark ? "#FF5555" : "#CC2000"
     }
     readonly property color colorErrorLight: {
         if (aesthetic === "instrument") return dark ? "#17e0595b" : "#149c2a2a"
         if (aesthetic === "editorial")  return dark ? "#12c46868" : "#0f8b1e1e"
         if (aesthetic === "vector")     return dark ? "#14ff4455" : "#0f8b0014"
+        if (aesthetic === "terrain")    return dark ? "#17e66b66" : "#0fa82e2a"
         return dark ? "#14ff5555" : "#0fcc2000"
     }
 
@@ -245,12 +268,14 @@ QtObject {
         if (aesthetic === "instrument") return dark ? "#F2C84A" : "#8A6612"
         if (aesthetic === "editorial")  return dark ? "#E6C25A" : "#8A6A14"
         if (aesthetic === "vector")     return dark ? "#FFD60A" : "#B58900"
+        if (aesthetic === "terrain")    return dark ? "#E0C24A" : "#8A6612"
         return dark ? "#F5C451" : "#9C6F12"
     }
     readonly property color colorAttentionLight: {
         if (aesthetic === "instrument") return dark ? "#17f2c84a" : "#148a6612"
         if (aesthetic === "editorial")  return dark ? "#12e6c25a" : "#0f8a6a14"
         if (aesthetic === "vector")     return dark ? "#14ffd60a" : "#0fb58900"
+        if (aesthetic === "terrain")    return dark ? "#17e0c24a" : "#0f8a6612"
         return dark ? "#14f5c451" : "#0f9c6f12"
     }
 
@@ -270,12 +295,14 @@ QtObject {
         if (aesthetic === "instrument") return dark ? "#248ab389" : "#24357058"
         if (aesthetic === "editorial")  return dark ? "#248abfa0" : "#241a4a2e"
         if (aesthetic === "vector")     return dark ? "#242ee8a0" : "#24006b45"
+        if (aesthetic === "terrain")    return dark ? "#2486c49a" : "#243a7a56"
         return dark ? "#2430c983" : "#240a7a4a"
     }
     readonly property color colorBandAmber: {
         if (aesthetic === "instrument") return dark ? "#24f2c84a" : "#248a6612"
         if (aesthetic === "editorial")  return dark ? "#24e6c25a" : "#248a6a14"
         if (aesthetic === "vector")     return dark ? "#24ffd60a" : "#24b58900"
+        if (aesthetic === "terrain")    return dark ? "#24e0c24a" : "#248a6612"
         return dark ? "#24f5c451" : "#249c6f12"
     }
 
@@ -303,6 +330,9 @@ QtObject {
         if (aesthetic === "vector")     return dark
             ? ["#FF5500", "#3399FF", "#2EE8A0", "#FFD60A", "#B266FF", "#FF4081"]
             : ["#CC3300", "#0066CC", "#006B45", "#B58900", "#7A29CC", "#C2185B"]
+        if (aesthetic === "terrain")    return dark
+            ? ["#4FCB8C", "#E0C24A", "#E6915A", "#5AB6C9", "#B79AD6", "#E6849A"]
+            : ["#1E7A4E", "#8A6612", "#A8531E", "#2B7E8C", "#6B4E8C", "#A0405A"]
         return dark   // studio (default)
             ? ["#4D90FF", "#30C983", "#FF6B6B", "#F5C451", "#B79AF5", "#3FC2E0"]
             : ["#0066FF", "#0A7A4A", "#D64545", "#9C6F12", "#7A4FCF", "#0E7C9C"]
@@ -318,18 +348,21 @@ QtObject {
         if (aesthetic === "instrument") return "Georgia"
         if (aesthetic === "editorial")  return "Instrument Sans"
         if (aesthetic === "vector")     return "Space Grotesk"
+        if (aesthetic === "terrain")    return "Fraunces"
         return "Geist"
     }
     readonly property string fontData: {
         if (aesthetic === "instrument") return "DM Mono"
         if (aesthetic === "editorial")  return "JetBrains Mono"
         if (aesthetic === "vector")     return "Space Mono"
+        if (aesthetic === "terrain")    return "DM Mono"
         return "Geist Mono"
     }
     readonly property string fontDisplay: {
         if (aesthetic === "instrument") return "Georgia"
         if (aesthetic === "editorial")  return "Playfair Display"
         if (aesthetic === "vector")     return "Space Mono"
+        if (aesthetic === "terrain")    return "Fraunces"
         return "Geist"
     }
     // On Windows, Segoe UI Emoji intercepts symbol codepoints (e.g. ⚙ U+2699)
@@ -337,8 +370,9 @@ QtObject {
     // same characters as flat monochrome glyphs and prevents that fallback.
     // On macOS, Apple Color Emoji does the same — Apple Symbols provides flat
     // monochrome glyphs for those codepoints and wins the font-selection race.
-    // Georgia (Instrument fontBody) has no Light variant — use Normal to avoid silent rounding.
-    readonly property int fontBodyWeight: aesthetic === "instrument" ? Font.Normal : Font.Light
+    // Georgia (Instrument fontBody) and Fraunces (Terrain fontBody) are serifs with
+    // no usable Light — use Normal to avoid thin, silently-rounded body text.
+    readonly property int fontBodyWeight: (aesthetic === "instrument" || aesthetic === "terrain") ? Font.Normal : Font.Light
 
     readonly property string fontSymbol: {
         if (Qt.platform.os === "windows") return "Segoe UI Symbol"
@@ -383,11 +417,14 @@ QtObject {
         var base = aesthetic === "instrument" ? 26
                  : aesthetic === "editorial"  ? 34
                  : aesthetic === "vector"     ? 24
+                 : aesthetic === "terrain"    ? 28
                  : 22
         return Math.round(base * fontScale)
     }
     readonly property bool fontDisplayItalic: aesthetic === "editorial"
-    readonly property int  fontDisplayWeight: aesthetic === "instrument" ? Font.Bold : Font.Normal
+    readonly property int  fontDisplayWeight: aesthetic === "instrument" ? Font.Bold
+                                            : aesthetic === "terrain"    ? Font.DemiBold
+                                            : Font.Normal
 
     readonly property int  fontSzData:    Math.round(20 * fontScale)
     readonly property int  fontSzDataSm:  Math.round(13 * fontScale)
@@ -408,6 +445,7 @@ QtObject {
         if (aesthetic === "instrument") return 56
         if (aesthetic === "editorial")  return 58
         if (aesthetic === "vector")     return 52
+        if (aesthetic === "terrain")    return 56
         return 52
     }
     readonly property int sidenavWidth:    sp(275)
@@ -453,12 +491,14 @@ QtObject {
         if (aesthetic === "instrument") return 6
         if (aesthetic === "editorial")  return 3
         if (aesthetic === "vector")     return 0
+        if (aesthetic === "terrain")    return 8
         return 5
     }
     readonly property int radiusLg: {
         if (aesthetic === "instrument") return 10
         if (aesthetic === "editorial")  return 6
         if (aesthetic === "vector")     return 0
+        if (aesthetic === "terrain")    return 12
         return 8
     }
 

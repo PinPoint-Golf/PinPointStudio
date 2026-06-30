@@ -24,7 +24,7 @@ import PinPointStudio
 Item {
     id: root
 
-    // Hardcoded preview colours for each themeIndex (0–5).
+    // Hardcoded preview colours for each themeIndex (0–9).
     // These must NOT use Theme.* tokens — cards always show their own colours.
     readonly property var themeData: [
         { aesthetic: "Instrument", mode: "Light", railBg: "#FBF8F0", sidenavBg: "#FBF8F0", contentBg: "#F4EFE3", dot: "#B5701A" },
@@ -34,7 +34,9 @@ Item {
         { aesthetic: "Studio",     mode: "Light", railBg: "#FAFAF9", sidenavBg: "#FAFAF9", contentBg: "#F6F6F5", dot: "#0066FF" },
         { aesthetic: "Studio",     mode: "Dark",  railBg: "#161615", sidenavBg: "#161615", contentBg: "#111110", dot: "#4D90FF" },
         { aesthetic: "Vector",     mode: "Light", railBg: "#FAFBFC", sidenavBg: "#FAFBFC", contentBg: "#F0F1F4", dot: "#CC3300" },
-        { aesthetic: "Vector",     mode: "Dark",  railBg: "#13151A", sidenavBg: "#13151A", contentBg: "#0A0B0D", dot: "#FF5500" }
+        { aesthetic: "Vector",     mode: "Dark",  railBg: "#13151A", sidenavBg: "#13151A", contentBg: "#0A0B0D", dot: "#FF5500" },
+        { aesthetic: "Terrain",    mode: "Light", railBg: "#FAFBF5", sidenavBg: "#FAFBF5", contentBg: "#F2F4EC", dot: "#1E7A4E" },
+        { aesthetic: "Terrain",    mode: "Dark",  railBg: "#0B110D", sidenavBg: "#0B110D", contentBg: "#080D0A", dot: "#4FCB8C" }
     ]
 
     // ── Search scroll-to support ──────────────────────────────────────────────
@@ -124,18 +126,18 @@ Item {
                 color: Theme.colorText3
             }
 
-            // 4 × 2 card grid — manual x/y positioning for reliable equal widths
+            // 4-wide card grid, wrapping to 3 rows for 10 themes (4 + 4 + 2)
             Item {
                 id: cardGrid
                 objectName: "setting_aesthetic"
                 Layout.fillWidth: true
                 Layout.leftMargin: Theme.sp(16)
-                implicitHeight: Theme.sp(80) * 2 + Theme.sp(10)
+                implicitHeight: Theme.sp(80) * 3 + Theme.sp(10) * 2
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 Repeater {
-                    model: 8
+                    model: 10
                     delegate: Rectangle {
                         id: themeCard
                         required property int index
