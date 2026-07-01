@@ -373,6 +373,7 @@ qt_add_qml_module(PinPointStudio
         src/Gui/shot/PpShotCard.qml
         src/Gui/session/PpSessionDrawer.qml
         src/Gui/shot/PpShotFilter.qml
+        src/Gui/shot/PpSwingEditPanel.qml
         src/Gui/components/PpQualityPill.qml
         src/Gui/components/PpStarRating.qml
         src/Gui/components/PpTrace.qml

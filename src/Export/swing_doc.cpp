@@ -261,7 +261,7 @@ bool SwingDocWriter::writeSwingJson(const QString &swingDir, const QJsonObject &
 }
 
 bool SwingDocWriter::updateReview(const QString &swingDir, int rating, const QString &note,
-                                  QString *error)
+                                  const QString &club, QString *error)
 {
     const QString path = swingDir + QStringLiteral("/swing.json");
 
@@ -278,10 +278,13 @@ bool SwingDocWriter::updateReview(const QString &swingDir, int rating, const QSt
         return false;
     }
 
-    // Additive "review" block — additive, readers ignore unknown keys.
+    // Additive "review" block — additive, readers ignore unknown keys. Club is
+    // the user's chosen club for the shot (until capture-time club selection
+    // exists it starts as the "DRIVER" stub and is only ever set here).
     root[QStringLiteral("review")] = QJsonObject{
         { QStringLiteral("rating"), std::clamp(rating, 0, 5) },
         { QStringLiteral("note"),   note },
+        { QStringLiteral("club"),   club },
     };
 
     QSaveFile out(path);
@@ -313,7 +316,7 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
         return ps;
 
     ps.ordinal = root[QStringLiteral("swing")].toObject()[QStringLiteral("index")].toInt();
-    ps.club    = QStringLiteral("DRIVER");   // club isn't persisted yet
+    ps.club    = QStringLiteral("DRIVER");   // stub default; overridden by review.club below
 
     const QString wc = root[QStringLiteral("clock")].toObject()[QStringLiteral("wallclock")].toString();
     const QDateTime dt = QDateTime::fromString(wc, Qt::ISODateWithMs);
@@ -405,11 +408,15 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
         ps.metrics = metrics;
     }
 
-    // User review (rating/note) — written through by updateReview after edits.
+    // User review (rating/note/club) — written through by updateReview after edits.
     if (root.contains(QStringLiteral("review"))) {
         const QJsonObject rv = root[QStringLiteral("review")].toObject();
         ps.rating = std::clamp(rv[QStringLiteral("rating")].toInt(), 0, 5);
         ps.note   = rv[QStringLiteral("note")].toString();
+        // Older review blocks predate club; keep the stub default when absent/empty.
+        const QString club = rv[QStringLiteral("club")].toString();
+        if (!club.isEmpty())
+            ps.club = club;
     }
 
     // IMU data-integrity verdict (additive top-level block from ShotProcessor's

@@ -22,6 +22,7 @@
 #include "../Core/pp_debug.h"
 
 #include <QFile>
+#include <QStringList>
 
 ShotListModel::ShotListModel(QObject *parent)
     : QAbstractListModel(parent)
@@ -186,16 +187,16 @@ void ShotListModel::clear()
     emit activeCountChanged();
 }
 
-// Persist the row's review (rating + note) to its swing.json, if it has one on
-// disk. A row with no swingDir (export produced no directory) is in-memory only
-// and silently skips the write-through.
+// Persist the row's review (rating + note + club) to its swing.json, if it has
+// one on disk. A row with no swingDir (export produced no directory) is in-memory
+// only and silently skips the write-through.
 void ShotListModel::persistReview(int row)
 {
     const Shot &s = m_shots.at(row);
     if (s.swingDir.isEmpty())
         return;
     QString err;
-    if (!pinpoint::SwingDocWriter::updateReview(s.swingDir, s.rating, s.note, &err))
+    if (!pinpoint::SwingDocWriter::updateReview(s.swingDir, s.rating, s.note, s.club, &err))
         ppWarn() << "[ShotListModel] review write-through failed:" << err;
 }
 
@@ -220,6 +221,42 @@ void ShotListModel::setNote(int id, const QString &text)
     m_shots[row].note = text;
     emit dataChanged(index(row), index(row), { NoteRole });
     persistReview(row);
+}
+
+void ShotListModel::setClub(int id, const QString &club)
+{
+    const int row = rowForId(id);
+    if (row < 0 || m_shots.at(row).club == club)
+        return;
+    m_shots[row].club = club;
+    emit dataChanged(index(row), index(row), { ClubRole });
+    persistReview(row);
+}
+
+QStringList ShotListModel::clubOptions()
+{
+    // The standard bag, driver → putter. Uppercase to match the display font and
+    // the capture-time "DRIVER" stub, so an unedited shot's club maps to a row.
+    static const QStringList kClubs = {
+        QStringLiteral("DRIVER"),
+        QStringLiteral("3 WOOD"),
+        QStringLiteral("5 WOOD"),
+        QStringLiteral("3 HYBRID"),
+        QStringLiteral("4 HYBRID"),
+        QStringLiteral("3 IRON"),
+        QStringLiteral("4 IRON"),
+        QStringLiteral("5 IRON"),
+        QStringLiteral("6 IRON"),
+        QStringLiteral("7 IRON"),
+        QStringLiteral("8 IRON"),
+        QStringLiteral("9 IRON"),
+        QStringLiteral("PITCHING WEDGE"),
+        QStringLiteral("GAP WEDGE"),
+        QStringLiteral("SAND WEDGE"),
+        QStringLiteral("LOB WEDGE"),
+        QStringLiteral("PUTTER"),
+    };
+    return kClubs;
 }
 
 bool ShotListModel::moveToTrash(int id)
@@ -279,6 +316,7 @@ QVariantMap ShotListModel::shotSummary(int id) const
         { QStringLiteral("timestampLabel"), s.timestampLabel },
         { QStringLiteral("score"),          s.score },
         { QStringLiteral("rating"),         s.rating },
+        { QStringLiteral("note"),           s.note },
         { QStringLiteral("hasVideo"),       s.hasVideo },
         { QStringLiteral("swingDir"),       s.swingDir },
     };

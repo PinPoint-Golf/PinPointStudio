@@ -56,6 +56,8 @@ Item {
     signal exportShot()
     signal reanalyseShot()
     signal trashShot()
+    // The focused identity chip was clicked — the host opens the swing-edit popover.
+    signal editRequested()
     // Filtered-set actions ("all shown") — emitted from the overflow menu.
     signal exportShown()
     signal reanalyseShown()
@@ -73,62 +75,93 @@ Item {
         spacing: Theme.sp(9)
 
         // ── LEFT · focused identity  (#N · club · time · ★ · score) ─────────
-        Row {
-            id: identityRow
+        //    One clickable chip: hover-lifts and reveals an ✎ hint; a click opens
+        //    the swing-edit popover (club / rating / note). The inner stars stay
+        //    non-interactive so the whole chip is a single hit target.
+        Rectangle {
+            id: identityChip
             Layout.alignment: Qt.AlignVCenter
             visible: root._hasFocus
-            spacing: Theme.sp(7)
+            implicitWidth:  identityRow.implicitWidth + Theme.sp(16)
+            implicitHeight: Theme.sp(28)
+            radius: Theme.radius
+            color:  idMa.containsMouse ? Theme.colorBg3 : "transparent"
+            border.width: 1
+            border.color: idMa.containsMouse ? Theme.colorBorderMid : "transparent"
+            Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
+            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text:           "#" + (root.summary.ordinal !== undefined ? root.summary.ordinal : "")
-                font.family:    Theme.fontData
-                font.pixelSize: Theme.fontSzBody2
-                color:          Theme.colorText
+            Row {
+                id: identityRow
+                anchors { left: parent.left; leftMargin: Theme.sp(8)
+                          verticalCenter: parent.verticalCenter }
+                spacing: Theme.sp(7)
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text:           "#" + (root.summary.ordinal !== undefined ? root.summary.ordinal : "")
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzBody2
+                    color:          Theme.colorText
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "·"; font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
+                    color: Theme.colorText3
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text:           root.summary.club !== undefined ? root.summary.club : ""
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzBody2
+                    color:          Theme.colorText
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "·"; font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
+                    color: Theme.colorText3
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text:           root.summary.timestampLabel !== undefined ? root.summary.timestampLabel : ""
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzBody2
+                    color:          Theme.colorText2
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "·"; font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
+                    color: Theme.colorText3
+                }
+                PpStarRating {
+                    anchors.verticalCenter: parent.verticalCenter
+                    value:       root.summary.rating !== undefined ? root.summary.rating : 0
+                    interactive: false
+                    starSize:    Theme.fontSzBody2
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "·"; font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
+                    color: Theme.colorText3
+                }
+                PpQualityPill {
+                    anchors.verticalCenter: parent.verticalCenter
+                    score: root.summary.score !== undefined ? root.summary.score : 0
+                }
+                Text {   // edit hint — space reserved (opacity, not visibility) so hover never reflows
+                    anchors.verticalCenter: parent.verticalCenter
+                    text:           "✎"
+                    font.family:    Theme.fontSymbol
+                    font.pixelSize: Theme.fontSzBody2
+                    color:          Theme.colorText3
+                    opacity:        idMa.containsMouse ? 1.0 : 0.0
+                    Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+                }
             }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: "·"; font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
-                color: Theme.colorText3
-            }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text:           root.summary.club !== undefined ? root.summary.club : ""
-                font.family:    Theme.fontData
-                font.pixelSize: Theme.fontSzBody2
-                color:          Theme.colorText
-            }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: "·"; font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
-                color: Theme.colorText3
-            }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text:           root.summary.timestampLabel !== undefined ? root.summary.timestampLabel : ""
-                font.family:    Theme.fontData
-                font.pixelSize: Theme.fontSzBody2
-                color:          Theme.colorText2
-            }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: "·"; font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
-                color: Theme.colorText3
-            }
-            PpStarRating {
-                anchors.verticalCenter: parent.verticalCenter
-                value:       root.summary.rating !== undefined ? root.summary.rating : 0
-                interactive: false
-                starSize:    Theme.fontSzBody2
-            }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: "·"; font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
-                color: Theme.colorText3
-            }
-            PpQualityPill {
-                anchors.verticalCenter: parent.verticalCenter
-                score: root.summary.score !== undefined ? root.summary.score : 0
+
+            PpPressable {
+                id: idMa
+                onClicked: root.editRequested()
             }
         }
 

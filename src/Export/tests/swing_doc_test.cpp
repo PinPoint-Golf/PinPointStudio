@@ -283,7 +283,8 @@ int main()
     std::printf("\n=== review write-through round-trip ===\n");
     {
         QString rerr;
-        check(SwingDocWriter::updateReview(dir, 4, QStringLiteral("nice tempo"), &rerr),
+        check(SwingDocWriter::updateReview(dir, 4, QStringLiteral("nice tempo"),
+                                           QStringLiteral("7 IRON"), &rerr),
               "updateReview ok");
         // The review block lands without disturbing the raw/analysis blocks.
         QFile fr(dir + QStringLiteral("/swing.json"));
@@ -294,20 +295,25 @@ int main()
         const QJsonObject rv = r[QStringLiteral("review")].toObject();
         check(rv[QStringLiteral("rating")].toInt() == 4, "review.rating == 4");
         check(rv[QStringLiteral("note")].toString() == QStringLiteral("nice tempo"), "review.note");
+        check(rv[QStringLiteral("club")].toString() == QStringLiteral("7 IRON"), "review.club");
 
         const PersistedShot ps = SwingDocReader::readSwingJson(dir);
         check(ps.rating == 4, "reader rating == 4");
         check(ps.note == QStringLiteral("nice tempo"), "reader note");
+        check(ps.club == QStringLiteral("7 IRON"), "reader club");
 
         // Rewriting replaces (does not append) the review block; clamps rating.
-        check(SwingDocWriter::updateReview(dir, 9, QStringLiteral("re-rated"), nullptr),
+        check(SwingDocWriter::updateReview(dir, 9, QStringLiteral("re-rated"),
+                                           QStringLiteral("PUTTER"), nullptr),
               "updateReview rewrite ok");
         const PersistedShot ps2 = SwingDocReader::readSwingJson(dir);
         check(ps2.rating == 5, "reader rating clamped to 5");
         check(ps2.note == QStringLiteral("re-rated"), "reader note rewritten");
+        check(ps2.club == QStringLiteral("PUTTER"), "reader club rewritten");
 
         // No swing.json → updateReview fails harmlessly (returns false).
-        check(!SwingDocWriter::updateReview(QStringLiteral("/tmp/swingdoc_test_nope"), 3, QString(), nullptr),
+        check(!SwingDocWriter::updateReview(QStringLiteral("/tmp/swingdoc_test_nope"), 3, QString(),
+                                            QStringLiteral("DRIVER"), nullptr),
               "updateReview on missing doc returns false");
     }
 

@@ -41,6 +41,9 @@ class ShotListModel : public QAbstractListModel
 
     // Total shot count — the "of M" in the carousel's "N of M" label.
     Q_PROPERTY(int activeCount   READ activeCount   NOTIFY activeCountChanged)
+    // The canonical golf-bag club list backing the swing-edit picker. Constant —
+    // one source of truth shared by every carousel/model instance.
+    Q_PROPERTY(QStringList clubOptions READ clubOptions CONSTANT)
 
 public:
     enum Roles {
@@ -67,6 +70,10 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     int activeCount()   const;
+
+    // The standard golf bag, driver → putter (uppercase to match the display /
+    // capture-time "DRIVER" stub). Backs the edit popover's club combo.
+    static QStringList clubOptions();
 
     // ShotProcessor's entry point — prepends a shot (newest first) with the
     // next ordinal and a fresh id. swingDir links the row to its on-disk folder
@@ -100,6 +107,9 @@ public:
 
     Q_INVOKABLE void setRating(int id, int n);
     Q_INVOKABLE void setNote(int id, const QString &text);
+    // Set the shot's club (from clubOptions); write-through to swing.json's
+    // review block so it survives a restart. No-op if unchanged / id unknown.
+    Q_INVOKABLE void setClub(int id, const QString &club);
     // Move the shot's swing_NNNN/ folder to the OS trash and remove its row.
     // Returns false (and keeps the row) if the move fails — e.g. no trash is
     // available — so a shot is never lost from view while its files remain.
@@ -115,7 +125,7 @@ public:
 
     // Focused-shot metadata for the carousel's PpShotActionBar (the scope-aware
     // action header). Returns a map with the identity fields the bar renders:
-    //   { valid, ordinal, club, timestampLabel, score, rating, hasVideo, swingDir }
+    //   { valid, ordinal, club, timestampLabel, score, rating, note, hasVideo, swingDir }
     // Model-scoped, NOT proxy-scoped: a row filtered out of a carousel's proxy
     // still resolves here (the focused swing on the stage may not be in view).
     // An unknown / -1 id returns { valid: false } — present and false so QML can
@@ -153,7 +163,7 @@ private:
     };
 
     int  rowForId(int id) const;
-    void persistReview(int row);   // write-through rating/note to swing.json
+    void persistReview(int row);   // write-through rating/note/club to swing.json
 
     QVector<Shot> m_shots;
     int           m_nextId = 1;

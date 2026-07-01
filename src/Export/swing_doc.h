@@ -41,14 +41,14 @@ public:
                                const analysis::SwingAnalysis *analysis,
                                QString *error = nullptr);
 
-    // Write-through of the user's review (rating 0–5, free-text note) into an
-    // existing <swingDir>/swing.json: reads the doc, replaces the additive
+    // Write-through of the user's review (rating 0–5, free-text note, club) into
+    // an existing <swingDir>/swing.json: reads the doc, replaces the additive
     // "review" block, atomic rewrite (QSaveFile). Called from the shot model's
-    // setRating/setNote so edits survive a restart. Returns false (and sets
-    // *error) if the doc can't be read or rewritten — a shot whose swing.json
+    // setRating/setNote/setClub so edits survive a restart. Returns false (and
+    // sets *error) if the doc can't be read or rewritten — a shot whose swing.json
     // was never written (e.g. export failed) simply fails here harmlessly.
     static bool updateReview(const QString &swingDir, int rating, const QString &note,
-                             QString *error = nullptr);
+                             const QString &club, QString *error = nullptr);
 };
 
 // A reloaded shot — everything ShotListModel::addPersistedShot needs to rebuild a

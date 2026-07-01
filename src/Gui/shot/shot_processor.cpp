@@ -924,7 +924,9 @@ void ShotProcessor::maybeJoin()
     }
 
     // The shot happened — it always lands on the carousel, with whatever the
-    // pipeline produced. Club is a stub until club selection exists.
+    // pipeline produced. Club defaults to the "DRIVER" stub at capture; the user
+    // sets it per-shot afterwards via the swing-edit popover (persisted to
+    // review.club). Capture-time club selection doesn't exist yet.
     // Publish the analyzed detail of the shot about to replay (the ScreenWrist in-replay
     // graph binds to it) before addShot, so it's ready when REPLAYING begins.
     m_replayAnalysisDetail = (analysisOk && m_analysisResult.detail)

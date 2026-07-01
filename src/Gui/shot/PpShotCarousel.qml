@@ -71,11 +71,18 @@ Item {
     readonly property real _stripBottomMargin: Theme.sp(4)
     readonly property real _stripBandHeight:   Theme.sp(40)    // header band height when the transport shows
 
+    // Bumped after each in-place edit (club/rating/note) so _focusSummary re-resolves
+    // — those mutations emit dataChanged (not activeCountChanged), which the invokable
+    // read below wouldn't otherwise observe, leaving the identity chip stale.
+    property int _editTick: 0
+
     // Focused-shot metadata for the action bar. Re-resolved when the focused id
-    // changes OR the shot set mutates (touch activeCount) so a trashed focused
-    // shot drops the bar's focus identity instead of lingering stale.
+    // changes, the shot set mutates (touch activeCount) so a trashed focused shot
+    // drops the bar's focus identity instead of lingering stale, or a field is
+    // edited (touch _editTick).
     readonly property var _focusSummary: {
         void root.activeModel.activeCount
+        void root._editTick
         return root.activeModel.shotSummary(SessionMode.focusedShotId)
     }
     // The scope-aware action bar shows when there is a focused shot OR a filter
@@ -144,6 +151,9 @@ Item {
             visibleCount: filterProxy.visibleCount
             sourceCount:  filterProxy.sourceCount
             filterLabel:  filterProxy.filterActive ? filterProxy.filterSummary : ""
+
+            // Clicking the focused identity chip opens the swing-edit popover.
+            onEditRequested: editPopup.open()
 
             onExportShot: root._openExportSheet(
                               root.activeModel.swingDirsForIds([SessionMode.focusedShotId]),
@@ -366,6 +376,33 @@ Item {
             border.width: 1; border.color: Theme.colorBorderStrong
         }
         contentItem: PpShotFilter { proxy: filterProxy }
+    }
+
+    // ── Swing-edit popover — club / rating / note for the focused shot ───────
+    //    Opens upward over the left cap (same convention as the filter popover);
+    //    edits route to the ACTIVE model (live or the session under review) and
+    //    bump _editTick so the action-bar identity chip refreshes in place.
+    Popup {
+        id: editPopup
+        parent: root
+        x: Theme.sp(16)
+        y: -height - Theme.sp(10)
+        padding: 0
+        margins: Theme.sp(8)
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        background: Rectangle {
+            color: Theme.colorSurface; radius: Theme.radiusLg
+            border.width: 1; border.color: Theme.colorBorderStrong
+        }
+        contentItem: PpSwingEditPanel {
+            summary:     root._focusSummary
+            clubOptions: root.activeModel.clubOptions
+
+            onClubChosen:  (c) => { root.activeModel.setClub(SessionMode.focusedShotId, c);   root._editTick++ }
+            onRated:       (n) => { root.activeModel.setRating(SessionMode.focusedShotId, n);  root._editTick++ }
+            onNoteChanged: (t) => { root.activeModel.setNote(SessionMode.focusedShotId, t);    root._editTick++ }
+            onCloseRequested: editPopup.close()
+        }
     }
 
     // ── Sessions drawer — rises above the carousel, never reaches the toolbar ─
