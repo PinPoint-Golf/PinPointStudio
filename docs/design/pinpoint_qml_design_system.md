@@ -104,7 +104,7 @@ QtObject {
     // fontData: monospaced font for all numeric values, timestamps, status
     // fontDisplay: display font for headings/session titles
     //              Instrument: DM Serif Display (italic) — fontBody is Georgia (serif)
-    //              Editorial:  Playfair Display (italic)
+    //              Editorial:  Source Serif 4 (italic)
     //              Vector:     Space Mono (upright — no italic variant)
     //              Studio:     Geist (same as fontBody, no separate display font)
     readonly property string fontBody:    _t.fontBody
@@ -196,7 +196,7 @@ QtObject {
 // accentMid Qt.rgba(26/255,58/255,92/255,0.14)
 // good "#1A4A2E"  goodLight Qt.rgba(26/255,74/255,46/255,0.07)
 // warn "#8B2500"  warnLight Qt.rgba(139/255,37/255,0,0.06)
-// fontBody "Instrument Sans"  fontData "JetBrains Mono"  fontDisplay "Playfair Display"
+// fontBody "Instrument Sans"  fontData "JetBrains Mono"  fontDisplay "Source Serif 4"
 // railWidth 58  radius 3  radiusLg 6
 
 // Dark variant:

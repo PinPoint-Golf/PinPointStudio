@@ -135,8 +135,8 @@ int main(int argc, char *argv[])
         // opsz=9, SOFT=0, WONK=0 to match visually.
         ":/fonts/Fraunces-Regular.ttf",
         ":/fonts/Fraunces-SemiBold.ttf",
-        ":/fonts/CormorantGaramond-Variable.ttf",
-        ":/fonts/CormorantGaramond-Italic-Variable.ttf",
+        ":/fonts/SourceSerif4-Variable.ttf",
+        ":/fonts/SourceSerif4-Italic-Variable.ttf",
         ":/fonts/HankenGrotesk-Variable.ttf",
         ":/fonts/HankenGrotesk-Italic-Variable.ttf",
         ":/fonts/LibreCaslonText-Variable.ttf",

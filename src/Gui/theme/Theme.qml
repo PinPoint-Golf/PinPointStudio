@@ -392,7 +392,7 @@ QtObject {
     }
     readonly property string fontDisplay: {
         if (aesthetic === "instrument") return "Georgia"
-        if (aesthetic === "editorial")  return "Cormorant Garamond"
+        if (aesthetic === "editorial")  return "Source Serif 4"
         if (aesthetic === "vector")     return "Space Mono"
         if (aesthetic === "terrain")    return "Fraunces"
         if (aesthetic === "links")      return "Libre Caslon Display"
