@@ -78,6 +78,9 @@ class MarkupController : public QObject
     Q_PROPERTY(QString      metaLighting  READ metaLighting  WRITE setMetaLighting NOTIFY metaChanged)
     Q_PROPERTY(QString      metaShaft     READ metaShaft     WRITE setMetaShaft    NOTIFY metaChanged)
     Q_PROPERTY(QString      metaClub      READ metaClub      WRITE setMetaClub     NOTIFY metaChanged)
+    // The shared canonical club vocabulary (club_vocabulary.h) — same list the
+    // shot-carousel swing-edit popover offers, so both pickers speak one dialect.
+    Q_PROPERTY(QStringList  clubOptions   READ clubOptions   CONSTANT)
     Q_PROPERTY(QString      metaScope     READ metaScope     WRITE setMetaScope    NOTIFY metaChanged)
     Q_PROPERTY(QString      metaTempo     READ metaTempo     WRITE setMetaTempo    NOTIFY metaChanged)
     Q_PROPERTY(QString      metaContact   READ metaContact   WRITE setMetaContact  NOTIFY metaChanged)
@@ -130,6 +133,7 @@ public:
     QString      metaLighting()  const { return m_truth.meta.lighting; }
     QString      metaShaft()     const { return m_truth.meta.shaft; }
     QString      metaClub()      const { return m_truth.meta.club; }
+    QStringList  clubOptions()   const;
     QString      metaScope()     const { return m_truth.meta.scope; }
     QString      metaTempo()     const { return m_truth.meta.tempo; }
     QString      metaContact()   const { return m_truth.meta.contact; }

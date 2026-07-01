@@ -71,8 +71,9 @@ public:
 
     int activeCount()   const;
 
-    // The standard golf bag, driver → putter (uppercase to match the display /
-    // capture-time "DRIVER" stub). Backs the edit popover's club combo.
+    // The standard golf bag, driver → putter — the shared canonical club
+    // vocabulary (club_vocabulary.h), also used by the Markup Lab picker.
+    // Backs the swing-edit popover's club combo.
     static QStringList clubOptions();
 
     // ShotProcessor's entry point — prepends a shot (newest first) with the

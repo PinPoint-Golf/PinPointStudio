@@ -79,12 +79,9 @@ Item {
     readonly property var tempoVals:    ["slow", "normal", "fast"]
     readonly property var contactOpts:  [qsTr("Ball"), qsTr("Air"), qsTr("Mishit")]
     readonly property var contactVals:  ["ball", "air", "mishit"]
-    readonly property var clubList: [
-        "DRIVER", "3-WOOD", "5-WOOD", "7-WOOD",
-        "3-HYBRID", "4-HYBRID", "5-HYBRID",
-        "2-IRON", "3-IRON", "4-IRON", "5-IRON", "6-IRON", "7-IRON", "8-IRON", "9-IRON",
-        "PW", "GW", "AW", "SW", "LW", "PUTTER"
-    ]
+    // The one canonical club vocabulary — shared with the shot-carousel swing-edit
+    // popover (ShotListModel.clubOptions / club_vocabulary.h) so both pickers agree.
+    readonly property var clubList: markupController.clubOptions
 
     function markEventByKey(k) {
         for (var i = 0; i < pDefs.length; ++i)

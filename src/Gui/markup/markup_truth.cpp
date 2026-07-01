@@ -253,6 +253,13 @@ TruthSummary summarize(const QString &swingDir)
     return out;
 }
 
+QString readSwingReviewClub(const QString &swingDir)
+{
+    const QJsonObject root = loadObject(QDir(swingDir).filePath(QStringLiteral("swing.json")));
+    return root.value(QStringLiteral("review")).toObject()
+               .value(QStringLiteral("club")).toString();
+}
+
 PoseTrack readPose2d(const QString &swingDir)
 {
     PoseTrack track;

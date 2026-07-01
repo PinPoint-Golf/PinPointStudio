@@ -19,6 +19,8 @@
 #include "markup_controller.h"
 #include "markup_image_provider.h"
 
+#include "../../Core/club_vocabulary.h"
+
 #include <QDir>
 #include <QImage>
 #include <QMediaPlayer>
@@ -147,9 +149,9 @@ void MarkupController::openSwing(int queueIndex)
     m_frameIndex = 0;
 
     // Seed the common-case defaults so the panel reads coherently and validation
-    // always has a scope to gate on: club from the system default (clubs aren't
-    // persisted in swing.json yet — see SwingDocReader), and scope/tempo/contact
-    // to the dominant corpus case (full swing, normal tempo, ball struck) — the
+    // always has a scope to gate on: club from the swing's editable metadata
+    // (swing.json review.club, else the DRIVER stub), and scope/tempo/contact to
+    // the dominant corpus case (full swing, normal tempo, ball struck) — the
     // labeller overrides the exceptions. lighting/shaft have no dominant default
     // so they stay unset until picked. Seeding initial state does not mark the
     // swing dirty — it is written on the next save like any other label.
@@ -523,10 +525,21 @@ void MarkupController::revert()
 // touch fields that are already set (an edited swing keeps its choices).
 void MarkupController::seedMetaDefaults()
 {
-    if (m_truth.meta.club.isEmpty())    m_truth.meta.club    = QStringLiteral("DRIVER");
+    // Club defaults from the swing's editable metadata (swing.json review.club, set
+    // in the shot-carousel swing-edit popover), falling back to the DRIVER stub when
+    // the user hasn't chosen one there either. A club already in truth.json wins.
+    if (m_truth.meta.club.isEmpty()) {
+        const QString reviewClub = readSwingReviewClub(currentSwingDir());
+        m_truth.meta.club = reviewClub.isEmpty() ? QStringLiteral("DRIVER") : reviewClub;
+    }
     if (m_truth.meta.scope.isEmpty())   m_truth.meta.scope   = QStringLiteral("full");
     if (m_truth.meta.tempo.isEmpty())   m_truth.meta.tempo   = QStringLiteral("normal");
     if (m_truth.meta.contact.isEmpty()) m_truth.meta.contact = QStringLiteral("ball");
+}
+
+QStringList MarkupController::clubOptions() const
+{
+    return pinpoint::clubVocabulary();
 }
 
 void MarkupController::retainPanel()

@@ -19,6 +19,7 @@
 #include "shot_list_model.h"
 
 #include "../Export/swing_doc.h"
+#include "../Core/club_vocabulary.h"
 #include "../Core/pp_debug.h"
 
 #include <QFile>
@@ -235,28 +236,8 @@ void ShotListModel::setClub(int id, const QString &club)
 
 QStringList ShotListModel::clubOptions()
 {
-    // The standard bag, driver → putter. Uppercase to match the display font and
-    // the capture-time "DRIVER" stub, so an unedited shot's club maps to a row.
-    static const QStringList kClubs = {
-        QStringLiteral("DRIVER"),
-        QStringLiteral("3 WOOD"),
-        QStringLiteral("5 WOOD"),
-        QStringLiteral("3 HYBRID"),
-        QStringLiteral("4 HYBRID"),
-        QStringLiteral("3 IRON"),
-        QStringLiteral("4 IRON"),
-        QStringLiteral("5 IRON"),
-        QStringLiteral("6 IRON"),
-        QStringLiteral("7 IRON"),
-        QStringLiteral("8 IRON"),
-        QStringLiteral("9 IRON"),
-        QStringLiteral("PITCHING WEDGE"),
-        QStringLiteral("GAP WEDGE"),
-        QStringLiteral("SAND WEDGE"),
-        QStringLiteral("LOB WEDGE"),
-        QStringLiteral("PUTTER"),
-    };
-    return kClubs;
+    // The one canonical bag — shared with the Markup Lab picker (see club_vocabulary.h).
+    return pinpoint::clubVocabulary();
 }
 
 bool ShotListModel::moveToTrash(int id)

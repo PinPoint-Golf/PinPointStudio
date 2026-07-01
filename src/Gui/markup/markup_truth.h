@@ -102,7 +102,7 @@ struct ShaftLabel {
 struct TruthMeta {
     QString lighting;   // "bright" | "normal" | "dark" | ""
     QString shaft;      // "graphite" | "steel" | ""
-    QString club;       // e.g. "DRIVER", "7-IRON"; "" = unset
+    QString club;       // e.g. "DRIVER", "7 IRON" (see club_vocabulary.h); "" = unset
     QString scope;      // "full" | "pitch" | "chip" | "putt" | ""
     QString tempo;      // "slow" | "normal" | "fast" | ""
     QString contact;    // "ball" | "air" | "mishit" | ""
@@ -144,6 +144,12 @@ bool writeTruth(const QString &swingDir, const TruthDoc &doc, const FaceOnInfo &
 // Read <swingDir>/truth.json back into a TruthDoc (pixels -> normalized via fo
 // dims; t_us / seconds -> nearest frame index). Empty TruthDoc if no file.
 TruthDoc readTruth(const QString &swingDir, const FaceOnInfo &fo);
+
+// The user's editable club for a swing, read from <swingDir>/swing.json's
+// review.club (the shot-carousel swing-edit popover's field). Empty if there is
+// no swing.json or no review.club yet. Used to seed the markup meta.club default
+// so both sidecars start from the same club without re-typing.
+QString readSwingReviewClub(const QString &swingDir);
 
 // Quick facts for the queue UI without resolving frame indices.
 struct TruthSummary {
