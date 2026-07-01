@@ -127,6 +127,10 @@ int main(int argc, char *argv[])
         ":/fonts/DMSerifDisplay-Regular.ttf",
         ":/fonts/Fraunces-Variable.ttf",
         ":/fonts/Fraunces-Italic-Variable.ttf",
+        // Static SemiBold (wght=600) instance: macOS/CoreText won't interpolate the
+        // variable weight axis, so terrain titles (Font.DemiBold) fell back to the
+        // system font without a concrete 600 face registered under family "Fraunces".
+        ":/fonts/Fraunces-SemiBold.ttf",
         ":/fonts/CormorantGaramond-Variable.ttf",
         ":/fonts/CormorantGaramond-Italic-Variable.ttf",
         ":/fonts/HankenGrotesk-Variable.ttf",
