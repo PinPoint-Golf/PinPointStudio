@@ -24,19 +24,21 @@ import PinPointStudio
 Item {
     id: root
 
-    // Hardcoded preview colours for each themeIndex (0–9).
+    // Hardcoded preview colours for each themeIndex (0–11).
     // These must NOT use Theme.* tokens — cards always show their own colours.
     readonly property var themeData: [
         { aesthetic: "Instrument", mode: "Light", railBg: "#FBF8F0", sidenavBg: "#FBF8F0", contentBg: "#F4EFE3", dot: "#B5701A" },
         { aesthetic: "Instrument", mode: "Dark",  railBg: "#0A0F13", sidenavBg: "#0A0F13", contentBg: "#05080A", dot: "#E6AC54" },
-        { aesthetic: "Editorial",  mode: "Light", railBg: "#FFFFFF", sidenavBg: "#FFFFFF", contentBg: "#FAFAF8", dot: "#1A3A5C" },
-        { aesthetic: "Editorial",  mode: "Dark",  railBg: "#181816", sidenavBg: "#181816", contentBg: "#141412", dot: "#A8C4E0" },
-        { aesthetic: "Studio",     mode: "Light", railBg: "#FAFAF9", sidenavBg: "#FAFAF9", contentBg: "#F6F6F5", dot: "#0066FF" },
-        { aesthetic: "Studio",     mode: "Dark",  railBg: "#161615", sidenavBg: "#161615", contentBg: "#111110", dot: "#4D90FF" },
+        { aesthetic: "Editorial",  mode: "Light", railBg: "#FFFFFF", sidenavBg: "#FFFFFF", contentBg: "#FAF8F4", dot: "#234E8C" },
+        { aesthetic: "Editorial",  mode: "Dark",  railBg: "#191612", sidenavBg: "#191612", contentBg: "#14110F", dot: "#7FB0E8" },
+        { aesthetic: "Studio",     mode: "Light", railBg: "#FBFCFD", sidenavBg: "#FBFCFD", contentBg: "#F4F5F7", dot: "#0B5FE6" },
+        { aesthetic: "Studio",     mode: "Dark",  railBg: "#131519", sidenavBg: "#131519", contentBg: "#0E1013", dot: "#5A9BFF" },
         { aesthetic: "Vector",     mode: "Light", railBg: "#FAFBFC", sidenavBg: "#FAFBFC", contentBg: "#F0F1F4", dot: "#CC3300" },
         { aesthetic: "Vector",     mode: "Dark",  railBg: "#13151A", sidenavBg: "#13151A", contentBg: "#0A0B0D", dot: "#FF5500" },
         { aesthetic: "Terrain",    mode: "Light", railBg: "#FAFBF5", sidenavBg: "#FAFBF5", contentBg: "#F2F4EC", dot: "#1E7A4E" },
-        { aesthetic: "Terrain",    mode: "Dark",  railBg: "#0B110D", sidenavBg: "#0B110D", contentBg: "#080D0A", dot: "#4FCB8C" }
+        { aesthetic: "Terrain",    mode: "Dark",  railBg: "#0B110D", sidenavBg: "#0B110D", contentBg: "#080D0A", dot: "#4FCB8C" },
+        { aesthetic: "Links",      mode: "Light", railBg: "#F6F1E4", sidenavBg: "#F6F1E4", contentBg: "#EDE7D7", dot: "#7E2D3A" },
+        { aesthetic: "Links",      mode: "Dark",  railBg: "#131820", sidenavBg: "#131820", contentBg: "#10131A", dot: "#C85C6A" }
     ]
 
     // ── Search scroll-to support ──────────────────────────────────────────────
@@ -126,7 +128,7 @@ Item {
                 color: Theme.colorText3
             }
 
-            // 4-wide card grid, wrapping to 3 rows for 10 themes (4 + 4 + 2)
+            // 4-wide card grid, wrapping to 3 rows for 12 themes (4 + 4 + 4)
             Item {
                 id: cardGrid
                 objectName: "setting_aesthetic"
@@ -137,7 +139,7 @@ Item {
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 Repeater {
-                    model: 10
+                    model: 12
                     delegate: Rectangle {
                         id: themeCard
                         required property int index

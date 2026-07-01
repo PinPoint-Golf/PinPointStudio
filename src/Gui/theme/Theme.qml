@@ -20,18 +20,19 @@ pragma Singleton
 import QtQuick
 
 // Single source of truth for all visual tokens.
-// Set aesthetic ("studio" | "instrument" | "editorial" | "vector" | "terrain")
-// and dark (bool) to switch the entire UI. Never hardcode colours, fonts, or
-// sizes in components.
+// Set aesthetic ("studio" | "instrument" | "editorial" | "vector" | "terrain" |
+// "links") and dark (bool) to switch the entire UI. Never hardcode colours,
+// fonts, or sizes in components.
 //
 // Each token is computed inline to avoid nested-QtObject initialization-order
 // issues that cause "Unable to assign [undefined]" warnings.
 QtObject {
     id: root
 
-    // Theme cycle index: 0–9 maps to instrument-light, instrument-dark,
+    // Theme cycle index: 0–11 maps to instrument-light, instrument-dark,
     // editorial-light, editorial-dark, studio-light, studio-dark,
-    // vector-light, vector-dark, terrain-light, terrain-dark.
+    // vector-light, vector-dark, terrain-light, terrain-dark,
+    // links-light, links-dark.
     property int themeIndex: 0
 
     Component.onCompleted: {
@@ -55,7 +56,7 @@ QtObject {
     property real overlayOpacity: 0.7
     onOverlayOpacityChanged: appSettings.overlayOpacity = overlayOpacity
 
-    function cycleTheme() { themeIndex = (themeIndex + 1) % 10 }
+    function cycleTheme() { themeIndex = (themeIndex + 1) % 12 }
 
     // Scale-aware pixel helper — use Theme.sp(n) instead of hardcoded pixel values
     // so all dimensions respond to the user's text size preference.
@@ -63,107 +64,120 @@ QtObject {
 
     // Active aesthetic and mode — derived from themeIndex.
     // Can also be set directly to bind to C++ AppSettings at startup.
-    readonly property string aesthetic: ["instrument","instrument","editorial","editorial","studio","studio","vector","vector","terrain","terrain"][themeIndex]
+    readonly property string aesthetic: ["instrument","instrument","editorial","editorial","studio","studio","vector","vector","terrain","terrain","links","links"][themeIndex]
     readonly property bool   dark:      (themeIndex % 2) === 1
 
     // ── Colour tokens ────────────────────────────────────────────────────────
 
     readonly property color colorBg: {
         if (aesthetic === "instrument") return dark ? "#05080A" : "#F4EFE3"
-        if (aesthetic === "editorial")  return dark ? "#141412" : "#FAFAF8"
+        if (aesthetic === "editorial")  return dark ? "#14110F" : "#FAF8F4"
         if (aesthetic === "vector")     return dark ? "#0A0B0D" : "#F0F1F4"
         if (aesthetic === "terrain")    return dark ? "#080D0A" : "#F2F4EC"
-        return dark ? "#111110" : "#F6F6F5"
+        if (aesthetic === "links")      return dark ? "#10131A" : "#EDE7D7"
+        return dark ? "#0E1013" : "#F4F5F7"
     }
     readonly property color colorBg2: {
         if (aesthetic === "instrument") return dark ? "#0A1115" : "#ECE6D7"
-        if (aesthetic === "editorial")  return dark ? "#1C1C1A" : "#F2F1ED"
+        if (aesthetic === "editorial")  return dark ? "#1E1A17" : "#F1EEE7"
         if (aesthetic === "vector")     return dark ? "#0F1114" : "#E4E6EB"
         if (aesthetic === "terrain")    return dark ? "#0D140F" : "#E8EBDF"
-        return dark ? "#191918" : "#EEEEED"
+        if (aesthetic === "links")      return dark ? "#161B24" : "#E3DCC8"
+        return dark ? "#16191D" : "#EAECEF"
     }
     readonly property color colorBg3: {
         if (aesthetic === "instrument") return dark ? "#111B20" : "#E1DACA"
-        if (aesthetic === "editorial")  return dark ? "#242422" : "#E8E7E2"
+        if (aesthetic === "editorial")  return dark ? "#272320" : "#E7E2D8"
         if (aesthetic === "vector")     return dark ? "#151719" : "#D8DBE3"
         if (aesthetic === "terrain")    return dark ? "#121B15" : "#DCE1D1"
-        return dark ? "#212120" : "#E4E4E3"
+        if (aesthetic === "links")      return dark ? "#1D2430" : "#D7CFB8"
+        return dark ? "#1E2228" : "#DEE1E6"
     }
     readonly property color colorSurface: {
         if (aesthetic === "instrument") return dark ? "#0A0F13" : "#FBF8F0"
-        if (aesthetic === "editorial")  return dark ? "#181816" : "#FFFFFF"
+        if (aesthetic === "editorial")  return dark ? "#191612" : "#FFFFFF"
         if (aesthetic === "vector")     return dark ? "#13151A" : "#FAFBFC"
         if (aesthetic === "terrain")    return dark ? "#0B110D" : "#FAFBF5"
-        return dark ? "#161615" : "#FAFAF9"
+        if (aesthetic === "links")      return dark ? "#131820" : "#F6F1E4"
+        return dark ? "#131519" : "#FBFCFD"
     }
 
     // Borders — 1 px at these opacities simulate 0.5 px
     readonly property color colorBorder: {
         if (aesthetic === "instrument") return dark ? "#1ff2ede2" : "#1f3a322a"
-        if (aesthetic === "editorial")  return dark ? "#12fffff5" : "#12000000"
+        if (aesthetic === "editorial")  return dark ? "#12f2ede4" : "#121a1410"
         if (aesthetic === "vector")     return dark ? "#0fffffff" : "#12000000"
         if (aesthetic === "terrain")    return dark ? "#12eef3ec" : "#1227392b"
-        return dark ? "#0effffff" : "#0f000000"
+        if (aesthetic === "links")      return dark ? "#12ece6d6" : "#121b2a3a"
+        return dark ? "#0eeceef2" : "#0f0c1220"
     }
     readonly property color colorBorderMid: {
         if (aesthetic === "instrument") return dark ? "#2bf2ede2" : "#2b3a322a"
-        if (aesthetic === "editorial")  return dark ? "#1cfffff5" : "#1a000000"
+        if (aesthetic === "editorial")  return dark ? "#1cf2ede4" : "#1a1a1410"
         if (aesthetic === "vector")     return dark ? "#1affffff" : "#1c000000"
         if (aesthetic === "terrain")    return dark ? "#1ceef3ec" : "#1c27392b"
-        return dark ? "#17ffffff" : "#19000000"
+        if (aesthetic === "links")      return dark ? "#1cece6d6" : "#1c1b2a3a"
+        return dark ? "#17eceef2" : "#190c1220"
     }
     readonly property color colorBorderStrong: {
         if (aesthetic === "instrument") return dark ? "#38f2ede2" : "#383a322a"
-        if (aesthetic === "editorial")  return dark ? "#26fffff5" : "#21000000"
+        if (aesthetic === "editorial")  return dark ? "#26f2ede4" : "#211a1410"
         if (aesthetic === "vector")     return dark ? "#2effffff" : "#2e000000"
         if (aesthetic === "terrain")    return dark ? "#2aeef3ec" : "#2a27392b"
-        return dark ? "#21ffffff" : "#26000000"
+        if (aesthetic === "links")      return dark ? "#2aece6d6" : "#2a1b2a3a"
+        return dark ? "#21eceef2" : "#260c1220"
     }
 
     // Text
     readonly property color colorText: {
         if (aesthetic === "instrument") return dark ? "#F2EDE2" : "#0A1115"
-        if (aesthetic === "editorial")  return dark ? "#F0EFE8" : "#111110"
+        if (aesthetic === "editorial")  return dark ? "#F2EDE4" : "#1A1714"
         if (aesthetic === "vector")     return dark ? "#E8EAF0" : "#0A0B10"
         if (aesthetic === "terrain")    return dark ? "#ECF3EC" : "#16221A"
-        return dark ? "#EDEDEC" : "#0A0A09"
+        if (aesthetic === "links")      return dark ? "#ECE6D6" : "#1B2A3A"
+        return dark ? "#ECEEF2" : "#0C0F14"
     }
     readonly property color colorText2: {
         if (aesthetic === "instrument") return dark ? "#CFD3CC" : "#5A5246"
-        if (aesthetic === "editorial")  return dark ? "#9A9A92" : "#4A4A47"
+        if (aesthetic === "editorial")  return dark ? "#A69E92" : "#4C463E"
         if (aesthetic === "vector")     return dark ? "#8B90A0" : "#4A4E5E"
         if (aesthetic === "terrain")    return dark ? "#AEB9AD" : "#47554B"
-        return dark ? "#878786" : "#525251"
+        if (aesthetic === "links")      return dark ? "#ADA694" : "#4E5A68"
+        return dark ? "#878D96" : "#4A505A"
     }
     readonly property color colorText3: {
         if (aesthetic === "instrument") return dark ? "#94A09E" : "#998F82"
-        if (aesthetic === "editorial")  return dark ? "#5A5A55" : "#9B9B97"
+        if (aesthetic === "editorial")  return dark ? "#625B50" : "#9B958A"
         if (aesthetic === "vector")     return dark ? "#484E5E" : "#9098B0"
         if (aesthetic === "terrain")    return dark ? "#5C685D" : "#8C988D"
-        return dark ? "#4A4A48" : "#ABABAA"
+        if (aesthetic === "links")      return dark ? "#6B6656" : "#948C79"
+        return dark ? "#474C54" : "#9AA1AC"
     }
 
     // Accent
     readonly property color colorAccent: {
         if (aesthetic === "instrument") return dark ? "#E6AC54" : "#9A5E12"
-        if (aesthetic === "editorial")  return dark ? "#A8C4E0" : "#1A3A5C"
+        if (aesthetic === "editorial")  return dark ? "#7FB0E8" : "#234E8C"
         if (aesthetic === "vector")     return dark ? "#FF5500" : "#CC3300"
         if (aesthetic === "terrain")    return dark ? "#4FCB8C" : "#1E7A4E"
-        return dark ? "#4D90FF" : "#0066FF"
+        if (aesthetic === "links")      return dark ? "#C85C6A" : "#7E2D3A"
+        return dark ? "#5A9BFF" : "#0B5FE6"
     }
     readonly property color colorAccentLight: {
         if (aesthetic === "instrument") return dark ? "#17e6ac54" : "#149a5e12"
-        if (aesthetic === "editorial")  return dark ? "#12a8c4e0" : "#0f1a3a5c"
+        if (aesthetic === "editorial")  return dark ? "#127fb0e8" : "#0f234e8c"
         if (aesthetic === "vector")     return dark ? "#12ff5500" : "#0fcc3300"
         if (aesthetic === "terrain")    return dark ? "#174fcb8c" : "#0f1e7a4e"
-        return dark ? "#124d90ff" : "#0d0066ff"
+        if (aesthetic === "links")      return dark ? "#17c85c6a" : "#0f7e2d3a"
+        return dark ? "#125a9bff" : "#0d0b5fe6"
     }
     readonly property color colorAccentMid: {
         if (aesthetic === "instrument") return dark ? "#29e6ac54" : "#2e9a5e12"
-        if (aesthetic === "editorial")  return dark ? "#24a8c4e0" : "#241a3a5c"
+        if (aesthetic === "editorial")  return dark ? "#247fb0e8" : "#24234e8c"
         if (aesthetic === "vector")     return dark ? "#24ff5500" : "#24cc3300"
         if (aesthetic === "terrain")    return dark ? "#294fcb8c" : "#241e7a4e"
-        return dark ? "#264d90ff" : "#1f0066ff"
+        if (aesthetic === "links")      return dark ? "#29c85c6a" : "#247e2d3a"
+        return dark ? "#265a9bff" : "#1f0b5fe6"
     }
 
     // ── Brand gradient tokens ────────────────────────────────────────────────
@@ -174,24 +188,27 @@ QtObject {
     // site 1:1. Light variants are deepened to hold contrast on pale grounds.
     readonly property color gradientWarm: {
         if (aesthetic === "instrument") return dark ? "#E6AC54" : "#B5701A"
-        if (aesthetic === "editorial")  return dark ? "#E6C25A" : "#8A6A14"
+        if (aesthetic === "editorial")  return dark ? "#E4C878" : "#9A7A2E"
         if (aesthetic === "vector")     return dark ? "#FF8C35" : "#B85A00"
         if (aesthetic === "terrain")    return dark ? "#E0C766" : "#8A6A1E"
-        return dark ? "#F5C451" : "#9C6F12"   // studio
+        if (aesthetic === "links")      return dark ? "#C85C6A" : "#7E2D3A"
+        return dark ? "#3FC2E0" : "#0E7C9C"   // studio
     }
     readonly property color gradientWarmLit: {
         if (aesthetic === "instrument") return dark ? "#F3C987" : "#CC9A45"
-        if (aesthetic === "editorial")  return dark ? "#EBD089" : "#A88A3A"
+        if (aesthetic === "editorial")  return dark ? "#DDA883" : "#A86A4A"
         if (aesthetic === "vector")     return dark ? "#FFB066" : "#D67A2A"
         if (aesthetic === "terrain")    return dark ? "#A8C96A" : "#5E8A3A"
-        return dark ? "#F8D484" : "#C29545"   // studio
+        if (aesthetic === "links")      return dark ? "#E0A24E" : "#A8791E"
+        return dark ? "#4FA6F0" : "#0A5FBF"   // studio
     }
     readonly property color gradientCool: {
         if (aesthetic === "instrument") return dark ? "#7BC0DB" : "#2B6E7A"
-        if (aesthetic === "editorial")  return dark ? "#A8C4E0" : "#1A3A5C"
+        if (aesthetic === "editorial")  return dark ? "#7FB0E8" : "#234E8C"
         if (aesthetic === "vector")     return dark ? "#3399FF" : "#0066CC"
         if (aesthetic === "terrain")    return dark ? "#3EC79A" : "#1C7A5A"
-        return dark ? "#4D90FF" : "#0066FF"   // studio
+        if (aesthetic === "links")      return dark ? "#5B87B8" : "#2A4A72"
+        return dark ? "#5A9BFF" : "#0B5FE6"   // studio
     }
 
     // Sweep angle (deg). Site uses 96° for titles, 180° for vertical accent bars.
@@ -215,48 +232,54 @@ QtObject {
     // Good (success / go / connected)
     readonly property color colorGood: {
         if (aesthetic === "instrument") return dark ? "#8AB389" : "#357058"
-        if (aesthetic === "editorial")  return dark ? "#8ABFA0" : "#1A4A2E"
+        if (aesthetic === "editorial")  return dark ? "#7FC4A6" : "#1E5238"
         if (aesthetic === "vector")     return dark ? "#2EE8A0" : "#006B45"
         if (aesthetic === "terrain")    return dark ? "#86C49A" : "#3A7A56"
+        if (aesthetic === "links")      return dark ? "#7FB894" : "#2E6B48"
         return dark ? "#30C983" : "#0A7A4A"
     }
     readonly property color colorGoodLight: {
         if (aesthetic === "instrument") return dark ? "#178ab389" : "#14357058"
-        if (aesthetic === "editorial")  return dark ? "#128abfa0" : "#121a4a2e"
+        if (aesthetic === "editorial")  return dark ? "#127fc4a6" : "#0f1e5238"
         if (aesthetic === "vector")     return dark ? "#122ee8a0" : "#0f006b45"
         if (aesthetic === "terrain")    return dark ? "#1786c49a" : "#0f3a7a56"
+        if (aesthetic === "links")      return dark ? "#177fb894" : "#0f2e6b48"
         return dark ? "#1230c983" : "#0f0a7a4a"
     }
 
     // Warn (caution / unexpected)
     readonly property color colorWarn: {
         if (aesthetic === "instrument") return dark ? "#E07E64" : "#A8482A"
-        if (aesthetic === "editorial")  return dark ? "#D4896A" : "#8B2500"
+        if (aesthetic === "editorial")  return dark ? "#DD9270" : "#9A3A16"
         if (aesthetic === "vector")     return dark ? "#FF8C35" : "#7A3800"
         if (aesthetic === "terrain")    return dark ? "#E6915A" : "#A8531E"
+        if (aesthetic === "links")      return dark ? "#D98A5A" : "#9A5220"
         return dark ? "#FF6B35" : "#D94A00"
     }
     readonly property color colorWarnLight: {
         if (aesthetic === "instrument") return dark ? "#17e07e64" : "#14a8482a"
-        if (aesthetic === "editorial")  return dark ? "#12d4896a" : "#0f8b2500"
+        if (aesthetic === "editorial")  return dark ? "#12dd9270" : "#0f9a3a16"
         if (aesthetic === "vector")     return dark ? "#14ff8c35" : "#0f7a3800"
         if (aesthetic === "terrain")    return dark ? "#17e6915a" : "#0fa8531e"
+        if (aesthetic === "links")      return dark ? "#17d98a5a" : "#0f9a5220"
         return dark ? "#14ff6b35" : "#0fd94a00"
     }
 
     // Error (critical failure / fatal — distinctly red, darker than warn)
     readonly property color colorError: {
         if (aesthetic === "instrument") return dark ? "#E0595B" : "#9C2A2A"
-        if (aesthetic === "editorial")  return dark ? "#C46868" : "#8B1E1E"
+        if (aesthetic === "editorial")  return dark ? "#D26E6E" : "#8E1F22"
         if (aesthetic === "vector")     return dark ? "#FF4455" : "#8B0014"
         if (aesthetic === "terrain")    return dark ? "#E66B66" : "#A82E2A"
+        if (aesthetic === "links")      return dark ? "#E06B60" : "#A82A1E"
         return dark ? "#FF5555" : "#CC2000"
     }
     readonly property color colorErrorLight: {
         if (aesthetic === "instrument") return dark ? "#17e0595b" : "#149c2a2a"
-        if (aesthetic === "editorial")  return dark ? "#12c46868" : "#0f8b1e1e"
+        if (aesthetic === "editorial")  return dark ? "#12d26e6e" : "#0f8e1f22"
         if (aesthetic === "vector")     return dark ? "#14ff4455" : "#0f8b0014"
         if (aesthetic === "terrain")    return dark ? "#17e66b66" : "#0fa82e2a"
+        if (aesthetic === "links")      return dark ? "#17e06b60" : "#0fa82a1e"
         return dark ? "#14ff5555" : "#0fcc2000"
     }
 
@@ -266,16 +289,18 @@ QtObject {
     // "do this next" frame. Strong variant = border/text, Light variant = fill.
     readonly property color colorAttention: {
         if (aesthetic === "instrument") return dark ? "#F2C84A" : "#8A6612"
-        if (aesthetic === "editorial")  return dark ? "#E6C25A" : "#8A6A14"
+        if (aesthetic === "editorial")  return dark ? "#E6C36A" : "#8A6414"
         if (aesthetic === "vector")     return dark ? "#FFD60A" : "#B58900"
         if (aesthetic === "terrain")    return dark ? "#E0C24A" : "#8A6612"
+        if (aesthetic === "links")      return dark ? "#F5C63A" : "#8C6712"
         return dark ? "#F5C451" : "#9C6F12"
     }
     readonly property color colorAttentionLight: {
         if (aesthetic === "instrument") return dark ? "#17f2c84a" : "#148a6612"
-        if (aesthetic === "editorial")  return dark ? "#12e6c25a" : "#0f8a6a14"
+        if (aesthetic === "editorial")  return dark ? "#12e6c36a" : "#0f8a6414"
         if (aesthetic === "vector")     return dark ? "#14ffd60a" : "#0fb58900"
         if (aesthetic === "terrain")    return dark ? "#17e0c24a" : "#0f8a6612"
+        if (aesthetic === "links")      return dark ? "#17f5c63a" : "#0f8c6712"
         return dark ? "#14f5c451" : "#0f9c6f12"
     }
 
@@ -293,16 +318,18 @@ QtObject {
     // fills, which are too faint to mark a corridor.
     readonly property color colorBandGreen: {
         if (aesthetic === "instrument") return dark ? "#248ab389" : "#24357058"
-        if (aesthetic === "editorial")  return dark ? "#248abfa0" : "#241a4a2e"
+        if (aesthetic === "editorial")  return dark ? "#247fc4a6" : "#241e5238"
         if (aesthetic === "vector")     return dark ? "#242ee8a0" : "#24006b45"
         if (aesthetic === "terrain")    return dark ? "#2486c49a" : "#243a7a56"
+        if (aesthetic === "links")      return dark ? "#247fb894" : "#242e6b48"
         return dark ? "#2430c983" : "#240a7a4a"
     }
     readonly property color colorBandAmber: {
         if (aesthetic === "instrument") return dark ? "#24f2c84a" : "#248a6612"
-        if (aesthetic === "editorial")  return dark ? "#24e6c25a" : "#248a6a14"
+        if (aesthetic === "editorial")  return dark ? "#24e6c36a" : "#248a6414"
         if (aesthetic === "vector")     return dark ? "#24ffd60a" : "#24b58900"
         if (aesthetic === "terrain")    return dark ? "#24e0c24a" : "#248a6612"
+        if (aesthetic === "links")      return dark ? "#24f5c63a" : "#248c6712"
         return dark ? "#24f5c451" : "#249c6f12"
     }
 
@@ -325,17 +352,20 @@ QtObject {
             ? ["#E6AC54", "#E07E64", "#8AB389", "#7BC0DB", "#B79AD6", "#E08FA8"]
             : ["#B5701A", "#A8482A", "#3E7E68", "#2B6E7A", "#6B4E8C", "#A0405A"]
         if (aesthetic === "editorial")  return dark
-            ? ["#A8C4E0", "#8ABFA0", "#D8A06A", "#C99AC8", "#E6C25A", "#D98FA0"]
-            : ["#1A3A5C", "#3E7E68", "#A85A2A", "#7A3B6E", "#8A6A14", "#8B2E45"]
+            ? ["#7FB0E8", "#7FC4A6", "#DDA46A", "#C79ACB", "#E6C36A", "#DB8CA6"]
+            : ["#234E8C", "#1E5238", "#A8531E", "#6E3A78", "#8A6414", "#8E2E48"]
         if (aesthetic === "vector")     return dark
             ? ["#FF5500", "#3399FF", "#2EE8A0", "#FFD60A", "#B266FF", "#FF4081"]
             : ["#CC3300", "#0066CC", "#006B45", "#B58900", "#7A29CC", "#C2185B"]
         if (aesthetic === "terrain")    return dark
             ? ["#4FCB8C", "#E0C24A", "#E6915A", "#5AB6C9", "#B79AD6", "#E6849A"]
             : ["#1E7A4E", "#8A6612", "#A8531E", "#2B7E8C", "#6B4E8C", "#A0405A"]
+        if (aesthetic === "links")      return dark
+            ? ["#C85C6A", "#5B87B8", "#E0A24E", "#7FB894", "#A98BC4", "#6FB6C4"]
+            : ["#7E2D3A", "#2A4A72", "#A8791E", "#2E6B48", "#6A4E86", "#2B6E7A"]
         return dark   // studio (default)
-            ? ["#4D90FF", "#30C983", "#FF6B6B", "#F5C451", "#B79AF5", "#3FC2E0"]
-            : ["#0066FF", "#0A7A4A", "#D64545", "#9C6F12", "#7A4FCF", "#0E7C9C"]
+            ? ["#5A9BFF", "#30C983", "#FF6B6B", "#F5C451", "#B79AF5", "#3FC2E0"]
+            : ["#0B5FE6", "#0A7A4A", "#D64545", "#9C6F12", "#7A4FCF", "#0E7C9C"]
     }
     function chartSeriesColor(i) {
         var p = chartSeries
@@ -349,30 +379,34 @@ QtObject {
         if (aesthetic === "editorial")  return "Instrument Sans"
         if (aesthetic === "vector")     return "Space Grotesk"
         if (aesthetic === "terrain")    return "Fraunces"
-        return "Geist"
+        if (aesthetic === "links")      return "Libre Caslon Text"
+        return "Hanken Grotesk"
     }
     readonly property string fontData: {
         if (aesthetic === "instrument") return "DM Mono"
         if (aesthetic === "editorial")  return "JetBrains Mono"
         if (aesthetic === "vector")     return "Space Mono"
         if (aesthetic === "terrain")    return "DM Mono"
+        if (aesthetic === "links")      return "Geist Mono"
         return "Geist Mono"
     }
     readonly property string fontDisplay: {
         if (aesthetic === "instrument") return "Georgia"
-        if (aesthetic === "editorial")  return "Playfair Display"
+        if (aesthetic === "editorial")  return "Cormorant Garamond"
         if (aesthetic === "vector")     return "Space Mono"
         if (aesthetic === "terrain")    return "Fraunces"
-        return "Geist"
+        if (aesthetic === "links")      return "Libre Caslon Display"
+        return "Hanken Grotesk"
     }
     // On Windows, Segoe UI Emoji intercepts symbol codepoints (e.g. ⚙ U+2699)
     // and renders them as large coloured emoji glyphs. Segoe UI Symbol has the
     // same characters as flat monochrome glyphs and prevents that fallback.
     // On macOS, Apple Color Emoji does the same — Apple Symbols provides flat
     // monochrome glyphs for those codepoints and wins the font-selection race.
-    // Georgia (Instrument fontBody) and Fraunces (Terrain fontBody) are serifs with
-    // no usable Light — use Normal to avoid thin, silently-rounded body text.
-    readonly property int fontBodyWeight: (aesthetic === "instrument" || aesthetic === "terrain") ? Font.Normal : Font.Light
+    // Georgia (Instrument), Fraunces (Terrain) and Libre Caslon Text (Links) are
+    // serifs with no usable Light — use Normal to avoid thin, silently-rounded body
+    // text (Libre Caslon Text's weight axis also starts at 400, so Light is absent).
+    readonly property int fontBodyWeight: (aesthetic === "instrument" || aesthetic === "terrain" || aesthetic === "links") ? Font.Normal : Font.Light
 
     readonly property string fontSymbol: {
         if (Qt.platform.os === "windows") return "Segoe UI Symbol"
@@ -418,6 +452,7 @@ QtObject {
                  : aesthetic === "editorial"  ? 34
                  : aesthetic === "vector"     ? 24
                  : aesthetic === "terrain"    ? 28
+                 : aesthetic === "links"      ? 30
                  : 22
         return Math.round(base * fontScale)
     }
@@ -446,6 +481,7 @@ QtObject {
         if (aesthetic === "editorial")  return 58
         if (aesthetic === "vector")     return 52
         if (aesthetic === "terrain")    return 56
+        if (aesthetic === "links")      return 56
         return 52
     }
     readonly property int sidenavWidth:    sp(275)
@@ -492,6 +528,7 @@ QtObject {
         if (aesthetic === "editorial")  return 3
         if (aesthetic === "vector")     return 0
         if (aesthetic === "terrain")    return 8
+        if (aesthetic === "links")      return 2
         return 5
     }
     readonly property int radiusLg: {
@@ -499,6 +536,7 @@ QtObject {
         if (aesthetic === "editorial")  return 6
         if (aesthetic === "vector")     return 0
         if (aesthetic === "terrain")    return 12
+        if (aesthetic === "links")      return 4
         return 8
     }
 

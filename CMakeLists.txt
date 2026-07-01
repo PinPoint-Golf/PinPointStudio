@@ -591,6 +591,13 @@ qt_add_resources(PinPointStudio "app_fonts"
         src/Resources/fonts/DMSerifDisplay-Regular.ttf
         src/Resources/fonts/Fraunces-Variable.ttf
         src/Resources/fonts/Fraunces-Italic-Variable.ttf
+        src/Resources/fonts/CormorantGaramond-Variable.ttf
+        src/Resources/fonts/CormorantGaramond-Italic-Variable.ttf
+        src/Resources/fonts/HankenGrotesk-Variable.ttf
+        src/Resources/fonts/HankenGrotesk-Italic-Variable.ttf
+        src/Resources/fonts/LibreCaslonText-Variable.ttf
+        src/Resources/fonts/LibreCaslonText-Italic-Variable.ttf
+        src/Resources/fonts/LibreCaslonDisplay-Regular.ttf
         src/Resources/fonts/InstrumentSans-Variable.ttf
         src/Resources/fonts/JetBrainsMono-Variable.ttf
         src/Resources/fonts/PlayfairDisplay-Variable.ttf
