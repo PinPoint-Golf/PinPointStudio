@@ -91,6 +91,21 @@ Item {
     property color accentColor:  colorHigh
     property real  rippleTint:   1.0
 
+    // --- Occasional light sweep ("sparkle") ---
+    // Every so often a soft band of light drifts across the terrain, flaring
+    // the contour lines it crosses toward `flashColor` — brightest where the
+    // lines crowd together (convergence ridges). Autonomous; no interaction
+    // needed. Rides the same FrameAnimation, so it pauses with everything else
+    // and honours the `animated` reduced-motion switch. Set `sparkle: false`
+    // to disable just the sweep while keeping the drift/interaction.
+    property bool  sparkle:       true                          // master on/off
+    property color flashColor:    Qt.rgba(1.0, 0.97, 0.9, 1.0)  // warm near-white glint
+    property real  flashWidth:    0.12                          // band half-width (aspect-UV)
+    property real  flashStrength: 1.0                           // peak strength 0..1
+    property real  flashDuration: 2.2                           // seconds for one sweep
+    property real  flashInterval: 7.0                           // min gap between sweeps (s)
+    property real  flashJitter:   6.0                           // random extra gap (s)
+
     // --- Interaction input (set from handlers at the screen root) ---
     // Normalised 0..1 cursor position; (-1,-1) = no hover.
     property point hoverPoint: Qt.point(-1, -1)
@@ -107,6 +122,12 @@ Item {
     property real _hy: 0.5
     property real _h:  0.0
     property var  _ripples: []
+
+    // --- Internal light-sweep state ---
+    property real _flashT0:   -1.0    // sweep start time; <0 = idle
+    property real _flashNext:  3.0    // elapsedTime at which the next sweep begins
+    property real _fdx:        1.0    // sweep direction (aspect-UV, unit)
+    property real _fdy:        0.35
 
     function _tick() {
         var active = hoverPoint.x >= 0.0
@@ -126,6 +147,42 @@ Item {
         if (_ripples.length > 1) { var r1 = _ripples[1]; s1 = Qt.vector3d(r1.x, r1.y, (now - r1.t0) / dur) }
         if (_ripples.length > 2) { var r2 = _ripples[2]; s2 = Qt.vector3d(r2.x, r2.y, (now - r2.t0) / dur) }
         fx.ripple0 = s0; fx.ripple1 = s1; fx.ripple2 = s2
+
+        // --- Occasional light sweep ---
+        // Idle until `now` reaches _flashNext, then march a gaussian wavefront
+        // (fx.flash.z) across the whole field along a fresh direction, fading in
+        // and out over flashDuration, then reschedule the next one with jitter.
+        if (sparkle) {
+            if (_flashT0 < 0.0 && now >= _flashNext) {
+                var ang = (Math.random() - 0.5) * 1.2       // ~±34° off horizontal
+                if (Math.random() < 0.5) ang += Math.PI     // sweep either way
+                _fdx = Math.cos(ang)
+                _fdy = Math.sin(ang)
+                _flashT0 = now
+            }
+            if (_flashT0 >= 0.0) {
+                var fp = (now - _flashT0) / Math.max(flashDuration, 0.001)
+                if (fp >= 1.0) {
+                    _flashT0 = -1.0
+                    _flashNext = now + flashInterval + Math.random() * flashJitter
+                    fx.flash = Qt.vector4d(_fdx, _fdy, 0.0, 0.0)
+                } else {
+                    // Project the four screen corners onto the sweep direction to
+                    // get the wavefront's travel span (aspect-corrected UV space).
+                    var aspect = width / Math.max(height, 1)
+                    var d1 = _fdx * aspect, d2 = _fdy, d3 = _fdx * aspect + _fdy
+                    var sMin = Math.min(0.0, Math.min(d1, Math.min(d2, d3)))
+                    var sMax = Math.max(0.0, Math.max(d1, Math.max(d2, d3)))
+                    var margin = flashWidth * 2.5
+                    var sPos = (sMin - margin) + (sMax - sMin + 2.0 * margin) * fp
+                    var env = Math.sin(fp * Math.PI)         // 0 -> 1 -> 0 envelope
+                    fx.flash = Qt.vector4d(_fdx, _fdy, sPos, env * flashStrength)
+                }
+            }
+        } else if (fx.flash.w !== 0.0) {
+            _flashT0 = -1.0
+            fx.flash = Qt.vector4d(_fdx, _fdy, 0.0, 0.0)
+        }
     }
 
     ShaderEffect {
@@ -160,6 +217,12 @@ Item {
         property real rippleAmp:    root.rippleAmp
         property color accentColor: root.accentColor
         property real rippleTint:   root.rippleTint
+
+        // Light-sweep uniforms — `flash` is written imperatively each frame by
+        // _tick() (xy dir, z wavefront pos, w strength); the rest are static.
+        property vector4d flash:    Qt.vector4d(1.0, 0.35, 0.0, 0.0)
+        property color flashColor:  root.flashColor
+        property real flashWidth:   root.flashWidth
 
         // Compiled by qt6_add_shaders (PREFIX "/shaders", no BASE) — the qrc
         // path is PREFIX + the source path relative to the repo root + ".qsb".

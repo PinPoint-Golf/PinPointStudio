@@ -44,6 +44,10 @@ layout(std140, binding = 0) uniform buf {
     float rippleAmp;        // ring height
     vec4  accentColor;      // theme accent, tints the ripple ring
     float rippleTint;       // 0..1 strength of the accent tint on the ring
+    // -- occasional light sweep ---------------------------------------------
+    vec4  flash;            // xy = sweep dir (aspect-UV, unit), z = wavefront pos, w = strength
+    vec4  flashColor;       // colour of the travelling glint
+    float flashWidth;       // band half-width (aspect-UV)
 };
 
 // Compact hash (iq-style) -> [0,1)
@@ -128,9 +132,20 @@ void main() {
     // has more area to read in.
     float v  = h * levels;
     float df = 0.5 - abs(fract(v) - 0.5);          // 0 at a line, 0.5 between
-    float g  = df / max(fwidth(v), 1e-5);          // distance in "line units"
+    float fw = max(fwidth(v), 1e-5);               // screen-space band gradient
+    float g  = df / fw;                            // distance in "line units"
     float lw = lineWidth * (1.0 + ripN * 1.5);     // thicker within the ring
     float line = 1.0 - smoothstep(0.0, lw, g);
+
+    // Occasional travelling light sweep. A soft gaussian band drifts across the
+    // field (position in flash.z along direction flash.xy); where it crosses the
+    // contours it flares them toward flashColor. The flare reads strongest where
+    // lines crowd together — steep terrain gives a large fw, i.e. bands packed
+    // close in screen space — so the light sparks along convergence ridges.
+    float sproj = dot(auv, flash.xy);
+    float band  = exp(-pow((sproj - flash.z) / max(flashWidth, 1e-4), 2.0));
+    float conv  = smoothstep(0.12, 0.5, fw);       // 0 flat .. 1 lines converging
+    float glint = flash.w * band * (0.3 + 0.7 * conv);
 
     vec3 lineCol = ramp(h);
 
@@ -138,9 +153,14 @@ void main() {
     // passes (fades with the ring as it expands; rip decays via 1 - progress).
     lineCol = mix(lineCol, accentColor.rgb, ripN * rippleTint);
 
+    // Flare toward the sweep colour as the light passes over the line.
+    lineCol = mix(lineCol, flashColor.rgb, clamp(glint * 0.5, 0.0, 1.0));
+
     // Brighten the ring lines as well as fattening them — same ripN curve as
-    // the thickening, clamped so it never exceeds full opacity.
-    float lineI = min(intensity * (1.0 + ripN * 1.5), 1.0);
+    // the thickening — and light them up as the sweep crosses; clamped so it
+    // never exceeds full opacity. Kept gentle so the sweep is a soft gleam
+    // rather than a hard flash.
+    float lineI = min(intensity * (1.0 + ripN * 1.5) + glint * 0.9, 1.0);
 
     vec3 rgb;
     float a;

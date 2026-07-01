@@ -37,6 +37,10 @@ layout(std140, binding = 0) uniform buf {
     float rippleAmp;
     vec4  accentColor;
     float rippleTint;
+    // -- occasional light sweep --
+    vec4  flash;        // xy = sweep dir (aspect-UV, unit), z = wavefront pos, w = strength
+    vec4  flashColor;   // colour of the travelling glint
+    float flashWidth;   // band half-width (aspect-UV)
 };
 
 void main() {
