@@ -1,10 +1,53 @@
 # PinPoint — Shaft Detection & Tracking: Technical Design
 
-**Status:** Draft for implementation
+**Status:** Realized — and substantially extended — in the **exemplar**
+(`tools/markup/shaft_annotate.py`, v6 working prototype, 2026-07-03). The
+**app C++** (`src/Analysis/shaft_tracker*`, the production ShaftTracker) is a
+different algorithm that predates/diverges from this design and does **not**
+implement it — see *Implementation status* below. Findings from realizing this
+design live in [shaft_detection_exemplar_findings.md](shaft_detection_exemplar_findings.md) (fix ids F1–F17 referenced throughout).
 **Scope:** Detecting and tracking the golf club shaft in 2D video, anchored at the hands, robust to specular gaps and motion blur. Output is a per-frame shaft angle θ(t), angular velocity ω(t), and clubhead position, suitable for downstream swing-plane / tempo / release analysis.
 **Non-goals (this phase):** full 3D shaft reconstruction, multi-camera fusion, clubface orientation.
 
 ---
+
+## Implementation status (2026-07-03)
+
+Two implementations exist and MUST NOT be conflated:
+
+- **Exemplar** — `tools/markup/shaft_annotate.py` (Python, offline markup +
+  oracle for any future port). Faithful to §3–§8 of this design, then extended
+  by seventeen real-footage fixes (F1–F17). This is the validated algorithm.
+- **App C++** — `src/Analysis/shaft_tracker{,_math,_assembly}` (production).
+  Shares the anchored-ray concept but uses different evidence (morphological
+  ridge, no edge-pair, no motion-min), Viterbi association instead of gated-fan
+  tracking, and its own KF/RTS assembly. It was wired into Auto Markup once,
+  produced confidently-wrong markups, and was reverted — the §A.1 oracle
+  contract ("C++ reproduces the exemplar CSV") is currently **unmet** and will
+  be honored by a fresh port of the exemplar (template preserved in
+  `.claude/attic/auto-markup-2026-07-02/`), not by the production tracker.
+
+| Design item | Exemplar (v6) | App C++ (ShaftTracker) |
+|---|---|---|
+| §1/§3 anchored 1-DOF ray, polar sampling, r_min hand-skip | ✅ | ✅ concept (per-frame radial scan) |
+| §3.2 gated-fan tracking | ✅ | ✖ full-sector candidates + Viterbi instead |
+| §3.3 anchor jitter mitigation | ✅ pose-interp + hold-median anchor (F10) | ◐ pose-interp + ±3px rescore grid |
+| §4.1 motion evidence `min(\|I−B\|, D)` | ✅ | ✖ (median bg-sub exists behind a default-off flag) |
+| §4.2 edge-pair width prior | ✅ (F2 — was missing in v1; the single biggest fix) | ✖ morphological ridge instead |
+| §4.3 robust accumulation S(θ)/F(θ) | ✅ + run-start/extent/density gates (F1/F8) | ◐ own scoring, run-length floor |
+| §5 line/wedge regimes, online w₀, ω sign-guard | ✅ (direct-ω fusion implemented but needs exposure metadata — see §5.3 note) | ◐ wedge detection behind default-off blur-mode flag |
+| §6.1–6.2 constant-jerk KF, wrapped innovation, 3σ gate | ✅ | ✖ different model (2-channel wrap-aware KF in assembly) |
+| §6.3 coast budget | ✅ **corrected**: speed-aware, 4 frames when fast (F15 — see note) | n/a (association-based) |
+| §6.3 per-frame quality flags | ✅ (FORESHORTENED not yet — face-on only) | ◐ own flag set |
+| §6.4 RTS smoothing | ✅ **corrected**: per-segment only (see §6.4 note) | ◐ has RTS; the same continuity caveat is UNVERIFIED there |
+| §7 clubhead confirmation, L estimate, head as 2nd track | ◐ distal-blob credit + 180° test only (F6/F16) | ✖ headPx projected, not measured |
+| §8.1 address initialisation | ✅ + blob-credit 180° disambiguation (F6) | ◐ own chirality auto-detect |
+| §8.2 scale estimation (L₀, w_butt) | ✖ fixed r_max=0.45H, constant w=5px | ◐ arm-derived radius scale (flagged) |
+| §8.3 distractor suppression | ✅ **far beyond the doc** — F1, F4, F12, F16, F17 (see corrected §8.3) | ◐ clutter mask + skeleton priors (mostly default-off) |
+| §9 DTL / foreshortening | ✖ face-on only | ✖ face-on only |
+| §10 fallback tiers | ✅ not built (as directed) | ✅ not built |
+| §12 validation | ✅ synthetic + real corpus w/ truth.json scoring; full §12.2 matrix awaits uncropped captures | ◐ SwingLab harness |
+| Output honesty (beyond this doc) | ✅ measured/predicted tiers, low-conf discarded (F9) | ✖ conf did not correlate with error (the reversion cause) |
 
 ## 1. Problem statement and core reframe
 
@@ -232,6 +275,11 @@ sign(ω_meas) = sign(ω̂ from tracker)                    // only when |ω̂| i
 
 `|ω_meas|` is the highest-value measurement in the whole pipeline: it directly observes the state's second component exactly in the phase (transition → impact) where angle-only tracking is weakest.
 
+> **[2026-07-03 status]** Implemented in the exemplar but **inactive**: ω-fusion
+> is gated on knowing the exposure time and the capture pipeline does not record
+> it. Recording exposure in swing.json capture metadata is a cheap, high-value
+> action for the next capture round.
+
 ### 5.4 Rolling shutter caveat
 
 If the sensor is rolling-shutter and ω is high, rows of the frame sample the shaft at different times → the shaft images as a curve and both models mis-fit. Detection: line-regime residuals grow systematically with row index. Mitigations, in order of preference: (a) require/recommend global shutter or very short exposure in capture guidance; (b) inflate measurement noise when high ω + rolling shutter is known; (c) (later) per-row time model — out of scope for v1. Log a per-frame quality flag.
@@ -275,12 +323,26 @@ inputs to within measurement noise.
 ### 6.3 Track management
 
 - **Coasting budget:** allow up to `k_max` consecutive misses (≈ 0.1 s worth of frames) before declaring track lost; then re-initialise (§8) over the full circle with the last θ as a weak prior.
+
+  > **[2026-07-03 correction — exemplar F15]** 0.1 s is far too long at speed:
+  > 15 coast frames at 2000°/s is ~200° of blind drift. The budget must be
+  > speed-aware (exemplar: 12 frames when \|ω̂\| < 800°/s, else 4), plus a
+  > runaway-kill for accepted-but-insane states (wedge-band ω inflation).
 - **Quality flags per frame:** {LINE_OK, WEDGE_OK, COASTED, REINIT, LOW_SUPPORT, FORESHORTENED} — persisted with the session for downstream analysis honesty.
 - **Foreshortening detector:** if the effective usable ray length (frame-clipped or support-weighted length) drops below ~0.3 × estimated shaft length while pose confidence stays high, the shaft is pointing near the optical axis. Inflate `R` (measurement noise) sharply or coast; do not report confident angles from a stub.
 
 ### 6.4 Offline smoothing
 
 Primary product is post-swing analysis ⇒ after capture, run a **Rauch–Tung–Striebel smoother** over the stored filter states/covariances. Occluded or blown-out frames are bridged by the smoother; per-frame detection is not required. Real-time display can show the causal filter output; analysis screens use the smoothed track.
+
+> **[2026-07-03 CRITICAL correction — exemplar]** The smoother must run
+> **per continuous track segment, never across a re-initialisation**: an init
+> frame's pseudo-prediction (P_pred = P₀) is not a real prediction, and the
+> backward recursion through it detonates numerically (observed smoothed ω of
+> 1e18–1e49 through junk-coast chains). The exemplar tags every frame
+> init/tracked/free and smooths only within contiguous init→tracked runs.
+> The app C++ assembly has its own RTS — whether it shares this defect is
+> **unverified** and must be checked before that code is trusted or ported.
 
 ---
 
@@ -313,6 +375,17 @@ Trigger when pose is stable (wrist velocity < threshold for ~0.5 s). Run the ful
 
 Alignment sticks and clubs on the ground also pass through no anchor — they generally do **not** intersect `P_g`, so the anchored formulation already rejects most of them. Residual risk: a stick coincidentally aligned through the hands. Mitigate with the clubhead-blob check and, once motion starts, the fact that static distractors have zero motion evidence.
 
+> **[2026-07-03 correction — this claim was too optimistic.]** Real studio
+> footage produced FIVE confident-wrong distractor classes that all pass the
+> anchored formulation: the club's own shadow on the lit mat (killed by the
+> run-start gate F1), permanent bright strips aligned with a grip ray — neon
+> door frame (scene-permanence veto F12), the golfer's own torso/leg lines and
+> lit trouser seams (body-collinearity gate F16), the vacated position of a
+> previously-hanging club, fed by the seam behind it (clear-candidate
+> preference F17), and permanently wrong locks sustained by the gated fan
+> itself (escape rescan F4). None are hypothetical; every one was observed and
+> adjudicated frame-by-frame. See shaft_detection_exemplar_findings.md §2/§6/§7.
+
 ---
 
 ## 9. Per-view considerations
@@ -334,6 +407,14 @@ Alignment sticks and clubs on the ground also pass through no anchor — they ge
 ## 11. Implementation notes
 
 - **Language/libs:** C++17/20, OpenCV (remap, Sobel, MOG2), Eigen (KF). No Qt dependency in the detector core — pure C++ library consumed by the QML/C++ app, unit-testable headlessly. Factory-registered behind `IShaftDetector`.
+
+  > **[2026-07-03 status]** Not yet done to this spec. The existing production
+  > `ShaftTracker` is a different algorithm (see *Implementation status*) and
+  > must not be mistaken for the port of this design. A first-generation port +
+  > full app wiring (driver, truth.json conf schema, async controller, QML) is
+  > preserved in `.claude/attic/auto-markup-2026-07-02/` as the template; the
+  > port target is exemplar v6, gated on the findings doc's verification
+  > protocol including confidence-honesty checks.
 - **Threading:** detector runs on the existing capture/processing worker thread; per-frame budget target < 2 ms at 1080p for the gated path (trivially achievable — the unwrap fan is ~10⁵ samples).
 - **Precompute:** cos/sin tables per θ bin; regenerate remap maps only when `P_g` moves > 1 px.
 - **Determinism:** given identical input video + pose, output must be bit-identical (no wall-clock dependence) for regression testing.
@@ -398,6 +479,14 @@ Shaft-behind-body frames (DTL), full specular blowout frames, alignment stick th
 ---
 
 ## Appendix A — Reference implementation: `shaft_annotate.py`
+
+> **[2026-07-03: this appendix describes v1 and is SUPERSEDED.]** The current
+> exemplar is v6 (same file, evolved through F1–F17). The v1 figures below are
+> synthetic-harness results; on real footage v1 locked onto the club's shadow at
+> address and stayed wrong for entire swings ("zero false locks" did not
+> survive contact with reality). Current behaviour, results and limits:
+> shaft_detection_exemplar_findings.md §2–§7 and
+> ../implementation/shaft_markup_exemplar_impl.md.
 
 This appendix documents the Python reference implementation for developers — primarily as a guide for the C++ port, and for anyone tuning or extending the tool. It implements §3–§8 of this document in ~400 lines (Python 3, OpenCV, NumPy; no other dependencies). It is single-file and single-pass-plus-smoother by design: readability over performance.
 
