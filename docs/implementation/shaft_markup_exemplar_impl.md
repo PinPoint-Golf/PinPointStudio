@@ -10,8 +10,9 @@ original architecture: [../design/shaft_detection_improvements.md](../design/sha
 
 | file | purpose |
 |------|---------|
-| `shaft_annotate.py` | the exemplar (v4): detection + tracking + measured/predicted output; annotated video + track CSV |
-| `prep_swing.py` | exported swing dir → pose-covered Face-On clip + `anchors.csv` (grip + lead-forearm φ per frame) + `clipmeta.json` |
+| `shaft_annotate.py` | the exemplar (v4, frozen): detection + tracking + measured/predicted output; annotated video + track CSV |
+| `shaft_annotate_v5.py` | **work-in-progress checkpoint** (finish-hold F10–F14, corpus-swept) — better top-of-swing + finish, known impact-window gap vs v4; see findings doc §6.4 before promoting |
+| `prep_swing.py` | exported swing dir → pose-covered Face-On clip + `anchors.csv` (grip + lead-forearm φ per frame) + `clipmeta.json`. Container written at integer fps (mpeg4 rejects some fractional rates); true fps in clipmeta |
 | `montage.py` | tile annotated frames for visual review (uniform 24, or explicit frame list) |
 | `score_truth.py` | numeric eval vs a swing's hand-labelled `truth.json`, split by output kind (meas/pred) |
 | `make_synth.py` | synthetic swing generator (design §12.1) |
@@ -68,19 +69,36 @@ blue dot = grip anchor; HUD shows θ/ω/conf/kind/flag.
    through post-impact should lie plausibly on/near the club.
 3. `--debug-frames <ids>` prints top-6 peaks with every gate value per frame —
    diagnose gate failures with data before tuning constants.
+4. **Check per-phase coverage, not just totals** (address / backswing /
+   downswing / impact / finish): aggregate measured% once masked the loss of the
+   entire downswing while the finish improved.
 
 ## Status & next steps
 
-- **Frozen at v4** (2026-07-02). Historical iterations (v1 baseline → v2 → v3 →
-  v4 with per-version outputs on both swings) live in the scratch lab
-  `/home/markl/shaft_markup_lab/` (not part of the repo).
-- Next, in order:
-  1. Finish-hold detection (static over-shoulder club — see findings doc §5).
-  2. Corpus sweep `swing_0001–0007` with the verification protocol above.
-  3. C++ re-port: the reverted first-generation port + full app wiring diff are
+- **v4 frozen** (2026-07-02) = `shaft_annotate.py`; **v5 checkpointed**
+  (2026-07-03) = `shaft_annotate_v5.py` — finish-hold detection (F10–F14) +
+  corpus sweep 0002–0007 (0001 has no recorded pose and cannot be processed).
+  v5 results: 0009 44→65% measured (finish 4→49%), 0002 65→71% (finish 19→37%),
+  0003–0007 unchanged within noise; 0008 measured-tier guard at its best
+  (median 2.8°, mean 3.3°, 0% frames >30° wrong). Historical iterations and
+  per-version outputs live in the scratch lab `/home/markl/shaft_markup_lab/`.
+- **Capture guidance** (from corpus eyeballing): face-on framing should leave
+  more room to the player's right — most post-impact loss is the club leaving
+  the frame, not detection failure.
+- Next, in order (details in findings doc §6.4):
+  1. **Per-segment RTS smoothing** (structural — smoother must not run across
+     re-init discontinuities), then re-add the speed-aware coast budget to
+     recover the impact window (v5's one regression vs v4).
+  2. Restore the 0009 f460 finish detection (permanence-veto threshold vs the
+     median scene snapshot).
+  3. Pose-derived body mask in the evidence (kills the f700 body/shoes class);
+     prep must export the skeleton per frame.
+  4. Finish measured-segment audit across 0002–0007; re-run the 0008 guard;
+     then promote v5 → `shaft_annotate.py`.
+  5. C++ re-port: the reverted first-generation port + full app wiring diff are
      preserved in `.claude/attic/auto-markup-2026-07-02/` (driver, truth.json
-     schema additions, MarkupController async pattern, QML). Port the v2→v4
-     algorithm deltas onto that template; gate with the same protocol plus the
+     schema additions, MarkupController async pattern, QML). Port the final
+     algorithm onto that template; gate with the same protocol plus the
      honesty checks (bad frames low-conf; high-conf frames accurate).
-  4. App policy when wired in: write only `kind=meas` frames as labels;
+  6. App policy when wired in: write only `kind=meas` frames as labels;
      optionally render `kind=pred` as a distinct visual layer, never as truth.

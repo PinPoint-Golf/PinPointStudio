@@ -34,7 +34,11 @@ ey = np.interp(vt[sub], prel, elb[:, 1]) * H
 ec = np.interp(vt[sub], prel, econf)
 
 cap = cv2.VideoCapture(f"{sw}/{face['file']}")
-vw = cv2.VideoWriter(f"{out}/faceon_swing.mp4", cv2.VideoWriter_fourcc(*"mp4v"), fps, (W, H))
+# Integer container fps: mpeg4 rejects some fractional rates as an invalid
+# timebase (EINVAL, swing-dependent). Analysis always uses clipmeta's true fps
+# via --fps-override; the container rate only affects casual playback speed.
+vw = cv2.VideoWriter(f"{out}/faceon_swing.mp4", cv2.VideoWriter_fourcc(*"mp4v"),
+                     int(round(fps)), (W, H))
 rows, i, o = [], 0, 0
 while True:
     ok, frame = cap.read()

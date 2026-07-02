@@ -1,7 +1,10 @@
-# Shaft Detection Exemplar — Findings & Fixes (v4, 2026-07-02)
+# Shaft Detection Exemplar — Findings & Fixes (v4 frozen; v5 checkpoint)
 
-**Status:** Frozen at v4. `tools/markup/shaft_annotate.py` is the current exemplar
-and the oracle for any C++ port. Companion: [shaft_detection_improvements.md](shaft_detection_improvements.md)
+**Status:** v4 (`tools/markup/shaft_annotate.py`) is the last frozen, gate-passing
+exemplar. **v5 (`tools/markup/shaft_annotate_v5.py`) is a work-in-progress
+checkpoint** — finish-hold detection + corpus sweep, documented in §6 below; it
+improves the top of the swing and the finish substantially but has a known
+impact-window gap vs v4 and two open defects. Do not port v5 until §6.4 is closed. Companion: [shaft_detection_improvements.md](shaft_detection_improvements.md)
 (the original architecture this iterates on) and
 [../implementation/shaft_markup_exemplar_impl.md](../implementation/shaft_markup_exemplar_impl.md) (how to run).
 
@@ -77,3 +80,76 @@ porting anything into the app.**
 - Corpus sweep `swing_0001–0007` not yet run.
 - Grip anchor accuracy at the finish is suspect (pose hands vs visible glove
   offset) — worth quantifying before blaming evidence.
+
+## 6. v5 iteration — finish-hold detection + corpus sweep (2026-07-03, checkpoint)
+
+Goal: detect the static held club at the finish (v4's biggest gap) and validate
+across the corpus (swing_0002–0007; 0001 has no recorded pose). Iterated in the
+lab with per-frame landmark adjudication; checkpointed as
+`tools/markup/shaft_annotate_v5.py` (= lab v5n).
+
+### 6.1 Capture guidance (user finding)
+
+Eyeballing the annotated corpus showed the post-impact losses are **largely
+cropping**: the club exits the frame. **Face-on framing should leave more room to
+the player's right** (trail side). Post-impact is kinematically smooth and less
+critical for analysis, so cropped frames belong to the predicted tier — but
+better framing converts them to measurements for free.
+
+### 6.2 New fixes (F10–F14)
+
+| id | fix | rationale / evidence |
+|----|-----|----------------------|
+| F10 | **Still-hold stacked re-acquisition**: when the grip ROI is still and the track is lost, average the last 9 frames (noise ~/√K) with a median-stabilised anchor (pose hands wander >100px during a "static" finish) and scan full-circle; accepted detections feed the KF as NORMAL measurements (they must earn confirmation) | single-frame finish evidence is marginal (club S=0.15/F=0.15 vs gates); stacked it clears them decisively (S=0.36/F=0.50). Hold-vs-track divergence >45° forces re-init (the KF gate would reject the jump) |
+| F11 | Windowed stillness (≥6/9 frames), stillness blocks single-frame inits (only stacked evidence may acquire in a static scene), still-period consistency (a static club has ONE angle — measured outliers >25° from the conf-weighted circular mean are demoted) | acquire-die-reacquire cycles and instantaneous stillness both starved the stacked path; lostness resets only on CONFIRMED ω-sane measurements |
+| F12 | **Scene-permanence veto** for re-acquisitions: a candidate whose edge-pair run already exists (radially overlapping) in a pre-swing scene snapshot is permanent structure (neon strips), not the club. Snapshot = **pixel-median of 11 frames across the clip** — NOT frame 0 | kills the neon-parallel confident-wrong locks. Frame-0 snapshot contains the ADDRESS CLUB, which vetoed impact-zone re-acquisition (the club returns to its address angle at impact) and silently killed the whole downswing — caught by user eyeball, root-caused, fixed with the club-free median |
+| F13 | Post-swing quasi-static re-inits additionally require a clubhead blob at the run's end: bright (raw luma) AND changed vs the pre-swing scene | brightness alone is satisfied by the mat; change alone by the golfer's own moved body. The AND still fails against bright+moved objects (see 6.4 f700) |
+| F14 | **Quasi-static gating of all hardened gates** (grip-ROI motion < 3 grey levels): F12/F13 apply only in near-still scenes — fast motion keeps v4's permissive acquisition | every distractor lock (neon, collar, body-mat) occurred at stillness; the hardened gates strangled mid-downswing recovery when applied globally |
+
+Also: hold candidates = top-4 NMS peaks + 180° opposites (a dominant, correctly
+blob-rejected body line must not mask the true club elsewhere in the circle).
+
+### 6.3 Results at checkpoint (v5n vs v4)
+
+| swing | measured % | finish-region % |
+|---|---|---|
+| 0009 | 44 → 65% | 4 → **49%** |
+| 0002 | 65 → 71% | 19 → **37%** |
+| 0003–0007 | ±2–7pts | ~unchanged |
+| 0008 guard (at v5l) | measured tier: median 2.8°, mean 3.3°, p90 6.9°, **0% >30° wrong** (n=37/51) | |
+
+Landmarks verified full-res on 0009: hanging club f310/f331 and post-impact
+recovery f210 measured correctly; neon lock f435 and body line f450 dead.
+
+### 6.4 Open items (close before promoting v5 → the exemplar)
+
+1. **Per-segment RTS smoothing (structural, do first).** The smoother currently
+   runs over one history containing re-init discontinuities (init appends
+   pseudo-predictions); long junk-coast chains poison it — smoothed ω reaches
+   1e18+, and an attempted speed-aware coast budget (more init boundaries) drove
+   it to 1e49 and had to be reverted. Split the RTS at re-init boundaries; then
+   re-add the speed-aware coast budget (12 coast frames at 2000°/s ≈ 160° of
+   blind drift — fast phases need ~4), which should recover the impact window
+   (f165–205 currently rides the predicted tier; v4 measured it).
+2. **f460 regression**: the median snapshot partially contains the finish-pose
+   body, and the permanence veto now rejects the true over-shoulder club on 0009
+   — tune the veto threshold or exclude finish-weighted frames from the median.
+3. **f700-class (s2)**: a body-seam ray terminating at the golfer's white shoes —
+   bright AND moved, defeating both blob channels. Needs a pose-derived body
+   mask in the evidence (the C++ tracker's clutter mask; prep must export the
+   skeleton per frame).
+4. Finish measured-segment audit across 0002–0007 (zoom adjudication), then
+   re-run the 0008 numeric guard on the final variant.
+
+### 6.5 Methodology lessons (additions to §4)
+
+6. **Aggregate stats mask phase-local regressions.** v5's overall measured% dip
+   looked like "junk removal" while the entire downswing had silently moved to
+   the predicted tier — a user eyeball caught it. Track per-phase coverage
+   (address/backswing/downswing/impact/finish), not just totals.
+7. **Harden gates only in the regime whose failures they fix.** Every
+   anti-distractor gate added for the static finish also fired during fast
+   motion, where the permissive design was already correct.
+8. **A veto's reference data must not contain the thing being detected** (the
+   address club in the frame-0 snapshot). Prefer references that structurally
+   exclude the target (temporal median).
