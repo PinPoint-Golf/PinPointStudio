@@ -598,9 +598,10 @@ qt_add_resources(PinPointStudio "app_fonts"
         src/Resources/fonts/SourceSerif4-Italic-Variable.ttf
         src/Resources/fonts/HankenGrotesk-Variable.ttf
         src/Resources/fonts/HankenGrotesk-Italic-Variable.ttf
-        src/Resources/fonts/LibreCaslonText-Variable.ttf
-        src/Resources/fonts/LibreCaslonText-Italic-Variable.ttf
-        src/Resources/fonts/LibreCaslonDisplay-Regular.ttf
+        src/Resources/fonts/Literata-Variable.ttf
+        src/Resources/fonts/Literata-Italic-Variable.ttf
+        src/Resources/fonts/Literata-Regular.ttf
+        src/Resources/fonts/Literata-Medium.ttf
         src/Resources/fonts/InstrumentSans-Variable.ttf
         src/Resources/fonts/JetBrainsMono-Variable.ttf
         src/Resources/fonts/PlayfairDisplay-Variable.ttf

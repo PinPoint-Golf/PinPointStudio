@@ -139,9 +139,16 @@ int main(int argc, char *argv[])
         ":/fonts/SourceSerif4-Italic-Variable.ttf",
         ":/fonts/HankenGrotesk-Variable.ttf",
         ":/fonts/HankenGrotesk-Italic-Variable.ttf",
-        ":/fonts/LibreCaslonText-Variable.ttf",
-        ":/fonts/LibreCaslonText-Italic-Variable.ttf",
-        ":/fonts/LibreCaslonDisplay-Regular.ttf",
+        ":/fonts/Literata-Variable.ttf",
+        ":/fonts/Literata-Italic-Variable.ttf",
+        // Static Regular (wght=400) and Medium (wght=500) instances for the Links
+        // theme serif: macOS/CoreText won't interpolate the variable weight axis, so
+        // Links body/display text (Font.Normal) and the few Medium labels/active-tabs
+        // (Font.Medium) would fall back to the system font without concrete 400/500
+        // faces registered under family "Literata". Same fix as the Fraunces statics
+        // above; both pinned to opsz=12 (Literata's default optical size).
+        ":/fonts/Literata-Regular.ttf",
+        ":/fonts/Literata-Medium.ttf",
         ":/fonts/InstrumentSans-Variable.ttf",
         ":/fonts/JetBrainsMono-Variable.ttf",
         ":/fonts/PlayfairDisplay-Variable.ttf",

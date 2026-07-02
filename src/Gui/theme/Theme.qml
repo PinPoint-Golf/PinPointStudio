@@ -379,7 +379,7 @@ QtObject {
         if (aesthetic === "editorial")  return "Instrument Sans"
         if (aesthetic === "vector")     return "Space Grotesk"
         if (aesthetic === "terrain")    return "Fraunces"
-        if (aesthetic === "links")      return "Libre Caslon Text"
+        if (aesthetic === "links")      return "Literata"
         return "Hanken Grotesk"
     }
     readonly property string fontData: {
@@ -395,7 +395,7 @@ QtObject {
         if (aesthetic === "editorial")  return "Source Serif 4"
         if (aesthetic === "vector")     return "Space Mono"
         if (aesthetic === "terrain")    return "Fraunces"
-        if (aesthetic === "links")      return "Libre Caslon Display"
+        if (aesthetic === "links")      return "Literata"
         return "Hanken Grotesk"
     }
     // On Windows, Segoe UI Emoji intercepts symbol codepoints (e.g. ⚙ U+2699)
@@ -403,9 +403,11 @@ QtObject {
     // same characters as flat monochrome glyphs and prevents that fallback.
     // On macOS, Apple Color Emoji does the same — Apple Symbols provides flat
     // monochrome glyphs for those codepoints and wins the font-selection race.
-    // Georgia (Instrument), Fraunces (Terrain) and Libre Caslon Text (Links) are
-    // serifs with no usable Light — use Normal to avoid thin, silently-rounded body
-    // text (Libre Caslon Text's weight axis also starts at 400, so Light is absent).
+    // Georgia (Instrument), Fraunces (Terrain) and Literata (Links) are serifs that
+    // read best at Normal for body — use Normal to avoid thin, silently-rounded body
+    // text. Literata additionally only ships concrete static faces at 400/500 in this
+    // build (macOS/CoreText won't interpolate the variable weight axis — see main.cpp),
+    // so its body weight must stay at 400.
     readonly property int fontBodyWeight: (aesthetic === "instrument" || aesthetic === "terrain" || aesthetic === "links") ? Font.Normal : Font.Light
 
     readonly property string fontSymbol: {
