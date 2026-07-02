@@ -101,8 +101,16 @@ Three per-sample cues are computed on the unwrapped grid, then robustly accumula
 Maintain a running background model `B_t` (running median over ~2 s, or `cv::BackgroundSubtractorMOG2` with slow learning rate; a plain exponential running average is acceptable for a static studio camera). Also compute the 2-frame absolute difference `D_t = |I_t − I_{t−1}|`.
 
 ```
-E_motion(θ, r) = clamp( max(|I_t − B_t|, D_t)(θ, r) / τ_m , 0, 1 )
+E_motion(θ, r) = clamp( min(|I_t − B_t|, D_t)(θ, r) / τ_m , 0, 1 )     // min, NOT max
 ```
+
+> **Validated finding (reference impl):** the combination MUST be `min`, not `max`.
+> With `max`, the shaft burns into the background during the address hold and its
+> *ghost* (|I−B| at the vacated position) sustains a confident false lock inside the
+> gated fan while the real shaft leaves the fan entirely. A ghost has ≈zero frame
+> difference; a genuinely moving shaft has both channels high — `min` kills the ghost
+> and keeps the shaft. A briefly-static shaft (top of backswing) then has zero motion
+> evidence, which is fine: the gradient channel carries it.
 
 - `τ_m` ≈ 15–25 grey levels (auto-tune from background noise: 4× MAD of `D_t` over a background region).
 - Motion evidence is **immune to specularity**: it does not care whether a shaft segment is blown out, dark, or mid-grey — only that it differs from background.
@@ -201,10 +209,24 @@ Procedure:
 4. Measurements:
 
 ```
-θ_meas = (θ_open + θ_close) / 2                 // mid-exposure angle
-|ω_meas| = (θ_close − θ_open) / t_exposure      // DIRECT angular speed measurement
-sign(ω_meas) = sign(ω̂ from tracker)            // direction from prediction / temporal order
+θ_meas = (θ_open + θ_close) / 2                        // mid-exposure angle
+band_blur = max(0, (θ_close − θ_open) − w₀)            // subtract intrinsic width!
+|ω_meas| = band_blur / t_exposure                       // DIRECT angular speed measurement
+sign(ω_meas) = sign(ω̂ from tracker)                    // only when |ω̂| is well above zero
 ```
+
+> **Validated findings (reference impl):**
+> 1. **The raw band width is biased.** It includes the shaft's intrinsic angular
+>    width in the S(θ) profile (a ~5 px shaft at r=100 px subtends ~3°) plus the
+>    smoothing kernel. Uncorrected, ω is overestimated ~2× and destabilises the
+>    filter (overshoot → gate rejections → oscillation). Calibrate w₀ online: measure
+>    the band width at the same threshold during line-regime frames with |ω̂|·t_exp
+>    < 0.5° (EMA). Use ω_meas only when band_blur > ~1.5°.
+> 2. **Sign guard at reversal.** Near the top of the swing ω̂ ≈ 0 and the
+>    sign-from-prediction rule is unreliable; one wrong-signed ω measurement there can
+>    run the filter off by a full revolution (it then re-locks mod 360° with a broken
+>    unwrap). Suppress the ω component of the measurement when |ω̂| < ~200°/s; use the
+>    θ component only.
 
 5. Timestamp correction: `θ_meas` corresponds to mid-exposure, i.e. time `t_frame_start + t_exp/2`. Feed this timestamp to the filter, not the frame timestamp, if `t_exp` is a significant fraction of the frame interval.
 
@@ -232,7 +254,15 @@ F(dt) = [ 1  dt  dt²/2 ]
 Q: white-noise jerk model, q_jerk tuned so the filter tolerates the downswing
    (peak α for a driver swing ~ 2000–4000 °/s² is NOT rare; ω peaks ~ 2000–2500 °/s
    ≈ 35–45 rad/s at impact for fast swings — size Q from these, not from gentle motion).
+   Validated: σ_jerk = 2.5e5 °/s³ tracked a 2160 °/s-peak synthetic swing at 120 fps
+   with zero coasts; 5e4 was too tight (coasted through the downswing).
 ```
+
+**Reference implementation:** `tools/shaft_annotate.py` (Python/OpenCV) implements
+§3–§8 end-to-end and is the oracle for the C++ port: on the synthetic harness it
+achieves θ RMSE 0.49° (smoothed), ω RMSE ~2% of peak, 120/120 frames tracked at 35%
+specular dropout. The C++ implementation should reproduce its CSV output on the same
+inputs to within measurement noise.
 
 **Angle unwrapping is mandatory**: keep θ continuous (accumulate multiples of 2π); wrap only for the polar lookup. Innovation must be computed as the wrapped difference `wrap(θ_meas − θ̂)` into (−π, π].
 
@@ -364,3 +394,141 @@ Shaft-behind-body frames (DTL), full specular blowout frames, alignment stick th
 | `θ_open, θ_close` | wedge edge angles (shutter open/close) |
 | `L` | shaft length, pixels (projected; max observed ≈ full) |
 | `R` , `Q` | KF measurement / process noise covariances |
+
+---
+
+## Appendix A — Reference implementation: `shaft_annotate.py`
+
+This appendix documents the Python reference implementation for developers — primarily as a guide for the C++ port, and for anyone tuning or extending the tool. It implements §3–§8 of this document in ~400 lines (Python 3, OpenCV, NumPy; no other dependencies). It is single-file and single-pass-plus-smoother by design: readability over performance.
+
+### A.1 Purpose and role
+
+1. **Markup generator** — produces per-frame shaft annotations (video overlay + CSV) so validation footage does not need hand labelling; human review is directed only at flagged frames via the contact sheet.
+2. **Oracle for the C++ port** — given the same video and anchor input, the C++ implementation should reproduce the CSV columns `theta_smooth` / `omega_smooth` to within measurement noise. The Python is deliberately written as a close structural match to the intended C++ module layout (§11.1).
+
+Validated on the synthetic harness (`make_synth.py`): θ RMSE 0.49° smoothed, ω RMSE ≈ 2% of a 2160°/s peak, 120/120 frames tracked, 35% specular dropout, zero false locks.
+
+### A.2 Data flow
+
+```
+video ──► per-frame loop ──────────────────────────────┐
+  │   AnchorSource.get()          → grip (x,y)          │  pass 1 (causal)
+  │   evidence_scan()             → S(θ), F(θ)          │
+  │   fit_peak() / fit_wedge()    → θ_meas [, band]     │
+  │   KF.step()                   → x=[θ,ω,α], flag     │
+  │   background update (EMA)                           │
+  └────────────────────────────────────────────────────┘
+      KF.rts()                    → smoothed track          pass 2 (batch)
+      overlay render + CSV + review contact sheet           pass 3 (presentation)
+```
+
+Frames are retained in memory between passes (`frames_raw`) so the overlay can be drawn with the *smoothed* track. For long clips this is the first thing to change (see A.9).
+
+### A.3 Configuration constants (top of file)
+
+| Constant | Doc ref | Meaning / validated value |
+|---|---|---|
+| `DTHETA = 0.25` | §3.1 | angular bin (deg) |
+| `R_MIN_FRAC = 0.06` | §3.1 | r_min as fraction of frame height (skips hands) |
+| `F_MIN = 0.22`, `S_ACCEPT = 0.12` | §4.3 | detection acceptance: support fraction and column score |
+| `TAU_G, TAU_B, TAU_M` | §4 | evidence normalisation scales (gradient / brightness / motion, grey levels) |
+| `S_CAP = 0.8` | §4.3 | per-sample clamp in the robust accumulation |
+| `BAND_THR = 0.4` | §5.3 | wedge band segmentation threshold (fraction of peak) |
+| `BETA_SWITCH = 2.0` | §5.1 | predicted blur (deg) above which the wedge model is used |
+| `COAST_MAX = 12` | §6.3 | consecutive misses before track loss / re-init |
+| `GATE_SIGMA = 3.0` | §6.2 | Mahalanobis gate |
+| `FAN_MIN = 10.0` | §3.2 | minimum half-fan (deg) |
+| `R_THETA = 1.5²` | §5.2 | base θ measurement variance (deg²) |
+| `SIGMA_JERK = 2.5e5` | §6.1 | process noise (deg/s³) — validated; 5e4 coasts through the downswing |
+
+`TAU_M` (motion) is the constant most likely to need adjustment on new footage; raise it if sensor noise or flicker produces spurious motion evidence.
+
+### A.4 `class KF` — tracker and smoother (§6)
+
+Constant-jerk linear Kalman filter on `x = [θ, ω, α]` in **degrees**, θ kept **unwrapped** (continuous across ±180°).
+
+- `F` and `Q` are built once from `dt`; `Q` is the standard white-jerk discretisation (the 3×3 polynomial-in-dt matrix scaled by `SIGMA_JERK²`).
+- `init(theta)` — seeds the state with generous `P` (ω, α unknown).
+- `step(z, R, H)` — one predict/update. Accepts `z = None` for coasting. The θ innovation is wrapped via `wrap180()` **before** gating — this is the single most bug-prone spot in any port; get it wrong and the filter unwinds by whole revolutions. Gating is a χ² test at `GATE_SIGMA² · dim(z)`; a gated-out measurement coasts.
+- Every call appends `(x, P, x_pred, P_pred)` to `self.hist` — the exact quantities the RTS pass needs.
+- `rts()` — standard Rauch–Tung–Striebel backward pass over `hist`. Note the smoother gain uses the *stored* predicted covariance `Pp1`, and the state correction difference also passes through `wrap180` on the θ component.
+
+C++ port note: this maps directly onto `ShaftTracker` (§11.1) with Eigen; keep degrees or switch to radians consistently — the constants above are in degrees.
+
+### A.5 `class AnchorSource` — grip anchor (§3.3)
+
+Three modes, resolved in this priority:
+
+1. **`csv`** (`--anchors file.csv`, rows `frame,x,y`) — anchors exported from the pose pipeline. Missing frames hold the last position and set `ok = False`. This is the intended production mode.
+2. **`lk`** (default with `--grip X Y`) — pyramidal Lucas–Kanade tracking of the single grip point (31×31 window, 3 levels). Requires `uint8` images (a float frame will assert inside OpenCV — hence the internal `gray8` conversion). Tracking failure (status 0 or error > 40) holds the last position rather than jumping.
+3. **`constant`** — fixed anchor; adequate for tripod footage with quiet hands, and for the synthetic harness.
+
+Known limitation: LK degrades when the hands themselves motion-blur; expect drift through the downswing on real footage. Prefer CSV anchors for anything quantitative. The anchor is *not* currently smoothed inside this tool (the design doc §3.3 suggests a light KF on the anchor — do this in the C++ version, or pre-smooth the CSV).
+
+### A.6 `evidence_scan()` — §3 + §4 in one function
+
+Per call (i.e. per frame), over a caller-supplied angle set `thetas_deg`:
+
+1. Sobel gradients and magnitude on the full frame (candidate optimisation: restrict to the fan's bounding box).
+2. **Motion image** — the validated anti-ghost form: `min(|I − B|, |I − I_prev|)` (§4.1). First frame falls back to `|I − B|`.
+3. Polar sampling: builds `X, Y` sample grids for all (θ, r) pairs and uses `cv2.remap` with bilinear interpolation — one remap per field (gx, gy, |∇|, motion). `valid` masks off-frame samples; rays are effectively clipped per-ray at the frame edge.
+4. Evidence channels: orientation-coherent gradient `E_grad = clamp(((∇I·n)²/|∇I|)/τ_g)` and motion `E_mot`; combined with **max** (the OR-combination of §4.3 — do not confuse with the **min** inside the motion channel itself).
+5. Robust accumulation with radius weights `w = r`, per-sample clamp `S_CAP`, plus support fraction `F(θ)`; `S` is then smoothed with a 9-tap Gaussian (σ = 2 bins).
+
+Deviation from the doc: the **edge-pair width prior** (§4.2) is *not* implemented here — plain orientation coherence proved sufficient on synthetic + studio stills. Implement the pair prior in C++ if real footage shows locks onto single-edge structures (forearm silhouettes, mat edges).
+
+Also note the still-image experiments used a brightness channel (`I − blur(I)`) in place of motion; in the video tool motion replaces it. If you need single-frame operation, reinstate `E_bright` behind a flag.
+
+### A.7 `fit_peak()` / `fit_wedge()` — §5
+
+- `fit_peak`: argmax of smoothed `S` with 3-point parabolic sub-bin refinement (guarded against a degenerate second difference).
+- `fit_wedge`: walks outward from the peak until `S` falls below `BAND_THR · S_peak`; returns `(θ_open, θ_close)`. Deliberately simple; the doc's derivative-extremum refinement (§5.3 step 3) is a straightforward upgrade if band-edge noise matters.
+
+### A.8 Main loop — regime logic, flags, calibration
+
+Per frame, after anchor lookup:
+
+- **Fan selection** (§3.2): if initialised, predict and scan `θ̂ ± (max(3σ_θ, FAN_MIN) + β̂/2 + 2°)`; else full 360° (or ±45° around `--seed-deg` on frame 0).
+- **Acceptance**: `good = S_peak > S_ACCEPT ∧ F > F_MIN`.
+- **Initialisation**: first `good` frame seeds the KF → `REINIT`.
+- **Regime switch** (§5.1): `wedge = |ω̂|·t_exp > BETA_SWITCH`. `t_exp` is `--exposure` if given, else assumed `dt/2` (regime switching still works; direct ω measurement does not — see next point).
+- **Wedge branch** (§5.3, with the two validated corrections):
+  - `band_blur = max(0, band − w0)` — subtracts the calibrated intrinsic profile width;
+  - ω measurement used only when `--exposure` was given **and** `band_blur > 1.5°` **and** `|ω̂| > 200 °/s` (sign guard at reversal). Otherwise θ-only update with doubled `R_THETA`.
+- **Line branch** (§5.2): θ-only update. When effectively static (`|ω̂|·t_exp < 0.5°`) the same band fit is run to **calibrate `w0`** (EMA, 0.9/0.1) — the static width later subtracted in the wedge branch.
+- **Measurement unwrap**: every measurement is re-expressed near the prediction as `z = θ̂ + wrap180(θ_meas − θ̂)` before entering the filter.
+- **Flags**: `LINE_OK` / `WEDGE_OK` (accepted), `COASTED` (gated out or regime fell through), `LOW_SUPPORT` (evidence too weak), `REINIT`, `LOST` (after `COAST_MAX` misses; triggers full-sweep re-initialisation).
+- **Background update**: `cv2.accumulateWeighted(gray, bg, 0.02)` — slow EMA, no fancy model. The anti-ghost `min` in the evidence is what makes this safe.
+
+### A.9 Outputs and CSV schema
+
+| Column | Meaning |
+|---|---|
+| `frame`, `t_s` | frame index, timestamp (frame start) |
+| `theta_filt`, `omega_filt` | causal KF estimate (deg, deg/s) |
+| `theta_smooth`, `omega_smooth` | RTS-smoothed — **use these for analysis/labels** |
+| `S_peak`, `support` | evidence quality at the accepted peak (§4.3) |
+| `band_deg` | raw wedge band width (NaN in line regime) — *not* de-biased; subtract w0 yourself if consuming it |
+| `flag` | quality flag (above) |
+| `grip_x`, `grip_y` | anchor used for this frame |
+
+Overlay video: red ray = smoothed θ (yellow when the frame's flag is not OK — i.e. the smoothed value there is interpolation, not measurement); orange rays = wedge edges; blue dot = anchor; HUD text = frame/θ/ω/flag. Review sheet: up to 24 flagged frames tiled 6-wide.
+
+Caveats for a developer extending this:
+- θ_smooth is reported per frame-start timestamp; the doc's mid-exposure timestamp correction (§5.3 step 5) is **not** applied. At `t_exp = dt/2` this is a ω·dt/4 phase bias — negligible for markup, worth doing properly in C++.
+- All frames are held in memory (three-pass structure). For multi-minute clips either stream pass 1 to disk or accept causal-only overlay.
+- `mp4v` fourcc is used for portability; swap for `avc1` if your OpenCV build has H.264.
+
+### A.10 Porting checklist (Python → C++ modules of §11.1)
+
+| Python | C++ module | Watch out for |
+|---|---|---|
+| constants block | config struct | keep degrees vs radians consistent |
+| `AnchorSource` | pose adapter / `IAnchorSource` | anchor smoothing (add), uint8 for LK |
+| `evidence_scan` | `PolarUnwrapper` + `EvidenceComputer` | remap map reuse when anchor moves < 1 px; **min** in motion channel, **max** across channels |
+| `fit_peak`/`fit_wedge` | `WedgeFitter` | parabolic guard; band threshold relative to peak |
+| `KF` (+`rts`) | `ShaftTracker` | `wrap180` on every θ innovation and RTS correction; store predicted P for RTS |
+| main-loop regime logic | `ShaftTracker` policy layer | w0 calibration, sign guard, `t_exp` provenance |
+| overlay/CSV | app layer | smoothed-vs-causal distinction in UI |
+
+Determinism requirement (§11) applies to the port: same video + anchors ⇒ bit-identical CSV. The Python tool satisfies this (no wall-clock or RNG in the pipeline; the only RNG is in `make_synth.py`, which is seeded).
