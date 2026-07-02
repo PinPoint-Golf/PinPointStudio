@@ -1,23 +1,26 @@
-#!/usr/bin/env python3
 """
-shaft_annotate.py — PinPoint shaft detection reference implementation & video markup tool.
+shaft_annotate.py — PinPoint shaft detection exemplar (v4, frozen 2026-07-02).
 
-Implements the design in shaft-detection-design.md (single-camera, anchored polar
-unwrap, motion+gradient evidence, line/wedge regimes, KF + RTS smoother).
+Reference implementation and video markup tool for single-camera shaft tracking:
+anchored polar unwrap, edge-pair + motion evidence, line/wedge regimes, KF + RTS,
+and a measured/predicted output model. This is the oracle for any C++ port.
 
-Outputs, per input video:
-  <stem>_annotated.mp4   overlay video (smoothed shaft line, wedge edges, HUD)
-  <stem>_track.csv       per-frame: theta/omega (filtered & smoothed), quality, evidence
-  <stem>_review.png      contact sheet of flagged frames for human review
+Design doc:   docs/design/shaft_detection_improvements.md   (original architecture)
+Learnings:    docs/design/shaft_detection_exemplar_findings.md   (fixes F1-F9 + why)
+How to run:   docs/implementation/shaft_markup_exemplar_impl.md
 
-Anchor (grip) sources, in order of preference:
-  --anchors file.csv     frame,x,y  (export from your pose pipeline — recommended)
-  --grip X Y --anchor-mode lk        track from first-frame point with LK optical flow
-  --grip X Y --anchor-mode constant  fixed anchor (tripod + tidy swing only)
+Companion tools (same folder): prep_swing.py (swing dir -> clip + anchors),
+montage.py (visual review tiles), score_truth.py (numeric eval vs truth.json).
 
 Usage:
-  python3 shaft_annotate.py swing.mp4 --grip 432 800 --seed-deg 100 \
-      [--exposure 0.004] [--fps-override 120] [--out-dir out/]
+  prep_swing.py <swingDir> <outDir>
+  shaft_annotate.py <outDir>/faceon_swing.mp4 --anchors <outDir>/anchors.csv \
+      --fps-override <clipmeta.fps> [--out-dir out] [--debug-frames 186,310]
+
+Output CSV: per frame theta_filt/omega_filt/theta_smooth/omega_smooth/conf/flags
+plus `kind` (meas|pred) and `theta_out` — consumers use theta_out, treating
+kind=meas as labels and kind=pred as clearly-marked kinematic prediction
+(low-confidence detections are DISCARDED, never emitted as measurements).
 """
 import argparse, csv, math, os, sys
 import numpy as np
@@ -27,10 +30,21 @@ import cv2
 DTHETA = 0.25            # deg per angular bin
 R_MIN_FRAC = 0.06        # min radius as fraction of image height (skip hands)
 F_MIN = 0.22             # min support fraction to accept a detection
+NEAR_FRAC = 0.35         # conf shaping only in v3 (see RSTART_MAX gate)
+NEAR_MIN = 0.12          # conf shaping only
+RSTART_MAX = 0.55        # F1v3: supported run must BEGIN within this fraction of the ray
+EXT_MIN = 0.10           # F8: min run extent (fraction of ray) — a real club is >=~46px
+DEN_MIN = 0.45           # F8: min support density INSIDE the run
+CONF_MEAS = 0.5          # output: conf >= this => measured; below => discarded/predicted
+SEG_MIN = 4              # min consecutive measured frames to form a trusted segment
+TAU_DECAY = 0.12         # s — omega decay for head/tail extrapolation (post-impact)
+RUN_LEN = 8              # F1v3: samples of s>0.3 that constitute a run
+REINIT_SCORE = 1.3       # F4v3: re-inits (not first) need S_pk > REINIT_SCORE*S_ACCEPT
+BLOB_GAIN = 0.5          # F6: distal clubhead-blob credit at init (180-flip test)
 S_ACCEPT = 0.12          # min column score to accept
-TAU_G = 60.0             # gradient evidence scale
-TAU_B = 35.0             # brightness evidence scale
+TAU_P = 90.0             # F2: edge-pair evidence scale (Sobel units)
 TAU_M = 18.0             # motion evidence scale (grey levels)
+SHAFT_W_PX = 5.0         # F2: shaft width prior (px)
 S_CAP = 0.8
 BAND_THR = 0.4           # wedge band segmentation threshold (frac of peak)
 BETA_SWITCH = 2.0        # deg — line/wedge regime switch
@@ -38,7 +52,13 @@ COAST_MAX = 12           # frames of consecutive misses before re-init
 GATE_SIGMA = 3.0
 FAN_MIN = 10.0           # deg minimum half-fan
 R_THETA = 1.5 ** 2       # deg^2 line-measurement variance (base)
-SIGMA_JERK = 2.5e5       # deg/s^3 process noise (must tolerate ~4000 deg/s^2 downswing)
+SIGMA_JERK = 2.5e5       # deg/s^3 process noise
+SECTOR_HALF = 120.0      # F3: plausibility half-sector around forearm extension (deg)
+SECTOR_ATTEN = 0.05      # F3: S multiplier outside the sector
+GLOBAL_EVERY = 7         # F4: frames between global escape scans
+GLOBAL_MARGIN = 1.4      # F4: global peak must beat local by this factor
+GLOBAL_DIFF = 30.0       # F4: and differ by more than this (deg)
+OMEGA_MAX = 3000.0       # F5: max plausible |omega| (deg/s)
 
 FLAG_LINE, FLAG_WEDGE, FLAG_COAST, FLAG_REINIT, FLAG_LOWSUP, FLAG_LOST = \
     "LINE_OK", "WEDGE_OK", "COASTED", "REINIT", "LOW_SUPPORT", "LOST"
@@ -53,7 +73,7 @@ class KF:
         self.dt = dt
         self.x = np.zeros(3)
         self.P = np.diag([1e4, 1e6, 1e8])
-        self.hist = []          # (x, P, x_pred, P_pred) for RTS
+        self.hist = []
         d = dt
         self.F = np.array([[1, d, 0.5 * d * d], [0, 1, d], [0, 0, 1]])
         q = SIGMA_JERK ** 2
@@ -71,7 +91,6 @@ class KF:
         return xp, Pp
 
     def step(self, z, R, H):
-        """z may be None (coast). Returns (accepted, innovation_sigma)."""
         xp, Pp = self.predict()
         if z is None:
             self.x, self.P = xp, Pp
@@ -83,7 +102,7 @@ class KF:
         y[0] = wrap180(y[0])
         S = H @ Pp @ H.T + R
         md2 = float(y @ np.linalg.solve(S, y))
-        if md2 > (GATE_SIGMA ** 2) * len(y):        # gate
+        if md2 > (GATE_SIGMA ** 2) * len(y):
             self.x, self.P = xp, Pp
             self.hist.append((self.x.copy(), self.P.copy(), xp, Pp))
             return False
@@ -106,81 +125,113 @@ class KF:
             dx[0] = wrap180(dx[0])
             xs[k] = x + C @ dx
             Ps[k] = P + C @ (Ps[k + 1] - Pp1) @ C.T
-        return xs
+        return xs, Ps
 
 class AnchorSource:
-    def __init__(self, args, first_gray):
-        self.mode = args.anchor_mode
-        self.table = None
-        if args.anchors:
-            self.table = {}
-            with open(args.anchors) as f:
-                for row in csv.reader(f):
-                    if row and row[0].strip().isdigit():
-                        self.table[int(row[0])] = (float(row[1]), float(row[2]))
-            self.mode = "csv"
-        self.pt = np.array(args.grip, np.float32) if args.grip else None
-        self.prev_gray = first_gray.astype(np.uint8)
-        self.ok = True
+    """anchors.csv rows: frame,x,y[,phi_deg,phi_ok] — grip + lead-forearm extension."""
+    def __init__(self, path):
+        self.grip = {}
+        self.phi = {}
+        with open(path) as f:
+            for row in csv.reader(f):
+                if not row or not row[0].strip().lstrip('-').isdigit():
+                    continue
+                i = int(row[0])
+                self.grip[i] = (float(row[1]), float(row[2]))
+                if len(row) >= 5 and int(float(row[4])) == 1:
+                    self.phi[i] = float(row[3])
+        self.pt = None
+        self.last_phi = None
 
-    def get(self, idx, gray):
-        gray8 = gray.astype(np.uint8)
-        if self.mode == "csv":
-            if idx in self.table:
-                self.pt = np.array(self.table[idx], np.float32)
-                self.ok = True
-            else:
-                self.ok = False                    # hold last
-        elif self.mode == "lk" and idx > 0:
-            p0 = self.pt.reshape(1, 1, 2)
-            p1, st, err = cv2.calcOpticalFlowPyrLK(
-                self.prev_gray, gray8, p0, None,
-                winSize=(31, 31), maxLevel=3,
-                criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 30, 0.01))
-            if st[0][0] == 1 and err[0][0] < 40:
-                self.pt = p1.reshape(2)
-                self.ok = True
-            else:
-                self.ok = False                    # hold last position
-        self.prev_gray = gray8
-        return tuple(self.pt), self.ok
+    def get(self, idx):
+        if idx in self.grip:
+            self.pt = self.grip[idx]
+        if idx in self.phi:
+            self.last_phi = self.phi[idx]
+        return self.pt, self.last_phi
 
 # ----------------------------------------------------------------------------- evidence
 def evidence_scan(gray, bg, prev_gray, grip, thetas_deg, r_min, r_max):
-    """Return S(theta), F(theta) over the given angle set."""
+    """Return S(theta), F(theta), F_near(theta) over the given angle set.
+    Evidence = max(edge-pair (F2), motion). Anti-ghost motion = min(|I-B|, |I-prev|)."""
     H, W = gray.shape
     gxs = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
     gys = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
-    mag = np.sqrt(gxs * gxs + gys * gys)
-    # anti-ghost: require BOTH frame-difference and bg-difference (a background
-    # ghost of the departed shaft has ~zero frame difference; a moving shaft has both)
     fd = np.abs(gray - prev_gray) if prev_gray is not None else np.abs(gray - bg)
     motion = np.minimum(np.abs(gray - bg), fd)
 
     xg, yg = grip
-    T = np.deg2rad(thetas_deg)[:, None]
-    R = np.arange(r_min, r_max, 1.0)[None, :]
-    X = (xg + R * np.cos(T)).astype(np.float32)
-    Y = (yg + R * np.sin(T)).astype(np.float32)
+    T = np.deg2rad(thetas_deg)[:, None].astype(np.float32)
+    R = np.arange(r_min, r_max, 1.0, dtype=np.float32)[None, :]
+    X = xg + R * np.cos(T)
+    Y = yg + R * np.sin(T)
     valid = (X >= 1) & (X < W - 1) & (Y >= 1) & (Y < H - 1)
-    Xc, Yc = np.clip(X, 0, W - 1), np.clip(Y, 0, H - 1)
 
-    def samp(a):
-        return cv2.remap(a.astype(np.float32), Xc, Yc, cv2.INTER_LINEAR)
+    # F2: paired-edge sampling at theta -/+ delta(r), delta = (w/2)/r
+    D = (SHAFT_W_PX * 0.5) / np.maximum(R, 1.0)
+    Xm = xg + R * np.cos(T - D); Ym = yg + R * np.sin(T - D)
+    Xp = xg + R * np.cos(T + D); Yp = yg + R * np.sin(T + D)
 
-    Gx, Gy, M, Mo = samp(gxs), samp(gys), samp(mag), samp(motion)
+    def samp(a, Xc, Yc):
+        return cv2.remap(a.astype(np.float32), np.clip(Xc, 0, W - 1),
+                         np.clip(Yc, 0, H - 1), cv2.INTER_LINEAR)
+
     nx, ny = -np.sin(T), np.cos(T)
-    dot = Gx * nx + Gy * ny
-    E_grad = np.clip((dot * dot) / (M + 1e-3) / TAU_G, 0, 1)
+    dot_m = samp(gxs, Xm, Ym) * nx + samp(gys, Xm, Ym) * ny
+    dot_p = samp(gxs, Xp, Yp) * nx + samp(gys, Xp, Yp) * ny
+    # antiparallel edge pair -> product negative; single/soft edge -> ~0
+    E_pair = np.clip(np.sqrt(np.maximum(0.0, -dot_m * dot_p)) / TAU_P, 0, 1)
+    Mo = samp(motion, X, Y)
     E_mot = np.clip((Mo - 6.0) / TAU_M, 0, 1)
-    s = np.where(valid, np.maximum(E_grad, E_mot), 0.0)
+    s = np.where(valid, np.maximum(E_pair, E_mot), 0.0)
 
     w = R * valid
     S = (w * np.minimum(s, S_CAP)).sum(1) / (w.sum(1) + 1e-6)
     F = ((s > 0.3) & valid).sum(1) / (valid.sum(1) + 1e-6)
+    ncols = max(1, int(s.shape[1] * NEAR_FRAC))
+    sn, vn = s[:, :ncols], valid[:, :ncols]
+    F_near = ((sn > 0.3) & vn).sum(1) / (vn.sum(1) + 1e-6)
+
+    # F1v3: fractional radius where the first sustained run of s>0.3 begins (1.0 = none).
+    hit = ((s > 0.3) & valid).astype(np.float32)
+    runk = np.ones(RUN_LEN, np.float32) / RUN_LEN
+    runav = cv2.filter2D(hit, -1, runk[None, :], borderType=cv2.BORDER_CONSTANT)
+    isrun = runav >= 0.75
+    nr = s.shape[1]
+    first = np.where(isrun.any(1), isrun.argmax(1), nr)
+    r_start = first.astype(np.float32) / float(nr)
+    # run end (last run sample) for the blob window
+    last = np.where(isrun.any(1), nr - 1 - isrun[:, ::-1].argmax(1), 0)
+    # F8: run extent + in-run density (replaces the full-ray F gate: a short
+    # foreshortened/cropped club is dense within its run; full-ray F dilutes it)
+    span = np.maximum(1, last - first + 1).astype(np.float32)
+    extent = np.where(isrun.any(1), (span + RUN_LEN) / float(nr), 0.0)
+    csum = np.cumsum(hit, axis=1)
+    inrun = csum[np.arange(hit.shape[0]), last] - np.where(first > 0,
+             csum[np.arange(hit.shape[0]), np.maximum(first - 1, 0)], 0)
+    density = np.where(isrun.any(1), inrun / span, 0.0)
+
+    # F6: distal clubhead-blob brightness NEAR the run end (chrome head is bright);
+    # credit only within [end, end+25% of ray] so a far bright distractor (neon strip
+    # crossing an unsupported ray) earns nothing.
+    L = samp(gray, X, Y)
+    cols = np.arange(nr)[None, :]
+    lo = last[:, None].astype(np.int64)
+    blobwin = (cols >= lo) & (cols <= lo + int(0.25 * nr)) & valid & isrun.any(1)[:, None]
+    B = np.where(blobwin, L, 0.0).max(1) / 255.0
+
     k = cv2.getGaussianKernel(9, 2).ravel()
     S = np.convolve(S, k, mode="same")
-    return S, F
+    return S, F, F_near, r_start, B, extent, density
+
+def sector_mask(thetas, S, phi):
+    """F3: suppress S outside +/-SECTOR_HALF of the forearm extension phi."""
+    if phi is None:
+        return S
+    d = np.abs(wrap180(np.asarray(thetas) - phi))
+    out = S.copy()
+    out[d > SECTOR_HALF] *= SECTOR_ATTEN
+    return out
 
 def fit_peak(thetas, S):
     i = int(np.argmax(S))
@@ -206,19 +257,13 @@ def fit_wedge(thetas, S, i_pk):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("video")
-    ap.add_argument("--grip", nargs=2, type=float, default=None)
-    ap.add_argument("--seed-deg", type=float, default=None,
-                    help="optional first-frame shaft angle hint (deg, image coords)")
-    ap.add_argument("--anchors", default=None, help="CSV frame,x,y from pose pipeline")
-    ap.add_argument("--anchor-mode", choices=["lk", "constant"], default="lk")
-    ap.add_argument("--exposure", type=float, default=None,
-                    help="exposure time in seconds; enables direct omega from wedge")
+    ap.add_argument("--anchors", required=True)
+    ap.add_argument("--exposure", type=float, default=None)
     ap.add_argument("--fps-override", type=float, default=None)
-    ap.add_argument("--r-max", type=float, default=None, help="shaft search radius px")
+    ap.add_argument("--r-max", type=float, default=None)
     ap.add_argument("--out-dir", default=".")
+    ap.add_argument("--debug-frames", default="", help="comma list: dump gate values")
     args = ap.parse_args()
-    if not args.grip and not args.anchors:
-        sys.exit("need --grip X Y or --anchors csv")
 
     cap = cv2.VideoCapture(args.video)
     if not cap.isOpened():
@@ -227,7 +272,7 @@ def main():
     W = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     H = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     dt = 1.0 / fps
-    t_exp = args.exposure if args.exposure else 0.5 * dt   # assumption if unknown
+    t_exp = args.exposure if args.exposure else 0.5 * dt
     r_min = max(20, int(R_MIN_FRAC * H))
     r_max = args.r_max or 0.45 * H
 
@@ -236,17 +281,20 @@ def main():
     vw = cv2.VideoWriter(os.path.join(args.out_dir, f"{stem}_annotated.mp4"),
                          cv2.VideoWriter_fourcc(*"mp4v"), fps, (W, H))
 
+    dbg = set(x.strip() for x in args.debug_frames.split(",") if x.strip())
+    anchor = AnchorSource(args.anchors)
     kf = KF(dt)
     initialised = False
     misses = 0
-    w0 = 3.0                        # static S(theta) profile width (deg), calibrated online
-    bg = None                       # running background (exp. average, slow)
+    global_hits = 0
+    confirm = 99            # accepted measurements since last (re)init
+    w0 = 3.0
+    bg = None
     prev_gray = None
     rows = []
-    frames_raw = []                 # keep raw frames for second-pass overlay
-    per_frame = []                  # per-frame detection extras for overlay
+    frames_raw = []
+    per_frame = []
 
-    anchor = None
     idx = 0
     while True:
         ok, frame = cap.read()
@@ -255,13 +303,36 @@ def main():
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)
         if bg is None:
             bg = gray.copy()
-            anchor = AnchorSource(args, gray)
-        grip, a_ok = anchor.get(idx, gray)
+        grip, phi = anchor.get(idx)
+        if grip is None:
+            sys.exit("anchors.csv gave no grip for frame 0")
 
         flag = FLAG_LOST
-        S_pk = sup = band = np.nan
+        S_pk = sup = near = band = np.nan
         th_open = th_close = np.nan
         meas_used = False
+
+        # F4: periodic global escape scan — can a distant peak decisively beat the lock?
+        if initialised and idx % GLOBAL_EVERY == 0 and idx > 0:
+            gth = np.arange(0.0, 360.0, 1.0)
+            Sg, Fg, Ng, Rg, Bg, Eg, Dg = evidence_scan(gray, bg, prev_gray, grip, gth, r_min, r_max)
+            Sg = sector_mask(gth, Sg, phi)
+            th_g, ig = fit_peak(gth, Sg)
+            loc = kf.x[0] % 360.0
+            if (Sg[ig] > S_ACCEPT * 1.2 and Rg[ig] < RSTART_MAX
+                    and (Fg[ig] > F_MIN or (Eg[ig] >= EXT_MIN and Dg[ig] >= DEN_MIN))
+                    and abs(wrap180(th_g - loc)) > GLOBAL_DIFF):
+                # compare against evidence at the tracked angle
+                i_loc = int(np.argmin(np.abs(wrap180(gth - loc))))
+                if Sg[ig] > GLOBAL_MARGIN * max(Sg[i_loc], 1e-6):
+                    global_hits += 1
+                else:
+                    global_hits = 0
+            else:
+                global_hits = 0
+            if global_hits >= 2:
+                initialised = False          # falls into the re-init path below
+                global_hits = 0
 
         if initialised:
             xp, Pp = kf.predict()
@@ -272,19 +343,47 @@ def main():
             thetas = np.arange(th_c - half_fan, th_c + half_fan + DTHETA, DTHETA)
         else:
             thetas = np.arange(0.0, 360.0, DTHETA)
-            if args.seed_deg is not None and idx == 0:
-                thetas = np.arange(args.seed_deg - 45, args.seed_deg + 45, DTHETA)
 
-        S, F = evidence_scan(gray, bg, prev_gray, grip, thetas, r_min, r_max)
+        S, F, N, Rs, B, Ext, Den = evidence_scan(gray, bg, prev_gray, grip, thetas, r_min, r_max)
+        if str(idx) in dbg:
+            order = np.argsort(S)[::-1][:6]
+            print(f"[dbg f{idx}] init={initialised} grip=({grip[0]:.0f},{grip[1]:.0f}) phi={phi} "
+                  f"fan=[{thetas[0]:.0f}..{thetas[-1]:.0f}]")
+            for ii in order:
+                print(f"    th={thetas[ii]:7.1f} S={S[ii]:.3f} F={F[ii]:.2f} "
+                      f"Rs={Rs[ii]:.2f} B={B[ii]:.2f} near={N[ii]:.2f} "
+                      f"gates: S>{S_ACCEPT}={S[ii]>S_ACCEPT} F>{F_MIN}={F[ii]>F_MIN} Rs<{RSTART_MAX}={Rs[ii]<RSTART_MAX}")
+        if initialised:
+            S = sector_mask(thetas, S, phi)   # F3 in the tracking fan ONLY (v3:
+        # the finish wrap breaks the forearm-continuation assumption, so full-circle
+        # (re)init scans run unmasked and rely on the run-start + blob tests instead)
         th_meas, i_pk = fit_peak(thetas, S)
-        S_pk, sup = float(S[i_pk]), float(F[i_pk])
+        S_pk, sup, near = float(S[i_pk]), float(F[i_pk]), float(N[i_pk])
 
-        good = (S_pk > S_ACCEPT) and (sup > F_MIN)
+        okrun = (float(Ext[i_pk]) >= EXT_MIN) and (float(Den[i_pk]) >= DEN_MIN)
+        good = (S_pk > S_ACCEPT) and (float(Rs[i_pk]) < RSTART_MAX) \
+               and (sup > F_MIN or okrun)     # F8: global-F OR dense-run path
         if not initialised:
+            # F6: 180-flip disambiguation — compare the peak with its opposite ray,
+            # crediting a bright distal blob at the supported run's end (design §7).
+            j = (i_pk + int(round(180.0 / DTHETA))) % len(thetas)
+            cand = []
+            for ii in (i_pk, j):
+                okc = (S[ii] > S_ACCEPT) and (float(Rs[ii]) < RSTART_MAX) \
+                      and (F[ii] > F_MIN or (float(Ext[ii]) >= EXT_MIN
+                                             and float(Den[ii]) >= DEN_MIN))
+                cand.append((float(S[ii]) * (1.0 + BLOB_GAIN * float(B[ii])), okc, ii))
+            cand.sort(reverse=True)
+            score, okc, ii = cand[0]
+            th_meas = thetas[ii] if ii != i_pk else th_meas
+            S_pk, sup, near = float(S[ii]), float(F[ii]), float(N[ii])
+            need = S_ACCEPT * (REINIT_SCORE if idx > 0 else 1.0)
+            good = okc and (float(S[ii]) > need)
             if good:
                 kf.init(th_meas)
                 kf.hist.append((kf.x.copy(), kf.P.copy(), kf.x.copy(), kf.P.copy()))
                 initialised, flag, meas_used = True, FLAG_REINIT, True
+                confirm = 0
             else:
                 kf.hist.append((kf.x.copy(), kf.P.copy(), kf.x.copy(), kf.P.copy()))
         else:
@@ -295,12 +394,12 @@ def main():
                 a, b = fit_wedge(thetas, S, i_pk)
                 th_open, th_close, band = a, b, b - a
                 th_mid = 0.5 * (a + b)
-                # unwrap measurement near prediction
                 z_th = xp[0] + wrap180(th_mid - xp[0])
-                band_blur = max(0.0, band - w0)      # remove intrinsic profile width
-                sign_ok = abs(xp[1]) > 200.0          # sign from prediction unreliable near reversal
-                if args.exposure and band_blur > 1.5 and sign_ok:
-                    om = math.copysign(band_blur / t_exp, xp[1])
+                band_blur = max(0.0, band - w0)
+                sign_ok = abs(xp[1]) > 200.0
+                om = math.copysign(band_blur / t_exp, xp[1]) if sign_ok else 0.0
+                if (args.exposure and band_blur > 1.5 and sign_ok
+                        and abs(om) < OMEGA_MAX):                       # F5
                     Rm = np.diag([R_THETA * 2.0, max((0.15 * om) ** 2, 1e4)])
                     acc = kf.step([z_th, om], Rm, [[1, 0, 0], [0, 1, 0]])
                 else:
@@ -308,8 +407,8 @@ def main():
                 flag = FLAG_WEDGE if acc else FLAG_COAST
                 meas_used = acc
             elif good:
-                a, b = fit_wedge(thetas, S, i_pk)   # measure static profile width
-                if abs(xp[1]) * t_exp < 0.5:         # genuinely static: calibrate w0
+                a, b = fit_wedge(thetas, S, i_pk)
+                if abs(xp[1]) * t_exp < 0.5:
                     w0 = 0.9 * w0 + 0.1 * (b - a)
                 z_th = xp[0] + wrap180(th_meas - xp[0])
                 acc = kf.step([z_th], [[R_THETA]], [[1, 0, 0]])
@@ -317,91 +416,165 @@ def main():
                 meas_used = acc
             else:
                 kf.step(None, None, None)
-                flag = FLAG_LOWSUP if sup <= F_MIN else FLAG_COAST
+                flag = FLAG_LOWSUP if (float(Ext[i_pk]) < EXT_MIN or float(Den[i_pk]) < DEN_MIN
+                                        or float(Rs[i_pk]) >= RSTART_MAX) else FLAG_COAST
+            if meas_used:
+                confirm += 1
             misses = 0 if meas_used else misses + 1
             if misses > COAST_MAX:
                 initialised = False
                 misses = 0
                 flag = FLAG_LOST
 
-        # slow background update, avoiding fast-motion pixels
         cv2.accumulateWeighted(gray, bg, 0.02)
         prev_gray = gray
         frames_raw.append(frame)
-        per_frame.append(dict(grip=grip, a_ok=a_ok, flag=flag, S=S_pk, sup=sup,
-                              band=band, th_open=th_open, th_close=th_close))
-        rows.append([idx, idx * dt, kf.x[0], kf.x[1], S_pk, sup, band, flag,
+        per_frame.append(dict(grip=grip, flag=flag, S=S_pk, sup=sup, near=near,
+                              band=band, th_open=th_open, th_close=th_close,
+                              confirmed=confirm >= 3))
+        rows.append([idx, idx * dt, kf.x[0], kf.x[1], S_pk, sup, near, band, flag,
                      grip[0], grip[1]])
         idx += 1
     cap.release()
 
-    # ---- RTS smoothing ----
-    xs = kf.rts() if kf.hist else []
+    # ---- RTS smoothing + posterior-variance confidence ----
+    xs, Ps = kf.rts() if kf.hist else ([], [])
     for i, r in enumerate(rows):
         if i < len(xs):
-            r[2:2] = []  # no-op, keep structure clear
+            sig = math.sqrt(max(Ps[i][0, 0], 1e-9))
+            conf = max(0.0, min(1.0, 1.0 - sig / 10.0))
+            if per_frame[i]["flag"] not in (FLAG_LINE, FLAG_WEDGE, FLAG_REINIT):
+                conf *= 0.4
+            if not per_frame[i].get("confirmed", True):
+                conf = min(conf, 0.35)   # re-init not yet confirmed by 3 measurements
+            om_s = xs[i][1]
+            if abs(om_s) > OMEGA_MAX:
+                conf *= max(0.0, 1.0 - (abs(om_s) - OMEGA_MAX) / 1500.0)
+            r.insert(4, conf)
             r.insert(4, xs[i][1])   # omega_smooth
-            r.insert(4, xs[i][0])   # theta_smooth  -> cols: f,t,th_f,om_f,th_s,om_s,...
+            r.insert(4, xs[i][0])   # theta_smooth
         else:
-            r.insert(4, np.nan); r.insert(4, np.nan)
+            r.insert(4, 0.0); r.insert(4, np.nan); r.insert(4, np.nan)
 
-    # ---- overlay pass (uses smoothed track) ----
+    # ---- F9: measured / predicted / discarded output model ----------------------
+    # Frames with conf >= CONF_MEAS in runs of >= SEG_MIN form trusted MEASURED
+    # segments. Everything else is DISCARDED as a measurement and replaced by a
+    # PREDICTION: cubic-hermite bridges between segment boundaries (using the
+    # smoother's theta/omega there), and a decaying-omega extrapolation for the
+    # head/tail (post-impact is kinematically smooth, so predict rather than
+    # report noise — per markup policy, low-confidence detections are discarded).
+    nfr = len(rows)
+    conf_arr = np.array([r[6] for r in rows], float)
+    th_arr = np.array([r[4] for r in rows], float)
+    om_arr = np.array([r[5] for r in rows], float)
+    t_arr = np.array([r[1] for r in rows], float)
+    meas = conf_arr >= CONF_MEAS
+    segs = []
+    i = 0
+    while i < nfr:
+        if meas[i]:
+            j = i
+            while j + 1 < nfr and meas[j + 1]:
+                j += 1
+            if j - i + 1 >= SEG_MIN:
+                segs.append((i, j))
+            i = j + 1
+        else:
+            i += 1
+    kind = ["pred"] * nfr
+    th_out = np.full(nfr, np.nan)
+    for a, b in segs:
+        for i in range(a, b + 1):
+            kind[i] = "meas"
+            th_out[i] = th_arr[i]
+
+    def decay_sweep(om0, dt_s):
+        return om0 * TAU_DECAY * (1.0 - math.exp(-abs(dt_s) / TAU_DECAY)) * (1 if dt_s >= 0 else -1)
+
+    def clean_stretch(lo, hi):
+        # RTS history is trustworthy iff no re-init/lost inside and omega stays sane
+        for i in range(lo, hi + 1):
+            if rows[i][11] in (FLAG_REINIT, FLAG_LOST):
+                return False
+            if abs(om_arr[i]) > OMEGA_MAX * 1.2:
+                return False
+        return True
+
+    if segs:
+        for (a0, b0), (a1, b1) in zip(segs, segs[1:]):
+            if clean_stretch(b0 + 1, a1 - 1):
+                for i in range(b0 + 1, a1):
+                    th_out[i] = th_arr[i]        # smoother IS the prediction here
+                continue
+            tA, thA, omA = t_arr[b0], th_arr[b0], om_arr[b0]
+            tB, thB, omB = t_arr[a1], th_arr[a1], om_arr[a1]
+            gap = tB - tA
+            expect = thA + decay_sweep(omA, gap)
+            k360 = round((expect - thB) / 360.0)
+            thB_al = thB + 360.0 * k360
+            for i in range(b0 + 1, a1):
+                u = (t_arr[i] - tA) / gap
+                h00 = 2*u**3 - 3*u**2 + 1; h10 = u**3 - 2*u**2 + u
+                h01 = -2*u**3 + 3*u**2;   h11 = u**3 - u**2
+                th_out[i] = (h00*thA + h10*gap*omA + h01*thB_al + h11*gap*omB)
+        a0, _ = segs[0]
+        if clean_stretch(0, max(0, a0 - 1)):
+            for i in range(0, a0):
+                th_out[i] = th_arr[i]
+        else:
+            for i in range(0, a0):
+                th_out[i] = th_arr[a0] + decay_sweep(om_arr[a0], t_arr[i] - t_arr[a0])
+        _, b_last = segs[-1]
+        if clean_stretch(min(nfr - 1, b_last + 1), nfr - 1):
+            for i in range(b_last + 1, nfr):
+                th_out[i] = th_arr[i]
+        else:
+            for i in range(b_last + 1, nfr):
+                th_out[i] = th_arr[b_last] + decay_sweep(om_arr[b_last], t_arr[i] - t_arr[b_last])
+    else:
+        kind = ["none"] * nfr
+
+    # ---- overlay pass (smoothed track) ----
     review = []
     for i, frame in enumerate(frames_raw):
         d = per_frame[i]
         gx, gy = int(d["grip"][0]), int(d["grip"][1])
-        th_s = rows[i][4]
-        ok_flag = d["flag"] in (FLAG_LINE, FLAG_WEDGE, FLAG_REINIT)
-        col = (0, 0, 255) if ok_flag else (0, 255, 255)
+        om_s, conf = rows[i][5], rows[i][6]
+        th_s = th_out[i]
+        k = kind[i]
+        col = (0, 0, 255) if k == "meas" else (255, 220, 0)   # red measured / cyan predicted
         if not math.isnan(th_s):
             t = math.radians(th_s)
             e = (int(gx + r_max * math.cos(t)), int(gy + r_max * math.sin(t)))
-            cv2.line(frame, (gx, gy), e, col, 2, cv2.LINE_AA)
-        if not math.isnan(d["band"]):
+            cv2.line(frame, (gx, gy), e, col, 2 if k == "meas" else 1, cv2.LINE_AA)
+        if k == "meas" and not math.isnan(d["band"]):
             for a in (d["th_open"], d["th_close"]):
                 t = math.radians(a)
                 e = (int(gx + r_max * math.cos(t)), int(gy + r_max * math.sin(t)))
                 cv2.line(frame, (gx, gy), e, (0, 165, 255), 1, cv2.LINE_AA)
         cv2.circle(frame, (gx, gy), 5, (255, 0, 0), -1)
-        hud = f"f{i:04d} th={rows[i][4]:7.1f} om={rows[i][5]:8.1f}d/s {d['flag']}"
+        hud = (f"f{i:04d} th={th_s:7.1f} om={om_s:8.1f} c={conf:.2f} "
+               f"{k.upper()} {d['flag']}")
         cv2.putText(frame, hud, (10, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
                     (255, 255, 255), 1, cv2.LINE_AA)
         vw.write(frame)
-        if not ok_flag:
+        if k != "meas":
             review.append((i, frame.copy()))
     vw.release()
 
-    # ---- CSV ----
     csv_path = os.path.join(args.out_dir, f"{stem}_track.csv")
     with open(csv_path, "w", newline="") as f:
         wcsv = csv.writer(f)
         wcsv.writerow(["frame", "t_s", "theta_filt", "omega_filt", "theta_smooth",
-                       "omega_smooth", "S_peak", "support", "band_deg", "flag",
-                       "grip_x", "grip_y"])
-        wcsv.writerows(rows)
+                       "omega_smooth", "conf", "S_peak", "support", "near",
+                       "band_deg", "flag", "grip_x", "grip_y", "kind", "theta_out"])
+        for i, r in enumerate(rows):
+            wcsv.writerow(list(r) + [kind[i], th_out[i]])
 
-    # ---- review contact sheet ----
-    sheet_path = os.path.join(args.out_dir, f"{stem}_review.png")
-    if review:
-        sel = review[:: max(1, len(review) // 24)][:24]
-        th = 180
-        tiles = []
-        for i, fr in sel:
-            tw = int(fr.shape[1] * th / fr.shape[0])
-            tiles.append(cv2.resize(fr, (tw, th)))
-        cols = 6
-        rows_n = math.ceil(len(tiles) / cols)
-        tw = tiles[0].shape[1]
-        sheet = np.zeros((rows_n * th, cols * tw, 3), np.uint8)
-        for k, tile in enumerate(tiles):
-            r, c = divmod(k, cols)
-            sheet[r * th:(r + 1) * th, c * tw:c * tw + tile.shape[1]] = tile
-        cv2.imwrite(sheet_path, sheet)
-
-    n_ok = sum(1 for r in rows if r[9] in (FLAG_LINE, FLAG_WEDGE, FLAG_REINIT))
-    print(f"frames={len(rows)}  tracked_ok={n_ok}  flagged={len(rows)-n_ok}")
-    print(f"outputs: {stem}_annotated.mp4  {stem}_track.csv  "
-          f"{stem}_review.png ({len(review)} flagged frames)")
+    n_meas = kind.count("meas")
+    print(f"frames={len(rows)}  measured={n_meas}  predicted={kind.count('pred')}  "
+          f"segments={len(segs)}")
+    print(f"outputs: {stem}_annotated.mp4  {stem}_track.csv")
 
 if __name__ == "__main__":
     main()
