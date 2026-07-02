@@ -1,4 +1,4 @@
-# Shaft Markup Exemplar — Implementation & Usage (v4, frozen 2026-07-02)
+# Shaft Markup Exemplar — Implementation & Usage (v6 working prototype)
 
 The Python exemplar in `tools/markup/` is the working reference for automated
 shaft markup: it must be proven here (visually + numerically) before any C++
@@ -10,9 +10,8 @@ original architecture: [../design/shaft_detection_improvements.md](../design/sha
 
 | file | purpose |
 |------|---------|
-| `shaft_annotate.py` | the exemplar (v4, frozen): detection + tracking + measured/predicted output; annotated video + track CSV |
-| `shaft_annotate_v5.py` | **work-in-progress checkpoint** (finish-hold F10–F14, corpus-swept) — better top-of-swing + finish, known impact-window gap vs v4; see findings doc §6.4 before promoting |
-| `prep_swing.py` | exported swing dir → pose-covered Face-On clip + `anchors.csv` (grip + lead-forearm φ per frame) + `clipmeta.json`. Container written at integer fps (mpeg4 rejects some fractional rates); true fps in clipmeta |
+| `shaft_annotate.py` | the exemplar (v6 working prototype): detection + tracking, per-segment KF/RTS, still-hold re-acquisition, body gating, measured/predicted output; annotated video + track CSV |
+| `prep_swing.py` | exported swing dir → pose-covered Face-On clip + `anchors.csv` (grip + lead-forearm φ) + `skeleton.csv` (8 body joints px, for the body-collinearity gate) + `clipmeta.json`. Container written at integer fps (mpeg4 rejects some fractional rates); true fps in clipmeta |
 | `montage.py` | tile annotated frames for visual review (uniform 24, or explicit frame list) |
 | `score_truth.py` | numeric eval vs a swing's hand-labelled `truth.json`, split by output kind (meas/pred) |
 | `make_synth.py` | synthetic swing generator (design §12.1) |
@@ -75,30 +74,28 @@ blue dot = grip anchor; HUD shows θ/ω/conf/kind/flag.
 
 ## Status & next steps
 
-- **v4 frozen** (2026-07-02) = `shaft_annotate.py`; **v5 checkpointed**
-  (2026-07-03) = `shaft_annotate_v5.py` — finish-hold detection (F10–F14) +
-  corpus sweep 0002–0007 (0001 has no recorded pose and cannot be processed).
-  v5 results: 0009 44→65% measured (finish 4→49%), 0002 65→71% (finish 19→37%),
-  0003–0007 unchanged within noise; 0008 measured-tier guard at its best
-  (median 2.8°, mean 3.3°, 0% frames >30° wrong). Historical iterations and
-  per-version outputs live in the scratch lab `/home/markl/shaft_markup_lab/`.
+- **v6 working prototype** (2026-07-03) = `shaft_annotate.py` — per-segment
+  RTS + speed-aware coast (impact window recovered), still-hold re-acquisition,
+  body-collinearity gating with clear-candidate preference (findings §6–§7).
+  Corpus (meas%/finish%): 0002 71/38, 0003 81/49, 0004 75/27, 0005 73/32,
+  0006 75/41, 0007 66/52, 0009 71/63 (0001 has no recorded pose). 0008 guard:
+  median 2.7°, with a known 3-frame confident-wrong cluster in the fast
+  follow-through (findings §7). v4/v5 in git history; per-version outputs in
+  the scratch lab `/home/markl/shaft_markup_lab/`.
 - **Capture guidance** (from corpus eyeballing): face-on framing should leave
   more room to the player's right — most post-impact loss is the club leaving
   the frame, not detection failure.
-- Next, in order (details in findings doc §6.4):
-  1. **Per-segment RTS smoothing** (structural — smoother must not run across
-     re-init discontinuities), then re-add the speed-aware coast budget to
-     recover the impact window (v5's one regression vs v4).
-  2. Restore the 0009 f460 finish detection (permanence-veto threshold vs the
-     median scene snapshot).
-  3. Pose-derived body mask in the evidence (kills the f700 body/shoes class);
-     prep must export the skeleton per frame.
-  4. Finish measured-segment audit across 0002–0007; re-run the 0008 guard;
-     then promote v5 → `shaft_annotate.py`.
-  5. C++ re-port: the reverted first-generation port + full app wiring diff are
+- Next, in order (details in findings doc §7):
+  1. **Capture uncropped swings** (face-on framing with more room to the
+     player's right) — the prototype's post-impact ceiling is the crop, not the
+     detector.
+  2. Conf shaping for short fast-motion re-init segments (the 0008 f220–227
+     confident-wrong cluster) without killing correct short impact re-locks.
+  3. Full finish-segment zoom audit across 0003–0007.
+  4. C++ re-port: the reverted first-generation port + full app wiring diff are
      preserved in `.claude/attic/auto-markup-2026-07-02/` (driver, truth.json
      schema additions, MarkupController async pattern, QML). Port the final
      algorithm onto that template; gate with the same protocol plus the
      honesty checks (bad frames low-conf; high-conf frames accurate).
-  6. App policy when wired in: write only `kind=meas` frames as labels;
+  5. App policy when wired in: write only `kind=meas` frames as labels;
      optionally render `kind=pred` as a distinct visual layer, never as truth.

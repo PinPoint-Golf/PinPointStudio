@@ -1,16 +1,26 @@
 """
-shaft_annotate.py — PinPoint shaft detection exemplar (v4, frozen 2026-07-02).
+shaft_annotate.py — PinPoint shaft detection exemplar (v6 working prototype,
+2026-07-03).
 
 Reference implementation and video markup tool for single-camera shaft tracking:
-anchored polar unwrap, edge-pair + motion evidence, line/wedge regimes, KF + RTS,
-and a measured/predicted output model. This is the oracle for any C++ port.
+anchored polar unwrap, edge-pair + motion evidence, line/wedge regimes,
+PER-SEGMENT KF + RTS, still-hold stacked re-acquisition, pose-derived body
+gating, and a measured/predicted output model. Oracle for any C++ port.
+
+STATUS: working prototype. Verified frame-by-frame on swings 0002/0009 across
+all phases (downswing, impact, hanging + shouldered finish) and corpus-swept
+over 0002-0007. Known limits: ~3 confident-wrong frames in 0008's fast
+follow-through sweep (short re-init segments — see findings doc §7), and
+post-impact coverage is capture-bound (club exits frame; face-on framing needs
+more room to the player's right). Needs uncropped captures for the next round.
 
 Design doc:   docs/design/shaft_detection_improvements.md   (original architecture)
-Learnings:    docs/design/shaft_detection_exemplar_findings.md   (fixes F1-F9 + why)
+Learnings:    docs/design/shaft_detection_exemplar_findings.md   (F1-F17 + methodology)
 How to run:   docs/implementation/shaft_markup_exemplar_impl.md
 
-Companion tools (same folder): prep_swing.py (swing dir -> clip + anchors),
-montage.py (visual review tiles), score_truth.py (numeric eval vs truth.json).
+Companion tools (same folder): prep_swing.py (swing dir -> clip + anchors +
+skeleton), montage.py (visual review tiles), score_truth.py (numeric eval vs
+truth.json).
 
 Usage:
   prep_swing.py <swingDir> <outDir>
@@ -19,7 +29,7 @@ Usage:
 
 Output CSV: per frame theta_filt/omega_filt/theta_smooth/omega_smooth/conf/flags
 plus `kind` (meas|pred) and `theta_out` — consumers use theta_out, treating
-kind=meas as labels and kind=pred as clearly-marked kinematic prediction
+kind=meas as label-grade and kind=pred as clearly-marked kinematic prediction
 (low-confidence detections are DISCARDED, never emitted as measurements).
 """
 import argparse, csv, math, os, sys
@@ -41,6 +51,17 @@ TAU_DECAY = 0.12         # s — omega decay for head/tail extrapolation (post-i
 RUN_LEN = 8              # F1v3: samples of s>0.3 that constitute a run
 REINIT_SCORE = 1.3       # F4v3: re-inits (not first) need S_pk > REINIT_SCORE*S_ACCEPT
 BLOB_GAIN = 0.5          # F6: distal clubhead-blob credit at init (180-flip test)
+# F10: static re-acquisition ("hold mode") — at a still hold (address/finish) the
+# club is static and sharp; average the last HOLD_K frames to lift SNR and
+# re-acquire with a full-circle scan. Acceptance additionally requires a distal
+# clubhead blob (the static scene has no motion evidence to corroborate).
+HOLD_K = 9               # frames stacked / anchor-median window
+STILL_THR = 1.5          # mean |I-prev| (grey levels) in the grip ROI => still
+HOLD_S_HIT = 0.25        # relaxed per-sample hit threshold on the stacked image
+HOLD_BLOB_MIN = 0.5      # (NMS credit only since F16 — see body gate)
+HOLD_CHG_MIN = 0.15      # (retained for tuning experiments)
+BODY_DIST_PX = 40.0      # F16: run samples within this of a body segment count as body
+BODY_FRAC_MAX = 0.6      # F16: reject acquisition when > this fraction of the run is body
 S_ACCEPT = 0.12          # min column score to accept
 TAU_P = 90.0             # F2: edge-pair evidence scale (Sobel units)
 TAU_M = 18.0             # motion evidence scale (grey levels)
@@ -112,19 +133,38 @@ class KF:
         self.hist.append((self.x.copy(), self.P.copy(), xp, Pp))
         return True
 
-    def rts(self):
+    def rts(self, marks=None):
+        """Per-SEGMENT RTS. `marks[k]`: 'i' = (re)init frame (starts a segment),
+        't' = tracked (predict/update), 'f' = free/lost (pseudo entry). The
+        backward recursion runs only within a contiguous ['i','t',...,'t'] run —
+        smoothing across an init boundary uses the init's pseudo-prediction
+        (Pp == P0) as if it were a real one and detonates numerically (observed:
+        smoothed omega 1e18..1e49 through long junk chains). 'f' frames pass
+        through unsmoothed."""
         n = len(self.hist)
         xs = [None] * n
         Ps = [None] * n
-        xs[-1], Ps[-1] = self.hist[-1][0], self.hist[-1][1]
-        for k in range(n - 2, -1, -1):
-            x, P, _, _ = self.hist[k]
-            _, _, xp1, Pp1 = self.hist[k + 1]
-            C = P @ self.F.T @ np.linalg.inv(Pp1)
-            dx = xs[k + 1] - xp1
-            dx[0] = wrap180(dx[0])
-            xs[k] = x + C @ dx
-            Ps[k] = P + C @ (Ps[k + 1] - Pp1) @ C.T
+        if marks is None:
+            marks = ['i'] + ['t'] * (n - 1)
+        i = 0
+        while i < n:
+            if marks[i] == 'f':
+                xs[i], Ps[i] = self.hist[i][0], self.hist[i][1]
+                i += 1
+                continue
+            j = i
+            while j + 1 < n and marks[j + 1] == 't':
+                j += 1
+            xs[j], Ps[j] = self.hist[j][0], self.hist[j][1]
+            for k in range(j - 1, i - 1, -1):
+                x, P, _, _ = self.hist[k]
+                _, _, xp1, Pp1 = self.hist[k + 1]
+                C = P @ self.F.T @ np.linalg.inv(Pp1)
+                dx = xs[k + 1] - xp1
+                dx[0] = wrap180(dx[0])
+                xs[k] = x + C @ dx
+                Ps[k] = P + C @ (Ps[k + 1] - Pp1) @ C.T
+            i = j + 1
         return xs, Ps
 
 class AnchorSource:
@@ -150,8 +190,66 @@ class AnchorSource:
             self.last_phi = self.phi[idx]
         return self.pt, self.last_phi
 
+class SkeletonSource:
+    """skeleton.csv rows: frame, then x,y,conf (px) per joint in the order
+    [Lshoulder, Rshoulder, Lhip, Rhip, Lknee, Rknee, Lankle, Rankle]. Provides
+    per-frame torso/leg segments for the F16 body-collinearity gate. Arms and
+    head are deliberately excluded (the club is a forearm continuation and may
+    legitimately cross the head region at the finish)."""
+    SEGS = [(0, 1), (2, 3), (0, 2), (1, 3), (2, 4), (3, 5), (4, 6), (5, 7)]
+
+    def __init__(self, path):
+        self.frames = {}
+        try:
+            with open(path) as f:
+                for row in csv.reader(f):
+                    if not row or not row[0].strip().lstrip('-').isdigit():
+                        continue
+                    v = [float(x) for x in row[1:]]
+                    self.frames[int(row[0])] = [(v[3*j], v[3*j+1], v[3*j+2])
+                                                for j in range(len(v) // 3)]
+            self.ok = len(self.frames) > 0
+        except OSError:
+            self.ok = False
+
+    def segments(self, idx):
+        jt = self.frames.get(idx)
+        if not jt:
+            return []
+        out = []
+        for a, b in self.SEGS:
+            if a < len(jt) and b < len(jt) and jt[a][2] > 0.3 and jt[b][2] > 0.3:
+                out.append((jt[a][0], jt[a][1], jt[b][0], jt[b][1]))
+        return out
+
+
+def body_fraction(grip, th_deg, rs_frac, ext_frac, segs, r_max, n=32):
+    """F16: fraction of a candidate's supported run lying within BODY_DIST_PX of
+    the golfer's torso/leg segments — a run that tracks the body is the body."""
+    if not segs or ext_frac <= 0:
+        return 0.0
+    t = math.radians(th_deg)
+    c, sn = math.cos(t), math.sin(t)
+    hits = 0
+    for k in range(n):
+        r = (rs_frac + ext_frac * (k + 0.5) / n) * r_max
+        px, py = grip[0] + r * c, grip[1] + r * sn
+        best = 1e9
+        for (x1, y1, x2, y2) in segs:
+            dx, dy = x2 - x1, y2 - y1
+            L2 = dx * dx + dy * dy
+            u = 0.0 if L2 < 1e-6 else max(0.0, min(1.0, ((px - x1) * dx + (py - y1) * dy) / L2))
+            qx, qy = x1 + u * dx, y1 + u * dy
+            best = min(best, math.hypot(px - qx, py - qy))
+            if best < BODY_DIST_PX:
+                break
+        if best < BODY_DIST_PX:
+            hits += 1
+    return hits / float(n)
+
+
 # ----------------------------------------------------------------------------- evidence
-def evidence_scan(gray, bg, prev_gray, grip, thetas_deg, r_min, r_max):
+def evidence_scan(gray, bg, prev_gray, grip, thetas_deg, r_min, r_max, s_hit=0.3, blob_img=None):
     """Return S(theta), F(theta), F_near(theta) over the given angle set.
     Evidence = max(edge-pair (F2), motion). Anti-ghost motion = min(|I-B|, |I-prev|)."""
     H, W = gray.shape
@@ -187,13 +285,13 @@ def evidence_scan(gray, bg, prev_gray, grip, thetas_deg, r_min, r_max):
 
     w = R * valid
     S = (w * np.minimum(s, S_CAP)).sum(1) / (w.sum(1) + 1e-6)
-    F = ((s > 0.3) & valid).sum(1) / (valid.sum(1) + 1e-6)
+    F = ((s > s_hit) & valid).sum(1) / (valid.sum(1) + 1e-6)
     ncols = max(1, int(s.shape[1] * NEAR_FRAC))
     sn, vn = s[:, :ncols], valid[:, :ncols]
-    F_near = ((sn > 0.3) & vn).sum(1) / (vn.sum(1) + 1e-6)
+    F_near = ((sn > s_hit) & vn).sum(1) / (vn.sum(1) + 1e-6)
 
     # F1v3: fractional radius where the first sustained run of s>0.3 begins (1.0 = none).
-    hit = ((s > 0.3) & valid).astype(np.float32)
+    hit = ((s > s_hit) & valid).astype(np.float32)
     runk = np.ones(RUN_LEN, np.float32) / RUN_LEN
     runav = cv2.filter2D(hit, -1, runk[None, :], borderType=cv2.BORDER_CONSTANT)
     isrun = runav >= 0.75
@@ -214,15 +312,19 @@ def evidence_scan(gray, bg, prev_gray, grip, thetas_deg, r_min, r_max):
     # F6: distal clubhead-blob brightness NEAR the run end (chrome head is bright);
     # credit only within [end, end+25% of ray] so a far bright distractor (neon strip
     # crossing an unsupported ray) earns nothing.
+    # F13: two blob channels — raw luma (something bright at the run end) and
+    # CHANGE vs the pre-swing scene (it arrived; mat/neon brightness is permanent).
     L = samp(gray, X, Y)
+    Lc = samp(blob_img, X, Y) if blob_img is not None else np.zeros_like(L)
     cols = np.arange(nr)[None, :]
     lo = last[:, None].astype(np.int64)
     blobwin = (cols >= lo) & (cols <= lo + int(0.25 * nr)) & valid & isrun.any(1)[:, None]
     B = np.where(blobwin, L, 0.0).max(1) / 255.0
+    Bc = np.where(blobwin, Lc, 0.0).max(1) / 255.0
 
     k = cv2.getGaussianKernel(9, 2).ravel()
     S = np.convolve(S, k, mode="same")
-    return S, F, F_near, r_start, B, extent, density
+    return S, F, F_near, r_start, B, extent, density, Bc
 
 def sector_mask(thetas, S, phi):
     """F3: suppress S outside +/-SECTOR_HALF of the forearm extension phi."""
@@ -283,6 +385,35 @@ def main():
 
     dbg = set(x.strip() for x in args.debug_frames.split(",") if x.strip())
     anchor = AnchorSource(args.anchors)
+    skel = SkeletonSource(os.path.join(os.path.dirname(os.path.abspath(args.anchors)),
+                                       "skeleton.csv"))
+
+    # F12: permanent-scene snapshot. Frame 0 alone contains the ADDRESS CLUB —
+    # and the club returns to near its address angle at impact, so a frame-0
+    # snapshot vetoes legitimate impact-zone re-acquisitions (this killed the
+    # entire downswing). The pixel-wise MEDIAN of frames spread over the clip
+    # erases the moving club and keeps only what is truly permanent.
+    ntot = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    med_stack = []
+    if ntot > 10:
+        for k in range(11):
+            cap.set(cv2.CAP_PROP_POS_FRAMES, int(k * (ntot - 1) / 10))
+            okf, fmed = cap.read()
+            if okf:
+                med_stack.append(cv2.cvtColor(fmed, cv2.COLOR_BGR2GRAY).astype(np.float32))
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+    bg0_med = np.median(np.stack(med_stack), axis=0) if len(med_stack) >= 5 else None
+
+    from collections import deque
+    grays_hist = deque(maxlen=HOLD_K)     # F10: recent grays for stacking
+    grips_hist = deque(maxlen=HOLD_K)     # F10: recent anchors (median-stabilised)
+    still_hist = deque(maxlen=HOLD_K)     # F10: windowed stillness votes
+    unmeas_run = 99                       # frames since last accepted measurement
+    hold_active = False                   # F10: static-hold tracking engaged
+    seg_marks = []                        # per-frame RTS segment tags ('i'/'t'/'f')
+    runaway = 0                           # F15: consecutive insane-state frames
+    bg0 = None                            # F12: frozen first-frame scene snapshot
+    swing_seen = False                    # F12: high-omega observed => re-acquisition mode
     kf = KF(dt)
     initialised = False
     misses = 0
@@ -303,25 +434,153 @@ def main():
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)
         if bg is None:
             bg = gray.copy()
+            bg0 = bg0_med if bg0_med is not None else gray.copy()
+
+        # F12: scene-permanence veto for RE-acquisitions. A candidate whose
+        # edge-pair evidence already exists in the pre-swing scene (bg0) is
+        # permanent structure (neon strips, door frames), not the club — the
+        # club's post-swing resting position was empty at frame 0. Not applied
+        # before the swing (the address club IS in bg0).
+        def scene_perm(g, th_c, s_ref, rs_ref, ext_ref):
+            if not swing_seen:
+                return False
+            thp = np.arange(th_c - 2.0, th_c + 2.0 + DTHETA, DTHETA)
+            Sp, _, _, Rp, _, Ep, _, _ = evidence_scan(bg0, bg0, None, g, thp, r_min, r_max)
+            ip = int(np.argmax(Sp))
+            if float(Sp[ip]) <= max(0.6 * s_ref, 0.8 * S_ACCEPT):
+                return False
+            # permanent only if the bg0 run RADIALLY overlaps the candidate's run:
+            # far-radius permanent structure (lens-flare arc, lamps) must not veto
+            # a club whose evidence lives at near radii; the neon-parallel lock's
+            # run IS the neon's own pixels, so it overlaps and is vetoed.
+            sc, ec = rs_ref, rs_ref + ext_ref
+            sp, ep = float(Rp[ip]), float(Rp[ip]) + float(Ep[ip])
+            ov = max(0.0, min(ec, ep) - max(sc, sp))
+            return ov > 0.5 * max(ext_ref, 0.05)
         grip, phi = anchor.get(idx)
         if grip is None:
             sys.exit("anchors.csv gave no grip for frame 0")
 
         flag = FLAG_LOST
+        seg_mark = 't'
         S_pk = sup = near = band = np.nan
         th_open = th_close = np.nan
         meas_used = False
 
+        grays_hist.append(gray)
+        grips_hist.append(grip)
+        # F11: per-frame stillness around the grip (drives hold mode AND blocks
+        # unreliable single-frame acquisition while the scene is static)
+        still_now = False
+        roi_mean = 99.0
+        if len(grays_hist) >= 2:
+            roi0 = np.abs(gray - grays_hist[-2])
+            gy0, gx0 = int(max(0, grip[1] - 200)), int(max(0, grip[0] - 200))
+            roi_mean = float(roi0[gy0:gy0 + 400, gx0:gx0 + 400].mean())
+            still_now = roi_mean < STILL_THR
+        still_hist.append(still_now)
+        still_ok = sum(still_hist) >= 6            # majority of the window is still
+        # F14: the hardened acquisition gates (scene-permanence veto, clubhead-blob
+        # requirement) exist to kill QUASI-STATIC distractor locks (neon/collar/
+        # body-mat rays at the finish hold). During fast motion the permissive
+        # acquisition of v4 was correct — motion evidence corroborates — and the
+        # hardened gates strangle mid-downswing re-acquisition. Gate them on the
+        # measured scene motion.
+        quasi_static = roi_mean < 3.0
+
+        # F10: still-hold measurement. When the scene around the grip is still
+        # and the track has produced nothing for a while (or hold tracking is
+        # already engaged), stack the recent frames (noise ~ /sqrt(K)) and scan
+        # with a median-stable anchor. An accepted hold detection is fed to the
+        # KF as a NORMAL measurement (it must earn confirmation like any other),
+        # so the finish hold builds real measured segments. Sector OFF; the
+        # distal clubhead blob is required (no motion evidence to corroborate).
+        hold_th = None
+        hold_vals = None
+        if len(grays_hist) == HOLD_K and (hold_active or unmeas_run >= HOLD_K):
+            still = still_ok
+            if str(idx) in dbg:
+                print(f"[dbg f{idx}] HOLD gate: unmeas={unmeas_run} active={hold_active} still={still}")
+            if still:
+                stack = np.mean(np.stack(grays_hist), axis=0)
+                g_med = (float(np.median([g[0] for g in grips_hist])),
+                         float(np.median([g[1] for g in grips_hist])))
+                if hold_active and initialised:
+                    loc = kf.x[0] % 360.0
+                    gth = np.arange(loc - 15.0, loc + 15.0 + DTHETA, DTHETA)
+                else:
+                    gth = np.arange(0.0, 360.0, DTHETA)
+                Sh, Fh, Nh, Rh, Bh, Eh, Dh, Ch = evidence_scan(
+                    stack, bg, None, g_med, gth, r_min, r_max, s_hit=HOLD_S_HIT,
+                    blob_img=np.abs(stack - bg0))
+                th_h, ih = fit_peak(gth, Sh)
+                if hold_active and initialised:
+                    cands = (ih,)
+                else:
+                    # top-4 NMS peaks + opposites: a dominant (blob-rejected) body
+                    # line must not mask the true club elsewhere in the circle
+                    order = np.argsort(Sh)[::-1]
+                    picks = []
+                    for jj in order:
+                        if len(picks) >= 4 or Sh[jj] < S_ACCEPT:
+                            break
+                        if all(abs(wrap180(gth[jj] - gth[kk])) > 20.0 for kk in picks):
+                            picks.append(int(jj))
+                    cands = tuple(picks) + tuple(
+                        (int(jj) + int(round(180.0 / DTHETA))) % len(gth) for jj in picks)
+                best = None
+                best_clear = None
+                for ii in cands:
+                    bf = body_fraction(g_med, float(gth[ii]), float(Rh[ii]),
+                                       float(Eh[ii]), skel.segments(idx), r_max)
+                    okc = (Sh[ii] > S_ACCEPT and float(Rh[ii]) < RSTART_MAX
+                           and (Fh[ii] > F_MIN or (float(Eh[ii]) >= EXT_MIN
+                                                   and float(Dh[ii]) >= DEN_MIN))
+                           and (bf < BODY_FRAC_MAX
+                                or float(Bh[ii]) >= HOLD_BLOB_MIN)
+                           and not scene_perm(g_med, float(gth[ii]), float(Sh[ii]), float(Rh[ii]), float(Eh[ii])))
+                    if str(idx) in dbg:
+                        print(f"[dbg f{idx}] HOLD bf={bf:.2f} "
+                              f"cand th={gth[ii]:.1f} S={Sh[ii]:.3f} "
+                              f"F={Fh[ii]:.2f} Rs={Rh[ii]:.2f} B={Bh[ii]:.2f} "
+                              f"Ext={Eh[ii]:.2f} Den={Dh[ii]:.2f} ok={okc} "
+                              f"gmed=({g_med[0]:.0f},{g_med[1]:.0f})")
+                    sc = float(Sh[ii]) * (1.0 + BLOB_GAIN * float(Bh[ii]))
+                    if okc:
+                        if best is None or sc > best[0]:
+                            best = (sc, ii)
+                        # F17: bodies ALWAYS produce candidate lines; a clear-of-
+                        # body passer must outrank any body-adjacent one (a stale
+                        # re-acquisition of a vacated hang position is fed by the
+                        # body seam alone, while the real club rests elsewhere)
+                        if bf < BODY_FRAC_MAX and (best_clear is None or sc > best_clear[0]):
+                            best_clear = (sc, ii)
+                if best_clear is not None:
+                    best = best_clear
+                if best is not None:
+                    ii = best[1]
+                    hold_th = float(gth[ii])
+                    hold_vals = (float(Sh[ii]), float(Fh[ii]), float(Nh[ii]))
+                    grip = g_med           # stabilised anchor for this frame's record
+            hold_active = hold_th is not None
+
         # F4: periodic global escape scan — can a distant peak decisively beat the lock?
-        if initialised and idx % GLOBAL_EVERY == 0 and idx > 0:
+        if hold_th is None and not still_ok and initialised and idx % GLOBAL_EVERY == 0 and idx > 0:
             gth = np.arange(0.0, 360.0, 1.0)
-            Sg, Fg, Ng, Rg, Bg, Eg, Dg = evidence_scan(gray, bg, prev_gray, grip, gth, r_min, r_max)
+            Sg, Fg, Ng, Rg, Bg, Eg, Dg, Cg = evidence_scan(gray, bg, prev_gray, grip, gth, r_min, r_max,
+                                                            blob_img=np.abs(gray - bg0))
             Sg = sector_mask(gth, Sg, phi)
             th_g, ig = fit_peak(gth, Sg)
             loc = kf.x[0] % 360.0
             if (Sg[ig] > S_ACCEPT * 1.2 and Rg[ig] < RSTART_MAX
                     and (Fg[ig] > F_MIN or (Eg[ig] >= EXT_MIN and Dg[ig] >= DEN_MIN))
-                    and abs(wrap180(th_g - loc)) > GLOBAL_DIFF):
+                    and abs(wrap180(th_g - loc)) > GLOBAL_DIFF
+                    and (not quasi_static
+                         or body_fraction(grip, float(th_g), float(Rg[ig]), float(Eg[ig]),
+                                          skel.segments(idx), r_max) < BODY_FRAC_MAX
+                         or float(Bg[ig]) >= HOLD_BLOB_MIN)
+                    and not (quasi_static
+                             and scene_perm(grip, float(th_g), float(Sg[ig]), float(Rg[ig]), float(Eg[ig])))):
                 # compare against evidence at the tracked angle
                 i_loc = int(np.argmin(np.abs(wrap180(gth - loc))))
                 if Sg[ig] > GLOBAL_MARGIN * max(Sg[i_loc], 1e-6):
@@ -334,6 +593,27 @@ def main():
                 initialised = False          # falls into the re-init path below
                 global_hits = 0
 
+        if initialised and hold_th is not None \
+                and abs(wrap180(hold_th - kf.x[0])) > 45.0:
+            # the still-hold detection contradicts the (junk) track — re-acquire
+            kf.init(hold_th)
+            kf.hist.append((kf.x.copy(), kf.P.copy(), kf.x.copy(), kf.P.copy()))
+            seg_marks.append('i')
+            flag, meas_used = FLAG_REINIT, True
+            confirm = 0
+            unmeas_run = 0
+            S_pk, sup, near = hold_vals
+            cv2.accumulateWeighted(gray, bg, 0.02)
+            prev_gray = gray
+            frames_raw.append(frame)
+            per_frame.append(dict(grip=grip, flag=flag, S=S_pk, sup=sup, near=near,
+                                  band=np.nan, th_open=np.nan, th_close=np.nan,
+                                  confirmed=False, still=still_now))
+            rows.append([idx, idx * dt, kf.x[0], kf.x[1], S_pk, sup, near, np.nan, flag,
+                         grip[0], grip[1]])
+            idx += 1
+            continue
+
         if initialised:
             xp, Pp = kf.predict()
             sigma = math.sqrt(max(Pp[0, 0], 1e-6))
@@ -344,26 +624,44 @@ def main():
         else:
             thetas = np.arange(0.0, 360.0, DTHETA)
 
-        S, F, N, Rs, B, Ext, Den = evidence_scan(gray, bg, prev_gray, grip, thetas, r_min, r_max)
+        S, F, N, Rs, B, Ext, Den, Bchg = evidence_scan(gray, bg, prev_gray, grip, thetas, r_min, r_max,
+                                                       blob_img=np.abs(gray - bg0))
         if str(idx) in dbg:
             order = np.argsort(S)[::-1][:6]
             print(f"[dbg f{idx}] init={initialised} grip=({grip[0]:.0f},{grip[1]:.0f}) phi={phi} "
                   f"fan=[{thetas[0]:.0f}..{thetas[-1]:.0f}]")
             for ii in order:
                 print(f"    th={thetas[ii]:7.1f} S={S[ii]:.3f} F={F[ii]:.2f} "
-                      f"Rs={Rs[ii]:.2f} B={B[ii]:.2f} near={N[ii]:.2f} "
-                      f"gates: S>{S_ACCEPT}={S[ii]>S_ACCEPT} F>{F_MIN}={F[ii]>F_MIN} Rs<{RSTART_MAX}={Rs[ii]<RSTART_MAX}")
+                      f"Ext={Ext[ii]:.2f} Den={Den[ii]:.2f} Rs={Rs[ii]:.2f} B={B[ii]:.2f} "
+                      f"good={(S[ii]>S_ACCEPT) and (Rs[ii]<RSTART_MAX) and (F[ii]>F_MIN or (Ext[ii]>=EXT_MIN and Den[ii]>=DEN_MIN))}")
         if initialised:
             S = sector_mask(thetas, S, phi)   # F3 in the tracking fan ONLY (v3:
         # the finish wrap breaks the forearm-continuation assumption, so full-circle
         # (re)init scans run unmasked and rely on the run-start + blob tests instead)
         th_meas, i_pk = fit_peak(thetas, S)
         S_pk, sup, near = float(S[i_pk]), float(F[i_pk]), float(N[i_pk])
+        if hold_th is not None:            # F10: stacked measurement wins the frame
+            th_meas = hold_th
+            S_pk, sup, near = hold_vals
 
         okrun = (float(Ext[i_pk]) >= EXT_MIN) and (float(Den[i_pk]) >= DEN_MIN)
         good = (S_pk > S_ACCEPT) and (float(Rs[i_pk]) < RSTART_MAX) \
                and (sup > F_MIN or okrun)     # F8: global-F OR dense-run path
-        if not initialised:
+        if hold_th is not None:
+            good = True                       # already passed the (stricter) hold gates
+        if not initialised and hold_th is not None:
+            kf.init(hold_th)
+            kf.hist.append((kf.x.copy(), kf.P.copy(), kf.x.copy(), kf.P.copy()))
+            seg_mark = 'i'
+            initialised, flag, meas_used = True, FLAG_REINIT, True
+            confirm = 0
+        elif not initialised and still_ok:
+            # F11: still but the stacked hold path did not accept — a single-frame
+            # init here is exactly how static distractors (collar+neon rays) lock
+            # in; stay lost until hold evidence or motion resumes.
+            kf.hist.append((kf.x.copy(), kf.P.copy(), kf.x.copy(), kf.P.copy()))
+            seg_mark = 'f'
+        elif not initialised:
             # F6: 180-flip disambiguation — compare the peak with its opposite ray,
             # crediting a bright distal blob at the supported run's end (design §7).
             j = (i_pk + int(round(180.0 / DTHETA))) % len(thetas)
@@ -371,7 +669,14 @@ def main():
             for ii in (i_pk, j):
                 okc = (S[ii] > S_ACCEPT) and (float(Rs[ii]) < RSTART_MAX) \
                       and (F[ii] > F_MIN or (float(Ext[ii]) >= EXT_MIN
-                                             and float(Den[ii]) >= DEN_MIN))
+                                             and float(Den[ii]) >= DEN_MIN)) \
+                      and (not (swing_seen and quasi_static)
+                           or body_fraction(grip, float(thetas[ii]), float(Rs[ii]),
+                                            float(Ext[ii]), skel.segments(idx),
+                                            r_max) < BODY_FRAC_MAX
+                           or float(B[ii]) >= HOLD_BLOB_MIN) \
+                      and not (quasi_static
+                               and scene_perm(grip, float(thetas[ii]), float(S[ii]), float(Rs[ii]), float(Ext[ii])))
                 cand.append((float(S[ii]) * (1.0 + BLOB_GAIN * float(B[ii])), okc, ii))
             cand.sort(reverse=True)
             score, okc, ii = cand[0]
@@ -382,14 +687,16 @@ def main():
             if good:
                 kf.init(th_meas)
                 kf.hist.append((kf.x.copy(), kf.P.copy(), kf.x.copy(), kf.P.copy()))
+                seg_mark = 'i'
                 initialised, flag, meas_used = True, FLAG_REINIT, True
                 confirm = 0
             else:
                 kf.hist.append((kf.x.copy(), kf.P.copy(), kf.x.copy(), kf.P.copy()))
+                seg_mark = 'f'
         else:
             xp, _ = kf.predict()
             beta_pred = abs(xp[1]) * t_exp
-            wedge = beta_pred > BETA_SWITCH
+            wedge = beta_pred > BETA_SWITCH and hold_th is None
             if good and wedge:
                 a, b = fit_wedge(thetas, S, i_pk)
                 th_open, th_close, band = a, b, b - a
@@ -420,25 +727,45 @@ def main():
                                         or float(Rs[i_pk]) >= RSTART_MAX) else FLAG_COAST
             if meas_used:
                 confirm += 1
+            if abs(kf.x[1]) > 800.0:
+                swing_seen = True          # F12: downswing omega observed
+            # F15: runaway kill — accepted-but-insane states (wedge-band omega
+            # inflation) must not keep a dead track alive through impact
+            runaway = runaway + 1 if abs(kf.x[1]) > OMEGA_MAX * 1.5 else 0
+            if runaway >= 6:
+                initialised = False
+                runaway = 0
+                misses = 0
+                flag = FLAG_LOST
             misses = 0 if meas_used else misses + 1
-            if misses > COAST_MAX:
+            # F15: coast budget is TIME AT CURRENT SPEED, not frames — 12 coast
+            # frames at 2000 deg/s is ~160 deg of blind drift; fast phases get 4.
+            coast_budget = COAST_MAX if abs(kf.x[1]) < 800.0 else 4
+            if misses > coast_budget:
                 initialised = False
                 misses = 0
                 flag = FLAG_LOST
 
+        # lostness accounting runs EVERY frame (incl. fully-LOST ones): only a
+        # confirmed, omega-sane measurement counts as "found" (F10/F15)
+        sane = (meas_used and initialised
+                and abs(kf.x[1]) <= OMEGA_MAX and confirm >= 3)
+        unmeas_run = 0 if sane else unmeas_run + 1
+
         cv2.accumulateWeighted(gray, bg, 0.02)
         prev_gray = gray
         frames_raw.append(frame)
+        seg_marks.append(seg_mark)
         per_frame.append(dict(grip=grip, flag=flag, S=S_pk, sup=sup, near=near,
                               band=band, th_open=th_open, th_close=th_close,
-                              confirmed=confirm >= 3))
+                              confirmed=confirm >= 3, still=still_now))
         rows.append([idx, idx * dt, kf.x[0], kf.x[1], S_pk, sup, near, band, flag,
                      grip[0], grip[1]])
         idx += 1
     cap.release()
 
     # ---- RTS smoothing + posterior-variance confidence ----
-    xs, Ps = kf.rts() if kf.hist else ([], [])
+    xs, Ps = kf.rts(seg_marks) if kf.hist else ([], [])
     for i, r in enumerate(rows):
         if i < len(xs):
             sig = math.sqrt(max(Ps[i][0, 0], 1e-9))
@@ -468,6 +795,30 @@ def main():
     th_arr = np.array([r[4] for r in rows], float)
     om_arr = np.array([r[5] for r in rows], float)
     t_arr = np.array([r[1] for r in rows], float)
+    # F11: still-period consistency. Within each contiguous still run (>=15 fr),
+    # the club is static — measured thetas must agree. Demote outliers (>25 deg
+    # from the conf-weighted circular mean) to the predicted tier.
+    still_arr = [pf.get("still", False) for pf in per_frame]
+    i = 0
+    while i < nfr:
+        if still_arr[i]:
+            j = i
+            while j + 1 < nfr and still_arr[j + 1]:
+                j += 1
+            if j - i + 1 >= 15:
+                sel = [k for k in range(i, j + 1) if conf_arr[k] >= CONF_MEAS]
+                if len(sel) >= 3:
+                    cs = sum(conf_arr[k] * math.cos(math.radians(th_arr[k])) for k in sel)
+                    sn = sum(conf_arr[k] * math.sin(math.radians(th_arr[k])) for k in sel)
+                    mu = math.degrees(math.atan2(sn, cs))
+                    for k in sel:
+                        if abs(wrap180(th_arr[k] - mu)) > 25.0:
+                            conf_arr[k] = min(conf_arr[k], 0.35)
+                            rows[k][6] = conf_arr[k]
+            i = j + 1
+        else:
+            i += 1
+
     meas = conf_arr >= CONF_MEAS
     segs = []
     i = 0

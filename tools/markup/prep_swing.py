@@ -22,6 +22,10 @@ rh = d.get('athlete', {}).get('handedness', 'Right').lower().startswith('r')
 ei = 7 if rh else 8
 elb = np.array([[p['kp'][3*ei], p['kp'][3*ei+1]] for p in pose], float)
 econf = np.array([p['kp'][3*ei+2] for p in pose], float)
+# body joints for the clutter mask: shoulders, hips, knees, ankles (COCO 5,6,11..16)
+BODY_J = [5, 6, 11, 12, 13, 14, 15, 16]
+bj = {j: (np.array([[p['kp'][3*j], p['kp'][3*j+1]] for p in pose], float),
+          np.array([p['kp'][3*j+2] for p in pose], float)) for j in BODY_J}
 
 covered = np.where((vt >= prel[0]) & (vt <= prel[-1]))[0]
 n0, n1 = int(covered[0]), int(covered[-1])
@@ -55,6 +59,21 @@ while True:
 cap.release(); vw.release()
 with open(f"{out}/anchors.csv", "w", newline="") as f:
     csv.writer(f).writerows(rows)
+# skeleton.csv: frame, then x,y,conf (px) per body joint in BODY_J order —
+# consumed by shaft_annotate's body-collinearity gate (a candidate ray whose
+# evidence run tracks the golfer's own torso/legs is not the club)
+srows = []
+for o2 in range(len(sub)):
+    t = vt[sub][o2]
+    row = [o2]
+    for j in BODY_J:
+        pts, cf = bj[j]
+        row += [round(float(np.interp(t, prel, pts[:, 0]) * W), 1),
+                round(float(np.interp(t, prel, pts[:, 1]) * H), 1),
+                round(float(np.interp(t, prel, cf)), 2)]
+    srows.append(row)
+with open(f"{out}/skeleton.csv", "w", newline="") as f:
+    csv.writer(f).writerows(srows)
 json.dump({"swingDir": sw, "frame0": n0, "fps": fps, "W": W, "H": H,
            "t_us": [int(t) for t in vt[sub]]}, open(f"{out}/clipmeta.json", "w"))
 print(f"clip: {o} frames @ {fps:.2f} fps, ext anchors (phi_ok on {sum(r[4] for r in rows)}/{o})")

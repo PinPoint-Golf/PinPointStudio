@@ -1,10 +1,10 @@
-# Shaft Detection Exemplar — Findings & Fixes (v4 frozen; v5 checkpoint)
+# Shaft Detection Exemplar — Findings & Fixes (v6 working prototype)
 
-**Status:** v4 (`tools/markup/shaft_annotate.py`) is the last frozen, gate-passing
-exemplar. **v5 (`tools/markup/shaft_annotate_v5.py`) is a work-in-progress
-checkpoint** — finish-hold detection + corpus sweep, documented in §6 below; it
-improves the top of the swing and the finish substantially but has a known
-impact-window gap vs v4 and two open defects. Do not port v5 until §6.4 is closed. Companion: [shaft_detection_improvements.md](shaft_detection_improvements.md)
+**Status:** `tools/markup/shaft_annotate.py` is the **v6 working prototype**
+(2026-07-03) — §6.4 items 1–3 closed (per-segment RTS, finish detection, body
+mask); accepted as a good working prototype pending more work and, above all,
+**uncropped captures** (§6.1). Known limits in §7. v4 (frozen 2026-07-02) and
+the interim v5 checkpoint live in git history. Companion: [shaft_detection_improvements.md](shaft_detection_improvements.md)
 (the original architecture this iterates on) and
 [../implementation/shaft_markup_exemplar_impl.md](../implementation/shaft_markup_exemplar_impl.md) (how to run).
 
@@ -153,3 +153,35 @@ recovery f210 measured correctly; neon lock f435 and body line f450 dead.
 8. **A veto's reference data must not contain the thing being detected** (the
    address club in the frame-0 snapshot). Prefer references that structurally
    exclude the target (temporal median).
+
+## 7. v6 — working-prototype freeze (2026-07-03)
+
+Closed §6.4 items 1–3; accepted as a working prototype ("needs more work and
+captures that are not cropped").
+
+| id | fix | rationale / evidence |
+|----|-----|----------------------|
+| — | **Per-segment RTS** (item 1, structural): per-frame tags i/t/f (init / tracked / free) aligned to the filter history; the backward smoother runs only within contiguous `i,t…t` runs | smoothing across a re-init boundary treats the init's pseudo-prediction (Pp=P₀) as real and detonates — observed smoothed ω of 1e18…1e49 through junk-coast chains. With segments isolated, max ω is sane everywhere |
+| F15 | Speed-aware coast budget (12→4 frames when \|ω\|>800°/s) + runaway kill (6 consecutive frames \|ω\|>1.5×clamp → LOST) + per-frame lostness accounting (the counter previously froze when fully LOST, locking hold-mode out) | 12 coast frames at 2000°/s ≈ 160° of blind drift; recovered the impact window (f144–228 measured on 0009 — the downswing regression a user eyeball caught) |
+| F16 | **Body-collinearity gate** (items 2+3): `prep_swing.py` exports an 8-joint skeleton per frame; quasi-static acquisitions reject candidates whose evidence run is >60% within 40px of torso/leg segments — **unless a bright distal blob terminates the run** | the OR is data-derived: hanging club bf=0.88/B=0.78 (pass), body junk bf=0.81/B=0.05 (fail), unlit over-shoulder club bf=0.00/B=0.12 (pass blob-free). A blob-only gate cannot separate an unlit club from a body line; a body-only gate cannot admit the legitimately body-adjacent hanging club |
+| F17 | **Clear-candidate preference**: among gate-passing hold candidates, any clear-of-body candidate outranks every body-adjacent one | bodies ALWAYS produce candidate lines; clubs only sometimes coincide with them. Kills the stale re-acquisition of a vacated hang position (s2 f700: seam-fed 98° → true 191.5°). Discovery en route: swing_0002 has the same hang→lift→shoulder finish sequence as 0009 — the hang-phase 98° detections are CORRECT |
+
+**Corpus at freeze** (meas% / finish-region%, v4 → v6): 0002 65/19→71/38 ·
+0003 74/25→81/49 · 0004 73/20→75/27 · 0005 74/23→73/32 · 0006 70/25→75/41 ·
+0007 57/25→66/52 · 0009 44/4→**71/63**. All adjudicated landmarks on 0002+0009
+pass simultaneously (downswing, impact recovery, hanging club, shouldered club).
+
+**Known limits (the "more work"):**
+1. 0008 guard: 3 confident-wrong measured frames (f220–227, fast follow-through
+   sweep, ~130° vs true 0–21°, conf 0.86–0.89) — mid-sweep re-inits confirmed by
+   the faster coast cycling. Fix needs conf shaping on short re-init segments
+   that must NOT kill 0009's correct short impact re-locks (measure their
+   segment lengths first). Median 2.7° holds; honesty clause (≤5% high-conf-bad)
+   fails at 9%.
+2. Post-impact coverage is capture-bound: the club exits the frame (§6.1) —
+   needs uncropped captures before further detector tuning there is meaningful.
+3. Finish measured-segment audit on 0003–0007 was only spot-checked; full zoom
+   adjudication pending.
+4. s2's hang phase (f616–650) detects correctly but stays in the predicted tier
+   (confirmation doesn't accumulate through the golfer's sway) — coverage left
+   on the table.
