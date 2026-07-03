@@ -68,6 +68,16 @@ labelled swing may itself be off-plane and can never adjudicate the model form).
 - **Frame wide to the player's trail side** (face-on: more room to the player's right) — most post-impact
   detection loss on the existing corpus is the club leaving the frame, not detector failure
   (shaft findings §6.1). Uncropped captures are also what makes crop/off-frame validation meaningful.
+- **Background contrast is an environmental REQUIREMENT, not a nice-to-have** (user directive,
+  2026-07-04, after marking up the dark-studio corpus): in the studio's "normal" (dark) lighting the
+  club is lost against the black wall — dark-on-dark defeats every photometric channel simultaneously
+  (edge-pair, change-vs-median, motion), and no detector change can conjure signal that isn't there.
+  Provide a backdrop behind the swing arc with luminance contrast to a steel/graphite shaft (mid-grey or
+  lighter; matte, non-reflective so it doesn't join the specular clutter). Record the backdrop
+  presence/type in the swing's markup `meta` (alongside `lighting`) so corpus analysis can stratify by
+  it. The detector's dark-wall performance is still measured (it is the current reality) but capture
+  FOR validation should include the backdrop stratum; detection targets are gated on contrast-adequate
+  captures.
 
 ---
 

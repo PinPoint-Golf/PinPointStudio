@@ -257,11 +257,14 @@ class M1Plane(ModelBase):
         best = None
         for thn0 in range(0, 180, 30):
             for i0 in (20.0, 45.0, 65.0):
+                A_max = 1.6 * float(np.max(L))  # physical bound (as M3): true length
+                # can't hugely exceed max observed projection — without it the
+                # A*cos(iota) degeneracy runs away on sparse (10-label) swings
                 try:
                     r = least_squares(
                         lambda p: (p[0] * rho_plane(th - p[2], p[1]) - L) / L,
                         [np.percentile(L, 90), i0, float(thn0)],
-                        bounds=([10.0, 1.0, -360.0], [5000.0, 84.0, 720.0]),
+                        bounds=([10.0, 1.0, -360.0], [A_max, 84.0, 720.0]),
                         loss="soft_l1", f_scale=0.1)
                 except Exception:
                     continue
@@ -298,7 +301,7 @@ class M2PlanePerPhase(ModelBase):
         for i0 in (20.0, 45.0, 65.0):
             for dn in (0, 45, 90, 135):
                 x0 = [np.percentile(L, 90)]
-                lb, ub = [10.0], [5000.0]
+                lb, ub = [10.0], [1.6 * float(np.max(L))]   # same physical bound as M1/M3
                 for phase in self.phases:
                     m = ph == phase
                     x0 += [i0, float(np.median(th[m]) + dn)]
