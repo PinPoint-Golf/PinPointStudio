@@ -14,7 +14,7 @@ The folder's own `README.md` carries the same map + workflow.
 
 | file | purpose |
 |------|---------|
-| `shaft_annotate.py` | **stage 1** (v6 working prototype): detection + tracking, per-segment KF/RTS, still-hold re-acquisition, body gating, measured/predicted output; annotated video + track CSV |
+| `shaft_annotate.py` | **stage 1** (v7 working prototype): detection + tracking, per-segment KF/RTS, still-hold re-acquisition, body gating, measured/predicted output; annotated video + track CSV |
 | `length_model.py` | **stage 2**: projected club-length model M0–M4 (labeled fit + per-swing censored self-fit = production path); theta re-unwrap + ω-anchored phase split |
 | `clubhead_scan.py` | **stage 2** scan primitives (scene median, ray edge, run-end) + H0 zeroth-order baseline tool (lab head_v0) |
 | `clubhead_measure.py` | **stage 2** per-frame head measurement: gap-tolerant on-axis terminus, multi-width edge-pair, permanence veto, length-prior candidate scoring (lab head_v1) |
@@ -92,7 +92,13 @@ blue dot = grip anchor; HUD shows θ/ω/conf/kind/flag.
 
 ## Status & next steps
 
-- **v6 working prototype** (2026-07-03) = `shaft_annotate.py` — per-segment
+- **v7 working prototype** (2026-07-05) = `shaft_annotate.py` — F19 any-speed
+  permanence veto at re-inits, F20 in-motion permanence reference, F21
+  sector-conditioned hold gates (hang-region fix); findings §8 incl. the
+  fixture-reproducibility finding (v6 freeze tables historical only; fresh
+  baselines: 0008 meas median 2.5°, 0% bad>30 both tiers). Stage-2 fixtures
+  re-frozen (`~/shaft_markup_lab/s*/v7/`), stage-2 suite re-passed against
+  them (the §2.3 decoupling event). Superseded: **v6** (2026-07-03) — per-segment
   RTS + speed-aware coast (impact window recovered), still-hold re-acquisition,
   body-collinearity gating with clear-candidate preference (findings §6–§7).
   Corpus (meas%/finish%): 0002 71/38, 0003 81/49, 0004 75/27, 0005 73/32,
@@ -112,7 +118,10 @@ blue dot = grip anchor; HUD shows θ/ω/conf/kind/flag.
   more room to the player's right — most post-impact loss is the club leaving
   the frame, not detection failure.
 - **Stage-1 backlog surfaced by stage 2** (adjudicated frames, s9v2 clip
-  indices): f190 follow-through body-line lock at conf 0.90; f302–320 hang
+  indices): f302–320 hang region **FIXED by v7's F21**; remaining: f190
+  follow-through body-line lock at conf 0.90 (a moving-body line — the
+  permanence veto correctly cannot own it; same family as the §8.5 finish
+  audit list); previously: f302–320 hang
   region θ≈92.5° conf 0.92 vs visible ~60°; plus the known 0008 f220–227
   fast-follow-through cluster (findings §7).
 - Next, in order (details in findings doc §7 + clubhead plan):

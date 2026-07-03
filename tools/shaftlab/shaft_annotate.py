@@ -1,18 +1,23 @@
 """
-shaft_annotate.py — PinPoint shaft detection exemplar (v6 working prototype,
-2026-07-03).
+shaft_annotate.py — PinPoint shaft detection exemplar (v7 working prototype,
+2026-07-05).
 
 Reference implementation and video markup tool for single-camera shaft tracking:
 anchored polar unwrap, edge-pair + motion evidence, line/wedge regimes,
 PER-SEGMENT KF + RTS, still-hold stacked re-acquisition, pose-derived body
 gating, and a measured/predicted output model. Oracle for any C++ port.
 
-STATUS: working prototype. Verified frame-by-frame on swings 0002/0009 across
-all phases (downswing, impact, hanging + shouldered finish) and corpus-swept
-over 0002-0007. Known limits: ~3 confident-wrong frames in 0008's fast
-follow-through sweep (short re-init segments — see findings doc §7), and
-post-impact coverage is capture-bound (club exits frame; face-on framing needs
-more room to the player's right). Needs uncropped captures for the next round.
+STATUS: v7 working prototype (F19-F21 on top of v6; findings doc §8).
+v7 adds: F19 any-speed strict scene-permanence veto at re-inits (golf-bag /
+scenery locks), F20 in-motion permanence reference (bg0_move; AND-permanence,
+immune to address/finish-hold poisoning, enables pre-swing vetoes), F21
+sector-conditioned hold gates (fixes the hang-region body lock while
+preserving the shouldered finish club). Fresh-baseline note: the v6 "freeze"
+fixtures were not reproducible against current clip encodes; v7 baselines are
+the reference (0008 labels: 0% bad>30 in BOTH tiers). Known remaining limit:
+quasi-static finish body-line holds with bright-shoe blob credit (audit list
+in findings §8; density gate tried and reverted). Post-impact coverage is
+capture-bound (uncropped captures pending).
 
 Design doc:   docs/design/shaft_detection_improvements.md   (original architecture)
 Learnings:    docs/design/shaft_detection_exemplar_findings.md   (F1-F17 + methodology)
@@ -222,6 +227,21 @@ class SkeletonSource:
                 out.append((jt[a][0], jt[a][1], jt[b][0], jt[b][1]))
         return out
 
+    def arm_segments(self, idx, grip):
+        """F19: shoulder->grip lines approximate the ARMS (skeleton has no
+        elbows/wrists). Used ONLY by the fast-re-init arm-collinearity veto —
+        the tracking-time F16 gate keeps excluding arms deliberately (the
+        hanging club is legitimately arm-adjacent, but that is a quasi-static
+        regime this veto never touches)."""
+        jt = self.frames.get(idx)
+        if not jt:
+            return []
+        out = []
+        for j in (0, 1):
+            if j < len(jt) and jt[j][2] > 0.3:
+                out.append((jt[j][0], jt[j][1], float(grip[0]), float(grip[1])))
+        return out
+
 
 def body_fraction(grip, th_deg, rs_frac, ext_frac, segs, r_max, n=32):
     """F16: fraction of a candidate's supported run lying within BODY_DIST_PX of
@@ -365,6 +385,9 @@ def main():
     ap.add_argument("--r-max", type=float, default=None)
     ap.add_argument("--out-dir", default=".")
     ap.add_argument("--debug-frames", default="", help="comma list: dump gate values")
+    ap.add_argument("--seg-dump", action="store_true",
+                    help="write <stem>_segments.csv: per KF segment init path/"
+                         "motion/accepts/length/conf/outcome (fix-development aid)")
     args = ap.parse_args()
 
     cap = cv2.VideoCapture(args.video)
@@ -380,8 +403,14 @@ def main():
 
     stem = os.path.splitext(os.path.basename(args.video))[0]
     os.makedirs(args.out_dir, exist_ok=True)
+    # overlay at the CONTAINER rate: mpeg4 rejects fractional timebases (a
+    # fractional --fps-override made the writer fail on the c1 corpus); the
+    # true rate only matters for dt/KF, playback speed is cosmetic
+    vw_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    if vw_fps != round(vw_fps):
+        vw_fps = float(round(vw_fps)) or 30.0
     vw = cv2.VideoWriter(os.path.join(args.out_dir, f"{stem}_annotated.mp4"),
-                         cv2.VideoWriter_fourcc(*"mp4v"), fps, (W, H))
+                         cv2.VideoWriter_fourcc(*"mp4v"), vw_fps, (W, H))
 
     dbg = set(x.strip() for x in args.debug_frames.split(",") if x.strip())
     anchor = AnchorSource(args.anchors)
@@ -403,6 +432,35 @@ def main():
                 med_stack.append(cv2.cvtColor(fmed, cv2.COLOR_BGR2GRAY).astype(np.float32))
         cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
     bg0_med = np.median(np.stack(med_stack), axis=0) if len(med_stack) >= 5 else None
+
+    # F20: a SECOND permanence reference from IN-MOTION frames only. The
+    # whole-clip median assumes no club pose dominates the clip; on
+    # address-hold-dominant captures (c1: ~60% at address) it CONTAINS the
+    # address club, corrupting the F12 veto (§6.4: the reference must not
+    # contain the target). Frames chosen by CONSECUTIVE-frame grip-ROI motion
+    # are guaranteed park-free (excludes address AND finish holds — the
+    # finish-weighted-median regression of §6.4 item 2 cannot recur).
+    # Used as an AND with bg0 (scene_perm): truly permanent structure is in
+    # BOTH; the address club is only in bg0; a held finish club is in neither.
+    bg0_move = None
+    if ntot > 40:
+        cand = []
+        step = max(1, (ntot - 3) // 33)
+        for k in range(0, ntot - 2, step):
+            cap.set(cv2.CAP_PROP_POS_FRAMES, k)
+            ok1, f1 = cap.read()
+            ok2, f2 = cap.read()
+            if not (ok1 and ok2):
+                continue
+            g1 = cv2.cvtColor(f1, cv2.COLOR_BGR2GRAY).astype(np.float32)
+            g2 = cv2.cvtColor(f2, cv2.COLOR_BGR2GRAY).astype(np.float32)
+            mo = float(np.abs(g2 - g1).mean())   # whole-frame consecutive motion
+            cand.append((mo, g1))
+        cand.sort(key=lambda c: -c[0])
+        top = [g for mo, g in cand[:11] if mo > 1.0]
+        if len(top) >= 5:
+            bg0_move = np.median(np.stack(top), axis=0)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
     from collections import deque
     grays_hist = deque(maxlen=HOLD_K)     # F10: recent grays for stacking
@@ -441,22 +499,52 @@ def main():
         # permanent structure (neon strips, door frames), not the club — the
         # club's post-swing resting position was empty at frame 0. Not applied
         # before the swing (the address club IS in bg0).
-        def scene_perm(g, th_c, s_ref, rs_ref, ext_ref):
-            if not swing_seen:
-                return False
+        def _perm_in(ref, g, th_c, s_ref, rs_ref, ext_ref, s_fac, ov_fac):
             thp = np.arange(th_c - 2.0, th_c + 2.0 + DTHETA, DTHETA)
-            Sp, _, _, Rp, _, Ep, _, _ = evidence_scan(bg0, bg0, None, g, thp, r_min, r_max)
+            Sp, _, _, Rp, _, Ep, _, _ = evidence_scan(ref, ref, None, g, thp, r_min, r_max)
             ip = int(np.argmax(Sp))
-            if float(Sp[ip]) <= max(0.6 * s_ref, 0.8 * S_ACCEPT):
+            if float(Sp[ip]) <= max(s_fac * s_ref, 0.8 * S_ACCEPT):
                 return False
-            # permanent only if the bg0 run RADIALLY overlaps the candidate's run:
-            # far-radius permanent structure (lens-flare arc, lamps) must not veto
-            # a club whose evidence lives at near radii; the neon-parallel lock's
-            # run IS the neon's own pixels, so it overlaps and is vetoed.
+            # permanent only if the reference run RADIALLY overlaps the
+            # candidate's run: far-radius permanent structure (lens-flare arc,
+            # lamps) must not veto a club whose evidence lives at near radii;
+            # the neon-parallel lock's run IS the neon's own pixels.
             sc, ec = rs_ref, rs_ref + ext_ref
             sp, ep = float(Rp[ip]), float(Rp[ip]) + float(Ep[ip])
             ov = max(0.0, min(ec, ep) - max(sc, sp))
-            return ov > 0.5 * max(ext_ref, 0.05)
+            return ov > ov_fac * max(ext_ref, 0.05)
+
+        def scene_perm(g, th_c, s_ref, rs_ref, ext_ref, strict=False):
+            # F20: when the in-motion reference exists, permanence requires
+            # the structure in BOTH references (the address club is only in
+            # bg0 on hold-dominant clips; a held finish club is in neither —
+            # §6.4 both ways). That also makes the veto safe BEFORE the swing
+            # (the swing_seen guard existed to protect the address club in
+            # bg0 — bg0_move provides that protection structurally), which
+            # matters: the c1 golf-bag locks happen mid-BACKSWING, before
+            # swing_seen ever arms (the reason the first strict-veto
+            # experiment silently did nothing).
+            if not swing_seen and bg0_move is None:
+                return False
+            # strict = FAST-scene re-inits: higher bar on evidence STRENGTH
+            # (motion corroborates a real club, so only a self-standing
+            # permanent line may veto) but the SAME overlap bar — junk runs
+            # motion-smeared beyond the permanent structure dilute the overlap
+            # fraction (s0010 f437: bag line covers 0.66 of a 0.97-ext run;
+            # a 0.7 bar let it through).
+            s_fac, ov_fac = (0.85, 0.5) if strict else (0.6, 0.5)
+            r1 = _perm_in(bg0, g, th_c, s_ref, rs_ref, ext_ref, s_fac, ov_fac)
+            r2 = (_perm_in(bg0_move, g, th_c, s_ref, rs_ref, ext_ref, s_fac, ov_fac)
+                  if (r1 and bg0_move is not None) else None)
+            if str(idx) in dbg:
+                print(f"[dbg f{idx}] scene_perm th={th_c:.1f} s_ref={s_ref:.3f} "
+                      f"rs={rs_ref:.2f} ext={ext_ref:.2f} strict={strict} "
+                      f"perm_bg0={r1} perm_move={r2}")
+            if not r1:
+                return False
+            if bg0_move is not None:
+                return bool(r2)
+            return True
         grip, phi = anchor.get(idx)
         if grip is None:
             sys.exit("anchors.csv gave no grip for frame 0")
@@ -466,6 +554,7 @@ def main():
         S_pk = sup = near = band = np.nan
         th_open = th_close = np.nan
         meas_used = False
+        init_path = None          # seg-dump: which path (re)initialised this frame
 
         grays_hist.append(gray)
         grips_hist.append(grip)
@@ -533,11 +622,36 @@ def main():
                 for ii in cands:
                     bf = body_fraction(g_med, float(gth[ii]), float(Rh[ii]),
                                        float(Eh[ii]), skel.segments(idx), r_max)
+                    # F21: sector-conditioned hold gates (s9v2 hang adjudication,
+                    # f299: the body line at 91.5 deg won via a SHOES blob —
+                    # bf 0.91 / B 0.93 — while the true hanging club at 71.2 deg
+                    # failed both gates, bf 0.84 / B 0.06: the body-adjacent +
+                    # blob-free TRUE-club quadrant the F16 OR never covered).
+                    # The forearm sector separates them (junk 124.6 deg from phi,
+                    # truth 104.3): a sector-CONSISTENT candidate gets the blob
+                    # rescue and a relaxed body bar (the hanging club is
+                    # legitimately body-adjacent); a sector-INCONSISTENT one
+                    # must be body-CLEAR — which is exactly how the shouldered
+                    # finish club passes (bf 0.00 in the F16 freeze data), so
+                    # the finish-wrap case F3 was disabled for stays alive.
+                    in_sector = (phi is None
+                                 or abs(wrap180(float(gth[ii]) - phi)) <= SECTOR_HALF)
+                    if in_sector:
+                        body_ok = bf < 0.9 or float(Bh[ii]) >= HOLD_BLOB_MIN
+                    else:
+                        body_ok = bf < BODY_FRAC_MAX
+                    # NOTE: a hold-density requirement (Den >= DEN_MIN) was
+                    # tried against the s4 f654 shoe/body drift lock (Den 0.32
+                    # vs the true hang's 0.87) and REVERTED: on the dark c1
+                    # stratum genuine holds are dropout-fragmented too, and the
+                    # corpus gate rejected it (coverage collapse + one new
+                    # confident-wrong from churn). The shoe-blob/hold-drift
+                    # class stays on the audit list, mechanism known, no clean
+                    # fix under A/B yet.
                     okc = (Sh[ii] > S_ACCEPT and float(Rh[ii]) < RSTART_MAX
                            and (Fh[ii] > F_MIN or (float(Eh[ii]) >= EXT_MIN
                                                    and float(Dh[ii]) >= DEN_MIN))
-                           and (bf < BODY_FRAC_MAX
-                                or float(Bh[ii]) >= HOLD_BLOB_MIN)
+                           and body_ok
                            and not scene_perm(g_med, float(gth[ii]), float(Sh[ii]), float(Rh[ii]), float(Eh[ii])))
                     if str(idx) in dbg:
                         print(f"[dbg f{idx}] HOLD bf={bf:.2f} "
@@ -579,8 +693,8 @@ def main():
                          or body_fraction(grip, float(th_g), float(Rg[ig]), float(Eg[ig]),
                                           skel.segments(idx), r_max) < BODY_FRAC_MAX
                          or float(Bg[ig]) >= HOLD_BLOB_MIN)
-                    and not (quasi_static
-                             and scene_perm(grip, float(th_g), float(Sg[ig]), float(Rg[ig]), float(Eg[ig])))):
+                    and not scene_perm(grip, float(th_g), float(Sg[ig]), float(Rg[ig]),
+                                       float(Eg[ig]), strict=not quasi_static)):
                 # compare against evidence at the tracked angle
                 i_loc = int(np.argmin(np.abs(wrap180(gth - loc))))
                 if Sg[ig] > GLOBAL_MARGIN * max(Sg[i_loc], 1e-6):
@@ -608,7 +722,8 @@ def main():
             frames_raw.append(frame)
             per_frame.append(dict(grip=grip, flag=flag, S=S_pk, sup=sup, near=near,
                                   band=np.nan, th_open=np.nan, th_close=np.nan,
-                                  confirmed=False, still=still_now))
+                                  confirmed=False, still=still_now,
+                                  init_path='holdx', roi=roi_mean, qs=quasi_static))
             rows.append([idx, idx * dt, kf.x[0], kf.x[1], S_pk, sup, near, np.nan, flag,
                          grip[0], grip[1]])
             idx += 1
@@ -655,6 +770,7 @@ def main():
             seg_mark = 'i'
             initialised, flag, meas_used = True, FLAG_REINIT, True
             confirm = 0
+            init_path = 'hold'
         elif not initialised and still_ok:
             # F11: still but the stacked hold path did not accept — a single-frame
             # init here is exactly how static distractors (collar+neon rays) lock
@@ -667,7 +783,33 @@ def main():
             j = (i_pk + int(round(180.0 / DTHETA))) % len(thetas)
             cand = []
             for ii in (i_pk, j):
-                okc = (S[ii] > S_ACCEPT) and (float(Rs[ii]) < RSTART_MAX) \
+                # F19: forearm-plausibility sector at FAST re-inits. The c1
+                # corpus showed mid-swing full-circle re-inits locking the
+                # golfer's own extended ARMS (bright sleeves outgun a dark
+                # wood shaft — s0010 f437 adjudicated): an arm lock points
+                # back up the forearm, ~180 deg outside F3's sector. F3 stays
+                # OFF for quasi-static re-inits (the finish wrap breaks the
+                # forearm-continuation assumption — those go through the hold
+                # path anyway), so this closes the fast gap without touching
+                # the finish regime.
+                # Sector + arm-collinearity vetoes at fast re-inits were
+                # TRIED and REMOVED: the sector fixed one swing and broke
+                # another (s0007 vs s0008 — at takeaway the true club lies
+                # near the forearm line, so the sector cannot separate), and
+                # the shoulder->grip arm veto never fired (the c1 locks are
+                # bag/scenery lines on the far side of the grip, not arms —
+                # s0010 f437 adjudicated). The permanence veto below owns the
+                # class.
+                sector_ok = True
+                arm_ok = True
+                # NOTE: an F13/F16-style blob rescue on this veto was tried
+                # and REJECTED by A/B — the blob window sits at the run's
+                # DISTAL end, beyond the permanent structure, where the moving
+                # golfer makes it "changed", so it rescued the junk locks too.
+                perm = scene_perm(grip, float(thetas[ii]), float(S[ii]), float(Rs[ii]),
+                                  float(Ext[ii]), strict=not quasi_static)
+                okc = sector_ok and arm_ok \
+                      and (S[ii] > S_ACCEPT) and (float(Rs[ii]) < RSTART_MAX) \
                       and (F[ii] > F_MIN or (float(Ext[ii]) >= EXT_MIN
                                              and float(Den[ii]) >= DEN_MIN)) \
                       and (not (swing_seen and quasi_static)
@@ -675,8 +817,11 @@ def main():
                                             float(Ext[ii]), skel.segments(idx),
                                             r_max) < BODY_FRAC_MAX
                            or float(B[ii]) >= HOLD_BLOB_MIN) \
-                      and not (quasi_static
-                               and scene_perm(grip, float(thetas[ii]), float(S[ii]), float(Rs[ii]), float(Ext[ii])))
+                      and not perm
+                if str(idx) in dbg:
+                    print(f"[dbg f{idx}] FLIP cand th={float(thetas[ii]):.1f} S={float(S[ii]):.3f} "
+                          f"sector={sector_ok} arm={arm_ok} perm={perm} qs={quasi_static} "
+                          f"swing_seen={swing_seen} move_ref={bg0_move is not None} okc={okc}")
                 cand.append((float(S[ii]) * (1.0 + BLOB_GAIN * float(B[ii])), okc, ii))
             cand.sort(reverse=True)
             score, okc, ii = cand[0]
@@ -690,6 +835,7 @@ def main():
                 seg_mark = 'i'
                 initialised, flag, meas_used = True, FLAG_REINIT, True
                 confirm = 0
+                init_path = 'flip'
             else:
                 kf.hist.append((kf.x.copy(), kf.P.copy(), kf.x.copy(), kf.P.copy()))
                 seg_mark = 'f'
@@ -758,7 +904,8 @@ def main():
         seg_marks.append(seg_mark)
         per_frame.append(dict(grip=grip, flag=flag, S=S_pk, sup=sup, near=near,
                               band=band, th_open=th_open, th_close=th_close,
-                              confirmed=confirm >= 3, still=still_now))
+                              confirmed=confirm >= 3, still=still_now,
+                              init_path=init_path, roi=roi_mean, qs=quasi_static))
         rows.append([idx, idx * dt, kf.x[0], kf.x[1], S_pk, sup, near, band, flag,
                      grip[0], grip[1]])
         idx += 1
@@ -884,6 +1031,42 @@ def main():
                 th_out[i] = th_arr[b_last] + decay_sweep(om_arr[b_last], t_arr[i] - t_arr[b_last])
     else:
         kind = ["none"] * nfr
+
+    # ---- seg-dump: per-KF-segment diagnostics (fix-development aid) ----
+    if args.seg_dump:
+        seg_rows = []
+        i = 0
+        while i < nfr:
+            if seg_marks[i] == 'i':
+                j = i
+                while j + 1 < nfr and seg_marks[j + 1] == 't':
+                    j += 1
+                pf0 = per_frame[i]
+                accepts = sum(1 for k2 in range(i, j + 1)
+                              if per_frame[k2]["flag"] in (FLAG_LINE, FLAG_WEDGE, FLAG_REINIT))
+                om_seg = np.abs(om_arr[i:j + 1])
+                om_seg = om_seg[np.isfinite(om_seg)]
+                confs = conf_arr[i:j + 1]
+                n_meas_seg = sum(1 for k2 in range(i, j + 1) if kind[k2] == "meas")
+                seg_rows.append([i, j, j - i + 1, pf0.get("init_path") or "?",
+                                 f"{pf0.get('roi', float('nan')):.1f}",
+                                 int(bool(pf0.get("qs", False))),
+                                 accepts,
+                                 f"{float(np.median(om_seg)) if len(om_seg) else float('nan'):.0f}",
+                                 f"{float(np.max(om_seg)) if len(om_seg) else float('nan'):.0f}",
+                                 f"{float(np.max(confs)):.2f}",
+                                 n_meas_seg])
+                i = j + 1
+            else:
+                i += 1
+        seg_csv = os.path.join(args.out_dir, f"{stem}_segments.csv")
+        with open(seg_csv, "w", newline="") as f:
+            wseg = csv.writer(f)
+            wseg.writerow(["start", "end", "len", "init_path", "roi_at_init",
+                           "quasi_static_at_init", "accepts", "omega_med",
+                           "omega_max", "conf_max", "n_meas"])
+            wseg.writerows(seg_rows)
+        print(f"[seg-dump] {len(seg_rows)} segments -> {seg_csv}")
 
     # ---- overlay pass (smoothed track) ----
     review = []

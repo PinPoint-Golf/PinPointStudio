@@ -1,7 +1,8 @@
 # Shaft Detection Exemplar — Findings & Fixes (v6 working prototype)
 
-**Status:** `tools/shaftlab/shaft_annotate.py` is the **v6 working prototype**
-(2026-07-03) — §6.4 items 1–3 closed (per-segment RTS, finish detection, body
+**Status:** `tools/shaftlab/shaft_annotate.py` is the **v7 working prototype**
+(2026-07-05, §8: F19–F21 anti-distractor gating + hold rework; fixtures
+re-frozen as `s*/v7/`, see §8.1 before trusting any older table). Previously v6 — §6.4 items 1–3 closed (per-segment RTS, finish detection, body
 mask); accepted as a good working prototype pending more work and, above all,
 **uncropped captures** (§6.1). Known limits in §7. v4 (frozen 2026-07-02) and
 the interim v5 checkpoint live in git history. Companion: [shaft_detection_improvements.md](shaft_detection_improvements.md)
@@ -185,3 +186,90 @@ pass simultaneously (downswing, impact recovery, hanging club, shouldered club).
 4. s2's hang phase (f616–650) detects correctly but stays in the predicted tier
    (confirmation doesn't accumulate through the golfer's sway) — coverage left
    on the table.
+
+## 8. v7 — anti-distractor gating for re-inits + hold-gate rework (2026-07-05)
+
+Session driver: the c1 corpus (10 uncropped swings, new studio, 8 club types,
+100 head labels) exposed confident-wrong locks the v6 gate structure could not
+touch, and the stage-2 clubhead work surfaced two adjudicated stage-1 wrongs
+on 0009 (f190 body lock; the f302–320 hang region). Root mechanism (code
+audit): BOTH anti-distractor gates (F12 permanence, F16 body) were wired as
+`quasi_static and gate(...)` — a fast-motion full-circle re-init had **no veto
+at all** — and `swing_seen` kept the permanence veto dead until the first
+downswing, i.e. through the entire backswing.
+
+### 8.1 The fixture-reproducibility finding (read before trusting any table)
+
+The v6 "freeze" fixture tracks (`s*/v6/`) are **not reproducible** against the
+current clip encodes: frame-0 evidence differs (fps-independent), because the
+fixtures were copied from runs against earlier preps of the clips; mpeg4
+re-encode noise plus gate marginality did the rest. Fresh runs of the v6 code
+are **better than the documented freeze**: on 0008's 51 labels, meas median
+2.5°, mean 2.7°, **0% bad>30 in BOTH tiers** — the famous f220–227
+confident-wrong cluster (§7 known limit 1) does not reproduce at all. All v7
+comparisons below are against fresh v6-code baselines; the old freeze table is
+historical only. Fixture hygiene going forward: fixtures are re-frozen
+(`s*/v7/`) in the same reviewed event as the code promotion, and any future
+re-prep of a clip invalidates its fixtures.
+
+### 8.2 The fixes (F19–F21)
+
+| id | fix | failure it kills | evidence |
+|----|-----|------------------|----------|
+| F19 | **Any-speed strict permanence veto at re-inits** — `scene_perm` applies to flip/escape re-inits regardless of `quasi_static`, with a higher evidence bar when fast (`s_fac 0.85` vs 0.6; overlap bar unchanged at 0.5 — a stricter overlap was tried and REVERTED: junk runs motion-smeared beyond the permanent structure dilute the overlap fraction) | mid-swing full-circle re-inits locking static scenery — adjudicated on c1 s0010 f437: a **golf-bag shaft rack** (Sp/s_ref 0.97, overlap 0.98 in both references) | c1 label bad>30: 16 → 14; old corpus byte-stable |
+| F20 | **In-motion permanence reference** `bg0_move` — pixel-median of ~11 frames selected by highest consecutive-frame motion (park-free by construction: excludes address AND finish holds); permanence requires the structure in **both** references; enables dropping the `swing_seen` guard when the move-reference exists (the guard had silently disabled F19 for the whole backswing) | §6.4's lesson both ways: address club in a hold-dominant whole-clip median (c1: ~60% address hold) and the historical finish-weighted-median regression | s0010 f437 veto only fires with the guard bypass; address-club protection verified structural |
+| F21 | **Sector-conditioned hold gates** — at still-hold acquisition, a forearm-sector-CONSISTENT candidate gets the blob rescue + a relaxed body bar (bf < 0.9: the hanging club is legitimately body-adjacent); a sector-INCONSISTENT candidate must be body-CLEAR (bf < 0.6, no blob rescue) — which is exactly how the shouldered finish club passes (bf 0.00 in the §7 F16 data), so the finish-wrap case F3 was originally disabled for stays alive | the fourth F16 quadrant: body-adjacent + blob-free TRUE club vs body-collinear junk with a bright-SHOES blob — s9v2 hang adjudication f299: junk 91.5° (bf 0.91, B 0.93, 124.6° outside the sector) beat truth 71.2° (bf 0.84, B 0.06, inside) | s9v2 hang region now MEASURES the club (65–69° on the visible shaft at full res, was 92.5° at conf 0.92); shouldered segments (215–225°) preserved; s2's removed finish meas adjudicated as junk (f632 body line, f680 a 180-flip on the §6.4 suspect list) |
+
+### 8.3 Tried and rejected (each by A/B against the corpus gates)
+
+1. **F18-style conf shaping for fast-born short segments** — three
+   discriminators refuted in sequence (length/accepts, ω_med, kinematic
+   continuity vs previous segment): good and junk segments overlap on every
+   kinematic statistic; the class is CONTENT-distinguishable only. No fix
+   without a mechanism.
+2. **Forearm sector at fast flip re-inits** — fixed one swing, broke another
+   (at takeaway the true club lies near the forearm line).
+3. **Shoulder→grip arm-collinearity veto** — never fired: the c1 locks are
+   far-side scenery, not arms (adjudication corrected the initial arm-lock
+   reading of f437).
+4. **Blob rescue on the F19 veto** — the blob window sits beyond the permanent
+   structure, where the moving golfer makes it "changed"; rescued the junk.
+5. **Hold-density gate (Den ≥ 0.45)** — killed the s4 shoe/body drift lock but
+   collapsed c1 hold coverage (dark-stratum real holds are dropout-fragmented)
+   and churned one new confident-wrong.
+
+### 8.4 Results (v7 vs fresh v6-code baseline)
+
+- **0008 (51 labels)**: meas median 2.5°, 0% bad>30 both tiers (unchanged —
+  already clean); meas coverage 57→63%, finish-region 32→52%.
+- **0009 (18 labels)**: unchanged at labels (f190 body lock remains — a
+  moving-body line, correctly untouchable by a permanence veto; the one
+  >30° meas label, 10%); hang region corrected (the big win); shouldered
+  preserved; junk coverage traded for correctness (finish% 69→52 where the
+  old 69% was measuring the wrong angle).
+- **c1 (100 labels, dark stratum)**: label bad>30 16 → 14; remaining locks are
+  environment-limited plus the audit list below.
+- **Stage-2 fixture re-freeze + decoupling test**: stage-2 clubhead run
+  unchanged against the v7 fixtures — 0008 head meas median 18.8 px (was
+  19.0), 0009 19.5 px, honesty clauses pass on both. Graceful improvement
+  with zero stage-2 changes: the §2.3 contract held.
+
+### 8.5 Finish audit (T6, full-res adjudication) — the open class
+
+Quasi-static finish **body-line holds with bright-shoe blob credit** (the §6.4
+f700 family) survive v7: s3 f537/f647/f693, s4 f622/f708-ish drift segment,
+s5 f620/f670, s6 f702 (suspect). s7 fully clean; s2 clean after F21. Mechanism
+known (blob = shoes/bright body feature at the run end; hold then drift-tracks
+the body edge); the density fix failed its gate (§8.3.5). Candidate next
+steps: blob-position body check (ankles are in the skeleton) once a fix can be
+A/B'd against a corpus where holds aren't dropout-fragmented — i.e. after the
+backdrop/exposure stratum lands.
+
+### 8.6 Methodology additions
+
+9. **A fix that silently does nothing is worse than no fix** — the first F19
+   attempt was dead code behind `swing_seen` for the exact frames it targeted;
+   only a per-gate debug print at the re-init site exposed it. Instrument the
+   gate, then fix the gate.
+10. **Check fixture provenance before comparing anything** (§8.1). A baseline
+    you cannot regenerate is not a baseline.

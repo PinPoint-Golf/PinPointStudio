@@ -398,6 +398,20 @@ Alignment sticks and clubs on the ground also pass through no anchor — they ge
 
 ## 10. Fallback tiers (do not build first)
 
+> **[2026-07-05 product positioning — user decision]** The passive (unmarked)
+> classical pipeline is and remains **the product path**: coaching studios are
+> typically bright and evenly lit — the environment the detector is validated
+> in (the capture spec's "contrast-adequate" gate is the supported envelope,
+> and the c1 dark-studio exercise proved it degrades honestly outside it).
+> Tier 3's retroreflective mode is being pursued in parallel with a dual role:
+> (a) an optional high-accuracy mode, and (b) **the ground-truth instrument
+> for the passive track** — band pairs at known spacing give per-frame direct
+> foreshortening + orientation, turning every instrumented swing into hundreds
+> of auto-labeled truth frames for tuning/validating the passive detector
+> (incl. in dark environments, where hand labels are scarce). Keep a
+> hand-labeled unmarked subset as the appearance bridge (tape changes the
+> shaft's look).
+
 1. **Classical pipeline above** — build and evaluate this fully first.
 2. **Learned segmentation assist:** small U-Net (e.g. 256×256 crop around hands) predicting a shaft-probability mask, used as a third evidence channel `E_learn` in §4.3 — *not* as a replacement for the geometric machinery. Training data: synthetic renders (trivial to generate: line + cone + motion blur + specular noise composited over studio frames) + a few hundred hand-labelled frames. Keep the ONNX-runtime pathway consistent with the existing ViTPose integration.
 3. **Retroreflective marker mode:** two tape bands at known fractional positions on the shaft + ring light ⇒ blob-pair detection, sub-pixel, near-unbreakable. Offer as an optional "high accuracy mode"; shares the same `IShaftDetector` interface and downstream tracker. (Avoid IR illumination if a GCQuad is present — visible-band ring light only.)
