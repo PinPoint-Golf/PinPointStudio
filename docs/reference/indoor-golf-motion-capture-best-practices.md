@@ -49,6 +49,16 @@ Use **global-shutter** sensors. Rolling shutter scans line-by-line and skews fas
 ### Lighting
 Indoor capture is lighting-limited: fast shutters need light. Provide bright, flicker-free, diffuse illumination. Avoid mains-frequency flicker beating against the frame rate (use DC or high-frequency-ballast/LED sources). For marker-based systems, control stray IR and reflective surfaces. Consistent lighting also stabilises markerless pose estimators, which degrade badly with shadows and low contrast.
 
+### Capture environment: surfaces and wall colour
+No golf-biomechanics paper prescribes wall colour, but the guidance triangulates cleanly from motion-capture studio practice and the object-detection literature, and golf has one specific wrinkle that overrides the usual studio default.
+
+- **Matte finish is non-negotiable.** Gloss and satin create specular highlights that scatter light and — worse for vision — mimic exactly what you're detecting: a bright spot on a gloss wall reads like a ball, a marker, or a clubhead to a blob detector. Mocap installation guidance (Vicon; MoCap Online) singles out reflective surfaces — shiny fixtures, chrome, mirrors, gloss paint — as primary noise sources for optical systems, and recommends matte or satin paint plus blackout curtains.
+- **Go mid-to-dark grey or matte black, not white.** The usual studio default of white walls is actively wrong for golf because the ball is white: vision projects repeatedly report the white ball blending into light backgrounds and colour-mask segmentation failing outright. A dark, desaturated surround behind the hitting zone restores ball contrast, absorbs stray fill light (more lighting control), and is the mocap-studio default anyway.
+- **Prefer mid-grey for the swing volume.** The shaft is the awkward second target — chrome/steel is bright and specular, graphite is dark — so a mid-grey backdrop gives usable contrast against both extremes, plus against skin and most clothing for silhouette/pose work. Pure black maximises ball contrast but can swallow a dark shaft or dark trousers.
+- **Avoid saturated colours** (red, pink, purple, green) unless deliberately chroma-keying: saturated walls bounce coloured light onto the golfer (spill), corrupting colour-based segmentation and skin detection. The exception is a dedicated key mode — a proper saturated green/blue screen to matte out the golfer — which conflicts with ball contrast and general-purpose grey, so treat it as a separate configuration, not the default.
+- **Keep the background uniform and unchanging.** Background-subtraction methods assume a static, uncluttered scene; anything that moves or shifts between sessions breaks them. Keep the wall plain and clear of distractor objects within the camera field of view.
+- **IR caveat.** The above assumes visible-light capture. If you add active IR illumination or IR markers, a paint's near-IR reflectance does not track its visible appearance — a wall that looks dark to the eye can be bright in IR — so verify the surround through the actual sensor rather than trusting the visible colour.
+
 ### Calibration
 Calibrate the capture volume every session and record the residual. Golf studies typically calibrate over a ~3.5 × 2.8 × 3 m volume and report **sub-millimetre to ~1 mm mean marker residual**; treat anything materially worse as a setup fault. For markerless multi-view, intrinsic and extrinsic calibration quality dominates 3D accuracy — a checkerboard/charuco routine per session, with reprojection error logged, is the equivalent discipline.
 
@@ -158,6 +168,8 @@ If you build a system, validate it against a better one and report the numbers t
 - [ ] Two orthogonal camera views minimum (face-on + down-the-line); more for 3D markerless.
 - [ ] Global-shutter sensors; shutter ≤ 1/1000 s; frame rate ≥ 240 fps for body/club.
 - [ ] Bright, flicker-free, diffuse lighting matched to the fast shutter.
+- [ ] Matte surfaces throughout; mid-to-dark grey (or matte black) walls behind the hitting zone — never white — and no saturated colours unless chroma-keying.
+- [ ] Background uniform, unchanging, and clutter-free within the camera FOV; IR reflectance verified through the sensor if using active IR.
 - [ ] Volume calibrated every session; residual logged (aim sub-mm to ~1 mm optical; reprojection error for markerless).
 - [ ] Markers on skin over bony landmarks, ISB-compliant placement (if marker-based).
 - [ ] IMUs firmly mounted, per-session calibration, magnetometer-robust yaw indoors.
@@ -184,5 +196,8 @@ If you build a system, validate it against a better one and report the numbers t
 11. Edmund Optics, *Machine Vision for Golf Simulators* — minimum ~160 fps; global-shutter requirement.
 12. Swing Catalyst, *Ground Reaction Force* and *Golf from the Ground Up*; and GRF force-plate studies — vertical force to ~150% body weight; horizontal → torque → vertical kinetic sequence and timing windows.
 13. Noraxon, *How to Analyze Golf Swing with IMUs* — four-IMU (pelvis/trunk/arm/hand) proximal-to-distal kinematic-sequence workflow.
+14. Vicon, *How Do I Get Started in Motion Capture for Entertainment* and MoCap Online, *Motion Capture Studio Setup Guide* — matte/satin walls, non-reflective surfaces, blackout curtains, avoidance of shiny fixtures for optical systems.
+15. Golf ball detection/tracking sources (e.g. CNN + Kalman-filter golf-ball tracking, arXiv 2012.09393; open-source ball-tracking reports) — white ball blending into light backgrounds and the reliance of background-subtraction methods on a static, uncluttered scene.
+16. Studio paint-colour guidance (video/photography studio practice) — matte over gloss; neutral white/black/grey; avoidance of saturated red/pink/purple to prevent colour spill.
 
 *Accuracy figures are drawn from the cited studies and reflect their specific hardware, tasks, and populations; treat them as indicative benchmarks, not guarantees for a given rig. Validate your own system.*
