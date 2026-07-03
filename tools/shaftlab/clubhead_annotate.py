@@ -86,6 +86,9 @@ FAST_RDOT = 800.0         # px/s — above this the fast coast budget applies
 CONF_MEAS_MIN = 0.35      # measurement conf floor to enter the filter
 RUN_MIN = 4               # confirmed-run length for the meas tier (F9)
 REINIT_CAP = 0.35         # conf cap until confirmation (F7)
+SIG_MEAS_MAX = 10.0       # posterior sigma_r (px) below which an accepted,
+                          # confirmed, s1-meas measurement is label-grade even
+                          # if the instantaneous conf dipped (impact blur)
 # The PRIOR fit pools back+down into one phase: the downswing sweeps the same
 # theta range the backswing covered densely, stage-1 meas coverage in the fast
 # phase is sparse (kernel starvation once produced L_pred=95 px and the prior
@@ -201,6 +204,19 @@ def main():
     fps = a.fps_override or fps_container
     dt = 1.0 / fps
     r_min = max(20.0, R_MIN_FRAC * H)
+    # Scene reference: whole-clip median. KNOWN LIMITATION, investigated and
+    # deliberately left (2026-07-04, c1 hard-stratum session): on
+    # address-hold-dominant clips the median CONTAINS the address club and the
+    # presence gate suppresses it (§6.4: the reference must not contain the
+    # target). A regime-gated fix (median from [impact, impact+1s], engaged
+    # only when >55% of frames precede impact; old corpus byte-identical) was
+    # built and REVERTED: on the exposure-limited dark-studio stratum it
+    # un-suppressed bright-stub under-runs into the meas tier (label
+    # honesty 1 -> 4 high-conf-bad per 100) — there, "where the evidence ends"
+    # is not "where the club ends", and the accidental suppression was the
+    # honest behaviour. Revisit WITH the backdrop/exposure capture stratum,
+    # where the recovered address measurements are real (scene_median already
+    # takes lo/hi for it; see its docstring for the full story).
     scene_med = scene_median(a.clip)
     mxs = cv2.Sobel(scene_med, cv2.CV_32F, 1, 0, ksize=3) if scene_med is not None else None
     mys = cv2.Sobel(scene_med, cv2.CV_32F, 0, 1, ksize=3) if scene_med is not None else None
@@ -397,12 +413,24 @@ def main():
         if lhat is None and np.isfinite(lp):
             lhat = lp
         s1_pred = track["kind"][fr2i[f]] != "meas" or f in flip_suspect
+        sig = sig_sm.get(f, float("nan"))
         kind_h, r_out, c_out = "pred", lhat, 0.2
         if lhat is not None and re < a.off_factor * lhat:
             kind_h, r_out = "off", None
         elif f in conf_out and accepted.get(f) and zconf[f] >= 0.5 \
                 and conf_out[f] > REINIT_CAP and not s1_pred:
             kind_h, r_out, c_out = "meas", r_sm.get(f, z[f]), conf_out[f]
+        elif f in conf_out and accepted.get(f) and not s1_pred \
+                and zconf[f] >= CONF_MEAS_MIN and conf_out[f] > REINIT_CAP \
+                and np.isfinite(sig) and sig <= SIG_MEAS_MAX:
+            # posterior-sigma meas (design H2: conf from posterior σ_r): an
+            # accepted measurement inside a confirmed, tightly-converged
+            # segment is label-grade even when the single frame is blurry
+            # (0008 impact f206/f207: smoothed r within 5–10 px of truth but
+            # instantaneous conf 0.43/0.39). The zconf floor keeps genuinely
+            # weak evidence from being blessed by run persistence alone.
+            kind_h, r_out = "meas", r_sm.get(f, z[f])
+            c_out = min(0.9, 0.5 * zconf[f] + 0.5 * (1.0 - sig / SIG_MEAS_MAX))
         elif f in conf_out and accepted.get(f):
             # stage-1 pred frames: the ray itself is a kinematic guess, so the
             # emitted position can't beat it — radial measurement still feeds
@@ -421,13 +449,15 @@ def main():
                      f"{z[f]:.1f}" if np.isfinite(z[f]) else "",
                      f"{lp:.1f}" if np.isfinite(lp) else "",
                      f"{re:.1f}", int(bool(floors.get(f))),
-                     track["kind"][fr2i[f]], ph_all[fr2i[f]]])
+                     track["kind"][fr2i[f]], ph_all[fr2i[f]],
+                     f"{sig:.1f}" if np.isfinite(sig) else ""])
 
     head_csv = os.path.join(a.out_dir, f"{stem}_head.csv")
     with open(head_csv, "w", newline="") as fo:
         w = csv.writer(fo)
         w.writerow(["frame", "r_h", "head_x", "head_y", "conf_h", "kind_h",
-                    "L_vis", "L_pred", "r_edge", "arm_floored", "s1_kind", "phase"])
+                    "L_vis", "L_pred", "r_edge", "arm_floored", "s1_kind", "phase",
+                    "sigma_r"])
         w.writerows(rows)
 
     # ---------------- overlay ----------------

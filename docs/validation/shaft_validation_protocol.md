@@ -78,6 +78,13 @@ labelled swing may itself be off-plane and can never adjudicate the model form).
   it. The detector's dark-wall performance is still measured (it is the current reality) but capture
   FOR validation should include the backdrop stratum; detection targets are gated on contrast-adequate
   captures.
+- **Exposure: the hitting area must NOT saturate** (c1 corpus adjudication, 2026-07-04 — the dark
+  scene's twin failure): exposing for the dark room blows out the lit mat cone, and the light shaft
+  MERGES into the saturated region (bright-on-blown: contrast ≈ 0 inside clipping — full-res f366 zoom,
+  swing_0004). Both polarities kill the same channels; a backdrop alone fixes only the dark side. Set
+  exposure/gain so the hitting-area highlights stay below clipping (also reduces motion-blur width).
+  Recording the actual exposure time in capture metadata remains the standing high-value ask (it also
+  unlocks stage-1 direct-ω fusion).
 
 ---
 

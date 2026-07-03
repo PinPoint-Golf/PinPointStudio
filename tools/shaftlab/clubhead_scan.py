@@ -94,16 +94,25 @@ def lat_offsets(lat_max):
     return tuple(float(u) for u in range(-int(lat_max), int(lat_max) + 1, 4))
 
 
-def scene_median(path, k=11):
-    """Pixel-median of k frames evenly spanning the clip — a mostly club-free
-    scene reference (stage 2 computes its own; F12-style, club-free by
-    construction because no pose persists across the whole clip)."""
+def scene_median(path, k=11, lo=None, hi=None):
+    """Pixel-median of k frames evenly spanning [lo, hi] (default: whole clip)
+    — a mostly club-free scene reference (stage 2 computes its own; F12-style).
+
+    "Club-free by construction" holds only if no club pose dominates the
+    sampled span. On the 2026-07-03 corpus the ADDRESS HOLD covers ~60% of the
+    clip, so a whole-clip median CONTAINED the address club and the presence
+    gate killed the club at address (chg==0 on the club itself — stage-1's
+    §6.4 lesson: a veto's reference must not contain the target). Callers that
+    know the phase split should pass lo=impact_frame so samples come from
+    post-impact scenes where the club has left the address region."""
     cap = cv2.VideoCapture(path)
     n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    a = 0 if lo is None else max(0, int(lo))
+    b = n - 1 if hi is None else min(n - 1, int(hi))
     stack = []
-    if n > k:
+    if b - a + 1 > k:
         for i in range(k):
-            cap.set(cv2.CAP_PROP_POS_FRAMES, int(i * (n - 1) / (k - 1)))
+            cap.set(cv2.CAP_PROP_POS_FRAMES, int(a + i * (b - a) / (k - 1)))
             ok, f = cap.read()
             if ok:
                 stack.append(cv2.cvtColor(f, cv2.COLOR_BGR2GRAY).astype(np.float32))

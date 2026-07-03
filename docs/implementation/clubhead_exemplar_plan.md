@@ -138,7 +138,25 @@ As built (`tools/shaftlab/clubhead_annotate.py (lab head_v2)` on top of head_v1'
   mostly pred-tier — honest but sparse); the hard phases (impact streak,
   wraparound occlusion, unlit finish, body gate) are H3's scope.
 
-### H3 — hard phases (1 session, data-led)
+### H3 — hard phases (1 session, data-led) — **IN PROGRESS (2026-07-04/05)**
+
+Done so far:
+- **Hard-stratum (c1 dark studio) investigation closed** — see
+  `shaft_markup_lab/c1/RESULTS.md`: median poisoning found (fix built,
+  validated, deliberately reverted — honesty first), bright-on-blown exposure
+  failure adjudicated (capture spec updated), stacking + terminus-contrast
+  conf shaping tested and rejected by data. Conclusion: exposure-limited
+  scenes are capture-side work; the meas tier SHOULD starve there.
+- **Posterior-σ meas tier** (the design's actual H2 conf spec, implemented
+  here): accepted + confirmed + s1-meas measurements with smoothed σ_r ≤ 10 px
+  are label-grade even when instantaneous conf dips (impact blur). σ threshold
+  set from data (bad frames appear from σ≈11 — f220 err 348 px at σ 11.0; not
+  raised to chase f206/207 at σ 13–16 whose errors are ~33 px anyway).
+  Coverage: 0008 meas 17→20 labels (0 % bad), 0009 5→7, synth 107→114, c1
+  4→6 — honesty clauses pass everywhere, no new high-conf-bad anywhere.
+  New additive CSV column: `sigma_r`.
+
+Remaining (the original list):
 Work the failure-mode table with the debug dump before touching thresholds:
 - impact streak (radial peak stays valid through the smear?),
 - occlusion during wraparound (coast + honest pred),
