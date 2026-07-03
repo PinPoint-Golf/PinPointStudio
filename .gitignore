@@ -86,3 +86,4 @@ Testing/
 
 # Claude-specific artefacts stay local (skills, notes, settings)
 .claude/
+__pycache__/

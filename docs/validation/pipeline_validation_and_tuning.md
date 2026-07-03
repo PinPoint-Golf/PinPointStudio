@@ -283,6 +283,12 @@ precise while the *swing* count is set by condition coverage.
 swing count for *coverage of conditions* (tempo, club, clutter), not for statistical precision. The corpus
 plan's 10–15 is correct.
 
+**Club-length model-form selection** (stage-2 clubhead, §5.5): the same labelled swings serve, but the
+choice *between geometric forms* needs **club diversity, not just swing count** — the plane/foreshortening
+geometry varies with club length, so hold out entire **clubs** (GW / mid-iron / driver minimum) as well as
+whole swings; never hold out random frames (frames within a swing are maximally clustered, §3.5). A single
+labelled swing cannot adjudicate the form at all: it may itself be off-plane.
+
 ### 3.5 The independence / clustering caveat — *the one that bites hardest*
 
 **Repeated swings from one golfer are not `n` independent observations for *between-subject* claims.** The
@@ -606,6 +612,21 @@ metric-scale camera branch (sway/lift/tilt) is **Corpus 3** (it needs ChArUco ca
   `finish*Us`, stillness gates). *Sample size:* Top-error is an RMSE vs labels → **10–15 labelled swings**.
 - **Shaft assembly** (`assembly.*`): `club.coverage ≥ 0.6`; ŝ_hand fit trace (`ok/sign/residualRad`,
   residual < `calibAcceptRad ≈ 7°`). Tune `coverageMin`, `jerkPsd`, `transSigma*`, `visionSigmaFloorRad`.
+- **Clubhead & projected club-length model** (stage-2 vision; exemplar `tools/shaftlab/`:
+  `clubhead_annotate.py` + `length_model.py`, design [clubhead_detection_design.md](../design/clubhead_detection_design.md)):
+  estimand = the per-swing projected grip→head length curve `L(θ, phase)` (ρ = L/L_address) + per-frame
+  head position; it drives crop/off-frame detection and the head-detection confidence interval. The
+  production path is a **per-swing self-fit** (censored quantile on the swing's own radial measurements),
+  so cross-swing generalisation is needed only for the model *form*, CI calibration, and club→plane
+  priors. **Model-form selection is corpus-gated:** the candidates (M0 constant / M1 single plane /
+  M2 per-phase plane / M3 cone / M4 empirical kernel) were frozen at H0 against swing_0008 + synthetic;
+  selection requires held-out **swings and held-out clubs** (plane geometry varies with club length, and
+  any single labelled swing may itself be off-plane — single-swing residuals are development signals
+  only). Instruments: head/len hand labels (truth.json `shaft[].head/len` already carries them; ~10–15
+  frames/swing spanning P1–P10, ≥3 clubs), synthetic ρ-profile recovery (`make_synth.py` — the machinery
+  gate, passed at H0: self-fit recovers a known profile to ~6 % median). Verify: `score_truth.py --head`
+  (head px error, length error, conf honesty, split by `kind_h`). H0 baselines + known limits:
+  `shaft_markup_lab/{s8v2/h0/BASELINE.md, H0_CORPUS.md}`.
 - **Wrist angles** — the product's core. `leadWristFlexExt`, `leadWristRadUln`, `forearmPronation`,
   `leadArmFlexion`, neutral-relative, signed. **Corpus 1:** plausibility (Ryu ROM ≤ 54° flex / 60° ext /
   40° ulnar / 17° radial), phase-relation (Impact 15–30° more flexed than Address), **repeatability**
@@ -839,6 +860,11 @@ Each buys a rung the current instruments cannot reach:
 5. **Mount-perturbation set** → re-seat sensors between sets; measures the metric's *sensitivity to
    mounting* (a reliability the calibrate-once corpus otherwise hides).
 6. **Trail-side + shoulder instrumentation** → unlocks deferred rules (full F8, F9–F11).
+7. **Clubhead head/len labels → length-model form selection (Corpus 1+, cheap).** The shaft markup schema
+   already carries `head`/`len` per labelled frame — extend every labelled swing to ~10–15 head points
+   spanning P1–P10, across **≥ 3 clubs**. Feeds stage-2 model-form selection + CI calibration (§5.5;
+   [clubhead_detection_design.md](../design/clubhead_detection_design.md) §8); scored by
+   `score_truth.py --head`.
 
 Implementation pattern (all): additive sidecar + `Swing.*()` accessor + `score.py` check group + synth
 stamp + `ingest` flag — the lab's standard five-step reader contract.

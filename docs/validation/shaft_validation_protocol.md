@@ -39,6 +39,14 @@ So the IMU-less scorecard is purely the shaft `club.*`/`track.*`/`truth.*` set.
 Sub-pixel **θ-RMSE** conclusions are **advisory on MP4** (compression smears thin ridges) — for tight
 θ-RMSE capture a **raw subset** (`saveRawFrames` ON) of ~10–12 swings.
 
+**Stage-2 clubhead / length model rides this same corpus.** The exemplar
+([clubhead_detection_design.md](../design/clubhead_detection_design.md), stage-2 of the markup exemplar)
+consumes the same labels' `head`/`len` fields, scored by `tools/shaftlab/score_truth.py --head` (head px
+error, per-phase length error, conf honesty). Its gates at exemplar freeze: head meas-tier median
+**< 25 px** (same bar as `truth.head_median_px`), and **length-model form selection** — which this corpus
+is the prerequisite for: it needs held-out swings **and held-out clubs** (backbone doc §3.4/§5.5; a single
+labelled swing may itself be off-plane and can never adjudicate the model form).
+
 ---
 
 ## 2. Capture spec (the not-yet-recorded corpus)
@@ -54,6 +62,12 @@ Sub-pixel **θ-RMSE** conclusions are **advisory on MP4** (compression smears th
   is also usable.)
 - **MP4 for the bulk**; a **raw subset (~10–12)** for sub-pixel θ.
 - **Vary conditions** — club, lighting, background clutter, tempo (don't label only easy swings).
+- **≥ 3 clubs as a stratum (GW / mid-iron / driver minimum)** — required by the stage-2 length-model
+  form selection: plane/foreshortening geometry varies with club length, so clubs must be holdable-out
+  as whole groups.
+- **Frame wide to the player's trail side** (face-on: more room to the player's right) — most post-impact
+  detection loss on the existing corpus is the club leaving the frame, not detector failure
+  (shaft findings §6.1). Uncropped captures are also what makes crop/off-frame validation meaningful.
 
 ---
 
@@ -63,7 +77,9 @@ Use the in-app **Markup panel** (`PpMarkupPanel`; session toolbar **View → Mar
 the shaft line and P-positions; `lab.py label <swing>` is the headless fallback. Both write `truth.json`
 into the swing dir (the **only** file written into a swing dir post-capture; `swing.json` is immutable).
 
-- **Place the club line** (click **grip → clubhead**) per labelled frame.
+- **Place the club line** (click **grip → clubhead**) per labelled frame. The clubhead click IS the
+  stage-2 ground truth (`head` px + `len` = |head−grip| land in truth.json automatically) — place it with
+  care even when only θ is of interest; ~10–15 head points/swing spanning P1–P10 feed the length model.
 - **Tag P-positions** including **P7 (impact)** — this is what supplies the run's impact instant.
 - **Sparse mode (primary):** label at the P-positions (~10/swing). **Dense mode:** 2–3 swings labelled
   every ~10th frame as a between-point θ(t) reference.

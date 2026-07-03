@@ -1,35 +1,53 @@
-# Shaft Markup Exemplar — Implementation & Usage (v6 working prototype)
+# Shaft Markup Exemplar — Implementation & Usage (stage 1 v6 + stage 2 H2)
 
-The Python exemplar in `tools/markup/` is the working reference for automated
-shaft markup: it must be proven here (visually + numerically) before any C++
-port goes near the app. Design rationale and the F1–F9 fix table:
+The Python exemplar in **`tools/shaftlab/`** (renamed from `tools/markup/`,
+2026-07-04) is the working reference for automated club markup: it must be
+proven here (visually + numerically) before any C++ port goes near the app.
+Design rationale and the F1–F17 fix table:
 [../design/shaft_detection_exemplar_findings.md](../design/shaft_detection_exemplar_findings.md);
-original architecture: [../design/shaft_detection_improvements.md](../design/shaft_detection_improvements.md).
+original architecture: [../design/shaft_detection_improvements.md](../design/shaft_detection_improvements.md);
+stage 2 (clubhead): [../design/clubhead_detection_design.md](../design/clubhead_detection_design.md)
++ [clubhead_exemplar_plan.md](clubhead_exemplar_plan.md) (H0–H2 as-built).
+The folder's own `README.md` carries the same map + workflow.
 
-## Files (`tools/markup/`)
+## Files (`tools/shaftlab/`)
 
 | file | purpose |
 |------|---------|
-| `shaft_annotate.py` | the exemplar (v6 working prototype): detection + tracking, per-segment KF/RTS, still-hold re-acquisition, body gating, measured/predicted output; annotated video + track CSV |
-| `prep_swing.py` | exported swing dir → pose-covered Face-On clip + `anchors.csv` (grip + lead-forearm φ) + `skeleton.csv` (8 body joints px, for the body-collinearity gate) + `clipmeta.json`. Container written at integer fps (mpeg4 rejects some fractional rates); true fps in clipmeta |
+| `shaft_annotate.py` | **stage 1** (v6 working prototype): detection + tracking, per-segment KF/RTS, still-hold re-acquisition, body gating, measured/predicted output; annotated video + track CSV |
+| `length_model.py` | **stage 2**: projected club-length model M0–M4 (labeled fit + per-swing censored self-fit = production path); theta re-unwrap + ω-anchored phase split |
+| `clubhead_scan.py` | **stage 2** scan primitives (scene median, ray edge, run-end) + H0 zeroth-order baseline tool (lab head_v0) |
+| `clubhead_measure.py` | **stage 2** per-frame head measurement: gap-tolerant on-axis terminus, multi-width edge-pair, permanence veto, length-prior candidate scoring (lab head_v1) |
+| `clubhead_annotate.py` | **stage 2 main tool**: arm-length plausibility floor, segmented 1-D KF + per-segment RTS, meas/pred/off tiers, 180° flip check (lab head_v2) |
+| `render_combined.py` | stage-1 line + stage-2 head marker in one review video |
+| `prep_swing.py` | exported swing dir → pose-covered Face-On clip + `anchors.csv` (grip + lead-forearm φ) + `skeleton.csv` (8 body joints px; body gate + arm floor) + `clipmeta.json`. Container written at integer fps (mpeg4 rejects some fractional rates); true fps in clipmeta |
 | `montage.py` | tile annotated frames for visual review (uniform 24, or explicit frame list) |
-| `score_truth.py` | numeric eval vs a swing's hand-labelled `truth.json`, split by output kind (meas/pred) |
-| `make_synth.py` | synthetic swing generator (design §12.1) |
+| `score_truth.py` | numeric eval vs a swing's hand-labelled `truth.json`, split by output kind; `--head <csv>` adds head-px/length error + conf-honesty clauses |
+| `make_synth.py` | synthetic swing generator: theta + foreshortening profile + head blob/streak; writes truth.json + a contract-format track so stage 2 runs standalone |
 
-Environment: any Python ≥3.10 venv with `numpy` and `opencv-python-headless`.
+Environment: Python ≥3.10 venv with `numpy`, `opencv-python-headless`;
+stage 2 additionally needs `scipy` (`/home/markl/venv/pinpoint`).
 
 ## Workflow
 
 ```bash
-python tools/markup/prep_swing.py /mnt/swingdata/.../swing_0009 /tmp/s9
-# prints clip frame count + fps and writes faceon_swing.mp4, anchors.csv, clipmeta.json
+python tools/shaftlab/prep_swing.py /mnt/swingdata/.../swing_0009 /tmp/s9
+# prints clip frame count + fps and writes faceon_swing.mp4, anchors.csv,
+# skeleton.csv, clipmeta.json
 
-python tools/markup/shaft_annotate.py /tmp/s9/faceon_swing.mp4 \
+python tools/shaftlab/shaft_annotate.py /tmp/s9/faceon_swing.mp4 \
     --anchors /tmp/s9/anchors.csv --fps-override <fps from prep output> \
     --out-dir /tmp/s9/out [--debug-frames 186,310]
 
-python tools/markup/montage.py /tmp/s9/out/faceon_swing_annotated.mp4 /tmp/s9/out/mont
-python tools/markup/score_truth.py /tmp/s9/out/faceon_swing_track.csv /tmp/s9/clipmeta.json
+python tools/shaftlab/clubhead_annotate.py /tmp/s9/faceon_swing.mp4 \
+    --track /tmp/s9/out/faceon_swing_track.csv --fps-override <fps> \
+    --out-dir /tmp/s9/head        # skeleton.csv auto-found next to the clip
+
+python tools/shaftlab/montage.py /tmp/s9/out/faceon_swing_annotated.mp4 /tmp/s9/out/mont
+python tools/shaftlab/score_truth.py /tmp/s9/out/faceon_swing_track.csv /tmp/s9/clipmeta.json \
+    --head /tmp/s9/head/faceon_swing_head.csv
+python tools/shaftlab/render_combined.py /tmp/s9/faceon_swing.mp4 \
+    /tmp/s9/out/faceon_swing_track.csv /tmp/s9/head/faceon_swing_head.csv /tmp/s9/combined.mp4
 ```
 
 Key facts:
@@ -82,20 +100,35 @@ blue dot = grip anchor; HUD shows θ/ω/conf/kind/flag.
   median 2.7°, with a known 3-frame confident-wrong cluster in the fast
   follow-through (findings §7). v4/v5 in git history; per-version outputs in
   the scratch lab `/home/markl/shaft_markup_lab/`.
+- **Stage 2 (clubhead) H0–H2 built + gated 2026-07-03/04** — length model,
+  gap-tolerant terminus measurement, segmented KF/RTS + meas/pred/off tiers,
+  arm-length plausibility floor. 0008 head meas median 19.0 px with the
+  honesty clauses passing; per-phase numbers + known limits in the plan doc's
+  as-built sections and `shaft_markup_lab/{s8v2/h0/BASELINE.md, H0_CORPUS.md}`.
+  H3 (hard phases: impact streak, wraparound occlusion, body gate, unlit
+  finish — down/thru meas coverage) and H4 (corpus freeze + decoupling test)
+  remain.
 - **Capture guidance** (from corpus eyeballing): face-on framing should leave
   more room to the player's right — most post-impact loss is the club leaving
   the frame, not detection failure.
-- Next, in order (details in findings doc §7):
+- **Stage-1 backlog surfaced by stage 2** (adjudicated frames, s9v2 clip
+  indices): f190 follow-through body-line lock at conf 0.90; f302–320 hang
+  region θ≈92.5° conf 0.92 vs visible ~60°; plus the known 0008 f220–227
+  fast-follow-through cluster (findings §7).
+- Next, in order (details in findings doc §7 + clubhead plan):
   1. **Capture uncropped swings** (face-on framing with more room to the
      player's right) — the prototype's post-impact ceiling is the crop, not the
      detector.
-  2. Conf shaping for short fast-motion re-init segments (the 0008 f220–227
-     confident-wrong cluster) without killing correct short impact re-locks.
-  3. Full finish-segment zoom audit across 0003–0007.
-  4. C++ re-port: the reverted first-generation port + full app wiring diff are
-     preserved in `.claude/attic/auto-markup-2026-07-02/` (driver, truth.json
-     schema additions, MarkupController async pattern, QML). Port the final
-     algorithm onto that template; gate with the same protocol plus the
-     honesty checks (bad frames low-conf; high-conf frames accurate).
+  2. Stage-2 H3 (hard phases) → H4 (corpus + freeze).
+  3. Stage-1: conf shaping for short fast-motion re-init segments (0008
+     f220–227) + the s9v2 backlog items above; finish-segment zoom audit
+     across 0003–0007.
+  4. C++ re-port (both stages, same CSV-shaped contract between them): the
+     reverted first-generation port + full app wiring diff are preserved in
+     `.claude/attic/auto-markup-2026-07-02/` (driver, truth.json schema
+     additions, MarkupController async pattern, QML). Port the exemplar onto
+     that template; gate with the same protocol plus the honesty checks. The
+     stage-2 modules carry C++ PORT NOTES in their docstrings (written while
+     the design decisions were fresh — read them first).
   5. App policy when wired in: write only `kind=meas` frames as labels;
      optionally render `kind=pred` as a distinct visual layer, never as truth.

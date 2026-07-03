@@ -1,6 +1,6 @@
 # Shaft Detection Exemplar — Findings & Fixes (v6 working prototype)
 
-**Status:** `tools/markup/shaft_annotate.py` is the **v6 working prototype**
+**Status:** `tools/shaftlab/shaft_annotate.py` is the **v6 working prototype**
 (2026-07-03) — §6.4 items 1–3 closed (per-segment RTS, finish detection, body
 mask); accepted as a good working prototype pending more work and, above all,
 **uncropped captures** (§6.1). Known limits in §7. v4 (frozen 2026-07-02) and
@@ -86,7 +86,7 @@ porting anything into the app.**
 Goal: detect the static held club at the finish (v4's biggest gap) and validate
 across the corpus (swing_0002–0007; 0001 has no recorded pose). Iterated in the
 lab with per-frame landmark adjudication; checkpointed as
-`tools/markup/shaft_annotate_v5.py` (= lab v5n).
+`tools/markup/shaft_annotate_v5.py (historical path; folder now tools/shaftlab)` (= lab v5n).
 
 ### 6.1 Capture guidance (user finding)
 

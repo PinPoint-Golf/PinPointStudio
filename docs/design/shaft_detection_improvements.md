@@ -1,7 +1,7 @@
 # PinPoint — Shaft Detection & Tracking: Technical Design
 
 **Status:** Realized — and substantially extended — in the **exemplar**
-(`tools/markup/shaft_annotate.py`, v6 working prototype, 2026-07-03). The
+(`tools/shaftlab/shaft_annotate.py`, v6 working prototype, 2026-07-03). The
 **app C++** (`src/Analysis/shaft_tracker*`, the production ShaftTracker) is a
 different algorithm that predates/diverges from this design and does **not**
 implement it — see *Implementation status* below. Findings from realizing this
@@ -15,7 +15,7 @@ design live in [shaft_detection_exemplar_findings.md](shaft_detection_exemplar_f
 
 Two implementations exist and MUST NOT be conflated:
 
-- **Exemplar** — `tools/markup/shaft_annotate.py` (Python, offline markup +
+- **Exemplar** — `tools/shaftlab/shaft_annotate.py` (Python, offline markup +
   oracle for any future port). Faithful to §3–§8 of this design, then extended
   by seventeen real-footage fixes (F1–F17). This is the validated algorithm.
 - **App C++** — `src/Analysis/shaft_tracker{,_math,_assembly}` (production).

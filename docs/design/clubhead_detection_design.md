@@ -1,6 +1,13 @@
 # PinPoint — Clubhead Detection: Technical Design (Stage 2)
 
-**Status:** Design for implementation (2026-07-03). Exemplar-first, same
+**Status:** Design for implementation (2026-07-03). **H0 built 2026-07-03**
+(length-model-first reorder — see the plan doc's H0 as-built notes): the
+projected-length model `L(θ, phase)` is now an explicit stage-2 component
+(`tools/shaftlab/length_model.py`) fitted per swing (self-fit, no labels)
+and it, not an ad-hoc L̂, drives the §4 annulus and the §4 off-frame test.
+**Model-form selection and length-accuracy acceptance are corpus-gated** (held-
+out swings AND held-out clubs; a single labelled swing may itself be off-plane
+— see pipeline_validation_and_tuning.md §5.5/§3.4). Exemplar-first, same
 methodology as the shaft work — see
 [shaft_detection_exemplar_findings.md](shaft_detection_exemplar_findings.md)
 for the methodology and the F1–F17 lessons this design inherits.
@@ -200,6 +207,19 @@ score.py's existing gates apply (`truth.head_median_px < 25`,
 | foreshortening vs occlusion confusion | top of swing | L̂ dips smoothly under foreshortening (KF tracks it); occlusion is abrupt → gate rejects, coast |
 
 ## 8. Validation
+
+**Corpus-gating rule (2026-07-03, user directive):** single-swing residuals —
+including everything measured against swing_0008's 51 labels — are
+*development signals only*. The labelled swing may itself be off-plane; length-
+model **form selection** and accuracy acceptance require corpus-scale labels
+spanning held-out swings **and held-out clubs** (plane varies with club
+length). The standing protocol lives in
+[../validation/shaft_validation_protocol.md](../validation/shaft_validation_protocol.md)
+(capture: ≥3 clubs, uncropped trail-side framing; markup: head points at
+P1–P10) and
+[../validation/pipeline_validation_and_tuning.md](../validation/pipeline_validation_and_tuning.md)
+§5.5/§3.4/§8. The production model is a **per-swing self-fit**, so only the
+form/CI-calibration generalise across swings — never per-swing parameters.
 
 Same protocol as stage 1 (findings doc + impl doc §Verification):
 
