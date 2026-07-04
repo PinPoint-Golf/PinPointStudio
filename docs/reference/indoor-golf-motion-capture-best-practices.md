@@ -59,6 +59,50 @@ No golf-biomechanics paper prescribes wall colour, but the guidance triangulates
 - **Keep the background uniform and unchanging.** Background-subtraction methods assume a static, uncluttered scene; anything that moves or shifts between sessions breaks them. Keep the wall plain and clear of distractor objects within the camera field of view.
 - **IR caveat.** The above assumes visible-light capture. If you add active IR illumination or IR markers, a paint's near-IR reflectance does not track its visible appearance — a wall that looks dark to the eye can be bright in IR — so verify the surround through the actual sensor rather than trusting the visible colour.
 
+### Instrumenting the club: retroreflective shaft bands (optional, high value)
+
+Vision-only club tracking works — it is the default, and no user should be
+required to modify their equipment — but a difficult environment (dark
+surrounds, mixed lighting, cluttered backgrounds) takes its toll on any
+photometric detector long before it troubles a marker. A few grams of
+retroreflective tape on the shaft changes the problem class entirely, and is
+the single highest-leverage *optional* upgrade a studio can make:
+
+- **What it buys.** Retro bands lit by a camera-mounted LED return light
+  straight into the lens and saturate as bright, compact blobs regardless of
+  background — dark wall or blown-out hitting mat alike. A banded shaft is
+  detectable in conditions where the plain shaft is genuinely invisible, and
+  band pairs at *measured* spacings turn each frame into direct geometry:
+  projected spacing ÷ known spacing gives the shaft's foreshortening
+  outright, the band line gives its angle without relying on pose-estimated
+  hands, an asymmetric band count (e.g. two near the grip, three near the
+  hosel) resolves the 180° direction ambiguity, and the clubhead position
+  follows as a known extrapolation even when the head itself cannot be seen.
+- **Why it is trustworthy.** Along-shaft distance ratios are preserved under
+  projection, so the pattern is recognisable at any club orientation — a
+  specular flash is one blob; five collinear blobs at recorded ratios are
+  unmistakably the marker set. Motion blur smears tangentially while the
+  band separations run along the shaft, so the pattern survives the impact
+  streak.
+- **The physics constraint.** Retro tape returns light *to its source* within
+  a ~1–2° cone: the illuminator must sit at the camera lens (a small LED ring
+  is ample — on-axis watts beat off-axis hundreds). Ceiling or wall lights do
+  not light retro tape for the camera; with only ambient light, matte-white
+  tape is the angle-tolerant fallback, at the cost of dark-arc coverage and
+  white-on-white contrast over a bright mat. Visible-band illumination only
+  (IR conflicts with launch monitors and IR-blind RGB pipelines).
+- **Materials and pattern** (full protocol: `docs/validation/instrumented_club_protocol.md`):
+  thin glass-bead conformable retro tape, ~25 mm wide bands and gaps (sized to
+  survive sensor bloom at typical capture scales), an asymmetric grip/mid/
+  hosel layout, and — the step that converts visibility into *measurement* —
+  a per-club record of band positions (`clubs.json`).
+- **Role discipline.** Keep the taped club as (a) a ground-truth instrument —
+  every instrumented swing yields dense auto-labels for validating and tuning
+  the *unmarked* detector — and (b) an opt-in high-accuracy mode for users
+  who want it. The untaped pipeline remains the product; score it on unmarked
+  clubs (tape changes the shaft's appearance, so keep an unmarked control
+  subset in any validation corpus).
+
 ### Calibration
 Calibrate the capture volume every session and record the residual. Golf studies typically calibrate over a ~3.5 × 2.8 × 3 m volume and report **sub-millimetre to ~1 mm mean marker residual**; treat anything materially worse as a setup fault. For markerless multi-view, intrinsic and extrinsic calibration quality dominates 3D accuracy — a checkerboard/charuco routine per session, with reprojection error logged, is the equivalent discipline.
 
