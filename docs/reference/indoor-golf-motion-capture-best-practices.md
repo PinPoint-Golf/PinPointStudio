@@ -49,8 +49,49 @@ Use **global-shutter** sensors. Rolling shutter scans line-by-line and skews fas
 ### Lighting
 Indoor capture is lighting-limited: fast shutters need light. Provide bright, flicker-free, diffuse illumination. Avoid mains-frequency flicker beating against the frame rate (use DC or high-frequency-ballast/LED sources). For marker-based systems, control stray IR and reflective surfaces. Consistent lighting also stabilises markerless pose estimators, which degrade badly with shadows and low contrast.
 
+### Choosing your capture environment: a quality ladder
+
+The environment is the **user's choice** — nobody should be told to repaint a
+room or hang a backdrop to use vision capture. What follows is the honest
+quality ordering of the common setups, so the choice is informed. Two axes
+matter, and they are not equal:
+
+1. **Illumination is the primary axis.** Missing photons are unrecoverable in
+   software: a dark scene forces long exposures (motion blur), high gain
+   (noise), and produces the twin contrast failures — a dark shaft vanishing
+   against dark surrounds, and a light shaft merging into an over-exposed
+   hitting-mat cone. No detector change can fix either.
+2. **Background quietness is the secondary axis.** Static clutter (window
+   frames, screens, club racks, mirrors) creates false-lock risk, but it is
+   *manageable* in software: permanence tests can veto structure that exists
+   in the scene reference, and honest confidence tiers degrade gracefully.
+   Manageable is not free — busy backgrounds still cost coverage and
+   robustness — but unlike darkness they are not a hard wall.
+
+**The ladder, best to worst, for passive (untaped) club tracking:**
+
+| Tier | Environment | Expected capture quality | Retro bands? |
+|---|---|---|---|
+| 1 | **Bright, even light + quiet mid-tone background** (the coaching-studio ideal, or a light-filled room with a plain wall behind the swing arc) | Full detector performance: short exposure, contrast along the whole swing arc, few distractors. | Unnecessary — optional precision upgrade only. |
+| 2 | **Bright light + busy background** (light-filled room, windows/furniture in view) | Good: signal exists everywhere and short exposures tame blur; static clutter is largely handled by permanence vetoes, at some cost in coverage and occasional false locks near strong scene lines. | Optional; worthwhile if the clutter is severe (mirrors, club racks in the swing arc). |
+| 3 | **Darkened room + quiet background** (dim room, plain dark walls, hitting area spot-lit) | Workable with caveats: the club is only reliably tracked where the light falls; top-of-backswing and finish regions against unlit surrounds degrade to honest predictions; exposure discipline (don't blow out the mat) is critical. | Recommended — recovers the dark portions of the arc outright. |
+| 4 | **Dark room + busy background** (the typical home simulator: black walls, impact screen, windows, equipment in view) | The hard case: both failure axes at once. Passive detection degrades honestly (low-confidence predictions rather than confident errors) but measured coverage is sparse and no amount of tuning changes the physics. | **Strongly recommended** — bands + a camera-mounted ring light lift club tracking in this room to instrument grade, better than tier 1's passive tracking. |
+
+Rules that apply at every tier: hitting-area highlights must stay below
+clipping (an over-exposed mat swallows the shaft at any tier), and the
+background must be *static* during a session (background-subtraction methods
+assume it). The retroreflective-band option (see
+"Instrumenting the club" below) is deliberately environment-independent —
+that is its point: it makes tier 4 perform like tier 1, which is why it is
+the right answer for a black sim room, and largely unnecessary in a bright
+room with a quiet backdrop.
+
 ### Capture environment: surfaces and wall colour
-No golf-biomechanics paper prescribes wall colour, but the guidance triangulates cleanly from motion-capture studio practice and the object-detection literature, and golf has one specific wrinkle that overrides the usual studio default.
+If you are building or adapting a space and CAN choose the surfaces (tiers 1
+and 3 above), this is what to choose. No golf-biomechanics paper prescribes
+wall colour, but the guidance triangulates cleanly from motion-capture studio
+practice and the object-detection literature, and golf has one specific
+wrinkle that overrides the usual studio default.
 
 - **Matte finish is non-negotiable.** Gloss and satin create specular highlights that scatter light and — worse for vision — mimic exactly what you're detecting: a bright spot on a gloss wall reads like a ball, a marker, or a clubhead to a blob detector. Mocap installation guidance (Vicon; MoCap Online) singles out reflective surfaces — shiny fixtures, chrome, mirrors, gloss paint — as primary noise sources for optical systems, and recommends matte or satin paint plus blackout curtains.
 - **Go mid-to-dark grey or matte black, not white.** The usual studio default of white walls is actively wrong for golf because the ball is white: vision projects repeatedly report the white ball blending into light backgrounds and colour-mask segmentation failing outright. A dark, desaturated surround behind the hitting zone restores ball contrast, absorbs stray fill light (more lighting control), and is the mocap-studio default anyway.
@@ -212,7 +253,8 @@ If you build a system, validate it against a better one and report the numbers t
 - [ ] Two orthogonal camera views minimum (face-on + down-the-line); more for 3D markerless.
 - [ ] Global-shutter sensors; shutter ≤ 1/1000 s; frame rate ≥ 240 fps for body/club.
 - [ ] Bright, flicker-free, diffuse lighting matched to the fast shutter.
-- [ ] Matte surfaces throughout; mid-to-dark grey (or matte black) walls behind the hitting zone — never white — and no saturated colours unless chroma-keying.
+- [ ] Capture environment chosen consciously against the quality ladder (§3): light first, quiet background second; retro shaft bands + camera ring light where the room can't provide either (dark sim rooms).
+- [ ] If surfaces are choosable: matte throughout; mid-to-dark grey (or matte black) walls behind the hitting zone — never white — and no saturated colours unless chroma-keying.
 - [ ] Background uniform, unchanging, and clutter-free within the camera FOV; IR reflectance verified through the sensor if using active IR.
 - [ ] Volume calibrated every session; residual logged (aim sub-mm to ~1 mm optical; reprojection error for markerless).
 - [ ] Markers on skin over bony landmarks, ISB-compliant placement (if marker-based).
