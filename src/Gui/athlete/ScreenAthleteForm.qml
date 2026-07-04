@@ -447,6 +447,7 @@ Item {
                                     id: primaryClubCombo
                                     implicitWidth: Theme.sp(220)
                                     model: root.clubModel
+                                    displayFn: ClubFormat.display
                                     onActivated: function (i) { root.primaryClub = root.clubModel[i] }
                                     function syncFromValue() {
                                         var idx = root.clubModel.indexOf(root.primaryClub)

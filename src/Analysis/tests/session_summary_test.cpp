@@ -48,14 +48,15 @@ int main()
     // 1. Typical session: rounded mean, distinct clubs, 42-minute span, earliest time.
     {
         QVector<ShotSummaryInput> shots = {
-            { 58, true,  ms(2026, 6, 9, 14, 32), QStringLiteral("7i"), QStringLiteral("/s/a.jpg") },
-            { 76, true,  ms(2026, 6, 9, 14, 40), QStringLiteral("PW"), QString() },
-            { 84, true,  ms(2026, 6, 9, 15, 14), QStringLiteral("7i"), QStringLiteral("/s/c.jpg") },
+            { 58, true,  ms(2026, 6, 9, 14, 32), QStringLiteral("7 IRON"),         QStringLiteral("/s/a.jpg") },
+            { 76, true,  ms(2026, 6, 9, 14, 40), QStringLiteral("PITCHING WEDGE"), QString() },
+            { 84, true,  ms(2026, 6, 9, 15, 14), QStringLiteral("7 IRON"),         QStringLiteral("/s/c.jpg") },
         };
         const SessionSummary s = summarizeSession(shots, now);
         checkEq(s.shotCount, 3, "shotCount");
         checkEq(s.avgQuality, 73, "avgQuality round((58+76+84)/3)");   // 72.67 -> 73
-        checkEq(s.clubMix, QStringLiteral("7i · PW"), "clubMix distinct/first-seen");
+        // distinct/first-seen, canonical ids sentence-cased for display.
+        checkEq(s.clubMix, QStringLiteral("7 iron · Pitching wedge"), "clubMix distinct/first-seen");
         checkEq(s.lengthLabel, QStringLiteral("42 min"), "lengthLabel span");
         checkEq(s.dayLabel, QStringLiteral("Today"), "dayLabel today");
         checkEq(s.timeLabel, QStringLiteral("14:32"), "timeLabel earliest");
@@ -65,12 +66,12 @@ int main()
     // 2. Over an hour → "H h M m"; 10:05 → 11:17 == 72 min.
     {
         QVector<ShotSummaryInput> shots = {
-            { 70, true, ms(2026, 6, 7, 10, 5),  QStringLiteral("Dr"), QString() },
-            { 80, true, ms(2026, 6, 7, 11, 17), QStringLiteral("Dr"), QString() },
+            { 70, true, ms(2026, 6, 7, 10, 5),  QStringLiteral("DRIVER"), QString() },
+            { 80, true, ms(2026, 6, 7, 11, 17), QStringLiteral("DRIVER"), QString() },
         };
         const SessionSummary s = summarizeSession(shots, now);
         checkEq(s.lengthLabel, QStringLiteral("1 h 12 m"), "lengthLabel hours+min");
-        checkEq(s.clubMix, QStringLiteral("Dr"), "clubMix single");
+        checkEq(s.clubMix, QStringLiteral("Driver"), "clubMix single");
     }
 
     // 3. Empty session → zeros and empty labels (the 0-shot live row case).

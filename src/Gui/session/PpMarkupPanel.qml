@@ -713,6 +713,7 @@ Item {
                                     width: parent.width
                                     enabled: markupController.hasSwing
                                     model: root.clubList
+                                    displayFn: ClubFormat.display
                                     onActivated: function (i) {
                                         markupController.metaClub = root.clubList[i]
                                         root.forceActiveFocus()

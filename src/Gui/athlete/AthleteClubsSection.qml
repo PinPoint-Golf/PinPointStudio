@@ -178,6 +178,7 @@ Rectangle {
                         id: addCombo
                         implicitWidth: Theme.sp(220)
                         model: root.unconfiguredIds
+                        displayFn: ClubFormat.display
                         enabled: root.unconfiguredIds.length > 0
                     }
 
@@ -206,41 +207,45 @@ Rectangle {
                     wrapMode:       Text.WordWrap
                 }
 
-                // Club tabs — one wrapping chip per configured club (same chip
-                // language as PpChipGroup, which is a non-wrapping Row; a full
-                // bag needs to wrap). Selecting a tab shows ONE detail card.
+                // Club tabs — the athlete's configured clubs in the app's stage-tab
+                // language (see PpModeStage on the Wrist screen): no border, no
+                // pill; the active club carries a 2px accent underline (theme
+                // accent) and brighter text. A Flow, not the stage's Row, so a full
+                // bag — up to 17 clubs — wraps. Selecting a tab shows ONE detail card.
                 Flow {
-                    width: parent.width
-                    spacing: Theme.sp(6)
+                    width:   parent.width
+                    spacing: Theme.sp(5)
 
                     Repeater {
                         model: root.configuredIds
 
                         Rectangle {
                             required property string modelData
-                            readonly property bool _sel: modelData === root.selectedClubId
+                            readonly property bool sel: modelData === root.selectedClubId
 
-                            height:  Theme.sp(28)
-                            width:   tabLabel.implicitWidth + Theme.sp(24)
+                            height:  Theme.sp(30)
+                            width:   tabTxt.implicitWidth + Theme.sp(26)
                             radius:  Theme.radius
-                            color:   _sel                ? Theme.colorAccentLight
-                                   : tabMa.containsMouse ? Theme.colorBg2
-                                   :                       Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
-                            border.width: 1
-                            border.color: _sel                ? Theme.colorAccent
-                                        : tabMa.containsMouse ? Theme.colorAccentMid
-                                        :                       Theme.colorBorderStrong
-                            Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
-                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+                            // Faint fill on select/hover (alpha-ramped rest → no
+                            // colour flash); selection is carried by the underline.
+                            color:   sel || tabMa.containsMouse
+                                         ? Theme.colorBg2
+                                         : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+                            Rectangle {  // active underline (theme accent)
+                                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                                height: 2
+                                color:  sel ? Theme.colorAccent : "transparent"
+                            }
 
                             Text {
-                                id: tabLabel
+                                id: tabTxt
                                 anchors.centerIn: parent
-                                text:           modelData
+                                text:           ClubFormat.display(modelData)
                                 font.family:    Theme.fontBody
                                 font.pixelSize: Theme.fontSzBody2
-                                font.weight:    _sel ? Font.Normal : Theme.fontBodyWeight
-                                color:          _sel ? Theme.colorAccent : Theme.colorText2
+                                color:          sel ? Theme.colorText : Theme.colorText3
                             }
 
                             PpPressable {

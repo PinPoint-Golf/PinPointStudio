@@ -285,6 +285,7 @@ target_include_directories(PinPointStudio PRIVATE
     "${CMAKE_BINARY_DIR}/generated")
 
 set_source_files_properties(src/Gui/theme/Theme.qml            PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set_source_files_properties(src/Gui/components/ClubFormat.qml  PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set_source_files_properties(src/Gui/settings/SettingsIndex.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set_source_files_properties(src/Gui/session/ViewLayout.qml     PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set_source_files_properties(src/Gui/session/SessionMode.qml    PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
@@ -295,6 +296,7 @@ qt_add_qml_module(PinPointStudio
     OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/qml/PinPointStudio
     QML_FILES
         src/Gui/theme/Theme.qml
+        src/Gui/components/ClubFormat.qml
         src/Gui/session/ViewLayout.qml
         src/Gui/session/SessionMode.qml
         src/Gui/shell/Main.qml

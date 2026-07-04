@@ -40,6 +40,10 @@ ComboBox {
 
     property string displaySuffix: ""
     property var    itemEnabledFn: null
+    // Optional function(value) -> string to format labels for DISPLAY only (the
+    // closed field and every row). The model/currentIndex are untouched, so
+    // callers still resolve selections against the raw model values.
+    property var    displayFn:     null
 
     implicitHeight: Theme.sp(34)
 
@@ -50,7 +54,7 @@ ComboBox {
     contentItem: Text {
         leftPadding:       Theme.sp(10)
         rightPadding:      Theme.sp(26)   // clear the chevron
-        text:              root.displayText + root.displaySuffix
+        text:              (root.displayFn ? root.displayFn(root.displayText) : root.displayText) + root.displaySuffix
         font:              root.font
         color:             root.enabled ? Theme.colorText : Theme.colorText3
         verticalAlignment: Text.AlignVCenter
@@ -113,7 +117,7 @@ ComboBox {
         contentItem: Text {
             leftPadding:       Theme.sp(10)
             rightPadding:      Theme.sp(10)
-            text:              itemDelegate.modelData + root.displaySuffix
+            text:              (root.displayFn ? root.displayFn(itemDelegate.modelData) : itemDelegate.modelData) + root.displaySuffix
             font.family:       Theme.fontBody
             font.pixelSize:    root.font.pixelSize
             font.weight:       Theme.fontBodyWeight

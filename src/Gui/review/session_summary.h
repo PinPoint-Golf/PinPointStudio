@@ -76,6 +76,17 @@ inline QString relativeDayLabel(qint64 instantMs, qint64 nowMs)
     return d.toString(QStringLiteral("ddd d MMM"));
 }
 
+// Sentence-case a canonical club id for DISPLAY only ("DRIVER" -> "Driver",
+// "7 IRON" -> "7 iron", "GAP WEDGE" -> "Gap wedge"). Storage/keys keep the
+// uppercase club_vocabulary.h id. Mirror of the ClubFormat QML singleton.
+inline QString clubDisplayLabel(const QString &id)
+{
+    const QString t = id.trimmed();
+    if (t.isEmpty())
+        return {};
+    return t.left(1).toUpper() + t.mid(1).toLower();
+}
+
 // Aggregate a session's shots. `nowMs` anchors the relative day label; `maxThumbs`
 // caps the film-strip preview. Pure and deterministic given its inputs.
 inline SessionSummary summarizeSession(const QVector<ShotSummaryInput> &shots,
@@ -106,7 +117,11 @@ inline SessionSummary summarizeSession(const QVector<ShotSummaryInput> &shots,
 
     // Rounded mean over every shot (failed/IMU-only shots score 0 and count).
     s.avgQuality = int((scoreSum + shots.size() / 2) / shots.size());
-    s.clubMix    = clubs.join(QStringLiteral(" · "));
+    QStringList clubLabels;
+    clubLabels.reserve(clubs.size());
+    for (const QString &c : std::as_const(clubs))
+        clubLabels.append(clubDisplayLabel(c));
+    s.clubMix    = clubLabels.join(QStringLiteral(" · "));
     if (haveT) {
         s.lengthLabel = formatSessionLength(maxT - minT);
         s.dayLabel    = relativeDayLabel(minT, nowMs);

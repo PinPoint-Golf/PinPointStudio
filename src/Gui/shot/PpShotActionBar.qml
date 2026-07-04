@@ -111,7 +111,7 @@ Item {
                 }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text:           root.summary.club !== undefined ? root.summary.club : ""
+                    text:           ClubFormat.display(root.summary.club)
                     font.family:    Theme.fontData
                     font.pixelSize: Theme.fontSzBody2
                     color:          Theme.colorText

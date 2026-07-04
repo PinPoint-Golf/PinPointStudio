@@ -475,7 +475,7 @@ Item {
                                 Text {
                                     id: clubChipLabel
                                     anchors.centerIn: parent
-                                    text:           modelData
+                                    text:           ClubFormat.display(modelData)
                                     font.family:    Theme.fontBody
                                     font.pixelSize: Theme.fontSzBody
                                     font.weight:    _sel ? Font.Normal : Theme.fontBodyWeight

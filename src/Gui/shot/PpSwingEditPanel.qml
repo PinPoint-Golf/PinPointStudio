@@ -115,6 +115,7 @@ Item {
             id: clubCombo
             width: parent.width
             model: root.clubOptions
+            displayFn: ClubFormat.display
             onActivated: (i) => root.clubChosen(root.clubOptions[i])
         }
 
