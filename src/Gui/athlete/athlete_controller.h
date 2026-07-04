@@ -76,6 +76,22 @@ public:
     );
 
     Q_INVOKABLE bool updateAthlete(const QString &uuid, const QString &fieldName, const QVariant &value);
+
+    // Per-athlete club records (Settings live under athletes/<uuid>/clubs as a
+    // QVariantMap keyed by the canonical club-vocabulary name — the same id
+    // markup writes to truth.json meta.club). Record shape:
+    //   { shaftType: "steel"|"graphite", loftDeg: double, lengthMm: int, bandWidthMm: int,
+    //     bandCentersMm: list<int> (retro-band CENTRES from the butt, mm;
+    //     empty = untaped), hoselFromButtMm: int, headPatch: bool,
+    //     tapedOn: "YYYY-MM-DD", notes: string }
+    // Consumers: shaft-tracker search radius (lengthMm) and the
+    // instrumented-club pipeline (docs/validation/instrumented_club_protocol.md).
+    Q_INVOKABLE QVariantMap clubsFor(const QString &uuid) const;
+    Q_INVOKABLE QVariantMap defaultClubRecord(const QString &clubId) const;  // factory spec defaults (loft/length/shaft)
+    Q_INVOKABLE QStringList clubOptions() const;   // canonical vocabulary (club_vocabulary.h)
+    Q_INVOKABLE bool setClubRecord(const QString &uuid, const QString &clubId,
+                                   const QVariantMap &record);
+    Q_INVOKABLE bool removeClubRecord(const QString &uuid, const QString &clubId);
     Q_INVOKABLE bool deleteAthlete(const QString &uuid);
     Q_INVOKABLE void selectAthlete(const QString &uuid);
     Q_INVOKABLE void clearCurrentAthlete();

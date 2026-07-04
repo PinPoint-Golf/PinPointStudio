@@ -19,6 +19,7 @@
 #include "athlete_controller.h"
 
 #include "pp_settings.h"
+#include "club_vocabulary.h"
 #include <QUuid>
 #include <QDateTime>
 #include <algorithm>
@@ -38,6 +39,11 @@ static constexpr auto kNotes         = "notes";
 static constexpr auto kCreatedAt     = "createdAt";
 static constexpr auto kLastSessionAt = "lastSessionAt";
 static constexpr auto kSessionCount  = "sessionCount";
+static constexpr auto kClubs         = "clubs";
+
+// Defined below clubsFor(): factory per-club defaults + the standard seeded bag.
+static QVariantMap defaultClubRecordFor(const QString &clubId);
+static const QStringList &defaultBag();
 
 
 AthleteController::AthleteController(QObject *parent)
@@ -89,6 +95,16 @@ void AthleteController::reload()
         m[QStringLiteral("createdAt")]     = s.value(kCreatedAt,    0LL).toLongLong();
         m[QStringLiteral("lastSessionAt")] = s.value(kLastSessionAt,0LL).toLongLong();
         m[QStringLiteral("sessionCount")]  = s.value(kSessionCount, 0).toInt();
+        if (!s.contains(kClubs)) {
+            // First sight of this athlete's bag: seed the standard set
+            // (driver, 5-9 iron, GW, SW, putter) with factory defaults.
+            // Written once — an intentionally emptied bag stays empty.
+            QVariantMap bag;
+            for (const QString &id : defaultBag())
+                bag.insert(id, defaultClubRecordFor(id));
+            s.setValue(kClubs, bag);
+        }
+        m[QStringLiteral("clubs")]         = s.value(kClubs,        QVariantMap{}).toMap();
         m[QStringLiteral("initials")]      = computeInitials(m[QStringLiteral("name")].toString());
 
         s.endGroup(); // uuid
@@ -247,6 +263,106 @@ bool AthleteController::updateAthlete(const QString &uuid, const QString &fieldN
 
     reload();
     return true;
+}
+
+// Factory defaults per vocabulary club — lofts/lengths guided by Titleist
+// T100 irons, Vokey wedges (52/56/60 stock) and stock Titleist metals; club
+// length converted to mm (1" = 25.4 mm). Bands default to untaped.
+static QVariantMap defaultClubRecordFor(const QString &clubId)
+{
+    struct Spec { const char *id; double loft; int lengthMm; const char *shaft; };
+    static const Spec kSpecs[] = {
+        { "DRIVER",          10.0, 1156, "graphite" },   // 45.5"
+        { "3 WOOD",          15.0, 1092, "graphite" },   // 43.0"
+        { "5 WOOD",          18.0, 1080, "graphite" },   // 42.5"
+        { "3 HYBRID",        21.0, 1035, "graphite" },   // 40.75"
+        { "4 HYBRID",        24.0, 1016, "graphite" },   // 40.0"
+        { "3 IRON",          21.0,  991, "steel"    },   // 39.0"
+        { "4 IRON",          24.0,  978, "steel"    },   // 38.5"
+        { "5 IRON",          27.0,  965, "steel"    },   // 38.0"
+        { "6 IRON",          30.0,  953, "steel"    },   // 37.5"
+        { "7 IRON",          34.0,  940, "steel"    },   // 37.0"
+        { "8 IRON",          38.0,  927, "steel"    },   // 36.5"
+        { "9 IRON",          42.0,  914, "steel"    },   // 36.0"
+        { "PITCHING WEDGE",  46.0,  908, "steel"    },   // 35.75"
+        { "GAP WEDGE",       52.0,  902, "steel"    },   // Vokey 52, 35.5"
+        { "SAND WEDGE",      56.0,  895, "steel"    },   // Vokey 56, 35.25"
+        { "LOB WEDGE",       60.0,  889, "steel"    },   // Vokey 60, 35.0"
+        { "PUTTER",           3.0,  864, "steel"    },   // 34.0"
+    };
+    QVariantMap rec;
+    rec[QStringLiteral("shaftType")]       = QStringLiteral("steel");
+    rec[QStringLiteral("loftDeg")]         = 0.0;
+    rec[QStringLiteral("lengthMm")]        = 0;
+    rec[QStringLiteral("bandWidthMm")]     = 25;
+    rec[QStringLiteral("bandCentersMm")]   = QVariantList{};
+    rec[QStringLiteral("hoselFromButtMm")] = 0;
+    rec[QStringLiteral("headPatch")]       = false;
+    rec[QStringLiteral("tapedOn")]         = QString();
+    rec[QStringLiteral("notes")]           = QString();
+    for (const Spec &sp : kSpecs) {
+        if (clubId == QLatin1String(sp.id)) {
+            rec[QStringLiteral("loftDeg")]   = sp.loft;
+            rec[QStringLiteral("lengthMm")]  = sp.lengthMm;
+            rec[QStringLiteral("shaftType")] = QLatin1String(sp.shaft);
+            break;
+        }
+    }
+    return rec;
+}
+
+// The bag every golfer starts with; fairway woods / hybrids / specialty
+// wedges are added by the user (with defaults from defaultClubRecordFor).
+static const QStringList &defaultBag()
+{
+    static const QStringList kBag = {
+        QStringLiteral("DRIVER"),
+        QStringLiteral("5 IRON"), QStringLiteral("6 IRON"),
+        QStringLiteral("7 IRON"), QStringLiteral("8 IRON"),
+        QStringLiteral("9 IRON"),
+        QStringLiteral("GAP WEDGE"), QStringLiteral("SAND WEDGE"),
+        QStringLiteral("PUTTER"),
+    };
+    return kBag;
+}
+
+QVariantMap AthleteController::defaultClubRecord(const QString &clubId) const
+{
+    return defaultClubRecordFor(clubId);
+}
+
+QVariantMap AthleteController::clubsFor(const QString &uuid) const
+{
+    QSettings s = ppSettings();
+    s.beginGroup(kGroup);
+    s.beginGroup(uuid);
+    const QVariantMap clubs = s.value(kClubs, QVariantMap{}).toMap();
+    s.endGroup();
+    s.endGroup();
+    return clubs;
+}
+
+QStringList AthleteController::clubOptions() const
+{
+    return pinpoint::clubVocabulary();
+}
+
+bool AthleteController::setClubRecord(const QString &uuid, const QString &clubId,
+                                      const QVariantMap &record)
+{
+    if (uuid.isEmpty() || clubId.trimmed().isEmpty())
+        return false;
+    QVariantMap clubs = clubsFor(uuid);
+    clubs.insert(clubId, record);
+    return updateAthlete(uuid, QString::fromLatin1(kClubs), clubs);
+}
+
+bool AthleteController::removeClubRecord(const QString &uuid, const QString &clubId)
+{
+    QVariantMap clubs = clubsFor(uuid);
+    if (clubs.remove(clubId) == 0)
+        return false;
+    return updateAthlete(uuid, QString::fromLatin1(kClubs), clubs);
 }
 
 bool AthleteController::deleteAthlete(const QString &uuid)

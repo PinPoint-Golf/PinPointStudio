@@ -328,6 +328,7 @@ qt_add_qml_module(PinPointStudio
         src/Gui/shell/PlayPage.qml
         src/Gui/shell/ScreenPlaceholder.qml
         src/Gui/athlete/ScreenAthleteForm.qml
+        src/Gui/athlete/AthleteClubsSection.qml
         src/Gui/athlete/ScreenAthletePicker.qml
         src/Gui/components/PpTextField.qml
         src/Gui/components/PpComboBox.qml

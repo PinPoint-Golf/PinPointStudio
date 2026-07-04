@@ -585,6 +585,15 @@ Item {
                 }
             }
 
+            // ── Clubs (edit mode only — records commit immediately, unlike the
+            //    buffered scalar fields; a new athlete must be saved first) ─────
+            Item { visible: root.editUuid !== ""; width: 1; height: Theme.sp(16) }
+            AthleteClubsSection {
+                visible:     root.editUuid !== ""
+                athleteUuid: root.editUuid
+                width:       parent.width
+            }
+
             // ── Action row ───────────────────────────────────────────────────
             Item { width: 1; height: Theme.sp(24) }
             Row {

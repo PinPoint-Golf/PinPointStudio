@@ -60,7 +60,23 @@ grip ▓▓  ▓▓ ──────────── ▓▓ ─────�
   a *measurement*, and the head position becomes a known extrapolation beyond
   the hosel group even when the head itself is invisible.
 
-## 3. `clubs.json` — the per-club measurement record
+## 3. The per-club measurement record
+
+**In production the app owns these records, per athlete**: Edit Athlete →
+Clubs card (`AthleteClubsSection.qml`), persisted under
+`athletes/<uuid>/clubs` in the app settings and served to consumers via
+`AthleteController::clubsFor()` — record shape identical to the JSON below
+plus `loftDeg` (shaftType, loftDeg, lengthMm, bandWidthMm, bandCentersMm,
+hoselFromButtMm, headPatch, tapedOn, notes; keys = the canonical
+club-vocabulary names markup writes to `truth.json meta.club`). Every athlete
+is seeded once with a standard bag (driver, 5–9 iron, GW, SW, putter) carrying
+factory spec defaults (T100-guided iron lofts/lengths, Vokey wedges, stock
+metals — `defaultClubRecordFor()`); added clubs get the same defaults, and an
+intentionally emptied bag stays empty. `clubs.json` remains the LAB
+interchange format for offline tools; export from the app records when the
+lab needs it.
+
+### `clubs.json` (lab interchange)
 
 Measure after taping, to the millimetre, **from the butt end of the grip** to
 the CENTRE of each band. Without this record the tape is only "easier to
