@@ -17,13 +17,23 @@
  */
 
 #include "session_controller.h"
+#include "athlete_controller.h"
 #include "pp_debug.h"
 
-SessionController::SessionController(QObject *parent) : QObject(parent)
+SessionController::SessionController(AthleteController *athlete, QObject *parent)
+    : QObject(parent), m_athlete(athlete)
 {
     m_ticker.setInterval(1000);
     m_ticker.setTimerType(Qt::CoarseTimer);
     connect(&m_ticker, &QTimer::timeout, this, &SessionController::tick);
+}
+
+void SessionController::setActiveClub(const QString &club)
+{
+    if (club == m_activeClub)
+        return;
+    m_activeClub = club;
+    emit activeClubChanged();
 }
 
 void SessionController::start(int sessionType)
@@ -44,6 +54,15 @@ void SessionController::start(int sessionType)
         m_sessionType = type;
         emit activeSessionTypeChanged();
     }
+
+    // Seed the club from the athlete's preferred club unless one was already set
+    // for this session (e.g. the Home CLUB chip picked a specific club). This
+    // covers the toolbar Capture path, which starts a session without Home.
+    if (m_activeClub.isEmpty() && m_athlete) {
+        const QString club = m_athlete->effectivePrimaryClub(m_athlete->currentUuid());
+        setActiveClub(club);
+    }
+
     m_clock.restart();
     if (!m_running) { m_running = true; emit runningChanged(); }
     tick();
@@ -58,6 +77,7 @@ void SessionController::endSession()
         m_sessionType = Type::None;
         emit activeSessionTypeChanged();
     }
+    setActiveClub(QString());   // next session re-seeds from the athlete's preference
     // m_label keeps the final duration; the next start() restarts the clock.
 }
 

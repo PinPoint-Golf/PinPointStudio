@@ -197,7 +197,7 @@ int main(int argc, char *argv[])
     AthleteController       athleteController;
     // Live lead-wrist metrics (vs neutral) for the wizard "Check your sensor" overlay.
     LiveWristAngles         liveWrist(&imuManager, &appSettings, &athleteController);
-    SessionController       sessionController;
+    SessionController       sessionController(&athleteController);
     NavigationController    navController(&athleteController, &sessionController);
     // In-app updater façade: Linux AppImage engine, WinSparkle on Windows, Sparkle on
     // macOS (all behind this one QML context property). Constructed on all platforms

@@ -33,10 +33,24 @@ Item {
     property string handedness:     "Right"
     property string heightUnit:     "ft"
     property string weightUnit:     "lb"
-    property string primaryClub:    "Driver"
+    property string primaryClub:    "DRIVER"
 
     // "" = create mode; a uuid = edit that athlete.
     property string editUuid: ""
+
+    // Preferred-club options come from the athlete's actual bag (canonical ids,
+    // vocabulary order). Re-evaluates on every club commit via athletesChanged.
+    // Create mode (no uuid yet) and an empty bag fall back to the full vocabulary.
+    readonly property var clubModel: {
+        void athleteController.athletes
+        var vocab = athleteController.clubOptions()
+        if (root.editUuid === "") return vocab
+        var bag = athleteController.clubsFor(root.editUuid)
+        var ids = Object.keys(bag)
+        if (ids.length === 0) return vocab
+        ids.sort(function (a, b) { return vocab.indexOf(a) - vocab.indexOf(b) })
+        return ids
+    }
 
     onEditUuidChanged: loadForEdit()
     Component.onCompleted: loadForEdit()
@@ -49,7 +63,7 @@ Item {
         weightField.text   = ""
         weightUnit         = "lb"
         handicapField.text = ""
-        primaryClub        = "Driver"
+        primaryClub        = "DRIVER"
         speedField.text    = ""
         notesField.text    = ""
         nameError          = false
@@ -63,7 +77,8 @@ Item {
 
         nameField.text     = a.name || ""
         handedness         = a.handedness  || "Right"
-        primaryClub        = a.primaryClub || "Driver"
+        // Resolve to a real bag club (handles legacy/absent values).
+        primaryClub        = athleteController.effectivePrimaryClub(editUuid) || "DRIVER"
         handicapField.text = (a.handicap !== undefined && a.handicap > -900) ? String(a.handicap) : ""
         speedField.text    = (a.speedTarget && a.speedTarget > 0) ? String(a.speedTarget) : ""
         notesField.text    = a.notes || ""
@@ -425,10 +440,28 @@ Item {
                                     font.letterSpacing: Theme.trackingLabel
                                     color:              Theme.colorText3
                                 }
-                                PpChipGroup {
-                                    options:  ["Driver", "3-wood", "5-iron", "7-iron", "Wedge"]
-                                    selected: root.primaryClub
-                                    onSelectionChanged: function(v) { root.primaryClub = v }
+                                // Sourced from the athlete's bag (canonical ids). Sync
+                                // currentIndex imperatively — not via a binding — so
+                                // picking an item doesn't sever the link on reload.
+                                PpComboBox {
+                                    id: primaryClubCombo
+                                    implicitWidth: Theme.sp(220)
+                                    model: root.clubModel
+                                    onActivated: function (i) { root.primaryClub = root.clubModel[i] }
+                                    function syncFromValue() {
+                                        var idx = root.clubModel.indexOf(root.primaryClub)
+                                        if (idx < 0 && root.clubModel.length > 0) {
+                                            root.primaryClub = root.clubModel[0]
+                                            idx = 0
+                                        }
+                                        currentIndex = idx >= 0 ? idx : 0
+                                    }
+                                    Component.onCompleted: syncFromValue()
+                                    onModelChanged: syncFromValue()
+                                    Connections {
+                                        target: root
+                                        function onPrimaryClubChanged() { primaryClubCombo.syncFromValue() }
+                                    }
                                 }
                             }
                         }

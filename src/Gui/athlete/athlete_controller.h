@@ -57,7 +57,7 @@ public:
         double         weightValue = 0.0,
         const QString &weightUnit  = QStringLiteral("lb"),
         double         handicap    = -999.0,
-        const QString &primaryClub = QStringLiteral("Driver"),
+        const QString &primaryClub = QStringLiteral("DRIVER"),
         double         speedTarget = 0.0,
         const QString &notes       = QString()
     );
@@ -70,7 +70,7 @@ public:
         double         weightValue = 0.0,
         const QString &weightUnit  = QStringLiteral("lb"),
         double         handicap    = -999.0,
-        const QString &primaryClub = QStringLiteral("Driver"),
+        const QString &primaryClub = QStringLiteral("DRIVER"),
         double         speedTarget = 0.0,
         const QString &notes       = QString()
     );
@@ -89,6 +89,11 @@ public:
     Q_INVOKABLE QVariantMap clubsFor(const QString &uuid) const;
     Q_INVOKABLE QVariantMap defaultClubRecord(const QString &clubId) const;  // factory spec defaults (loft/length/shaft)
     Q_INVOKABLE QStringList clubOptions() const;   // canonical vocabulary (club_vocabulary.h)
+    // The athlete's default/preferred club, always resolved to a real bag club:
+    // the stored primaryClub (legacy tokens normalised to canonical) if it is in
+    // the bag, else "DRIVER" if present, else the first bag club, else "". Read on
+    // both the QML side (Home / form pickers) and the C++ side (session seeding).
+    Q_INVOKABLE QString effectivePrimaryClub(const QString &uuid) const;
     Q_INVOKABLE bool setClubRecord(const QString &uuid, const QString &clubId,
                                    const QVariantMap &record);
     Q_INVOKABLE bool removeClubRecord(const QString &uuid, const QString &clubId);

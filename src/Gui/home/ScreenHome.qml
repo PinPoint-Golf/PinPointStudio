@@ -35,7 +35,7 @@ Item {
     // Session types not yet implemented: badged "coming soon" tiles that open
     // their placeholder screen instead of starting a session.
     readonly property var comingSoonTypes: [0, 2, 3]
-    property string selectedClub: "Driver"
+    property string selectedClub: "DRIVER"
 
     property var athMap: {
         if (!athleteController.hasCurrentAthlete) return {}
@@ -46,9 +46,25 @@ Item {
         return {}
     }
 
+    // The current athlete's bag (canonical ids, vocabulary order). Empty when
+    // there's no athlete or an emptied bag — the CLUB row hides in that case.
+    // Re-evaluates on every club commit via athletesChanged.
+    readonly property var clubModel: {
+        void athleteController.athletes
+        if (!athleteController.hasCurrentAthlete) return []
+        var bag = athleteController.clubsFor(athleteController.currentUuid)
+        var vocab = athleteController.clubOptions()
+        var ids = Object.keys(bag)
+        ids.sort(function (a, b) { return vocab.indexOf(a) - vocab.indexOf(b) })
+        return ids
+    }
+
+    // Default the club to the athlete's preferred club (resolved to a real bag
+    // club) whenever the athlete or their bag changes.
     onAthMapChanged: {
-        var club = athMap.primaryClub
-        if (club !== undefined && club !== "") selectedClub = club
+        if (!athleteController.hasCurrentAthlete) return
+        var pref = athleteController.effectivePrimaryClub(athleteController.currentUuid)
+        if (pref !== "") root.selectedClub = pref
     }
 
     Component.onCompleted: resourceMonitor.refresh()
@@ -415,13 +431,15 @@ Item {
                 }
                 Item { width: 1; height: Theme.sp(20) }
 
-                Row {
+                // Club selector: the current athlete's bag. A wrapping Flow of chips
+                // (not PpChipGroup, a non-wrapping Row) so a full bag reflows —
+                // same chip language as the Clubs-section tab strip.
+                Column {
                     width:   parent.width
-                    spacing: Theme.sp(16)
+                    spacing: Theme.sp(8)
+                    visible: root.clubModel.length > 0
 
                     Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width:              Theme.sp(36)
                         text:               qsTr("CLUB")
                         font.family:        Theme.fontData
                         font.pixelSize:     Theme.fontSzMicro
@@ -429,14 +447,50 @@ Item {
                         color:              Theme.colorText3
                     }
 
-                    PpChipGroup {
-                        anchors.verticalCenter: parent.verticalCenter
-                        options:  ["Driver", "3-wood", "5-iron", "7-iron", "Wedge"]
-                        selected: root.selectedClub
-                        onSelectionChanged: function(value) { root.selectedClub = value }
+                    Flow {
+                        width:   parent.width
+                        spacing: Theme.sp(6)
+
+                        Repeater {
+                            model: root.clubModel
+
+                            Rectangle {
+                                required property string modelData
+
+                                readonly property bool _sel: modelData === root.selectedClub
+
+                                height:  Theme.sp(28)
+                                width:   clubChipLabel.implicitWidth + Theme.sp(24)
+                                radius:  Theme.radius
+                                color:   _sel                    ? Theme.colorAccentLight
+                                       : clubChipMa.containsMouse ? Theme.colorBg2
+                                       :                            Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
+                                border.width: 1
+                                border.color: _sel                    ? Theme.colorAccent
+                                            : clubChipMa.containsMouse ? Theme.colorAccentMid
+                                            :                            Theme.colorBorderStrong
+                                Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
+                                Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                                Text {
+                                    id: clubChipLabel
+                                    anchors.centerIn: parent
+                                    text:           modelData
+                                    font.family:    Theme.fontBody
+                                    font.pixelSize: Theme.fontSzBody
+                                    font.weight:    _sel ? Font.Normal : Theme.fontBodyWeight
+                                    color:          _sel ? Theme.colorAccent : Theme.colorText2
+                                }
+
+                                PpPressable {
+                                    id: clubChipMa
+                                    onClicked: root.selectedClub = modelData
+                                }
+                            }
+                        }
                     }
                 }
-                Item { width: 1; height: Theme.sp(20) }
+                Item { width: 1; height: Theme.sp(20); visible: root.clubModel.length > 0 }
 
                 Rectangle {
                     width:  parent.width

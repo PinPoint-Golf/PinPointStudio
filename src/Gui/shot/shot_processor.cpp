@@ -481,6 +481,21 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
     const QString hand = m_athlete ? m_athlete->currentHandedness() : QString();
     job.handedness = hand.compare(QLatin1String("Left"),  Qt::CaseInsensitive) == 0 ? 2
                    : hand.compare(QLatin1String("Right"), Qt::CaseInsensitive) == 0 ? 1 : 0;
+
+    // Club length (m) sizes the shaft-tracker search radius. Resolve the session's
+    // active club against the athlete's bag; leave the ShotAnalysisJob default
+    // (driver ≈ 1.12 m) when unset or the club record has no recorded length.
+    if (m_athlete && m_session) {
+        const QString club = m_session->activeClub();
+        if (!club.isEmpty()) {
+            const QVariantMap rec = m_athlete->clubsFor(m_athlete->currentUuid())
+                                        .value(club).toMap();
+            const int lengthMm = rec.value(QStringLiteral("lengthMm")).toInt();
+            if (lengthMm > 0)
+                job.clubLengthM = lengthMm / 1000.0;
+        }
+    }
+
     if (m_imuManager) {
         const QVariantMap placement = m_appSettings ? m_appSettings->imuPlacement() : QVariantMap{};
         const QVariantList insts = m_imuManager->instances();
@@ -924,9 +939,16 @@ void ShotProcessor::maybeJoin()
     }
 
     // The shot happened — it always lands on the carousel, with whatever the
-    // pipeline produced. Club defaults to the "DRIVER" stub at capture; the user
-    // sets it per-shot afterwards via the swing-edit popover (persisted to
-    // review.club). Capture-time club selection doesn't exist yet.
+    // pipeline produced. Club is the session's active club (Home CLUB chip →
+    // SessionController.activeClub, seeded from the athlete's preferred club);
+    // the user can still change it per-shot via the swing-edit popover (persisted
+    // to review.club). Falls back to the athlete's preferred club, then "DRIVER".
+    QString shotClub = m_session ? m_session->activeClub() : QString();
+    if (shotClub.isEmpty() && m_athlete)
+        shotClub = m_athlete->effectivePrimaryClub(m_athlete->currentUuid());
+    if (shotClub.isEmpty())
+        shotClub = QStringLiteral("DRIVER");
+
     // Publish the analyzed detail of the shot about to replay (the ScreenWrist in-replay
     // graph binds to it) before addShot, so it's ready when REPLAYING begins.
     m_replayAnalysisDetail = (analysisOk && m_analysisResult.detail)
@@ -941,7 +963,7 @@ void ShotProcessor::maybeJoin()
                                   : QUrl::fromLocalFile(m_thumbnailPath);
         newShotId = m_shotModel->addShot(savedSwingDir,
                              m_timestampLabel,
-                             QStringLiteral("DRIVER"),
+                             shotClub,
                              exportOk,
                              thumbUrl,
                              analysisOk ? m_analysisResult.tracePoints : QVariantList{},

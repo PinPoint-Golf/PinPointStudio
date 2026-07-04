@@ -454,6 +454,7 @@ ApplicationWindow {
                 currentIndex: navController.currentIndex
 
                 ScreenHome {                                               // screenHome — home / default
+                    id: screenHome
                     onAddAthleteRequested: {
                         athleteFormScreen.editUuid = ""
                         navController.navigate(root.screenNewAthlete)
@@ -466,6 +467,9 @@ ApplicationWindow {
                         navController.navigate(root.screenNewAthlete)
                     }
                     onStartSessionRequested: function(sessionTypeIndex) {
+                        // Carry the Home club pick into the session; start() (fired
+                        // at wizard completion) preserves an already-set activeClub.
+                        sessionController.activeClub = screenHome.selectedClub
                         sessionWizard.reset(sessionTypeIndex)
                         navController.navigate(root.screenWizard)
                     }
@@ -523,6 +527,7 @@ ApplicationWindow {
                         // connected (cameras, IMUs, microphone via capture
                         // intent) — same teardown as End Session.
                         sessionWizard.releaseDevices()
+                        sessionController.activeClub = ""   // drop the un-started club pick
                         navController.navigate(root.screenHome)
                     }
                     onSessionStartRequested: function(type, goals) {

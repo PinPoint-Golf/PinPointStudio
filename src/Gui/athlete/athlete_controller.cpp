@@ -45,6 +45,32 @@ static constexpr auto kClubs         = "clubs";
 static QVariantMap defaultClubRecordFor(const QString &clubId);
 static const QStringList &defaultBag();
 
+// Map a stored primaryClub token to the canonical vocabulary (club_vocabulary.h).
+// Handles the legacy non-canonical picker values ("Driver", "3-wood", "5-iron",
+// "7-iron", "Wedge") so old data self-heals on read; canonical values pass
+// through. Empty in / empty out. Unknown tokens are returned uppercased (they
+// simply won't match a bag key, so effectivePrimaryClub falls back).
+static QString normalizeClubId(const QString &raw)
+{
+    const QString t = raw.trimmed();
+    if (t.isEmpty())
+        return QString();
+
+    const QStringList &vocab = pinpoint::clubVocabulary();
+    if (vocab.contains(t))
+        return t;                                  // already canonical
+
+    QString up = t.toUpper();
+    up.replace(u'-', u' ');
+    up = up.simplified();                          // "3-wood" -> "3 WOOD"
+    if (vocab.contains(up))
+        return up;
+
+    if (up == QLatin1String("WEDGE"))              // legacy catch-all wedge
+        return QStringLiteral("SAND WEDGE");
+    return up;                                      // best effort
+}
+
 
 AthleteController::AthleteController(QObject *parent)
     : QObject(parent)
@@ -89,7 +115,7 @@ void AthleteController::reload()
         m[QStringLiteral("weightValue")]   = s.value(kWeightValue,  0.0).toDouble();
         m[QStringLiteral("weightUnit")]    = s.value(kWeightUnit,   QStringLiteral("lb")).toString();
         m[QStringLiteral("handicap")]      = s.value(kHandicap,     -999.0).toDouble();
-        m[QStringLiteral("primaryClub")]   = s.value(kPrimaryClub,  QStringLiteral("Driver")).toString();
+        m[QStringLiteral("primaryClub")]   = normalizeClubId(s.value(kPrimaryClub, QStringLiteral("DRIVER")).toString());
         m[QStringLiteral("speedTarget")]   = s.value(kSpeedTarget,  0.0).toDouble();
         m[QStringLiteral("notes")]         = s.value(kNotes,        QString()).toString();
         m[QStringLiteral("createdAt")]     = s.value(kCreatedAt,    0LL).toLongLong();
@@ -200,7 +226,7 @@ QString AthleteController::saveAthlete(
     s.setValue(kWeightValue, storedWeight);
     s.setValue(kWeightUnit,  weightUnit);
     s.setValue(kHandicap,    handicap);
-    s.setValue(kPrimaryClub, primaryClub);
+    s.setValue(kPrimaryClub, normalizeClubId(primaryClub));
     s.setValue(kSpeedTarget, speedTarget);
     s.setValue(kNotes,       notes);
 
@@ -345,6 +371,28 @@ QVariantMap AthleteController::clubsFor(const QString &uuid) const
 QStringList AthleteController::clubOptions() const
 {
     return pinpoint::clubVocabulary();
+}
+
+QString AthleteController::effectivePrimaryClub(const QString &uuid) const
+{
+    const QVariantMap bag = clubsFor(uuid);
+
+    QSettings s = ppSettings();
+    s.beginGroup(kGroup);
+    s.beginGroup(uuid);
+    const QString stored = normalizeClubId(s.value(kPrimaryClub, QStringLiteral("DRIVER")).toString());
+    s.endGroup();
+    s.endGroup();
+
+    if (!stored.isEmpty() && bag.contains(stored))
+        return stored;
+    if (bag.contains(QStringLiteral("DRIVER")))
+        return QStringLiteral("DRIVER");
+    // First configured club in canonical (bag) order.
+    for (const QString &c : pinpoint::clubVocabulary())
+        if (bag.contains(c))
+            return c;
+    return QString();
 }
 
 bool AthleteController::setClubRecord(const QString &uuid, const QString &clubId,
