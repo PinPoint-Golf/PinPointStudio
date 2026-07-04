@@ -408,6 +408,16 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
             ? QJsonValue(QDateTime::fromMSecsSinceEpoch(rec.cam->ballCalibratedAtMs, QTimeZone::UTC)
                              .toString(Qt::ISODate))
             : QJsonValue();
+        // Additive: stable ball position + scale (full-frame normalized), co-
+        // registered with analysis.club head samples. Omitted when unavailable
+        // so older/uncalibrated swings simply carry no position (see
+        // docs/design/low_point_metric_design.md).
+        if (rec.cam->ballHasPos) {
+            ballDetection[QStringLiteral("center")] = QJsonArray{
+                rec.cam->ballCenterX, rec.cam->ballCenterY };
+            ballDetection[QStringLiteral("radiusNorm")]     = rec.cam->ballRadiusNorm;
+            ballDetection[QStringLiteral("positionSource")] = rec.cam->ballPosSource;
+        }
         s[QStringLiteral("setup")] = QJsonObject{
             {QStringLiteral("perspective"),     rec.cam->perspective},
             {QStringLiteral("perspectiveName"), QString::fromLatin1(kPerspectiveNames[pi])},

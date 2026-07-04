@@ -699,6 +699,15 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         cam.ballMargin         = track.ctrl->ballCalMargin();
         cam.ballCalibratedAtMs = track.ctrl->ballCalibratedAtMs();
         cam.ballDriftAtCapture = track.ctrl->ballDriftSeverity();
+        // Stable calibrated ball position + scale (full-frame normalized) — the
+        // reference the deferred low-point metric measures the clubhead against.
+        cam.ballHasPos         = track.ctrl->ballCalHasPosition();
+        if (cam.ballHasPos) {
+            cam.ballCenterX    = track.ctrl->ballCalCenterX();
+            cam.ballCenterY    = track.ctrl->ballCalCenterY();
+            cam.ballRadiusNorm = track.ctrl->ballCalRadiusNorm();
+            cam.ballPosSource  = QStringLiteral("calibrated");
+        }
         job.cameras.push_back(std::move(cam));
     }
 

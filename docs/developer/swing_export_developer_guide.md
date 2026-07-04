@@ -347,7 +347,9 @@ type later is just another element of `streams[]` — readers must ignore unknow
                     "mirrored": false, "fixedInPlace": true,
                     "ballDetection": { "calibrated": true, "margin": 0.42,
                                        "driftAtCapture": 0.0,
-                                       "calibratedAt": "2026-06-12T09:14:03Z" } },
+                                       "calibratedAt": "2026-06-12T09:14:03Z",
+                                       "center": [0.51, 0.78], "radiusNorm": 0.012,
+                                       "positionSource": "calibrated" } },
       "playback": { "fps": 30 },
       "processing": { "demosaic": "EA", "restorer": "none" },
       "frames": { "count": 742, "t_us": [0, 6671, 13342] }
@@ -384,7 +386,12 @@ stop hardcoding assumptions; all additive (absent on legacy swings):
   (the profile's validated ball/empty separation), `driftAtCapture`
   (illumination-drift severity, 0 when clean), `calibratedAt` (ISO 8601 UTC,
   null when never calibrated). SwingLab filters the corpus on these
-  (`ballCalibrated`/`ballMargin` in corpus.json).
+  (`ballCalibrated`/`ballMargin` in corpus.json). When a valid calibration ball
+  is present the block also carries the stable ball **position + scale** —
+  `center` `[x,y]` and `radiusNorm` (full-frame normalized, radius to frame
+  width) + `positionSource` — co-registered with `analysis.club.samples[].head`;
+  this is the enabling data for the deferred low-point-ahead-of-ball metric
+  (`docs/design/low_point_metric_design.md`), omitted on uncalibrated streams.
 - **Per-IMU-stream `device`** — `outputRateHz` (live instance rate — authoritative
   over the registration-time `ImuFormat`), `fusionMode` (device 6/9-axis),
   `orientationFilter` (host fusion: Madgwick/ESKF), `placementSlot` (A/B/C).

@@ -853,6 +853,18 @@ void CameraInstance::applyBallCalProfile(const pinpoint::ballcal::BallCalProfile
         }, Qt::QueuedConnection);
     m_ballCalMargin      = profile.margin;
     m_ballCalibratedAtMs = profile.calibratedAtMs;
+    // Resolve the calibrated ball (ROI-space px) into full-frame-normalized
+    // coords so it co-registers with the shaft-track head samples that the
+    // low-point metric consumes. Radius is normalized to frame width.
+    if (profile.ball.valid && profile.roiPxW > 0 && profile.roiPxH > 0) {
+        m_ballCalCenterX = profile.roiX + (profile.ball.calibCenter.x / profile.roiPxW) * profile.roiW;
+        m_ballCalCenterY = profile.roiY + (profile.ball.calibCenter.y / profile.roiPxH) * profile.roiH;
+        m_ballCalRadiusN = profile.ball.radiusPx * (profile.roiW / profile.roiPxW);
+        m_ballCalHasPos  = (m_ballCalRadiusN > 0.0);
+    } else {
+        m_ballCalHasPos  = false;
+        m_ballCalCenterX = m_ballCalCenterY = m_ballCalRadiusN = 0.0;
+    }
     if (!m_ballCalibrated) {
         m_ballCalibrated = true;
         emit ballCalibratedChanged();
@@ -872,6 +884,8 @@ void CameraInstance::clearBallCalProfile()
         }, Qt::QueuedConnection);
     m_ballCalMargin      = 0.0;
     m_ballCalibratedAtMs = 0;
+    m_ballCalHasPos      = false;
+    m_ballCalCenterX = m_ballCalCenterY = m_ballCalRadiusN = 0.0;
     if (m_ballCalibrated) {
         m_ballCalibrated = false;
         emit ballCalibratedChanged();

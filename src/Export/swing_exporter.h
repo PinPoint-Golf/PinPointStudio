@@ -50,6 +50,16 @@ struct SwingExportCamera {
     double   ballMargin         = 0.0;
     qint64   ballCalibratedAtMs = 0;     // epoch ms, 0 = n/a
     double   ballDriftAtCapture = 0.0;
+    // Calibrated ball position + scale in FULL-FRAME normalized coords, co-
+    // registered with the shaft-track head samples — the stable address-ball
+    // reference for the deferred low-point-ahead-of-ball metric. radiusNorm is
+    // normalized to frame width (px scale = kBallDiameterMm / (2·radiusNorm·W)).
+    // hasPos=false ⇒ the block's position/radius are omitted from swing.json.
+    bool     ballHasPos         = false;
+    double   ballCenterX        = 0.0;   // [0,1]
+    double   ballCenterY        = 0.0;   // [0,1]
+    double   ballRadiusNorm     = 0.0;   // normalized to frame width
+    QString  ballPosSource;              // "calibrated" (else empty)
 };
 
 // Per-IMU device configuration at capture time (stream "device" object),

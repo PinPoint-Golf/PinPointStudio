@@ -161,6 +161,15 @@ public:
     // Profile provenance for swing.json (C++ only, set by applyBallCalProfile).
     double  ballCalMargin()       const { return m_ballCalMargin; }
     qint64  ballCalibratedAtMs()  const { return m_ballCalibratedAtMs; }
+    // Calibrated ball position + scale, resolved to FULL-FRAME normalized coords
+    // (co-registered with the shaft-track head samples) — the stable address-ball
+    // reference for the deferred low-point metric. hasPosition() is false when no
+    // valid calibration ball / ROI is available. Radius is normalized to frame
+    // WIDTH (matching ballRadius()). C++ only, set by applyBallCalProfile.
+    bool    ballCalHasPosition()  const { return m_ballCalHasPos; }
+    double  ballCalCenterX()      const { return m_ballCalCenterX; }
+    double  ballCalCenterY()      const { return m_ballCalCenterY; }
+    double  ballCalRadiusNorm()   const { return m_ballCalRadiusN; }
     // Mute the ball-present ting (calibration's validate rounds would chime
     // on every prompted place/remove). C++ only — BallCalibrationController.
     void    setBallTingSuppressed(bool on) { m_ballTingSuppressed = on; }
@@ -347,6 +356,11 @@ private:
     double           m_ballCalMargin        = 0.0;
     qint64           m_ballCalibratedAtMs   = 0;
     bool             m_ballTingSuppressed   = false;
+    // Calibrated ball resolved to full-frame-normalized coords (see getters).
+    bool             m_ballCalHasPos        = false;
+    double           m_ballCalCenterX       = 0.0;   // [0,1] full-frame
+    double           m_ballCalCenterY       = 0.0;   // [0,1] full-frame
+    double           m_ballCalRadiusN       = 0.0;   // normalized to frame width
     TingPlayer      *m_tingPlayer           = nullptr;
     bool             m_replaying            = false;
     // Capture-rate FPS: counted on the capture thread, sampled on a timer.

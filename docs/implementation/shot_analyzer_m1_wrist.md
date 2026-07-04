@@ -363,6 +363,14 @@ The playhead `╳` moves with the replay frame; the phase chip row and x-axis ti
   `elbowRel` kept in `wrist_angles.h` for this).
 - [ ] Keep live (`LiveWristAngles`) and shot (`MetricExtractor`) in lockstep — both
   neutral-relative now; any future reference change must touch both.
+- [ ] **`lowPointAhead` delivery metric** (signed inches) — the low point of the clubhead arc
+  vs the ball, from the face-on shaft-track `head` + ball. **Enabling work landed:** the
+  ball-diameter scale constant (`ballcal::kBallDiameterMm`) and the calibrated ball position +
+  radius resolved to full-frame coords (`CameraInstance::ballCal*`) are now persisted in
+  `swing.json` `setup.ballDetection` (`center`/`radiusNorm`/`positionSource`), co-registered with
+  `analysis.club.samples[].head`. **Compute deferred** pending the measured clubhead detector —
+  today's `headPx` is projected, not measured. Slots into `WristAnalyzer` as a `MetricSeries` +
+  scalar (model on `buildShaftLeanSeries`). Spec: `docs/design/low_point_metric_design.md`.
 
 ### F. Polish
 - [ ] `PpMetricGraph` accent-tick colour clash (Impact tick shares the Bow/cup curve colour);

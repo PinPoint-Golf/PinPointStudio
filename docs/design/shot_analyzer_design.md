@@ -399,10 +399,11 @@ Notation: `R_seg` = a segment's right-handed anatomical frame (built per the arc
 | `clubPath` | Horizontal angle of `v_clubhead` vs target line: `atan2(v·Y, v·X)`; +in-to-out / −out-to-in. Hand-path **proxy** if no club. | camera-3D club | Impact | deg | near 0 ± a few (TrackMan) |
 | `attackAngle` | Vertical angle of `v_clubhead`: `atan2(v·Z, ‖v_horiz‖)`. | camera-3D club / hand proxy | Impact | deg | Driver −1.3 (some +3..+5); 7-iron −4.5 (TrackMan 2024) |
 | `faceAngle` | Horizontal angle of clubface normal vs target line; needs club tracking or **lead-forearm+wrist proxy**. | camera-3D club / IMU proxy | Impact | deg | small open/closed; gates ball start (TrackMan) |
+| `lowPointAhead`‡ | Signed target-line distance from the ball to the clubhead's arc **low point** (lowest head height near impact): `(head_x_lp − ball_x)·mmPerPx·chirality`, `mmPerPx = 42.67 mm ÷ (2·ball radius px)`. **2D image-plane** — no depth axis needed. | **face-on 2D (shaft-track head + ball)** | Low point (≈Impact) | in (signed) | + ahead = descending blow (irons); driver behind |
 | `tempoBackswing` | Address→Top duration. | any (phase events) | — | s | ~0.75–0.85 (TPI 0.847±0.111) |
 | `tempoRatio` | `tempoBackswing / downswingTime` (Top→Impact). | any (phase events) | — | ratio | ~3:1 (tour 2.2–3.0:1) |
 
-\* Wrist flex/ext is **only trustworthy from the IMU** — COCO-17 lacks knuckle/thumb keypoints, so even with two cameras the camera term is a weak cross-check (ViTPose-wholebody hand keypoints) and the IMU quaternion is authoritative. † `faceAngle` is gated behind club tracking; until then it is suppressed or exposed as a forearm+wrist proxy clearly labelled `estimated`.
+\* Wrist flex/ext is **only trustworthy from the IMU** — COCO-17 lacks knuckle/thumb keypoints, so even with two cameras the camera term is a weak cross-check (ViTPose-wholebody hand keypoints) and the IMU quaternion is authoritative. † `faceAngle` is gated behind club tracking; until then it is suppressed or exposed as a forearm+wrist proxy clearly labelled `estimated`. ‡ `lowPointAhead` is the one **club-delivery** metric a single face-on camera can estimate in 2D, but on the **projected** clubhead — the shaft tracker derives `headPx` from grip + shaft-angle × visible length (flagged `ShaftHeadProjected`); it does **not** measure the head — so it is **deferred pending the measured clubhead detector** (`clubhead_detection_design.md`). Enabling data (calibrated ball position + px→mm scale) is now persisted in `swing.json` `setup.ballDetection`. Full spec: [`low_point_metric_design.md`](low_point_metric_design.md).
 
 #### Single-camera (face-on) viability — per-metric reframe
 
@@ -975,7 +976,9 @@ validated against `mirroredSource`/handedness; occluded segments stay IMU-recons
 Reload set (rating/note, MP4 replay, export-fail header) · FE↔RUD cross-talk & shared-heading
 (mag / kinematic / ROS-ENU frame contract) · right-arm sign · scorer band finalization · exact
 Δ curve · ViTPose offline pose path (M2) · decouple the analyzer from the WT9011 quaternion
-convention.
+convention · **`lowPointAhead` delivery metric** — enabling data (ball position + px→mm scale)
+persisted in `setup.ballDetection`; compute deferred pending the measured clubhead detector
+([`low_point_metric_design.md`](low_point_metric_design.md)).
 
 ---
 

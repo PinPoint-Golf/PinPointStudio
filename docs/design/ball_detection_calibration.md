@@ -306,6 +306,14 @@ camera stream's setup block: `"ballDetection": {"calibrated": bool, "margin": fl
 "calibratedAt": iso8601, "driftAtCapture": float}`. SwingLab can then filter/correlate corpus
 quality on ball-detection calibration the same way it does IMU calibration.
 
+The block is additively extended with the **stable ball position + scale** (full-frame normalized,
+co-registered with `analysis.club.samples[].head`): `"center": [x, y]`, `"radiusNorm": float`
+(normalized to frame width), `"positionSource": "calibrated"`. Present only when a valid
+calibration ball is available; resolved from `BallCalProfile.ball.calibCenter`/`radiusPx` + ROI by
+`CameraInstance::applyBallCalProfile`. This is the enabling data for the deferred
+low-point-ahead-of-ball metric (`low_point_metric_design.md`): position gives the target-line
+reference, `radiusNorm` × frame width gives the px→mm scale (ball diameter `kBallDiameterMm`).
+
 ## 8. UX surfaces
 
 **Principle: Settings is the home of ROI + calibration; the wizard only confirms.** A fixed face-on
