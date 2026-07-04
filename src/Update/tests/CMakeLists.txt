@@ -47,7 +47,8 @@ pp_add_test(update_controller_policy_test
             ${UPDATE}/update_controller.cpp
             ${SRC}/Gui/app/app_settings.cpp
             ${SRC}/Gui/session/session_controller.cpp
+            ${SRC}/Gui/athlete/athlete_controller.cpp
             ${SRC}/Core/tests/pp_log_stub.cpp
-    INCLUDE ${UPDATE} ${SRC}/Core ${SRC}/Gui/app ${SRC}/Gui/session
+    INCLUDE ${UPDATE} ${SRC}/Core ${SRC}/Gui/app ${SRC}/Gui/session ${SRC}/Gui/athlete
     LINK    Qt6::Qml Qt6::Test
     GTEST_NO_MAIN  AUTOMOC)
