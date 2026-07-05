@@ -26,7 +26,7 @@ video ─► prep_swing.py ─► clip + anchors.csv + skeleton.csv + clipmeta.j
 
 | file | role |
 |---|---|
-| `prep_swing.py` | exported swing dir → pose-covered face-on clip + grip/forearm anchors + 8-joint skeleton + clipmeta (true fps — container fps is fake) |
+| `prep_swing.py` | exported swing dir → pose-covered face-on clip + grip/forearm anchors + 8-joint skeleton + clipmeta (true fps — container fps is fake). Captures with a raw Bayer sidecar decode from `.raw` (EA demosaic, app-matching) into an FFV1-lossless clip; `--mp4` / `--bilinear` override for A/B. Embedded exposure lands in clipmeta `exposure_s` |
 | `shaft_annotate.py` | **stage 1** (v6 working prototype): shaft angle detection/tracking, F1–F17 fix set |
 | `length_model.py` | projected club-length model M0–M4; labeled fit + per-swing censored self-fit (production path); phase split; the geometry primer for the port lives in its docstring |
 | `clubhead_scan.py` | stage-2 scan primitives (scene median, ray edge, run-end) + the H0 zeroth-order baseline tool |
