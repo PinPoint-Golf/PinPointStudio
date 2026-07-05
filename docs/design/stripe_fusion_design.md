@@ -1,6 +1,18 @@
 # Stripe fusion — full-swing instrumented truth from a fixed environment
 
-**Status: design, 2026-07-05.** Successor to `stripe_annotate.py` v1 (blob →
+**Status: v2.0 as-built, 2026-07-05** (`tools/shaftlab/stripe_fusion.py`;
+adjudication record: lab `tape_20260705/RESULTS.md`). Deviations from this
+design, all corpus-adjudicated: the stacked still tier is CUT (the 2-1-3
+pattern is not optically discrete at address at this exposure, and stacked
+counterfeits self-corroborate — address theta-only truth is follow-up
+work); pixel-median stacking is fine for physically-still clubs (the
+profile-space claim below was wrong — the synth feedback bug, not the
+stacking, caused the probe failure); the load-bearing honesty mechanism
+turned out to be MOTION-VERIFIED corroboration (matched blobs must travel
+with the hands; no lone or static-period locks), which the design did not
+anticipate. E1+E2 as designed; E3's scene-median subtraction as designed.
+
+**Original design, 2026-07-05.** Successor to `stripe_annotate.py` v1 (blob →
 ratio match), which is validated but scoped to the club-up phases. Companion:
 `docs/validation/instrumented_club_protocol.md` (band geometry, session
 plan), `tools/shaftlab/README.md` (exemplar rules), lab
