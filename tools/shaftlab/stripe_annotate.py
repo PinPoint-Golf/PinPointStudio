@@ -21,7 +21,17 @@ import argparse, csv, itertools, json, math, os, sys
 import numpy as np, cv2
 
 SAT_T = 235          # band pixels saturate under on-axis light
-AREA_MIN, AREA_MAX = 3, 4000
+# Address-phase captures ARE ring-lit (bright retro return along the whole
+# shaft) but at this exposure the bands only peak marginally over SAT_T:
+# they bloom into the glove/shaft or fragment to 1-2 px specks, while the
+# speckle field (mat sparkle, sleeve highlights) offers combinatorially
+# abundant false affine fits — adjudicated on tape_20260705 s01: admitting
+# 60 proximity-sorted 1px+ blobs made junk n=4 matches outnumber real ones
+# ~3:1 even with the dark-gap check. Address needs a profile-correlation
+# detector (band/gap template along candidate lines), not looser blobs;
+# this saturated-blob detector is scoped to the club-up phases.
+AREA_MIN, AREA_MAX = 3, 2500
+MAX_BLOBS = 20
 GRIP_GATE = 80.0     # line must pass within this of the grip anchor (px)
 LAT_TOL = 4.0        # blob-to-line lateral inlier tolerance (px)
 S_MIN, S_MAX = 0.05, 0.55   # px/mm; >0.55 needs the club far off the athlete plane
@@ -35,6 +45,27 @@ RMS3 = 1.5
 RESCUE_GAP = 45      # max anchor-to-anchor span (frames) for n=3 rescue
 RESCUE_DTH = 5.0     # deg agreement with interpolated theta
 RESCUE_DS = 0.12     # fractional s agreement
+GAP_MM_MAX = 60.0    # "within-group" adjacent band spacing (54/50/46 mm)
+GAP_DARK = 222       # bare steel between group bands must dip below this
+
+
+def gap_dark_ok(gray, mpts_r, s):
+    """A real match must show >=1 dark within-group gap: between adjacent
+    matched bands of the same group the shaft is bare steel, well below
+    saturation, while speckle matches over the blown mat stay bright.
+    mpts_r: [(x, y, r_mm)] for matched blobs, sorted by r."""
+    H, W = gray.shape
+    found_pair = False
+    for (x1, y1, r1), (x2, y2, r2) in zip(mpts_r, mpts_r[1:]):
+        if r2 - r1 > GAP_MM_MAX:
+            continue
+        found_pair = True
+        mids = [(x1 + t * (x2 - x1), y1 + t * (y2 - y1)) for t in (0.4, 0.5, 0.6)]
+        vals = [gray[int(y), int(x)] for x, y in mids
+                if 0 <= int(x) < W and 0 <= int(y) < H]
+        if vals and max(vals) <= GAP_DARK:
+            return "dark"
+    return "nopair" if not found_pair else "bright"
 
 
 def detect_blobs(gray, gx, gy, rmax):
@@ -46,11 +77,12 @@ def detect_blobs(gray, gx, gy, rmax):
         if not AREA_MIN <= a <= AREA_MAX:
             continue
         cx, cy = cent[i]
-        if math.hypot(cx - gx, cy - gy) > rmax:
+        d = math.hypot(cx - gx, cy - gy)
+        if d > rmax:
             continue
-        out.append((cx, cy, a))
+        out.append((cx, cy, a, d))
     out.sort(key=lambda b: -b[2])
-    return out[:20]
+    return [(cx, cy, a) for cx, cy, a, _ in out[:MAX_BLOBS]]
 
 
 def flip_rms(tj, rk):
@@ -198,6 +230,14 @@ def main():
                     n, rms, s, r0, pairs, fl = match_pattern(tp, bands)
                     gate = RMS3 if n == 3 else (RMS4 if n == 4 else RMS5)
                     if n >= 3 and rms <= gate:
+                        mpr = sorted(((pts[idx[j]][0], pts[idx[j]][1], bands[k])
+                                      for j, k in pairs), key=lambda m: m[2])
+                        gd = gap_dark_ok(gray, mpr, s)
+                        # n<=4 must PROVE a dark within-group gap; n>=5 has
+                        # enough ratio redundancy that only a bright gap
+                        # (speckle over the blown mat) disqualifies
+                        if gd == "bright" or (n <= 4 and gd != "dark"):
+                            continue
                         c = (n, -rms, s, r0, sgn * u,
                              [tuple(pts[idx[j]]) for j, _ in pairs], fl)
                         if res is None or c[:2] > res[:2]:
