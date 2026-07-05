@@ -599,6 +599,20 @@ void SwingDataSource::reload()
                 r << row(QStringLiteral("Capture fps"), QString::number(
                             double(capt.value(QStringLiteral("fps_num")).toInt()) /
                             double(capt.value(QStringLiteral("fps_den")).toInt()), 'f', 0));
+            // Exposure (additive) — feeds the shaft detector's blur assessment.
+            // "derived" is the fps fallback (webcams); "auto" flags auto-exposure.
+            if (capt.contains(QStringLiteral("exposureUs"))) {
+                const double us  = capt.value(QStringLiteral("exposureUs")).toDouble();
+                const QString sc = capt.value(QStringLiteral("exposureSource")).toString();
+                QString v = us >= 1000.0
+                                ? QString::number(us / 1000.0, 'f', 2) + QStringLiteral(" ms")
+                                : QString::number(us, 'f', us < 10.0 ? 1 : 0) + QStringLiteral(" µs");
+                if (sc == QLatin1String("derived"))
+                    v = QStringLiteral("≈") + v + QStringLiteral(" (derived)");
+                else if (capt.value(QStringLiteral("exposureAuto")).toBool())
+                    v += QStringLiteral(" (auto)");
+                r << row(QStringLiteral("Exposure"), v);
+            }
             const QJsonObject setup = st.value(QStringLiteral("setup")).toObject();
             if (setup.contains(QStringLiteral("perspectiveName")))
                 r << row(QStringLiteral("Perspective"), setup.value(QStringLiteral("perspectiveName")).toString());

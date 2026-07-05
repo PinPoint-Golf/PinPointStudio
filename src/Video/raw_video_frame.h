@@ -31,6 +31,8 @@ struct RawVideoFrame {
     int          width   = 0;
     int          height  = 0;
     BayerPattern pattern = BayerPattern::RG;
+    double       exposureUs   = 0.0; // per-frame exposure from Spinnaker chunk data, us; 0 = unknown
+    int          exposureAuto = -1;  // -1 unknown, 0 Off/manual, 1 Continuous/Once (auto)
 
     bool isNull() const { return data.isEmpty() || width <= 0 || height <= 0; }
 

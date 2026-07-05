@@ -43,6 +43,8 @@ public:
     bool              isActive()      const override;
     QVideoFrameFormat frameFormat()   const override;
     bool              emitsRawBayer() const override { return m_emitRaw; }
+    double            lastMeasuredExposureUs() const override { return m_lastExposureUs.load(std::memory_order_relaxed); }
+    int               lastExposureAutoMode()   const override { return m_lastExposureAuto.load(std::memory_order_relaxed); }
     CameraCapabilities queryCapabilities() const override;
 
     // GenICam OffsetX/OffsetY/Width/Height nodes applied on the next start().
@@ -63,4 +65,11 @@ private:
     int   m_bayerPattern = 0;   // RawVideoFrame::BayerPattern int, valid when Bayer format selected
     bool  m_emitRaw      = false; // true when camera runs a Bayer pixel format
     QRectF m_cropRegion;          // normalized crop; empty = full sensor
+
+    // Exposure chunk data (set in start(), read in captureLoop()).
+    bool  m_chunkExposureEnabled = false; // ChunkExposureTime successfully enabled
+    int   m_exposureAuto         = -1;    // cached ExposureAuto mode: -1 unknown, 0 Off, 1 auto
+    // Most recent per-frame exposure, published for the QVideoFrame-path virtuals.
+    std::atomic<double> m_lastExposureUs{0.0};
+    std::atomic<int>    m_lastExposureAuto{-1};
 };

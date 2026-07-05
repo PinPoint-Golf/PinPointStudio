@@ -389,10 +389,24 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
                 {QStringLiteral("count"),       static_cast<qint64>(rec.tUs.size())},
             };
         }
-        s[QStringLiteral("capture")] = QJsonObject{
+        QJsonObject captureObj{
             {QStringLiteral("fps_num"), static_cast<int>(rec.fmt->fps_numerator)},
             {QStringLiteral("fps_den"), static_cast<int>(rec.fmt->fps_denominator)},
         };
+        // Exposure (additive) — written only when known so legacy streams stay
+        // clean. exposureUs feeds the shaft detector's blur/wedge assessment;
+        // exposureSource records chunk-measured vs fps-derived provenance;
+        // exposureAuto (only for measured streams) flags auto-exposure drift.
+        if (rec.fmt->exposure_source != ExposureSource::Unknown && rec.fmt->exposure_us > 0.0) {
+            captureObj[QStringLiteral("exposureUs")]     = rec.fmt->exposure_us;
+            captureObj[QStringLiteral("exposureSource")] =
+                QString::fromLatin1(exposureSourceName(rec.fmt->exposure_source));
+            if (rec.fmt->exposure_source == ExposureSource::Measured
+                || rec.fmt->exposure_source == ExposureSource::MeasuredAuto)
+                captureObj[QStringLiteral("exposureAuto")] =
+                    (rec.fmt->exposure_source == ExposureSource::MeasuredAuto);
+        }
+        s[QStringLiteral("capture")] = captureObj;
         // Camera setup at capture time (additive). perspectiveName saves
         // readers a magic-number table; fixedInPlace is the camera-side
         // "calibrated" signal SwingLab filters on.

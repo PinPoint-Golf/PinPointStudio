@@ -289,12 +289,18 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
             const int encW = s[QStringLiteral("encoded")].toObject()[QStringLiteral("width")].toInt();
             const int encH = s[QStringLiteral("encoded")].toObject()[QStringLiteral("height")].toInt();
             int fpsNum = 150, fpsDen = 1;
+            double exposureUs = 0.0;
+            ExposureSource exposureSource = ExposureSource::Unknown;
             if (s.contains(QStringLiteral("capture"))) {
                 const QJsonObject c = s[QStringLiteral("capture")].toObject();
                 if (c[QStringLiteral("fps_num")].toInt() > 0 && c[QStringLiteral("fps_den")].toInt() > 0) {
                     fpsNum = c[QStringLiteral("fps_num")].toInt();
                     fpsDen = c[QStringLiteral("fps_den")].toInt();
                 }
+                exposureUs     = c[QStringLiteral("exposureUs")].toDouble(0.0);
+                exposureSource = exposureSourceFromName(
+                    c[QStringLiteral("exposureSource")].toString().toStdString(),
+                    c[QStringLiteral("exposureAuto")].toBool(false));
             }
 
             // Prefer the raw sidecar (bit-faithful) when present on disk.
@@ -322,6 +328,8 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
             CameraFormat cf{};
             cf.fps_numerator   = uint32_t(fpsNum);
             cf.fps_denominator = uint32_t(fpsDen);
+            cf.exposure_us     = exposureUs;      // 0.0 for legacy swings (no exposure key)
+            cf.exposure_source = exposureSource;
             std::unique_ptr<CameraReader> reader;
             if (useRaw) {
                 cf.pixel_format      = pixelFormatFromName(rawPf.toStdString());

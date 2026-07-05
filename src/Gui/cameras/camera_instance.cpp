@@ -1241,6 +1241,9 @@ void CameraInstance::drainDisplayFrame()
     // frame. Single source of truth; cheap no-op after the first successful stamp.
     if (f.isValid() && !m_bufferDescriptorStamped)
         updateBufferDescriptor();
+    else if (f.isValid() && m_videoInput)
+        refreshExposure(m_videoInput->lastMeasuredExposureUs(),
+                        m_videoInput->lastExposureAutoMode());  // no-op for fps-derived webcams
 }
 
 void CameraInstance::drainRawFrame()
@@ -1257,8 +1260,10 @@ void CameraInstance::drainRawFrame()
 
     // Keep the buffer descriptor in sync with the delivered raw frames even
     // while replaying — payloads keep being published during replay.
-    if (!raw.isNull())
+    if (!raw.isNull()) {
         stampBufferDescriptorFromRaw(raw);
+        refreshExposure(raw.exposureUs, raw.exposureAuto);  // track auto-exposure drift
+    }
 
     if (m_replaying || raw.isNull())  // suppress live feed during replay
         return;
@@ -1531,6 +1536,22 @@ void CameraInstance::displayReplayFrame(const std::byte *data, size_t bytes,
 // the ring are laid out, so swing replay decodes with the same format/size it was
 // stored with — no per-backend hardcoding, and robust to any future format.
 //
+// Sets a CameraFormat's exposure fields: a measured per-frame value when one is
+// available (source records whether auto-exposure was active), otherwise the
+// 1/(2*fps) derived fallback, otherwise left Unknown. Single home for the formula.
+static void applyExposure(pinpoint::CameraFormat &cfmt, double exposureUs,
+                          int exposureAuto, double fps)
+{
+    if (exposureUs > 0.0) {
+        cfmt.exposure_us     = exposureUs;
+        cfmt.exposure_source = (exposureAuto == 1) ? pinpoint::ExposureSource::MeasuredAuto
+                                                   : pinpoint::ExposureSource::Measured;
+    } else if (fps > 0.0) {
+        cfmt.exposure_us     = 0.5e6 / fps;   // 1/(2*fps) in microseconds
+        cfmt.exposure_source = pinpoint::ExposureSource::Derived;
+    }   // else leave Unknown / 0.0
+}
+
 // Called from drainDisplayFrame() once the first real frame has been delivered
 // (held in m_lastDeliveredFrame — the subscriber list may legitimately be empty).
 // The ring slot was already sized conservatively at registerSource(); this only
@@ -1568,6 +1589,12 @@ void CameraInstance::updateBufferDescriptor()
     cfmt.fps_numerator   = static_cast<uint32_t>(fps * 1000.0);
     cfmt.fps_denominator = 1000;
 
+    // Exposure: QVideoFrame carries none, so poll the backend side channel
+    // (industrial Mono/RGB path) and fall back to fps-derived for webcams.
+    const double expUs   = m_videoInput ? m_videoInput->lastMeasuredExposureUs() : 0.0;
+    const int    expAuto = m_videoInput ? m_videoInput->lastExposureAutoMode()   : -1;
+    applyExposure(cfmt, expUs, expAuto, fps);
+
     // Plane strides exactly as delivered — and therefore exactly as stored:
     // publishFrameToBuffer copies mappedBytes(p) per plane, INCLUDING any row
     // padding the backend allocates (bytesPerLine != width*bpp on padded
@@ -1586,6 +1613,7 @@ void CameraInstance::updateBufferDescriptor()
     }
     fd.format = cfmt;
 
+    m_stampedDescriptor = fd;                     // basis for refreshExposure()
     m_eventBuffer->updateSourceFormat(m_sourceId, fd);
     m_bufferDescriptorStamped = true;
 
@@ -1632,8 +1660,11 @@ void CameraInstance::stampBufferDescriptorFromRaw(const RawVideoFrame &raw)
     const double fps = m_configuredFps > 0.0 ? m_configuredFps : 30.0;
     cfmt.fps_numerator   = static_cast<uint32_t>(fps * 1000.0);
     cfmt.fps_denominator = 1000;
+    // Exposure measured from the frame's chunk data (Spinnaker), else fps-derived.
+    applyExposure(cfmt, raw.exposureUs, raw.exposureAuto, fps);
     fd.format = cfmt;
 
+    m_stampedDescriptor = fd;                     // basis for refreshExposure()
     m_eventBuffer->updateSourceFormat(m_sourceId, fd);
     m_bufferDescriptorStamped = true;   // suppress the QVideoFrame-path stamp
     m_stampedRawWidth   = raw.width;
@@ -1644,6 +1675,34 @@ void CameraInstance::stampBufferDescriptorFromRaw(const RawVideoFrame &raw)
              << m_deviceDescription << raw.width << "x" << raw.height
              << "@" << fps << "fps pattern:" << static_cast<int>(raw.pattern)
              << "-> pinpointFmt:" << static_cast<int>(pixfmt);
+}
+
+// Refresh just the exposure fields of the already-stamped descriptor when a
+// materially different exposure arrives (auto-exposure drifts between the first
+// preview frame and the recorded swing). Metadata-only and main-thread; the
+// swingWindowLive() guard preserves the invariant that a descriptor is immutable
+// while a shot-analysis worker reads it through formatOf()'s live reference.
+void CameraInstance::refreshExposure(double exposureUs, int exposureAutoMode)
+{
+    if (!m_eventBuffer || m_sourceId == pinpoint::kInvalidSourceId
+        || !m_bufferDescriptorStamped)
+        return;
+    if (exposureUs <= 0.0)                       // no measured value to apply
+        return;
+    if (m_eventBuffer->swingWindowLive())        // never mutate what a worker reads
+        return;
+
+    auto *cf = std::get_if<pinpoint::CameraFormat>(&m_stampedDescriptor.format);
+    if (!cf)
+        return;
+    const double old = cf->exposure_us;
+    if (old > 0.0 && std::abs(exposureUs - old) < 0.15 * old)  // material change only
+        return;
+
+    cf->exposure_us     = exposureUs;
+    cf->exposure_source = (exposureAutoMode == 1) ? pinpoint::ExposureSource::MeasuredAuto
+                                                  : pinpoint::ExposureSource::Measured;
+    m_eventBuffer->updateSourceFormat(m_sourceId, m_stampedDescriptor);
 }
 
 // ---------------------------------------------------------------------------

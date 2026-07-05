@@ -270,6 +270,45 @@ bool VideoInputSpinnaker::start(const QString &deviceId)
                      << ptrBufferCount->GetValue();
         }
 
+        // --- Per-frame exposure via chunk data ---
+        // Enable ChunkExposureTime so captureLoop() can read the exposure that
+        // was actually applied to each delivered frame (GetChunkData()), rather
+        // than querying the ExposureTime node (which lags under auto-exposure).
+        // Nodes are read-only once BeginAcquisition() runs, so configure here.
+        m_chunkExposureEnabled = false;
+        CBooleanPtr ptrChunkMode = nodeMap.GetNode("ChunkModeActive");
+        if (IsAvailable(ptrChunkMode) && IsWritable(ptrChunkMode)) {
+            ptrChunkMode->SetValue(true);
+            CEnumerationPtr ptrChunkSel = nodeMap.GetNode("ChunkSelector");
+            CEnumEntryPtr   ptrSelExp   = IsAvailable(ptrChunkSel)
+                                              ? ptrChunkSel->GetEntryByName("ExposureTime")
+                                              : nullptr;
+            if (IsAvailable(ptrChunkSel) && IsWritable(ptrChunkSel)
+                && IsAvailable(ptrSelExp) && IsReadable(ptrSelExp)) {
+                ptrChunkSel->SetIntValue(ptrSelExp->GetValue());
+                CBooleanPtr ptrChunkEnable = nodeMap.GetNode("ChunkEnable");
+                if (IsAvailable(ptrChunkEnable) && IsWritable(ptrChunkEnable)) {
+                    ptrChunkEnable->SetValue(true);
+                    m_chunkExposureEnabled = true;
+                }
+            }
+        }
+
+        // Cache the ExposureAuto mode once (readable pre-BeginAcquisition). The
+        // per-frame chunk gives the applied exposure value; this flag records
+        // whether that value is a stable manual setting or auto-varying.
+        m_exposureAuto = -1;
+        CEnumerationPtr ptrExpAutoMode = nodeMap.GetNode("ExposureAuto");
+        if (IsAvailable(ptrExpAutoMode) && IsReadable(ptrExpAutoMode)) {
+            CEnumEntryPtr cur = ptrExpAutoMode->GetCurrentEntry();
+            if (IsAvailable(cur) && IsReadable(cur)) {
+                const std::string sym = cur->GetSymbolic().c_str();
+                m_exposureAuto = (sym == "Off") ? 0 : 1;  // Continuous/Once -> auto-varying
+            }
+        }
+        ppDebug() << "[VideoInputSpinnaker] Chunk exposure enabled:" << m_chunkExposureEnabled
+                 << "ExposureAuto mode:" << m_exposureAuto;
+
         (*camera)->BeginAcquisition();
         m_streaming = true;
         m_state = State::Active;
@@ -640,6 +679,16 @@ void VideoInputSpinnaker::captureLoop()
                 continue;
             }
 
+            // Read the exposure applied to THIS frame from chunk data (must
+            // happen before Release()). Published for both delivery paths.
+            double chunkExpUs = 0.0;
+            if (m_chunkExposureEnabled) {
+                try { chunkExpUs = pResultImage->GetChunkData().GetExposureTime(); } // microseconds
+                catch (Spinnaker::Exception &) { chunkExpUs = 0.0; }
+            }
+            m_lastExposureUs.store(chunkExpUs, std::memory_order_relaxed);
+            m_lastExposureAuto.store(m_exposureAuto, std::memory_order_relaxed);
+
             const size_t width  = pResultImage->GetWidth();
             const size_t height = pResultImage->GetHeight();
             const size_t stride = pResultImage->GetStride();
@@ -655,9 +704,11 @@ void VideoInputSpinnaker::captureLoop()
                 // Hot path: copy raw Bayer bytes once; GPU demosaics on the display thread.
                 // Pack rows (remove any stride padding) so the GPU upload path is simple.
                 RawVideoFrame rawFrame;
-                rawFrame.width   = static_cast<int>(width);
-                rawFrame.height  = static_cast<int>(height);
-                rawFrame.pattern = static_cast<RawVideoFrame::BayerPattern>(m_bayerPattern);
+                rawFrame.width       = static_cast<int>(width);
+                rawFrame.height      = static_cast<int>(height);
+                rawFrame.pattern     = static_cast<RawVideoFrame::BayerPattern>(m_bayerPattern);
+                rawFrame.exposureUs  = chunkExpUs;
+                rawFrame.exposureAuto = m_exposureAuto;
                 rawFrame.data.resize(static_cast<qsizetype>(width * height));
                 char *dst = rawFrame.data.data();
                 if (stride == width) {

@@ -342,7 +342,8 @@ type later is just another element of `streams[]` — readers must ignore unknow
       "kind": "video", "alias": "faceOn", "file": "faceOn.mp4",
       "source": { "serial": "…", "pixelFormat": "BayerRG8",
                   "width": 1936, "height": 1096 },
-      "capture":  { "fps_num": 150, "fps_den": 1 },
+      "capture":  { "fps_num": 150, "fps_den": 1,
+                    "exposureUs": 250.0, "exposureAuto": false, "exposureSource": "measured" },
       "setup":    { "perspective": 2, "perspectiveName": "FaceOn",
                     "mirrored": false, "fixedInPlace": true,
                     "ballDetection": { "calibrated": true, "margin": 0.42,
@@ -392,6 +393,16 @@ stop hardcoding assumptions; all additive (absent on legacy swings):
   width) + `positionSource` — co-registered with `analysis.club.samples[].head`;
   this is the enabling data for the deferred low-point-ahead-of-ball metric
   (`docs/design/low_point_metric_design.md`), omitted on uncalibrated streams.
+- **Per-video-stream `capture` exposure** (additive, 2026-07) — alongside
+  `fps_num`/`fps_den`: `exposureUs` (per-stream exposure time, microseconds),
+  `exposureSource` (`"measured"` = read from the frame's chunk data on industrial
+  cameras, `"derived"` = `1/(2·fps)` fallback where the frame carries no exposure,
+  e.g. webcams), and `exposureAuto` (bool, measured streams only — `true` when the
+  camera ran auto-exposure so the value is frame-varying). Sourced from
+  `CameraFormat::exposure_us`/`exposure_source`; keys omitted when unknown. Consumed
+  by the shaft detector to gauge motion-blur/wedge width (`ω · t_exposure`); see
+  [`shaft_detection_improvements.md`](../design/shaft_detection_improvements.md)
+  (§5.3, `1/(2·fps)` fallback).
 - **Per-IMU-stream `device`** — `outputRateHz` (live instance rate — authoritative
   over the registration-time `ImuFormat`), `fusionMode` (device 6/9-axis),
   `orientationFilter` (host fusion: Madgwick/ESKF), `placementSlot` (A/B/C).
@@ -409,6 +420,7 @@ stop hardcoding assumptions; all additive (absent on legacy swings):
 | `wallclock` | Honest approximation: a UTC anchor is snapshotted on the UI thread right after window capture (when wallclock ≈ monotonic `endTimestampUs()`), then the window duration is subtracted. Accurate to milliseconds. |
 | `window.end_us` | `endTimestampUs() − t0` |
 | video `source.*`, `capture.*` | `CameraFormat` via `window.formatOf()` (`serial` from `FormatDescriptor::device_serial`) |
+| video `capture.exposureUs` / `exposureSource` / `exposureAuto` | `CameraFormat::exposure_us` / `exposure_source` — stamped from Spinnaker chunk data (`GetChunkData().GetExposureTime()`) or fps-derived; read back via `exposureSourceFromName()` |
 | video `frames.t_us` | Recorded in the encode loop — **written frames only**, so frame *i* in the MP4 corresponds to entry *i* here, always |
 | imu `samples` | Decoded `ImuSample` payloads (40 bytes / 10 floats, schema `imu_sample_v2` — accel, gyro, and quaternion all in the raw sensor frame; see [`imu_frame_contract.md`](../design/imu_frame_contract.md)) |
 | `athlete`, `session`, `swing` | The `SwingExportJob` (resolved on the UI thread) |

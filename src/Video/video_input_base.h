@@ -72,6 +72,14 @@ public:
     // rather than videoFrameReady (pre-decoded frames).  Valid after start().
     virtual bool              emitsRawBayer() const { return false; }
 
+    // Per-frame exposure side channel for the QVideoFrame (pre-decoded) path,
+    // where the exposure cannot travel on the frame itself. Industrial backends
+    // that read exposure from frame chunk data override these; others inherit
+    // the defaults so CameraInstance derives exposure from the frame rate.
+    // Valid after start(); reflect the most recently delivered frame.
+    virtual double            lastMeasuredExposureUs() const { return 0.0; } // us; 0 = unknown
+    virtual int               lastExposureAutoMode()   const { return -1;  } // -1 unknown, 0 Off, 1 auto
+
     // Prime the backend with a target device ID before start() so that
     // queryCapabilities() can enumerate that device's formats without opening
     // a live camera handle.  Default is a no-op; VideoInput overrides it.

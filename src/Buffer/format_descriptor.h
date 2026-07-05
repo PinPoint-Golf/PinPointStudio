@@ -21,10 +21,40 @@
 #include "types.h"
 #include <array>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <cstddef>
 
 namespace pinpoint {
+
+// Provenance of a stream's exposure value. Lets a consumer weight it:
+//   Measured      — read from the captured frame, ExposureAuto=Off (stable manual)
+//   MeasuredAuto  — read from the captured frame, auto-exposure active (frame-varying)
+//   Derived       — computed as 1/(2*fps) (no per-frame exposure available; webcams)
+//   Unknown       — nothing known; exposure_us == 0
+enum class ExposureSource : uint8_t { Unknown = 0, Measured = 1, MeasuredAuto = 2, Derived = 3 };
+
+// swing.json "exposureSource" provenance string. Measured and MeasuredAuto both
+// map to "measured" — the separate "exposureAuto" bool carries the auto/manual
+// bit — while Derived maps to "derived". Writer: swing exporter; reader: reanalyzer.
+constexpr const char* exposureSourceName(ExposureSource s) noexcept {
+    switch (s) {
+    case ExposureSource::Measured:
+    case ExposureSource::MeasuredAuto: return "measured";
+    case ExposureSource::Derived:      return "derived";
+    case ExposureSource::Unknown:      return "unknown";
+    }
+    return "unknown";
+}
+
+// Reconstruct ExposureSource from the swing.json provenance string + auto flag.
+inline ExposureSource exposureSourceFromName(std::string_view name, bool exposureAuto) noexcept {
+    if (name == "measured")
+        return exposureAuto ? ExposureSource::MeasuredAuto : ExposureSource::Measured;
+    if (name == "derived")
+        return ExposureSource::Derived;
+    return ExposureSource::Unknown;
+}
 
 struct CameraFormat {
     PixelFormat pixel_format{PixelFormat::Unknown};
@@ -35,6 +65,8 @@ struct CameraFormat {
     uint32_t max_payload_bytes{0};      // sizes ring slots
     uint32_t typical_payload_bytes{0};  // statistics only
     std::array<uint32_t, 4> plane_strides{};
+    double         exposure_us{0.0};    // per-stream exposure, microseconds; 0 = unknown
+    ExposureSource exposure_source{ExposureSource::Unknown};
 };
 
 struct ImuFormat {

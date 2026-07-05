@@ -34,6 +34,7 @@
 #include <deque>
 
 #include "device_enumerator.h"
+#include "format_descriptor.h"
 #include "raw_video_frame.h"
 #include "ting_player.h"
 #include "types.h"
@@ -271,6 +272,10 @@ private:
     void connectVideoInput();
     void updateBufferDescriptor();
     void stampBufferDescriptorFromRaw(const RawVideoFrame &raw);
+    // Refresh only the exposure fields of the already-stamped descriptor when the
+    // exposure changes materially (auto-exposure). Metadata-only, main-thread, and
+    // suppressed while a SwingWindow is live (a worker reads the descriptor then).
+    void refreshExposure(double exposureUs, int exposureAutoMode);
     void publishFrameToBuffer(const QVideoFrame &frame);
     void publishRawFrameToBuffer(const RawVideoFrame &frame);
 
@@ -320,6 +325,9 @@ private:
     int                    m_stampedRawWidth  = 0;
     int                    m_stampedRawHeight = 0;
     RawVideoFrame::BayerPattern m_stampedRawPattern = RawVideoFrame::BayerPattern::RG;
+    // Cache of the last descriptor sent to updateSourceFormat(), so refreshExposure()
+    // can re-send it with only the exposure fields changed (no stride re-probe).
+    pinpoint::FormatDescriptor m_stampedDescriptor;
 
     QMutex                 m_latestFrameMutex;
     QVideoFrame            m_latestDisplayFrame;
