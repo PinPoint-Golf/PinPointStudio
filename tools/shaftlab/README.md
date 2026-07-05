@@ -32,7 +32,8 @@ video ─► prep_swing.py ─► clip + anchors.csv + skeleton.csv + clipmeta.j
 | `clubhead_scan.py` | stage-2 scan primitives (scene median, ray edge, run-end) + the H0 zeroth-order baseline tool |
 | `clubhead_measure.py` | stage-2 per-frame head measurement: gap-tolerant on-axis terminus, multi-width edge-pair, permanence veto, length-prior candidate scoring |
 | `clubhead_annotate.py` | **stage 2, the main tool**: arm-length plausibility floor, segmented 1-D KF + per-segment RTS, meas/pred/off tiers, flip check |
-| `score_truth.py` | numeric eval vs hand labels (`truth.json`): theta by kind; `--head` adds head px / length error + conf-honesty clauses |
+| `stripe_annotate.py` | instrumented-club (retro-band) measurement: saturated blobs → collinear RANSAC near the grip anchor → known-ratio pattern match (clubs.json) → theta + px/mm scale + head extrapolation. Anchor tier (≥5 bands, or 4 tight) + temporal rescue; no tracker, misses are absent rows. `--truth-out` writes `<swingDir>/truth.json` (`source: "instrumented"`) — the auto-truth path. Downlight-only captures only cover club-up phases (retro return is to the source); ring light extends to address |
+| `score_truth.py` | numeric eval vs labels (`truth.json`, hand or instrumented): theta by kind; `--head` adds head px / length error + conf-honesty clauses |
 | `make_synth.py` | synthetic swing (theta + foreshortening profile + head blob + streak) with truth.json + contract-track output — the machinery accuracy gate |
 | `montage.py` | tile annotated frames for visual triage (zoom full-res before concluding anything) |
 | `render_combined.py` | stage-1 line + stage-2 head marker in one review video |
