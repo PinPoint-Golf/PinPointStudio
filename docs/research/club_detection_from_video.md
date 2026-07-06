@@ -503,7 +503,7 @@ saturating steel, speckle, anchor noise, in both a harsh and an easy
 regime — where the easy regime *requires* full locks and the harsh regime
 *requires* honest abstention from reporting scale).
 
-### 3.8 The physics-first constraint system (the v3 design)
+### 3.8 The physics-first constraint system (the v3 design, and what building it taught)
 
 Standing back from both detectors, one pattern is impossible to miss:
 every surviving counterfeit, and every historical one, violates some
@@ -557,6 +557,37 @@ validated) evidence engines — replaces the old local, frame-by-frame
 corroboration. The evidence engines survive intact; they simply become
 emission terms inside a globally-consistent, physically-constrained
 solution.
+
+**What building it changed in the design.** The exemplar
+(`tools/shaftlab/club_track_v3.py`; a full walk-through is in
+`docs/design/club_track_v3_exemplar_explained.md`) is now built and has
+passed every gate (§4.4), but three things that the design got optimistically
+wrong are worth recording, because they are the parts a re-implementer will be
+tempted to "restore":
+
+- **C4's cone is *wide*, not "a few tens of degrees".** The reachable-cone
+  argument assumed the lead-arm direction φ was clean. On real captures φ, read
+  from pose, jumps by up to ~87° frame-to-frame at the top and in the blur
+  zone. So in practice φ is heavily smoothed and the cone is kept deliberately
+  wide, and it is switched *off* at address and finish (where the wrist angle
+  ψ = θ − φ is genuinely unbounded). C4 survives only as a hard veto on the
+  shaft pointing *into* the forearm and a soft removal of the reverse
+  half-circle; the real search-space collapse is done by **C3** — the
+  one-sided, bounded-rate DP transitions — not by C4.
+- **The strong evidence must *anchor* the global solution, not merely feed
+  it.** A band lock is turned into a *negative-emission well* the trajectory is
+  pulled into, so the DP is forced through the true (wrapping) path. Without
+  that, a correct band angle and a competing bright ridge tie on cost and the
+  smoothness term routes the solution down the flatter *wrong* branch across
+  the evidence-free impact gap — which is exactly how the through-swing and
+  finish came out ~90° wrong until the well was added.
+- **Honesty is enforced at the *output*, not assumed.** Bridged (predicted)
+  frames are never written into the truth files; a θ-only "ray" is admitted
+  only when its evidence clearly beats the reverse direction *and* is
+  corroborated (by motion in the free-space phases, or by a nearby band lock in
+  the finish, where a static ridge is the classic counterfeit); address holds
+  abstain. This is the machinery that keeps "confidently wrong" at zero while
+  still recovering the coverage v2 had thrown away.
 
 ### 3.9 Rotation-compensated shift-and-stack (v3.1)
 
@@ -688,6 +719,7 @@ gets acted on; a coverage gap merely leaves a frame unlabelled.
 | Passive **v7** (F1–F21) | median 2.5°, **0% >30° in both tiers** (0008) | none | address → backswing, partial finish | downswing / impact → predicted |
 | Instrumented **v1** (blob-ratio) | median 1.1°, p90 3.4° | zero flips | club-up phases only | address (bands invisible), blur |
 | Instrumented **v2** (fusion) | band-tier 1.1–3.3°, ray-tier 0.4–0.8° | **zero adjudicated errors** | fast phases (down / thru) | address, finish, impact ±10 fr |
+| Instrumented **v3.0** (constraint + DP) | band 0.3° (0% >15°), ray 1.7° (3% >15°), 10-swing corpus | **zero flips, all 10 swings** | fast phases at **96% / 83%** measured coverage | impact ±10 fr, address scale |
 
 The second table is the one that shows the complementarity directly. It
 reads the swing phase by phase and asks, for each, which detector can
@@ -731,7 +763,10 @@ The table grades the *best available* truth, combining both detectors. The
 **passive product path on its own is one tier lower through the fast
 phases** — **Directional** in the downswing and **Blind** at impact — which
 is precisely the gap the instrumented truth fills today, and the gap the v3
-design (§5.3) aims to close in the product itself.
+design (§5.3) aims to close in the product itself — now demonstrated on the instrumented
+path, where the built constraint system (§4.4) lifts the downswing to 96% and
+the through-swing to 83% measured coverage with zero flips across the whole
+corpus.
 
 Two footnotes complete the picture:
 
@@ -827,6 +862,68 @@ This is where the dense truth earned its keep, in four distinct ways.
   detector already succeeds, so the prior validation was systematically
   easy. The dense instrumented truth removes that bias — and the moment it
   does, a stage that looked calibrated turns out not to be.
+
+### 4.4 The v3.0 constraint system, built and graded across the corpus
+
+The constraint system of §3.8 is no longer a design: it is built
+(`club_track_v3.py`) and has been run end-to-end through the programme's whole
+gate ladder. It clears each rung.
+
+- **The synthetic machinery gate** (a generated swing with *known* ground truth
+  and three planted counterfeits — a trouser crease, a bright lead-arm line,
+  and static mat speckle) passes: a mean θ error of 1.65°, **zero flips**, the
+  hands-only phase model recovering the takeaway, top and impact correctly, and
+  — the point of the exercise — **not one of the planted counterfeits is ever
+  locked** (in particular the arm-line is rejected by C4's forearm veto on every
+  frame). This proves the constraint logic and the vetoes in isolation, before
+  any real pixel is involved.
+- **The single-swing gate** and then the **full ten-swing corpus gate** were run
+  on the same `tape_20260705` swings that produced the v2 truth, and graded
+  against that truth. Two headline numbers carry the result. **Coverage of the
+  fast phases roughly doubled** — the measured (non-predicted) fraction rose
+  from 57% to **96%** in the downswing and from 54% to **83%** through impact —
+  and it did so **without a single flip anywhere in the ten swings**. Read by
+  confidence tier, the frames the system actually publishes are clean: the band
+  tier has a median error of **0.3°** with **zero** frames worse than 15°, and
+  the θ-only ray tier a median of **1.7°** with 3% worse than 15° (inside the
+  ≤5% honesty budget). The larger error that remains in the address-adjacent
+  region lives *entirely* in the predicted tier — the honest bridges, which are
+  never written to truth — exactly the tier/phase split the honesty design is
+  meant to produce. The rerun is byte-identical, and a standing
+  counterfeit-regression suite — every historical false positive, re-checked —
+  comes back clean, including the impact "streak-flip" that v2 could only avoid
+  by staying silent.
+
+What the constraints buy is visible directly in the overlay. Figure 1 draws the
+measured shaft on one swing from address to finish; the colour is the honesty
+tier, so the eye can read not just *where* the club is but *how sure* the system
+is at each instant.
+
+![Annotated v3.0 tracking of one corpus swing (s03), address through finish.](figures/club_track_v3_s03.png)
+
+***Figure 1.** v3.0 shaft tracking on corpus swing s03 (face-on, instrumented
+7-iron). The line is the estimated shaft, coloured by confidence tier: **red =
+band** (the tape pattern locked — yields angle, scale, and the head position,
+drawn as the magenta circle), **amber = ray** (a verified straight line — angle
+only), **grey = predicted** (bridged by the physics, deliberately excluded from
+the published truth). The green dot is the supplied grip anchor. Note the red
+band lock at **address** (top row) — the club pointing down at the ball, a
+region v2 abstained from entirely — and the continuous, single-reversal
+trajectory that carries the line correctly through the fast, blurred downswing
+and impact and on into the finish.*
+
+Two caveats keep this result in proportion, and both are already the subject of
+the next stages. First, this is still the *instrumented* path: the whole corpus
+is one golfer, one club, one session, with the retro-reflective tape doing much
+of the work in the band tier — the argument for the *passive* product path is
+strengthened by these constraints but not yet demonstrated on un-taped clubs.
+Second, the one phase the constraint system does *not* yet turn from predicted
+into measured is θ right at impact, together with the scale at address — the two
+holes named in §4.0, and the explicit targets of the shift-and-stack and
+exposure-arc work of §3.9–3.10. What v3.0 settles is the harder-sounding half of
+the problem: that the swing's physics, encoded as hard constraints inside a
+global estimator, *recovers the coverage v2 could only reach by abstaining,
+while keeping the confidently-wrong count at zero.*
 
 ## 5. Discussion
 
