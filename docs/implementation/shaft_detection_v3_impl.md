@@ -101,7 +101,10 @@ the precomputed `analysis.pose2d` from `swing.json`) — perception is on the ri
 
 **New exemplar** `tools/shaftlab/club_track_v3.py`, reusing the validated engines in place: **E1** band
 matcher (`stripe_annotate.py` + dense `frame_band_match` in `stripe_fusion.py`), **E2** polarity ridge
-(`ridge_sweep()`/`_sample()` in `stripe_fusion.py`).
+(`ridge_sweep()`/`_sample()` in `stripe_fusion.py`). **A full, self-contained pedagogical explanation of
+the exemplar — the durable "bible" for the approach and the C++ port, written for a reader new to golf,
+computer vision, dynamic programming, and the statistics — is in
+[`../design/club_track_v3_exemplar_explained.md`](../design/club_track_v3_exemplar_explained.md).**
 
 ### v3.0 — constraint system + DP  *(dev MBP; corpus gate studio PC)*
 1. **Phase model from the hands alone** (`anchors.csv`): still→takeaway→backswing→TOP→downswing→impact→thru
@@ -119,6 +122,65 @@ matcher (`stripe_annotate.py` + dense `frame_band_match` in `stripe_fusion.py`),
 PC):** coverage ≥ v2.0 in down/thru, > 0 at finish + address-adjacent, **zero readmitted junk** (harvested
 counterfeit suite green), per-phase coverage AND accuracy vs the v2 truth, byte-identical rerun. **LH is
 NOT part of this gate** — it is captured and checked only at freeze, once RH is proven (§2.2).
+
+### v3.0 as-built — single-swing gate PASSED on s01 (2026-07-06, dev box)
+
+`tools/shaftlab/club_track_v3.py` built, reusing E1 (`frame_band_match`) + E2 (`ridge_sweep`) from
+`stripe_fusion` unchanged. Phase model (C3) + chirality are hands-only from `anchors.csv`; impact from
+`swing.json capture.impactUs` (hands-only grip-return fallback when absent). Global banded Viterbi over a
+1° θ grid (deterministic, no RNG). What the s01 build taught, beyond the design:
+
+- **Band locks must be a negative-emission WELL, not merely evidence.** A ratio-verified, butt-terminated
+  (`0 < r0 ≤ 260 mm`, C1) band lock is set to `emis = −W_BAND` so the global path is *forced* through the
+  band chain. Without this the DP takes the smoother wrong branch across the evidence-free impact gap and
+  thru/finish land ~90° off (the club's true θ **decreases monotonically, wrapping mod 360, from the top
+  all the way through impact→finish** — one reversal, at the top; v2's impact flip is now structurally
+  impossible). This single mechanism moved thru from 94.9°→0.8° and finish from 72.7°→0.3° median error.
+- **C4's cone is WIDE, not "tens of degrees".** Raw φ (lead-arm, pose) jumps to ~87°/frame at the top and
+  in the blur zone; robustly unit-vector-smoothed φ still leaves per-phase ψ=θ−φ spanning 65–107° and
+  *unbounded* (351°) in the finish. So C4 = a wide chirality-centred cone (disabled at addr/finish/top) +
+  an into-forearm veto; **C3 phase-signed rotation + the DP θ-smoothness carry flip-prevention and the
+  search-space collapse.**
+- **Honesty rules (design C2 "never sufficient alone" made concrete).** A `ray` needs real E2 support at
+  θ* that beats its own reverse (dir-safety). At **finish** a ray must be **band-corroborated** (static
+  holds are the counterfeit danger v2 abstained from); in free-space phases a ray must be **motion-
+  verifiable** (not in a sustained static grip run). Address stays `pred` (v3.2 territory). `pred` is
+  never written to truth.
+
+**s01 result vs the v2.0 fusion truth (same corpus):** per-phase θ error — backswing 0.7°, top 0.1°,
+downswing 0.4°, thru 0.8°, finish 0.3° (median; **zero** frames >15°), impact 7.1° (1 borderline frame,
+f509 @15.7°). Coverage **down 61%→91%, thru 55%→89%** with the verified finish rotation kept and the
+unverifiable deep hold honestly abstained. By tier: band 0.3° / ray 1.2° median, **zero flips, zero
+readmitted junk** (full-res montage adjudicated). Determinism: **byte-identical rerun on-host**. Per
+[[single-swing-never-judges-model-accuracy]] the thresholds are NOT tuned to s01 — they are phase-level
+policies to be re-adjudicated at corpus scale.
+
+### v3.0 CORPUS GATE — PASSED on all 10 swings (2026-07-06, GOLFSIMPC)
+
+Ran `tools/shaftlab/run_v3_corpus.py` on the studio PC (RTX 5080, 32 GB — the whole-corpus batch host per
+§3; the 16 GB dev box cannot: only swing_0001 is synced to the NAS, so 9/10 swings' impact + v2 truth live
+only on C:\). All 10 swings vs their v2.0 fusion truth:
+
+- **Coverage:** down **57%→96%**, thru **54%→83%** (aggregate); addr_back 5%→7%, finish 0%→2% (honest —
+  the deep hold abstains). Consistent gains on every swing.
+- **Accuracy:** down **0.5°**, thru **0.4°** median (aggregate); p90 3.4° / 3.8°. **By tier (the honesty
+  split): band n=434 median 0.3° / max 6.0° / bad>15° = 0 (0%); ray n=434 median 1.7° / bad>15° = 14 (3%,
+  within the ≤5% clause); pred n=165 median 9.4° / bad>15° = 44 (27%).** Everything emitted to truth
+  (band+ray) is clean; the softer addr_back error (median 7.4°) is entirely the honest `pred` bridges in
+  the address zone (v3.2 territory), never written to truth.
+- **FLIPS = 0 across all 10 swings** — the headline v3 win; C3 makes the v2 impact-flip structurally
+  impossible.
+- **Counterfeit-regression suite** (`tools/shaftlab/counterfeit_check.py`, harvested from the adjudicated
+  catalogue): **0 fail.** s01 impact streak-flip prevented (max err 7.6°); s02/s04/s05 address
+  shirt-texture/waggle-junk not re-emitted; s06 leg-shadow abstained. **s07 f97–110** emits ratio-verified
+  BAND locks at θ≈95° in the address — adjudicated (montage) as the **real club at a still address**, i.e.
+  v3.0 incidentally recovers real address θ here (a v3.2 preview), not a counterfeit. NOTE: v3's band tier
+  lacks v2's motion-corroboration, so a *static* band lock isn't motion-gated — real here, but the corpus
+  adjudication should watch for a wrong static band lock and add corroboration if one appears.
+- **Determinism:** byte-identical rerun with identical args on the canonical host.
+
+Still owed (dev box): Set S synth machinery gate; then fixture-freeze on the studio PC. Then v3.1
+shift-and-stack, v3.2 address θ.
 
 ### v3.1 — shift-and-stack + exposure-arc  *(studio PC)*
 Coarse ¼-res corridor proposal (register on grip anchor, rotate by −∫ω dt from the C3/C4 ω hypotheses,
