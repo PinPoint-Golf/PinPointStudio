@@ -251,6 +251,66 @@ Inside the C4 cone with C1: **mat-crossing prior** + **lateral line fits** (fit-
 + hold-period stack. θ-only truth for stills; (s,r0) only if bands lock (usually can't at this exposure).
 **Gate:** agreement with stage-1 address meas + hand-label spot checks; zero flips.
 
+### v3.2 as-built — address-hold θ, synth + single-swing gates PASSED (2026-07-06, dev box)
+
+**New:** `tools/shaftlab/address_theta_v3.py` (address/hold θ), `make_synth_v32.py` (Set S v3.2
+machinery gate). **Additive by construction** (like v3.1): reads the frozen v3.0 `*_v3.csv`, measures
+only the pre-swing still HOLD, writes only `*_v32_address.csv` + an adjudication montage (+ optional
+θ-only truth merge) — the v3.0 track/truth are never rewritten, so **"no regression elsewhere" holds
+structurally**.
+
+**The gap it closes.** v3.0 disables the ray tier at `phase=="addr"` (a *static* club is v2's exact
+counterfeit trap), so the whole resting address is emitted as an unpublished `pred` bridge — on the
+corpus, addr_back is the softest zone (`pred` median 9.4°, never in truth). v3.2 *measures* that
+resting θ. On s01 v3.0's "addr" phase is a single 424-frame span (f0–423) that actually contains a long
+**still hold** (f0–~383, unmeasured even by v2) followed by the **takeaway** (f~384–423, which v2 fusion
+*did* band-track from f397 — a v3.0 phase-model mislabel; left to a later phase-model fix, out of v3.2
+scope). v3.2 targets the still hold only.
+
+**Three tools, evidence-driven (adjudicated on s01).** (1) **Hold-period stack** — grip-register every
+still-hold frame to the hold-end grip and average (v3.1's shift-and-stack with *zero* rotation): the
+grip-anchored still club integrates sharp while the swaying legs/body/shadow counterfeits smear. On s01
+this alone suppresses the trailing-leg line that *outscores* the club in a single frame (raw ridge: leg
+θ≈75° 449 vs club θ≈98° 427), so the club wins even at a wide cone after 81 frames stacked. (2)
+**Tight address cone** — the bible's C4 cone is wide mid-swing (ψ spans 65–107°), but AT REST the club
+hangs nearly in line with the lead arm (ψ small), so an address-only `|θ−φ_s| < 28°` cone rejects the
+leg/crease look-alikes a wide cone admits. This is the address specialisation of C4; it does **not**
+touch the wide-cone invariant that governs the moving swing. (3) **Mat-crossing prior** — reformulated
+after adjudication into its *honest* role: a **lenient** sanity gate that the ray is a real
+ground-reaching line (crosses onto the blown mat with a coherent polarity-correct shaft), NOT a
+club-vs-counterfeit discriminator (both the club and the leg cross the mat — the cone/stack/stability do
+the discrimination). **θ-ONLY:** bands do not lock at the address exposure (the blown mat swamps the
+tape) — confirmed, 0 stack/single-frame locks on s01 — so no s/r0/head unless a rare stack band lock
+fires. **dir-safety dropped at address** (principled): the lead arm is always above the grip, so the
+club's reverse always carries the arm's ridge (the bible's "arm is legitimately behind the hands,
+excluded" clause) — direction is pinned by the down-pointing cone + down-sector instead.
+
+**Publish gate (honesty).** A hold θ graduates `pred`→`hold` (a new meas tier) only if the stack passes:
+strong E2 evidence at θ0, the mat-crossing sanity, θ0 in the down sector, per-frame θ **stable** across
+the hold (std ≤ 8°, a persistent club vs transient noise), and θ0 inside the tight cone (a 180° flip is
+structurally impossible — it points up, out of the down-cone). Per-frame frames publish θ0 only where
+their own cone-ridge θ agrees within 8°; else they stay `pred`.
+
+**Set S synth machinery gate (`make_synth_v32.py --selftest`) — PASSED.** Mirrors make_synth_v3's proven
+flip-free swing + a long still hold at a known θ with two address counterfeits: **A** in-cone,
+body-attached and oscillating (a single frame's continuous bright line outscores the dotted club, but
+the grip-registered stack smears it — tests stack suppression) and **B** out-of-cone, grip-rigid
+(survives the stack — tests the cone). Result: θ0 = 90.00° (**err 0.00**), both counterfeits rejected
+(θ0 15°/40° from A/B), published, **0 flips**. Proves the stack defeats an in-cone swaying counterfeit
+and the cone rejects a stack-surviving one.
+
+**Single-swing gate — s01, PASSED (full-res stack montage adjudicated).** Hold detected f304–384 (81
+frames); address **θ0 = 88.65°** — the montage shows it landing on the resting club (down to the ball),
+with the trailing-leg counterfeit (75°) smeared away by the stack; **77** previously-`pred` address
+frames recovered as published `hold`-tier θ; per-frame std 3.4°; **0 flips**. Determinism
+**byte-identical** rerun on-host.
+
+**Still owed:** the corpus gate (all 10) is a **studio-PC job** (only s01 is synced to the dev-box NAS;
+s02–s10 impact + v2 truth are C:\-only, per §3). Runs `run_v32_corpus.py` (to write, mirroring
+`run_v31_corpus.py`): per-swing address θ published + adjudicated on montages, agreement with any v3.0
+address band meas (e.g. s07 f97–110), **0 flips**, byte-identical rerun on the canonical host. Then a
+fixture freeze on the studio PC.
+
 ### v3.11 — IMU conditioning  *(deferred; needs the §2.2 IMU-bound capture)*
 One-directional (epistemic firewall): IMU conditions the *search*, never fits the truth. Corroborates C3's
 top; collapses the DP + shift-and-stack hypothesis sets; quarantines vision locks whose implied spin
@@ -304,7 +364,9 @@ Success = each phase's gate green on `tape_20260705`, adjudicated on full-res mo
 
 - **Reuse:** `tools/shaftlab/stripe_fusion.py` (E1 dense + E2), `stripe_annotate.py` (E1), `prep_swing.py`,
   `make_synth.py`, `score_truth.py`, `montage.py`; `docs/design/club_tracking_v3_design.md`.
-- **New:** `tools/shaftlab/club_track_v3.py` (v3.0), v3.1 shift-and-stack module, extended Set S scenes,
+- **New:** `tools/shaftlab/club_track_v3.py` (v3.0), `shift_stack_v3.py` (v3.1),
+  `address_theta_v3.py` (v3.2 address/hold θ); Set S generators `make_synth_v3.py` / `make_synth_v31.py`
+  / `make_synth_v32.py`; corpus runners `run_v3_corpus.py` / `run_v31_corpus.py` (v3.2 runner owed);
   harvested counterfeit fixtures.
 - **Corpus/schema:** `src/Export/swing_exporter.cpp`, `swing_doc.cpp`, `swing_reanalyzer.cpp:536–553`
   (validity gates), `src/Pose/pose_estimator_vitpose.cpp` + `src/Analysis/pose_runner.cpp` (offline pose).

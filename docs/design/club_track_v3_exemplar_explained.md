@@ -1,8 +1,9 @@
 # `club_track_v3.py` explained — the reference bible
 
 **What this document is.** A complete, self-contained explanation of the v3.0 club-tracking
-exemplar (`tools/shaftlab/club_track_v3.py`) **and its v3.1 impact-zone velocity companion
-(`tools/shaftlab/shift_stack_v3.py`, §13)**: what they do, why they do it that way, the physics
+exemplar (`tools/shaftlab/club_track_v3.py`) **and its two companions — the v3.1 impact-zone velocity
+module (`tools/shaftlab/shift_stack_v3.py`, §13) and the v3.2 address / hold-θ module
+(`tools/shaftlab/address_theta_v3.py`, §14)**: what they do, why they do it that way, the physics
 they lean on, the image processing they perform, the algorithm at their core, and the statistical
 method used to tune and trust them. It is written for a reader who is **not** assumed to know golf,
 computer vision, dynamic programming, or statistics. Where a term of art appears it is defined.
@@ -10,7 +11,7 @@ computer vision, dynamic programming, or statistics. Where a term of art appears
 **Why it exists.** The Python files are *exemplars* — research reference implementations. They will
 be ported to C++ for the app. Python is easy to change while the ideas settle; C++ is fast and
 ships. When the port happens, the C++ must reproduce these exemplars' output (that is the acceptance
-test — see §14). This document is the durable record of *the approach* so that the reasoning
+test — see §15). This document is the durable record of *the approach* so that the reasoning
 survives the port, long after anyone remembers the specific Python lines.
 
 **Companion documents.** The design rationale is in
@@ -635,7 +636,96 @@ agreement**, not the per-frame scatter — the same reason we read the profile's
 
 ---
 
-## 14. Porting to C++ — what must be preserved
+## 14. The v3.2 companion — address / hold θ (`address_theta_v3.py`)
+
+v3.0 measures θ everywhere the club *moves*, but it deliberately stays silent at the **address** — the
+resting setup before the swing. Recall §10: the ray tier is switched off whenever the phase is `addr`.
+The reason is honesty (§11.3): a club held *still* is exactly the case v2 was fooled by — a static bright
+or dark line at the hands cannot be motion-verified, and the address scene is full of look-alikes (a
+trouser crease, the golfer's trailing leg and its shadow on the blown mat, the mat edge). So v3.0 emits
+the whole resting address as an unpublished `pred` bridge (on the corpus, the softest zone: `pred` median
+9.4°, never written to truth). `address_theta_v3.py` *measures* that resting θ and, when it survives the
+honesty gates, publishes it. Like v3.1 it is **additive**: it reads the frozen v3.0 track, works only on
+the address hold, and never rewrites v3.0 — so it cannot regress anything.
+
+Why is the address, the very case v3.0 abstains on, now tractable? Three facts, each a tool.
+
+### 14.1 The hold-period stack — a still-club shift-and-stack
+
+The address is a long *near-still* hold: the hands only waggle a few pixels while the golfer settles.
+Register every hold frame on the grip anchor and average them. This is exactly v3.1's shift-and-stack
+(§13.4) but with **zero rotation** — the club is not turning, so no de-rotation is needed. The club, rigidly
+attached to the (registered) grip, integrates into a sharp line; everything that moves *relative to* the
+grip — the swaying legs, body and shadows — smears away. On the real corpus this is a powerful counterfeit
+suppressor: on s01 the trailing-leg line actually *outscores* the club in any single frame (raw ridge:
+leg ≈449 vs club ≈427), yet after 81 hold frames are stacked the leg is smeared below the club and the
+club wins even with a wide search. (This is the same √N-integration geometry as v3.1; here it pays off on
+taped data precisely because the counterfeit *moves* and the club does not.)
+
+### 14.2 The tight address cone — C4, specialised for rest
+
+The bible's C4 cone (§6) is deliberately **wide** (150°) because the wrist angle ψ = θ − φ swings across
+65–107° during the moving swing. But **at rest the club hangs nearly in line with the lead arm** — ψ is
+small (s01: θ ≈ 89°, φ ≈ 114°, so ψ ≈ −25°). So an address-*only* tight cone, `|θ − φ| < 28°` about the
+smoothed arm direction, rejects the leg/crease counterfeits that the wide cone must admit. This does **not**
+contradict the wide-cone invariant (§14 porting rule 5) — that governs the *moving* swing; this is its
+address specialisation. It is also what pins **direction**: the arm points down to the grip at address, so
+the cone is a *down* cone, and a 180° flip (which points *up*, into the body) falls outside it — flips are
+structurally impossible here, just as C3 makes them impossible mid-swing.
+
+> **A gate we deliberately do NOT use at address: forward-vs-reverse "dir-safety."** v3.0's ray tier
+> checks that the evidence along θ beats the evidence along θ+180 (§10). At address that test is *wrong*:
+> the lead arm is always directly above the grip, so the club's reverse direction always carries the arm's
+> ridge — the same "the arm is legitimately behind the hands, so it is excluded" reasoning as C1/C4 (§6).
+> Direction is pinned by the down-cone + a down-sector check instead. (Adjudicated: a perfectly vertical
+> arm makes reverse-evidence equal forward-evidence, which would wrongly veto a correct measurement.)
+
+### 14.3 The mat-crossing prior — a lenient sanity gate, not a discriminator
+
+The resting club crosses from the hands, over the dark trouser (where the tape bands glow bright), down
+onto the **blown-out mat**, where it becomes a *dark* line on a bright background — the polarity flip of
+§5.2. The natural temptation is to use this to tell the club from the counterfeits. **Adjudication says
+no:** on s01 both the club *and* the trailing-leg line cross the mat with the right polarity (the leg
+casts a dark shadow there), so mat-crossing cannot separate them — the **cone + stack + stability** do
+that. Its honest role is narrower and still worth keeping: confirm the measured ray is a *real,
+ground-reaching* line (it reaches the blown mat and carries a coherent, polarity-correct shaft), which
+kills a short body-only blob that never reaches the floor. Set the threshold leniently and let the cone do
+the discrimination.
+
+### 14.4 What it publishes, and the honesty gate
+
+Because the tape almost never forms a lockable band pattern at the address exposure (the blown mat swamps
+it — measured: zero band locks on s01, on the stack and on single frames), v3.2 is **θ-only**: it emits θ
+(and grip), never s/r0/head, unless a rare opportunistic band lock fires on the stack. A hold θ graduates
+from `pred` to a new `hold` tier — published to truth — only if the stack passes *all* of: strong ridge
+evidence at θ0; the mat-crossing sanity; θ0 in the down sector; θ0 inside the tight cone; and the per-frame
+θ **stable** across the hold (standard deviation ≤ 8° — a persistent club, not transient noise). Per-frame,
+a hold frame publishes θ0 only where its *own* cone-ridge θ agrees within a few degrees; otherwise it stays
+`pred`. The truth merge is additive and precedence-correct: it never overrides a v3.0 band/ray entry (v3.0's
+stronger measurement wins where it exists), only fills the address frames v3.0 left silent.
+
+### 14.5 Scope, outputs, and the gates it passed
+
+v3.2 targets the **pre-swing still hold** only. (On s01 the v3.0 phase model lumps a 424-frame span into
+`addr`; that span is really a long still hold *plus* the takeaway, which v2 fusion band-tracked from f397 —
+a v3.0 phase-model mislabel that a later phase-model fix, not v3.2, will address.) Outputs: `*_v32_address.csv`
+(per hold frame: θ, the v3.0 tier it replaces, the published tier, the per-frame θ, and any s/r0/head) and
+`*_v32_address.png` (the stack with the measured line drawn, for adjudication).
+
+The gate ladder (§11.5) applies. The **synthetic** gate (`make_synth_v32.py --selftest`) renders a known
+resting θ with two planted address counterfeits: one *in-cone*, body-attached and oscillating (a single
+frame's continuous bright line outscores the dotted club, but the grip-registered stack smears it — this
+tests the stack) and one *out-of-cone* and grip-rigid (it survives the stack and must be rejected by the
+cone). It recovers the club θ exactly (error 0.00°), rejects both counterfeits, publishes, and flips zero
+times. The **single-swing** gate on s01 detects the hold (f304–384), measures **θ0 = 88.65°** — the montage
+shows the line landing on the resting club while the trailing-leg counterfeit is smeared away — recovers
+**77** previously-`pred` address frames as published `hold`-tier θ, with per-frame scatter 3.4° and zero
+flips; the rerun is byte-identical on-host. The **corpus** gate (all ten swings) is the remaining rung, run
+on the canonical studio PC (only s01 is synced to the dev box).
+
+---
+
+## 15. Porting to C++ — what must be preserved
 
 The C++ port's acceptance test is **output agreement with this exemplar** on a fixed input (a
 "byte-oracle" on one reference platform, modelled on the existing parity tests). To make that
@@ -671,13 +761,34 @@ For the **v3.1 companion** (`shift_stack_v3.py`), the same discipline, plus:
 10. **Gate on the smoothed peak agreement, never the per-frame scatter.** The per-frame exposure-arc
     error (~2.6°/frame) is its intrinsic noise floor; the deliverable is the profile's peak.
 
+For the **v3.2 companion** (`address_theta_v3.py`), the same discipline, plus:
+
+11. **The address cone is TIGHT (`|θ−φ| < 28°`) and is a SEPARATE, address-only mechanism** — it does
+    not touch, and does not contradict, invariant 5 (v3.0's mid-swing cone stays wide and disabled at
+    address). Do not widen it (it re-admits the leg/crease) and do not apply it to the moving swing (ψ
+    is large there — it would clip real swings).
+12. **The hold-period stack is grip-translate-and-average with ZERO rotation** (the club is still), over
+    the still hold only. It is a counterfeit *suppressor*, not just an adjudication image: a swaying
+    counterfeit that outscores the club per-frame is defeated by it. Detect the hold from the hands
+    alone and cap its length (older frames risk a prior occupant of the bay).
+13. **No dir-safety, and mat-crossing is a lenient sanity gate.** At address the arm is always above the
+    grip, so forward-vs-reverse evidence is *not* a valid test (invariant excluded by the same logic as
+    C1/C4's arm exclusion); direction is pinned by the down-cone + down-sector. Mat-crossing only
+    confirms a real ground-reaching, polarity-correct line — it does **not** separate club from
+    counterfeit (the cone/stack/stability do). Do not tighten it into a discriminator.
+14. **θ-only; publish on stack + per-frame stability.** No s/r0/head unless a rare band lock fires on the
+    stack (the address exposure blows the tape out). Graduate `pred`→`hold` only when the stack passes
+    all gates and the per-frame θ is stable across the hold; the truth merge is additive and never
+    overrides a v3.0 band/ray entry.
+
 What is *safe* to change: language, data structures, parallelism, I/O. What is *not*: the constraint
-logic, the cost ordering, the statistical estimators, the honesty gates, and — for v3.1 — which
-estimator is emitted versus corroborating.
+logic, the cost ordering, the statistical estimators, the honesty gates, and — for the companions —
+which estimator is emitted versus corroborating (v3.1) and the tight-cone/stack/stability publish gates
+(v3.2).
 
 ---
 
-## 15. Glossary
+## 16. Glossary
 
 - **Address / backswing / top / downswing / impact / follow-through / finish** — the phases of the
   swing (§1.1).
@@ -719,3 +830,12 @@ estimator is emitted versus corroborating.
   threshold-free width estimate (§13.3).
 - **Shift-and-stack** — de-rotating a window of frames about the grip and averaging, so a rigid rotating
   club integrates coherently while the background smears (§13.4).
+- **Hold-period stack** — shift-and-stack with *zero* rotation: grip-register and average the frames of a
+  *still* hold, so the resting club integrates sharp while swaying counterfeits smear (§14.1).
+- **Address hold** — the pre-swing still period where the club rests on the mat; v3.2's target (§14).
+- **Address cone** — the tight, address-only C4 cone (`|θ−φ| < 28°`); at rest ψ is small, so this rejects
+  the leg/crease look-alikes a wide cone admits (§14.2). Distinct from v3.0's wide mid-swing cone.
+- **Mat-crossing prior** — the resting club crosses onto the blown mat as a dark line (a polarity flip);
+  used as a *lenient* ground-reaching sanity gate, not a club/counterfeit discriminator (§14.3).
+- **`hold` tier** — v3.2's published address-θ tier (θ-only), between v3.0's `ray` and `pred` in the
+  honesty hierarchy; graduates a resting frame from unpublished `pred` to truth (§14.4).
