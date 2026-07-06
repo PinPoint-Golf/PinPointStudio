@@ -179,8 +179,8 @@ only on C:\). All 10 swings vs their v2.0 fusion truth:
   adjudication should watch for a wrong static band lock and add corroboration if one appears.
 - **Determinism:** byte-identical rerun with identical args on the canonical host.
 
-Still owed (dev box): Set S synth machinery gate; then fixture-freeze on the studio PC. Then v3.1
-shift-and-stack, v3.2 address θ.
+Still owed (dev box): fixture-freeze on the studio PC. Then v3.2 address θ. (Set S synth machinery
+gate DONE — `make_synth_v3.py --selftest`; v3.1 shift-and-stack + exposure-arc DONE, see below.)
 
 ### v3.1 — shift-and-stack + exposure-arc  *(studio PC)*
 Coarse ¼-res corridor proposal (register on grip anchor, rotate by −∫ω dt from the C3/C4 ω hypotheses,
@@ -188,6 +188,63 @@ stack; **C2 masks body pixels from coherence**, **C1 tested on the composite**);
 the corridor. **Exposure-arc** sector edges = sub-frame θ; arc-length ÷ band width = single-frame |ω|.
 **Gate (`tape_20260705`, impact ±10 frames):** θ/ω emitted; ω(t) smooth with a plausible 7-iron peak;
 composites adjudicated; no regression elsewhere.
+
+### v3.1 as-built — impact-zone ω(t), synth + single-swing gates PASSED (2026-07-06, dev box)
+
+**New:** `tools/shaftlab/shift_stack_v3.py` (exposure-arc + shift-and-stack), `make_synth_v31.py` (Set S
+v3.1 machinery gate), `run_v31_corpus.py` (corpus gate). **Additive by construction:** reads the frozen
+v3.0 `*_v3.csv`, touches only impact ±K, writes only `*_v31_impact.csv` + an ω-plot + a composite montage
+— the v3.0 track/truth are never rewritten, so **"no regression elsewhere" holds structurally**.
+
+**Reframe (evidence-driven, confirmed on the data).** v3.1's shift-and-stack was designed against
+*v2.0's* impact-zone gap ("v2.0 emits nothing"). **v3.0 already closed that gap** — the impact zone is
+covered by rays (corpus down 57→96 %, thru 54→83 %). And on the retro-reflective taped corpus at
+near-full-frame exposure (τ 6.57 ms ≈ T 6.70 ms, `frac≈0.98`), per-frame SNR is already high: √N stacking
+is **outweighed by pose-grip-anchor jitter** (grip-registration + rotation-about-grip maps the rigid club
+onto itself, so the residual is anchor noise, not a pivot error), and **E1 cannot re-lock discrete bands
+on the composite** (too smeared) → **0 tier upgrades** (s01 confirmed; also single-frame E1 locks nothing
+in the deep impact zone). The astronomy-style integration payoff is for the **low-SNR passive/untaped
+regime** (v3.3+) where per-frame signal is weak; the module is retained for that path. The genuinely-new
+v3.1 product on taped data is an **independent physical ω(t)**; the corridor "¼-res → full-res E1/E2/DP
+inside" is not needed on tape (v3.0 covers it) and is deferred to the passive path.
+
+**ω(t), two ways.** Emitted ω = lightly-smoothed `|dθ/dt|` of the frozen v3.0 DP track (reliable; what the
+swing actually did). Corroborated by an **independent intra-frame exposure-arc**: the shaft sweeps an arc
+during τ; because τ ≈ T, one frame's streak angular extent about the grip ≈ the inter-frame Δθ. Measured
+robustly as the **θ0-anchored equivalent width** of the annulus ridge (thickness-corrected, tight ±30°
+window so far distractors — the leg/mat — cannot bleed in), it recovers ω **without using the DP**.
+Sub-frame θ = the sector edges (`theta_lead`/`theta_trail`). (A third estimator — inter-frame ridge
+cross-correlation — was tried and **dropped**: it collapses onto the static leg/mat exactly where the club
+overlaps the body.) Shift-and-stack composites (nanmean of the de-rotated sub-window) are kept for
+**adjudication**: the club integrates into a coherent streak on θ(t) while body/mat smear into arcs.
+
+**Set S synth machinery gate (`make_synth_v31.py --selftest`) — PASSED.** Known θ(t) on the proven
+flip-free `make_synth_v3` geometry, exposure τ≈T: **emitted-ω peak within 9 % of truth, exposure-arc peak
+within 1 %**, per-frame arc error 2.6 deg/f (≈ its single-frame noise floor — why the *profile*, not
+per-frame values, is reported), **0 flips**. Proves the exposure-arc recovers a known ω.
+
+**Single-swing gate — s01 (impact ±10), PASSED (full-res montage adjudicated).** ω peak **13.6 deg/f
+(74 mph clubhead)** from the DP track and **13.0 deg/f (71 mph) from the independent exposure-arc —
+agreeing to 0.5 deg/f** (median |track−exparc| 2.6 deg/f); ω(t) smooth (roughness 0.99), a clean bell
+peaking at impact and decaying through the follow-through (physically right for a 7-iron). Composite
+montage: the de-rotated stack integrates the club into a coherent streak aligned with θ(t) while the
+legs/mat smear into arcs — the club is where θ(t) says. **0 band upgrades** (honest). Determinism
+byte-identical on-host.
+
+**Corpus gate — all 10 swings PASSED (dev box, `run_v31_corpus.py`).** Track ω peak per swing
+**13.0–16.9 deg/f → clubhead 71–92 mph** (every swing a plausible 7-iron); the **independent exposure-arc
+peak confirms it to median 1.5 / max 3.6 deg/f** (`PEAK_AGREE ≤ 4` PASS). ω(t) smooth everywhere
+(roughness 0.46–1.71, `≤ 3` PASS). **0 band upgrades except s07 (=1)** — the real still-address band v3.0
+already flagged on s07, recovered here on the composite. Determinism **byte-identical on-host**.
+- **Metric note (honesty):** the gate scores the *smoothed ω-peak* agreement — the deliverable. The raw
+  *per-frame* exposure-arc agreement is the single-frame noise floor (2.6–5.5 deg/f, worse where the club
+  overlaps the body) and is reported as a diagnostic, **not gated** (the profile is smoothed before use,
+  same reason the synth gate scores the peak not per-frame values).
+- **Provenance:** the exact-`impactUs` + v2-truth 10-swing gate is a **studio-PC job** (s02–s10 session
+  dirs are C:\-only); on the dev box only the clips/anchors/skeleton/clipmeta are on the NAS, so this run
+  used the **recorded** impact for s01 and **hands-only** impact for s02–s10 (the window only needs to
+  contain the fast segment — ω(t) is insensitive to a few-frame centre shift). Determinism is **per host**
+  (canonical = studio PC — never diff MBP↔studio; studio cv2 ≠ dev cv2).
 
 ### v3.2 — address / hold θ  *(dev MBP; gate studio PC)*
 Inside the C4 cone with C1: **mat-crossing prior** + **lateral line fits** (fit-then-require-hand-proximity)

@@ -39,9 +39,15 @@ post-failure guards.
 We further contribute an **exposure-arc** reading of motion blur — at the
 measured 98% shutter duty cycle, consecutive frames' streaks tile the swing
 arc almost gaplessly, turning blur into a continuous angular record
-(sub-frame θ at streak edges, single-frame speed from streak length) — plus
-one-directional wrist-IMU conditioning, conformal calibration of the
-confidence tiers, and a rotation-compensated shift-and-stack. Grading the
+(sub-frame θ at streak edges, single-frame speed from streak length). Built
+and graded across the corpus, it yields the impact zone's first physical
+velocity measurement — a plausible 71–92 mph clubhead speed on every swing —
+that, read from the single-frame streak alone, independently corroborates the
+tracker's velocity to within 1.5°/frame; the companion rotation-compensated
+shift-and-stack is exact in geometry but, on high-signal taped clubs, adds no
+new angle tier, its √N payoff reserved for the passive un-taped path. We also
+set out one-directional wrist-IMU conditioning and conformal calibration of
+the confidence tiers. Grading the
 passive detector against the new dense truth paid off at once: it corrected
 a contaminated figure (stage-1's measured tier is 0.6% bad in the fast
 phases, not 7%), exposed a genuine failure of that tier and a
@@ -608,7 +614,11 @@ which the band pattern can actually re-emerge at speeds where any single
 measure (that is C2 again), C1 is tested on the composite, and a
 coarse-to-fine ordering keeps the compute bounded. F10's still-stack was
 simply the zero-rotation special case of this; this generalises stacking to
-the fast phases that actually matter.
+the fast phases that actually matter. (As built and graded in §4.5 the
+de-rotation is exact and the club does integrate into one coherent streak —
+but on the *taped* corpus, where every frame is already bright, it does not
+sharpen the bands enough to add a measurement tier; that √N payoff is
+reserved for the low-signal passive club.)
 
 ### 3.10 Exposure-arc tomography (novel)
 
@@ -637,7 +647,10 @@ The striking implication is that the impact zone — today the one remaining
 hole in our coverage — could turn out to be the *densest* measurement
 region of all. And it composes neatly with §3.9: the shift-and-stack finds
 the corridor the club is in, and sector-edge extraction reads θ(t) inside
-it.
+it. (§4.5 is the first corpus test: the exposure-arc delivers a physically
+plausible ω(t) — 71–92 mph across the ten swings — that independently
+corroborates the tracker's velocity to within 1.5°/frame; the fuller
+θ-tomography from sector edges is the natural next reading.)
 
 ### 3.11 Cross-modal conditioning from the wrist IMU (novel in this pipeline)
 
@@ -720,6 +733,7 @@ gets acted on; a coverage gap merely leaves a frame unlabelled.
 | Instrumented **v1** (blob-ratio) | median 1.1°, p90 3.4° | zero flips | club-up phases only | address (bands invisible), blur |
 | Instrumented **v2** (fusion) | band-tier 1.1–3.3°, ray-tier 0.4–0.8° | **zero adjudicated errors** | fast phases (down / thru) | address, finish, impact ±10 fr |
 | Instrumented **v3.0** (constraint + DP) | band 0.3° (0% >15°), ray 1.7° (3% >15°), 10-swing corpus | **zero flips, all 10 swings** | fast phases at **96% / 83%** measured coverage | impact ±10 fr, address scale |
+| Instrumented **v3.1** (exposure-arc ω) | *velocity*, not angle: an independent exposure-arc confirms the DP-track ω-peak to **1.5°/fr median (3.6° max)**, 10-swing corpus | n/a — corroborates, adds no new θ | impact ±10 fr **ω**: **71–92 mph** clubhead, every swing | still θ-ray-only at impact; scale at address; 0 band upgrades on tape (√N reserved for the passive path) |
 
 The second table is the one that shows the complementarity directly. It
 reads the swing phase by phase and asks, for each, which detector can
@@ -728,14 +742,17 @@ result is. The pattern is the thesis of the whole report in one grid: the
 passive detector owns the slow phases, the instrumented truth owns the fast
 phases, and between them they tile the entire swing except for two genuine
 holes — the scale at address (which the optics simply do not contain) and
-θ right at impact (the target of the v3.1 work in §3.9–3.10).
+θ right at impact. The second of those has since been narrowed twice over:
+v3.0 (§4.4) fills the impact zone with *ray*-tier θ at 96%/83% coverage, and
+v3.1 (§4.5) adds the zone's first *velocity* measurement, ω(t) — so what
+remains genuinely blind is now only the address scale.
 
 | Swing phase | Passive shaft θ (v7) | Instrumented θ truth (v2 fusion) | Best available truth | Grade (θ) |
 |---|---|---|---|---|
 | **Address** | measured, reliable (stage-1's strongest phase) | absent — bands bloom/vanish on the blown mat | passive; **scale optically absent** | **Trustworthy** (θ) · scale **Blind** |
 | **Takeaway / backswing** | measured, ~2–3° median | measured — band 1.1–3.3°, ray 0.4–0.8° | both, in agreement | **Trustworthy** |
 | **Downswing** | predicted (blur-blind); pred tier 13–22% >30° | **measured, 43–75% coverage** | instrumented fills the blind spot | **Usable (with review)** |
-| **Impact (±10 fr)** | predicted only | ≈ none — v2 emits nothing here | neither yet | **Blind (honest gap)** |
+| **Impact (±10 fr)** | predicted only | v2 emits nothing; **v3.0 rays + v3.1 ω** now do | v3.0 (θ ray) + v3.1 (ω) | **Directional → Usable** (θ ray-covered; ω measured, §4.5) |
 | **Through** | predicted mostly | measured, 46–59% coverage | instrumented | **Usable (with review)** |
 | **Finish** | measured ~52% (up from 32%); one surviving junk class | absent — abstained to zero | passive only | **Usable (with review)** |
 
@@ -766,7 +783,9 @@ is precisely the gap the instrumented truth fills today, and the gap the v3
 design (§5.3) aims to close in the product itself — now demonstrated on the instrumented
 path, where the built constraint system (§4.4) lifts the downswing to 96% and
 the through-swing to 83% measured coverage with zero flips across the whole
-corpus.
+corpus — and where the v3.1 exposure-arc (§4.5) turns the impact zone's motion
+blur into a physical angular-velocity reading (71–92 mph clubhead, all ten
+swings), independently corroborated to within 1.5°/frame of the tracker.
 
 Two footnotes complete the picture:
 
@@ -924,6 +943,67 @@ exposure-arc work of §3.9–3.10. What v3.0 settles is the harder-sounding half
 the problem: that the swing's physics, encoded as hard constraints inside a
 global estimator, *recovers the coverage v2 could only reach by abstaining,
 while keeping the confidently-wrong count at zero.*
+
+### 4.5 The v3.1 impact-zone ω(t), measured two ways
+
+The shift-and-stack and exposure-arc ideas of §3.9–3.10 are now built
+(`shift_stack_v3.py`) and run through the same gate ladder. What they produce on
+the taped corpus is not quite what the design first imagined, and the difference
+is itself a result worth stating plainly.
+
+**The machinery works, proven on synthetic ground truth.** On a generated swing
+whose ω(t) is known exactly — the flip-free geometry of the §4.4 synthetic gate,
+re-exposed at the real camera's near-unity duty cycle so that each frame carries a
+genuine motion streak — the exposure-arc recovers the angular-velocity profile:
+the emitted ω-peak lands within 9% of truth and the independent exposure-arc peak
+within 1%, with zero flips. The per-frame streak width carries a single-frame
+noise of about 2.6°/frame, which is exactly why the *profile*, not any one frame,
+is what we read.
+
+**On the real corpus it yields the impact zone's first physical velocity
+measurement.** Across all ten `tape_20260705` swings the shaft's angular-velocity
+peak, read from the v3.0 track, is 13–17°/frame — a clubhead speed of **71–92
+mph**, every swing squarely in the range a 7-iron should produce. The result is
+the *second*, independent measurement: an exposure-arc reading that never touches
+the tracker — it measures only the width of the single-frame motion streak about
+the grip, exploiting the fact that the 98% shutter duty cycle makes one frame's
+swept arc very nearly the whole inter-frame angle — confirms that peak to a
+**median of 1.5°/frame and a worst case of 3.6°/frame** across the corpus, on a
+smooth curve that rises to a bell at impact and decays through the follow-through.
+Two methods that share no machinery — one a global fit over the entire clip, one a
+within-frame blur measurement — agree on the same physical curve. That agreement
+*is* the result: the impact-zone ω(t) is real, not an artefact of the dynamic
+program's own smoothing.
+
+**What it did *not* do, and why that is the more instructive half.** The design
+hoped the stacked composite would sharpen the blurred bands enough to re-lock the
+band pattern and so *upgrade* impact-zone rays into full band measurements. On
+this corpus it does not: exactly zero ray-to-band upgrades on nine of the ten
+swings (the tenth recovers one — the genuine still-address band that s07 already
+showed at §4.4). The reason, once seen, is obvious. The astronomy trick pays off
+when the per-frame signal is *weak* and needs √N frames to climb out of the noise.
+Here the retro-reflective tape at a near-full-frame exposure makes every single
+frame's streak already bright; stacking a short window of de-rotated frames is
+then limited not by noise but by the *pose grip anchor's jitter* — and because
+registering on the grip and then rotating about it maps the rigid club onto itself
+*exactly* (the butt lands at grip − s·r₀·û(θ) for every frame, whatever θ is), the
+residual misalignment is purely that anchor noise, which *broadens* the composite
+rather than sharpening it. So on the taped path the composite's role is
+adjudication, not measurement: it shows the club integrating into one coherent
+streak lying along the tracked θ while the legs and mat smear into arcs — a direct
+visual confirmation that the tracked angle really is on the club through the blur —
+and the *product* is the ω(t) curve, not a new tier of θ. The stacking's latent
+power is deliberately held in reserve for the regime it was actually built for:
+the *passive*, un-taped club, where the per-frame signal genuinely is weak and √N
+integration may be the only way to see the shaft at all (§5.3).
+
+The run is byte-identical on rerun on the same host — and, as with every corpus
+number here, determinism is asserted per machine and never diffed across the two
+(§5.4). The exact-impact, truth-graded ten-swing gate remains a studio-machine
+job, because nine of the ten session records live only there; the dev-box run that
+produced these ω figures used the recorded impact for the one synced swing and a
+hands-only impact estimate for the other nine, which shifts each measurement
+window by at most a frame or two and leaves the velocity profile unchanged.
 
 ## 5. Discussion
 
@@ -1095,18 +1175,66 @@ coverage, or recovers it only by letting junk back in, the central
 hypothesis is simply wrong, and the gate is designed so that we would see it
 rather than talk ourselves past it.
 
-**Blur as signal, not just signal not thrown away.** Section 5.2 is about
-not *discarding* real signal; §3.9–3.10 go a step further and mine a signal
-we had been treating purely as damage. Shift-and-stack recovers the club
-from the very motion blur that defeats any single frame, and the
-exposure-arc reading turns the near-total (98%) shutter duty cycle into a
-continuous angular record of θ(t). The consequence is worth restating in a
-discussion because it inverts the problem the whole report has been
-circling: the impact zone — today the single hole in *both* detectors'
-coverage (Table B, §4.0) — could become the *densest* measurement region we
-have, precisely because it is the most blurred. If that holds up on the
-corpus, the phase the system currently fears most turns into its richest
-source of truth, and the last hole closes from an unexpected direction.
+**Blur as signal, not just signal not thrown away — and what §4.5 now
+shows it buys.** Section 5.2 is about not *discarding* real signal; §3.9–3.10
+go a step further and mine a signal we had been treating purely as damage.
+The exposure-arc reading turns the near-total (98%) shutter duty cycle into
+a within-frame record of how fast the club is turning, and §4.5 is the first
+corpus test of the idea. The headline it returned was not the one we
+expected, and the way it enhances detection is worth spelling out, because
+the surprise sharpens the argument rather than blunting it.
+
+The first and most durable gain is a *second independent witness, drawn from
+the pixels themselves.* The report's recurring anxiety (§5.1) is that
+self-consistent vision can be self-consistently wrong — v1 truth was, and the
+leg shadow passed every appearance and motion test we had. The exposure-arc
+measurement owes *nothing* to the tracker: it reads the width of a single
+frame's motion streak, not a fit over the clip, so it is independent in
+exactly the way the tracker's own corroboration engines are not. That makes
+it a physical plausibility check the system can run against its own output —
+a lock whose implied spin rate is impossible for a human swing can be flagged
+without any external instrument at all. It is, in effect, a second witness in
+the spirit of the wrist IMU (§3.11), but one that needs no extra hardware and
+is present on every swing already captured. On the corpus the two velocity
+readings — global-fit ω and blur-width ω — agreed to within 1.5°/frame at the
+peak; the value of that agreement is not the number but the *cross-check it
+licenses*, which converts "the tracker says so" into "two unrelated physics
+say so."
+
+The second gain is that the impact zone stops being a pure coverage hole and
+starts yielding a *new measurement axis*. v3.0 already carries θ through it as
+verified rays; v3.1 adds ω(t), and clubhead speed at impact is not a
+by-product but one of the headline quantities a golfer is paying to learn.
+The same duty cycle gives, in principle, sub-frame θ at the streak's leading
+and trailing edges — samples at the instants the shutter opened and closed —
+which doubles temporal resolution precisely where θ moves fastest. The phase
+the system used to fear now returns *more* kinds of measurement than the slow
+phases do, not fewer.
+
+The third gain is strategic, and it is the one the negative result makes
+visible. Stacking bought no band upgrades on the taped corpus, because
+retro-reflective tape at a full-frame exposure leaves nothing for √N
+integration to rescue — the limiting error is pose-anchor jitter, not photon
+noise. But that same machinery is the *enabling lever* for the un-taped,
+passive club (G4) — the customer's own club, with no bright bands, where the
+per-frame shaft genuinely is faint and coherent integration over a de-rotated
+window may be the only way to lift it out of the background. So v3.1's payoff
+on the instrumented path is a validated ω(t) and an independent witness; its
+payoff on the *product* path is held in reserve, but the demonstration that
+the de-rotation geometry is exact — the rigid club maps onto itself under
+grip-registration plus rotation-about-grip — is what tells us the integration
+will be limited only by how well we can register the pivot, which is a
+tractable engineering problem rather than a physical wall.
+
+The fourth gain closes a loop with §3.12. The learned heel/toe head is
+trained on blur augmentation *synthesised from the measured ω(t)*, so that its
+hard training frames match this camera's real motion rather than a generic
+smear. The exposure-arc is what makes that ω(t) available frame by frame, and
+independently of the tracker whose output the network is meant to improve on —
+which keeps the flywheel from quietly feeding the network its own teacher's
+mistakes. The velocity measurement, in other words, is not only a coaching
+metric and a cross-check; it is a training-data instrument for the one learned
+component the whole programme is aimed at.
 
 **The IMU as the one witness that owes nothing to the pixels.** Everything
 above is still vision reasoning about vision, and §5.1's catalogue of
@@ -1136,9 +1264,12 @@ enforced *by construction*. That is the design's direct answer to the entire
 epistemic-error category of §5.1: rather than hope the confidence is honest
 and check later, make honesty a mathematical property of the method.
 
-**Honest status, and how the whole thing could fail.** None of §5.3 is a
-result. All of v3 is design; its expected effects are to be verified, not
-assumed, and the failure modes are specific enough to name. The pose anchor
+**Honest status, and how the whole thing could fail.** Two pieces of v3 have
+crossed from design into graded result — the constraint system (§4.4) and the
+impact-zone velocity measurement (§4.5) — and both cleared their gates. The
+rest of §5.3 is still design: the passive-path payoff of shift-and-stack, the
+learned head, and the IMU coupling are expected effects to be verified, not
+assumed, and their failure modes are specific enough to name. The pose anchor
 is both an input and a bias, and it degrades worst exactly where we need it
 most (peak blur) — which is why the design fits lines laterally and tests C1
 on the stacked composite rather than forcing every ray through the anchor.

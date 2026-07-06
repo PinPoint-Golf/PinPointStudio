@@ -1,15 +1,16 @@
 # `club_track_v3.py` explained — the reference bible
 
 **What this document is.** A complete, self-contained explanation of the v3.0 club-tracking
-exemplar (`tools/shaftlab/club_track_v3.py`): what it does, why it does it that way, the physics
-it leans on, the image processing it performs, the algorithm at its core, and the statistical
-method used to tune and trust it. It is written for a reader who is **not** assumed to know golf,
+exemplar (`tools/shaftlab/club_track_v3.py`) **and its v3.1 impact-zone velocity companion
+(`tools/shaftlab/shift_stack_v3.py`, §13)**: what they do, why they do it that way, the physics
+they lean on, the image processing they perform, the algorithm at their core, and the statistical
+method used to tune and trust them. It is written for a reader who is **not** assumed to know golf,
 computer vision, dynamic programming, or statistics. Where a term of art appears it is defined.
 
-**Why it exists.** The Python file is an *exemplar* — a research reference implementation. It will
+**Why it exists.** The Python files are *exemplars* — research reference implementations. They will
 be ported to C++ for the app. Python is easy to change while the ideas settle; C++ is fast and
-ships. When the port happens, the C++ must reproduce this exemplar's output (that is the acceptance
-test — see §13). This document is the durable record of *the approach* so that the reasoning
+ships. When the port happens, the C++ must reproduce these exemplars' output (that is the acceptance
+test — see §14). This document is the durable record of *the approach* so that the reasoning
 survives the port, long after anyone remembers the specific Python lines.
 
 **Companion documents.** The design rationale is in
@@ -519,7 +520,122 @@ doc §4.
 
 ---
 
-## 13. Porting to C++ — what must be preserved
+## 13. The v3.1 companion — impact-zone velocity (`shift_stack_v3.py`)
+
+Everything above is v3.0: it estimates *where* the club points, θ(t), across the whole swing. The one
+phase it fills only with the softer `ray` tier is the **impact zone** — the ±10 frames around the ball
+strike, where the club moves fastest and every frame is a blur. `shift_stack_v3.py` is a small companion
+that attacks that zone with a different question. Instead of asking *where* the club is (v3.0 already
+answers that), it asks **how fast it is turning** — the angular velocity ω(t) — and it answers from the
+blur itself, independently of v3.0's dynamic program. It is **additive**: it reads v3.0's frozen output,
+touches only the impact window, and never rewrites v3.0's truth, so it cannot regress anything.
+
+Why bother, when v3.0 already tracks θ through impact? Three reasons. First, clubhead speed at impact is
+a headline coaching number in its own right (the shaft's ω times its length is the head's speed). Second,
+a velocity read from the *raw blur* — owing nothing to the tracker — is an independent physical check: a
+tracked angle whose implied spin is impossible for a human swing can be caught. Third, the future learned
+clubhead detector (v3.3) trains on blur synthesised from the *measured* ω(t), so we need that ω per frame.
+
+### 13.1 The physics: the shutter is open almost the whole frame
+
+The camera's exposure is 6.57 ms and its frame period is 6.70 ms — the shutter is open for **98%** of
+every frame. That one number is the key. During those 6.57 ms the club keeps rotating, so each frame's
+shaft is not a line but a **fan** — a streak smeared across the small angle the club swept while the
+shutter was open. Because the exposure is essentially the whole frame period, the angle swept *within*
+one frame is essentially the angle *between* one frame and the next. So the same velocity can be read two
+ways, and they must agree:
+
+- **Between frames:** how far θ moved from frame *t* to *t+1* — just `dθ/dt` of v3.0's track.
+- **Within one frame:** how wide the blur fan is — the angular extent of a single frame's streak.
+
+The second is the novel one, and it needs no differencing between frames at all.
+
+### 13.2 Two velocity estimators (and one we dropped)
+
+- **`omega_track`** — the signed central difference of v3.0's θ, `(θ[t+1] − θ[t−1]) / 2`, wrapped to
+  ±180°. Reliable, because v3.0's θ is reliable. The **emitted** ω is this, lightly smoothed (a Gaussian
+  over ~1 frame), since the raw difference is noisy frame to frame.
+- **`omega_exparc`** — the single-frame blur width (§13.3). **Independent of the tracker.** Its job is to
+  *corroborate* omega_track, not replace it.
+- *(Dropped: cross-correlating consecutive frames' angular profiles to find the rotation between them. It
+  sounds independent, but where the club sweeps across the legs and mat it locks onto that static
+  background instead of the club and reads ≈0 — an honest dead end, recorded so no one re-derives it.)*
+
+The point of two estimators is the **agreement**: two methods that share no machinery landing on the same
+curve is strong evidence the curve is real, not an artefact of v3.0's own smoothing.
+
+### 13.3 The exposure-arc measurement, step by step
+
+We already know roughly where the club points each frame (θ0, from v3.0). To measure the blur fan's width
+we read brightness along an **annulus** — a ring of radii from the grip, out where only the club lives
+(95–335 px) — as a function of angle, in a tight window (±30°) around θ0. That gives a 1-D profile: a bump
+wherever the shaft's bright streak crosses the ring, flat and dark elsewhere. The fan's width is the width
+of that bump. Getting it robustly is the whole game:
+
+1. **Anchor at θ0, not at the brightest angle.** The single brightest point in the window might be the leg
+   or the mat, tens of degrees away; we already *know* the club is at θ0, so we grow the bump outward from
+   there. This one choice removes most of the errors an earlier version made.
+2. **Use an equivalent width, not a half-maximum.** The bump is peaked, not a clean box, so "width at half
+   height" underestimates it. Instead take (area of the bump) ÷ (its height) — the width of the rectangle
+   with the same area and height. Threshold-free and stable.
+3. **Subtract the shaft's own thickness.** Even a *stationary* shaft has some angular width (it is a few
+   pixels thick). Subtract a small constant (~3°) so the number reflects the *sweep*, not the shaft.
+
+The fan width divided by the 98% duty cycle is |ω| for that single frame. The **leading and trailing
+edges** of the fan (`theta_lead`, `theta_trail`) are θ at the instants the shutter opened and closed —
+sub-frame angle samples, a bonus the differencing methods cannot give.
+
+Honesty note: this single-frame estimate is *noisy* — about 2.6°/frame of scatter, worse where the club
+overlaps the bright body. That is exactly why we never trust one frame: we **smooth the profile** and read
+its **peak**, which is what corroborates the tracker. The per-frame scatter is reported as a diagnostic
+and deliberately *not* used as a pass/fail bar (§13.5).
+
+### 13.4 Shift-and-stack: exact geometry, and an honest null result
+
+The second half of the module borrows a trick from astronomy: to see a faint moving object, shift a stack
+of exposures so the object lines up, and its light adds up while everything else blurs away. Here the club
+rotates about the grip, so for a short window of frames we translate each frame so its grip sits on the
+reference grip, rotate it by (that frame's θ − the reference θ) about that grip, and average the stack.
+
+A subtle geometric fact makes this *exact* for a rigid club: after registering the grips together and
+rotating by the θ difference, the club's butt lands at exactly `grip − s·r0·û(θ0)` **for every frame,
+whatever that frame's θ was** — so a perfectly rigid club maps onto itself. The club integrates coherently
+while the body and background, which do not share its rotation, smear into arcs.
+
+So why is this a *companion* and not a new measurement tier? Because on the **taped** corpus it buys
+nothing. The retro-reflective tape at near-full-frame exposure makes every single frame already bright;
+the stack is then limited not by sensor noise (which averaging beats down) but by **jitter in the supplied
+grip anchor** — and since the geometry above is exact, that jitter is the *only* residual, and it
+*broadens* the average rather than sharpening it. Concretely: zero band re-locks on nine of ten swings.
+The composite is still worth producing — as an **adjudication image** it shows the club fused into one
+clean streak lying exactly along v3.0's θ while the legs and mat smear, direct visual proof the tracked
+angle is on the club through the blur — but the *product* is the ω curve, not a new tier.
+
+The value is held in reserve for a different regime: the **passive, un-taped** club (a customer's own
+club, no bright bands), where each frame's shaft genuinely is faint and √N integration over a de-rotated
+window may be the only way to see it. That the de-rotation geometry is provably exact is what tells us the
+payoff there is limited only by how well we register the pivot — an engineering problem, not a physical
+wall.
+
+### 13.5 Outputs, and the gates it passed
+
+- **`<clip>_v31_impact.csv`** — per impact-window frame: θ (from v3.0), omega_track, omega_exparc, the
+  emitted smoothed ω, the fan width and its sub-frame edges, and any tier carried over.
+- **`<clip>_v31_omega.png`** — the ω(t) plot: track, exposure-arc, and the emitted curve overlaid, so a
+  human can see the two independent estimators agree.
+- **`<clip>_v31_composites.png`** — the montage of de-rotated stacks, for adjudication.
+
+The gate ladder (§11.5) applies here too. The **synthetic** gate (`make_synth_v31.py --selftest`) uses a
+rendered swing whose ω is known exactly: the exposure-arc recovers the peak to within 1%, the emitted peak
+to within 9%, zero flips. The **single-swing** gate on s01 gave a peak of 13.6°/frame (74 mph clubhead)
+from the track and 13.0°/frame (71 mph) from the independent exposure-arc — agreeing to 0.5°/frame at the
+peak. The **corpus** gate over ten swings gave clubhead peaks of 71–92 mph on every swing, the two
+estimators agreeing to a median of 1.5°/frame (worst 3.6°). The pass/fail is on the **smoothed peak
+agreement**, not the per-frame scatter — the same reason we read the profile's peak and not one frame.
+
+---
+
+## 14. Porting to C++ — what must be preserved
 
 The C++ port's acceptance test is **output agreement with this exemplar** on a fixed input (a
 "byte-oracle" on one reference platform, modelled on the existing parity tests). To make that
@@ -540,16 +656,34 @@ silently change results:
 6. **The evidence engines E1/E2** must match `stripe_fusion`'s numerically (they are the other
    half of the byte-oracle) — port them faithfully rather than re-deriving.
 
+For the **v3.1 companion** (`shift_stack_v3.py`), the same discipline, plus:
+
+7. **The emitted ω is the smoothed track difference, not the exposure-arc.** The exposure-arc is the
+   *independent corroborator*; do not swap it in as the primary. Preserve the sign/wrap of the central
+   difference and the ~1-frame Gaussian smoothing.
+8. **The exposure-arc is θ0-anchored, equivalent-width, thickness-corrected.** Grow the bump outward
+   from the *known* θ0 (not the global maximum), measure width as area÷height (not half-maximum), and
+   subtract the fixed thickness constant. The annulus radii, the tight ±30° window, and the 98% duty
+   cycle are calibrated numbers — port them, do not re-tune.
+9. **Shift-and-stack registration is grip-translate then rotate-about-grip, averaged (`nanmean`).**
+   The composite is *not* body-masked (that would eat the club at impact); it is an adjudication image.
+   Do not "improve" it into the primary measurement — on high-signal taped clubs it adds no tier.
+10. **Gate on the smoothed peak agreement, never the per-frame scatter.** The per-frame exposure-arc
+    error (~2.6°/frame) is its intrinsic noise floor; the deliverable is the profile's peak.
+
 What is *safe* to change: language, data structures, parallelism, I/O. What is *not*: the constraint
-logic, the cost ordering, the statistical estimators, and the honesty gates.
+logic, the cost ordering, the statistical estimators, the honesty gates, and — for v3.1 — which
+estimator is emitted versus corroborating.
 
 ---
 
-## 14. Glossary
+## 15. Glossary
 
 - **Address / backswing / top / downswing / impact / follow-through / finish** — the phases of the
   swing (§1.1).
 - **θ (theta)** — shaft direction angle (grip → head), image degrees.
+- **ω (omega)** — angular velocity of the shaft, degrees per frame; × frame rate × shaft length gives
+  the clubhead's linear speed. The v3.1 product (§13).
 - **φ (phi)** — lead-forearm direction (elbow → grip), from body pose.
 - **ψ (psi)** — wrist angle, θ − φ; anatomically bounded (C4).
 - **Grip / anchor** — the hands' pixel position, supplied per frame.
@@ -576,3 +710,12 @@ logic, the cost ordering, the statistical estimators, and the honesty gates.
 - **Gate ladder** — synthetic → single-swing → corpus acceptance sequence.
 - **Adjudication** — deciding disagreements by human inspection of rendered frames, the basis for
   every threshold.
+- **Duty cycle / exposure fraction** — the share of each frame during which the shutter is open (98%
+  here); it makes the within-frame sweep ≈ the between-frame sweep (§13.1).
+- **Motion-blur streak / fan** — a single frame's smeared shaft, whose angular width is the angle the
+  club swept while the shutter was open (§13.3).
+- **Exposure-arc** — reading |ω| and sub-frame θ from the width and edges of that streak (§13.3).
+- **Equivalent width** — a bump's area divided by its height; the width of the same-area rectangle, a
+  threshold-free width estimate (§13.3).
+- **Shift-and-stack** — de-rotating a window of frames about the grip and averaging, so a rigid rotating
+  club integrates coherently while the background smears (§13.4).
