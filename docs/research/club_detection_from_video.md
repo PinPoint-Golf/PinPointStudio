@@ -1,7 +1,7 @@
 # Physics-Constrained Detection of a Golf Club from Fixed-Environment Video: Honest Measurement Tiers, Instrumented Truth Generation, and an Exposure-Arc Reading of Motion Blur
 
-*PinPoint shaftlab programme — research report, 2026-07-05, covering the
-programme from inception. Empirical basis: hand-labelled swings 0008/0009,
+*PinPoint shaftlab programme — research report, 2026-07-05 (ψ-monotonicity
+addendum 2026-07-06), covering the programme from inception. Empirical basis: hand-labelled swings 0008/0009,
 the c1 multi-club corpus (100 head labels), the tape_20260704 pilot and
 tape_20260705 instrumented corpora; tooling `tools/shaftlab/`; records in
 `docs/design/shaft_detection_*`, `clubhead_detection_design.md`,
@@ -34,7 +34,12 @@ does not overlap the body mid-swing, reverses rotation exactly once at the
 top, and forms a double pendulum with the lead arm. We argue the passive
 detector's whole fix history was a slow, reactive rediscovery of these
 facts, and that they belong a priori as constraints rather than as
-post-failure guards.
+post-failure guards. A later hand-marked swing sharpened the last of these
+into a *dynamical* law we had not encoded: the wrist angle **ψ = θ − φ**
+between the club and the lead arm is monotone with a single reversal at the
+top, exactly as the shaft angle θ is — recasting the club/arm coupling from
+a static reachability cone into a transition rail that turns the
+well-tracked lead arm into a witness for the club through the impact blur.
 
 We further contribute an **exposure-arc** reading of motion blur — at the
 measured 98% shutter duty cycle, consecutive frames' streaks tile the swing
@@ -595,6 +600,44 @@ tempted to "restore":
   abstain. This is the machinery that keeps "confidently wrong" at zero while
   still recovering the coverage v2 had thrown away.
 
+### 3.8a A fourth structural law: ψ-monotonicity, and C4's second form
+
+The four constraints of §3.8 were the facts the fix history had already,
+implicitly, rediscovered. Standing back once more surfaced a fifth — really
+the *substantive* half of C4, which the as-built had shrunk to a wide
+guardrail. The double pendulum does not merely bound the wrist angle
+ψ = θ − φ (the reachability cone); it makes ψ **monotone**. From address to
+the top the wrist cocks: ψ moves one way only, the interior arm–shaft angle
+closing from roughly 180° to 90°. At transition it reverses exactly once.
+From transition through impact to the finish it releases: ψ moves the other
+way only. Un-hinging in the backswing, or re-hinging in the downswing, is
+anatomically impossible. This is C3's one-reversal law over again, but on
+the *wrist* rather than the shaft — and because θ = ψ + φ with the lead arm
+φ carrying its own motion, "ψ is one-sided per phase" is strictly stronger
+than "θ is one-sided per phase": it constrains the shaft's rotation
+*relative to the measured arm*.
+
+The shipped C4 never encoded this. It encoded only the *magnitude* cone,
+which pose noise had already forced wide and part-time (§3.8). The
+refinement recasts C4 as a transition term on Δψ = Δθ − Δφ, structurally
+parallel to C3's term on Δθ: a phase-signed sign-lock (with a free window at
+transition, because the wrist reversal *lags* the hand-top for players who
+hold their lag), a bounded hinge rate, and a mild smoothness penalty. It
+drops into the same dynamic program with no state-space growth, since
+ψ at a frame reads only that frame's DP state θ and the per-frame-constant
+arm angle φ.
+
+Two properties make it succeed where the cone failed. First, it constrains
+*monotonicity, not magnitude* — so, unlike the cone the programme was warned
+never to tighten, it clips only physically impossible paths and needs merely
+the *trend* of φ, not its instantaneous value. Second, and this is the
+prize, it turns the arm into a witness for the club *through the blur*: in
+the impact zone, where the shaft is unmeasurable and the estimator otherwise
+free-runs on smoothness, the lead arm remains well tracked (larger, slower,
+less blurred), so a bounded monotone-release rail pins θ = ψ + φ from the arm
+exactly where the club cannot be seen. §4.6 reports the first measurement of
+the law on real data.
+
 ### 3.9 Rotation-compensated shift-and-stack (v3.1)
 
 This is a trick borrowed from astronomy, where faint moving objects are
@@ -1005,6 +1048,52 @@ produced these ω figures used the recorded impact for the one synced swing and 
 hands-only impact estimate for the other nine, which shifts each measurement
 window by at most a frame or two and leaves the velocity profile unchanged.
 
+### 4.6 The ψ-monotonicity law, hand-verified on s01
+
+The law of §3.8a was tested the way the programme tests everything — on real
+frames a human looked at — before any estimator was touched. On corpus swing
+s01 the shaft was hand-marked wherever it was unambiguous (121 labels of grip
+and head, with honest gaps left through the impact blur rather than guessed),
+giving an *independent* θ witness, uncorrelated with both the pose and the
+stripe-fusion truth. Two results follow, and they separate cleanly.
+
+The first is a cross-check of the truth itself. Where the hand markup and the
+v2 fusion truth both exist (78 frames), the two θ values agree to a **median
+of 0.01° (p90 3.4°)** — two independent methods, one manual and one
+algorithmic, landing on the same angle. This is exactly the adversarial
+cross-validation §5.1 argues truth generators require, and it passes.
+
+The second is the law. Computing ψ = θ_markup − φ (the pose lead arm,
+robustly smoothed) frame by frame yields a textbook tent (Figure 2): ψ cocks
+monotonically from about −15° at address to about +100° at the top, reverses
+once, and releases monotonically to the finish. Quantitatively it is monotone
+on **55 of 58 backswing steps and 53 of 56 downswing steps**, and every one
+of the six exceptions falls on a frame where pose φ glitched — not on a real
+wrist reversal. The decisive observation is the separation of the two panels
+of Figure 2: the θ trajectory, which owes nothing to φ, is *pristinely*
+monotone with a single reversal, so all of the scatter in ψ is pose φ, which
+jumps a median of only 1.6°/frame but spikes to 87° on 17 frames clustered —
+predictably — at the top and through impact. The physics is clean; the noise
+lives entirely in the arm estimate. This both confirms the law and names
+precisely what a ψ-rail must survive: it must key on the *trend* of φ, not its
+instantaneous value, and relax at the top, where φ is worst (and where C3 is
+already strong). One further detail is visible and is a coaching quantity in
+its own right — ψ peaks a few frames *after* the hand-top, the release lag,
+which is why the constraint must give the reversal a window rather than pin it
+to C3's top.
+
+![s01 hand markup vs v2 truth: the shaft angle θ as a single-reversal arc, and the wrist angle ψ = θ − φ as a monotone tent with one reversal.](figures/club_track_psi_s01.png)
+
+***Figure 2.** s01, hand markup versus v2 fusion truth. **Top:** shaft angle θ
+(unwrapped) — the two independent witnesses coincide (median 0.01°), a clean
+single-reversal arc (C3). The straight segment across f510–545 is the bridge
+over the impact-blur gap the human could not label. **Bottom:** ψ = θ − φ with
+robustly-smoothed pose φ (green) — a textbook tent: cocking monotonically to
+the top, releasing monotonically to the finish, one reversal. The grey dots are
+ψ computed with the **raw** pose φ, exposing the φ-noise the rail must survive;
+the red × is ψ from the v2 truth. Vertical lines mark P1–P10; the dashed line is
+the hand-top P4 — note ψ peaks slightly later, the release lag.*
+
 ## 5. Discussion
 
 ### 5.1 A catalogue of errors, across the whole programme
@@ -1138,6 +1227,21 @@ not). The point is not that C1–C4 are magic; it is that they are a *small*
 set of facts, each excluding a large family, and — unlike a guard — excluding
 it while leaving the real measurement in that same phase perfectly
 measurable.
+
+**The double pendulum's second reading — from cone to rail.** The
+counterfeit-by-counterfeit walk above uses C4 in its weak form, the
+reachability cone that pose noise forced wide (§3.8). But the double pendulum
+says more than "ψ is bounded"; it says "ψ is monotone, with one reversal"
+(§3.8a), and that stronger form is the one that earns its keep. A monotone-ψ
+rail is not a magnitude bound — it cannot clip a real swing the way a
+tightened cone would — and its payoff aims squarely at the place the whole
+programme is thinnest: it lets the lead arm, which the pose tracks well even
+under blur, stand as a witness for the club through the impact zone where the
+shaft itself cannot be seen. The s01 markup (§4.6) confirms the law holds on
+real data to within pose-φ noise — the same φ-robustness problem the cone hit
+— but a monotonicity constraint, unlike a magnitude one, needs only φ's
+trend, not its instantaneous value, and so is the right tool for that noisy
+regime.
 
 **Why the reasoning has to become global.** There is a second, quieter
 shift in v3 that matters as much as the constraints themselves: it stops
@@ -1326,6 +1430,11 @@ begins:
   plausible peak through impact ±10 frames, adjudicated on the stacked
   composites.
 - **v3.2**: address θ, via a mat-crossing prior and lateral fits.
+- **The ψ-monotonicity rail** (§3.8a, §4.6): C4's substantive form — a DP
+  transition constraint on Δψ = Δθ − Δφ that carries the shaft through the
+  impact blur on the lead arm's motion. Gate-0 (the s01 hand markup) has
+  passed; because it re-solves the global path it is a v3.0-internal change,
+  re-running the full synthetic → single-swing → corpus → freeze ladder.
 - **The F11 redesign** in the passive tracker — cluster the still-run
   measurements, or split runs at confident θ jumps — corpus-gated against
   the v7h fixtures.

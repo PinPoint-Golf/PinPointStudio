@@ -21,8 +21,8 @@ constraints checked *before* the (validated) evidence engines, inside a global V
 (re-freeze in the code's own commit); byte-for-byte determinism; corpus gate before any generalisation
 claim.
 
-**Scope (confirmed):** full detail on classical core **v3.0→v3.2** (+ **v3.11** IMU witness); **v3.3** NN and
-**v4** C++ port are outlined milestones only.
+**Scope (confirmed):** full detail on classical core **v3.0→v3.2** (+ **v3.0-r1** C4 ψ-monotonicity rail,
++ **v3.11** IMU witness); **v3.3** NN and **v4** C++ port are outlined milestones only.
 
 ---
 
@@ -311,7 +311,49 @@ s02–s10 impact + v2 truth are C:\-only, per §3). Runs `run_v32_corpus.py` (to
 address band meas (e.g. s07 f97–110), **0 flips**, byte-identical rerun on the canonical host. Then a
 fixture freeze on the studio PC.
 
-### ACTION — v3.0 phase model: takeaway mislabelled as address  *(deferred — explore C4 first)*
+### v3.0-r1 — C4 ψ-monotonicity transition rail  *(dev MBP design; gate studio PC)*
+
+**The insight (Mark, 2026-07-06).** The shipped C4 (design §1) is a *magnitude* cone on ψ=θ−φ, which
+the as-built widened to 150° and part-timed under pose-φ noise — leaving C3 to do the real
+search-collapse. The double pendulum's *stronger* fact was never encoded: **ψ is monotone with a
+single reversal at the top**, exactly as C3 constrains θ. ψ cocks (address→top), reverses once at
+transition, releases (transition→impact→finish); re-hinge in the downswing / un-hinge in the
+backswing is anatomically impossible. Since θ=ψ+φ and the arm φ moves, "ψ one-sided per phase" is
+*strictly stronger* than C3's "θ one-sided per phase". Full write-up: design §8; research §3.8a/§4.6.
+
+**The change.** Recast C4 as a **DP transition term on Δψ = Δθ − Δφ**, parallel to C3's on Δθ:
+phase-signed sign-lock (free **window** at transition for the release-lag), rate bound |Δψ|≤ψ̇_max
+(WMAX-class, corpus-set), mild smoothness. **No state-space growth** — ψ_f=θ_f−φ_f reads only the DP
+state θ_f and the per-frame-constant φ_f. Data-driven requirements (below): de-spike φ (median +
+unit-vector Gaussian + outlier reject), key on Δψ *sign/trend* not magnitude, relax at the top (C3
+strong there), give the reversal a *window* (release lag).
+
+**GATE-0 — hand markup on s01, PASSED (2026-07-06, dev box).** Before touching the DP, the law was
+measured on real frames (governance §1: exemplar-first, prove it before you build it). Mark
+hand-marked the shaft of s01 → `/mnt/swingdata/Mark-Liversedge/2026-07-05_Mark-Liversedge_Wrist_02/
+swing_0001/truth.json` (121 grip+head+θ labels + P1–P10 events; honest blur gaps from f504). Analysis
+script stashed `…/tape_20260705/s01/psi_plot.py`; figure `…/s01/psi_markup.png` (committed
+`docs/research/figures/club_track_psi_s01.png`, Fig 2 of the research paper). ψ = θ_markup − φ vs the
+pose φ (`s01/anchors.csv`) and the independent v2 fusion truth (`s01/fusion/faceon_swing_fusion.csv`):
+- **ψ monotone 55/58 backswing, 53/56 downswing**; all 6 exceptions on pose-φ glitch frames
+  (f447/449/452, f491/556/559) — not real reversals.
+- **θ hand-vs-v2 median 0.01° / p90 3.4°** (n=78 overlap) — independent adversarial cross-check of the
+  v2 truth (research §5.1's requirement), passed.
+- **The enemy is φ, not the physics:** θ (φ-independent) is pristinely monotone-one-reversal; all ψ
+  scatter is pose φ (median jump 1.6°/f, **max 87°, 17 frames >20°**, clustered at top+impact).
+- **Release lag:** ψ peaks ~8 frames after hand-top P4 (f482) → the transition window, and a coaching
+  metric in its own right.
+
+**Remaining gates (v3.0-internal → full protocol).** Changes the DP transition bands → the global path
+re-solves → the frozen v3.0 track changes → **not a companion**. Extend Set S synth (plant a
+ψ-non-monotone counterfeit — a line that satisfies C3 on θ but implies an impossible wrist — the rail
+must veto it) → s01 single-swing (coverage/accuracy through impact ≥ current v3.0, zero flips) →
+**corpus (studio PC) + fixture re-freeze**. Adjudicate, don't assume: (1) φ de-spike must not eat a
+real fast arm rotation at the top; (2) transition-window width vs the release lag on faster corpus
+swings ([[single-swing-never-judges-model-accuracy]]); (3) ψ̇_max from corpus, generous — never clip a
+fast release.
+
+### ACTION — v3.0 phase model: takeaway mislabelled as address  *(folds into the v3.0-r1 ψ-rail re-gate)*
 
 **Surfaced by v3.2 (2026-07-06).** `segment_phases` triggers the swing on **grip** speed (`SW_SPD=8 px/f`),
 but in the takeaway the club rotates about the wrist while the grip barely translates — grip speed is a
@@ -345,8 +387,12 @@ jittery pre-shot waggle can brush the creep threshold; the hysteretic walk-back 
 rise) handles it, watch the noisier corpus swings. (3) **`WMAX≈7`** is a s01 estimate — the corpus (faster
 / fuller swings) sets the real value; tune there, not on s01 ([[single-swing-never-judges-model-accuracy]]).
 
-> **Ordering:** DEFERRED — something is brewing with **C4** to explore first (Mark, 2026-07-06); revisit
-> this takeaway fix after the C4 exploration, since a C4 change may alter the takeaway constraint picture.
+> **Ordering:** the C4 exploration is now scoped and gate-0-proven — the **ψ-monotonicity rail**
+> (v3.0-r1 above, Mark 2026-07-06). Revisit this takeaway fix *together with* that rail in one
+> v3.0-internal corpus re-gate: the ψ-rail already de-throttles and carries the near-still early
+> takeaway (grip barely translates, but ψ evolves and the arm moves), so the two share a single
+> synth → s01 → corpus → freeze cycle rather than each paying for one. Re-check `tk0`/`WMAX["takeaway"]`
+> under the rail before committing the phase.
 
 ### v3.11 — IMU conditioning  *(deferred; needs the §2.2 IMU-bound capture)*
 One-directional (epistemic firewall): IMU conditions the *search*, never fits the truth. Corroborates C3's
@@ -405,6 +451,10 @@ Success = each phase's gate green on `tape_20260705`, adjudicated on full-res mo
   `address_theta_v3.py` (v3.2 address/hold θ); Set S generators `make_synth_v3.py` / `make_synth_v31.py`
   / `make_synth_v32.py`; corpus runners `run_v3_corpus.py` / `run_v31_corpus.py` (v3.2 runner owed);
   harvested counterfeit fixtures.
+- **Gate-0 ψ-rail (v3.0-r1) artefacts:** hand markup `…/2026-07-05_Mark-Liversedge_Wrist_02/swing_0001/
+  truth.json` (independent θ witness); analysis `…/tape_20260705/s01/psi_plot.py`; figure
+  `docs/research/figures/club_track_psi_s01.png`. Reuses `s01/anchors.csv` (pose φ) + `s01/fusion/
+  faceon_swing_fusion.csv` (v2 truth).
 - **Corpus/schema:** `src/Export/swing_exporter.cpp`, `swing_doc.cpp`, `swing_reanalyzer.cpp:536–553`
   (validity gates), `src/Pose/pose_estimator_vitpose.cpp` + `src/Analysis/pose_runner.cpp` (offline pose).
 - **Future port:** `.claude/attic/auto-markup-2026-07-02/shaft_annotate_port.{h,cpp}`,

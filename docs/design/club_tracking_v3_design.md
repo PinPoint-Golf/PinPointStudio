@@ -55,6 +55,15 @@ itself (ψ changes slowest exactly where θ changes fastest is *not* true
 near release, but ψ's bounds still hold; the DP transition model encodes
 both).
 
+> **Revised, 2026-07-06 — read with §8.** The *cone* above is a **magnitude**
+> bound on ψ, and the v3.0 as-built found it unrealisable as a search-space
+> reducer: pose φ jumps up to ~87°/frame at the top and through the blur, so the
+> cone had to be widened to 150° and switched off at address/finish/top, with C3
+> (not C4) carrying the real collapse. The *stronger* structure of the double
+> pendulum — that ψ is **monotone with a single reversal**, exactly C3's law but
+> on the wrist — was never encoded. §8 develops it as a DP transition rail; it is
+> the more important half of C4 and the current work-front.
+
 ## 2. v3.0 core: constrained global estimator
 
 State per frame: θ (shaft direction), with (s, r0) attached when bands
@@ -163,6 +172,7 @@ model (trivially derived from pose).
 | stage | content | gate |
 |---|---|---|
 | v3.0 | phase model, C1–C4 constraint set, DP estimator wrapping validated E1/E2 | synth gate extended with phases + body polygons + counterfeit population; corpus: zero adjudicated errors AND coverage ≥ v2.0 in down/thru, > 0 at finish + address-adjacent; determinism |
+| v3.0-r1 | **C4 ψ-monotonicity transition rail** (Δψ = Δθ − Δφ sign-lock + rate bound; §8) — the double pendulum's monotone structure, the substantive form of C4 replacing the wide cone | gate-0 (s01 hand markup) PASSED; then re-gate synth → s01 → corpus + fixture re-freeze; zero flips; coverage/accuracy through impact ≥ current v3.0; determinism |
 | v3.1 | shift-and-stack ROI + ω measurement in the blur zone | impact ±10 frames: θ/ω emitted with visual adjudication of stacked composites; ω(t) smooth, peak within physical range for a 7-iron; no regression elsewhere |
 | v3.2 | address/hold θ truth | agreement with stage-1 address meas (reliable there) + hand-label spot checks; zero flips |
 | v3.3 | heel/toe NN + data flywheel | beats classical stage-2 head on held-out instrumented swings; honesty clauses pass; frozen weights versioned |
@@ -182,9 +192,110 @@ test case).
 - **Phase mis-segmentation** on unusual swings (pumps, rehearsal waggles)
   → phase model must emit confidence; low-confidence spans fall back to
   v2.0's conservative rules.
+- **C4 ψ-rail is only as clean as φ's trend** (§8) → the ψ monotonicity is
+  pristine but pose φ spikes to ~87° at the top/impact; de-spike φ, key the
+  rail on the *sign/trend* of Δψ not instantaneous magnitude, and relax it at
+  the top (C3 covers direction there). Do **not** pin ψ's reversal to the
+  hand-top — give a transition window; the lag is player-dependent and is
+  itself a coaching metric.
 - **Left-handed athletes** → chirality from trajectory, mirrored anatomy
   bounds; add a LH capture to the corpus before v3.0 freezes.
 - **NN scope creep** → v3.3 is a keypoint head inside a physics ROI, not
   an end-to-end tracker; anything more waits for corpus evidence.
 - **Compute** → ROI-first ordering keeps full-res work bounded; DP grid
   is 1-D per frame (θ), cheap.
+
+## 8. C4 revisited — the ψ-monotonicity transition rail (2026-07-06)
+
+**The gap.** §1's C4 promised a per-frame reachable *cone* collapsing the θ
+search from 360° to tens of degrees. The v3.0 as-built (bible §6; impl §4) found
+that promise unrealisable — pose φ jumps up to ~87°/frame at the top and through
+the blur, so the cone was widened to 150° and switched off at address/finish/top,
+and **C3, not C4, carried the search-space collapse**. C4 survived only as a wide
+guardrail (an into-forearm veto plus removal of the reverse half-circle). But that
+cone is a **magnitude** bound on ψ = θ − φ, and it was the *only* part of the
+double-pendulum physics we encoded. The stronger structure was left out.
+
+**The stronger structure (Mark, 2026-07-06).** ψ obeys the same one-reversal law
+C3 gives θ, but on the *wrist*: from address to the top ψ cocks **monotonically**
+(the interior arm–shaft angle closing ≈180°→≈90°); at transition it reverses
+**once**; from transition through impact to the finish it releases
+**monotonically**. Re-hinging in the backswing, or un-hinging in the downswing, is
+anatomically impossible. Because θ = ψ + φ and the arm φ has its own motion,
+"ψ is one-sided per phase" is *strictly stronger* than "θ is one-sided per phase"
+(C3): it constrains the shaft's rotation **relative to the measured arm**.
+(Convention: signed ψ = θ − φ *increasing* through the backswing is the same
+physics as the coach's interior wrist angle *closing*; interior = 180° − |ψ|.)
+
+**The recast: C4 becomes a transition term, not a cone.** Model C4 as a DP
+transition cost on Δψ = Δθ − Δφ, structurally parallel to C3's cost on Δθ:
+
+- **Sign-lock (phase-signed):** cocking sign through the backswing, the opposite
+  through downswing→finish (both relative to the detected chirality); a
+  transition **window** around the top where the sign is free.
+- **Rate bound:** |Δψ| ≤ ψ̇_max — a wrist-hinge speed limit (WMAX-class,
+  corpus-set, generous enough never to clip a fast release).
+- **Smoothness:** a mild quadratic penalty on Δψ (or its curvature).
+
+This drops into the existing Viterbi **with no state-space growth**: ψ_f = θ_f −
+φ_f depends only on the DP state θ_f and the *per-frame constant* φ_f, so the
+transition (θ_{f−1}, θ_f) → cost still reads only the two adjacent θ states. It
+rides on top of C3; it does not replace it.
+
+**Why this succeeds where the cone failed.**
+
+1. **Monotonicity, not magnitude.** The standing warning is "do not tighten the
+   cone — it clips real swings" (bible invariant 5). A monotonicity constraint
+   never says ψ is *near* any value; it says ψ cannot reverse within a phase. It
+   clips only the physically-impossible paths — exactly what we want — and it is
+   far more forgiving of φ noise, needing only the *trend* of φ (Δφ over smoothed
+   φ), not its instantaneous value.
+2. **The arm becomes a witness for the club through the blur.** In the impact
+   zone — our thinnest coverage, where the DP free-runs on θ-smoothness across an
+   evidence-free gap — the arm is *more* measurable than the club (larger,
+   slower, less blurred). A bounded monotone-release rail pins θ = ψ + φ using the
+   well-tracked arm precisely where the club is invisible: a qualitatively better
+   bridge than "flattest θ path."
+
+**What it demands of φ.** The physics is clean; the noise is entirely in pose φ
+(§8 gate-0 below). So the rail must de-spike φ robustly (median + unit-vector
+Gaussian as v3.0 already does, plus outlier rejection), lean on the *sign/trend*
+of Δψ rather than instantaneous ψ, and **relax at the very top**, where φ is worst
+— conveniently the phase where C3 is already strongest.
+
+**The transition is not the hand-top.** ψ's reversal *lags* the hand-top for
+players who hold their cock into transition ("lag"). So the ψ-reversal must not be
+pinned to C3's top: give it a window and let evidence place it. The lag magnitude
+is itself a coaching metric (kinematic sequence).
+
+**Gate-0 — hand-verified on s01 (2026-07-06).** Before any DP change, the law was
+checked directly on real data. Mark hand-marked the shaft of corpus swing s01
+(`2026-07-05_…_Wrist_02/swing_0001`, 121 labels of grip+head+θ, honest gaps
+through the impact blur; artefact `truth.json`), and ψ = θ_markup − φ_pose was
+compared against the *independent* v2 fusion truth. Where the two θ sources
+overlap they agree to a **median of 0.01°** (p90 3.4°, n = 78). ψ is monotone on
+**55/58 backswing steps and 53/56 downswing steps** — and every one of the six
+exceptions falls on a pose-φ glitch frame, not a real wrist reversal. The θ
+trajectory (which owes nothing to φ) is pristinely monotone with a single reversal
+at the top; all residual ψ scatter is pose φ, which jumps a median of 1.6°/frame
+but **spikes to 87° on 17 frames** clustered at the top and impact. ψ's peak sits
+a few frames *after* the hand-top — the release lag. Figure 1 shows both panels.
+
+![s01 hand markup vs v2 truth: θ single-reversal arc, and ψ = θ − φ as a monotone tent with one reversal.](../research/figures/club_track_psi_s01.png)
+
+***Figure 1.** s01, hand markup vs v2 fusion truth. **Top:** shaft angle θ
+(unwrapped) — the two independent witnesses coincide (median 0.01°), a clean
+single-reversal arc (C3). The straight segment across f510–545 is the bridge over
+the impact-blur gap. **Bottom:** ψ = θ − φ with robustly-smoothed pose φ (green) —
+a textbook tent: cocks monotonically to the top, releases monotonically to the
+finish, one reversal. Grey dots are ψ with **raw** pose φ, exposing the φ-noise the
+rail must survive; red × is ψ from the v2 truth. Vertical lines mark P1–P10; the
+dashed line is the hand-top P4 (ψ peaks slightly later — the release lag).*
+
+**Status and cost.** This changes the DP transition bands → the frozen v3.0 track
+re-solves → it is **v3.0-internal**, requiring the full protocol (re-gate synth →
+s01 → corpus + fixture re-freeze), not an additive companion. It also
+**supersedes the blocker on the deferred takeaway-mislabel fix** (impl §4): a
+ψ-rail carries the near-still early takeaway (grip barely translates, but ψ is
+already evolving and the arm is moving), which is exactly why that fix was parked
+behind "explore C4 first."
