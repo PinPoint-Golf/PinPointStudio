@@ -311,6 +311,43 @@ s02–s10 impact + v2 truth are C:\-only, per §3). Runs `run_v32_corpus.py` (to
 address band meas (e.g. s07 f97–110), **0 flips**, byte-identical rerun on the canonical host. Then a
 fixture freeze on the studio PC.
 
+### ACTION — v3.0 phase model: takeaway mislabelled as address  *(deferred — explore C4 first)*
+
+**Surfaced by v3.2 (2026-07-06).** `segment_phases` triggers the swing on **grip** speed (`SW_SPD=8 px/f`),
+but in the takeaway the club rotates about the wrist while the grip barely translates — grip speed is a
+*lagging* proxy for club motion. So every frame before the first 8-px/f run (`bs0`) is dumped into `addr`,
+which mislabels the whole early takeaway. On s01 that is f≈384–423 (v2 fusion **band-tracked** it,
+θ 133→191°). **Two concrete harms** (measured, s01):
+- **Coverage** — those ~20–40 frames are emitted `pred` (the ray tier is off at `addr`), unpublished,
+  though v2 measured them → v3.0 *loses* takeaway coverage v2 had.
+- **Accuracy** — the pred track **lags the true club by 10–18°** through the mid-takeaway (v3 116/122/128
+  vs v2 133/140/143 at f398–402), the signature of `WMAX["addr"]=3.0` *throttling* the DP below the real
+  takeaway rate (~3.5°/f). So relabelling alone is insufficient — it would publish a lagged θ; the fix
+  must correct the DP **transition band**, not just the tier gate.
+
+**Proposed fix (v3.0-internal).** Add an explicit **`takeaway` phase** over `[tk0, bs0)`, where `tk0` is
+the hands-only creep onset — walk back from `bs0` over the grip-speed creep to the still threshold, the
+**same `tk0` `address_theta_v3.detect_hold` already computes** (factor into one shared helper so the v3.0
+takeaway-start and the v3.2 hold-end are the same boundary by construction). Give it `PHASE_SIGN=+1`
+(chirality), `WMAX≈7` (between addr 3 and backswing 9 — de-throttle without opening the band so wide the
+DP can jump to a counterfeit while the club is near-still), ray tier **enabled**, C4 wide cone enabled.
+Prefer a *distinct* phase over folding into backswing (`bs0:=tk0`): backswing's `WMAX=9` is too permissive
+for the near-still first takeaway frames.
+
+**Why not a companion:** this changes the DP's transition bands → the global path re-solves → the frozen
+v3.0 track changes. So it is **v3.0-internal** and requires the full protocol: re-gate synth → s01 →
+**corpus + fixture re-freeze** (studio PC). ~15 lines of code, but a corpus re-run, not a patch.
+
+**Adjudicate, don't assume:** (1) **C2** turns on for mid-swing — the club just leaving address can graze
+the trail leg/foot; it's a finite penalty and the takeaway has strong band evidence, but check those
+frames and fall back to "admit-not-sufficient" (like addr/impact) if it bites. (2) **Boundary/waggle** — a
+jittery pre-shot waggle can brush the creep threshold; the hysteretic walk-back (stop at the *sustained*
+rise) handles it, watch the noisier corpus swings. (3) **`WMAX≈7`** is a s01 estimate — the corpus (faster
+/ fuller swings) sets the real value; tune there, not on s01 ([[single-swing-never-judges-model-accuracy]]).
+
+> **Ordering:** DEFERRED — something is brewing with **C4** to explore first (Mark, 2026-07-06); revisit
+> this takeaway fix after the C4 exploration, since a C4 change may alter the takeaway constraint picture.
+
 ### v3.11 — IMU conditioning  *(deferred; needs the §2.2 IMU-bound capture)*
 One-directional (epistemic firewall): IMU conditions the *search*, never fits the truth. Corroborates C3's
 top; collapses the DP + shift-and-stack hypothesis sets; quarantines vision locks whose implied spin
