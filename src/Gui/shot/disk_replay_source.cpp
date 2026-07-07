@@ -40,10 +40,14 @@ constexpr qint64 kSlaveResyncMs = 120;
 
 constexpr int kPerspectiveFaceOn = 2;   // CameraInstance::FaceOn
 
-// Window-relative µs from an absolute analysis t_us (number), offset by t0.
+// Window-relative µs from an analysis t_us. Live captures write ABSOLUTE
+// (t0-based) analysis t_us, but re-analysed swings write WINDOW-RELATIVE ones
+// (the reconstructed window is 0-based). Subtract t0 only in the absolute domain
+// (value ≥ t0); pass already-relative values (≪ t0) through unchanged.
 qint64 relUs(const QJsonValue &v, qint64 t0)
 {
-    return static_cast<qint64>(v.toDouble()) - t0;
+    const qint64 t = static_cast<qint64>(v.toDouble());
+    return t >= t0 ? t - t0 : t;
 }
 
 // Copy a swing.json analysis sub-object (pose frame / club sample) to a QVariantMap

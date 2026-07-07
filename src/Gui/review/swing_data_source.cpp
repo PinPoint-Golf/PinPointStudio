@@ -319,6 +319,14 @@ void SwingDataSource::reload()
 
     const QJsonObject clock = m_doc.value(QStringLiteral("clock")).toObject();
     const qint64 t0 = qint64(clock.value(QStringLiteral("t0_us")).toDouble());
+    // Analysis t_us are ABSOLUTE (t0-based) for live captures but WINDOW-RELATIVE
+    // for re-analysed swings (the reconstructed window is 0-based). Normalise to
+    // window-relative either way: subtract t0 only in the absolute domain (≥ t0);
+    // already-relative values (≪ t0) pass through unchanged.
+    const auto toRel = [t0](double raw) -> qint64 {
+        const qint64 t = qint64(raw);
+        return t >= t0 ? t - t0 : t;
+    };
     const QJsonObject win = m_doc.value(QStringLiteral("window")).toObject();
     qint64 spanEnd = qint64(win.value(QStringLiteral("end_us")).toDouble());
 
@@ -390,7 +398,7 @@ void SwingDataSource::reload()
         // video streams are parsed only for provenance (no default lane).
     }
 
-    // ── analysis (absolute t_us → offset by t0) ──────────────────────────────
+    // ── analysis (absolute OR window-relative t_us → window-relative via toRel) ─
     const QJsonObject analysis = m_doc.value(QStringLiteral("analysis")).toObject();
 
     // metrics
@@ -409,7 +417,7 @@ void SwingDataSource::reload()
         const int count = std::min(tArr.size(), vArr.size());
         s.t.reserve(count); s.value.reserve(count);
         for (int i = 0; i < count; ++i) {
-            s.t.push_back(qint64(tArr.at(i).toDouble()) - t0);
+            s.t.push_back(toRel(tArr.at(i).toDouble()));
             s.value.push_back(vArr.at(i).toDouble());
         }
         if (!s.t.isEmpty()) { computeCadence(s); m_all.push_back(s); }
@@ -439,7 +447,7 @@ void SwingDataSource::reload()
                     if (ci < kp.size()) { sum += kp.at(ci).toDouble(); ++got; }
                 }
                 const double meanScore = got ? sum / got : 0.0;
-                s.t.push_back(qint64(fo.value(QStringLiteral("t_us")).toDouble()) - t0);
+                s.t.push_back(toRel(fo.value(QStringLiteral("t_us")).toDouble()));
                 s.value.push_back(meanScore);
                 s.conf.push_back(meanScore);
             }
@@ -462,20 +470,20 @@ void SwingDataSource::reload()
         s.t.reserve(cs.size()); s.value.reserve(cs.size()); s.conf.reserve(cs.size());
         for (const QJsonValue &cv : cs) {
             const QJsonObject co = cv.toObject();
-            s.t.push_back(qint64(co.value(QStringLiteral("t_us")).toDouble()) - t0);
+            s.t.push_back(toRel(co.value(QStringLiteral("t_us")).toDouble()));
             s.value.push_back(co.value(QStringLiteral("theta")).toDouble() * kRad2Deg);
             s.conf.push_back(co.value(QStringLiteral("conf")).toDouble());
         }
         if (!s.t.isEmpty()) { computeCadence(s); m_all.push_back(s); }
     }
 
-    // phases (absolute → relative)
+    // phases (absolute OR window-relative → window-relative via toRel)
     const QJsonArray phases = analysis.value(QStringLiteral("phases")).toArray();
     for (const QJsonValue &pv : phases) {
         const QJsonObject po = pv.toObject();
         QVariantMap p;
         p[QStringLiteral("label")] = phaseLabel(po.value(QStringLiteral("phase")).toInt());
-        p[QStringLiteral("t_us")]  = qint64(po.value(QStringLiteral("t_us")).toDouble()) - t0;
+        p[QStringLiteral("t_us")]  = toRel(po.value(QStringLiteral("t_us")).toDouble());
         p[QStringLiteral("kind")]  = QStringLiteral("phase");
         m_phases.append(p);
     }
