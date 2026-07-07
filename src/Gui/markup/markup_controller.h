@@ -70,6 +70,10 @@ class MarkupController : public QObject
     Q_PROPERTY(QVariantList eventList     READ eventList     NOTIFY labelsChanged)
     Q_PROPERTY(QVariantList shaftList     READ shaftList     NOTIFY labelsChanged)
     Q_PROPERTY(QVariantList labelledFrames READ labelledFrames NOTIFY labelsChanged)
+    // ── stationary ball centre (truth.json "ball") ───────────────────────────
+    // A single per-swing point (the ball doesn't move) — {has, nx, ny}, normalized.
+    // Ground truth for the ball-detector v2 position gate.
+    Q_PROPERTY(QVariantMap  ballPoint     READ ballPoint     NOTIFY labelsChanged)
     // ── capture conditions (truth.json "meta", for SwingLab) ─────────────────
     // Free-form strings; "" = unset. Canonical lowercase for the enums, a label
     // for club. Written additively, omitted when unset (see markup_truth). `scope`
@@ -128,6 +132,7 @@ public:
     QVariantList eventList()     const;
     QVariantList shaftList()     const;
     QVariantList labelledFrames() const;
+    QVariantMap  ballPoint()     const;
     bool         panelVisible()  const { return m_panelRefs > 0; }
 
     QString      metaLighting()  const { return m_truth.meta.lighting; }
@@ -172,6 +177,11 @@ public:
     Q_INVOKABLE void clearShaft();
     Q_INVOKABLE void setEvent(const QString &name);
     Q_INVOKABLE void clearEvent(const QString &name);
+
+    // Stationary ball centre — a single per-swing point (the ball doesn't move),
+    // marked with one click. setBall places/moves it; clearBall removes it.
+    Q_INVOKABLE void setBall(double nx, double ny);
+    Q_INVOKABLE void clearBall();
 
     Q_INVOKABLE bool save();
     Q_INVOKABLE void revert();

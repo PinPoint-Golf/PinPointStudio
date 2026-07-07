@@ -30,6 +30,8 @@
 //                  "theta": atan2(hy-gy, hx-gx), "len": hypot } ... ],
 //     "events": { "t0_us": frames.t_us[0],
 //                 "<name>_s": (frame_t_us - t0)/1e6 },     // only marked events
+//     "ball":   [px,py],                                   // stationary ball
+//                                                     // centre; additive, omit if unset
 //     "meta":   { "lighting":, "shaft":, "club":, "scope":, "tempo":,
 //                 "contact":, "clubLeavesFrame": } }       // additive; only set
 //                                                     // fields, omitted if none
@@ -90,6 +92,17 @@ struct ShaftLabel {
     double headNx = 0.0, headNy = 0.0;
 };
 
+// The stationary ball centre, normalized [0..1] in the displayed video space.
+// The ball does not move during a swing, so this is a single per-swing point
+// (marked once), NOT a per-frame track like ShaftLabel. `has` is false until
+// placed — the "ball" key is then omitted on write (additive, like TruthMeta).
+// This is the ground truth for the ball-detector v2 position gate
+// (docs/design/ball_detection_v2.md §9.1).
+struct BallLabel {
+    double nx = 0.0, ny = 0.0;
+    bool   has = false;
+};
+
 // Capture-conditions metadata, persisted additively under truth.json "meta".
 // Free-form strings so the SwingLab corpus can be filtered/segmented by capture
 // conditions; canonical lowercase for the enums, a label for club. An empty
@@ -119,6 +132,7 @@ struct TruthMeta {
 struct TruthDoc {
     QMap<int, ShaftLabel> shaft;   // frameIndex -> endpoints
     QMap<QString, int>    events;  // eventName  -> frameIndex
+    BallLabel             ball;    // stationary ball centre (per-swing, optional)
     TruthMeta             meta;    // capture conditions (lighting / shaft / club)
 };
 

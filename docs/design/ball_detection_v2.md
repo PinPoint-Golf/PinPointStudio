@@ -124,6 +124,40 @@ N(x,y)   = (R − B) / noise                                        "novelty", d
 `r̂` is the current radius estimate (§4.4). Before any radius is known, run 3 scales
 (r ∈ {5, 8, 12} px scaled by frameWidth/1280) and let the lock pick the winner.
 
+### 4.1a Search-space prior — the stance corridor
+
+Golf geometry bounds where a stationary ball can be, and PinPoint already measures it. The face-on
+`CameraInstance` runs the pose estimator on the *same* frames as the ball detector (the
+`FrameThrottle` consumerCount = 2 is pose + ball), so the COCO ankle keypoints (15 left, 16 right)
+are in hand at **zero extra inference**. They define a per-frame **search corridor** `S`:
+
+```
+S = { x ∈ [min(ankleX) − m, max(ankleX) + m],  y ∈ [ankleLine, groundLine] }
+    m ≈ 0.5·(stance width)      groundLine = ROI/frame bottom
+```
+
+The ball is *always* horizontally between the feet (front-to-back stance width — true even for a
+driver, which sits inside the lead foot) and *always* below the ankle line (it rests on the ground;
+the ankle joints project above it). Peak search (§4.2 SEARCH) is restricted to `S`. This is a
+causal, per-golfer replacement for the static band prior (`y ∈ [890, h]`) the prototype used: it
+moves with the golfer (no ROI re-aim), it is a fraction of the band's area (cheaper), and it
+excludes whole distractor classes *before candidacy* rather than relying on them failing to lock
+(§4.3).
+
+`S` is an **additive robustness layer, not a hard dependency**. It is used only in SEARCH/CANDIDATE —
+once LOCKED the tracker monitors the frozen spot, so corridor drift during the downswing (weight
+transfer, trail-heel lift) is irrelevant: the ball was acquired at address, when the stance is
+stillest. When pose is unavailable (inference off, low keypoint confidence, or the golfer has not
+yet entered frame) the detector falls back to the static ROI band and loses only the distractor
+pruning, never the ability to lock. Face-on only; the hitting-area ROI is already face-on.
+
+**Clubhead at address** is the corollary: the club is presented to the ball at address, so a
+freshly-placed ball normally has an adjacent bright, ball-scale feature (often chrome). The lock
+must therefore *not* reject a candidate merely because something touches it — if anything the
+adjacent head is weak corroboration at the lock instant. That same head becomes the §4.3
+chrome-glint distractor once motion starts; the temporal logic already kills it (it moves, and the
+ball's spot is baseline-frozen before the head swings back through).
+
 ### 4.2 State machine
 
 ```
@@ -138,7 +172,8 @@ N(x,y)   = (R − B) / noise                                        "novelty", d
 ```
 
 - **SEARCH** (per frame): find local maxima of `N` above `k_appear = 5` with ball-scale support
-  (non-max suppression radius 2r̂). Track up to K=3 peaks frame-to-frame.
+  (non-max suppression radius 2r̂), **restricted to the stance corridor `S` (§4.1a)** when pose is
+  available (else the static ROI band). Track up to K=3 peaks frame-to-frame.
 - **CANDIDATE → LOCKED**: same peak within ±2 px for `T_lock = 0.5 s` of detector frames, median
   `N ≥ k_lock = 5`. On lock: freeze sub-pixel centre (§4.4), radius, a small self-template
   (grayscale patch, for the optional verification cue), the locked response level
@@ -156,9 +191,14 @@ N(x,y)   = (R − B) / noise                                        "novelty", d
 
 ### 4.3 Why each distractor fails to lock
 
+Two layers reject distractors: the stance corridor `S` (§4.1a) removes everything outside the
+between-feet, below-ankle region *before* it can become a candidate; the temporal logic below
+handles what remains inside the corridor.
+
 | Distractor | Killed by |
 |---|---|
-| Painted line / pool edge / mat speckle | in baseline `B` → novelty ≈ 0 |
+| Anything outside the between-feet / below-ankle region | not in corridor `S` (§4.1a) → never searched (the painted line's outer run, pool edge, distant chrome, both shoes) |
+| Painted line / pool edge / mat speckle (the part inside `S`) | in baseline `B` → novelty ≈ 0 |
 | Player shadow sweeping | large-scale → no DoG response at ball scale |
 | White shoes | foot-scale (≫ 3σ₁) → weak response; and they move |
 | Club-head chrome glint at address | moves with every waggle → never passes T_lock; and typically arrives after the ball is already LOCKED (its spot is baseline-frozen, not searched) |
@@ -219,7 +259,7 @@ cues can vanish entirely.
 | `medP − |medA|` self-location | not needed — placement novelty + stability lock does it causally |
 | present/absent frame sets around impactUs | LOCKED at-spot monitor before/after the collapse edge |
 | 43/44 clean separation | presence + launch reliability claim, per §9 gates |
-| band prior y ∈ [890, h] | the existing user hitting-area ROI (`setRoi`, unchanged) |
+| band prior y ∈ [890, h] | the pose-derived stance corridor `S` (§4.1a), falling back to the user hitting-area ROI (`setRoi`) when pose is absent |
 
 The offline form remains valuable as-is: `swing_reanalyzer`/SwingLab can locate the ball and
 launch frame at 149 fps precision in recorded windows (low-point metric, export overlays) using
@@ -274,7 +314,13 @@ Changes:
   ~12 frames is the planned follow-up once field-confirmed (unchanged from v1 doc §11).
 - **Frame timestamps**: `VideoPreprocessorOpenCV::framePreprocessed` (and the raw-path
   equivalent) gain `qint64 timestampUs` sourced from the capture pipeline's existing EventBuffer
-  clock. This is the one change outside `src/Pose/`.
+  clock. One of two changes outside `src/Pose/` (the other is the stance-corridor input below).
+- **Stance-corridor input** (§4.1a): the pose estimator already running on the face-on
+  `CameraInstance` pushes its latest ankle line to `BallDetector` via a cheap queued setter modelled
+  on `setRoi` — e.g. `setStanceBounds(QPointF leftAnkleN, QPointF rightAnkleN, float conf)` in
+  normalized frame coords — with a staleness/confidence guard and static-band fallback. No new
+  inference; SEARCH-phase only. This is also what answers the v1 auto-ROI question (§10): the stance
+  *is* the search region.
 - Per-cameraKey persistence (radius/spot EMA — §4.4) goes through the single shared `AppSettings`
   instance (CLAUDE.md rule), auto-written, no UI.
 
@@ -343,8 +389,15 @@ runs on every corpus session including future ones; same role SwingLab plays for
   corpus has no tee'd swings yet — add a session to the corpus before declaring Swing-type done.
 - **Wrist/GRF/Coach sessions without a ball**: SEARCH simply never locks; `ballPresent` stays
   false; nothing fires. No per-session-type gating needed beyond the existing `ballEnabled`.
-- **Open**: should `ballLocked` position feed the hitting-area ROI auto-placement (draw the ROI
-  around where the ball repeatedly appears)? Deferred — UX question, not detection.
+- **Pose availability for the stance corridor** (§4.1a): when pose inference is off or
+  low-confidence the corridor is unavailable and the detector falls back to the static ROI band —
+  correct, but with the full distractor surface. If a session runs ball detection *without* pose,
+  the band must be a real (user or auto) ROI, not the whole frame. Acceptable; verify in field
+  validation (§9.4).
+- **Resolved (was open in v1)**: hitting-area ROI auto-placement — the stance corridor derives the
+  search region causally, so the ROI can be auto-seeded from where the stance repeatedly sits
+  rather than hand-drawn. Ship the manual ROI editor as the fallback; auto-seed is a follow-up UX
+  polish, not a detection dependency.
 
 ## 11. Implementation plan (handoff)
 
@@ -360,3 +413,10 @@ runs on every corpus session including future ones; same role SwingLab plays for
 Sequencing note for the implementer: V0 before V1 is deliberate — every algorithmic decision in
 §4 was reached by measuring this corpus, and the acceptance harness is how you know your C++
 matches the evidence. Do not skip to C++ and tune live.
+
+The grounded, file-referenced execution plan (real integration points, delete-vs-rework of the v1
+footprint, the stance corridor threaded through V0–V2, and the ground-truth labelling route) lives
+in [`docs/implementation/ball_detection_v2_impl_plan.md`](../implementation/ball_detection_v2_impl_plan.md).
+Ground-truth ball centres for the §9.1 position gate come from the in-app markup tool
+(`PpMarkupPanel`): a single per-swing ball marker (the ball is stationary), exported to each
+swing's `truth.json` — no separate labelling harness.

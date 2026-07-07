@@ -11,6 +11,7 @@
 #include "../markup_truth.h"
 
 #include <QString>
+#include <cmath>
 #include <cstdio>
 
 using namespace pinpoint::markup;
@@ -49,6 +50,10 @@ int main(int argc, char **argv)
     stamped.meta.tempo    = QStringLiteral("slow");
     stamped.meta.contact  = QStringLiteral("air");
     stamped.meta.clubLeavesFrame = true;
+    // Stationary ball centre (additive "ball" [px,py]).
+    stamped.ball.nx  = 0.5123;
+    stamped.ball.ny  = 0.9210;
+    stamped.ball.has = true;
 
     QString err;
     if (!writeTruth(swingDir, stamped, fo, &err)) {
@@ -75,6 +80,14 @@ int main(int argc, char **argv)
         || reread.meta.contact != QLatin1String("air")
         || !reread.meta.clubLeavesFrame) {
         std::fprintf(stderr, "meta round-trip FAILED\n");
+        return 1;
+    }
+
+    std::printf("ball:   has=%d nx=%.4f ny=%.4f\n", reread.ball.has, reread.ball.nx, reread.ball.ny);
+    if (!reread.ball.has
+        || std::abs(reread.ball.nx - 0.5123) > 1e-3
+        || std::abs(reread.ball.ny - 0.9210) > 1e-3) {
+        std::fprintf(stderr, "ball round-trip FAILED\n");
         return 1;
     }
     std::printf("OK\n");

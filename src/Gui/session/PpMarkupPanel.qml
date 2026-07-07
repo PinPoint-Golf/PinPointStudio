@@ -44,6 +44,10 @@ Item {
     property real gripNx: 0
     property real gripNy: 0
 
+    // Ball tool: when armed, the next frame click places the stationary ball
+    // centre (one click — the ball doesn't move) and disarms. Toggle with 'b'.
+    property bool ballMode: false
+
     readonly property var pDefs: [
         { key: "1", name: "p1",  label: "P1",  desc: "Address" },
         { key: "2", name: "p2",  label: "P2",  desc: "Club parallel (back)" },
@@ -134,6 +138,11 @@ Item {
             else markupController.clearShaft()
             e.accepted = true; break
         case Qt.Key_C:   markupController.clearShaft(); e.accepted = true; break
+        case Qt.Key_B:
+            root.ballMode = !root.ballMode
+            if (root.ballMode) root.pendingGrip = false
+            overlay.requestPaint()
+            e.accepted = true; break
         case Qt.Key_S:   markupController.showSkeleton = !markupController.showSkeleton; e.accepted = true; break
         case Qt.Key_Q:   markupController.save();       e.accepted = true; break
         case Qt.Key_0: case Qt.Key_1: case Qt.Key_2: case Qt.Key_3: case Qt.Key_4:
@@ -145,7 +154,7 @@ Item {
     Connections {
         target: markupController
         function onFrameChanged() { root.pendingGrip = false; overlay.requestPaint() }
-        function onCurrentChanged() { root.pendingGrip = false }
+        function onCurrentChanged() { root.pendingGrip = false; root.ballMode = false }
         function onLabelsChanged() { overlay.requestPaint() }
         function onPoseChanged() { overlay.requestPaint() }
         function onMessage(text) { toast.show(text) }
@@ -293,6 +302,19 @@ Item {
                             ctx.strokeStyle = Theme.colorGood; ctx.lineWidth = 1
                             ctx.beginPath(); ctx.arc(pgx, pgy, 9, 0, 2 * Math.PI); ctx.stroke()
                         }
+
+                        // Stationary ball centre (marked once) — a reticle that reads
+                        // on any background: dark halo + bright ring + centre dot.
+                        var b = markupController.ballPoint
+                        if (b && b.has) {
+                            var bx = frameImg.sx(b.nx), by = frameImg.sy(b.ny)
+                            ctx.lineWidth = 3; ctx.strokeStyle = Qt.rgba(0, 0, 0, 0.55)
+                            ctx.beginPath(); ctx.arc(bx, by, 11, 0, 2 * Math.PI); ctx.stroke()
+                            ctx.lineWidth = 2; ctx.strokeStyle = Qt.rgba(0.20, 0.95, 0.80, 0.95)
+                            ctx.beginPath(); ctx.arc(bx, by, 11, 0, 2 * Math.PI); ctx.stroke()
+                            ctx.fillStyle = Qt.rgba(0.20, 0.95, 0.80, 0.95)
+                            ctx.beginPath(); ctx.arc(bx, by, 2.5, 0, 2 * Math.PI); ctx.fill()
+                        }
                     }
                 }
 
@@ -302,6 +324,12 @@ Item {
                     cursorShape: Qt.CrossCursor
                     onClicked: function (m) {
                         var nx = frameImg.toNx(m.x), ny = frameImg.toNy(m.y)
+                        if (root.ballMode) {
+                            markupController.setBall(nx, ny)
+                            root.ballMode = false
+                            root.forceActiveFocus()
+                            return
+                        }
                         if (!root.pendingGrip) {
                             root.gripNx = nx; root.gripNy = ny; root.pendingGrip = true
                             overlay.requestPaint()
@@ -333,9 +361,12 @@ Item {
                             font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm; color: Theme.colorAccentLight
                         }
                         Text {
-                            text: (markupController.currentShaft && markupController.currentShaft.has) ? qsTr("◆ shaft") : (root.pendingGrip ? qsTr("◇ pick head") : qsTr("◇ pick grip"))
+                            text: root.ballMode ? qsTr("◇ click ball")
+                                  : (markupController.currentShaft && markupController.currentShaft.has) ? qsTr("◆ shaft")
+                                  : (root.pendingGrip ? qsTr("◇ pick head") : qsTr("◇ pick grip"))
                             font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm
-                            color: (markupController.currentShaft && markupController.currentShaft.has) ? Theme.colorGood : Theme.colorText3
+                            color: root.ballMode ? Theme.colorAccentLight
+                                   : (markupController.currentShaft && markupController.currentShaft.has) ? Theme.colorGood : Theme.colorText3
                         }
                     }
                 }
@@ -426,6 +457,41 @@ Item {
                                 if (root.pendingGrip) { root.pendingGrip = false; overlay.requestPaint() }
                                 else markupController.clearShaft() } }
                             MlButton { text: qsTr("Clear (c)"); onClicked: markupController.clearShaft() }
+                        }
+                    }
+
+                    // BALL (stationary — mark once)
+                    Column {
+                        width: parent.width; spacing: Theme.sp(8)
+                        MlSection { text: qsTr("BALL") }
+                        Text {
+                            width: parent.width; wrapMode: Text.WordWrap
+                            text: qsTr("The ball is stationary — mark it once. Press ‘Place ball’, then click the ball centre; it applies to every frame of the swing.")
+                            font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel; color: Theme.colorText3
+                        }
+                        Row {
+                            spacing: Theme.sp(8)
+                            MlButton {
+                                text: root.ballMode ? qsTr("Click the ball…")
+                                      : ((markupController.ballPoint && markupController.ballPoint.has) ? qsTr("Move ball (b)") : qsTr("Place ball (b)"))
+                                accent: root.ballMode
+                                onClicked: { root.ballMode = true; root.pendingGrip = false; overlay.requestPaint(); root.forceActiveFocus() }
+                            }
+                            MlButton {
+                                text: qsTr("Clear ball")
+                                enabled: markupController.ballPoint && markupController.ballPoint.has
+                                onClicked: { markupController.clearBall(); root.forceActiveFocus() }
+                            }
+                        }
+                        Text {
+                            width: parent.width; wrapMode: Text.WordWrap
+                            readonly property var _b: markupController.ballPoint
+                            visible: _b && _b.has
+                            // Guard the whole expression: `visible: false` does NOT
+                            // stop the text binding evaluating, so nx/ny must not be
+                            // dereferenced when no ball is set (they're undefined).
+                            text: (_b && _b.has) ? qsTr("◆ ball at %1, %2").arg(_b.nx.toFixed(3)).arg(_b.ny.toFixed(3)) : ""
+                            font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel; color: Theme.colorGood
                         }
                     }
 

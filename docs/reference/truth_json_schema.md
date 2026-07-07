@@ -8,7 +8,7 @@ There are **two variants** with overlapping but distinct shapes:
 
 | Variant | Producer | `meta.source` | Blocks | Purpose |
 |---|---|---|---|---|
-| **Markup / human** (Tier-3) | `tools/swinglab/swinglab/label.py`, the in-app markup lab (`src/Gui/markup/`) | *absent* | `shaft`, `events`, `meta` | Hand-labelled ground truth. The primary validation truth `score.py` reads. |
+| **Markup / human** (Tier-3) | `tools/swinglab/swinglab/label.py`, the in-app markup lab (`src/Gui/markup/`) | *absent* | `shaft`, `events`, `ball`, `meta` | Hand-labelled ground truth. The primary validation truth `score.py` reads. |
 | **Instrumented / auto** | `tools/shaftlab/{club_track_v3,stripe_annotate,stripe_fusion}.py --truth-out` | `"instrumented"` | `meta`, `shaft` | Auto-generated from a **taped** (retro-band) club — only ratio-verified frames. No `events`. |
 
 The instrumented writer **refuses to overwrite** a truth.json whose `meta.source` is not `"instrumented"` — so hand markup is never clobbered by an auto run.
@@ -31,6 +31,7 @@ The instrumented writer **refuses to overwrite** a truth.json whose `meta.source
 - **`len`** — pixels, `hypot(head − grip)`.
 - **`events.<name>_s`** — event time in **seconds**, relative to `events.t0_us`: `(frame_t_us − t0_us) / 1e6`. Only *marked* events appear.
 - **`events.t0_us`** — the anchor (the face-on `frames.t_us[0]`), window-relative.
+- **`ball`** — `[x, y]` **pixels** at source resolution (same convention as `grip`/`head`), the stationary ball centre for the whole swing. A single point (the ball doesn't move) — marked once; **absent when unplaced**. Ground truth for the ball-detector v2 position gate.
 
 ---
 
@@ -52,6 +53,7 @@ The shape `label.py` writes and `score.py` reads (Tier-3). Example (`2026-07-03_
     "p1_s": 2.4515, "p2_s": 2.8000, "p3_s": 2.9609, "p4_s": 3.2151, "p5_s": 3.3493,
     "p6_s": 3.4362, "p7_s": 3.4832, "p8_s": 3.5770, "p9_s": 3.5970, "p10_s": 4.0192
   },
+  "ball": [655.74, 941.4],
   "meta": {
     "club": "GAP WEDGE", "shaft": "steel", "lighting": "normal",
     "scope": "full", "tempo": "normal", "contact": "ball"
@@ -103,6 +105,14 @@ Free-form strings for corpus filtering/segmentation; **unset fields are omitted*
 | `tempo` | `slow` \| `normal` \| `fast` | |
 | `contact` | `ball` \| `air` \| `mishit` | |
 | `clubLeavesFrame` | bool | Head exits frame mid-swing (explains low coverage). Omitted when false. |
+
+### `ball` — stationary ball centre (additive)
+
+`[x, y]` in **pixels** at source resolution (same convention as `grip`/`head`). The ball is stationary until struck, so this is a **single per-swing point** — marked once in the markup lab (one click) and applied to every frame. **Omitted when unplaced** (preserving the legacy byte-shape). The ground truth for the ball-detector v2 self-location / position gate ([`ball_detection_v2.md`](../design/ball_detection_v2.md) §9.1).
+
+| Field | Type | Notes |
+|---|---|---|
+| `ball` | float[2] | Ball centre, **pixels** @ source W×H. Absent until marked. |
 
 ---
 

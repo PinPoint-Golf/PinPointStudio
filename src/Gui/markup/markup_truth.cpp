@@ -152,6 +152,13 @@ QJsonObject toJson(const TruthDoc &doc, const FaceOnInfo &fo)
     root.insert(QStringLiteral("shaft"),  shaftArr);
     root.insert(QStringLiteral("events"), ev);
 
+    // Stationary ball centre — additive, pixels @ source res like grip/head.
+    // Omitted when unplaced so a swing with no ball keeps the legacy byte-shape.
+    if (doc.ball.has) {
+        root.insert(QStringLiteral("ball"),
+                    QJsonArray{ doc.ball.nx * fo.srcWidth, doc.ball.ny * fo.srcHeight });
+    }
+
     // Capture conditions — additive, set fields only. Omitted entirely when unset
     // so a swing with no conditions keeps the legacy shaft/events-only shape.
     QJsonObject meta;
@@ -225,6 +232,14 @@ TruthDoc readTruth(const QString &swingDir, const FaceOnInfo &fo)
         const qint64 tu = t0 + qint64(std::llround(ev.value(key).toDouble() * 1e6));
         const int idx = frameIndexForUs(fo, tu);
         if (idx >= 0) doc.events.insert(it.value(), idx);
+    }
+
+    // Stationary ball centre (additive; absent on legacy files → unset).
+    const QJsonArray ball = root.value(QStringLiteral("ball")).toArray();
+    if (ball.size() >= 2) {
+        doc.ball.nx  = ball[0].toDouble() / W;
+        doc.ball.ny  = ball[1].toDouble() / H;
+        doc.ball.has = true;
     }
 
     // Capture conditions (additive; absent on legacy files → all unset).

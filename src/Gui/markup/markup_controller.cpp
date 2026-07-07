@@ -291,6 +291,16 @@ QVariantMap MarkupController::currentShaft() const
     return m;
 }
 
+QVariantMap MarkupController::ballPoint() const
+{
+    QVariantMap m;
+    if (!m_truth.ball.has) { m.insert(QStringLiteral("has"), false); return m; }
+    m.insert(QStringLiteral("has"), true);
+    m.insert(QStringLiteral("nx"),  m_truth.ball.nx);
+    m.insert(QStringLiteral("ny"),  m_truth.ball.ny);
+    return m;
+}
+
 QVariantMap MarkupController::currentPose() const
 {
     QVariantMap m;
@@ -429,6 +439,29 @@ void MarkupController::clearEvent(const QString &name)
     }
 }
 
+// ── stationary ball centre ───────────────────────────────────────────────────
+// One per-swing point: the ball is stationary until struck, so it is marked once
+// (not per frame like the shaft). Normalized [0..1]; persisted as truth.json
+// "ball" [px,py]. Ground truth for the ball-detector v2 position gate.
+
+void MarkupController::setBall(double nx, double ny)
+{
+    if (!hasSwing()) return;
+    m_truth.ball.nx  = std::clamp(nx, 0.0, 1.0);
+    m_truth.ball.ny  = std::clamp(ny, 0.0, 1.0);
+    m_truth.ball.has = true;
+    setDirty(true);
+    emit labelsChanged();
+}
+
+void MarkupController::clearBall()
+{
+    if (!m_truth.ball.has) return;
+    m_truth.ball = BallLabel{};
+    setDirty(true);
+    emit labelsChanged();
+}
+
 // ── capture conditions ───────────────────────────────────────────────────────
 
 void MarkupController::setMetaLighting(const QString &v)
@@ -502,7 +535,8 @@ bool MarkupController::save()
         setDirty(false);
         rebuildSwingsCache();
         emit swingsChanged();
-        emit message(QStringLiteral("Saved %1 shaft / %2 events").arg(shaftCount()).arg(eventCount()));
+        emit message(QStringLiteral("Saved %1 shaft / %2 events%3").arg(shaftCount()).arg(eventCount())
+                         .arg(m_truth.ball.has ? QStringLiteral(" / ball") : QString()));
     } else {
         emit message(QStringLiteral("Save failed: %1").arg(err));
     }
