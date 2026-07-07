@@ -148,6 +148,14 @@ struct SwingExportJob {
     QString athleteName, athleteUuid, handedness;
     QString sessionId;     // session folder name, e.g. "2026-06-05_Mark-Liversedge_Swing_01"
 
+    // Club geometry for the shaft tracker's E1 band matcher, resolved from the
+    // athlete's active club at capture and persisted into capture.club so
+    // re-analysis can recover it (swing.json is otherwise the only record of the
+    // club used). Empty/0 ⇒ the club block is omitted.
+    double  clubLengthM = 0.0;             // metres
+    QString shaftType;                     // "steel" | "graphite" | ""
+    std::vector<double> bandCentersMm;     // retro-band centres from the butt (mm)
+
     // UTC instant snapshotted on the UI thread right after the window was
     // captured — at that moment wallclock ~= monotonic endTimestampUs().
     QDateTime wallclockAnchorUtc;

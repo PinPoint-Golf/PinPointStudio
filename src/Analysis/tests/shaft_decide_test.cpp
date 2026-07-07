@@ -148,6 +148,29 @@ int main()
         check(std::abs(b.thetaOut[10] - 200.0) > 20.0, "θ pulled back toward the monotone rail");
     }
 
+    // ── vision-only segmentation mapping ─────────────────────────────────────
+    std::printf("=== phasesToSegmentation ===\n");
+    {
+        PhaseModel pm;
+        pm.bs0 = 40; pm.top = 80; pm.impact = 110; pm.fin0 = 150;
+        const int nf = 200;
+        std::vector<int64_t> tUs(nf);
+        for (int i = 0; i < nf; ++i) tUs[i] = int64_t(i) * 6700;   // ~149 fps
+        const Segmentation seg = phasesToSegmentation(pm, tUs, 0.5f);
+        check(seg.events.size() == 4, "four ladder events");
+        check(seg.conf == 0.5f, "vision-grade conf");
+        bool ordered = true;
+        for (size_t i = 1; i < seg.events.size(); ++i) if (seg.events[i].t_us < seg.events[i - 1].t_us) ordered = false;
+        check(ordered, "events time-ordered");
+        check(seg.events[0].phase == Phase::Address && seg.events[0].t_us == tUs[40], "Address at bs0");
+        check(seg.events[2].phase == Phase::Impact && seg.events[2].t_us == tUs[110], "Impact at impact frame");
+        check(seg.swingStartUs >= tUs.front() && seg.swingStartUs < tUs[40], "swingStart padded + clamped");
+        check(seg.swingEndUs <= tUs.back() && seg.swingEndUs > tUs[150], "swingEnd padded + clamped");
+        // degenerate (conf 0) still returns bounds but no swing claim
+        const Segmentation deg = phasesToSegmentation(pm, tUs, 0.0f);
+        check(deg.conf == 0.0f, "conf 0 passthrough (no swing)");
+    }
+
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);
     return g_fail;
 }

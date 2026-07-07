@@ -284,7 +284,11 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
                 : streams,
             segmentation.events, job.handedness);
     }
-    const std::vector<PhaseEvent> &phases = segmentation.events;
+    // Analysis degrades by device presence: IMU-only (segmentation + wrist
+    // metrics, no pose/shaft), camera-only (pose + shaft + vision-derived phase
+    // landmarks, reduced metrics), or fused (both). hasCamera gates the pose/
+    // shaft pass; the vision segmentation fallback is adopted below when !hasImu.
+    const bool hasCamera = job.faceOnCameraCount > 0 && !job.cameraSources.empty();
 
     auto detail   = std::make_shared<SwingAnalysis>();
 
@@ -293,7 +297,7 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
     // degrade to empty/invalid tracks, never to a failed analysis. Progress
     // budget: the IMU stages are near-instant, so the pose pass owns 10–70%
     // and the shaft detection scan 70–98% (the assembly tail is cheap).
-    if (job.faceOnCameraCount > 0 && !job.cameraSources.empty()) {
+    if (hasCamera) {
         ShotAnalysisRunnerOptions opt;
         opt.impactUs   = job.impactUs;
         opt.handedness = job.handedness;
@@ -318,8 +322,16 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
             ShotAnalysisJob sub = job;
             if (job.progress)
                 sub.progress = [&job](float f) { job.progress(0.70f + 0.28f * f); };
+            // Capture the tracker's hands-only phase model only when there is no
+            // IMU segmentation to fall back on (the trace is free otherwise).
+            ShaftTracker::ShaftTrace strace;
             detail->shaft = ShaftTracker::track(window, detail->pose2d, streams,
-                                                segmentation, sub);
+                                                segmentation, sub, hasImu ? nullptr : &strace);
+            // Camera-only: adopt the vision-derived segmentation so a webcam-only
+            // Wrist analysis still carries Address/Top/Impact/Finish landmarks +
+            // swing bounds (vision-grade conf; the UI fades low-confidence ticks).
+            if (!hasImu && strace.segmentation.conf > 0.f)
+                segmentation = strace.segmentation;
             if (detail->shaft.valid)
                 series.push_back(buildShaftLeanSeries(detail->shaft, job.handedness,
                                                       job.impactUs));
@@ -338,6 +350,8 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
         return r;
     }
 
+    // Bound AFTER the vision-segmentation fallback may have reassigned it.
+    const std::vector<PhaseEvent> &phases = segmentation.events;
     detail->series       = series;
     detail->phases       = phases;
     detail->segmentation = segmentation;

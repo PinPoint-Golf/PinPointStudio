@@ -480,6 +480,18 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
                    : hand.compare(QLatin1String("Right"), Qt::CaseInsensitive) == 0 ? 1
                                                                                      : 0;
 
+    // Club geometry (shaft-tracker E1 band matcher): recover the club that was
+    // used from capture.club (persisted since the club-persistence change). Absent
+    // on older swings → the shaft tracker runs ray-only (no band-lock DP wells).
+    const QJsonObject clubIn = captureIn[QStringLiteral("club")].toObject();
+    if (!clubIn.isEmpty()) {
+        const double lmm = clubIn[QStringLiteral("lengthMm")].toDouble(0.0);
+        if (lmm > 0.0) job.clubLengthM = lmm / 1000.0;
+        job.shaftType = clubIn[QStringLiteral("shaftType")].toString();
+        for (const QJsonValue& v : clubIn[QStringLiteral("bandCentersMm")].toArray())
+            job.bandCentersMm.push_back(v.toDouble());
+    }
+
     // IMU → segment bindings: the persisted session A/M calibration, serial-keyed.
     // Identity A/M is NOT synthesised — re-fusing without the recorded calibration
     // would be fabrication (mirrors swinglab_run).
@@ -542,13 +554,14 @@ ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOption
         out.error = QStringLiteral("This shot has no recorded impact time, so it can't be re-analysed.");
         return out;
     }
-    // Wrist analysis is IMU-driven: with no A/M bindings the fuser produces nothing
-    // and the analyzer would return a degenerate score-0 result that the caller
-    // would write back OVER the original valid analysis. Refuse instead — a swing
-    // exported before calibration/binding persistence simply cannot be re-fused.
-    if (ls.job.sessionType == 1 && ls.job.imuBindings.empty()) {
-        out.error = QStringLiteral("No IMU calibration was saved with this shot, so it can't be "
-                                   "re-analysed — it was captured before calibration was recorded.");
+    // Wrist analysis needs at least ONE usable modality. Without IMU A/M bindings
+    // the fuser produces nothing (wrist metrics can't be re-derived), but a face-on
+    // camera still yields a valid vision-only analysis (pose + shaft track + hands-
+    // only phase landmarks). Refuse only when NEITHER is present — that path would
+    // return a degenerate result the caller would write back over the original.
+    if (ls.job.sessionType == 1 && ls.job.imuBindings.empty() && ls.job.faceOnCameraCount == 0) {
+        out.error = QStringLiteral("No IMU calibration and no face-on camera were saved with this "
+                                   "shot, so it can't be re-analysed.");
         return out;
     }
 

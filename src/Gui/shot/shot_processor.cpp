@@ -663,6 +663,19 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
     job.sessionType = m_sessionType;
     job.shotSource  = static_cast<int>(m_shotSource);
     job.swingDetectionSensitivity = s->swingDetectionSensitivity();
+    // Club geometry (shaft-tracker E1 band matcher) — persisted into capture.club
+    // so re-analysis recovers the club that was used (mirrors buildAnalysisJob).
+    if (m_athlete && m_session) {
+        const QString club = m_session->activeClub();
+        if (!club.isEmpty()) {
+            const QVariantMap rec = m_athlete->clubsFor(m_athlete->currentUuid()).value(club).toMap();
+            const int lengthMm = rec.value(QStringLiteral("lengthMm")).toInt();
+            if (lengthMm > 0) job.clubLengthM = lengthMm / 1000.0;
+            job.shaftType = rec.value(QStringLiteral("shaftType")).toString();
+            const QVariantList bands = rec.value(QStringLiteral("bandCentersMm")).toList();
+            for (const QVariant &bv : bands) job.bandCentersMm.push_back(bv.toDouble());
+        }
+    }
     job.imuBleLatencyUs      = ImuInstance::kImuBleLatencyUs;
     job.audioDeviceLatencyUs = s->audioDeviceLatencyUs();
     job.host.appVersion = QStringLiteral(PP_APP_VERSION);

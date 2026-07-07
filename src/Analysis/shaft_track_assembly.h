@@ -228,7 +228,16 @@ struct ShaftDecideTrace {
     std::vector<int>    tier;       // 0 pred / 1 ray / 2 band / 3 recon
     std::vector<double> thetaDeg;   // reconciled θ (deg)
     std::vector<float>  conf;
+    // Vision-only phase landmarks (hands-only C3 model → app Segmentation),
+    // conf 0 when no swing was detected. Lets a camera-only (no-IMU) analysis
+    // surface Address/Top/Impact/Finish markers the tracker already computes.
+    Segmentation        segmentation;
 };
+
+// Map the hands-only phase model to an app Segmentation with real timestamps:
+// Address(bs0)/Top(top)/Impact(impact)/Finish(fin0) events + swing bounds, all
+// at the given (vision-grade) confidence. conf 0 ⇒ "bounds are just the window".
+Segmentation phasesToSegmentation(const PhaseModel& pm, const std::vector<int64_t>& tUs, float conf);
 
 // Returns CV_8UC1 grey for coverage-frame index i (0..nf-1), or empty when the
 // frame is undecodable. Called at stride 8 for the scene-background model and

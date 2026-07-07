@@ -637,6 +637,26 @@ void interpFillNan(std::vector<double>& v)
 
 } // namespace
 
+Segmentation phasesToSegmentation(const PhaseModel& pm, const std::vector<int64_t>& tUs, float conf)
+{
+    Segmentation seg;
+    const int nf = int(tUs.size());
+    if (nf < 2) return seg;
+    auto tAt = [&](int f) { return tUs[std::clamp(f, 0, nf - 1)]; };
+    auto add = [&](Phase p, int f) { PhaseEvent e; e.phase = p; e.t_us = tAt(f); e.conf = conf; seg.events.push_back(e); };
+    add(Phase::Address, pm.bs0);
+    add(Phase::Top,     pm.top);
+    add(Phase::Impact,  pm.impact);
+    add(Phase::Finish,  pm.fin0);
+    std::stable_sort(seg.events.begin(), seg.events.end(),
+                     [](const PhaseEvent& a, const PhaseEvent& b) { return a.t_us < b.t_us; });
+    const int64_t pad = 100000;   // 100 ms, clamped to coverage
+    seg.swingStartUs = std::max(tUs.front(), tAt(pm.bs0) - pad);
+    seg.swingEndUs   = std::min(tUs.back(),  tAt(pm.fin0) + pad);
+    seg.conf = conf;
+    return seg;
+}
+
 ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>& tUs,
                          const std::vector<double>& gxIn, const std::vector<double>& gyIn,
                          const std::vector<double>& phiRawIn,
@@ -812,6 +832,10 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         trace->phases = pm; trace->phiSmoothed = phiS; trace->chir = chir;
         trace->spanLo = spanLo; trace->spanHi = spanHi; trace->heavyFrames = heavy;
         trace->dp = dp; trace->recon = rec;
+        // Vision-only phase landmarks: real swing ⇒ vision-grade conf, else 0.
+        const bool swingDetected = std::any_of(pm.phase.begin(), pm.phase.end(),
+                                               [](SwingPhase p) { return p != SwingPhase::Addr; });
+        trace->segmentation = phasesToSegmentation(pm, tUs, swingDetected ? 0.5f : 0.0f);
     }
     return out;
 }

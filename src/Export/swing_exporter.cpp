@@ -682,7 +682,7 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
 
 QJsonObject SwingExporter::captureBlock(const SwingExportJob& job)
 {
-    return QJsonObject{
+    QJsonObject cap{
         {QStringLiteral("sessionType"), job.sessionType},
         {QStringLiteral("shotSource"),  job.shotSource},
         // Window-relative impact (-1 = unknown) — the re-analysis impact reference,
@@ -702,6 +702,18 @@ QJsonObject SwingExporter::captureBlock(const SwingExportJob& job)
             {QStringLiteral("poseBackend"), job.host.poseBackend},
         }},
     };
+    // Club geometry (shaft-tracker E1 band matcher) — persisted so re-analysis
+    // recovers it. Omitted when unresolved (untaped/no active club).
+    if (job.clubLengthM > 0.0 || !job.bandCentersMm.empty()) {
+        QJsonArray bands;
+        for (double b : job.bandCentersMm) bands.append(b);
+        cap[QStringLiteral("club")] = QJsonObject{
+            {QStringLiteral("lengthMm"),      job.clubLengthM * 1000.0},
+            {QStringLiteral("shaftType"),     job.shaftType},
+            {QStringLiteral("bandCentersMm"), bands},
+        };
+    }
+    return cap;
 }
 
 } // namespace pinpoint
