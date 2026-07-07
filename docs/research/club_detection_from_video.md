@@ -1049,7 +1049,21 @@ smooth curve that rises to a bell at impact and decays through the follow-throug
 Two methods that share no machinery — one a global fit over the entire clip, one a
 within-frame blur measurement — agree on the same physical curve. That agreement
 *is* the result: the impact-zone ω(t) is real, not an artefact of the dynamic
-program's own smoothing.
+program's own smoothing. Figure 2 shows the two measures across the whole corpus.
+
+![Corpus montage of the v3.1 impact-zone ω(t): the independent exposure-arc against the DP-track speed, per swing.](figures/club_track_omega_v31.png)
+
+***Figure 2.** The v3.1 impact-zone angular speed |ω|(t) across the ten-swing
+corpus, one panel per swing, ordered by peak agreement between the two measures —
+tightest first (s01, 0.2°/frame) to loosest last (s09, 3.6°/frame). Grey dots are
+the v3.0 DP **track** (|dθ/dt|, per-frame, noisy); the gold line is the
+**exposure-arc** reading — the within-frame streak extent, which never touches the
+tracker — lightly smoothed; the red line is the emitted ω. The vertical mark is
+impact. Both rise to a bell at impact at physically plausible clubhead speeds
+(≈70–90 mph for a 7-iron) and, sharing no machinery, confirm the same peak — the
+point of the section. Panel text gives each measure's peak speed. Where they
+diverge most (s09, s05) it is the noisier exposure-arc, not the DP track, that
+wanders — visible directly as the gold line departing the red.*
 
 **What it did *not* do, and why that is the more instructive half.** The design
 hoped the stacked composite would sharpen the blurred bands enough to re-lock the
@@ -1097,13 +1111,13 @@ algorithmic, landing on the same angle. This is exactly the adversarial
 cross-validation §5.1 argues truth generators require, and it passes.
 
 The second is the law. Computing ψ = θ_markup − φ (the pose lead arm,
-robustly smoothed) frame by frame yields a textbook tent (Figure 2): ψ cocks
+robustly smoothed) frame by frame yields a textbook tent (Figure 3): ψ cocks
 monotonically from about −15° at address to about +100° at the top, reverses
 once, and releases monotonically to the finish. Quantitatively it is monotone
 on **55 of 58 backswing steps and 53 of 56 downswing steps**, and every one
 of the six exceptions falls on a frame where pose φ glitched — not on a real
 wrist reversal. The decisive observation is the separation of the two panels
-of Figure 2: the θ trajectory, which owes nothing to φ, is *pristinely*
+of Figure 3: the θ trajectory, which owes nothing to φ, is *pristinely*
 monotone with a single reversal, so all of the scatter in ψ is pose φ, which
 jumps a median of only 1.6°/frame but spikes to 87° on 17 frames clustered —
 predictably — at the top and through impact. The physics is clean; the noise
@@ -1117,7 +1131,7 @@ to C3's top.
 
 ![s01 hand markup vs v2 truth: the shaft angle θ as a single-reversal arc, and the wrist angle ψ = θ − φ as a monotone tent with one reversal.](figures/club_track_psi_s01.png)
 
-***Figure 2.** s01, hand markup versus v2 fusion truth. **Top:** shaft angle θ
+***Figure 3.** s01, hand markup versus v2 fusion truth. **Top:** shaft angle θ
 (unwrapped) — the two independent witnesses coincide (median 0.01°), a clean
 single-reversal arc (C3). The straight segment across f510–545 is the bridge
 over the impact-blur gap the human could not label. **Bottom:** ψ = θ − φ with
@@ -1189,7 +1203,7 @@ a lever to calibrate the pose model against an invariant it must obey, and — i
 follow-through — the first observable trace of the roll dimension a face-on camera
 cannot otherwise see.
 
-The corpus as a whole is shown in Figure 3: one panel per swing, each the
+The corpus as a whole is shown in Figure 4: one panel per swing, each the
 estimated-plus-predicted shaft drawn for every frame of the swing arc — a strobe
 that makes a whole swing legible at a glance. Ordering the panels by the tracker's
 *own* self-confidence (coverage × band-fraction × mean-conf, most confident first)
@@ -1202,7 +1216,7 @@ the qualitative counterpart to the coverage and accuracy figures in the table ab
 
 ![Shaft-tracker corpus montage: ten swings, confidence-ordered, phase-coloured shaft strobes.](figures/club_track_montage_v3_0_r1.png)
 
-***Figure 3.** The v3.0-r1 tracker across the ten-swing corpus (tape_20260705,
+***Figure 4.** The v3.0-r1 tracker across the ten-swing corpus (tape_20260705,
 instrumented 7-iron), one panel per swing, ordered by self-confidence
 (coverage × band-fraction × mean-conf) — most confident first (s05) to least
 (s10). Each panel overlays every swing-arc frame's shaft on a faint address frame.
@@ -1217,6 +1231,48 @@ signal (§3.8a), deliberately not flattened. The dashed segments concentrate at 
 top-of-follow-through blur; the consistent fan geometry down the ranking is the
 visual echo of the near-uniform 88–91% coverage and sub-degree medians the table
 reports.*
+
+### 4.8 The v3.2 address recovery, and honest abstention
+
+One region the full-swing tracker deliberately leaves as an unpublished bridge is
+the *address hold* — the resting club before takeaway. v3.0 punts it to `pred`
+(§4.4) for a principled reason: a static bright/dark line at the hands is the exact
+regime the passive detector was fooled by, with a trouser crease, the trailing leg
+and its shadow on the blown mat, and the mat edge all available as look-alikes, and
+none of them motion-verifiable. v3.2 (`address_theta_v3.py`) measures that resting
+angle and publishes it *only when it survives the honesty gates*. Its lever is the
+long near-still hold itself: registering every hold frame on the grip anchor and
+averaging integrates the rigidly-attached club into one sharp line while the swaying
+body, legs, and shadows — which move relative to the grip — smear away (the same
+shift-and-stack idea as §3.9, applied to a stationary rather than a rotating club).
+A tight cone about the smoothed lead-arm φ and a down-sector gate then reject the
+leg/crease counterfeits, and a stability test rejects any hold whose angle will not
+hold still.
+
+Across the corpus (Figure 5) the behaviour is exactly the honest split the design
+intends. On six of the ten swings v3.2 recovers a stable resting shaft — θ₀ in the
+86–95° range, angular stability under 3° over 34–79 stacked frames — and publishes
+it as a new `hold` tier, upgrading the address from bridge to measurement. On the
+other four it *abstains*: three where a hold is found but the gates reject it (s06's
+"hold" is in fact mid-motion; s04 and s07 stack to an indistinct club), and one
+(s10) where no stable address hold exists to measure at all. Nothing is published
+that the gates do not clear — the abstention is not a failure but the mechanism
+working, the same discrimination-not-fabrication discipline (§5.2) that governs the
+rest of the pipeline, applied to the one phase most hostile to a static measurement.
+
+![Corpus montage of the v3.2 address recovery: the hold-period stack with the recovered resting shaft, per swing.](figures/club_track_address_v32.png)
+
+***Figure 5.** The v3.2 address recovery across the ten-swing corpus, one panel per
+swing, ordered by how much of the hold was published (most first). Each panel is the
+hold-period **stack** — the address integrated on the grip anchor, so the still club
+sharpens while the swaying body and legs blur — with **red = the recovered resting
+shaft** (θ₀), **blue = the lead-arm φ** (the tight address cone), **green = the grip
+anchor**. Panel text gives θ₀, the published-frame count, and the angular stability
+(std) for the six published swings; the four that abstain are labelled by why —
+*gates* (a hold was found but rejected) or *no hold* (none detected). The red line
+sits along the actual club, visible in each published stack running down to the
+ball. Compare Figure 1, where colour was the confidence tier: here colour identifies
+the three drawn quantities, not a tier.*
 
 ## 5. Discussion
 
