@@ -15,9 +15,18 @@ present in every swing.json (independent launch truth). Python env: `/home/markl
 
 ## 0. Guiding constraints
 
+- **Promotion strategy (agreed 2026-07-07).** V0 acquisition is solid corpus-wide, so promote it to
+  the app to refine in anger — but *properly*: **V1 parity port → scoped V2 (presence-first) → V4
+  (arbiter-gated launch), deferring the v1-calibration deletion (V3)**. Keep `ball_state_machine.py`
+  as the **regression oracle** after promotion: when a live issue is algorithmic, reproduce and fix
+  it in the harness (seconds/iteration) and re-parity — never hand-tune the C++ against one live
+  swing. The rough edges (weak-contrast position, launch latency) are safe to mature live because the
+  arbiter cannot self-commit on a lone Ball candidate, and the live user-drawn ROI + live pose are
+  strictly better than the harness's offline proxies.
 - **V0 (the python acceptance harness) is the executable spec and the C++ parity oracle.** No C++ is
-  written or tuned before the harness passes the §9.1 gates on the real corpus. Same discipline as
-  the shaft-tracker port.
+  written or tuned before the harness passes the §9.1 gates on the real corpus (**DONE**). Same
+  discipline as the shaft-tracker port. Port reference: the bible
+  [`../design/ball_detection_v2_exemplar_explained.md`](../design/ball_detection_v2_exemplar_explained.md).
 - **The stance corridor (design §4.1a) is an additive robustness layer, not a hard dependency.** The
   detector must still lock via the static ROI band when pose is unavailable. It is used only in
   SEARCH/CANDIDATE; once LOCKED the tracker monitors the frozen spot.
@@ -58,32 +67,37 @@ geometry must select correctly (mirror `markup_truth::readFaceOn`).
 
 ## 2. Phases
 
-### V0 — Executable spec & acceptance harness  ·  python, `tools/balllab/`  ·  risk: low
-The keystone. Turn the two evidence scripts into the state machine + acceptance gates.
+### V0 — Executable spec & acceptance harness — DONE (2026-07-07) · python, `tools/balllab/`
+The keystone, and now the **parity oracle**. Built `ball_state_machine.py` (the causal state machine)
++ `acceptance.py` (§9.1 gates, `--root`/`--no-roi` parameterized; runs here and on the studio PC).
+The algorithm settled through three iterations the harness caught *before* any C++:
 
-- Reuse `dog()`/`band()` from `corpus_separation.py`. New `ball_state_machine.py`: the full
-  SEARCH → CANDIDATE → LOCKED → VANISHED machine (design §4), in scene-noise σ units (robust MAD),
-  response-baseline EMA (change-gated, hole under lock), at-spot collapse edge, sub-pixel quadratic
-  centre, scale parabola.
-- New `acceptance.py`: run every corpus swing at native ~149 fps and enforce the §9.1 gates —
-  lock before impact−1 s in ≥95 % of `satFrac ≤ 0.25` swings; locked position within 3 px of the
-  `truth.json` ball centre; **zero** address-phase launches corpus-wide; launch edge within ≤3
-  frames of `capture.impactUs`; the 06-11 session runs with `exposureWarning` asserted and no false
-  launches.
-- **Stance corridor validation** (design §4.1a): confirm the between-feet × below-ankle box contains
-  the labelled ball on every swing, and measure the win (search-area shrink + spurious-peak
-  reduction vs the static band). Corpus is Wrist sessions; derive ankles from stored pose if present
-  in swing.json, else from a couple of labelled ankle points per swing (cheap geometric check —
-  live pose is not required offline).
-- **Gate**: all §9.1 criteria pass (or a documented, understood miss like 07-03/swing_0002). This
-  file becomes the parity reference for V1.
+- **Static-scene accumulation** (fast-EMA `A`; SEARCH on accumulated novelty `N_acc = (A−B)/σ`;
+  monitoring per-frame) — recovered weak-contrast 07-03 from **0/10 → 10/10** acquired.
+  **Acquisition-only**, so the live present/absent + 2-frame launch stay real-time (no trade-off).
+- **2nd-moment blob shape-gate** on `D = A − B` (amplitude-invariant) — passes a weak round ball,
+  rejects the line/shaft/normalization-spike; replaced an amplitude-sensitive ring test.
+- **Padded-DoG crop** (no GaussianBlur crop-edge artifact) + **hitting-area ROI** (per-session ball
+  cluster proxy — the live ROI is the user's `setRoi`) — fixed the ~120 px bare-mat mislocks.
+- **Full corpus (accumulation + ROI):** acquisition works across ALL lighting regimes incl. the
+  fully-saturated 06-11 (5–6 px); G1 15/15 good-exposure; G3 (no false launches) essentially clean.
+- **Reference for the port:** the algorithm is documented in
+  [`../design/ball_detection_v2_exemplar_explained.md`](../design/ball_detection_v2_exemplar_explained.md)
+  — the "bible" the C++ port follows.
+- **Open refinements (do NOT enshrine in the port as correct — §11 bible):** position ~9 px on weak
+  contrast (adjacent grounded clubhead pulls the accumulated centroid); launch +3–4 frame
+  ball-departure latency (→ `kBallLaunchLatencyUs`) + collapse completeness; `satFrac`-over-ROI
+  over-flags → add a ball-vs-mat contrast/SNR health signal; swing.json should record the ROI.
 
-### V1 — C++ core  ·  `src/Pose/ball_temporal.h` + tests  ·  risk: low (pure, testable)
-- Header-only, OpenCV-only, **no-Qt** (mirrors `ball_model.h`; test is a `NO_QT` target). Pure
-  functions (DoG response, robust noise, baseline EMA, novelty, NMS peak-find, sub-pixel fit, scale
-  parabola) + a `TemporalBallTracker` struct owning the state machine. `TemporalBallTracker` takes
-  **optional stance bounds** as a SEARCH input; with none supplied it uses the static band, keeping
-  the core pose-free and testable. Move `kBallDiameterMm` (currently `ball_model.h:56`) here.
+### V1 — C++ core  ·  `src/Pose/ball_temporal.h` + tests  ·  risk: low (pure, testable)  ·  **NEXT**
+- Header-only, OpenCV-only, **no-Qt** (mirrors `ball_model.h`; test is a `NO_QT` target). Port the
+  **settled** exemplar per the bible's §12 "must-preserve" list: DoG on a **padded** crop; robust-MAD
+  noise; the **fast-EMA accumulator `A`** + accumulated novelty `N_acc`; the 2nd-moment `is_blob`
+  shape gate on `D`; the K=3 candidate state machine (±2 px matching, top-K-by-hold); the per-frame
+  launch cliff. Pure functions + a `TemporalBallTracker` struct; the tracker consumes a precomputed
+  `R` (caller owns ROI/padding). Takes an optional ROI / stance bounds as a SEARCH input. Move
+  `kBallDiameterMm` (currently `ball_model.h:56`) here. **The algorithm is fixed — do not re-tune it
+  in C++; iterate in the python harness and re-parity (bible §12).**
 - Unit tests (design §9.2) → `src/Pose/tests/ball_temporal_test.cpp`, new
   `pp_add_test(ball_temporal_test … NO_QT)` mirroring `ball_model_test` (`src/Pose/tests/CMakeLists.txt:24-28`):
   synthetic appear/persist/vanish over flat/noisy/gradient/moving-shadow, saturation ramp, baseline
@@ -94,7 +108,12 @@ The keystone. Turn the two evidence scripts into the state machine + acceptance 
   (cross-host float differs — shaft-port lesson).
 - **Gate**: parity `|Δpos| < ~0.5 px`, launch-frame agreement, unit tests green.
 
-### V2 — Detector rework  ·  `src/Pose/ball_detector.{h,cpp}` + timestamp/corridor plumbing  ·  risk: med (frame path)
+### V2 — Detector rework (scoped: presence-first) · `src/Pose/ball_detector.{h,cpp}` + plumbing · risk: med (frame path)
+**Promotion scope (agreed):** ship v2 acquisition as the live **presence** feature first, and wire
+the launch as an **arbiter-gated** candidate (V4) — the two rough edges (weak-contrast position,
+launch latency/completeness) are *safe* to mature live because the arbiter cannot self-commit on a
+lone Ball candidate. **Defer the v1-calibration deletion (V3)** — leave it dormant so this step
+changes less and can roll back. Keep `ball_state_machine.py` as the regression oracle after promotion.
 - Swap the `ball_model.h` include for `ball_temporal.h`; `BallDetector` holds one
   `TemporalBallTracker`. `detect()` feeds ROI + timestamp (+ latest stance bounds) to the tracker,
   maps its output to `BallDetection` (`score` = novelty `N`). Retire `setProfile`/`clearProfile`/
@@ -115,17 +134,27 @@ The keystone. Turn the two evidence scripts into the state machine + acceptance 
   guard and static-band fallback.
 - Update `ball_detector_contract_test.cpp` for the new signal paths (throttle contract §9.3, LOCKED
   fast path included). `consumerCount = 2` + `clearBusy`/`clearRawBusy` wiring unchanged.
+- **Presence consumers**: the new presence / `ballLocked` + `exposureWarning` signals drive BOTH the
+  toolbar ball DetectDot (V4) AND the **wizard live "ball detected / not detected" badge** (the
+  repurposed calibration step, design §7 / V3). Expose a simple live `ballDetectedOk` flag on the
+  face-on `CameraInstance` for the wizard and DetectDot to bind — this is the wizard's ROI/lighting
+  setup loop, so wire it in V2 even though the wizard QML lands with V3's repurpose.
 - **Gate**: contract test green; live app builds; presence shows on a corpus replay.
 
-### V3 — Calibration retirement  ·  deletion  ·  risk: low
-Delete (v1 core + UI, fully mapped):
+### V3 — Calibration retirement (DEFERRED until v2 is proven live)  ·  deletion  ·  risk: low
+Do this *after* V2/V4 ship and presence is proven in anger — leaving the dormant v1 stack in place
+until then keeps the promotion small and reversible. Delete (v1 core + UI, fully mapped):
 - `src/Pose/ball_model.h`, `ball_calibration_logic.h`, `ball_calibration_store.h`.
 - `src/Gui/calibration/ball_calibration_controller.{h,cpp}`, `BallCalibrationFlow.qml`.
 - Tests `src/Pose/tests/ball_model_test.cpp` + `ball_calibration_test.cpp` and their CMake entries
   (`src/Pose/tests/CMakeLists.txt:24-37`).
 - `CamerasPanel.qml:1796-1835` (keep the ROI editor `:1755-1780`; add an exposure-health line).
-- Wizard BallCal step + its `SummaryRow` (`ScreenSessionWizard.qml:1136-1232, 1907-1916`) and the
-  `ballCalDone`/`ballFaceOnInst.ballCalibrated` state (`:102-111`).
+- **Repurpose (do NOT delete) the wizard ball step** (`ScreenSessionWizard.qml:1136-1232`): remove
+  the `BallCalibrationFlow`/controller wiring (the place/remove/validate protocol) and replace with a
+  live **"ball detected / not detected"** badge over the editable ROI + exposure/contrast health
+  (design §7) — so the user dials in the ROI and lighting before the session. The `SummaryRow`
+  (`:1907-1916`) becomes "Ball: detected / not detected"; `ballCalDone`/`ballFaceOnInst.ballCalibrated`
+  (`:102-111`) → a live `ballDetectedOk` flag from the detector's presence.
 - `CameraManager::ballCalibrationFor` (`camera_manager.cpp:669-689`) + the `loadProfile`/profile
   restore path (`camera_manager.cpp:800-829`).
 - `CameraInstance` `applyBallCalProfile`/`clearBallCalProfile`/`ballCalibrated`/drift

@@ -360,12 +360,23 @@ Changes:
 
 - `ball_model.h` (v1 core) is replaced by a new header-only `ball_temporal.h` (same OpenCV-only,
   no-Qt convention; standalone-testable in `src/Pose/tests/`). `BallCalProfile`,
-  `ball_calibration_store.h`, `BallCalibrationController`, `BallCalibrationFlow.qml`, the wizard
-  confirmation row and the Settings calibration section are **retired** (the Settings section
-  shrinks to the ROI editor + exposure health line). Keep `kBallDiameterMm` (move to the new
-  header). The `setProfile`/`clearProfile`/`beginCalibCapture` slots and `calibFrame`/
-  `calibCaptureDone`/`environmentDrift` signals go with them (`environmentDrift` →
-  `exposureWarning`).
+  `ball_calibration_store.h`, `BallCalibrationController`, `BallCalibrationFlow.qml` (the
+  place/remove/validate *protocol*) and the Settings calibration section are **retired** (Settings
+  shrinks to the ROI editor + exposure/contrast health line). **The wizard ball step is repurposed,
+  not deleted** — see the live-preview bullet below. Keep `kBallDiameterMm` (move to the new header).
+  The `setProfile`/`clearProfile`/`beginCalibCapture` slots and `calibFrame`/`calibCaptureDone`/
+  `environmentDrift` signals go with them (`environmentDrift` → `exposureWarning`).
+- **Wizard ball step → live "setup & verify" (replaces v1 calibration).** The start-session wizard's
+  ball step (`ScreenSessionWizard.qml`) becomes a *live preview*, not a place/remove/validate chore.
+  While the step is active it runs the v2 detector on the connected face-on camera and shows a plain
+  **"ball detected / not detected"** badge (driven by the detector's presence / `ballLocked`), over
+  the editable hitting-area ROI (`PpCameraFrame roiEditable`), plus the **exposure/contrast health**
+  hint (`exposureWarning` + the ball-vs-mat contrast signal §6). The user drags the ROI and adjusts
+  studio lighting until it reads *detected* steadily, then Continue — **that is the whole
+  "calibration"**: no profile is saved; the detector self-calibrates at runtime (§3). The wizard
+  `SummaryRow` reads "Ball: detected / not detected" instead of "Calibrated / Skipped". This is the
+  primary purpose of the ROI here — get the hitting area framed and the lighting right so acquisition
+  is reliable before the session starts.
 - New signals: `ballLocked(float x, float y, float radiusNorm)` (feeds the swing.json
   `ballDetection.center/radiusNorm` provenance — `positionSource: "auto"`),
   `ballLaunched(qint64 estImpactUs, float x, float y)`, `exposureWarning(double satFrac)`.
@@ -469,16 +480,19 @@ runs on every corpus session including future ones; same role SwingLab plays for
 
 | Phase | Deliverable | Size | Risk |
 |---|---|---|---|
-| **V0 — harness first** | Extend `tools/balllab/` with the full state-machine replay + acceptance gates of §9.1, runnable on the existing corpus. *This is the spec executable.* | M | Low |
-| **V1 — core** | `src/Pose/ball_temporal.h` (response, baseline, state machine, scale/sub-pixel, launch edge — pure functions + a small `TemporalBallTracker` struct); unit tests §9.2. Numeric parity with V0 on 3 golden swings (project parity-test convention) | M | Low — pure, testable |
-| **V2 — detector rework** | `BallDetector` swap to the new core; timestamp plumbing through `framePreprocessed`; new/retired signals (§7); throttle test §9.3 | M | Med — touches the frame path |
-| **V3 — calibration retirement** | Delete v1 core/controller/flow/store + Settings & wizard surfaces; Settings keeps ROI editor + exposure health; provenance block v2 (`positionSource:"auto"`, `satFracAtCapture`) | M | Low — deletion |
-| **V4 — Source::Ball** | main.cpp wiring to `reportCandidate`, DetectDot flash + amber-exposure tier, `autoDetectSwing` gating | S | Low — pattern exists (IMU/acoustic) |
-| **V5 — field validation** | Studio session per §9.4; corpus grows a tee'd-driver session; presence-window shortening decision | S | hardware-gated |
+| **V0 — harness ✅ DONE** | `tools/balllab/ball_state_machine.py` + `acceptance.py`: full state machine (accumulation + moment shape-gate + ROI) + §9.1 gates. Acquisition solved corpus-wide incl. saturated 06-11. *The spec executable and parity oracle.* | M | Done |
+| **V1 — core (NEXT)** | Port the SETTLED exemplar → `src/Pose/ball_temporal.h` (pure functions + `TemporalBallTracker`) per the **bible's §12 must-preserve list**; unit tests §9.2; numeric parity with V0 on 3 golden swings (`shaft_parity_test` convention). *Do not re-tune in C++.* | M | Low — pure, testable |
+| **V2 — detector rework (scoped)** | `BallDetector` swap; timestamp + ROI/corridor plumbing; new signals (§7); throttle test §9.3. **Presence-first**; defer V3. | M | Med — frame path |
+| **V4 — Source::Ball** | `ballLaunched → reportCandidate` (arbiter-gated); DetectDot flash + amber-exposure tier | S | Low — pattern exists |
+| **V3 — calibration retirement (DEFERRED)** | Delete the dormant v1 core/controller/flow/store + Settings & wizard surfaces *after* v2 is proven live; provenance block v2 (`positionSource:"auto"`, `satFracAtCapture`, **`hittingAreaRoi`**) | M | Low — deletion |
+| **V5 — field validation** | Refine in anger (position/latency/health) with the harness as oracle; tee'd-driver corpus; presence-window shortening | S | hardware-gated |
 
-Sequencing note for the implementer: V0 before V1 is deliberate — every algorithmic decision in
-§4 was reached by measuring this corpus, and the acceptance harness is how you know your C++
-matches the evidence. Do not skip to C++ and tune live.
+Sequencing note: V0 (DONE) before V1 was deliberate — every algorithmic decision was reached by
+measuring the corpus, and the harness is how you know the C++ matches the evidence. **The full
+exemplar, and exactly what the C++ port must preserve, is written up in the port bible
+[`ball_detection_v2_exemplar_explained.md`](ball_detection_v2_exemplar_explained.md) §12.** Promotion
+order is V1 → scoped V2 → V4, deferring V3; keep the python harness as the regression oracle and
+never hand-tune the C++ against a single live swing.
 
 The grounded, file-referenced execution plan (real integration points, delete-vs-rework of the v1
 footprint, the stance corridor threaded through V0–V2, and the ground-truth labelling route) lives
