@@ -317,6 +317,53 @@ int main()
               "updateReview on missing doc returns false");
     }
 
+    std::printf("\n=== analysis t_us normalised to window-relative ===\n");
+    {
+        // Live capture: absolute analysis t_us (clock domain) → written relative.
+        const qint64 T0 = 176400665083LL;
+        QJsonObject mAbs = manifest;
+        mAbs[QStringLiteral("clock")] = QJsonObject{ {QStringLiteral("t0_us"), double(T0)} };
+        SwingAnalysis aAbs;
+        aAbs.tier = int(ReconstructionTier::Angles2D);
+        aAbs.phases.push_back({ Phase::Impact, T0 + 1010000, 1.0f });
+        aAbs.segmentation.swingStartUs = T0 + 250000;
+        aAbs.segmentation.swingEndUs   = T0 + 1400000;
+        aAbs.segmentation.version = 2;
+        aAbs.shaft.camera = 3; aAbs.shaft.valid = true; aAbs.shaft.coverage = 0.9f;
+        aAbs.shaft.frameWidth = 1920; aAbs.shaft.frameHeight = 1080;
+        aAbs.shaft.samples.push_back({ T0 + 1000000, QPointF(960, 540), QPointF(960, 810),
+                                       1.57, 0.0, 270.0, 0.9f, ShaftMeasured });
+        const QString dirN = dir + QStringLiteral("_norm");
+        QDir().mkpath(dirN);
+        SwingDocWriter::writeSwingJson(dirN, mAbs, &aAbs, nullptr);
+        QFile fn(dirN + QStringLiteral("/swing.json"));
+        if (fn.open(QIODevice::ReadOnly)) {
+            const QJsonObject rn = QJsonDocument::fromJson(fn.readAll()).object();
+            fn.close();
+            const QJsonObject an = rn[QStringLiteral("analysis")].toObject();
+            check(qint64(an[QStringLiteral("phases")].toArray().at(0).toObject()[QStringLiteral("t_us")].toDouble()) == 1010000,
+                  "absolute phase t_us → window-relative");
+            check(qint64(an[QStringLiteral("segmentation")].toObject()[QStringLiteral("swingStartUs")].toDouble()) == 250000,
+                  "absolute swingStartUs → window-relative");
+            check(qint64(an[QStringLiteral("club")].toObject()[QStringLiteral("samples")].toArray().at(0)
+                            .toObject()[QStringLiteral("t_us")].toDouble()) == 1000000,
+                  "absolute club sample t_us → window-relative");
+        }
+
+        // Re-analysis: already-relative t_us (≪ t0) pass through unchanged.
+        SwingAnalysis aRel;
+        aRel.phases.push_back({ Phase::Impact, 1010000, 1.0f });
+        SwingDocWriter::writeSwingJson(dirN, mAbs, &aRel, nullptr);
+        QFile fr(dirN + QStringLiteral("/swing.json"));
+        if (fr.open(QIODevice::ReadOnly)) {
+            const QJsonObject rr = QJsonDocument::fromJson(fr.readAll()).object();
+            fr.close();
+            check(qint64(rr[QStringLiteral("analysis")].toObject()[QStringLiteral("phases")].toArray()
+                            .at(0).toObject()[QStringLiteral("t_us")].toDouble()) == 1010000,
+                  "relative phase t_us passed through (idempotent)");
+        }
+    }
+
     std::printf("\n=== raw-only write (analysis == nullptr) ===\n");
     SwingDocWriter::writeSwingJson(dir, manifest, nullptr);
     QFile f2(dir + QStringLiteral("/swing.json"));

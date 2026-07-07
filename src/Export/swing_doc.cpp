@@ -64,9 +64,20 @@ QJsonObject serializeScore(const analysis::ScoreBreakdown &s)
 // pinpoint.analysis/3 — versions the embedded block, distinct from the document's
 // pinpoint.swing/2). Mirrors the QML analysisDetail shape, t_us as JSON numbers.
 // /3 promotes "score" from a bare int to the ScoreBreakdown object (design §B.0a/§B.7).
-QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a)
+QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
 {
     using namespace analysis;
+    // Analysis timestamps are produced in the SwingWindow's own domain — ABSOLUTE
+    // (EventBuffer clock) for a live capture, but WINDOW-RELATIVE (0-based) for a
+    // reconstructed re-analysis window. Persist them CONSISTENTLY window-relative
+    // (matching streams / capture.impactUs / window bounds), so every consumer
+    // sees one domain: subtract windowT0 (= clock.t0_us, the absolute window
+    // start) only when the value is in the absolute domain (>= windowT0); pass
+    // already-relative values (≪ windowT0) through unchanged.
+    auto rel = [windowT0](int64_t t) -> qint64 {
+        const qint64 tt = static_cast<qint64>(t);
+        return tt >= windowT0 ? tt - windowT0 : tt;
+    };
     QJsonObject o;
     o[QStringLiteral("schema")] = QStringLiteral("pinpoint.analysis/3");
     o[QStringLiteral("tier")]   = a.tier;
@@ -75,11 +86,11 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a)
     QJsonArray metrics;
     for (const MetricSeries &m : a.series) {
         QJsonArray ts, vs, samples;
-        for (const int64_t t : m.t_us) ts.append(static_cast<qint64>(t));
+        for (const int64_t t : m.t_us) ts.append(rel(t));
         for (const double v : m.value) vs.append(v);
         for (const PhaseSample &ps : m.phaseSamples)
             samples.append(QJsonObject{ { QStringLiteral("phase"), int(ps.phase) },
-                                        { QStringLiteral("t_us"),  static_cast<qint64>(ps.t_us) },
+                                        { QStringLiteral("t_us"),  rel(ps.t_us) },
                                         { QStringLiteral("value"), ps.value },
                                         { QStringLiteral("band"),  ps.band } });
         metrics.append(QJsonObject{ { QStringLiteral("key"),   m.key },
@@ -94,7 +105,7 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a)
     QJsonArray phases;
     for (const PhaseEvent &e : a.phases)
         phases.append(QJsonObject{ { QStringLiteral("phase"),   int(e.phase) },
-                                   { QStringLiteral("t_us"),    static_cast<qint64>(e.t_us) },
+                                   { QStringLiteral("t_us"),    rel(e.t_us) },
                                    { QStringLiteral("conf"),    e.conf },
                                    { QStringLiteral("segment"), int(e.provenance) } });
     o[QStringLiteral("phases")] = phases;
@@ -138,10 +149,8 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a)
     // ladder meta. Missing block on reload = full-window bounds.
     if (a.segmentation.swingEndUs > a.segmentation.swingStartUs)
         o[QStringLiteral("segmentation")] = QJsonObject{
-            { QStringLiteral("swingStartUs"),
-              static_cast<qint64>(a.segmentation.swingStartUs) },
-            { QStringLiteral("swingEndUs"),
-              static_cast<qint64>(a.segmentation.swingEndUs) },
+            { QStringLiteral("swingStartUs"), rel(a.segmentation.swingStartUs) },
+            { QStringLiteral("swingEndUs"),   rel(a.segmentation.swingEndUs) },
             { QStringLiteral("conf"),    double(a.segmentation.conf) },
             { QStringLiteral("version"), a.segmentation.version } };
 
@@ -185,7 +194,7 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a)
                 kp.append(double(f.conf[size_t(j)]));
             }
             frames.append(QJsonObject{
-                { QStringLiteral("t_us"), static_cast<qint64>(f.t_us) },
+                { QStringLiteral("t_us"), rel(f.t_us) },
                 { QStringLiteral("kp"),   kp },
                 { QStringLiteral("lead"),  QJsonArray{ f.leadHand.x(),  f.leadHand.y() } },
                 { QStringLiteral("trail"), QJsonArray{ f.trailHand.x(), f.trailHand.y() } },
@@ -201,7 +210,7 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a)
         QJsonArray samples;
         for (const ShaftSample2D &s : a.shaft.samples)
             samples.append(QJsonObject{
-                { QStringLiteral("t_us"),  static_cast<qint64>(s.t_us) },
+                { QStringLiteral("t_us"),  rel(s.t_us) },
                 { QStringLiteral("grip"),  QJsonArray{ s.gripPx.x() * iw, s.gripPx.y() * ih } },
                 { QStringLiteral("head"),  QJsonArray{ s.headPx.x() * iw, s.headPx.y() * ih } },
                 { QStringLiteral("theta"), s.thetaRad },
@@ -215,7 +224,7 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a)
         QJsonArray predicted;
         for (const ShaftSample2D &s : a.shaft.predicted)
             predicted.append(QJsonObject{
-                { QStringLiteral("t_us"),  static_cast<qint64>(s.t_us) },
+                { QStringLiteral("t_us"),  rel(s.t_us) },
                 { QStringLiteral("grip"),  QJsonArray{ s.gripPx.x() * iw, s.gripPx.y() * ih } },
                 { QStringLiteral("head"),  QJsonArray{ s.headPx.x() * iw, s.headPx.y() * ih } },
                 { QStringLiteral("theta"), s.thetaRad },
@@ -243,8 +252,13 @@ bool SwingDocWriter::writeSwingJson(const QString &swingDir, const QJsonObject &
 {
     QJsonObject root = rawManifest;
     root[QStringLiteral("schema")] = QStringLiteral("pinpoint.swing/2");
-    if (analysis)
-        root[QStringLiteral("analysis")] = serializeAnalysis(*analysis);
+    if (analysis) {
+        // clock.t0_us = the absolute window start; serializeAnalysis uses it to
+        // emit analysis t_us window-relative regardless of the source domain.
+        const qint64 t0 = qint64(rawManifest.value(QStringLiteral("clock")).toObject()
+                                            .value(QStringLiteral("t0_us")).toDouble());
+        root[QStringLiteral("analysis")] = serializeAnalysis(*analysis, t0);
+    }
 
     const QString path = swingDir + QStringLiteral("/swing.json");
     QSaveFile file(path);
