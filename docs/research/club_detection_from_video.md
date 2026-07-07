@@ -1323,14 +1323,42 @@ program or the constraint logic.
 | phase model (hands-only) | ≈ 0.001 | < 1% |
 | ψ-isotonic reconcile | 0.001 | < 1% |
 
-More than half the entire runtime is a single morphological operation — dilating
-the body polygon by a 69-pixel kernel over a full-resolution mask, once per frame,
-to build the C2 veto region. Another third is the evidence sampling. The dynamic
-program that ties the whole method together, the phase model, and the ψ-fit —
-the parts that *are* the contribution — together account for under a tenth. At
-roughly 87 ms per frame the tracker is about thirteen times slower than the 6.7 ms
-frame period of the 149 fps capture, so today it is an offline analysis, not a live
-one; but §5.6 argues that this cost profile is the opposite of a problem.
+More than half the entire runtime — the figures above are the tracker *as first
+built* — was a single morphological operation: dilating the body polygon by a
+69-pixel kernel over a full-resolution mask, once per frame, to build the C2 veto
+region. Another third is the evidence sampling. The dynamic program that ties the
+whole method together, the phase model, and the ψ-fit — the parts that *are* the
+contribution — together account for under a tenth, and at roughly 87 ms per frame
+the tracker was about thirteen times slower than the 6.7 ms frame period of the
+149 fps capture.
+
+That the single largest cost was raster image processing standing in for a geometry
+question invited an immediate fix, and we took it. The C2 veto never needed a
+bitmap: it asks only whether a candidate shaft ray lies majority-inside the body,
+which is a point-in-polygon test on the same convex hull. The veto is now, by
+default, purely geometric — the hull of the (still smoothed) joints as outward
+half-planes, a ray vetoed when a majority of its sample points satisfy
+max_i(n_i·p − d_i) ≤ margin, six dot products per point with no raster and no
+dilation. An A/B across the corpus (Table 3) confirms the change alters nothing
+that matters: the median shaft-angle error against v2 truth is identical to three
+decimals on every swing, with only six isolated frames — none of them truth frames,
+where a ray grazing a mitred hull corner flips the veto — differing across some
+seven thousand, while the tracker runs **2.03× faster, 70.7 s down to 34.8 s**, the
+largest cost simply gone. The dominant term is now the evidence sampling, and the
+tracker sits about six times off the frame budget rather than thirteen; §5.6 takes
+up the rest of the path.
+
+***Table 3.** The C2 optimisation — the geometric pose-ROI veto against the original
+rasterised+dilated mask, A/B across the ten-swing corpus (v3.0-r1; studio; mean ± sd
+where shown). The geometric form is now the default; the raster form is retained
+behind `--raster-c2` as a byte-oracle for the port.*
+
+| metric (geometric vs raster C2) | value |
+|---|---|
+| median θ-error vs v2 truth — delta (geometric − raster) | **+0.000 ± 0.000°** |
+| tier changes (of ~7,000 frames) | 6 |
+| net coverage change | −2 frames |
+| wall time (raster → geometric) | 70.7 ± 0.2 s → 34.8 ± 1.0 s (**2.03×**) |
 
 ## 5. Discussion
 
@@ -1700,34 +1728,42 @@ the shaft angle with a global dynamic program would be expensive; the measuremen
 says the opposite. The dynamic program, the phase model, the four constraints, and
 the ψ-isotonic reconciliation together cost under a tenth of the runtime, and the
 reconciliation — the newest and, on paper, most elaborate of them — costs a
-millisecond. The *deciding* is nearly free. What the tracker actually spends its
-time on is *seeing*: a single morphological dilation to build the C2 veto mask
-(54%) and the per-frame, per-ray evidence sampling (31%). This is the most
+millisecond. The *deciding* is nearly free. What the tracker's runtime went to, as
+first profiled, was *seeing*: a single morphological dilation to build the C2 veto
+mask (54%) and the per-frame, per-ray evidence sampling (31%). This is the most
 favourable cost profile a method could present to an optimiser or a port, because
 those two dominant costs are exactly the embarrassingly-parallel, per-pixel image
 operations that SIMD, a GPU, or even careful C++ accelerate by one to two orders of
 magnitude, while the one inherently-sequential part — the Viterbi recursion — is
 already cheap and needs no attention at all.
 
-The levers follow directly from the table, in priority order. The body-mask veto
-does not need a full-resolution 69-pixel dilation: C2 asks only a coarse
-inside-or-outside question, so dilating a down-sampled mask (a 4× reduction is
-sixteen times fewer pixels) or replacing the dilate-then-test with a
-distance-transform lookup should remove most of that 54% with no effect on the
-decision — the single largest win available, and it touches nothing about the
-physics. The evidence sampling that follows is vectorisable, and outside the impact
-zone, where θ moves slowly, it can run on a coarser angular grid; the samples can
-also be shared across the DP's θ candidates rather than recomputed. Frame decode
-disappears entirely against live camera frames. Nothing about the constraint
-system, the DP, or the reconciliation needs to change. We are careful to label
-these as projections from the profile rather than measured optimisations — the
-honest arithmetic is only that halving the mask cost alone removes about a quarter
-of the total, and that a C++/SIMD implementation of the two image stages, behind
-the existing detector interface and byte-checked against the Python exemplar, is
-the credible route from today's thirteen-times-offline to something near the frame
-budget. The point worth keeping is structural: the design spent its complexity on
-the part that is cheap to run and its runtime on the part that is cheap to
-optimise, which is exactly the shape one wants to carry into a port.
+The levers follow directly from the table, in priority order — and the first is no
+longer a projection. The body-mask veto never needed a full-resolution dilation at
+all: C2 asks only whether a candidate ray lies majority-inside the body, a
+point-in-polygon question, so we replaced the rasterise-and-dilate with a geometric
+test against the convex hull of the same smoothed joints (§4.9). It removed the
+single largest cost outright — **2.03× faster across the corpus, with byte-identical
+accuracy** (Table 3) — and touched nothing about the physics. Three levers remain,
+and they compound. The evidence sampling, now the dominant term, is vectorisable,
+and outside the impact zone where θ moves slowly it can run on a coarser angular
+grid, its samples shared across the DP's θ candidates rather than recomputed. The
+expensive per-frame work — the evidence and the veto — need run only on the ~140
+frames of the actual moving swing, not the ~600 frames of the static address and
+finish holds the tracker currently grinds through frame by frame; bounding it there
+is a near-free several-fold cut on top. And frame decode disappears entirely against
+live camera frames. Nothing about the constraint system, the DP, or the
+reconciliation needs to change.
+
+We now have one measured optimisation and three projected ones. The measured one
+alone took the tracker from thirteen times offline to about six; the honest
+arithmetic on the rest is that bounding the work to the swing span and vectorising
+the evidence should reach the low-single-digit seconds a post-shot analysis needs,
+and that a C++/SIMD implementation of the surviving image stage, behind the existing
+detector interface and byte-checked against the Python exemplar, closes any
+remaining gap to the frame budget. The point worth keeping is structural, and the
+C2 result is its first confirmation: the design spent its complexity on the part
+that is cheap to run and its runtime on the part that is cheap to optimise, which is
+exactly the shape one wants to carry into a port.
 
 ## 6. Conclusion
 

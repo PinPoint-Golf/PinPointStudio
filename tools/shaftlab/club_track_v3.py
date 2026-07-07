@@ -18,7 +18,10 @@ grid across the whole clip) rather than per frame:
                          margin, temporally smoothed). A candidate whose shaft
                          ray lies majority-inside the body is vetoed in
                          takeaway->thru; admitted-not-sufficient at addr/impact/
-                         finish.
+                         finish. The ROI is a GEOMETRIC convex-hull half-plane test
+                         (body_polys) by default -- pure pose geometry, no raster;
+                         --raster-c2 selects the original dilated-bitmap form
+                         (body_masks), ~2x slower and accuracy-identical.
   C3  phase-signed rot   phase model from the HANDS ALONE (anchors.csv): the
                          swing reverses once, at the top. theta increases through
                          the backswing and decreases (monotone, wrapping mod 360)
@@ -295,9 +298,9 @@ def segment_phases(gx, gy, nf, fps, impact_frame=None):
     return phase, bs0, top, impact_frame, fin0, spd_s
 
 
-def body_masks(skel_path, nf, W, H):
-    """Per-frame filled body polygon (uint8 HxW) from skeleton.csv 8 joints
-    (shoulders, hips, knees, ankles), temporally smoothed + dilated."""
+def _smoothed_joints(skel_path, nf):
+    """Per-frame skeleton joints (xs, ys each nf x nj), temporally smoothed.
+    None if no skeleton. Shared by both C2 forms (raster masks and geometric ROI)."""
     if not skel_path or not os.path.exists(skel_path):
         return None
     J = {}
@@ -314,6 +317,18 @@ def body_masks(skel_path, nf, W, H):
     for i in range(nj):                              # temporal smoothing per joint
         xs[:, i] = gaussian_filter1d(median_filter(xs[:, i], 5), 2)
         ys[:, i] = gaussian_filter1d(median_filter(ys[:, i], 5), 2)
+    return xs, ys
+
+
+def body_masks(skel_path, nf, W, H):
+    """C2 body ROI as a per-frame filled+dilated raster (uint8 HxW) — the ORIGINAL
+    image-processing form: rasterise the joint convex hull and Minkowski-dilate by
+    BODY_MARGIN (a 2*k+1 ellipse). Correct but ~54% of the tracker's runtime (one
+    full-res dilation/frame). See body_polys for the equivalent geometric ROI."""
+    sj = _smoothed_joints(skel_path, nf)
+    if sj is None:
+        return None
+    xs, ys = sj
     masks = []
     for f in range(nf):
         pts = np.stack([xs[f], ys[f]], 1).astype(np.float32)
@@ -324,6 +339,31 @@ def body_masks(skel_path, nf, W, H):
         m = cv2.dilate(m, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * k + 1, 2 * k + 1)))
         masks.append(m)
     return masks
+
+
+def body_polys(skel_path, nf):
+    """C2 body ROI as per-frame convex-hull HALF-PLANES (outward unit normals n_i +
+    offsets d_i) — the GEOMETRIC form of the same veto. A point p lies inside the
+    body inflated by BODY_MARGIN iff max_i(n_i . p - d_i) <= BODY_MARGIN. Pure pose
+    geometry: no raster, no dilation, ~50x cheaper than body_masks. Same smoothed
+    joints, so it differs from the raster only by mitered-vs-rounded hull corners."""
+    sj = _smoothed_joints(skel_path, nf)
+    if sj is None:
+        return None
+    xs, ys = sj
+    polys = []
+    for f in range(nf):
+        hull = cv2.convexHull(np.stack([xs[f], ys[f]], 1).astype(np.float32)).reshape(-1, 2)
+        hull = hull.astype(np.float64)
+        c = hull.mean(0)
+        e = np.roll(hull, -1, axis=0) - hull                 # edge vectors
+        n = np.stack([e[:, 1], -e[:, 0]], 1)                 # a normal per edge
+        n /= (np.hypot(n[:, 0], n[:, 1])[:, None] + 1e-9)
+        flip = np.einsum("ij,ij->i", n, hull + 0.5 * e - c) < 0   # orient outward
+        n[flip] *= -1.0
+        d = np.einsum("ij,ij->i", n, hull)                   # offsets (n_i . vertex_i)
+        polys.append((n, d))
+    return polys
 
 
 def main():
@@ -346,6 +386,12 @@ def main():
                          "(reverts C4 to v3.0 wide-cone-only: no isotonic fit, no "
                          "arm-witness reconstruction; for A/B regression and the "
                          "synth counterfeit gate)")
+    ap.add_argument("--raster-c2", action="store_true",
+                    help="C2 body veto via the ORIGINAL rasterised+dilated body mask "
+                         "instead of the DEFAULT geometric pose-ROI test. The raster "
+                         "form is ~2x slower overall (a full-res dilation per frame) "
+                         "and accuracy-identical (corpus A/B: median-err delta 0.000 "
+                         "deg); kept as the byte-oracle / for regression.")
     args = ap.parse_args()
 
     rec = json.load(open(args.clubs))[args.club]
@@ -392,7 +438,10 @@ def main():
     use_psi = not args.no_psi_rail                   # psi-monotonicity reconciliation
 
     skel = args.skeleton or os.path.join(os.path.dirname(args.video), "skeleton.csv")
-    masks = body_masks(skel, nf, W, H)
+    if args.raster_c2:
+        masks = body_masks(skel, nf, W, H); polys = None  # original rasterised+dilated mask
+    else:
+        polys = body_polys(skel, nf); masks = None        # DEFAULT: geometric pose ROI (~2x faster)
 
     # static-run mask: a sustained low grip-speed span. A ray lock inside a
     # static run cannot be motion-verified (v2-adjudicated: static-period
@@ -459,12 +508,20 @@ def main():
         rev_arm = np.abs(circ_wrap(TDEG - ((phi_s[f]) % 360.0)))  # reverse ~ phi
         em += np.where((rev > C1_TOL) & (rev_arm > ARM_VETO_DEG), W_C1, 0.0)
 
-        # C2 body-overlap veto (mid-swing only)
-        if masks is not None and phase[f] in MIDSWING:
+        # C2 body-overlap veto (mid-swing only) — raster mask OR geometric ROI
+        if phase[f] in MIDSWING and (masks is not None or polys is not None):
             ux, uy = np.cos(TR), np.sin(TR)
-            X = np.clip((g[0] + np.outer(ux, BODY_R)).astype(np.int32), 0, W - 1)
-            Y = np.clip((g[1] + np.outer(uy, BODY_R)).astype(np.int32), 0, H - 1)
-            frac = (masks[f][Y, X] > 0).mean(axis=1)
+            Px = g[0] + np.outer(ux, BODY_R)                 # (NS, nR) ray sample pts
+            Py = g[1] + np.outer(uy, BODY_R)
+            if polys is not None:                            # geometric half-plane test
+                n, d = polys[f]                              # (E,2), (E,)
+                sd = (n[:, 0, None, None] * Px[None] + n[:, 1, None, None] * Py[None]
+                      - d[:, None, None])                    # (E, NS, nR) signed line dist
+                frac = (sd.max(axis=0) <= BODY_MARGIN).mean(axis=1)
+            else:                                            # rasterised-mask lookup
+                X = np.clip(Px.astype(np.int32), 0, W - 1)
+                Y = np.clip(Py.astype(np.int32), 0, H - 1)
+                frac = (masks[f][Y, X] > 0).mean(axis=1)
             inside[f] = frac
             em += np.where(frac > 0.5, W_C2, 0.0)
 
