@@ -1274,6 +1274,64 @@ sits along the actual club, visible in each published stack running down to the
 ball. Compare Figure 1, where colour was the confidence tier: here colour identifies
 the three drawn quantities, not a tier.*
 
+### 4.9 Compute cost across the corpus
+
+Accuracy is only half of what decides whether a method can ship; the other half is
+what it costs to run. We measured the wall-clock cost of each stage on all ten
+`tape_20260705` swings, on the quieter of the two machines (the studio PC, single-
+threaded Python), splitting each run's time into *frame decode* — reading and
+decoding the roughly one-gigabyte clip, an I/O cost that vanishes with live camera
+frames — and *compute*, the algorithm itself, by wrapping the decode call; and, for
+the full-swing tracker, breaking the compute into named categories by wrapping each
+stage's function. The numbers are stable across the corpus (Table 1), so the means
+are trustworthy to a few percent.
+
+***Table 1.** Per-iteration compute on the ten-swing taped 7-iron corpus (studio,
+single-threaded Python; mean ± sd, seconds). "Processes" is the span each stage
+actually touches — the whole swing for the tracker, a narrow zone for the two
+companions.*
+
+| iteration | processes | total (s) | decode (s) | compute (s) |
+|---|---|---|---|---|
+| **v3.0** constraint-DP | whole swing (745 fr) | 70.03 ± 0.22 | 5.03 ± 0.01 | **65.0** |
+| **v3.0-r1** (DP + ψ-isotonic) | whole swing | 69.93 ± 0.24 | 5.03 ± 0.02 | **64.9** |
+| **v3.1** shift-stack ω | impact ±10 fr | 2.40 ± 0.01 | 0.21 ± 0.01 | **2.19** |
+| **v3.2** address θ | hold, 27–81 fr | 3.31 ± 1.53 | 0.25 ± 0.11 | **3.06** |
+
+Two facts stand out immediately. The **ψ-isotonic reconciliation — the whole
+v3.0-r1 refinement — costs one millisecond**: v3.0-r1's total is indistinguishable
+from v3.0's, and the wrapped reconcile call measures 0.001 s. The physics we added
+to fix the follow-through is, to the running system, free. And the companions are
+cheap and bounded to their zones — v3.1 a flat 2.4 s, v3.2 scaling with the hold it
+finds (its ±1.53 s spread is signal, not noise: the short holds of s06 and s09 cost
+1.5–2 s, s10's absent hold returns in 0.06 s, the rest about 4.2 s).
+
+Where, then, does the tracker's ~65 s go? Not where a physics-first design might be
+feared to spend it. Breaking the full-swing compute into categories (Table 2)
+locates it almost entirely in two *generic image operations*, not in the dynamic
+program or the constraint logic.
+
+***Table 2.** Where the full-swing tracker (v3.0-r1) spends its time, by category
+(mean ± sd over the ten swings; "residual" is the DP Viterbi, tiering, and glue).*
+
+| compute stage | time (s) | share of total |
+|---|---|---|
+| **body-mask dilation** (C2 body-overlap veto) | 37.73 ± 0.14 | **54%** |
+| **evidence engines** (E1 band match + E2 ridge sweep) | 21.87 ± 0.18 | **31%** |
+| frame decode (I/O) | 5.03 ± 0.02 | 7% |
+| DP Viterbi + tiering | 5.29 ± 0.02 | 8% |
+| phase model (hands-only) | ≈ 0.001 | < 1% |
+| ψ-isotonic reconcile | 0.001 | < 1% |
+
+More than half the entire runtime is a single morphological operation — dilating
+the body polygon by a 69-pixel kernel over a full-resolution mask, once per frame,
+to build the C2 veto region. Another third is the evidence sampling. The dynamic
+program that ties the whole method together, the phase model, and the ψ-fit —
+the parts that *are* the contribution — together account for under a tenth. At
+roughly 87 ms per frame the tracker is about thirteen times slower than the 6.7 ms
+frame period of the 149 fps capture, so today it is an offline analysis, not a live
+one; but §5.6 argues that this cost profile is the opposite of a problem.
+
 ## 5. Discussion
 
 ### 5.1 A catalogue of errors, across the whole programme
@@ -1633,6 +1691,43 @@ begins:
 - And the **C++ port** behind the existing detector interface, with the
   exemplar as its byte-oracle, running the marker and passive modes
   together.
+
+### 5.6 Compute cost and the path to real time
+
+The profile of §4.9 inverts the worry a physics-first design naturally invites.
+One might fear that promoting four constraints to first-class citizens and solving
+the shaft angle with a global dynamic program would be expensive; the measurement
+says the opposite. The dynamic program, the phase model, the four constraints, and
+the ψ-isotonic reconciliation together cost under a tenth of the runtime, and the
+reconciliation — the newest and, on paper, most elaborate of them — costs a
+millisecond. The *deciding* is nearly free. What the tracker actually spends its
+time on is *seeing*: a single morphological dilation to build the C2 veto mask
+(54%) and the per-frame, per-ray evidence sampling (31%). This is the most
+favourable cost profile a method could present to an optimiser or a port, because
+those two dominant costs are exactly the embarrassingly-parallel, per-pixel image
+operations that SIMD, a GPU, or even careful C++ accelerate by one to two orders of
+magnitude, while the one inherently-sequential part — the Viterbi recursion — is
+already cheap and needs no attention at all.
+
+The levers follow directly from the table, in priority order. The body-mask veto
+does not need a full-resolution 69-pixel dilation: C2 asks only a coarse
+inside-or-outside question, so dilating a down-sampled mask (a 4× reduction is
+sixteen times fewer pixels) or replacing the dilate-then-test with a
+distance-transform lookup should remove most of that 54% with no effect on the
+decision — the single largest win available, and it touches nothing about the
+physics. The evidence sampling that follows is vectorisable, and outside the impact
+zone, where θ moves slowly, it can run on a coarser angular grid; the samples can
+also be shared across the DP's θ candidates rather than recomputed. Frame decode
+disappears entirely against live camera frames. Nothing about the constraint
+system, the DP, or the reconciliation needs to change. We are careful to label
+these as projections from the profile rather than measured optimisations — the
+honest arithmetic is only that halving the mask cost alone removes about a quarter
+of the total, and that a C++/SIMD implementation of the two image stages, behind
+the existing detector interface and byte-checked against the Python exemplar, is
+the credible route from today's thirteen-times-offline to something near the frame
+budget. The point worth keeping is structural: the design spent its complexity on
+the part that is cheap to run and its runtime on the part that is cheap to
+optimise, which is exactly the shape one wants to carry into a port.
 
 ## 6. Conclusion
 
