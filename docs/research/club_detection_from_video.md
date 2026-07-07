@@ -1189,6 +1189,35 @@ a lever to calibrate the pose model against an invariant it must obey, and — i
 follow-through — the first observable trace of the roll dimension a face-on camera
 cannot otherwise see.
 
+The corpus as a whole is shown in Figure 3: one panel per swing, each the
+estimated-plus-predicted shaft drawn for every frame of the swing arc — a strobe
+that makes a whole swing legible at a glance. Ordering the panels by the tracker's
+*own* self-confidence (coverage × band-fraction × mean-conf, most confident first)
+turns the montage into a triage. The same physical structure recurs the whole way
+down the ranking — a red backswing fan, a green downswing sweeping to the ball, a
+yellow follow-through — and where the estimator predicts rather than measures shows
+up as dashed segments, clustered predictably at the top of the swing and the top of
+the follow-through, where the club is smallest, slowest, and least distinct. It is
+the qualitative counterpart to the coverage and accuracy figures in the table above.
+
+![Shaft-tracker corpus montage: ten swings, confidence-ordered, phase-coloured shaft strobes.](figures/club_track_montage_v3_0_r1.png)
+
+***Figure 3.** The v3.0-r1 tracker across the ten-swing corpus (tape_20260705,
+instrumented 7-iron), one panel per swing, ordered by self-confidence
+(coverage × band-fraction × mean-conf) — most confident first (s05) to least
+(s10). Each panel overlays every swing-arc frame's shaft on a faint address frame.
+**Colour encodes swing phase** — red backswing (address→top), green
+downswing-and-impact, yellow follow-through (post-impact) — while **line style
+encodes honesty**: solid where the shaft is *estimated* from evidence (band or ray
+tier), dashed where it is *predicted* (DP-bridged or arm-witness reconstruction).
+(This differs from Figure 1, where colour was the confidence tier.) Per-panel text
+gives coverage, the tier breakdown — b band · r ray · p pred · rc recon — and the
+release ψ-violation count, the last being the retained follow-through re-hinge/roll
+signal (§3.8a), deliberately not flattened. The dashed segments concentrate at the
+top-of-follow-through blur; the consistent fan geometry down the ranking is the
+visual echo of the near-uniform 88–91% coverage and sub-degree medians the table
+reports.*
+
 ## 5. Discussion
 
 ### 5.1 A catalogue of errors, across the whole programme
