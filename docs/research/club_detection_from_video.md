@@ -1364,6 +1364,71 @@ behind `--raster-c2` as a byte-oracle for the port.*
 | net coverage change | −2 frames |
 | wall time (raster → geometric) | 70.7 ± 0.2 s → 34.8 ± 1.0 s (**2.03×**) |
 
+The evidence sampling that Table 3 leaves dominant is, in turn, mostly spent on
+frames where nothing moves. A swing clip runs about 745 frames but only ~140 are
+the club in motion; the rest is the golfer held at address before the takeaway and
+posed at finish after it, the shaft static and its angle constant. The phase model
+already locates that moving span from the hands alone — before, and independently
+of, any image work — so bounding the expensive per-frame operations (the evidence
+engines and the veto) to the span between takeaway and finish, plus a 100 ms
+settling collar each side, costs nothing to decide and skips roughly 80% of the
+frames. Held frames keep a flat emission and are carried by the DP's own smoothness
+to a held prediction; the dynamic program and the tiering still run over every
+frame, so the output is unchanged in shape. A second corpus A/B, the bounded
+tracker against an unbounded oracle (Table 4), holds the gate: the median
+shaft-angle error against v2 truth is unchanged on the swing to a hundredth of a
+degree, with zero tier changes on any swing's moving frames — only the first three
+takeaway frames of a single swing shift, by ≤5°, a boundary effect of the DP's
+shortened run-up. The tracker runs **2.31× faster again, 34.3 s to 14.8 s**, for
+**4.7× over the original raster build**. The per-frame measurements taken *during*
+the holds are dropped by design: a static resting club is exactly the counterfeit
+risk the design already distrusts (§4.4), and its resting angle is recovered
+properly by the v3.2 address companion rather than sampled frame by frame.
+
+***Table 4.** Swing-span bounding — the expensive per-frame work confined to the
+moving span (default) against the unbounded oracle (`--no-span-bound`), A/B across
+the ten-swing corpus (studio; mean ± sd where shown). The gate is accuracy on the
+swing, not byte-identity: the holds change intentionally.*
+
+| metric (bounded vs unbounded oracle) | value |
+|---|---|
+| median θ-error vs v2 truth on swing frames — delta (bounded − unbounded) | **−0.063 ± 0.219°** |
+| swing tier changes (per swing, all ten) | **0** |
+| swing θ-delta vs oracle — corpus max | 5.0° (3 takeaway frames, one swing) |
+| wall time (unbounded → bounded) | 34.3 ± 0.3 s → 14.8 ± 0.3 s (**2.31×**) |
+
+With both optimisations in place, a line-level profile — `line_profiler` and
+`cProfile` together on a single swing — locates the remaining cost exactly, and
+corrects one attribution in Table 2 along the way. What the coarse function-wrapping
+of Table 2 lumped as an 8% "DP Viterbi + tiering" residual is, at the line level,
+almost none of it the dynamic program: the entire Viterbi shift-loop measures 0.2 s,
+under 1% of the run — the residual was frame decode and one-time background
+construction the wrapping had not separated. The bounded tracker's time now splits
+three ways. Frame decode — reading every frame, still unbounded — is the single
+largest term (a third of the run on the studio, more on the slower development
+machine where the profile was taken), but it is the one cost that vanishes entirely
+against live camera frames and so does not count against the real-time path. The
+evidence engines are the dominant *compute*, and within them one line dominates
+(Table 5): the ridge sweep's background sample — an `np.median` over four offsets
+per ray — because the median forces a full selection-partition on every call, where
+the neighbouring mean, max and min samples are cheap reductions. Everything else —
+the DP, the four constraints, the ψ-reconciliation, the phase model — remains
+together under a fiftieth of the whole. The profile is, again, exactly the shape a
+port wants: one embarrassingly-parallel image kernel to accelerate, and a specific
+line within it to attack first.
+
+***Table 5.** Inside the ridge sweep (the dominant evidence engine after bounding),
+by sampled statistic — line-level shares, host-independent as ratios. The
+median-based background sample is the single largest line; replacing it is the top
+algorithmic lever.*
+
+| ridge-sweep sample | statistic | share of the sweep |
+|---|---|---|
+| **background** (±9–12 px offsets) | **`np.median`** | **54%** |
+| on-line max | `np.max` | 15% |
+| on-line min | `np.min` | 14% |
+| on-line mean | `np.mean` | 10% |
+
 ## 5. Discussion
 
 ### 5.1 A catalogue of errors, across the whole programme
@@ -1741,33 +1806,41 @@ operations that SIMD, a GPU, or even careful C++ accelerate by one to two orders
 magnitude, while the one inherently-sequential part — the Viterbi recursion — is
 already cheap and needs no attention at all.
 
-The levers follow directly from the table, in priority order — and the first is no
-longer a projection. The body-mask veto never needed a full-resolution dilation at
+The levers follow directly from the table, in priority order, and the first two are
+no longer projections. The body-mask veto never needed a full-resolution dilation at
 all: C2 asks only whether a candidate ray lies majority-inside the body, a
 point-in-polygon question, so we replaced the rasterise-and-dilate with a geometric
 test against the convex hull of the same smoothed joints (§4.9). It removed the
 single largest cost outright — **2.03× faster across the corpus, with byte-identical
-accuracy** (Table 3) — and touched nothing about the physics. Three levers remain,
-and they compound. The evidence sampling, now the dominant term, is vectorisable,
-and outside the impact zone where θ moves slowly it can run on a coarser angular
-grid, its samples shared across the DP's θ candidates rather than recomputed. The
-expensive per-frame work — the evidence and the veto — need run only on the ~140
-frames of the actual moving swing, not the ~600 frames of the static address and
-finish holds the tracker currently grinds through frame by frame; bounding it there
-is a near-free several-fold cut on top. And frame decode disappears entirely against
-live camera frames. Nothing about the constraint system, the DP, or the
-reconciliation needs to change.
+accuracy** (Table 3) — and touched nothing about the physics. The second lever, also
+now measured, follows the observation that most of the surviving per-frame work is
+spent on frames where the club is motionless: bounding the evidence and the veto to
+the ~140 frames of the actual moving swing — a span the hands-only phase model hands
+over for free — skips the ~600 static address and finish frames the tracker had been
+grinding through one at a time, for another **2.31×, and 4.7× in all** (Table 4),
+with the swing untouched. Two levers remain. The evidence sampling, now the dominant
+*compute*, is vectorisable, and a line-level profile names its worst offender
+precisely: the ridge sweep's `np.median` background sample, 54% of the sweep,
+forcing a full selection-partition per ray where a rolling or approximate estimator
+would not (Table 5); outside the impact zone where θ moves slowly the samples can
+also run on a coarser grid, shared across the DP's θ candidates rather than
+recomputed. And frame decode — the single largest line in the bounded profile —
+disappears entirely against live camera frames, which is the case that actually
+ships. Nothing about the constraint system, the DP, or the reconciliation needs to
+change; the same profile confirms it, timing the entire Viterbi shift-loop at 0.2 s.
 
-We now have one measured optimisation and three projected ones. The measured one
-alone took the tracker from thirteen times offline to about six; the honest
-arithmetic on the rest is that bounding the work to the swing span and vectorising
-the evidence should reach the low-single-digit seconds a post-shot analysis needs,
-and that a C++/SIMD implementation of the surviving image stage, behind the existing
-detector interface and byte-checked against the Python exemplar, closes any
-remaining gap to the frame budget. The point worth keeping is structural, and the
-C2 result is its first confirmation: the design spent its complexity on the part
-that is cheap to run and its runtime on the part that is cheap to optimise, which is
-exactly the shape one wants to carry into a port.
+We now have two measured optimisations and two projected ones, and the measured pair
+took the tracker from thirteen times offline to about a fifth of that — 70 s to
+14.8 s. The honest arithmetic on the rest is that against live frames decode is
+already gone, and cheapening the median-bound evidence sample brings the surviving
+compute into the low-single-digit seconds a post-shot analysis needs; a C++/SIMD
+implementation of that one image stage, behind the existing detector interface and
+byte-checked against the Python exemplar and its `--raster-c2`/`--no-span-bound`
+oracles, closes any remaining gap to the frame budget. The point worth keeping is
+structural, and the two results are its confirmation: the design spent its
+complexity on the part that is cheap to run and its runtime on the part that is cheap
+to optimise, which is exactly the shape one wants to carry into a port — the work
+that begins next.
 
 ## 6. Conclusion
 
