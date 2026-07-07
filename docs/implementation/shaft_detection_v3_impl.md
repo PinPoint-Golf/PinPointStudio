@@ -373,25 +373,46 @@ also `phi_clean=θ−ψ_iso`). New **`recon`** tier = blur frame moved off its e
 (honest arm-witness; excluded from truth like pred; kind=pred in the track contract). `--no-psi-rail` =
 pure v3.0. Bands pinned. `make_synth_v3.py`: blackout gap + fixed-θ decoy, FAIR criteria (gap θ-truth is
 physically unrecoverable — dropped as a metric): known-θ on non-gap measured, **release ψ-viol 5→0**,
-decoy gap-measured 4→2, residual localises (gap 4.3° vs clean 1.3°). Determinism byte-identical.
+decoy rejected (gap-measured 6→4), residual localises (gap 3.5° vs well-measured 0.0°). Determinism
+byte-identical. (Gap moved to **f[85,95]**, fully inside the impact phase, and the residual baseline
+changed to the *well-measured* swing when the fix below narrowed `RECON_PHASES` — see re-gate.)
 
-**Gates.** synth `--selftest` PASS. **s01 PASS, BEATS the rail:** coverage 134=134 (no frame lost — the
-rail lost f520), accuracy improved (down bad>15 1→0, hand median 0.5→0.4), flips 0, impact re-hinge
-flattened + `psi_err` localises it. **Corpus A/B (studio, all 10; `run_v32r1_corpus.py`):** release
-ψ-viol **104→35** (every swing improved), flips 0, determinism byte-identical, down bad 1→0, medians
-held — **but thru p90 3.9→5.5 and thru coverage 678→649**. Diagnosed (`_diag_thru.py`): 24/29 worsened
-thru frames are `ray`, **all at f547–565 (follow-through, ~30–45f post-impact)** where the club is
-re-tracked but the folding arm φ degrades → `ψ_iso+φ` pulls a good ray off truth.
+**First-cut gates (`RECON_PHASES=("impact","thru")`).** synth `--selftest` PASS. **s01 PASS, BEAT the
+transition rail:** coverage 134=134 (no frame lost — the rail lost f520), accuracy improved (down bad>15
+1→0, hand median 0.5→0.4), flips 0, impact re-hinge flattened + `psi_err` localises it. **Corpus A/B
+(studio, all 10; `run_v32r1_corpus.py`):** release ψ-viol **104→35** (every swing improved), flips 0,
+determinism byte-identical, down bad 1→0, medians held — **but thru p90 3.9→5.5 and thru coverage
+678→649**. Diagnosed (`_diag_thru.py`): 24/29 worsened thru frames are `ray`, **all at f547–565
+(follow-through, ~30–45f post-impact)** where the club is re-tracked but the folding arm φ degrades →
+`ψ_iso+φ` pulls a good ray off truth.
 
 **The physics behind it (Mark, 2026-07-07):** ψ is a **double reversal** — cock (top) → release to ≈0
 (impact) → passive centripetal **re-hinge** (follow-through), with **forearm rotation** (a third DOF,
 near-unobservable face-on: axially-symmetric shaft carries no roll signal) dominating the middle. The
-single-tent monotone-release law is only valid **address→impact**. **FIX (next session, not yet applied):
-`RECON_PHASES = ("impact",)`** — reconstruct only the impact blur; trust evidence + record the residual
-(roll-onset signal) through the follow-through. Predicted to recover thru p90 + coverage, keep the impact
-re-hinge win. Re-gate synth (move the decoy gap fully inside the impact phase) → s01 → corpus. Roll as a
-real third dimension is deferred to the **IMU / DTL / clubhead** channels (epistemic firewall), not the
-face-on shaft DP.
+single-tent monotone-release law is only valid **address→impact**. Roll as a real third dimension is
+deferred to the **IMU / DTL / clubhead** channels (epistemic firewall), not the face-on shaft DP.
+
+**FIX — applied + re-gated (2026-07-07): `RECON_PHASES = ("impact",)`.** Reconstruct only the impact
+blur; through the follow-through trust the (returned-sharp) evidence and merely record the residual as a
+roll-onset signal. The isotonic fit still *spans* impact+thru as one release block (so the monotone law
+bridges the blur); only the θ **write-back** is impact-only. Re-gated in order — synth `--selftest` (gap
+moved fully inside impact) → s01 A/B → studio corpus — all PASS:
+
+| metric (studio corpus, 10 swings, vs v2) | OFF (v3.0) | ON impact+thru | **ON impact-only** |
+|---|---|---|---|
+| thru p90 θ-err (°) | 3.9 | 5.5 | **3.9** (regression fixed) |
+| thru coverage (band+ray / 820) | 678 | 649 | **671** |
+| down `bad>15` | 1 | 0 | **0** |
+| release ψ-viol | 104 | 35 | **84** |
+| flips / determinism | 0 / — | 0 / id. | **0 / byte-identical** |
+
+ψ-viol 35→84 is correct, not a loss: the 35 came from flattening the *real* second-reversal/roll in the
+follow-through (what corrupted thru accuracy); impact-only removes only the ~20 spurious impact-blur
+re-hinges and lets the physical motion stand in `psi_err`. `recon` dropped from ≤13/swing → 0–4/swing (the
+recovery mechanism). On s01, the rail changes θ on **2 frames** (the impact blur) vs pure v3.0 and adds
+`psi_err` on 121 release frames; the v3.0 track is otherwise byte-identical. Scripts/logs this session:
+`…/scratchpad/{score_s01_gate,followthrough_cmp,probe_gap*,off_delta}.py`, `corpus_{beforefix,afterfix}.log`;
+before-fix per-swing outputs preserved at NAS `v32r1_beforefix/`.
 
 **Studio-run playbook (learned this session).** Corpus batch runs on GOLFSIMPC via `ssh studio`
 (PowerShell, venv `C:\PinPointStudio\shaftlab\.venv\Scripts\python.exe`, python 3.14/cv2 5.0/numpy 2.5).

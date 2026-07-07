@@ -296,8 +296,12 @@ estimator's smoothness.
 > in the follow-through, with **forearm rotation** (a third DOF, invisible face-on) dominating the middle
 > — so the law's valid domain is **address→impact** and the reconciliation is bounded to the impact blur
 > (`RECON_PHASES=("impact",)`); (2) roll, the third dimension, is deferred to the IMU/DTL/clubhead, not
-> estimated from the axially-symmetric shaft. Corpus A/B: release ψ-viol 104→35, flips 0, determinism
-> byte-identical. Full detail: `club_tracking_v3_design.md` §8.1; research §3.8a; as-built +
+> estimated from the axially-symmetric shaft. Re-gated synth → s01 → 10-swing studio corpus, all PASS
+> (2026-07-07): narrowing to the impact blur recovered the follow-through (thru p90 5.5→**3.9** = v3.0
+> baseline, thru coverage 649→**671**) while keeping the impact-blur win (down `bad>15`→0); release ψ-viol
+> 104→**84** (the impact-only form flattens only the spurious impact-blur re-hinges and leaves the real
+> follow-through re-hinge/roll in `psi_err`), flips 0, byte-identical determinism. Full detail:
+> `club_tracking_v3_design.md` §8.1; research §3.8a + §4.7; as-built +
 > studio-run playbook: `../implementation/shaft_detection_v3_impl.md` §v3.0-r1. Porting invariants for
 > the isotonic form join 5/11 in §15 (fit-not-penalise; bands pin + anchor; blur-weight interpolation;
 > impact-only domain; `recon` excluded from truth).

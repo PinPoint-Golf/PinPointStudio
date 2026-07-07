@@ -89,22 +89,40 @@ BAND_NEAR = 5        # a static ray is admissible within this many frames of a b
 # apparent reversal that is pure noise). Design: club_tracking_v3_design.md sec.8.
 #
 # Two regimes, one principle -- attribute the error to the UNCERTAIN source:
-#   * blur zone (impact/thru): the club blurs, theta is unreliable, the ARM is
+#   * blur zone (impact ONLY): the club blurs, theta is unreliable, the ARM is
 #     the better witness -> reconstruct theta = psi_iso + phi (arm-witness bridge)
 #     for non-band frames. This also rejects a psi-non-monotone counterfeit (a
 #     bright line whose implied wrist re-hinges): it departs from the band-
 #     anchored monotone psi and is pulled back.
-#   * elsewhere (backswing/downswing): theta is well-measured, phi is the noisy
-#     one -> KEEP the measured theta; the residual is a phi-error / confidence map
-#     (phi_clean = theta - psi_iso is available). Never inject phi noise into a
-#     good club measurement.
+#   * elsewhere (backswing/downswing/thru/finish): theta is well-measured, phi is
+#     the noisy one -> KEEP the measured theta; the residual is a phi-error /
+#     confidence map (phi_clean = theta - psi_iso is available). Never inject phi
+#     noise into a good club measurement. NB the FOLLOW-THROUGH (thru) lives here,
+#     NOT in the blur zone: post-impact the re-tracked club is accurate but the arm
+#     folds, so its psi-residual is a roll-onset signal (see RECON_PHASES), not a
+#     correction. The isotonic fit still SPANS impact+thru (one release block) so
+#     the monotone law bridges the blur; only the theta WRITE-BACK is impact-only.
 # Band locks are pinned (invariant 1) and weight the fit most; the fit is robust
 # (Huber-IRLS) so one phi-glitch anchor cannot drag it. Deterministic (PAVA exact).
 ARM_OUTLIER_DEG = 20.0   # smooth_phi Hampel gate: max plausible arm-rate (deg/f)
 W_ISO = {"band": 8.0, "ray": 2.0, "pred": 0.3}   # isotonic weight by confidence
 ISO_HUBER = 8.0      # Huber knee (deg): residuals beyond this are down-weighted
 ISO_ITERS = 3        # IRLS reweight iterations
-RECON_PHASES = ("impact", "thru")   # blur zone: reconstruct non-band theta here
+RECON_PHASES = ("impact",)   # blur zone: reconstruct non-band theta here. IMPACT
+                     # ONLY (v3.0-r1 refinement 2026-07-07): the impact blur is the
+                     # sole span where theta_club < phi_arm reliability. Through the
+                     # FOLLOW-THROUGH (thru) the club is re-tracked & accurate while
+                     # phi (folding arm) degrades, so psi_iso+phi would pull a GOOD
+                     # ray off truth (corpus: thru p90 3.9->5.5, coverage 678->649
+                     # when thru was reconstructed). Physics (Mark, 2026-07-07): psi
+                     # is a DOUBLE reversal -- cock->top, release->impact, passive
+                     # centripetal RE-HINGE through the follow-through -- and between
+                     # them the dominant motion is forearm ROLL about the shaft long
+                     # axis, a 3rd DOF that is near-unobservable face-on (axially
+                     # symmetric shaft). So the single-tent release law holds only
+                     # addr->impact; the thru psi-residual is kept as a roll-onset /
+                     # release-complete SIGNAL, not a theta correction (deferred to
+                     # club IMU / DTL / clubhead stage for a real 3rd dimension).
 RECON_TOL = 6.0      # if reconstruction moves theta > this from its evidence, the
                      # frame is retiered 'recon' (physics, not a direct measurement)
 PSI_WIN_BACK = 3     # psi-reversal free window (excluded from the fit): frames of

@@ -55,8 +55,16 @@ TRUE_IMPACT = 88
 # (rises) through the downswing -- anatomically impossible. Without the rail the
 # DP locks the bright decoy (its only evidence) and emits a wrong 'ray'; with the
 # rail the re-hinge is penalised and the DP bridges via the arm witness to 'pred'.
-# The gap sits in the through phase, clear of the psi_free top window.
-GAP_LO, GAP_HI = 92, 100
+# The gap sits FULLY INSIDE the impact phase (detected impact~f84 -> impact span
+# [72,96]) -- required since the v3.0-r1 refinement narrowed RECON_PHASES to
+# ("impact",): theta is reconstructed (arm-witness) only in the impact blur, so the
+# gap must lie there for the reconstruction/decoy-rejection to exercise. It is also
+# clear of the psi_free top window [64,79] (top~f67). [85,95] is late enough that
+# the fixed decoy diverges from the monotone truth (a clear re-hinge / large
+# residual at f88-89) yet leaves a 1-2 frame margin to the impact boundary at f96
+# so a small shift in the detected impact frame across hosts cannot spill the gap
+# into the (measured, non-reconstructed) follow-through.
+GAP_LO, GAP_HI = 85, 95
 DECOY_ON = True
 
 
@@ -281,11 +289,21 @@ def selftest():
 
     on = _score(f"{tmp}/faceon_swing_v3.csv", truth, tt, anch)
     viol_on = _psi_violations(on["track"], phase, phi_s, psi_lo, psi_hi)
-    gap_resid = [float(x["psi_err"]) for x in csv.DictReader(open(f"{tmp}/faceon_swing_v3.csv"))
-                 if GAP_LO <= int(x["frame"]) <= GAP_HI and x["psi_err"]]
-    clean_resid = [float(x["psi_err"]) for x in csv.DictReader(open(f"{tmp}/faceon_swing_v3.csv"))
-                   if x["phase"] in ("impact", "thru") and x["psi_err"]
-                   and not (GAP_LO <= int(x["frame"]) <= GAP_HI)]
+    _rows = list(csv.DictReader(open(f"{tmp}/faceon_swing_v3.csv")))
+    _ingap = lambda x: GAP_LO <= int(x["frame"]) <= GAP_HI
+    gap_resid = [float(x["psi_err"]) for x in _rows if _ingap(x) and x["psi_err"]]
+    # residual-localisation baseline = the WELL-MEASURED swing (backswing/downswing/
+    # follow-through), where the real club is directly tracked -> psi_err ~0. NOT
+    # impact+thru: since the v3.0-r1 refinement narrowed reconstruction to the impact
+    # blur, the clean IMPACT frames ARE the reconstruction zone (legitimately
+    # uncertain -> nonzero residual), so they cannot serve as the "clean" baseline;
+    # and thru is now measured & anchors the fit (residual ~0). This mirrors real s01
+    # ("gap 4.3 vs clean 1.3"), where clean was the well-measured frames.
+    clean_resid = [float(x["psi_err"]) for x in _rows
+                   if x["phase"] in ("backswing", "downswing", "thru") and x["psi_err"]
+                   and not _ingap(x)]
+    blur_resid = [float(x["psi_err"]) for x in _rows           # clean impact (blur, recon)
+                  if x["phase"] == "impact" and x["psi_err"] and not _ingap(x)]
     n = len(on["errs"]); mean = sum(on["errs"]) / n if n else 99
     bad = sum(1 for e in on["errs"] if e > 15)
     print(f"[recon ON ] band={on['band_n']} ray={on['ray_n']} recon={on['recon_n']}  "
@@ -301,17 +319,21 @@ def selftest():
     viol_off = _psi_violations(off["track"], phase, phi_s, psi_lo, psi_hi)
     g_res = sum(gap_resid) / len(gap_resid) if gap_resid else 0.0
     c_res = sum(clean_resid) / len(clean_resid) if clean_resid else 0.0
+    b_res = sum(blur_resid) / len(blur_resid) if blur_resid else 0.0
     print(f"[recon OFF] release-psi-viol={viol_off}  gap-measured={len(off['gap_locked'])}  "
           f"==>  isotonic removes re-hinges (viol {viol_off}->{viol_on}), rejects decoy "
           f"(gap-measured {len(off['gap_locked'])}->{len(on['gap_locked'])}); residual "
-          f"localises error: gap {g_res:.1f} vs clean {c_res:.1f} deg")
+          f"localises error: gap {g_res:.1f} vs well-measured {c_res:.1f} "
+          f"(clean-impact blur {b_res:.1f}) deg")
 
     # ---- verdict (fair: gap is a deliberate blackout, truth unrecoverable) -
     known_ok = (n >= 40 and mean <= 2.0 and on["flips"] == 0 and on["arm_locks"] == 0
                 and bad <= max(1, n // 20) and phase_ok)     # known-theta recovery (Set S)
     monotone_ok = viol_on == 0 and viol_off > viol_on        # isotonic restores monotone psi
     reject_ok = len(on["gap_locked"]) < len(off["gap_locked"])  # decoy less measured w/ recon
-    resid_ok = g_res > c_res + 2.0                           # residual localises the error
+    resid_ok = g_res > c_res + 2.0                           # residual (psi_err) is elevated
+                                                             # in the counterfeit span vs the
+                                                             # well-measured swing (~0)
     ok = known_ok and monotone_ok and reject_ok and resid_ok
     print(f"  checks: known-theta={known_ok} monotone-restored={monotone_ok} "
           f"decoy-rejected={reject_ok} residual-localises={resid_ok}")

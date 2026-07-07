@@ -172,7 +172,7 @@ model (trivially derived from pose).
 | stage | content | gate |
 |---|---|---|
 | v3.0 | phase model, C1–C4 constraint set, DP estimator wrapping validated E1/E2 | synth gate extended with phases + body polygons + counterfeit population; corpus: zero adjudicated errors AND coverage ≥ v2.0 in down/thru, > 0 at finish + address-adjacent; determinism |
-| v3.0-r1 | **C4 ψ-monotonicity transition rail** (Δψ = Δθ − Δφ sign-lock + rate bound; §8) — the double pendulum's monotone structure, the substantive form of C4 replacing the wide cone | gate-0 (s01 hand markup) PASSED; then re-gate synth → s01 → corpus + fixture re-freeze; zero flips; coverage/accuracy through impact ≥ current v3.0; determinism |
+| v3.0-r1 | **C4 ψ-monotonicity, as isotonic reconciliation** (fit monotone ψ, read error off the residual; reconstruction bounded to the impact blur, `RECON_PHASES=("impact",)`; §8.1) — the double pendulum's monotone structure, the substantive form of C4 replacing the wide cone | gate-0 (s01 hand markup), synth `--selftest`, s01 A/B, and 10-swing studio corpus all PASSED (2026-07-07); thru p90 5.5→3.9 (regression fixed), thru cov 649→671, down `bad>15`→0, flips 0, byte-identical determinism; fixture re-freeze pending |
 | v3.1 | shift-and-stack ROI + ω measurement in the blur zone | impact ±10 frames: θ/ω emitted with visual adjudication of stacked composites; ω(t) smooth, peak within physical range for a 7-iron; no regression elsewhere |
 | v3.2 | address/hold θ truth | agreement with stage-1 address meas (reliable there) + hand-label spot checks; zero flips |
 | v3.3 | heel/toe NN + data flywheel | beats classical stage-2 head on held-out instrumented swings; honesty clauses pass; frozen weights versioned |
@@ -346,12 +346,36 @@ directly), the DTL camera, and the clubhead detector, and the follow-through
 ψ-residual is kept as a **roll-onset / release-complete signal**, not a θ
 correction.
 
-**Corpus A/B (studio, 10 swings; OFF = v3.0, ON = isotonic).** Release
-ψ-violations **104→35** (every swing improved), flips 0, byte-identical
-determinism, down `bad>15` 1→0, addr_back/down/finish medians unchanged, thru
-median held at 0.4°. The one regression — thru **p90 3.9→5.5°** and thru
-coverage 678→649 — was localised entirely to **follow-through frames f547–565**
-(24 of 29 worsened frames were `ray`, all post-impact), i.e. exactly the
-re-hinge/rotation regime the single-tent law does not model. This diagnosis is
-what motivates finding 2's `RECON_PHASES = ("impact",)`; the impact-blur bridge
-(the prize) is untouched by it. Re-gate pending after that narrowing.
+**Corpus A/B (studio, 10 swings; OFF = v3.0, ON = isotonic).** The first cut
+reconstructed the whole release (`RECON_PHASES = ("impact","thru")`). It cut
+release ψ-violations **104→35** (every swing improved), held flips 0 and
+byte-identical determinism, took down `bad>15` 1→0, and left addr_back/down/
+finish medians and the thru median (0.4°) unchanged — **but regressed the
+follow-through**: thru p90 **3.9→5.5°** and thru coverage **678→649**, localised
+entirely to frames f547–565 (24 of 29 worsened frames were `ray`, all
+post-impact), exactly the re-hinge/rotation regime the single-tent law does not
+model. That diagnosis motivated finding 2's narrowing to `RECON_PHASES =
+("impact",)`.
+
+**Re-gate of the narrowed form (2026-07-07): fixed.** With reconstruction bounded
+to the impact blur, the whole pipeline was re-gated — synth `--selftest`, the s01
+single-swing A/B, and the 10-swing studio corpus — and the regression is gone
+while the impact-blur prize is kept:
+
+| metric (studio corpus, vs v2 truth) | OFF (v3.0) | ON: impact+thru (first cut) | **ON: impact-only (shipped)** |
+|---|---|---|---|
+| thru p90 θ-error (°) | 3.9 | 5.5 ⚠ | **3.9** ✓ recovered to baseline |
+| thru coverage (band+ray / 820) | 678 | 649 | **671** ✓ 22 of 29 back |
+| down `bad>15` (impact-blur win) | 1 | 0 | **0** ✓ kept |
+| release ψ-violations | 104 | 35 | **84** |
+| flips (err>90) / determinism | 0 / — | 0 / identical | **0 / byte-identical** |
+
+The ψ-violation count rising 35→84 is the mechanism working as intended, not a
+loss: the first cut's 35 was bought by *flattening the real second reversal and
+roll* in the follow-through — the very thing that corrupted thru accuracy. The
+impact-only form flattens only the ~20 spurious impact-blur re-hinges (104→84)
+and lets the physical follow-through motion stand, recording it in `psi_err` as a
+roll-onset signal rather than "correcting" it. `recon` frames fell from up to
+13/swing to 0–4/swing — the direct cause of the coverage recovery. On s01 the
+rail alters θ on only **two frames** (the impact blur) versus pure v3.0 and adds
+`psi_err` on 121 release frames; the v3.0 track is otherwise byte-identical.

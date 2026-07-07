@@ -661,7 +661,7 @@ motion is not hinge at all but **forearm rotation about the shaft's long axis**
 — a third rotational degree of freedom a face-on view cannot see, the shaft
 being axially symmetric so that rolling it does not move the line. A
 one-reversal release law imposed to the finish therefore fights both a real
-second reversal and a rotation it cannot represent, and (§4.6) it degraded the
+second reversal and a rotation it cannot represent, and (§4.7) it degraded the
 *well-tracked* follow-through while helping only the impact blur. The law's
 valid domain is **address→impact**; the reconciliation is bounded to the impact
 blur (hinge-valid ∩ shaft-lost), and past impact the shaft evidence — returned
@@ -1126,6 +1126,68 @@ the top, releasing monotonically to the finish, one reversal. The grey dots are
 ψ computed with the **raw** pose φ, exposing the φ-noise the rail must survive;
 the red × is ψ from the v2 truth. Vertical lines mark P1–P10; the dashed line is
 the hand-top P4 — note ψ peaks slightly later, the release lag.*
+
+### 4.7 The reconciliation, gated: the ten-swing corpus
+
+The law verified on s01 (§4.6) is one thing; the *estimator* that operationalises
+it is another, and it was gated the way the programme gates everything — on
+synthetic machinery, then the s01 single swing, then the whole corpus — with the
+result read against pure v3.0 on the same host (never across hosts: the studio's
+OpenCV differs from the development machine's, and a frozen track must not be
+diffed across that boundary). The synthetic gate renders a full double-pendulum
+swing with a deliberate evidence blackout — the shaft made invisible through a
+short span, leaving only a bright decoy line held at a *fixed* angle so that,
+because the arm keeps releasing under it, the decoy implies a wrist that
+*re-hinges*: an anatomically impossible counterfeit the fit must reject. It does:
+the isotonic reconstruction bridges the blackout from the flanking bands and
+drives the counterfeit's measured share down, while the residual localises the
+error to exactly the blacked-out frames and stays near zero across the
+well-measured swing.
+
+The corpus exposed the design's one real fault, and its fix. A first cut
+reconstructed the entire release from the arm wherever the shaft was not
+band-locked. Across ten swings it cut the release re-hinge count on the output
+track from 104 to 35, held flips at zero and determinism byte-identical, took the
+impact-blur error population (`bad>15°`) from one frame to none, and left every
+phase median unchanged — **but it regressed the follow-through**, pushing the
+through-phase p90 error from 3.9° to 5.5° and dropping through-phase coverage from
+678 to 649 measured frames. The regression was not diffuse: it lived almost
+entirely on frames roughly thirty to forty-five past impact, where the shaft has
+returned sharp and is tracked *well* but the lead arm is folding and its pose
+estimate degrades — so reconstructing θ = ψ\_iso + φ there imports the arm's error
+into a club measurement that was already correct. That is precisely the
+double-reversal/rotation regime the single-tent law does not model (§3.8a). The
+fix follows directly: bound the reconstruction to the impact blur alone — the one
+span that is simultaneously hinge-valid and shaft-lost — and past it keep the
+measured shaft, recording the ψ-residual as a signal rather than acting on it. The
+narrowed form was re-gated through the same three stages and the regression is
+gone while the impact-blur bridge — the prize — is untouched:
+
+| metric (studio corpus, 10 swings, vs v2 truth) | v3.0 (rail off) | rail on: impact+thru | **rail on: impact-only** |
+|---|---|---|---|
+| through-phase p90 θ-error (°) | 3.9 | 5.5 | **3.9** — recovered to baseline |
+| through-phase coverage (band+ray of 820) | 678 | 649 | **671** — 22 of 29 restored |
+| down-phase `bad>15°` (impact-blur) | 1 | 0 | **0** — kept |
+| release re-hinge count (output track) | 104 | 35 | **84** |
+| flips (err > 90°) / determinism | 0 / — | 0 / identical | **0 / byte-identical** |
+
+The re-hinge count rising from 35 back to 84 is the mechanism working, not
+failing. The 35 was bought by *flattening a real motion* — the passive second
+reversal and the forearm roll of the follow-through — which is the very act that
+corrupted the through-phase accuracy. The impact-only form flattens only the
+roughly twenty spurious re-hinges of the impact blur (104→84) and lets the
+physical follow-through motion stand, where it now surfaces as the residual — a
+release-complete / roll-onset signal, not an error to be corrected. The count of
+arm-witness `recon` frames, which the first cut ran up to thirteen per swing, falls
+to zero-to-four, and that fall *is* the coverage recovery. On the single swing the
+effect is almost invisibly surgical: against pure v3.0 the reconciliation changes
+the shaft angle on **two frames** — both in the impact blur, where max error drops
+from 15.7° to 11.5° — and otherwise leaves the v3.0 track byte-identical, adding
+only the per-frame residual map across the release. The residual is the durable
+by-product: a physically-grounded, per-frame confidence signal on the shaft angle,
+a lever to calibrate the pose model against an invariant it must obey, and — in the
+follow-through — the first observable trace of the roll dimension a face-on camera
+cannot otherwise see.
 
 ## 5. Discussion
 
