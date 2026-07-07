@@ -78,6 +78,15 @@ RAY_EV_MIN = 0.45    # normalised E2 evidence needed to call a frame 'ray'
 BAND_TOL = 6.0       # |theta* - theta_band| (deg) to claim the band tier
 STILL_SPEED = 0.8    # grip px/frame below which (sustained) a frame is 'static'
 STILL_MIN = 25       # min static-run length (frames)
+SPAN_COLLAR_US = 100_000   # settling padding each side of the moving span [bs0,fin0]
+                     # processed by the expensive evidence/veto ops, in MICROSECONDS
+                     # (fps-independent: converted to frames per clip via fps, so a
+                     # faster/slower recording keeps the same time margin). The club
+                     # can move just before the hands cross SW_SPD (and settle just
+                     # after); the collar keeps those in. Held addr/finish frames
+                     # outside it get flat emission -> DP-held pred tier. 100 ms ~= 15
+                     # frames at 149 fps; ~140-frame span + collar of 745 -> ~4-5x
+                     # fewer heavy frames.
 BAND_NEAR = 5        # a static ray is admissible within this many frames of a band lock
 
 # ---- C4 recast: psi-monotonicity as TRUTH, reconciled by isotonic fit (v3.0-r1)
@@ -392,6 +401,13 @@ def main():
                          "form is ~2x slower overall (a full-res dilation per frame) "
                          "and accuracy-identical (corpus A/B: median-err delta 0.000 "
                          "deg); kept as the byte-oracle / for regression.")
+    ap.add_argument("--no-span-bound", action="store_true",
+                    help="DISABLE swing-span bounding: run the expensive per-frame "
+                         "evidence + veto ops on ALL frames instead of only the moving "
+                         "span [bs0,fin0] (+/- SPAN_COLLAR_US). Default bounds them to "
+                         "the swing (~5x fewer heavy frames; held addr/finish frames "
+                         "are pred-tier holds). This flag is the byte-oracle for the "
+                         "bounded-vs-unbounded A/B.")
     args = ap.parse_args()
 
     rec = json.load(open(args.clubs))[args.club]
@@ -465,6 +481,20 @@ def main():
     TDEG = np.degrees(TR)
 
     # ---- per-frame evidence + constraint penalties --------------------
+    # Swing-span bounding: the evidence engines (ridge_sweep x2, frame_band_match)
+    # and the C2 veto are ~85% of the runtime and dominate compute. Only ~19% of a
+    # clip is the moving swing (measured on tape_20260705); the rest is the golfer
+    # held at address/finish where the shaft is static and the answer is constant.
+    # Run the heavy ops ONLY on [bs0,fin0] +/- SPAN_COLLAR_US; held frames keep flat
+    # emission (W_E2) and are bridged to a pred-tier hold by the DP smoothness. The
+    # DP + tiering still run over ALL frames (cheap), so the output shape is
+    # unchanged. Degenerate span (segment_phases fallback -> bs0=0,fin0=nf-1) clamps
+    # to the whole clip: safe by construction (full processing, never under-cover).
+    # --no-span-bound processes everything = the byte-oracle for the A/B.
+    collar = int(round(SPAN_COLLAR_US * 1e-6 * fps))   # us -> frames for this clip
+    span_lo = 0 if args.no_span_bound else max(0, bs0 - collar)
+    span_hi = nf - 1 if args.no_span_bound else min(nf - 1, fin0 + collar)
+    n_proc = 0
     emis = np.full((nf, NS), W_E2)                   # emission cost
     EV = np.zeros((nf, NS))                          # normalised E2 evidence (pre-gate)
     band = [None] * nf                               # band-lock dict per frame
@@ -472,6 +502,9 @@ def main():
     for f in range(nf):
         if f not in anchors or np.isnan(gx[f]):
             continue
+        if not (span_lo <= f <= span_hi):            # held frame: skip heavy ops
+            continue
+        n_proc += 1
         g = (gx[f], gy[f]); gray = frames[f].astype(np.float32)
         s_raw, _, sup_raw = ridge_sweep(gray, g[0], g[1], TR)
         diff = np.abs(gray - scene_med)
@@ -653,6 +686,9 @@ def main():
     for r in rows:
         tc[r["tier"]] = tc.get(r["tier"], 0) + 1
     lm = f"bs0={bs0} top={top} impact={impf} fin0={fin0} chir={chir:+d}"
+    _sb = "off" if args.no_span_bound else f"[{span_lo},{span_hi}]"
+    print(f"span_bound={_sb} heavy_frames={n_proc}/{nf} "
+          f"({100.0 * n_proc / max(nf, 1):.0f}%)")
     print(f"frames={nf}  {lm}  psi_recon={'on' if use_psi else 'off'} "
           f"free=[{max(0, top - PSI_WIN_BACK)},{min(nf - 1, top + PSI_WIN_FWD)}] "
           f"recon={int(recon.sum())}")
