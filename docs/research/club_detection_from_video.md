@@ -1341,10 +1341,14 @@ half-planes, a ray vetoed when a majority of its sample points satisfy
 max_i(n_i·p − d_i) ≤ margin, six dot products per point with no raster and no
 dilation. An A/B across the corpus (Table 3) confirms the change alters nothing
 that matters: the median shaft-angle error against v2 truth is identical to three
-decimals on every swing, with only six isolated frames — none of them truth frames,
-where a ray grazing a mitred hull corner flips the veto — differing across some
-seven thousand, while the tracker runs **2.03× faster, 70.7 s down to 34.8 s**, the
-largest cost simply gone. The dominant term is now the evidence sampling, and the
+decimals on every swing, with only six isolated frames — none of them truth frames —
+differing across some seven thousand. Even those are not a modelling difference but
+raster pixel-quantisation: on each, a ray sample point falls within a pixel of the
+dilated body boundary, where the raster path classifies it against an
+integer-snapped mask with integer-snapped sample coordinates while the geometric
+test uses exact floats — a sub-pixel disagreement in which the geometry is, if
+anything, the more correct. The tracker meanwhile runs **2.03× faster, 70.7 s down
+to 34.8 s**, the largest cost simply gone. The dominant term is now the evidence sampling, and the
 tracker sits about six times off the frame budget rather than thirteen; §5.6 takes
 up the rest of the path.
 
