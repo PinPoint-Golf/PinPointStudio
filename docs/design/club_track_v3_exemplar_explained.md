@@ -241,12 +241,25 @@ it is excluded from this test). Kills: screen/mat edges, trouser creases, shaft 
 
 **Physics:** from the takeaway through the follow-through the club is out in free space, clear of
 the torso and legs; only at address, at the moment of impact, and in the finish does it overlap the
-body. **Rule:** `body_masks` builds a filled outline of the golfer each frame from the 8 skeleton
-joints (convex hull, temporally smoothed to survive pose noise, then dilated by a margin). During
-the mid-swing phases, a candidate angle whose shaft ray lies **mostly inside** that outline is
-penalised (lines 311–318). At address/impact/finish the veto is switched off ("admitted, but never
+body. **Rule:** the golfer's outline is the convex hull of the 8 skeleton joints, temporally smoothed
+to survive pose noise and inflated by a margin. During the mid-swing phases, a candidate angle whose
+shaft ray lies **mostly inside** that outline is penalised (a majority of the ray's sample points
+falling inside; see §9). At address/impact/finish the veto is switched off ("admitted, but never
 sufficient alone"). Kills: leg shadows, shirt-texture lines, foot-region mat speckle — all of which
 live *inside* the body during phases when the club cannot.
+
+The *outline test* comes in two forms that agree to the pixel. The default, `body_polys`, is purely
+**geometric**: it represents the inflated hull as a set of outward-facing half-planes and asks, for
+each ray sample point, whether it lies inside all of them — `max_i(n_i·p − d_i) ≤ margin`, a handful
+of dot products per point, no image at all. The original form, `body_masks` (kept behind
+`--raster-c2`), instead **rasterised** the hull into a filled bitmap and dilated it with a 69-pixel
+morphological kernel every frame, then looked each sample point up in the bitmap. The two are the
+same veto; the raster one was more than half the entire runtime (§ compute note in the research
+paper) doing image processing to answer a point-in-polygon question, so the geometric form replaced
+it as the default — ~50× cheaper for that stage, accuracy-identical (a corpus A/B found the median
+shaft-angle error unchanged to three decimals). The raster form survives only as the byte-oracle the
+C++ port checks against. **Porting invariant:** the geometric half-plane test is the one to port; see
+§15.
 
 ### C3 — the swing reverses exactly once, at the top (phase-signed rotation)
 
@@ -768,6 +781,38 @@ silently change results:
 5. **Wide, part-time C4.** Keep the cone wide and disabled at address/finish/top. Do not tighten it.
 6. **The evidence engines E1/E2** must match `stripe_fusion`'s numerically (they are the other
    half of the byte-oracle) — port them faithfully rather than re-deriving.
+
+**Two default optimisations are already in the exemplar, and each keeps its own byte-oracle flag** —
+port the *default* behaviour, and use the flags as the C++ parity references:
+
+- **C2 is geometric by default** (`body_polys`, half-plane test; §5), not the rasterise-and-dilate
+  bitmap. Port the geometric form. `--raster-c2` restores the original bitmap veto as an oracle; the
+  two agree to the pixel except for sub-pixel boundary-grazing (the raster snaps to integer pixels),
+  so parity is against the *geometric* default, not the raster.
+- **The expensive per-frame work is bounded to the swing span by default.** The evidence engines and
+  the C2 veto run only on `[bs0, fin0]` (takeaway→finish, from the hands-only phase model) plus a
+  100 ms settling collar; the ~600 static address/finish frames are skipped, keep a flat emission,
+  and are carried to a `pred`-tier hold by the DP's own smoothness. The DP and tiering still run over
+  **every** frame, so the output shape is unchanged. A naive port that runs the evidence over all
+  frames is *correct but slow*; a port that skips the held frames but forgets to still emit their
+  `pred` rows is *wrong*. `--no-span-bound` runs everything and is the unbounded oracle. Corpus A/B:
+  the swing frames are accuracy-identical (median-error delta −0.06°, zero tier changes on the
+  moving swing); the per-frame measurements *inside* the holds are intentionally dropped (a static
+  resting club is a known counterfeit risk, and its angle is the v3.2 companion's job).
+
+**Where to spend the port's effort — and where not to.** A line-level profile settles this
+concretely. The *deciding* is free: the whole Viterbi DP, the four constraints, the phase model and
+the ψ-reconciliation together are under 2% of runtime (the DP's shift-loop is 0.2 s) — do **not**
+optimise them, and do not "simplify" them (invariants 1–5 are correctness, not performance). All the
+cost is in *seeing*: frame decode (which vanishes against live camera frames, so it does not count
+against the real-time path) and the evidence sampling. Within the evidence sampling one line
+dominates — the ridge sweep's background sample, an `np.median` over four offsets per ray, ~54% of
+the sweep, because the median forces a full selection-partition every call. This is the one line to
+make fast in C++ (a rolling or approximate median, or a SIMD partition), **but note the tension with
+invariant 3**: the median is *statistically* load-bearing (min/max/mean there re-open a counterfeit),
+so the replacement must preserve the robust statistic, not discard it — cheaper median, same median.
+That is the whole optimisation surface: one embarrassingly-parallel image kernel, one hot line within
+it, and a Viterbi recursion that is already cheap and must be left exactly as it is.
 
 For the **v3.1 companion** (`shift_stack_v3.py`), the same discipline, plus:
 
