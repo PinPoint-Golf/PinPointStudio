@@ -1,0 +1,379 @@
+# `swing.json` schema reference
+
+> **Date:** 2026-07-07 · **Applies to:** the per-shot `swing.json` manifest written to each swing directory · **Schema:** top-level `pinpoint.swing/2`, embedded `analysis` block `pinpoint.analysis/3`
+
+Every captured shot produces one directory (`<session>/swing_<NNNN>/`) containing the media and a single `swing.json` manifest. This document is the field-by-field reference. Snippets are from a real swing — `2026-07-05_Mark-Liversedge_Wrist_02/swing_0006` (a camera-only Wrist shot; "s06" in the shaft-lab corpus) — with IMU-specific blocks taken from an IMU swing where noted.
+
+## Source of truth
+
+| Concern | File |
+|---|---|
+| Manifest (raw) writer — `capture`, `streams`, `clock`, `window`, `swing`, `athlete`, `session`, `thumbnail` | `src/Export/swing_exporter.cpp` (`captureBlock`, stream serialisation) |
+| `analysis` block writer | `src/Export/swing_doc.cpp` `serializeAnalysis()` |
+| Unified write (`analysis` replaces only itself; the rest is preserved) | `src/Export/swing_doc.cpp` `SwingDocWriter::writeSwingJson()` |
+| `review` block writer | `src/Export/swing_doc.cpp` `SwingDocWriter::updateReview()` |
+| Readers | `SwingDocReader::readSwingJson` (swing_doc.cpp), `SwingDiskLoader::load` (swing_reanalyzer.cpp), `disk_replay_source.cpp`, `swing_data_source.cpp` |
+| Enums (Phase, SegmentRole, ReconstructionTier, ShaftSampleFlags) | `src/Analysis/swing_analysis.h` |
+
+**How it is written.** The export worker builds the *raw manifest* (`SwingExporter`) and, at the join, `SwingDocWriter::writeSwingJson()` merges the analyzer's output into it as the `analysis` object and writes the whole document. **Re-analysis rewrites only `analysis`** — `capture`/`streams`/`clock`/`window`/`review` are preserved verbatim.
+
+**Additive by contract.** Readers ignore unknown keys, and every `analysis` sub-block is optional — a swing captured with analysis skipped (corpus capture) has no `analysis` object at all; a camera-only swing has no IMU streams and no `bindings`; an older file may lack newer blocks. Consumers must tolerate absence.
+
+## Timestamp domains — read this first
+
+All `t_us` values are **microseconds, window-relative** (0-based; `window.start_us` is `0`), matching `capture.impactUs`, the stream frame times, and the window bounds. The **one** absolute value is `clock.t0_us` — the EventBuffer clock instant of the window start. To recover an absolute timestamp: `absolute = clock.t0_us + t_us`.
+
+> **Legacy caveat.** `analysis` timestamps written before 2026-07-07 may be **absolute** (a live capture wrote the EventBuffer clock domain directly; re-analysis always wrote relative). The writer now normalises all `analysis` `t_us` to window-relative regardless of source, and the review readers are domain-aware (`t >= t0 ? t - t0 : t`) so both old and new files render. New files are uniformly window-relative.
+
+## Top-level structure
+
+```json
+{
+  "schema": "pinpoint.swing/2",
+  "clock":   { … },        // time base
+  "window":  { … },        // captured span (window-relative bounds)
+  "swing":   { … },        // id / index
+  "session": { … },        // owning session dir
+  "athlete": { … },        // who
+  "capture": { … },        // shot setup + provenance (+ club geometry)
+  "streams": [ … ],        // video + IMU streams
+  "thumbnail": { … },      // impact still
+  "review":  { … },        // OPTIONAL — user rating/note/club
+  "analysis":{ … }         // OPTIONAL — the analyzed swing (pinpoint.analysis/3)
+}
+```
+
+| Block | Required | Purpose |
+|---|:---:|---|
+| `schema` | ✓ | Document schema id, `pinpoint.swing/2`. |
+| `clock` | ✓ | Absolute anchor (`t0_us`) + wallclock. |
+| `window` | ✓ | Window-relative capture span. |
+| `swing` | ✓ | Swing id + index within the session. |
+| `session` | ✓ | Owning session folder. |
+| `athlete` | ✓ | Athlete identity + handedness. |
+| `capture` | ✓ | Session type, impact, latencies, host, club geometry. |
+| `streams` | ✓ | One entry per camera / IMU. |
+| `thumbnail` | ✓ | Impact-frame JPEG reference. |
+| `review` | — | User rating/note/club (added by `updateReview`). |
+| `analysis` | — | The analyzed swing. Absent for analysis-skipped captures. |
+
+---
+
+## `clock`, `window`, `swing`, `session`, `athlete`
+
+```json
+"clock":   { "t0_us": 176400665083, "unit": "us", "wallclock": "2026-07-05T11:32:34.072Z" },
+"window":  { "start_us": 0, "end_us": 5000000 },
+"swing":   { "id": "swing_0006", "index": 6 },
+"session": { "dir": "2026-07-05_Mark-Liversedge_Wrist_02" },
+"athlete": { "handedness": "Right", "name": "Mark Liversedge",
+             "uuid": "52ff45d8-37a6-4474-bdc6-5a4184f78387" }
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `clock.t0_us` | int µs | **Absolute** EventBuffer instant of the window start. The only absolute time in the file. |
+| `clock.wallclock` | ISO-8601 | UTC wallclock snapshotted just after capture. |
+| `window.start_us` / `end_us` | int µs | Window-relative span (`start_us` is always `0`). |
+| `swing.id` / `index` | str / int | Folder name and 1-based index within the session. |
+| `session.dir` | str | Session folder name. |
+| `athlete.handedness` | `"Right"`\|`"Left"` | Drives lead-arm sign throughout analysis. |
+| `athlete.uuid` | str | Athlete record key (QSettings). |
+
+---
+
+## `capture`
+
+Shot setup + provenance. The `club` sub-block was added 2026-07-07 so re-analysis can recover the club's retro-band geometry (the shaft tracker's E1 band matcher).
+
+```json
+"capture": {
+  "sessionType": 1,                 // 0 Swing · 1 Wrist · 2 GRF · 3 Coach
+  "shotSource": 4,                  // ShotController::Source: 0 Manual·1 Imu·2 Pose·3 Ball·4 Acoustic
+  "impactUs": 3481388,              // window-relative impact instant (-1 = unknown)
+  "swingDetectionSensitivity": "Medium",
+  "latencyUs": { "imuBle": 30000, "audioDevice": 20000 },
+  "host": { "app": "PinPointStudio", "version": "0.1.10007", "gitSha": "cb5c646",
+            "hostname": "GOLFSIMPC", "platform": "Windows 11 Version 25H2", "poseBackend": "CUDA" },
+  "club": { "lengthMm": 940, "shaftType": "steel",
+            "bandCentersMm": [308, 362, 560, 758, 808, 854] }
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `sessionType` | int | `SessionController::Type`. Selects the analyzer (only Wrist=1 is non-stub). |
+| `impactUs` | int µs | Window-relative impact — the re-analysis impact reference (present even for analysis-skipped captures). |
+| `swingDetectionSensitivity` | str | `Low`/`Medium`/`High`. |
+| `latencyUs.*` | int µs | Detector back-dating constants at capture time. |
+| `host.*` | str | App/build/machine provenance. `poseBackend` = CUDA/CoreML/CPU. |
+| `club.lengthMm` | int | Shaft length; sizes the shaft-tracker head extrapolation. |
+| `club.shaftType` | str | `steel`/`graphite`/`""`. |
+| `club.bandCentersMm` | int[] | Retro-band centres from the butt. **Empty ⇒ untaped** → the shaft tracker runs E2 (ray) evidence only. Absent on swings captured before 2026-07-07. |
+
+---
+
+## `streams`
+
+An array with one entry per camera or IMU. `kind` discriminates.
+
+### Video stream (`kind: "video"`)
+
+```json
+{
+  "kind": "video", "alias": "Face-On", "file": "Face-On.mp4",
+  "encoded": { "width": 1280, "height": 1024 },
+  "source":  { "serial": "17453937", "width": 1280, "height": 1024, "pixelFormat": "BayerRG8" },
+  "raw": { "file": "Face-On.raw", "count": 746, "frameBytes": 1310720,
+           "stride": 1280, "width": 1280, "height": 1024, "pixelFormat": "BayerRG8" },
+  "frames": { "count": 746, "t_us": [2720, 9402, 16126, … ] },
+  "capture": { "exposureAuto": true, "exposureSource": "measured",
+               "exposureUs": 6573.56, "fps_num": 150713, "fps_den": 1000 },
+  "playback": { "fps": 30 },
+  "processing": { "demosaic": "EA", "restorer": "none" },
+  "setup": { "perspective": 2, "perspectiveName": "FaceOn", "mirrored": false,
+             "fixedInPlace": true, "ballDetection": { "calibrated": false, "margin": 0, … } }
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `alias` | str | Human/UI name; also the media filename stem. |
+| `file` | str | Encoded MP4 in the swing dir. |
+| `encoded.width/height` | int | MP4 dimensions. |
+| `source.*` | — | Sensor native dims + `pixelFormat` + camera `serial`. |
+| `raw` | obj | **Optional** undecoded sensor sidecar (`<alias>.raw`, single concatenated blob). `frameBytes`/`stride`/`pixelFormat` describe its layout. Present when raw-frame saving is on. |
+| `frames.t_us` | int[] µs | Window-relative per-frame capture times — the replay master clock and the domain analysis samples align to. `count` = frame total. |
+| `capture.fps_num/den` | int | True frame rate (`fps_num/fps_den`) from clip metadata; the analysis timebase. |
+| `capture.exposureUs` | float µs | Exposure — used by the shaft tracker's blur model. |
+| `playback.fps` | int | Container playback rate only (casual scrub speed), **not** the analysis rate. |
+| `processing.demosaic` | str | `EA` (edge-aware) / `bilinear` / `none`. |
+| `setup.perspective` | int | `0` None · `1` DownTheLine · **`2` FaceOn** · `3` Other. `perspectiveName` is the label. The shaft tracker + body viz key on perspective 2. May be `null` on older exports. |
+| `setup.mirrored` | bool | Webcam mirror flag (affects pose/shaft chirality). |
+| `setup.fixedInPlace` | bool | Camera-fixed calibration state. |
+
+### IMU stream (`kind: "imu"`)
+
+From an IMU swing (`2026-06-11_…_Wrist_01/swing_0009`):
+
+```json
+{
+  "kind": "imu", "alias": "Green Sensor", "schema": "imu_sample_v2",
+  "source": { "serial": "C6:05:20:9D:04:76" },
+  "units": { "accel": "g", "gyro": "deg/s", "quat": "wxyz" },
+  "samples": {
+    "count": 492,
+    "t_us": [3878, 6587, 9308, … ],
+    "data": [ [-0.984, -0.013, -0.102,  11.108, 2.746, -2.624,  0.474, 0.342, 0.615, -0.529], … ]
+  }
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `schema` | str | `imu_sample_v2` — the per-sample row format. |
+| `source.serial` | str | Device serial/MAC (stable across runs; binding key). |
+| `units` | obj | `accel` g · `gyro` deg/s · `quat` wxyz. |
+| `samples.t_us` | int[] µs | Window-relative sample times. |
+| `samples.data` | float[][10] | Per sample: `[ax,ay,az, gx,gy,gz, qw,qx,qy,qz]` — accel (g), gyro (deg/s), host-fused orientation quaternion (wxyz). |
+| `device` | obj | **Optional** (newer exports): `role` (SegmentRole int), `outputRateHz`, `fusionMode`, `orientationFilter`, `placementSlot`. Absent on older files → role falls back to the placement map. |
+
+The quaternion is the **host-fused** world orientation PinPoint owns (Madgwick/ESKF over raw accel+gyro), not the device's on-board Euler output — see `docs/design/imu_frame_contract.md`.
+
+---
+
+## `thumbnail`, `review`
+
+```json
+"thumbnail": { "file": "thumb.jpg", "t_us": 3479416 },
+"review":    { "rating": 0, "note": "", "club": "GAP WEDGE" }
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `thumbnail.file` / `t_us` | str / int µs | Impact-nearest JPEG (≤480 px) + its window-relative frame time. |
+| `review.rating` | int 0–5 | 0 = unrated. |
+| `review.note` | str | Free text. |
+| `review.club` | str | User-chosen club label (distinct from `capture.club`). Whole block is **optional** — written only by `updateReview`. |
+
+---
+
+## `analysis` (`pinpoint.analysis/3`)
+
+The analyzed swing. Every sub-block is additive. `tier` records the reconstruction quality; camera-only swings are `0` (Angles2D), IMU-fused are `1` (Mono3DPlusImu).
+
+```json
+"analysis": {
+  "schema": "pinpoint.analysis/3",
+  "tier": 0,
+  "score": { … },
+  "metrics": [ … ],
+  "phases": [ … ],
+  "segmentation": { … },
+  "pose2d": { … },
+  "club": { … },
+  "bindings": [ … ],      // IMU only
+  "assessment": { … },    // OPTIONAL (Wrist coach feed)
+  "filter": { … }         // OPTIONAL (offline re-fusion diagnostic)
+}
+```
+
+`tier` ∈ `ReconstructionTier`: `0` Angles2D · `1` Mono3DPlusImu · `2` Stereo3D · `3` ClubInstrumented.
+
+### `score` (ScoreBreakdown, /3)
+
+```json
+"score": { "overall": 0, "kind": "resemblance", "pattern": "unknown",
+           "blended": false, "resemblance": { … }, "interval": { … } }
+```
+
+`kind` is `resemblance` (Wrist) or `adherence` (Swing/GRF). `overall` is 0–100.
+
+> **Version note.** In `pinpoint.analysis/2`, `score` was a bare integer (e.g. `"score": 6`). `/3` promotes it to this object (design §B.0a/§B.7). Readers handle both.
+
+### `metrics[]`
+
+Per-metric time series + phase-anchored samples.
+
+```json
+{
+  "key": "impactShaftLean", "label": "Shaft lean", "unit": "°",
+  "t_us":  [2720, 9402, 16126, … ],
+  "value": [26.0, 26.0, 26.0, … ],
+  "phaseSamples": [ { "phase": 5, "t_us": 3479416, "value": 32.0, "band": "" } ]
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `key` / `label` / `unit` | str | Metric id, display label, unit. Wrist keys: `leadWristFlexExt`, `leadWristRadUln`, `forearmPronation`, `leadArmFlexion`, `impactShaftLean`. |
+| `t_us` / `value` | int[] / float[] | Parallel arrays; window-relative times. |
+| `phaseSamples[]` | obj[] | Value sampled at each phase: `phase` (Phase int), `t_us`, `value`, `band` (coaching-band label, may be `""`). |
+
+### `phases[]` — the phase ladder
+
+```json
+"phases": [ { "phase": 0, "t_us": 2809565, "conf": 0.5, "segment": 0 },   // Address
+            { "phase": 2, "t_us": 3238327, "conf": 0.5, "segment": 0 },   // Top
+            { "phase": 5, "t_us": 3479416, "conf": 0.5, "segment": 0 },   // Impact
+            { "phase": 7, "t_us": 3767410, "conf": 0.5, "segment": 0 } ]  // Finish
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `phase` | int (`Phase`) | See table below. |
+| `t_us` | int µs | Window-relative event time. |
+| `conf` | float 0–1 | Detection confidence; low-conf ticks fade in the UI. IMU-derived ≈ high; the vision-only fallback emits a flat 0.5. |
+| `segment` | int (`SegmentRole`) | Which segment the event was measured from (provenance). |
+
+**`Phase`:** `0` Address · `1` Takeaway · `2` Top · `3` Transition · `4` Downswing · `5` Impact · `6` Release · `7` Finish · `8` MidBackswing · `9` Delivery · `10` MaxSpeed · `11` FollowThrough.
+
+> An IMU swing emits the full ladder; a **camera-only** swing emits only the four anchors `{Address, Top, Impact, Finish}` at vision-grade confidence (the shaft tracker's hands-only phase model — same enum, fewer ticks).
+
+### `segmentation`
+
+```json
+"segmentation": { "swingStartUs": 2709565, "swingEndUs": 3867410, "conf": 0.5, "version": 2 }
+```
+
+Swing bounds consumers truncate to (replay span, metric grids, heavy-stage scan). `conf == 0` means "bounds are just the window". Absent block ⇒ full-window bounds.
+
+### `pose2d`
+
+Offline pose keypoints, normalized 0..1.
+
+```json
+"pose2d": {
+  "camera": 0,
+  "frames": [ {
+    "t_us": 2720,
+    "kp":   [0.5469, 0.2930, 0.9349,  0.5573, 0.2852, 0.9591,  … ],   // 17×(x,y,conf) = 51
+    "lead":  [0.5599, 0.6012], "trail": [0.5399, 0.6031],
+    "handConf": 0.7535
+  }, … ]
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `camera` | int | Source id of the pose camera. |
+| `frames[].t_us` | int µs | Window-relative; pose is adaptively sampled (dense near impact), so frames < camera frames. |
+| `frames[].kp` | float[51] | 17 COCO keypoints as flat `[x, y, conf] × 17`, normalized. |
+| `frames[].lead` / `trail` | float[2] | Lead/trail hand centroids (COCO wrists on fallback), normalized. |
+| `frames[].handConf` | float | 0 when wrist-fallback. |
+
+### `club` — the shaft track (`ShaftTrack2D`)
+
+Written **only when the track is valid** (all-or-nothing consumer contract). Grip/head are normalized by the camera dims.
+
+```json
+"club": {
+  "camera": 0, "valid": true, "coverage": 0.910,
+  "imuVisionCorr": 0, "modelVisionResidualDeg": -1,
+  "frameWidth": 1280, "frameHeight": 1024,
+  "samples": [ {
+    "t_us": 2720,
+    "grip":  [0.5499, 0.6021], "head": [0.4421, 0.8784],
+    "theta": 2.0246, "thetaDot": 0.0, "lenPx": 0,
+    "conf": 0.30, "flags": 20
+  }, … ],
+  "predicted": [ … ]
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `valid` | bool | Coverage gate; consumers must check before use. |
+| `coverage` | float | Fraction of span frames with a direct (band/ray) measurement. |
+| `frameWidth/Height` | int | Camera dims — de-normalize `grip`/`head` by these. |
+| `samples[].t_us` | int µs | Window-relative. |
+| `samples[].grip` / `head` | float[2] | Normalized grip anchor and clubhead terminus. |
+| `samples[].theta` | float rad | Shaft direction grip→head (image atan2 convention). |
+| `samples[].thetaDot` | float rad/s | Smoothed angular velocity. |
+| `samples[].lenPx` | float | Visible shaft extent (decoration; θ is the precision channel). |
+| `samples[].conf` | float 0–1 | Per-sample confidence. |
+| `samples[].flags` | int (`ShaftSampleFlags`) | Bitfield (below). |
+| `predicted[]` | obj[] | R7 pure-kinematic-model series (same shape); empty in v3. |
+
+**`ShaftSampleFlags`** (bitwise): `0x01` Measured · `0x02` ImuBridged · `0x04` Coasted · `0x08` Wedge · `0x10` HeadProjected · `0x20` KinematicPredicted. E.g. `20` = `0x14` = HeadProjected|Coasted (a `pred`-tier frame); `17` = `0x11` = HeadProjected|Measured (a `ray`-tier frame); `1` = Measured with a real head (a `band`-tier frame).
+
+### `bindings[]` (IMU only)
+
+Per-device calibration snapshot (serial-keyed), so the offline runner can re-fuse with the exact anatomical transforms the app used.
+
+```json
+"bindings": [ {
+  "serial": "WT901-1234", "role": 6, "roleName": "LeadHand",
+  "alignA": [1,0,0,0], "mountM": [0.5,-0.5,-0.5,-0.5],
+  "calibrated": true, "anatCalibrated": true,
+  "mountDeviationDeg": 3.2, "mountGravityErrorDeg": 5.1,
+  "calibratedAt": "2026-06-11T09:12:00.123Z", "calibAgeSec": 412.5
+} ]
+```
+
+`role` is a `SegmentRole` int (`0` Unknown · `1` Pelvis · `2` Thorax · `3` T12 · `4` LeadUpperArm · `5` LeadForearm · `6` LeadHand · `7` TrailThigh · `8` LeadThigh · `9` Club). `alignA`/`mountM` are wxyz quaternions.
+
+### `assessment` (optional) / `filter` (optional)
+
+`assessment` = the AI-coach feedback feed (`scoreV2` + `findings[]`), written on live Wrist shots and the SwingLab known-groups input. `filter` = orientation-filter quality (`impactStepDeg`), present only when offline re-fusion drove the orientation. Both absent on this swing.
+
+---
+
+## Companion files in the swing directory
+
+| File | When |
+|---|---|
+| `<alias>.mp4` | Always — encoded video per camera. |
+| `<alias>.raw` | When raw-frame saving is on — undecoded sensor sidecar (see `streams[].raw`). |
+| `thumb.jpg` | Always — impact thumbnail. |
+| `imu_<alias>.csv` / `.bin` | When `imuDataFormat` ≠ `json` (otherwise IMU is inline in `streams`). |
+| `truth.json` | Markup/annotation ground truth (shaft-lab / markup lab), separate from `swing.json`. |
+
+## Schema version history
+
+| Version | Change |
+|---|---|
+| `pinpoint.swing/2` | Current document schema. |
+| `pinpoint.analysis/3` | `score` promoted from bare int → `ScoreBreakdown` object (design §B.0a/§B.7). |
+| `pinpoint.analysis/2` | `score` was a bare integer. Readers still accept it. |
+| 2026-07-07 | `capture.club` added; all `analysis` `t_us` normalised to window-relative (readers domain-aware for legacy absolute files). |
