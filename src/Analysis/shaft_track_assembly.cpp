@@ -16,592 +16,804 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+// Shaft v3.0-r1 deciding half — faithful C++ port of tools/shaftlab/
+// club_track_v3.py (the non-evidence stages: phase model, φ smoothing, C2
+// geometry, per-frame DP emission, banded Viterbi, ψ-isotonic reconcile).
+// scipy.ndimage.median_filter / gaussian_filter1d are reproduced with their
+// default mode='reflect' so the smoothed φ / grip-speed / joints match numpy.
+
 #include "shaft_track_assembly.h"
+
+#include "analysis_tuning.h"       // pinpoint::analysis::tuning::apply
+
+#include <opencv2/imgproc.hpp>
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <numeric>
 
 namespace pinpoint::analysis {
+
 namespace {
 
-constexpr double kPi  = 3.14159265358979323846;
-constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
+constexpr double kPi = 3.14159265358979323846;
+constexpr double kInf = 1e9;
 
-// Wrap to (−π, π].
-double wrapNear(double a)
+inline double circWrap(double a) { return std::fmod(std::fmod(a + 180.0, 360.0) + 360.0, 360.0) - 180.0; }
+
+// scipy 'reflect' boundary (…d c b a | a b c d | d c b a…): edge sample dup'd.
+inline int reflectIdx(int i, int n)
 {
-    a = std::fmod(a + kPi, 2.0 * kPi);
-    if (a <= 0.0)
-        a += 2.0 * kPi;
-    return a - kPi;
-}
-
-// Raw (sign/offset-free) projected image angle of ŝ rotated by q — the
-// face-on orthographic convention documented on predictTheta().
-double rawTheta(const QQuaternion &q, const cv::Vec3f &sHand)
-{
-    const QVector3D w = q.rotatedVector(QVector3D(sHand[0], sHand[1], sHand[2]));
-    return std::atan2(-double(w.z()), double(w.x()));
-}
-
-// Circular mean of residuals (the closed-form δ* for a given ŝ/sign).
-double circularMean(const std::vector<double> &a)
-{
-    double s = 0.0, c = 0.0;
-    for (double v : a) { s += std::sin(v); c += std::cos(v); }
-    return std::atan2(s, c);
-}
-
-struct FitEval {
-    double offset   = 0.0;
-    double residual = std::numeric_limits<double>::max();
-};
-
-FitEval evaluateFit(const std::vector<double> &thetaMeas,
-                    const std::vector<double> &thetaRaw, double sign)
-{
-    std::vector<double> res;
-    res.reserve(thetaMeas.size());
-    for (size_t i = 0; i < thetaMeas.size(); ++i)
-        res.push_back(wrapNear(thetaMeas[i] - sign * thetaRaw[i]));
-    FitEval e;
-    e.offset = circularMean(res);
-    double ss = 0.0;
-    for (double r : res) {
-        const double d = wrapNear(r - e.offset);
-        ss += d * d;
+    if (n == 1) return 0;
+    while (i < 0 || i >= n) {
+        if (i < 0) i = -1 - i;
+        if (i >= n) i = 2 * n - 1 - i;
     }
-    e.residual = std::sqrt(ss / double(res.size()));
-    return e;
+    return i;
 }
 
-// Roughly uniform unit directions (Fibonacci sphere). Half-sphere suffices:
-// ŝ and −ŝ give θ_raw shifted by π, which δ absorbs — but the full sphere is
-// cheap and avoids reasoning about the degeneracy.
-std::vector<cv::Vec3f> sphereDirections(int n)
+// scipy.ndimage.median_filter(x, size) — odd size, mode='reflect', origin 0.
+std::vector<double> medianFilter1d(const std::vector<double>& x, int size)
 {
-    std::vector<cv::Vec3f> dirs;
-    dirs.reserve(size_t(n));
-    const double ga = kPi * (3.0 - std::sqrt(5.0));
+    const int n = int(x.size());
+    const int r = size / 2;
+    std::vector<double> out(n);
+    std::vector<double> win(size);
     for (int i = 0; i < n; ++i) {
-        const double z = 1.0 - 2.0 * (i + 0.5) / n;
-        const double r = std::sqrt(std::max(0.0, 1.0 - z * z));
-        const double a = ga * i;
-        dirs.emplace_back(float(r * std::cos(a)), float(r * std::sin(a)), float(z));
+        for (int k = -r; k <= r; ++k) win[k + r] = x[reflectIdx(i + k, n)];
+        std::nth_element(win.begin(), win.begin() + r, win.end());
+        out[i] = win[r];   // odd size ⇒ middle element is the median
     }
-    return dirs;
+    return out;
 }
 
-// Local tangent-plane refinement grid around a direction.
-std::vector<cv::Vec3f> localDirections(const cv::Vec3f &center, double radiusRad, int steps)
+// scipy.ndimage.gaussian_filter1d(x, sigma, truncate=4.0), mode='reflect'.
+std::vector<double> gaussianFilter1d(const std::vector<double>& x, double sigma)
 {
-    const cv::Vec3f c = cv::normalize(center);
-    cv::Vec3f u = std::abs(c[2]) < 0.9f ? c.cross(cv::Vec3f(0, 0, 1)) : c.cross(cv::Vec3f(1, 0, 0));
-    u = cv::normalize(u);
-    const cv::Vec3f v = c.cross(u);
-    std::vector<cv::Vec3f> dirs;
-    dirs.reserve(size_t((2 * steps + 1) * (2 * steps + 1)));
-    for (int i = -steps; i <= steps; ++i)
-        for (int j = -steps; j <= steps; ++j) {
-            const double du = radiusRad * i / steps, dv = radiusRad * j / steps;
-            dirs.push_back(cv::normalize(c + u * float(du) + v * float(dv)));
-        }
-    return dirs;
+    const int n = int(x.size());
+    const int r = int(4.0 * sigma + 0.5);   // radius = int(truncate*sigma + 0.5)
+    std::vector<double> w(2 * r + 1);
+    double sum = 0;
+    const double inv2s2 = -0.5 / (sigma * sigma);
+    for (int k = -r; k <= r; ++k) { w[k + r] = std::exp(inv2s2 * k * k); sum += w[k + r]; }
+    for (double& v : w) v /= sum;
+    std::vector<double> out(n, 0.0);
+    for (int i = 0; i < n; ++i) {
+        double acc = 0;
+        for (int k = -r; k <= r; ++k) acc += w[k + r] * x[reflectIdx(i + k, n)];
+        out[i] = acc;
+    }
+    return out;
 }
 
-// 3-state constant-acceleration model: x = [θ, θ̇, θ̈], white-noise jerk.
-cv::Matx33d transition(double dt)
+// np.unwrap over a radian sequence.
+std::vector<double> unwrap(const std::vector<double>& p)
 {
-    return { 1.0, dt, 0.5 * dt * dt,
-             0.0, 1.0, dt,
-             0.0, 0.0, 1.0 };
+    std::vector<double> out = p;
+    double corr = 0;
+    for (size_t i = 1; i < out.size(); ++i) {
+        double d = (p[i] - p[i - 1]);
+        double dd = std::fmod(d + kPi, 2 * kPi);
+        if (dd < 0) dd += 2 * kPi;
+        dd -= kPi;
+        if (dd == -kPi && d > 0) dd = kPi;
+        corr += dd - d;
+        out[i] = p[i] + corr;
+    }
+    return out;
 }
 
-cv::Matx33d processNoise(double dt, double q)
+inline int wmaxFor(SwingPhase p, const ShaftV3Config& c)
 {
-    const double d2 = dt * dt, d3 = d2 * dt, d4 = d3 * dt, d5 = d4 * dt;
-    return { q * d5 / 20.0, q * d4 / 8.0, q * d3 / 6.0,
-             q * d4 / 8.0,  q * d3 / 3.0, q * d2 / 2.0,
-             q * d3 / 6.0,  q * d2 / 2.0, q * dt };
+    double w = c.wmaxDownswing;
+    switch (p) {
+        case SwingPhase::Addr:      w = c.wmaxAddr; break;
+        case SwingPhase::Backswing: w = c.wmaxBackswing; break;
+        case SwingPhase::Top:       w = c.wmaxTop; break;
+        case SwingPhase::Impact:    w = c.wmaxImpact; break;
+        case SwingPhase::Downswing: w = c.wmaxDownswing; break;
+        case SwingPhase::Thru:      w = c.wmaxThru; break;
+        case SwingPhase::Finish:    w = c.wmaxFinish; break;
+    }
+    return int(std::ceil(w / c.grid));
 }
 
-// Scalar position update (H = [1 0 0]); the wrapped measurement is lifted by
-// the caller against the prior, so z is already continuous-domain.
-void scalarUpdate(cv::Vec3d &x, cv::Matx33d &P, double z, double r)
+inline int phaseSign(SwingPhase p)
 {
-    const double s = P(0, 0) + r;
-    const cv::Vec3d k(P(0, 0) / s, P(1, 0) / s, P(2, 0) / s);
-    const double innov = z - x[0];
-    x += k * innov;
-    // (I − K H) P, H = e₀ᵀ
-    cv::Matx33d ikh = cv::Matx33d::eye();
-    ikh(0, 0) -= k[0]; ikh(1, 0) -= k[1]; ikh(2, 0) -= k[2];
-    P = ikh * P;
+    switch (p) {
+        case SwingPhase::Backswing: return +1;
+        case SwingPhase::Downswing:
+        case SwingPhase::Impact:
+        case SwingPhase::Thru:
+        case SwingPhase::Finish:    return -1;
+        default:                    return 0;   // addr, top
+    }
+}
+
+inline bool isMidswing(SwingPhase p)
+{
+    return p == SwingPhase::Backswing || p == SwingPhase::Top || p == SwingPhase::Downswing
+        || p == SwingPhase::Impact || p == SwingPhase::Thru;
 }
 
 } // namespace
 
-// ---------------------------------------------------------------------------
-
-double ShaftTrackAssembly::predictTheta(const ShaftInHandFit &fit, const QQuaternion &qHand)
+// ── config ───────────────────────────────────────────────────────────────────
+ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
 {
-    return wrapNear(fit.sign * rawTheta(qHand, fit.sHand) + fit.offsetRad);
+    using namespace tuning;
+    ShaftV3Config c;
+    apply(ov, "shaft.grid", c.grid);
+    apply(ov, "shaft.wmaxBackswing", c.wmaxBackswing);
+    apply(ov, "shaft.wmaxDownswing", c.wmaxDownswing);
+    apply(ov, "shaft.wmaxImpact", c.wmaxImpact);
+    apply(ov, "shaft.wmaxThru", c.wmaxThru);
+    apply(ov, "shaft.wmaxFinish", c.wmaxFinish);
+    apply(ov, "shaft.wE2", c.wE2);
+    apply(ov, "shaft.wBand", c.wBand);
+    apply(ov, "shaft.wArm", c.wArm);
+    apply(ov, "shaft.wC1", c.wC1);
+    apply(ov, "shaft.wC2", c.wC2);
+    apply(ov, "shaft.wCone", c.wCone);
+    apply(ov, "shaft.kSmooth", c.kSmooth);
+    apply(ov, "shaft.coneHalf", c.coneHalf);
+    apply(ov, "shaft.c1Tol", c.c1Tol);
+    apply(ov, "shaft.rayEvMin", c.rayEvMin);
+    apply(ov, "shaft.bandTol", c.bandTol);
+    apply(ov, "shaft.armVetoDeg", c.armVetoDeg);
+    apply(ov, "shaft.stillSpeed", c.stillSpeed);
+    apply(ov, "shaft.stillMin", c.stillMin);
+    apply(ov, "shaft.bandNear", c.bandNear);
+    apply(ov, "shaft.spanCollarUs", c.spanCollarUs);
+    apply(ov, "shaft.spanBound", c.spanBound);
+    apply(ov, "shaft.bodyMargin", c.bodyMargin);
+    apply(ov, "shaft.rasterC2", c.rasterC2);
+    apply(ov, "shaft.psiRail", c.psiRail);
+    apply(ov, "shaft.armOutlierDeg", c.armOutlierDeg);
+    apply(ov, "shaft.wIsoBand", c.wIsoBand);
+    apply(ov, "shaft.wIsoRay", c.wIsoRay);
+    apply(ov, "shaft.wIsoPred", c.wIsoPred);
+    apply(ov, "shaft.isoHuber", c.isoHuber);
+    apply(ov, "shaft.isoIters", c.isoIters);
+    apply(ov, "shaft.reconTol", c.reconTol);
+    apply(ov, "shaft.psiWinBack", c.psiWinBack);
+    apply(ov, "shaft.psiWinFwd", c.psiWinFwd);
+    apply(ov, "shaft.swSpd", c.swSpd);
+    apply(ov, "shaft.impHalf", c.impHalf);
+    apply(ov, "shaft.coverageMin", c.coverageMin);
+    // evidence engines
+    apply(ov, "shaft.rStep", c.ridge.rStep);
+    apply(ov, "shaft.rHi", c.ridge.rHi);
+    apply(ov, "shaft.bgHi", c.ridge.bgHi);
+    apply(ov, "shaft.minLenPx", c.ridge.minLenPx);
+    apply(ov, "shaft.satT", c.band.satT);
+    apply(ov, "shaft.gripGate", c.band.gripGate);
+    return c;
 }
 
-ShaftInHandFit ShaftTrackAssembly::calibrateShaftInHand(const std::vector<ShaftFrameObs> &obs,
-                                                        const AssemblyConfig &cfg)
+// ── φ smoothing (club_track_v3.smooth_phi) ───────────────────────────────────
+std::vector<double> smoothPhi(const std::vector<double>& phiDeg, const ShaftV3Config& cfg)
 {
-    ShaftInHandFit fit;
+    const int n = int(phiDeg.size());
+    constexpr int win = 9;
+    std::vector<double> c(n), s(n);
+    for (int i = 0; i < n; ++i) { const double r = phiDeg[i] * kPi / 180.0; c[i] = std::cos(r); s[i] = std::sin(r); }
+    const std::vector<double> cm = medianFilter1d(c, win);
+    const std::vector<double> sm = medianFilter1d(s, win);
+    for (int i = 0; i < n; ++i) {
+        const double dev = std::abs(std::atan2(s[i] * cm[i] - c[i] * sm[i], c[i] * cm[i] + s[i] * sm[i]) * 180.0 / kPi);
+        if (dev > cfg.armOutlierDeg) { c[i] = cm[i]; s[i] = sm[i]; }
+    }
+    const std::vector<double> cx = gaussianFilter1d(medianFilter1d(c, win), 3.0);
+    const std::vector<double> cy = gaussianFilter1d(medianFilter1d(s, win), 3.0);
+    std::vector<double> out(n);
+    for (int i = 0; i < n; ++i) out[i] = std::atan2(cy[i], cx[i]) * 180.0 / kPi;
+    return out;
+}
 
-    // Eligible frames: valid quaternion, a non-wedge best candidate, and a
-    // slow wrapped rate against the previous eligible frame (waggle-speed
-    // motion keeps the projection assumption honest and the blur low).
-    std::vector<double>      thetaMeas;
-    std::vector<QQuaternion> qs;
-    double  lastTheta = 0.0;
-    int64_t lastT     = 0;
-    bool    haveLast  = false;
-    for (const ShaftFrameObs &o : obs) {
-        if (!o.qHandValid || o.candidates.empty() || o.candidates.front().wedge)
-            continue;
-        const double th = o.candidates.front().thetaRad;
-        if (haveLast) {
-            const double dt = double(o.t_us - lastT) * 1e-6;
-            if (dt <= 0.0 || std::abs(wrapNear(th - lastTheta)) / dt > cfg.calibSlowRateRadS) {
-                lastTheta = th; lastT = o.t_us;
-                continue;
+// ── hands-only phase model (club_track_v3.segment_phases) ────────────────────
+PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double>& gy,
+                         int nf, double /*fps*/, int impactFrame, const ShaftV3Config& cfg)
+{
+    PhaseModel m;
+    std::vector<double> spd(nf, 0.0);
+    for (int f = 1; f < nf; ++f) spd[f] = std::hypot(gx[f] - gx[f - 1], gy[f] - gy[f - 1]);
+    m.spdSmoothed = gaussianFilter1d(medianFilter1d(spd, 5), 2.0);
+    const auto& spdS = m.spdSmoothed;
+
+    std::vector<char> mo(nf);
+    for (int f = 0; f < nf; ++f) mo[f] = spdS[f] > cfg.swSpd;
+
+    std::vector<std::pair<int, int>> runs;
+    for (int f = 0; f < nf;) {
+        if (mo[f]) {
+            int g = f;
+            while (g + 1 < nf && mo[g + 1]) ++g;
+            if (g - f >= 6) runs.emplace_back(f, g);
+            f = g + 1;
+        } else ++f;
+    }
+    if (runs.empty()) {
+        m.phase.assign(nf, SwingPhase::Addr);
+        m.bs0 = 0; m.top = nf / 2; m.impact = nf / 2; m.fin0 = nf - 1;
+        return m;
+    }
+    std::stable_sort(runs.begin(), runs.end(),
+                     [](const std::pair<int, int>& a, const std::pair<int, int>& b) {
+                         return (a.second - a.first) > (b.second - b.first);
+                     });
+    std::vector<std::pair<int, int>> big(runs.begin(), runs.begin() + std::min<size_t>(2, runs.size()));
+    std::stable_sort(big.begin(), big.end(),
+                     [](const std::pair<int, int>& a, const std::pair<int, int>& b) { return a.first < b.first; });
+    const int bs0 = big[0].first;
+    int top, dsEnd;
+    if (big.size() >= 2) {
+        const int gapLo = big[0].second, gapHi = big[1].first;
+        if (gapHi > gapLo) {
+            int amin = gapLo; for (int f = gapLo; f <= gapHi; ++f) if (spdS[f] < spdS[amin]) amin = f;
+            top = amin;
+        } else top = big[0].second;
+        dsEnd = big[1].second;
+    } else {
+        int amax = bs0; for (int f = bs0; f <= big[0].second; ++f) if (-gy[f] > -gy[amax]) amax = f;
+        top = amax;
+        dsEnd = big[0].second;
+    }
+    // address grip height = median(gy[:max(bs0,1)])
+    std::vector<double> head(gy.begin(), gy.begin() + std::max(bs0, 1));
+    std::nth_element(head.begin(), head.begin() + head.size() / 2, head.end());
+    double addrGy = head[head.size() / 2];
+    if (head.size() % 2 == 0) {   // even count ⇒ mean of the two middle (np.median)
+        double hi = head[head.size() / 2];
+        double lo = *std::max_element(head.begin(), head.begin() + head.size() / 2);
+        addrGy = 0.5 * (lo + hi);
+    }
+    int impf = impactFrame;
+    if (impf < 0) {
+        impf = (top + dsEnd) / 2;
+        for (int f = top; f <= dsEnd; ++f) if (gy[f] >= addrGy - 20.0) { impf = f; break; }
+    }
+    impf = std::clamp(impf, top + 1, nf - 1);
+    const int fin0 = std::min(dsEnd, nf - 1);
+    const int IMP = cfg.impHalf;
+
+    m.phase.resize(nf);
+    for (int f = 0; f < nf; ++f) {
+        if (f < bs0) m.phase[f] = SwingPhase::Addr;
+        else if (f < top - 2) m.phase[f] = SwingPhase::Backswing;
+        else if (f <= top + 2) m.phase[f] = SwingPhase::Top;
+        else if (std::abs(f - impf) <= IMP) m.phase[f] = SwingPhase::Impact;
+        else if (f < impf) m.phase[f] = SwingPhase::Downswing;
+        else if (f <= fin0) m.phase[f] = SwingPhase::Thru;
+        else m.phase[f] = SwingPhase::Finish;
+    }
+    m.bs0 = bs0; m.top = top; m.impact = impf; m.fin0 = fin0;
+    return m;
+}
+
+// ── joint smoothing + body geometry ─────────────────────────────────────────
+std::vector<std::vector<cv::Point2d>>
+smoothJoints(const std::vector<std::vector<cv::Point2d>>& raw)
+{
+    const int nf = int(raw.size());
+    if (nf == 0) return {};
+    const int nj = int(raw[0].size());
+    std::vector<std::vector<cv::Point2d>> out(nf, std::vector<cv::Point2d>(nj));
+    for (int j = 0; j < nj; ++j) {
+        std::vector<double> xs(nf), ys(nf);
+        for (int f = 0; f < nf; ++f) { xs[f] = raw[f][j].x; ys[f] = raw[f][j].y; }
+        xs = gaussianFilter1d(medianFilter1d(xs, 5), 2.0);
+        ys = gaussianFilter1d(medianFilter1d(ys, 5), 2.0);
+        for (int f = 0; f < nf; ++f) out[f][j] = {xs[f], ys[f]};
+    }
+    return out;
+}
+
+std::vector<BodyPoly> bodyPolys(const std::vector<std::vector<cv::Point2d>>& joints)
+{
+    std::vector<BodyPoly> polys;
+    if (joints.empty() || joints[0].empty()) return polys;
+    polys.resize(joints.size());
+    for (size_t f = 0; f < joints.size(); ++f) {
+        std::vector<cv::Point2f> pts;
+        pts.reserve(joints[f].size());
+        for (const auto& p : joints[f]) pts.emplace_back(float(p.x), float(p.y));
+        std::vector<cv::Point2f> hullf;
+        cv::convexHull(pts, hullf);
+        const int E = int(hullf.size());
+        std::vector<cv::Point2d> hull(E);
+        cv::Point2d c(0, 0);
+        for (int i = 0; i < E; ++i) { hull[i] = {double(hullf[i].x), double(hullf[i].y)}; c += hull[i]; }
+        c *= 1.0 / E;
+        BodyPoly bp; bp.n.resize(E); bp.d.resize(E);
+        for (int i = 0; i < E; ++i) {
+            const cv::Point2d e = hull[(i + 1) % E] - hull[i];     // edge vector
+            cv::Vec2d nrm(e.y, -e.x);
+            nrm /= (std::hypot(nrm[0], nrm[1]) + 1e-9);
+            const cv::Point2d mid = hull[i] + 0.5 * e - c;
+            if (nrm[0] * mid.x + nrm[1] * mid.y < 0) nrm *= -1.0;  // orient outward
+            bp.n[i] = nrm;
+            bp.d[i] = nrm[0] * hull[i].x + nrm[1] * hull[i].y;
+        }
+        polys[f] = std::move(bp);
+    }
+    return polys;
+}
+
+std::vector<cv::Mat> bodyMasks(const std::vector<std::vector<cv::Point2d>>& joints,
+                               int W, int H, const ShaftV3Config& cfg)
+{
+    std::vector<cv::Mat> masks;
+    if (joints.empty() || joints[0].empty()) return masks;
+    const int k = int(cfg.bodyMargin);
+    const cv::Mat se = cv::getStructuringElement(cv::MORPH_ELLIPSE, {2 * k + 1, 2 * k + 1});
+    masks.resize(joints.size());
+    for (size_t f = 0; f < joints.size(); ++f) {
+        std::vector<cv::Point2f> pts;
+        for (const auto& p : joints[f]) pts.emplace_back(float(p.x), float(p.y));
+        std::vector<cv::Point2f> hullf;
+        cv::convexHull(pts, hullf);
+        std::vector<cv::Point> hull;
+        for (const auto& p : hullf) hull.emplace_back(int(p.x), int(p.y));
+        cv::Mat m = cv::Mat::zeros(H, W, CV_8UC1);
+        cv::fillConvexPoly(m, hull, cv::Scalar(255));
+        cv::dilate(m, m, se);
+        masks[f] = m;
+    }
+    return masks;
+}
+
+std::vector<char> staticRuns(const std::vector<double>& spdS, const ShaftV3Config& cfg)
+{
+    const int nf = int(spdS.size());
+    std::vector<char> stat(nf, 0);
+    for (int f = 0; f < nf;) {
+        if (spdS[f] < cfg.stillSpeed) {
+            int g = f;
+            while (g + 1 < nf && spdS[g + 1] < cfg.stillSpeed) ++g;
+            if (g - f + 1 >= cfg.stillMin) for (int k = f; k <= g; ++k) stat[k] = 1;
+            f = g + 1;
+        } else ++f;
+    }
+    return stat;
+}
+
+// ── per-frame DP emission (club_track_v3 main loop, one frame) ───────────────
+void frameEmission(std::vector<float>& emOut, std::vector<float>& insideOut,
+                   const std::vector<float>& evMax, const std::vector<float>& rawNorm,
+                   const BandMatch& band, double phiSDeg, SwingPhase phase, int chir,
+                   double gx, double gy, const BodyPoly* poly, const cv::Mat& mask,
+                   const std::vector<float>& gridRad, const std::vector<float>& gridDeg,
+                   const ShaftV3Config& cfg)
+{
+    const int NS = int(evMax.size());
+    emOut.assign(NS, 0.f);
+    insideOut.assign(NS, 0.f);
+
+    // ev copy with the band bin raised (E1 reward) — EV[] stored elsewhere is
+    // the pre-raise evMax, so this raise is local to the emission.
+    std::vector<float> ev = evMax;
+    int bi = -1;
+    if (band.ok) {
+        bi = int(std::lround(band.thetaDeg / cfg.grid)) % NS;
+        if (bi < 0) bi += NS;
+        ev[bi] = std::max(ev[bi], 1.0f);
+    }
+    for (int k = 0; k < NS; ++k) emOut[k] = float(cfg.wE2 * (1.0 - ev[k]));
+
+    // C4 arm-veto: shaft never points INTO the lead forearm (φ+180)
+    const double arm = std::fmod(phiSDeg + 180.0, 360.0);
+    for (int k = 0; k < NS; ++k)
+        if (std::abs(circWrap(gridDeg[k] - arm)) < cfg.armVetoDeg) emOut[k] += float(cfg.wArm);
+
+    // C4 wide reachable cone (chirality-centred), off addr/finish/top
+    if (phase != SwingPhase::Addr && phase != SwingPhase::Finish && phase != SwingPhase::Top) {
+        const double cen = phiSDeg + chir * (cfg.coneHalf - 40.0);
+        for (int k = 0; k < NS; ++k)
+            if (std::abs(circWrap(gridDeg[k] - cen)) > cfg.coneHalf) emOut[k] += float(cfg.wCone);
+    }
+
+    // C1 (weak form): reverse ridge OFF the forearm = scene line
+    const double phiMod = std::fmod(std::fmod(phiSDeg, 360.0) + 360.0, 360.0);
+    for (int k = 0; k < NS; ++k) {
+        const double rev = rawNorm[(k + NS / 2) % NS];
+        const double revArm = std::abs(circWrap(gridDeg[k] - phiMod));
+        if (rev > cfg.c1Tol && revArm > cfg.armVetoDeg) emOut[k] += float(cfg.wC1);
+    }
+
+    // C2 body-overlap veto (mid-swing only)
+    const bool haveC2 = (poly != nullptr) || !mask.empty();
+    if (isMidswing(phase) && haveC2) {
+        std::vector<double> BR;
+        for (double r = cfg.bodyRLo; r < cfg.bodyRHi; r += cfg.bodyRStep) BR.push_back(r);
+        const int nR = int(BR.size());
+        const int W = mask.empty() ? 0 : mask.cols;
+        const int H = mask.empty() ? 0 : mask.rows;
+        for (int k = 0; k < NS; ++k) {
+            const double ux = std::cos(double(gridRad[k])), uy = std::sin(double(gridRad[k]));
+            int insideCount = 0;
+            for (int r = 0; r < nR; ++r) {
+                const double px = gx + ux * BR[r], py = gy + uy * BR[r];
+                bool in;
+                if (poly) {
+                    double sdmax = -1e30;
+                    for (size_t e = 0; e < poly->n.size(); ++e) {
+                        const double sd = poly->n[e][0] * px + poly->n[e][1] * py - poly->d[e];
+                        if (sd > sdmax) sdmax = sd;
+                    }
+                    in = (sdmax <= cfg.bodyMargin);
+                } else {
+                    int xi = int(px); if (xi < 0) xi = 0; else if (xi >= W) xi = W - 1;
+                    int yi = int(py); if (yi < 0) yi = 0; else if (yi >= H) yi = H - 1;
+                    in = (mask.at<uchar>(yi, xi) > 0);
+                }
+                if (in) ++insideCount;
+            }
+            const double frac = double(insideCount) / nR;
+            insideOut[k] = float(frac);
+            if (frac > 0.5) emOut[k] += float(cfg.wC2);
+        }
+    }
+
+    // band negative well LAST — dominates the gates, forces the global path
+    if (band.ok) emOut[bi] = float(-cfg.wBand);
+}
+
+// ── global banded Viterbi DP (club_track_v3 C3) ──────────────────────────────
+DPResult viterbiDP(const std::vector<std::vector<float>>& emis,
+                   const std::vector<SwingPhase>& phase, const ShaftV3Config& cfg)
+{
+    const int nf = int(emis.size());
+    DPResult out;
+    if (nf == 0) return out;
+    const int NS = int(emis[0].size());
+
+    std::vector<double> cost(emis[0].begin(), emis[0].end());
+    std::vector<std::vector<int>> back(nf, std::vector<int>(NS, 0));
+
+    std::vector<double> best(NS), tmp(NS);
+    std::vector<int> barg(NS);
+    for (int f = 1; f < nf; ++f) {
+        const int wmax = wmaxFor(phase[f], cfg);
+        const int sgn = phaseSign(phase[f]);
+        const int dLo = (sgn > 0) ? 0 : -wmax;
+        const int dHi = (sgn < 0) ? 0 : wmax;
+        std::fill(best.begin(), best.end(), kInf);
+        std::fill(barg.begin(), barg.end(), 0);
+        for (int d = dLo; d <= dHi; ++d) {
+            const double t = cfg.kSmooth * (d * cfg.grid) * (d * cfg.grid);
+            for (int k = 0; k < NS; ++k) {
+                const int src = ((k - d) % NS + NS) % NS;
+                const double cand = cost[src] + t;
+                if (cand < best[k]) { best[k] = cand; barg[k] = src; }
             }
         }
-        thetaMeas.push_back(th);
-        qs.push_back(o.qHand);
-        lastTheta = th; lastT = o.t_us; haveLast = true;
+        for (int k = 0; k < NS; ++k) { cost[k] = best[k] + emis[f][k]; back[f][k] = barg[k]; }
     }
-    if (int(thetaMeas.size()) < cfg.calibMinFrames)
-        return fit;
 
-    // Identifiability: the measured angles must span a real arc.
-    double lo = thetaMeas.front(), hi = thetaMeas.front(), acc = thetaMeas.front();
-    for (size_t i = 1; i < thetaMeas.size(); ++i) {
-        acc += wrapNear(thetaMeas[i] - thetaMeas[i - 1]);
-        lo = std::min(lo, acc); hi = std::max(hi, acc);
+    out.thstar.assign(nf, 0);
+    int last = 0; for (int k = 1; k < NS; ++k) if (cost[k] < cost[last]) last = k;
+    out.thstar[nf - 1] = last;
+    for (int f = nf - 1; f > 0; --f) out.thstar[f - 1] = back[f][out.thstar[f]];
+    out.thetaDeg.resize(nf);
+    for (int f = 0; f < nf; ++f) out.thetaDeg[f] = out.thstar[f] * cfg.grid;
+    return out;
+}
+
+// ── ψ-isotonic reconciliation ────────────────────────────────────────────────
+std::vector<double> pava(const std::vector<double>& y, const std::vector<double>& w, bool increasing)
+{
+    const double sgn = increasing ? 1.0 : -1.0;
+    const int n = int(y.size());
+    std::vector<double> means(n), wts(w);
+    std::vector<std::vector<int>> idx(n);
+    for (int i = 0; i < n; ++i) { means[i] = sgn * y[i]; idx[i] = {i}; }
+    int i = 0;
+    while (i < int(means.size()) - 1) {
+        if (means[i] > means[i + 1] + 1e-12) {
+            const double nw = wts[i] + wts[i + 1];
+            means[i] = (means[i] * wts[i] + means[i + 1] * wts[i + 1]) / nw;
+            wts[i] = nw;
+            idx[i].insert(idx[i].end(), idx[i + 1].begin(), idx[i + 1].end());
+            means.erase(means.begin() + i + 1);
+            wts.erase(wts.begin() + i + 1);
+            idx.erase(idx.begin() + i + 1);
+            if (i > 0) --i;
+        } else ++i;
     }
-    if (hi - lo < cfg.calibMinSpanRad)
-        return fit;
+    std::vector<double> out(n, 0.0);
+    for (size_t b = 0; b < means.size(); ++b)
+        for (int k : idx[b]) out[k] = sgn * means[b];
+    return out;
+}
 
-    auto solveOver = [&](const std::vector<cv::Vec3f> &dirs,
-                         cv::Vec3f &bestS, double &bestSign, FitEval &bestE) {
-        std::vector<double> raw(thetaMeas.size());
-        for (const cv::Vec3f &d : dirs) {
-            for (size_t i = 0; i < qs.size(); ++i)
-                raw[i] = rawTheta(qs[i], d);
-            for (double sign : { 1.0, -1.0 }) {
-                const FitEval e = evaluateFit(thetaMeas, raw, sign);
-                if (e.residual < bestE.residual) {
-                    bestE = e; bestS = d; bestSign = sign;
+std::vector<double> robustIsotonic(const std::vector<double>& y, const std::vector<double>& w,
+                                   bool increasing, const ShaftV3Config& cfg)
+{
+    std::vector<double> x = pava(y, w, increasing);
+    for (int it = 0; it < cfg.isoIters; ++it) {
+        std::vector<double> hw(y.size());
+        for (size_t i = 0; i < y.size(); ++i) {
+            const double r = std::abs(y[i] - x[i]);
+            hw[i] = w[i] * (r <= cfg.isoHuber ? 1.0 : cfg.isoHuber / (r + 1e-9));
+        }
+        x = pava(y, hw, increasing);
+    }
+    return x;
+}
+
+ReconResult reconcilePsi(const std::vector<double>& thetaDeg, const std::vector<double>& phiS,
+                         const std::vector<SwingPhase>& phase, const std::vector<char>& bandOk,
+                         const std::vector<double>& evAt, int top, int nf, const ShaftV3Config& cfg)
+{
+    ReconResult rr;
+    rr.thetaOut = thetaDeg;
+    rr.psiResid.assign(nf, std::numeric_limits<double>::quiet_NaN());
+    rr.recon.assign(nf, 0);
+    const int lo = top - cfg.psiWinBack, hi = top + cfg.psiWinFwd;
+
+    struct Block { std::vector<SwingPhase> phs; bool inc; };
+    const Block blocks[2] = {
+        {{SwingPhase::Backswing}, true},
+        {{SwingPhase::Downswing, SwingPhase::Impact, SwingPhase::Thru}, false},
+    };
+    auto inBlock = [](SwingPhase p, const std::vector<SwingPhase>& set) {
+        for (SwingPhase q : set) if (q == p) return true;
+        return false;
+    };
+    auto weight = [&](int f) {
+        if (!bandOk[f] && phase[f] == SwingPhase::Impact) return cfg.wIsoPred;   // RECON_PHASES=(impact,)
+        if (bandOk[f]) return cfg.wIsoBand;
+        return evAt[f] >= cfg.rayEvMin ? cfg.wIsoRay : cfg.wIsoPred;
+    };
+
+    for (const Block& blk : blocks) {
+        std::vector<int> fs;
+        for (int f = 0; f < nf; ++f)
+            if (inBlock(phase[f], blk.phs) && !(lo <= f && f <= hi) && !std::isnan(thetaDeg[f]))
+                fs.push_back(f);
+        if (int(fs.size()) < 4) continue;
+        std::vector<double> psiRad(fs.size()), ph(fs.size()), w(fs.size());
+        for (size_t i = 0; i < fs.size(); ++i) {
+            ph[i] = phiS[fs[i]];
+            psiRad[i] = (thetaDeg[fs[i]] - ph[i]) * kPi / 180.0;
+            w[i] = weight(fs[i]);
+        }
+        const std::vector<double> psiU = unwrap(psiRad);
+        std::vector<double> psi(fs.size());
+        for (size_t i = 0; i < fs.size(); ++i) psi[i] = psiU[i] * 180.0 / kPi;   // deg, continuous
+        const std::vector<double> iso = robustIsotonic(psi, w, blk.inc, cfg);
+        for (size_t i = 0; i < fs.size(); ++i) {
+            const int f = fs[i];
+            rr.psiResid[f] = std::abs(psi[i] - iso[i]);
+            if (phase[f] == SwingPhase::Impact && !bandOk[f]) {    // blur: arm is the witness
+                rr.thetaOut[f] = std::fmod(std::fmod(iso[i] + ph[i], 360.0) + 360.0, 360.0);
+                rr.recon[f] = 1;
+            }
+        }
+    }
+    return rr;
+}
+
+// ── SwingWindow-free decide core ─────────────────────────────────────────────
+namespace {
+
+// np.percentile with linear interpolation.
+float percentile(std::vector<float> v, double p)
+{
+    std::sort(v.begin(), v.end());
+    const double idx = p / 100.0 * (v.size() - 1);
+    const int lo = int(std::floor(idx)), hi = int(std::ceil(idx));
+    return float(v[lo] + (v[hi] - v[lo]) * (idx - lo));
+}
+
+// Python norm(): clip((s - p50)/(p97 - p50 + 1e-6), 0, 1).
+std::vector<float> normScores(const std::vector<float>& s)
+{
+    const float lo = percentile(s, 50.0), hi = percentile(s, 97.0);
+    std::vector<float> out(s.size());
+    for (size_t i = 0; i < s.size(); ++i)
+        out[i] = std::clamp((s[i] - lo) / (hi - lo + 1e-6f), 0.f, 1.f);
+    return out;
+}
+
+// np.interp fill of NaN entries using the frame index as the abscissa.
+void interpFillNan(std::vector<double>& v)
+{
+    const int n = int(v.size());
+    std::vector<int> good;
+    for (int i = 0; i < n; ++i) if (!std::isnan(v[i])) good.push_back(i);
+    if (good.empty()) { std::fill(v.begin(), v.end(), 0.0); return; }
+    for (int i = 0; i < n; ++i) {
+        if (!std::isnan(v[i])) continue;
+        if (i <= good.front()) { v[i] = v[good.front()]; continue; }
+        if (i >= good.back())  { v[i] = v[good.back()];  continue; }
+        int a = good.front(), b = good.back();
+        for (size_t k = 1; k < good.size(); ++k) if (good[k] >= i) { b = good[k]; a = good[k - 1]; break; }
+        v[i] = v[a] + (v[b] - v[a]) * (double(i - a) / double(b - a));
+    }
+}
+
+} // namespace
+
+ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>& tUs,
+                         const std::vector<double>& gxIn, const std::vector<double>& gyIn,
+                         const std::vector<double>& phiRawIn,
+                         const std::vector<std::vector<cv::Point2d>>& rawJoints,
+                         int frameW, int frameH, double fps,
+                         const std::vector<double>& bandsMm, double clubLenMm,
+                         int impactFrame, const ShaftV3Config& cfg, ShaftDecideTrace* trace)
+{
+    ShaftTrack2D out;
+    out.frameWidth = frameW; out.frameHeight = frameH;
+    const int nf = int(gxIn.size());
+    if (nf < 2) return out;
+    const std::vector<double>& gx = gxIn;
+    const std::vector<double>& gy = gyIn;
+
+    std::vector<double> phiRaw = phiRawIn;
+    interpFillNan(phiRaw);
+    const std::vector<double> phiS = smoothPhi(phiRaw, cfg);
+
+    const PhaseModel pm = segmentPhases(gx, gy, nf, fps, impactFrame, cfg);
+
+    // chirality from unwrapped φ over [bs0, top]
+    int chir = 1;
+    {
+        std::vector<double> phu(nf);
+        double corr = 0; phu[0] = phiS[0] * kPi / 180.0;
+        for (int i = 1; i < nf; ++i) {
+            const double pr = phiS[i] * kPi / 180.0, pp = phiS[i - 1] * kPi / 180.0;
+            double d = pr - pp, dd = std::fmod(d + kPi, 2 * kPi); if (dd < 0) dd += 2 * kPi; dd -= kPi;
+            corr += dd - d; phu[i] = pr + corr;
+        }
+        const int t = std::min(pm.top, nf - 1);
+        chir = (phu[t] - phu[pm.bs0]) >= 0 ? 1 : -1;
+    }
+
+    const std::vector<std::vector<cv::Point2d>> smoothed = smoothJoints(rawJoints);
+    const std::vector<BodyPoly> polys = cfg.rasterC2 ? std::vector<BodyPoly>{} : bodyPolys(smoothed);
+    const std::vector<cv::Mat>  masks = cfg.rasterC2 ? bodyMasks(smoothed, frameW, frameH, cfg) : std::vector<cv::Mat>{};
+    const std::vector<char> stat = staticRuns(pm.spdSmoothed, cfg);
+
+    const int NS = int(std::lround(360.0 / cfg.grid));
+    std::vector<float> gridRad(NS), gridDeg(NS);
+    for (int k = 0; k < NS; ++k) { gridDeg[k] = float(k * cfg.grid); gridRad[k] = float(k * cfg.grid * kPi / 180.0); }
+
+    // scene background: median of every-8th frame (float32)
+    cv::Mat sceneMed;
+    {
+        std::vector<cv::Mat> bg;
+        for (int i = 0; i < nf; i += 8) { cv::Mat g = frameAt(i); if (!g.empty()) bg.push_back(g); }
+        if (!bg.empty()) {
+            const int H = bg[0].rows, W = bg[0].cols; const size_t n = bg.size();
+            sceneMed.create(H, W, CV_32F);
+            std::vector<uchar> vals(n);
+            for (int r = 0; r < H; ++r) {
+                float* orow = sceneMed.ptr<float>(r);
+                for (int c = 0; c < W; ++c) {
+                    for (size_t k = 0; k < n; ++k) vals[k] = bg[k].ptr<uchar>(r)[c];
+                    std::nth_element(vals.begin(), vals.begin() + n / 2, vals.end());
+                    orow[c] = float(vals[n / 2]);
                 }
             }
         }
-    };
-
-    cv::Vec3f bestS(1, 0, 0);
-    double    bestSign = 1.0;
-    FitEval   bestE;
-    solveOver(sphereDirections(800), bestS, bestSign, bestE);            // ≈7° lattice
-    solveOver(localDirections(bestS, 0.12, 4), bestS, bestSign, bestE);  // ±7° @ ~1.7°
-    solveOver(localDirections(bestS, 0.03, 3), bestS, bestSign, bestE);  // ±1.7° @ ~0.6°
-
-    if (bestE.residual > cfg.calibAcceptRad)
-        return fit;   // honest failure — the channel stays disabled
-
-    fit.ok          = true;
-    fit.sHand       = bestS;
-    fit.sign        = bestSign;
-    fit.offsetRad   = bestE.offset;
-    fit.residualRad = bestE.residual;
-    fit.framesUsed  = int(thetaMeas.size());
-    return fit;
-}
-
-std::vector<double> ShaftTrackAssembly::imuThetaChannel(const std::vector<ShaftFrameObs> &obs,
-                                                        const ShaftInHandFit &fit)
-{
-    std::vector<double> ch(obs.size(), kNaN);
-    if (!fit.ok)
-        return ch;
-    // Sequential unwrap — the channel is gap-free at frame rate, so wrapped
-    // per-frame deltas never alias.
-    double acc      = 0.0;
-    bool   haveAcc  = false;
-    for (size_t i = 0; i < obs.size(); ++i) {
-        if (!obs[i].qHandValid)
-            continue;
-        const double th = predictTheta(fit, obs[i].qHand);
-        if (!haveAcc) { acc = th; haveAcc = true; }
-        else            acc += wrapNear(th - acc);
-        ch[i] = acc;
     }
-    return ch;
-}
 
-// ---------------------------------------------------------------------------
+    const int collar = int(std::lround(double(cfg.spanCollarUs) * 1e-6 * fps));
+    const int spanLo = cfg.spanBound ? std::max(0, pm.bs0 - collar) : 0;
+    const int spanHi = cfg.spanBound ? std::min(nf - 1, pm.fin0 + collar) : nf - 1;
+    const double rmax = 0.62 * frameH;
 
-std::vector<int> ShaftTrackAssembly::associate(const std::vector<ShaftFrameObs> &obs,
-                                               const std::vector<double> &imuTheta,
-                                               const AssemblyConfig &cfg)
-{
-    const int n = int(obs.size());
-    std::vector<int> selected(size_t(n), -1);
-    if (n == 0)
-        return selected;
-
-    // DP node: candidate k at frame i, or the missing hypothesis (index K_i).
-    // Nodes carry the last OBSERVED (θ, t, L, rate, imuθ) along their best
-    // path so transitions across missing-gaps stay velocity-aware; missing
-    // nodes forward that memory unchanged.
-    struct Node {
-        double  cost = std::numeric_limits<double>::max();
-        int     prev = -1;       // state index in the previous frame
-        bool    hasLast = false;
-        double  lastTheta = 0.0, lastL = 0.0, lastImu = kNaN;
-        int64_t lastT = 0;
-        bool    hasRate = false;
-        double  lastRate = 0.0;
-    };
-
-    auto imuAt = [&](size_t i) {
-        return (i < imuTheta.size()) ? imuTheta[i] : kNaN;
-    };
-
-    std::vector<std::vector<Node>> dp(static_cast<size_t>(n));
-    for (int i = 0; i < n; ++i)
-        dp[size_t(i)].resize(obs[size_t(i)].candidates.size() + 1);
-
-    auto nodeCost = [&](const ShaftFrameObs &o, size_t k) {
-        const double best = o.candidates.front().score;
-        const double frac = best > 0.f ? std::max(double(o.candidates[k].score) / best,
-                                                  cfg.nodeScoreFloor)
-                                       : cfg.nodeScoreFloor;
-        return -std::log(frac);
-    };
-
-    // Transition cost from a node's last-observed memory into candidate k.
-    auto transCost = [&](const Node &p, const ShaftFrameObs &o, size_t k, double imuHere) {
-        if (!p.hasLast)
-            return 0.0;
-        const double dt = std::max(double(o.t_us - p.lastT) * 1e-6, 1e-4);
-        double expected, sigma;
-        if (!std::isnan(imuHere) && !std::isnan(p.lastImu)) {
-            expected = imuHere - p.lastImu;   // unwrapped channel delta
-            sigma    = cfg.transSigmaBaseRad + 0.5 * cfg.transAccSlackImu * dt * dt;
-        } else {
-            expected = p.hasRate ? p.lastRate * dt : 0.0;
-            sigma    = cfg.transSigmaBaseRad + 0.5 * cfg.transAccSlackRadS2 * dt * dt
-                     + (p.hasRate ? 0.0 : cfg.transNoRateExtraRad);
+    std::vector<std::vector<float>> emis(nf, std::vector<float>(NS, float(cfg.wE2)));
+    std::vector<std::vector<float>> EV(nf, std::vector<float>(NS, 0.f));
+    std::vector<BandMatch> band(nf);
+    std::vector<char> bandOk(nf, 0);
+    int heavy = 0;
+    for (int i = 0; i < nf; ++i) {
+        if (std::isnan(gx[i])) continue;
+        if (!(spanLo <= i && i <= spanHi)) continue;
+        cv::Mat g8 = frameAt(i);
+        if (g8.empty()) continue;
+        ++heavy;
+        cv::Mat g32; g8.convertTo(g32, CV_32F);
+        const RidgeResult sRaw = ridgeSweep(g32, gx[i], gy[i], gridRad, cfg.ridge, false);
+        std::vector<float> normRaw = normScores(sRaw.score);
+        std::vector<float> evMax = normRaw;
+        if (!sceneMed.empty() && sceneMed.size() == g32.size()) {
+            cv::Mat diff; cv::absdiff(g32, sceneMed, diff);
+            const RidgeResult sDif = ridgeSweep(diff, gx[i], gy[i], gridRad, cfg.ridge, true);
+            const std::vector<float> normDif = normScores(sDif.score);
+            for (int k = 0; k < NS; ++k) evMax[k] = std::max(normRaw[k], normDif[k]);
         }
-        const double dTheta = wrapNear(o.candidates[k].thetaRad - p.lastTheta);
-        const double devT   = wrapNear(dTheta - wrapNear(expected)) / sigma;
+        EV[i] = evMax;
+        BandMatch bm = frameBandMatch(g8, gx[i], gy[i], rmax, bandsMm, cfg.band);
+        if (bm.ok && bm.r0 > 0.0f && bm.r0 <= 260.0f) { band[i] = bm; bandOk[i] = 1; }
+        std::vector<float> em, inside;
+        frameEmission(em, inside, evMax, normRaw, band[i], phiS[i], pm.phase[i], chir,
+                      gx[i], gy[i], polys.empty() ? nullptr : &polys[i],
+                      masks.empty() ? cv::Mat() : masks[i], gridRad, gridDeg, cfg);
+        emis[i] = std::move(em);
+    }
 
-        const double L      = o.candidates[k].visibleLenPx;
-        const double sigL   = cfg.lenSigmaFrac * std::max(p.lastL, L) + cfg.lenSigmaFloorPx;
-        const double devL   = (L - p.lastL) / sigL;
-        return devT * devT + 0.25 * devL * devL;
-    };
+    const DPResult dp = viterbiDP(emis, pm.phase, cfg);
+    std::vector<double> evAt(nf, 0.0);
+    for (int i = 0; i < nf; ++i) evAt[i] = EV[i][dp.thstar[i]];
+    ReconResult rec;
+    if (cfg.psiRail)
+        rec = reconcilePsi(dp.thetaDeg, phiS, pm.phase, bandOk, evAt, pm.top, nf, cfg);
+    else {
+        rec.thetaOut = dp.thetaDeg;
+        rec.psiResid.assign(nf, std::numeric_limits<double>::quiet_NaN());
+        rec.recon.assign(nf, 0);
+    }
 
-    // Frame 0.
-    {
-        const ShaftFrameObs &o = obs[0];
-        const size_t K = o.candidates.size();
-        for (size_t k = 0; k < K; ++k) {
-            Node &nd = dp[0][k];
-            nd.cost = nodeCost(o, k);
-            nd.hasLast = true;
-            nd.lastTheta = o.candidates[k].thetaRad;
-            nd.lastL = o.candidates[k].visibleLenPx;
-            nd.lastT = o.t_us;
-            nd.lastImu = imuAt(0);
+    double sTypical = 0; { std::vector<double> ss; for (int i = 0; i < nf; ++i) if (bandOk[i]) ss.push_back(band[i].s);
+        if (!ss.empty()) { std::nth_element(ss.begin(), ss.begin() + ss.size() / 2, ss.end()); sTypical = ss[ss.size() / 2]; } }
+    const double projLenPx = sTypical > 0 ? sTypical * clubLenMm : 0.55 * frameH;
+
+    enum Tier { PRED = 0, RAY = 1, BAND = 2, RECON = 3 };
+    int spanFrames = 0, spanMeas = 0;
+    for (int i = 0; i < nf; ++i) {
+        if (std::isnan(gx[i])) continue;
+        const int thi = dp.thstar[i];
+        const double thDp = dp.thetaDeg[i];
+        const double th = rec.thetaOut[i];
+        int tier = PRED; float conf = 0.30f;
+        double headX = 0, headY = 0; bool hasHead = false; double visLen = 0;
+        if (bandOk[i] && std::abs(circWrap(thDp - band[i].thetaDeg)) <= cfg.bandTol) {
+            tier = BAND;
+            const double s = band[i].s, r0 = band[i].r0;
+            const double ux = std::cos(th * kPi / 180.0), uy = std::sin(th * kPi / 180.0);
+            const double bx = gx[i] - s * r0 * ux, by = gy[i] - s * r0 * uy;
+            headX = bx + s * clubLenMm * ux; headY = by + s * clubLenMm * uy; hasHead = true;
+            visLen = std::hypot(headX - gx[i], headY - gy[i]);
+            conf = float(std::min(0.9, 0.75 + 0.05 * (band[i].n - 4)));
+        } else if (pm.phase[i] != SwingPhase::Addr) {
+            const double evs = EV[i][thi], evrev = EV[i][(thi + NS / 2) % NS];
+            bool bandNear = false;
+            for (int j = std::max(0, i - cfg.bandNear); j <= std::min(nf - 1, i + cfg.bandNear); ++j) if (bandOk[j]) { bandNear = true; break; }
+            const bool verifiable = (pm.phase[i] == SwingPhase::Finish) ? bandNear : (!stat[i] || bandNear);
+            if (evs >= cfg.rayEvMin && evs > 1.15 * evrev && verifiable) { tier = RAY; conf = 0.55f; }
         }
-        dp[0][K].cost = cfg.missingPenalty;
-    }
+        if (rec.recon[i] && std::abs(circWrap(th - thDp)) > cfg.reconTol) { tier = RECON; conf = 0.40f; hasHead = false; visLen = 0; }
 
-    for (int i = 1; i < n; ++i) {
-        const ShaftFrameObs &o = obs[size_t(i)];
-        const auto &prev = dp[size_t(i) - 1];
-        const size_t K = o.candidates.size();
-        const double imuHere = imuAt(size_t(i));
-
-        for (size_t k = 0; k < K; ++k) {
-            Node &nd = dp[size_t(i)][k];
-            const double nc = nodeCost(o, k);
-            for (int s = 0; s < int(prev.size()); ++s) {
-                if (prev[size_t(s)].cost == std::numeric_limits<double>::max())
-                    continue;
-                const double c = prev[size_t(s)].cost + nc
-                               + transCost(prev[size_t(s)], o, k, imuHere);
-                if (c < nd.cost) { nd.cost = c; nd.prev = s; }
-            }
-            if (nd.prev >= 0) {
-                const Node &p = prev[size_t(nd.prev)];
-                nd.hasLast   = true;
-                nd.lastTheta = o.candidates[k].thetaRad;
-                nd.lastL     = o.candidates[k].visibleLenPx;
-                nd.lastT     = o.t_us;
-                nd.lastImu   = imuHere;
-                if (p.hasLast) {
-                    const double dt = std::max(double(o.t_us - p.lastT) * 1e-6, 1e-4);
-                    nd.hasRate  = true;
-                    nd.lastRate = wrapNear(o.candidates[k].thetaRad - p.lastTheta) / dt;
-                }
-            }
-        }
-        // Missing: forward the cheapest predecessor's memory unchanged.
-        Node &miss = dp[size_t(i)][K];
-        for (int s = 0; s < int(prev.size()); ++s) {
-            if (prev[size_t(s)].cost == std::numeric_limits<double>::max())
-                continue;
-            const double c = prev[size_t(s)].cost + cfg.missingPenalty;
-            if (c < miss.cost) {
-                miss = prev[size_t(s)];
-                miss.cost = c;
-                miss.prev = s;
-            }
-        }
-    }
-
-    // Backtrack from the cheapest terminal state.
-    int state = 0;
-    {
-        const auto &last = dp[size_t(n) - 1];
-        double best = std::numeric_limits<double>::max();
-        for (int s = 0; s < int(last.size()); ++s)
-            if (last[size_t(s)].cost < best) { best = last[size_t(s)].cost; state = s; }
-    }
-    for (int i = n - 1; i >= 0; --i) {
-        const size_t K = obs[size_t(i)].candidates.size();
-        selected[size_t(i)] = (state < int(K)) ? state : -1;
-        state = dp[size_t(i)][size_t(state)].prev;
-        if (i > 0 && (state < 0 || state >= int(dp[size_t(i) - 1].size())))
-            state = int(dp[size_t(i) - 1].size()) - 1;   // defensive: fall to missing
-    }
-    return selected;
-}
-
-// ---------------------------------------------------------------------------
-
-ShaftTrack2D ShaftTrackAssembly::smooth(const std::vector<ShaftFrameObs> &obs,
-                                        const std::vector<int> &selected,
-                                        const std::vector<double> &imuTheta,
-                                        double imuSigmaRad,
-                                        int64_t spanStartUs, int64_t spanEndUs,
-                                        const AssemblyConfig &cfg)
-{
-    ShaftTrack2D track;
-    const int n = int(obs.size());
-    if (n == 0)
-        return track;
-
-    auto imuAt = [&](size_t i) {
-        return (i < imuTheta.size()) ? imuTheta[i] : kNaN;
-    };
-
-    // Find the first epoch with any measurement to initialise the filter.
-    int first = -1;
-    for (int i = 0; i < n && first < 0; ++i)
-        if (selected[size_t(i)] >= 0 || !std::isnan(imuAt(size_t(i))))
-            first = i;
-    if (first < 0)
-        return track;   // nothing measurable at all — invalid empty track
-
-    const double imuR = std::pow(std::max(imuSigmaRad, cfg.imuSigmaFloorRad), 2.0);
-
-    // Forward pass, storing priors and posteriors for RTS. The IMU channel is
-    // re-anchored to the filter's domain by a constant per-run offset taken at
-    // initialisation (its unwrap origin is arbitrary); each subsequent wrapped
-    // lift happens against the prediction.
-    struct Step {
-        cv::Vec3d  xPrior, xPost;
-        cv::Matx33d pPrior, pPost, F;
-        uint8_t flags = 0;
-    };
-    std::vector<Step> steps(static_cast<size_t>(n - first));
-
-    cv::Vec3d  x(0.0, 0.0, 0.0);
-    cv::Matx33d P = cv::Matx33d::diag(cv::Vec3d(std::pow(0.17, 2), std::pow(100.0, 2),
-                                                std::pow(1000.0, 2)));
-    double imuAnchor = kNaN;   // imuTheta − filterθ at init
-    {
-        const int sel = selected[size_t(first)];
-        if (sel >= 0)
-            x[0] = obs[size_t(first)].candidates[size_t(sel)].thetaRad;
-        else
-            x[0] = imuAt(size_t(first));
-        if (!std::isnan(imuAt(size_t(first))))
-            imuAnchor = imuAt(size_t(first)) - x[0];
-    }
-
-    for (int i = first; i < n; ++i) {
-        Step &st = steps[size_t(i - first)];
-        if (i > first) {
-            const double dt = std::max(double(obs[size_t(i)].t_us
-                                              - obs[size_t(i) - 1].t_us) * 1e-6, 1e-4);
-            st.F = transition(dt);
-            x = st.F * x;
-            P = st.F * P * st.F.t() + processNoise(dt, cfg.jerkPsd);
-        } else {
-            st.F = cv::Matx33d::eye();
-        }
-        st.xPrior = x;
-        st.pPrior = P;
-
-        const int sel = selected[size_t(i)];
-        if (sel >= 0) {
-            const ShaftCandidate &c = obs[size_t(i)].candidates[size_t(sel)];
-            const double sig = std::max(double(c.sigmaThetaRad), cfg.visionSigmaFloorRad);
-            const double z   = x[0] + wrapNear(double(c.thetaRad) - wrapNear(x[0]));
-            scalarUpdate(x, P, z, sig * sig);
-            st.flags |= ShaftMeasured;
-            if (c.wedge)
-                st.flags |= ShaftWedge;
-        }
-        const double imuHere = imuAt(size_t(i));
-        if (!std::isnan(imuHere)) {
-            if (std::isnan(imuAnchor))
-                imuAnchor = imuHere - x[0];
-            // The channel is already continuous: lift by the run anchor only.
-            scalarUpdate(x, P, imuHere - imuAnchor, imuR);
-            if (!(st.flags & ShaftMeasured))
-                st.flags |= ShaftImuBridged;
-        }
-        if (!(st.flags & (ShaftMeasured | ShaftImuBridged)))
-            st.flags |= ShaftCoasted;
-
-        st.xPost = x;
-        st.pPost = P;
-    }
-
-    // RTS backward smoother.
-    const int m = int(steps.size());
-    std::vector<cv::Vec3d>  xs(static_cast<size_t>(m));
-    std::vector<cv::Matx33d> ps(static_cast<size_t>(m));
-    xs[size_t(m) - 1] = steps[size_t(m) - 1].xPost;
-    ps[size_t(m) - 1] = steps[size_t(m) - 1].pPost;
-    for (int k = m - 2; k >= 0; --k) {
-        const Step &nx = steps[size_t(k) + 1];
-        const cv::Matx33d C = steps[size_t(k)].pPost * nx.F.t() * nx.pPrior.inv();
-        xs[size_t(k)] = steps[size_t(k)].xPost + C * (xs[size_t(k) + 1] - nx.xPrior);
-        ps[size_t(k)] = steps[size_t(k)].pPost
-                      + C * (ps[size_t(k) + 1] - nx.pPrior) * C.t();
-    }
-
-    // Visible length: median-of-5 over measured values, hold-last between —
-    // deliberately simple, θ is the precision channel (header note).
-    std::vector<double> lenRaw(size_t(n), kNaN);
-    for (int i = 0; i < n; ++i)
-        if (selected[size_t(i)] >= 0)
-            lenRaw[size_t(i)] = obs[size_t(i)].candidates[size_t(selected[size_t(i)])].visibleLenPx;
-
-    track.samples.reserve(size_t(m));
-    double lastLen = 0.0;
-    int inSpan = 0, covered = 0;
-    for (int i = first; i < n; ++i) {
-        const Step &st = steps[size_t(i - first)];
         ShaftSample2D s;
-        s.t_us         = obs[size_t(i)].t_us;
-        s.gripPx       = QPointF(obs[size_t(i)].gripPx.x, obs[size_t(i)].gripPx.y);
-        s.thetaRad     = xs[size_t(i - first)][0];
-        s.thetaDotRadS = xs[size_t(i - first)][1];
-        s.flags        = st.flags;
-
-        if (!std::isnan(lenRaw[size_t(i)])) {
-            std::vector<double> w;
-            for (int j = std::max(0, i - 2); j <= std::min(n - 1, i + 2); ++j)
-                if (!std::isnan(lenRaw[size_t(j)]))
-                    w.push_back(lenRaw[size_t(j)]);
-            std::nth_element(w.begin(), w.begin() + w.size() / 2, w.end());
-            lastLen = w[w.size() / 2];
+        s.t_us = tUs[i];
+        s.gripPx = QPointF(gx[i], gy[i]);
+        s.thetaRad = th * kPi / 180.0;
+        s.conf = conf;
+        if (hasHead) { s.headPx = QPointF(headX, headY); s.flags = ShaftMeasured; s.visibleLenPx = visLen; }
+        else {
+            const double ux = std::cos(th * kPi / 180.0), uy = std::sin(th * kPi / 180.0);
+            s.headPx = QPointF(gx[i] + projLenPx * ux, gy[i] + projLenPx * uy);
+            s.flags = uint8_t((tier == RAY ? ShaftMeasured : ShaftCoasted) | ShaftHeadProjected);
         }
-        s.visibleLenPx = lastLen;
-
-        const int sel = selected[size_t(i)];
-        if (sel >= 0) {
-            const auto &h = obs[size_t(i)].candidates[size_t(sel)].headPx;
-            s.headPx = QPointF(h.x, h.y);
-        } else {
-            s.headPx = QPointF(s.gripPx.x() + lastLen * std::cos(s.thetaRad),
-                               s.gripPx.y() + lastLen * std::sin(s.thetaRad));
-            s.flags |= ShaftHeadProjected;
-        }
-
-        const double sig = std::sqrt(std::max(ps[size_t(i - first)](0, 0), 0.0));
-        s.conf = float(std::clamp(1.0 - sig / cfg.confSigmaRefRad, 0.0, 1.0));
-
-        if (s.t_us >= spanStartUs && s.t_us <= spanEndUs) {
-            ++inSpan;
-            if (s.flags & (ShaftMeasured | ShaftImuBridged))
-                ++covered;
-        }
-        track.samples.push_back(s);
+        out.samples.push_back(s);
+        if (trace) { trace->frameIdx.push_back(i); trace->tier.push_back(tier);
+                     trace->thetaDeg.push_back(th); trace->conf.push_back(conf); }
+        if (i >= pm.bs0 && i <= pm.fin0) { ++spanFrames; if (tier == BAND || tier == RAY) ++spanMeas; }
     }
 
-    track.coverage = inSpan > 0 ? float(covered) / float(inSpan) : 0.f;
-    track.valid    = track.coverage >= float(cfg.coverageMin);
-    return track;
-}
+    for (size_t i = 0; i < out.samples.size(); ++i) {
+        if (out.samples.size() < 2) break;
+        const size_t a = (i == 0) ? 0 : i - 1;
+        const size_t b = (i + 1 < out.samples.size()) ? i + 1 : i;
+        const double dth = std::remainder(out.samples[b].thetaRad - out.samples[a].thetaRad, 2 * kPi);
+        const double dt = double(out.samples[b].t_us - out.samples[a].t_us) * 1e-6;
+        out.samples[i].thetaDotRadS = (dt > 0) ? dth / dt : 0.0;
+    }
 
-// ---------------------------------------------------------------------------
+    out.coverage = spanFrames > 0 ? float(spanMeas) / float(spanFrames) : 0.f;
+    out.valid = out.coverage >= float(cfg.coverageMin);
 
-ShaftTrack2D ShaftTrackAssembly::assemble(const std::vector<ShaftFrameObs> &obs,
-                                          int64_t spanStartUs, int64_t spanEndUs,
-                                          const AssemblyConfig &cfg,
-                                          AssemblyTrace *trace)
-{
-    const ShaftInHandFit fit = calibrateShaftInHand(obs, cfg);
-    const std::vector<double> imuTheta = imuThetaChannel(obs, fit);
-    const std::vector<int> selected = associate(obs, imuTheta, cfg);
     if (trace) {
-        trace->fit               = fit;
-        trace->selected          = selected;
-        trace->imuThetaUnwrapped = imuTheta;
+        trace->phases = pm; trace->phiSmoothed = phiS; trace->chir = chir;
+        trace->spanLo = spanLo; trace->spanHi = spanHi; trace->heavyFrames = heavy;
+        trace->dp = dp; trace->recon = rec;
     }
-
-    ShaftTrack2D track = smooth(obs, selected, imuTheta,
-                                fit.ok ? fit.residualRad : 0.0,
-                                spanStartUs, spanEndUs, cfg);
-
-    // Health metric: Pearson correlation of vision vs IMU angular rate over
-    // consecutive measured pairs (computed anyway for the fusion layer's
-    // temporal alignment; a low value flags a bad track in production).
-    if (fit.ok) {
-        std::vector<double> vv, vi;
-        int prev = -1;
-        for (int i = 0; i < int(obs.size()); ++i) {
-            if (selected[size_t(i)] < 0 || std::isnan(imuTheta[size_t(i)]))
-                continue;
-            if (prev >= 0) {
-                const double dt = double(obs[size_t(i)].t_us - obs[size_t(prev)].t_us) * 1e-6;
-                if (dt > 0.0 && dt < 0.2) {
-                    vv.push_back(wrapNear(obs[size_t(i)].candidates[size_t(selected[size_t(i)])].thetaRad
-                                          - obs[size_t(prev)].candidates[size_t(selected[size_t(prev)])].thetaRad) / dt);
-                    vi.push_back((imuTheta[size_t(i)] - imuTheta[size_t(prev)]) / dt);
-                }
-            }
-            prev = i;
-        }
-        if (vv.size() >= 8) {
-            double mv = 0, mi = 0;
-            for (size_t k = 0; k < vv.size(); ++k) { mv += vv[k]; mi += vi[k]; }
-            mv /= double(vv.size()); mi /= double(vi.size());
-            double num = 0, dv = 0, di = 0;
-            for (size_t k = 0; k < vv.size(); ++k) {
-                num += (vv[k] - mv) * (vi[k] - mi);
-                dv  += (vv[k] - mv) * (vv[k] - mv);
-                di  += (vi[k] - mi) * (vi[k] - mi);
-            }
-            if (dv > 0 && di > 0)
-                track.imuVisionCorr = float(num / std::sqrt(dv * di));
-        }
-    }
-    return track;
+    return out;
 }
 
 } // namespace pinpoint::analysis

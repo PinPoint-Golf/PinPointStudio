@@ -135,7 +135,7 @@ pp_add_test(imu_driver_frame_test
 # --- ShaftTracker OpenCV targets ---------------------------------------------
 # OpenCV (system 4.x, core imgproc only — no contrib). Both math sources are
 # Qt-free; -O2 because the suites set no build type and assert real hot-loop cost.
-find_package(OpenCV REQUIRED COMPONENTS core imgproc)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc videoio)
 
 # Shared frame decode (src/Export/frame_decode, ShaftTracker S0).
 pp_add_test(frame_decode_test
@@ -144,20 +144,31 @@ pp_add_test(frame_decode_test
     LINK    ${OpenCV_LIBS}
     NO_QT)
 
-# ShaftTracker S1: anchored radial shaft detection math core.
-pp_add_test(shaft_tracker_test
-    SOURCES shaft_tracker_test.cpp ${ANALYSIS}/shaft_tracker_math.cpp
+# Shaft v3.0-r1 evidence engines (E1 discrete band + E2 polarity ridge sweep) —
+# Qt-free math core (shaft_tracker_math). -O2: the suites set no build type and
+# these assert real hot-loop cost.
+pp_add_test(shaft_evidence_test
+    SOURCES shaft_evidence_test.cpp ${ANALYSIS}/shaft_tracker_math.cpp
     INCLUDE ${OpenCV_INCLUDE_DIRS}
     LINK    ${OpenCV_LIBS}
     COMPILE_OPTIONS -O2
     NO_QT)
 
-# ShaftTracker S2: track assembly — needs Qt (QQuaternion/QPointF) AND OpenCV.
-pp_add_test(shaft_track_test
-    SOURCES shaft_track_test.cpp ${ANALYSIS}/shaft_track_assembly.cpp
+# Shaft v3.0-r1 deciding half (phase model, geometry, emission, banded Viterbi
+# DP, ψ-isotonic reconcile, tiering + the decideTrack core, which calls the E1/E2
+# engines) — needs Qt (QVariantMap config) + OpenCV.
+pp_add_test(shaft_decide_test
+    SOURCES shaft_decide_test.cpp ${ANALYSIS}/shaft_track_assembly.cpp ${ANALYSIS}/shaft_tracker_math.cpp
     INCLUDE ${OpenCV_INCLUDE_DIRS}
     LINK    ${OpenCV_LIBS}
     COMPILE_OPTIONS -O2)
 
-# ShaftTracker R6 kinematics (lead-arm → club wrist-cock model) — pure header-only.
-pp_add_test(shaft_kinematics_test SOURCES shaft_kinematics_test.cpp NO_QT)
+# Shaft v3.0-r1 NUMERIC PARITY vs the Python exemplar: runs decideTrack over the
+# same FFV1 clip + anchors + skeleton and diffs θ/kind against a Python
+# `_v3_track.csv` generated on the SAME host. SKIPs when the fixture is absent
+# (studio corpus). Needs videoio (reads the clip) + Qt (CSV/JSON parsing).
+pp_add_test(shaft_parity_test
+    SOURCES shaft_parity_test.cpp ${ANALYSIS}/shaft_track_assembly.cpp ${ANALYSIS}/shaft_tracker_math.cpp
+    INCLUDE ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    COMPILE_OPTIONS -O2)

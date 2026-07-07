@@ -16,895 +16,355 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+// Shaft v3.0-r1 evidence engines — faithful C++ port of tools/shaftlab/
+// {stripe_fusion,stripe_annotate}.py (E2 ridge_sweep + E1 frame_band_match).
+// Numerically identical to the Python within float precision; the sampler is
+// nearest-neighbour integer-clamp (matching np _sample), NOT bilinear.
+
 #include "shaft_tracker_math.h"
 
 #include <opencv2/imgproc.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <limits>
+#include <numeric>
 
 namespace pinpoint::analysis {
 
 namespace {
 
-constexpr float kPi    = 3.14159265358979323846f;
-constexpr float kTwoPi = 2.f * kPi;
+constexpr double kPi = 3.14159265358979323846;
 
-// Wrap to (-π, π].
-inline float wrapPi(float a)
+// Nearest-neighbour clamped sample of `img` (CV_32F) at (fx,fy). Mirrors numpy
+// `img[clip(int32(y),0,H-1), clip(int32(x),0,W-1)]` — int32 cast truncates
+// toward zero, then clamp. (Coords fold negatives to 0 via the clamp, so the
+// truncation direction on negatives is immaterial.)
+inline float at(const cv::Mat& img, double fx, double fy)
 {
-    a = std::fmod(a + kPi, kTwoPi);
-    if (a < 0.f)
-        a += kTwoPi;
-    return a - kPi;
+    int x = int(fx);   // truncates toward zero, as numpy .astype(np.int32)
+    int y = int(fy);
+    if (x < 0) x = 0; else if (x >= img.cols) x = img.cols - 1;
+    if (y < 0) y = 0; else if (y >= img.rows) y = img.rows - 1;
+    return img.at<float>(y, x);
 }
 
-inline float angAbsDiff(float a, float b) { return std::abs(wrapPi(a - b)); }
-
-struct ThresholdInfo {
-    int thr        = 0;   // adaptive supra-threshold gate for this response map
-    int supraCount = 0;   // pixels above thr — ~0 means the polarity is dead
-};
-
-// Adaptive ridge threshold from the response map's noise statistics:
-// median + K · 1.4826 · MAD, via two 256-bin histograms (8-bit map — exact
-// and allocation-free). The response is mostly background noise, so the
-// median/MAD characterise noise, not signal. The supra count falls out of
-// the same histogram and lets the caller skip a polarity with no signal at
-// all (a club is steel OR graphite — one map is usually empty).
-ThresholdInfo madThreshold(const cv::Mat &m, float k, float floorV)
+// median of exactly 4 (the bg reduction). numpy median of an even count = mean
+// of the two middle order statistics.
+inline float median4(float a, float b, float c, float d)
 {
-    int hist[256] = {0};
-    for (int y = 0; y < m.rows; ++y) {
-        const uchar *row = m.ptr<uchar>(y);
-        for (int x = 0; x < m.cols; ++x)
-            ++hist[row[x]];
-    }
-    const int total = m.rows * m.cols;
-    const auto histMedian = [total](const int *h) {
-        const int half = (total + 1) / 2;
-        int cum = 0;
-        for (int v = 0; v < 256; ++v) {
-            cum += h[v];
-            if (cum >= half)
-                return v;
-        }
-        return 255;
-    };
-    const int med = histMedian(hist);
-    int dev[256] = {0};
-    for (int v = 0; v < 256; ++v)
-        dev[std::abs(v - med)] += hist[v];
-    const int mad = histMedian(dev);
-    const float thrF = static_cast<float>(med) + k * 1.4826f * static_cast<float>(mad);
-    ThresholdInfo out;
-    out.thr = std::max(static_cast<int>(std::lround(floorV)),
-                       static_cast<int>(std::lround(thrF)));
-    for (int v = out.thr + 1; v < 256; ++v)
-        out.supraCount += hist[v];
-    return out;
-}
-
-// Per-θ column state after the run scan (one per θ bin per anchor).
-struct ColumnInfo {
-    float wScore = 0.f;   // clutter-masked, prior-weighted score (peak finding)
-    int   start  = -1;    // supra-threshold run extent, ρ bins
-    int   end    = -1;
-    bool  dark   = false; // black-hat beat top-hat on this column
-};
-
-// Incremental supra-threshold run accumulator for one polarity along one ray.
-// The run must begin within startLimit of the scan start (anchored — exactly
-// this rejects non-radial clutter: an alignment stick crossing the ray far
-// from the grip can never start a run) and may bridge internal sub-threshold
-// gaps up to maxGap bins (a ray crossing the torso loses contrast mid-run but
-// keeps it on both sides — the coverage term keeps such columns far above
-// clutter rays).
-struct RunAcc {
-    int   first = -1, last = -1;
-    int   gap   = 0;
-    float sum   = 0.f;
-    bool  dead  = false;
-
-    inline void push(int r, int v, int thr, int startLimit, int maxGap)
-    {
-        if (first < 0) {
-            if (v > thr) {
-                first = last = r;
-                sum   = static_cast<float>(v);
-            } else if (r >= startLimit) {
-                dead = true;
-            }
-            return;
-        }
-        if (v > thr) {
-            last = r;
-            sum += static_cast<float>(v);
-            gap = 0;
-        } else if (++gap > maxGap) {
-            dead = true;
-        }
-    }
-};
-
-// Column score = (mean response over the run, i.e. mean supra strength ×
-// coverage) × √(runLen / available) — run length rewards longer support
-// sublinearly.
-inline float runScore(const RunAcc &a, int nRho, int rhoMinBin)
-{
-    if (a.first < 0)
-        return 0.f;
-    const int   runLen = a.last - a.first + 1;
-    const float avail  = static_cast<float>(std::max(1, nRho - rhoMinBin));
-    return (a.sum / static_cast<float>(runLen)) *
-           std::sqrt(static_cast<float>(runLen) / avail);
-}
-
-// Blur-mode integrator (R8): sums the supra-(lowered-threshold) response over
-// ALL ρ — NOT a contiguous run starting at the grip. A fast shaft images as a
-// faint, broken motion-blur fan whose per-pixel response never clears the sharp
-// threshold and whose support is gappy; integrating the coherent signal at a
-// lowered threshold recovers it where the anchored run scan gives up. Used only
-// inside the kinematic envelope (so the lowered threshold can't raise far-field
-// false positives), and scored with runScore's shape so the peak-finding,
-// minScoreFrac and wedge-plateau stages downstream are unchanged.
-struct BlurAcc {
-    int   first = -1, last = -1, count = 0;
-    float sum   = 0.f;
-    inline void push(int r, int v, int loweredThr)
-    {
-        if (v > loweredThr) {
-            if (first < 0) first = r;
-            last = r;
-            sum += static_cast<float>(v - loweredThr);
-            ++count;
-        }
-    }
-};
-inline float blurScore(const BlurAcc &a, int nRho, int rhoMinBin)
-{
-    if (a.count <= 0)
-        return 0.f;
-    const float avail = static_cast<float>(std::max(1, nRho - rhoMinBin));
-    return (a.sum / static_cast<float>(a.count)) *
-           std::sqrt(static_cast<float>(a.count) / avail);
-}
-
-// Soft von-Mises-style prior bump: 1 at dTheta = 0, decaying to floorW.
-// Multiplicative weighting only — a prior must never hard-gate a measurement.
-inline float priorBump(float dTheta, float sigmaRad, float floorW)
-{
-    const float kappa = 1.f / std::max(1e-4f, sigmaRad * sigmaRad);
-    return floorW + (1.f - floorW) * std::exp(kappa * (std::cos(dTheta) - 1.f));
-}
-
-// Per-θ multiplicative weight: 0 inside the hard elbow clutter mask (the
-// forearm is itself a radial ridge into the anchor — the dominant false
-// positive), soft prior bumps everywhere else. Identical for every anchor in
-// the perturbation grid, so it is built once.
-std::vector<float> buildThetaWeights(const ShaftDetectConfig &cfg, const AnchorPrior &prior)
-{
-    std::vector<float> w(static_cast<size_t>(cfg.thetaBins), 1.f);
-    const float binW      = kTwoPi / static_cast<float>(cfg.thetaBins);
-    const float maskRad   = cfg.clutterMaskDeg * kPi / 180.f;
-    const float ihSigma   = cfg.interHandSigmaDeg * kPi / 180.f;
-    const float predSigma = (prior.predictedSigmaRad > 1e-4f) ? prior.predictedSigmaRad
-                                                              : 5.f * kPi / 180.f;
-    const int   nElbow    = std::clamp(prior.numElbowDirs, 0, 2);
-    for (int t = 0; t < cfg.thetaBins; ++t) {
-        const float theta = static_cast<float>(t) * binW;
-        // Phase-1 plausibility sector: hard-restrict the search to within
-        // ±armPlausMaxRad of the lead-forearm extension. The club cannot fold back
-        // up the arm at any phase, so zeroing the implausible bins both forbids the
-        // arm-as-club pick AND frees the top-K so the (often weaker) true club ridge
-        // is no longer crowded out. Phase- & chirality-independent; 0 ⇒ disabled.
-        if (prior.armPlausMaxRad > 0.f
-            && angAbsDiff(theta, prior.armAxisRad) > prior.armPlausMaxRad) {
-            w[static_cast<size_t>(t)] = 0.f;
-            continue;
-        }
-        bool masked = false;
-        for (int e = 0; e < nElbow; ++e) {
-            if (angAbsDiff(theta, prior.elbowDirRad[e]) <= maskRad) {
-                masked = true;
-                break;
-            }
-        }
-        if (masked) {
-            w[static_cast<size_t>(t)] = 0.f;
-            continue;
-        }
-        float v = 1.f;
-        // R6 kinematic direction (φ_club_pred ± σ_β), when present, is the
-        // long-baseline directional prior and supersedes the short, often-absent
-        // inter-hand bump. Default (hasKinematicDir == false) keeps prior behaviour.
-        if (prior.hasKinematicDir)
-            v *= priorBump(wrapPi(theta - prior.kinematicDirRad),
-                           prior.kinematicSigmaRad > 1e-4f ? prior.kinematicSigmaRad : ihSigma,
-                           cfg.priorFloor);
-        else if (prior.hasInterHandDir)
-            v *= priorBump(wrapPi(theta - prior.interHandDirRad), ihSigma, cfg.priorFloor);
-        if (prior.hasPredictedTheta)
-            v *= priorBump(wrapPi(theta - prior.predictedThetaRad), predSigma, cfg.priorFloor);
-        w[static_cast<size_t>(t)] = v;
-    }
-    return w;
-}
-
-// The polar transform + column scan, fused: every θ column of every anchor is
-// scanned by walking the ray straight off the Cartesian response maps
-// (row t ↔ angle t·2π/thetaBins from +x toward +y — cv::warpPolar's image
-// convention; ρ bin r ↔ r·rhoScale px). Nearest-neighbour sampling — θ
-// precision comes from the bin-domain parabola/centroid and the TLS refit,
-// not from sample interpolation — out-of-ROI samples read as 0. Early exit
-// once a column's runs are dead: most columns die right past the start gate,
-// which (with no intermediate polar images and no per-anchor resample) is
-// why this outruns 18 warpPolar/remap passes by an order of magnitude.
-// Parallel over θ rows; writes are disjoint per (anchor, θ).
-void scanAllAnchors(const cv::Mat *top, const cv::Mat *black, const cv::Mat *diffImage,
-                    const cv::Point2f *anchors, int nAnchors,
-                    const ShaftDetectConfig &cfg, int thrTop, int thrBlack, int thrDiff,
-                    const std::vector<float> &thetaWeight,
-                    float rhoScale, int nRho,
-                    std::vector<std::vector<ColumnInfo>> &colsA,
-                    bool blurMode, float centerRad, float halfRad)
-{
-    const int rhoMinBin = std::clamp(static_cast<int>(std::lround(cfg.rhoMinPx / rhoScale)),
-                                     0, nRho - 1);
-    const int startLimit = std::min(nRho - 1,
-        rhoMinBin + std::max(0, static_cast<int>(std::lround(cfg.runStartGapPx / rhoScale))));
-    const int maxGap = std::max(0, static_cast<int>(std::lround(cfg.runMaxGapPx / rhoScale)));
-    // R8 lowered thresholds inside the blur window (integrate the faint fan).
-    const int lthrTop   = std::max(1, static_cast<int>(static_cast<float>(thrTop)   * cfg.blurThreshScale));
-    const int lthrBlack = std::max(1, static_cast<int>(static_cast<float>(thrBlack) * cfg.blurThreshScale));
-    const int lthrDiff  = std::max(1, static_cast<int>(static_cast<float>(thrDiff)  * cfg.blurThreshScale));
-
-    const cv::Mat &ref   = top ? *top : (black ? *black : *diffImage);
-    const int      w     = ref.cols, h = ref.rows;
-    const uchar   *tData = top ? top->ptr<uchar>(0) : nullptr;
-    const uchar   *bData = black ? black->ptr<uchar>(0) : nullptr;
-    const uchar   *dData = diffImage ? diffImage->ptr<uchar>(0) : nullptr;
-    const size_t   tStep = top ? top->step : 0;
-    const size_t   bStep = black ? black->step : 0;
-    const size_t   dStep = diffImage ? diffImage->step : 0;
-    const float    binW  = kTwoPi / static_cast<float>(cfg.thetaBins);
-
-    cv::parallel_for_(cv::Range(0, cfg.thetaBins), [&](const cv::Range &range) {
-        for (int t = range.start; t < range.end; ++t) {
-            const float ct = std::cos(static_cast<float>(t) * binW) * rhoScale;
-            const float st = std::sin(static_cast<float>(t) * binW) * rhoScale;
-            // Blur mode (R8): score every column by integration instead of the
-            // anchored run — recovers the broken, faint motion-blur fan. The
-            // envelope restriction + SNR gate are applied in detectShaft (which
-            // needs the out-of-envelope columns as the noise/clutter baseline).
-            const bool inBlur = blurMode;
-            for (int a = 0; a < nAnchors; ++a) {
-                const float ax = anchors[a].x, ay = anchors[a].y;
-                float score;
-                bool  dark;
-                int   cStart, cEnd;
-                if (inBlur) {
-                    BlurAcc bt, bb, bd;
-                    bool hasDiff = (dData != nullptr);
-                    for (int r = rhoMinBin; r < nRho; ++r) {
-                        const int x = static_cast<int>(ax + static_cast<float>(r) * ct + 0.5f);
-                        const int y = static_cast<int>(ay + static_cast<float>(r) * st + 0.5f);
-                        const bool in = static_cast<unsigned>(x) < static_cast<unsigned>(w) &&
-                                        static_cast<unsigned>(y) < static_cast<unsigned>(h);
-                        if (tData) bt.push(r, in ? tData[static_cast<size_t>(y) * tStep + x] : 0, lthrTop);
-                        if (bData) bb.push(r, in ? bData[static_cast<size_t>(y) * bStep + x] : 0, lthrBlack);
-                        if (hasDiff) bd.push(r, in ? dData[static_cast<size_t>(y) * dStep + x] : 0, lthrDiff);
-                    }
-                    const float sT = blurScore(bt, nRho, rhoMinBin);
-                    const float sB = blurScore(bb, nRho, rhoMinBin);
-                    float sD = 0.f;
-                    // Only use diff image inside the kinematic envelope
-                    const float theta = static_cast<float>(t) * binW;
-                    const bool inEnvelope = (halfRad > 0.f) && (angAbsDiff(theta, centerRad) <= halfRad);
-                    if (hasDiff && inEnvelope) {
-                        sD = blurScore(bd, nRho, rhoMinBin);
-                    }
-
-                    if (sD > sT && sD > sB) {
-                        dark   = false;
-                        score  = sD;
-                        cStart = bd.first;
-                        cEnd   = bd.last;
-                    } else {
-                        dark   = sB > sT;
-                        score  = dark ? sB : sT;
-                        const BlurAcc &bbest = dark ? bb : bt;
-                        cStart = bbest.first;
-                        cEnd   = bbest.last;
-                    }
-                } else {
-                    RunAcc rt, rb;
-                    rt.dead = (tData == nullptr);
-                    rb.dead = (bData == nullptr);
-                    for (int r = rhoMinBin; r < nRho; ++r) {
-                        const int x = static_cast<int>(ax + static_cast<float>(r) * ct + 0.5f);
-                        const int y = static_cast<int>(ay + static_cast<float>(r) * st + 0.5f);
-                        const bool in = static_cast<unsigned>(x) < static_cast<unsigned>(w) &&
-                                        static_cast<unsigned>(y) < static_cast<unsigned>(h);
-                        if (!rt.dead)
-                            rt.push(r, in ? tData[static_cast<size_t>(y) * tStep + x] : 0,
-                                    thrTop, startLimit, maxGap);
-                        if (!rb.dead)
-                            rb.push(r, in ? bData[static_cast<size_t>(y) * bStep + x] : 0,
-                                    thrBlack, startLimit, maxGap);
-                        if (rt.dead && rb.dead)
-                            break;
-                    }
-                    const float sTop   = runScore(rt, nRho, rhoMinBin);
-                    const float sBlack = runScore(rb, nRho, rhoMinBin);
-                    dark   = sBlack > sTop;
-                    score  = dark ? sBlack : sTop;
-                    const RunAcc &best = dark ? rb : rt;
-                    cStart = best.first;
-                    cEnd   = best.last;
-                }
-                if (score <= 0.f)
-                    continue;
-                ColumnInfo &c = colsA[static_cast<size_t>(a)][static_cast<size_t>(t)];
-                c.start  = cStart;
-                c.end    = cEnd;
-                c.dark   = dark;
-                // Blur columns carry the raw integral with only the hard elbow
-                // mask (0/1) — so in- and out-of-envelope scores are comparable
-                // for the SNR baseline. Sharp columns keep the full soft weighting.
-                c.wScore = inBlur
-                    ? (thetaWeight[static_cast<size_t>(t)] > 0.f ? score : 0.f)
-                    : score * thetaWeight[static_cast<size_t>(t)];
-            }
-        }
-    });
-}
-
-struct Peak {
-    int   bin = 0;
-    float w   = 0.f;
-};
-
-// Local maxima of the weighted score → greedy NMS (wrap-around aware) →
-// top-K, then quality gates (relative score, minimum visible length).
-std::vector<Peak> pickPeaks(const std::vector<ColumnInfo> &cols,
-                            const ShaftDetectConfig &cfg, float rhoScale)
-{
-    const int n = static_cast<int>(cols.size());
-    std::vector<Peak> maxima;
-    for (int i = 0; i < n; ++i) {
-        const float w = cols[static_cast<size_t>(i)].wScore;
-        if (w <= 0.f)
-            continue;
-        const float wp = cols[static_cast<size_t>((i + n - 1) % n)].wScore;
-        const float wn = cols[static_cast<size_t>((i + 1) % n)].wScore;
-        if (w > wp && w >= wn)
-            maxima.push_back({i, w});
-    }
-    std::sort(maxima.begin(), maxima.end(),
-              [](const Peak &a, const Peak &b) { return a.w > b.w; });
-
-    const int sepBins = std::max(1, static_cast<int>(std::lround(
-                            cfg.nmsSeparationDeg / 360.f * static_cast<float>(n))));
-    std::vector<Peak> kept;
-    for (const Peak &p : maxima) {
-        bool ok = true;
-        for (const Peak &k : kept) {
-            const int d = std::abs(p.bin - k.bin);
-            if (std::min(d, n - d) < sepBins) {
-                ok = false;
-                break;
-            }
-        }
-        if (!ok)
-            continue;
-        kept.push_back(p);
-        if (static_cast<int>(kept.size()) >= cfg.maxCandidates)
-            break;
-    }
-    if (kept.empty())
-        return kept;
-
-    const float minW = cfg.minScoreFrac * kept.front().w;
-    // R5 length floor: drop runs shorter than the configured minimum. This is a
-    // conservative noise gate, NOT a "shaft must be ≥ one arm" claim — under
-    // foreshortening a real shaft can image far shorter than an arm near the top
-    // and impact. The floor only ever tightens (max with minVisibleLenPx), so a
-    // default config (minShaftLenPx == minVisibleLenPx) is unchanged.
-    const float lenFloor = std::max(cfg.minVisibleLenPx, cfg.minShaftLenPx);
-    std::vector<Peak> out;
-    for (const Peak &p : kept) {
-        const ColumnInfo &c = cols[static_cast<size_t>(p.bin)];
-        const float visLen  = static_cast<float>(c.end - c.start + 1) * rhoScale;
-        if (p.w >= minW && visLen >= lenFloor)
-            out.push_back(p);
-    }
-    return out;
-}
-
-// Wedge plateau (B.4): expand from the peak while the weighted score stays
-// above half-peak, tolerating short noise dips (a real plateau is the score
-// profile of a blur fan — its bins are noisy, and an expansion that stops at
-// the first sub-half bin truncates the window asymmetrically, biasing the
-// centroid). A span beyond cfg.wedgeMinSpanDeg is a motion-blur fan —
-// θ = intensity-weighted centroid of the plateau, σ = its half-width.
-// Otherwise: parabolic sub-bin refinement, σ ≈ one θ-bin.
-void refineTheta(const std::vector<ColumnInfo> &cols, int bin,
-                 const ShaftDetectConfig &cfg, float &thetaRad,
-                 float &sigmaRad, bool &wedge)
-{
-    const int   n    = static_cast<int>(cols.size());
-    const float binW = kTwoPi / static_cast<float>(n);
-    const float half = 0.5f * cols[static_cast<size_t>(bin)].wScore;
-    const int   maxSpan = n / 4;   // safety: never grow a "plateau" past 90°
-    const int   gapTol  = 4;       // bins (2° at 720) of sub-half dip bridged
-
-    const auto at = [&](int off) {
-        return cols[static_cast<size_t>(((bin + off) % n + n) % n)].wScore;
-    };
-    int lo = 0, hi = 0;            // signed offsets from the peak bin
-    for (int o = -1, gap = 0; o > -maxSpan; --o) {
-        if (at(o) >= half) {
-            lo  = o;
-            gap = 0;
-        } else if (++gap > gapTol) {
-            break;
-        }
-    }
-    for (int o = 1, gap = 0; o < maxSpan; ++o) {
-        if (at(o) >= half) {
-            hi  = o;
-            gap = 0;
-        } else if (++gap > gapTol) {
-            break;
-        }
-    }
-
-    const int   spanBins = hi - lo + 1;
-    const float spanDeg  = static_cast<float>(spanBins) * binW * 180.f / kPi;
-    if (spanDeg > cfg.wedgeMinSpanDeg) {
-        // Plateau: blur fan. θ = the window MIDPOINT — for a uniform sweep
-        // the fan edges are the shaft at exposure start/end, so mid-exposure
-        // is their mean. On a flat plateau this equals the intensity
-        // centroid; when the ridge kernel suppresses the fan's solid interior
-        // the score profile grows two edge horns and the intensity centroid
-        // drags to the stronger horn (≈ −2° measured on an 8° fan) while the
-        // midpoint stays put.
-        const float off = 0.5f * static_cast<float>(lo + hi);
-        thetaRad = (static_cast<float>(bin) + off) * binW;
-        sigmaRad = 0.5f * static_cast<float>(spanBins) * binW;
-        wedge    = true;
-        return;
-    }
-
-    // Parabolic sub-bin refinement on the three bins around the peak.
-    const float sm = cols[static_cast<size_t>(((bin - 1) % n + n) % n)].wScore;
-    const float s0 = cols[static_cast<size_t>(bin)].wScore;
-    const float sp = cols[static_cast<size_t>((bin + 1) % n)].wScore;
-    const float d  = sm - 2.f * s0 + sp;
-    float off = 0.f;
-    if (std::abs(d) > 1e-6f)
-        off = std::clamp(0.5f * (sm - sp) / d, -0.5f, 0.5f);
-    thetaRad = (static_cast<float>(bin) + off) * binW;
-    sigmaRad = binW;
-    wedge    = false;
-}
-
-struct ThetaEstimate {
-    float theta = 0.f, sigma = 0.f;
-    bool  wedge   = false;
-    int   mateBin = -1;    // twin-horn mate consumed by the merge (−1: none)
-    float mateW   = 0.f;
-};
-
-// Full θ/σ estimate for one peak: plateau/parabola refinement plus, when
-// allowed, the twin-horn merge (B.4). A blur fan whose *solid* proximal
-// interior is wider than the ridge kernel responds along its two EDGES, not
-// as one plateau — the opening retains the filled interior, and the anchored
-// start gate then kills the centre columns. The signature is a same-polarity
-// local max of comparable strength a few degrees away with a genuine
-// sub-half-peak valley in between (a connected plateau is already read by the
-// single-window path). The search runs on the raw score profile, NOT the NMS
-// survivors — the mate usually sits inside the winner's NMS radius and has
-// been suppressed. For a uniform sweep the edges are the shaft at exposure
-// start/end, so mid-exposure is exactly their mean and the half-separation
-// adds to σ.
-ThetaEstimate estimateTheta(const std::vector<ColumnInfo> &cols, int bin, float w,
-                            bool allowMate, const ShaftDetectConfig &cfg)
-{
-    ThetaEstimate e;
-    refineTheta(cols, bin, cfg, e.theta, e.sigma, e.wedge);
-    if (!allowMate)
-        return e;
-
-    const int  n = static_cast<int>(cols.size());
-    const auto wrapBin = [n](int b) { return (b % n + n) % n; };
-    const int  maxSepBins = std::max(2, static_cast<int>(std::lround(
-                                cfg.wedgePairMaxSepDeg / 360.f * static_cast<float>(n))));
-    const int  minSepBins = std::max(2, static_cast<int>(std::lround(
-                                1.5f / 360.f * static_cast<float>(n))));
-    const bool dark0 = cols[static_cast<size_t>(bin)].dark;
-    for (int off = -maxSepBins; off <= maxSepBins; ++off) {
-        if (std::abs(off) < minSepBins)
-            continue;
-        const int b = wrapBin(bin + off);
-        const ColumnInfo &cb = cols[static_cast<size_t>(b)];
-        const float wb = cb.wScore;
-        if (wb < 0.4f * w || wb <= e.mateW || cb.dark != dark0)
-            continue;
-        if (wb <= cols[static_cast<size_t>(wrapBin(b - 1))].wScore ||
-            wb < cols[static_cast<size_t>(wrapBin(b + 1))].wScore)
-            continue;                       // not a local max
-        float valley = wb;
-        const int step = (off > 0) ? 1 : -1;
-        for (int o = step; o != off; o += step)
-            valley = std::min(valley, cols[static_cast<size_t>(wrapBin(bin + o))].wScore);
-        if (valley >= 0.5f * std::min(wb, w))
-            continue;                       // connected plateau, not twin horns
-        e.mateW   = wb;
-        e.mateBin = b;
-    }
-    if (e.mateBin >= 0) {
-        float thetaM = 0.f, sigmaM = 0.f;
-        bool  wedgeM = false;
-        refineTheta(cols, e.mateBin, cfg, thetaM, sigmaM, wedgeM);
-        const float dTheta = wrapPi(thetaM - e.theta);
-        e.theta += 0.5f * dTheta;           // mean of the fan edges
-        e.sigma  = 0.5f * std::abs(dTheta) + std::max(e.sigma, sigmaM);
-        e.wedge  = true;
-    }
-    return e;
-}
-
-// Clubhead seed: intensity-weighted centroid of the (above-threshold)
-// response in a small disc at the ridge terminus, in ROI coordinates.
-cv::Point2f headSeed(const cv::Mat &resp, int thr, cv::Point2f anchor,
-                     float thetaRad, float rhoEndPx, float radius)
-{
-    const cv::Point2f base(anchor.x + rhoEndPx * std::cos(thetaRad),
-                           anchor.y + rhoEndPx * std::sin(thetaRad));
-    const int r  = std::max(2, static_cast<int>(std::lround(radius)));
-    const int cx = static_cast<int>(std::lround(base.x));
-    const int cy = static_cast<int>(std::lround(base.y));
-    float sw = 0.f, sx = 0.f, sy = 0.f;
-    for (int y = std::max(0, cy - r); y <= std::min(resp.rows - 1, cy + r); ++y) {
-        const uchar *row = resp.ptr<uchar>(y);
-        for (int x = std::max(0, cx - r); x <= std::min(resp.cols - 1, cx + r); ++x) {
-            const int dx = x - cx, dy = y - cy;
-            if (dx * dx + dy * dy > r * r)
-                continue;
-            const int v = row[x];
-            if (v <= thr)
-                continue;
-            const float w = static_cast<float>(v - thr);
-            sw += w;
-            sx += w * static_cast<float>(x);
-            sy += w * static_cast<float>(y);
-        }
-    }
-    if (sw <= 0.f)
-        return base;
-    return {sx / sw, sy / sw};
-}
-
-// One weighted-PCA pass: supra-threshold pixels in a ±halfBand strip along
-// `lenPx` of the ray from `base` in direction `dirRad`. Outputs the principal
-// direction (sign-matched to the ray) and the weighted centroid.
-bool tlsPass(const cv::Mat &resp, int thr, cv::Point2f base, float dirRad,
-             float lenPx, float &outDirRad, cv::Point2f &outCentroid)
-{
-    const float ct = std::cos(dirRad), st = std::sin(dirRad);
-    const float nx = -st, ny = ct;     // ray normal
-    const int   halfBand = 3;
-
-    double sw = 0., sx = 0., sy = 0., sxx = 0., syy = 0., sxy = 0.;
-    int    nPix = 0;
-    const int len = static_cast<int>(std::lround(lenPx));
-    for (int s = 0; s <= len; ++s) {
-        const float bx = base.x + static_cast<float>(s) * ct;
-        const float by = base.y + static_cast<float>(s) * st;
-        for (int t = -halfBand; t <= halfBand; ++t) {
-            const int x = static_cast<int>(std::lround(bx + static_cast<float>(t) * nx));
-            const int y = static_cast<int>(std::lround(by + static_cast<float>(t) * ny));
-            if (x < 0 || y < 0 || x >= resp.cols || y >= resp.rows)
-                continue;
-            const int v = resp.ptr<uchar>(y)[x];
-            if (v <= thr)
-                continue;
-            const double w = static_cast<double>(v - thr);
-            sw  += w;
-            sx  += w * x;
-            sy  += w * y;
-            sxx += w * x * x;
-            syy += w * y * y;
-            sxy += w * x * y;
-            ++nPix;
-        }
-    }
-    if (nPix < 20 || sw <= 0.)
-        return false;
-
-    const double mx  = sx / sw, my = sy / sw;
-    const double cxx = sxx / sw - mx * mx;
-    const double cyy = syy / sw - my * my;
-    const double cxy = sxy / sw - mx * my;
-    if (cxx + cyy < 1e-9)
-        return false;
-    // Principal axis of the weighted scatter = the TLS line direction.
-    float ang = 0.5f * static_cast<float>(std::atan2(2. * cxy, cxx - cyy));
-    // Orientation is mod π — pick the half consistent with the candidate ray.
-    if (std::cos(ang) * ct + std::sin(ang) * st < 0.f)
-        ang += kPi;
-    outDirRad   = wrapPi(ang);
-    outCentroid = {static_cast<float>(mx), static_cast<float>(my)};
-    return true;
-}
-
-// Total-least-squares line refit over the candidate's supporting ridge pixels
-// (proximal half of the run — the part that barely blurs and that shaft-lean
-// needs). Iterated: the first band follows the candidate ray from the
-// (possibly off-line) anchor; each subsequent band is recentred on the
-// previous fit's line — a band offset laterally from a *tapered* ridge clips
-// it asymmetrically and tilts the fit, and the tilt shrinks geometrically
-// per recentring pass, so iterate to convergence. The effective anchor
-// thereby slides onto the fitted line. Returns false (θ untouched) without
-// enough support.
-bool tlsRefine(const cv::Mat &resp, int thr, cv::Point2f anchor,
-               float startPx, float lenPx, float &thetaRad)
-{
-    constexpr int   kMaxPasses = 5;
-    constexpr float kConvergedRad = 0.0005f;   // ≈ 0.03°
-    const float halfLen = 0.5f * lenPx;
-
-    cv::Point2f base(anchor.x + startPx * std::cos(thetaRad),
-                     anchor.y + startPx * std::sin(thetaRad));
-    float dir = thetaRad;
-    bool  any = false;
-    for (int pass = 0; pass < kMaxPasses; ++pass) {
-        float       fitDir = 0.f;
-        cv::Point2f cen;
-        if (!tlsPass(resp, thr, base, dir, halfLen, fitDir, cen))
-            break;
-        const float delta = std::abs(wrapPi(fitDir - dir));
-        // Recentre: project the band base onto the fitted line. The lateral
-        // shift of the base is the convergence metric — the fitted direction
-        // can already agree while the band still rides beside the ridge.
-        const float vx = std::cos(fitDir), vy = std::sin(fitDir);
-        const float s  = (base.x - cen.x) * vx + (base.y - cen.y) * vy;
-        const cv::Point2f next(cen.x + s * vx, cen.y + s * vy);
-        const float shift = std::hypot(next.x - base.x, next.y - base.y);
-        base = next;
-        dir  = fitDir;
-        any  = true;
-        if (delta < kConvergedRad && shift < 0.25f)
-            break;
-    }
-    if (any)
-        thetaRad = dir;
-    return any;
-}
-
-// R8 SNR gate: restrict the integrated blur scores to the kinematic envelope and
-// zero the in-envelope winner unless it beats the out-of-envelope noise/clutter
-// peak by snrMargin — the "never fabricate" backstop for the lowered-threshold
-// integrator (a blank/noisy frame scores the same in and out of the envelope, so
-// nothing survives). Operates on one anchor's column scores in place.
-void gateBlurEnvelope(std::vector<ColumnInfo> &cols, int thetaBins,
-                      float centerRad, float halfRad, float snrMargin)
-{
-    const float binW = kTwoPi / static_cast<float>(thetaBins);
-    // Baseline = a high percentile of the out-of-envelope scores (the typical
-    // strong-noise / clutter level), NOT the max — a single noise outlier must
-    // not set the bar and kill a genuine faint fan.
-    std::vector<float> outScores;
-    outScores.reserve(static_cast<size_t>(thetaBins));
-    for (int t = 0; t < thetaBins; ++t)
-        if (angAbsDiff(static_cast<float>(t) * binW, centerRad) > halfRad)
-            outScores.push_back(cols[static_cast<size_t>(t)].wScore);
-    float baseline = 0.f;
-    if (!outScores.empty()) {
-        const size_t k = std::min(outScores.size() - 1,
-                                  static_cast<size_t>(0.97f * static_cast<float>(outScores.size())));
-        std::nth_element(outScores.begin(), outScores.begin() + k, outScores.end());
-        baseline = outScores[k];
-    }
-    const float floorW = snrMargin * baseline;
-    for (int t = 0; t < thetaBins; ++t) {
-        ColumnInfo &c = cols[static_cast<size_t>(t)];
-        if (angAbsDiff(static_cast<float>(t) * binW, centerRad) > halfRad || c.wScore <= floorW)
-            c.wScore = 0.f;
-    }
+    if (a > b) std::swap(a, b);
+    if (c > d) std::swap(c, d);
+    if (a > c) std::swap(a, c);   // a = global min
+    if (b > d) std::swap(b, d);   // d = global max
+    return 0.5f * (b + c);        // b, c are the two middle values
 }
 
 } // namespace
 
-std::vector<ShaftCandidate> detectShaft(const cv::Mat &luma,
-                                        const ShaftDetectConfig &cfg,
-                                        const AnchorPrior &prior,
-                                        const cv::Mat &diffImage)
+RidgeResult ridgeSweep(const cv::Mat& img, double gx, double gy,
+                       const std::vector<float>& thetasRad,
+                       const RidgeConfig& cfg, bool brightOnly)
 {
-    std::vector<ShaftCandidate> out;
-    if (luma.empty() || luma.type() != CV_8UC1 || cfg.thetaBins < 16 ||
-        cfg.maxRadiusPx <= cfg.rhoMinPx)
-        return out;
+    CV_Assert(img.type() == CV_32F);
+    const int W = img.cols, H = img.rows;
 
-    // 1. ROI: square bounding the search disc, clamped to the image.
-    const int R = static_cast<int>(std::ceil(cfg.maxRadiusPx));
-    const cv::Rect roiRect =
-        cv::Rect(static_cast<int>(std::floor(prior.gripPx.x)) - R,
-                 static_cast<int>(std::floor(prior.gripPx.y)) - R,
-                 2 * R + 1, 2 * R + 1) &
-        cv::Rect(0, 0, luma.cols, luma.rows);
-    if (roiRect.width < 8 || roiRect.height < 8)
-        return out;
-    const cv::Mat roi = luma(roiRect);
-    const cv::Point2f offset(static_cast<float>(roiRect.x), static_cast<float>(roiRect.y));
-    cv::Point2f anchor0 = prior.gripPx - offset;
-    anchor0.x = std::clamp(anchor0.x, 0.f, static_cast<float>(roiRect.width - 1));
-    anchor0.y = std::clamp(anchor0.y, 0.f, static_cast<float>(roiRect.height - 1));
+    std::vector<double> R;                     // R = arange(rLo, rHi, rStep)
+    for (double r = cfg.rLo; r < cfg.rHi; r += cfg.rStep) R.push_back(r);
+    const int nR = int(R.size());
+    const int j0 = int(cfg.minLenPx / cfg.rStep);   // int(90/2) = 45
 
-    // 2. Thin-structure ridge responses, both polarities, with adaptive
-    //    per-map thresholds from the ROI's noise MAD. RECT kernel: for ridges
-    //    thinner than the kernel the opening result is the same as an ellipse
-    //    of equal width, but rect morphology is separable — ~6× faster here.
-    const int ksz = std::max(3, cfg.ridgeKernelPx);
-    const cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(ksz, ksz));
-    cv::Mat top, black;
-    cv::morphologyEx(roi, top, cv::MORPH_TOPHAT, kernel);
-    cv::morphologyEx(roi, black, cv::MORPH_BLACKHAT, kernel);
-    const ThresholdInfo tiTop   = madThreshold(top, cfg.noiseSigmaK, cfg.thresholdFloor);
-    const ThresholdInfo tiBlack = madThreshold(black, cfg.noiseSigmaK, cfg.thresholdFloor);
-    const int thrTop   = tiTop.thr;
-    const int thrBlack = tiBlack.thr;
-    // A polarity with fewer supra-threshold pixels than could ever support a
-    // minimum-length run has no signal — skip its resample/scan entirely
-    // (a club is steel OR graphite; one map is usually dead).
-    const int  minSupra = std::max(8, static_cast<int>(cfg.minVisibleLenPx) / 2);
-    const cv::Mat *topP   = (tiTop.supraCount   >= minSupra) ? &top   : nullptr;
-    const cv::Mat *blackP = (tiBlack.supraCount >= minSupra) ? &black : nullptr;
+    std::vector<double> invNorm(nR);           // 1/sqrt(j+8)
+    for (int j = 0; j < nR; ++j) invNorm[j] = 1.0 / std::sqrt(double(j) + 8.0);
 
-    cv::Mat diffRoi;
-    const cv::Mat *diffP = nullptr;
-    int thrDiff = 8;
-    if (!diffImage.empty() && diffImage.size() == luma.size()) {
-        diffRoi = diffImage(roiRect);
-        const ThresholdInfo tiDiff = madThreshold(diffRoi, cfg.noiseSigmaK, cfg.thresholdFloor);
-        if (tiDiff.supraCount >= minSupra) {
-            diffP = &diffRoi;
-            thrDiff = tiDiff.thr;
-        }
-    }
+    const int NS = int(thetasRad.size());
+    RidgeResult out;
+    out.score.assign(NS, 0.f);
+    out.rEnd.assign(NS, 0.f);
+    out.support.assign(NS, 0.f);
+    if (nR <= j0) return out;
 
-    if (!topP && !blackP && !diffP)
-        return out;
+    for (int i = 0; i < NS; ++i) {
+        const double ux = std::cos(double(thetasRad[i]));
+        const double uy = std::sin(double(thetasRad[i]));
 
-    const int   nRho     = std::max(8, static_cast<int>(std::lround(cfg.maxRadiusPx)));
-    const float rhoScale = cfg.maxRadiusPx / static_cast<float>(nRho);   // ≈ 1 px/bin
+        double cum = 0.0;
+        int    posCount = 0;
+        double bestNorm = -std::numeric_limits<double>::infinity();
+        int    bestJ = j0, bestPos = 0;
 
-    // 3.–5. Polar column scan about the anchor and a 3×3 grid of
-    // perturbations, fused with the per-column run scoring (scanAllAnchors).
-    const std::vector<float> thetaWeight = buildThetaWeights(cfg, prior);
+        for (int j = 0; j < nR; ++j) {
+            const double cx = gx + ux * R[j];
+            const double cy = gy + uy * R[j];
+            const bool inb = (cx >= 0.0 && cx < W && cy >= 0.0 && cy < H);
 
-    const int d = static_cast<int>(std::lround(cfg.anchorPerturbPx));
-    const int nAnchors = (d > 0) ? 9 : 1;
-    static const int kGrid[9][2] = {{0, 0},  {-1, -1}, {0, -1}, {1, -1}, {-1, 0},
-                                    {1, 0},  {-1, 1},  {0, 1},  {1, 1}};
-    cv::Point2f anchors[9];
-    for (int a = 0; a < nAnchors; ++a)
-        anchors[a] = {anchor0.x + static_cast<float>(kGrid[a][0] * d),
-                      anchor0.y + static_cast<float>(kGrid[a][1] * d)};
-    std::vector<std::vector<ColumnInfo>> colsA(
-        static_cast<size_t>(nAnchors),
-        std::vector<ColumnInfo>(static_cast<size_t>(cfg.thetaBins)));
-    // R8 blur window: integrate inside the kinematic envelope (needs a prediction
-    // for the centre; half-width = the R6 envelope, floored to fit the fan).
-    const bool  blurOn   = cfg.blurMode && prior.kinematicSigmaRad > 1e-4f;
-    const float blurHalf = blurOn
-        ? std::max(cfg.envelopeKSigma * prior.kinematicSigmaRad,
-                   cfg.predFanHalfRad + 5.f * kPi / 180.f)
-        : 0.f;
-    const bool blurActive = blurOn && blurHalf > 0.f;
-    scanAllAnchors(topP, blackP, diffP, anchors, nAnchors, cfg, thrTop, thrBlack, thrDiff,
-                   thetaWeight, rhoScale, nRho, colsA, blurActive,
-                   prior.kinematicDirRad, blurHalf);
+            double e = 0.0;
+            if (inb) {
+                // bg = median of 4 lateral samples at ±12, ±9 along the normal
+                // (nx,ny) = (-uy, ux): sample at (cx - o*uy, cy + o*ux).
+                const float b0 = at(img, cx - (-12.0) * uy, cy + (-12.0) * ux);
+                const float b1 = at(img, cx - (-9.0)  * uy, cy + (-9.0)  * ux);
+                const float b2 = at(img, cx - ( 9.0)  * uy, cy + ( 9.0)  * ux);
+                const float b3 = at(img, cx - ( 12.0) * uy, cy + ( 12.0) * ux);
+                const double bg = median4(b0, b1, b2, b3);
 
-    // 6. NMS top-K per anchor; keep the best-scoring detection set.
-    std::vector<Peak> bestPeaks;
-    int               bestA = 0;
-    float             bestW = -1.f;
-    for (int a = 0; a < nAnchors; ++a) {
-        if (blurActive)
-            gateBlurEnvelope(colsA[static_cast<size_t>(a)], cfg.thetaBins,
-                             prior.kinematicDirRad, blurHalf, cfg.blurSnrMargin);
-        std::vector<Peak> peaks = pickPeaks(colsA[static_cast<size_t>(a)], cfg, rhoScale);
-        const float w = peaks.empty() ? 0.f : peaks.front().w;
-        if (w > bestW) {            // strict '>' — ties prefer the centre anchor
-            bestW = w;
-            bestA = a;
-            bestPeaks = std::move(peaks);
-        }
-    }
-    if (bestPeaks.empty())
-        return out;
-    const std::vector<ColumnInfo> &bestCols   = colsA[static_cast<size_t>(bestA)];
-    const cv::Point2f              bestAnchor = anchors[bestA];
-
-    // 7.–8. Finalise candidates: wedge plateau / twin-horn merge / sub-bin θ
-    // (estimateTheta), head-blob seed.
-    out.reserve(bestPeaks.size());
-    int consumedMateBin = -1;
-    for (size_t i = 0; i < bestPeaks.size(); ++i) {
-        const Peak &p = bestPeaks[i];
-        if (i > 0 && p.bin == consumedMateBin)
-            continue;                       // consumed by the winner's wedge merge
-        const ColumnInfo &c = bestCols[static_cast<size_t>(p.bin)];
-        ShaftCandidate cand;
-        cand.score        = p.w;
-        cand.visibleLenPx = static_cast<float>(c.end - c.start + 1) * rhoScale;
-        cand.darkPolarity = c.dark;
-        if (i == 0) {
-            ThetaEstimate est = estimateTheta(bestCols, p.bin, p.w, /*allowMate=*/true, cfg);
-            consumedMateBin = est.mateBin;
-            cand.score += est.mateW;        // combined support of both fan edges
-            if (est.wedge && bestA != 0) {
-                // A perturbed anchor wins on ridge support, but it skews the
-                // angular geometry of a blur fan about the grip — and unlike
-                // line candidates a wedge has no TLS correction stage. The
-                // pose grip is the unbiased angular origin: re-estimate θ/σ
-                // from the centre anchor's profile when it has support
-                // (measured: −2.2° systematic from a 3 px winning offset on
-                // an 8° fan vs ±0.5° about the true grip).
-                const std::vector<ColumnInfo> &cols0 = colsA[0];
-                const int n = cfg.thetaBins;
-                const int maxSepBins = std::max(2, static_cast<int>(std::lround(
-                    cfg.wedgePairMaxSepDeg / 360.f * static_cast<float>(n))));
-                int   b0 = -1;
-                float w0 = 0.f;
-                for (int off = -maxSepBins; off <= maxSepBins; ++off) {
-                    const int b = ((p.bin + off) % n + n) % n;
-                    const float wb = cols0[static_cast<size_t>(b)].wScore;
-                    if (wb > w0) {
-                        w0 = wb;
-                        b0 = b;
+                if (brightOnly) {
+                    const double on = (double(at(img, cx - (-1.0) * uy, cy + (-1.0) * ux))
+                                     + double(at(img, cx,               cy))
+                                     + double(at(img, cx - ( 1.0) * uy, cy + ( 1.0) * ux))) / 3.0;
+                    e = std::clamp(on - bg, double(-cfg.eClipNeg), double(cfg.eClipPos));
+                } else {
+                    double omax = -1e30, omin = 1e30;
+                    for (double o : {-2.0, -1.0, 0.0, 1.0, 2.0}) {
+                        const double v = at(img, cx - o * uy, cy + o * ux);
+                        omax = std::max(omax, v);
+                        omin = std::min(omin, v);
                     }
-                }
-                if (b0 >= 0 && w0 > 0.f) {
-                    const ThetaEstimate e0 = estimateTheta(cols0, b0, w0, true, cfg);
-                    est.theta = e0.theta;
-                    est.sigma = e0.sigma;
-                    est.wedge = est.wedge || e0.wedge;
+                    if (bg > cfg.bgHi)
+                        e = std::clamp(bg - omin - 12.0, double(-cfg.eClipNeg), double(cfg.eClipPos));
+                    else
+                        e = std::clamp(omax - bg - 12.0, double(-cfg.eClipNeg), double(cfg.eClipPos));
                 }
             }
-            cand.thetaRad      = est.theta;
-            cand.sigmaThetaRad = est.sigma;
-            cand.wedge         = est.wedge;
-        } else {
-            refineTheta(bestCols, p.bin, cfg, cand.thetaRad, cand.sigmaThetaRad, cand.wedge);
-        }
-        cand.thetaRad = wrapPi(cand.thetaRad);
-        const cv::Mat &resp = c.dark ? black : top;
-        const int      thr  = c.dark ? thrBlack : thrTop;
-        const float rhoEnd  = (static_cast<float>(c.end) + 0.5f) * rhoScale;
-        const cv::Point2f h = headSeed(resp, thr, bestAnchor, cand.thetaRad, rhoEnd,
-                                       cfg.headSeedRadiusPx);
-        cand.headPx = h + offset;
-        out.push_back(cand);
-    }
 
-    // 9. TLS line refit of the winning candidate over its proximal ridge
-    //    pixels — the effective anchor slides onto the fitted line. Skipped
-    //    for wedge winners: a blur fan is not a line, and its θ is by
-    //    definition the plateau centroid (B.4), not a pixel fit.
-    if (!out.front().wedge) {
-        ShaftCandidate &wnr = out.front();
-        const ColumnInfo &c = bestCols[static_cast<size_t>(bestPeaks.front().bin)];
-        const cv::Mat &resp = c.dark ? black : top;
-        const int      thr  = c.dark ? thrBlack : thrTop;
-        float theta = wnr.thetaRad;
-        if (tlsRefine(resp, thr, bestAnchor, static_cast<float>(c.start) * rhoScale,
-                      wnr.visibleLenPx, theta))
-            wnr.thetaRad = theta;
+            cum += e;
+            if (e > 8.0) ++posCount;
+            if (j >= j0) {
+                const double normJ = cum * invNorm[j];
+                if (normJ > bestNorm) { bestNorm = normJ; bestJ = j; bestPos = posCount; }
+            }
+        }
+        out.score[i]   = float(bestNorm);
+        out.rEnd[i]    = float(R[bestJ]);
+        out.support[i] = float(double(bestPos) / (double(bestJ) + 1.0));
     }
+    return out;
+}
+
+// ── E1: discrete retro-band match ────────────────────────────────────────────
+namespace {
+
+struct Blob { double x, y; double area; };
+
+// stripe_annotate.detect_blobs
+std::vector<Blob> detectBlobs(const cv::Mat& gray, double gx, double gy, double rmax,
+                              const BandMatchConfig& cfg)
+{
+    cv::Mat bw;
+    cv::threshold(gray, bw, cfg.satT, 255, cv::THRESH_BINARY);
+    cv::Mat labels, stats, cent;
+    const int n = cv::connectedComponentsWithStats(bw, labels, stats, cent, 8);
+    std::vector<Blob> out;
+    for (int i = 1; i < n; ++i) {
+        const double a = stats.at<int>(i, cv::CC_STAT_AREA);
+        if (a < cfg.areaMin || a > cfg.areaMax) continue;
+        const double cx = cent.at<double>(i, 0), cy = cent.at<double>(i, 1);
+        if (std::hypot(cx - gx, cy - gy) > rmax) continue;
+        out.push_back({cx, cy, a});
+    }
+    std::stable_sort(out.begin(), out.end(),
+                     [](const Blob& p, const Blob& q) { return p.area > q.area; });
+    if (int(out.size()) > cfg.maxBlobs) out.resize(cfg.maxBlobs);
+    return out;
+}
+
+// stripe_annotate.gap_dark_ok → NOPAIR(0) / BRIGHT(1) / DARK(2)
+int gapDark(const cv::Mat& gray,
+            const std::vector<std::array<double, 3>>& mptsR /*(x,y,r_mm) sorted by r*/,
+            const BandMatchConfig& cfg)
+{
+    const int W = gray.cols, H = gray.rows;
+    bool foundPair = false;
+    for (size_t k = 0; k + 1 < mptsR.size(); ++k) {
+        const double x1 = mptsR[k][0], y1 = mptsR[k][1], r1 = mptsR[k][2];
+        const double x2 = mptsR[k + 1][0], y2 = mptsR[k + 1][1], r2 = mptsR[k + 1][2];
+        if (r2 - r1 > cfg.gapMmMax) continue;
+        foundPair = true;
+        double mx = -1e30;
+        bool any = false;
+        for (double t : {0.4, 0.5, 0.6}) {
+            const int xi = int(x1 + t * (x2 - x1));
+            const int yi = int(y1 + t * (y2 - y1));
+            if (xi >= 0 && xi < W && yi >= 0 && yi < H) {
+                any = true;
+                mx = std::max(mx, double(gray.at<uchar>(yi, xi)));
+            }
+        }
+        if (any && mx <= cfg.gapDark) return 2;   // dark
+    }
+    return foundPair ? 1 : 0;                       // bright / nopair
+}
+
+// Least-squares fit t = slope·r + intercept over paired (r, t) — numpy lstsq on
+// A = [[r,1]].
+void lstsqLine(const std::vector<double>& r, const std::vector<double>& t,
+               double& slope, double& intercept)
+{
+    const double m = double(r.size());
+    double sr = 0, st = 0, srr = 0, srt = 0;
+    for (size_t i = 0; i < r.size(); ++i) { sr += r[i]; st += t[i]; srr += r[i] * r[i]; srt += r[i] * t[i]; }
+    const double det = m * srr - sr * sr;
+    if (std::abs(det) < 1e-12) { slope = 0; intercept = st / m; return; }
+    slope     = (m * srt - sr * st) / det;
+    intercept = (srr * st - sr * srt) / det;
+}
+
+struct MatchResult {
+    int n = 0; double rms = 0, s = 0, r0 = 0;
+    std::vector<std::pair<int, int>> pairs;   // (blob index into tproj, band index)
+};
+
+// stripe_annotate.match_pattern (flip_rms omitted — its result is unused by
+// frame_band_match). Best by (nPairs, -rms) lexicographic.
+MatchResult matchPattern(const std::vector<double>& tproj, const std::vector<double>& bands,
+                         const BandMatchConfig& cfg)
+{
+    const int nb = int(tproj.size());
+    const int nBands = int(bands.size());
+    bool haveBest = false;
+    std::pair<int, double> bestKey{0, 0.0};
+    MatchResult best;
+
+    for (int a0 = 0; a0 < nb; ++a0)
+        for (int b0 = a0 + 1; b0 < nb; ++b0) {
+            double ta = tproj[a0], tb = tproj[b0];
+            if (tb <= ta) std::swap(ta, tb);
+            for (int i = 0; i < nBands; ++i)
+                for (int l = i + 1; l < nBands; ++l) {
+                    const double s = (tb - ta) / (bands[l] - bands[i]);
+                    if (s < cfg.sMin || s > cfg.sMax) continue;
+                    const double r0 = bands[i] - ta / s;
+                    if (r0 < cfg.r0Min || r0 > cfg.r0Max) continue;
+                    const double tol = std::max(3.0, 0.2 * 46.0 * s);
+                    std::vector<char> used(nb, 0);
+                    std::vector<std::pair<int, int>> pairs;
+                    std::vector<double> errs;
+                    for (int k = 0; k < nBands; ++k) {
+                        const double tp = s * (bands[k] - r0);
+                        int jbest = 0; double dbest = 1e30;
+                        for (int j = 0; j < nb; ++j) {
+                            const double dd = std::abs(tproj[j] - tp);
+                            if (dd < dbest) { dbest = dd; jbest = j; }
+                        }
+                        if (used[jbest] || dbest > tol) continue;
+                        used[jbest] = 1;
+                        pairs.emplace_back(jbest, k);
+                        errs.push_back(tproj[jbest] - tp);
+                    }
+                    if (int(pairs.size()) < 2) continue;
+                    double ss = 0; for (double e : errs) ss += e * e;
+                    const double rms = std::sqrt(ss / errs.size());
+                    const std::pair<int, double> key{int(pairs.size()), -rms};
+                    if (!haveBest || key > bestKey) {
+                        std::vector<int> order(pairs.size());
+                        std::iota(order.begin(), order.end(), 0);
+                        std::stable_sort(order.begin(), order.end(), [&](int p, int q) {
+                            return bands[pairs[p].second] < bands[pairs[q].second];
+                        });
+                        std::vector<double> tj, rk;
+                        for (int o : order) { tj.push_back(tproj[pairs[o].first]); rk.push_back(bands[pairs[o].second]); }
+                        bool ordered = true;
+                        for (size_t z = 1; z < tj.size(); ++z) if (tj[z] - tj[z - 1] <= 0) { ordered = false; break; }
+                        if (!ordered) continue;
+                        double s2, intercept;
+                        lstsqLine(rk, tj, s2, intercept);
+                        if (s2 < cfg.sMin || s2 > cfg.sMax) continue;
+                        const double r02 = -intercept / s2;
+                        double ss2 = 0; for (size_t z = 0; z < tj.size(); ++z) { const double e = tj[z] - s2 * (rk[z] - r02); ss2 += e * e; }
+                        const double rms2 = std::sqrt(ss2 / tj.size());
+                        haveBest = true; bestKey = key;
+                        best.n = int(pairs.size()); best.rms = rms2; best.s = s2; best.r0 = r02; best.pairs = pairs;
+                    }
+                }
+        }
+    return best;
+}
+
+} // namespace
+
+BandMatch frameBandMatch(const cv::Mat& gray, double gx, double gy, double rmax,
+                         const std::vector<double>& bandsMm, const BandMatchConfig& cfg)
+{
+    BandMatch none;
+    if (bandsMm.size() < 2) return none;             // untaped / too few bands
+    CV_Assert(gray.type() == CV_8UC1);
+
+    const std::vector<Blob> blobs = detectBlobs(gray, gx, gy, rmax, cfg);
+    if (blobs.size() < 2) return none;
+
+    bool haveRes = false;
+    std::pair<int, double> resKey{0, 0.0};
+    double resS = 0, resR0 = 0, resUx = 0, resUy = 0, resRms = 0; int resN = 0;
+    std::vector<std::pair<double, double>> resMpts;
+
+    std::vector<double> tried;
+    const int nb = int(blobs.size());
+    for (int a = 0; a < nb; ++a)
+        for (int b = a + 1; b < nb; ++b) {
+            const double dx = blobs[b].x - blobs[a].x, dy = blobs[b].y - blobs[a].y;
+            const double nd = std::hypot(dx, dy);
+            if (nd < 8.0) continue;
+            const double ux = dx / nd, uy = dy / nd;
+            double ang = std::fmod(std::atan2(uy, ux), kPi);
+            if (ang < 0) ang += kPi;
+            bool dup = false;
+            for (double tt : tried)
+                if (std::abs(std::fmod(ang - tt + kPi / 2, kPi) - kPi / 2) < 0.03) { dup = true; break; }
+            if (dup) continue;
+            tried.push_back(ang);
+
+            std::vector<int> idx;
+            for (int p = 0; p < nb; ++p) {
+                const double rx = blobs[p].x - blobs[a].x, ry = blobs[p].y - blobs[a].y;
+                if (std::abs(rx * uy - ry * ux) < cfg.latTol) idx.push_back(p);
+            }
+            if (idx.size() < 2) continue;
+
+            const double grx = gx - blobs[a].x, gry = gy - blobs[a].y;
+            if (std::abs(grx * uy - gry * ux) > cfg.gripGate) continue;
+            const double t0 = grx * ux + gry * uy;
+
+            for (double sgn : {1.0, -1.0}) {
+                std::vector<double> tp;
+                tp.reserve(idx.size());
+                for (int p : idx) {
+                    const double rel = (blobs[p].x - blobs[a].x) * ux + (blobs[p].y - blobs[a].y) * uy;
+                    tp.push_back(sgn * (rel - t0));
+                }
+                const MatchResult mr = matchPattern(tp, bandsMm, cfg);
+                const double gate = (mr.n == 4) ? cfg.rms4 : cfg.rms5;
+                if (mr.n < 4 || mr.rms > gate) continue;
+
+                std::vector<std::array<double, 3>> mpr;
+                for (auto& pr : mr.pairs)
+                    mpr.push_back({blobs[idx[pr.first]].x, blobs[idx[pr.first]].y, bandsMm[pr.second]});
+                std::stable_sort(mpr.begin(), mpr.end(),
+                                 [](const std::array<double, 3>& p, const std::array<double, 3>& q) { return p[2] < q[2]; });
+                const int gd = gapDark(gray, mpr, cfg);
+                if (gd == 1 || (mr.n == 4 && gd != 2)) continue;
+
+                const std::pair<int, double> key{mr.n, -mr.rms};
+                if (!haveRes || key > resKey) {
+                    haveRes = true; resKey = key;
+                    resN = mr.n; resRms = mr.rms; resS = mr.s; resR0 = mr.r0;
+                    resUx = sgn * ux; resUy = sgn * uy;
+                    resMpts.clear();
+                    for (auto& pr : mr.pairs) resMpts.emplace_back(blobs[idx[pr.first]].x, blobs[idx[pr.first]].y);
+                }
+            }
+        }
+
+    if (!haveRes) return none;
+    BandMatch out;
+    out.ok = true; out.n = resN; out.rms = float(resRms); out.s = float(resS); out.r0 = float(resR0);
+    double th = std::fmod(std::atan2(resUy, resUx) * 180.0 / kPi, 360.0);
+    if (th < 0) th += 360.0;
+    out.thetaDeg = float(th);
+    double mx = 0, my = 0;
+    for (auto& p : resMpts) { mx += p.first; my += p.second; }
+    out.mbx = float(mx / resMpts.size());
+    out.mby = float(my / resMpts.size());
     return out;
 }
 

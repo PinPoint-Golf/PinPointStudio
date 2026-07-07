@@ -44,6 +44,13 @@ struct ShotAnalysisJob {
     pinpoint::SourceId markerSourceId = pinpoint::kInvalidSourceId;  // shot_marker_v1 source
 
     double clubLengthM = 1.12;  // shaft search radius (driver default until club selection is real)
+    // Retro-band geometry for the v3 E1 band matcher (taped clubs only). Band
+    // centres measured from the butt (mm) + shaft type, taken from the athlete's
+    // active club record (athlete_controller.h bandCentersMm/shaftType). Empty ⇒
+    // untaped club: the shaft tracker runs E2 (ray) evidence only, no band tier.
+    // Filled on the UI thread in shot_processor buildAnalysisJob.
+    std::vector<double> bandCentersMm;
+    QString             shaftType;   // "steel" | "graphite" | "" (unknown)
 
     // Resolved IMU -> anatomical-segment bindings (placement slot + the live
     // calibration A/M snapshot), filled on the UI thread — the worker cannot

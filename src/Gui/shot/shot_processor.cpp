@@ -493,6 +493,11 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
             const int lengthMm = rec.value(QStringLiteral("lengthMm")).toInt();
             if (lengthMm > 0)
                 job.clubLengthM = lengthMm / 1000.0;
+            // Retro-band geometry for the v3 E1 band matcher. Empty (untaped
+            // club) ⇒ the shaft tracker runs E2 (ray) evidence only, no band tier.
+            const QVariantList bands = rec.value(QStringLiteral("bandCentersMm")).toList();
+            for (const QVariant &bv : bands) job.bandCentersMm.push_back(bv.toDouble());
+            job.shaftType = rec.value(QStringLiteral("shaftType")).toString();
         }
     }
 

@@ -18,8 +18,10 @@
 
 #pragma once
 
-#include "shaft_track_assembly.h"   // ShaftTrack2D + assembly stages
-#include "swing_analysis.h"         // Segmentation, SegmentRole
+#include <vector>
+
+#include "shaft_track_assembly.h"   // ShaftV3Config + deciding stages
+#include "swing_analysis.h"         // ShaftTrack2D, PoseTrack2D, Segmentation
 
 struct ShotAnalysisJob;
 
@@ -29,30 +31,27 @@ namespace pinpoint::analysis {
 
 struct FusedStreams;
 
-// ShaftTracker stage S2 driver — runs the per-frame anchored radial detection
-// (shaft_tracker_math) over every face-on camera frame inside the PoseRunner's
-// coverage (the segmentation-bounded swing span since v3 G3), with grip/elbow
-// anchors interpolated between the sampled pose frames, then assembles the
-// smooth track (shaft_track_assembly: ŝ_hand calibration → Viterbi →
-// wrap-aware 2-channel KF + RTS). The coverage-gate span comes from the
-// segmentation's Address/Finish events (full obs range when absent).
+// ShaftTracker — the v3.0-r1 face-on club-shaft estimator (orchestrator). Runs
+// the validated club_track_v3 method live: derive per-frame grip anchors + the
+// lead-forearm direction φ + the 8-joint body skeleton from the offline pose
+// (PoseRunner), decode the face-on camera over the swing span (span-bounded),
+// gather E1+E2 evidence (shaft_tracker_math), then decide the globally-
+// consistent θ track (shaft_track_assembly: emission → banded Viterbi DP →
+// ψ-isotonic reconcile → tiering) and emit it as a ShaftTrack2D.
 //
-// Pure const reader of the frozen window — all reads finish before return.
-// Returns an INVALID track (consumers must check .valid) when: the pose track
-// is empty, the camera format is undecodable, fewer than the coverage gate's
-// fraction of swing-span frames yield a measurement, or nothing is detectable
-// at all. The IMU channel engages only when a LeadHand binding is present in
-// the fused streams AND the per-shot ŝ_hand fit passes its residual gate —
-// otherwise the assembly runs vision-only (degrade, never fabricate).
+// VISION-ONLY: `streams` (IMU) and `segmentation` are accepted for call-site
+// compatibility but unused — v3 runs its own hands-only phase model. Pure const
+// reader of the frozen window; all reads finish before return.
+//
+// Returns an INVALID track (consumers must check .valid) when the pose track is
+// empty, the camera format is undecodable, or fewer than coverageMin of the
+// swing-span frames yield a direct measurement.
 class ShaftTracker {
 public:
-    // SwingLab trace: the per-frame observations (anchor + ALL candidates,
-    // pre-association) plus the assembly internals. Filled only when a sink
-    // is passed — production callers pass nothing.
-    struct ShaftTrace {
-        std::vector<ShaftFrameObs>             obs;
-        ShaftTrackAssembly::AssemblyTrace      assembly;
-    };
+    // SwingLab trace: the per-frame decide internals (emission/DP/reconcile),
+    // filled only when a sink is passed — production callers pass nothing. The
+    // decide core (shaft_track_assembly) owns the shape.
+    using ShaftTrace = ShaftDecideTrace;
 
     static ShaftTrack2D track(const pinpoint::SwingWindow &window,
                               const PoseTrack2D &pose,

@@ -49,8 +49,10 @@
 #include <QVariantMap>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <variant>
 #include <vector>
 
@@ -415,36 +417,36 @@ int main(int argc, char **argv)
                          tf.errorString().toUtf8().constData());
             return result.ok ? 0 : 2;
         }
-        for (size_t i = 0; i < trace.obs.size(); ++i) {
-            const ShaftFrameObs &o = trace.obs[i];
-            QJsonArray cands;
-            for (const ShaftCandidate &c : o.candidates)
-                cands.append(QJsonObject{
-                    { "theta", c.thetaRad }, { "sigma", c.sigmaThetaRad },
-                    { "len", c.visibleLenPx }, { "score", c.score },
-                    { "wedge", c.wedge },
-                    { "head", QJsonArray{ c.headPx.x, c.headPx.y } } });
+        // v3.0-r1 per-emitted-frame diagnostics: DP θ, reconciled θ, ψ residual,
+        // tier (0 pred/1 ray/2 band/3 recon), phase.
+        static const char *kTierName[] = { "pred", "ray", "band", "recon" };
+        for (size_t i = 0; i < trace.frameIdx.size(); ++i) {
+            const int f = trace.frameIdx[i];
+            const double psi = (f < int(trace.recon.psiResid.size())) ? trace.recon.psiResid[f]
+                                                                      : std::numeric_limits<double>::quiet_NaN();
             QJsonObject line{
-                { "t_us", qint64(o.t_us) },
-                { "grip", QJsonArray{ o.gripPx.x, o.gripPx.y } },
-                { "qHandValid", o.qHandValid },
-                { "candidates", cands },
-                { "selected", i < trace.assembly.selected.size()
-                                  ? trace.assembly.selected[i] : -1 } };
+                { "frame", f },
+                { "phase", int(trace.phases.phase[size_t(f)]) },
+                { "tier", (trace.tier[i] >= 0 && trace.tier[i] < 4) ? kTierName[trace.tier[i]] : "?" },
+                { "theta_dp", trace.dp.thetaDeg[size_t(f)] },
+                { "theta_out", trace.thetaDeg[i] },
+                { "conf", trace.conf[i] },
+                { "psi_err", std::isnan(psi) ? QJsonValue() : QJsonValue(psi) },
+                { "recon", f < int(trace.recon.recon.size()) ? bool(trace.recon.recon[size_t(f)]) : false } };
             tf.write(QJsonDocument(line).toJson(QJsonDocument::Compact) + "\n");
         }
-        const auto &fit = trace.assembly.fit;
-        QJsonObject fitLine{
-            { "fit", QJsonObject{
-                { "ok", fit.ok }, { "sign", fit.sign },
-                { "offsetRad", fit.offsetRad }, { "residualRad", fit.residualRad },
-                { "framesUsed", fit.framesUsed },
-                { "sHand", QJsonArray{ fit.sHand[0], fit.sHand[1], fit.sHand[2] } } } },
+        QJsonObject summary{
+            { "summary", QJsonObject{
+                { "chir", trace.chir },
+                { "bs0", trace.phases.bs0 }, { "top", trace.phases.top },
+                { "impact", trace.phases.impact }, { "fin0", trace.phases.fin0 },
+                { "spanLo", trace.spanLo }, { "spanHi", trace.spanHi },
+                { "heavyFrames", trace.heavyFrames } } },
             { "poseFrames", int(pose.frames.size()) },
             { "segConf", seg.conf } };
-        tf.write(QJsonDocument(fitLine).toJson(QJsonDocument::Compact) + "\n");
-        std::fprintf(stderr, "[swinglab] trace: %zu frames, fit.ok=%d residual=%.4f\n",
-                     trace.obs.size(), fit.ok, fit.residualRad);
+        tf.write(QJsonDocument(summary).toJson(QJsonDocument::Compact) + "\n");
+        std::fprintf(stderr, "[swinglab] v3 trace: %zu emitted frames, heavy=%d chir=%d\n",
+                     trace.frameIdx.size(), trace.heavyFrames, trace.chir);
     }
 
     return result.ok ? 0 : 2;
