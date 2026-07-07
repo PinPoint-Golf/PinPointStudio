@@ -30,15 +30,27 @@ present in every swing.json (independent launch truth). Python env: `/home/markl
 
 ---
 
-## 1. Prerequisite — ground-truth ball centres (via the in-app markup tool)
+## 1. Prerequisite — ground-truth ball centres (via the in-app markup tool) — DONE (2026-07-07)
 
 The §9.1 position gate ("locked position within 3 px of the human-verified ball centre") needs
-labelled ball centres; the corpus has none today (`ballDetection` blocks are empty `{}`). **Route:
-add a single-point, per-swing ball marker to the existing in-app markup tool** (`PpMarkupPanel` +
-`src/Gui/markup/`), written into each swing's `truth.json`. The ball is stationary, so it is a
-per-swing constant (one click), not a per-frame track like the shaft. This doubles as a product
-feature (ground truth for SwingLab/re-analysis) and removes the need for a throwaway labelling
-harness. The harness (`tools/balllab/`) reads `truth.json` ball centres where present.
+labelled ball centres. **Built + labelled:** a single-point, per-swing ball marker was added to the
+in-app markup tool (`PpMarkupPanel` + `src/Gui/markup/`), writing each swing's `truth.json`
+`"ball":[px,py]` (commit 5b64a92). The ball is stationary, so it is a per-swing constant (one click),
+not a per-frame track like the shaft — this doubles as a product feature (ground truth for
+SwingLab/re-analysis) and removes any throwaway labelling harness. The harness (`tools/balllab/`)
+reads `truth.json` ball centres where present.
+
+**All 44 corpus swings are now labelled** (verified sane: nx ∈ [0.51, 0.58], ny ∈ [0.93, 0.99] —
+every ball low and roughly centred, no outliers, consistent across all four lighting regimes
+including the saturated 06-11 "dark"). This measured distribution is itself corroboration for the
+stance-corridor prior (§4.1a): the ball sits centred and low, between/below the stance.
+
+**Stream-selection gotcha for V0:** these Wrist captures carry TWO video streams (Down-the-Line +
+Face-On). Ball detection is Face-On only — any swing.json-driven stream/geometry selection MUST pick
+the Face-On stream by `setup.perspective == 2` (else alias "Face"), NOT the first video stream, or it
+normalizes against the wrong resolution (DTL is 512–576 px wide vs Face-On 720–1280). `balllab` opens
+`Face-On.mp4` directly so it is unaffected, but the C++ detector and any harness reading swing.json
+geometry must select correctly (mirror `markup_truth::readFaceOn`).
 
 **Launch truth** (`capture.impactUs`) already exists — no labelling needed for the launch-edge gate.
 
