@@ -88,7 +88,7 @@ Two negative results that shaped the design (both reproducible with the harness)
 > **A golf ball is not "a white circle". It is the only ball-scale feature that *appears* in the
 > hitting area, *persists perfectly motionless* for seconds, and *vanishes within two frames*.**
 
-Three pillars, each earning its keep against a measured failure mode:
+Four pillars, each earning its keep against a measured failure mode:
 
 1. **Scale-matched band-pass (spatial)** — DoG response `G(σ₁) − G(σ₂)` with σ₁ = r/1.6,
    σ₂ = 3.2·σ₁. Insensitive to absolute luma and to any structure much larger than the ball
@@ -98,10 +98,22 @@ Three pillars, each earning its keep against a measured failure mode:
    pool edge and mat speckles live in the baseline and cancel; a newly placed ball is novel.
    No capture protocol: the baseline is learned from the live stream and freezes under the locked
    ball's footprint.
-3. **Stability lock + at-spot monitoring (temporal)** — a novel candidate must hold position
-   within ±2 px with sustained response before it *locks*. Once locked, presence is a cheap
-   monitor of one 5×5 neighbourhood of the response map; the launch event is the collapse edge.
-   Waggles, hands, feet and the club can't lock (they move); distractors can't lock (not novel).
+3. **Static-scene accumulation (temporal integration) — the acquisition engine.** The ball is
+   *motionless for seconds*, so the novelty is integrated over a short acquisition window (a fast
+   EMA of the response, ≈0.35 s): the ball, in the same pixels every frame, reinforces while
+   per-frame texture and moving-shadow noise average out (≈√N SNR gain). **This is what makes a
+   low-contrast ball detectable** — a white ball on an over-bright mat has near-zero *per-frame*
+   contrast yet is unmistakable once integrated. Measured (V0): bringing accumulation into the
+   causal tracker took the weak-contrast 07-03 session from **0/10 to 10/10 acquired**. Accumulation
+   belongs to **acquisition only** — see pillar 4.
+4. **Stability lock + per-frame monitoring (real-time).** A candidate must hold position within
+   ±2 px with sustained *accumulated* novelty before it *locks*. Once locked, presence and the
+   launch edge are read from the **instantaneous** response at the frozen 5×5 spot — no accumulation
+   lag — so the live present/absent signal and the 2-frame launch collapse stay real-time. This
+   split is the whole game: **accumulate to *find* the static ball (slow, robust); read per-frame to
+   *watch* it (instant)** — so the low-contrast robustness costs nothing at monitoring time, and the
+   existing live present/absent feature is retained. Waggles, hands, feet and the club can't lock
+   (they move); distractors can't lock (not novel, and rejected by the shape gate §4.4).
 
 Everything is expressed in **noise units of the scene itself** (robust σ of the response map),
 never absolute luma — the same thresholds hold from the dim corner of a daylight studio to a
@@ -124,9 +136,34 @@ N(x,y)   = (R − B) / noise                                        "novelty", d
 `r̂` is the current radius estimate (§4.4). Before any radius is known, run 3 scales
 (r ∈ {5, 8, 12} px scaled by frameWidth/1280) and let the lock pick the winner.
 
-### 4.1a Search-space prior — the stance corridor
+**Acquisition accumulator (§3 pillar 3).** Because the ball is static, acquisition runs on a
+temporally *integrated* novelty, not the per-frame `N`:
 
-Golf geometry bounds where a stationary ball can be, and PinPoint already measures it. The face-on
+```
+A(x,y)  = fast EMA of R, τ_acc ≈ 0.35 s        (the static ball reinforces; noise averages out)
+D(x,y)  = A − B                                 accumulated novelty (raw)
+N_acc   = D / (1.4826 · MAD(D))                 acquisition novelty, in scene-noise units
+```
+
+SEARCH/CANDIDATE (§4.2) operate on `N_acc`; the LOCKED monitor and the launch edge (§4.5) read the
+**instantaneous** `R` at the locked spot (pillar 4). The accumulator is causal, so the same code runs
+live and over a recorded window (§5). Validated in V0: with per-frame `N` the weak-contrast 07-03
+session acquired 0/10; with `N_acc` it acquires 10/10.
+
+### 4.1a Search-space prior — the hitting-area ROI and the stance corridor
+
+Search is confined to the **hitting-area ROI** — the tight region the user frames around the ball
+spot (the existing `setRoi`, unchanged from v1). This is the *primary* distractor cut: anything
+outside it (a mat-texture patch, a second ball, the light-pool edge) is never searched, so only
+features *inside* the hitting area — most notably the clubhead resting against the ball at address —
+can compete, and those are handled by the shape gate (§4.4) and the temporal logic (§4.3). Measured
+in V0: with a loose fallback band a bare-mat novelty artifact ~100 px from the ball won several
+weak-contrast 07-03 locks; constraining to a per-session hitting-area ROI recovered the correct spot
+on all of them. **The ROI is not recorded in swing.json today** (it lives in per-camera settings) —
+v2 provenance should record it (§7) so re-analysis and this harness use the real one, not a proxy.
+
+The ROI is *tightened further* by the stance corridor when pose is available. Golf geometry bounds
+where a stationary ball can be, and PinPoint already measures it. The face-on
 `CameraInstance` runs the pose estimator on the *same* frames as the ball detector (the
 `FrameThrottle` consumerCount = 2 is pose + ball), so the COCO ankle keypoints (15 left, 16 right)
 are in hand at **zero extra inference**. They define a per-frame **search corridor** `S`:
@@ -171,9 +208,11 @@ ball's spot is baseline-frozen before the head swings back through).
     └─────────────────────────────────────────────────────┘   it was a nudge → re-CANDIDATE)
 ```
 
-- **SEARCH** (per frame): find local maxima of `N` above `k_appear = 5` with ball-scale support
-  (non-max suppression radius 2r̂), **restricted to the stance corridor `S` (§4.1a)** when pose is
-  available (else the static ROI band). Track up to K=3 peaks frame-to-frame.
+- **SEARCH** (per frame): find local maxima of the **accumulated novelty `N_acc`** (§4.1) above
+  `k_appear` with ball-scale support (non-max suppression radius 2r̂), **within the hitting-area ROI**
+  (tightened by the stance corridor `S` §4.1a when pose is available). Track up to K=3 peaks
+  frame-to-frame; a peak becomes a candidate only if its accumulated response is a ball-scale disc
+  (shape gate §4.4).
 - **CANDIDATE → LOCKED**: same peak within ±2 px for `T_lock = 0.5 s` of detector frames, median
   `N ≥ k_lock = 5`. On lock: freeze sub-pixel centre (§4.4), radius, a small self-template
   (grayscale patch, for the optional verification cue), the locked response level
@@ -211,8 +250,14 @@ handles what remains inside the corridor.
   This is the px→mm anchor (`kBallDiameterMm = 42.67`) for the low-point metric — jitter target
   < 0.3 px over a 3 s address (achievable: the corpus response is essentially static).
 - **Radius**: at lock, evaluate `R` at scales r̂·{0.8, 1.0, 1.25}; parabolic fit over the three
-  scale responses. Reject a lock whose scale response is monotone at the edges of a widened scan
-  (that's an edge/corner, not a disc).
+  scale responses.
+- **Shape gate (candidacy, §3 pillar 4)**: a peak becomes a candidate only if the accumulated
+  novelty `D` (= A − B) around it is an isotropic ball-scale disc — tested by the 2-D covariance of
+  its positive lobe: eigenvalue ratio (elongation; disc ≈ 1, ridge ≫ 1) and √(smaller eigenvalue) ≈
+  r/2 (a normalization spike has extent ≈ 0 and is rejected). This is **amplitude-invariant**, so it
+  passes a *weak* round ball (07-03) that the earlier peak/ring ratio wrongly rejected, while still
+  rejecting the painted line and the address shaft. It runs on `D` (background-subtracted), where the
+  ball is a clean disc even when buried in a bright mat in the raw image.
 - **Cross-swing prior**: per cameraKey, persist EMA of locked radius and spot (AppSettings,
   auto-written — this replaces the v1 profile store; ~4 numbers, no mats). Seeds the scale scan
   and a soft position prior (search everywhere, but a candidate inside the prior window gets
@@ -243,6 +288,10 @@ separates a launch from every occlusion dip observed (dips are partial and recov
   window, but only because the timestamp is the *frame's*, not the handler's. A LOCKED-state
   fast path running the 5×5 spot probe unthrottled at full camera rate is the designed follow-up
   if field data shows the margin is too thin (§10).
+- **Ball-departure latency (V0 measurement)**: the visible collapse lands a consistent **+3–4 frames
+  (~20–27 ms) after** the acoustic/IMU `impactUs` — the ball is in contact/compression before it
+  visibly departs. Treat this as a calibrated per-source constant (`kBallLaunchLatencyUs`, sibling of
+  `kImuBleLatencyUs`) and back-date `estImpactUs` by it, rather than widening the fusion window.
 
 ### 4.6 Optional verification cue (lock time only)
 
@@ -256,19 +305,32 @@ cues can vanish entirely.
 
 | Prototype (offline, python) | Product (live, C++) |
 |---|---|
-| `medP − |medA|` self-location | not needed — placement novelty + stability lock does it causally |
-| present/absent frame sets around impactUs | LOCKED at-spot monitor before/after the collapse edge |
+| `medP` accumulation over static frames | **needed, and causal** — the fast-EMA accumulator `A` (§4.1). V0 proved a per-frame threshold misses low-contrast balls (07-03 0/10 → 10/10 with accumulation), so this is a load-bearing pillar, not an offline convenience |
+| `medP − |medA|` self-location | the causal accumulated novelty `N_acc = (A − B)/σ`; placement + stability lock does it online |
+| present/absent frame sets around impactUs | LOCKED at-spot monitor (per-frame `R`) before/after the collapse edge |
 | 43/44 clean separation | presence + launch reliability claim, per §9 gates |
-| band prior y ∈ [890, h] | the pose-derived stance corridor `S` (§4.1a), falling back to the user hitting-area ROI (`setRoi`) when pose is absent |
+| band prior y ∈ [890, h] | the user hitting-area ROI (`setRoi`), tightened by the pose-derived stance corridor `S` (§4.1a) when pose is present |
 
-The offline form remains valuable as-is: `swing_reanalyzer`/SwingLab can locate the ball and
-launch frame at 149 fps precision in recorded windows (low-point metric, export overlays) using
-the identical response math — same header, two entry points (live incremental, windowed batch).
+The two "entry points" are the **same accumulator** fed online (live) or over a recorded window
+(`swing_reanalyzer`/SwingLab, which can locate the ball and launch frame at 149 fps precision for the
+low-point metric and export overlays). Same header, same code — only the frame source differs.
 
 ## 6. Exposure QA — the required companion (not optional)
 
-The 06-11 regime (mat fully clipped, per-frame response intermittently 0) is **unfixable in
-software** — information is destroyed at the sensor. v2 therefore ships with a capture-side guard:
+**Two regimes — do not conflate them (V0 correction).** The original doc treated any bright mat as a
+capture defect; V0 showed that is only half true:
+- **Full saturation (06-11, satFrac ≈ 0.5–0.7)** — the mat is clipped at 255, information destroyed
+  at the sensor. Unfixable in software; capture-side only. Presence may survive on the contact
+  shadow, but the launch edge must not be trusted.
+- **Bright mat / weak *per-frame* contrast (07-03 & 07-05, satFrac ≈ 0.15–0.35 over the ROI)** —
+  information is NOT destroyed: the ball is plainly visible, only its *single-frame* luma contrast is
+  low. **Accumulation recovers it** (V0: 07-03 went 0/10 → 10/10 acquired; 07-05 likewise). This is a
+  machine-vision problem the design now solves, not a capture defect — better lighting still helps,
+  but the detector no longer *needs* it.
+
+The exposure guard therefore becomes a *quality* signal, not a go/no-go — the detector acquires
+across both regimes, and the warning tells the user when the *launch edge* (not acquisition) is at
+risk:
 
 - Per frame (already in the detector's hands): `satFrac` = fraction of ROI pixels ≥ 250.
 - `satFrac > 0.25` sustained → new signal `exposureWarning(double satFrac)` → amber hint on the
@@ -280,6 +342,10 @@ software** — information is destroyed at the sensor. v2 therefore ships with a
 - Fully-clipped scenes still *degrade gracefully* (the prototype separated all nine 06-11 swings
   on median statistics — the contact shadow carries ~5σ) — presence will usually still work;
   the launch edge must not be trusted there (`conf` drops to 0.4 when satFrac > 0.25 at the spot).
+- **V0 note**: measured over the *tight* ROI, satFrac reads 0.32–0.35 on 07-03/07-05 — which now
+  *acquire cleanly* — so a 0.25 warn threshold over the ROI is a launch-edge caution, not an
+  acquisition gate. A complementary **ball-vs-mat contrast (SNR)** health signal is the better
+  predictor of when acquisition itself is at risk; add it alongside satFrac.
 
 ## 7. Integration (PinPoint specifics)
 

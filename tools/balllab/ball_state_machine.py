@@ -39,6 +39,8 @@ COLLAPSE_FLOOR   = 0.25     # launch: at-spot response below this * L0 ...
 COLLAPSE_FROM    = 0.80     # ... having been at/above this * L0 the frame before
 COLLAPSE_FRAMES  = 2        # ... for this many consecutive frames (the cliff)
 NMS_RADIUS_MULT  = 2.0      # non-max-suppression radius = this * r_hat
+T_ACC_S          = 0.35     # acquisition accumulator window (fast EMA of R); the
+                            # static ball reinforces over this while noise averages out
 
 
 def dog(gray32, r):
@@ -78,29 +80,41 @@ def _at_spot(R, x, y, k=2):
     return float(R[y0:y1, x0:x1].max())
 
 
-_RING8 = [(math.cos(2 * math.pi * k / 8), math.sin(2 * math.pi * k / 8)) for k in range(8)]
-BLOB_RING_RATIO = 0.55     # a peak is a disc if its response at ~1.3*r decays below this
+BLOB_MAX_ELONG = 3.0       # disc if the positive-novelty spread is near-isotropic
+BLOB_SIZE_LO   = 0.35      # ... and its extent matches a ball of radius r
+BLOB_SIZE_HI   = 2.2       #     (rejects hot-pixel spikes and over-large blobs)
 
 
-def is_blob(R, cx, cy, r, ratio=BLOB_RING_RATIO):
-    """Shape / scale-space test (§4.4): a golf ball is an ISOTROPIC ball-scale disc;
-    the painted target line and the address shaft are elongated ridges. Sample R on
-    a ring of radius ~1.3*r: for a disc every ring sample decays well below the peak;
-    for a ridge the two along-ridge samples stay near the peak. Reject when the ring
-    max is not below `ratio` * peak. Also rejects anything within a ring of an edge."""
-    h, w = R.shape
-    rr = max(2, int(round(1.3 * r)))
-    if cx - rr < 0 or cy - rr < 0 or cx + rr >= w or cy + rr >= h:
+def is_blob(D, cx, cy, r, max_elong=BLOB_MAX_ELONG, size_lo=BLOB_SIZE_LO, size_hi=BLOB_SIZE_HI):
+    """Shape / scale-space test (§4.4) on the background-subtracted novelty D: a golf
+    ball is an ISOTROPIC ball-scale disc; the painted line and the address shaft are
+    elongated ridges, and a normalization spike is a near-point. Weight the positive
+    novelty in a window by its value and take its 2-D covariance: eigenvalue ratio =
+    elongation (disc≈1, ridge≫1), and sqrt(smaller eigenvalue) ≈ blob radius (≈ r/2
+    for a ball, ≈0 for a spike). This is AMPLITUDE-INVARIANT — it passes a weak but
+    round ball (07-03) that the old peak/ring ratio wrongly rejected."""
+    h, w = D.shape
+    win = int(round(1.8 * r))
+    if cx - win < 0 or cy - win < 0 or cx + win >= w or cy + win >= h:
         return False
-    peak = float(R[cy, cx])
-    if peak <= 0:
+    P = np.clip(D[cy - win:cy + win + 1, cx - win:cx + win + 1], 0.0, None)
+    m = float(P.sum())
+    if m <= 1e-6:
         return False
-    ring_max = 0.0
-    for dx, dy in _RING8:
-        v = float(R[int(round(cy + rr * dy)), int(round(cx + rr * dx))])
-        if v > ring_max:
-            ring_max = v
-    return ring_max < ratio * peak
+    ys, xs = np.mgrid[0:P.shape[0], 0:P.shape[1]].astype(np.float32)
+    mx = float((P * xs).sum() / m); my = float((P * ys).sum() / m)
+    sxx = float((P * (xs - mx) ** 2).sum() / m)
+    syy = float((P * (ys - my) ** 2).sum() / m)
+    sxy = float((P * (xs - mx) * (ys - my)).sum() / m)
+    tr = sxx + syy
+    disc = max(0.0, (tr / 2.0) ** 2 - (sxx * syy - sxy * sxy))
+    l1 = tr / 2.0 + disc ** 0.5
+    l2 = tr / 2.0 - disc ** 0.5
+    if l2 <= 1e-6:
+        return False
+    elong = (l1 / l2) ** 0.5
+    size = (l2 ** 0.5) / (r / 2.0)
+    return elong <= max_elong and size_lo <= size <= size_hi
 
 
 # ── state machine (§4.2) ──────────────────────────────────────────────────────
@@ -131,9 +145,11 @@ class BallTracker:
         self.noise0 = float(noise_scale)              # fallback noise if a frame is flat
         self.t_lock_frames = max(1, int(round(T_LOCK_S * fps)))
         self.nms = max(2, int(round(NMS_RADIUS_MULT * r_hat)))
+        self.af = min(1.0, 1.0 / max(1.0, T_ACC_S * fps))   # fast-EMA rate (acquisition)
 
         self.state = SEARCH
         self.idx = -1
+        self.A = None                 # acquisition accumulator (fast EMA of R)
         self.cands = []               # [{x,y,hold,Ns}] up to K_PEAKS
         self.locked = None            # {idx,x,y,L0,ix,iy} once LOCKED
         self.launched = None          # {idx,x,y} once VANISHED (launch)
@@ -143,31 +159,42 @@ class BallTracker:
         self._Lhist = []              # [(idx, at-spot L)] while LOCKED, for the cliff test
 
     def push(self, R):
-        """Advance one frame. R is the scale-matched DoG response over the search
-        band, computed by the caller on a PADDED crop and sliced to the band
-        interior (so there is no GaussianBlur crop-boundary artifact along the
-        edges — that artifact otherwise mislocks onto the shaft where it enters
-        the band top). Keeping DoG in the caller also lets the C++ detector own
-        the ROI/padding while the tracker stays pure state + thresholds."""
+        """Advance one frame with the band DoG response R (caller computes it on a
+        PADDED crop, sliced to the band interior, so no GaussianBlur crop-edge
+        artifact reaches the search region).
+
+        ACQUISITION integrates the STATIC ball over a short causal window: A is a
+        fast EMA of R (~T_ACC_S), so the ball — motionless in the same pixels —
+        reinforces while per-frame texture/shadow noise averages out (~sqrt(N) SNR).
+        SEARCH/lock run on the accumulated novelty (A - B); this is what recovers the
+        low-contrast regimes (07-03/07-05) that a per-frame threshold misses. Once
+        LOCKED, MONITORING reads the PER-FRAME R at the locked spot, so presence and
+        the launch collapse stay instant (no accumulation lag) — the live present/
+        absent feature is retained. The same code runs offline (windowed) and live."""
         self.idx += 1
-        noise = robust_noise(R)
-        if noise <= 0:
-            noise = self.noise0
-        N = (R - self.B) / noise
+        if self.A is None:
+            self.A = R.astype(np.float32).copy()
+        else:
+            self.A += self.af * (R - self.A)                  # fast EMA accumulator
 
         if self.state in (SEARCH, CANDIDATE):
-            self._search(R, N)
+            D = self.A - self.B                               # accumulated novelty
+            noise = robust_noise(D)
+            if noise <= 0:
+                noise = self.noise0
+            self._search(R, D, D / noise)                     # shape-check on novelty D
         elif self.state == LOCKED:
-            self._locked(R)
+            self._locked(R)                                   # per-frame monitor: instant
         # VANISHED is terminal for a window (offline gate does not re-acquire)
         return self.state
 
     # -- SEARCH / CANDIDATE: K-peak tracking (§4.2) -----------------------------
-    def _find_peaks(self, N, R):
-        """Local maxima of N above K_APPEAR (NMS radius self.nms), keeping only those
-        whose RESPONSE R is a ball-scale disc (is_blob, §4.4). Scans up to 12 maxima
-        to fill K_PEAKS blobs, so a ridge distractor (line/shaft) is suppressed and
-        skipped rather than occupying a candidate slot the ball needs."""
+    def _find_peaks(self, N, shape):
+        """Local maxima of the accumulated novelty N above K_APPEAR (NMS radius
+        self.nms), keeping only those whose accumulated response `shape` (A) is a
+        ball-scale disc (is_blob, §4.4). Scans up to 12 maxima to fill K_PEAKS blobs,
+        so a ridge distractor (line/shaft) is suppressed and skipped rather than
+        occupying a candidate slot the ball needs."""
         M = N.copy()
         out = []
         for _ in range(12):
@@ -176,14 +203,14 @@ class BallTracker:
             if v < K_APPEAR:
                 break
             cv2.circle(M, (int(cx), int(cy)), self.nms, -1e9, -1)   # suppress either way
-            if is_blob(R, int(cx), int(cy), self.r):
+            if is_blob(shape, int(cx), int(cy), self.r):
                 out.append((cx, cy, v))
                 if len(out) >= K_PEAKS:
                     break
         return out
 
-    def _search(self, R, N):
-        peaks = self._find_peaks(N, R)
+    def _search(self, R, A, N):
+        peaks = self._find_peaks(N, A)
         stab2 = LOCK_STABILITY_PX ** 2
         used = [False] * len(peaks)
         kept = []

@@ -74,7 +74,7 @@ def frame_index_for_us(t_us, us):
     return int(np.argmin(np.abs(arr - us)))
 
 
-def process_swing(swing_dir):
+def process_swing(swing_dir, roi_norm=None):
     fo = read_faceon(os.path.join(swing_dir, "swing.json"))
     ball = read_ball(os.path.join(swing_dir, "truth.json"))
     vp = os.path.join(swing_dir, fo["file"]) if fo else None
@@ -84,7 +84,13 @@ def process_swing(swing_dir):
     cap = cv2.VideoCapture(vp)
     mp4w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     mp4h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    x0, x1, y0, y1 = band(mp4w, mp4h)
+    # search region: the hitting-area ROI when provided (proxy = per-session ball
+    # cluster; the live detector uses the user-drawn ROI), else the loose band.
+    if roi_norm is not None:
+        x0 = max(0, int(roi_norm[0] * mp4w)); x1 = min(mp4w, int(roi_norm[2] * mp4w))
+        y0 = max(0, int(roi_norm[1] * mp4h)); y1 = min(mp4h, int(roi_norm[3] * mp4h))
+    else:
+        x0, x1, y0, y1 = band(mp4w, mp4h)
     r_hat = 9.5 * (mp4w / 1280.0)
     bw, bh = x1 - x0, y1 - y0
 
@@ -158,9 +164,12 @@ def main():
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--session", default="")
     ap.add_argument("--verbose", action="store_true")
+    ap.add_argument("--no-roi", action="store_true",
+                    help="use the loose band instead of the per-session hitting-area ROI proxy")
     a = ap.parse_args()
 
-    swings = sorted(glob.glob(os.path.join(a.root, "2026-*", "swing_*")))
+    all_swings = sorted(glob.glob(os.path.join(a.root, "2026-*", "swing_*")))
+    swings = list(all_swings)
     if a.session:
         swings = [s for s in swings if a.session in s]
     if a.limit:
@@ -168,7 +177,30 @@ def main():
     if not swings:
         print(f"no swings under {a.root}", file=sys.stderr); sys.exit(2)
 
-    print(f"root={a.root}  swings={len(swings)}\n")
+    # Per-session hitting-area ROI proxy from the session's labelled ball CLUSTER
+    # (the aggregate spot a user would frame — not any single swing's own label).
+    # The live detector uses the user-drawn ROI; the corpus does not record it.
+    from collections import defaultdict
+    sess_pts = defaultdict(list)
+    if not a.no_roi:
+        for sw in all_swings:
+            b = read_ball(os.path.join(sw, "truth.json"))
+            if not b:
+                continue
+            fo = read_faceon(os.path.join(sw, "swing.json"))
+            if fo and fo["W"] and fo["H"]:
+                sess_pts[os.path.dirname(sw)].append((b[0] / fo["W"], b[1] / fo["H"]))
+
+    def roi_for(sw):
+        if a.no_roi:
+            return None
+        pts = sess_pts.get(os.path.dirname(sw))
+        if not pts:
+            return None
+        nx = float(np.median([p[0] for p in pts])); ny = float(np.median([p[1] for p in pts]))
+        return (nx - 0.06, ny - 0.07, nx + 0.06, 1.0)   # ±77px x, from just above the cluster to floor
+
+    print(f"root={a.root}  swings={len(swings)}  search={'loose band' if a.no_roi else 'per-session ROI'}\n")
     hdr = f"{'swing':46s} {'sat':>5} {'lock':>5} {'fi':>4} {'lidx':>4} {'dF':>3} {'posErr':>7}"
     print(hdr); print("-" * len(hdr))
 
@@ -176,7 +208,7 @@ def main():
     for sw in swings:
         name = f"{os.path.basename(os.path.dirname(sw))}/{os.path.basename(sw)}"
         try:
-            r = process_swing(sw)
+            r = process_swing(sw, roi_for(sw))
         except Exception as e:
             print(f"{name:46s}  ERROR {e}"); continue
         if r.get("skip"):
