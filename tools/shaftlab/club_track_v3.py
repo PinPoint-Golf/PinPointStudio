@@ -77,6 +77,39 @@ STILL_SPEED = 0.8    # grip px/frame below which (sustained) a frame is 'static'
 STILL_MIN = 25       # min static-run length (frames)
 BAND_NEAR = 5        # a static ray is admissible within this many frames of a band lock
 
+# ---- C4 recast: psi-monotonicity as TRUTH, reconciled by isotonic fit (v3.0-r1)
+# psi = theta - phi obeys C3's one-reversal law on the WRIST: cocks (addr->top),
+# reverses ONCE at transition, releases (transition->impact->finish). Re-hinge in
+# the downswing / un-hinge in the backswing is anatomically impossible -- so a
+# NON-monotone psi is not a fact to be penalised, it is a MEASUREMENT of error
+# (Mark, 2026-07-06). We therefore treat monotone-psi as ground truth and FIT it
+# (per-phase weighted robust ISOTONIC regression / Pool-Adjacent-Violators),
+# reading the error off the residual, instead of a per-frame DP penalty (which
+# fired on the pose-phi noise floor -- 25-62% of backswing steps show a ~3deg
+# apparent reversal that is pure noise). Design: club_tracking_v3_design.md sec.8.
+#
+# Two regimes, one principle -- attribute the error to the UNCERTAIN source:
+#   * blur zone (impact/thru): the club blurs, theta is unreliable, the ARM is
+#     the better witness -> reconstruct theta = psi_iso + phi (arm-witness bridge)
+#     for non-band frames. This also rejects a psi-non-monotone counterfeit (a
+#     bright line whose implied wrist re-hinges): it departs from the band-
+#     anchored monotone psi and is pulled back.
+#   * elsewhere (backswing/downswing): theta is well-measured, phi is the noisy
+#     one -> KEEP the measured theta; the residual is a phi-error / confidence map
+#     (phi_clean = theta - psi_iso is available). Never inject phi noise into a
+#     good club measurement.
+# Band locks are pinned (invariant 1) and weight the fit most; the fit is robust
+# (Huber-IRLS) so one phi-glitch anchor cannot drag it. Deterministic (PAVA exact).
+ARM_OUTLIER_DEG = 20.0   # smooth_phi Hampel gate: max plausible arm-rate (deg/f)
+W_ISO = {"band": 8.0, "ray": 2.0, "pred": 0.3}   # isotonic weight by confidence
+ISO_HUBER = 8.0      # Huber knee (deg): residuals beyond this are down-weighted
+ISO_ITERS = 3        # IRLS reweight iterations
+RECON_PHASES = ("impact", "thru")   # blur zone: reconstruct non-band theta here
+RECON_TOL = 6.0      # if reconstruction moves theta > this from its evidence, the
+                     # frame is retiered 'recon' (physics, not a direct measurement)
+PSI_WIN_BACK = 3     # psi-reversal free window (excluded from the fit): frames of
+PSI_WIN_FWD = 12     # C3-top before / after (release lag: psi peaks ~8f post-top)
+
 # ---- reused radii for body-mask ray sampling ---------------------------
 BODY_MARGIN = 34.0   # px dilation of the body polygon
 BODY_R = np.arange(45.0, 470.0, 14.0)   # ray radii for the inside-fraction test
@@ -86,12 +119,103 @@ def circ_wrap(a):
     return (a + 180.0) % 360.0 - 180.0
 
 
-def smooth_phi(phi_deg):
-    """Robust unit-vector smoothing of the lead-arm direction (handles wrap)."""
-    phr = np.radians(phi_deg)
-    cx = gaussian_filter1d(median_filter(np.cos(phr), 9), 3)
-    cy = gaussian_filter1d(median_filter(np.sin(phr), 9), 3)
+def smooth_phi(phi_deg, win=9, hampel_deg=ARM_OUTLIER_DEG):
+    """Robust unit-vector smoothing of the lead-arm direction (handles wrap).
+
+    Hardened for the v3.0-r1 psi reconciliation (docs/design §8): pose phi spikes
+    to ~87 deg/frame at the top and through the impact blur (s01 gate-0). The
+    isotonic fit reads psi = theta - phi, so a phi spike corrupts psi directly.
+    BEFORE the median+Gaussian we Hampel-reject any sample whose angular deviation
+    from its local circular median exceeds hampel_deg -- the arm cannot physically
+    rotate that fast between frames at >=120 fps -- and replace it with that
+    median. Idempotent on clean phi; the fixed physical gate never eats real arm
+    motion (a few deg/frame). Consumed unchanged by address_theta_v3."""
+    phr = np.radians(np.asarray(phi_deg, float))
+    c, s = np.cos(phr), np.sin(phr)
+    cm, sm = median_filter(c, win), median_filter(s, win)      # local circular median dir
+    # |ang(v) - ang(median)| in deg: sin(dv)=s*cm-c*sm, cos(dv)=c*cm+s*sm
+    dev = np.abs(np.degrees(np.arctan2(s * cm - c * sm, c * cm + s * sm)))
+    bad = dev > hampel_deg
+    c = np.where(bad, cm, c); s = np.where(bad, sm, s)
+    cx = gaussian_filter1d(median_filter(c, win), 3)
+    cy = gaussian_filter1d(median_filter(s, win), 3)
     return np.degrees(np.arctan2(cy, cx))
+
+
+def _pava(y, w, increasing=True):
+    """Weighted isotonic regression by Pool-Adjacent-Violators. Exact, O(n),
+    deterministic. Returns the monotone sequence minimising sum w*(x-y)^2."""
+    s = 1.0 if increasing else -1.0
+    means = list(s * np.asarray(y, float))
+    wts = list(np.asarray(w, float))
+    idx = [[i] for i in range(len(means))]
+    i = 0
+    while i < len(means) - 1:
+        if means[i] > means[i + 1] + 1e-12:                # adjacent violation -> pool
+            nw = wts[i] + wts[i + 1]
+            means[i] = (means[i] * wts[i] + means[i + 1] * wts[i + 1]) / nw
+            wts[i] = nw; idx[i] += idx[i + 1]
+            del means[i + 1]; del wts[i + 1]; del idx[i + 1]
+            if i > 0:
+                i -= 1
+        else:
+            i += 1
+    out = np.zeros(len(y))
+    for m, ii in zip(means, idx):
+        for k in ii:
+            out[k] = s * m
+    return out
+
+
+def robust_isotonic(y, w, increasing=True, huber=ISO_HUBER, iters=ISO_ITERS):
+    """Huber-IRLS isotonic fit: down-weight anchors whose residual exceeds the
+    Huber knee so a single phi-glitch measurement cannot drag the monotone fit."""
+    y = np.asarray(y, float); w = np.asarray(w, float)
+    x = _pava(y, w, increasing)
+    for _ in range(iters):
+        r = np.abs(y - x)
+        hw = np.where(r <= huber, 1.0, huber / (r + 1e-9))
+        x = _pava(y, w * hw, increasing)
+    return x
+
+
+def reconcile_psi(theta, phi_s, phase, band, ev_at, top, nf, tier_hint):
+    """Treat monotone psi as ground truth and fit it per phase (robust weighted
+    isotonic). Returns (theta_out, psi_resid, recon). In the blur zone
+    (RECON_PHASES) non-band theta is reconstructed as psi_iso + phi (the arm is
+    the witness); elsewhere theta is preserved and psi_resid is a phi-error map.
+    The reversal window [top-B, top+F] is excluded (psi is free at transition)."""
+    theta_out = np.array(theta, float)
+    resid = np.full(nf, np.nan)
+    recon = np.zeros(nf, bool)
+    lo, hi = top - PSI_WIN_BACK, top + PSI_WIN_FWD
+    # (block phases, increasing?) -- backswing cocks, the release un-cocks
+    for phs, inc in ((("backswing",), True),
+                     (("downswing", "impact", "thru"), False)):
+        fs = [f for f in range(nf) if phase[f] in phs and not (lo <= f <= hi)
+              and not np.isnan(theta[f])]
+        if len(fs) < 4:
+            continue
+        th = np.array([theta[f] for f in fs]); ph = np.array([phi_s[f] for f in fs])
+        psi = np.degrees(np.unwrap(np.radians(th - ph)))      # continuous psi (no 360 jumps)
+        # weight the fit by confidence -- BUT in the blur zone a bright ridge is
+        # untrustworthy (motion-smeared, or an outright counterfeit), so only
+        # confirmed BAND anchors count there: the fit then INTERPOLATES psi across
+        # the blur from the trusted measurements flanking it, rather than being
+        # dragged onto the local evidence. This is what rejects a psi-non-monotone
+        # counterfeit AND bridges the true blur (the arm carries phi through it).
+        def wgt(f):
+            if band[f] is None and phase[f] in RECON_PHASES:
+                return W_ISO["pred"]
+            return W_ISO[tier_hint(f)]
+        w = np.array([wgt(f) for f in fs])
+        iso = robust_isotonic(psi, w, increasing=inc)
+        for i, f in enumerate(fs):
+            resid[f] = abs(psi[i] - iso[i])
+            if phase[f] in RECON_PHASES and band[f] is None:  # blur: arm is the witness
+                theta_out[f] = (iso[i] + ph[i]) % 360.0
+                recon[f] = True
+    return theta_out, resid, recon
 
 
 def segment_phases(gx, gy, nf, fps, impact_frame=None):
@@ -199,6 +323,11 @@ def main():
     ap.add_argument("--overlay", action="store_true")
     ap.add_argument("--truth-out", action="store_true")
     ap.add_argument("--phases-out", action="store_true")
+    ap.add_argument("--no-psi-rail", action="store_true",
+                    help="disable the v3.0-r1 psi-monotonicity reconciliation "
+                         "(reverts C4 to v3.0 wide-cone-only: no isotonic fit, no "
+                         "arm-witness reconstruction; for A/B regression and the "
+                         "synth counterfeit gate)")
     args = ap.parse_args()
 
     rec = json.load(open(args.clubs))[args.club]
@@ -233,7 +362,7 @@ def main():
     idx = np.arange(nf); good = ~np.isnan(phv)
     if good.sum():
         phv = np.interp(idx, idx[good], phv[good])
-    phi_s = smooth_phi(phv)
+    phi_s = smooth_phi(phv)                          # robustly de-spiked lead-arm dir
 
     impf = args.impact_frame
     if impf is None and args.impact_us is not None and args.clipmeta:
@@ -242,6 +371,7 @@ def main():
     phase, bs0, top, impf, fin0, spd_s = segment_phases(gx, gy, nf, fps, impf)
     phu = np.unwrap(np.radians(phi_s))
     chir = 1 if (phu[min(top, nf - 1)] - phu[bs0]) >= 0 else -1
+    use_psi = not args.no_psi_rail                   # psi-monotonicity reconciliation
 
     skel = args.skeleton or os.path.join(os.path.dirname(args.video), "skeleton.csv")
     masks = body_masks(skel, nf, W, H)
@@ -330,7 +460,10 @@ def main():
 
         emis[f] = em
 
-    # ---- global Viterbi DP over the theta grid ------------------------
+    # ---- global Viterbi DP over the theta grid (C3: banded, sign-locked) ---
+    # Pure C3 here -- the psi-monotonicity constraint is NOT a per-frame DP
+    # penalty (that fired on the pose-phi noise floor); it is applied AFTER the DP
+    # as a robust isotonic reconciliation (reconcile_psi below).
     INF = 1e9
     cost = emis[0].copy()
     back = np.zeros((nf, NS), np.int32)
@@ -346,7 +479,7 @@ def main():
             shifts = range(-wmax, wmax + 1)
         best = np.full(NS, INF); barg = np.zeros(NS, np.int32)
         for d in shifts:
-            t = K_SMOOTH * (d * GRID) ** 2
+            t = K_SMOOTH * (d * GRID) ** 2                    # C3 theta smoothness
             cand = np.roll(cost, d) + t
             src = (np.arange(NS) - d) % NS
             upd = cand < best
@@ -357,18 +490,37 @@ def main():
     thstar[-1] = int(np.argmin(cost))
     for f in range(nf - 1, 0, -1):
         thstar[f - 1] = back[f, thstar[f]]
-    theta = TDEG[thstar]                              # deg per frame
+    theta = TDEG[thstar]                              # deg per frame (C3 track)
+
+    # ---- psi reconciliation: monotone-psi is truth, fit it (isotonic) ------
+    # Build a per-frame confidence hint (band > ray > pred) for the fit weights,
+    # then reconcile: reconstruct blur-zone (impact/thru) non-band theta from the
+    # ARM (psi_iso + phi), keep measured theta elsewhere, and record the residual
+    # as a phi-error / confidence map. reconcile_psi excludes the top window.
+    ev_at = np.array([EV[f, thstar[f]] for f in range(nf)])
+
+    def _tier_hint(f):
+        if band[f] is not None:
+            return "band"
+        return "ray" if ev_at[f] >= RAY_EV_MIN else "pred"
+
+    theta_out = np.array(theta, float)
+    psi_resid = np.full(nf, np.nan)
+    recon = np.zeros(nf, bool)
+    if use_psi:
+        theta_out, psi_resid, recon = reconcile_psi(
+            theta, phi_s, phase, band, ev_at, top, nf, _tier_hint)
 
     # ---- tiering + rows ----------------------------------------------
     rows = []
     for f in range(nf):
         if f not in anchors or np.isnan(gx[f]):
             continue
-        thi = int(thstar[f]); th = theta[f]
+        thi = int(thstar[f]); th_dp = theta[f]; th = float(theta_out[f])   # DP vs reconciled
         g = (gx[f], gy[f]); bm = band[f]
         tier = "pred"; s = r0 = None; conf = 0.30; hx = hy = ""
-        if bm is not None and abs(circ_wrap(th - bm["theta"])) <= BAND_TOL:
-            tier = "band"; s = bm["s"]; r0 = bm["r0"]
+        if bm is not None and abs(circ_wrap(th_dp - bm["theta"])) <= BAND_TOL:
+            tier = "band"; s = bm["s"]; r0 = bm["r0"]                       # band pinned (th==th_dp)
             ux, uy = math.cos(math.radians(th)), math.sin(math.radians(th))
             bx, by = g[0] - s * r0 * ux, g[1] - s * r0 * uy
             hx, hy = bx + s * r_len * ux, by + s * r_len * uy
@@ -390,27 +542,35 @@ def main():
                 verifiable = (not static[f]) or band_near
             if phase[f] != "addr" and evs >= RAY_EV_MIN and evs > 1.15 * evrev and verifiable:
                 tier = "ray"; conf = 0.55
+        # psi reconciliation retiered this blur-zone frame off its own evidence:
+        # it is physically RECONstructed from the arm + monotone-psi prior, not a
+        # direct club measurement (excluded from truth, like pred but informative).
+        if recon[f] and abs(circ_wrap(th - th_dp)) > RECON_TOL:
+            tier = "recon"; conf = 0.40; s = r0 = None; hx = hy = ""
         rows.append(dict(frame=f, t_s=round(f / fps, 6), phase=phase[f], tier=tier,
                          theta_deg=round(th % 360.0, 2),
                          s_px_mm=round(s, 5) if s else "", r0_mm=round(r0, 1) if r0 else "",
                          head_x=round(hx, 1) if hx != "" else "",
                          head_y=round(hy, 1) if hy != "" else "",
-                         inside=round(float(inside[f, thi]), 2), conf=conf))
+                         inside=round(float(inside[f, thi]), 2), conf=conf,
+                         psi_err=round(float(psi_resid[f]), 1) if not np.isnan(psi_resid[f]) else ""))
 
     stem = os.path.splitext(os.path.basename(args.video))[0]
     os.makedirs(args.out_dir, exist_ok=True)
-    # fusion-style CSV (adjudication / scoring)
+    # fusion-style CSV (adjudication / scoring). psi_err = isotonic residual =
+    # per-frame measurement-error / confidence map (blank where psi is free/unfit).
     fcsv = os.path.join(args.out_dir, f"{stem}_v3.csv")
     cols = ["frame", "t_s", "phase", "tier", "theta_deg", "s_px_mm", "r0_mm",
-            "head_x", "head_y", "inside", "conf"]
+            "head_x", "head_y", "inside", "conf", "psi_err"]
     with open(fcsv, "w", newline="") as fo:
         w = csv.DictWriter(fo, fieldnames=cols); w.writeheader(); w.writerows(rows)
-    # shaft-track contract CSV (frame,grip_x,grip_y,theta_out,kind,conf)
+    # shaft-track contract CSV (frame,grip_x,grip_y,theta_out,kind,conf). theta_out
+    # is the reconciled estimate; 'recon' (arm-witness) counts as pred (not direct).
     tcsv = os.path.join(args.out_dir, f"{stem}_v3_track.csv")
     with open(tcsv, "w", newline="") as fo:
         w = csv.writer(fo); w.writerow(["frame", "grip_x", "grip_y", "theta_out", "kind", "conf"])
         for r in rows:
-            kind = "pred" if r["tier"] == "pred" else "meas"
+            kind = "pred" if r["tier"] in ("pred", "recon") else "meas"
             w.writerow([r["frame"], f"{gx[r['frame']]:.2f}", f"{gy[r['frame']]:.2f}",
                         f"{r['theta_deg']:.3f}", kind, r["conf"]])
 
@@ -418,23 +578,27 @@ def main():
     for r in rows:
         tc[r["tier"]] = tc.get(r["tier"], 0) + 1
     lm = f"bs0={bs0} top={top} impact={impf} fin0={fin0} chir={chir:+d}"
-    print(f"frames={nf}  {lm}")
+    print(f"frames={nf}  {lm}  psi_recon={'on' if use_psi else 'off'} "
+          f"free=[{max(0, top - PSI_WIN_BACK)},{min(nf - 1, top + PSI_WIN_FWD)}] "
+          f"recon={int(recon.sum())}")
     print(f"v3 rows={len(rows)}  tiers: " + " ".join(f"{k}={v}" for k, v in sorted(tc.items())))
     print(f"[out] {fcsv}")
 
     if args.phases_out:
         pcsv = os.path.join(args.out_dir, f"{stem}_v3_phases.csv")
         with open(pcsv, "w", newline="") as fo:
-            w = csv.writer(fo); w.writerow(["frame", "phase", "spd", "phi_s"])
+            w = csv.writer(fo); w.writerow(["frame", "phase", "spd", "phi_s", "psi_err"])
             for f in range(nf):
-                w.writerow([f, phase[f], round(float(spd_s[f]), 2), round(float(phi_s[f]), 1)])
+                pe = round(float(psi_resid[f]), 1) if not np.isnan(psi_resid[f]) else ""
+                w.writerow([f, phase[f], round(float(spd_s[f]), 2), round(float(phi_s[f]), 1), pe])
         print(f"[phases] {pcsv}")
 
     if args.overlay:
         cap = cv2.VideoCapture(args.video)
         vw_fps = float(round(cap.get(cv2.CAP_PROP_FPS) or 30.0)) or 30.0
         byf = {r["frame"]: r for r in rows}
-        col = {"band": (0, 0, 255), "ray": (0, 200, 255), "pred": (120, 120, 120)}
+        col = {"band": (0, 0, 255), "ray": (0, 200, 255), "pred": (120, 120, 120),
+               "recon": (255, 180, 0)}          # arm-witness reconstruction (cyan-ish)
         vw = cv2.VideoWriter(os.path.join(args.out_dir, f"{stem}_v3.mp4"),
                              cv2.VideoWriter_fourcc(*"mp4v"), vw_fps, (W, H))
         f = 0
@@ -466,8 +630,8 @@ def main():
         meta = json.load(open(args.clipmeta)); tt = meta["t_us"]
         entries = []
         for r in rows:
-            if r["tier"] == "pred":
-                continue                             # honesty: pred kept out of truth
+            if r["tier"] in ("pred", "recon"):
+                continue                             # honesty: only DIRECT measurements to truth
             g = anchors[r["frame"]]
             e = dict(t_us=int(tt[r["frame"]]), theta=round(math.radians(r["theta_deg"]), 6),
                      grip=[round(g[0], 1), round(g[1], 1)], tier=r["tier"], conf=r["conf"])

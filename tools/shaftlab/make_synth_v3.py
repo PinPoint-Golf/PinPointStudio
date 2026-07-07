@@ -36,10 +36,28 @@ R0_MM = 150.0                        # butt sits this far behind the grip anchor
 # swing keyframes (frame, degrees). beta = arm angle about hub; psi = wrist.
 # Tuned for realistic grip velocity (>8 px/f through the swing, ~0 in the holds)
 # so the hands-only phase model segments takeaway/top/impact correctly.
-BETA_KF = [(0, 90), (40, 90), (66, 170), (88, 90), (110, 10), (142, 10)]
-PSI_KF = [(0, 0), (40, 0), (66, 88), (88, 2), (110, -88), (142, -88)]
+# NB no keyframe AT impact: an eased keyframe there would zero the grip velocity
+# and break the downswing motion run, so the phase model would mislabel the
+# through as 'finish' (rail-off) and the gap test would be inert. beta/psi
+# interpolate smoothly through impact (peak grip speed at the ball), giving clean
+# downswing/impact/thru phases. beta=90 (=> grip back to address height) recurs
+# at f88, so impact still detects there.
+BETA_KF = [(0, 90), (40, 90), (66, 170), (110, 10), (142, 10)]
+PSI_KF = [(0, 0), (40, 0), (66, 88), (110, -88), (142, -88)]
 NF = 142
 TRUE_IMPACT = 88
+
+# v3.0-r1 psi-rail gate: an evidence gap + a psi-non-monotone COUNTERFEIT.
+# Through [GAP_LO,GAP_HI] the real club is made INVISIBLE (impact-blur analogue,
+# no bands, no shaft) so the only evidence is a bright DECOY line held at a FIXED
+# theta. A fixed theta satisfies C3 (d_theta = 0, monotone-boundary) but, because
+# the arm phi keeps releasing under it, implies psi = theta - phi that RE-HINGES
+# (rises) through the downswing -- anatomically impossible. Without the rail the
+# DP locks the bright decoy (its only evidence) and emits a wrong 'ray'; with the
+# rail the re-hinge is penalised and the DP bridges via the arm witness to 'pred'.
+# The gap sits in the through phase, clear of the psi_free top window.
+GAP_LO, GAP_HI = 92, 100
+DECOY_ON = True
 
 
 def _interp_eased(kf, n):
@@ -77,6 +95,18 @@ def draw_banded_shaft(img, grip, theta_deg, sub_blur):
     return head
 
 
+def draw_decoy(img, grip, theta_deg):
+    """A bright straight scene line from the grip at a FIXED theta -- the psi-
+    non-monotone counterfeit. No retro bands (so E1 can never lock it -- it can
+    at most be a 'ray'), but bright enough to dominate E2 in the evidence gap."""
+    th = math.radians(theta_deg)
+    d = np.array([math.cos(th), math.sin(th)])
+    a = grip + S_PXMM * 40.0 * d
+    b = grip + S_PXMM * LEN_MM * d
+    cv2.line(img, tuple(a.astype(int)), tuple(b.astype(int)), (225, 225, 225), 4, cv2.LINE_AA)
+    return b
+
+
 def render(out_dir):
     os.makedirs(out_dir, exist_ok=True)
     beta = _interp_eased(BETA_KF, NF)
@@ -84,6 +114,7 @@ def render(out_dir):
     grips = np.stack([HUB[0] + ARM * np.cos(np.radians(beta)),
                       HUB[1] + ARM * np.sin(np.radians(beta))], 1)
     theta = beta + psi
+    theta_decoy = float(theta[GAP_LO - 1])       # held fixed through the gap
     # static mat speckle positions (do not move with the club)
     rng = np.random.default_rng(3)
     speck = [(int(rng.uniform(120, 780)), int(rng.uniform(600, 705))) for _ in range(12)]
@@ -110,8 +141,14 @@ def render(out_dir):
             g = grips[f]
             # counterfeit 2: lead-arm line hub->grip (bright; points into forearm)
             cv2.line(sub, tuple(HUB.astype(int)), tuple(g.astype(int)), (150, 150, 150), 4, cv2.LINE_AA)
-            fast = abs(theta[min(f + 1, NF - 1)] - theta[max(f - 1, 0)]) > 6
-            draw_banded_shaft(sub, g, th_s, fast)
+            in_gap = DECOY_ON and GAP_LO <= f <= GAP_HI
+            if in_gap:
+                # real club INVISIBLE (impact-blur analogue) -> only the psi-
+                # non-monotone decoy provides evidence in this span.
+                draw_decoy(sub, g, theta_decoy)
+            else:
+                fast = abs(theta[min(f + 1, NF - 1)] - theta[max(f - 1, 0)]) > 6
+                draw_banded_shaft(sub, g, th_s, fast)
             cv2.circle(sub, tuple(g.astype(int)), 11, (95, 90, 85), -1)   # hands
             acc += sub.astype(np.float32)
         frame = (acc / SUBS).astype(np.uint8)
@@ -149,61 +186,135 @@ def render(out_dir):
     return clip, TRUE_IMPACT, theta
 
 
-def selftest():
-    tmp = tempfile.mkdtemp(prefix="synthv3_")
-    clip, impact, theta = render(tmp)
+def _run_tool(tmp, clip, extra):
+    """Run club_track_v3 fully hands-only (no --impact-frame so C3 is tested).
+    Returns (returncode, stdout)."""
     here = os.path.dirname(os.path.abspath(__file__))
-    # run FULLY hands-only (no --impact-frame) so the phase model (C3) is tested
     r = subprocess.run([sys.executable, os.path.join(here, "club_track_v3.py"), clip,
                         "--anchors", f"{tmp}/anchors.csv", "--skeleton", f"{tmp}/skeleton.csv",
                         "--clubs", f"{tmp}/clubs.json", "--club", CLUB,
                         "--clipmeta", f"{tmp}/clipmeta.json", "--fps-override", str(FPS),
-                        "--out-dir", tmp],
+                        "--out-dir", tmp] + list(extra),
                        capture_output=True, text=True)
-    print(r.stdout.strip())
-    if r.returncode:
-        print(r.stderr[-1500:]); return 1
-    # parse the hands-only phase landmarks and check they match the true swing
+    return r.returncode, r.stdout, r.stderr
+
+
+def _score(v3path, truth, tt, anch):
+    """Score an emitted v3.csv vs truth. DIRECT measurements = band/ray only
+    (pred = bridge, recon = arm-witness reconstruction -- both excluded from the
+    error stats, like Mark's honest markup gaps). Returns the tier error stats,
+    the full output track (theta per frame incl. reconstruction), and any band/ray
+    emitted inside the gap (a decoy locked AS A MEASUREMENT -- the counterfeit A/B)."""
+    v3 = {int(x["frame"]): x for x in csv.DictReader(open(v3path))}
+    errs, flips, arm_locks, band_n, ray_n, recon_n = [], 0, 0, 0, 0, 0
+    track, gap_locked = {}, []
+    for f, x in v3.items():
+        thv = float(x["theta_deg"]); track[f] = thv
+        recon_n += x["tier"] == "recon"
+        if x["tier"] in ("pred", "recon"):
+            continue
+        if GAP_LO <= f <= GAP_HI:            # blackout: a band/ray here = decoy MEASURED
+            gap_locked.append((f, thv))      # (rejection metric only -- truth is
+            continue                         #  physically unrecoverable through the gap)
+        e = abs((thv - truth[tt[f]] + 180) % 360 - 180)
+        errs.append(e)
+        flips += e > 90
+        band_n += x["tier"] == "band"; ray_n += x["tier"] == "ray"
+        arm = (anch[f] + 180) % 360                          # C4 into-forearm veto
+        if abs((thv - arm + 180) % 360 - 180) < 12:
+            arm_locks += 1
+    errs.sort()
+    return dict(errs=errs, flips=flips, arm_locks=arm_locks, band_n=band_n,
+                ray_n=ray_n, recon_n=recon_n, track=track, gap_locked=gap_locked)
+
+
+def _psi_violations(track, phase, phi_s, psi_lo, psi_hi, tol=2.0):
+    """Count psi=theta-phi RELEASE monotonicity violations on the OUTPUT track:
+    through downswing/impact/thru psi must not INCREASE (re-hinge), outside the
+    free top window. This is the physics the reconciliation restores (the release
+    is where it reconstructs; the backswing keeps its measured theta)."""
+    v = 0
+    for f in range(1, len(phase)):
+        if f - 1 not in track or f not in track or psi_lo <= f <= psi_hi:
+            continue
+        dpsi = ((track[f] - phi_s[f]) - (track[f - 1] - phi_s[f - 1]) + 180) % 360 - 180
+        if phase[f] in ("downswing", "impact", "thru") and dpsi > tol:
+            v += 1
+    return v
+
+
+def selftest():
+    import club_track_v3 as ct
+    tmp = tempfile.mkdtemp(prefix="synthv3_")
+    clip, impact, theta = render(tmp)
+    theta_decoy = float(theta[GAP_LO - 1])
+    truth = {e["t_us"]: math.degrees(e["theta"]) for e in json.load(open(f"{tmp}/truth.json"))["shaft"]}
+    tt = json.load(open(f"{tmp}/clipmeta.json"))["t_us"]
+    anch, phi_raw = {}, []
+    for row in sorted(csv.reader(open(f"{tmp}/anchors.csv")), key=lambda r: int(r[0])):
+        anch[int(row[0])] = float(row[3]); phi_raw.append(float(row[3]))
+    phi_s = ct.smooth_phi(np.array(phi_raw))                 # same de-spike the rail uses
+
+    # ---- rail ON (default) --------------------------------------------
+    rc, out, err = _run_tool(tmp, clip, [])
+    print(out.strip())
+    if rc:
+        print(err[-1500:]); return 1
     lm = {}
-    for tok in r.stdout.replace("\n", " ").split():
-        if "=" in tok:
-            k, _, v = tok.partition("=")
-            try:
-                lm[k] = int(v)
-            except ValueError:
-                pass
+    for tok in out.replace("\n", " ").split():
+        k, _, v = tok.partition("=")
+        try:
+            lm[k] = int(v)
+        except ValueError:
+            pass
+    top = lm.get("top", 66)
+    psi_lo, psi_hi = 0, 0
+    for tok in out.split():
+        if tok.startswith("free=["):
+            psi_lo, psi_hi = (int(z) for z in tok[len("free=["):-1].split(","))
+    phase = [""] * NF
+    for x in csv.DictReader(open(f"{tmp}/faceon_swing_v3.csv")):
+        phase[int(x["frame"])] = x["phase"]
     phase_ok = ("bs0" in lm and "top" in lm and "impact" in lm
                 and lm["bs0"] < lm["top"] < lm["impact"]
                 and abs(lm["impact"] - impact) <= 12)
-    # score vs truth
-    truth = {e["t_us"]: math.degrees(e["theta"]) for e in json.load(open(f"{tmp}/truth.json"))["shaft"]}
-    tt = json.load(open(f"{tmp}/clipmeta.json"))["t_us"]
-    anch = {}
-    for row in csv.reader(open(f"{tmp}/anchors.csv")):
-        anch[int(row[0])] = float(row[3])            # phi
-    v3 = {int(x["frame"]): x for x in csv.DictReader(open(f"{tmp}/faceon_swing_v3.csv"))}
-    errs, flips, arm_locks, band_n, ray_n = [], 0, 0, 0, 0
-    for f, x in v3.items():
-        if x["tier"] == "pred":
-            continue
-        thv = float(x["theta_deg"]); tht = truth[tt[f]]
-        e = abs((thv - tht + 180) % 360 - 180)
-        errs.append(e)
-        if e > 90:
-            flips += 1
-        band_n += x["tier"] == "band"; ray_n += x["tier"] == "ray"
-        # C4: a lock must never point into the forearm (phi+180)
-        arm = (anch[f] + 180) % 360
-        if abs((thv - arm + 180) % 360 - 180) < 12:
-            arm_locks += 1
-    errs.sort(); n = len(errs)
-    mean = sum(errs) / n if n else 99
-    bad = sum(1 for e in errs if e > 15)
-    print(f"emitted band={band_n} ray={ray_n}  theta err: mean={mean:.2f} "
-          f"median={errs[n//2]:.2f} max={errs[-1]:.2f} bad>15={bad}  flips={flips}  "
-          f"arm-locks={arm_locks}  phase_ok={phase_ok} (impact det f{lm.get('impact')} vs true f{impact})")
-    ok = (n >= 40 and mean <= 2.0 and flips == 0 and arm_locks == 0
-          and bad <= max(1, n // 20) and phase_ok)
+
+    on = _score(f"{tmp}/faceon_swing_v3.csv", truth, tt, anch)
+    viol_on = _psi_violations(on["track"], phase, phi_s, psi_lo, psi_hi)
+    gap_resid = [float(x["psi_err"]) for x in csv.DictReader(open(f"{tmp}/faceon_swing_v3.csv"))
+                 if GAP_LO <= int(x["frame"]) <= GAP_HI and x["psi_err"]]
+    clean_resid = [float(x["psi_err"]) for x in csv.DictReader(open(f"{tmp}/faceon_swing_v3.csv"))
+                   if x["phase"] in ("impact", "thru") and x["psi_err"]
+                   and not (GAP_LO <= int(x["frame"]) <= GAP_HI)]
+    n = len(on["errs"]); mean = sum(on["errs"]) / n if n else 99
+    bad = sum(1 for e in on["errs"] if e > 15)
+    print(f"[recon ON ] band={on['band_n']} ray={on['ray_n']} recon={on['recon_n']}  "
+          f"err(non-gap) mean={mean:.2f} median={on['errs'][n // 2]:.2f} max={on['errs'][-1]:.2f} "
+          f"bad>15={bad}  flips={on['flips']}  arm-locks={on['arm_locks']}  "
+          f"release-psi-viol={viol_on}  gap-measured={len(on['gap_locked'])}  phase_ok={phase_ok}")
+
+    # ---- recon OFF (= v3.0) : the re-hinge / counterfeit must bite ---------
+    rc2, out2, err2 = _run_tool(tmp, clip, ["--no-psi-rail"])
+    if rc2:
+        print(err2[-1500:]); return 1
+    off = _score(f"{tmp}/faceon_swing_v3.csv", truth, tt, anch)
+    viol_off = _psi_violations(off["track"], phase, phi_s, psi_lo, psi_hi)
+    g_res = sum(gap_resid) / len(gap_resid) if gap_resid else 0.0
+    c_res = sum(clean_resid) / len(clean_resid) if clean_resid else 0.0
+    print(f"[recon OFF] release-psi-viol={viol_off}  gap-measured={len(off['gap_locked'])}  "
+          f"==>  isotonic removes re-hinges (viol {viol_off}->{viol_on}), rejects decoy "
+          f"(gap-measured {len(off['gap_locked'])}->{len(on['gap_locked'])}); residual "
+          f"localises error: gap {g_res:.1f} vs clean {c_res:.1f} deg")
+
+    # ---- verdict (fair: gap is a deliberate blackout, truth unrecoverable) -
+    known_ok = (n >= 40 and mean <= 2.0 and on["flips"] == 0 and on["arm_locks"] == 0
+                and bad <= max(1, n // 20) and phase_ok)     # known-theta recovery (Set S)
+    monotone_ok = viol_on == 0 and viol_off > viol_on        # isotonic restores monotone psi
+    reject_ok = len(on["gap_locked"]) < len(off["gap_locked"])  # decoy less measured w/ recon
+    resid_ok = g_res > c_res + 2.0                           # residual localises the error
+    ok = known_ok and monotone_ok and reject_ok and resid_ok
+    print(f"  checks: known-theta={known_ok} monotone-restored={monotone_ok} "
+          f"decoy-rejected={reject_ok} residual-localises={resid_ok}")
     print("SELFTEST", "PASS" if ok else "FAIL", f"({tmp})")
     return 0 if ok else 1
 

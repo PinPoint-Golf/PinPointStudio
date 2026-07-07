@@ -353,6 +353,53 @@ real fast arm rotation at the top; (2) transition-window width vs the release la
 swings ([[single-swing-never-judges-model-accuracy]]); (3) ψ̇_max from corpus, generous — never clip a
 fast release.
 
+#### v3.0-r1 AS-BUILT (2026-07-07): isotonic reconciliation supersedes the transition rail
+
+Built the DP transition rail first (Δψ sign-lock + smoothness + rate bound; `club_track_v3.py`). It
+passed synth + s01 but had to be **scoped release-only + band-protected** because a per-frame ψ-sign
+penalty *fires on the pose-φ noise floor* (`…/scratchpad/dpsi_noise.py`: 25–62% of backswing steps show
+a ~3° apparent un-cock that is pure noise — even on hand-marked θ). Mark's reframe closed it: **the
+monotone law is TRUTH, so a violation *measures* error → FIT the truth (isotonic), don't penalise the
+measurement.** Proven on real s01 first (`…/scratchpad/isotonic_demo.py`: fitting monotone ψ to the v3.0
+release flattens the f521–525 re-hinge and the residual spikes exactly there). The rail was **replaced**.
+
+**As-built (`reconcile_psi`, post a pure-C3 DP):** per-phase weighted robust isotonic — `_pava`
+(Pool-Adjacent-Violators, exact/deterministic) + `robust_isotonic` (Huber-IRLS, `ISO_HUBER=8`,
+`ISO_ITERS=3`). Weights `W_ISO={band:8,ray:2,pred:0.3}`, but **blur-zone (`RECON_PHASES`) non-band
+frames forced to pred-weight** so only confirmed bands anchor the fit and it *interpolates* ψ across the
+blur. Blur non-band θ reconstructed as `ψ_iso+φ` (arm-witness); measured θ kept elsewhere (self-anchors,
+no corruption); the residual `ψ*−ψ_iso` written as a new **`psi_err`** column (φ-error/confidence map,
+also `phi_clean=θ−ψ_iso`). New **`recon`** tier = blur frame moved off its evidence by >`RECON_TOL=6°`
+(honest arm-witness; excluded from truth like pred; kind=pred in the track contract). `--no-psi-rail` =
+pure v3.0. Bands pinned. `make_synth_v3.py`: blackout gap + fixed-θ decoy, FAIR criteria (gap θ-truth is
+physically unrecoverable — dropped as a metric): known-θ on non-gap measured, **release ψ-viol 5→0**,
+decoy gap-measured 4→2, residual localises (gap 4.3° vs clean 1.3°). Determinism byte-identical.
+
+**Gates.** synth `--selftest` PASS. **s01 PASS, BEATS the rail:** coverage 134=134 (no frame lost — the
+rail lost f520), accuracy improved (down bad>15 1→0, hand median 0.5→0.4), flips 0, impact re-hinge
+flattened + `psi_err` localises it. **Corpus A/B (studio, all 10; `run_v32r1_corpus.py`):** release
+ψ-viol **104→35** (every swing improved), flips 0, determinism byte-identical, down bad 1→0, medians
+held — **but thru p90 3.9→5.5 and thru coverage 678→649**. Diagnosed (`_diag_thru.py`): 24/29 worsened
+thru frames are `ray`, **all at f547–565 (follow-through, ~30–45f post-impact)** where the club is
+re-tracked but the folding arm φ degrades → `ψ_iso+φ` pulls a good ray off truth.
+
+**The physics behind it (Mark, 2026-07-07):** ψ is a **double reversal** — cock (top) → release to ≈0
+(impact) → passive centripetal **re-hinge** (follow-through), with **forearm rotation** (a third DOF,
+near-unobservable face-on: axially-symmetric shaft carries no roll signal) dominating the middle. The
+single-tent monotone-release law is only valid **address→impact**. **FIX (next session, not yet applied):
+`RECON_PHASES = ("impact",)`** — reconstruct only the impact blur; trust evidence + record the residual
+(roll-onset signal) through the follow-through. Predicted to recover thru p90 + coverage, keep the impact
+re-hinge win. Re-gate synth (move the decoy gap fully inside the impact phase) → s01 → corpus. Roll as a
+real third dimension is deferred to the **IMU / DTL / clubhead** channels (epistemic firewall), not the
+face-on shaft DP.
+
+**Studio-run playbook (learned this session).** Corpus batch runs on GOLFSIMPC via `ssh studio`
+(PowerShell, venv `C:\PinPointStudio\shaftlab\.venv\Scripts\python.exe`, python 3.14/cv2 5.0/numpy 2.5).
+Stage tools to the shared NAS `/mnt/swingdata/shaftlab/v3run/` (≡ `C:\PinPointStudio\shaftlab\v3run\`).
+**Detach long jobs with `Invoke-CimMethod Win32_Process Create` running a `.ps1`** — `Start-Process
+-NoNewWindow` is killed when the ssh session closes. PowerShell `*>` writes **UTF-16LE** → read logs with
+`iconv -f UTF-16LE`. Use `python -u` for a live log. NEVER cross-host diff (studio cv2 5.0 ≠ dev 4.13).
+
 ### ACTION — v3.0 phase model: takeaway mislabelled as address  *(folds into the v3.0-r1 ψ-rail re-gate)*
 
 **Surfaced by v3.2 (2026-07-06).** `segment_phases` triggers the swing on **grip** speed (`SW_SPD=8 px/f`),

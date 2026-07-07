@@ -299,3 +299,59 @@ s01 → corpus + fixture re-freeze), not an additive companion. It also
 ψ-rail carries the near-still early takeaway (grip barely translates, but ψ is
 already evolving and the arm is moving), which is exactly why that fix was parked
 behind "explore C4 first."
+
+### 8.1 As-built (2026-07-07): fit, don't penalise — and the law's domain
+
+The transition-rail plan above was built, gated, and then **superseded** by a
+cleaner form. Two findings drove the change (Mark).
+
+**1. Monotonicity is truth, so a violation is a *measurement of error* — fit it,
+don't penalise it.** A per-frame DP penalty on the sign of Δψ fires on the
+pose-φ noise floor: on real data 25–62% of backswing steps show a ≈2–4° apparent
+un-cock that is pure estimation noise (visible even on hand-marked θ; the
+one-reversal law is a property of the *trend*, not each discrete 1° step). The
+penalty had to be scoped release-only to avoid shoving θ off real backswing
+ridges, which threw away the law's backswing half. The dual is exact and clean:
+**treat monotone ψ as ground truth and FIT it** — per-phase weighted robust
+**isotonic regression** (Pool-Adjacent-Violators + Huber-IRLS), run *after* a
+pure-C3 DP. The fit's residual `ψ* − ψ_iso` is then a per-frame **φ-error /
+confidence map**; a well-measured frame anchors itself (`ψ_iso ≈ ψ*` there, so
+`ψ_iso + φ ≈ θ_measured`) so the fit **cannot corrupt a good measurement**; and
+in the impact blur, where the shaft is lost, the arm supplies `θ = ψ_iso + φ`
+(the witness, now as reconstruction not penalty). Bands are pinned (invariant 1)
+and dominate the fit weights; blur-zone non-band ridges are down-weighted so the
+fit *interpolates* ψ across the blur from the trusted measurements flanking it
+(this is what both bridges the true blur and rejects a ψ-non-monotone
+counterfeit). A blur frame whose reconstruction moves it off its own evidence by
+> `RECON_TOL` is retiered **`recon`** — an honest arm-witness estimate, excluded
+from truth like `pred`. Deterministic (PAVA is exact). See the exemplar bible
+for the ported detail.
+
+**2. ψ is a *double* reversal, and the law's domain is address→impact.** The
+plan modelled ψ as a single tent — cock to the top, release monotonically to the
+finish. The corpus (below) showed that is wrong past impact. Physically ψ cocks
+to the top (reversal one), releases to ≈0 at impact (wrists fully un-hinged),
+and then the wrists **re-hinge passively under centripetal load** as the arms
+decelerate into the follow-through (reversal two); and *between* the two, through
+and just past impact, the dominant motion is **forearm rotation about the shaft
+axis** — a third rotational DOF a face-on view cannot see (the shaft is axially
+symmetric; rolling it does not move the line). Imposing a monotone-release law to
+the finish therefore fights a real second reversal *and* a rotation it cannot
+represent. The law's clean domain is **address→impact**; the reconciliation is
+bounded to the **impact blur** (`RECON_PHASES = ("impact",)` — hinge-valid ∩
+shaft-lost), and past impact the shaft evidence, returned sharp, is trusted. The
+**third dimension (roll) is not a face-on-shaft state** — it carries zero shaft
+signal and does not move θ; it is deferred to the club IMU (full 3-D orientation,
+directly), the DTL camera, and the clubhead detector, and the follow-through
+ψ-residual is kept as a **roll-onset / release-complete signal**, not a θ
+correction.
+
+**Corpus A/B (studio, 10 swings; OFF = v3.0, ON = isotonic).** Release
+ψ-violations **104→35** (every swing improved), flips 0, byte-identical
+determinism, down `bad>15` 1→0, addr_back/down/finish medians unchanged, thru
+median held at 0.4°. The one regression — thru **p90 3.9→5.5°** and thru
+coverage 678→649 — was localised entirely to **follow-through frames f547–565**
+(24 of 29 worsened frames were `ray`, all post-impact), i.e. exactly the
+re-hinge/rotation regime the single-tent law does not model. This diagnosis is
+what motivates finding 2's `RECON_PHASES = ("impact",)`; the impact-blur bridge
+(the prize) is untouched by it. Re-gate pending after that narrowing.

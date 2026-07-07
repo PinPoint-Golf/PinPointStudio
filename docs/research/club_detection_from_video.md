@@ -638,6 +638,39 @@ less blurred), so a bounded monotone-release rail pins θ = ψ + φ from the arm
 exactly where the club cannot be seen. §4.6 reports the first measurement of
 the law on real data.
 
+**As-built refinement (2026-07-07): fit the law, and bound its domain.** Two
+lessons from building it changed the form. First, a *per-frame* transition
+penalty on the sign of Δψ fires on the pose-φ noise floor: on real data 25–62%
+of backswing steps show a small (≈2–4°) apparent reversal that is pure
+estimation noise — visible even on hand-marked θ. The one-reversal law is a
+property of the *trend*, not of each discrete step, so a violation is best read
+not as a fact to penalise but as a *measurement of error*. The penalty was
+therefore replaced by its dual: treat monotone ψ as ground truth and **fit** it
+(per-phase weighted robust isotonic regression, Pool-Adjacent-Violators with a
+Huber reweight), reading the error off the residual. The residual becomes a
+per-frame φ-error / confidence map; where the shaft is blurred the arm supplies
+θ = ψ\_iso + φ; and a well-measured frame anchors itself (its fit passes through
+it), so the reconciliation cannot corrupt a good measurement — the whole
+backswing-vs-release scoping problem of the penalty form simply dissolves.
+Second, and more fundamental, a ten-swing corpus exposed the law's *domain*.
+ψ is not a single tent but a **double reversal**: it cocks to the top (reversal
+one), releases to ≈0 at impact, and then — as the arms decelerate into the
+follow-through — the wrists **re-hinge passively under centripetal load**
+(reversal two). Between the two, through and just past impact, the dominant
+motion is not hinge at all but **forearm rotation about the shaft's long axis**
+— a third rotational degree of freedom a face-on view cannot see, the shaft
+being axially symmetric so that rolling it does not move the line. A
+one-reversal release law imposed to the finish therefore fights both a real
+second reversal and a rotation it cannot represent, and (§4.6) it degraded the
+*well-tracked* follow-through while helping only the impact blur. The law's
+valid domain is **address→impact**; the reconciliation is bounded to the impact
+blur (hinge-valid ∩ shaft-lost), and past impact the shaft evidence — returned
+sharp — is trusted. The third dimension, roll, is not estimated from the shaft
+but deferred to the channels that *can* see it — the club IMU (full 3-D
+orientation, directly), the down-the-line camera, and the clubhead detector —
+while the follow-through ψ-residual is retained as a release-complete /
+roll-onset signal rather than a tracking correction.
+
 ### 3.9 Rotation-compensated shift-and-stack (v3.1)
 
 This is a trick borrowed from astronomy, where faint moving objects are

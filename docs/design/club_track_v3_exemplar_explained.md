@@ -283,18 +283,24 @@ estimator's smoothness.
 > program (§8) — and uses C4 only as a wide guardrail. Do not "tighten the cone" in C++ expecting
 > the ideal; it will start clipping real swings.
 
-> **Planned evolution — the ψ-monotonicity rail (v3.0-r1, 2026-07-06; not yet built).** The cone above
-> is a *magnitude* bound. The double pendulum's *stronger* fact is that ψ = θ − φ is **monotone with a
-> single reversal at the top** — C3's one-reversal law, but on the wrist — and that was never encoded.
-> The plan recasts C4 from the static cone into a DP **transition** rail on Δψ = Δθ − Δφ (phase-signed,
-> rate-bounded, transition window for release-lag), which drops into the §8 Viterbi with no state-space
-> growth. Being a *monotonicity* constraint, not a magnitude one, it can be applied safely (it clips only
-> impossible paths, not real swings) and — the prize — it turns the well-tracked lead arm into a witness
-> for the club *through the impact blur*, where the shaft itself is unmeasurable. Gate-0 (s01 hand markup,
-> 2026-07-06) confirmed the law on real data: ψ monotone 55/58 backswing, 53/56 downswing, every
-> exception a pose-φ glitch; θ hand-vs-v2 agree to 0.01° median. Full design: `club_tracking_v3_design.md`
-> §8; research paper §3.8a/§4.6; staged plan: `../implementation/shaft_detection_v3_impl.md` §v3.0-r1.
-> When built, its invariants join 5/11 in §15.
+> **Evolution — the ψ-monotonicity reconciliation (v3.0-r1, 2026-07-07; built).** The cone above is a
+> *magnitude* bound. The double pendulum's stronger fact is that ψ = θ − φ is **monotone with one
+> reversal at the top** — C3's law on the wrist. First built as a DP **transition rail** on Δψ, this was
+> then **superseded** by a cleaner form on Mark's reframe: *monotone ψ is truth, so a violation measures
+> error → FIT the truth (per-phase robust isotonic regression, PAVA + Huber-IRLS) after a pure-C3 DP,
+> reading the error off the residual*, rather than penalising Δψ per frame (which fires on the pose-φ
+> noise floor — 25–62% of backswing steps show sub-degree "reversals" that are noise). The fit gives a
+> per-frame φ-error map (`psi_err`), reconstructs the impact-blur shaft from the arm (`θ = ψ_iso + φ`),
+> and cannot corrupt a good measurement (well-measured frames self-anchor). **Two corrections the corpus
+> forced:** (1) ψ is a *double* reversal — cock→release-to-≈0-at-impact→passive centripetal **re-hinge**
+> in the follow-through, with **forearm rotation** (a third DOF, invisible face-on) dominating the middle
+> — so the law's valid domain is **address→impact** and the reconciliation is bounded to the impact blur
+> (`RECON_PHASES=("impact",)`); (2) roll, the third dimension, is deferred to the IMU/DTL/clubhead, not
+> estimated from the axially-symmetric shaft. Corpus A/B: release ψ-viol 104→35, flips 0, determinism
+> byte-identical. Full detail: `club_tracking_v3_design.md` §8.1; research §3.8a; as-built +
+> studio-run playbook: `../implementation/shaft_detection_v3_impl.md` §v3.0-r1. Porting invariants for
+> the isotonic form join 5/11 in §15 (fit-not-penalise; bands pin + anchor; blur-weight interpolation;
+> impact-only domain; `recon` excluded from truth).
 
 ---
 
