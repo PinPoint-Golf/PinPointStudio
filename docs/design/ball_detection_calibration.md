@@ -1,5 +1,16 @@
 # Calibrated Ball Detection — Design & Implementation Plan
 
+> **⛔ RETIRED / SUPERSEDED (2026-07-08, commit `d44c728`).** The v1 calibration stack this document
+> describes — `ball_model.h`, `ball_calibration_logic.h`, `ball_calibration_store.h`,
+> `BallCalibrationController`, `BallCalibrationFlow.qml`, the Settings/wizard calibration surfaces, and
+> the `setProfile`/drift paths — has been **deleted from the codebase**. In practice nobody ran the
+> place/remove/validate protocol (every corpus swing was `calibrated:false`) and it failed in bright/
+> saturated studios. It is replaced by the **self-calibrating temporal matched filter**
+> ([`ball_detection_v2.md`](ball_detection_v2.md)), which learns only the empty-mat baseline (one
+> "Learn hitting area" press) and detects the ball against it — no ball-appearance profile, no drift
+> monitor. This document is kept for historical context and for the physics still cited by v2
+> (ball diameter, the dim-studio failure analysis). **Do not implement from it.**
+
 **Environment-calibrated stationary-ball detection with a user-in-the-loop calibration protocol.**
 
 Replaces the fixed-threshold Hough/HSV detector (`src/Pose/ball_detector.cpp`) with a detector whose

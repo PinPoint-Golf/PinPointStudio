@@ -6,10 +6,19 @@ Companion to the design [`docs/design/ball_detection_v2.md`](../design/ball_dete
 doc expands each phase with real integration points, the delete-vs-rework map of the v1 footprint,
 the stance corridor (design §4.1a) threaded through V0–V2, and the ground-truth route.
 
-Status: **planned (2026-07-07). Not started.** Corpus: `/mnt/swingdata/Mark-Liversedge` — 44 swings,
-4 non-empty sessions (06-11, 07-03, 07-04, 07-05_Wrist_02), 3 lighting regimes. `capture.impactUs`
-present in every swing.json (independent launch truth). Python env: `/home/markl/venv/pinpoint/bin/python3`
-(cv2 4.13, numpy 2.4). Run OpenCV corpus jobs **one at a time** (16 GB box — see the standing rule).
+Status: **V0–V4 DONE + pushed (2026-07-08). V5 field validation in progress; two refinements deferred.**
+The temporal detector is the sole live ball path, validated in low light; the v1 calibration stack is
+deleted. Six commits on `origin/main`: `ff1e53d` (V1 core+parity) · `9d71027` (V2 detector core) ·
+`8b8f5a1` (V2 live wiring) · `3ee1b0b` (V3 wizard) · `d44c728` (V3 calibration retirement) · `1cee211`
+(V4 ball→arbiter). **Remaining:** V5 live launch→fusion validation (cabin testing); **Provenance v2**
+(swing.json auto-detected position + satFrac); **precise launch timestamps** (offer-stamped frame ts vs
+today's age-from-now estimate). Per-phase detail below; every "uncommitted" note in the V1–V3 bodies is
+now committed + pushed per the commit list above.
+
+Corpus: `/mnt/swingdata/Mark-Liversedge` — 44 swings, 4 non-empty sessions (06-11, 07-03, 07-04,
+07-05_Wrist_02), 3 lighting regimes. `capture.impactUs` present in every swing.json (independent launch
+truth). Python env: `/home/markl/venv/pinpoint/bin/python3` (cv2 4.13, numpy 2.4). Run OpenCV corpus jobs
+**one at a time** (16 GB box — see the standing rule).
 
 ---
 
@@ -89,7 +98,7 @@ The algorithm settled through three iterations the harness caught *before* any C
   ball-departure latency (→ `kBallLaunchLatencyUs`) + collapse completeness; `satFrac`-over-ROI
   over-flags → add a ball-vs-mat contrast/SNR health signal; swing.json should record the ROI.
 
-### V1 — C++ core  ·  `src/Pose/ball_temporal.h` + tests  ·  risk: low (pure, testable)  ·  **DONE (2026-07-08, uncommitted)**
+### V1 — C++ core  ·  `src/Pose/ball_temporal.h` + tests  ·  risk: low (pure, testable)  ·  **DONE (committed ff1e53d, pushed)**
 - Header-only, OpenCV-only, **no-Qt** (mirrors `ball_model.h`; test is a `NO_QT` target). Ported the
   **settled** exemplar per the bible's §12 "must-preserve" list: DoG on a **padded** crop; robust-MAD
   noise; the **fast-EMA accumulator `A`** + accumulated novelty `N_acc`; the 2nd-moment `is_blob`
@@ -121,7 +130,7 @@ The algorithm settled through three iterations the harness caught *before* any C
   (locked position, `ix/iy`, lock frame, `medN`, `L0`, launch frame all match; lone residue 1e-5 px in
   one sub-pixel coord = double-vs-float32 in `subpixelPeak`). Full `pose-tests` ctest: 5/5.
 
-### V2 — Detector rework (scoped: presence-first) · `src/Pose/ball_detector.{h,cpp}` + plumbing · risk: med (frame path) · **IN PROGRESS**
+### V2 — Detector rework (scoped: presence-first) · `src/Pose/ball_detector.{h,cpp}` + plumbing · risk: med (frame path) · **DONE (committed 9d71027 + 8b8f5a1, pushed)**
 **Detector core DONE (2026-07-08, uncommitted, contract-test-verified — no app build needed):**
 `BallDetector` now runs the v2 temporal path (`ball_temporal.h` `TemporalBallTracker`) as the default
 when no calibration profile is set; the v1 calibrated path is kept as a **functional fallback** (not
@@ -180,7 +189,7 @@ changes less and can roll back. Keep `ball_state_machine.py` as the regression o
   setup loop, so wire it in V2 even though the wizard QML lands with V3's repurpose.
 - **Gate**: contract test green; live app builds; presence shows on a corpus replay.
 
-### V3 — Wizard repurpose + calibration retirement · **IN PROGRESS**
+### V3 — Wizard repurpose + calibration retirement · **DONE (committed 3ee1b0b + d44c728, pushed)**
 
 **Wizard BallCal step redesigned DONE (2026-07-08, uncommitted — app builds clean + headless-smoke OK):**
 `ScreenSessionWizard.qml` step 3 dropped the `BallCalibrationFlow`/`ballCalibrationFor` wiring and now
@@ -231,20 +240,37 @@ population at `shot_processor.cpp:716-724`: set `positionSource:"auto"`, add `sa
 `center`/`radiusNorm`; drop `calibrated`/`margin`/`driftAtCapture`. (The ball-centre *ground truth*
 lives separately in `truth.json` via the markup tool — §1.)
 
-### V4 — `Source::Ball` trigger  ·  `main.cpp` + `PpDetectCluster.qml`  ·  risk: low (pattern exists)
-- Mirror the IMU wiring (`main.cpp:342-347`) at the reserved comment (`main.cpp:407-411`):
-  `connect(ballLaunched → shotController.reportCandidate(Source::Ball, estImpactUs, conf))` gated on
-  `appSettings.autoDetectSwing()`. `Source::Ball` + its 1250 ms post-roll already exist
-  (`shot_controller.h:48`, `shot_processor.cpp:63`).
-- `PpDetectCluster.qml`: replace the calibration/drift `baseColor` logic (`:113-115`) with an
-  exposure-warning amber tier; wire the ball dot's `triggerFlash()` on `ballLaunched` (mirror the
-  IMU/acoustic `Connections`, `:139-146`) — it has none today. `exposureWarning` → amber hint.
+### V4 — `Source::Ball` trigger  ·  `main.cpp` + the camera chain  ·  **DONE (committed 1cee211, pushed)**
+- Wired the launch into the shot funnel, mirroring the IMU/acoustic chains: `BallDetector::ballLaunched`
+  reports the launch **age** (frames-since-collapse × interval + `kBallLaunchLatencyUs`=24 ms) →
+  `CameraInstance` stamps it to absolute `EventBuffer::nowMicros()` and emits `ballLaunched(estImpactUs,
+  conf=0.6)` → `CameraManager::ballLaunched` forwards it → `main.cpp` connects it to
+  `shotController.reportCandidate(Source::Ball, …)` gated on `autoDetectSwing()` (the reserved comment is
+  filled). `Source::Ball` + its post-roll already existed. conf 0.6 < the 0.8 lone-candidate floor →
+  vision corroborates, never self-commits.
+- **As-built deviation:** did NOT do the offer-stamped frame-timestamp plumbing — `framePreprocessed` is
+  shared with 4 pose estimators, so plumbing a ts through it would drag the pose subsystem into a ball
+  change. Instead the timestamp is an **age-from-now estimate** (~5–20 ms residual from pipeline latency;
+  within the arbiter's ±40 ms fuse window when healthy, safely non-fusing when not). Precise offer-stamped
+  timestamps are the deferred refinement (below), needed only for the later ball/club-speed work.
+- **Not done (intentionally):** `PpDetectCluster` ball-dot `triggerFlash()` on launch + an exposure-amber
+  tier — the dot still shows presence only; a small follow-up.
 
-### V5 — Field validation  ·  hardware-gated  ·  risk: low
-- Live studio session per design §9.4: presence dot through a normal session, launch flash on real
-  shots, arbiter log shows Ball candidates *fusing* with IMU/acoustic (not committing alone).
+### V5 — Field validation  ·  hardware-gated · **IN PROGRESS (cabin testing, 2026-07-08)**
+- Live session validation: wizard learn→detect→gate flow, live presence overlay + ting, and — the
+  unverified bit — the ball candidate *fusing* with IMU/acoustic on real shots (arbiter-gated, so worst
+  case it just doesn't contribute). The launch cliff itself is still V0-rough → expect intermittency.
 - Grow the corpus with a **tee'd-driver Swing session** (corpus is Wrist-only; tee'd geometry
-  unvalidated). Decide the presence-window shortening (50 → ~12 frames, `camera_instance.h:354`).
+  unvalidated). Decide the presence-window shortening (50 → ~12 frames, `camera_instance.h`).
+
+### Deferred refinements (post-V5)
+- **Provenance v2** (`swing_exporter` + `shot_processor`): record the v2 auto-detected locked ball
+  position + `satFracAtCapture` in swing.json with `positionSource:"auto"`, and drop the now-vestigial
+  `calibrated`/`margin`/`driftAtCapture` fields. Today swing.json carries `ballDetection.calibrated:false`
+  (CamRecord defaults) — schema-stable, SwingLab-safe, but no v2 position yet.
+- **Precise launch timestamps**: the offer-stamped frame-ts plumbing (`FrameThrottle::offer` →
+  `framePreprocessed`), for the ball/club-speed phase where timing fidelity matters.
+- **Exposure-based launch confidence**: drop conf to 0.4 when `satFrac > 0.25` (design §8); today fixed 0.6.
 
 ---
 

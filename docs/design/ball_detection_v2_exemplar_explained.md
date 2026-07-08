@@ -371,8 +371,21 @@ State honestly what is *not* yet solved, so the port does not enshrine it as cor
 
 ## 12. Porting to C++ — what must be preserved
 
-The port target is `src/Pose/ball_temporal.h` (header-only, OpenCV-only, no Qt — like `ball_model.h`;
-its test is a `NO_QT` target). Structure: **pure functions** + a small `TemporalBallTracker` struct.
+> **DONE (2026-07-08, `ff1e53d`).** Ported to `src/Pose/ball_temporal.h`; parity is **byte-exact** on
+> 3 golden swings (healthy / weak-contrast / saturated) via `ball_temporal_parity_test` +
+> `tools/balllab/gen_parity_ref.py`. Two must-preserve details bit the port and are now enforced +
+> commented in the header: **(a)** the padded crop must be `.clone()`d before the DoG (a bare `cv::Mat`
+> submatrix reads parent pixels past the ROI border, defeating the padding and diverging from the
+> exemplar's fresh `cvtColor` slice); **(b)** the EMA `A += af·(R−A)` and `N_acc = D/noise` run in
+> **float32** manual loops, not OpenCV's double-scalar path, else EMA feedback drifts the accumulator
+> and shifts the lock frame vs numpy. The parity test consumes python's **own** dumped `R`+`B` (not a
+> C++ decode) because independent OpenCV versions decode the corpus H.264 to different pixels — so it is
+> a byte-exact test of the state machine; the DoG/padding pipeline is verified separately by
+> `ball_temporal_test`. This python exemplar remains the **regression oracle**: iterate here, re-parity,
+> re-port — never hand-tune the C++.
+
+The port target is `src/Pose/ball_temporal.h` (header-only, OpenCV-only, no Qt; its test is a `NO_QT`
+target). Structure: **pure functions** + a small `TemporalBallTracker` struct.
 
 **Must be reproduced exactly (these are the algorithm):**
 

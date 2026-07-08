@@ -1,5 +1,16 @@
 # PinPoint — Low-Point-Ahead-of-Ball: Technical Design
 
+> **⚠ Ball-position source changed (2026-07-08, `d44c728`/ball-detection v2).** This design assumes the
+> ball position/radius comes from the **v1 calibration profile** (`setup.ballDetection.center` populated
+> from `CameraInstance::ballCalHasPosition()`/`ballCalCenterX/Y()`/`ballCalRadiusNorm()`). That whole v1
+> calibration stack has been **deleted** — those getters no longer exist, and `swing.json` currently
+> carries no ball position (`ballDetection.calibrated:false`, no `center`/`radiusNorm`). The replacement
+> is the **v2 temporal detector's auto-detected locked position**, which is the deferred **"Provenance v2"**
+> follow-up (record `positionSource:"auto"` + the locked centre/radius + `satFrac` — see
+> [`ball_detection_v2_impl_plan.md`](../implementation/ball_detection_v2_impl_plan.md)). **This metric now
+> waits on Provenance v2 for its ball input.** Also: `kBallDiameterMm` moved from `src/Pose/ball_model.h`
+> (deleted) to `src/Pose/ball_temporal.h` (`pinpoint::balltemporal::kBallDiameterMm`).
+
 **Status:** v1 **enabling work landed** (this change): the ball-diameter scale
 constant and the persisted, co-registered ball position/radius are now in
 `swing.json`. **The metric computation and any UI display are deferred** — see

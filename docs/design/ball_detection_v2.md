@@ -7,12 +7,18 @@ Replaces the runtime core *and* the user-in-the-loop calibration protocol of
 [`ball_detection_calibration.md`](ball_detection_calibration.md) (B0–B5, 2026-06). The CNN/Kalman
 flight-tracking plan ([`ball_detector_design.md`](ball_detector_design.md)) is unaffected; this
 becomes its acquisition layer. Part of the vision modality of `shotdetection.md` — v2 finally
-delivers the `Source::Ball` trigger candidate (§11 of the calibration doc, dormant until now).
+delivers the `Source::Ball` trigger candidate, now **wired live into the shot arbiter** (V4).
 
-Status: **design + corpus-validated prototype (2026-07-07). Not implemented.**
-Prototype/validation harness: [`tools/balllab/`](../../tools/balllab/) (`corpus_separation.py`,
-`launch_trace.py`) — run against `/mnt/swingdata/Mark-Liversedge` (44 swings, 4 sessions, 3
-distinct lighting regimes).
+Status: **IMPLEMENTED + pushed (2026-07-08).** V0–V4 shipped on `origin/main` (`ff1e53d`→`1cee211`):
+the temporal detector is the sole live ball path (validated in low light), the v1 calibration stack is
+deleted, the start-session wizard runs the Option-A learn→detect→gate flow, and the launch feeds the
+shot arbiter as a corroboration-only candidate. Field validation (V5) is in progress; two refinements
+are deferred (Provenance v2 + precise launch timestamps). The as-built detail and deviations live in the
+implementation plan
+[`ball_detection_v2_impl_plan.md`](../implementation/ball_detection_v2_impl_plan.md).
+Prototype/validation harness: [`tools/balllab/`](../../tools/balllab/) (`ball_state_machine.py`,
+`acceptance.py`, `gen_parity_ref.py` — the regression oracle) — run against
+`/mnt/swingdata/Mark-Liversedge` (44 swings, 4 sessions, 3 distinct lighting regimes).
 
 ---
 
@@ -476,23 +482,29 @@ runs on every corpus session including future ones; same role SwingLab plays for
   rather than hand-drawn. Ship the manual ROI editor as the fallback; auto-seed is a follow-up UX
   polish, not a detection dependency.
 
-## 11. Implementation plan (handoff)
+## 11. Implementation plan (handoff) — DELIVERED
 
-| Phase | Deliverable | Size | Risk |
-|---|---|---|---|
-| **V0 — harness ✅ DONE** | `tools/balllab/ball_state_machine.py` + `acceptance.py`: full state machine (accumulation + moment shape-gate + ROI) + §9.1 gates. Acquisition solved corpus-wide incl. saturated 06-11. *The spec executable and parity oracle.* | M | Done |
-| **V1 — core (NEXT)** | Port the SETTLED exemplar → `src/Pose/ball_temporal.h` (pure functions + `TemporalBallTracker`) per the **bible's §12 must-preserve list**; unit tests §9.2; numeric parity with V0 on 3 golden swings (`shaft_parity_test` convention). *Do not re-tune in C++.* | M | Low — pure, testable |
-| **V2 — detector rework (scoped)** | `BallDetector` swap; timestamp + ROI/corridor plumbing; new signals (§7); throttle test §9.3. **Presence-first**; defer V3. | M | Med — frame path |
-| **V4 — Source::Ball** | `ballLaunched → reportCandidate` (arbiter-gated); DetectDot flash + amber-exposure tier | S | Low — pattern exists |
-| **V3 — calibration retirement (DEFERRED)** | Delete the dormant v1 core/controller/flow/store + Settings & wizard surfaces *after* v2 is proven live; provenance block v2 (`positionSource:"auto"`, `satFracAtCapture`, **`hittingAreaRoi`**) | M | Low — deletion |
-| **V5 — field validation** | Refine in anger (position/latency/health) with the harness as oracle; tee'd-driver corpus; presence-window shortening | S | hardware-gated |
+All phases shipped (`origin/main`, 2026-07-08). This table is now a record; the live status + as-built
+deviations are in [`ball_detection_v2_impl_plan.md`](../implementation/ball_detection_v2_impl_plan.md).
 
-Sequencing note: V0 (DONE) before V1 was deliberate — every algorithmic decision was reached by
-measuring the corpus, and the harness is how you know the C++ matches the evidence. **The full
-exemplar, and exactly what the C++ port must preserve, is written up in the port bible
-[`ball_detection_v2_exemplar_explained.md`](ball_detection_v2_exemplar_explained.md) §12.** Promotion
-order is V1 → scoped V2 → V4, deferring V3; keep the python harness as the regression oracle and
-never hand-tune the C++ against a single live swing.
+| Phase | Deliverable | Status |
+|---|---|---|
+| **V0 — harness** | `tools/balllab/ball_state_machine.py` + `acceptance.py`: state machine (accumulation + moment shape-gate + ROI) + §9.1 gates. Acquisition solved corpus-wide incl. saturated 06-11. The executable spec + parity oracle. | ✅ Done |
+| **V1 — core** | Ported the settled exemplar → `src/Pose/ball_temporal.h` (pure fns + `TemporalBallTracker`) per the bible §12; unit tests §9.2; **byte-exact** numeric parity with V0 on 3 golden swings. | ✅ `ff1e53d` |
+| **V2 — detector rework** | `BallDetector` runs the temporal path; self-measured detect rate; presence + rearm; throttle test §9.3. Live-wired; **low-light-validated**. | ✅ `9d71027`+`8b8f5a1` |
+| **V3 — wizard + calibration retirement** | Repurposed the wizard ball step (Option-A learn→detect→gate) and **deleted the entire v1 calibration stack** (core/controller/flow/store + Settings/wizard surfaces). | ✅ `3ee1b0b`+`d44c728` |
+| **V4 — Source::Ball** | `ballLaunched → CameraManager → reportCandidate(Source::Ball)` (arbiter-gated, corroboration-only). *DetectDot launch flash / exposure-amber tier: small follow-up, not done.* | ✅ `1cee211` |
+| **V5 — field validation** | Live launch→fusion validation (cabin testing); tee'd-driver corpus; presence-window shortening. | ⏳ In progress |
+
+Deferred refinements (post-V5): **Provenance v2** (swing.json `positionSource:"auto"` + `satFracAtCapture`
++ the auto-detected locked position, dropping the vestigial calibrated fields — the `hittingAreaRoi`
+provenance idea folds in here) and **precise launch timestamps** (offer-stamped frame ts vs today's
+age-from-now estimate; only needed for the later ball/club-speed work).
+
+The full exemplar, and exactly what the C++ port preserved, is in the port bible
+[`ball_detection_v2_exemplar_explained.md`](ball_detection_v2_exemplar_explained.md) §12. The python
+harness remains the regression oracle — never hand-tune the C++ against a single live swing; reproduce
+in the harness, re-parity, re-port.
 
 The grounded, file-referenced execution plan (real integration points, delete-vs-rework of the v1
 footprint, the stance corridor threaded through V0–V2, and the ground-truth labelling route) lives
