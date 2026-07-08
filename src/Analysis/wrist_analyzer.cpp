@@ -305,8 +305,10 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
         // Heavy-stage bounding (v3 G3): scan only the detected swing span
         // (+pad for pass-1 timing error). The shaft detection loop follows
         // pose coverage, so this bounds both heavy stages. conf 0 ⇒ full
-        // window, exactly today's behaviour.
-        if (segmentation.conf > 0.f) {
+        // window, exactly today's behaviour. job.fullWindow (explicit
+        // re-analysis) opts out of the bound too — correctness over speed
+        // when the user asks for it directly.
+        if (segmentation.conf > 0.f && !job.fullWindow) {
             constexpr int64_t kScanPadUs = 150000;
             opt.scanStartUs = segmentation.swingStartUs - kScanPadUs;
             opt.scanEndUs   = segmentation.swingEndUs   + kScanPadUs;

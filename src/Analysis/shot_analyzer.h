@@ -96,6 +96,13 @@ struct ShotAnalysisJob {
     // Default OFF: the production GUI runs assessment in its own diagnostics model; only the
     // lab opts in, so live behaviour and existing baselines are untouched.
     bool runAssessment = false;
+
+    // Skip the heavy-stage swing-span bounding (v3 G3 pose/ball scan window +
+    // shaft.spanBound) and process the entire captured window instead. Live
+    // capture always leaves this false (throughput matters, the padded span
+    // already covers address→finish); explicit re-analysis sets it true
+    // (correctness over speed — see ReanalyzeOptions::fullWindow).
+    bool fullWindow = false;
 };
 
 // Result shapes mirror the ShotListModel roles so the join can hand them to

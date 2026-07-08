@@ -576,6 +576,7 @@ ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOption
         ls.job.sessionType = opts.sessionTypeOverride;
     if (!opts.poseTrackPath.isEmpty())
         ls.job.poseTrackPath = opts.poseTrackPath;
+    ls.job.fullWindow = opts.fullWindow;
     // Fail closed on an unknown discipline rather than silently analysing as Wrist
     // and writing a wrong-discipline analysis block back (our exports always carry
     // capture.sessionType; swinglab_run resolves its own default before analyze()).

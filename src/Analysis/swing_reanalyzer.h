@@ -69,6 +69,12 @@ struct ReanalyzeOptions {
     QVariantMap tuningOverrides;            // "<area>.<field>" → numeric (SwingLab)
     int         sessionTypeOverride = -1;   // -1 → use swing.json capture.sessionType
     QString     poseTrackPath;              // inject pose JSON, skip ViTPose (tests / --pose)
+    // Forwarded to ShotAnalysisJob::fullWindow — disables the swing-span heavy-
+    // stage bound so the whole captured window (not just the padded swing span)
+    // is scanned. The in-app ReanalysisController sets this true on every
+    // explicit re-analyse; SwingLab leaves it false to keep sweeps comparable
+    // to production's live-capture bound unless a run opts in.
+    bool        fullWindow = false;
 };
 
 struct ReanalyzeResult {

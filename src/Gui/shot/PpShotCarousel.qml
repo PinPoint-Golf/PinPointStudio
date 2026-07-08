@@ -76,6 +76,13 @@ Item {
     // read below wouldn't otherwise observe, leaving the identity chip stale.
     property int _editTick: 0
 
+    // Live state for the sticky "Re-analysing…" toast (see the reanalysisController
+    // Connections block below): total shots queued across the batch and elapsed
+    // wall-time since it started, so a multi-swing batch (each swing runs ViTPose
+    // sequentially and can take a while) never leaves the user wondering if it's stuck.
+    property int _reanalyseQueuedCount: 0
+    property int _reanalyseElapsedS: 0
+
     // Focused-shot metadata for the action bar. Re-resolved when the focused id
     // changes, the shot set mutates (touch activeCount) so a trashed focused shot
     // drops the bar's focus identity instead of lingering stale, or a field is
@@ -106,6 +113,7 @@ Item {
         if (dirs.length === 0) {            // analysis-only shots have no on-disk files
             toast.showUndo = false
             toast.copyText = ""
+            toast.sticky   = false   // in case a re-analysis batch left the toast pinned
             toast.glyph    = "ℹ"
             toast.show(emptyMsg)
             return
@@ -166,6 +174,7 @@ Item {
                 const ok = root.activeModel.moveToTrash(SessionMode.focusedShotId)
                 toast.showUndo = false   // OS trash is the recovery path, not an in-app undo
                 toast.copyText = ""
+                toast.sticky   = false   // in case a re-analysis batch left the toast pinned
                 toast.glyph    = "🗑"
                 toast.show(ok ? qsTr("Shot moved to trash")
                               : qsTr("Could not move shot to trash"))
@@ -175,6 +184,7 @@ Item {
                 const n = root.activeModel.moveAllToTrash(ids)
                 toast.showUndo = false   // OS trash is the recovery path, not an in-app undo
                 toast.copyText = ""
+                toast.sticky   = false   // in case a re-analysis batch left the toast pinned
                 toast.glyph    = "🗑"
                 toast.show(ids.length === 0 ? qsTr("No shots to trash")
                            : n === ids.length ? qsTr("%1 shots moved to trash").arg(n)
@@ -448,6 +458,7 @@ Item {
                 const ok = sessionReviewController.trashSession(sessionId)
                 toast.showUndo = false   // OS trash is the recovery path, not an in-app undo
                 toast.copyText = ""
+                toast.sticky   = false   // in case a re-analysis batch left the toast pinned
                 toast.glyph    = "🗑"
                 toast.show(ok ? qsTr("Session moved to trash")
                               : qsTr("Could not move session to trash"))
@@ -470,6 +481,7 @@ Item {
         target: swingExporter
         function onExportFinished(ok, zipPath, error) {
             toast.showUndo = false
+            toast.sticky   = false   // in case a re-analysis batch left the toast pinned
             if (ok) {
                 toast.glyph    = "✓"
                 toast.copyText = zipPath
@@ -482,21 +494,32 @@ Item {
         }
     }
 
-    // Re-analyse feedback — a notice toast when a batch is queued and again when it
-    // drains; each finished swing refreshes its row in the active model.
+    // Re-analyse feedback — a sticky notice toast for the whole batch (pinned, with a
+    // live elapsed-time readout, instead of PpToast's usual ~7s auto-dismiss — a batch
+    // can run several sequential ViTPose passes and take much longer than that), then a
+    // normal auto-dismissing outcome toast once it drains. Each finished swing refreshes
+    // its row in the active model.
     Connections {
         target: reanalysisController
         function onReanalyseQueued(count) {
+            // A fresh batch (not already reanalysing) resets the running total/elapsed;
+            // a mid-batch top-up (user queues more while one is in flight) accumulates.
+            root._reanalyseQueuedCount = reanalysisController.reanalysing
+                ? root._reanalyseQueuedCount + count : count
             toast.showUndo = false
             toast.copyText = ""
             toast.glyph    = "↻"
-            toast.show(count === 1 ? qsTr("Re-analysing · 1 shot")
-                                   : qsTr("Re-analysing · %1 shots").arg(count))
+            toast.sticky   = true
+            toast.show(root._reanalyseQueuedCount === 1
+                ? qsTr("Re-analysing · 1 shot")
+                : qsTr("Re-analysing · %1 shots").arg(root._reanalyseQueuedCount))
         }
         function onReanalysed(swingDir) {
             root.activeModel.refreshShot(swingDir)
         }
         function onReanalyseFinished(succeeded, failed, lastError) {
+            toast.sticky   = false
+            root._reanalyseQueuedCount = 0
             toast.showUndo = false
             toast.copyText = ""
             toast.glyph    = "↻"
@@ -511,6 +534,24 @@ Item {
                 toast.show(failed === 0 ? qsTr("Re-analysed %1 shots").arg(succeeded)
                                         : qsTr("Re-analysed %1, %2 failed").arg(succeeded).arg(failed))
             }
+        }
+    }
+
+    // Elapsed-time readout for the sticky re-analysing toast, mirroring
+    // PpAnalysingBadge's elapsedLabel format (Ns, or M:SS past a minute).
+    Timer {
+        id: reanalyseElapsedTimer
+        interval: 1000; repeat: true
+        running: reanalysisController.reanalysing
+        onRunningChanged: if (running) root._reanalyseElapsedS = 0
+        onTriggered: {
+            root._reanalyseElapsedS++
+            const s = root._reanalyseElapsedS
+            const label = s >= 60 ? Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0")
+                                  : s + "s"
+            toast.message = root._reanalyseQueuedCount === 1
+                ? qsTr("Re-analysing · 1 shot · %1").arg(label)
+                : qsTr("Re-analysing · %1 shots · %2").arg(root._reanalyseQueuedCount).arg(label)
         }
     }
 

@@ -105,7 +105,9 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
     }
     const int w = int(cfmt->width), h = int(cfmt->height);
 
-    const ShaftV3Config cfg = ShaftV3Config::fromOverrides(job.tuningOverrides);
+    ShaftV3Config cfg = ShaftV3Config::fromOverrides(job.tuningOverrides);
+    if (job.fullWindow)
+        cfg.spanBound = false;   // explicit re-analysis: evidence over the whole window, not just the swing span
 
     // camera frames inside pose coverage
     const std::vector<pinpoint::IndexEntry> all = window.entriesFor(pose.camera);

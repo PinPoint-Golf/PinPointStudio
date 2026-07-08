@@ -91,8 +91,13 @@ void ReanalysisController::startNext()
     const QString dir = m_current;
     // One swing at a time: the analyzer's ViTPose pass runs at physical-core thread
     // count and streams a window from disk — sequential keeps memory/CPU bounded.
+    // fullWindow: an explicit re-analyse is off the live-capture critical path, so
+    // trade the swing-span heavy-stage bound for scanning the whole 5 s window —
+    // correctness over throughput.
     m_watcher.setFuture(QtConcurrent::run([dir] {
-        return pinpoint::analysis::reanalyzeSwingDir(dir);
+        pinpoint::analysis::ReanalyzeOptions opts;
+        opts.fullWindow = true;
+        return pinpoint::analysis::reanalyzeSwingDir(dir, opts);
     }));
 }
 

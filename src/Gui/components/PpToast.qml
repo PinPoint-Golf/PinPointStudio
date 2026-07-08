@@ -34,6 +34,12 @@ Rectangle {
     property bool   showUndo: true
     // When non-empty, a copy icon copies this text to the clipboard on tap.
     property string copyText: ""
+    // Suppresses the auto-hide timer — for notices whose lifetime is owned by
+    // the caller (e.g. a "…in progress" toast that must stay up for the whole
+    // duration of an operation of unknown length). The caller is responsible
+    // for calling show() again with sticky=false once the operation ends, so
+    // the normal auto-hide resumes for the outcome message.
+    property bool   sticky: false
     // "info" (neutral, default), "warn", or "error" — tints the border and
     // glyph so the notice reads at the right urgency without shouting (the
     // fill stays the neutral elevated surface).
@@ -49,7 +55,10 @@ Rectangle {
     function show(msg) {
         message = msg
         visible = true
-        hideTimer.restart()
+        if (sticky)
+            hideTimer.stop()    // stop, not just skip-restart: a prior toast's timer may still be ticking
+        else
+            hideTimer.restart()
     }
 
     visible: false
