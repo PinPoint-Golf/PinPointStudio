@@ -192,7 +192,21 @@ which already tings on the present transition) → **Continue gated on a detecte
 summary row / footer hint / pips now read `ballReady` ("Ball detected"). Remaining: **the rest of the
 calibration-stack deletion below** (the "soon" work).
 
-**Then delete (v1 core + UI, fully mapped) — DEFERRED "soon" (after the wizard):**  ·  deletion  ·  risk: low
+**Calibration-stack deletion DONE (2026-07-08, uncommitted — app builds clean + headless-smoke OK, pose-tests 3/3):**
+removed `ball_model.h` / `ball_calibration_logic.h` / `ball_calibration_store.h`, `ball_calibration_controller.{h,cpp}`,
+`BallCalibrationFlow.qml`, `ball_model_test.cpp` + `ball_calibration_test.cpp` (+ CMake). `BallDetector` stripped of
+`setProfile`/`clearProfile`/`beginCalibCapture`/`cancelCalibCapture`/`detectCalibrated`/`environmentDrift`/
+`calibFrame`/`calibCaptureDone` + the `BallCalProfile` metatype. `CameraInstance` lost `applyBallCalProfile`/
+`clearBallCalProfile`/`ballCalibrated`/`ballDrifting`/`ballDriftSeverity` + the cal members + the drift/TEMP-diagnostic
+connections + `setBallTingSuppressed` (ting now always fires). `CameraManager` lost `ballCalibrationFor` + the
+profile-restore. CamerasPanel dropped the calibration flow/drift/clear-saved (kept the ROI editor + a "Learn hitting
+area" link). `PpDetectCluster` ball dot dropped the uncalibrated/drift amber tier. **Export provenance kept
+deletion-safe:** `shot_processor` no longer populates the ball-cal fields, so `CamRecord` defaults make swing.json
+carry `ballDetection.calibrated:false` exactly like an uncalibrated swing today (no schema change, no SwingLab break);
+the additive **Provenance v2** (record the auto-detected locked position + satFrac, drop the calibrated fields) is a
+clean follow-up. TEMP `[Ball v2]` ppInfo diagnostics stripped.
+
+**(reference — the fully-mapped delete list, now executed):**  ·  deletion  ·  risk: low
 Do this *after* V2/V4 ship and presence is proven in anger — leaving the dormant v1 stack in place
 until then keeps the promotion small and reversible. Delete (v1 core + UI, fully mapped):
 - `src/Pose/ball_model.h`, `ball_calibration_logic.h`, `ball_calibration_store.h`.

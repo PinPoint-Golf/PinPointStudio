@@ -369,33 +369,6 @@ void CameraInstance::setupPipeline()
                 m_ballDetector, &BallDetector::detect, Qt::QueuedConnection);
         connect(m_ballDetector, &BallDetector::ballDetected,
                 this, &CameraInstance::onBallDetected, Qt::QueuedConnection);
-        connect(m_ballDetector, &BallDetector::environmentDrift,
-                this, [this](bool drifting, double severity) {
-            if (m_ballDrifting == drifting
-                && qFuzzyCompare(m_ballDriftSeverity, severity)) return;
-            m_ballDrifting      = drifting;
-            m_ballDriftSeverity = severity;
-            emit ballDriftChanged();
-        }, Qt::QueuedConnection);
-
-        // TEMP v2 test diagnostics — surface the temporal detector's state in the
-        // in-app log while validating the live path. Strip (or fold into the V3
-        // wizard "ball detected" badge) once the wizard consumes these signals.
-        connect(m_ballDetector, &BallDetector::baselineReady, this, []() {
-            ppInfo() << "[Ball v2] hitting-area baseline learned — place a ball";
-        }, Qt::QueuedConnection);
-        connect(m_ballDetector, &BallDetector::ballLocked, this,
-                [](float x, float y, float r) {
-            ppInfo() << "[Ball v2] locked at" << x << y << "r" << r;
-        }, Qt::QueuedConnection);
-        connect(m_ballDetector, &BallDetector::ballLaunched, this,
-                [](qint64 tsUs, float x, float y) {
-            ppInfo() << "[Ball v2] launch at" << x << y << "ts" << tsUs;
-        }, Qt::QueuedConnection);
-        connect(m_ballDetector, &BallDetector::exposureWarning, this,
-                [](double satFrac) {
-            ppWarn() << "[Ball v2] over-exposed hitting area, satFrac" << satFrac;
-        }, Qt::QueuedConnection);
         // Wire BOTH completion signals to BOTH throttle paths (mirrors the
         // pose estimator above): a camera feeds exactly one path, so only
         // that path's counter is consulted — but without the raw wiring the
@@ -793,19 +766,10 @@ void CameraInstance::setRoi(QRectF roi)
     roi = roi.normalized().intersected(QRectF(0.0, 0.0, 1.0, 1.0));
     if (roi.isEmpty() || m_roi == roi)
         return;
-    const bool hadRoi = !m_roi.isEmpty();
     m_roi = roi;
     emit roiChanged();
-
-#ifdef HAVE_OPENCV
-    // A different hitting area invalidates the learned calibration profile
-    // (design §6 hard invalidation) — enforced here so EVERY change path
-    // (manager commit, live drag-resize, QML) invalidates exactly once. The
-    // connect-time restore is unaffected: it sets the ROI first (nothing
-    // calibrated yet), then applies the matching saved profile.
-    if (hadRoi && m_ballCalibrated)
-        clearBallCalProfile();
-#endif
+    // The detector re-seeds its empty-mat baseline on the ROI change (queued to
+    // the detector thread via the roiChanged → setRoi connection).
 }
 
 void CameraInstance::clearRoi()
@@ -862,68 +826,6 @@ double CameraInstance::ballY()               const { return m_ballY; }
 double CameraInstance::ballRadius()          const { return m_ballRadius; }
 double CameraInstance::ballPresencePercent() const { return m_ballPresencePercent; }
 bool   CameraInstance::ballPresent()         const { return m_ballPresent; }
-bool   CameraInstance::ballCalibrated()      const { return m_ballCalibrated; }
-bool   CameraInstance::ballDrifting()        const { return m_ballDrifting; }
-double CameraInstance::ballDriftSeverity()   const { return m_ballDriftSeverity; }
-
-
-#ifdef HAVE_OPENCV
-void CameraInstance::applyBallCalProfile(const pinpoint::ballcal::BallCalProfile &profile)
-{
-    if (!profile.valid) {
-        clearBallCalProfile();
-        return;
-    }
-    if (m_ballDetector)
-        QMetaObject::invokeMethod(m_ballDetector, [det = m_ballDetector, profile]() {
-            det->setProfile(profile);
-        }, Qt::QueuedConnection);
-    m_ballCalMargin      = profile.margin;
-    m_ballCalibratedAtMs = profile.calibratedAtMs;
-    // Resolve the calibrated ball (ROI-space px) into full-frame-normalized
-    // coords so it co-registers with the shaft-track head samples that the
-    // low-point metric consumes. Radius is normalized to frame width.
-    if (profile.ball.valid && profile.roiPxW > 0 && profile.roiPxH > 0) {
-        m_ballCalCenterX = profile.roiX + (profile.ball.calibCenter.x / profile.roiPxW) * profile.roiW;
-        m_ballCalCenterY = profile.roiY + (profile.ball.calibCenter.y / profile.roiPxH) * profile.roiH;
-        m_ballCalRadiusN = profile.ball.radiusPx * (profile.roiW / profile.roiPxW);
-        m_ballCalHasPos  = (m_ballCalRadiusN > 0.0);
-    } else {
-        m_ballCalHasPos  = false;
-        m_ballCalCenterX = m_ballCalCenterY = m_ballCalRadiusN = 0.0;
-    }
-    if (!m_ballCalibrated) {
-        m_ballCalibrated = true;
-        emit ballCalibratedChanged();
-    }
-    if (m_ballDrifting || m_ballDriftSeverity != 0.0) {
-        m_ballDrifting      = false;
-        m_ballDriftSeverity = 0.0;
-        emit ballDriftChanged();
-    }
-}
-
-void CameraInstance::clearBallCalProfile()
-{
-    if (m_ballDetector)
-        QMetaObject::invokeMethod(m_ballDetector, [det = m_ballDetector]() {
-            det->clearProfile();
-        }, Qt::QueuedConnection);
-    m_ballCalMargin      = 0.0;
-    m_ballCalibratedAtMs = 0;
-    m_ballCalHasPos      = false;
-    m_ballCalCenterX = m_ballCalCenterY = m_ballCalRadiusN = 0.0;
-    if (m_ballCalibrated) {
-        m_ballCalibrated = false;
-        emit ballCalibratedChanged();
-    }
-    if (m_ballDrifting || m_ballDriftSeverity != 0.0) {
-        m_ballDrifting      = false;
-        m_ballDriftSeverity = 0.0;
-        emit ballDriftChanged();
-    }
-}
-#endif
 
 #ifdef HAVE_OPENCV
 void CameraInstance::onBallDetected(const BallDetection &result)
@@ -965,7 +867,7 @@ void CameraInstance::onBallDetected(const BallDetection &result)
     // Fire ting and notify CameraManager when threshold-based presence flips.
     const bool nowPresent = (m_ballPresencePercent > kBallPresentThreshold);
     if (m_ballPresent != nowPresent) {
-        if (!m_ballPresent && nowPresent && !m_ballTingSuppressed)
+        if (!m_ballPresent && nowPresent)
             m_tingPlayer->play();
         m_ballPresent = nowPresent;
         emit ballPresentChanged(nowPresent);

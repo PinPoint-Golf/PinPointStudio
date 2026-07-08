@@ -101,9 +101,6 @@ class CameraInstance : public QObject
     Q_PROPERTY(double ballPresencePercent READ ballPresencePercent NOTIFY ballPresencePercentChanged)
     Q_PROPERTY(bool   ballPresent        READ ballPresent        NOTIFY ballPresentChanged)
     Q_PROPERTY(double ballAvgMs          READ ballAvgMs          NOTIFY ballAvgMsChanged)
-    Q_PROPERTY(bool   ballCalibrated    READ ballCalibrated    NOTIFY ballCalibratedChanged)
-    Q_PROPERTY(bool   ballDrifting      READ ballDrifting      NOTIFY ballDriftChanged)
-    Q_PROPERTY(double ballDriftSeverity READ ballDriftSeverity NOTIFY ballDriftChanged)
     Q_PROPERTY(int    frameWidth         READ frameWidth          NOTIFY frameSizeChanged)
     Q_PROPERTY(int    frameHeight        READ frameHeight         NOTIFY frameSizeChanged)
     Q_PROPERTY(double configuredFps     READ configuredFps       NOTIFY frameSizeChanged)
@@ -156,24 +153,6 @@ public:
     double  ballPresencePercent() const;
     bool    ballPresent()         const;
     double  ballAvgMs()           const;
-    bool    ballCalibrated()      const;
-    bool    ballDrifting()        const;
-    double  ballDriftSeverity()   const;
-    // Profile provenance for swing.json (C++ only, set by applyBallCalProfile).
-    double  ballCalMargin()       const { return m_ballCalMargin; }
-    qint64  ballCalibratedAtMs()  const { return m_ballCalibratedAtMs; }
-    // Calibrated ball position + scale, resolved to FULL-FRAME normalized coords
-    // (co-registered with the shaft-track head samples) — the stable address-ball
-    // reference for the deferred low-point metric. hasPosition() is false when no
-    // valid calibration ball / ROI is available. Radius is normalized to frame
-    // WIDTH (matching ballRadius()). C++ only, set by applyBallCalProfile.
-    bool    ballCalHasPosition()  const { return m_ballCalHasPos; }
-    double  ballCalCenterX()      const { return m_ballCalCenterX; }
-    double  ballCalCenterY()      const { return m_ballCalCenterY; }
-    double  ballCalRadiusNorm()   const { return m_ballCalRadiusN; }
-    // Mute the ball-present ting (calibration's validate rounds would chime
-    // on every prompted place/remove). C++ only — BallCalibrationController.
-    void    setBallTingSuppressed(bool on) { m_ballTingSuppressed = on; }
     int     frameWidth()          const;
     int     frameHeight()         const;
     double  configuredFps()       const;
@@ -216,11 +195,6 @@ public:
     Q_INVOKABLE void relearnBallBaseline();
 
 #ifdef HAVE_OPENCV
-    // Called by BallCalibrationController — pushes the learned profile to the
-    // detector thread (queued) and flips ballCalibrated. An invalid profile
-    // clears. Not Q_INVOKABLE: QML manages calibration through the controller.
-    void applyBallCalProfile(const pinpoint::ballcal::BallCalProfile &profile);
-    void clearBallCalProfile();
     BallDetector *ballDetector() const { return m_ballDetector; }
 #endif
     Q_INVOKABLE void setCropRoi(QRectF roi); // frame crop for storage / ring-buffer sizing
@@ -251,8 +225,6 @@ signals:
     void ballPresencePercentChanged();
     void ballPresentChanged(bool present);
     void ballAvgMsChanged();
-    void ballCalibratedChanged();
-    void ballDriftChanged();
     void frameSizeChanged();
     void isReplayingChanged();
     void deviceAliasChanged();
@@ -361,17 +333,6 @@ private:
     double           m_ballPresencePercent  = 0.0;
     bool             m_ballPresent          = false;
     double           m_ballAvgMs            = 0.0;
-    bool             m_ballCalibrated       = false;
-    bool             m_ballDrifting         = false;
-    double           m_ballDriftSeverity    = 0.0;
-    double           m_ballCalMargin        = 0.0;
-    qint64           m_ballCalibratedAtMs   = 0;
-    bool             m_ballTingSuppressed   = false;
-    // Calibrated ball resolved to full-frame-normalized coords (see getters).
-    bool             m_ballCalHasPos        = false;
-    double           m_ballCalCenterX       = 0.0;   // [0,1] full-frame
-    double           m_ballCalCenterY       = 0.0;   // [0,1] full-frame
-    double           m_ballCalRadiusN       = 0.0;   // normalized to frame width
     TingPlayer      *m_tingPlayer           = nullptr;
     bool             m_replaying            = false;
     // Capture-rate FPS: counted on the capture thread, sampled on a timer.

@@ -1708,11 +1708,6 @@ Item {
 
             Behavior on height { NumberAnimation { duration: Theme.durationFast } }
 
-            // The per-instance calibration controller (created on demand,
-            // parented to the instance — dies with it on disconnect).
-            readonly property QtObject calCtrl:
-                camRow.realInstance ? cameraManager.ballCalibrationFor(camRow.realInstance) : null
-
             readonly property bool fixedInPlace:
                 appSettings.cameraFixedInPlace[camData.cameraKey] === true
 
@@ -1786,7 +1781,7 @@ Item {
 
                         Text {
                             Layout.fillWidth: true
-                            text: qsTr("Place the hitting area over where the ball sits at address: drag the rectangle to move it, drag a corner to resize, or drag outside it to draw a new one. Changing it invalidates the calibration.")
+                            text: qsTr("Place the hitting area over where the ball sits at address: drag the rectangle to move it, drag a corner to resize, or drag outside it to draw a new one. Then empty the mat and press Learn.")
                             wrapMode: Text.WordWrap
                             font.family: Theme.fontBody
                             font.pixelSize: Theme.fontSzBody2
@@ -1796,7 +1791,7 @@ Item {
                         Text {
                             visible: !ballPanel.fixedInPlace
                             Layout.fillWidth: true
-                            text: qsTr("This camera isn't marked fixed in place — the hitting area and calibration will not be restored next session.")
+                            text: qsTr("This camera isn't marked fixed in place — the hitting area will not be restored next session.")
                             wrapMode: Text.WordWrap
                             font.family: Theme.fontData
                             font.pixelSize: Theme.fontSzMicro
@@ -1804,21 +1799,11 @@ Item {
                             color: Theme.colorWarn
                         }
 
-                        // Drift hint (§6 soft drift).
-                        Text {
-                            visible: camRow.realInstance !== null && camRow.realInstance.ballDrifting
-                            Layout.fillWidth: true
-                            text: qsTr("Lighting has changed since calibration — consider recalibrating.")
-                            wrapMode: Text.WordWrap
-                            font.family: Theme.fontData
-                            font.pixelSize: Theme.fontSzMicro
-                            color: Theme.colorWarn
-                        }
-
                         // v2 temporal detector (Option A): learn the empty-mat
                         // baseline, then a placed ball is detected live in the
-                        // overlay above. Manual trigger until the V3 wizard badge
-                        // lands. Empty the mat, click, then place a ball.
+                        // hitting-area overlay above. Empty the mat, click, then
+                        // place a ball. (The start-session wizard has the guided
+                        // version of this flow.)
                         Text {
                             visible: camRow.realInstance !== null
                             text: qsTr("→ Learn hitting area (empty the mat, then place a ball)")
@@ -1829,25 +1814,6 @@ Item {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: cameraManager.relearnBallBaseline(camRow.realInstance)
-                            }
-                        }
-
-                        BallCalibrationFlow {
-                            Layout.fillWidth: true
-                            controller: ballPanel.calCtrl
-                        }
-
-                        // Clear saved calibration.
-                        Text {
-                            visible: camRow.realInstance !== null && camRow.realInstance.ballCalibrated
-                            text: qsTr("→ Clear saved calibration")
-                            font.family: Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody2
-                            color: Theme.colorAccent
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: if (ballPanel.calCtrl) ballPanel.calCtrl.clearSaved()
                             }
                         }
                     }

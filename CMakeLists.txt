@@ -255,10 +255,6 @@ qt_add_executable(PinPointStudio
     src/Video/VideoInputAravis.h           src/Video/VideoInputAravis.cpp
     src/Gui/cameras/camera_instance.h     src/Gui/cameras/camera_instance.cpp
     src/Gui/cameras/camera_manager.h      src/Gui/cameras/camera_manager.cpp
-    src/Gui/calibration/ball_calibration_controller.h  src/Gui/calibration/ball_calibration_controller.cpp
-    src/Pose/ball_model.h
-    src/Pose/ball_calibration_logic.h
-    src/Pose/ball_calibration_store.h
     src/Gui/cameras/buffer_controller.h   src/Gui/cameras/buffer_controller.cpp
     src/STT/stt_processor.h          src/STT/stt_processor.cpp
     src/TTS/TTSEngine.h              src/TTS/TTSEngine.cpp
@@ -369,7 +365,6 @@ qt_add_qml_module(PinPointStudio
         src/Gui/session/ScreenSessionMode.qml
         src/Gui/calibration/ImuCalibrationFlow.qml
         src/Gui/calibration/CameraCalibrationFlow.qml
-        src/Gui/calibration/BallCalibrationFlow.qml
         src/Gui/shot/PpShotCarousel.qml
         src/Gui/shot/PpShotActionBar.qml
         src/Gui/shot/PpExportOptionsSheet.qml

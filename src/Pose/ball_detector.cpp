@@ -41,7 +41,6 @@ BallDetector::BallDetector(QObject *parent)
     : QObject(parent)
 {
     qRegisterMetaType<BallDetection>();
-    qRegisterMetaType<pinpoint::ballcal::BallCalProfile>();
 }
 
 void BallDetector::setRoi(QRectF roi)
@@ -77,33 +76,6 @@ void BallDetector::startSeed()
     m_absentFrames = 0;
 }
 
-void BallDetector::setProfile(const pinpoint::ballcal::BallCalProfile &profile)
-{
-    m_profile  = profile;
-    m_drifting = false;
-}
-
-void BallDetector::clearProfile()
-{
-    m_profile  = pinpoint::ballcal::BallCalProfile{};
-    m_drifting = false;
-}
-
-void BallDetector::beginCalibCapture(int targetFrames)
-{
-    // targetFrames <= 0 — open-ended: stream every ROI frame until
-    // cancelCalibCapture(). The calibration controller uses this so it can
-    // gate on scene stillness and count stored frames itself.
-    m_calibTarget = targetFrames > 0 ? targetFrames : -1;
-    m_calibHave   = 0;
-}
-
-void BallDetector::cancelCalibCapture()
-{
-    m_calibTarget = 0;
-    m_calibHave   = 0;
-}
-
 void BallDetector::detect(const cv::Mat &frame)
 {
     if (!isEnabled()) {     // disabled by method — release the throttle, keep ball state
@@ -120,7 +92,7 @@ void BallDetector::detect(const cv::Mat &frame)
         return;
     }
 
-    PP_PROFILE_SCOPE("Ball.detect");   // ROI extraction + calibrated detection (per frame)
+    PP_PROFILE_SCOPE("Ball.detect");   // ROI extraction + temporal detection (per frame)
 
     QElapsedTimer t;
     t.start();
@@ -134,26 +106,6 @@ void BallDetector::detect(const cv::Mat &frame)
     const int rw = qBound(1, static_cast<int>(m_roi.width()  * fw), fw - rx);
     const int rh = qBound(1, static_cast<int>(m_roi.height() * fh), fh - ry);
 
-    cv::Mat roiMat = frame(cv::Rect(rx, ry, rw, rh));
-
-    // Calibration capture (side effect — detection continues below so the
-    // overlays stay live and the throttle contract is untouched).
-    if (m_calibTarget != 0) {
-        emit calibFrame(roiMat.clone(), ++m_calibHave, m_calibTarget);
-        if (m_calibTarget > 0 && m_calibHave >= m_calibTarget) {
-            m_calibTarget = 0;
-            m_calibHave   = 0;
-            emit calibCaptureDone();
-        }
-    }
-
-    // The v2 temporal matched-filter is THE live detection path. The v1
-    // calibrated path (detectCalibrated / setProfile) is kept compiled but
-    // DORMANT for rollback and V3-staged deletion: a stored profile no longer
-    // shadows the temporal detector, so a machine carrying a stale saved profile
-    // still exercises v2. (To roll back to calibrated, restore the profile-gated
-    // branch that routed here to detectCalibrated when m_profile matched.)
-    (void)roiMat;
     detectTemporal(frame, rx, ry, rw, rh, fw, fh, t);
 }
 
@@ -276,32 +228,5 @@ void BallDetector::detectTemporal(const cv::Mat &frame, int rx, int ry, int rw, 
     m_present = present;
     emit ballDetected(BallDetection{present, nx, ny, nr, t.elapsed(), score});
 }
-
-void BallDetector::detectCalibrated(const cv::Mat &roiMat, int rx, int ry,
-                                    int fw, int fh, const QElapsedTimer &t)
-{
-    using namespace pinpoint::ballcal;
-
-    const Detection det = pinpoint::ballcal::detect(roiMat, m_profile.background,
-                                                    m_profile.ball, m_profile.theta);
-
-    // Illumination drift monitor — state-change edges only (§6 soft drift).
-    const double severity = driftSeverity(det.gain);
-    const bool drifting   = severity > tuning::kGainDriftLog;
-    if (drifting != m_drifting) {
-        m_drifting = drifting;
-        emit environmentDrift(drifting, severity);
-    }
-
-    if (det.found) {
-        const float cx = (rx + det.centerPx.x) / static_cast<float>(fw);
-        const float cy = (ry + det.centerPx.y) / static_cast<float>(fh);
-        const float cr =       det.radiusPx    / static_cast<float>(fw);
-        emit ballDetected(BallDetection{true, cx, cy, cr, t.elapsed(), det.score});
-    } else {
-        emit ballDetected(BallDetection{false, 0.f, 0.f, 0.f, t.elapsed(), det.score});
-    }
-}
-
 
 #endif // HAVE_OPENCV

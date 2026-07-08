@@ -140,10 +140,6 @@ public slots:
     // detector (Option A). Call with the mat empty.
     Q_INVOKABLE void relearnBallBaseline(QObject *controller);
 
-    // Per-instance ball-calibration controller (created on demand, parented
-    // to the instance). Null when the instance is invalid.
-    Q_INVOKABLE QObject *ballCalibrationFor(QObject *controller);
-
     Q_INVOKABLE void setExcluded(int index, bool excluded);
     Q_INVOKABLE void setSessionCameraEnabled(const QString &cameraKey, bool on);
     Q_INVOKABLE void setTargetFps(int index, double fps);

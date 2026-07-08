@@ -713,19 +713,10 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         cam.mirrored     = track.ctrl->isMirrored();
         cam.fixedInPlace = s->cameraFixedInPlace()
                                .value(track.ctrl->cameraKey()).toBool();
-        cam.ballCalibrated     = track.ctrl->ballCalibrated();
-        cam.ballMargin         = track.ctrl->ballCalMargin();
-        cam.ballCalibratedAtMs = track.ctrl->ballCalibratedAtMs();
-        cam.ballDriftAtCapture = track.ctrl->ballDriftSeverity();
-        // Stable calibrated ball position + scale (full-frame normalized) — the
-        // reference the deferred low-point metric measures the clubhead against.
-        cam.ballHasPos         = track.ctrl->ballCalHasPosition();
-        if (cam.ballHasPos) {
-            cam.ballCenterX    = track.ctrl->ballCalCenterX();
-            cam.ballCenterY    = track.ctrl->ballCalCenterY();
-            cam.ballRadiusNorm = track.ctrl->ballCalRadiusNorm();
-            cam.ballPosSource  = QStringLiteral("calibrated");
-        }
+        // The v2 temporal detector carries no calibration profile, so the
+        // CamRecord ball-calibration fields keep their defaults (uncalibrated).
+        // Recording the v2 auto-detected ball position (locked centre + satFrac)
+        // into swing.json is the additive "Provenance v2" follow-up.
         job.cameras.push_back(std::move(cam));
     }
 

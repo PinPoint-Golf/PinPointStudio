@@ -95,11 +95,9 @@ Item {
             spacing: Theme.sp(10)
             DetectDot { id: imuDot;  available: imuManager.imuCount > 0 }
             DetectDot { id: acDot;   available: true }
-            // Ball/vision dot (design §8.3): amber while running on the generic
-            // (uncalibrated) detector or when lighting has drifted from the
-            // calibration envelope; steady green core while the ball is present
-            // at the hitting area. The shot flash joins when the Source::Ball
-            // candidate feed lands.
+            // Ball/vision dot (design §8.3): steady green core while the ball is
+            // present at the hitting area (v2 temporal detector). The shot flash
+            // joins when the Source::Ball candidate feed lands.
             DetectDot {
                 id: ballDot
                 readonly property QtObject foInst: {
@@ -110,9 +108,6 @@ Item {
                     return null
                 }
                 available: foInst !== null && foInst.ballEnabled
-                baseColor: foInst !== null
-                           && (!foInst.ballCalibrated || foInst.ballDrifting)
-                           ? Theme.colorAttention : Theme.colorAccent
                 presence:  foInst !== null && foInst.ballPresent
             }
         }

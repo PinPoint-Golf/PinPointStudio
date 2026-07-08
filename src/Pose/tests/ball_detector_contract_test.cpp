@@ -18,20 +18,17 @@
 
 // Throttle-contract test for BallDetector (design §9 test 6): every detect()
 // call must emit EXACTLY ONE of ballDetected / detectionSkipped on EVERY code
-// path — disabled, no-ROI, empty frame, the v2 temporal path (seeding the
-// baseline, searching, locked/present, and removal), and the v1 calibrated
-// fallback (found / not-found / profile-geometry mismatch). The shared
-// FrameThrottle (consumerCount=2) deadlocks if zero fire and runs ahead if two.
-// The extra temporal signals (baselineReady/ballLocked/ballLaunched/
-// exposureWarning) are NOT part of the contract and are counted separately.
+// path — disabled, no-ROI, empty frame, and the v2 temporal path (seeding the
+// baseline, searching, locked/present, and removal). The shared FrameThrottle
+// (consumerCount=2) deadlocks if zero fire and runs ahead if two. The extra
+// temporal signals (baselineReady/ballLocked/ballLaunched/exposureWarning) are
+// NOT part of the contract and are counted separately.
 
 #include "ball_detector.h"
 
 #include <QCoreApplication>
 #include <cstdio>
 #include <opencv2/imgproc.hpp>
-
-using namespace pinpoint::ballcal;
 
 static int g_fail = 0;
 
@@ -66,42 +63,6 @@ static void drawBall(cv::Mat &f, double luma, float radius = 25.f)
 {
     cv::circle(f, cv::Point(kFW / 2, kFH / 2), cvRound(radius),
                cv::Scalar(luma, luma, luma), cv::FILLED, cv::LINE_AA);
-}
-
-static cv::Mat roiOf(const cv::Mat &full)
-{
-    return full(cv::Rect(160, 120, kRW, kRH)).clone();
-}
-
-// Synthetic dim-studio calibration (bg 60 / ball 115) in ROI space.
-static BallCalProfile makeProfile()
-{
-    BallCalProfile p;
-    for (int i = 0; i < 10; ++i)
-        p.background.accumulate(roiOf(fullFrame(60.0, 3.0, 100 + i)));
-    if (!p.background.finalize()) return p;
-
-    std::vector<cv::Mat> ballFrames;
-    for (int i = 0; i < 10; ++i) {
-        cv::Mat f = fullFrame(60.0, 3.0, 200 + i);
-        drawBall(f, 115.0);
-        ballFrames.push_back(roiOf(f));
-    }
-    p.ball = fitBallModel(ballFrames, p.background);
-    if (!p.ball.valid) return p;
-
-    std::vector<double> ballScores, emptyScores;
-    for (const auto &f : ballFrames)
-        ballScores.push_back(detect(f, p.background, p.ball, 2.0).score);
-    for (int i = 0; i < 10; ++i)
-        emptyScores.push_back(
-            detect(roiOf(fullFrame(60.0, 3.0, 300 + i)), p.background, p.ball, 2.0).score);
-
-    const ThresholdResult t = deriveThreshold(ballScores, emptyScores);
-    p.theta  = t.theta;
-    p.margin = t.margin;
-    p.valid  = t.pass;
-    return p;
 }
 
 // ── Signal counting harness ─────────────────────────────────────────────────
@@ -166,26 +127,9 @@ int main(int argc, char **argv)
     CHECK("temporal single frame: 1 signal, found=false",
           spy.total() == 1 && spy.detections == 1 && !spy.lastFound);
 
-    // 6. A stored v1 calibration profile is now DORMANT: detect() no longer
-    //    routes to the calibrated path (so a stale saved profile can't shadow
-    //    v2). Setting one leaves detection on the temporal path — here still
-    //    seeding, so found=false, throttle intact.
-    const BallCalProfile profile = makeProfile();
-    CHECK("synthetic profile valid", profile.valid);
-    det.setProfile(profile);
-    spy.reset();
-    {
-        cv::Mat f = fullFrame(60.0, 3.0, 5);
-        drawBall(f, 115.0);
-        det.detect(f);
-    }
-    CHECK("dormant profile: 1 signal, found=false (temporal, not calibrated)",
-          spy.total() == 1 && spy.detections == 1 && !spy.lastFound);
-    det.setProfile(BallCalProfile{});   // clear — no effect on the temporal path
-
-    // 7. v2 temporal path end-to-end: seed an empty mat, lock a ball, then clear
+    // 6. v2 temporal path end-to-end: seed an empty mat, lock a ball, then clear
     //    it — the throttle stays at exactly one ballDetected per detect() the
-    //    whole way through (no profile → temporal).
+    //    whole way through.
     std::printf("\nv2 temporal path — seed / lock / presence / removal:\n");
     BallDetector td;
     int tDet = 0, tSkip = 0, tBaseline = 0, tLocks = 0;
