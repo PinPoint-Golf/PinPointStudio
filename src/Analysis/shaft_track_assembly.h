@@ -87,7 +87,17 @@ struct ShaftV3Config {
     int     stillMin   = 25;   // min static-run length (frames)
     int     bandNear   = 5;    // a static ray is admissible within N frames of a band
     // swing-span bounding
-    int64_t spanCollarUs = 100000;   // settling padding each side of [bs0,fin0] (µs)
+    int64_t spanCollarUs = 100000;   // settling padding on the FINISH side (fin0+collar) (µs)
+    // Address-side collar (Mark, 2026-07-08): bs0 is grip-speed-derived and
+    // known to lag the true takeaway (the club rotates about the wrist while
+    // the grip is still) — widen evidence collection further back than the
+    // finish-side settling pad so real E1/E2 measurement has a chance to
+    // recover the mislabeled early-takeaway zone. Separate from spanCollarUs
+    // because address and finish are physically different (a resting hold vs
+    // a decelerating follow-through) and the right margin for each is an
+    // independent, corpus-set question. Starting value only — expect to
+    // widen once corpus verification runs (this is step 1 of that process).
+    int64_t addressCollarUs = 400000;
     bool    spanBound    = true;     // DEFAULT ON (dfa3170); false = --no-span-bound oracle
     // C2 body ROI
     double  bodyMargin = 34.0;       // px inflation of the body polygon

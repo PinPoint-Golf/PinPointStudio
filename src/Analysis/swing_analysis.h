@@ -294,6 +294,11 @@ struct ShaftTrack2D {
     float imuVisionCorr = 0.f;  // Pearson corr of vision vs IMU θ̇ (0 = no channel) — health metric
     int   frameWidth  = 0;      // camera dims so px samples can be normalized by consumers
     int   frameHeight = 0;
+    // bs0 from the internal hands-only phase model (segmentPhases) — always
+    // populated regardless of whether a trace sink was passed, so the ball
+    // anchor's address-boundary correction (v3.4) works in fused mode too,
+    // not just when a ShaftDecideTrace happens to be requested. -1 = unset.
+    int   addressPhaseFrame = -1;
     std::vector<ShaftSample2D> samples;     // ACTUAL — detector-inferred (vision+IMU fused)
     // R7 dual output (skeleton-aware enhancement): the pure R6 kinematic-model
     // prediction emitted per frame alongside `samples`, plus its agreement with

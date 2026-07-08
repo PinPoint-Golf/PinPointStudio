@@ -166,6 +166,7 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.stillMin", c.stillMin);
     apply(ov, "shaft.bandNear", c.bandNear);
     apply(ov, "shaft.spanCollarUs", c.spanCollarUs);
+    apply(ov, "shaft.addressCollarUs", c.addressCollarUs);
     apply(ov, "shaft.spanBound", c.spanBound);
     apply(ov, "shaft.bodyMargin", c.bodyMargin);
     apply(ov, "shaft.rasterC2", c.rasterC2);
@@ -721,9 +722,10 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         }
     }
 
-    const int collar = int(std::lround(double(cfg.spanCollarUs) * 1e-6 * fps));
-    const int spanLo = cfg.spanBound ? std::max(0, pm.bs0 - collar) : 0;
-    const int spanHi = cfg.spanBound ? std::min(nf - 1, pm.fin0 + collar) : nf - 1;
+    const int addressCollar = int(std::lround(double(cfg.addressCollarUs) * 1e-6 * fps));
+    const int finishCollar  = int(std::lround(double(cfg.spanCollarUs) * 1e-6 * fps));
+    const int spanLo = cfg.spanBound ? std::max(0, pm.bs0 - addressCollar) : 0;
+    const int spanHi = cfg.spanBound ? std::min(nf - 1, pm.fin0 + finishCollar) : nf - 1;
     const double rmax = 0.62 * frameH;
 
     std::vector<std::vector<float>> emis(nf, std::vector<float>(NS, float(cfg.wE2)));
@@ -790,7 +792,15 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
             headX = bx + s * clubLenMm * ux; headY = by + s * clubLenMm * uy; hasHead = true;
             visLen = std::hypot(headX - gx[i], headY - gy[i]);
             conf = float(std::min(0.9, 0.75 + 0.05 * (band[i].n - 4)));
-        } else if (pm.phase[i] != SwingPhase::Addr) {
+        // Addr-labelled frames are normally excluded from ray publication (a
+        // static hold is the classic counterfeit trap) — EXCEPT inside the
+        // widened address collar (i >= spanLo), where bs0's grip-speed lag is
+        // known to have already mislabelled real early-takeaway motion as
+        // address (Mark, 2026-07-08). The `verifiable` check below still
+        // requires motion (!stat[i]) or band corroboration, so a genuinely
+        // still frame in that collar is still refused — only real, moving,
+        // evidenced frames newly qualify.
+        } else if (pm.phase[i] != SwingPhase::Addr || i >= spanLo) {
             const double evs = EV[i][thi], evrev = EV[i][(thi + NS / 2) % NS];
             bool bandNear = false;
             for (int j = std::max(0, i - cfg.bandNear); j <= std::min(nf - 1, i + cfg.bandNear); ++j) if (bandOk[j]) { bandNear = true; break; }
@@ -827,6 +837,10 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
 
     out.coverage = spanFrames > 0 ? float(spanMeas) / float(spanFrames) : 0.f;
     out.valid = out.coverage >= float(cfg.coverageMin);
+    // Always exposed (not gated on trace!=nullptr — trace is null for fused/
+    // hasImu swings on the production path) so the ball-anchor post-hoc pass
+    // can find the current address boundary regardless of presence mode.
+    out.addressPhaseFrame = pm.bs0;
 
     if (trace) {
         trace->phases = pm; trace->phiSmoothed = phiS; trace->chir = chir;
