@@ -211,6 +211,9 @@ public:
     Q_INVOKABLE void selectMoveNetModel(int variant);
     Q_INVOKABLE void setRoi(QRectF roi);    // hitting area for ball detection
     Q_INVOKABLE void clearRoi();
+    // v2: re-learn the empty-mat baseline from the next ~1 s (Option A). Call
+    // with the mat empty; the temporal detector then detects a placed ball.
+    Q_INVOKABLE void relearnBallBaseline();
 
 #ifdef HAVE_OPENCV
     // Called by BallCalibrationController — pushes the learned profile to the

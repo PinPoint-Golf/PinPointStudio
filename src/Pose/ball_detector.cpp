@@ -30,9 +30,9 @@
 namespace {
 // v2 temporal-path live constants (design §4.2/§4.5; not the parity-locked
 // algorithm constants, which live in ball_temporal.h::tuning).
-constexpr double kSeedSeconds      = 1.0;    // empty-mat baseline seed window
+constexpr int    kSeedFrames       = 24;     // empty-mat baseline seed window (frames)
 constexpr float  kPresenceFrac     = 0.40f;  // present if at-spot R >= this * L0
-constexpr double kReacquireSeconds = 0.30f;  // absent this long -> re-arm to re-search
+constexpr double kReacquireSeconds = 0.30;   // absent this long -> re-arm to re-search
 constexpr int    kSatThresh        = 250;    // ROI luma at/above this is clipped
 constexpr double kSatWarn          = 0.25;   // satFrac above this -> exposure warning
 }  // namespace
@@ -54,9 +54,11 @@ void BallDetector::setRoi(QRectF roi)
 
 void BallDetector::setFrameRate(double fps)
 {
-    if (fps <= 0.0 || qFuzzyCompare(fps, m_fps)) return;
+    if (fps <= 0.0) return;
+    const bool changed = !m_fpsExplicit || !qFuzzyCompare(fps, m_fps);
     m_fps = fps;
-    if (!m_roi.isEmpty()) startSeed();    // timing params changed — re-seed
+    m_fpsExplicit = true;             // an explicit rate overrides the measured one
+    if (changed && !m_roi.isEmpty()) startSeed();
 }
 
 void BallDetector::relearnBaseline()
@@ -68,7 +70,7 @@ void BallDetector::startSeed()
 {
     m_seedAccum.release();
     m_seedHave   = 0;
-    m_seedTarget = std::max(1, static_cast<int>(std::lround(kSeedSeconds * m_fps)));
+    m_seedTarget = kSeedFrames;       // fixed count; the tracker's fps is measured/explicit
     m_seedNoise  = 1.0;
     m_tracker.reset();
     m_locked = m_present = false;
@@ -145,16 +147,13 @@ void BallDetector::detect(const cv::Mat &frame)
         }
     }
 
-    // v1 calibrated path when a valid profile matches the current ROI geometry
-    // (kept as a functional fallback during the v2 rollout; slated for V3
-    // deletion). Otherwise the v2 temporal matched-filter path runs.
-    if (m_profile.valid
-        && m_profile.background.meanGray.cols == rw
-        && m_profile.background.meanGray.rows == rh) {
-        detectCalibrated(roiMat, rx, ry, fw, fh, t);
-        return;
-    }
-
+    // The v2 temporal matched-filter is THE live detection path. The v1
+    // calibrated path (detectCalibrated / setProfile) is kept compiled but
+    // DORMANT for rollback and V3-staged deletion: a stored profile no longer
+    // shadows the temporal detector, so a machine carrying a stale saved profile
+    // still exercises v2. (To roll back to calibrated, restore the profile-gated
+    // branch that routed here to detectCalibrated when m_profile matched.)
+    (void)roiMat;
     detectTemporal(frame, rx, ry, rw, rh, fw, fh, t);
 }
 
@@ -163,6 +162,19 @@ void BallDetector::detectTemporal(const cv::Mat &frame, int rx, int ry, int rw, 
 {
     using namespace pinpoint::balltemporal;
     const double rHat = radiusForWidth(fw);
+
+    // Measure the ACTUAL detect rate (throttle + consumer gated — not the camera
+    // rate), so the tracker's time thresholds (lock 0.5 s, re-acquire 0.3 s) hold
+    // in real time. Ignore huge gaps (a pause) and zero-dt duplicates.
+    if (m_frameClock.isValid()) {
+        const qint64 dtMs = m_frameClock.restart();
+        if (dtMs > 0 && dtMs < 2000) {
+            const double inst = 1000.0 / double(dtMs);
+            m_measuredFps = m_measuredFps > 0.0 ? 0.85 * m_measuredFps + 0.15 * inst : inst;
+        }
+    } else {
+        m_frameClock.start();
+    }
 
     // paddedResponse pads BEYOND the ROI, so it needs the surrounding pixels
     // (the crop-edge note in ball_temporal.h) — hand it the full-frame gray.
@@ -206,7 +218,10 @@ void BallDetector::detectTemporal(const cv::Mat &frame, int rx, int ry, int rw, 
             const cv::Mat meanR = m_seedAccum / m_seedHave;   // CV_64F mean of R
             cv::Mat B;
             meanR.convertTo(B, CV_32F);
-            m_tracker = std::make_unique<TemporalBallTracker>(rHat, m_fps, B, m_seedNoise);
+            // Explicit rate wins (tests); else the measured detect rate; else default.
+            m_trackerFps = m_fpsExplicit ? m_fps
+                         : (m_measuredFps > 5.0 ? m_measuredFps : m_fps);
+            m_tracker = std::make_unique<TemporalBallTracker>(rHat, m_trackerFps, B, m_seedNoise);
             m_seedTarget = 0;
             m_seedAccum.release();
             emit baselineReady();
@@ -223,7 +238,7 @@ void BallDetector::detectTemporal(const cv::Mat &frame, int rx, int ry, int rw, 
     m_tracker->push(R);
     const auto &L  = m_tracker->locked();
     const auto &LA = m_tracker->launched();
-    const int reacq = std::max(1, static_cast<int>(std::lround(kReacquireSeconds * m_fps)));
+    const int reacq = std::max(1, static_cast<int>(std::lround(kReacquireSeconds * m_trackerFps)));
 
     float nx = 0.f, ny = 0.f, nr = 0.f, score = 0.f;
     bool present = false;

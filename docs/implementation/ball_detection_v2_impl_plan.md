@@ -134,9 +134,19 @@ launch **or** a removed ball (the wizard remove/re-add loop — the offline orac
 extended (seed → lock → presence → removal) — throttle contract (one `ballDetected`/`detectionSkipped`
 per `detect()`) holds on every path; pose-tests 5/5, parity still byte-exact. **Wizard baseline = Option A**
 (explicit seed, gates Continue on a live detected ball; remove/re-add notifies present/absent live).
-**Remaining V2:** camera_instance wiring (fps from the camera, ROI/stance feeding, presence consumers +
-`ballDetectedOk`), the two outside-`src/Pose/` plumbing changes (timestamp @ `FrameThrottle::offer`,
-`setStanceBounds`), and the contract-test/app build — all need the app build.
+
+**Live wiring DONE (2026-07-08, uncommitted, app builds clean + headless-smoke OK):** `detect()` now runs
+the temporal path **unconditionally** (a stale saved v1 profile no longer shadows it; calibrated stays
+compiled-but-dormant for rollback). The detector **self-measures** its throttle-gated detect rate (no
+reliance on the camera fps) and seeds a **fixed 24-frame** empty-mat baseline. `CameraInstance` gained
+`relearnBallBaseline()` (Q_INVOKABLE) + a `CameraManager` passthrough; the new signals are surfaced as
+**TEMP `ppInfo`/`ppWarn` diagnostics** (baseline learned / locked / launch / over-exposed — strip when
+the V3 wizard badge consumes them). `CamerasPanel` ball panel gained a "→ Learn hitting area" link
+(empty mat → click → place a ball); presence already flows to the `showHittingArea` overlay via
+`onBallDetected`. **Testable now** via Settings → Cameras → Ball detection.
+**Remaining V2:** stance-corridor `setStanceBounds` (additive, non-load-bearing) and the frame-timestamp
+plumbing (`FrameThrottle::offer` → `framePreprocessed`) — the latter only matters for V4 launch
+back-dating. Then V3 wizard badge (the real Option-A UI) + calibration retirement.
 
 **Promotion scope (agreed):** ship v2 acquisition as the live **presence** feature first, and wire
 the launch as an **arbiter-gated** candidate (V4) — the two rough edges (weak-contrast position,

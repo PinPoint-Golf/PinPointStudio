@@ -632,6 +632,12 @@ void CameraManager::setIsMirrored(QObject *rawController, bool mirrored)
     ps->setCameraIsMirrored(map);
 }
 
+void CameraManager::relearnBallBaseline(QObject *rawController)
+{
+    if (auto *target = qobject_cast<CameraInstance *>(rawController))
+        target->relearnBallBaseline();
+}
+
 void CameraManager::setBallRoi(QObject *rawController, QRectF roi)
 {
     auto *target = qobject_cast<CameraInstance *>(rawController);

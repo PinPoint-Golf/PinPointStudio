@@ -165,7 +165,11 @@ private:
     int    m_calibHave   = 0;
 
     // ── v2 temporal path state (detector thread only) ─────────────────────────
-    double m_fps = 100.0;
+    double m_fps = 100.0;            // explicit override (tests / setFrameRate)
+    bool   m_fpsExplicit = false;    // true once setFrameRate() is called
+    QElapsedTimer m_frameClock;      // measures the actual (throttle-gated) detect rate
+    double m_measuredFps = 0.0;      // smoothed measured rate
+    double m_trackerFps  = 100.0;    // fps the live tracker was built with
     std::unique_ptr<pinpoint::balltemporal::TemporalBallTracker> m_tracker;
     cv::Mat m_seedAccum;             // CV_64F running sum of R over the seed window
     int     m_seedHave   = 0;

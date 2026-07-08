@@ -377,6 +377,25 @@ void CameraInstance::setupPipeline()
             m_ballDriftSeverity = severity;
             emit ballDriftChanged();
         }, Qt::QueuedConnection);
+
+        // TEMP v2 test diagnostics — surface the temporal detector's state in the
+        // in-app log while validating the live path. Strip (or fold into the V3
+        // wizard "ball detected" badge) once the wizard consumes these signals.
+        connect(m_ballDetector, &BallDetector::baselineReady, this, []() {
+            ppInfo() << "[Ball v2] hitting-area baseline learned — place a ball";
+        }, Qt::QueuedConnection);
+        connect(m_ballDetector, &BallDetector::ballLocked, this,
+                [](float x, float y, float r) {
+            ppInfo() << "[Ball v2] locked at" << x << y << "r" << r;
+        }, Qt::QueuedConnection);
+        connect(m_ballDetector, &BallDetector::ballLaunched, this,
+                [](qint64 tsUs, float x, float y) {
+            ppInfo() << "[Ball v2] launch at" << x << y << "ts" << tsUs;
+        }, Qt::QueuedConnection);
+        connect(m_ballDetector, &BallDetector::exposureWarning, this,
+                [](double satFrac) {
+            ppWarn() << "[Ball v2] over-exposed hitting area, satFrac" << satFrac;
+        }, Qt::QueuedConnection);
         // Wire BOTH completion signals to BOTH throttle paths (mirrors the
         // pose estimator above): a camera feeds exactly one path, so only
         // that path's counter is consulted — but without the raw wiring the
@@ -810,6 +829,14 @@ void CameraInstance::clearRoi()
         m_ballPresencePercent = 0.0;
         emit ballPresencePercentChanged();
     }
+}
+
+void CameraInstance::relearnBallBaseline()
+{
+#ifdef HAVE_OPENCV
+    if (m_ballDetector)
+        QMetaObject::invokeMethod(m_ballDetector, "relearnBaseline", Qt::QueuedConnection);
+#endif
 }
 
 QRectF CameraInstance::cropRoi() const { return m_cropRoi; }

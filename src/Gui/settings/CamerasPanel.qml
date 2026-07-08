@@ -1815,6 +1815,23 @@ Item {
                             color: Theme.colorWarn
                         }
 
+                        // v2 temporal detector (Option A): learn the empty-mat
+                        // baseline, then a placed ball is detected live in the
+                        // overlay above. Manual trigger until the V3 wizard badge
+                        // lands. Empty the mat, click, then place a ball.
+                        Text {
+                            visible: camRow.realInstance !== null
+                            text: qsTr("→ Learn hitting area (empty the mat, then place a ball)")
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody2
+                            color: Theme.colorAccent
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: cameraManager.relearnBallBaseline(camRow.realInstance)
+                            }
+                        }
+
                         BallCalibrationFlow {
                             Layout.fillWidth: true
                             controller: ballPanel.calCtrl

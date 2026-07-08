@@ -166,47 +166,24 @@ int main(int argc, char **argv)
     CHECK("temporal single frame: 1 signal, found=false",
           spy.total() == 1 && spy.detections == 1 && !spy.lastFound);
 
-    // 6. Calibrated path (dim studio: legacy CANNOT see this ball).
+    // 6. A stored v1 calibration profile is now DORMANT: detect() no longer
+    //    routes to the calibrated path (so a stale saved profile can't shadow
+    //    v2). Setting one leaves detection on the temporal path — here still
+    //    seeding, so found=false, throttle intact.
     const BallCalProfile profile = makeProfile();
     CHECK("synthetic profile valid", profile.valid);
     det.setProfile(profile);
-
     spy.reset();
     {
         cv::Mat f = fullFrame(60.0, 3.0, 5);
         drawBall(f, 115.0);
         det.detect(f);
     }
-    CHECK("calibrated hit (dim ball): 1 signal, found=true",
-          spy.total() == 1 && spy.detections == 1 && spy.lastFound);
-
-    spy.reset();
-    det.detect(fullFrame(60.0, 3.0, 6));
-    CHECK("calibrated miss: 1 signal, found=false",
+    CHECK("dormant profile: 1 signal, found=false (temporal, not calibrated)",
           spy.total() == 1 && spy.detections == 1 && !spy.lastFound);
+    det.setProfile(BallCalProfile{});   // clear — no effect on the temporal path
 
-    // 7. Profile geometry mismatch (ROI moved/resized after calibration) →
-    //    silent found=false, still exactly one signal.
-    det.setProfile(profile);
-    det.setRoi(QRectF(0.1, 0.1, 0.3, 0.3));
-    spy.reset();
-    det.detect(fullFrame(60.0, 3.0, 8));
-    CHECK("profile/ROI mismatch: 1 signal, found=false",
-          spy.total() == 1 && spy.detections == 1 && !spy.lastFound);
-
-    // 8. Invalid profile via setProfile == clearProfile → silent.
-    det.setRoi(kRoi);
-    det.setProfile(BallCalProfile{});
-    spy.reset();
-    {
-        cv::Mat f = fullFrame(60.0, 3.0, 9);
-        drawBall(f, 115.0);
-        det.detect(f);
-    }
-    CHECK("invalid profile: 1 signal, found=false",
-          spy.total() == 1 && !spy.lastFound);
-
-    // 9. v2 temporal path end-to-end: seed an empty mat, lock a ball, then clear
+    // 7. v2 temporal path end-to-end: seed an empty mat, lock a ball, then clear
     //    it — the throttle stays at exactly one ballDetected per detect() the
     //    whole way through (no profile → temporal).
     std::printf("\nv2 temporal path — seed / lock / presence / removal:\n");
@@ -218,13 +195,14 @@ int main(int argc, char **argv)
     QObject::connect(&td, &BallDetector::detectionSkipped, [&]() { ++tSkip; });
     QObject::connect(&td, &BallDetector::baselineReady, [&]() { ++tBaseline; });
     QObject::connect(&td, &BallDetector::ballLocked, [&](float, float, float) { ++tLocks; });
-    td.setFrameRate(20.0);        // seed window = 20 frames, lock after ~10
+    td.setFrameRate(20.0);        // tracker fps=20 → lock after ~10 frames
     td.setRoi(kRoi);
 
-    // Seed: 20 empty frames → one signal each, no detection, baselineReady once.
+    // Seed: 30 empty frames (> the fixed seed window) → one signal each, no
+    // detection, baselineReady exactly once when the baseline is set.
     int mark = tDet + tSkip;
-    for (int i = 0; i < 20; ++i) td.detect(fullFrame(60.0, 3.0, 1000 + i));
-    CHECK("seeding: one signal per frame", tDet + tSkip - mark == 20 && tSkip == 0);
+    for (int i = 0; i < 30; ++i) td.detect(fullFrame(60.0, 3.0, 1000 + i));
+    CHECK("seeding: one signal per frame", tDet + tSkip - mark == 30 && tSkip == 0);
     CHECK("seeding: baselineReady fired once", tBaseline == 1);
     CHECK("seeding: no detection while learning", !tFound);
 

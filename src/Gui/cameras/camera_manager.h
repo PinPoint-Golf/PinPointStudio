@@ -136,6 +136,9 @@ public slots:
     // ROI drops any live calibration profile (hard invalidation, design §6).
     Q_INVOKABLE void setBallRoi(QObject *controller, QRectF roi);
     Q_INVOKABLE void clearBallRoi(QObject *controller);
+    // v2: re-learn the empty-mat baseline for this camera's temporal ball
+    // detector (Option A). Call with the mat empty.
+    Q_INVOKABLE void relearnBallBaseline(QObject *controller);
 
     // Per-instance ball-calibration controller (created on demand, parented
     // to the instance). Null when the instance is invalid.
