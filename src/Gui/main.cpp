@@ -404,11 +404,18 @@ int main(int argc, char *argv[])
             shotController.reportCandidate(ShotController::Source::Acoustic,
                                            estImpactUs, conf);
     });
-    // Vision corroboration (P3-G5) joins the same funnel via
-    // reportCandidate(Source::Ball, ...) once the ball detector grows its
-    // Kalman-track ballLaunched(timestampUs) signal (ball_detector_design.md
-    // §8) — today's ballPresentChanged is smoothed over a 50-frame window,
-    // far too coarse for the ±40 ms match tolerance.
+    // Vision corroboration (P3-G5): the v2 temporal ball detector's launch cliff
+    // → the same funnel. CameraManager::ballLaunched already carries an absolute
+    // impact time on the EventBuffer clock (stamped in CameraInstance). conf 0.6
+    // is below the arbiter's 0.8 lone-candidate floor, so vision can only
+    // corroborate IMU/acoustic, never commit a shot alone. (Precise frame
+    // timestamps — vs today's age-from-now estimate — are a later refinement.)
+    QObject::connect(&cameraManager, &CameraManager::ballLaunched, &shotController,
+                     [&shotController, &appSettings](qint64 estImpactUs, float conf) {
+        if (appSettings.autoDetectSwing())
+            shotController.reportCandidate(ShotController::Source::Ball,
+                                           estImpactUs, conf);
+    });
 
     // Voice input: completed STT transcription → coach chat (when voice input enabled).
     QObject::connect(&controller, &TranscriptionController::transcriptionReceived,

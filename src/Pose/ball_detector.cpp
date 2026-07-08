@@ -35,6 +35,10 @@ constexpr float  kPresenceFrac     = 0.40f;  // present if at-spot R >= this * L
 constexpr double kReacquireSeconds = 0.30;   // absent this long -> re-arm to re-search
 constexpr int    kSatThresh        = 250;    // ROI luma at/above this is clipped
 constexpr double kSatWarn          = 0.25;   // satFrac above this -> exposure warning
+// Ball-departure latency: the visible collapse lands ~20-27 ms AFTER true impact
+// (the ball compresses/holds before it visibly departs — measured in V0). Sibling
+// of ImpactDetector's bleLatencyUs; back-dates the launch estimate.
+constexpr qint64 kBallLaunchLatencyUs = 24'000;
 }  // namespace
 
 BallDetector::BallDetector(QObject *parent)
@@ -205,9 +209,14 @@ void BallDetector::detectTemporal(const cv::Mat &frame, int rx, int ry, int rw, 
     }
 
     if (LA.valid) {
-        // Struck-ball launch (cliff): announce (estImpactUs plumbed in V4) and
-        // re-arm to acquire the next ball.
-        emit ballLaunched(-1, static_cast<float>((rx + LA.x) / fw),
+        // Struck-ball launch (cliff): report how long ago the true impact was —
+        // (frames since the collapse × interval) + the ball-departure latency —
+        // then re-arm to acquire the next ball. The consumer stamps it to an
+        // absolute EventBuffer time.
+        const int framesSince = m_tracker->frameIndex() - LA.idx;
+        const double intervalUs = m_trackerFps > 0.0 ? 1.0e6 / m_trackerFps : 0.0;
+        const qint64 ageUs = static_cast<qint64>(framesSince * intervalUs) + kBallLaunchLatencyUs;
+        emit ballLaunched(ageUs, static_cast<float>((rx + LA.x) / fw),
                           static_cast<float>((ry + LA.y) / fh));
         m_tracker->rearm();
         m_locked = false;

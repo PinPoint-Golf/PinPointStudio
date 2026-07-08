@@ -369,6 +369,16 @@ void CameraInstance::setupPipeline()
                 m_ballDetector, &BallDetector::detect, Qt::QueuedConnection);
         connect(m_ballDetector, &BallDetector::ballDetected,
                 this, &CameraInstance::onBallDetected, Qt::QueuedConnection);
+        // Struck-ball launch → shot-arbiter candidate. Stamp the detector's launch
+        // AGE onto the EventBuffer clock here (this instance owns that clock);
+        // approximate for now — precise frame timestamps are a later refinement.
+        // conf 0.6 sits below the arbiter's 0.8 lone-candidate self-commit floor,
+        // so a spurious vision launch can only corroborate, never commit alone.
+        connect(m_ballDetector, &BallDetector::ballLaunched, this,
+                [this](qint64 launchAgeUs, float, float) {
+            const qint64 estImpactUs = pinpoint::EventBuffer::nowMicros() - launchAgeUs;
+            emit ballLaunched(estImpactUs, 0.6f);
+        }, Qt::QueuedConnection);
         // Wire BOTH completion signals to BOTH throttle paths (mirrors the
         // pose estimator above): a camera feeds exactly one path, so only
         // that path's counter is consulted — but without the raw wiring the

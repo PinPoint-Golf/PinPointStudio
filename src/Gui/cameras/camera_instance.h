@@ -224,6 +224,10 @@ signals:
     void ballDetectedChanged();
     void ballPresencePercentChanged();
     void ballPresentChanged(bool present);
+    // Struck-ball launch as a shot-arbiter candidate: absolute impact time on the
+    // EventBuffer clock + confidence (< the arbiter self-commit floor — vision
+    // only corroborates IMU/acoustic). Forwarded by CameraManager to the funnel.
+    void ballLaunched(qint64 estImpactUs, float confidence);
     void ballAvgMsChanged();
     void frameSizeChanged();
     void isReplayingChanged();

@@ -108,9 +108,12 @@ signals:
     void ballLocked(float x, float y, float radiusNorm);
 
     // The locked ball was struck — a per-frame collapse cliff (design §4.5).
-    // estImpactUs is the back-dated impact time (-1 until frame timestamps are
-    // plumbed); feeds the shot arbiter as a candidate (conf < self-commit).
-    void ballLaunched(qint64 estImpactUs, float x, float y);
+    // launchAgeUs is how long BEFORE now (this detect() moment) the true impact
+    // occurred: (frames since the collapse × frame interval) + the ball-departure
+    // latency. The consumer (CameraInstance) converts it to an absolute impact
+    // time on the EventBuffer clock and feeds the shot arbiter as a candidate
+    // (conf < the self-commit floor, so it can only corroborate IMU/acoustic).
+    void ballLaunched(qint64 launchAgeUs, float x, float y);
 
     // ROI over-exposure health (satFrac = fraction of ROI luma >= 250), edge-
     // triggered on crossing the warn threshold. Drives the wizard exposure hint.

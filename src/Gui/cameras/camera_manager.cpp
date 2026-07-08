@@ -743,6 +743,10 @@ CameraInstance *CameraManager::createController(const Device &device)
     connect(ctrl, &CameraInstance::isConnectingChanged,
             this, &CameraManager::anyConnectingChanged);
 
+    // Forward struck-ball launches to the shot-detection funnel (main.cpp wires
+    // CameraManager::ballLaunched → shotController.reportCandidate(Source::Ball)).
+    connect(ctrl, &CameraInstance::ballLaunched, this, &CameraManager::ballLaunched);
+
     // Apply the session-wide pipeline configuration to the new instance.
     ctrl->setPoseEnabled(m_livePoseEnabled);
 

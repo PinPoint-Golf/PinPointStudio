@@ -156,6 +156,9 @@ signals:
     void instancesChanged();
     void isRecordingChanged();
     void anyConnectingChanged();
+    // Struck-ball launch from any camera's temporal detector, forwarded to the
+    // shot-arbiter funnel in main.cpp (absolute impact time + confidence).
+    void ballLaunched(qint64 estImpactUs, float confidence);
     void bufferStateChanged();
     void captureIntentChanged();
     void sessionCameraExcludedChanged();
