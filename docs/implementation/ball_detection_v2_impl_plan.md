@@ -121,7 +121,23 @@ The algorithm settled through three iterations the harness caught *before* any C
   (locked position, `ix/iy`, lock frame, `medN`, `L0`, launch frame all match; lone residue 1e-5 px in
   one sub-pixel coord = double-vs-float32 in `subpixelPeak`). Full `pose-tests` ctest: 5/5.
 
-### V2 — Detector rework (scoped: presence-first) · `src/Pose/ball_detector.{h,cpp}` + plumbing · risk: med (frame path) · **NEXT**
+### V2 — Detector rework (scoped: presence-first) · `src/Pose/ball_detector.{h,cpp}` + plumbing · risk: med (frame path) · **IN PROGRESS**
+**Detector core DONE (2026-07-08, uncommitted, contract-test-verified — no app build needed):**
+`BallDetector` now runs the v2 temporal path (`ball_temporal.h` `TemporalBallTracker`) as the default
+when no calibration profile is set; the v1 calibrated path is kept as a **functional fallback** (not
+broken mid-rollout — profile set → calibrated, else temporal). New: `setFrameRate(fps)`,
+`relearnBaseline()`, empty-mat baseline seed (Option A — accumulate R over ~1 s, then build the tracker
++ emit `baselineReady()`), live presence via the tracker's per-frame at-spot, `rearm()` on a struck-ball
+launch **or** a removed ball (the wizard remove/re-add loop — the offline oracle is one-shot, so
+`rearm()` is additive and parity-safe), exposure `satFrac` health, and signals `baselineReady` /
+`ballLocked` / `ballLaunched(estImpactUs=-1 until V4)` / `exposureWarning`. `ball_detector_contract_test`
+extended (seed → lock → presence → removal) — throttle contract (one `ballDetected`/`detectionSkipped`
+per `detect()`) holds on every path; pose-tests 5/5, parity still byte-exact. **Wizard baseline = Option A**
+(explicit seed, gates Continue on a live detected ball; remove/re-add notifies present/absent live).
+**Remaining V2:** camera_instance wiring (fps from the camera, ROI/stance feeding, presence consumers +
+`ballDetectedOk`), the two outside-`src/Pose/` plumbing changes (timestamp @ `FrameThrottle::offer`,
+`setStanceBounds`), and the contract-test/app build — all need the app build.
+
 **Promotion scope (agreed):** ship v2 acquisition as the live **presence** feature first, and wire
 the launch as an **arbiter-gated** candidate (V4) — the two rough edges (weak-contrast position,
 launch latency/completeness) are *safe* to mature live because the arbiter cannot self-commit on a

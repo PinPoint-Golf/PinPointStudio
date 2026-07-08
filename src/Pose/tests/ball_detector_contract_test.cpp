@@ -18,10 +18,12 @@
 
 // Throttle-contract test for BallDetector (design §9 test 6): every detect()
 // call must emit EXACTLY ONE of ballDetected / detectionSkipped on EVERY code
-// path — disabled, no-ROI, empty frame, uncalibrated (silent found=false; the
-// legacy Hough path is retired), calibrated found / not-found, and the
-// profile-geometry-mismatch fallback. The shared FrameThrottle
-// (consumerCount=2) deadlocks if zero fire and runs ahead if two fire.
+// path — disabled, no-ROI, empty frame, the v2 temporal path (seeding the
+// baseline, searching, locked/present, and removal), and the v1 calibrated
+// fallback (found / not-found / profile-geometry mismatch). The shared
+// FrameThrottle (consumerCount=2) deadlocks if zero fire and runs ahead if two.
+// The extra temporal signals (baselineReady/ballLocked/ballLaunched/
+// exposureWarning) are NOT part of the contract and are counted separately.
 
 #include "ball_detector.h"
 
@@ -147,22 +149,21 @@ int main(int argc, char **argv)
     det.detect(cv::Mat());
     CHECK("empty frame: 1 signal, skipped", spy.total() == 1 && spy.skips == 1);
 
-    // 4. Uncalibrated, no ball → silent found=false.
+    // 4. No profile → v2 temporal path, still seeding the baseline → found=false.
     spy.reset();
     det.detect(fullFrame(40.0, 3.0, 3));
-    CHECK("uncalibrated miss: 1 signal, found=false",
+    CHECK("temporal seeding: 1 signal, found=false",
           spy.total() == 1 && spy.detections == 1 && !spy.lastFound);
 
-    // 5. Uncalibrated, even a BRIGHT ball → still found=false: detection is
-    //    calibration-gated (the legacy Hough path is retired — no circles or
-    //    presence tings from generic parameters).
+    // 5. A ball on a single frame cannot detect (needs a seeded baseline + a
+    //    sustained lock) — still exactly one signal, found=false.
     spy.reset();
     {
         cv::Mat f = fullFrame(40.0, 3.0, 4);
         drawBall(f, 200.0);
         det.detect(f);
     }
-    CHECK("uncalibrated bright ball: 1 signal, found=false (legacy retired)",
+    CHECK("temporal single frame: 1 signal, found=false",
           spy.total() == 1 && spy.detections == 1 && !spy.lastFound);
 
     // 6. Calibrated path (dim studio: legacy CANNOT see this ball).
@@ -204,6 +205,46 @@ int main(int argc, char **argv)
     }
     CHECK("invalid profile: 1 signal, found=false",
           spy.total() == 1 && !spy.lastFound);
+
+    // 9. v2 temporal path end-to-end: seed an empty mat, lock a ball, then clear
+    //    it — the throttle stays at exactly one ballDetected per detect() the
+    //    whole way through (no profile → temporal).
+    std::printf("\nv2 temporal path — seed / lock / presence / removal:\n");
+    BallDetector td;
+    int tDet = 0, tSkip = 0, tBaseline = 0, tLocks = 0;
+    bool tFound = false;
+    QObject::connect(&td, &BallDetector::ballDetected,
+                     [&](const BallDetection &r) { ++tDet; tFound = r.found; });
+    QObject::connect(&td, &BallDetector::detectionSkipped, [&]() { ++tSkip; });
+    QObject::connect(&td, &BallDetector::baselineReady, [&]() { ++tBaseline; });
+    QObject::connect(&td, &BallDetector::ballLocked, [&](float, float, float) { ++tLocks; });
+    td.setFrameRate(20.0);        // seed window = 20 frames, lock after ~10
+    td.setRoi(kRoi);
+
+    // Seed: 20 empty frames → one signal each, no detection, baselineReady once.
+    int mark = tDet + tSkip;
+    for (int i = 0; i < 20; ++i) td.detect(fullFrame(60.0, 3.0, 1000 + i));
+    CHECK("seeding: one signal per frame", tDet + tSkip - mark == 20 && tSkip == 0);
+    CHECK("seeding: baselineReady fired once", tBaseline == 1);
+    CHECK("seeding: no detection while learning", !tFound);
+
+    // Ball present: a ball-scale disc (radius ≈ r_hat @640 px) locks + reports present.
+    mark = tDet + tSkip;
+    bool everFound = false;
+    for (int i = 0; i < 40; ++i) {
+        cv::Mat f = fullFrame(60.0, 3.0, 2000 + i);
+        drawBall(f, 200.0, 5.f);
+        td.detect(f);
+        if (tFound) everFound = true;
+    }
+    CHECK("ball present: one signal per frame", tDet + tSkip - mark == 40);
+    CHECK("temporal locks + reports present", everFound && tLocks >= 1);
+
+    // Removal: presence returns to false, still one signal per frame.
+    mark = tDet + tSkip;
+    for (int i = 0; i < 20; ++i) td.detect(fullFrame(60.0, 3.0, 3000 + i));
+    CHECK("removal: one signal per frame", tDet + tSkip - mark == 20);
+    CHECK("removal: presence cleared", !tFound);
 
     std::printf("%s (%d failure%s)\n", g_fail == 0 ? "ALL PASS" : "FAILURES",
                 g_fail, g_fail == 1 ? "" : "s");

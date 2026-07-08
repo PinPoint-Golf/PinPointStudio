@@ -343,6 +343,23 @@ public:
     // offline gate bookkeeping only. -1 disables the check (default).
     void setAddressEndIdx(int idx) { addressEndIdx_ = idx; }
 
+    // Re-arm for the next acquisition — LIVE use only (the offline oracle runs a
+    // single window and never calls this, so it does not affect parity). Resets
+    // the state machine to SEARCH and clears the candidate/lock/launch state, but
+    // KEEPS the accumulator A and baseline B (the mat is static, so A re-converges
+    // to the empty scene within ~τ_acc after the ball leaves and rebuilds when the
+    // next ball is placed). Used after a struck-ball launch (VANISHED) or after a
+    // locked ball is removed and stays absent (the wizard remove/re-add loop).
+    void rearm()
+    {
+        state_ = State::Search;
+        cands_.clear();
+        locked_ = Lock{};
+        launched_ = Launch{};
+        lhist_.clear();
+        L0_ = 0.0f;
+    }
+
     State   state() const { return state_; }
     const Lock   &locked()   const { return locked_; }
     const Launch &launched() const { return launched_; }

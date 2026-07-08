@@ -21,11 +21,13 @@
 #ifdef HAVE_OPENCV
 
 #include "ball_model.h"
+#include "ball_temporal.h"
 
 #include <QElapsedTimer>
 #include <QObject>
 #include <QRectF>
 #include <atomic>
+#include <memory>
 #include <opencv2/core.hpp>
 
 struct BallDetection {
@@ -79,8 +81,19 @@ public slots:
     // No-op when no ROI is set.
     void detect(const cv::Mat &frame);
 
-    // Update the search region. Safe to call via queued connection.
+    // Update the search region. Safe to call via queued connection. Changing the
+    // ROI restarts the empty-mat baseline seed (the mat under a new box differs).
     void setRoi(QRectF roi);
+
+    // Camera frame rate for the temporal tracker's timing (lock/collapse frame
+    // counts, accumulator EMA). Changing it re-seeds. Default 100 Hz.
+    void setFrameRate(double fps);
+
+    // Re-learn the empty-mat baseline B from the next ~1 s of frames (design
+    // §4.2 / Option A). The wizard "learn the hitting area" / re-learn action:
+    // call with the mat empty; baselineReady() fires when B is set, after which
+    // a placed ball is detected. Safe via queued connection.
+    void relearnBaseline();
 
     // Swap in / drop the learned calibration profile. Safe to call via queued
     // connection. An invalid profile is equivalent to clearProfile().
@@ -104,6 +117,26 @@ signals:
     // FrameThrottle connects this to clearBusy() alongside ballDetected().
     void detectionSkipped();
 
+    // ── v2 temporal path signals (additional; NOT part of the throttle contract,
+    //    which counts only ballDetected/detectionSkipped) ──────────────────────
+
+    // The empty-mat baseline B has been seeded — the hitting area is "learned"
+    // (Option A wizard badge). Detection of a placed ball follows.
+    void baselineReady();
+
+    // A stationary ball has been acquired at (x,y) (normalized to the full frame),
+    // radiusNorm normalized to frame width. Fires once per acquisition.
+    void ballLocked(float x, float y, float radiusNorm);
+
+    // The locked ball was struck — a per-frame collapse cliff (design §4.5).
+    // estImpactUs is the back-dated impact time (-1 until frame timestamps are
+    // plumbed in V4); feeds the shot arbiter as a candidate (conf < self-commit).
+    void ballLaunched(qint64 estImpactUs, float x, float y);
+
+    // ROI over-exposure health (satFrac = fraction of ROI luma >= 250), edge-
+    // triggered on crossing the warn threshold. Drives the wizard exposure hint.
+    void exposureWarning(double satFrac);
+
     // Illumination drift vs the calibration envelope (calibrated path only,
     // docs/design/ball_detection_calibration.md §6). Emitted on state change.
     void environmentDrift(bool drifting, double severity);
@@ -115,16 +148,33 @@ signals:
 private:
     void detectCalibrated(const cv::Mat &roiMat, int rx, int ry, int fw, int fh,
                           const QElapsedTimer &t);
+    // v2 temporal matched-filter path (ball_temporal.h). Emits exactly one
+    // ballDetected per call (throttle contract), plus the temporal signals.
+    void detectTemporal(const cv::Mat &frame, int rx, int ry, int rw, int rh,
+                        int fw, int fh, const QElapsedTimer &t);
+    void startSeed();                              // (re)begin the empty-mat baseline seed
 
     std::atomic<bool> m_enabled{true};
 
     // Only accessed on the detector's own thread (all slots arrive via queued
     // connections, so they are serialised by the event loop).
     QRectF m_roi;
-    pinpoint::ballcal::BallCalProfile m_profile;   // valid flag gates the path
+    pinpoint::ballcal::BallCalProfile m_profile;   // valid flag gates the calibrated (v1) path
     bool   m_drifting = false;
     int    m_calibTarget = 0;                      // >0 = capture mode armed
     int    m_calibHave   = 0;
+
+    // ── v2 temporal path state (detector thread only) ─────────────────────────
+    double m_fps = 100.0;
+    std::unique_ptr<pinpoint::balltemporal::TemporalBallTracker> m_tracker;
+    cv::Mat m_seedAccum;             // CV_64F running sum of R over the seed window
+    int     m_seedHave   = 0;
+    int     m_seedTarget = 0;        // >0 = seeding the baseline
+    double  m_seedNoise  = 1.0;      // fallback noise for the tracker
+    bool    m_locked     = false;    // ballLocked emitted for the current acquisition
+    bool    m_present    = false;    // last emitted presence
+    int     m_absentFrames = 0;      // consecutive absent frames while locked
+    bool    m_exposureWarned = false;
 };
 
 #endif // HAVE_OPENCV

@@ -23,7 +23,19 @@
 #include <QElapsedTimer>
 #include <opencv2/imgproc.hpp>
 
+#include <cmath>
+
 #include "pp_profiler.h"
+
+namespace {
+// v2 temporal-path live constants (design §4.2/§4.5; not the parity-locked
+// algorithm constants, which live in ball_temporal.h::tuning).
+constexpr double kSeedSeconds      = 1.0;    // empty-mat baseline seed window
+constexpr float  kPresenceFrac     = 0.40f;  // present if at-spot R >= this * L0
+constexpr double kReacquireSeconds = 0.30f;  // absent this long -> re-arm to re-search
+constexpr int    kSatThresh        = 250;    // ROI luma at/above this is clipped
+constexpr double kSatWarn          = 0.25;   // satFrac above this -> exposure warning
+}  // namespace
 
 BallDetector::BallDetector(QObject *parent)
     : QObject(parent)
@@ -34,7 +46,33 @@ BallDetector::BallDetector(QObject *parent)
 
 void BallDetector::setRoi(QRectF roi)
 {
+    const bool changed = roi != m_roi;
     m_roi = roi;
+    if (changed && !m_roi.isEmpty())
+        startSeed();     // the mat under a new box differs — re-learn the baseline
+}
+
+void BallDetector::setFrameRate(double fps)
+{
+    if (fps <= 0.0 || qFuzzyCompare(fps, m_fps)) return;
+    m_fps = fps;
+    if (!m_roi.isEmpty()) startSeed();    // timing params changed — re-seed
+}
+
+void BallDetector::relearnBaseline()
+{
+    if (!m_roi.isEmpty()) startSeed();
+}
+
+void BallDetector::startSeed()
+{
+    m_seedAccum.release();
+    m_seedHave   = 0;
+    m_seedTarget = std::max(1, static_cast<int>(std::lround(kSeedSeconds * m_fps)));
+    m_seedNoise  = 1.0;
+    m_tracker.reset();
+    m_locked = m_present = false;
+    m_absentFrames = 0;
 }
 
 void BallDetector::setProfile(const pinpoint::ballcal::BallCalProfile &profile)
@@ -107,9 +145,9 @@ void BallDetector::detect(const cv::Mat &frame)
         }
     }
 
-    // Calibrated path when a valid profile matches the current ROI geometry;
-    // a resolution change (hard invalidation, design §6) falls back to legacy
-    // rather than feeding a permanent found=false stream downstream.
+    // v1 calibrated path when a valid profile matches the current ROI geometry
+    // (kept as a functional fallback during the v2 rollout; slated for V3
+    // deletion). Otherwise the v2 temporal matched-filter path runs.
     if (m_profile.valid
         && m_profile.background.meanGray.cols == rw
         && m_profile.background.meanGray.rows == rh) {
@@ -117,10 +155,111 @@ void BallDetector::detect(const cv::Mat &frame)
         return;
     }
 
-    // No usable profile: detection is calibration-gated — emit found=false
-    // (throttle contract intact, presence window decays cleanly). The legacy
-    // Hough path was retired; the next detector generation slots in here.
-    emit ballDetected(BallDetection{false, 0.f, 0.f, 0.f, t.elapsed()});
+    detectTemporal(frame, rx, ry, rw, rh, fw, fh, t);
+}
+
+void BallDetector::detectTemporal(const cv::Mat &frame, int rx, int ry, int rw, int rh,
+                                  int fw, int fh, const QElapsedTimer &t)
+{
+    using namespace pinpoint::balltemporal;
+    const double rHat = radiusForWidth(fw);
+
+    // paddedResponse pads BEYOND the ROI, so it needs the surrounding pixels
+    // (the crop-edge note in ball_temporal.h) — hand it the full-frame gray.
+    cv::Mat gray8, gray32;
+    cv::cvtColor(frame, gray8, cv::COLOR_BGR2GRAY);
+    gray8.convertTo(gray32, CV_32F);
+    const cv::Rect roiRect(rx, ry, rw, rh);
+    const cv::Mat R = paddedResponse(gray32, roiRect, rHat);
+    if (R.empty()) {
+        emit ballDetected(BallDetection{false, 0.f, 0.f, 0.f, t.elapsed()});
+        return;
+    }
+
+    // Exposure health over the ROI luma (satFrac), edge-triggered.
+    {
+        const cv::Mat roiGray = gray8(roiRect);
+        int sat = 0;
+        for (int y = 0; y < roiGray.rows; ++y) {
+            const uchar *row = roiGray.ptr<uchar>(y);
+            for (int x = 0; x < roiGray.cols; ++x)
+                if (row[x] >= kSatThresh) ++sat;
+        }
+        const int n = roiGray.rows * roiGray.cols;
+        const double satFrac = n > 0 ? double(sat) / n : 0.0;
+        const bool warn = satFrac > kSatWarn;
+        if (warn != m_exposureWarned) {
+            m_exposureWarned = warn;
+            emit exposureWarning(satFrac);
+        }
+    }
+
+    // Seeding the empty-mat baseline (Option A): accumulate R, then build the
+    // tracker and announce baselineReady(). No detection while seeding.
+    if (m_seedTarget > 0) {
+        cv::Mat R64;
+        R.convertTo(R64, CV_64F);
+        if (m_seedAccum.empty()) m_seedAccum = R64;
+        else                     m_seedAccum += R64;
+        m_seedNoise = robustNoise(R);
+        if (++m_seedHave >= m_seedTarget) {
+            const cv::Mat meanR = m_seedAccum / m_seedHave;   // CV_64F mean of R
+            cv::Mat B;
+            meanR.convertTo(B, CV_32F);
+            m_tracker = std::make_unique<TemporalBallTracker>(rHat, m_fps, B, m_seedNoise);
+            m_seedTarget = 0;
+            m_seedAccum.release();
+            emit baselineReady();
+        }
+        emit ballDetected(BallDetection{false, 0.f, 0.f, 0.f, t.elapsed()});
+        return;
+    }
+
+    if (!m_tracker) {   // no baseline yet and not seeding — silent (throttle intact)
+        emit ballDetected(BallDetection{false, 0.f, 0.f, 0.f, t.elapsed()});
+        return;
+    }
+
+    m_tracker->push(R);
+    const auto &L  = m_tracker->locked();
+    const auto &LA = m_tracker->launched();
+    const int reacq = std::max(1, static_cast<int>(std::lround(kReacquireSeconds * m_fps)));
+
+    float nx = 0.f, ny = 0.f, nr = 0.f, score = 0.f;
+    bool present = false;
+    if (L.valid) {
+        nr = static_cast<float>(rHat / fw);
+        nx = static_cast<float>((rx + L.x) / fw);
+        ny = static_cast<float>((ry + L.y) / fh);
+        if (!m_locked) { m_locked = true; emit ballLocked(nx, ny, nr); }
+        const float ats = atSpot(R, L.ix, L.iy);          // instantaneous presence
+        present = ats >= kPresenceFrac * L.L0;
+        score   = L.L0 > 0.f ? std::min(1.0f, ats / L.L0) : 0.f;
+    }
+
+    if (LA.valid) {
+        // Struck-ball launch (cliff): announce (estImpactUs plumbed in V4) and
+        // re-arm to acquire the next ball.
+        emit ballLaunched(-1, static_cast<float>((rx + LA.x) / fw),
+                          static_cast<float>((ry + LA.y) / fh));
+        m_tracker->rearm();
+        m_locked = false;
+        m_absentFrames = 0;
+        present = false;
+    } else if (m_locked && !present) {
+        // Removed / occluded — re-arm after a short absence so re-adding re-locks
+        // (the wizard remove/re-add loop). A brief occlusion recovers before this.
+        if (++m_absentFrames >= reacq) {
+            m_tracker->rearm();
+            m_locked = false;
+            m_absentFrames = 0;
+        }
+    } else {
+        m_absentFrames = 0;
+    }
+
+    m_present = present;
+    emit ballDetected(BallDetection{present, nx, ny, nr, t.elapsed(), score});
 }
 
 void BallDetector::detectCalibrated(const cv::Mat &roiMat, int rx, int ry,
