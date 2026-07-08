@@ -25,6 +25,7 @@
 #include <limits>
 
 #include "analysis_tuning.h"
+#include "ball_runner.h"
 #include "imu_vision_fuser.h"
 #include "orientation_refuse_tuning.h"
 #include "metric_extractor.h"
@@ -309,6 +310,18 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
             constexpr int64_t kScanPadUs = 150000;
             opt.scanStartUs = segmentation.swingStartUs - kScanPadUs;
             opt.scanEndUs   = segmentation.swingEndUs   + kScanPadUs;
+            // v3.4 plan §2: G3's scanStartUs is pinned close to Takeaway, so a
+            // real still address sits almost entirely before it — invisible to
+            // pose, and therefore to ShaftTracker (strictly bounded to pose
+            // coverage). Reach back further, sparsely, so the ball-anchor pass
+            // has address-hold frames to work with at all. Sweepable via
+            // shaft.addressScanPadUs / shaft.addressStride.
+            opt.addressScanPadUs = 4'000'000;   // 4 s default reach, capped by window start
+            {
+                namespace tn = pinpoint::analysis::tuning;
+                tn::apply(job.tuningOverrides, "shaft.addressScanPadUs", opt.addressScanPadUs);
+                tn::apply(job.tuningOverrides, "shaft.addressStride",    opt.addressStride);
+            }
         }
         if (job.progress) {
             job.progress(0.10f);
@@ -322,10 +335,22 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
             ShotAnalysisJob sub = job;
             if (job.progress)
                 sub.progress = [&job](float f) { job.progress(0.70f + 0.28f * f); };
+            // v3.4 (design §9, plan §3): resolve the face-on ball track — an
+            // explicit injection path wins (SwingLab synthetic fixtures), else
+            // whatever the job already carries (live app capture / a recorded
+            // swing.json block), else replay the production ball detector
+            // offline over this same frozen window (archival swings that
+            // predate live ball recording). Empty on every path is a valid,
+            // additive-only no-op (design §9.6).
+            const BallTrack2D ball = !job.ballTrackPath.isEmpty()
+                ? BallRunner::loadFromJson(job.ballTrackPath, job.cameraSources.front())
+                : (!job.ballTrack.frames.empty()
+                       ? job.ballTrack
+                       : BallRunner::run(window, job.cameraSources.front(), detail->pose2d, opt));
             // Capture the tracker's hands-only phase model only when there is no
             // IMU segmentation to fall back on (the trace is free otherwise).
             ShaftTracker::ShaftTrace strace;
-            detail->shaft = ShaftTracker::track(window, detail->pose2d, streams,
+            detail->shaft = ShaftTracker::track(window, detail->pose2d, ball, streams,
                                                 segmentation, sub, hasImu ? nullptr : &strace);
             // Camera-only: adopt the vision-derived segmentation so a webcam-only
             // Wrist analysis still carries Address/Top/Impact/Finish landmarks +

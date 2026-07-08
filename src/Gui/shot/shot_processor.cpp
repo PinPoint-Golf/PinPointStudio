@@ -475,6 +475,33 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
             job.imuSources.push_back(e.source_id);
     }
 
+    // v3.4 (design §9): face-on ball track for the live analyzer, resolved
+    // from whichever camera's accumulator has data — prefer face-on (the
+    // hitting-area ROI only ever runs there in practice), else any camera
+    // with ball detection enabled. Empty ⇒ ShaftTracker falls back to
+    // BallRunner's offline replay (correct even live: e.g. detection was
+    // enabled mid-swing and the accumulator is still short).
+    for (int pass = 0; pass < 2 && job.ballTrack.frames.empty(); ++pass) {
+        for (const ReplayTrack &track : m_replayTracks) {
+            if (pass == 0 && track.ctrl->perspective() != CameraInstance::FaceOn)
+                continue;
+            const auto &samples = track.ctrl->ballSamples();
+            if (samples.empty()) continue;
+            pinpoint::analysis::BallTrack2D bt;
+            bt.camera = track.sourceId;
+            bt.frames.reserve(samples.size());
+            for (const auto &s : samples)
+                bt.frames.push_back({s.tUs, s.found, QPointF(s.x, s.y), s.r, s.conf});
+            qint64 lTUs = -1; double lx = 0.0, ly = 0.0;
+            if (track.ctrl->ballLaunchInfo(lTUs, lx, ly)) {
+                bt.launchTUs    = lTUs;
+                bt.launchCenter = QPointF(lx, ly);
+            }
+            job.ballTrack = std::move(bt);
+            break;
+        }
+    }
+
     // Athlete handedness (lead-arm sign) and IMU -> segment bindings, resolved
     // here on the UI thread — the worker can read neither the athlete controller
     // nor the live ImuInstance calibration (alignA/mountM are session-lifetime).
@@ -718,6 +745,33 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         // Recording the v2 auto-detected ball position (locked centre + satFrac)
         // into swing.json is the additive "Provenance v2" follow-up.
         job.cameras.push_back(std::move(cam));
+
+        // v3.4 (design §9.7): this camera's ball stream, window-relative —
+        // additive, empty when ball detection never ran on this camera.
+        const auto &ballSamples = track.ctrl->ballSamples();
+        if (!ballSamples.empty() && m_swingWindow) {
+            const int64_t t0 = m_swingWindow->startTimestampUs();
+            pinpoint::SwingBallStream bs;
+            bs.alias  = name;
+            bs.serial = track.ctrl->deviceSerialNumber();
+            bs.tUs.reserve(ballSamples.size());
+            bs.data.reserve(ballSamples.size() * 5);
+            for (const auto &s : ballSamples) {
+                bs.tUs.push_back(s.tUs - t0);
+                bs.data.push_back(s.found ? 1.f : 0.f);
+                bs.data.push_back(s.x);
+                bs.data.push_back(s.y);
+                bs.data.push_back(s.r);
+                bs.data.push_back(s.conf);
+            }
+            qint64 lTUs = -1; double lx = 0.0, ly = 0.0;
+            if (track.ctrl->ballLaunchInfo(lTUs, lx, ly)) {
+                bs.launchTUs = lTUs - t0;
+                bs.launchX   = float(lx);
+                bs.launchY   = float(ly);
+            }
+            job.ballStreams.push_back(std::move(bs));
+        }
     }
 
     // Impact thumbnail from the face-on camera, else the exporter falls back

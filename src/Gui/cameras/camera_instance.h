@@ -153,6 +153,18 @@ public:
     double  ballPresencePercent() const;
     bool    ballPresent()         const;
     double  ballAvgMs()           const;
+
+    // v3.4 (design §9): per-frame ball-detector accumulator (plain POD, no
+    // Analysis-layer dependency — mirrors how poseKeypoints() is live-only and
+    // never written to a buffer). Read by ShotProcessor on the UI thread when
+    // building the export/analysis jobs. Bounded to the last kBallAccumWindowUs
+    // — comfortably covers the SwingWindow's own trailing ring, not the whole
+    // session.
+    struct BallAccumSample { qint64 tUs = 0; bool found = false; float x = 0.f, y = 0.f, r = 0.f, conf = 0.f; };
+    const std::deque<BallAccumSample> &ballSamples() const { return m_ballAccum; }
+    // Last struck-ball launch within the accumulator window. Returns false
+    // (outputs untouched) when no launch has been recorded.
+    bool ballLaunchInfo(qint64 &tUsOut, double &xOut, double &yOut) const;
     int     frameWidth()          const;
     int     frameHeight()         const;
     double  configuredFps()       const;
@@ -337,6 +349,14 @@ private:
     double           m_ballPresencePercent  = 0.0;
     bool             m_ballPresent          = false;
     double           m_ballAvgMs            = 0.0;
+
+    // v3.4 ball-anchor accumulator (design §9) — see ballSamples()/ballLaunchInfo().
+    static constexpr qint64 kBallAccumWindowUs = 6'000'000;   // > the 5 s SwingWindow ring
+    std::deque<BallAccumSample> m_ballAccum;
+    qint64 m_ballLaunchTUs = -1;
+    double m_ballLaunchX   = 0.0;
+    double m_ballLaunchY   = 0.0;
+    void trimBallAccum();
     TingPlayer      *m_tingPlayer           = nullptr;
     bool             m_replaying            = false;
     // Capture-rate FPS: counted on the capture thread, sampled on a timer.

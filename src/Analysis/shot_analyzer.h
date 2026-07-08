@@ -70,6 +70,18 @@ struct ShotAnalysisJob {
     // and pose-cache reuse during shaft tuning. Empty in production.
     QString poseTrackPath;
 
+    // Face-on ball track (v3.4 design §9), resolved on the UI thread from the live
+    // CameraInstance's ball accumulator or a recorded swing.json "ball" block.
+    // Empty ⇒ the shaft tracker's offline ball-anchor pass falls back to replaying
+    // the production ball detector over the frozen window (BallRunner::run) —
+    // never a failure, just no anchor for that swing (design §9.6, additive-only).
+    pinpoint::analysis::BallTrack2D ballTrack;
+
+    // SwingLab: when set, the analyzer loads an INJECTED ground-truth BallTrack2D
+    // from this JSON file instead of ballTrack/BallRunner — synthetic-fixture
+    // injection, mirrors poseTrackPath. Empty in production.
+    QString ballTrackPath;
+
     // SwingLab tuning overrides (docs/implementation/swinglab_impl.md):
     // "<area>.<field>" → numeric value, applied onto the config structs at
     // analysis time (e.g. "shaft.ridgeKernelPx", "assembly.coverageMin",

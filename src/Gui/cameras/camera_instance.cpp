@@ -375,8 +375,16 @@ void CameraInstance::setupPipeline()
         // conf 0.6 sits below the arbiter's 0.8 lone-candidate self-commit floor,
         // so a spurious vision launch can only corroborate, never commit alone.
         connect(m_ballDetector, &BallDetector::ballLaunched, this,
-                [this](qint64 launchAgeUs, float, float) {
+                [this](qint64 launchAgeUs, float x, float y) {
             const qint64 estImpactUs = pinpoint::EventBuffer::nowMicros() - launchAgeUs;
+            // v3.4 (design §9.3): stash the launch position the detector already
+            // computed — previously discarded here. CameraManager::ballLaunched
+            // and the shot-arbiter path only ever needed the timestamp, so that
+            // signal/signature is unchanged; the position feeds the offline
+            // ball-anchor pass via ballLaunchInfo().
+            m_ballLaunchTUs = estImpactUs;
+            m_ballLaunchX   = double(x);
+            m_ballLaunchY   = double(y);
             emit ballLaunched(estImpactUs, 0.6f);
         }, Qt::QueuedConnection);
         // Wire BOTH completion signals to BOTH throttle paths (mirrors the
@@ -846,6 +854,13 @@ void CameraInstance::onBallDetected(const BallDetection &result)
     // found=false event here could fire a spurious ball-lost transition.
     if (!m_ballEnabled) return;
 
+    // v3.4 (design §9.7): accumulate the per-frame ball stream — the low-entropy
+    // "constant plus one step" record ShotProcessor later reads to build the
+    // live ShotAnalysisJob::ballTrack / swing.json "ball" block.
+    m_ballAccum.push_back({pinpoint::EventBuffer::nowMicros(), result.found,
+                           result.x, result.y, result.radius, result.score});
+    trimBallAccum();
+
     // EMA of detection latency — only when detect() actually ran (detectMs > 0).
     if (result.detectMs > 0) {
         constexpr double kAlpha = 0.1;
@@ -894,6 +909,26 @@ void CameraInstance::onBallDetected(const BallDetection &result)
     emit ballDetectedChanged();
 }
 #endif
+
+// v3.4 (design §9): drop samples older than kBallAccumWindowUs — a simple
+// time-bounded trim (not the exact SwingWindow ring accounting), generous
+// enough to always cover the trailing window ShotProcessor freezes.
+void CameraInstance::trimBallAccum()
+{
+    if (m_ballAccum.empty()) return;
+    const qint64 cutoff = m_ballAccum.back().tUs - kBallAccumWindowUs;
+    while (!m_ballAccum.empty() && m_ballAccum.front().tUs < cutoff)
+        m_ballAccum.pop_front();
+}
+
+bool CameraInstance::ballLaunchInfo(qint64 &tUsOut, double &xOut, double &yOut) const
+{
+    if (m_ballLaunchTUs < 0) return false;
+    tUsOut = m_ballLaunchTUs;
+    xOut   = m_ballLaunchX;
+    yOut   = m_ballLaunchY;
+    return true;
+}
 
 VideoPreprocessorBase *CameraInstance::preprocessor() const { return m_preprocessor; }
 

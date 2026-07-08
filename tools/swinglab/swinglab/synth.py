@@ -21,10 +21,18 @@ from . import save_json
 
 W, H = 640, 640
 FPS = 60
-T_END = 5.0
+# v3.4 (plan §4.2): the pre-takeaway address hold is stretched from the
+# original ~1.9 s so this fixture actually exercises the address-hold
+# coverage widening (WristAnalyzer's opt.addressScanPadUs, default 4 s) —
+# under the original span the whole clip fit inside G3's own bound and the
+# widening was never touched. All phase times below the same delta later
+# (+ADDR_EXTRA_S), so the moving-swing geometry (durations, waggle, etc.) is
+# byte-for-byte the same, just shifted later in the clip.
+ADDR_EXTRA_S = 2.0
+T_END = 5.0 + ADDR_EXTRA_S
 T0_US = 1_000_000
-IMPACT_S = 3.5
-TAKEAWAY_S, TOP_S, FOLLOW_END_S = 1.9, 3.18, 4.0
+IMPACT_S = 3.5 + ADDR_EXTRA_S
+TAKEAWAY_S, TOP_S, FOLLOW_END_S = 1.9 + ADDR_EXTRA_S, 3.18 + ADDR_EXTRA_S, 4.0 + ADDR_EXTRA_S
 GRIP = (320.0, 280.0)
 SHAFT_LEN = 210.0
 
@@ -159,6 +167,30 @@ def pose_frames(frame_t_us):
     return frames
 
 
+def ball_frames(frame_t_us):
+    """Injected BallTrack2D (v3.4 design §9.7): a stationary ball at the
+    address clubhead position, held constant through address/backswing/
+    downswing (the club is presented to it at address; nothing moves it
+    until the strike), found=False from IMPACT_S on (the launch/departure).
+    Mirrors pose_frames()'s "inject ground truth, don't render a detectable
+    target" approach -- there's no real ball for the temporal matched filter
+    to lock onto in a synthetic scene."""
+    _, _, head0, _ = shaft_at(0.0)
+    rNorm = 9.5 / W   # ~ball_temporal.h's kRHatPer1280 scaled to this frame width
+    frames = []
+    for t in frame_t_us:
+        ts = (t - T0_US) / 1e6
+        found = ts < IMPACT_S
+        frames.append({"t_us": t, "found": found,
+                       "x": round(head0[0] / W, 5) if found else 0.0,
+                       "y": round(head0[1] / H, 5) if found else 0.0,
+                       "r": round(rNorm, 5) if found else 0.0,
+                       "conf": 0.9 if found else 0.0})
+    launch = {"t_us": T0_US + int(round(IMPACT_S * 1e6)),
+             "x": round(head0[0] / W, 5), "y": round(head0[1] / H, 5)}
+    return frames, launch
+
+
 # Archetype → forearm FE bias (degrees). A constant Rz on the forearm shifts the lead-wrist FE by
 # ~−bias, so these signs are chosen (and empirically verified through swinglab_run) to land the
 # scripted swing on each resemblance centre. PROVISIONAL like the centres themselves (re-seat at
@@ -269,6 +301,8 @@ def generate(out_dir, seed=7, waggle=True, clutter=False,
     }
     save_json(out / "swing.json", doc)
     save_json(out / "pose.json", {"frames": pose_frames(frame_t_us)})
+    ball_frames_list, ball_launch = ball_frames(frame_t_us)
+    save_json(out / "ball.json", {"frames": ball_frames_list, "launch": ball_launch})
     # IMU-derived expectations (sHand fit) and the known-groups/archetype labels (which drive the
     # wrist/diag/score checks) are meaningless without inertial data, so a no_imu fixture omits them —
     # leaving only the vision ground truth (shaft labels + downswing sweep + event times).

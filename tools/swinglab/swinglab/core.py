@@ -141,6 +141,12 @@ def run_one(swing_dir, run_dir, params=None, trace=True, pose=None, binary=None,
     pose_file = Path(pose) if pose else swing_dir / "pose.json"
     if pose_file.exists():
         cmd += ["--pose", str(pose_file)]
+    # v3.4 (design §9.7): same auto-injection as pose.json above — a synthetic
+    # fixture's ball.json is picked up automatically, no extra CLI plumbing
+    # needed at the lab.py call sites.
+    ball_file = swing_dir / "ball.json"
+    if ball_file.exists():
+        cmd += ["--ball", str(ball_file)]
     if session_type is not None:
         cmd += ["--session-type", str(int(session_type))]
     if impact_us is None:

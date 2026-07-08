@@ -422,6 +422,40 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
             if (deviceObj[QStringLiteral("alignA")].toArray().size() == 4
                 && deviceObj[QStringLiteral("mountM")].toArray().size() == 4)
                 deviceBindings.push_back(parseBinding(deviceObj, id));
+
+        } else if (kind == QLatin1String("ball")) {
+            // v3.4 (design §9.7): NOT an EventBuffer/ring source — just carried
+            // straight into job.ballTrack (Decision A, plan §1). t_us is in the
+            // same window-relative domain as the video/imu streams above, so no
+            // conversion is needed for internal consistency with tUs[i] derived
+            // from this same reconstructed window elsewhere.
+            const QJsonObject frames = s[QStringLiteral("frames")].toObject();
+            std::vector<int64_t> bTUs = readTimestamps(frames[QStringLiteral("t_us")].toArray());
+            const QJsonArray data = frames[QStringLiteral("data")].toArray();
+            if (bTUs.size() != size_t(data.size()) || bTUs.empty())
+                continue;
+
+            analysis::BallTrack2D bt;
+            bt.frames.reserve(bTUs.size());
+            for (size_t i = 0; i < bTUs.size(); ++i) {
+                const QJsonArray fr = data.at(int(i)).toArray();
+                analysis::BallSample2D bs;
+                bs.t_us = bTUs[i];
+                if (fr.size() >= 5) {
+                    bs.found      = fr.at(0).toDouble() != 0.0;
+                    bs.center     = QPointF(fr.at(1).toDouble(), fr.at(2).toDouble());
+                    bs.radiusNorm = float(fr.at(3).toDouble());
+                    bs.conf       = float(fr.at(4).toDouble());
+                }
+                bt.frames.push_back(bs);
+            }
+            if (s.contains(QStringLiteral("launch"))) {
+                const QJsonObject launch = s[QStringLiteral("launch")].toObject();
+                bt.launchTUs    = int64_t(launch[QStringLiteral("t_us")].toDouble());
+                bt.launchCenter = QPointF(launch[QStringLiteral("x")].toDouble(),
+                                          launch[QStringLiteral("y")].toDouble());
+            }
+            job.ballTrack = std::move(bt);
         }
     }
 

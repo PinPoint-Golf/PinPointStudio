@@ -241,6 +241,31 @@ struct PoseTrack2D {
     std::vector<PoseFrame2D> frames;
 };
 
+// One frame of ball-detector output (src/Pose/ball_detector.h BallDetection,
+// same normalized [0,1] full-frame convention as PoseFrame2D — no transform
+// needed between the two). found=false frames still carry a t_us so gaps are
+// distinguishable from "never sampled here" (v3.4 design §9.7 — a
+// deliberately low-entropy "constant plus one step" stream).
+struct BallSample2D {
+    int64_t t_us       = 0;
+    bool    found       = false;
+    QPointF center;             // normalized [0,1], full frame
+    float   radiusNorm  = 0.f;  // normalized to frame width
+    float   conf        = 0.f;
+};
+
+// Face-on ball track: either populated live (CameraInstance's accumulator /
+// a recorded swing.json "ball" stream) or replayed offline (BallRunner) over
+// an archived swing that predates live recording. Empty ⇒ no ball data ⇒ the
+// shaft tracker's ball-anchor pass is a no-op (additive-only, never degrades
+// the existing track — design §9.6).
+struct BallTrack2D {
+    pinpoint::SourceId camera     = pinpoint::kInvalidSourceId;
+    std::vector<BallSample2D> frames;
+    int64_t launchTUs  = -1;    // the collapse-cliff instant (design §9.3); -1 = no launch observed
+    QPointF launchCenter;       // ball position at the last pre-launch frame
+};
+
 enum ShaftSampleFlags : uint8_t {
     ShaftMeasured          = 0x01,  // vision measurement fused at this sample
     ShaftImuBridged        = 0x02,  // IMU channel fused (no vision this sample)
@@ -248,6 +273,7 @@ enum ShaftSampleFlags : uint8_t {
     ShaftWedge             = 0x08,  // vision measurement was a blur-wedge centroid
     ShaftHeadProjected     = 0x10,  // headPx projected from grip + L·dir(θ), not measured
     ShaftKinematicPredicted= 0x20,  // pure R6 kinematic-model sample (predicted series / fallback)
+    ShaftBallAnchored      = 0x40,  // theta soft-anchored from the grip->ball line (v3.4 design §9)
 };
 
 struct ShaftSample2D {
@@ -274,6 +300,9 @@ struct ShaftTrack2D {
     // the prior-free vision measurement. Empty / -1 until the K3 phase fills them.
     std::vector<ShaftSample2D> predicted;        // PREDICTED — pure kinematic model, all flags = ShaftKinematicPredicted
     float modelVisionResidualDeg = -1.f;         // RMS|actual − predicted| over prior-free measured frames (-1 = unset)
+    // Measured club length in px, grip-to-ball at address (v3.4 design §9.4) — a scale floor for
+    // implausibly-short shafts. -1.f = unmeasured (no ball anchor available for this swing).
+    float measuredClubLenPx = -1.f;
 };
 
 // The IMU→segment binding as persisted in swing.json (keyed by the device

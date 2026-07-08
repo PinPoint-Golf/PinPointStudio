@@ -49,6 +49,19 @@ struct ShotAnalysisRunnerOptions {
     int64_t scanStartUs = 0;
     int64_t scanEndUs   = 0;
 
+    // Address-hold coverage (v3.4 design §9, plan §2): G3's scanStartUs is
+    // pinned close to Takeaway (Address − a few hundred ms), so a real,
+    // multi-second still address sits almost entirely BEFORE it — invisible
+    // to PoseRunner and therefore to ShaftTracker (which is strictly bounded
+    // to pose coverage). addressScanPadUs pulls the coverage window back
+    // further (capped at the window start by the caller), sampled coarsely
+    // via addressStride since the arm barely moves during a still address —
+    // just enough to establish the arm-cone direction, not a full ViTPose
+    // pass. 0 = no widening (today's behaviour). Ignored when scanStartUs/
+    // scanEndUs are both 0 (already-unbounded run).
+    int64_t addressScanPadUs = 0;
+    int     addressStride    = 15;
+
     // Optional progress sink, 0..1 over this pose pass (span-relative scan
     // position, not posed-frame count — the sparse zone advances it in
     // stride jumps). Called from the worker thread; may be null.

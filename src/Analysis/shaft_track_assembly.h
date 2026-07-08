@@ -232,6 +232,11 @@ struct ShaftDecideTrace {
     // conf 0 when no swing was detected. Lets a camera-only (no-IMU) analysis
     // surface Address/Top/Impact/Finish markers the tracker already computes.
     Segmentation        segmentation;
+    // v3.4 ball anchor (design §9.2): the frame the clubhead's theta first
+    // departs theta_ball beyond a threshold — computed and logged ONLY, never
+    // consumed by the DP/phase model above (that relabel is deferred to the
+    // v3.0-r1 corpus re-gate). -1 = no ball data / not computed.
+    int                 ballTk0Frame = -1;
 };
 
 // Map the hands-only phase model to an app Segmentation with real timestamps:

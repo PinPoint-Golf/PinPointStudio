@@ -2174,6 +2174,8 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/shaft_track_assembly.cpp
     src/Analysis/shaft_tracker.h
     src/Analysis/shaft_tracker.cpp
+    src/Analysis/ball_anchor.h
+    src/Analysis/ball_anchor.cpp
     src/Analysis/swing_scorer.h
     src/Analysis/swing_scorer.cpp
     src/Analysis/wrist_resemblance.h
@@ -2184,6 +2186,8 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/wrist_analyzer.cpp
     src/Analysis/pose_runner.h
     src/Analysis/pose_runner.cpp
+    src/Analysis/ball_runner.h
+    src/Analysis/ball_runner.cpp
     src/Analysis/shot_analyzer.h
     src/Analysis/shot_analyzer.cpp
     src/Analysis/swing_reanalyzer.h
@@ -2426,7 +2430,9 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/assessment_rules.cpp
         src/Analysis/reference_bands.cpp
         src/Analysis/pose_runner.cpp
+        src/Analysis/ball_runner.cpp
         src/Analysis/shaft_tracker.cpp
+        src/Analysis/ball_anchor.cpp
         src/Analysis/shaft_tracker_math.cpp
         src/Analysis/shaft_track_assembly.cpp
         src/Export/frame_decode.cpp

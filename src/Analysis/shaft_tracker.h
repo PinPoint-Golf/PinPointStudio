@@ -43,6 +43,12 @@ struct FusedStreams;
 // compatibility but unused — v3 runs its own hands-only phase model. Pure const
 // reader of the frozen window; all reads finish before return.
 //
+// `ball` (v3.4 design §9) is an ADDITIVE companion applied AFTER decideTrack()
+// returns — a post-hoc soft anchor at address/impact from the grip->ball line,
+// never touching the DP/transition-band machinery. Empty ⇒ no-op, identical to
+// today's output (design §9.6 — the ball can only improve the track, never
+// degrade it).
+//
 // Returns an INVALID track (consumers must check .valid) when the pose track is
 // empty, the camera format is undecodable, or fewer than coverageMin of the
 // swing-span frames yield a direct measurement.
@@ -55,6 +61,7 @@ public:
 
     static ShaftTrack2D track(const pinpoint::SwingWindow &window,
                               const PoseTrack2D &pose,
+                              const BallTrack2D &ball,
                               const FusedStreams &streams,
                               const Segmentation &segmentation,
                               const ShotAnalysisJob &job,

@@ -31,6 +31,7 @@
 #include <limits>
 #include <variant>
 
+#include "ball_anchor.h"            // applyBallAnchor — the v3.4 post-hoc pass
 #include "shot_analyzer.h"          // ShotAnalysisJob
 #include "swing_window.h"
 #include "format_descriptor.h"
@@ -88,6 +89,7 @@ cv::Mat decodeGray(const pinpoint::SwingWindow& window, const pinpoint::IndexEnt
 } // namespace
 
 ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const PoseTrack2D& pose,
+                                 const BallTrack2D& ball,
                                  const FusedStreams& /*streams*/, const Segmentation& /*segmentation*/,
                                  const ShotAnalysisJob& job, ShaftTrace* trace)
 {
@@ -156,6 +158,10 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
     out = decideTrack(frameAt, tUs, gx, gy, phiRaw, rawJoints, w, h, fps,
                       job.bandCentersMm, job.clubLengthM * 1000.0, impf, cfg, trace);
     out.camera = pose.camera;
+
+    // v3.4 (design §9): additive post-hoc ball anchor — reads the frozen DP
+    // output above, never re-solves it. No-op when `ball` is empty.
+    applyBallAnchor(out, ball, gx, gy, tUs, w, h, impf, job, trace);
 
     ppInfo() << "[ShaftTracker] v3 frames" << nf << "coverage" << out.coverage
              << (out.valid ? "VALID" : "invalid");

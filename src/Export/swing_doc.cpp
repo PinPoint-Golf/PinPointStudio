@@ -237,6 +237,9 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
             { QStringLiteral("coverage"),      double(a.shaft.coverage) },
             { QStringLiteral("imuVisionCorr"), double(a.shaft.imuVisionCorr) },
             { QStringLiteral("modelVisionResidualDeg"), double(a.shaft.modelVisionResidualDeg) },
+            // v3.4 (design §9.4): measured club length in px (grip-to-ball at
+            // address) — a scale floor. -1 = unmeasured (no ball anchor).
+            { QStringLiteral("measuredClubLenPx"), double(a.shaft.measuredClubLenPx) },
             { QStringLiteral("frameWidth"),    a.shaft.frameWidth },
             { QStringLiteral("frameHeight"),   a.shaft.frameHeight },
             { QStringLiteral("samples"),       samples },

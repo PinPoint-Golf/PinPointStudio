@@ -143,6 +143,7 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
     // that exclude every frame (clock mismatch) fall back to the full window
     // — degrading the optimisation, never the result.
     size_t i0 = 0, i1 = entries.size();
+    bool   bounded = false;
     if (opt.scanEndUs > opt.scanStartUs) {
         while (i0 < entries.size() && entries[i0].timestamp_us < opt.scanStartUs)
             ++i0;
@@ -153,7 +154,21 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
                         "to the full window";
             i0 = 0;
             i1 = entries.size();
+        } else {
+            bounded = true;
         }
+    }
+
+    // Address-hold coverage (v3.4 plan §2): pull the coverage window back
+    // further than G3's scanStartUs so a real still address is reachable at
+    // all — see pose_runner.h's addressScanPadUs doc. iAddr0 == i0 (no-op)
+    // when unbounded, addressScanPadUs <= 0, or the pad doesn't reach any
+    // earlier entries.
+    size_t iAddr0 = i0;
+    if (bounded && opt.addressScanPadUs > 0) {
+        const int64_t addrLo = opt.scanStartUs - opt.addressScanPadUs;
+        while (iAddr0 > 0 && entries[iAddr0 - 1].timestamp_us >= addrLo)
+            --iAddr0;
     }
 
     // Lead = left hand for right-handed (and unknown) golfers, right for left-handed.
@@ -161,19 +176,25 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
     constexpr int   kLeftWrist    = 9;    // PoseJoint::LeftWrist
     constexpr int   kRightWrist   = 10;   // PoseJoint::RightWrist
     constexpr float kMinHandConf  = 0.3f;
+    const int addrStride = std::max(1, opt.addressStride);
 
-    track.frames.reserve(i1 - i0);
+    track.frames.reserve(i1 - iAddr0);
     size_t sampled = 0, wristOk = 0;
     cv::Mat bgr;   // reused decode scratch
-    for (size_t i = i0; i < i1; ++i) {
+    for (size_t i = iAddr0; i < i1; ++i) {
         const pinpoint::IndexEntry &e = entries[i];
-        const bool dense = opt.impactUs >= 0
+        const bool inAddressZone = i < i0;   // before G3's own bound: coarse address-hold sampling
+        const bool dense = !inAddressZone && opt.impactUs >= 0
                         && e.timestamp_us >= denseLo && e.timestamp_us <= denseHi;
-        if (!dense && (i % static_cast<size_t>(stride)) != 0)
+        if (inAddressZone) {
+            if ((i % static_cast<size_t>(addrStride)) != 0)
+                continue;
+        } else if (!dense && (i % static_cast<size_t>(stride)) != 0) {
             continue;
+        }
         ++sampled;
         if (opt.progress)
-            opt.progress(float(i + 1 - i0) / float(i1 - i0));
+            opt.progress(float(i + 1 - iAddr0) / float(i1 - iAddr0));
 
         // Frozen-window contract: payloadOf() may hand back data == nullptr
         // (slot overwritten / mid-write) — decodeToBgr rejects null and short
@@ -225,8 +246,8 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
     }
 
     ppInfo() << "[PoseRunner] source" << faceOnSource << ":" << track.frames.size()
-             << "posed of" << sampled << "sampled (" << (i1 - i0) << "in span,"
-             << entries.size() << "in window)," << wristOk
+             << "posed of" << sampled << "sampled (" << (i1 - i0) << "in span +"
+             << (i0 - iAddr0) << "address-hold," << entries.size() << "in window)," << wristOk
              << "with both wrists conf > 0.3," << wall.elapsed() << "ms";
     return track;
 }

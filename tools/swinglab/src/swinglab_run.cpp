@@ -62,6 +62,7 @@
 
 #include "../../../src/Analysis/shot_analyzer.h"
 #include "../../../src/Analysis/swing_reanalyzer.h"
+#include "../../../src/Analysis/ball_runner.h"
 #include "../../../src/Analysis/imu_vision_fuser.h"
 #include "../../../src/Analysis/phase_segmenter.h"
 #include "../../../src/Analysis/pose_runner.h"
@@ -263,6 +264,7 @@ int main(int argc, char **argv)
     QCommandLineOption optFaceOn("face-on", "Face-on stream alias substring", "str", "Face");
     QCommandLineOption optImpact("impact-us", "Impact instant override", "us");
     QCommandLineOption optPose("pose", "Inject PoseTrack2D JSON (skip ViTPose)", "file");
+    QCommandLineOption optBall("ball", "Inject BallTrack2D JSON (skip the offline ball replay)", "file");
     QCommandLineOption optRefuse("refuse-orientation",
         "Offline orientation re-fusion parity (corpus-1 gate E1): re-run Madgwick "
         "from the recorded raw accel+gyro and report disagreement vs the stored "
@@ -271,7 +273,7 @@ int main(int argc, char **argv)
         "Madgwick gain for re-fusion (default = production 0.05; perturb to confirm "
         "the tool detects a parameter change).", "float");
     cli.addOptions({ optOut, optParams, optTrace, optSession, optFaceOn, optImpact, optPose,
-                     optRefuse, optRefuseBeta });
+                     optBall, optRefuse, optRefuseBeta });
     cli.process(app);
 
     if (cli.positionalArguments().isEmpty() || !cli.isSet(optOut))
@@ -320,6 +322,8 @@ int main(int argc, char **argv)
     job.runAssessment   = true;   // SwingLab: emit Tier-2 findings into swing.json (known-groups)
     if (cli.isSet(optPose))
         job.poseTrackPath = cli.value(optPose);
+    if (cli.isSet(optBall))
+        job.ballTrackPath = cli.value(optBall);
     if (cli.isSet(optSession) || job.sessionType < 0)
         job.sessionType = cli.value(optSession).toInt();
     if (cli.isSet(optImpact))
@@ -408,8 +412,16 @@ int main(int argc, char **argv)
         const PoseTrack2D pose = job.poseTrackPath.isEmpty()
             ? PoseRunner::run(window, job.cameraSources.front(), opt)
             : PoseRunner::loadFromJson(job.poseTrackPath, job.cameraSources.front());
+        // v3.4 (plan §3): same 3-way ball resolution as WristAnalyzer::analyze()
+        // — explicit --ball injection wins, else whatever the swing.json/job
+        // already carries, else replay the production ball detector offline.
+        const BallTrack2D ball = !job.ballTrackPath.isEmpty()
+            ? BallRunner::loadFromJson(job.ballTrackPath, job.cameraSources.front())
+            : (!job.ballTrack.frames.empty()
+                   ? job.ballTrack
+                   : BallRunner::run(window, job.cameraSources.front(), pose, opt));
         ShaftTracker::ShaftTrace trace;
-        ShaftTracker::track(window, pose, streams, seg, job, &trace);
+        ShaftTracker::track(window, pose, ball, streams, seg, job, &trace);
 
         QFile tf(outDir + "/trace.jsonl");
         if (!tf.open(QIODevice::WriteOnly)) {
@@ -441,7 +453,11 @@ int main(int argc, char **argv)
                 { "bs0", trace.phases.bs0 }, { "top", trace.phases.top },
                 { "impact", trace.phases.impact }, { "fin0", trace.phases.fin0 },
                 { "spanLo", trace.spanLo }, { "spanHi", trace.spanHi },
-                { "heavyFrames", trace.heavyFrames } } },
+                { "heavyFrames", trace.heavyFrames },
+                // v3.4 (plan §5 gate): tk0 is compute-and-log only — never
+                // consumed by the phase model/DP above.
+                { "ballTk0Frame", trace.ballTk0Frame },
+                { "ballFrames", int(ball.frames.size()) } } },
             { "poseFrames", int(pose.frames.size()) },
             { "segConf", seg.conf } };
         tf.write(QJsonDocument(summary).toJson(QJsonDocument::Compact) + "\n");

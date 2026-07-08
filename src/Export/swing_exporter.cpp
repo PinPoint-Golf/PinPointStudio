@@ -634,6 +634,45 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
         }
     }
 
+    // ── Ball stream(s) (v3.4 design §9.7) ──────────────────────────────────
+    // Additive — readers ignore unknown "kind" values by contract, same as
+    // the pose stream above. Empty when ball detection was off/unenabled for
+    // every exported camera.
+    {
+        constexpr int kBallStride = 5;   // found, x, y, r, conf
+        for (const SwingBallStream& b : job.ballStreams) {
+            if (b.tUs.empty())
+                continue;
+            QJsonArray data;
+            for (size_t f = 0; f < b.tUs.size(); ++f) {
+                QJsonArray frame;
+                const size_t base = f * static_cast<size_t>(kBallStride);
+                for (int k = 0; k < kBallStride && base + k < b.data.size(); ++k)
+                    frame.append(b.data[base + k]);
+                data.append(frame);
+            }
+            QJsonObject s;
+            s[QStringLiteral("kind")]   = QStringLiteral("ball");
+            s[QStringLiteral("alias")]  = b.alias;
+            s[QStringLiteral("schema")] = QStringLiteral("ball_v2");
+            s[QStringLiteral("source")] = QJsonObject{{QStringLiteral("serial"), b.serial}};
+            s[QStringLiteral("layout")] = QStringLiteral("found,x,y,r,conf");
+            s[QStringLiteral("frames")] = QJsonObject{
+                {QStringLiteral("count"), static_cast<qint64>(b.tUs.size())},
+                {QStringLiteral("t_us"),  toJsonTimestamps(b.tUs)},
+                {QStringLiteral("data"),  data},
+            };
+            if (b.launchTUs >= 0) {
+                s[QStringLiteral("launch")] = QJsonObject{
+                    {QStringLiteral("t_us"), static_cast<qint64>(b.launchTUs)},
+                    {QStringLiteral("x"),    b.launchX},
+                    {QStringLiteral("y"),    b.launchY},
+                };
+            }
+            streams.append(s);
+        }
+    }
+
     // Wallclock: the anchor was snapshotted when the window was captured, i.e.
     // at monotonic ~endTimestampUs(); subtracting the window duration gives an
     // honest (ms-accurate) wallclock for t0.

@@ -109,6 +109,22 @@ struct SwingPoseStream {
     std::vector<float> keypoints;
 };
 
+// One camera's face-on ball stream for the swing window (v3.4 design §9.7 —
+// deliberately low-entropy: a constant plus a single launch step). Sourced
+// from CameraInstance::ballSamples()/ballLaunchInfo(), resolved on the UI
+// thread. Empty ⇒ nothing written (additive — ball detection may be
+// disabled, or this camera may not be the one running it).
+struct SwingBallStream {
+    QString alias;
+    QString serial;
+    std::vector<int64_t> tUs;      // per-frame timestamps, window-relative (us)
+    // found/x/y/r/conf per frame, flattened to 5 floats/frame (x,y,r normalised
+    // 0..1; found is 0.0/1.0); size MUST be tUs.size() * 5.
+    std::vector<float> data;
+    int64_t launchTUs = -1;        // window-relative; -1 = no launch in this window
+    float   launchX = 0.f, launchY = 0.f;
+};
+
 // Self-contained job description.  Everything that touches QSettings or
 // controllers is resolved on the UI thread; the worker sees only values.
 struct SwingExportJob {
@@ -120,6 +136,7 @@ struct SwingExportJob {
     QHash<QString, QString> imuAliasBySerial;  // device serial/id -> alias
     QHash<QString, SwingImuDeviceInfo> imuDeviceBySerial;  // device serial/id -> config
     std::vector<SwingPoseStream> poseStreams;  // pose to serialise (empty today)
+    std::vector<SwingBallStream> ballStreams;  // v3.4 (design §9.7) — face-on ball stream(s)
 
     // Session context + provenance for the top-level "capture" block.
     int     sessionType = -1;    // SessionController::Type (-1 = none)
