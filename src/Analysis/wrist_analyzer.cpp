@@ -354,6 +354,9 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
             ShaftTracker::ShaftTrace strace;
             detail->shaft = ShaftTracker::track(window, detail->pose2d, ball, streams,
                                                 segmentation, sub, hasImu ? nullptr : &strace);
+            // Surface the resolved ball track for the replay overlay (design §9);
+            // the same normalized [0,1] track the shaft anchor consumed above.
+            detail->ball = ball;
             // Camera-only: adopt the vision-derived segmentation so a webcam-only
             // Wrist analysis still carries Address/Top/Impact/Finish landmarks +
             // swing bounds (vision-grade conf; the UI fades low-confidence ticks).

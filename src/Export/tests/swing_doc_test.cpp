@@ -108,6 +108,13 @@ int main()
     a.shaft.predicted.push_back({ 1010000, QPointF(950.0, 545.0), QPointF(720.0, 690.0),
                                   2.15, 0.0, 268.0, 0.6f, ShaftKinematicPredicted });
 
+    // Ball track (v3.4): one found sample (drawn) + one post-launch gap sample.
+    a.ball.camera       = 3;
+    a.ball.launchTUs    = 1010000;
+    a.ball.launchCenter = QPointF(0.50, 0.80);
+    a.ball.frames.push_back({ 1000000, true,  QPointF(0.50, 0.80), 0.02f, 0.9f });
+    a.ball.frames.push_back({ 1010000, false, QPointF(0.50, 0.80), 0.0f,  0.0f });
+
     // IMU binding with the calibration-status snapshot (corpus provenance).
     BindingRecord bind;
     bind.serial = QStringLiteral("WT901-1234");
@@ -243,6 +250,23 @@ int main()
                             960.0 / 1920.0), "predicted grip normalized by frame width");
     }
 
+    std::printf("\n=== ball block (v3.4) ===\n");
+    {
+        check(an.contains(QStringLiteral("ball")), "ball block present");
+        const QJsonObject bb = an[QStringLiteral("ball")].toObject();
+        check(bb[QStringLiteral("camera")].toInt() == 3, "ball.camera");
+        check(bb[QStringLiteral("valid")].toBool(), "ball.valid");
+        const QJsonArray bs = bb[QStringLiteral("samples")].toArray();
+        check(bs.size() == 2, "ball two samples");
+        const QJsonObject b0 = bs.at(0).toObject();
+        check(b0[QStringLiteral("found")].toBool(), "ball sample 0 found");
+        check(qFuzzyCompare(b0[QStringLiteral("x")].toDouble(), 0.50), "ball sample 0 x normalized");
+        check(qFuzzyCompare(b0[QStringLiteral("y")].toDouble(), 0.80), "ball sample 0 y normalized");
+        check(qFuzzyCompare(b0[QStringLiteral("r")].toDouble(), double(0.02f)), "ball sample 0 radiusNorm");
+        check(!bs.at(1).toObject()[QStringLiteral("found")].toBool(),
+              "ball sample 1 post-launch not found");
+    }
+
     std::printf("\n=== reader round-trip ===\n");
     {
         const PersistedShot ps = SwingDocReader::readSwingJson(dir);
@@ -272,6 +296,10 @@ int main()
         check(cb.value(QStringLiteral("predicted")).toList().size() == 2, "reloaded predicted samples");
         const double mvr2 = cb.value(QStringLiteral("modelVisionResidualDeg")).toDouble();
         check(mvr2 > 4.19 && mvr2 < 4.21, "reloaded modelVisionResidualDeg");
+        const QVariantMap rbb = ps.analysisDetail.value(QStringLiteral("ball")).toMap();
+        check(rbb.value(QStringLiteral("samples")).toList().size() == 2, "reloaded ball samples");
+        check(rbb.value(QStringLiteral("samples")).toList().at(0).toMap()
+                  .value(QStringLiteral("found")).toBool(), "reloaded ball sample 0 found");
         const QVariantList rbinds = ps.analysisDetail.value(QStringLiteral("bindings")).toList();
         check(rbinds.size() == 1, "reloaded bindings len 1");
         const QVariantMap rb0 = rbinds.at(0).toMap();

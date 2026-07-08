@@ -200,6 +200,27 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
                           { QStringLiteral("samples"),       samples },
                           { QStringLiteral("predicted"),     predicted } });
     }
+    // Ball track (v3.4 design §9) for the replay overlay — normalized [0,1]
+    // full-frame center + radius, same convention as pose2d/club so QML never
+    // sees pixel spaces. found=false samples mark the post-launch gap (the
+    // circle vanishes at impact). Same shape as the analysis.ball swing.json block.
+    if (!a.ball.frames.empty()) {
+        QVariantList samples;
+        for (const BallSample2D &s : a.ball.frames)
+            samples.append(QVariantMap{
+                { QStringLiteral("t_us"),  static_cast<qlonglong>(s.t_us) },
+                { QStringLiteral("x"),     s.center.x() },
+                { QStringLiteral("y"),     s.center.y() },
+                { QStringLiteral("r"),     double(s.radiusNorm) },
+                { QStringLiteral("conf"),  double(s.conf) },
+                { QStringLiteral("found"), s.found } });
+        detail.insert(QStringLiteral("ball"),
+                      QVariantMap{
+                          { QStringLiteral("camera"),    int(a.ball.camera) },
+                          { QStringLiteral("valid"),     true },
+                          { QStringLiteral("launchTUs"), static_cast<qlonglong>(a.ball.launchTUs) },
+                          { QStringLiteral("samples"),   samples } });
+    }
     return detail;
 }
 

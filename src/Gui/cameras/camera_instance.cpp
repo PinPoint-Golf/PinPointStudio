@@ -1407,6 +1407,15 @@ void CameraInstance::setReplaying(bool replaying)
     if (replaying) {
         m_poseKeypoints.clear();
         emit poseKeypointsChanged();
+        // Drop the live ball detection too, so the live ballCircle overlay hides
+        // during replay (the replay overlay draws the recorded ball instead) —
+        // mirrors the pose-keypoint clear above. onBallDetected already early-outs
+        // while replaying, so no stale live update revives it.
+        if (m_ballDetected) {
+            m_ballDetected = false;
+            m_ballX = m_ballY = m_ballRadius = 0.0;
+            emit ballDetectedChanged();
+        }
     }
     emit isReplayingChanged();
 }

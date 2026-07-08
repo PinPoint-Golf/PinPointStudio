@@ -245,6 +245,26 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
             { QStringLiteral("samples"),       samples },
             { QStringLiteral("predicted"),     predicted } };
     }
+    // Ball track (v3.4 design §9) for the replay overlay — normalized [0,1]
+    // full-frame center + radius; rel() keeps t_us window-relative like pose2d/
+    // club. found=false marks the post-launch gap. Read by disk_replay_source
+    // (replay overlay) and SwingDocReader.
+    if (!a.ball.frames.empty()) {
+        QJsonArray samples;
+        for (const BallSample2D &s : a.ball.frames)
+            samples.append(QJsonObject{
+                { QStringLiteral("t_us"),  rel(s.t_us) },
+                { QStringLiteral("x"),     s.center.x() },
+                { QStringLiteral("y"),     s.center.y() },
+                { QStringLiteral("r"),     double(s.radiusNorm) },
+                { QStringLiteral("conf"),  double(s.conf) },
+                { QStringLiteral("found"), s.found } });
+        o[QStringLiteral("ball")] = QJsonObject{
+            { QStringLiteral("camera"),    int(a.ball.camera) },
+            { QStringLiteral("valid"),     true },
+            { QStringLiteral("launchTUs"), rel(a.ball.launchTUs) },
+            { QStringLiteral("samples"),   samples } };
+    }
     return o;
 }
 
@@ -395,6 +415,9 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
         if (an.contains(QStringLiteral("club")))
             ps.analysisDetail.insert(QStringLiteral("club"),
                                      an[QStringLiteral("club")].toObject().toVariantMap());
+        if (an.contains(QStringLiteral("ball")))
+            ps.analysisDetail.insert(QStringLiteral("ball"),
+                                     an[QStringLiteral("ball")].toObject().toVariantMap());
         if (an.contains(QStringLiteral("segmentation")))
             ps.analysisDetail.insert(QStringLiteral("segmentation"),
                                      an[QStringLiteral("segmentation")].toObject().toVariantMap());

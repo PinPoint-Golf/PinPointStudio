@@ -229,6 +229,15 @@ bool DiskReplaySource::load(const QString &swingDir, double speed)
             club[QStringLiteral("samples")] = samples;
             m_analysisDetail.insert(QStringLiteral("club"), club);
         }
+        if (an.contains(QStringLiteral("ball"))) {
+            const QJsonObject bb = an[QStringLiteral("ball")].toObject();
+            QVariantMap ball = bb.toVariantMap();
+            QVariantList samples;
+            for (const QJsonValue &sv2 : bb[QStringLiteral("samples")].toArray())
+                samples.append(relTimedMap(sv2.toObject(), t0));
+            ball[QStringLiteral("samples")] = samples;
+            m_analysisDetail.insert(QStringLiteral("ball"), ball);
+        }
     }
     if (m_impactUs < 0) {
         const QJsonObject thumb = root[QStringLiteral("thumbnail")].toObject();

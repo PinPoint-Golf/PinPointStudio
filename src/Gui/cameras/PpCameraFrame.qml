@@ -61,6 +61,7 @@ Item {
     property bool showPoseOverlay:      true   // skeleton canvas
     property bool showHittingArea:      true   // ROI overlay + detected ball circle
     property bool showHittingAreaHint:  false  // faint label-free ROI outline (live pose)
+    property bool showBallOverlay:      false  // detected ball circle during live capture (honors live-pose)
     property bool roiEditable:          false  // enables the ROI drag-select interaction
     property bool showPerspectiveBadge: true
     property bool showStatsOverlay:     true   // resolution / fps
@@ -397,7 +398,8 @@ Item {
             visible: root.showReplayOverlay
                      && root._replayActive
                      && root._replayPerspective === 2
-                     && (_poseFrames.length > 0 || _clubSamples.length > 0)
+                     && (_poseFrames.length > 0 || _clubSamples.length > 0
+                         || _ballSamples.length > 0)
 
             // Bound from the active replay's detail — pose kp flat [x,y,c]×17 and
             // club samples with normalized grip/head (toAnalysisDetail shapes).
@@ -409,6 +411,12 @@ Item {
             readonly property var _clubSamples: {
                 var d = root._replayDetail
                 return (d && d.club && d.club.valid && d.club.samples) ? d.club.samples : []
+            }
+            // Ball samples ({t_us,x,y,r,conf,found}, normalized 0..1) — scrubs with
+            // the playhead like the club shaft; drawn only on found frames.
+            readonly property var _ballSamples: {
+                var d = root._replayDetail
+                return (d && d.ball && d.ball.samples) ? d.ball.samples : []
             }
             // R7 predicted (pure R6 model) series — drawn as a dashed ghost.
             readonly property var _clubPredicted: {
@@ -448,6 +456,7 @@ Item {
             onVisibleChanged: if (visible) requestPaint()
             on_PoseFramesChanged:  if (visible) requestPaint()
             on_ClubSamplesChanged: if (visible) requestPaint()
+            on_BallSamplesChanged: if (visible) requestPaint()
 
             onPaint: {
                 var ctx = getContext("2d")
@@ -521,6 +530,22 @@ Item {
                     ctx.beginPath()
                     ctx.arc(hx, hy, 4, 0, Math.PI * 2)
                     ctx.fill()
+                }
+
+                // Ball: the detected circle at the current playhead — matches the
+                // live green ball circle. found=false (post-launch) draws nothing,
+                // so the ball vanishes at impact.
+                var bi = _indexFor(_ballSamples, t)
+                if (bi >= 0 && _ballSamples[bi].found) {
+                    var b  = _ballSamples[bi]
+                    var bx = b.x * cr.width + cr.x, by = b.y * cr.height + cr.y
+                    var br = Math.max(4, b.r * cr.width)
+                    ctx.globalAlpha = 1.0
+                    ctx.strokeStyle = cGood
+                    ctx.lineWidth   = 2
+                    ctx.beginPath()
+                    ctx.arc(bx, by, br, 0, Math.PI * 2)
+                    ctx.stroke()
                 }
 
                 // Predicted (R6 kinematic-model) shaft — dashed ghost behind the
@@ -659,9 +684,12 @@ Item {
         }
 
         // ── Detected ball circle ──────────────────────────────────────────
+        // Shown in the ROI editors (showHittingArea) AND during live capture
+        // (showBallOverlay, gated on the live-pose setting by the host) — both
+        // read the live per-frame ballX/ballY/ballRadius.
         Rectangle {
             id: ballCircle
-            visible: root.showHittingArea && root.roiIsSet
+            visible: (root.showHittingArea || root.showBallOverlay) && root.roiIsSet
                      && root.instance !== null && root.instance.ballDetected
             z: 22
             color: "transparent"

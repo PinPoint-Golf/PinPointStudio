@@ -352,6 +352,7 @@ struct SwingAnalysis {
     std::vector<BindingRecord> bindings;
     PoseTrack2D               pose2d;  // face-on offline pose (empty when no camera ran)
     ShaftTrack2D              shaft;   // face-on club track (check .valid before use)
+    BallTrack2D               ball;    // face-on ball track for the replay overlay (empty ⇒ none)
 };
 
 } // namespace pinpoint::analysis

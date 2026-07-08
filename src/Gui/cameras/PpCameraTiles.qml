@@ -104,6 +104,8 @@ Item {
                 displayName: modelData.alias !== "" ? modelData.alias : modelData.description
                 showHittingArea: root.showHittingArea
                 showHittingAreaHint: cameraManager.livePoseEnabled && sessionController.running
+                // Live ball circle rides the same live-pose gate as the ROI hint.
+                showBallOverlay: cameraManager.livePoseEnabled && sessionController.running
             }
         }
 
