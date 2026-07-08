@@ -516,6 +516,14 @@ Item {
         }
         function onReanalysed(swingDir) {
             root.activeModel.refreshShot(swingDir)
+            // The Replay/Analyse panel reads shotReplay.analysisDetail — a separate,
+            // independently cached disk read of swing.json (ShotReplayController /
+            // DiskReplaySource), not this model — so the model-only refresh above
+            // leaves it showing the pre-reanalysis score/metrics/trace/skeleton while
+            // the shot stays focused. Force a reload when it's the one open now
+            // (mirrors what re-selecting the shot already does).
+            if (shotReplay.active && shotReplay.swingDir === swingDir)
+                shotReplay.start(shotReplay.shotId, swingDir, shotReplay.speed)
         }
         function onReanalyseFinished(succeeded, failed, lastError) {
             toast.sticky   = false
