@@ -49,11 +49,9 @@
 
 namespace pinpoint::ballcal {
 
-// Physical golf-ball diameter (R&A/USGA spec, 1.68"). The single code constant
-// for the ball's real-world size — the px→mm scale primitive at the ball's
-// ground-plane depth: mm/px = kBallDiameterMm / (2·radiusPx). Consumed by the
-// deferred low-point-ahead-of-ball metric (docs/design/low_point_metric_design.md).
-inline constexpr double kBallDiameterMm = 42.67;
+// NOTE: the physical golf-ball diameter constant (kBallDiameterMm) moved to
+// src/Pose/ball_temporal.h (pinpoint::balltemporal) as part of the v1→v2 ball-
+// detection migration; this v1 calibration header is slated for deletion in V3.
 
 // ── Tuning constants (fixed by design — only theta is learned) ─────────────
 namespace tuning {

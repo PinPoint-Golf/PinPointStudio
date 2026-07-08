@@ -1,6 +1,8 @@
-# CTest suite for the calibrated ball-detection core (ball_model.h) + detector
-# throttle contract. Self-contained — NOT part of the app build. Runs standalone
-# or under the tests/ umbrella; shared infra lives in tests/cmake/PinPointTests.cmake.
+# CTest suite for the ball-detection cores — v1 calibrated (ball_model.h) and v2
+# temporal matched-filter (ball_temporal.h, with a byte-exact C++<->python parity
+# gate) — plus the detector throttle contract. Self-contained — NOT part of the app
+# build. Runs standalone or under the tests/ umbrella; shared infra lives in
+# tests/cmake/PinPointTests.cmake.
 #
 #   cmake -S src/Pose/tests -B build/pose-tests
 #   cmake --build build/pose-tests -j && ctest --test-dir build/pose-tests --output-on-failure
@@ -26,6 +28,26 @@ pp_add_test(ball_model_test
     INCLUDE ${OpenCV_INCLUDE_DIRS}
     LINK    ${OpenCV_LIBS}
     NO_QT)
+
+# Ball Detection v2 temporal matched-filter core (ball_temporal.h): DoG band-pass,
+# robust noise, is_blob shape gate, sub-pixel peak, padded-crop response, and the
+# SEARCH->CANDIDATE->LOCKED->VANISHED state machine over synthetic scenes.
+pp_add_test(ball_temporal_test
+    SOURCES ball_temporal_test.cpp
+    INCLUDE ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    NO_QT)
+
+# Ball v2 NUMERIC PARITY vs the python exemplar (ball_state_machine.py): run
+# TemporalBallTracker over python's OWN dumped DoG response stack + baseline (NOT a
+# C++ decode — independent OpenCV versions decode the H.264 to different pixels), a
+# byte-exact test of the state machine. Diffs locked position / launch frame /
+# median novelty against the python reference. SKIPs when the fixture is absent.
+# Qt (JSON fixture parsing); the DoG/padding pipeline is covered by ball_temporal_test.
+pp_add_test(ball_temporal_parity_test
+    SOURCES ball_temporal_parity_test.cpp
+    INCLUDE ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS})
 
 # Calibration protocol: round bookkeeping (consecutive-clean pass rule,
 # failed-round evidence retention, exhaustion) + profile save/load round-trip

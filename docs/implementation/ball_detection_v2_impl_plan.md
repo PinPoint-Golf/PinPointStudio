@@ -89,26 +89,39 @@ The algorithm settled through three iterations the harness caught *before* any C
   ball-departure latency (→ `kBallLaunchLatencyUs`) + collapse completeness; `satFrac`-over-ROI
   over-flags → add a ball-vs-mat contrast/SNR health signal; swing.json should record the ROI.
 
-### V1 — C++ core  ·  `src/Pose/ball_temporal.h` + tests  ·  risk: low (pure, testable)  ·  **NEXT**
-- Header-only, OpenCV-only, **no-Qt** (mirrors `ball_model.h`; test is a `NO_QT` target). Port the
+### V1 — C++ core  ·  `src/Pose/ball_temporal.h` + tests  ·  risk: low (pure, testable)  ·  **DONE (2026-07-08, uncommitted)**
+- Header-only, OpenCV-only, **no-Qt** (mirrors `ball_model.h`; test is a `NO_QT` target). Ported the
   **settled** exemplar per the bible's §12 "must-preserve" list: DoG on a **padded** crop; robust-MAD
   noise; the **fast-EMA accumulator `A`** + accumulated novelty `N_acc`; the 2nd-moment `is_blob`
   shape gate on `D`; the K=3 candidate state machine (±2 px matching, top-K-by-hold); the per-frame
-  launch cliff. Pure functions + a `TemporalBallTracker` struct; the tracker consumes a precomputed
-  `R` (caller owns ROI/padding). Takes an optional ROI / stance bounds as a SEARCH input. Move
-  `kBallDiameterMm` (currently `ball_model.h:56`) here. **The algorithm is fixed — do not re-tune it
-  in C++; iterate in the python harness and re-parity (bible §12).**
-- Unit tests (design §9.2) → `src/Pose/tests/ball_temporal_test.cpp`, new
-  `pp_add_test(ball_temporal_test … NO_QT)` mirroring `ball_model_test` (`src/Pose/tests/CMakeLists.txt:24-28`):
-  synthetic appear/persist/vanish over flat/noisy/gradient/moving-shadow, saturation ramp, baseline
-  line-absorption, nudge-vs-launch, scale-space edge rejection, sub-pixel jitter bound, corridor gate.
-- **Numeric parity** with V0 on 3 golden swings, modelled on `src/Analysis/tests/shaft_parity_test.cpp`:
-  env-var fixture (`PP_BALL_PARITY_*`), SKIP (exit 0) when absent, tolerance gate on locked position /
-  launch frame / at-spot response. Regenerate the python reference **on the dev box, same host**
-  (cross-host float differs — shaft-port lesson).
-- **Gate**: parity `|Δpos| < ~0.5 px`, launch-frame agreement, unit tests green.
+  launch cliff. Pure functions (`dog`/`robustNoise`/`subpixelPeak`/`atSpot`/`isBlob`/`paddedResponse`)
+  + a `TemporalBallTracker` struct; the tracker consumes a precomputed `R` (caller owns ROI/padding).
+  `kBallDiameterMm` moved from `ball_model.h` into `pinpoint::balltemporal`. **The algorithm is fixed
+  — do not re-tune it in C++; iterate in the python harness and re-parity (bible §12).**
+- **Two hard-won numeric details** (both required for parity, both commented in the header): (1) the
+  padded crop must be **`.clone()`d** before the DoG — `cv::GaussianBlur` on a bare submatrix reads the
+  parent's pixels beyond the ROI border (not isolated), defeating the padding and diverging from the
+  exemplar (whose `cv2.cvtColor` slice is a fresh array). (2) the EMA `A += af·(R−A)` and `N_acc = D/noise`
+  are computed in **float32** (manual loops), not via OpenCV's `double`-scalar path — else hundreds of
+  frames of EMA feedback drift the accumulator and shift the lock frame vs numpy.
+- Unit tests → `src/Pose/tests/ball_temporal_test.cpp`, `pp_add_test(ball_temporal_test … NO_QT)`:
+  appear/persist/vanish (flat/noisy/gradient bg), moving-shadow rejection, baseline distractor
+  absorption, nudge-vs-launch, shape-gate disc-vs-ridge/spike, band-pass-vs-oversize, sub-pixel bound,
+  and **`paddedResponse` reproduces the acceptance.py recipe byte-for-byte** (the DoG+padding contract).
+- **Numeric parity** `src/Pose/tests/ball_temporal_parity_test.cpp` (+ generator
+  `tools/balllab/gen_parity_ref.py`): env-var fixture (`PP_BALL_PARITY_DIR`, default `/tmp/ball_parity`),
+  SKIP (exit 0) when absent. **As-built deviation from the plan:** the test does NOT recompute the DoG
+  from a C++ decode — independent OpenCV versions decode this H.264 to *different pixels* (measured:
+  cv2 4.13 vs system 4.10, frame-200 gray sums 43.50M vs 43.88M), so an end-to-end C++ decode can never
+  be byte-parity. Instead the generator dumps python's **own** `R` stack + baseline `B`; the C++ tracker
+  runs on those → a **byte-exact test of the state machine** (the oracle contract). The DoG/padding is
+  covered byte-for-byte by the unit test above. Fixtures: 3 golden swings (healthy 07-04 / weak-contrast
+  07-03 / saturated 06-11), `<tag>.json` + `<tag>.B.f32` + `<tag>.R.f32` (~130 MB total, in `/tmp`).
+- **Gate: MET.** `ball_temporal_test` + `ball_temporal_parity_test` green; parity **23/23 byte-exact**
+  (locked position, `ix/iy`, lock frame, `medN`, `L0`, launch frame all match; lone residue 1e-5 px in
+  one sub-pixel coord = double-vs-float32 in `subpixelPeak`). Full `pose-tests` ctest: 5/5.
 
-### V2 — Detector rework (scoped: presence-first) · `src/Pose/ball_detector.{h,cpp}` + plumbing · risk: med (frame path)
+### V2 — Detector rework (scoped: presence-first) · `src/Pose/ball_detector.{h,cpp}` + plumbing · risk: med (frame path) · **NEXT**
 **Promotion scope (agreed):** ship v2 acquisition as the live **presence** feature first, and wire
 the launch as an **arbiter-gated** candidate (V4) — the two rough edges (weak-contrast position,
 launch latency/completeness) are *safe* to mature live because the arbiter cannot self-commit on a

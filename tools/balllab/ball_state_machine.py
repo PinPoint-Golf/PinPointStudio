@@ -240,12 +240,13 @@ class BallTracker:
 
         # lock the longest-held candidate that meets the criteria (the stationary ball)
         for c in self.cands:
-            if c["hold"] >= self.t_lock_frames and float(np.median(c["Ns"])) >= K_LOCK:
+            medN = float(np.median(c["Ns"]))       # winning candidate's median novelty (exposed for parity)
+            if c["hold"] >= self.t_lock_frames and medN >= K_LOCK:
                 cx, cy = int(round(c["x"])), int(round(c["y"]))
                 fx, fy = subpixel_peak(N, cx, cy)
                 self._L0 = _at_spot(R, cx, cy)
                 self.locked = {"idx": self.idx, "x": fx, "y": fy,
-                               "L0": self._L0, "ix": cx, "iy": cy}
+                               "L0": self._L0, "ix": cx, "iy": cy, "medN": medN}
                 self.state = LOCKED
                 self._Lhist = [(self.idx, self._L0)]
                 break
