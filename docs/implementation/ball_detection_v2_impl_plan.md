@@ -180,7 +180,19 @@ changes less and can roll back. Keep `ball_state_machine.py` as the regression o
   setup loop, so wire it in V2 even though the wizard QML lands with V3's repurpose.
 - **Gate**: contract test green; live app builds; presence shows on a corpus replay.
 
-### V3 — Calibration retirement (DEFERRED until v2 is proven live)  ·  deletion  ·  risk: low
+### V3 — Wizard repurpose + calibration retirement · **IN PROGRESS**
+
+**Wizard BallCal step redesigned DONE (2026-07-08, uncommitted — app builds clean + headless-smoke OK):**
+`ScreenSessionWizard.qml` step 3 dropped the `BallCalibrationFlow`/`ballCalibrationFor` wiring and now
+runs the v2 Option-A flow: framed hitting-area ROI + a **"Learn hitting area"** button
+(`cameraManager.relearnBallBaseline`) → a **live present/absent badge** (bound to `ballFaceOnInst.ballPresent`,
+which already tings on the present transition) → **Continue gated on a detected ball** (`ballReady`;
+`goNext` guard + primary-button dim, mirroring the Calibrate-step gate). **Skip kept as an escape hatch**
+(so a user without a ball/camera isn't trapped — flagged for Mark). `ballCalDone` retired from the wizard;
+summary row / footer hint / pips now read `ballReady` ("Ball detected"). Remaining: **the rest of the
+calibration-stack deletion below** (the "soon" work).
+
+**Then delete (v1 core + UI, fully mapped) — DEFERRED "soon" (after the wizard):**  ·  deletion  ·  risk: low
 Do this *after* V2/V4 ship and presence is proven in anger — leaving the dormant v1 stack in place
 until then keeps the promotion small and reversible. Delete (v1 core + UI, fully mapped):
 - `src/Pose/ball_model.h`, `ball_calibration_logic.h`, `ball_calibration_store.h`.

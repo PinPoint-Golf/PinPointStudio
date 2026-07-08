@@ -50,8 +50,8 @@ Item {
     // these everywhere instead of hardcoded numbers so the wizard stays robust.
     //   Goals(0) Cameras(1) Triangulate(2) BallCal(3) IMUs(4) Calibrate(5) Confirm(6) Ready(7)
     // Triangulate appears only once both camera perspectives are connected
-    // (hasTriangulateStep); BallCal always shows and is skippable (the generic
-    // detector remains the fallback); Calibrate + Confirm are wrist-only
+    // (hasTriangulateStep); BallCal always shows and gates Continue on a live
+    // detected ball (Skip is an escape hatch); Calibrate + Confirm are wrist-only
     // (hasCalibrateStep); all others run every session. (Zero-G / gyro-bias is
     // performed in the WitMotion app, not here.)
     readonly property int stepGoals:       0
@@ -97,8 +97,9 @@ Item {
     }
 
     // First CONNECTED face-on camera instance (reactive on instances) and the
-    // ball-detection calibration state — drives the BallCal step, its footer
-    // hint/Skip, and the Ready summary row.
+    // ball-detection state — drives the BallCal step, its footer hint/Skip, and
+    // the Ready summary row. The face-on instance whose live presence the v2
+    // temporal detector reports.
     readonly property QtObject ballFaceOnInst: {
         var insts = cameraManager.instances
         var fo = faceOnList
@@ -108,7 +109,9 @@ Item {
                     return insts[j]
         return null
     }
-    readonly property bool ballCalDone: ballFaceOnInst !== null && ballFaceOnInst.ballCalibrated
+    // v2: the ball step gates on LIVE detection (a placed ball), not a saved
+    // calibration profile. ballPresent is the instance's smoothed present flag.
+    readonly property bool ballReady: ballFaceOnInst !== null && ballFaceOnInst.ballPresent
 
     // Ordered indices of the steps visible for the current session type and
     // camera state — the single source of truth for navigation (goNext/goBack),
@@ -151,6 +154,7 @@ Item {
     function goNext(mark) {
         if (currentStep >= lastStep) return
         if (currentStep === stepCalibrate && mark === "done" && !calibFlow.calibrationDone) return
+        if (currentStep === stepBallCal && mark === "done" && !ballReady) return  // gate on live detection
         var arr = stepStates.slice()
         arr[currentStep] = mark
         stepStates = arr
@@ -1129,12 +1133,13 @@ Item {
                         }
                     }
 
-                    // ── Panel 3: Ball Detection ───────────────────────────────
-                    // Always in the flow (visibleSteps) and skippable — the
-                    // generic detector remains the fallback. Settings is the
-                    // home of the hitting area + calibration (§8.1); this step
-                    // confirms or runs it inline for the connected face-on
-                    // camera (§8.2).
+                    // ── Panel 3: Ball Detection (v2 temporal detector) ────────
+                    // Always in the flow (visibleSteps). The user frames the
+                    // hitting area, presses Learn to seed the empty-mat baseline
+                    // (relearnBallBaseline → Option A), then places a ball; the
+                    // step stays live (ballPresent, with a ting) and GATES Continue
+                    // on a detected ball. Skip is an escape hatch. No calibration
+                    // profile — the temporal detector self-calibrates at runtime.
 
                     Item {
                         implicitHeight: ballCalCol.implicitHeight + Theme.sp(32)
@@ -1147,8 +1152,8 @@ Item {
                             StepIntro {
                                 width:   parent.width
                                 eyebrow: qsTr("STEP %1 OF %2 · BALL DETECTION").arg(root.stepNumbers[root.stepBallCal]).arg(root.totalSteps)
-                                heading: qsTr("Calibrate ball detection")
-                                body:    qsTr("Pinpoint learns what the ball and the empty hitting area look like under your studio's lighting, so detection is tuned to this exact setup. Place the hitting area over where the ball sits at address, then follow the prompts — you'll place and remove a ball a couple of times. Skip to use the generic detector.")
+                                heading: qsTr("Set up ball detection")
+                                body:    qsTr("Pinpoint learns what your empty hitting area looks like, then detects the ball against it — no calibration needed. Frame the hitting area, empty the mat and press Learn, then place a ball to confirm it's detected.")
                             }
 
                             // Cameras step skipped / face-on not connected.
@@ -1193,39 +1198,69 @@ Item {
                                 }
 
                                 ColumnLayout {
+                                    id: ballStepCol
                                     Layout.fillWidth: true
                                     Layout.alignment: Qt.AlignTop
-                                    spacing: Theme.sp(8)
+                                    spacing: Theme.sp(12)
 
-                                    readonly property QtObject calCtrl:
-                                        root.ballFaceOnInst
-                                            ? cameraManager.ballCalibrationFor(root.ballFaceOnInst) : null
-
-                                    // Drift hint (§6 soft drift).
-                                    Text {
-                                        Layout.fillWidth: true
-                                        visible: root.ballFaceOnInst !== null
-                                                 && root.ballFaceOnInst.ballDrifting
-                                        text: qsTr("Lighting has changed since calibration — revalidating is recommended.")
-                                        wrapMode: Text.WordWrap
-                                        font.family: Theme.fontData
-                                        font.pixelSize: Theme.fontSzMicro
-                                        color: Theme.colorWarn
-                                    }
+                                    // True for ~the seed window after pressing Learn (or a
+                                    // ROI drag, which also re-seeds) — shows "Learning…".
+                                    property bool learning: false
 
                                     Text {
                                         Layout.fillWidth: true
-                                        visible: !root.ballCalDone
-                                        text: qsTr("Place the hitting area over where the ball sits at address: drag to move, corners to resize, drag outside to redraw.")
+                                        text: qsTr("1. Empty the hitting area and position the box over where the ball sits at address — drag to move, corners to resize, drag outside to redraw.\n2. Press Learn.\n3. Place a ball — it's detected below.")
                                         wrapMode: Text.WordWrap
                                         font.family: Theme.fontBody
                                         font.pixelSize: Theme.fontSzBody2
                                         color: Theme.colorText2
                                     }
 
-                                    BallCalibrationFlow {
+                                    // Learn the empty-mat baseline (Option A).
+                                    PpButton {
+                                        label:   qsTr("Learn hitting area")
+                                        primary: true
+                                        onClicked: {
+                                            ballStepCol.learning = true
+                                            learnTimer.restart()
+                                            cameraManager.relearnBallBaseline(root.ballFaceOnInst)
+                                        }
+                                    }
+                                    Timer {
+                                        id: learnTimer
+                                        interval: 2000
+                                        onTriggered: ballStepCol.learning = false
+                                    }
+
+                                    // Live present/absent badge. The instance tings on the
+                                    // present transition (ballPresent), so no QML sound here.
+                                    RowLayout {
                                         Layout.fillWidth: true
-                                        controller: parent.calCtrl
+                                        Layout.topMargin: Theme.sp(4)
+                                        spacing: Theme.sp(8)
+                                        Rectangle {
+                                            width: Theme.sp(11); height: width; radius: width / 2
+                                            color: ballStepCol.learning ? Theme.colorWarn
+                                                 : root.ballReady        ? Theme.colorGood
+                                                                         : Theme.colorText3
+                                        }
+                                        Text {
+                                            text: ballStepCol.learning ? qsTr("Learning the mat…")
+                                                : root.ballReady        ? qsTr("Ball detected")
+                                                                        : qsTr("No ball — place one in the hitting area")
+                                            font.family:    Theme.fontBody
+                                            font.pixelSize: Theme.fontSzBody
+                                            color: root.ballReady ? Theme.colorGood : Theme.colorText2
+                                        }
+                                    }
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: qsTr("Continue is enabled once a ball is detected.")
+                                        wrapMode: Text.WordWrap
+                                        font.family: Theme.fontData
+                                        font.pixelSize: Theme.fontSzMicro
+                                        color: Theme.colorText3
                                     }
                                 }
                             }
@@ -1907,12 +1942,12 @@ Item {
                                     SummaryRow {
                                         width: parent.width
                                         rowLabel: qsTr("Ball detection")
-                                        good: root.ballCalDone
-                                        rowValue: root.ballCalDone
-                                                      ? qsTr("Calibrated")
+                                        good: root.ballReady
+                                        rowValue: root.ballReady
+                                                      ? qsTr("Ball detected")
                                                       : root.stepStates[root.stepBallCal] === "skipped"
-                                                          ? qsTr("Skipped — generic detector")
-                                                          : qsTr("Not calibrated — generic detector")
+                                                          ? qsTr("Skipped")
+                                                          : qsTr("No ball detected")
                                     }
                                 }
                             }
@@ -1988,9 +2023,9 @@ Item {
                                 : root.anyFixedCamera
                                     ? qsTr("Optional — cameras are fixed in place")
                                     : qsTr("Stereo calibration isn't available yet — skip to continue")
-                            if (s === root.stepBallCal) return root.ballCalDone
-                                ? qsTr("Ball detection calibrated")
-                                : qsTr("Calibrate for reliable ball detection — or skip to use the generic detector")
+                            if (s === root.stepBallCal) return root.ballReady
+                                ? qsTr("Ball detected")
+                                : qsTr("Learn the hitting area, then place a ball — or skip ball detection")
                             if (s === root.stepImus) return root.imusAllConnected
                                 ? qsTr("All required sensors connected")
                                 : root.imusOk
@@ -2010,7 +2045,7 @@ Item {
                             if (s === root.stepTriangulate)
                                 return (root._todo_triangulationValid || root.anyFixedCamera)
                                            ? Theme.colorGood : Theme.colorWarn
-                            if (s === root.stepBallCal) return root.ballCalDone ? Theme.colorGood : Theme.colorWarn
+                            if (s === root.stepBallCal) return root.ballReady ? Theme.colorGood : Theme.colorWarn
                             if (s === root.stepImus)    return root.imusAllConnected ? Theme.colorGood : Theme.colorWarn
                             if (s === root.stepCalibrate) return calibFlow.calibrationDone ? Theme.colorGood : Theme.colorWarn
                             return Theme.colorText3
@@ -2030,7 +2065,7 @@ Item {
                     PpButton {
                         visible: (root.currentStep === root.stepCameras && !root.camsAllConnected)
                                  || (root.currentStep === root.stepTriangulate && !root._todo_triangulationValid)
-                                 || (root.currentStep === root.stepBallCal && !root.ballCalDone)
+                                 || (root.currentStep === root.stepBallCal && !root.ballReady)
                                  || (root.currentStep === root.stepImus && !root.imusAllConnected)
                                  || (root.currentStep === root.stepCalibrate && !calibFlow.calibrationDone)
                         label:   qsTr("Skip →")
@@ -2072,6 +2107,7 @@ Item {
                         // assignments would destroy this binding on first press.
                         opacity: {
                             var blocked = (root.currentStep === root.stepCalibrate && !calibFlow.calibrationDone)
+                                       || (root.currentStep === root.stepBallCal && !root.ballReady)
                                        || (primaryBtn.imuConnectMode && !imusCol.canConnect && !imusCol._connecting)
                             if (blocked) return 0.4
                             return primaryArea.pressed ? 0.8 : 1.0
