@@ -130,6 +130,13 @@ through-anchor sampling suffered. Output: θ-only truth for stills; (s, r0)
 only if the band pattern locks (it usually cannot at this exposure —
 known optics, not a tooling gap).
 
+> **Extended by §9 (2026-07-08).** v3.2's hard case — telling the still club
+> from a trailing-leg line that outscores it per-frame and crosses the mat with
+> the same polarity — gains an external discriminator the cone/stack/mat gates
+> cannot supply on their own: *the real shaft points at the ball.* The reliable
+> v2 ball detector gives a fixed far-end landmark at address (and impact) that
+> pins direction, scale, and the address/takeaway boundary. See §9.
+
 ## 5. v3.3: learned components — where training data beats hand-tuning
 
 Physics stays the frame; learning fills perception gaps that classical
@@ -379,3 +386,193 @@ roll-onset signal rather than "correcting" it. `recon` frames fell from up to
 13/swing to 0–4/swing — the direct cause of the coverage recovery. On s01 the
 rail alters θ on only **two frames** (the impact blur) versus pure v3.0 and adds
 `psi_err` on 121 release frames; the v3.0 track is otherwise byte-identical.
+
+## 9. The ball as the club's far-end anchor — address & impact truth from a fixed landmark (2026-07-08)
+
+**The asymmetry this closes.** C1 anchors the *butt* end of the club to the
+hands on every frame. Nothing has ever anchored the *head* end — the clubhead is
+the one component the tracker infers and never observes, and stage-2's classical
+terminus logic failing on 7/10 swings is named as the current honesty bottleneck
+(§5.3). PinPoint now has a **reliable v2 ball detector**
+([`ball_detector_design.md`](ball_detector_design.md),
+[`ball_detection_v2.md`](ball_detection_v2.md)) already wired into the shot
+detector. Crucially it **runs per-frame on the same face-on `CameraInstance`, in
+the same full-frame-normalized coordinate space as the pose anchor and skeleton
+the tracker already consumes** (`ball_detection_v2.md` §4.1a runs the ball
+detector on the *same frames* as pose). So it supplies the missing head-end
+anchor at zero registration cost — but only at the two instants it physically
+can: **address and impact, when the clubhead is presented to the ball.** Those are
+exactly the tracker's two weakest zones — the still address (v3.0 abstains, ray
+tier off §10; v3.2 reconstructs θ from a scene of look-alikes) and the impact
+blur (θ is bridged from the arm, §8.1). The ball converts both from *hardest to
+measure* to *read off a fixed point.*
+
+### 9.1 The geometry, and its one honest caveat
+
+At address and at impact the shaft runs from the grip `G` (pose anchor) down to
+the clubhead, and the clubhead is **at the stationary ball** `B`
+(`ball_detection_v2.md` §4.1a: "the clubhead resting against the ball at
+address"). So the line `G→B` is the shaft line:
+
+```
+θ_ball(f) = atan2(B_y − G_y,  B_x − G_x)
+```
+
+a **direct geometric measurement of shaft angle that needs no ridge or band
+evidence at all** — available precisely where E1/E2 are weakest. Three small
+offsets separate `G→B` from the exact shaft line, each foldable into an anchor σ
+or a corpus-measured correction:
+
+1. **Forward shaft lean** — the hands lead the ball (sign taken from the detected
+   chirality, *never hardcoded*, consistent with C3): a few degrees at address,
+   larger and more variable at impact (dynamic loft).
+2. **Clubhead extent** — `B` is the ball centre; the shaft terminates at the
+   hosel, offset by ~one ball radius. Small against the `G–B` baseline (≈ a full
+   club length).
+3. **Grip-anchor jitter** — already mitigated (hold-median anchor, F10).
+
+**So `θ_ball` is a *soft* anchor, never a hard pin,** with σ covering the lean
+until the offset `δ(handedness, club, address|impact)` is measured against
+instrumented truth across the corpus and subtracted — a small constant table
+(`shaftType` is already plumbed through `ShotAnalysisJob`). But even *uncorrected*
+it pins two things exactly: **direction** — `G→B` points *down* to the ball, so
+the 180° flip points up into the body and is structurally excluded, the same
+guarantee the down-cone gives at address (§14.2) — and **scale** (§9.4).
+
+### 9.2 Exploit 1 — address is "clubhead at the ball," not "grip is slow" (the reported failure)
+
+The bug, precisely (impl §4 ACTION): `segment_phases` triggers the swing on
+**grip** speed (`SW_SPD = 8 px/f`), but through the takeaway the club rotates
+about the wrist while the grip barely translates — grip speed is a *lagging*
+proxy for club motion. Every frame before the first fast grip run is dumped into
+`addr`, so the early takeaway is mislabelled as address (on s01, f≈384–423, which
+v2 fusion band-tracked θ 133→191°). This is the reported "it identifies the
+takeaway as address."
+
+The ball replaces the lagging proxy with the *physical event*: **address ends at
+the last frame the clubhead is at the ball before the sustained takeaway;** `tk0`
+is the clubhead's final departure from `B`. Two detectors, both ball-only, no
+clubhead detection required:
+
+- **Angular** — the frame at which the measured `θ(f)` first departs `θ_ball`
+  beyond a threshold: the club has rotated away while the grip is still.
+- **Positional** (when a head estimate exists) — `|head(f) − B| > τ`.
+
+This is **robust to the pre-shot waggle by construction**: a waggle lifts the
+clubhead and *returns it to `B`*; the swing does not. The grip-creep walk-back
+proposed in impl §4 (`tk0` = walk back over grip-speed creep) can be fooled by a
+waggle brushing the creep threshold; a "clubhead departs `B` for good" test cannot
+be, because `B` is the fixed point the club leaves only once. **This *is* the impl
+§4 takeaway-mislabel fix, grounded on a landmark instead of an `SW_SPD` tuning
+constant.** Pair it with the v3.0-r1 ψ-rail, which supplies the near-still
+takeaway *rate* the old `WMAX["addr"]=3.0` throttled: the ball fixes the
+**labelling** of the boundary, the rail fixes the **DP transition band** past it —
+the two harms impl §4 measured (lost coverage *and* a 10–18° lagged track) are
+addressed by their respective owners.
+
+### 9.3 Exploit 2 — impact θ and impact instant from ball launch
+
+The v2 detector fires `ballLaunched(ts)` on the launch signature (at-spot response
+collapses < 10 % within ~13 ms, `ball_detection_v2.md`), the **vision modality's
+impact**, already fused in the shot arbiter with acoustic + IMU. The last
+pre-launch frame `f_imp` still has the ball at `B` with the clubhead returning to
+it, so `θ(f_imp) ≈ θ_ball(f_imp)`. This gives the §8.1 isotonic bridge a **direct
+measured endpoint at its downstream end**, where today there is only
+reconstruction (`ψ_iso + φ`): the impact blur is then *bracketed by two real
+measurements* — the last pre-blur band lock and the ball-anchored impact — instead
+of one endpoint plus a monotone assumption. It also closes a three-modality
+coincidence check at a single instant (acoustic `t` / IMU `t` / ball-launch frame
+all locate the same impact; the shaft θ there is pinned to `G→B`).
+
+### 9.4 Exploit 3 — two-point pinning ⇒ measured club length, clubhead endpoints, a scale floor
+
+The shaft is a segment `[G, head]`. At address/impact `head ≈ B`, so the segment
+is **fully observed at two frames.** That yields:
+
+- **A measured club length in pixels,** `L_px = |B − G|` at address, for *this*
+  swing / club / camera / golfer — the scale prior
+  [`shaft_detection_skeleton_design.md`](shaft_detection_skeleton_design.md) wanted
+  but derived from whole-body *stature*; now read directly off the club at rest.
+- **A hard length floor and ceiling.** Confidence → 0 for any shaft shorter than
+  ~0.8·`L_px` — the exact "impossibly small shaft" failure the skeleton doc names
+  ("confidence should be zero for any shaft shorter than the arm"), now killed by a
+  *measured* club length rather than an arm-length surrogate. C1's butt-termination
+  caps the near end; `L_px` caps the far end.
+- **The clubhead sweep radius** (≈ `L_px` about `G`, image-plane foreshortening
+  aside) — a strong prior for the v3.3 heel/toe keypoint head, and **two exact
+  clubhead positions (= `B`)** as free weak labels / initialisation / validation
+  for that NN and its data flywheel (§5): a head detector must *return to `B`* at
+  impact.
+
+### 9.5 Exploit 4 — the ball discriminates the address look-alikes the cone and mat gates cannot
+
+v3.2's hardest case is the still address crowded with look-alikes; on s01 the
+trailing-leg line *outscores* the club per single frame (§14.1) **and** crosses
+the mat with the same dark polarity (§14.3 explicitly concludes mat-crossing
+*cannot* separate them — "both the club and the trailing-leg line cross the mat
+with the right polarity"). The ball adds the discriminator none of the
+counterfeits share: **the real shaft points at the ball; the leg line points at
+the trail foot,** so `θ_leg` differs from `θ_ball` by a wide margin. Intersect the
+two independent address gates — "inside the arm cone" (§14.2, `|θ−φ| < 28°`) ∩
+"points at the ball" (`|θ − θ_ball| < small`) — and the admissible set is far
+narrower than either alone, excluding the leg the arm-cone must admit (a leg can
+sit near-parallel to the arm). **This is precisely the separation §14.3 found the
+mat-crossing prior could not provide — now supplied by a landmark.** It also
+corroborates the v3.2 stack `θ0` (s01: 88.65°) and provides a fallback address
+truth when the stack is inconclusive — *gated on agreement*: require the stack
+`θ0` and `θ_ball` to agree within tolerance; on disagreement one of them is a
+counterfeit, so **trust neither and abstain** (honesty stance intact).
+
+### 9.6 Honesty gates and failure modes (the ball never degrades θ)
+
+- **No confident stationary ball** — practice swing, ball out of frame / off the
+  stance corridor, teed shot the detector misses, or a plain detector miss. The
+  anchor is **strictly additive**: fall back to the current phase-model / v3.2
+  behaviour; a missing ball can never make the track worse. Same stance as v3.1 /
+  v3.2 — additive companions that read the frozen v3.0 track and never rewrite it.
+- **False ball** — a white distractor in the corridor (logo, mat scuff, tee cap).
+  Rejected by the v2 priors before it may anchor anything (`ball_detection_v2.md`
+  §4.1a: *always between the feet, always below the ankle line*, address-stable
+  ≥ ~85 % of median across the hold) **and** by the `θ_ball` vs stack-`θ0`
+  agreement of §9.5.
+- **Unmodelled lean/offset** — soft anchor with σ until `δ` is corpus-measured;
+  **wider σ at impact** (lean larger and more variable), where the anchor is only
+  allowed to bridge *inside* the blur, i.e. where there is no competing shaft
+  evidence to override.
+- **Teed ball (driver)** — still a fixed landmark, above the mat; `δ` differs by
+  club and is handled by the `shaftType` table.
+- **Corpus-gated like every stage (§6):** synth gate (planted ball + planted
+  in-corridor counterfeit) → s01 A/B (must fix the takeaway label *and* pin impact
+  θ *without moving the good frames*) → 10-swing studio corpus → byte-identical
+  determinism. Acceptance: **beat the phase model on address/takeaway boundary
+  accuracy and the §8.1 bridge on impact-θ error, with zero regression to the
+  moving swing.** ([[single-swing-never-judges-model-accuracy]] — s01 sizes the
+  fix, the corpus judges it.)
+
+### 9.7 Prerequisite — record the ball as a swing stream
+
+Today the ball is **signal-only** in the app (`ballPresentChanged` has no
+consumer; the offline `"ballTrajectory"` block of `ball_detector_design.md` §5 is
+planned, not yet the tracker's input). For the tracker to read `B(f)`:
+
+- **Exemplar side** — `prep_swing.py` emits a `ball.csv` (`found, x, y, r, conf`
+  per frame), the direct analogue of the `anchors.csv` / `skeleton.csv` it already
+  produces; `address_theta_v3` and the DP read it.
+- **App side** — the face-on `CameraInstance` records a **`ball` stream** into the
+  `SwingWindow` / an additive `swing.json` block, in the pose coordinate frame it
+  already shares, so the live `WristAnalyzer` `ShaftTracker` reads `B(f)` beside
+  the grip anchor and skeleton.
+
+This is the deliberately **low-entropy stream** the idea started from — a constant
+plus a single step at launch. Its dullness is a feature: a constant-plus-step is
+trivially validated and trivially compressed, and the one interesting sample (the
+launch step) is the impact anchor of §9.3. Placement mirrors v3.1 / v3.2: read the
+frozen window, work only the address and impact spans, additive-merge under v3.0
+precedence.
+
+**Net:** the ball is the club's second anchor. C1 pins the butt to the hands every
+frame; the ball pins the head to a fixed point at the two frames that matter most
+and are hardest to measure. It does not touch the moving swing, where the club is
+in free space and the ball is gone — it is an *endpoint* instrument, and the
+endpoints (address labelling, impact θ, club scale) are exactly what v3 is weakest
+on today.

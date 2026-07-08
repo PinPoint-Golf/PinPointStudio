@@ -423,6 +423,13 @@ Stage tools to the shared NAS `/mnt/swingdata/shaftlab/v3run/` (≡ `C:\PinPoint
 
 ### ACTION — v3.0 phase model: takeaway mislabelled as address  *(folds into the v3.0-r1 ψ-rail re-gate)*
 
+> **Superseded detector for `tk0` (2026-07-08): the ball.** The grip-creep walk-back proposed below is a
+> pose-only surrogate for "the club is still leaving address." The v3.4 ball far-end anchor (below; design §9)
+> gives the *physical* boundary directly — `tk0` = the frame the clubhead departs the stationary ball for good —
+> with no `SW_SPD` tuning and native waggle-immunity. Keep this ACTION's **DP-transition-band** half (the
+> takeaway `WMAX`, the reason relabelling alone is insufficient); take its **`tk0`** half from v3.4 §1. The two
+> still fold into one v3.0-internal re-gate.
+
 **Surfaced by v3.2 (2026-07-06).** `segment_phases` triggers the swing on **grip** speed (`SW_SPD=8 px/f`),
 but in the takeaway the club rotates about the wrist while the grip barely translates — grip speed is a
 *lagging* proxy for club motion. So every frame before the first 8-px/f run (`bs0`) is dumped into `addr`,
@@ -461,6 +468,70 @@ rise) handles it, watch the noisier corpus swings. (3) **`WMAX≈7`** is a s01 e
 > takeaway (grip barely translates, but ψ evolves and the arm moves), so the two share a single
 > synth → s01 → corpus → freeze cycle rather than each paying for one. Re-check `tk0`/`WMAX["takeaway"]`
 > under the rail before committing the phase.
+
+### v3.4 — ball far-end anchor: address & impact endpoints  *(app stream first; dev-MBP exemplar; corpus gate deferred to post-release)*
+
+**Picked up as new development once the current release ships** (Mark, 2026-07-08). Design: club_tracking_v3
+[`§9`](../design/club_tracking_v3_design.md). C1 anchors the club's *butt* to the hands every frame; nothing
+has ever anchored the *head*. The reliable **v2 ball detector** — already running per-frame on the same
+face-on `CameraInstance`, in the same normalized frame as the pose anchor + skeleton the tracker consumes —
+is the missing head-end anchor at the two instants the clubhead is presented to the ball: **address and
+impact**, the tracker's two weakest zones (address abstained → `pred`; impact bridged from the arm, §8.1).
+`θ_ball = atan2(B_y−G_y, B_x−G_x)` is a **direct** shaft-angle measurement needing no ridge/band evidence.
+
+**Sequencing (Mark).** We are still in **build/verify** for the whole v3 stack — **validation waits**. So this
+phase is *build + self-verify* now (synth + s01); the **corpus gate is deferred to the post-release validation
+pass**. And the app ball stream (P0) is plumbed **up front, before the next corpus**, so the corpus — whenever
+it runs — sees real recorded ball data, not a bolt-on.
+
+**P0 — record the ball as a swing stream (app, up front).** Ball is signal-only today (`ballPresentChanged`
+has no consumer; the offline `"ballTrajectory"` block of `ball_detector_design.md §5` is planned, not this).
+- **App:** the face-on `CameraInstance` writes a **`ball` stream** into the `SwingWindow` + an additive
+  `"ball"` block in `swing.json` (`found,x,y,r,conf` per frame, pose coordinate frame) so the live
+  `WristAnalyzer` `ShaftTracker` reads `B(f)` beside grip + skeleton; `ballLaunched(ts)` recorded as the impact
+  marker. Deliberately **low-entropy** (a constant plus one launch step) → trivially validated + compressed.
+- **Exemplar:** `prep_swing.py` emits `ball.csv` (`found,x,y,r,conf`/frame), the analogue of `anchors.csv` /
+  `skeleton.csv`. For the frozen `tape_20260705` corpus, generate it by replaying the classical/v2 detector
+  over the FFV1 — ball data without a re-capture.
+
+**Exemplar — `ball_anchor_v3.py`** (additive companion: reads the frozen v3.0 track + `ball.csv`, works only
+the address + impact spans, never rewrites v3.0):
+1. **Angular address-end / takeaway boundary — angular only (Mark: "likely all we will ever need").** `tk0` =
+   the frame the measured `θ(f)` first departs `θ_ball` beyond `τ_addr` (the club rotates away while the grip
+   is still). Landmark form of the ACTION `tk0` — no `SW_SPD` tuning; waggle-immune by construction (a waggle
+   returns the clubhead to `B`; the swing leaves it once). Address = the still hold up to `tk0`. No
+   positional/head-based detector.
+2. **Impact-θ anchor from `ballLaunched`.** Last pre-launch frame `f_imp` has the ball at `B`, clubhead
+   returning → `θ(f_imp) ≈ θ_ball`: a **measured** downstream endpoint for the §8.1 isotonic bridge (today
+   reconstruction only), bracketing the impact blur with two real measurements (last pre-blur band lock +
+   ball anchor). Corroborates the shot-arbiter impact instant (acoustic/IMU/ball coincide).
+3. **Measure shaft lean NOW (Mark: "we need to build and learn").** Do **not** defer `δ`. Per swing, log
+   `δ = θ_ball − θ_truth` at address and impact (θ_truth from the v2 fusion/band tier where it exists);
+   accumulate `δ(handedness, club, address|impact)` across s01 + corpus into a small constant table
+   (`shaftType` already plumbed through `ShotAnalysisJob`). Ship `θ_ball` as a **soft** anchor (σ covers
+   residual lean); the table sharpens it as data arrives. Chirality gives the sign — never hardcoded.
+4. **Address discrimination + scale floor.** Intersect the v3.2 address gates with "points at the ball"
+   (`|θ − θ_ball| < small`) — the discriminator §14.3 found mat-crossing could **not** supply (kills the
+   trailing-leg counterfeit that outscores the club per-frame). `L_px = |B − G|` at address → **measured club
+   length** for this swing/club/camera → a confidence **floor** for impossibly-short shafts (the
+   `shaft_detection_skeleton_design.md` ask, now from a real length) + clubhead sweep-radius prior + two exact
+   head positions (`= B`) as v3.3 weak labels.
+
+**Honesty (unchanged stance).** Strictly additive: no confident stationary ball (no-ball swing, off-corridor,
+detector miss) ⇒ fall back to the current phase-model / v3.2 — a missing ball never degrades θ. False ball
+gated by the v2 priors (between the feet, below the ankle line, address-stable) **and** the `θ_ball` vs v3.2
+stack-`θ0` agreement; on disagreement, abstain. The impact anchor bridges only *inside* the blur.
+
+**Two blast radii.** The impact-θ and address-θ anchors are an **additive companion** (like v3.1/v3.2 — read
+the frozen track, no re-freeze). The takeaway **boundary relabel** is **v3.0-internal** (re-solves the DP) →
+it folds into the ACTION / v3.0-r1 ψ-rail corpus re-gate, taking `tk0` from §1 above and the `WMAX["takeaway"]`
+transition band from the ACTION.
+
+**Gates (build now; corpus deferred).** Synth `make_synth_v34.py --selftest` (planted ball + in-corridor
+counterfeit + a planted takeaway boundary: recover θ, reject the counterfeit, place the boundary) → **s01 A/B**
+(fixes the f≈384–423 takeaway mislabel; pins impact θ; good frames unmoved; zero flips; byte-identical rerun).
+**The corpus gate (`run_v34_corpus.py`, studio PC) and the `δ`-table freeze are owed to the post-release
+validation pass** ([[single-swing-never-judges-model-accuracy]] — s01 sizes it, the corpus judges it).
 
 ### v3.11 — IMU conditioning  *(deferred; needs the §2.2 IMU-bound capture)*
 One-directional (epistemic firewall): IMU conditions the *search*, never fits the truth. Corroborates C3's
@@ -519,6 +590,12 @@ Success = each phase's gate green on `tape_20260705`, adjudicated on full-res mo
   `address_theta_v3.py` (v3.2 address/hold θ); Set S generators `make_synth_v3.py` / `make_synth_v31.py`
   / `make_synth_v32.py`; corpus runners `run_v3_corpus.py` / `run_v31_corpus.py` (v3.2 runner owed);
   harvested counterfeit fixtures.
+- **New (v3.4 ball far-end anchor — post-release):** `tools/shaftlab/ball_anchor_v3.py`,
+  `make_synth_v34.py`, `run_v34_corpus.py` (owed); `prep_swing.py` gains `ball.csv`. App-side ball stream
+  (P0, up front): `src/Gui/camera_instance.{h,cpp}` (record `ball` stream + `ballLaunched` marker into the
+  `SwingWindow`), `src/Export/swing_exporter.cpp` + `swing_doc.cpp` (additive `"ball"` block in `swing.json`),
+  reading the existing detector (`src/Pose/ball_detector*.{h,cpp}`, `ball_temporal.h`); consumed in
+  `src/Analysis/shaft_tracker*` via `ShotAnalysisJob`.
 - **Gate-0 ψ-rail (v3.0-r1) artefacts:** hand markup `…/2026-07-05_Mark-Liversedge_Wrist_02/swing_0001/
   truth.json` (independent θ witness); analysis `…/tape_20260705/s01/psi_plot.py`; figure
   `docs/research/figures/club_track_psi_s01.png`. Reuses `s01/anchors.csv` (pose φ) + `s01/fusion/

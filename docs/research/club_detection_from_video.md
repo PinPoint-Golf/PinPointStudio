@@ -1770,6 +1770,40 @@ begins:
   impact blur on the lead arm's motion. Gate-0 (the s01 hand markup) has
   passed; because it re-solves the global path it is a v3.0-internal change,
   re-running the full synthetic → single-swing → corpus → freeze ladder.
+- **The ball as the club's far-end anchor** (design §9; impl v3.4). The whole
+  constraint system anchors the club at *one* end — the butt, held in the hands
+  (C1) — and infers the other. Yet the detector already runs a reliable ball
+  detector on the same face-on frames, in the same coordinate space as the pose
+  it uses, and a golf ball at rest is a fixed landmark that the clubhead is
+  *presented to* at exactly two instants: address and impact. Those are the two
+  phases this programme measures worst — the still address, where the evidence
+  engines cannot motion-verify a club that a trailing-leg line outscores per
+  frame (§4.8), and the impact blur, where the shaft is reconstructed from the
+  arm rather than seen (§4.7). A line from the grip to the ball centre is the
+  shaft direction to within a small, characterisable forward-lean bias, so the
+  ball supplies a *direct* θ at both — and four things follow. It fixes the
+  phase model's address/takeaway boundary at its root: the swing is triggered on
+  grip speed, which lags because the club rotates about a near-stationary grip
+  through the takeaway (§5.1's mislabel), whereas "the clubhead has left the
+  ball for good" is the physical event itself, immune to the pre-shot waggle
+  that fools a grip-speed threshold. It converts the impact bridge from a
+  one-ended extrapolation into a two-ended interpolation, the second endpoint
+  measured at the ball-launch frame the shot arbiter already timestamps. It
+  turns the grip-to-ball distance into a *measured* club length in pixels,
+  which is the scale prior the skeleton work wanted and a floor that finally
+  makes an impossibly-short shaft impossible rather than merely improbable. And
+  it hands the address stage a discriminator the mat-crossing prior provably
+  could not (§4.8): the real shaft points at the ball, the leg line does not.
+  The forward-lean bias is not a nuisance to be tolerated but a small quantity
+  to be *measured* — logged per swing against the instrumented truth, tabulated
+  by handedness and club — so the anchor starts soft and sharpens with data;
+  the whole addition stays strictly additive and gated on agreement with the
+  independent address measurement, abstaining rather than corrupting when a ball
+  is absent or a distractor disagrees. It sits behind one piece of plumbing —
+  recording the ball as a (deliberately dull, constant-plus-a-step) stream in
+  the swing document — and is deferred, by choice, until the current release is
+  in users' hands; it is the natural next development, and the metric-grounding
+  scale below is its corollary.
 - **The F11 redesign** in the passive tracker — cluster the still-run
   measurements, or split runs at confident θ jumps — corpus-gated against
   the v7h fixtures.
@@ -1780,7 +1814,8 @@ begins:
   guarantees.
 - **Metric grounding**: the detected ball plus the address hosel give a
   per-session mm-per-pixel scale, which converts s into an absolute ρ and
-  lets us pool measurements across sessions.
+  lets us pool measurements across sessions — the same far-end anchor above,
+  read for scale rather than angle.
 - **Broader corpora**: multi-club, left-handed, and hard-frame-labelled.
 - **The heel/toe network and its data flywheel** (§3.12) — strategically
   the whole point of the instrumented programme, because it is the bridge
