@@ -20,49 +20,71 @@
 
 #include "video_overlay_pose.h"
 
+#include <QBrush>
 #include <QImage>
+#include <QLinearGradient>
 #include <QPainter>
 #include <QPen>
 
+#include <algorithm>
+#include <cmath>
+
 // ---------------------------------------------------------------------------
-// Skeleton connectivity — 17 MoveNet Lightning joints.
+// "Biomech Blueprint" skeleton — a monochrome cool-cyan instrument overlay.
 //
-// Each edge stores {joint_a, joint_b, QPen} where the pen colour follows
-// anatomical convention: green = left side, blue = right side, yellow = midline.
+// The 17 MoveNet joints are reduced to a body-only skeleton: the face
+// keypoints (eyes/ears) are dropped entirely, and two derived midpoints —
+// neck (between the shoulders) and pelvis (between the hips) — anchor a
+// graduated set of bones that taper from a thick spine and thighs down to
+// thin forearms and shins. Every width and radius is a fraction of the torso
+// length, so the look is invariant to how large the golfer appears in frame.
 // ---------------------------------------------------------------------------
 
 namespace {
 
-struct Edge { int a; int b; QColor color; };
+// Monochrome instrument palette (ARGB). The joint-fill alpha is baked into
+// kRingFill; every other colour has its alpha set per-stroke from confidence.
+constexpr QRgb kBone        = 0xff'74'd0'e6; // bones, joint outlines, head, dots
+constexpr QRgb kRingFill    = 0xc8'12'1a'23; // dark-ink joint centre (~200 alpha)
+constexpr QRgb kSpineNeck   = 0xff'd6'f2'ff; // spine gradient — neck end
+constexpr QRgb kSpinePelvis = 0xff'4a'a6'c4; // spine gradient — pelvis end
+constexpr QRgb kTickNeck    = 0xff'd6'f2'ff; // neck-end spine tick + diamonds
+constexpr QRgb kTickPelvis  = 0xff'6c'c3'dc; // pelvis-end spine tick
 
-// Catppuccin Mocha palette — matches the rest of the UI.
-constexpr QRgb kLeft   = 0xff'a6'e3'a1; // green  — left limbs
-constexpr QRgb kRight  = 0xff'89'b4'fa; // blue   — right limbs
-constexpr QRgb kCenter = 0xff'f9'e2'af; // yellow — midline
+constexpr float kMinScore = 0.25f; // keypoints below this are not drawn
 
-static const Edge kEdges[] = {
-    // Face
-    {0, 1, kLeft},   {0, 2, kRight},
-    {1, 3, kLeft},   {2, 4, kRight},
-    // Neck to shoulders
-    {0, 5, kLeft},   {0, 6, kRight},
-    // Shoulder crossbar
-    {5, 6, kCenter},
-    // Arms
-    {5, 7, kLeft},   {7, 9,  kLeft},
-    {6, 8, kRight},  {8, 10, kRight},
-    // Torso
-    {5, 11, kLeft},  {6, 12, kRight},
-    // Hip crossbar
-    {11, 12, kCenter},
-    // Legs
-    {11, 13, kLeft},  {13, 15, kLeft},
-    {12, 14, kRight}, {14, 16, kRight},
+// All widths/radii are fractions of the torso length (neck→pelvis), eyeballed
+// from the reference illustration where torsoLen ≈ 81 px. The graduated weight
+// (thick spine/thighs → thin forearms/shins) is what reads as anatomy.
+constexpr float kSpineW       = 0.068f;
+constexpr float kThighW       = 0.054f;
+constexpr float kUpperArmW    = 0.049f;
+constexpr float kShinW        = 0.037f;
+constexpr float kCrossW       = 0.037f; // neck bone + shoulder/hip crossbars
+constexpr float kForearmW     = 0.032f;
+constexpr float kTorsoSideW   = 0.017f;
+constexpr float kRingBigR     = 0.056f; // shoulders + hips
+constexpr float kRingR        = 0.049f; // all other joints
+constexpr float kRingOutlineW = 0.020f;
+constexpr float kHeadR        = 0.123f;
+constexpr float kHeadOutlineW = 0.025f;
+constexpr float kTickHalf     = 0.080f; // spine end-tick half-length
+constexpr float kDiamondHalf  = 0.052f;
+constexpr float kCentreDotR   = 0.017f;
+
+constexpr float kTorsoSideAlpha = 0.28f;
+constexpr qreal kMinTorsoLen    = 20.0; // px — collapsed pose below this
+
+// Bones whose endpoints are both real keypoints. The neck bone and the spine
+// are anchored on derived midpoints and are handled separately.
+struct Bone { int a; int b; float width; };
+constexpr Bone kBones[] = {
+    {5,  6,  kCrossW},    {11, 12, kCrossW},   // shoulder + hip crossbars
+    {5,  7,  kUpperArmW}, {7,  9,  kForearmW}, // left arm
+    {6,  8,  kUpperArmW}, {8,  10, kForearmW}, // right arm
+    {11, 13, kThighW},    {13, 15, kShinW},    // left leg
+    {12, 14, kThighW},    {14, 16, kShinW},    // right leg
 };
-
-constexpr float kMinScore    = 0.25f; // keypoints below this are not drawn
-constexpr int   kJointRadius = 4;     // pixels
-constexpr int   kBoneWidth   = 2;     // pixels
 
 } // namespace
 
@@ -109,45 +131,137 @@ void VideoOverlayPose::drawSkeleton(QImage &img, const PoseResult &pose) const
     auto kpPoint = [&](int j) -> QPointF {
         return { pose.keypoints[j].x * w, pose.keypoints[j].y * h };
     };
-    auto kpVisible = [&](int j) -> bool {
-        return pose.keypoints[j].score >= kMinScore;
+    auto kpScore   = [&](int j) -> float { return pose.keypoints[j].score; };
+    auto kpVisible = [&](int j) -> bool  { return kpScore(j) >= kMinScore; };
+
+    // Derived midpoints. Each is visible only when both parents are, and takes
+    // the weaker parent's score so the confidence-driven alpha works unchanged.
+    const bool neckVis   = kpVisible(5)  && kpVisible(6);
+    const bool pelvisVis = kpVisible(11) && kpVisible(12);
+    const QPointF neck   = (kpPoint(5)  + kpPoint(6))  * 0.5;
+    const QPointF pelvis = (kpPoint(11) + kpPoint(12)) * 0.5;
+    // neck's synthetic score = min of its parents (drives the neck-bone alpha);
+    // pelvis needs no score of its own — nothing downstream is alpha-keyed to it.
+    const float neckScore = std::min(kpScore(5), kpScore(6));
+
+    // Scale reference: torso length, with graceful fallbacks (shoulder width,
+    // then image height). Bail on a collapsed spine so degenerate geometry can
+    // never be drawn.
+    const bool haveSpine = neckVis && pelvisVis;
+    qreal scale;
+    if (haveSpine) {
+        scale = std::hypot(pelvis.x() - neck.x(), pelvis.y() - neck.y());
+        if (scale < kMinTorsoLen)
+            return;
+    } else if (kpVisible(5) && kpVisible(6)) {
+        const QPointF s5 = kpPoint(5), s6 = kpPoint(6);
+        scale = std::max<qreal>(
+            std::hypot(s6.x() - s5.x(), s6.y() - s5.y()) * 1.5, kMinTorsoLen);
+    } else {
+        scale = std::max<qreal>(0.15 * h, kMinTorsoLen);
+    }
+
+    auto boneAlpha = [](float a, float b) -> float {
+        return static_cast<float>(0.4 + 0.6 * std::min(a, b));
     };
 
-    // Draw bones.
-    for (const Edge &e : kEdges) {
-        if (!kpVisible(e.a) || !kpVisible(e.b))
-            continue;
-
-        // Alpha proportional to the weaker endpoint's confidence.
-        const float minScore = std::min(pose.keypoints[e.a].score,
-                                        pose.keypoints[e.b].score);
-        QColor c(e.color);
-        c.setAlphaF(static_cast<float>(0.4 + 0.6 * minScore));
-
-        p.setPen(QPen(c, kBoneWidth, Qt::SolidLine, Qt::RoundCap));
-        p.drawLine(kpPoint(e.a), kpPoint(e.b));
+    // 1. Faint torso sides — background structure, drawn first so bones sit on top.
+    {
+        QColor c(kBone);
+        c.setAlphaF(kTorsoSideAlpha);
+        p.setPen(QPen(c, kTorsoSideW * scale, Qt::SolidLine, Qt::RoundCap));
+        if (kpVisible(5) && kpVisible(11)) p.drawLine(kpPoint(5), kpPoint(11));
+        if (kpVisible(6) && kpVisible(12)) p.drawLine(kpPoint(6), kpPoint(12));
     }
 
-    // Draw joints on top of bones.
-    p.setPen(Qt::NoPen);
-    for (int j = 0; j < PoseResult::kNumKeypoints; ++j) {
+    // 2. Bones — uniform cyan, graduated width, confidence-driven alpha.
+    for (const Bone &b : kBones) {
+        if (!kpVisible(b.a) || !kpVisible(b.b))
+            continue;
+        QColor c(kBone);
+        c.setAlphaF(boneAlpha(kpScore(b.a), kpScore(b.b)));
+        p.setPen(QPen(c, b.width * scale, Qt::SolidLine, Qt::RoundCap));
+        p.drawLine(kpPoint(b.a), kpPoint(b.b));
+    }
+    // Neck bone: derived neck → Nose.
+    if (neckVis && kpVisible(0)) {
+        QColor c(kBone);
+        c.setAlphaF(boneAlpha(neckScore, kpScore(0)));
+        p.setPen(QPen(c, kCrossW * scale, Qt::SolidLine, Qt::RoundCap));
+        p.drawLine(neck, kpPoint(0));
+    }
+
+    // 3. Spine — the hero element — drawn after the ordinary bones, with a
+    //    neck→pelvis gradient and a short perpendicular tick at each end.
+    if (haveSpine) {
+        QLinearGradient grad(neck, pelvis);
+        grad.setColorAt(0.0, QColor(kSpineNeck));
+        grad.setColorAt(1.0, QColor(kSpinePelvis));
+        QPen spinePen(QBrush(grad), kSpineW * scale);
+        spinePen.setCapStyle(Qt::RoundCap);
+        p.setPen(spinePen);
+        p.drawLine(neck, pelvis);
+
+        const QPointF dir = pelvis - neck;
+        const qreal len = std::hypot(dir.x(), dir.y());
+        if (len > 1e-3) {
+            const QPointF n(-dir.y() / len, dir.x() / len); // unit normal
+            const qreal half = kTickHalf * scale;
+            p.setPen(QPen(QColor(kTickNeck), kCrossW * scale, Qt::SolidLine, Qt::RoundCap));
+            p.drawLine(neck - n * half, neck + n * half);
+            p.setPen(QPen(QColor(kTickPelvis), kCrossW * scale, Qt::SolidLine, Qt::RoundCap));
+            p.drawLine(pelvis - n * half, pelvis + n * half);
+        }
+    }
+
+    // 4. Joints — concentric rings for the 12 body keypoints (5–16): a dark-ink
+    //    fill with a cyan outline. Shoulders and hips get an extra solid centre
+    //    dot, marking the parents of the derived midpoints. No ring on the nose.
+    const QColor ringFill = QColor::fromRgba(kRingFill); // fromRgba keeps the 200 alpha
+    for (int j = 5; j <= 16; ++j) {
         if (!kpVisible(j))
             continue;
+        const bool big = (j == 5 || j == 6 || j == 11 || j == 12);
+        const qreal r = (big ? kRingBigR : kRingR) * scale;
 
-        // Colour shifts from green (confident) to red (uncertain).
-        const float s = pose.keypoints[j].score;
-        QColor c;
-        if (s >= 0.6f)
-            c = QColor(0xff'cd'd6'f4); // lavender — high confidence
-        else if (s >= 0.4f)
-            c = QColor(0xff'f9'e2'af); // yellow   — medium
-        else
-            c = QColor(0xff'f3'8b'a8); // pink     — low (above threshold)
-        c.setAlphaF(static_cast<float>(0.5 + 0.5 * s));
+        QColor outline(kBone);
+        outline.setAlphaF(static_cast<float>(0.5 + 0.5 * kpScore(j)));
+        p.setBrush(ringFill);
+        p.setPen(QPen(outline, kRingOutlineW * scale, Qt::SolidLine, Qt::RoundCap));
+        p.drawEllipse(kpPoint(j), r, r);
 
-        p.setBrush(c);
-        p.drawEllipse(kpPoint(j), kJointRadius, kJointRadius);
+        if (big) {
+            p.setPen(Qt::NoPen);
+            p.setBrush(QColor(kBone));
+            const qreal dr = kCentreDotR * scale;
+            p.drawEllipse(kpPoint(j), dr, dr);
+        }
     }
+
+    // 5. Head marker — the only head geometry: a single unfilled ring on the Nose.
+    if (kpVisible(0)) {
+        QColor c(kBone);
+        c.setAlphaF(static_cast<float>(0.5 + 0.5 * kpScore(0)));
+        p.setBrush(Qt::NoBrush);
+        p.setPen(QPen(c, kHeadOutlineW * scale, Qt::SolidLine, Qt::RoundCap));
+        const qreal r = kHeadR * scale;
+        p.drawEllipse(kpPoint(0), r, r);
+    }
+
+    // 6. Diamonds — filled markers on the two derived midpoints, drawn last so
+    //    they sit above the rings and the joined bones.
+    auto drawDiamond = [&](const QPointF &c) {
+        const qreal d = kDiamondHalf * scale;
+        const QPointF pts[4] = {
+            {c.x(),     c.y() - d}, {c.x() + d, c.y()},
+            {c.x(),     c.y() + d}, {c.x() - d, c.y()},
+        };
+        p.setPen(Qt::NoPen);
+        p.setBrush(QColor(kTickNeck)); // #d6f2ff
+        p.drawConvexPolygon(pts, 4);
+    };
+    if (neckVis)   drawDiamond(neck);
+    if (pelvisVis) drawDiamond(pelvis);
 }
 
 #endif // HAVE_OPENCV

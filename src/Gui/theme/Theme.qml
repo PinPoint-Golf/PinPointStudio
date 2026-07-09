@@ -342,6 +342,18 @@ QtObject {
     readonly property color colorImuC: dark ? "#34C759" : "#2E9E4F"   // green
     readonly property color colorImuD: dark ? "#3399FF" : "#0A6CFF"   // blue
 
+    // ── Pose overlay ("Biomech Blueprint") palette ───────────────────────────
+    // A deliberately FIXED cool-cyan instrument palette for the pose skeleton
+    // drawn over live video / replay footage (PpCameraFrame). Unlike every other
+    // token here it does NOT reskin per aesthetic: the overlay is an instrument
+    // readout, not UI chrome, and must read the same against grass/sky in every
+    // direction. Mirrors the constants in src/Video/video_overlay_pose.cpp.
+    readonly property color poseBone:        "#74d0e6"   // bones, joint rings, head, dots
+    readonly property color poseInk:         "#c8121a23" // ring fill (dark ink, ~200 alpha)
+    readonly property color poseSpineTop:    "#d6f2ff"   // spine neck end + end tick + diamonds
+    readonly property color poseSpineBottom: "#4aa6c4"   // spine pelvis end
+    readonly property color poseSpineTick2:  "#6cc3dc"   // pelvis-end spine tick
+
     // Generic metric-series palette — categorical hues for charts that plot several
     // unrelated metrics together (PpMetricChart and future charts). Distinct from the
     // colorImu* identity hues, which mean "this specific sensor"; these carry no fixed

@@ -73,18 +73,146 @@ Item {
     // Skeleton edge definitions, shared by the live pose canvas and the
     // replay overlay — colours mapped to theme tokens. Left-body edges use
     // colorGood; right-body use colorAccent; mid-line connections use colorWarn.
-    readonly property var kSkeletonEdges: [
-        {a:0,  b:1,  side:"good"}, {a:0,  b:2,  side:"accent"},
-        {a:1,  b:3,  side:"good"}, {a:2,  b:4,  side:"accent"},
-        {a:0,  b:5,  side:"good"}, {a:0,  b:6,  side:"accent"},
-        {a:5,  b:6,  side:"warn"},
-        {a:5,  b:7,  side:"good"}, {a:7,  b:9,  side:"good"},
-        {a:6,  b:8,  side:"accent"}, {a:8,  b:10, side:"accent"},
-        {a:5,  b:11, side:"good"}, {a:6,  b:12, side:"accent"},
-        {a:11, b:12, side:"warn"},
-        {a:11, b:13, side:"good"}, {a:13, b:15, side:"good"},
-        {a:12, b:14, side:"accent"}, {a:14, b:16, side:"accent"}
+    // "Biomech Blueprint" bones whose endpoints are both real keypoints (w =
+    // width as a fraction of torso length). The neck bone (neck→nose) and the
+    // spine (neck→pelvis) are anchored on derived midpoints and drawn separately
+    // in paintBlueprint(). Mirrors kBones in src/Video/video_overlay_pose.cpp.
+    readonly property var kBlueprintBones: [
+        {a:5,  b:6,  w:0.037}, {a:11, b:12, w:0.037},   // shoulder + hip crossbars
+        {a:5,  b:7,  w:0.049}, {a:7,  b:9,  w:0.032},   // left arm
+        {a:6,  b:8,  w:0.049}, {a:8,  b:10, w:0.032},   // right arm
+        {a:11, b:13, w:0.054}, {a:13, b:15, w:0.037},   // left leg
+        {a:12, b:14, w:0.054}, {a:14, b:16, w:0.037}    // right leg
     ]
+
+    // Shared pose-skeleton renderer — used by BOTH the live (skeletonCanvas) and
+    // replay (replayOverlay) canvases so the two never drift. A faithful port of
+    // VideoOverlayPose::drawSkeleton (src/Video/video_overlay_pose.cpp): face
+    // keypoints dropped, derived neck/pelvis midpoints, graduated bone weights
+    // scaled from torso length, the fixed cyan Theme.pose* palette. gx(j)/gy(j)
+    // return pixel coords for keypoint j; gs(j) its score; alphaScale mutes the
+    // whole overlay (1.0 live, <1 when it sits over replay footage).
+    function paintBlueprint(ctx, cr, gx, gy, gs, alphaScale) {
+        var kMinScore = 0.25
+        function vis(j) { return gs(j) >= kMinScore }
+
+        // Derived midpoints (visible only when both parents are).
+        var neckVis   = vis(5)  && vis(6)
+        var pelvisVis = vis(11) && vis(12)
+        var nX = (gx(5)  + gx(6))  * 0.5, nY = (gy(5)  + gy(6))  * 0.5
+        var pX = (gx(11) + gx(12)) * 0.5, pY = (gy(11) + gy(12)) * 0.5
+        var neckScore = Math.min(gs(5), gs(6))
+
+        // Scale reference: torso length, with graceful fallbacks (shoulder width,
+        // then video height). Bail on a collapsed spine.
+        var haveSpine = neckVis && pelvisVis
+        var scale
+        if (haveSpine) {
+            scale = Math.hypot(pX - nX, pY - nY)
+            if (scale < 20) return
+        } else if (vis(5) && vis(6)) {
+            scale = Math.max(Math.hypot(gx(6) - gx(5), gy(6) - gy(5)) * 1.5, 20)
+        } else {
+            scale = Math.max(0.15 * cr.height, 20)
+        }
+
+        var cBone  = Qt.rgba(Theme.poseBone.r,        Theme.poseBone.g,        Theme.poseBone.b,        1)
+        var cTop   = Qt.rgba(Theme.poseSpineTop.r,    Theme.poseSpineTop.g,    Theme.poseSpineTop.b,    1)
+        var cBot   = Qt.rgba(Theme.poseSpineBottom.r, Theme.poseSpineBottom.g, Theme.poseSpineBottom.b, 1)
+        var cTick2 = Qt.rgba(Theme.poseSpineTick2.r,  Theme.poseSpineTick2.g,  Theme.poseSpineTick2.b,  1)
+        var cInk   = Qt.rgba(Theme.poseInk.r, Theme.poseInk.g, Theme.poseInk.b, Theme.poseInk.a)
+
+        ctx.lineCap = "round"
+
+        // 1. Faint torso sides — background structure, drawn first.
+        ctx.strokeStyle = cBone
+        ctx.lineWidth   = 0.017 * scale
+        ctx.globalAlpha = 0.28 * alphaScale
+        if (vis(5) && vis(11)) { ctx.beginPath(); ctx.moveTo(gx(5), gy(5)); ctx.lineTo(gx(11), gy(11)); ctx.stroke() }
+        if (vis(6) && vis(12)) { ctx.beginPath(); ctx.moveTo(gx(6), gy(6)); ctx.lineTo(gx(12), gy(12)); ctx.stroke() }
+
+        // 2. Bones — graduated width, confidence-driven alpha.
+        ctx.strokeStyle = cBone
+        for (var i = 0; i < root.kBlueprintBones.length; ++i) {
+            var b = root.kBlueprintBones[i]
+            if (!vis(b.a) || !vis(b.b)) continue
+            ctx.globalAlpha = (0.4 + 0.6 * Math.min(gs(b.a), gs(b.b))) * alphaScale
+            ctx.lineWidth   = b.w * scale
+            ctx.beginPath(); ctx.moveTo(gx(b.a), gy(b.a)); ctx.lineTo(gx(b.b), gy(b.b)); ctx.stroke()
+        }
+        // Neck bone: derived neck → Nose.
+        if (neckVis && vis(0)) {
+            ctx.globalAlpha = (0.4 + 0.6 * Math.min(neckScore, gs(0))) * alphaScale
+            ctx.lineWidth   = 0.037 * scale
+            ctx.beginPath(); ctx.moveTo(nX, nY); ctx.lineTo(gx(0), gy(0)); ctx.stroke()
+        }
+
+        // 3. Spine — hero element — gradient pen + a tick at each end.
+        if (haveSpine) {
+            var grad = ctx.createLinearGradient(nX, nY, pX, pY)
+            grad.addColorStop(0, cTop)
+            grad.addColorStop(1, cBot)
+            ctx.strokeStyle = grad
+            ctx.globalAlpha = alphaScale
+            ctx.lineWidth   = 0.068 * scale
+            ctx.beginPath(); ctx.moveTo(nX, nY); ctx.lineTo(pX, pY); ctx.stroke()
+
+            var dx = pX - nX, dy = pY - nY
+            var len = Math.hypot(dx, dy)
+            if (len > 1e-3) {
+                var ux = -dy / len, uy = dx / len   // unit normal
+                var half = 0.080 * scale
+                ctx.lineWidth   = 0.037 * scale
+                ctx.strokeStyle = cTop
+                ctx.beginPath(); ctx.moveTo(nX - ux * half, nY - uy * half); ctx.lineTo(nX + ux * half, nY + uy * half); ctx.stroke()
+                ctx.strokeStyle = cTick2
+                ctx.beginPath(); ctx.moveTo(pX - ux * half, pY - uy * half); ctx.lineTo(pX + ux * half, pY + uy * half); ctx.stroke()
+            }
+        }
+
+        // 4. Joints — concentric rings for body keypoints 5–16; shoulders/hips
+        //    also get a solid centre dot. No ring on the nose.
+        for (var j = 5; j <= 16; ++j) {
+            if (!vis(j)) continue
+            var big = (j === 5 || j === 6 || j === 11 || j === 12)
+            var r = (big ? 0.056 : 0.049) * scale
+            ctx.globalAlpha = alphaScale
+            ctx.fillStyle   = cInk
+            ctx.beginPath(); ctx.arc(gx(j), gy(j), r, 0, Math.PI * 2); ctx.fill()
+            ctx.globalAlpha = (0.5 + 0.5 * gs(j)) * alphaScale
+            ctx.strokeStyle = cBone
+            ctx.lineWidth   = 0.020 * scale
+            ctx.beginPath(); ctx.arc(gx(j), gy(j), r, 0, Math.PI * 2); ctx.stroke()
+            if (big) {
+                ctx.globalAlpha = alphaScale
+                ctx.fillStyle   = cBone
+                ctx.beginPath(); ctx.arc(gx(j), gy(j), 0.017 * scale, 0, Math.PI * 2); ctx.fill()
+            }
+        }
+
+        // 5. Head marker — the only head geometry: an unfilled ring on the Nose.
+        if (vis(0)) {
+            ctx.globalAlpha = (0.5 + 0.5 * gs(0)) * alphaScale
+            ctx.strokeStyle = cBone
+            ctx.lineWidth   = 0.025 * scale
+            ctx.beginPath(); ctx.arc(gx(0), gy(0), 0.123 * scale, 0, Math.PI * 2); ctx.stroke()
+        }
+
+        // 6. Diamonds — filled markers on the derived midpoints, drawn last.
+        ctx.globalAlpha = alphaScale
+        ctx.fillStyle   = cTop
+        var dd = 0.052 * scale
+        if (neckVis) {
+            ctx.beginPath(); ctx.moveTo(nX, nY - dd); ctx.lineTo(nX + dd, nY)
+            ctx.lineTo(nX, nY + dd); ctx.lineTo(nX - dd, nY); ctx.closePath(); ctx.fill()
+        }
+        if (pelvisVis) {
+            ctx.beginPath(); ctx.moveTo(pX, pY - dd); ctx.lineTo(pX + dd, pY)
+            ctx.lineTo(pX, pY + dd); ctx.lineTo(pX - dd, pY); ctx.closePath(); ctx.fill()
+        }
+
+        ctx.globalAlpha = 1.0
+    }
 
     // ROI editor drag state (internal — driven by the unified MouseArea
     // below). roiDragging is true only while a NEW rectangle is being drawn
@@ -347,42 +475,11 @@ Item {
                 if (cr.width <= 0 || cr.height <= 0)
                     return
 
-                var kMinScore = 0.25
-                var cGood   = Qt.rgba(Theme.colorGood.r,   Theme.colorGood.g,   Theme.colorGood.b,   1)
-                var cAccent = Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 1)
-                var cWarn   = Qt.rgba(Theme.colorWarn.r,   Theme.colorWarn.g,   Theme.colorWarn.b,   1)
-                var cText   = Qt.rgba(Theme.colorText.r,   Theme.colorText.g,   Theme.colorText.b,   1)
-
-                for (var i = 0; i < root.kSkeletonEdges.length; ++i) {
-                    var e = root.kSkeletonEdges[i]
-                    var ka = kps[e.a], kb = kps[e.b]
-                    if (ka.score < kMinScore || kb.score < kMinScore)
-                        continue
-                    ctx.globalAlpha = 0.4 + 0.6 * Math.min(ka.score, kb.score)
-                    ctx.strokeStyle = e.side === "good"   ? cGood
-                                    : e.side === "accent" ? cAccent
-                                    :                       cWarn
-                    ctx.lineWidth   = 2
-                    ctx.lineCap     = "round"
-                    ctx.beginPath()
-                    ctx.moveTo(ka.x * cr.width + cr.x, ka.y * cr.height + cr.y)
-                    ctx.lineTo(kb.x * cr.width + cr.x, kb.y * cr.height + cr.y)
-                    ctx.stroke()
-                }
-
-                for (var j = 0; j < kps.length; ++j) {
-                    var kp = kps[j]
-                    if (kp.score < kMinScore)
-                        continue
-                    var s = kp.score
-                    ctx.fillStyle   = s >= 0.6 ? cText : cWarn
-                    ctx.globalAlpha = 0.5 + 0.5 * s
-                    ctx.beginPath()
-                    ctx.arc(kp.x * cr.width + cr.x, kp.y * cr.height + cr.y, 4, 0, Math.PI * 2)
-                    ctx.fill()
-                }
-
-                ctx.globalAlpha = 1.0
+                // Biomech Blueprint — full strength on the live tile.
+                var gx = function(j) { return kps[j].x * cr.width  + cr.x }
+                var gy = function(j) { return kps[j].y * cr.height + cr.y }
+                var gs = function(j) { return kps[j].score }
+                root.paintBlueprint(ctx, cr, gx, gy, gs, 1.0)
             }
         }
 
@@ -474,32 +571,17 @@ Item {
                 if (cr.width <= 0 || cr.height <= 0)
                     return
                 var t = root._replayPlayheadUs
-                var kMinScore = 0.25
                 var cGood   = Qt.rgba(Theme.colorGood.r,   Theme.colorGood.g,   Theme.colorGood.b,   1)
                 var cAccent = Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 1)
-                var cWarn   = Qt.rgba(Theme.colorWarn.r,   Theme.colorWarn.g,   Theme.colorWarn.b,   1)
 
-                // Analyzed skeleton — live style, muted (it sits over replay
-                // footage; half-alpha chrome).
+                // Analyzed skeleton — Biomech Blueprint, muted (sits over footage).
                 var pi = _indexFor(_poseFrames, t)
                 if (pi >= 0) {
                     var kp = _poseFrames[pi].kp
-                    ctx.lineWidth = 2
-                    ctx.lineCap   = "round"
-                    for (var i = 0; i < root.kSkeletonEdges.length; ++i) {
-                        var e = root.kSkeletonEdges[i]
-                        var ca = kp[e.a * 3 + 2], cb = kp[e.b * 3 + 2]
-                        if (ca < kMinScore || cb < kMinScore)
-                            continue
-                        ctx.globalAlpha = 0.55 * (0.4 + 0.6 * Math.min(ca, cb))
-                        ctx.strokeStyle = e.side === "good"   ? cGood
-                                        : e.side === "accent" ? cAccent
-                                        :                       cWarn
-                        ctx.beginPath()
-                        ctx.moveTo(kp[e.a * 3] * cr.width + cr.x, kp[e.a * 3 + 1] * cr.height + cr.y)
-                        ctx.lineTo(kp[e.b * 3] * cr.width + cr.x, kp[e.b * 3 + 1] * cr.height + cr.y)
-                        ctx.stroke()
-                    }
+                    var gx = function(j) { return kp[j * 3]     * cr.width  + cr.x }
+                    var gy = function(j) { return kp[j * 3 + 1] * cr.height + cr.y }
+                    var gs = function(j) { return kp[j * 3 + 2] }
+                    root.paintBlueprint(ctx, cr, gx, gy, gs, 0.7)
                 }
 
                 // Club: fading head trail, then the current shaft line.
