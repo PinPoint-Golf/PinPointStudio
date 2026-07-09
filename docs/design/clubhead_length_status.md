@@ -10,6 +10,33 @@ work can start from ground truth rather than the code archaeology.
 
 ---
 
+## RESOLUTION (2026-07-09, same day) — this report's findings were implemented and gated
+
+The ranked causes below were traced in the morning; a length ladder (Phase A)
+and the Stage-2 measured-head detector (Phase B, ported from the exemplar
+rather than left as a design doc) shipped and were corpus-gated the same
+session. Full as-built detail lives in
+[`club_tracking_v3_design.md`](club_tracking_v3_design.md) §9.4's as-built note
+and [`clubhead_detection_design.md`](clubhead_detection_design.md)'s as-built
+section (§10). This section is additive — §1–§7 below are
+left exactly as filed, as the ground-truth trace that motivated the fix.
+
+| §3 ranked cause | Fix | Commit |
+|---|---|---|
+| 1. Untaped club → hardcoded `0.55·frameH` | 4-rung length ladder in `projectedClubLenPx`: **1** ball-measured `L_px` (late address-hold median, two-pass mis-lock gate, golf-prior plausibility) → **2** band scale grip-corrected → **3** pose-scale stature surrogate → **4** `0.45·frameH` (lowered from 0.55, now a last resort not the untaped default) | `cbe68cd` |
+| 2. Driver length (1.12 m) assumed for all clubs | **Not addressed this session** — `clubLengthM` default is unchanged | — open |
+| 3. Projected from grip, not butt (band-tier overshoot) | Rung-2 formula corrected: `sTypical·(clubLenMm − r0Med)` replaces the old `sTypical·clubLenMm`, which overshot 18–23% | `cbe68cd` |
+| 4. Foreshortening not modeled | Superseded rather than built-as-designed: the Stage-2 head pass (1-D KF `[r,ṙ]`) supplies `L` from direct per-frame measurement at the delivery phase instead of a modeled foreshortening collapse | `cbe68cd` (Stage-2 port), `df76fe9` (default ON) |
+| 5. `measuredClubLenPx` computed + serialized, never consumed | Now measured earlier and correctly (inside `decideTrack`, late-hold window, two-pass cluster gate, golf-prior ankle/feet gate — see §3 point 5's "designed, not built" cross-ref to `club_tracking_v3_design.md` §9.4) and consumed both as ladder rung 1 and as the Stage-2 head-pass floor/ceiling/prior | `cbe68cd` |
+| 6. Band-scale error (taped case) | Unchanged in kind — `s`/`sTypical` noise still maps ~1:1 onto length; only the grip-correction (row 3) touched this path | `cbe68cd` (partial) |
+| §4 "Stage-2 clubhead detector… unbuilt in C++" | **Built.** `src/Analysis/clubhead_track.{h,cpp}`, wired into `decideTrack` after `reconcilePsi`; default ON; dense studio-corpus honesty gate (10 swings, 40–121 dense labels each) passes 9/10, meas-tier median error 0.8–2.4 px/swing, θ bit-identical head-on vs head-off | `cbe68cd` (port + wiring), `bd9c47e` (corpus-gate fixes), `df76fe9` (`shaft.head.enabled` default ON) |
+
+Open items carried forward: driver-length default (row 2), band-scale noise
+(row 6), and the §6 open design questions on club-selection UX are unaffected
+by this session's work.
+
+---
+
 ## 0. TL;DR
 
 - The overlay line's far end (the "head") is **never measured — it is always
@@ -176,18 +203,21 @@ anchor (§9) is proposed as the load-bearing far-end fix.
 
 ## 5. Built vs designed — summary
 
-| Piece | State |
-|---|---|
-| Shaft **angle** θ tracking (Stage 1) | Built, corpus-validated, ported to C++ (`ShaftTracker`) |
-| Head position | **Projected only** — `grip + L·dir(θ)`, never measured |
-| Length L, taped club | Band-scale × assumed physical length (`clubLenMm`) |
-| Length L, **untaped club (default)** | **Hardcoded `0.55·frameH`** fallback |
-| Assumed club length | Default **1.12 m (driver)**; overridden only if athlete club record has `lengthMm` |
-| Foreshortening (length shrink) | **Not modeled** — planned L-collapse never built (`shaft_tracker_impl.md:216`) |
-| Ball-derived length (`measuredClubLenPx`) | Wired live but soft-anchors θ only; length **computed + serialized, never consumed**; ball track mid-build |
-| Arm-length plausibility floor | In the Python exemplar (H2); **absent** in the app — no length bound at all |
-| Stage-2 clubhead **measurement** | Designed in full; **unbuilt in C++** (Python exemplar H0–H2 done, H3 in progress) |
-| Club-selection UI feeding real length/bands | Club record schema exists (`athlete_controller.h:83`); default untaped, driver length |
+*Original state (2026-07-09 morning trace) vs as-built after the same-day fix — see
+the RESOLUTION block above for commits.*
+
+| Piece | State (this report, morning) | As of 2026-07-09 (end of day) |
+|---|---|---|
+| Shaft **angle** θ tracking (Stage 1) | Built, corpus-validated, ported to C++ (`ShaftTracker`) | Unchanged |
+| Head position | **Projected only** — `grip + L·dir(θ)`, never measured | **Measured** by the Stage-2 pass (default ON) on meas-tier frames; projected fallback (with `ShaftHeadProjected`) remains for pred/off frames and address/impact are additionally ball-anchored |
+| Length L, taped club | Band-scale × assumed physical length (`clubLenMm`) | Grip-corrected: `sTypical·(clubLenMm − r0Med)`; still rung 2 of the ladder, below ball-measured `L_px` |
+| Length L, **untaped club (default)** | **Hardcoded `0.55·frameH`** fallback | 4-rung ladder (ball `L_px` → band → pose-scale surrogate → `0.45·frameH` last resort) |
+| Assumed club length | Default **1.12 m (driver)**; overridden only if athlete club record has `lengthMm` | Unchanged — open item |
+| Foreshortening (length shrink) | **Not modeled** — planned L-collapse never built (`shaft_tracker_impl.md:216`) | Superseded: Stage-2 KF `r_h` is a direct per-frame length measurement, not a modeled collapse — see `shaft_tracker_impl.md` Phase B note |
+| Ball-derived length (`measuredClubLenPx`) | Wired live but soft-anchors θ only; length **computed + serialized, never consumed**; ball track mid-build | Consumed: ladder rung 1 + Stage-2 floor/ceiling/prior; measured inside `decideTrack` with a two-pass mis-lock gate + golf-prior (ankle/feet) plausibility gate |
+| Arm-length plausibility floor | In the Python exemplar (H2); **absent** in the app — no length bound at all | Ported: `1.05×` shoulder→grip arm floor clamps the length ladder in C++ |
+| Stage-2 clubhead **measurement** | Designed in full; **unbuilt in C++** (Python exemplar H0–H2 done, H3 in progress) | **Built and default ON** — `src/Analysis/clubhead_track.{h,cpp}`, dense-corpus honesty gate 9/10 swings; exemplar retired (went direct to C++ per standing workflow) |
+| Club-selection UI feeding real length/bands | Club record schema exists (`athlete_controller.h:83`); default untaped, driver length | Unchanged — open item |
 
 ---
 

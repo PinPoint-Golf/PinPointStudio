@@ -218,6 +218,12 @@ in-production health metric.
 >   IMU-predicted profile) was NOT built** — wedge σ and the coverage gate carry that risk
 >   for now; revisit in S5 if real face-on swings show θ corruption when the shaft points
 >   at the camera.
+>   **Update 2026-07-09 (`df76fe9`, Phase B below):** the head is now measured, and with it
+>   `L(t)` collapse arrives **via measurement** (the Stage-2 KF's `r_h` state directly tracks
+>   the shrinking radial distance as the shaft forshortens toward the camera) rather than via
+>   the originally-planned IMU-predicted profile model. The θ-suppression side of this bullet
+>   is unaffected — θ still comes from the Stage-1 filter untouched, confirmed bit-identical
+>   with/without the ball (Phase A note below) and with/without the head pass (Phase B gate).
 > - **Phase A length ladder (2026-07-09, clubhead_length plan §A1–A3).** The projected-head
 >   length `L` for coasted/predicted frames no longer falls back to a flat `0.55·frameH`.
 >   `decideTrack(...)` now takes an optional `const BallTrack2D* ball` and, before head
@@ -249,6 +255,26 @@ in-production health metric.
 >   there), instead of leaving the stale projected terminus. **θ is untouched by all of this** —
 >   the ball feeds only length/head; a `decideTrack` regression test asserts θ is bit-identical
 >   with `ball=nullptr` vs a populated ball.
+> - **Phase B — Stage-2 measured head (2026-07-09, `bd9c47e` corpus-gate fixes,
+>   `df76fe9` default ON).** The head is no longer projection-only: a second decode pass in
+>   `decideTrack` (after `reconcilePsi`), `src/Analysis/clubhead_track.{h,cpp}`, ROI-bounded
+>   Sobel + running-bg EMA, ports the exemplar's H1 gap-tolerant on-axis terminus + H2 1-D KF
+>   `[r,ṙ]`/per-segment RTS/meas-pred-off tiers/arm floor/180° flip check + H3 posterior-σ
+>   tier — see `clubhead_exemplar_plan.md`'s closing note for what did and didn't carry over
+>   from the Python exemplar. The exemplar's self-fit length model was **not** ported; the
+>   ball-measured `L_px` prior above (annulus ceiling `1.15·L̂`, hard floor `0.8·L_px` at
+>   still/impact, Gaussian still-frame prior, meas-acceptance floor 0.5·L̂ ramped to 0.8·L̂ at
+>   takeaway/impact) replaces it. Backswing streak confidence capped at 0.45 (motion-blur
+>   streaks corpus-proven to short-lock). Output: `ShaftSample2D.headConf`/`headSigmaPx`
+>   (−1 = not run), flags bit `0x80 ShaftHeadOffFrame` (edge-clamp render, not a position),
+>   additive `swing.json` keys, QML meas/pred/off tier rendering. Tuning under `shaft.head.*`.
+>   BAND-tier (taped) heads are never overwritten by the head pass. **Gated on the dense
+>   2026-07-05 studio corpus** (10 taped 7i swings, 40–121 dense labels each): honesty clause
+>   passes 9/10 (the allowed fail, swing_0001, traces to Stage-1 θ-quality, not the head pass),
+>   meas-tier median error 0.8–2.4 px/swing, θ bit-identical head-on vs head-off, head pass adds
+>   6–15% to shaft-stage compute, all 35 analyzer unit tests pass (3 new suites). Known
+>   limitation: fast-phase Stage-1 θ degradation (>8°, beyond the ±5° budget Stage-2 was
+>   decoupled against) is now the binding accuracy constraint, not the head measurement itself.
 > - Viterbi transition cost: deviation of Δθ from the IMU-predicted delta (slack 200 rad/s²)
 >   when calibrated, else the path's own velocity trend (slack 800 rad/s², extra ~20° on the
 >   first transition), plus a ΔL deviation term; node cost from per-frame-normalised scores

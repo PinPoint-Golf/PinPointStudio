@@ -90,6 +90,22 @@ plane exists). Let `W = frameWidth`.
   only, not yet in the app). Once `head` is measured, this metric is a small,
   trustworthy addition; on the projected head it is an experimental estimate.
 
+> **Update (2026-07-09).** The measured-head prerequisite above has landed:
+> `src/Analysis/clubhead_track.{h,cpp}` (wired into `ShaftTracker::decideTrack`,
+> default ON as of `df76fe9`) measures `head` on meas-tier frames with
+> `headConf`/`headSigmaPx` — a label-grade tier (σ ≤ 10 px) is available, and
+> delivery-phase confident coverage is preserved by design (the backswing
+> streak confidence cap keeps low-confidence motion-blur claims out of the
+> meas tier, which is exactly the phase this metric's low-point window cares
+> about). This metric **remains deferred** — nothing here changes the ball
+> position/provenance side (§2's "Provenance v2" blocker) or the validation
+> requirement of §7 — but the accuracy caveat above is no longer the blocking
+> one: the low-point search can now run against a measured `head` instead of a
+> projected one whenever the Stage-2 pass reaches meas tier in the search
+> window. See `docs/implementation/shaft_tracker_impl.md`'s Phase B note and
+> `docs/design/clubhead_length_status.md`'s RESOLUTION block for the full
+> picture.
+
 ## 5. Where it slots (compute phase)
 
 Model it on `buildShaftLeanSeries()` (`src/Analysis/wrist_analyzer.cpp:56-82`):

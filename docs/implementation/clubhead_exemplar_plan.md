@@ -10,6 +10,12 @@ Method: identical to the shaft exemplar loop — build in the lab, diagnose with
 data (`--debug-frames`-style dumps), verify with eyes at full resolution,
 gate numerically on 0008, sweep the corpus, freeze.
 
+> **RETIRED to C++ (2026-07-09) — see the closing note at the end of this
+> file.** The exemplar stopped here (H3 in progress, H4 never started); the
+> track went direct to C++ per the standing exemplar-retirement workflow.
+> `H3`'s posterior-σ tier and `H4`'s corpus gate both shipped, just not as
+> Python exemplar phases.
+
 ## Ground rules (inherited, non-negotiable)
 
 - **Decoupling**: stage 2 reads ONLY the shaft-track contract v1 columns
@@ -212,3 +218,47 @@ Work the failure-mode table with the debug dump before touching thresholds:
 No face orientation, no ball tracking, no 3-D, no feedback of L(t) into
 stage 1 (§2.4 of the design), no app C++ work — the port happens only after
 both exemplar stages are frozen together.
+
+## Closing note (2026-07-09) — exemplar retired, went direct to C++
+
+The "port happens only after both exemplar stages are frozen together" plan
+above did not hold: **H3 stopped in progress and H4 never started as Python
+exemplar phases.** Per the standing workflow (new shaft-tracker features go
+direct to C++, verified via `lab.py`/`swinglab_run`, not further `tools/
+shaftlab/*.py` work), the remaining scope was ported and finished directly in
+`src/Analysis/clubhead_track.{h,cpp}`, wired into `ShaftTracker::decideTrack`
+after `reconcilePsi` — commits `cbe68cd` (port + wiring), `bd9c47e`
+(corpus-gate fixes), `df76fe9` (`shaft.head.enabled` default ON).
+
+- **H3 (posterior-σ meas tier, hard phases) shipped in C++**, not as further
+  exemplar iteration: the accepted+confirmed+σ_r≤10px label-grade tier from
+  the exemplar's H3 progress note is in the C++ port; the *hard-phase items
+  H3 left as its "Remaining" list* — impact streak, wraparound occlusion,
+  unlit finish, stage-1 pred-tier frames — were **not individually re-solved
+  in C++**. They carry over as honest `pred`-tier behaviour: the backswing
+  streak confidence cap (0.45, motion-blur streaks corpus-proven to
+  short-lock) and the phase-ramped meas-acceptance floor (0.5·L̂ ramped to
+  0.8·L̂ at takeaway/impact) are the C++ answer to the same failure modes the
+  exemplar's H3 list named, arrived at by capping confidence rather than
+  chasing each hard-phase channel fix.
+- **H4 (corpus + freeze) was superseded, not completed as planned.** There
+  was no 0002–0009 sweep + decoupling test against v5n/v6 stage-1 CSVs in the
+  lab harness. Instead the C++ port was gated on a **dense 2026-07-05 studio
+  corpus** (10 taped 7i swings, 40–121 dense labels/swing, captured on the
+  studio PC, not the lab clips): honesty clause passes 9/10 swings (the
+  allowed fail, swing_0001, is attributed to Stage-1 θ-quality, not the head
+  pass), meas-tier median error 0.8–2.4 px/swing, θ bit-identical head-on vs
+  head-off, all 35 analyzer unit tests pass (3 new suites). This is a
+  different and arguably stronger gate than the planned H4 (real captured
+  swings vs lab clips) but it means the exemplar's own acceptance-targets
+  table (H4 section, `0002/0009` corpus) was never exercised — it is
+  superseded, not satisfied.
+- **The exemplar's self-fit length model was explicitly NOT ported** (see
+  `docs/design/club_tracking_v3_design.md` §9.4's as-built note and
+  `docs/implementation/shaft_tracker_impl.md`'s Phase B note): the C++ head
+  pass uses the ball-measured `L_px` prior instead, which did not exist when
+  this plan was written.
+- Pointers: `src/Analysis/clubhead_track.h` / `.cpp` for the implementation;
+  `docs/design/clubhead_detection_design.md`'s as-built section for the
+  design-vs-built delta; `docs/design/clubhead_length_status.md`'s
+  RESOLUTION block for the end-to-end picture.

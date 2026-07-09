@@ -5,6 +5,11 @@
 projected-length model `L(θ, phase)` is now an explicit stage-2 component
 (`tools/shaftlab/length_model.py`) fitted per swing (self-fit, no labels)
 and it, not an ad-hoc L̂, drives the §4 annulus and the §4 off-frame test.
+**As built in C++ 2026-07-09** — the port shipped in production
+(`src/Analysis/clubhead_track.{h,cpp}`, commits `cbe68cd`/`bd9c47e`/`df76fe9`,
+`shaft.head.enabled` default ON), with the self-fit replaced by the
+ball-measured club length and the honesty clause passing 9/10 on dense truth
+— see §10.
 **Model-form selection and length-accuracy acceptance are corpus-gated** (held-
 out swings AND held-out clubs; a single labelled swing may itself be off-plane
 — see pipeline_validation_and_tuning.md §5.5/§3.4). Exemplar-first, same
@@ -244,6 +249,120 @@ Same protocol as stage 1 (findings doc + impl doc §Verification):
 Same rule as stage 1: **exemplar first, port later.** The production
 `ShaftTracker` projects `headPx` from grip + L·dir(θ) (flagged
 `ShaftHeadProjected`) — it does not measure the head; nothing in the app
-implements this design. The eventual port ships stage 1 and stage 2 as two
+implements this design. *[As of 2026-07-09 this is no longer true: the port
+landed in production — direct to C++, per the later exemplar-retirement
+decision, with the H1/H2 exemplar code as the algorithm reference rather than
+a byte-oracle — see §10.]* The eventual port ships stage 1 and stage 2 as two
 modules with the same CSV-shaped contract between them (design §11.1's
 `ClubheadDetector` slot), gated by §8's protocol.
+
+## 10. As built (C++, 2026-07-09)
+
+Landed on main in three commits: `cbe68cd` (Phase A length ladder + the
+measured-head port, merged dark behind `shaft.head.enabled=false`),
+`bd9c47e` (the corpus-gate fixes below), `df76fe9` (default flipped ON).
+
+### 10.1 Where it lives and how it is wired
+
+The module is `src/Analysis/clubhead_track.{h,cpp}` — pure free functions
+over `cv::Mat` + plain vectors, same doctrine as `shaft_track_assembly`. It
+is wired inside `decideTrack` after `reconcilePsi`, before the tiering loop:
+a second decode pass over the swing span with a ROI-bounded Sobel (annulus
+bbox + inflation, written into full-size mats) and a running-background EMA
+warm-started at `spanLo`. The stage-1 tier predicate was hoisted out of the
+fused tier/placement loop into a precomputed vector (stage 2 needs
+`s1IsMeas[i]`); that refactor is guarded **bit-identical** — θ is byte-equal
+with the head pass on or off, asserted in `shaft_decide_test` and confirmed
+10/10 on the corpus. BAND-tier heads (a direct butt-anchored measurement)
+are never overwritten by the stage-2 result. The §2 decoupling contract
+holds functionally rather than as a CSV: the module consumes only the
+decided θ/grip/tier and never feeds back into the DP/reconcile.
+
+### 10.2 What was ported, what was not, what was added
+
+**Ported from the exemplar as-built** (`clubhead_measure.py` /
+`clubhead_annotate.py` — algorithm reference, not byte-oracle):
+
+- **H1** gap-tolerant on-axis terminus: multi-width edge pairs (5/12/24 px),
+  the permanence veto (the scene median's own edge-pair response), support =
+  (thin-line OR moving) AND (changed OR moving) AND NOT permanent, candidate
+  scoring by tail quality × length prior, ambiguity-shaped confidence.
+- **H2** temporal model: segmented `[r, ṙ]` KF (σ_acc 4e4, 3σ gate),
+  speed-aware coast budget (12→4 above 800 px/s), per-segment RTS with
+  coasted tails trimmed, segment breaks on stage-1 θ jumps >20°/frame,
+  confirmed runs / re-init cap, the quasi-still arm floor, the 180° flip
+  check (refuses blessing, never corrects the ray).
+- **H3** posterior-σ tier: an accepted measurement inside a converged
+  segment (σ_r ≤ 10 px) is label-grade even when the instantaneous
+  confidence dipped.
+
+**Not ported, by decision:**
+
+- The §4 `E_head` product formula — rejected by data at H1 (the exemplar's
+  own header records why); the port followed the working terminus code.
+- The length-model self-fit (H0, `length_model.py`) and with it the
+  exemplar's pass-1. The dense-truth gate had implicated the censored
+  self-fit (length errors to −215 px; honesty clause failing 7/10 —
+  research doc §4.3), and the research's named fix shipped instead: the
+  **ball-measured club length** `L_px = |B−G|` at address (research doc
+  §5.5/§5.5a) as annulus ceiling `1.15·L̂`, still/impact hard floor
+  `0.8·L_px`, still-frame-only Gaussian prior, and the §4 acceptance-annulus
+  floor (below). One decode pass, not two.
+
+**Added beyond this design, forced by the corpus gate** (each iteration
+re-run against the dense 2026-07-05 truth):
+
+- **Universal measurement-acceptance floor** `0.5·L̂` on all frames — this is
+  §4's own `[0.5, 1.15]·L_max_observed` clause, unported in the first cut;
+  without it, floorless moving no-ball frames let early-backswing blur
+  streaks lock short (r 100–160 px vs ~350 px truth) with *rising* KF
+  confidence. The floor filters candidates, never the scan range, so a true
+  terminus past a sub-floor counterfeit still wins.
+- **Phase-ramped floor**: `0.8·L̂` at takeaway ramping to `0.5·L̂` at the
+  top, mirrored to impact — face-on, the projected club is near full length
+  at takeaway and impact; foreshortening develops toward the top.
+- **Backswing streak confidence cap** 0.45 across [bs0, top], applied to the
+  emitted sample only (tier/KF and the raw trace untouched): in the streak
+  phase, confidence anti-correlated with accuracy (26/28 surviving
+  confident-bad labels at bs0+20..45). Confident head claims are reserved
+  for the delivery phase where the metrics consume them — early-backswing
+  confident coverage is deliberately sacrificed for honesty.
+- **Golf-prior ball gate** on the L_px measurement: the ball must sit below
+  the ankle line and between the feet (a 07-04 session mis-lock ~150 px
+  above the true ball — cause unknown, upstream ball-v2 item — motivated
+  it), plus a late-address-hold window, a two-pass median-position gate
+  against setup-frame poisoning, and abstention below 5 admissible samples
+  (`lPxRejected` diagnostic).
+
+### 10.3 Output encoding and tuning surface
+
+`ShaftSample2D` gains `headConf` / `headSigmaPx` (−1 = stage 2 not run);
+flags encode the §6 tiers: `meas` = `ShaftMeasured` with `ShaftHeadProjected`
+cleared, `pred` keeps `ShaftHeadProjected` (placed at the smoothed r when one
+exists), `off` = new flag `ShaftHeadOffFrame` (0x80, always co-set with 0x10)
+with `headPx` clamped to the ray/frame-edge intersection — a position is
+never fabricated. swing.json persistence is additive; the QML overlay renders
+the tiers (measured: solid + head dot; projected: dimmed, no dot; off-frame:
+edge-clamped, no dot). All constants are sweepable under `shaft.head.*`
+(via `ClubheadConfig::fromOverrides`), including the gate-added
+`measFloorFrac`, `floorRampHi`, `streakConfCap`; `shaft.head.enabled` has
+defaulted ON since `df76fe9`.
+
+### 10.4 Gate results and what remains
+
+Final gate on the dense 2026-07-05 corpus (10 taped 7i swings, 40–121 dense
+labels each), production path: the §8 honesty clause (≤5% of headConf ≥ 0.5
+samples >40 px) **passes 9/10** — swing_0001 the allowed fail at 1 of 8,
+whose residuals are pure stage-1 θ quality (8.5–11.5° ray error, radial
+error 2 px). Meas-tier median error 0.8–2.4 px per swing. θ bit-identical
+head-on/off on all 10 (the 2 differing samples on 0009 across machines are
+GCC-vs-MSVC atan2 LSB noise). The head pass adds 6–15% to the shaft stage
+(GCC Debug dev box).
+
+Known limitations, current: stage-1 θ can degrade >8° in fast phases —
+beyond the ±5° wedge budget of §2.2 — and is now the binding constraint on
+the far end (the 0001 residuals); the ψ-residual does **not** discriminate
+those degraded frames (corpus-measured: bad-frame |ψ_err| median 0.0 vs 2.9
+good — research doc §5.5a), so θ-trust gating via the ψ rail is a dead end;
+early-backswing confident meas coverage is capped by design; and the
+synthetic fixture cannot yet exercise stage-1 v3 (backlog refresh).

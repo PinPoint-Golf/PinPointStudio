@@ -516,6 +516,48 @@ is **fully observed at two frames.** That yields:
   for that NN and its data flywheel (§5): a head detector must *return to `B`* at
   impact.
 
+> **As built (2026-07-09, Phase A + Phase B — `cbe68cd`/`bd9c47e`/`df76fe9`).**
+> This section's `L_px` floor/ceiling was "designed, not built" as of the
+> clubhead-length status report; both halves shipped the same session:
+>
+> - **`L_px` is now measured**, not just theorised — inside `decideTrack`
+>   (`shaft_track_assembly.cpp`) over the **late address-hold window** (not the
+>   whole pre-takeaway span the first attempt tried and found 107–178 px short
+>   from teeing/setup contamination), gated by a **two-pass order-independent
+>   cluster check** (component-wise median ball position, accept within 6 px —
+>   the chained first-accepted gate let one warm-up lock veto every later good
+>   sample) and a **≥5-accepted-sample abstention floor**. A **golf-prior
+>   plausibility gate goes beyond this design's §9.6 gates**: it was
+>   corpus-motivated by a real mis-lock (the 2026-07-04 session's driver-head
+>   lock 130–175 px above the true ball) and rejects any median lock that isn't
+>   below the ankle line and between the feet — exactly the "ball always
+>   between the feet, below the ankle line" prior this doc already leans on for
+>   detection (§9.6), now applied as a **length-measurement sanity check** too.
+>   Rejection is honest, not silent: `ShaftDecideTrace.lPxRejected` records
+>   which gate failed.
+> - **`L_px` is consumed in two places**, not one: (1) as **rung 1 of the
+>   4-rung projected-length ladder** (`projectedClubLenPx`) that replaced the
+>   flat `0.55·frameH` fallback for every non-band-tier/non-anchored frame; and
+>   (2) as the **floor/ceiling/prior for the Stage-2 measured-head pass**
+>   (`clubhead_track.{h,cpp}` — annulus ceiling `1.15·L̂`, hard floor
+>   `0.8·L_px` at still/impact frames, Gaussian still-frame prior). The design's
+>   framing of `L_px` as *a* scale floor undersold it — it is now the top of
+>   the length hierarchy, not a backstop.
+> - **Exploits 3 and 4 are unchanged**; §9.2/§9.3's takeaway-boundary and
+>   impact-θ anchoring stand as designed. **Anchored frames now additionally
+>   carry `headPx = ball`**: `applyBallAnchor`'s address-hold and impact frames
+>   set `headPx` to `B` and clear `ShaftHeadProjected` — the head *is* the
+>   measurement there, not a projection, so the two-point-pinning geometry this
+>   section describes is now literally what the track stores at those frames,
+>   not just what it infers.
+> - **§9.7's prerequisite was satisfied differently than planned.** The design
+>   called for an additive `swing.json` ball block feeding the offline
+>   reanalyzer. In practice the live path already had `job.ballTrack`, and an
+>   offline `BallRunner` replay was added to supply the same track to
+>   reanalysis — so `decideTrack`'s `const BallTrack2D* ball` is populated on
+>   both paths without a persisted ball stream being a hard requirement for
+>   reanalysis (live capture does still write one).
+
 ### 9.5 Exploit 4 — the ball discriminates the address look-alikes the cone and mat gates cannot
 
 v3.2's hardest case is the still address crowded with look-alikes; on s01 the

@@ -58,7 +58,10 @@ a contaminated figure (stage-1's measured tier is 0.6% bad in the fast
 phases, not 7%), exposed a genuine failure of that tier and a
 label-selection bias that had flattered the clubhead stage, and turned that
 stage's honesty failure (7 of 10 swings) into a precise, per-frame tuning
-target.
+target. *[As of 2026-07-09 that target has been met in the production C++:
+the ball-anchored far end of §5.5 was built, corpus-tuned against this same
+dense truth, and now passes the honesty clause on 9 of 10 swings — see the
+resolution addendum, §5.5a.]*
 
 ## 1. Introduction
 
@@ -918,7 +921,9 @@ Two footnotes complete the picture:
   *fails* that same clause on 7 of 10 swings once graded against dense
   fast-phase truth (high-confidence-bad of 9–34% against the ≤5% clause).
   That gap is not a regression; it is the label-selection bias of §4.3
-  becoming visible for the first time.
+  becoming visible for the first time. *[As of 2026-07-09: resolved in the
+  production C++ — the ball-anchored rebuild passes the clause on 9 of 10
+  swings with meas-tier medians of 0.8–2.4 px; §5.5a.]*
 
 ### 4.1 Passive stage 1, graded against hand labels
 
@@ -1875,7 +1880,9 @@ begins:
   recording the ball as a (deliberately dull, constant-plus-a-step) stream in
   the swing document — and is deferred, by choice, until the current release is
   in users' hands; it is the natural next development, and the metric-grounding
-  scale below is its corollary.
+  scale below is its corollary. *[Since built — the length half of this
+  proposal shipped in production C++ on 2026-07-09 and its gate results are
+  recorded in the resolution addendum, §5.5a below.]*
 - **The F11 redesign** in the passive tracker — cluster the still-run
   measurements, or split runs at confident θ jumps — corpus-gated against
   the v7h fixtures.
@@ -1895,6 +1902,85 @@ begins:
 - And the **C++ port** behind the existing detector interface, with the
   exemplar as its byte-oracle, running the marker and passive modes
   together.
+
+### 5.5a Resolution addendum (2026-07-09): the far-end anchor, built in production and gated
+
+The ball-anchor proposal above did not wait for the next research cycle: its
+length half was implemented directly in the production C++ (per the standing
+decision to retire the shaftlab exemplar as the development substrate, new
+stage-2 work went straight to `src/Analysis/clubhead_track.{h,cpp}` inside the
+shipped tracker rather than through a Python exemplar first — the H1/H2
+exemplars of §3.3 served as the algorithm reference, not as a byte-oracle).
+Three commits carry it: `cbe68cd` (the length ladder and the measured-head
+port, landed dark), `bd9c47e` (the corpus-gate fixes below), and `df76fe9`
+(default-on). The as-built record lives in the design doc
+([clubhead_detection_design.md §10](../design/clubhead_detection_design.md)).
+
+**What the ball now carries.** The grip-to-ball distance at address, measured
+per swing and per camera, is the *load-bearing length reference* the censored
+self-fit never managed to be. It bounds the radial search from both ends —
+annulus ceiling `1.15·L̂`, a hard floor `0.8·L_px` in quasi-still and impact
+frames — centres a Gaussian prior on still frames only (moving frames run
+prior-free, so the temporal filter is never fed its own prediction), and
+supplies the universal measurement-acceptance floor `0.5·L̂`, which is the
+design's own §4 plausible-annulus clause `[0.5, 1.15]·L`, unported in the
+first cut and reinstated when the corpus demanded it. The self-fit length
+model of §4.3 was retired unported. The floor is additionally
+*phase-ramped* — `0.8·L̂` at takeaway and at impact, relaxing to `0.5·L̂`
+toward the top and mirrored back — on the physics this report has used
+throughout: face-on, the projected club is near full length at takeaway and
+impact, and foreshortening develops toward the top.
+
+**The gate, and what it forced.** The acceptance bar was §4.3's own failed
+clause, re-run on the same dense 2026-07-05 truth (ten taped 7-iron swings,
+40–121 dense labels each): no more than 5% of `headConf ≥ 0.5` samples worse
+than 40 px. The production path now **passes on 9 of 10 swings**, with
+meas-tier median errors of 0.8–2.4 px per swing; the tenth (swing_0001,
+the allowed fail at 1 of 8) is not a stage-2 failure at all — its residuals
+are pure stage-1 θ quality, 8.5–11.5° of ray error carrying a radial error of
+2 px. The θ path itself is bit-identical with the head pass on or off, on all
+ten swings, and the head pass costs 6–15% of the shaft stage. Getting there
+took three corpus-driven iterations, each of which is a finding in its own
+right:
+
+- **The measured length can be poisoned before the swing starts.** Setup
+  frames (club leaning, golfer arranging) contaminated the L_px window, and
+  an order-dependent chain gate let a single early mis-lock seed the rest.
+  The fix: measure over the late address hold only, gate samples with a
+  two-pass median-position test, and *abstain* below five admissible samples
+  — honest absence over a poisoned scale.
+- **The ball detector itself can mis-lock.** On the 2026-07-04 session it
+  locked ~150 px above the true ball (the session metadata says driver, but
+  that is a mislabel — no driver or tee is used in this sim; the true cause
+  is unknown and remains an upstream ball-v2 item). A golf-prior gate now
+  refuses implausible locks — the ball must sit below the ankle line and
+  between the feet — with a per-swing `lPxRejected` diagnostic so the
+  abstention is visible rather than silent.
+- **In the early backswing, confidence anti-correlates with accuracy.** With
+  no ball and no floor, moving-frame blur streaks let the terminus lock
+  short (radial 100–160 px against ~350 px truth) while the temporal
+  filter's confidence *rose* as it converged on the counterfeit — 26 of the
+  28 surviving confident-bad labels sat at bs0+20..bs0+45. The ramped floor
+  removes the candidates; a residual confidence cap of 0.45 across
+  [takeaway, top] removes the remaining false confidence, deliberately
+  trading early-backswing confident coverage for honesty — confident head
+  claims are reserved for the delivery phase, where the coaching metrics
+  actually consume them.
+
+**A negative result worth recording.** We tested whether the ψ-residual
+(§3.8a's rail, the natural candidate for a θ-trust signal) discriminates the
+θ-degraded frames that produce the surviving errors. It does not: on the
+corpus, the bad frames' |ψ_err| median is 0.0 against 2.9 for good frames —
+the reconciliation absorbs exactly the errors one would want it to flag.
+θ-trust gating via the ψ rail is a dead end; whatever guards stage 2 against
+a degraded ray must come from elsewhere.
+
+**What now binds.** With the length reference measured and the honesty
+clause passing, the binding constraint on the far end is no longer stage 2's
+own calibration but **stage-1 θ quality in the fast phases**: the surviving
+residuals ride ray errors of 8–11.5°, beyond the ±5° wedge budget the design
+allots stage 2 (design §2.2). The far end is now, in the truest sense,
+waiting on the near end.
 
 ### 5.6 Compute cost and the path to real time
 
