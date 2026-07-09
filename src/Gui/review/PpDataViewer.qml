@@ -343,6 +343,21 @@ Item {
             windowStartUs: src.windowStartUs
             windowEndUs:   src.windowEndUs
             colorFn: root.srcColor
+
+            // Temporal navigation: click/drag a coverage block to seek. The shared cursor
+            // (shotReplay.positionUs) drives the table, timeline, charts and replay video —
+            // they all follow for free. Only meaningful with a shot loaded (active).
+            interactive:  shotReplay.active
+            positionUs:   shotReplay.active ? shotReplay.positionUs : -1
+            onScrubBegin: shotReplay.beginScrub()
+            onScrubEnd:   shotReplay.endScrub()
+            onSeek: (us) => {
+                if (!shotReplay.active) return
+                // Global navigator: a click outside the current table window widens it to
+                // Full so the table always jumps to the click (playback never resets it).
+                if (us < src.windowStartUs || us > src.windowEndUs) src.setWindow(0, src.spanUs)
+                shotReplay.seekToUs(us)
+            }
         }
 
         Rectangle { Layout.fillWidth: true; height: 1; color: Theme.colorBorderMid; opacity: Theme.borderOpacityNormal }

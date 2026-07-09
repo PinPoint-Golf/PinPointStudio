@@ -36,6 +36,21 @@ Column {
     property bool   showTitle: true   // hidden when a collapsible section header owns the title
     readonly property int labelW: Theme.sp(150)
 
+    // Temporal navigation: when interactive, clicking/dragging a lane's bins emits seek()
+    // in window-relative µs and a playhead line tracks positionUs. Both wired to shotReplay
+    // by the host (PpDataViewer); -1 hides the playhead.
+    property real   positionUs: -1
+    property bool   interactive: false
+    signal seek(real us)
+    signal scrubBegin()
+    signal scrubEnd()
+    // Map a bins-local x (0..w) to a window-relative µs and request a seek there. Uses the
+    // same spanUs domain as the phase ladder + selection band, so click/playhead/phases align.
+    function _seekAtX(x, w) {
+        if (w > 0 && strip.spanUs > 0)
+            strip.seek(strip.spanUs * Math.max(0, Math.min(1, x / w)))
+    }
+
     padding: Theme.sp(10); spacing: Theme.sp(6)
 
     // Lane labels arrive as "KIND · Name"; split so a compact kind glyph replaces the
@@ -115,6 +130,7 @@ Column {
                 ToolTip.delay: 400
             }
             Item {
+                id: binsArea
                 width: parent.width - strip.labelW - Theme.sp(8)
                 height: Theme.sp(13)
                 anchors.verticalCenter: parent.verticalCenter
@@ -145,6 +161,25 @@ Column {
                     Rectangle { width: 1; height: parent.height; anchors.right: parent.right
                                 color: Theme.colorAccent; opacity: 0.45 }
                 }
+                // playhead — one per lane, stacking into a continuous cursor line
+                Rectangle {
+                    visible: strip.interactive && strip.positionUs >= 0 && strip.spanUs > 0
+                    x: parent.width * (strip.positionUs / strip.spanUs) - width / 2
+                    width: Theme.sp(2); y: -3; height: parent.height + 6
+                    radius: 1; color: Theme.colorAccent; opacity: 0.9
+                }
+                // temporal navigation — tap to seek, drag to scrub (mirrors the timeline)
+                TapHandler {
+                    enabled: strip.interactive
+                    onTapped: (ep) => strip._seekAtX(ep.position.x, binsArea.width)
+                }
+                DragHandler {
+                    enabled: strip.interactive
+                    target: null; dragThreshold: 0
+                    onActiveChanged: active ? strip.scrubBegin() : strip.scrubEnd()
+                    onCentroidChanged: if (active) strip._seekAtX(centroid.position.x, binsArea.width)
+                }
+                HoverHandler { enabled: strip.interactive; cursorShape: Qt.SizeHorCursor }
             }
         }
     }
@@ -155,6 +190,13 @@ Column {
         Item { width: strip.labelW; height: Theme.sp(12) }
         Item {
             width: parent.width - strip.labelW - Theme.sp(8); height: Theme.sp(12)
+            // playhead continuation under the lanes (drawn before labels so text wins)
+            Rectangle {
+                visible: strip.interactive && strip.positionUs >= 0 && strip.spanUs > 0
+                x: parent.width * (strip.positionUs / strip.spanUs) - width / 2
+                width: Theme.sp(2); height: parent.height
+                radius: 1; color: Theme.colorAccent; opacity: 0.9
+            }
             Repeater {
                 model: strip.phases
                 delegate: Text {
