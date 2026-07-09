@@ -85,6 +85,23 @@ Item {
         {a:12, b:14, w:0.054}, {a:14, b:16, w:0.037}    // right leg
     ]
 
+    // Blueprint scale reference — torso length, with graceful fallbacks (1.5×
+    // shoulder width, then 0.15× video height). Shared by the skeleton and the
+    // club overlay so their stroke widths lock to one dimension. Returns the raw
+    // scale (spine case unfloored so callers can apply their own collapse bail).
+    function _blueprintScale(gx, gy, gs, cr) {
+        var kMinScore = 0.25
+        function vis(j) { return gs(j) >= kMinScore }
+        if (vis(5) && vis(6) && vis(11) && vis(12)) {
+            var nX = (gx(5)  + gx(6))  * 0.5, nY = (gy(5)  + gy(6))  * 0.5
+            var pX = (gx(11) + gx(12)) * 0.5, pY = (gy(11) + gy(12)) * 0.5
+            return Math.hypot(pX - nX, pY - nY)
+        }
+        if (vis(5) && vis(6))
+            return Math.max(Math.hypot(gx(6) - gx(5), gy(6) - gy(5)) * 1.5, 20)
+        return Math.max(0.15 * cr.height, 20)
+    }
+
     // Shared pose-skeleton renderer — used by BOTH the live (skeletonCanvas) and
     // replay (replayOverlay) canvases so the two never drift. A faithful port of
     // VideoOverlayPose::drawSkeleton (src/Video/video_overlay_pose.cpp): face
@@ -104,17 +121,11 @@ Item {
         var neckScore = Math.min(gs(5), gs(6))
 
         // Scale reference: torso length, with graceful fallbacks (shoulder width,
-        // then video height). Bail on a collapsed spine.
+        // then video height) — shared with the club overlay via _blueprintScale.
+        // Bail on a collapsed spine.
         var haveSpine = neckVis && pelvisVis
-        var scale
-        if (haveSpine) {
-            scale = Math.hypot(pX - nX, pY - nY)
-            if (scale < 20) return
-        } else if (vis(5) && vis(6)) {
-            scale = Math.max(Math.hypot(gx(6) - gx(5), gy(6) - gy(5)) * 1.5, 20)
-        } else {
-            scale = Math.max(0.15 * cr.height, 20)
-        }
+        var scale = root._blueprintScale(gx, gy, gs, cr)
+        if (haveSpine && scale < 20) return
 
         var cBone  = Qt.rgba(Theme.poseBone.r,        Theme.poseBone.g,        Theme.poseBone.b,        1)
         var cTop   = Qt.rgba(Theme.poseSpineTop.r,    Theme.poseSpineTop.g,    Theme.poseSpineTop.b,    1)
@@ -592,6 +603,13 @@ Item {
                 var t = root._replayPlayheadUs
                 var cGood   = Qt.rgba(Theme.colorGood.r,   Theme.colorGood.g,   Theme.colorGood.b,   1)
                 var cAccent = Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 1)
+                // Accent "Biomech Blueprint" palette for the club — derived from
+                // the theme accent (reskins per aesthetic); node ink shared with
+                // the skeleton so club and body nodes read as one instrument.
+                var cClub    = cAccent
+                var cClubHi  = Qt.lighter(Theme.colorAccent, 1.35)
+                var cClubInk = Qt.rgba(Theme.poseInk.r, Theme.poseInk.g, Theme.poseInk.b, Theme.poseInk.a)
+                var clubMute = 0.9
 
                 // Analyzed skeleton — Biomech Blueprint, muted (sits over footage).
                 var pi = _indexFor(_poseFrames, t)
@@ -603,14 +621,34 @@ Item {
                     root.paintBlueprint(ctx, cr, gx, gy, gs, 0.7)
                 }
 
-                // Club: fading head trail, then the current shaft line. A
-                // projected head (ShaftHeadProjected, flags & 0x10) is an
-                // assumed-length guess, not a measurement — drawn dim, no dot;
-                // the trail only bridges two measured heads (no fabricated arcs).
+                // Club: fading head trail, then the current shaft in the Biomech
+                // Blueprint language (sheath + gradient hero pen + end ticks + ring
+                // nodes), tinted with the theme accent. A projected head
+                // (ShaftHeadProjected, flags & 0x10) is an assumed-length guess, not
+                // a measurement — drawn as a lone dim pen, no ticks/nodes. A Stage-2
+                // off-frame head (flags & 0x80) is edge-clamped and always co-set
+                // with 0x10, so it renders in the same projected-dim style. The
+                // trail only bridges two measured heads (no fabricated arcs).
                 var ci = _indexFor(_clubSamples, t)
                 if (ci >= 0) {
                     var kHeadProjected = 0x10
-                    ctx.strokeStyle = cAccent
+
+                    // Scale the club strokes off the same torso reference as the
+                    // skeleton so the two lock dimensionally; fall back to frame
+                    // height when the pose is absent/frozen at this playhead.
+                    var S
+                    if (pi >= 0) {
+                        var pkp = _poseFrames[pi].kp
+                        S = root._blueprintScale(
+                                function(j) { return pkp[j * 3]     * cr.width  + cr.x },
+                                function(j) { return pkp[j * 3 + 1] * cr.height + cr.y },
+                                function(j) { return pkp[j * 3 + 2] }, cr)
+                    } else {
+                        S = Math.max(0.15 * cr.height, 20)
+                    }
+
+                    // Head trail — measured heads only, accent, scale-relative width.
+                    ctx.strokeStyle = cClub
                     ctx.lineCap     = "round"
                     var k0 = Math.max(0, ci - kTrail)
                     for (var k = k0; k < ci; ++k) {
@@ -618,42 +656,88 @@ Item {
                         if ((cs0.flags & kHeadProjected) || (cs1.flags & kHeadProjected))
                             continue
                         var h0 = cs0.head, h1 = cs1.head
-                        ctx.globalAlpha = 0.45 * (k + 1 - k0) / (ci - k0 + 1)
-                        ctx.lineWidth   = 2
+                        ctx.globalAlpha = 0.45 * (k + 1 - k0) / (ci - k0 + 1) * clubMute
+                        ctx.lineWidth   = 0.018 * S
                         ctx.beginPath()
                         ctx.moveTo(h0[0] * cr.width + cr.x, h0[1] * cr.height + cr.y)
                         ctx.lineTo(h1[0] * cr.width + cr.x, h1[1] * cr.height + cr.y)
                         ctx.stroke()
                     }
-                    // A projected head is dim + no dot (Phase A). A Stage-2 off-
-                    // frame head (flags & 0x80) is edge-clamped and always co-set
-                    // with 0x10, so it renders in the same projected-dim style —
-                    // no extra branch needed. A measured head (0x10 clear) shows
-                    // the solid line + a dot; when a Stage-2 headConf is present
-                    // (≥ 0) the dot alpha honours it (honest confidence).
+
                     var s  = _clubSamples[ci]
                     var projected = (s.flags & kHeadProjected) !== 0
                     var gx = s.grip[0] * cr.width + cr.x, gy = s.grip[1] * cr.height + cr.y
                     var hx = s.head[0] * cr.width + cr.x, hy = s.head[1] * cr.height + cr.y
                     var hd = _clampHeadToRect(gx, gy, hx, hy, cr)
                     if (hd) {
-                        ctx.strokeStyle = cAccent
-                        ctx.globalAlpha = (0.35 + 0.5 * s.conf) * (projected ? 0.5 : 1.0)
-                        ctx.lineWidth   = projected ? 1.5 : 2
-                        ctx.beginPath()
-                        ctx.moveTo(gx, gy)
-                        ctx.lineTo(hd[0], hd[1])
-                        ctx.stroke()
-                        if (!projected) {
+                        var a = 0.4 + 0.6 * s.conf
+
+                        if (projected) {
+                            // Assumed-length guess — a lone dim pen, no decoration.
+                            ctx.strokeStyle = cClub
+                            ctx.globalAlpha = (0.35 + 0.5 * s.conf) * 0.5 * clubMute
+                            ctx.lineWidth   = Math.max(1, 0.018 * S)
+                            ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(hd[0], hd[1]); ctx.stroke()
+                        } else {
+                            // Measured club — full blueprint treatment.
+                            var dx = hd[0] - gx, dy = hd[1] - gy
+                            var len = Math.hypot(dx, dy)
+                            var ux = len > 1e-3 ? -dy / len : 0
+                            var uy = len > 1e-3 ?  dx / len : 0
+
+                            // 1. Sheath — faint wide underlay (∼ the faint torso sides).
+                            ctx.strokeStyle = cClub
+                            ctx.globalAlpha = 0.22 * a * clubMute
+                            ctx.lineWidth   = 0.060 * S
+                            ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(hd[0], hd[1]); ctx.stroke()
+
+                            // 2. Hero pen — gradient grip→head (∼ the spine).
+                            var grad = ctx.createLinearGradient(gx, gy, hd[0], hd[1])
+                            grad.addColorStop(0, cClubHi)
+                            grad.addColorStop(1, cClub)
+                            ctx.strokeStyle = grad
+                            ctx.globalAlpha = a * clubMute
+                            ctx.lineWidth   = 0.034 * S
+                            ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(hd[0], hd[1]); ctx.stroke()
+
+                            // 3. End ticks — perpendicular caps that protrude past the
+                            //    ring nodes at grip and head (∼ the spine end ticks).
+                            var half = 0.080 * S
+                            ctx.lineWidth   = 0.026 * S
+                            ctx.globalAlpha = a * clubMute
+                            ctx.strokeStyle = cClubHi
+                            ctx.beginPath(); ctx.moveTo(gx - ux * half, gy - uy * half); ctx.lineTo(gx + ux * half, gy + uy * half); ctx.stroke()
+                            ctx.strokeStyle = cClub
+                            ctx.beginPath(); ctx.moveTo(hd[0] - ux * half, hd[1] - uy * half); ctx.lineTo(hd[0] + ux * half, hd[1] + uy * half); ctx.stroke()
+
+                            // 4. Head node — concentric ring, the club's hero node (a
+                            //    touch larger than a body joint since it is the measured
+                            //    impact point); ring + centre-dot alpha honour the
+                            //    Stage-2 headConf (honest confidence).
                             var hc = (s.headConf !== undefined && s.headConf >= 0)
                                      ? Math.max(0.25, Math.min(1, s.headConf)) : 1.0
-                            ctx.fillStyle = cAccent
-                            ctx.globalAlpha = (0.35 + 0.5 * s.conf) * hc
-                            ctx.beginPath()
-                            ctx.arc(hd[0], hd[1], 4, 0, Math.PI * 2)
-                            ctx.fill()
+                            ctx.globalAlpha = clubMute
+                            ctx.fillStyle   = cClubInk
+                            ctx.beginPath(); ctx.arc(hd[0], hd[1], 0.058 * S, 0, Math.PI * 2); ctx.fill()
+                            ctx.globalAlpha = (0.5 + 0.5 * s.conf) * hc * clubMute
+                            ctx.strokeStyle = cClub
+                            ctx.lineWidth   = 0.022 * S
+                            ctx.beginPath(); ctx.arc(hd[0], hd[1], 0.058 * S, 0, Math.PI * 2); ctx.stroke()
+                            ctx.globalAlpha = (0.35 + 0.5 * s.conf) * hc * clubMute
+                            ctx.fillStyle   = cClub
+                            ctx.beginPath(); ctx.arc(hd[0], hd[1], 0.020 * S, 0, Math.PI * 2); ctx.fill()
+
+                            // 5. Grip node — smaller ring, subordinate to the head.
+                            ctx.globalAlpha = clubMute
+                            ctx.fillStyle   = cClubInk
+                            ctx.beginPath(); ctx.arc(gx, gy, 0.040 * S, 0, Math.PI * 2); ctx.fill()
+                            ctx.globalAlpha = a * clubMute
+                            ctx.strokeStyle = cClub
+                            ctx.lineWidth   = 0.017 * S
+                            ctx.beginPath(); ctx.arc(gx, gy, 0.040 * S, 0, Math.PI * 2); ctx.stroke()
                         }
                     }
+                    ctx.globalAlpha = 1.0
                 }
 
                 // Ball: the detected circle at the current playhead — matches the
