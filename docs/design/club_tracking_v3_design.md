@@ -441,6 +441,18 @@ guarantee the down-cone gives at address (§14.2) — and **scale** (§9.4).
 
 ### 9.2 Exploit 1 — address is "clubhead at the ball," not "grip is slow" (the reported failure)
 
+> **RESOLVED at source (onset v2, 2026-07-09 — swing_span_bounding_plan.md).** The lagging
+> grip proxy below is fixed inside `segmentPhases` itself: dual-threshold hysteresis
+> walk-back (swing found at 8 px/f, boundary walked back to < 1.5 px/f) + a φ-witness on
+> the lead-forearm direction + an impact-anchored clamp ([impact − 1.6 s, impact − 0.55 s])
+> that supplies the waggle robustness the walk-back alone lacks — the clamp's impact instant
+> comes from the shot trigger, ball-launch-corroborated to ±75 ms. Corpus-gated on the
+> 2026-07-09 live-app corpus: onset→impact 917–1017 ms on all six swings (was ~550 ms),
+> measured-tier θ elsewhere unchanged (p90 ≤ 1.3°). The ball-tk0 detector below therefore
+> reverts to what it was designed to be — the *post-hoc physical refinement* of an already
+> honest boundary (its search domain `[0, bs0)` now ends at the true takeaway) — rather
+> than the primary fix for a mislabelled one.
+
 The bug, precisely (impl §4 ACTION): `segment_phases` triggers the swing on
 **grip** speed (`SW_SPD = 8 px/f`), but through the takeaway the club rotates
 about the wrist while the grip barely translates — grip speed is a *lagging*

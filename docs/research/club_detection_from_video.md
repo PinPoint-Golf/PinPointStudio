@@ -771,6 +771,47 @@ phase segmentation *unlearned* — the classical methods plus physics already
 deliver about 1° with zero flips, and a network there would add risk
 without adding accuracy.
 
+### 3.13 True-onset segmentation and span bounding (onset v2, the C++ production path)
+
+The phase model of §3.8 triggers the swing on smoothed grip speed crossing a
+single high threshold (8 px/frame). That threshold answers "when is the grip
+moving *fast*?" when the boundary we need is "when did it *start* moving?" —
+and through the takeaway the club rotates about the wrists while the grip
+barely translates, so the crossing lands systematically mid-takeaway. On a
+fresh six-swing corpus captured live by the production app (2026-07-09, taped
+7-iron, recorded ball lane) the detected boundary sat only ~550 ms before
+impact while the true motion onset sat 940 ± 45 ms before it — the label
+boundary, the evidence span, the reported Address landmark, and the ball
+anchor's search domain all inherited a 130–420 ms truncation of the takeaway.
+
+Onset v2 fixes the boundary at source, in the C++ production tracker (which
+is now the reference implementation; the Python exemplar is retired and the
+two have deliberately diverged). Three measurements replace the single
+threshold. First, a *dual-threshold hysteresis*: the high-threshold run still
+finds the swing, then the boundary walks back to the first frame below a low
+threshold (1.5 px/frame) — on the corpus the takeaway ramp never dips below
+1.6 px/frame once started, so the walk-back is stable against the address
+hold's pose jitter (p95 3–5 px/frame). Second, a *φ-witness*: the smoothed
+lead-forearm direction moves before the grip does (the physical statement of
+the lag), so a sustained |Δφ| onset walked back from the same anchor takes
+the earlier of the two. Third, an *impact-anchored clamp*: the trigger's
+impact estimate (corroborated to ±75 ms by the recorded ball launch) bounds
+the onset into [impact − 1.6 s, impact − 0.55 s], pinning any walk-back
+failure to a physiologically-wide prior. The corrected boundary folds into
+the backswing label (`bs0 := onset`) rather than a distinct takeaway phase;
+the ψ-monotonicity rail of §3.8a already carries the near-still early
+takeaway, and the corpus gate (§4.10) shows the wider backswing transition
+band introduces no counterfeit lock or discontinuity.
+
+The same correction breaks the pose pass's chicken-and-egg on the camera-only
+path (the span needs grip motion, grip motion needs pose): a coarse pass at
+one-twelfth stride over the whole window feeds the onset estimator — verified
+within ±30 ms of the full-resolution boundary on five of six swings, +133 ms
+worst, covered by a 150 ms pad — and the dense pose fill then runs only
+inside the detected span. Every stage now also self-reports wall time
+(pose/ball/shaft/total) into the swing record, so the compute claims of §4.9
+and §5.6 are measured per shot in production rather than profiled ad hoc.
+
 ## 4. Results
 
 ### 4.0 Summary — accuracy and coverage at a glance
@@ -1428,6 +1469,37 @@ algorithmic lever.*
 | on-line max | `np.max` | 15% |
 | on-line min | `np.min` | 14% |
 | on-line mean | `np.mean` | 10% |
+
+### 4.10 Onset v2, gated on the first live-app corpus
+
+The 2026-07-09 corpus is the first captured end-to-end by the production app
+(six swings, taped 7-iron, live ball lane, camera-only), and onset v2 (§3.13)
+was gated on it against the pre-change tracker as its own baseline — the
+regression reference is now C++-vs-C++, not the retired Python exemplar.
+
+The boundary correction is unambiguous: onset→impact moved from
+545–804 ms to **917–1017 ms on all six swings**, inside the [850, 1150] ms
+acceptance band, with backswing-labelled frames roughly uniform at ~100 (from
+40–81) — the recovered early takeaway now carries the backswing transition
+band and ray tier instead of an address-throttled `pred` hold, and on five of
+six swings frames in the recovered zone converted from `pred` to measured ray
+locks (e.g. 24→41 on one swing). The tracked swing itself did not move:
+measured-tier θ outside the recovered zone agrees with baseline to
+p90 ≤ 1.3° on every swing, and no new frame-to-frame discontinuity appears.
+The only genuine trade-off is coverage arithmetic: the honest span is a larger
+denominator while the two-pass pose thinned posed frames from 310 to 271, so
+coverage rose on three swings (+0.026 to +0.054) and fell on three (−0.031 to
+−0.056, material on one). The remedy, if the corpus trend holds, is a denser
+pose budget inside the recovered span, not a boundary change.
+
+Two honesty notes. Heavy evidence frames rose ~10% (195→216 on the reference
+swing) — the price of a correct span that the old 400 ms address collar was
+accidentally underpaying. And per-stage wall times on the development box were
+thermally confounded (pose time climbed monotonically across six sequential
+runs at a fixed 271 posed frames), so the structural counts above — not
+dev-box seconds — are the compute result; the production claim rests on the
+studio machine, where the pose pass measures 18 ms/frame under CUDA and the
+per-shot telemetry of §3.13 now records the split on every swing.
 
 ## 5. Discussion
 

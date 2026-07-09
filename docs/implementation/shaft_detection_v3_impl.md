@@ -423,6 +423,21 @@ Stage tools to the shared NAS `/mnt/swingdata/shaftlab/v3run/` (≡ `C:\PinPoint
 
 ### ACTION — v3.0 phase model: takeaway mislabelled as address  *(folds into the v3.0-r1 ψ-rail re-gate)*
 
+> **RESOLVED — implemented as onset v2, 2026-07-09 (C++, `swing_span_bounding_plan.md`).** The fix
+> took the `bs0 := onset` fold-into-backswing route this ACTION argued against — safely, because the
+> ψ-rail (shipped in v3.0-r1) already carries the near-still early takeaway, so backswing's `WMAX=9`
+> did not open a counterfeit path: corpus-gated on the 2026-07-09 live-app corpus (6 swings, ball
+> lane), onset→impact 917–1017 ms on all six (was ~550), recovered zone converts `pred`→ray on 5/6,
+> measured-tier θ elsewhere byte-stable (p90 ≤ 1.3°), no new discontinuity. Mechanism: hysteresis
+> walk-back to `swLow` 1.5 px/f + lead-forearm φ-witness + impact-anchored clamp
+> [impact − 1.6 s, impact − 0.55 s]; `addressCollarUs` 400→100 ms (back to a measurement pad); the
+> camera-only pose pass became two-pass (coarse full-window → span-bounded fill) with per-stage
+> telemetry into swing.json. The distinct `takeaway` phase with `WMAX≈7` below stays available as a
+> refinement if a larger corpus shows DP lag through the recovered zone; the ball-tk0 (v3.4) remains
+> the post-hoc endpoint refinement, its `[0, bs0)` search domain now honest. Note the C++ tracker is
+> now the development reference — the Python exemplar is retired and byte-parity with it is no longer
+> maintained (`shaft_parity_test` deleted 2026-07-09; regression baselines are C++-vs-C++).
+
 > **Superseded detector for `tk0` (2026-07-08): the ball.** The grip-creep walk-back proposed below is a
 > pose-only surrogate for "the club is still leaving address." The v3.4 ball far-end anchor (below; design §9)
 > gives the *physical* boundary directly — `tk0` = the frame the clubhead departs the stationary ball for good —
