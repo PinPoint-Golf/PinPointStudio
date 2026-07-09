@@ -419,7 +419,8 @@ int main(int argc, char **argv)
             ? BallRunner::loadFromJson(job.ballTrackPath, job.cameraSources.front())
             : (!job.ballTrack.frames.empty()
                    ? job.ballTrack
-                   : BallRunner::run(window, job.cameraSources.front(), pose, opt));
+                   : BallRunner::run(window, job.cameraSources.front(), pose, opt,
+                                     job.ballSearchRoi));
         ShaftTracker::ShaftTrace trace;
         ShaftTracker::track(window, pose, ball, streams, seg, job, &trace);
 

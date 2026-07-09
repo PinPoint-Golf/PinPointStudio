@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include <QRectF>
 #include <QString>
 #include <QVariantList>
 #include <QVariantMap>
@@ -81,6 +82,12 @@ struct ShotAnalysisJob {
     // from this JSON file instead of ballTrack/BallRunner — synthetic-fixture
     // injection, mirrors poseTrackPath. Empty in production.
     QString ballTrackPath;
+
+    // Hitting-area ROI (full-frame normalized) captured with the swing. When set,
+    // BallRunner searches this box instead of the pose-derived stance corridor,
+    // so offline ball detection matches the live detector and skips out-of-box
+    // distractors (feet/shoes). Empty ⇒ fall back to the stance corridor.
+    QRectF ballSearchRoi;
 
     // SwingLab tuning overrides (docs/implementation/swinglab_impl.md):
     // "<area>.<field>" → numeric value, applied onto the config structs at

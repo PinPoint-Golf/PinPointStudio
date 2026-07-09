@@ -348,7 +348,8 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
                 ? BallRunner::loadFromJson(job.ballTrackPath, job.cameraSources.front())
                 : (!job.ballTrack.frames.empty()
                        ? job.ballTrack
-                       : BallRunner::run(window, job.cameraSources.front(), detail->pose2d, opt));
+                       : BallRunner::run(window, job.cameraSources.front(), detail->pose2d, opt,
+                                         job.ballSearchRoi));
             // Capture the tracker's hands-only phase model only when there is no
             // IMU segmentation to fall back on (the trace is free otherwise).
             ShaftTracker::ShaftTrace strace;

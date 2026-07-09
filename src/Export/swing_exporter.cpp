@@ -432,6 +432,14 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
             ballDetection[QStringLiteral("radiusNorm")]     = rec.cam->ballRadiusNorm;
             ballDetection[QStringLiteral("positionSource")] = rec.cam->ballPosSource;
         }
+        // Hitting-area search box (full-frame normalized) — offline re-analysis
+        // uses it so ball detection searches the same region the live detector
+        // did, excluding out-of-box distractors (feet/shoes). Omitted when unset.
+        if (!rec.cam->ballSearchRoi.isEmpty()) {
+            const QRectF &r = rec.cam->ballSearchRoi;
+            ballDetection[QStringLiteral("searchRoi")] = QJsonArray{
+                r.x(), r.y(), r.width(), r.height() };
+        }
         s[QStringLiteral("setup")] = QJsonObject{
             {QStringLiteral("perspective"),     rec.cam->perspective},
             {QStringLiteral("perspectiveName"), QString::fromLatin1(kPerspectiveNames[pi])},

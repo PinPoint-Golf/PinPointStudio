@@ -24,6 +24,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QQuaternion>
+#include <QRectF>
 
 #include <opencv2/core.hpp>
 #include <opencv2/videoio.hpp>
@@ -362,6 +363,18 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
             else
                 faceOn = alias.contains(opts.faceOnSubstring, Qt::CaseInsensitive)
                       || s[QStringLiteral("file")].toString().contains(opts.faceOnSubstring, Qt::CaseInsensitive);
+
+            // Hitting-area search box the face-on stream recorded (captures since
+            // ball-ROI persistence) — BallRunner uses it instead of the pose stance
+            // corridor, so re-analysis skips feet/shoe distractors like the live path.
+            if (faceOn) {
+                const QJsonArray sr = s[QStringLiteral("setup")].toObject()
+                    [QStringLiteral("ballDetection")].toObject()
+                    [QStringLiteral("searchRoi")].toArray();
+                if (sr.size() == 4)
+                    job.ballSearchRoi = QRectF(sr.at(0).toDouble(), sr.at(1).toDouble(),
+                                               sr.at(2).toDouble(), sr.at(3).toDouble());
+            }
 
             const SourceId id = nextId++;
             for (size_t i = 0; i < tUs.size(); ++i)

@@ -22,6 +22,7 @@
 #include <QHash>
 #include <QJsonObject>
 #include <QQuaternion>
+#include <QRectF>
 #include <QString>
 #include <vector>
 
@@ -60,6 +61,10 @@ struct SwingExportCamera {
     double   ballCenterY        = 0.0;   // [0,1]
     double   ballRadiusNorm     = 0.0;   // normalized to frame width
     QString  ballPosSource;              // "calibrated" (else empty)
+    // Hitting-area ROI (ball search box) at capture, full-frame normalized —
+    // lets offline re-analysis (BallRunner) search the same box the live
+    // detector used instead of the pose-derived stance corridor. Empty ⇒ omitted.
+    QRectF   ballSearchRoi;
 };
 
 // Per-IMU device configuration at capture time (stream "device" object),

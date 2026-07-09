@@ -107,7 +107,8 @@ double medianDeltaUs(const std::vector<pinpoint::IndexEntry> &entries, size_t i0
 BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
                             pinpoint::SourceId faceOnSource,
                             const PoseTrack2D &pose,
-                            const ShotAnalysisRunnerOptions &opt)
+                            const ShotAnalysisRunnerOptions &opt,
+                            const QRectF &searchRoi)
 {
     BallTrack2D track;
     track.camera = faceOnSource;
@@ -156,7 +157,19 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
 
     const int fw = cfmt->width, fh = cfmt->height;
     const double rHat = radiusForWidth(fw);
-    const cv::Rect roiRect = stanceCorridor(pose, fw, fh);
+    // Prefer the persisted hitting-area box (the region the live detector used)
+    // so re-analysis searches only the ball, never the feet/shoes; fall back to
+    // the pose-derived stance corridor for archival swings without one.
+    cv::Rect roiRect;
+    if (!searchRoi.isEmpty()) {
+        const int rx = std::clamp(int(searchRoi.x()      * fw), 0, fw - 1);
+        const int ry = std::clamp(int(searchRoi.y()      * fh), 0, fh - 1);
+        const int rw = std::clamp(int(searchRoi.width()  * fw), 1, fw - rx);
+        const int rh = std::clamp(int(searchRoi.height() * fh), 1, fh - ry);
+        roiRect = cv::Rect(rx, ry, rw, rh);
+    } else {
+        roiRect = stanceCorridor(pose, fw, fh);
+    }
     const double fps = 1.0e6 / medianDeltaUs(entries, i0, i1);
 
     cv::Mat bgr, gray8, gray32;   // reused decode scratch
@@ -246,11 +259,13 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
 BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
                             pinpoint::SourceId faceOnSource,
                             const PoseTrack2D &pose,
-                            const ShotAnalysisRunnerOptions &opt)
+                            const ShotAnalysisRunnerOptions &opt,
+                            const QRectF &searchRoi)
 {
     Q_UNUSED(window)
     Q_UNUSED(pose)
     Q_UNUSED(opt)
+    Q_UNUSED(searchRoi)
     ppWarn() << "[BallRunner] built without OpenCV — empty track";
     BallTrack2D track;
     track.camera = faceOnSource;

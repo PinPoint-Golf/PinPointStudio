@@ -523,6 +523,16 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
         }
     }
 
+    // Hitting-area ROI for the offline BallRunner fallback (empty accumulator /
+    // detection enabled mid-swing) — prefer the face-on camera so ball search
+    // uses the same box the live detector did, skipping feet/shoe distractors.
+    for (const ReplayTrack &track : m_replayTracks) {
+        if (track.ctrl->perspective() == CameraInstance::FaceOn && !track.ctrl->roi().isEmpty()) {
+            job.ballSearchRoi = track.ctrl->roi();
+            break;
+        }
+    }
+
     // Athlete handedness (lead-arm sign) and IMU -> segment bindings, resolved
     // here on the UI thread — the worker can read neither the athlete controller
     // nor the live ImuInstance calibration (alignA/mountM are session-lifetime).
@@ -765,6 +775,7 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         // CamRecord ball-calibration fields keep their defaults (uncalibrated).
         // Recording the v2 auto-detected ball position (locked centre + satFrac)
         // into swing.json is the additive "Provenance v2" follow-up.
+        cam.ballSearchRoi = track.ctrl->roi();   // hitting area — re-analysis ball search box
         job.cameras.push_back(std::move(cam));
 
         // v3.4 (design §9.7): this camera's ball stream, window-relative —

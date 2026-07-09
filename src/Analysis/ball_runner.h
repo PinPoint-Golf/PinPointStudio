@@ -26,6 +26,7 @@
 // drives live, over decoded frames from the frozen window; loadFromJson()
 // loads an INJECTED ground-truth track for synthetic fixtures.
 
+#include <QRectF>
 #include <QString>
 #include <cstdint>
 
@@ -50,13 +51,18 @@ public:
     // the SAME frame range PoseRunner::run() covered (opt, including the
     // address-hold widening — plan §2) so both channels see the same span.
     // `pose` is the already-resolved offline pose track for this analysis —
-    // used ONLY to derive the search-corridor prior (ball_detection_v2.md
-    // §4.1a's stance corridor, computed offline instead of live); falls back
-    // to a static bottom-of-frame band when pose coverage is empty. Returns
-    // an empty track when the source has no frames, the format is
-    // undecodable, or too few frames are available to seed the baseline.
+    // used to derive the search-corridor prior (ball_detection_v2.md §4.1a's
+    // stance corridor, computed offline instead of live) when no `searchRoi`
+    // is given; falls back to a static bottom-of-frame band when pose coverage
+    // is empty. `searchRoi` (full-frame normalized) is the hitting-area box the
+    // live detector used, persisted with the swing — when non-empty it REPLACES
+    // the stance corridor so re-analysis searches only the ball region (skipping
+    // feet/shoe distractors), matching live detection. Returns an empty track
+    // when the source has no frames, the format is undecodable, or too few
+    // frames are available to seed the baseline.
     static pinpoint::analysis::BallTrack2D run(const pinpoint::SwingWindow &window,
                                                pinpoint::SourceId faceOnSource,
                                                const pinpoint::analysis::PoseTrack2D &pose,
-                                               const ShotAnalysisRunnerOptions &opt);
+                                               const ShotAnalysisRunnerOptions &opt,
+                                               const QRectF &searchRoi = QRectF());
 };
