@@ -227,7 +227,8 @@ The analyzed swing. Every sub-block is additive. `tier` records the reconstructi
   "ball": { … },          // OPTIONAL (face-on ball track — replay overlay)
   "bindings": [ … ],      // IMU only
   "assessment": { … },    // OPTIONAL (Wrist coach feed)
-  "filter": { … }         // OPTIONAL (offline re-fusion diagnostic)
+  "filter": { … },        // OPTIONAL (offline re-fusion diagnostic)
+  "timings": { … }        // OPTIONAL (per-stage analyzer wall times)
 }
 ```
 
@@ -397,6 +398,21 @@ Per-device calibration snapshot (serial-keyed), so the offline runner can re-fus
 
 `assessment` = the AI-coach feedback feed (`scoreV2` + `findings[]`), written on live Wrist shots and the SwingLab known-groups input. `filter` = orientation-filter quality (`impactStepDeg`), present only when offline re-fusion drove the orientation. Both absent on this swing.
 
+### `timings` (optional)
+
+Per-stage analyzer wall times in milliseconds, self-reported by the analyzer so every live shot measures the < 20 s pipeline budget (the same numbers are echoed in SwingLab's `runmeta.json`). Written only when the total was measured; a stage that did not run stays `-1`.
+
+```json
+"timings": { "poseMs": 5480, "ballMs": 120, "shaftMs": 2900, "totalMs": 8600 }
+```
+
+| Field | Meaning |
+|---|---|
+| `poseMs` | Offline pose pass (`PoseRunner::run` / `loadFromJson`). `-1` when no camera ran. |
+| `ballMs` | Face-on ball-track resolution (`BallRunner`, or an injected/recorded track). `-1` when the pose pass produced no frames. |
+| `shaftMs` | Shaft track (`ShaftTracker::track`, incl. the additive ball-anchor pass). `-1` when the pose pass produced no frames. |
+| `totalMs` | Whole `analyze()` wall time. Block present ⇒ this is `≥ 0`. |
+
 ---
 
 ## Companion files in the swing directory
@@ -418,3 +434,4 @@ Per-device calibration snapshot (serial-keyed), so the offline runner can re-fus
 | `pinpoint.analysis/2` | `score` was a bare integer. Readers still accept it. |
 | 2026-07-07 | `capture.club` added; all `analysis` `t_us` normalised to window-relative (readers domain-aware for legacy absolute files). |
 | 2026-07-08 | `analysis.ball` added (face-on ball track for the replay overlay); `setup.ballDetection.searchRoi` added (hitting-area box for offline re-analysis). Both additive — no schema-version bump. |
+| 2026-07-09 | `analysis.timings` added (per-stage analyzer wall times: `poseMs`/`ballMs`/`shaftMs`/`totalMs`). Additive — no schema-version bump. |

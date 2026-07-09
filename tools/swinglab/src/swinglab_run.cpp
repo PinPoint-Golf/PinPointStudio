@@ -382,6 +382,15 @@ int main(int argc, char **argv)
     meta["score"]       = result.score;
     meta["buildMs"]     = buildMs;
     meta["analyzeMs"]   = analyzeMs;
+    // Per-stage analyzer wall times (plan §2 telemetry) — self-reported by the
+    // analyzer, echoed next to the harness-measured analyzeMs. -1 when a stage
+    // did not run (no camera / no pose frames).
+    if (result.detail) {
+        meta["poseMs"]  = result.detail->timings.poseMs;
+        meta["ballMs"]  = result.detail->timings.ballMs;
+        meta["shaftMs"] = result.detail->timings.shaftMs;
+        meta["totalMs"] = result.detail->timings.totalMs;
+    }
     meta["params"]      = QJsonObject::fromVariantMap(tuning);
     meta["impactUs"]    = job.impactUs;
     meta["bindings"]    = int(job.imuBindings.size());

@@ -88,17 +88,24 @@ struct ShaftV3Config {
     int     bandNear   = 5;    // a static ray is admissible within N frames of a band
     // swing-span bounding
     int64_t spanCollarUs = 100000;   // settling padding on the FINISH side (fin0+collar) (µs)
-    // Address-side collar (Mark, 2026-07-08): bs0 is grip-speed-derived and
-    // known to lag the true takeaway (the club rotates about the wrist while
-    // the grip is still) — widen evidence collection further back than the
-    // finish-side settling pad so real E1/E2 measurement has a chance to
-    // recover the mislabeled early-takeaway zone. Separate from spanCollarUs
-    // because address and finish are physically different (a resting hold vs
-    // a decelerating follow-through) and the right margin for each is an
-    // independent, corpus-set question. Starting value only — expect to
-    // widen once corpus verification runs (this is step 1 of that process).
-    int64_t addressCollarUs = 400000;
+    // Address-side collar: a symmetric measurement pad in front of the true
+    // takeaway (bs0), mirroring the finish-side spanCollarUs. Was 400000
+    // (2026-07-08) to paper over the grip-speed bs0 lag — the club rotates
+    // about the wrist while the grip is still, so the high-threshold detector
+    // landed mid-takeaway and the collar reached back to recover it. The Stage
+    // A onset walk-back (swLow/phiOnset) now fixes that lag AT SOURCE, so bs0
+    // is the real takeaway and the collar is back to a small settling pad.
+    int64_t addressCollarUs = 100000;
     bool    spanBound    = true;     // DEFAULT ON (dfa3170); false = --no-span-bound oracle
+    // Stage A true-onset segmentation (swing_span_bounding_plan.md §4). The
+    // high-swSpd run detection still FINDS the swing; onset then walks bs0 back
+    // to the real takeaway. swLow <= 0 disables A1+A2+A3 entirely and
+    // reproduces the pre-Stage-A behaviour bit-for-bit (the Python v3.0-r1
+    // oracle predates onset v2 — its parity fixture pins swLow=0).
+    double  swLow             = 1.5;      // A1 hysteresis low threshold (px/frame walk-back stop)
+    double  phiOnsetDegPerFrame = 0.25;   // A2 φ-witness sustained-motion threshold (0 = φ witness off)
+    int64_t bsMinBeforeImpactUs = 550000; // A3 onset clamp, near edge (impact − this)
+    int64_t bsMaxBeforeImpactUs = 1600000;// A3 onset clamp, far edge (impact − this)
     // C2 body ROI
     double  bodyMargin = 34.0;       // px inflation of the body polygon
     double  bodyRLo    = 45.0;       // ray-sample radii for the inside-fraction test
@@ -141,8 +148,16 @@ struct PhaseModel {
 // Segment the swing from the hands alone. impactFrame < 0 ⇒ derive it (first
 // post-top grip-return-to-address-height frame). Degenerate (no swing) ⇒ whole
 // clip 'addr', bs0=0, fin0=nf-1 (safe: full processing).
+//
+// Stage A true-onset (swing_span_bounding_plan.md §4): after the high-swSpd run
+// picks the swing, bs0 walks back to the real takeaway — to the first frame
+// below cfg.swLow (A1) and, when phiSmoothed is supplied (may be null), the
+// first sustained |Δφ|/f above cfg.phiOnsetDegPerFrame (A2); onset = min of the
+// two. When impactFrame >= 0 the onset is clamped into [impact − bsMax, impact
+// − bsMin] frames (A3). cfg.swLow <= 0 disables A1+A2+A3 (legacy behaviour).
 PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double>& gy,
-                         int nf, double fps, int impactFrame, const ShaftV3Config& cfg);
+                         int nf, double fps, int impactFrame, const ShaftV3Config& cfg,
+                         const std::vector<double>* phiSmoothed = nullptr);
 
 // Robust unit-vector smoothing of the lead-arm direction (deg), wrap-aware.
 // Hampel-rejects physically-impossible jumps (> armOutlierDeg) then median +
@@ -253,6 +268,22 @@ struct ShaftDecideTrace {
 // Address(bs0)/Top(top)/Impact(impact)/Finish(fin0) events + swing bounds, all
 // at the given (vision-grade) confidence. conf 0 ⇒ "bounds are just the window".
 Segmentation phasesToSegmentation(const PhaseModel& pm, const std::vector<int64_t>& tUs, float conf);
+
+// Swing span [onset t, fin0 t] in µs for the Stage B two-pass pose bound
+// (swing_span_bounding_plan.md §5). Runs segmentPhases over the coarse grip
+// track (impactFrame = nearest frame to impactUs, or -1 when impactUs < 0) and
+// returns the true-takeaway → finish window. ok = false on the degenerate
+// no-run path (whole-clip address: bs0 == 0 && fin0 == nf-1), where the
+// caller must fall back to the full window. Pure over plain vectors so Stage B
+// can call it before any dense pose pass exists.
+struct SwingSpanEstimate {
+    int64_t startUs = 0;
+    int64_t endUs   = 0;
+    bool    ok      = false;
+};
+SwingSpanEstimate estimateSwingSpanUs(const std::vector<double>& gx, const std::vector<double>& gy,
+                                      const std::vector<int64_t>& tUs, double fps,
+                                      int64_t impactUs, const ShaftV3Config& cfg);
 
 // Returns CV_8UC1 grey for coverage-frame index i (0..nf-1), or empty when the
 // frame is undecodable. Called at stride 8 for the scene-background model and

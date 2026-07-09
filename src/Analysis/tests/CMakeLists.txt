@@ -163,12 +163,16 @@ pp_add_test(shaft_decide_test
     LINK    ${OpenCV_LIBS}
     COMPILE_OPTIONS -O2)
 
-# Shaft v3.0-r1 NUMERIC PARITY vs the Python exemplar: runs decideTrack over the
-# same FFV1 clip + anchors + skeleton and diffs θ/kind against a Python
-# `_v3_track.csv` generated on the SAME host. SKIPs when the fixture is absent
-# (studio corpus). Needs videoio (reads the clip) + Qt (CSV/JSON parsing).
-pp_add_test(shaft_parity_test
-    SOURCES shaft_parity_test.cpp ${ANALYSIS}/shaft_track_assembly.cpp ${ANALYSIS}/shaft_tracker_math.cpp
+# Stage A true-onset segmentation (swing_span_bounding_plan.md §4/§7.1): the bs0
+# walk-back (A1 speed + A2 φ), the impact clamp (A3), the swLow=0 legacy path,
+# and the estimateSwingSpanUs Stage B helper — synthetic grip tracks, no fixture.
+pp_add_test(swing_onset_test
+    SOURCES swing_onset_test.cpp ${ANALYSIS}/shaft_track_assembly.cpp ${ANALYSIS}/shaft_tracker_math.cpp
     INCLUDE ${OpenCV_INCLUDE_DIRS}
     LINK    ${OpenCV_LIBS}
     COMPILE_OPTIONS -O2)
+
+# shaft_parity_test (numeric parity vs the Python exemplar) was retired
+# 2026-07-09: the C++ tracker is the development reference and has diverged
+# (onset v2). Parity was the port-time acceptance gate only; regression
+# baselines are now C++-vs-C++ (SwingLab runs on recorded corpora).

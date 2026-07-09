@@ -18,6 +18,7 @@
 
 #include "wrist_analyzer.h"
 
+#include <QElapsedTimer>
 #include <QPointF>
 #include <QString>
 #include <algorithm>
@@ -250,6 +251,8 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
                                           const ShotAnalysisJob &job)
 {
     ShotAnalysisResult r;
+    QElapsedTimer wall;   // whole-analyze() wall time (plan §2 telemetry)
+    wall.start();
 
     // IMU fusion is OPTIONAL. A webcam-only capture still yields camera-driven
     // (pose + shaft) analysis, so absent IMU streams DEGRADE the result rather
@@ -324,15 +327,33 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
                 tn::apply(job.tuningOverrides, "shaft.addressScanPadUs", opt.addressScanPadUs);
                 tn::apply(job.tuningOverrides, "shaft.addressStride",    opt.addressStride);
             }
+        } else if (!job.fullWindow) {
+            // No IMU-derived span (conf 0 ⇒ camera-only): break the pose/span
+            // chicken-and-egg with the two-pass pose (plan §5). A coarse
+            // full-window pass finds the swing span, then the dense pass fills
+            // only it — subsuming addressScanPadUs (the coarse frames ARE the
+            // address-hold coverage). fullWindow still opts out (correctness
+            // over speed on explicit re-analysis).
+            opt.twoPass = true;
+            {
+                namespace tn = pinpoint::analysis::tuning;
+                tn::apply(job.tuningOverrides, "pose.coarseStride", opt.coarseStride);
+                tn::apply(job.tuningOverrides, "pose.densePreMs",   opt.densePreMs);
+                tn::apply(job.tuningOverrides, "pose.densePostMs",  opt.densePostMs);
+                tn::apply(job.tuningOverrides, "pose.denseStride",  opt.denseStride);
+            }
         }
         if (job.progress) {
             job.progress(0.10f);
             opt.progress = [&job](float f) { job.progress(0.10f + 0.60f * f); };
         }
+        QElapsedTimer poseWall;
+        poseWall.start();
         detail->pose2d = job.poseTrackPath.isEmpty()
                              ? PoseRunner::run(window, job.cameraSources.front(), opt)
                              : PoseRunner::loadFromJson(job.poseTrackPath,
                                                         job.cameraSources.front());
+        detail->timings.poseMs = int(poseWall.elapsed());
         if (!detail->pose2d.frames.empty()) {
             ShotAnalysisJob sub = job;
             if (job.progress)
@@ -344,17 +365,23 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
             // offline over this same frozen window (archival swings that
             // predate live ball recording). Empty on every path is a valid,
             // additive-only no-op (design §9.6).
+            QElapsedTimer ballWall;
+            ballWall.start();
             const BallTrack2D ball = !job.ballTrackPath.isEmpty()
                 ? BallRunner::loadFromJson(job.ballTrackPath, job.cameraSources.front())
                 : (!job.ballTrack.frames.empty()
                        ? job.ballTrack
                        : BallRunner::run(window, job.cameraSources.front(), detail->pose2d, opt,
                                          job.ballSearchRoi));
+            detail->timings.ballMs = int(ballWall.elapsed());
             // Capture the tracker's hands-only phase model only when there is no
             // IMU segmentation to fall back on (the trace is free otherwise).
             ShaftTracker::ShaftTrace strace;
+            QElapsedTimer shaftWall;
+            shaftWall.start();
             detail->shaft = ShaftTracker::track(window, detail->pose2d, ball, streams,
                                                 segmentation, sub, hasImu ? nullptr : &strace);
+            detail->timings.shaftMs = int(shaftWall.elapsed());
             // Surface the resolved ball track for the replay overlay (design §9);
             // the same normalized [0,1] track the shaft anchor consumed above.
             detail->ball = ball;
@@ -449,6 +476,7 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
     r.metrics     = buildMetricsMap(series);
     r.tracePoints = buildTrace(series, phases);
     r.score       = detail->score.overall;
+    detail->timings.totalMs = int(wall.elapsed());
     r.detail      = detail;
     r.ok          = true;
 

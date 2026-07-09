@@ -36,6 +36,7 @@ using pinpoint::analysis::PoseTrack2D;
 #include <opencv2/core.hpp>
 #include "../Export/frame_decode.h"
 #include "../Pose/pose_estimator_vitpose.h"
+#include "shaft_track_assembly.h"   // estimateSwingSpanUs / ShaftV3Config (Stage B span estimate)
 #endif
 
 #if defined(HAVE_OPENCV) && defined(HAVE_VITPOSE) && defined(HAVE_ONNXRUNTIME)
@@ -132,82 +133,31 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
                      },
                      Qt::DirectConnection);
 
-    // Adaptive sampling: every frame in the blur-critical dense zone around
-    // impact, every sparseStride-th frame elsewhere.
-    const int64_t denseLo = opt.impactUs - static_cast<int64_t>(opt.densePreMs)  * 1000;
-    const int64_t denseHi = opt.impactUs + static_cast<int64_t>(opt.densePostMs) * 1000;
-    const int     stride  = std::max(1, opt.sparseStride);
-
-    // Scan bounds (v3 G3): restrict to the detected swing span. Entries are
-    // per-source monotonic, so the span is a contiguous index range. Bounds
-    // that exclude every frame (clock mismatch) fall back to the full window
-    // — degrading the optimisation, never the result.
-    size_t i0 = 0, i1 = entries.size();
-    bool   bounded = false;
-    if (opt.scanEndUs > opt.scanStartUs) {
-        while (i0 < entries.size() && entries[i0].timestamp_us < opt.scanStartUs)
-            ++i0;
-        while (i1 > i0 && entries[i1 - 1].timestamp_us > opt.scanEndUs)
-            --i1;
-        if (i0 >= i1) {
-            ppWarn() << "[PoseRunner] scan bounds exclude every frame — falling back "
-                        "to the full window";
-            i0 = 0;
-            i1 = entries.size();
-        } else {
-            bounded = true;
-        }
-    }
-
-    // Address-hold coverage (v3.4 plan §2): pull the coverage window back
-    // further than G3's scanStartUs so a real still address is reachable at
-    // all — see pose_runner.h's addressScanPadUs doc. iAddr0 == i0 (no-op)
-    // when unbounded, addressScanPadUs <= 0, or the pad doesn't reach any
-    // earlier entries.
-    size_t iAddr0 = i0;
-    if (bounded && opt.addressScanPadUs > 0) {
-        const int64_t addrLo = opt.scanStartUs - opt.addressScanPadUs;
-        while (iAddr0 > 0 && entries[iAddr0 - 1].timestamp_us >= addrLo)
-            --iAddr0;
-    }
-
     // Lead = left hand for right-handed (and unknown) golfers, right for left-handed.
     const bool leftLeads = (opt.handedness != 2);
     constexpr int   kLeftWrist    = 9;    // PoseJoint::LeftWrist
     constexpr int   kRightWrist   = 10;   // PoseJoint::RightWrist
     constexpr float kMinHandConf  = 0.3f;
-    const int addrStride = std::max(1, opt.addressStride);
 
-    track.frames.reserve(i1 - iAddr0);
-    size_t sampled = 0, wristOk = 0;
+    size_t  wristOk = 0;
     cv::Mat bgr;   // reused decode scratch
-    for (size_t i = iAddr0; i < i1; ++i) {
-        const pinpoint::IndexEntry &e = entries[i];
-        const bool inAddressZone = i < i0;   // before G3's own bound: coarse address-hold sampling
-        const bool dense = !inAddressZone && opt.impactUs >= 0
-                        && e.timestamp_us >= denseLo && e.timestamp_us <= denseHi;
-        if (inAddressZone) {
-            if ((i % static_cast<size_t>(addrStride)) != 0)
-                continue;
-        } else if (!dense && (i % static_cast<size_t>(stride)) != 0) {
-            continue;
-        }
-        ++sampled;
-        if (opt.progress)
-            opt.progress(float(i + 1 - iAddr0) / float(i1 - iAddr0));
 
-        // Frozen-window contract: payloadOf() may hand back data == nullptr
-        // (slot overwritten / mid-write) — decodeToBgr rejects null and short
-        // payloads alike. The handle outlives estimatePose(), so a zero-copy
-        // `bgr` alias is safe for the call.
+    // Pose one entry: decode → ViTPose → PoseFrame2D (hand centroids with COCO
+    // wrist fallback). Appends to `out` on success and bumps wristOk; returns
+    // whether a frame was added (decode/pose failures skip silently). Frozen-
+    // window contract: payloadOf() may hand back data == nullptr (slot
+    // overwritten / mid-write) — decodeToBgr rejects null and short payloads
+    // alike, and the handle outlives estimatePose() so the zero-copy `bgr` alias
+    // is safe for the call.
+    auto poseOne = [&](const pinpoint::IndexEntry &e, PoseTrack2D &out) -> bool {
         const pinpoint::SourceRing::ReadHandle handle = window.payloadOf(e);
         if (!pinpoint::decodeToBgr(*cfmt, handle.data, handle.bytes, bgr))
-            continue;
+            return false;
 
         gotPose = false;
         estimator.estimatePose(bgr);   // live path feeds full BGR CV_8UC3 frames too
         if (!gotPose)
-            continue;
+            return false;
 
         PoseFrame2D f;
         f.t_us = e.timestamp_us;
@@ -242,7 +192,164 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
 
         if (f.conf[kLeftWrist] > 0.3f && f.conf[kRightWrist] > 0.3f)
             ++wristOk;
-        track.frames.push_back(std::move(f));
+        out.frames.push_back(std::move(f));
+        return true;
+    };
+
+    // Dense zone around impact (both scan paths share it): pose every
+    // denseStride-th frame here, every sparseStride-th elsewhere in span.
+    const int64_t denseLo = opt.impactUs - static_cast<int64_t>(opt.densePreMs)  * 1000;
+    const int64_t denseHi = opt.impactUs + static_cast<int64_t>(opt.densePostMs) * 1000;
+
+    // ── Two-pass pose (swing_span_bounding_plan.md §5) ──────────────────────────
+    // Engaged only with no externally-supplied span (an IMU/G3 bound always
+    // wins). Pass 1 poses a coarse full-window grid; estimateSwingSpanUs() over
+    // that grip track yields [onset, finish]; pass 2 fills the span only. The
+    // coarse frames stay in the track as address-hold coverage (subsumes
+    // addressScanPadUs here). Progress: pass 1 → [0, 0.2], pass 2 → [0.2, 1.0].
+    if (opt.twoPass && opt.scanEndUs <= opt.scanStartUs) {
+        const size_t coarse = static_cast<size_t>(std::max(1, opt.coarseStride));
+
+        // Pass 1 — coarse, whole window.
+        for (size_t i = 0; i < entries.size(); i += coarse) {
+            poseOne(entries[i], track);
+            if (opt.progress)
+                opt.progress(0.2f * float(i + 1) / float(entries.size()));
+        }
+        const size_t pass1Posed = track.frames.size();
+
+        // Coarse grip track in PIXELS (leadHand/trailHand are normalized [0,1])
+        // + coarse frame rate (median inter-frame dt) for the span estimate.
+        std::vector<double>  gx, gy;
+        std::vector<int64_t> tUs;
+        gx.reserve(pass1Posed); gy.reserve(pass1Posed); tUs.reserve(pass1Posed);
+        const double frameW = double(cfmt->width), frameH = double(cfmt->height);
+        for (const PoseFrame2D &f : track.frames) {
+            gx.push_back(0.5 * (f.leadHand.x() + f.trailHand.x()) * frameW);
+            gy.push_back(0.5 * (f.leadHand.y() + f.trailHand.y()) * frameH);
+            tUs.push_back(f.t_us);
+        }
+        double fps = 0.0;
+        if (tUs.size() >= 2) {
+            std::vector<int64_t> dts;
+            dts.reserve(tUs.size() - 1);
+            for (size_t k = 1; k < tUs.size(); ++k)
+                dts.push_back(tUs[k] - tUs[k - 1]);
+            std::nth_element(dts.begin(), dts.begin() + dts.size() / 2, dts.end());
+            const int64_t medDt = dts[dts.size() / 2];
+            if (medDt > 0)
+                fps = 1e6 / double(medDt);
+        }
+        const pinpoint::analysis::SwingSpanEstimate est =
+            fps > 0.0 ? pinpoint::analysis::estimateSwingSpanUs(
+                            gx, gy, tUs, fps, opt.impactUs,
+                            pinpoint::analysis::ShaftV3Config{})
+                      : pinpoint::analysis::SwingSpanEstimate{};
+
+        // Pass 2 — fill. A good span scans only [onset − 150 ms, finish + 150 ms]
+        // (§5's pre-pad for pass-1 coarse-onset error); the degenerate no-run
+        // path falls back to a full-window single pass (log + degrade the
+        // optimisation, never the result). Both reuse the pass-1 frames (skip
+        // i % coarse == 0 — coarse frames are a subset of the sparse grid, and a
+        // frame ViTPose failed in pass 1 fails identically here).
+        constexpr int64_t kSpanPadUs = 150000;
+        size_t pLo = 0, pHi = entries.size();
+        if (est.ok) {
+            const int64_t spanLo = est.startUs - kSpanPadUs;
+            const int64_t spanHi = est.endUs   + kSpanPadUs;
+            while (pLo < entries.size() && entries[pLo].timestamp_us < spanLo)
+                ++pLo;
+            while (pHi > pLo && entries[pHi - 1].timestamp_us > spanHi)
+                --pHi;
+        } else {
+            ppWarn() << "[PoseRunner] two-pass: no swing span from the coarse pass "
+                        "— falling back to a full-window single pass";
+        }
+
+        const size_t denseStep  = static_cast<size_t>(std::max(1, opt.denseStride));
+        const size_t sparseStep = static_cast<size_t>(std::max(1, opt.sparseStride));
+        const size_t span = pHi > pLo ? pHi - pLo : 1;
+        for (size_t i = pLo; i < pHi; ++i) {
+            if ((i % coarse) == 0)   // posed in pass 1 — never re-pose a timestamp
+                continue;
+            const pinpoint::IndexEntry &e = entries[i];
+            const bool dense = opt.impactUs >= 0
+                            && e.timestamp_us >= denseLo && e.timestamp_us <= denseHi;
+            if ((i % (dense ? denseStep : sparseStep)) != 0)
+                continue;
+            if (opt.progress)
+                opt.progress(0.2f + 0.8f * float(i + 1 - pLo) / float(span));
+            poseOne(e, track);
+        }
+        const size_t pass2Posed = track.frames.size() - pass1Posed;
+
+        // Pass-1 (whole window) and pass-2 (span fill) interleave in time — merge.
+        std::sort(track.frames.begin(), track.frames.end(),
+                  [](const PoseFrame2D &a, const PoseFrame2D &b) { return a.t_us < b.t_us; });
+
+        ppInfo() << "[PoseRunner] source" << faceOnSource << ": two-pass"
+                 << track.frames.size() << "posed (" << pass1Posed << "coarse pass-1 +"
+                 << pass2Posed << (est.ok ? "span-bounded pass-2)," : "full-window pass-2 fallback),")
+                 << entries.size() << "in window," << wristOk
+                 << "with both wrists conf > 0.3," << wall.elapsed() << "ms";
+        return track;
+    }
+
+    // ── Single pass (today's behaviour) ─────────────────────────────────────────
+    const int stride = std::max(1, opt.sparseStride);
+
+    // Scan bounds (v3 G3): restrict to the detected swing span. Entries are
+    // per-source monotonic, so the span is a contiguous index range. Bounds
+    // that exclude every frame (clock mismatch) fall back to the full window
+    // — degrading the optimisation, never the result.
+    size_t i0 = 0, i1 = entries.size();
+    bool   bounded = false;
+    if (opt.scanEndUs > opt.scanStartUs) {
+        while (i0 < entries.size() && entries[i0].timestamp_us < opt.scanStartUs)
+            ++i0;
+        while (i1 > i0 && entries[i1 - 1].timestamp_us > opt.scanEndUs)
+            --i1;
+        if (i0 >= i1) {
+            ppWarn() << "[PoseRunner] scan bounds exclude every frame — falling back "
+                        "to the full window";
+            i0 = 0;
+            i1 = entries.size();
+        } else {
+            bounded = true;
+        }
+    }
+
+    // Address-hold coverage (v3.4 plan §2): pull the coverage window back
+    // further than G3's scanStartUs so a real still address is reachable at
+    // all — see pose_runner.h's addressScanPadUs doc. iAddr0 == i0 (no-op)
+    // when unbounded, addressScanPadUs <= 0, or the pad doesn't reach any
+    // earlier entries.
+    size_t iAddr0 = i0;
+    if (bounded && opt.addressScanPadUs > 0) {
+        const int64_t addrLo = opt.scanStartUs - opt.addressScanPadUs;
+        while (iAddr0 > 0 && entries[iAddr0 - 1].timestamp_us >= addrLo)
+            --iAddr0;
+    }
+
+    const int addrStride = std::max(1, opt.addressStride);
+
+    track.frames.reserve(i1 - iAddr0);
+    size_t sampled = 0;
+    for (size_t i = iAddr0; i < i1; ++i) {
+        const pinpoint::IndexEntry &e = entries[i];
+        const bool inAddressZone = i < i0;   // before G3's own bound: coarse address-hold sampling
+        const bool dense = !inAddressZone && opt.impactUs >= 0
+                        && e.timestamp_us >= denseLo && e.timestamp_us <= denseHi;
+        if (inAddressZone) {
+            if ((i % static_cast<size_t>(addrStride)) != 0)
+                continue;
+        } else if (!dense && (i % static_cast<size_t>(stride)) != 0) {
+            continue;
+        }
+        ++sampled;
+        if (opt.progress)
+            opt.progress(float(i + 1 - iAddr0) / float(i1 - iAddr0));
+        poseOne(e, track);
     }
 
     ppInfo() << "[PoseRunner] source" << faceOnSource << ":" << track.frames.size()

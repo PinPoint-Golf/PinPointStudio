@@ -26,6 +26,8 @@
 
 #include <opencv2/imgproc.hpp>
 
+#include <QElapsedTimer>
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -93,6 +95,8 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
                                  const FusedStreams& /*streams*/, const Segmentation& /*segmentation*/,
                                  const ShotAnalysisJob& job, ShaftTrace* trace)
 {
+    QElapsedTimer wall;
+    wall.start();
     ShaftTrack2D out;
     out.camera = pose.camera;
     if (pose.frames.size() < 2) { ppWarn() << "[ShaftTracker] no usable pose track — invalid"; return out; }
@@ -166,7 +170,7 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
     applyBallAnchor(out, ball, gx, gy, tUs, w, h, impf, job, trace);
 
     ppInfo() << "[ShaftTracker] v3 frames" << nf << "coverage" << out.coverage
-             << (out.valid ? "VALID" : "invalid");
+             << (out.valid ? "VALID" : "invalid") << "," << wall.elapsed() << "ms";
     return out;
 }
 

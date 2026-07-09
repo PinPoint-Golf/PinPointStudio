@@ -145,6 +145,16 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
         o[QStringLiteral("filter")] = QJsonObject{
             { QStringLiteral("impactStepDeg"), a.filterImpactStepDeg } };
 
+    // Additive per-stage analyzer wall times (plan §2 telemetry): how long each
+    // heavy stage took, so every live shot self-reports the < 20 s budget. Only
+    // when measured (totalMs >= 0); a stage that did not run stays -1.
+    if (a.timings.totalMs >= 0)
+        o[QStringLiteral("timings")] = QJsonObject{
+            { QStringLiteral("poseMs"),  a.timings.poseMs },
+            { QStringLiteral("ballMs"),  a.timings.ballMs },
+            { QStringLiteral("shaftMs"), a.timings.shaftMs },
+            { QStringLiteral("totalMs"), a.timings.totalMs } };
+
     // Additive segmentation block (v3 G2, design A.7): the swing bounds +
     // ladder meta. Missing block on reload = full-window bounds.
     if (a.segmentation.swingEndUs > a.segmentation.swingStartUs)
@@ -424,6 +434,9 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
         if (an.contains(QStringLiteral("bindings")))
             ps.analysisDetail.insert(QStringLiteral("bindings"),
                                      an[QStringLiteral("bindings")].toArray().toVariantList());
+        if (an.contains(QStringLiteral("timings")))
+            ps.analysisDetail.insert(QStringLiteral("timings"),
+                                     an[QStringLiteral("timings")].toObject().toVariantMap());
 
         // Flat metrics: each metric's value at Impact, signed degrees.
         QVariantMap metrics;

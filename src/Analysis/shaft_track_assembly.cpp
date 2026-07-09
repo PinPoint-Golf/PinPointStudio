@@ -167,6 +167,10 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.bandNear", c.bandNear);
     apply(ov, "shaft.spanCollarUs", c.spanCollarUs);
     apply(ov, "shaft.addressCollarUs", c.addressCollarUs);
+    apply(ov, "shaft.swLow", c.swLow);
+    apply(ov, "shaft.phiOnsetDegPerFrame", c.phiOnsetDegPerFrame);
+    apply(ov, "shaft.bsMinBeforeImpactUs", c.bsMinBeforeImpactUs);
+    apply(ov, "shaft.bsMaxBeforeImpactUs", c.bsMaxBeforeImpactUs);
     apply(ov, "shaft.spanBound", c.spanBound);
     apply(ov, "shaft.bodyMargin", c.bodyMargin);
     apply(ov, "shaft.rasterC2", c.rasterC2);
@@ -215,7 +219,8 @@ std::vector<double> smoothPhi(const std::vector<double>& phiDeg, const ShaftV3Co
 
 // ── hands-only phase model (club_track_v3.segment_phases) ────────────────────
 PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double>& gy,
-                         int nf, double /*fps*/, int impactFrame, const ShaftV3Config& cfg)
+                         int nf, double fps, int impactFrame, const ShaftV3Config& cfg,
+                         const std::vector<double>* phiSmoothed)
 {
     PhaseModel m;
     std::vector<double> spd(nf, 0.0);
@@ -279,9 +284,43 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
     const int fin0 = std::min(dsEnd, nf - 1);
     const int IMP = cfg.impHalf;
 
+    // Stage A true-onset walk-back (swing_span_bounding_plan.md §4). The
+    // high-swSpd run picked bs0, which lags the real takeaway (grip still
+    // rotating slowly about the wrist). swLow <= 0 disables the whole block —
+    // onset stays at bs0, reproducing the pre-Stage-A boundary bit-for-bit.
+    int onset = bs0;
+    if (cfg.swLow > 0.0) {
+        // A1: walk bs0 back to the first smoothed-speed frame below swLow.
+        int onsetSpd = bs0;
+        while (onsetSpd > 0 && spdS[onsetSpd] >= cfg.swLow) --onsetSpd;
+        onset = onsetSpd;
+        // A2: φ-onset witness — the lead forearm rotates before the grip moves.
+        // Smooth wrap-aware |Δφ| the same way as speed (median5 + gauss2) and
+        // walk back from the ORIGINAL bs0 while it stays above threshold.
+        if (phiSmoothed && cfg.phiOnsetDegPerFrame > 0.0 && int(phiSmoothed->size()) == nf) {
+            const std::vector<double>& phi = *phiSmoothed;
+            std::vector<double> dphi(nf, 0.0);
+            for (int f = 1; f < nf; ++f) dphi[f] = std::abs(circWrap(phi[f] - phi[f - 1]));
+            const std::vector<double> dphiS = gaussianFilter1d(medianFilter1d(dphi, 5), 2.0);
+            int onsetPhi = bs0;
+            while (onsetPhi > 0 && dphiS[onsetPhi] > cfg.phiOnsetDegPerFrame) --onsetPhi;
+            onset = std::min(onset, onsetPhi);
+        }
+        // A3: impact-anchored clamp (the safety rail). Only when a real impact
+        // frame was supplied — a hands-derived impf must not clamp its own
+        // onset. Violations pin to the violated edge.
+        if (impactFrame >= 0) {
+            const int framesMin = int(std::lround(double(cfg.bsMinBeforeImpactUs) * 1e-6 * fps));
+            const int framesMax = int(std::lround(double(cfg.bsMaxBeforeImpactUs) * 1e-6 * fps));
+            const int loEdge = std::max(0, impf - framesMax);
+            const int hiEdge = std::max(0, impf - framesMin);
+            onset = std::clamp(onset, loEdge, hiEdge);
+        }
+    }
+
     m.phase.resize(nf);
     for (int f = 0; f < nf; ++f) {
-        if (f < bs0) m.phase[f] = SwingPhase::Addr;
+        if (f < onset) m.phase[f] = SwingPhase::Addr;
         else if (f < top - 2) m.phase[f] = SwingPhase::Backswing;
         else if (f <= top + 2) m.phase[f] = SwingPhase::Top;
         else if (std::abs(f - impf) <= IMP) m.phase[f] = SwingPhase::Impact;
@@ -289,7 +328,7 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
         else if (f <= fin0) m.phase[f] = SwingPhase::Thru;
         else m.phase[f] = SwingPhase::Finish;
     }
-    m.bs0 = bs0; m.top = top; m.impact = impf; m.fin0 = fin0;
+    m.bs0 = onset; m.top = top; m.impact = impf; m.fin0 = fin0;
     return m;
 }
 
@@ -658,6 +697,38 @@ Segmentation phasesToSegmentation(const PhaseModel& pm, const std::vector<int64_
     return seg;
 }
 
+// Stage B two-pass pose bound helper (swing_span_bounding_plan.md §5). Grip-only
+// (no φ witness — the coarse pass has no pose yet), so it leans on the A1 speed
+// walk-back + A3 impact clamp inside segmentPhases.
+SwingSpanEstimate estimateSwingSpanUs(const std::vector<double>& gx, const std::vector<double>& gy,
+                                      const std::vector<int64_t>& tUs, double fps,
+                                      int64_t impactUs, const ShaftV3Config& cfg)
+{
+    SwingSpanEstimate est;
+    const int nf = int(gx.size());
+    if (nf < 2 || int(gy.size()) != nf || int(tUs.size()) != nf) return est;   // ok = false
+
+    // impactUs → nearest coverage frame (−1 when no impact time is known).
+    int impactFrame = -1;
+    if (impactUs >= 0) {
+        int64_t bestD = std::numeric_limits<int64_t>::max();
+        for (int f = 0; f < nf; ++f) {
+            const int64_t d = tUs[f] >= impactUs ? tUs[f] - impactUs : impactUs - tUs[f];
+            if (d < bestD) { bestD = d; impactFrame = f; }
+        }
+    }
+
+    const PhaseModel pm = segmentPhases(gx, gy, nf, fps, impactFrame, cfg, nullptr);
+    // Degenerate whole-clip-address (no run): the span is the full window —
+    // signal the caller to fall back rather than trust a phantom [onset, fin0].
+    if (pm.bs0 == 0 && pm.fin0 == nf - 1) return est;   // ok = false
+
+    est.startUs = tUs[std::clamp(pm.bs0, 0, nf - 1)];
+    est.endUs   = tUs[std::clamp(pm.fin0, 0, nf - 1)];
+    est.ok      = true;
+    return est;
+}
+
 ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>& tUs,
                          const std::vector<double>& gxIn, const std::vector<double>& gyIn,
                          const std::vector<double>& phiRawIn,
@@ -677,7 +748,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     interpFillNan(phiRaw);
     const std::vector<double> phiS = smoothPhi(phiRaw, cfg);
 
-    const PhaseModel pm = segmentPhases(gx, gy, nf, fps, impactFrame, cfg);
+    const PhaseModel pm = segmentPhases(gx, gy, nf, fps, impactFrame, cfg, &phiS);
 
     // chirality from unwrapped φ over [bs0, top]
     int chir = 1;

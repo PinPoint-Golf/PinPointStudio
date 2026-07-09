@@ -37,8 +37,9 @@ namespace pinpoint { class SwingWindow; }
 struct ShotAnalysisRunnerOptions {
     int64_t impactUs    = -1;   // impact instant (EventBuffer::nowMicros domain)
     int     handedness  = 0;    // 0 unknown, 1 right, 2 left (ShotAnalysisJob convention)
-    int     densePreMs  = 800;  // pose every frame within [impact − densePreMs, …
-    int     densePostMs = 300;  //                          … impact + densePostMs]
+    int     densePreMs  = 500;  // pose every denseStride-th frame within
+    int     densePostMs = 250;  // [impact − densePreMs, impact + densePostMs]
+    int     denseStride  = 1;   // stride inside the dense zone (2 = 75 Hz here)
     int     sparseStride = 4;   // every Nth frame outside the dense zone
 
     // Scan bounds (segmentation v3 G3): only frames inside
@@ -61,6 +62,21 @@ struct ShotAnalysisRunnerOptions {
     // scanEndUs are both 0 (already-unbounded run).
     int64_t addressScanPadUs = 0;
     int     addressStride    = 15;
+
+    // Two-pass pose (swing_span_bounding_plan.md §5). The camera-only path has
+    // no IMU-derived span (G3's scanStartUs/EndUs need segmentation conf > 0),
+    // so the pose pass would otherwise decode+pose the whole 5 s ring. twoPass
+    // breaks that chicken-and-egg: pass 1 poses every coarseStride-th frame over
+    // the whole window and runs estimateSwingSpanUs() over the coarse grip track;
+    // pass 2 then fills only [onset − 150 ms, finish + 150 ms] (dense zone stride
+    // denseStride, sparseStride elsewhere), reusing the pass-1 frames rather than
+    // re-posing them. The coarse frames stay in the returned track as the
+    // address-hold coverage — this subsumes addressScanPadUs on the two-pass
+    // path. Ignored when scanStartUs/scanEndUs are already set (an IMU/G3 bound
+    // wins). On the degenerate no-run coarse pass the runner falls back to a
+    // full-window single pass — never a worse result, only a lost optimisation.
+    bool    twoPass      = false;
+    int     coarseStride = 12;   // pass-1 stride (≈ 80 ms grid at 150 fps)
 
     // Optional progress sink, 0..1 over this pose pass (span-relative scan
     // position, not posed-frame count — the sparse zone advances it in

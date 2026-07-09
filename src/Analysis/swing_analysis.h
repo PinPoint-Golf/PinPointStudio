@@ -327,6 +327,17 @@ struct BindingRecord {
     double      calibAgeSec = -1.0;
 };
 
+// Per-stage analyzer wall times (plan §2 telemetry — swing_span_bounding_plan.md):
+// self-reported by every shot so the live < 20 s budget is measured, not
+// anecdotal. -1 = stage not measured (ball/shaft stay -1 when the pose pass
+// produced no frames). Persisted additively (swing.json analysis.timings + runmeta).
+struct AnalysisTimings {
+    int poseMs  = -1;
+    int ballMs  = -1;
+    int shaftMs = -1;
+    int totalMs = -1;
+};
+
 // The rich detail behind ShotAnalysisResult::detail — the full analyzed swing.
 struct SwingAnalysis {
     int tier = static_cast<int>(ReconstructionTier::Angles2D);
@@ -353,6 +364,7 @@ struct SwingAnalysis {
     PoseTrack2D               pose2d;  // face-on offline pose (empty when no camera ran)
     ShaftTrack2D              shaft;   // face-on club track (check .valid before use)
     BallTrack2D               ball;    // face-on ball track for the replay overlay (empty ⇒ none)
+    AnalysisTimings           timings; // per-stage wall times (telemetry); -1 = not measured
 };
 
 } // namespace pinpoint::analysis
