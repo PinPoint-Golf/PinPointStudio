@@ -36,7 +36,7 @@ class SwingSeriesModel;
 // offset by clock.t0_us on load). Heavy arrays live here in C++; QML binds only to
 // the two models and the lightweight QVariant* summaries SwingDataSource exposes.
 struct SwingSeries {
-    enum Kind { Imu, Pose, Club, Metric };
+    enum Kind { Imu, Pose, Club, Metric, Ball };
 
     Kind    kind     = Imu;
     QString ref;            // alias / serial / metric key — stable identity
@@ -56,6 +56,10 @@ struct SwingSeries {
     // IMU extras (kind == Imu)
     QVector<double> gyroZ;       // raw gyro z (deg/s)
     QVector<double> fusedRateZ;  // quaternion-derived body-z angular rate (deg/s)
+
+    // Ball extras (kind == Ball): value holds x; these hold y and radius (all norm 0..1)
+    QVector<double> ballY;
+    QVector<double> ballR;
 
     qint64 nominalPeriodUs = 0;  // robust average period ((last-first)/(n-1))
     qint64 medianDeltaUs   = 0;  // median inter-sample delta (row-grid dedup basis)

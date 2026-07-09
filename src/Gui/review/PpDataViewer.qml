@@ -121,6 +121,7 @@ Item {
             case "purple2": return "#B58AC9"
             case "amber":   return Theme.colorAttention
             case "coral":   return "#C98B6E"
+            case "green":   return "#8FBF7F"
         }
         return Theme.colorText3
     }

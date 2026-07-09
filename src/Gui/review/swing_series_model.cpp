@@ -41,6 +41,11 @@ struct Match {
 double pick(const SwingSeries &s, int j, int sub)
 {
     if (j < 0) return 0.0;
+    if (s.kind == SwingSeries::Ball) {         // sub 0/1/2 → x / y / radius
+        if (sub == 1) return s.ballY.value(j);
+        if (sub == 2) return s.ballR.value(j);
+        return s.value.value(j);
+    }
     if (sub == 1) return s.gyroZ.value(j);
     if (sub == 2) return s.fusedRateZ.value(j);
     return s.value.value(j);
@@ -130,7 +135,7 @@ Match resolveValue(const SwingSeries &s, qint64 t, int sub,
 }
 
 QString msText(qint64 us)        { return QString::number(double(us) / 1000.0, 'f', 1); }
-QString valText(double v)        { return QString::number(v, 'f', 1); }
+QString valText(double v, int prec = 1) { return QString::number(v, 'f', prec); }
 QString confText(double c)       { return QString::number(c, 'f', 2); }
 
 QString stateWord(int st)
@@ -285,6 +290,10 @@ void SwingSeriesModel::configure(const QVector<SwingSeries> &series, qint64 wind
             m_cols.push_back({ Value, i, 2, s.header + QStringLiteral(" fused"), s.colorKey, Qt::AlignRight });
         } else if (s.isImu()) {
             m_cols.push_back({ Value, i, 0, s.header + QStringLiteral(" ω"), s.colorKey, Qt::AlignRight });
+        } else if (s.kind == SwingSeries::Ball) {
+            m_cols.push_back({ Value, i, 0, s.header + QStringLiteral(" x"), s.colorKey, Qt::AlignRight });
+            m_cols.push_back({ Value, i, 1, s.header + QStringLiteral(" y"), s.colorKey, Qt::AlignRight });
+            m_cols.push_back({ Value, i, 2, s.header + QStringLiteral(" r"), s.colorKey, Qt::AlignRight });
         } else {
             m_cols.push_back({ Value, i, 0, s.header, s.colorKey, Qt::AlignRight });
         }
@@ -344,8 +353,12 @@ void SwingSeriesModel::configure(const QVector<SwingSeries> &series, qint64 wind
                 cell.text = msText(t); cell.state = Ok;
                 break;
             case Value: {
-                const Match m = resolveValue(series[col.src], t, col.sub, fillMode, primaryHeld);
-                cell.text  = m.has ? valText(m.val) : QStringLiteral("—");
+                const SwingSeries &vs = series[col.src];
+                const Match m = resolveValue(vs, t, col.sub, fillMode, primaryHeld);
+                // Ball channels are normalized 0..1 (radius ~0.007) → need 3 decimals to
+                // read; everything else (deg/s, degrees) stays at 1.
+                const int prec = (vs.kind == SwingSeries::Ball) ? 3 : 1;
+                cell.text  = m.has ? valText(m.val, prec) : QStringLiteral("—");
                 cell.state = m.state;
                 break;
             }

@@ -132,6 +132,7 @@ QString kindToStr(SwingSeries::Kind k)
     case SwingSeries::Pose:   return QStringLiteral("pose");
     case SwingSeries::Club:   return QStringLiteral("club");
     case SwingSeries::Metric: return QStringLiteral("metric");
+    case SwingSeries::Ball:   return QStringLiteral("ball");
     }
     return {};
 }
@@ -477,6 +478,61 @@ void SwingDataSource::reload()
         if (!s.t.isEmpty()) { computeCadence(s); m_all.push_back(s); }
     }
 
+    // ball track (analysis.ball preferred, else the raw kind:"ball" ball_v2 stream). One
+    // lane: value holds x, ballY holds y, ballR holds radius, conf holds detection
+    // confidence — all normalized 0..1. Only found=true frames are kept, so the ball
+    // vanishing at launch renders as trailing holes (matching the replay overlay).
+    {
+        SwingSeries s;
+        s.kind  = SwingSeries::Ball;
+        s.ref   = QStringLiteral("ball");
+        s.part  = QStringLiteral("ball");
+        s.label = QStringLiteral("Ball");
+        s.header = QStringLiteral("Ball");
+        s.colorKey = QStringLiteral("green");
+
+        const QJsonObject ball = analysis.value(QStringLiteral("ball")).toObject();
+        if (!ball.isEmpty()) {
+            const QJsonArray bs = ball.value(QStringLiteral("samples")).toArray();
+            s.t.reserve(bs.size()); s.value.reserve(bs.size());
+            s.ballY.reserve(bs.size()); s.ballR.reserve(bs.size()); s.conf.reserve(bs.size());
+            for (const QJsonValue &bv : bs) {
+                const QJsonObject bo = bv.toObject();
+                if (!bo.value(QStringLiteral("found")).toBool()) continue;   // gap → hole
+                s.t.push_back(toRel(bo.value(QStringLiteral("t_us")).toDouble()));
+                s.value.push_back(bo.value(QStringLiteral("x")).toDouble());
+                s.ballY.push_back(bo.value(QStringLiteral("y")).toDouble());
+                s.ballR.push_back(bo.value(QStringLiteral("r")).toDouble());
+                s.conf.push_back(bo.value(QStringLiteral("conf")).toDouble());
+            }
+        } else {
+            // Fallback: the raw ball_v2 stream (window-relative t_us; data layout
+            // found,x,y,r,conf) — a skip-analysis capture that still recorded ball frames.
+            for (const QJsonValue &sv : streams) {
+                const QJsonObject st = sv.toObject();
+                if (st.value(QStringLiteral("kind")).toString() != QLatin1String("ball")) continue;
+                const QJsonObject fr = st.value(QStringLiteral("frames")).toObject();
+                const QJsonArray tArr = fr.value(QStringLiteral("t_us")).toArray();
+                const QJsonArray dArr = fr.value(QStringLiteral("data")).toArray();
+                const int count = std::min(tArr.size(), dArr.size());
+                s.t.reserve(count); s.value.reserve(count);
+                s.ballY.reserve(count); s.ballR.reserve(count); s.conf.reserve(count);
+                for (int i = 0; i < count; ++i) {
+                    const QJsonArray row = dArr.at(i).toArray();
+                    if (row.size() < 5) continue;
+                    if (row.at(0).toDouble() == 0.0) continue;               // found=false → hole
+                    s.t.push_back(qint64(tArr.at(i).toDouble()));
+                    s.value.push_back(row.at(1).toDouble());
+                    s.ballY.push_back(row.at(2).toDouble());
+                    s.ballR.push_back(row.at(3).toDouble());
+                    s.conf.push_back(row.at(4).toDouble());
+                }
+                break;   // first ball stream only
+            }
+        }
+        if (!s.t.isEmpty()) { computeCadence(s); m_all.push_back(s); }
+    }
+
     // phases (absolute OR window-relative → window-relative via toRel)
     const QJsonArray phases = analysis.value(QStringLiteral("phases")).toArray();
     for (const QJsonValue &pv : phases) {
@@ -574,6 +630,21 @@ void SwingDataSource::reload()
         }
         pushGroup(QStringLiteral("Analysis"), r);
     }
+    {   // Ball track (face-on) — provenance for the analysis.ball lane
+        const QJsonObject ball = analysis.value(QStringLiteral("ball")).toObject();
+        if (!ball.isEmpty()) {
+            QVariantList r;
+            if (ball.contains(QStringLiteral("camera")))
+                r << row(QStringLiteral("Camera"), QString::number(ball.value(QStringLiteral("camera")).toInt()));
+            const qint64 launch = qint64(ball.value(QStringLiteral("launchTUs")).toDouble());
+            r << row(QStringLiteral("Launch"), launch >= 0
+                        ? QString::number(double(toRel(double(launch))) / 1000.0, 'f', 1) + QStringLiteral(" ms")
+                        : QStringLiteral("—"));
+            r << row(QStringLiteral("Samples"),
+                     QString::number(ball.value(QStringLiteral("samples")).toArray().size()));
+            pushGroup(QStringLiteral("Ball"), r);
+        }
+    }
     {   // Capture / host (often absent — render whatever exists)
         QVariantList r;
         const QJsonObject cap = m_doc.value(QStringLiteral("capture")).toObject();
@@ -626,6 +697,22 @@ void SwingDataSource::reload()
                 r << row(QStringLiteral("Perspective"), setup.value(QStringLiteral("perspectiveName")).toString());
             if (setup.contains(QStringLiteral("fixedInPlace")))
                 r << row(QStringLiteral("Fixed"), setup.value(QStringLiteral("fixedInPlace")).toBool() ? QStringLiteral("yes") : QStringLiteral("no"));
+            // Ball-detector search box (hitting-area ROI) + any calibrated ball position.
+            const QJsonObject bd = setup.value(QStringLiteral("ballDetection")).toObject();
+            const QJsonArray roi = bd.value(QStringLiteral("searchRoi")).toArray();
+            if (roi.size() == 4)
+                r << row(QStringLiteral("Search ROI"),
+                         QStringLiteral("[%1, %2, %3, %4]")
+                             .arg(roi.at(0).toDouble(), 0, 'f', 2).arg(roi.at(1).toDouble(), 0, 'f', 2)
+                             .arg(roi.at(2).toDouble(), 0, 'f', 2).arg(roi.at(3).toDouble(), 0, 'f', 2));
+            if (bd.value(QStringLiteral("positionSource")).toString() == QLatin1String("calibrated")) {
+                const QJsonArray c = bd.value(QStringLiteral("center")).toArray();
+                if (c.size() == 2)
+                    r << row(QStringLiteral("Ball pos"),
+                             QStringLiteral("[%1, %2] r%3")
+                                 .arg(c.at(0).toDouble(), 0, 'f', 3).arg(c.at(1).toDouble(), 0, 'f', 3)
+                                 .arg(bd.value(QStringLiteral("radiusNorm")).toDouble(), 0, 'f', 3));
+            }
         } else if (kind == QLatin1String("imu")) {
             const QJsonObject dev = st.value(QStringLiteral("device")).toObject();
             if (dev.contains(QStringLiteral("outputRateHz"))) r << row(QStringLiteral("Rate"), QString::number(dev.value(QStringLiteral("outputRateHz")).toInt()) + QStringLiteral(" Hz"));
@@ -695,6 +782,7 @@ QVector<SwingDataSource::PartSpec> SwingDataSource::specsForRegion(const QString
     if (region == QLatin1String("Delivery"))
         return { {pose, {}, QStringLiteral("wrists")}, {pose, {}, QStringLiteral("elbows")},
                  {club, QStringLiteral("shaft"), QStringLiteral("shaft")},
+                 {QStringLiteral("ball"), QStringLiteral("ball"), QStringLiteral("ball")},
                  imuRole(R::LeadForearm), imuRole(R::LeadHand),
                  {met, QStringLiteral("leadWristFlexExt"), {}}, {met, QStringLiteral("leadWristRadUln"), {}} };
     // Axial (default)
@@ -712,6 +800,7 @@ const SwingSeries *SwingDataSource::findSeries(const QString &kind, const QStrin
         else if (s.kind == SwingSeries::Imu) { if (s.ref == ref) return &s; }
         else if (s.kind == SwingSeries::Metric) { if (s.ref == ref) return &s; }
         else if (s.kind == SwingSeries::Club) { return &s; }
+        else if (s.kind == SwingSeries::Ball) { return &s; }
     }
     return nullptr;
 }
