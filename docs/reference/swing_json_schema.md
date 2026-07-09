@@ -1,6 +1,6 @@
 # `swing.json` schema reference
 
-> **Date:** 2026-07-07 · **Applies to:** the per-shot `swing.json` manifest written to each swing directory · **Schema:** top-level `pinpoint.swing/2`, embedded `analysis` block `pinpoint.analysis/3`
+> **Date:** 2026-07-09 · **Applies to:** the per-shot `swing.json` manifest written to each swing directory · **Schema:** top-level `pinpoint.swing/2`, embedded `analysis` block `pinpoint.analysis/3`
 
 Every captured shot produces one directory (`<session>/swing_<NNNN>/`) containing the media and a single `swing.json` manifest. This document is the field-by-field reference. Snippets are from a real swing — `2026-07-05_Mark-Liversedge_Wrist_02/swing_0006` (a camera-only Wrist shot; "s06" in the shaft-lab corpus) — with IMU-specific blocks taken from an IMU swing where noted.
 
@@ -132,7 +132,9 @@ An array with one entry per camera or IMU. `kind` discriminates.
   "playback": { "fps": 30 },
   "processing": { "demosaic": "EA", "restorer": "none" },
   "setup": { "perspective": 2, "perspectiveName": "FaceOn", "mirrored": false,
-             "fixedInPlace": true, "ballDetection": { "calibrated": false, "margin": 0, … } }
+             "fixedInPlace": true,
+             "ballDetection": { "calibrated": false, "margin": 0, "driftAtCapture": 0,
+                                "calibratedAt": null, "searchRoi": [0.36, 0.72, 0.30, 0.24] } }
 }
 ```
 
@@ -151,6 +153,16 @@ An array with one entry per camera or IMU. `kind` discriminates.
 | `setup.perspective` | int | `0` None · `1` DownTheLine · **`2` FaceOn** · `3` Other. `perspectiveName` is the label. The shaft tracker + body viz key on perspective 2. May be `null` on older exports. |
 | `setup.mirrored` | bool | Webcam mirror flag (affects pose/shaft chirality). |
 | `setup.fixedInPlace` | bool | Camera-fixed calibration state. |
+
+**`setup.ballDetection`** — ball-detector provenance plus the search box offline re-analysis uses.
+
+| Field | Type | Notes |
+|---|---|---|
+| `calibrated` | bool | Whether a v1 calibration profile was active. The v1 calibration stack is retired (temporal v2 detector), so now always `false`. |
+| `margin` / `driftAtCapture` | float | Legacy v1 calibration diagnostics (`0` on the v2 path). |
+| `calibratedAt` | ISO \| null | v1 calibration timestamp (`null` on v2). |
+| `center` / `radiusNorm` / `positionSource` | float[2] / float / str | **Optional** — a stable calibrated ball position (full-frame normalized; radius to width). Present only when a calibrated position exists (`positionSource: "calibrated"`). |
+| `searchRoi` | float[4] | **Added 2026-07-08.** The hitting-area box `[x, y, w, h]`, full-frame normalized — the region the live ball detector searched. Offline re-analysis (`BallRunner`) searches this box instead of the pose-derived stance corridor, so it matches live detection and skips out-of-box distractors (feet/shoes). **Omitted** when no hitting area is set; swings captured before 2026-07-08 lack it (re-analysis falls back to the stance corridor). |
 
 ### IMU stream (`kind: "imu"`)
 
@@ -212,6 +224,7 @@ The analyzed swing. Every sub-block is additive. `tier` records the reconstructi
   "segmentation": { … },
   "pose2d": { … },
   "club": { … },
+  "ball": { … },          // OPTIONAL (face-on ball track — replay overlay)
   "bindings": [ … ],      // IMU only
   "assessment": { … },    // OPTIONAL (Wrist coach feed)
   "filter": { … }         // OPTIONAL (offline re-fusion diagnostic)
@@ -337,6 +350,33 @@ Written **only when the track is valid** (all-or-nothing consumer contract). Gri
 
 **`ShaftSampleFlags`** (bitwise): `0x01` Measured · `0x02` ImuBridged · `0x04` Coasted · `0x08` Wedge · `0x10` HeadProjected · `0x20` KinematicPredicted. E.g. `20` = `0x14` = HeadProjected|Coasted (a `pred`-tier frame); `17` = `0x11` = HeadProjected|Measured (a `ray`-tier frame); `1` = Measured with a real head (a `band`-tier frame).
 
+### `ball` — the ball track (`BallTrack2D`)
+
+Per-frame face-on ball position, drawn by the replay ball overlay (mirrors the live green ball circle). Added 2026-07-08. Coordinates are normalized 0..1 **full-frame** (same convention as `pose2d`; no `frameWidth`/`frameHeight` needed — the radius is normalized to frame width). Resolved from the live accumulator, a recorded raw `ball` stream, or the offline `BallRunner` (`WristAnalyzer`). Absent block ⇒ no ball data.
+
+```json
+"ball": {
+  "camera": 0, "valid": true, "launchTUs": -1,
+  "samples": [
+    { "t_us": 620068, "found": true,  "x": 0.5484, "y": 0.8072, "r": 0.0074, "conf": 1.0 },
+    { "t_us": 626700, "found": false, "x": 0,      "y": 0,      "r": 0,      "conf": 0.0 }
+  ]
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `camera` | int | Source id of the ball (face-on) camera. |
+| `valid` | bool | `true` when written; an absent block ⇒ no ball data. |
+| `launchTUs` | int µs | Window-relative launch (collapse-cliff) instant; `-1` = no launch observed. |
+| `samples[].t_us` | int µs | Window-relative frame time. |
+| `samples[].found` | bool | Ball detected this frame. `found: false` frames still carry a `t_us` (gap marker) with zeroed position; the overlay draws nothing on them, so the circle vanishes at launch. |
+| `samples[].x` / `y` | float | Ball centre, normalized 0..1 full-frame. `0` when `found` is false. |
+| `samples[].r` | float | Ball radius, normalized to frame width. |
+| `samples[].conf` | float 0–1 | Detection confidence. |
+
+> The same per-frame track may also appear as a **raw `kind: "ball"` stream** (schema `ball_v2`, `layout: "found,x,y,r,conf"`, with a `frames{t_us,data}` block and optional `launch{t_us,x,y}`) — the offline re-analysis input, distinct from this analyzed `analysis.ball` block. Rare in practice; consumers that read `analysis.*` can ignore it.
+
 ### `bindings[]` (IMU only)
 
 Per-device calibration snapshot (serial-keyed), so the offline runner can re-fuse with the exact anatomical transforms the app used.
@@ -377,3 +417,4 @@ Per-device calibration snapshot (serial-keyed), so the offline runner can re-fus
 | `pinpoint.analysis/3` | `score` promoted from bare int → `ScoreBreakdown` object (design §B.0a/§B.7). |
 | `pinpoint.analysis/2` | `score` was a bare integer. Readers still accept it. |
 | 2026-07-07 | `capture.club` added; all `analysis` `t_us` normalised to window-relative (readers domain-aware for legacy absolute files). |
+| 2026-07-08 | `analysis.ball` added (face-on ball track for the replay overlay); `setup.ballDetection.searchRoi` added (hitting-area box for offline re-analysis). Both additive — no schema-version bump. |
