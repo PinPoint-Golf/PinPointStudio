@@ -66,10 +66,29 @@ namespace pinpoint::analysis {
 // chain gate can. Returns -1 with fewer than kMinLenSamples accepted samples.
 // Shared so decideTrack can measure L_px BEFORE head placement (A1) instead of
 // the old post-hoc path.
+//
+// Golf-prior plausibility gate: the cluster gate keeps any CONSISTENT lock, so
+// a detector locked onto the driver head at address (gateA-0704: y 130–175 px
+// above the truth ball) passed and shorted rung 1. Face-on the ball is always
+// between the feet and below the ankle line, so when `ankles` (one entry per
+// coverage frame; ok=false where the pose is absent) supplies at least
+// kMinLenSamples usable frames inside the window, the pass-1 median ball
+// position must sit below the median ankle line (margin 0.02·frameH) and
+// inside the ankle x-extent widened 0.1·frameW per side — otherwise the
+// measurement abstains (-1; `rejectReason` set 1 = ankle line, 2 = feet
+// corridor, 0 = accepted/not gated) and the ladder degrades honestly to rung
+// 3. Null / sparse ankles skip the gate (pose-free callers keep working).
+struct AnklePx {
+    double lx = 0, ly = 0;   // left ankle (px)
+    double rx = 0, ry = 0;   // right ankle (px)
+    bool   ok = false;       // pose available this frame
+};
 double medianGripBallLenPx(const BallTrack2D &ball,
                            const std::vector<double> &gx, const std::vector<double> &gy,
                            const std::vector<int64_t> &tUs, int frameW, int frameH,
-                           int bs0, int collar, const std::vector<char> *still = nullptr);
+                           int bs0, int collar, const std::vector<char> *still = nullptr,
+                           const std::vector<AnklePx> *ankles = nullptr,
+                           int *rejectReason = nullptr);
 
 void applyBallAnchor(ShaftTrack2D &out, const BallTrack2D &ball,
                      const std::vector<double> &gx, const std::vector<double> &gy,

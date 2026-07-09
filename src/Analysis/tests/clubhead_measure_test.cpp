@@ -167,17 +167,93 @@ int main()
         // ball ceiling also clamps to the ray edge when the edge is nearer
         HeadBounds b2 = headBounds(/*rayEdge=*/500, 500, 0, af, true, ctx);
         check(near(b2.rHi, 500.0, 1e-6), "ceiling clamped to the ray edge when nearer");
-        // no ball: pose-scale/frame-height fallback ceiling; hard floor = arm floor
+        // no ball: fallback ladder length is BOTH the ceiling and the universal-
+        // floor basis — rFloor = max(arm floor ≈216.5, 0.5·450 = 225) = 225
         HeadBounds b3 = headBounds(800, /*lPx=*/-1, /*fallbackCeil=*/450, af, true, ctx);
-        check(near(b3.rHi, 450.0, 1e-6) && near(b3.rFloor, af, 1e-6),
-              "no ball ⇒ rHi=fallback ceiling, rFloor=arm floor");
+        check(near(b3.rHi, 450.0, 1e-6) && near(b3.rFloor, 225.0, 1e-6),
+              "no ball ⇒ rHi=fallback ceiling, rFloor=max(arm floor, 0.5·L̂)=225");
         // no ball, no fallback ⇒ ray edge only, no floor when it doesn't apply
         HeadBounds b4 = headBounds(800, -1, 0, -1, false, ctx);
         check(near(b4.rHi, 800.0, 1e-6) && b4.rFloor < 0, "no ball/fallback ⇒ ray edge only, no floor");
 
+        // universal measurement-acceptance floor (gateB-0705 fix): a MOVING no-
+        // ball frame (floorApplies=false, no arm floor) still floors at 0.5·L̂
+        HeadBounds b5 = headBounds(800, /*lPx=*/-1, /*fallbackCeil=*/300, /*armFloor=*/-1, /*floor=*/false, ctx);
+        check(near(b5.rFloor, 150.0, 1e-6), "moving no-ball frame: universal floor = 0.5·L̂ (150)");
+        // ball present, moving frame: universal floor from L_px (no 0.8 hard floor)
+        HeadBounds b6 = headBounds(800, /*lPx=*/500, 0, -1, /*floor=*/false, ctx);
+        check(near(b6.rFloor, 250.0, 1e-6), "moving ball frame: universal floor = 0.5·L_px (250)");
+        // still/impact frame keeps the STRONGER 0.8·L_px hard floor (universal is weaker)
+        HeadBounds b7 = headBounds(800, 500, 0, -1, /*floor=*/true, ctx);
+        check(near(b7.rFloor, 400.0, 1e-6), "still frame: 0.8·L_px hard floor dominates the universal");
+
+        // floorFracOverride — the wiring's phase-ramp hook (gateB iter-2). The
+        // module stays phase-blind: the wiring computes the per-frame ramped
+        // fraction from bs0/top/impact and passes it here; the ramp arithmetic
+        // itself is wiring-level and covered by the corpus honesty gate.
+        HeadBounds b8 = headBounds(800, 500, 0, -1, /*floor=*/false, ctx, /*override=*/0.8);
+        check(near(b8.rFloor, 400.0, 1e-6), "override 0.8 ⇒ floor = 0.8·L_px (400) on a moving frame");
+        HeadBounds b9 = headBounds(800, /*lPx=*/-1, /*fallbackCeil=*/300, -1, false, ctx, 0.7);
+        check(near(b9.rFloor, 210.0, 1e-6), "override honoured against the fallback L̂ (0.7·300 = 210)");
+        HeadBounds b10 = headBounds(800, 500, 0, -1, false, ctx, -1.0);
+        check(near(b10.rFloor, 250.0, 1e-6), "override −1 ⇒ default constant-fraction behaviour (250)");
+
         check(near(headPrior(500, true), 500.0, 1e-9), "prior = L_px in quasi-still frames");
         check(std::isnan(headPrior(500, false)), "no prior in moving frames (never feed the KF its own prior)");
         check(std::isnan(headPrior(-1, true)), "no prior without a ball");
+    }
+
+    // ── universal floor end-to-end: counterfeit vs true terminus (gateB-0705) ─
+    std::printf("=== measureHeadRadius: universal measurement floor ===\n");
+    {
+        const int W = 800, H = 400;
+        const double gx = 120, gy = 200;
+        const double lHat = 300.0;                       // ladder length (no ball)
+        HeadSceneCtx ctx = makeHeadSceneCtx(cv::Mat(), W, H, cfg);
+        // moving no-ball frame: bounds carry the universal floor 0.5·L̂ = 150
+        const HeadBounds b = headBounds(rayEdgeRadius(gx, gy, 0.0, W, H), -1.0, lHat,
+                                        -1.0, /*floorApplies=*/false, ctx);
+        check(near(b.rFloor, 150.0, 1e-6), "bounds carry the 0.5·L̂ floor on a moving frame");
+
+        // 1) counterfeit at ~0.35·L̂ (retro-band edge) + true terminus at ~1.0·L̂:
+        //    the floor filters the counterfeit CANDIDATE but not the scan, so the
+        //    true head past it still wins.
+        cv::Mat gBoth = makeFrame(W, H, 40.0);
+        drawSeg(gBoth, gx, gy, 30, 105, 200.0, 3);       // counterfeit run ends at 105 < 150
+        drawSeg(gBoth, gx, gy, 280, 310, 255.0, 5);      // true head at ~1.0·L̂
+        cv::Mat gxsB, gysB; sobels(gBoth, gxsB, gysB);
+        const cv::Mat bgB = gBoth.clone(), pvB = gBoth.clone();
+        const HeadMeasurement both = measureHeadRadius(gBoth, pvB, bgB, gxsB, gysB, ctx, gx, gy, 0.0,
+                                                       b.rLo, b.rHi, b.rFloor, NAN);
+        check(std::isfinite(both.rPx) && inRange(both.rPx, 295.0, 320.0),
+              "true terminus (~310) wins past the sub-floor counterfeit");
+
+        // 2) counterfeit ONLY: every candidate is below the floor ⇒ no measurement
+        //    (frame degrades to honest pred downstream), never a blessed counterfeit.
+        cv::Mat gCft = makeFrame(W, H, 40.0);
+        drawSeg(gCft, gx, gy, 30, 105, 200.0, 3);
+        cv::Mat gxsC, gysC; sobels(gCft, gxsC, gysC);
+        const cv::Mat bgC = gCft.clone(), pvC = gCft.clone();
+        const HeadMeasurement cft = measureHeadRadius(gCft, pvC, bgC, gxsC, gysC, ctx, gx, gy, 0.0,
+                                                      b.rLo, b.rHi, b.rFloor, NAN);
+        check(std::isnan(cft.rPx) && cft.conf == 0.0,
+              "counterfeit-only frame yields NO measurement (honest pred)");
+        // control: without the floor the counterfeit WOULD be measured — the
+        // exact gateB-0705 failure this closes.
+        const HeadMeasurement unfl = measureHeadRadius(gCft, pvC, bgC, gxsC, gysC, ctx, gx, gy, 0.0,
+                                                       b.rLo, b.rHi, /*rFloor=*/-1.0, NAN);
+        check(std::isfinite(unfl.rPx) && inRange(unfl.rPx, 95.0, 120.0),
+              "control: floorless scan measures the counterfeit (~105)");
+
+        // 3) genuinely foreshortened head at ~0.4·L̂ is refused too — the intended
+        //    honesty trade: pred (honest), not meas.
+        cv::Mat gFsh = makeFrame(W, H, 40.0);
+        drawSeg(gFsh, gx, gy, 30, 120, 200.0, 3);        // true-but-foreshortened terminus at 0.4·L̂
+        cv::Mat gxsF, gysF; sobels(gFsh, gxsF, gysF);
+        const cv::Mat bgF = gFsh.clone(), pvF = gFsh.clone();
+        const HeadMeasurement fsh = measureHeadRadius(gFsh, pvF, bgF, gxsF, gysF, ctx, gx, gy, 0.0,
+                                                      b.rLo, b.rHi, b.rFloor, NAN);
+        check(std::isnan(fsh.rPx), "foreshortened true head below 0.5·L̂ ⇒ pred, not meas (honesty trade)");
     }
 
     // ── 180° flip predicate ──────────────────────────────────────────────────

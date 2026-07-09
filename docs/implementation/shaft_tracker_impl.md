@@ -229,7 +229,15 @@ in-production health metric.
 >   short on the 2026-07-04 corpus. Mis-locks are rejected by an order-independent two-pass
 >   cluster gate (component-wise median ball position, accept within 6 px) — the chained
 >   first-accepted gate let one warm-up lock veto every later good sample — and the measurement
->   abstains (−1) below 5 accepted samples. `projectedClubLenPx(...)` then
+>   abstains (−1) below 5 accepted samples. A golf-prior plausibility gate then catches
+>   CONSISTENT mis-locks the cluster gate keeps (gateA-0704: driver-head lock 130–175 px above
+>   the truth ball shorted rung 1): the median lock must sit below the median ankle line
+>   (margin `0.02·frameH`) and inside the ankle x-extent ± `0.1·frameW` (ball always between
+>   the feet, face-on); rejection ⇒ −1 ⇒ honest ladder degradation, reason logged in
+>   `ShaftDecideTrace.lPxRejected` (0 accepted / 1 ankle / 2 feet, dumped by swinglab_run).
+>   Ankles come from the smoothed body joints at the `decideTrack` call site; pose-free
+>   callers skip the gate. The per-frame θ-anchor path in `applyBallAnchor` has NO equivalent
+>   gate yet (TODO in code). `projectedClubLenPx(...)` then
 >   picks `L` from the first available scale source — **rung 1** ball `L_px` · **rung 2** band
 >   scale grip-corrected `sTypical·(clubLenMm−r0Med)` (was the overshooting `sTypical·clubLenMm`)
 >   · **rung 3** pose-scale surrogate (still shoulder-mid→ankle-mid px ÷ `0.83·lenStatureM`,

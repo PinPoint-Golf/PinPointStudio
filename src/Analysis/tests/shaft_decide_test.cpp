@@ -222,11 +222,13 @@ int main()
             joints[f] = {{450, 300}, {550, 300}, {460, 600}, {540, 600},
                          {465, 750}, {535, 750}, {470, 900}, {530, 900}};  // sh/hip/knee/ankle
         }
-        // ball fixed below the grip; still-hold grip→ball ≈ 200 px
+        // ball fixed below the ANKLE line (y=950 vs ankles at 900) and between
+        // the feet, so the golf-prior gate accepts it; still-hold grip→ball
+        // = |(500,950)−(500,600)| = 350 px
         BallTrack2D ball;
         for (int f = 0; f < nf; ++f) {
             BallSample2D b; b.t_us = tUs[f]; b.found = true;
-            b.center = QPointF(0.50, 0.80); b.radiusNorm = 0.02f; b.conf = 1.f;
+            b.center = QPointF(0.50, 0.95); b.radiusNorm = 0.02f; b.conf = 1.f;
             ball.frames.push_back(b);
         }
         const FrameSource noFrames = [](int) -> cv::Mat { return cv::Mat(); };
@@ -246,8 +248,8 @@ int main()
         }
         check(sameCount, "same sample count with/without ball");
         check(thetaIdentical, "θ bit-identical with/without ball");
-        check(a.measuredClubLenPx < 0 && near(b.measuredClubLenPx, 200.0, 2.0),
-              "ball populates measuredClubLenPx (~200 px); null leaves −1");
+        check(a.measuredClubLenPx < 0 && near(b.measuredClubLenPx, 350.0, 2.0),
+              "ball populates measuredClubLenPx (~350 px); null leaves −1");
         check(headDiffers, "projected head length changed (length ladder used the ball)");
     }
 
@@ -270,11 +272,13 @@ int main()
             joints[f] = {{210, 90}, {270, 90}, {215, 200}, {265, 200},
                          {218, 300}, {262, 300}, {220, 380}, {260, 380}};  // sh/hip/knee/ankle
         }
-        // ball fixed below the grip so still-hold grip→ball ≈ 196 px is measurable
+        // ball fixed below the ANKLE line (y=408 vs ankles at 380 — the A1
+        // golf-prior gate rejects locks above it) so still-hold grip→ball
+        // ≈ 258 px is measurable and the head pass gets its L_px prior
         BallTrack2D ball;
         for (int f = 0; f < nf; ++f) {
             BallSample2D b; b.t_us = tUs[f]; b.found = true;
-            b.center = QPointF(0.50, 0.72); b.radiusNorm = 0.02f; b.conf = 1.f;
+            b.center = QPointF(0.50, 0.85); b.radiusNorm = 0.02f; b.conf = 1.f;
             ball.frames.push_back(b);
         }
         // Deterministic synthetic frames: mid-grey with a downward club line from
@@ -286,11 +290,11 @@ int main()
             cv::Mat img(H, W, CV_8UC1, cv::Scalar(30));
             const cv::Point g(int(gx[f]), int(gy[f]));
             cv::line(img, g, cv::Point(g.x, std::min(H - 1, g.y + 150)), cv::Scalar(220), 3);
-            cv::circle(img, cv::Point(int(0.50 * W), int(0.72 * H)), 7, cv::Scalar(240), -1);
+            cv::circle(img, cv::Point(int(0.50 * W), int(0.85 * H)), 7, cv::Scalar(240), -1);
             return img;
         };
 
-        ShaftV3Config cfgOff = cfg;                       // head.enabled = false (default)
+        ShaftV3Config cfgOff = cfg; cfgOff.head.enabled = false;   // explicit — default is ON since the gate flip
         ShaftV3Config cfgOn  = cfg; cfgOn.head.enabled = true;
         ShaftDecideTrace trOff, trOn;
         const ShaftTrack2D a = decideTrack(render, tUs, gx, gy, phiRaw, joints, W, H, fps,
@@ -336,6 +340,87 @@ int main()
             if (!(sm.flags & ShaftHeadProjected)) offInvariant = false;
         }
         check(offInvariant, "off-frame flag ⇒ headPx on the frame boundary + projected");
+    }
+
+    // ── Phase B: backswing streak confidence cap (wiring, gateB iter-2) ──────
+    // The FINAL emitted sample headConf is capped at head.streakConfCap for
+    // frames in [bs0, top]; outside that window it must be untouched. Two runs
+    // differing ONLY in the cap value (default 0.45 vs 0.0) prove both the cap
+    // and its window-scoping without depending on measurement quality: with a
+    // ball present the head pass always writes headConf on non-off frames (the
+    // pred tier bridges at L_px when no smoothed r exists), so the window is
+    // guaranteed non-vacuous.
+    std::printf("=== decideTrack streak confidence cap ===\n");
+    {
+        // Motion profile copied from the segmentPhases test above (nf=170,
+        // fps=150, speeds 9.8/9.5 px/f > swSpd=8), which asserts bs0<top<impact
+        // on exactly this shape — the earlier 6.7 px/f profile never crossed
+        // swSpd and left the phase model degenerate (whole-clip address).
+        // Geometry (joints/ball) from the θ-invariance test: grip→ball 350 px.
+        const int nf = 170, W = 1000, H = 1000;
+        const double fps = 150.0;
+        std::vector<int64_t> tUs(nf);
+        std::vector<double> gx(nf), gy(nf), phiRaw(nf, 90.0);
+        std::vector<std::vector<cv::Point2d>> joints(nf, std::vector<cv::Point2d>(8));
+        double x = 500, y = 600;
+        for (int f = 0; f < nf; ++f) {
+            tUs[f] = int64_t(std::llround(f * 1e6 / fps));
+            if (f >= 40 && f < 70)       { x -= 4; y -= 9; }   // backswing
+            else if (f >= 77 && f < 109) { x += 3; y += 9; }   // downswing
+            gx[f] = x; gy[f] = y;
+            joints[f] = {{450, 300}, {550, 300}, {460, 600}, {540, 600},
+                         {465, 750}, {535, 750}, {470, 900}, {530, 900}};  // sh/hip/knee/ankle
+        }
+        BallTrack2D ball;
+        for (int f = 0; f < nf; ++f) {
+            BallSample2D b; b.t_us = tUs[f]; b.found = true;
+            b.center = QPointF(0.50, 0.95); b.radiusNorm = 0.02f; b.conf = 1.f;   // (500,950), below ankles
+            ball.frames.push_back(b);
+        }
+        // 300-px club line: clears the phase-ramped floor (0.8→0.5 of
+        // L_px = 350 ⇒ 280→175) across the backswing window, inside the
+        // 1.15·L_px = 402 ceiling.
+        const FrameSource render = [&](int f) -> cv::Mat {
+            if (f < 0 || f >= nf) return cv::Mat();
+            cv::Mat img(H, W, CV_8UC1, cv::Scalar(30));
+            const cv::Point g(int(gx[f]), int(gy[f]));
+            cv::line(img, g, cv::Point(g.x, std::min(H - 1, g.y + 300)), cv::Scalar(220), 3);
+            cv::circle(img, cv::Point(int(0.50 * W), int(0.95 * H)), 7, cv::Scalar(240), -1);
+            return img;
+        };
+
+        ShaftV3Config cfgCap = cfg; cfgCap.head.enabled = true;    // streakConfCap default 0.45
+        ShaftV3Config cfgZero = cfgCap; cfgZero.head.streakConfCap = 0.0;
+        ShaftDecideTrace trA, trZ;
+        const ShaftTrack2D A = decideTrack(render, tUs, gx, gy, phiRaw, joints, W, H, fps,
+                                           {}, 1120.0, -1, cfgCap,  &trA, &ball);
+        const ShaftTrack2D Z = decideTrack(render, tUs, gx, gy, phiRaw, joints, W, H, fps,
+                                           {}, 1120.0, -1, cfgZero, &trZ, &ball);
+        const int bs0 = trA.phases.bs0, top = trA.phases.top;
+        check(bs0 > 0 && top > bs0, "phase model found the swing (bs0 < top)");
+        const bool sizeOk = A.samples.size() == Z.samples.size()
+                         && A.samples.size() == trA.frameIdx.size() && !A.samples.empty();
+        check(sizeOk, "sample/trace sizes agree across cap settings");
+
+        int inWinWritten = 0;
+        bool capHonoured = true, zeroCapped = true, outsideIdentical = true;
+        for (size_t k = 0; sizeOk && k < A.samples.size(); ++k) {
+            const int i = trA.frameIdx[k];
+            const float ca = A.samples[k].headConf, cz = Z.samples[k].headConf;
+            if (i >= bs0 && i <= top) {
+                if (ca >= 0.f) {
+                    ++inWinWritten;
+                    if (ca > float(cfgCap.head.streakConfCap) + 1e-6f) capHonoured = false;
+                }
+                if (cz > 0.f) zeroCapped = false;   // cap 0 forces every written conf to 0
+            } else if (ca != cz) {
+                outsideIdentical = false;           // the cap must never leak outside the window
+            }
+        }
+        check(inWinWritten > 0, "head results written inside [bs0, top] (non-vacuous)");
+        check(capHonoured, "in-window emitted headConf ≤ streakConfCap");
+        check(zeroCapped, "cap = 0 forces every in-window written headConf to 0");
+        check(outsideIdentical, "headConf outside the window identical across cap settings");
     }
 
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);

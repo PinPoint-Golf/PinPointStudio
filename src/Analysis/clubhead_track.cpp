@@ -128,6 +128,9 @@ ClubheadConfig ClubheadConfig::fromOverrides(const QVariantMap &ov)
     apply(ov, "shaft.head.hardFloorFactor",  c.hardFloorFactor);
     apply(ov, "shaft.head.priorSigmaFrac",   c.priorSigmaFrac);
     apply(ov, "shaft.head.priorSigmaFloorPx", c.priorSigmaFloorPx);
+    apply(ov, "shaft.head.measFloorFrac",    c.measFloorFrac);
+    apply(ov, "shaft.head.floorRampHi",      c.floorRampHi);
+    apply(ov, "shaft.head.streakConfCap",    c.streakConfCap);
     apply(ov, "shaft.head.offFactor",        c.offFactor);
     apply(ov, "shaft.head.armFactor",        c.armFactor);
     apply(ov, "shaft.head.armConfMin",       c.armConfMin);
@@ -212,7 +215,8 @@ double hardFloorPx(double armFloor, double lPx, bool applies, const ClubheadConf
 }
 
 HeadBounds headBounds(double rayEdge, double lPx, double fallbackCeilPx,
-                      double armFloor, bool floorApplies, const HeadSceneCtx &ctx)
+                      double armFloor, bool floorApplies, const HeadSceneCtx &ctx,
+                      double floorFracOverride)
 {
     HeadBounds b;
     b.rLo = ctx.rMin;
@@ -220,6 +224,19 @@ HeadBounds headBounds(double rayEdge, double lPx, double fallbackCeilPx,
     else if (fallbackCeilPx > 0.0)     b.rHi = std::min(rayEdge, fallbackCeilPx);
     else                               b.rHi = rayEdge;
     b.rFloor = hardFloorPx(armFloor, lPx, floorApplies, ctx.cfg);
+    // Universal measurement-acceptance floor (design §4: r_meas ≥ floorFrac·L̂,
+    // ALL frames — floorApplies gates only the strong still/impact floor above).
+    // L̂ falls back to the ladder length when the ball abstained: the gateB-0705
+    // counterfeit (a retro-band edge at ~⅓ club length on a MOVING no-ball frame)
+    // lived exactly in the "no floor at all" hole this closes. floorFracOverride
+    // (≥ 0) is the wiring's phase-ramp hook — this module stays phase-blind; −1
+    // keeps the constant cfg fraction. The floor filters candidates inside
+    // measureHeadRadius, never the scan range — a true terminus beyond a
+    // sub-floor counterfeit still wins; nothing past it ⇒ no measurement
+    // (honest pred), never a blessed counterfeit.
+    const double frac = (floorFracOverride >= 0.0) ? floorFracOverride : ctx.cfg.measFloorFrac;
+    const double lHat = (lPx > 0.0) ? lPx : fallbackCeilPx;
+    if (lHat > 0.0) b.rFloor = std::max(b.rFloor, frac * lHat);
     return b;
 }
 

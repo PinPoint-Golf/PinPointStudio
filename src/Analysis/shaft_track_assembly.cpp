@@ -842,13 +842,25 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     // window is the address HOLD (last still run at bs0, derived inside from
     // stat + bs0 + collar) — NOT the whole pre-takeaway period, whose teeing/
     // setup still frames measured hands-at-ball and ran 107–178 px short on the
-    // 2026-07-04 corpus. Leaves -1 when too few admissible ball samples exist.
-    // Read-only wrt the θ path (applyBallAnchor no longer recomputes this — it
-    // only reads out.measuredClubLenPx now).
+    // 2026-07-04 corpus. Leaves -1 when too few admissible ball samples exist
+    // or the lock fails the golf-prior gate (ankle line / between-the-feet:
+    // gateA-0704's consistent driver-head lock passed the cluster gate and
+    // shorted rung 1; per-frame ankles from the smoothed body joints,
+    // kBodyJoints order 6/7 = L/R ankles). Read-only wrt the θ path
+    // (applyBallAnchor no longer recomputes this — it only reads
+    // out.measuredClubLenPx now).
     if (ball && !ball->frames.empty()) {
+        std::vector<AnklePx> ankles(static_cast<size_t>(nf));
+        for (int i = 0; i < nf; ++i) {
+            if (smoothed[i].size() < 8) continue;
+            ankles[size_t(i)] = {smoothed[i][6].x, smoothed[i][6].y,
+                                 smoothed[i][7].x, smoothed[i][7].y, true};
+        }
+        int lpxReject = 0;
         const double lpx = medianGripBallLenPx(*ball, gx, gy, tUs, frameW, frameH,
-                                               pm.bs0, addressCollar, &stat);
+                                               pm.bs0, addressCollar, &stat, &ankles, &lpxReject);
         if (lpx > 0.0) out.measuredClubLenPx = float(lpx);
+        if (trace) trace->lPxRejected = lpxReject;
     }
 
     std::vector<std::vector<float>> emis(nf, std::vector<float>(NS, float(cfg.wE2)));
@@ -1021,7 +1033,26 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                 double armFloor = -1.0;
                 if (smoothed[i].size() >= 2)            // 0/1 = L/R shoulders
                     armFloor = armFloorPx(smoothed[i][0], smoothed[i][1], gx[i], gy[i], quasiStill, cfg.head);
-                const HeadBounds b = headBounds(rEdge, hin.lPx, projLenPx, armFloor, floorApplies, hctx);
+                // Phase-ramped acceptance floor (gateB iter-2): face-on the club
+                // is near-FULL projected length at takeaway and at impact —
+                // foreshortening develops toward the top — so the floor fraction
+                // ramps floorRampHi → measFloorFrac across [bs0, top] and mirrors
+                // back up over (top, impact]. Elsewhere −1 ⇒ the module's constant
+                // measFloorFrac. Kills the early-backswing streak short-locks
+                // (26/28 iter-2 confident-bad labels at bs0+20..bs0+45, terminus
+                // 0.5–0.96·L̂ vs near-full truth). The ramp arithmetic is wiring-
+                // level and covered by the corpus honesty gate (headBounds'
+                // floorFracOverride contract is unit-tested in the module tests).
+                double floorFrac = -1.0;
+                if (pm.top > pm.bs0 && i >= pm.bs0 && i <= pm.top) {
+                    const double t = double(i - pm.bs0) / double(pm.top - pm.bs0);
+                    floorFrac = cfg.head.floorRampHi + t * (cfg.head.measFloorFrac - cfg.head.floorRampHi);
+                } else if (pm.impact > pm.top && i > pm.top && i <= pm.impact) {
+                    const double t = double(i - pm.top) / double(pm.impact - pm.top);
+                    floorFrac = cfg.head.measFloorFrac + t * (cfg.head.floorRampHi - cfg.head.measFloorFrac);
+                }
+                const HeadBounds b = headBounds(rEdge, hin.lPx, projLenPx, armFloor, floorApplies, hctx,
+                                                floorFrac);
                 const double lPrior = headPrior(hin.lPx, quasiStill);
 
                 // ROI-bounded Sobel of the annulus grip+[rLo,rHi]·dir(θ), written
@@ -1108,11 +1139,20 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         if (!placed && !headResults.empty()) {
             const HeadFrameResult &hr = headResults[size_t(i)];
             const float hSig = float(std::isfinite(hr.sigmaR) ? hr.sigmaR : -1.0);
+            // Backswing streak confidence cap (gateB iter-2): corpus-proven
+            // systematic short-lock on motion-blur streaks in [bs0, top] —
+            // confident (≥0.5) head claims are reserved for the delivery phase
+            // where the metrics consume them. Cap the EMITTED sample field only:
+            // tier/KF behaviour and the raw trace (filled above from headResults)
+            // are untouched, so SwingLab can still see the uncapped conf.
+            float hConf = hr.headConf;
+            if (i >= pm.bs0 && i <= pm.top)
+                hConf = std::min(hConf, float(cfg.head.streakConfCap));
             if (hr.tier == HeadTier::Meas && std::isfinite(hr.rOut)) {
                 s.headPx = QPointF(gx[i] + hr.rOut * ux, gy[i] + hr.rOut * uy);
                 s.flags = ShaftMeasured;                       // measured head — NOT projected
                 s.visibleLenPx = hr.rOut;
-                s.headConf = hr.headConf; s.headSigmaPx = hSig;
+                s.headConf = hConf; s.headSigmaPx = hSig;
                 placed = true;
             } else if (hr.tier == HeadTier::Off) {
                 // head expected outside the frame — clamp to the ray/frame-edge
@@ -1123,7 +1163,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                 s.flags = uint8_t((tier == RAY ? ShaftMeasured : ShaftCoasted)
                                   | ShaftHeadProjected | ShaftHeadOffFrame);
                 s.visibleLenPx = re;
-                s.headConf = hr.headConf; s.headSigmaPx = hSig;
+                s.headConf = hConf; s.headSigmaPx = hSig;
                 placed = true;
             } else if (hr.tier == HeadTier::Pred && std::isfinite(hr.rOut)) {
                 // a radial estimate exists but stage-1 is pred (the ray is a
@@ -1132,7 +1172,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                 s.headPx = QPointF(gx[i] + hr.rOut * ux, gy[i] + hr.rOut * uy);
                 s.flags = uint8_t((tier == RAY ? ShaftMeasured : ShaftCoasted) | ShaftHeadProjected);
                 s.visibleLenPx = hr.rOut;
-                s.headConf = hr.headConf; s.headSigmaPx = hSig;
+                s.headConf = hConf; s.headSigmaPx = hSig;
                 placed = true;
             }
             // Pred with NaN rOut falls through to the Phase-A projection below.

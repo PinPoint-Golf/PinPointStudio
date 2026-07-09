@@ -486,7 +486,10 @@ int main(int argc, char **argv)
                 // Length-ladder diagnostics (Phase A): which rung supplied the
                 // projected grip→head length, and the px value it chose.
                 { "projLenRung", trace.projLenRung },
-                { "projLenPx", trace.projLenPx } } },
+                { "projLenPx", trace.projLenPx },
+                // A1 golf-prior gate on the ball length measurement:
+                // 0 accepted/not gated, 1 ankle line, 2 feet corridor.
+                { "lPxRejected", trace.lPxRejected } } },
             { "poseFrames", int(pose.frames.size()) },
             { "segConf", seg.conf } };
         tf.write(QJsonDocument(summary).toJson(QJsonDocument::Compact) + "\n");

@@ -283,6 +283,11 @@ struct ShaftDecideTrace {
     // fed back into the θ path.
     int                 projLenRung = 0;
     double              projLenPx   = 0.0;
+    // A1 golf-prior plausibility gate on the ball length measurement (gateA-
+    // 0704: consistent driver-head lock above the ankle line shorted rung 1).
+    // 0 accepted / not gated, 1 rejected at/above the ankle line, 2 rejected
+    // outside the between-the-feet corridor.
+    int                 lPxRejected = 0;
     // Stage-2 measured-clubhead diagnostics (Phase B), per frame [0,nf). headTier
     // = HeadTier (0 off / 1 pred / 2 meas); headR = the temporal-model radial
     // estimate (px, NaN = none); headZ = the raw per-frame measured radius (px,

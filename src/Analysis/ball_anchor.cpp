@@ -39,6 +39,11 @@ constexpr double kAgreeTolDeg    = 15.0;   // agreement tolerance vs an existing
 constexpr double kMaxJumpNormPx  = 6.0;    // mis-lock rejection radius: chain gate (θ loop) / cluster gate (length)
 constexpr float  kAnchorConf     = 0.5f;   // soft-anchor confidence (uncorrected — no delta lean-bias table yet)
 constexpr int    kMinLenSamples  = 5;      // accepted samples below which the length measurement abstains (-1)
+// Golf-prior plausibility gate on the length measurement (face-on: ball always
+// between the feet + below the ankle line). Margins are frame-relative so they
+// track resolution; plain constexpr until corpus data says they need sweeping.
+constexpr double kBallBelowAnkleMarginFrac = 0.02;   // ·frameH slack above the ankle line
+constexpr double kBallFeetMarginFrac       = 0.10;   // ·frameW widening per side of the ankle x-extent
 
 double angDiffDeg(double aRad, double bRad)
 {
@@ -69,8 +74,10 @@ const BallSample2D *nearestBallSample(const BallTrack2D &ball, int64_t tUs, int6
 double medianGripBallLenPx(const BallTrack2D &ball,
                            const std::vector<double> &gx, const std::vector<double> &gy,
                            const std::vector<int64_t> &tUs, int frameW, int frameH,
-                           int bs0, int collar, const std::vector<char> *still)
+                           int bs0, int collar, const std::vector<char> *still,
+                           const std::vector<AnklePx> *ankles, int *rejectReason)
 {
+    if (rejectReason) *rejectReason = 0;
     const int nf = int(tUs.size());
     if (ball.frames.empty() || nf == 0 || gx.size() != size_t(nf) || gy.size() != size_t(nf))
         return -1.0;   // no ball data / shapes don't line up — additive-only
@@ -124,6 +131,37 @@ double medianGripBallLenPx(const BallTrack2D &ball,
     };
     const double medX = median(bxs), medY = median(bys);
 
+    // Golf-prior plausibility gate — the cluster gate keeps any CONSISTENT
+    // lock, so a detector parked on the driver head at address sails through
+    // it (gateA-0704: locked y 130–175 px above the truth ball, rung 1 shorted
+    // −58..−164 px). Face-on the real ball is always between the feet and
+    // BELOW the ankle line; a lock that isn't cannot be the ball, so abstain
+    // (-1 → the ladder degrades honestly to the pose-scale rung). Gated only
+    // when the window has kMinLenSamples usable ankle frames — pose-free
+    // callers are accepted exactly as before.
+    if (ankles && int(ankles->size()) == nf) {
+        std::vector<double> ay, alx, arx;
+        for (int i = lo; i < hi; ++i) {
+            const AnklePx &a = (*ankles)[size_t(i)];
+            if (!a.ok) continue;
+            ay.push_back(a.ly); ay.push_back(a.ry);
+            alx.push_back(a.lx); arx.push_back(a.rx);
+        }
+        if (int(alx.size()) >= kMinLenSamples) {
+            const double ankleY = median(ay);
+            if (medY <= ankleY - kBallBelowAnkleMarginFrac * frameH) {
+                if (rejectReason) *rejectReason = 1;   // at/above the ankle line — not the ball
+                return -1.0;
+            }
+            const double lX = median(alx), rX = median(arx);
+            const double margin = kBallFeetMarginFrac * frameW;
+            if (medX < std::min(lX, rX) - margin || medX > std::max(lX, rX) + margin) {
+                if (rejectReason) *rejectReason = 2;   // outside the between-the-feet corridor
+                return -1.0;
+            }
+        }
+    }
+
     // Pass 2 — accept only samples inside the cluster; median |B−G| over them.
     std::vector<double> lenSamples;
     for (int i = lo; i < hi; ++i) {
@@ -162,6 +200,12 @@ void applyBallAnchor(ShaftTrack2D &out, const BallTrack2D &ball,
     // the sequential gate for now — θ anchoring is per-frame (no single robust
     // statistic to gate against) and its departure/abstain logic downstream is
     // corpus-validated as-is. Revisit if warm-up locks show up in tk0.
+    //
+    // TODO(gateA-0704): a CONSISTENTLY mis-locked ball (driver-head lock) also
+    // feeds this θ-anchor path unchecked — the length measurement now rejects
+    // it via the ankle-line/feet golf priors (medianGripBallLenPx), but the
+    // per-frame θ anchors here have no equivalent plausibility gate yet.
+    // Separate audit owed before the anchors are trusted on teed clubs.
     std::vector<bool>    haveBall(size_t(nf), false);
     std::vector<double>  thetaBall(size_t(nf), 0.0);
     std::vector<QPointF> ballPx(static_cast<size_t>(nf));

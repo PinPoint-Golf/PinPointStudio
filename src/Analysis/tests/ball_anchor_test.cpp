@@ -143,6 +143,46 @@ int main()
         check(near(m, 300.0, 1e-6), "null still ⇒ trailing collar frames before bs0 (300)");
     }
 
+    // ── medianGripBallLenPx: golf-prior plausibility gate ────────────────────
+    std::printf("=== medianGripBallLenPx: ankle/feet gate ===\n");
+    {
+        // Shared rig: whole-clip hold, grip (500,500), ankles at y=900 with
+        // x 430/570. Margins on the 1000 px frame: ankle 20 px, feet 100 px.
+        const int nf = 10;
+        std::vector<int64_t> tUs(nf);
+        std::vector<double> gx(nf, 500.0), gy(nf, 500.0);
+        std::vector<char> still(nf, 1);
+        for (int i = 0; i < nf; ++i) tUs[i] = int64_t(i) * 10000;
+        const std::vector<AnklePx> ankles(size_t(nf), AnklePx{430, 900, 570, 900, true});
+        auto makeBall = [&](double nx, double ny) {
+            BallTrack2D b;
+            for (int i = 0; i < nf; ++i) addBall(b, tUs[size_t(i)], nx, ny);
+            return b;
+        };
+        int reason = -9;
+
+        // consistent lock ABOVE the ankle line (the gateA-0704 driver-head
+        // failure: cluster-consistent, so only the prior can catch it)
+        const BallTrack2D high = makeBall(0.50, 0.85);       // y=850 ≤ 900−20
+        check(medianGripBallLenPx(high, gx, gy, tUs, W, H, nf, nf, &still, &ankles, &reason) < 0
+              && reason == 1, "consistent lock above the ankle line rejected (reason 1)");
+
+        // real ball below the ankles — accepted, reason cleared
+        const BallTrack2D low = makeBall(0.50, 0.95);        // y=950 > 880
+        const double m = medianGripBallLenPx(low, gx, gy, tUs, W, H, nf, nf, &still, &ankles, &reason);
+        check(near(m, 450.0, 1e-6) && reason == 0, "ball below the ankle line accepted (450, reason 0)");
+
+        // below the ankle line but outside the between-the-feet corridor
+        const BallTrack2D wide = makeBall(0.80, 0.95);       // x=800 > 570+100
+        check(medianGripBallLenPx(wide, gx, gy, tUs, W, H, nf, nf, &still, &ankles, &reason) < 0
+              && reason == 2, "lock outside the feet corridor rejected (reason 2)");
+
+        // no usable pose in the window ⇒ gate skipped, accepted as before
+        const std::vector<AnklePx> noPose(static_cast<size_t>(nf));   // all ok=false
+        const double m2 = medianGripBallLenPx(high, gx, gy, tUs, W, H, nf, nf, &still, &noPose, &reason);
+        check(near(m2, 350.0, 1e-6) && reason == 0, "no-pose window skips the gate (accepted)");
+    }
+
     // ── medianGripBallLenPx: shape / empty no-ops ────────────────────────────
     std::printf("=== medianGripBallLenPx: no-op contracts ===\n");
     {

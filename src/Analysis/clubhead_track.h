@@ -94,6 +94,36 @@ struct ClubheadConfig {
     double priorSigmaFrac    = 0.30;        // Gaussian prior σ = max(priorSigmaFrac·L_px, priorSigmaFloorPx)
     double priorSigmaFloorPx = 40.0;        // σ floor: a starved model must not crush the search onto its own error
     double offFactor         = 0.80;        // off tier: rayEdge < offFactor·L_hat ⇒ head expected outside frame
+    // Universal measurement-acceptance floor (design §4's own clause: r_meas ∈
+    // [0.5, 1.15]·L — the ceiling was ported first, this is the missing floor).
+    // Candidates below measFloorFrac·L̂ are not measurable on ANY frame, where
+    // L̂ = L_px when the ball measured it, else the caller's ladder length
+    // (headBounds' fallbackCeilPx). gateB-0705 failure mode: with no ball
+    // (L_px = −1) a MOVING early-backswing frame had no floor at all, so a
+    // short-radius on-ray counterfeit (retro-band edge / specular break at ~⅓
+    // club length) was measured and the KF converged on it — 70% high-conf-bad.
+    // Weaker (0.5) but universal, unlike the quasi-still/impact 0.8·L_px hard
+    // floor above. Honesty trade: genuine top-of-swing foreshortening below
+    // 0.5·L̂ becomes pred (honest) rather than meas — intended per the design's
+    // honesty philosophy.
+    double measFloorFrac     = 0.50;        // shaft.head.measFloorFrac
+    // Phase-ramped floor ceiling (corpus gateB iteration 2): face-on, the club
+    // stays near-FULL projected length at takeaway and again at impact —
+    // foreshortening develops toward the top. The WIRING ramps the acceptance-
+    // floor fraction floorRampHi → measFloorFrac linearly across [bs0, top] and
+    // mirrors it back up over (top, impact], passing the per-frame fraction via
+    // headBounds' floorFracOverride (this module stays phase-blind — it never
+    // sees bs0/top/impact). Kills the early-backswing short-locks: streak
+    // terminus at 0.5–0.96·L̂ while truth is near 1.0·L̂ (26/28 of the iter-2
+    // confident-bad labels sat in bs0+20..bs0+45).
+    double floorRampHi       = 0.80;        // shaft.head.floorRampHi
+    // Backswing streak confidence cap (applied in the WIRING, post-temporal):
+    // the FINAL emitted sample headConf is capped at this for frames in
+    // [bs0, top]. Corpus-proven systematic short-lock on motion-blur streaks in
+    // that phase; confident (≥0.5) head claims are reserved for the delivery
+    // phase where the metrics consume them. Tier/KF behaviour and the raw trace
+    // are unchanged — only the sample field is capped.
+    double streakConfCap     = 0.45;        // shaft.head.streakConfCap
 
     // ── arm-length plausibility floor ────────────────────────────────────────
     double armFactor  = 1.05;               // ARM_FACTOR — club is always longer than the lead arm
@@ -167,12 +197,27 @@ double hardFloorPx(double armFloor, double lPx, bool applies, const ClubheadConf
 //   rLo    = ctx.rMin (skip the hands).
 //   rHi    = min(rayEdge, annulusCeilFactor·L_px)  when L_px > 0,
 //            min(rayEdge, fallbackCeilPx)          when L_px ≤ 0 and fallbackCeilPx > 0
-//                                                  (the caller's pose-scale / frame-height ceiling),
+//                                                  (the caller's ladder length projLenPx,
+//                                                   doubling as the no-ball ceiling),
 //            rayEdge                               otherwise.
-//   rFloor = hardFloorPx(armFloor, L_px, floorApplies)  (−1 = no floor).
+//   rFloor = max(hardFloorPx(armFloor, L_px, floorApplies),      still/impact hard floor
+//                floorFrac·L̂)                                    UNIVERSAL acceptance floor,
+//            where L̂ = L_px when > 0, else fallbackCeilPx; −1 = no floor at all,
+//            and floorFrac = floorFracOverride when ≥ 0, else cfg.measFloorFrac.
+// floorFracOverride is the phase-ramp hook: the wiring passes the per-frame
+// ramped fraction (floorRampHi → measFloorFrac across the backswing, mirrored
+// through the downswing) while this module stays phase-blind; −1 (default)
+// reproduces the constant-fraction behaviour exactly.
+// The universal floor applies on EVERY frame (floorApplies gates only the strong
+// 0.8·L_px + arm floor). rFloor filters CANDIDATES inside measureHeadRadius, it
+// does not shrink the scan range — the scan still runs [rLo, rHi] so support
+// accumulates from the grip and a true terminus past a sub-floor counterfeit can
+// win; a frame whose only candidates sit below the floor yields no measurement
+// (NaN → pred/off downstream), never a blessed counterfeit.
 struct HeadBounds { double rLo = 0.0, rHi = 0.0, rFloor = -1.0; };
 HeadBounds headBounds(double rayEdge, double lPx, double fallbackCeilPx,
-                      double armFloor, bool floorApplies, const HeadSceneCtx &ctx);
+                      double armFloor, bool floorApplies, const HeadSceneCtx &ctx,
+                      double floorFracOverride = -1.0);
 
 // The Gaussian-prior centre passed to measureHeadRadius: L_px in quasi-still
 // frames, NaN otherwise / when L_px < 0. Moving frames run prior-free — the KF
