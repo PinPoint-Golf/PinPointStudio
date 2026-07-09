@@ -49,6 +49,28 @@ struct ShotAnalysisJob;
 
 namespace pinpoint::analysis {
 
+// Median grip→ball distance (px) over the ADDRESS HOLD PROPER — the swing's own
+// per-camera club-length measurement (design §9.4): golfer set, club behind the
+// ball, immediately before takeaway, where the straight grip→head shaft ends at
+// the ball so |B−G| IS the club length. The window is derived here, not passed:
+// the last contiguous quasi-still run of `still` (one char per coverage frame,
+// nonzero = quasi-still) that ends at or spans bs0, intersected with
+// [0, bs0+collar); null `still` / no such run near bs0 falls back to the
+// trailing `collar` frames before bs0. Earlier still periods are deliberately
+// excluded — teeing/setup is also quasi-still but with the hands AT the ball
+// (tiny |B−G|), and it poisoned the whole-pre-takeaway median 100+ px short on
+// the 2026-07-04 corpus. Mis-locks are rejected by a two-pass cluster gate
+// (component-wise median ball position over the window, then accept within
+// kMaxJumpNormPx of it) — order-independent, so a detector warm-up lock on the
+// first frames cannot veto every later good sample the way a first-accepted
+// chain gate can. Returns -1 with fewer than kMinLenSamples accepted samples.
+// Shared so decideTrack can measure L_px BEFORE head placement (A1) instead of
+// the old post-hoc path.
+double medianGripBallLenPx(const BallTrack2D &ball,
+                           const std::vector<double> &gx, const std::vector<double> &gy,
+                           const std::vector<int64_t> &tUs, int frameW, int frameH,
+                           int bs0, int collar, const std::vector<char> *still = nullptr);
+
 void applyBallAnchor(ShaftTrack2D &out, const BallTrack2D &ball,
                      const std::vector<double> &gx, const std::vector<double> &gy,
                      const std::vector<int64_t> &tUs, int frameW, int frameH,

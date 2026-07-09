@@ -535,6 +535,25 @@ Item {
                 return lo
             }
 
+            // Clamp grip→head to the content rect (Liang–Barsky, head-side exit
+            // only — grip is checked inside cr first, so the entry t is always 0).
+            // Returns the clamped [x,y], or null when grip itself is outside cr —
+            // an honest overlay never draws a segment anchored off-frame.
+            function _clampHeadToRect(gx, gy, hx, hy, cr) {
+                if (gx < cr.x || gx > cr.x + cr.width || gy < cr.y || gy > cr.y + cr.height)
+                    return null
+                var dx = hx - gx, dy = hy - gy
+                var tMax = 1
+                var p = [-dx, dx, -dy, dy]
+                var q = [gx - cr.x, cr.x + cr.width - gx, gy - cr.y, cr.y + cr.height - gy]
+                for (var i = 0; i < 4; ++i) {
+                    if (p[i] <= 0) continue    // parallel, or the entering half — grip is inside
+                    var r = q[i] / p[i]
+                    if (r < tMax) tMax = r
+                }
+                return [gx + dx * tMax, gy + dy * tMax]
+            }
+
             // Repaint as the playhead advances — from whichever surface drives it.
             Connections {
                 target: shotProcessor
@@ -584,14 +603,21 @@ Item {
                     root.paintBlueprint(ctx, cr, gx, gy, gs, 0.7)
                 }
 
-                // Club: fading head trail, then the current shaft line.
+                // Club: fading head trail, then the current shaft line. A
+                // projected head (ShaftHeadProjected, flags & 0x10) is an
+                // assumed-length guess, not a measurement — drawn dim, no dot;
+                // the trail only bridges two measured heads (no fabricated arcs).
                 var ci = _indexFor(_clubSamples, t)
                 if (ci >= 0) {
+                    var kHeadProjected = 0x10
                     ctx.strokeStyle = cAccent
                     ctx.lineCap     = "round"
                     var k0 = Math.max(0, ci - kTrail)
                     for (var k = k0; k < ci; ++k) {
-                        var h0 = _clubSamples[k].head, h1 = _clubSamples[k + 1].head
+                        var cs0 = _clubSamples[k], cs1 = _clubSamples[k + 1]
+                        if ((cs0.flags & kHeadProjected) || (cs1.flags & kHeadProjected))
+                            continue
+                        var h0 = cs0.head, h1 = cs1.head
                         ctx.globalAlpha = 0.45 * (k + 1 - k0) / (ci - k0 + 1)
                         ctx.lineWidth   = 2
                         ctx.beginPath()
@@ -599,19 +625,35 @@ Item {
                         ctx.lineTo(h1[0] * cr.width + cr.x, h1[1] * cr.height + cr.y)
                         ctx.stroke()
                     }
+                    // A projected head is dim + no dot (Phase A). A Stage-2 off-
+                    // frame head (flags & 0x80) is edge-clamped and always co-set
+                    // with 0x10, so it renders in the same projected-dim style —
+                    // no extra branch needed. A measured head (0x10 clear) shows
+                    // the solid line + a dot; when a Stage-2 headConf is present
+                    // (≥ 0) the dot alpha honours it (honest confidence).
                     var s  = _clubSamples[ci]
+                    var projected = (s.flags & kHeadProjected) !== 0
                     var gx = s.grip[0] * cr.width + cr.x, gy = s.grip[1] * cr.height + cr.y
                     var hx = s.head[0] * cr.width + cr.x, hy = s.head[1] * cr.height + cr.y
-                    ctx.globalAlpha = 0.35 + 0.5 * s.conf
-                    ctx.lineWidth   = 2
-                    ctx.beginPath()
-                    ctx.moveTo(gx, gy)
-                    ctx.lineTo(hx, hy)
-                    ctx.stroke()
-                    ctx.fillStyle = cAccent
-                    ctx.beginPath()
-                    ctx.arc(hx, hy, 4, 0, Math.PI * 2)
-                    ctx.fill()
+                    var hd = _clampHeadToRect(gx, gy, hx, hy, cr)
+                    if (hd) {
+                        ctx.strokeStyle = cAccent
+                        ctx.globalAlpha = (0.35 + 0.5 * s.conf) * (projected ? 0.5 : 1.0)
+                        ctx.lineWidth   = projected ? 1.5 : 2
+                        ctx.beginPath()
+                        ctx.moveTo(gx, gy)
+                        ctx.lineTo(hd[0], hd[1])
+                        ctx.stroke()
+                        if (!projected) {
+                            var hc = (s.headConf !== undefined && s.headConf >= 0)
+                                     ? Math.max(0.25, Math.min(1, s.headConf)) : 1.0
+                            ctx.fillStyle = cAccent
+                            ctx.globalAlpha = (0.35 + 0.5 * s.conf) * hc
+                            ctx.beginPath()
+                            ctx.arc(hd[0], hd[1], 4, 0, Math.PI * 2)
+                            ctx.fill()
+                        }
+                    }
                 }
 
                 // Ball: the detected circle at the current playhead — matches the

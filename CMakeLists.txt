@@ -2172,6 +2172,8 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/shaft_tracker_math.cpp
     src/Analysis/shaft_track_assembly.h
     src/Analysis/shaft_track_assembly.cpp
+    src/Analysis/clubhead_track.h
+    src/Analysis/clubhead_track.cpp
     src/Analysis/shaft_tracker.h
     src/Analysis/shaft_tracker.cpp
     src/Analysis/ball_anchor.h
@@ -2435,6 +2437,7 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/ball_anchor.cpp
         src/Analysis/shaft_tracker_math.cpp
         src/Analysis/shaft_track_assembly.cpp
+        src/Analysis/clubhead_track.cpp
         src/Export/frame_decode.cpp
         src/Export/swing_doc.cpp
         src/Export/swing_paths.cpp

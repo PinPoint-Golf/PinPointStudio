@@ -755,9 +755,12 @@ QJsonObject SwingExporter::captureBlock(const SwingExportJob& job)
         QJsonArray bands;
         for (double b : job.bandCentersMm) bands.append(b);
         cap[QStringLiteral("club")] = QJsonObject{
-            {QStringLiteral("lengthMm"),      job.clubLengthM * 1000.0},
-            {QStringLiteral("shaftType"),     job.shaftType},
-            {QStringLiteral("bandCentersMm"), bands},
+            {QStringLiteral("lengthMm"),        job.clubLengthM * 1000.0},
+            {QStringLiteral("shaftType"),       job.shaftType},
+            {QStringLiteral("bandCentersMm"),   bands},
+            // Additive (Phase A5): hosel offset from the butt, mm. 0 = unknown —
+            // absent on swings captured before this field existed.
+            {QStringLiteral("hoselFromButtMm"), job.hoselFromButtMm},
         };
     }
     return cap;

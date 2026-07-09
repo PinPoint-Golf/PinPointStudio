@@ -535,6 +535,7 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
         const double lmm = clubIn[QStringLiteral("lengthMm")].toDouble(0.0);
         if (lmm > 0.0) job.clubLengthM = lmm / 1000.0;
         job.shaftType = clubIn[QStringLiteral("shaftType")].toString();
+        job.hoselFromButtMm = clubIn[QStringLiteral("hoselFromButtMm")].toDouble(0.0);
         for (const QJsonValue& v : clubIn[QStringLiteral("bandCentersMm")].toArray())
             job.bandCentersMm.push_back(v.toDouble());
     }

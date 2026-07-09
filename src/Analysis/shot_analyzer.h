@@ -52,6 +52,7 @@ struct ShotAnalysisJob {
     // Filled on the UI thread in shot_processor buildAnalysisJob.
     std::vector<double> bandCentersMm;
     QString             shaftType;   // "steel" | "graphite" | "" (unknown)
+    double hoselFromButtMm = 0.0;  // hosel offset from the butt (mm), athlete club record; 0 = unknown
 
     // Resolved IMU -> anatomical-segment bindings (placement slot + the live
     // calibration A/M snapshot), filled on the UI thread — the worker cannot

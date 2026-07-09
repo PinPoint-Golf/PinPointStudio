@@ -27,6 +27,7 @@
 
 #include "shaft_tracker_math.h"    // RidgeConfig, BandMatchConfig, BandMatch
 #include "swing_analysis.h"        // ShaftTrack2D / ShaftSample2D / flags
+#include "clubhead_track.h"        // ClubheadConfig (Stage-2 head measurement)
 
 // Shaft-tracker v3.0-r1 DECIDING HALF — the physics/statistics that turn
 // per-frame evidence into one globally-consistent shaft-angle track. Faithful
@@ -128,9 +129,22 @@ struct ShaftV3Config {
     int     impHalf   = 12;          // impact-zone half-width (frames)
     // validity gate
     double  coverageMin = 0.60;      // meas fraction over the span ⇒ track.valid
+    // length-ladder pose-scale rung (A2, clubhead_length plan). When neither the
+    // ball nor a retro-band gives a measured club length, the still shoulder-mid→
+    // ankle-mid pixel extent is a stature surrogate: px/m = extent / (0.83 ×
+    // lenStatureM); projected length = px/m × (clubLengthM − lenGripDownM). The
+    // untaped default — no measured pixel scale exists otherwise.
+    double  lenStatureM  = 1.70;     // assumed golfer stature (m)
+    double  lenGripDownM = 0.13;     // grip-down-from-butt so the club starts at the hands, not the butt
     // evidence engine sub-configs
     RidgeConfig     ridge;
     BandMatchConfig band;
+    // Stage-2 measured-clubhead config (Phase B, clubhead_track.h). Defaults to
+    // enabled=false (dark at merge). NOTE: ShaftV3Config::fromOverrides (in
+    // shaft_track_assembly.cpp) does NOT populate this — the B3 wiring agent adds
+    // `head = ClubheadConfig::fromOverrides(ov);` there so "shaft.head.*" keys
+    // apply. Until then head keeps its validated-constant defaults.
+    ClubheadConfig  head;
 
     static ShaftV3Config fromOverrides(const QVariantMap& ov);
 };
@@ -262,6 +276,21 @@ struct ShaftDecideTrace {
     // consumed by the DP/phase model above (that relabel is deferred to the
     // v3.0-r1 corpus re-gate). -1 = no ball data / not computed.
     int                 ballTk0Frame = -1;
+    // A2 length ladder (clubhead_length plan): which rung set the projected
+    // grip→head length for coasted/predicted heads, and its final clamped px
+    // value. rung 1 ball-measured, 2 band-corrected, 3 pose-scale, 4 frame-
+    // height fallback; 0 = not computed. Head/length diagnostics only — never
+    // fed back into the θ path.
+    int                 projLenRung = 0;
+    double              projLenPx   = 0.0;
+    // Stage-2 measured-clubhead diagnostics (Phase B), per frame [0,nf). headTier
+    // = HeadTier (0 off / 1 pred / 2 meas); headR = the temporal-model radial
+    // estimate (px, NaN = none); headZ = the raw per-frame measured radius (px,
+    // NaN = no terminus). Empty unless cfg.head.enabled && sceneMed non-empty.
+    // headMs = head-pass wall-clock (ms, 0 = not run). SwingLab triage only.
+    std::vector<int>    headTier;
+    std::vector<double> headR, headZ;
+    double              headMs = 0.0;
 };
 
 // Map the hands-only phase model to an app Segmentation with real timestamps:
@@ -290,6 +319,21 @@ SwingSpanEstimate estimateSwingSpanUs(const std::vector<double>& gx, const std::
 // once per swing-span frame for evidence.
 using FrameSource = std::function<cv::Mat(int)>;
 
+// A2 length-ladder resolver — the projected grip→head length (px) for coasted/
+// predicted heads, picked from the first available scale source then clamped to
+// plausibility. Pure so the precedence + clamps are unit-testable without a
+// frame source. rung ∈ {1 ball-measured L_px, 2 band-corrected sTypical·(clubLenMm
+// −r0Med), 3 pose-scale surrogate, 4 0.45·frameH fallback}; the first with a
+// positive input wins. Clamps: floor = armFloorPx (1.05× still shoulder→grip —
+// a club is always longer than the lead arm, when armFloorPx>0); ceiling =
+// 1.1·measuredClubLenPx on rung 1 else 0.62·frameH (keeps a bad scale on-frame).
+// measuredClubLenPx ≤ 0 / sTypical ≤ 0 / poseExtentPx ≤ 0 mean "that source
+// absent". Never touches θ.
+double projectedClubLenPx(double measuredClubLenPx, double sTypical, double r0Med,
+                          double poseExtentPx, double armFloorPx,
+                          double clubLenMm, double frameH, const ShaftV3Config& cfg,
+                          int& rung);
+
 // The whole club_track_v3 decide pipeline over pre-derived per-frame inputs:
 // interpolate/smooth φ → hands-only phase model → C2 geometry → span-bounded
 // E1+E2 evidence → emission → banded Viterbi → ψ-reconcile → tiering. Vision-
@@ -297,6 +341,12 @@ using FrameSource = std::function<cv::Mat(int)>;
 // hold NaN; it is gap-filled here). impactFrame < 0 ⇒ derive it hands-only.
 // bandsMm empty ⇒ E1 disabled (ray-only). Sets out.samples/valid/coverage/
 // frameWidth/Height; the caller sets out.camera.
+//
+// `ball` (may be null; null == no ball data) is read ONLY to measure
+// out.measuredClubLenPx over the address window before head placement (A1) and
+// to seed rung 1 of the length ladder — it never enters segmentPhases/emission/
+// DP/reconcile, so θ is identical with or without it (the head/length half is
+// strictly decoupled from the corpus-validated θ path).
 ShaftTrack2D decideTrack(const FrameSource& frameAt,
                          const std::vector<int64_t>& tUs,
                          const std::vector<double>& gx, const std::vector<double>& gy,
@@ -305,6 +355,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt,
                          int frameW, int frameH, double fps,
                          const std::vector<double>& bandsMm, double clubLenMm,
                          int impactFrame, const ShaftV3Config& cfg,
-                         ShaftDecideTrace* trace = nullptr);
+                         ShaftDecideTrace* trace = nullptr,
+                         const BallTrack2D* ball = nullptr);
 
 } // namespace pinpoint::analysis

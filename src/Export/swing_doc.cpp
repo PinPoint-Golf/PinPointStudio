@@ -227,6 +227,11 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
                 { QStringLiteral("thetaDot"), s.thetaDotRadS },
                 { QStringLiteral("lenPx"), s.visibleLenPx },
                 { QStringLiteral("conf"),  double(s.conf) },
+                // Stage-2 head confidence + posterior σ (Phase B; −1 = head pass
+                // off). Absent in older files ⇒ reader defaults −1 (toVariantMap
+                // simply omits the key; consumers treat missing as −1).
+                { QStringLiteral("headConf"),  double(s.headConf) },
+                { QStringLiteral("headSigma"), double(s.headSigmaPx) },
                 { QStringLiteral("flags"), int(s.flags) } });
         // R7 dual output (additive): the pure-model predicted series + its
         // agreement with the prior-free vision measurement. Same normalized shape

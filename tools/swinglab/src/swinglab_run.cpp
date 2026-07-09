@@ -442,6 +442,8 @@ int main(int argc, char **argv)
         // v3.0-r1 per-emitted-frame diagnostics: DP θ, reconciled θ, ψ residual,
         // tier (0 pred/1 ray/2 band/3 recon), phase.
         static const char *kTierName[] = { "pred", "ray", "band", "recon" };
+        // Stage-2 head tiers (clubhead_track HeadTier): off/pred/meas.
+        static const char *kHeadTierName[] = { "off", "pred", "meas" };
         for (size_t i = 0; i < trace.frameIdx.size(); ++i) {
             const int f = trace.frameIdx[i];
             const double psi = (f < int(trace.recon.psiResid.size())) ? trace.recon.psiResid[f]
@@ -455,6 +457,17 @@ int main(int argc, char **argv)
                 { "conf", trace.conf[i] },
                 { "psi_err", std::isnan(psi) ? QJsonValue() : QJsonValue(psi) },
                 { "recon", f < int(trace.recon.recon.size()) ? bool(trace.recon.recon[size_t(f)]) : false } };
+            // Additive Phase-B head columns (guarded on the vectors being filled —
+            // empty unless the head pass ran). headR = temporal estimate (px),
+            // headZ = raw per-frame measured radius (px).
+            if (f < int(trace.headTier.size())) {
+                const int ht = trace.headTier[size_t(f)];
+                line.insert("head_tier", (ht >= 0 && ht < 3) ? kHeadTierName[ht] : "?");
+            }
+            if (f < int(trace.headR.size()) && std::isfinite(trace.headR[size_t(f)]))
+                line.insert("head_r", trace.headR[size_t(f)]);
+            if (f < int(trace.headZ.size()) && std::isfinite(trace.headZ[size_t(f)]))
+                line.insert("head_z", trace.headZ[size_t(f)]);
             tf.write(QJsonDocument(line).toJson(QJsonDocument::Compact) + "\n");
         }
         QJsonObject summary{
@@ -467,7 +480,13 @@ int main(int argc, char **argv)
                 // v3.4 (plan §5 gate): tk0 is compute-and-log only — never
                 // consumed by the phase model/DP above.
                 { "ballTk0Frame", trace.ballTk0Frame },
-                { "ballFrames", int(ball.frames.size()) } } },
+                { "ballFrames", int(ball.frames.size()) },
+                // Stage-2 head-pass wall-clock (ms; 0 = not run). Perf gate.
+                { "headMs", trace.headMs },
+                // Length-ladder diagnostics (Phase A): which rung supplied the
+                // projected grip→head length, and the px value it chose.
+                { "projLenRung", trace.projLenRung },
+                { "projLenPx", trace.projLenPx } } },
             { "poseFrames", int(pose.frames.size()) },
             { "segConf", seg.conf } };
         tf.write(QJsonDocument(summary).toJson(QJsonDocument::Compact) + "\n");

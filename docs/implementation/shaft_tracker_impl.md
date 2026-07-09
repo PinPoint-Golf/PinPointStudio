@@ -218,6 +218,29 @@ in-production health metric.
 >   IMU-predicted profile) was NOT built** — wedge σ and the coverage gate carry that risk
 >   for now; revisit in S5 if real face-on swings show θ corruption when the shaft points
 >   at the camera.
+> - **Phase A length ladder (2026-07-09, clubhead_length plan §A1–A3).** The projected-head
+>   length `L` for coasted/predicted frames no longer falls back to a flat `0.55·frameH`.
+>   `decideTrack(...)` now takes an optional `const BallTrack2D* ball` and, before head
+>   placement, measures `out.measuredClubLenPx` = median grip→ball px over the **address hold
+>   proper** — the last contiguous quasi-still run ending at/spanning `bs0`, clipped to
+>   `[0, bs0+collar)`; trailing-collar fallback without stillness info (`medianGripBallLenPx`,
+>   shared out of `ball_anchor`; the old post-hoc computation there is removed). The whole
+>   pre-takeaway window was tried first and measured teeing/setup (hands at the ball) 107–178 px
+>   short on the 2026-07-04 corpus. Mis-locks are rejected by an order-independent two-pass
+>   cluster gate (component-wise median ball position, accept within 6 px) — the chained
+>   first-accepted gate let one warm-up lock veto every later good sample — and the measurement
+>   abstains (−1) below 5 accepted samples. `projectedClubLenPx(...)` then
+>   picks `L` from the first available scale source — **rung 1** ball `L_px` · **rung 2** band
+>   scale grip-corrected `sTypical·(clubLenMm−r0Med)` (was the overshooting `sTypical·clubLenMm`)
+>   · **rung 3** pose-scale surrogate (still shoulder-mid→ankle-mid px ÷ `0.83·lenStatureM`,
+>   × `clubLengthM−lenGripDownM`) · **rung 4** `0.45·frameH` — then clamps: floor `1.05×` still
+>   shoulder→grip (arm floor), ceiling `1.1·L_px` (ball) else `0.62·frameH`. Chosen rung + px
+>   land in `ShaftDecideTrace.projLenRung/projLenPx`; new config `shaft.lenStatureM` (1.70) /
+>   `shaft.lenGripDownM` (0.13). **`applyBallAnchor` A3:** the address-hold and impact anchors
+>   now move `headPx` onto the ball and clear `ShaftHeadProjected` (the head *is* measured
+>   there), instead of leaving the stale projected terminus. **θ is untouched by all of this** —
+>   the ball feeds only length/head; a `decideTrack` regression test asserts θ is bit-identical
+>   with `ball=nullptr` vs a populated ball.
 > - Viterbi transition cost: deviation of Δθ from the IMU-predicted delta (slack 200 rad/s²)
 >   when calibrated, else the path's own velocity trend (slack 800 rad/s², extra ~20° on the
 >   first transition), plus a ΔL deviation term; node cost from per-frame-normalised scores

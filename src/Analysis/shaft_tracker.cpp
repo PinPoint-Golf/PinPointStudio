@@ -161,8 +161,12 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
     }
 
     const FrameSource frameAt = [&](int i) -> cv::Mat { return decodeGray(window, cov[i], *cfmt); };
+    // Pass the ball into decideTrack (A1) so out.measuredClubLenPx is measured
+    // before head placement and can drive the length ladder; null when empty
+    // (same emptiness notion as applyBallAnchor). θ is unaffected either way.
     out = decideTrack(frameAt, tUs, gx, gy, phiRaw, rawJoints, w, h, fps,
-                      job.bandCentersMm, job.clubLengthM * 1000.0, impf, cfg, trace);
+                      job.bandCentersMm, job.clubLengthM * 1000.0, impf, cfg, trace,
+                      ball.frames.empty() ? nullptr : &ball);
     out.camera = pose.camera;
 
     // v3.4 (design §9): additive post-hoc ball anchor — reads the frozen DP

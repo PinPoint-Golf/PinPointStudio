@@ -175,6 +175,10 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
                 { QStringLiteral("thetaDot"), s.thetaDotRadS },
                 { QStringLiteral("lenPx"), s.visibleLenPx },
                 { QStringLiteral("conf"),  double(s.conf) },
+                // Stage-2 head confidence + posterior σ (Phase B; −1 = head pass
+                // off) — the overlay scales the measured-head dot alpha by it.
+                { QStringLiteral("headConf"),  double(s.headConf) },
+                { QStringLiteral("headSigma"), double(s.headSigmaPx) },
                 { QStringLiteral("flags"), int(s.flags) } });
         // R7 predicted series (pure R6 model) for the ghost overlay — same
         // normalized shape as `samples`; σ_β recoverable from conf for the cone.
@@ -195,6 +199,11 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
                           { QStringLiteral("coverage"),      double(a.shaft.coverage) },
                           { QStringLiteral("imuVisionCorr"), double(a.shaft.imuVisionCorr) },
                           { QStringLiteral("modelVisionResidualDeg"), double(a.shaft.modelVisionResidualDeg) },
+                          // v3.4 (design §9.4): measured club length in px (grip-to-ball
+                          // at address) — mirrors the swing.json club block (swing_doc.cpp)
+                          // so the live/in-window detail path carries it too, not just the
+                          // disk-reload path. -1 = unmeasured (no ball anchor).
+                          { QStringLiteral("measuredClubLenPx"), double(a.shaft.measuredClubLenPx) },
                           { QStringLiteral("frameWidth"),    a.shaft.frameWidth },
                           { QStringLiteral("frameHeight"),   a.shaft.frameHeight },
                           { QStringLiteral("samples"),       samples },
@@ -556,6 +565,9 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
             const QVariantList bands = rec.value(QStringLiteral("bandCentersMm")).toList();
             for (const QVariant &bv : bands) job.bandCentersMm.push_back(bv.toDouble());
             job.shaftType = rec.value(QStringLiteral("shaftType")).toString();
+            const double hoselMm = rec.value(QStringLiteral("hoselFromButtMm")).toDouble();
+            if (hoselMm > 0)
+                job.hoselFromButtMm = hoselMm;
         }
     }
 
@@ -732,6 +744,8 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
             job.shaftType = rec.value(QStringLiteral("shaftType")).toString();
             const QVariantList bands = rec.value(QStringLiteral("bandCentersMm")).toList();
             for (const QVariant &bv : bands) job.bandCentersMm.push_back(bv.toDouble());
+            const double hoselMm = rec.value(QStringLiteral("hoselFromButtMm")).toDouble();
+            if (hoselMm > 0) job.hoselFromButtMm = hoselMm;
         }
     }
     job.imuBleLatencyUs      = ImuInstance::kImuBleLatencyUs;

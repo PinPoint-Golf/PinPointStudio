@@ -25,6 +25,9 @@
 #include "shaft_track_assembly.h"
 
 #include "analysis_tuning.h"       // pinpoint::analysis::tuning::apply
+#include "ball_anchor.h"           // medianGripBallLenPx (A1 — L_px before head placement)
+
+#include <QElapsedTimer>           // Stage-2 head-pass wall-clock (trace->headMs)
 
 #include <opencv2/imgproc.hpp>
 
@@ -39,6 +42,10 @@ namespace {
 
 constexpr double kPi = 3.14159265358979323846;
 constexpr double kInf = 1e9;
+// Anthropometric shoulder-mid→ankle-mid height as a fraction of stature — the
+// denominator of the pose-scale rung's px/m estimate (A2). Not sweepable: it is
+// a population constant, unlike lenStatureM/lenGripDownM which absorb the club.
+constexpr double kShoulderAnkleFrac = 0.83;
 
 inline double circWrap(double a) { return std::fmod(std::fmod(a + 180.0, 360.0) + 360.0, 360.0) - 180.0; }
 
@@ -187,6 +194,8 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.swSpd", c.swSpd);
     apply(ov, "shaft.impHalf", c.impHalf);
     apply(ov, "shaft.coverageMin", c.coverageMin);
+    apply(ov, "shaft.lenStatureM", c.lenStatureM);
+    apply(ov, "shaft.lenGripDownM", c.lenGripDownM);
     // evidence engines
     apply(ov, "shaft.rStep", c.ridge.rStep);
     apply(ov, "shaft.rHi", c.ridge.rHi);
@@ -194,6 +203,10 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.minLenPx", c.ridge.minLenPx);
     apply(ov, "shaft.satT", c.band.satT);
     apply(ov, "shaft.gripGate", c.band.gripGate);
+    // Stage-2 measured-clubhead (Phase B): "shaft.head.*" keys. Kept a separate
+    // sub-parse (clubhead_track.cpp) so the head parameter set travels with its
+    // module; still default enabled=false (dark at merge).
+    c.head = ClubheadConfig::fromOverrides(ov);
     return c;
 }
 
@@ -729,13 +742,38 @@ SwingSpanEstimate estimateSwingSpanUs(const std::vector<double>& gx, const std::
     return est;
 }
 
+double projectedClubLenPx(double measuredClubLenPx, double sTypical, double r0Med,
+                          double poseExtentPx, double armFloorPx,
+                          double clubLenMm, double frameH, const ShaftV3Config& cfg,
+                          int& rung)
+{
+    double L;
+    if (measuredClubLenPx > 0.0) {
+        L = measuredClubLenPx; rung = 1;                            // ball anchor's address measurement
+    } else if (sTypical > 0.0) {
+        L = sTypical * std::max(0.0, clubLenMm - r0Med); rung = 2;  // band scale, grip-corrected (grip→head, not butt→head)
+    } else if (poseExtentPx > 0.0) {
+        const double pxPerM = poseExtentPx / (kShoulderAnkleFrac * cfg.lenStatureM);
+        L = pxPerM * std::max(0.0, clubLenMm * 1e-3 - cfg.lenGripDownM); rung = 3;
+    } else {
+        L = 0.45 * frameH; rung = 4;                                // last-resort frame-height guess
+    }
+    // Floor then ceiling — a club is always longer than the lead arm, and a
+    // measured length caps its own projection; the ceiling is authoritative on
+    // conflict (trust the direct measurement / keep the drawn line on-frame).
+    if (armFloorPx > 0.0) L = std::max(L, armFloorPx);
+    const double ceil = (rung == 1) ? 1.1 * measuredClubLenPx : 0.62 * frameH;
+    return std::min(L, ceil);
+}
+
 ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>& tUs,
                          const std::vector<double>& gxIn, const std::vector<double>& gyIn,
                          const std::vector<double>& phiRawIn,
                          const std::vector<std::vector<cv::Point2d>>& rawJoints,
                          int frameW, int frameH, double fps,
                          const std::vector<double>& bandsMm, double clubLenMm,
-                         int impactFrame, const ShaftV3Config& cfg, ShaftDecideTrace* trace)
+                         int impactFrame, const ShaftV3Config& cfg, ShaftDecideTrace* trace,
+                         const BallTrack2D* ball)
 {
     ShaftTrack2D out;
     out.frameWidth = frameW; out.frameHeight = frameH;
@@ -799,6 +837,20 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     const int spanHi = cfg.spanBound ? std::min(nf - 1, pm.fin0 + finishCollar) : nf - 1;
     const double rmax = 0.62 * frameH;
 
+    // A1 (clubhead_length plan) — measure club length from the ball HERE, before
+    // head placement, so it can seed rung 1 of the length ladder below. The
+    // window is the address HOLD (last still run at bs0, derived inside from
+    // stat + bs0 + collar) — NOT the whole pre-takeaway period, whose teeing/
+    // setup still frames measured hands-at-ball and ran 107–178 px short on the
+    // 2026-07-04 corpus. Leaves -1 when too few admissible ball samples exist.
+    // Read-only wrt the θ path (applyBallAnchor no longer recomputes this — it
+    // only reads out.measuredClubLenPx now).
+    if (ball && !ball->frames.empty()) {
+        const double lpx = medianGripBallLenPx(*ball, gx, gy, tUs, frameW, frameH,
+                                               pm.bs0, addressCollar, &stat);
+        if (lpx > 0.0) out.measuredClubLenPx = float(lpx);
+    }
+
     std::vector<std::vector<float>> emis(nf, std::vector<float>(NS, float(cfg.wE2)));
     std::vector<std::vector<float>> EV(nf, std::vector<float>(NS, 0.f));
     std::vector<BandMatch> band(nf);
@@ -842,26 +894,59 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         rec.recon.assign(nf, 0);
     }
 
-    double sTypical = 0; { std::vector<double> ss; for (int i = 0; i < nf; ++i) if (bandOk[i]) ss.push_back(band[i].s);
-        if (!ss.empty()) { std::nth_element(ss.begin(), ss.begin() + ss.size() / 2, ss.end()); sTypical = ss[ss.size() / 2]; } }
-    const double projLenPx = sTypical > 0 ? sTypical * clubLenMm : 0.55 * frameH;
+    // A2 length ladder — the projected grip→head length for coasted/predicted
+    // heads. Band scale (rung 2) + the pose stature surrogate (rung 3) are
+    // medians over the still/banded frames; rung 1 is the ball's A1 measurement.
+    // Feeds ONLY the projected-head fallback below — the corpus-validated θ path
+    // (segmentPhases/emission/DP/reconcile above) is entirely upstream of this.
+    double sTypical = 0, r0Med = 0;
+    { std::vector<double> ss, rr;
+      for (int i = 0; i < nf; ++i) if (bandOk[i]) { ss.push_back(band[i].s); rr.push_back(band[i].r0); }
+      if (!ss.empty()) { std::nth_element(ss.begin(), ss.begin() + ss.size() / 2, ss.end()); sTypical = ss[ss.size() / 2]; }
+      if (!rr.empty()) { std::nth_element(rr.begin(), rr.begin() + rr.size() / 2, rr.end()); r0Med = rr[rr.size() / 2]; } }
+    // Pose-scale surrogate + arm floor over the still frames: shoulder-mid→ankle-
+    // mid extent (stature) and shoulder-mid→grip reach (arm). smoothed[i] joints
+    // are kBodyJoints order — 0/1 = L/R shoulders, 6/7 = L/R ankles.
+    // NB `armFloorMedPx` (not `armFloorPx`) — the clubhead module exports a free
+    // function armFloorPx(); the local must not shadow it (the head pass below
+    // calls the per-frame free function).
+    double poseExtentPx = 0, armFloorMedPx = 0;
+    { std::vector<double> ext, arm;
+      for (int i = 0; i < nf; ++i) {
+          if (!stat[i] || std::isnan(gx[i]) || smoothed[i].size() < 8) continue;
+          const cv::Point2d sh = 0.5 * (smoothed[i][0] + smoothed[i][1]);
+          const cv::Point2d an = 0.5 * (smoothed[i][6] + smoothed[i][7]);
+          const double e = std::hypot(sh.x - an.x, sh.y - an.y);
+          if (e > 1.0) ext.push_back(e);
+          arm.push_back(std::hypot(sh.x - gx[i], sh.y - gy[i]));
+      }
+      if (!ext.empty()) { std::nth_element(ext.begin(), ext.begin() + ext.size() / 2, ext.end()); poseExtentPx = ext[ext.size() / 2]; }
+      if (!arm.empty()) { std::nth_element(arm.begin(), arm.begin() + arm.size() / 2, arm.end()); armFloorMedPx = 1.05 * arm[arm.size() / 2]; } }
+    int projLenRung = 0;
+    const double projLenPx = projectedClubLenPx(out.measuredClubLenPx, sTypical, r0Med, poseExtentPx,
+                                                armFloorMedPx, clubLenMm, frameH, cfg, projLenRung);
+    if (trace) { trace->projLenRung = projLenRung; trace->projLenPx = projLenPx; }
 
     enum Tier { PRED = 0, RAY = 1, BAND = 2, RECON = 3 };
-    int spanFrames = 0, spanMeas = 0;
+
+    // ── PASS 1: tier decision, HOISTED out of the placement loop ─────────────
+    // Precompute the per-frame tier + confidence (Phase B needs s1IsMeas[i] = the
+    // stage-1 tier is a real vision measurement, before it can bless a head as
+    // meas). This is a PURE REFACTOR of the old fused loop: identical tier/conf
+    // for every frame — the placement loop below consumes the result. The head
+    // geometry that the old BAND branch computed inline is placement, so it moves
+    // to pass 2 (guarded on tierOf[i]==BAND). RECON's head-clearing is likewise a
+    // placement effect (pass 2 simply does not band-place a RECON frame).
+    std::vector<uint8_t> tierOf(static_cast<size_t>(nf), static_cast<uint8_t>(PRED));
+    std::vector<float>   confOf(static_cast<size_t>(nf), 0.f);
     for (int i = 0; i < nf; ++i) {
         if (std::isnan(gx[i])) continue;
         const int thi = dp.thstar[i];
         const double thDp = dp.thetaDeg[i];
         const double th = rec.thetaOut[i];
         int tier = PRED; float conf = 0.30f;
-        double headX = 0, headY = 0; bool hasHead = false; double visLen = 0;
         if (bandOk[i] && std::abs(circWrap(thDp - band[i].thetaDeg)) <= cfg.bandTol) {
             tier = BAND;
-            const double s = band[i].s, r0 = band[i].r0;
-            const double ux = std::cos(th * kPi / 180.0), uy = std::sin(th * kPi / 180.0);
-            const double bx = gx[i] - s * r0 * ux, by = gy[i] - s * r0 * uy;
-            headX = bx + s * clubLenMm * ux; headY = by + s * clubLenMm * uy; hasHead = true;
-            visLen = std::hypot(headX - gx[i], headY - gy[i]);
             conf = float(std::min(0.9, 0.75 + 0.05 * (band[i].n - 4)));
         // Addr-labelled frames are normally excluded from ray publication (a
         // static hold is the classic counterfeit trap) — EXCEPT inside the
@@ -878,19 +963,188 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
             const bool verifiable = (pm.phase[i] == SwingPhase::Finish) ? bandNear : (!stat[i] || bandNear);
             if (evs >= cfg.rayEvMin && evs > 1.15 * evrev && verifiable) { tier = RAY; conf = 0.55f; }
         }
-        if (rec.recon[i] && std::abs(circWrap(th - thDp)) > cfg.reconTol) { tier = RECON; conf = 0.40f; hasHead = false; visLen = 0; }
+        if (rec.recon[i] && std::abs(circWrap(th - thDp)) > cfg.reconTol) { tier = RECON; conf = 0.40f; }
+        tierOf[size_t(i)] = uint8_t(tier);
+        confOf[size_t(i)] = conf;
+    }
+
+    // ── Stage-2 measured clubhead (Phase B, dark behind cfg.head.enabled) ─────
+    // Runs AFTER reconcilePsi + the length ladder, BEFORE placement — everything
+    // it needs (decided θ/grip/tier, sceneMed, pm.top/impact, stat[], smoothed
+    // joints, L_px) is in scope here. It consumes decided results only and never
+    // feeds back into the DP/reconcile, so the stage-1 θ path is bit-identical
+    // with the head pass on or off (only headPx/flags/headConf differ). Empty
+    // headResults ⇒ head pass off ⇒ placement keeps the Phase-A projected path.
+    std::vector<HeadFrameResult> headResults;
+    if (cfg.head.enabled && !sceneMed.empty()) {
+        QElapsedTimer headTimer; headTimer.start();
+        const double kHNaN = std::numeric_limits<double>::quiet_NaN();
+        const int W = frameW, H = frameH;
+        const HeadSceneCtx hctx = makeHeadSceneCtx(sceneMed, W, H, cfg.head);
+        // 40 px annulus-bbox inflation covers the 3×3 Sobel kernel + the widest
+        // edge-pair lateral shift (blade width/2) + any lateral offset band.
+        const int roiInflate = 40 + int(std::ceil(cfg.head.latMaxPx));
+
+        HeadTemporalInput hin;
+        hin.z.assign(size_t(nf), kHNaN);   hin.zconf.assign(size_t(nf), 0.0);
+        hin.thetaDeg.assign(size_t(nf), kHNaN);
+        hin.s1IsMeas.assign(size_t(nf), 0); hin.flipSuspect.assign(size_t(nf), 0);
+        hin.rEdge.assign(size_t(nf), 0.0);
+        hin.lPx = (out.measuredClubLenPx > 0.f) ? double(out.measuredClubLenPx) : -1.0;
+        hin.dt  = (fps > 0.0) ? 1.0 / fps : 0.0;
+        hin.cfg = cfg.head;
+
+        // Second decode over the swing span (full-frame caching ~2 MB × N frames
+        // is not viable). prev32 = previous decoded frame; bg32 = running EMA
+        // background (deviation from the Python's fixed sample set — corpus-
+        // validate). Warm-start bg at spanLo so the first frame's change==0.
+        cv::Mat prev32, bg32;
+        for (int i = spanLo; i <= spanHi; ++i) {
+            cv::Mat g8 = frameAt(i);
+            if (g8.empty()) continue;                 // undecodable — prev/bg unchanged
+            cv::Mat g32; g8.convertTo(g32, CV_32F);
+            if (bg32.empty()) g32.copyTo(bg32);
+            else cv::addWeighted(g32, cfg.head.bgAlpha, bg32, 1.0 - cfg.head.bgAlpha, 0.0, bg32);
+            const cv::Mat prevUse = prev32.empty() ? g32 : prev32;
+
+            const double th = rec.thetaOut[i];
+            if (!std::isnan(gx[i]) && !std::isnan(th)) {
+                hin.thetaDeg[size_t(i)]  = th;
+                hin.s1IsMeas[size_t(i)]  = char(tierOf[size_t(i)] == RAY || tierOf[size_t(i)] == BAND);
+                const double rEdge = rayEdgeRadius(gx[i], gy[i], th, W, H);
+                hin.rEdge[size_t(i)] = rEdge;
+
+                // quasi-still (a pre-top hold) and the impact window drive the
+                // ball-length floors + Gaussian prior (B2).
+                const bool quasiStill   = stat[i] && i <= pm.top;
+                const bool floorApplies = quasiStill || std::abs(i - pm.impact) <= cfg.impHalf;
+                double armFloor = -1.0;
+                if (smoothed[i].size() >= 2)            // 0/1 = L/R shoulders
+                    armFloor = armFloorPx(smoothed[i][0], smoothed[i][1], gx[i], gy[i], quasiStill, cfg.head);
+                const HeadBounds b = headBounds(rEdge, hin.lPx, projLenPx, armFloor, floorApplies, hctx);
+                const double lPrior = headPrior(hin.lPx, quasiStill);
+
+                // ROI-bounded Sobel of the annulus grip+[rLo,rHi]·dir(θ), written
+                // into full-size zero Mats so measureHeadRadius's ray samples are
+                // valid inside the annulus (BORDER_CONSTANT=0 elsewhere is harm-
+                // less — the ray only reads inside the ROI). The main perf lever.
+                cv::Mat gxs(H, W, CV_32F, cv::Scalar(0)), gys(H, W, CV_32F, cv::Scalar(0));
+                const double cth = std::cos(th * kPi / 180.0), sth = std::sin(th * kPi / 180.0);
+                const double ax0 = gx[i] + b.rLo * cth, ay0 = gy[i] + b.rLo * sth;
+                const double ax1 = gx[i] + b.rHi * cth, ay1 = gy[i] + b.rHi * sth;
+                int rx0 = std::max(0,     int(std::floor(std::min(ax0, ax1))) - roiInflate);
+                int ry0 = std::max(0,     int(std::floor(std::min(ay0, ay1))) - roiInflate);
+                int rx1 = std::min(W - 1, int(std::ceil (std::max(ax0, ax1))) + roiInflate);
+                int ry1 = std::min(H - 1, int(std::ceil (std::max(ay0, ay1))) + roiInflate);
+                if (rx1 > rx0 && ry1 > ry0) {
+                    const cv::Rect roi(rx0, ry0, rx1 - rx0 + 1, ry1 - ry0 + 1);
+                    cv::Mat sgx, sgy;
+                    cv::Sobel(g32(roi), sgx, CV_32F, 1, 0, 3);
+                    cv::Sobel(g32(roi), sgy, CV_32F, 0, 1, 3);
+                    sgx.copyTo(gxs(roi)); sgy.copyTo(gys(roi));
+                }
+
+                const HeadMeasurement fwd = measureHeadRadius(g32, prevUse, bg32, gxs, gys, hctx,
+                                                              gx[i], gy[i], th, b.rLo, b.rHi, b.rFloor, lPrior);
+                if (std::isfinite(fwd.rPx)) {
+                    // 180°-flip suspicion: does the opposite ray decisively out-
+                    // support? Never CORRECT the ray (decoupling) — only refuse
+                    // the frame meas-tier blessing (fed as flipSuspect).
+                    const HeadMeasurement opp = measureHeadRadius(g32, prevUse, bg32, gxs, gys, hctx,
+                                                                  gx[i], gy[i], th + 180.0, b.rLo, b.rHi, b.rFloor, kHNaN);
+                    hin.flipSuspect[size_t(i)] = char(isFlipSuspect(fwd.conf, opp.conf, cfg.head));
+                }
+                hin.z[size_t(i)]     = fwd.rPx;
+                hin.zconf[size_t(i)] = fwd.conf;
+            }
+            g32.copyTo(prev32);
+        }
+
+        headResults = runHeadTemporal(hin);
+        if (trace) {
+            trace->headMs = double(headTimer.nsecsElapsed()) * 1e-6;
+            trace->headTier.assign(size_t(nf), int(HeadTier::Pred));
+            trace->headR.assign(size_t(nf), kHNaN);
+            trace->headZ.assign(size_t(nf), kHNaN);
+            for (int i = 0; i < nf && i < int(headResults.size()); ++i) {
+                trace->headTier[size_t(i)] = int(headResults[size_t(i)].tier);
+                trace->headR[size_t(i)]    = headResults[size_t(i)].rOut;
+                trace->headZ[size_t(i)]    = hin.z[size_t(i)];
+            }
+        }
+    }
+
+    // ── PASS 2: placement — build the samples from tierOf/confOf + headResults ─
+    int spanFrames = 0, spanMeas = 0;
+    for (int i = 0; i < nf; ++i) {
+        if (std::isnan(gx[i])) continue;
+        const int tier = int(tierOf[size_t(i)]);
+        const double th = rec.thetaOut[i];
+        const float conf = confOf[size_t(i)];
+        const double ux = std::cos(th * kPi / 180.0), uy = std::sin(th * kPi / 180.0);
 
         ShaftSample2D s;
         s.t_us = tUs[i];
         s.gripPx = QPointF(gx[i], gy[i]);
         s.thetaRad = th * kPi / 180.0;
         s.conf = conf;
-        if (hasHead) { s.headPx = QPointF(headX, headY); s.flags = ShaftMeasured; s.visibleLenPx = visLen; }
-        else {
-            const double ux = std::cos(th * kPi / 180.0), uy = std::sin(th * kPi / 180.0);
+
+        bool placed = false;
+        // BAND geometry is a DIRECT measurement of the head (butt-anchored via the
+        // retro-band centres) — the Stage-2 head pass must NOT overwrite it. We
+        // adjudicate Meas-vs-BAND by leaving BAND frames untouched below.
+        if (tier == BAND) {
+            const double sB = band[i].s, r0 = band[i].r0;
+            const double bx = gx[i] - sB * r0 * ux, by = gy[i] - sB * r0 * uy;
+            const double headX = bx + sB * clubLenMm * ux, headY = by + sB * clubLenMm * uy;
+            s.headPx = QPointF(headX, headY);
+            s.flags = ShaftMeasured;
+            s.visibleLenPx = std::hypot(headX - gx[i], headY - gy[i]);
+            placed = true;
+        }
+
+        // Stage-2 head result (empty headResults ⇒ Phase-A path; BAND already
+        // placed ⇒ skipped). rOut is on-axis so headPx = grip + rOut·dir(θ).
+        if (!placed && !headResults.empty()) {
+            const HeadFrameResult &hr = headResults[size_t(i)];
+            const float hSig = float(std::isfinite(hr.sigmaR) ? hr.sigmaR : -1.0);
+            if (hr.tier == HeadTier::Meas && std::isfinite(hr.rOut)) {
+                s.headPx = QPointF(gx[i] + hr.rOut * ux, gy[i] + hr.rOut * uy);
+                s.flags = ShaftMeasured;                       // measured head — NOT projected
+                s.visibleLenPx = hr.rOut;
+                s.headConf = hr.headConf; s.headSigmaPx = hSig;
+                placed = true;
+            } else if (hr.tier == HeadTier::Off) {
+                // head expected outside the frame — clamp to the ray/frame-edge
+                // point. This is NOT a head position: flag it so QML never dots it
+                // (0x80 rides on 0x10, so the projected-dim style already applies).
+                const double re = rayEdgeRadius(gx[i], gy[i], th, frameW, frameH);
+                s.headPx = QPointF(gx[i] + re * ux, gy[i] + re * uy);
+                s.flags = uint8_t((tier == RAY ? ShaftMeasured : ShaftCoasted)
+                                  | ShaftHeadProjected | ShaftHeadOffFrame);
+                s.visibleLenPx = re;
+                s.headConf = hr.headConf; s.headSigmaPx = hSig;
+                placed = true;
+            } else if (hr.tier == HeadTier::Pred && std::isfinite(hr.rOut)) {
+                // a radial estimate exists but stage-1 is pred (the ray is a
+                // kinematic guess the emitted head can't beat) — place at the
+                // smoothed rOut but KEEP ShaftHeadProjected (headConf ≤ reinitCap).
+                s.headPx = QPointF(gx[i] + hr.rOut * ux, gy[i] + hr.rOut * uy);
+                s.flags = uint8_t((tier == RAY ? ShaftMeasured : ShaftCoasted) | ShaftHeadProjected);
+                s.visibleLenPx = hr.rOut;
+                s.headConf = hr.headConf; s.headSigmaPx = hSig;
+                placed = true;
+            }
+            // Pred with NaN rOut falls through to the Phase-A projection below.
+        }
+
+        if (!placed) {
+            // Phase-A projected head (bit-identical to the pre-Phase-B path when
+            // the head pass is off).
             s.headPx = QPointF(gx[i] + projLenPx * ux, gy[i] + projLenPx * uy);
             s.flags = uint8_t((tier == RAY ? ShaftMeasured : ShaftCoasted) | ShaftHeadProjected);
         }
+
         out.samples.push_back(s);
         if (trace) { trace->frameIdx.push_back(i); trace->tier.push_back(tier);
                      trace->thetaDeg.push_back(th); trace->conf.push_back(conf); }

@@ -274,6 +274,8 @@ enum ShaftSampleFlags : uint8_t {
     ShaftHeadProjected     = 0x10,  // headPx projected from grip + L·dir(θ), not measured
     ShaftKinematicPredicted= 0x20,  // pure R6 kinematic-model sample (predicted series / fallback)
     ShaftBallAnchored      = 0x40,  // theta soft-anchored from the grip->ball line (v3.4 design §9)
+    ShaftHeadOffFrame      = 0x80,  // Stage-2 head expected off-frame — headPx is a ray/edge-clamped
+                                    // point (NOT a head position); always co-set with ShaftHeadProjected
 };
 
 struct ShaftSample2D {
@@ -285,6 +287,12 @@ struct ShaftSample2D {
     double  visibleLenPx = 0.0; // ridge extent (median/hold-filtered — θ is the precision channel)
     float   conf         = 0.f; // 0..1 from the smoothed θ posterior variance
     uint8_t flags        = 0;
+    // Stage-2 measured-clubhead (Phase B). headConf = the head's own confidence
+    // (0..1); headSigmaPx = its posterior σ_r (px, ≤ sigMeasMax ⇒ label-grade).
+    // Both −1 = the Stage-2 head pass did not run for this sample (metric gating
+    // treats −1 as "no measured head", distinct from a low-confidence one).
+    float   headConf     = -1.f;
+    float   headSigmaPx  = -1.f;
 };
 
 struct ShaftTrack2D {

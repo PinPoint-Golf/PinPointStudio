@@ -177,6 +177,7 @@ struct SwingExportJob {
     double  clubLengthM = 0.0;             // metres
     QString shaftType;                     // "steel" | "graphite" | ""
     std::vector<double> bandCentersMm;     // retro-band centres from the butt (mm)
+    double  hoselFromButtMm = 0.0;         // hosel offset from the butt (mm); 0 = unknown
 
     // UTC instant snapshotted on the UI thread right after the window was
     // captured — at that moment wallclock ~= monotonic endTimestampUs().

@@ -36,8 +36,9 @@ constexpr double kPi = 3.14159265358979323846;
 // under the ball.* namespace if corpus data says these need moving.
 constexpr double kTk0DepartDeg   = 25.0;   // theta-vs-theta_ball departure => tk0
 constexpr double kAgreeTolDeg    = 15.0;   // agreement tolerance vs an existing Measured sample
-constexpr double kMaxJumpNormPx  = 6.0;    // reject a found sample that jumped from the previous one (mis-lock)
+constexpr double kMaxJumpNormPx  = 6.0;    // mis-lock rejection radius: chain gate (θ loop) / cluster gate (length)
 constexpr float  kAnchorConf     = 0.5f;   // soft-anchor confidence (uncorrected — no delta lean-bias table yet)
+constexpr int    kMinLenSamples  = 5;      // accepted samples below which the length measurement abstains (-1)
 
 double angDiffDeg(double aRad, double bRad)
 {
@@ -65,6 +66,77 @@ const BallSample2D *nearestBallSample(const BallTrack2D &ball, int64_t tUs, int6
 
 } // namespace
 
+double medianGripBallLenPx(const BallTrack2D &ball,
+                           const std::vector<double> &gx, const std::vector<double> &gy,
+                           const std::vector<int64_t> &tUs, int frameW, int frameH,
+                           int bs0, int collar, const std::vector<char> *still)
+{
+    const int nf = int(tUs.size());
+    if (ball.frames.empty() || nf == 0 || gx.size() != size_t(nf) || gy.size() != size_t(nf))
+        return -1.0;   // no ball data / shapes don't line up — additive-only
+    const int64_t frameToleranceUs = nf > 1
+        ? std::max<int64_t>(1, (tUs.back() - tUs.front()) / int64_t(nf - 1)) * 2
+        : 200000;
+    bs0 = std::clamp(bs0, 0, nf);
+    collar = std::max(1, collar);
+
+    // Window = the address hold PROPER, not the whole pre-takeaway period.
+    // Teeing/setup earlier in the clip is also quasi-still but with the hands
+    // AT the ball (tiny |B−G|) and pulled the whole-window median 107–178 px
+    // short on the 2026-07-04 corpus. Seed on the last still frame within
+    // `collar` of bs0 (speed smoothing bleeds the run end a few frames early),
+    // take that frame's whole contiguous run, clip to [0, bs0+collar). No
+    // stillness info / no hold near bs0 ⇒ the trailing collar frames before
+    // takeaway (pre-bs0, so the grip is at its address position regardless).
+    int lo = -1, hi = -1;
+    if (still && int(still->size()) == nf) {
+        int seed = -1;
+        for (int j = std::min(bs0, nf - 1); j >= std::max(0, bs0 - collar) && seed < 0; --j)
+            if ((*still)[size_t(j)]) seed = j;
+        if (seed >= 0) {
+            int rLo = seed, rHi = seed;
+            while (rLo > 0 && (*still)[size_t(rLo - 1)]) --rLo;
+            while (rHi + 1 < nf && (*still)[size_t(rHi + 1)]) ++rHi;
+            lo = rLo;
+            hi = std::min({rHi + 1, bs0 + collar, nf});
+        }
+    }
+    if (lo < 0) { lo = std::max(0, bs0 - collar); hi = std::min(bs0, nf); }
+    if (hi <= lo) return -1.0;
+
+    // Pass 1 — component-wise median ball position over ALL found samples in
+    // the window. The ball is stationary here by construction, so the true
+    // samples form one tight cluster and the median lands inside it however
+    // many detector warm-up mis-locks precede them. (A chained first-accepted
+    // gate is order-DEPENDENT: one early mis-lock rejects every later good
+    // sample — observed on the 2026-07-04 corpus.)
+    std::vector<double> bxs, bys;
+    for (int i = lo; i < hi; ++i) {
+        const BallSample2D *s = nearestBallSample(ball, tUs[size_t(i)], frameToleranceUs);
+        if (!s || !s->found) continue;
+        bxs.push_back(s->center.x() * frameW);
+        bys.push_back(s->center.y() * frameH);
+    }
+    if (int(bxs.size()) < kMinLenSamples) return -1.0;
+    const auto median = [](std::vector<double> &v) {
+        std::nth_element(v.begin(), v.begin() + v.size() / 2, v.end());
+        return v[v.size() / 2];
+    };
+    const double medX = median(bxs), medY = median(bys);
+
+    // Pass 2 — accept only samples inside the cluster; median |B−G| over them.
+    std::vector<double> lenSamples;
+    for (int i = lo; i < hi; ++i) {
+        const BallSample2D *s = nearestBallSample(ball, tUs[size_t(i)], frameToleranceUs);
+        if (!s || !s->found) continue;
+        const double bx = s->center.x() * frameW, by = s->center.y() * frameH;
+        if (std::hypot(bx - medX, by - medY) > kMaxJumpNormPx) continue;   // off-cluster — mis-lock
+        lenSamples.push_back(std::hypot(bx - gx[size_t(i)], by - gy[size_t(i)]));
+    }
+    if (int(lenSamples.size()) < kMinLenSamples) return -1.0;
+    return median(lenSamples);
+}
+
 void applyBallAnchor(ShaftTrack2D &out, const BallTrack2D &ball,
                      const std::vector<double> &gx, const std::vector<double> &gy,
                      const std::vector<int64_t> &tUs, int frameW, int frameH,
@@ -83,6 +155,13 @@ void applyBallAnchor(ShaftTrack2D &out, const BallTrack2D &ball,
     // jumped a long way from the last accepted one is treated as a mis-lock,
     // not a moved ball (the ball is stationary by construction at this stage
     // — design §9.7's "constant plus one step").
+    //
+    // Known asymmetry vs medianGripBallLenPx: the length measurement moved to
+    // an order-independent two-pass cluster gate (a warm-up mis-lock here can
+    // chain-reject every later good sample), but this θ loop deliberately keeps
+    // the sequential gate for now — θ anchoring is per-frame (no single robust
+    // statistic to gate against) and its departure/abstain logic downstream is
+    // corpus-validated as-is. Revisit if warm-up locks show up in tk0.
     std::vector<bool>    haveBall(size_t(nf), false);
     std::vector<double>  thetaBall(size_t(nf), 0.0);
     std::vector<QPointF> ballPx(static_cast<size_t>(nf));
@@ -150,7 +229,10 @@ void applyBallAnchor(ShaftTrack2D &out, const BallTrack2D &ball,
     // these frames reachable at all). Gated on agreement wherever a real
     // measurement DOES already exist; on disagreement, abstain (touch
     // nothing) rather than override it.
-    std::vector<double> lenSamples;
+    // out.measuredClubLenPx (design §9.4) is now measured inside decideTrack
+    // BEFORE head placement (A1 — medianGripBallLenPx over the address HOLD,
+    // the last still run at bs0), so it can drive the length ladder; this
+    // pass no longer recomputes it.
     const int addressEnd = tk0 >= 0 ? tk0 : nf;   // tk0 defaults to bs0 above; -1 only when bs0 itself is unset
     if (tk0 >= 0) {
         for (int i = 0; i < addressEnd; ++i) {
@@ -158,31 +240,25 @@ void applyBallAnchor(ShaftTrack2D &out, const BallTrack2D &ball,
             ShaftSample2D &sm = out.samples[size_t(i)];
             const bool measured = (sm.flags & ShaftMeasured) != 0;
             if (measured) {
-                // Corroborate only — never overwrite a real measurement.
-                // Disagreement (> tolerance) is an honesty signal: abstain,
-                // i.e. do nothing further to this sample.
+                // Corroborate only — never overwrite a real measurement (leave
+                // its head untouched). Disagreement (> tolerance) is an honesty
+                // signal: abstain, i.e. do nothing further to this sample.
                 if (angDiffDeg(sm.thetaRad, thetaBall[size_t(i)]) <= kAgreeTolDeg)
                     sm.flags |= ShaftBallAnchored;
                 continue;
             }
+            // A3 — at address the head IS the ball (a measurement, not a
+            // projection): move headPx onto it, record the real visible length,
+            // and clear ShaftHeadProjected so the overlay stops drawing the
+            // stale projected terminus on the old θ.
             sm.thetaRad = thetaBall[size_t(i)];
             sm.gripPx   = QPointF(gx[size_t(i)], gy[size_t(i)]);
+            sm.headPx   = ballPx[size_t(i)];
+            sm.visibleLenPx = std::hypot(ballPx[size_t(i)].x() - gx[size_t(i)],
+                                         ballPx[size_t(i)].y() - gy[size_t(i)]);
             sm.conf     = std::max(sm.conf, kAnchorConf);
-            sm.flags   |= ShaftBallAnchored;
+            sm.flags    = uint8_t((sm.flags & ~ShaftHeadProjected) | ShaftBallAnchored);
         }
-    }
-
-    // ── Measured club length (design §9.4) — grip-to-ball distance, from the
-    // ball's own found samples across the address hold (the shaft is a
-    // straight line grip->head and, at address, head ~= ball).
-    for (int i = 0; i < addressEnd; ++i) {
-        if (!haveBall[size_t(i)]) continue;
-        const QPointF &b = ballPx[size_t(i)];
-        lenSamples.push_back(std::hypot(b.x() - gx[size_t(i)], b.y() - gy[size_t(i)]));
-    }
-    if (!lenSamples.empty()) {
-        std::nth_element(lenSamples.begin(), lenSamples.begin() + lenSamples.size() / 2, lenSamples.end());
-        out.measuredClubLenPx = float(lenSamples[lenSamples.size() / 2]);
     }
 
     // ── Exploit 3 (design §9.3) — impact anchor. Last pre-launch frame: if
@@ -200,8 +276,12 @@ void applyBallAnchor(ShaftTrack2D &out, const BallTrack2D &ball,
                 const double bx = ball.launchCenter.x() * frameW, by = ball.launchCenter.y() * frameH;
                 sm.thetaRad = std::atan2(by - gy[size_t(fImp)], bx - gx[size_t(fImp)]);
                 sm.gripPx   = QPointF(gx[size_t(fImp)], gy[size_t(fImp)]);
+                // A3 — head is at the ball at impact too; same measured-head
+                // treatment as the address block above.
+                sm.headPx   = QPointF(bx, by);
+                sm.visibleLenPx = std::hypot(bx - gx[size_t(fImp)], by - gy[size_t(fImp)]);
                 sm.conf     = std::max(sm.conf, kAnchorConf);
-                sm.flags   |= ShaftBallAnchored;
+                sm.flags    = uint8_t((sm.flags & ~ShaftHeadProjected) | ShaftBallAnchored);
             }
         }
     }

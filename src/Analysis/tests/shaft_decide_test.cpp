@@ -9,6 +9,8 @@
 
 #include "../shaft_track_assembly.h"
 
+#include <opencv2/imgproc.hpp>   // cv::line/circle for the Phase-B synthetic frames
+
 #include <cmath>
 #include <cstdio>
 #include <vector>
@@ -169,6 +171,171 @@ int main()
         // degenerate (conf 0) still returns bounds but no swing claim
         const Segmentation deg = phasesToSegmentation(pm, tUs, 0.0f);
         check(deg.conf == 0.0f, "conf 0 passthrough (no swing)");
+    }
+
+    // ── A2 length ladder: rung precedence + clamps (projectedClubLenPx) ───────
+    std::printf("=== projectedClubLenPx ===\n");
+    {
+        const double frameH = 1000.0, clubLenMm = 1120.0;
+        int rung = 0;
+        // rung 1 — ball measurement wins over every lower source
+        double L = projectedClubLenPx(/*meas=*/400, /*sTypical=*/0.5, /*r0Med=*/100,
+                                      /*poseExtent=*/705.5, /*armFloor=*/0, clubLenMm, frameH, cfg, rung);
+        check(rung == 1 && near(L, 400, 1e-6), "rung 1 = ball L_px (400)");
+        // rung 2 — band scale, grip-corrected: 0.5·(1120−100) = 510
+        L = projectedClubLenPx(-1, 0.5, 100, 705.5, 0, clubLenMm, frameH, cfg, rung);
+        check(rung == 2 && near(L, 510, 1e-6), "rung 2 = sTypical·(clubLenMm−r0Med) (510)");
+        // rung 3 — pose scale: 705.5/(0.83·1.70)=500 px/m; 500·(1.12−0.13)=495
+        L = projectedClubLenPx(-1, 0, 0, 705.5, 0, clubLenMm, frameH, cfg, rung);
+        check(rung == 3 && near(L, 495, 0.5), "rung 3 = pose-scale surrogate (495)");
+        // rung 4 — frame-height fallback: 0.45·1000
+        L = projectedClubLenPx(-1, 0, 0, 0, 0, clubLenMm, frameH, cfg, rung);
+        check(rung == 4 && near(L, 450, 1e-6), "rung 4 = 0.45·frameH (450)");
+        // arm floor raises a short fallback length
+        L = projectedClubLenPx(-1, 0, 0, 0, /*armFloor=*/600, clubLenMm, frameH, cfg, rung);
+        check(rung == 4 && near(L, 600, 1e-6), "arm floor lifts the length (600)");
+        // fallback ceiling caps a runaway band scale at 0.62·frameH = 620
+        L = projectedClubLenPx(-1, 2.0, 0, 0, 0, clubLenMm, frameH, cfg, rung);
+        check(rung == 2 && near(L, 620, 1e-6), "fallback ceiling caps at 0.62·frameH (620)");
+        // ball ceiling (1.1·L_px) is authoritative even over a longer arm floor
+        L = projectedClubLenPx(400, 0, 0, 0, /*armFloor=*/1000, clubLenMm, frameH, cfg, rung);
+        check(rung == 1 && near(L, 440, 1e-6), "ball ceiling 1.1·L_px wins over the floor (440)");
+    }
+
+    // ── θ invariance: the ball only changes head/length, never θ ─────────────
+    std::printf("=== decideTrack θ invariance vs ball ===\n");
+    {
+        const int nf = 60;
+        const int W = 1000, H = 1000;
+        const double fps = 100.0;
+        std::vector<int64_t> tUs(nf);
+        std::vector<double> gx(nf), gy(nf), phiRaw(nf, 90.0);
+        std::vector<std::vector<cv::Point2d>> joints(nf, std::vector<cv::Point2d>(8));
+        double x = 500, y = 600;
+        for (int f = 0; f < nf; ++f) {
+            tUs[f] = int64_t(f) * 10000;
+            // long still address hold (0..39) so staticRuns clears stillMin=25
+            // even after speed-smoothing bleed near the takeaway.
+            if (f >= 40 && f < 53)      { x -= 4; y -= 9; }   // backswing (speed ≈ 9.8 > swSpd)
+            else if (f >= 53 && f < 60) { x += 4; y += 9; }   // downswing
+            gx[f] = x; gy[f] = y;
+            joints[f] = {{450, 300}, {550, 300}, {460, 600}, {540, 600},
+                         {465, 750}, {535, 750}, {470, 900}, {530, 900}};  // sh/hip/knee/ankle
+        }
+        // ball fixed below the grip; still-hold grip→ball ≈ 200 px
+        BallTrack2D ball;
+        for (int f = 0; f < nf; ++f) {
+            BallSample2D b; b.t_us = tUs[f]; b.found = true;
+            b.center = QPointF(0.50, 0.80); b.radiusNorm = 0.02f; b.conf = 1.f;
+            ball.frames.push_back(b);
+        }
+        const FrameSource noFrames = [](int) -> cv::Mat { return cv::Mat(); };
+
+        const ShaftTrack2D a = decideTrack(noFrames, tUs, gx, gy, phiRaw, joints, W, H, fps,
+                                           /*bandsMm=*/{}, /*clubLenMm=*/1120.0, /*impactFrame=*/-1,
+                                           cfg, nullptr, /*ball=*/nullptr);
+        const ShaftTrack2D b = decideTrack(noFrames, tUs, gx, gy, phiRaw, joints, W, H, fps,
+                                           {}, 1120.0, -1, cfg, nullptr, &ball);
+
+        bool sameCount = a.samples.size() == b.samples.size() && !a.samples.empty();
+        bool thetaIdentical = sameCount;
+        bool headDiffers = false;
+        for (size_t i = 0; sameCount && i < a.samples.size(); ++i) {
+            if (a.samples[i].thetaRad != b.samples[i].thetaRad) thetaIdentical = false;
+            if (a.samples[i].headPx != b.samples[i].headPx) headDiffers = true;
+        }
+        check(sameCount, "same sample count with/without ball");
+        check(thetaIdentical, "θ bit-identical with/without ball");
+        check(a.measuredClubLenPx < 0 && near(b.measuredClubLenPx, 200.0, 2.0),
+              "ball populates measuredClubLenPx (~200 px); null leaves −1");
+        check(headDiffers, "projected head length changed (length ladder used the ball)");
+    }
+
+    // ── Phase B: tier hoist is a pure refactor + head pass never perturbs θ ──
+    std::printf("=== decideTrack head pass (Phase B) ===\n");
+    {
+        const int nf = 60, W = 480, H = 480;
+        const double fps = 100.0;
+        std::vector<int64_t> tUs(nf);
+        std::vector<double> gx(nf), gy(nf), phiRaw(nf, 90.0);
+        std::vector<std::vector<cv::Point2d>> joints(nf, std::vector<cv::Point2d>(8));
+        double x = 240, y = 150;
+        for (int f = 0; f < nf; ++f) {
+            tUs[f] = int64_t(f) * 10000;
+            // long still address hold (0..39) so staticRuns clears stillMin=25,
+            // then a short backswing/downswing (grip speed ≈ 6.7 > swSpd).
+            if (f >= 40 && f < 53)      { x -= 3; y += 6; }
+            else if (f >= 53 && f < 60) { x += 3; y -= 6; }
+            gx[f] = x; gy[f] = y;
+            joints[f] = {{210, 90}, {270, 90}, {215, 200}, {265, 200},
+                         {218, 300}, {262, 300}, {220, 380}, {260, 380}};  // sh/hip/knee/ankle
+        }
+        // ball fixed below the grip so still-hold grip→ball ≈ 196 px is measurable
+        BallTrack2D ball;
+        for (int f = 0; f < nf; ++f) {
+            BallSample2D b; b.t_us = tUs[f]; b.found = true;
+            b.center = QPointF(0.50, 0.72); b.radiusNorm = 0.02f; b.conf = 1.f;
+            ball.frames.push_back(b);
+        }
+        // Deterministic synthetic frames: mid-grey with a downward club line from
+        // the grip + a ball blob, so sceneMed is non-empty (else the head pass
+        // no-ops) and the pass does real Sobel/measure work. Measurement QUALITY
+        // is irrelevant — the invariants below hold regardless.
+        const FrameSource render = [&](int f) -> cv::Mat {
+            if (f < 0 || f >= nf) return cv::Mat();
+            cv::Mat img(H, W, CV_8UC1, cv::Scalar(30));
+            const cv::Point g(int(gx[f]), int(gy[f]));
+            cv::line(img, g, cv::Point(g.x, std::min(H - 1, g.y + 150)), cv::Scalar(220), 3);
+            cv::circle(img, cv::Point(int(0.50 * W), int(0.72 * H)), 7, cv::Scalar(240), -1);
+            return img;
+        };
+
+        ShaftV3Config cfgOff = cfg;                       // head.enabled = false (default)
+        ShaftV3Config cfgOn  = cfg; cfgOn.head.enabled = true;
+        ShaftDecideTrace trOff, trOn;
+        const ShaftTrack2D a = decideTrack(render, tUs, gx, gy, phiRaw, joints, W, H, fps,
+                                           {}, 1120.0, -1, cfgOff, &trOff, &ball);
+        const ShaftTrack2D b = decideTrack(render, tUs, gx, gy, phiRaw, joints, W, H, fps,
+                                           {}, 1120.0, -1, cfgOn,  &trOn,  &ball);
+
+        // (b) θ bit-identical head off vs on, on every sample — the head pass
+        // must never perturb the stage-1 θ path.
+        bool sameCount = a.samples.size() == b.samples.size() && !a.samples.empty();
+        bool thetaIdentical = sameCount;
+        for (size_t i = 0; sameCount && i < a.samples.size(); ++i)
+            if (a.samples[i].thetaRad != b.samples[i].thetaRad) thetaIdentical = false;
+        check(sameCount, "same sample count head off/on");
+        check(thetaIdentical, "θ bit-identical head off/on");
+
+        // (a) the tier hoist is a pure refactor: tier/conf/θ trace identical off
+        // vs on (the head pass reads tierOf[], never rewrites it).
+        bool traceMatch = trOff.tier.size() == trOn.tier.size()
+                       && trOff.conf.size() == trOn.conf.size()
+                       && trOff.thetaDeg.size() == trOn.thetaDeg.size() && !trOff.tier.empty();
+        for (size_t i = 0; traceMatch && i < trOff.tier.size(); ++i) {
+            if (trOff.tier[i]     != trOn.tier[i])     traceMatch = false;
+            if (trOff.conf[i]     != trOn.conf[i])     traceMatch = false;
+            if (trOff.thetaDeg[i] != trOn.thetaDeg[i]) traceMatch = false;
+        }
+        check(traceMatch, "tier/conf/θ trace identical head off/on (pure hoist)");
+
+        // (b) headMs + head trace populated only when enabled.
+        check(trOff.headMs == 0.0 && trOff.headTier.empty(), "head trace empty when disabled");
+        check(trOn.headMs > 0.0 && trOn.headTier.size() == size_t(nf),
+              "headMs + headTier populated when enabled");
+
+        // (c) the off-frame flag is only ever set when headPx lies on the frame
+        // boundary (edge-clamped, not a head) and always co-set with 0x10.
+        bool offInvariant = true;
+        for (const ShaftSample2D &sm : b.samples) {
+            if (!(sm.flags & ShaftHeadOffFrame)) continue;
+            const double hx = sm.headPx.x(), hy = sm.headPx.y();
+            const double dEdge = std::min(std::min(std::abs(hx), std::abs(hx - (W - 1))),
+                                          std::min(std::abs(hy), std::abs(hy - (H - 1))));
+            if (dEdge > 0.5) offInvariant = false;
+            if (!(sm.flags & ShaftHeadProjected)) offInvariant = false;
+        }
+        check(offInvariant, "off-frame flag ⇒ headPx on the frame boundary + projected");
     }
 
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);
