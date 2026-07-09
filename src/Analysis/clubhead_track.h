@@ -62,10 +62,11 @@ namespace pinpoint::analysis {
 
 // The full Stage-2 parameter set. Every field defaults to the validated exemplar
 // constant; fromOverrides() applies "shaft.head.<name>" keys from a tuning map
-// (SwingLab sweeps). `enabled` is DEFAULT OFF — Phase B merges dark; the flip to
-// on is its own commit after the corpus gates pass.
+// (SwingLab sweeps). `enabled` defaulted ON 2026-07-09 after the dense-corpus
+// gates passed (honesty 9/10 swings ≤5% high-conf-bad, meas-tier median ≤2.4px,
+// θ bit-identical head-on/off, head pass 6–15% of the shaft stage).
 struct ClubheadConfig {
-    bool   enabled = false;                 // shaft.head.enabled — master gate (dark at merge)
+    bool   enabled = true;                  // shaft.head.enabled — master gate
 
     // ── H1 per-frame measurement (clubhead_measure.py) ───────────────────────
     double hitThr        = 0.30;            // HIT_THR  — per-sample evidence threshold
