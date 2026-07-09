@@ -332,6 +332,17 @@ ApplicationWindow {
         }
     }
 
+    // Live pose inference follows the Capture view's Pose overlay toggle: off means
+    // the estimator stops (CPU saved), not just a hidden overlay. livePoseEnabled
+    // drives the live rig, which is only used in Capture, so it tracks the CAPTURE
+    // mode's setting regardless of the current mode. Sole writer (the old
+    // Cameras-panel toggle was removed) — one-way, no two-writer conflict.
+    Binding {
+        target:   cameraManager
+        property: "livePoseEnabled"
+        value:    ViewLayout.overlaysOn(SessionMode.capture)
+    }
+
     // Named StackLayout/navController indices — keep in sync with screenNames
     // and the ScreenXxx order in contentStack below. Session screens sit at
     // sessionType + 1 (see SessionController::Type).

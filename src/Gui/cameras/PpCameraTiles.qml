@@ -106,6 +106,9 @@ Item {
                 showHittingAreaHint: cameraManager.livePoseEnabled && sessionController.running
                 // Live ball circle rides the same live-pose gate as the ROI hint.
                 showBallOverlay: cameraManager.livePoseEnabled && sessionController.running
+                // Capture-mode ¼× post-shot auto-replay overlay follows the view's
+                // Pose overlay toggle (Capture setting == current mode here).
+                showReplayOverlay: ViewLayout.overlaysOn(SessionMode.mode)
             }
         }
 
@@ -128,6 +131,9 @@ Item {
                 showPoseOverlay: false        // live-pose canvas — replay uses replayOverlay
                 showStatsOverlay: false
                 showPerspectiveBadge: false
+                // Analyzed pose+shaft+ball overlay follows the view's Pose overlay
+                // toggle — covers both Replay and Analyse (this Repeater serves both).
+                showReplayOverlay: ViewLayout.overlaysOn(SessionMode.mode)
                 // Telestrator is an Analyse-only affordance (not plain Replay).
                 annotationsEnabled: SessionMode.mode === SessionMode.analyse
             }

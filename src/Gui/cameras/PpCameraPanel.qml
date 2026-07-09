@@ -153,37 +153,9 @@ Item {
         }
         Rectangle { width: parent.width; height: 1; color: Theme.colorBorder }
 
-        // All-cameras live pose-estimation toggle. Session-wide: gates pose
-        // inference itself (not just the overlay) on every connected camera.
-        Item {
-            width: parent.width; height: Theme.sp(44)
-            RowLayout {
-                anchors { fill: parent; leftMargin: Theme.sp(15); rightMargin: Theme.sp(15) }
-                spacing: Theme.sp(11)
-                Column {
-                    Layout.fillWidth: true; spacing: Theme.sp(2)
-                    Text {
-                        text: qsTr("Live pose detection")
-                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                        color: Theme.colorText
-                    }
-                    Text {
-                        text: qsTr("all cameras")
-                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                        font.letterSpacing: Theme.trackingData; color: Theme.colorText3
-                    }
-                }
-                TogglePill {
-                    Layout.alignment: Qt.AlignVCenter
-                    checked: cameraManager.livePoseEnabled
-                    onToggled: (v) => cameraManager.livePoseEnabled = v
-                }
-            }
-            Rectangle {
-                anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
-                height: 1; color: Theme.colorBorder
-            }
-        }
+        // Overlay control (pose skeleton / shaft / ball) now lives per-view in the
+        // View menu — see PpViewPanel's OVERLAYS section. This panel is device
+        // management only (Scan / Connect / Calibrate + camera rows).
 
         Repeater {
             model: cameraManager.cameraList

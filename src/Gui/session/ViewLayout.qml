@@ -41,17 +41,19 @@ QtObject {
     id: vl
 
     // mode → sensible default layout (used until the user edits a mode's layout).
+    // overlays: the analysis overlay (pose skeleton + club shaft + ball) drawn on
+    // the camera panel — on by default in every mode.
     function defaultLayout(mode) {
         switch (mode) {
             case SessionMode.replay:
-                return { panels: ["camera", "charts", "timeline", "carousel"], arrangement: "split" }
+                return { panels: ["camera", "charts", "timeline", "carousel"], arrangement: "split", overlays: true }
             case SessionMode.analyse:
                 // Analyse plays the loaded shot's video (same disk source as Replay)
                 // alongside the deeper-analysis panels — camera included so playback
                 // follows the Replay↔Analyse toggle.
-                return { panels: ["camera", "charts", "table", "timeline", "carousel"], arrangement: "split" }
+                return { panels: ["camera", "charts", "table", "timeline", "carousel"], arrangement: "split", overlays: true }
             default: // capture
-                return { panels: ["camera", "carousel"], arrangement: "stage" }
+                return { panels: ["camera", "carousel"], arrangement: "stage", overlays: true }
         }
     }
 
@@ -75,6 +77,12 @@ QtObject {
         return _layout(mode).arrangement || "split"
     }
 
+    // Analysis-overlay visibility for a mode (pose skeleton + club shaft + ball).
+    function overlaysOn(mode) {
+        var l = _layout(mode)
+        return l.overlays !== undefined ? l.overlays : true
+    }
+
     // ── mutation (write) ────────────────────────────────────────────────────
     function setPanel(mode, key, on) {
         var keys = enabledKeysFor(mode).slice()
@@ -88,9 +96,18 @@ QtObject {
         _write(mode, enabledKeysFor(mode).slice(), name)
     }
 
-    function _write(mode, panels, arrangement) {
+    function setOverlays(mode, on) {
+        _write(mode, enabledKeysFor(mode).slice(), arrangementFor(mode), on)
+    }
+
+    // overlays is optional — omitted by setPanel/setArrangement, so preserve the
+    // mode's current value (default true) rather than dropping it on those edits.
+    function _write(mode, panels, arrangement, overlays) {
         var m = _clone(appSettings.viewLayoutByMode)
-        m[_key(mode)] = { panels: panels, arrangement: arrangement }
+        var cur = m[_key(mode)]
+        var ov = (overlays !== undefined) ? overlays
+               : (cur && cur.overlays !== undefined) ? cur.overlays : true
+        m[_key(mode)] = { panels: panels, arrangement: arrangement, overlays: ov }
         appSettings.viewLayoutByMode = m
     }
 
