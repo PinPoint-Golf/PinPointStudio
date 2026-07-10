@@ -382,15 +382,27 @@ void CameraInstance::setupPipeline()
             const qint64 baseTUs = launchFrameTUs >= 0 ? launchFrameTUs
                                                        : pinpoint::EventBuffer::nowMicros();
             const qint64 estImpactUs = baseTUs - launchAgeUs;
-            // v3.4 (design §9.3): stash the launch position the detector already
-            // computed — previously discarded here. CameraManager::ballLaunched
-            // and the shot-arbiter path only ever needed the timestamp, so that
-            // signal/signature is unchanged; the position feeds the offline
-            // ball-anchor pass via ballLaunchInfo().
-            m_ballLaunchTUs = estImpactUs;
-            m_ballLaunchX   = double(x);
-            m_ballLaunchY   = double(y);
-            emit ballLaunched(estImpactUs, 0.6f);
+            // First launch of a striking sequence wins: the struck ball can
+            // bounce back through the ROI, re-lock, and fire a second launch
+            // within the postroll (observed 0.53 s after impact, 2026-07-10
+            // sw_0005 — it overwrote the real launch before the window-freeze
+            // snapshot). Two genuine shots are never < 2 s apart (arbiter
+            // refractory 1.5 s + the processing pipeline), so a launch that
+            // close to the previous one is the same strike — keep the first.
+            const bool relaunch = m_ballLaunchTUs >= 0
+                               && estImpactUs - m_ballLaunchTUs < 2'000'000;
+            if (!relaunch) {
+                // v3.4 (design §9.3): stash the launch position the detector
+                // already computed — previously discarded here.
+                // CameraManager::ballLaunched and the shot-arbiter path only
+                // ever needed the timestamp, so that signal/signature is
+                // unchanged; the position feeds the offline ball-anchor pass
+                // via ballLaunchInfo().
+                m_ballLaunchTUs = estImpactUs;
+                m_ballLaunchX   = double(x);
+                m_ballLaunchY   = double(y);
+                emit ballLaunched(estImpactUs, 0.6f);
+            }
         }, Qt::QueuedConnection);
         // Wire BOTH completion signals to BOTH throttle paths (mirrors the
         // pose estimator above): a camera feeds exactly one path, so only
