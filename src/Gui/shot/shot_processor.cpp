@@ -402,13 +402,20 @@ void ShotProcessor::captureWindowAndLaunch()
         // run 12–37 s later (from onAnalysisFinished), by when the live deque has
         // scrolled to post-shot junk and a phantom re-launch may have overwritten
         // the launch. At this instant the 6 s accumulator still fully covers the
-        // 5 s window. Absolute buffer-clock tUs kept — builders rebase per-window.
+        // 5 s window. Absolute buffer-clock tUs kept (the analyzer consumes the
+        // window's native domain; the exporter rebases).
         const auto &ballAccum = ctrl->ballSamples();
         track.ball.samples.reserve(ballAccum.size());
         for (const auto &s : ballAccum)
             track.ball.samples.push_back({s.tUs, s.found, s.x, s.y, s.r, s.conf});
+        // CameraInstance's stored launch is never reset between shots, so when
+        // the detector misses THIS shot's launch the stored one belongs to a
+        // previous swing (observed: Wrist_02 sw4/5 exported sw3's launch).
+        // Accept it only when it falls inside this window.
         qint64 lTUs = -1; double lx = 0.0, ly = 0.0;
-        if (ctrl->ballLaunchInfo(lTUs, lx, ly)) {
+        if (ctrl->ballLaunchInfo(lTUs, lx, ly)
+            && lTUs >= m_swingWindow->startTimestampUs()
+            && lTUs <= m_swingWindow->endTimestampUs()) {
             track.ball.hasLaunch = true;
             track.ball.launchTUs = lTUs;
             track.ball.launchX   = lx;
