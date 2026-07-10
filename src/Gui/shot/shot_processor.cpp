@@ -529,11 +529,13 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
     // enabled mid-swing and the accumulator is still short).
     // Read from the per-track snapshot frozen at window capture (ReplayTrack::
     // ball) — NOT live controller state, which by now records post-shot
-    // accumulation, not the swing. Snapshot samples carry absolute buffer-clock
-    // tUs (EventBuffer::nowMicros()); the analyzer works swing-window-relative,
-    // so rebase against the window start here, mirroring the swing.json
-    // exporter's SwingBallStream rebase below.
-    const int64_t ballT0 = m_swingWindow->startTimestampUs();
+    // accumulation, not the swing. Time base: the analyzer consumes everything
+    // in the WINDOW'S NATIVE domain — live SwingWindow entries and job.impactUs
+    // (line above) are absolute buffer-clock, so the ball samples must stay
+    // absolute too (ShaftTracker matches them against entry timestamps; the
+    // offline loader passes window-relative ball + window-relative entries, the
+    // same contract). swing_doc's rel() normalizes on export either way. Do NOT
+    // rebase here — a relative track against absolute entries matches nothing.
     for (int pass = 0; pass < 2 && job.ballTrack.frames.empty(); ++pass) {
         for (const ReplayTrack &track : m_replayTracks) {
             if (pass == 0 && track.ctrl->perspective() != CameraInstance::FaceOn)
@@ -544,9 +546,9 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
             bt.camera = track.sourceId;
             bt.frames.reserve(samples.size());
             for (const auto &s : samples)
-                bt.frames.push_back({s.tUs - ballT0, s.found, QPointF(s.x, s.y), s.r, s.conf});
+                bt.frames.push_back({s.tUs, s.found, QPointF(s.x, s.y), s.r, s.conf});
             if (track.ball.hasLaunch) {
-                bt.launchTUs    = track.ball.launchTUs - ballT0;
+                bt.launchTUs    = track.ball.launchTUs;
                 bt.launchCenter = QPointF(track.ball.launchX, track.ball.launchY);
             }
             job.ballTrack = std::move(bt);
