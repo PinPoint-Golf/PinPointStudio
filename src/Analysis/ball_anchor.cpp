@@ -69,6 +69,29 @@ const BallSample2D *nearestBallSample(const BallTrack2D &ball, int64_t tUs, int6
     return nullptr;
 }
 
+// Frame↔ball matching tolerance: half the coarser of the two cadences, with
+// margin. Offline (BallRunner) emits one sample per frame, so the 2×frame-
+// interval term dominates and behavior is unchanged. The LIVE accumulator is
+// throttle-gated (~35–45 Hz against ~150 fps frames), where 2×frame-interval
+// sits exactly at the worst-case distance to the nearest sample and cadence
+// jitter drops matches; ¾ of the ball track's own median spacing keeps every
+// frame matchable with 50% headroom.
+int64_t ballMatchToleranceUs(const BallTrack2D &ball, const std::vector<int64_t> &tUs)
+{
+    const int nf = int(tUs.size());
+    const int64_t frameTol = nf > 1
+        ? std::max<int64_t>(1, (tUs.back() - tUs.front()) / int64_t(nf - 1)) * 2
+        : 200000;
+    if (ball.frames.size() < 2) return frameTol;
+    std::vector<int64_t> dts;
+    dts.reserve(ball.frames.size() - 1);
+    for (size_t i = 1; i < ball.frames.size(); ++i)
+        dts.push_back(ball.frames[i].t_us - ball.frames[i - 1].t_us);
+    std::nth_element(dts.begin(), dts.begin() + dts.size() / 2, dts.end());
+    const int64_t ballDt = std::max<int64_t>(1, dts[dts.size() / 2]);
+    return std::max(frameTol, (3 * ballDt) / 4);
+}
+
 } // namespace
 
 double medianGripBallLenPx(const BallTrack2D &ball,
@@ -81,9 +104,7 @@ double medianGripBallLenPx(const BallTrack2D &ball,
     const int nf = int(tUs.size());
     if (ball.frames.empty() || nf == 0 || gx.size() != size_t(nf) || gy.size() != size_t(nf))
         return -1.0;   // no ball data / shapes don't line up — additive-only
-    const int64_t frameToleranceUs = nf > 1
-        ? std::max<int64_t>(1, (tUs.back() - tUs.front()) / int64_t(nf - 1)) * 2
-        : 200000;
+    const int64_t frameToleranceUs = ballMatchToleranceUs(ball, tUs);
     bs0 = std::clamp(bs0, 0, nf);
     collar = std::max(1, collar);
 
@@ -184,9 +205,7 @@ void applyBallAnchor(ShaftTrack2D &out, const BallTrack2D &ball,
         return;   // no ball data, or shapes don't line up — additive-only, no-op
 
     const int nf = int(out.samples.size());
-    const int64_t frameToleranceUs = nf > 1
-        ? std::max<int64_t>(1, (tUs.back() - tUs.front()) / int64_t(nf - 1)) * 2
-        : 200000;
+    const int64_t frameToleranceUs = ballMatchToleranceUs(ball, tUs);
 
     // Per-frame theta_ball(f) = atan2(B - G) wherever a stable ball sample is
     // available near this coverage frame (design §9.1). A "found" sample that

@@ -61,6 +61,25 @@ int main()
         check(near(m, 100.0, 1e-6), "median grip→ball distance = 100 px");
     }
 
+    // ── medianGripBallLenPx: sparse live cadence ─────────────────────────────
+    // The LIVE accumulator is throttle-gated (~40 Hz) against ~150 fps coverage
+    // frames: worst-case distance to the nearest ball sample (~12.5 ms) exceeds
+    // a bare 2×frame-interval tolerance (~13.3 ms) once cadence jitters. The
+    // tolerance must widen to the ball track's own spacing so every hold frame
+    // still matches. (Regression: the 2026-07-10 cabin session's live anchor.)
+    std::printf("=== medianGripBallLenPx: sparse (throttled) ball cadence ===\n");
+    {
+        const int nf = 150;                                  // 1 s of 150 fps frames
+        std::vector<int64_t> tUs(nf);
+        std::vector<double> gx(nf, 300.0), gy(nf, 200.0);
+        std::vector<char> still(nf, 1);
+        for (int i = 0; i < nf; ++i) tUs[i] = int64_t(i) * 6667;
+        BallTrack2D ball;                                    // 40 Hz, offset 3 ms
+        for (int64_t t = 3000; t < 1000000; t += 25000) addBall(ball, t, 0.30, 0.30);
+        const double m = medianGripBallLenPx(ball, gx, gy, tUs, W, H, /*bs0=*/nf, /*collar=*/5, &still);
+        check(near(m, 100.0, 1e-6), "40 Hz ball track still measures against 150 fps frames");
+    }
+
     // ── medianGripBallLenPx: teeing scenario (window = late hold only) ───────
     std::printf("=== medianGripBallLenPx: teeing vs address hold ===\n");
     {
