@@ -47,7 +47,11 @@ int main()
         std::vector<LengthCandidate> cs = {cand(LengthSource::Ball, 380.0),
                                            cand(LengthSource::Band, 390.0),
                                            cand(LengthSource::Head, 500.0)};   // ~30% high
-        const LengthFused f = fuseClubLength(cs, 400.0, 0.0, frameH, 0, cfg);
+        // Pin the rejection threshold: this tests the LOO mechanism, not the
+        // shipped default (the P6 re-fit widened outlierFrac past this fixture).
+        LengthFusionConfig oc = cfg;
+        oc.outlierFrac = 0.15;
+        const LengthFused f = fuseClubLength(cs, 400.0, 0.0, frameH, 0, oc);
         check(f.nUsed == 2, "outlier dropped (2 instantaneous survive)");
         check(approx(f.fusedPx, 385.0, 0.05 * 385.0), "fused within 5% of the good pair (~385)");
         check(f.fusedPx < 400.0, "not dragged toward the 500 outlier");
@@ -204,7 +208,8 @@ int main()
         check(approx(c.sigFracBall, 0.02, 1e-12), "fusion.sigFracBall overridden");
         check(approx(c.ladderConfMin, 0.5, 1e-12), "fusion.ladderConfMin overridden");
         check(c.headMinMeas == 8, "fusion.headMinMeas overridden");
-        check(approx(c.sigFracBand, 0.06, 1e-12), "untouched key keeps its default");
+        check(approx(c.sigFracBand, LengthFusionConfig{}.sigFracBand, 1e-12),
+              "untouched key keeps its default");
     }
 
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);

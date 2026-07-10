@@ -67,22 +67,30 @@ struct LengthCandidate {
 };
 
 // All fusion constants are "fusion.<name>" dotted-key tunables (SwingLab sweeps).
-// The sigFrac* starting fractions and spread0 are re-fit empirically from the
-// fresh Phase-6 corpus — these are the validated-STARTING defaults, not frozen.
+// The sigFrac*/outlierFrac/spread0 defaults were re-fit empirically on the P6
+// corpus (corpus-0710-fusion: 11 swings, one club/camera/athlete — runs
+// p6-conv{,-refit,-refit2}): E-band and E-head read 25–30% SHORT of E-ball
+// there (sTypical's median spans foreshortened mid-swing band locks), so their
+// σ carries that bias and outlierFrac/spread0 are wide enough that the biased
+// minority can neither vote out the honest ball (leave-one-out did exactly
+// that at 0.15 — sw03 fused 244.6 px at conf 0.84) nor zero the confidence.
+// Single-corpus fits (standing rule): re-validate on the next multi-club
+// corpus; the real fix for the band bias — restricting sTypical to address-
+// hold frames — is escalated, not tuned around.
 struct LengthFusionConfig {
     bool   enabled          = true;   // master gate; false ⇒ caller keeps today's ladder byte-identical
 
     // per-source measurement σ = max(sigFrac·value, sigFloorPx)
-    double sigFracBall      = 0.04;   // ball @address is the tightest instantaneous source
-    double sigFracBand      = 0.06;   // band scale — grip-correction noise
-    double sigFracHead      = 0.10;   // measured-head p95 — foreshortening / streak noise
+    double sigFracBall      = 0.07;   // ball @address — tightest instant source, deweighted vs a matured prior (P6: raw ball spread ±8% ⇒ fused ±2.6%)
+    double sigFracBand      = 0.30;   // band scale — P6 RMS deviation vs ball ≈ 0.29 (foreshortening bias, see header note)
+    double sigFracHead      = 0.30;   // measured-head p95 — P6 RMS deviation vs ball ≈ 0.31
     double sigFloorPx       = 4.0;    // σ floor (px) — a starved estimate must not crush the fuse
 
     // leave-one-out outlier rejection (only when ≥ 3 survivors)
-    double outlierFrac      = 0.15;   // relative deviation from the median-of-others above which a candidate is dropped
+    double outlierFrac      = 0.50;   // relative deviation from the median-of-others above which a candidate is dropped
 
     // confidence: conf = confAgree · confSupport
-    double spread0          = 0.10;   // confAgree = exp(−(relSpread/spread0)²); relSpread = (max−min)/fused
+    double spread0          = 0.45;   // confAgree = exp(−(relSpread/spread0)²); relSpread = (max−min)/fused
     double confBase         = 0.35;   // confSupport = min(1, confBase + confPerInstant·kInstant + confPriorWeight·min(priorN, priorNCap))
     double confPerInstant   = 0.25;   //   kInstant = #surviving instantaneous (non-prior) estimators
     double confPriorWeight  = 0.10;
