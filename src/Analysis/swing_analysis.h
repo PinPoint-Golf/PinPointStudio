@@ -315,6 +315,30 @@ struct ShaftSample2D {
     float   headSigmaPx  = -1.f;
 };
 
+// Multi-estimator club-length fusion result (club_length_fusion.h), recorded per
+// swing on ShaftTrack2D. All px are grip→head at the FIXED face-on camera scale;
+// <0 ⇒ absent / abstained. `fused*` include the persistent prior; `fusedInstant*`
+// are PRIOR-FREE (they alone update the prior — no self-reinforcement). `ladder*`
+// are the values the tracker ACTUALLY used (rung 0 = pre-pass fused). Head/length
+// product only — never touches θ. Default-constructed = "no fusion recorded".
+struct ClubLengthEstimate {
+    double ballPx           = -1.0;  // E-ball   grip→ball @address
+    double bandPx           = -1.0;  // E-band   band scale × (clubLenMm − r0)
+    double headPx           = -1.0;  // E-head   p95 post-top Stage-2 Meas rOut (excl. pinned-at-bound)
+    double posePx           = -1.0;  // E-pose   rung-3 stature surrogate (sanity bound only, never fused)
+    double priorPx          = -1.0;  // E-prior  persistent EMA (joins when priorN ≥ 2)
+    double fusedPx          = -1.0;  // inverse-variance posterior (WITH prior) — the recorded length
+    double fusedSigmaPx     = -1.0;  // posterior σ, χ²-disagreement inflated
+    double fusedConf        = 0.0;   // confAgree · confSupport ∈ [0, 1]
+    double fusedInstantPx   = -1.0;  // PRIOR-FREE fusion — the only input to the prior update
+    double fusedInstantConf = 0.0;
+    int    ladderRung       = 0;     // rung the tracker used (0 = pre-pass fused, else 1..4)
+    double ladderLenPx      = 0.0;   // projLenPx the tracker actually used
+    int    nEstimators      = 0;     // surviving instantaneous estimators in the recorded fuse
+    int    priorN           = 0;     // prior support that entered the recorded fuse
+    int    headMeasN        = 0;     // # post-top Meas frames that fed E-head
+};
+
 struct ShaftTrack2D {
     pinpoint::SourceId camera = pinpoint::kInvalidSourceId;
     bool  valid = false;        // coverage gate over the swing span (all-or-nothing for consumers)
@@ -336,6 +360,10 @@ struct ShaftTrack2D {
     // Measured club length in px, grip-to-ball at address (v3.4 design §9.4) — a scale floor for
     // implausibly-short shafts. -1.f = unmeasured (no ball anchor available for this swing).
     float measuredClubLenPx = -1.f;
+    // Multi-estimator club-length fusion (club_length_fusion.h): the fused length,
+    // its confidence, and every component estimator. Default = no fusion recorded
+    // (all absent) — set by decideTrack's post-pass when cfg.fusion.enabled.
+    ClubLengthEstimate lengths;
 };
 
 // The IMU→segment binding as persisted in swing.json (keyed by the device

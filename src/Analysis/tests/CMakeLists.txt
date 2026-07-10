@@ -197,6 +197,12 @@ pp_add_test(clubhead_temporal_test
     LINK    ${OpenCV_LIBS}
     COMPILE_OPTIONS -O2)
 
+# Multi-estimator club-length fusion + persistent prior (club_length_fusion.h):
+# inverse-variance fuse, leave-one-out outlier rejection, confidence, sanity
+# clipping, EMA convergence, kσ gate + reset, determinism. Header-only, Qt only
+# (QVariantMap for fromOverrides) — no OpenCV, no fixture.
+pp_add_test(club_length_fusion_test SOURCES club_length_fusion_test.cpp)
+
 # Stage A true-onset segmentation (swing_span_bounding_plan.md §4/§7.1): the bs0
 # walk-back (A1 speed + A2 φ), the impact clamp (A3), the swLow=0 legacy path,
 # and the estimateSwingSpanUs Stage B helper — synthetic grip tracks, no fixture.
