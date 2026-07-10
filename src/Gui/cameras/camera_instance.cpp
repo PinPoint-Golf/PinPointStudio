@@ -371,14 +371,17 @@ void CameraInstance::setupPipeline()
                 this, &CameraInstance::onBallDetected, Qt::QueuedConnection);
         connect(m_ballDetector, &BallDetector::baselineReady,
                 this, &CameraInstance::onBallBaselineReady, Qt::QueuedConnection);
-        // Struck-ball launch → shot-arbiter candidate. Stamp the detector's launch
-        // AGE onto the EventBuffer clock here (this instance owns that clock);
-        // approximate for now — precise frame timestamps are a later refinement.
-        // conf 0.6 sits below the arbiter's 0.8 lone-candidate self-commit floor,
-        // so a spurious vision launch can only corroborate, never commit alone.
+        // Struck-ball launch → shot-arbiter candidate. The detector reports the
+        // triggering frame's capture time (buffer clock) and the impact age before
+        // it, so true impact = launchFrameTUs − launchAgeUs; fall back to now only
+        // for a defensive frame time of -1. conf 0.6 sits below the arbiter's 0.8
+        // lone-candidate self-commit floor, so a spurious vision launch can only
+        // corroborate, never commit alone.
         connect(m_ballDetector, &BallDetector::ballLaunched, this,
-                [this](qint64 launchAgeUs, float x, float y) {
-            const qint64 estImpactUs = pinpoint::EventBuffer::nowMicros() - launchAgeUs;
+                [this](qint64 launchFrameTUs, qint64 launchAgeUs, float x, float y) {
+            const qint64 baseTUs = launchFrameTUs >= 0 ? launchFrameTUs
+                                                       : pinpoint::EventBuffer::nowMicros();
+            const qint64 estImpactUs = baseTUs - launchAgeUs;
             // v3.4 (design §9.3): stash the launch position the detector already
             // computed — previously discarded here. CameraManager::ballLaunched
             // and the shot-arbiter path only ever needed the timestamp, so that
@@ -583,6 +586,12 @@ void CameraInstance::connectVideoInput()
             this, [this, hwCrop](const QVideoFrame &frame) {
                 m_frameCaptureCount.fetch_add(1, std::memory_order_relaxed);
 
+                // One capture-clock reading for this frame, sampled before any
+                // crop/publish/queue work — shared by the ring entry AND the
+                // pose/ball throttle so both land on the buffer clock at offset
+                // zero (ball samples align with window frame timestamps).
+                const qint64 frameTUs = pinpoint::EventBuffer::nowMicros();
+
                 // Software crop: engages when a crop is configured, the
                 // pipeline is live (not preview-only), and either the backend
                 // has no hardware ROI or the frame arrived larger than the
@@ -599,7 +608,7 @@ void CameraInstance::connectVideoInput()
                 // EventBuffer publish (zero-copy into pre-allocated ring slot)
                 if (m_eventBuffer && m_sourceId != pinpoint::kInvalidSourceId
                         && m_eventBuffer->isCapturing()) {
-                    publishFrameToBuffer(f);
+                    publishFrameToBuffer(f, frameTUs);
                 }
 
                 {
@@ -615,7 +624,7 @@ void CameraInstance::connectVideoInput()
                 // Pose/ball throttle path — suppressed in preview-only mode
                 // so the inference pipeline never runs.
                 if (m_frameThrottle && !m_previewOnly.load(std::memory_order_relaxed))
-                    m_frameThrottle->offer(f);
+                    m_frameThrottle->offer(f, frameTUs);
 #endif
             }, Qt::DirectConnection);
 
@@ -624,6 +633,10 @@ void CameraInstance::connectVideoInput()
     connect(m_videoInput, &VideoInputBase::rawVideoFrameReady,
             this, [this, hwCrop](const RawVideoFrame &frame) {
                 m_frameCaptureCount.fetch_add(1, std::memory_order_relaxed);
+
+                // One capture-clock reading for this frame — see the QVideoFrame
+                // path above.
+                const qint64 frameTUs = pinpoint::EventBuffer::nowMicros();
 
                 // Software crop fallback — same rule as the QVideoFrame path.
                 RawVideoFrame f = frame;
@@ -636,7 +649,7 @@ void CameraInstance::connectVideoInput()
                 // EventBuffer publish for raw Bayer frames
                 if (m_eventBuffer && m_sourceId != pinpoint::kInvalidSourceId
                         && m_eventBuffer->isCapturing()) {
-                    publishRawFrameToBuffer(f);
+                    publishRawFrameToBuffer(f, frameTUs);
                 }
 
                 {
@@ -650,7 +663,7 @@ void CameraInstance::connectVideoInput()
 
 #ifdef HAVE_OPENCV
                 if (m_frameThrottle && !m_previewOnly.load(std::memory_order_relaxed))
-                    m_frameThrottle->offerRaw(f);
+                    m_frameThrottle->offerRaw(f, frameTUs);
 #endif
             }, Qt::DirectConnection);
 
@@ -866,8 +879,12 @@ void CameraInstance::onBallDetected(const BallDetection &result)
 
     // v3.4 (design §9.7): accumulate the per-frame ball stream — the low-entropy
     // "constant plus one step" record ShotProcessor later reads to build the
-    // live ShotAnalysisJob::ballTrack / swing.json "ball" block.
-    m_ballAccum.push_back({pinpoint::EventBuffer::nowMicros(), result.found,
+    // live ShotAnalysisJob::ballTrack / swing.json "ball" block. Stamp with the
+    // frame's capture time (buffer clock, shared with the window frames); fall
+    // back to now only for a stale pre-upgrade result carrying no frame time.
+    const qint64 sampleTUs = result.tUs >= 0 ? result.tUs
+                                             : pinpoint::EventBuffer::nowMicros();
+    m_ballAccum.push_back({sampleTUs, result.found,
                            result.x, result.y, result.radius, result.score});
     trimBallAccum();
 
@@ -1721,7 +1738,7 @@ void CameraInstance::refreshExposure(double exposureUs, int exposureAutoMode)
 // EventBuffer publish helpers (called on the capture thread via DirectConnection)
 // ---------------------------------------------------------------------------
 
-void CameraInstance::publishFrameToBuffer(const QVideoFrame &frame)
+void CameraInstance::publishFrameToBuffer(const QVideoFrame &frame, qint64 frameTUs)
 {
     if (!frame.isValid())
         return;
@@ -1769,14 +1786,14 @@ void CameraInstance::publishFrameToBuffer(const QVideoFrame &frame)
             offset += planeBytes;
         }
         *slot.bytes_written = static_cast<uint32_t>(totalBytes);
-        *slot.timestamp_us  = pinpoint::EventBuffer::nowMicros();
+        *slot.timestamp_us  = frameTUs;   // capture-thread instant, shared with the ball throttle
         m_eventBuffer->publish(m_sourceId, slot.sequence);
     }
 
     mutable_frame.unmap();
 }
 
-void CameraInstance::publishRawFrameToBuffer(const RawVideoFrame &frame)
+void CameraInstance::publishRawFrameToBuffer(const RawVideoFrame &frame, qint64 frameTUs)
 {
     if (frame.isNull())
         return;
@@ -1800,7 +1817,7 @@ void CameraInstance::publishRawFrameToBuffer(const RawVideoFrame &frame)
     if (slot.valid) {
         std::memcpy(slot.data, frame.data.constData(), size);
         *slot.bytes_written = static_cast<uint32_t>(size);
-        *slot.timestamp_us  = pinpoint::EventBuffer::nowMicros();
+        *slot.timestamp_us  = frameTUs;   // capture-thread instant, shared with the ball throttle
         m_eventBuffer->publish(m_sourceId, slot.sequence);
     }
 }

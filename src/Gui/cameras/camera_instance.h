@@ -285,8 +285,12 @@ private:
     // exposure changes materially (auto-exposure). Metadata-only, main-thread, and
     // suppressed while a SwingWindow is live (a worker reads the descriptor then).
     void refreshExposure(double exposureUs, int exposureAutoMode);
-    void publishFrameToBuffer(const QVideoFrame &frame);
-    void publishRawFrameToBuffer(const RawVideoFrame &frame);
+    // frameTUs is the capture instant (nowMicros() sampled once on the capture
+    // thread) that also travels to the pose/ball throttle — stamping the ring
+    // entry with it keeps the ball track and the window frames on one clock at
+    // offset zero.
+    void publishFrameToBuffer(const QVideoFrame &frame, qint64 frameTUs);
+    void publishRawFrameToBuffer(const RawVideoFrame &frame, qint64 frameTUs);
 
     pinpoint::EventBuffer *m_eventBuffer      = nullptr;
     pinpoint::SourceId     m_sourceId         = pinpoint::kInvalidSourceId;

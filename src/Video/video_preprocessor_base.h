@@ -44,8 +44,11 @@ public:
     ~VideoPreprocessorBase() override = default;
 
 public slots:
-    virtual void processFrame(const QVideoFrame &frame) = 0;
-    virtual void processRawFrame(const RawVideoFrame &frame) {}
+    // tUs is the frame's capture time on the EventBuffer clock, carried through
+    // from the FrameThrottle so the converted-frame signal can forward it to the
+    // ball detector unchanged.
+    virtual void processFrame(const QVideoFrame &frame, qint64 tUs) = 0;
+    virtual void processRawFrame(const RawVideoFrame &frame, qint64 tUs) {}
 
 signals:
     // Rolling average preprocessing time in milliseconds, emitted each frame

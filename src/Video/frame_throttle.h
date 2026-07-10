@@ -62,25 +62,30 @@ public:
     void setRawConsumerCount(int n);
 
 public slots:
-    // QVideoFrame path — used by Qt Multimedia / Aravis.
-    void offer(const QVideoFrame &frame);
+    // QVideoFrame path — used by Qt Multimedia / Aravis. tUs is the frame's
+    // capture time on the EventBuffer clock; it travels with the frame (parked
+    // and released together) so the preprocessor and ball detector receive the
+    // capture instant, not a downstream-arrival stamp.
+    void offer(const QVideoFrame &frame, qint64 tUs);
     void clearBusy();
 
     // RawVideoFrame path — used by Bayer cameras (Spinnaker).
-    void offerRaw(const RawVideoFrame &frame);
+    void offerRaw(const RawVideoFrame &frame, qint64 tUs);
     void clearRawBusy();
 
 signals:
-    void frameReady(const QVideoFrame &frame);
-    void rawFrameReady(const RawVideoFrame &frame);
+    void frameReady(const QVideoFrame &frame, qint64 tUs);
+    void rawFrameReady(const RawVideoFrame &frame, qint64 tUs);
 
 private:
     std::atomic<bool> m_busy{false};
     QVideoFrame       m_latest;
+    qint64            m_latestTUs{-1};   // capture time of m_latest (guarded by m_mutex)
     QMutex            m_mutex;
 
     std::atomic<bool> m_rawBusy{false};
     RawVideoFrame     m_rawLatest;
+    qint64            m_rawLatestTUs{-1};   // capture time of m_rawLatest (guarded by m_rawMutex)
     QMutex            m_rawMutex;
 
     int m_skipFactor{1};

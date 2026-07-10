@@ -47,11 +47,14 @@ public:
     explicit VideoPreprocessorOpenCV(QObject *parent = nullptr);
 
 public slots:
-    void processFrame(const QVideoFrame &frame) override;
-    void processRawFrame(const RawVideoFrame &frame) override;
+    void processFrame(const QVideoFrame &frame, qint64 tUs) override;
+    void processRawFrame(const RawVideoFrame &frame, qint64 tUs) override;
 
 signals:
-    void framePreprocessed(const cv::Mat &mat);
+    // tUs is the source frame's capture time on the EventBuffer clock. The pose
+    // estimator slot takes only the cv::Mat (Qt drops the trailing arg); the ball
+    // detector slot takes both.
+    void framePreprocessed(const cv::Mat &mat, qint64 tUs);
 
 private:
     static constexpr int kWindowSize = 30;

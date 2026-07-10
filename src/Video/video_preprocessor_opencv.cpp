@@ -31,7 +31,7 @@ VideoPreprocessorOpenCV::VideoPreprocessorOpenCV(QObject *parent)
     qRegisterMetaType<cv::Mat>();
 }
 
-void VideoPreprocessorOpenCV::processFrame(const QVideoFrame &frame)
+void VideoPreprocessorOpenCV::processFrame(const QVideoFrame &frame, qint64 tUs)
 {
     // Failure paths still emit framePreprocessed (with an empty Mat): the
     // FrameThrottle has already marked itself busy for this frame, and only
@@ -39,13 +39,13 @@ void VideoPreprocessorOpenCV::processFrame(const QVideoFrame &frame)
     // would starve pose AND ball for the rest of the session. Both consumers
     // early-out on an empty Mat and emit their done-signal.
     if (!frame.isValid()) {
-        emit framePreprocessed(cv::Mat());
+        emit framePreprocessed(cv::Mat(), tUs);
         return;
     }
 
     QImage img = frame.toImage();
     if (img.isNull()) {
-        emit framePreprocessed(cv::Mat());
+        emit framePreprocessed(cv::Mat(), tUs);
         return;
     }
 
@@ -92,7 +92,7 @@ void VideoPreprocessorOpenCV::processFrame(const QVideoFrame &frame)
         cv::cvtColor(wrapped, bgr, cv::COLOR_RGB2BGR);
     }
 
-    emit framePreprocessed(bgr);
+    emit framePreprocessed(bgr, tUs);
 
     // Rolling average timing — circular buffer, O(1) per frame.
     const double ms = timer.nsecsElapsed() / 1e6;
@@ -107,10 +107,10 @@ void VideoPreprocessorOpenCV::processFrame(const QVideoFrame &frame)
         emit preprocessStatsUpdated(m_timingSum / kWindowSize);
 }
 
-void VideoPreprocessorOpenCV::processRawFrame(const RawVideoFrame &rawFrame)
+void VideoPreprocessorOpenCV::processRawFrame(const RawVideoFrame &rawFrame, qint64 tUs)
 {
     if (rawFrame.isNull()) {
-        emit framePreprocessed(cv::Mat());   // keep the raw throttle balanced
+        emit framePreprocessed(cv::Mat(), tUs);   // keep the raw throttle balanced
         return;
     }
 
@@ -154,7 +154,7 @@ void VideoPreprocessorOpenCV::processRawFrame(const RawVideoFrame &rawFrame)
         cv::cvtColor(gray, bgr, cv::COLOR_GRAY2BGR);
     }
 
-    emit framePreprocessed(bgr);
+    emit framePreprocessed(bgr, tUs);
 
     const double ms = timer.nsecsElapsed() / 1e6;
     m_timingSum -= m_timingSamples[m_timingIndex];

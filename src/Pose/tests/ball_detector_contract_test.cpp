@@ -68,18 +68,19 @@ static void drawBall(cv::Mat &f, double luma, float radius = 25.f)
 // ── Signal counting harness ─────────────────────────────────────────────────
 
 struct Spy {
-    int  detections = 0, skips = 0;
-    bool lastFound  = false;
+    int    detections = 0, skips = 0;
+    bool   lastFound  = false;
+    qint64 lastTUs    = -1;
 
     explicit Spy(BallDetector &d)
     {
         QObject::connect(&d, &BallDetector::ballDetected,
-                         [this](const BallDetection &r) { ++detections; lastFound = r.found; });
+                         [this](const BallDetection &r) { ++detections; lastFound = r.found; lastTUs = r.tUs; });
         QObject::connect(&d, &BallDetector::detectionSkipped,
                          [this]() { ++skips; });
     }
     int  total() const { return detections + skips; }
-    void reset() { detections = skips = 0; lastFound = false; }
+    void reset() { detections = skips = 0; lastFound = false; lastTUs = -1; }
 };
 
 int main(int argc, char **argv)
@@ -94,38 +95,43 @@ int main(int argc, char **argv)
     // 1. Disabled → detectionSkipped, ball state untouched.
     det.setRoi(kRoi);
     det.setEnabled(false);
-    det.detect(fullFrame(60.0, 3.0, 1));
+    det.detect(fullFrame(60.0, 3.0, 1), 1000);
     CHECK("disabled: 1 signal, skipped", spy.total() == 1 && spy.skips == 1);
     det.setEnabled(true);
 
     // 2. No ROI → detectionSkipped.
     spy.reset();
     det.setRoi(QRectF());
-    det.detect(fullFrame(60.0, 3.0, 2));
+    det.detect(fullFrame(60.0, 3.0, 2), 2000);
     CHECK("no ROI: 1 signal, skipped", spy.total() == 1 && spy.skips == 1);
     det.setRoi(kRoi);
 
     // 3. Empty frame → detectionSkipped.
     spy.reset();
-    det.detect(cv::Mat());
+    det.detect(cv::Mat(), 3000);
     CHECK("empty frame: 1 signal, skipped", spy.total() == 1 && spy.skips == 1);
 
     // 4. No profile → v2 temporal path, still seeding the baseline → found=false.
+    //    The frame's capture time round-trips onto BallDetection::tUs.
     spy.reset();
-    det.detect(fullFrame(40.0, 3.0, 3));
+    constexpr qint64 kSeedTUs = 4'242'424;
+    det.detect(fullFrame(40.0, 3.0, 3), kSeedTUs);
     CHECK("temporal seeding: 1 signal, found=false",
           spy.total() == 1 && spy.detections == 1 && !spy.lastFound);
+    CHECK("temporal seeding: tUs round-trips", spy.lastTUs == kSeedTUs);
 
     // 5. A ball on a single frame cannot detect (needs a seeded baseline + a
-    //    sustained lock) — still exactly one signal, found=false.
+    //    sustained lock) — still exactly one signal, found=false, tUs carried.
     spy.reset();
+    constexpr qint64 kSingleTUs = 5'000'000;
     {
         cv::Mat f = fullFrame(40.0, 3.0, 4);
         drawBall(f, 200.0);
-        det.detect(f);
+        det.detect(f, kSingleTUs);
     }
     CHECK("temporal single frame: 1 signal, found=false",
           spy.total() == 1 && spy.detections == 1 && !spy.lastFound);
+    CHECK("temporal single frame: tUs round-trips", spy.lastTUs == kSingleTUs);
 
     // 6. v2 temporal path end-to-end: seed an empty mat, lock a ball, then clear
     //    it — the throttle stays at exactly one ballDetected per detect() the
@@ -134,9 +140,22 @@ int main(int argc, char **argv)
     BallDetector td;
     int tDet = 0, tSkip = 0, tBaseline = 0, tLocks = 0;
     bool tFound = false;
+    // Frame capture-time round-trip: feed a monotonically increasing stamp on
+    // every detect() and confirm it comes back on BallDetection::tUs, unbroken,
+    // through seeding / lock / removal / re-seed.
+    qint64 tStamp = 100'000;               // capture-clock stamps (µs)
+    constexpr qint64 tStep = 5'000;        // +5 ms per frame (monotonic)
+    qint64 tLastTUs = -1, tPrevTUs = -1;
+    bool   tMonotonic = true;
     BallBaselineSnapshot tSnap;   // last baselineReady payload
     QObject::connect(&td, &BallDetector::ballDetected,
-                     [&](const BallDetection &r) { ++tDet; tFound = r.found; });
+                     [&](const BallDetection &r) {
+                         ++tDet; tFound = r.found; tLastTUs = r.tUs;
+                         if (r.tUs >= 0) {
+                             if (tPrevTUs >= 0 && r.tUs <= tPrevTUs) tMonotonic = false;
+                             tPrevTUs = r.tUs;
+                         }
+                     });
     QObject::connect(&td, &BallDetector::detectionSkipped, [&]() { ++tSkip; });
     QObject::connect(&td, &BallDetector::baselineReady,
                      [&](const BallBaselineSnapshot &s) { ++tBaseline; tSnap = s; });
@@ -147,10 +166,11 @@ int main(int argc, char **argv)
     // Seed: 30 empty frames (> the fixed seed window) → one signal each, no
     // detection, baselineReady exactly once when the baseline is set.
     int mark = tDet + tSkip;
-    for (int i = 0; i < 30; ++i) td.detect(fullFrame(60.0, 3.0, 1000 + i));
+    for (int i = 0; i < 30; ++i) td.detect(fullFrame(60.0, 3.0, 1000 + i), tStamp += tStep);
     CHECK("seeding: one signal per frame", tDet + tSkip - mark == 30 && tSkip == 0);
     CHECK("seeding: baselineReady fired once", tBaseline == 1);
     CHECK("seeding: no detection while learning", !tFound);
+    CHECK("seeding: last tUs round-trips", tLastTUs == tStamp);
 
     // The snapshot payload: B is the truncation-denormalized ROI (kRoi over the
     // 640x480 frame → 320x240 px), CV_32F, carrying the ROI it was seeded over
@@ -167,15 +187,17 @@ int main(int argc, char **argv)
     for (int i = 0; i < 40; ++i) {
         cv::Mat f = fullFrame(60.0, 3.0, 2000 + i);
         drawBall(f, 200.0, 5.f);
-        td.detect(f);
+        td.detect(f, tStamp += tStep);
         if (tFound) everFound = true;
     }
     CHECK("ball present: one signal per frame", tDet + tSkip - mark == 40);
     CHECK("temporal locks + reports present", everFound && tLocks >= 1);
+    // Post-baseline path stamps the same frame time onto its result.
+    CHECK("post-baseline: last tUs round-trips", tLastTUs == tStamp);
 
     // Removal: presence returns to false, still one signal per frame.
     mark = tDet + tSkip;
-    for (int i = 0; i < 20; ++i) td.detect(fullFrame(60.0, 3.0, 3000 + i));
+    for (int i = 0; i < 20; ++i) td.detect(fullFrame(60.0, 3.0, 3000 + i), tStamp += tStep);
     CHECK("removal: one signal per frame", tDet + tSkip - mark == 20);
     CHECK("removal: presence cleared", !tFound);
 
@@ -186,10 +208,14 @@ int main(int argc, char **argv)
     const int nRW = 256, nRH = 192;
     const int baselineMark = tBaseline;
     td.setRoi(newRoi);
-    for (int i = 0; i < 30; ++i) td.detect(fullFrame(60.0, 3.0, 4000 + i));
+    for (int i = 0; i < 30; ++i) td.detect(fullFrame(60.0, 3.0, 4000 + i), tStamp += tStep);
     CHECK("re-seed: baselineReady fired again", tBaseline == baselineMark + 1);
     CHECK("re-seed: snapshot carries the new rect + dims",
           tSnap.roi == newRoi && tSnap.B.rows == nRH && tSnap.B.cols == nRW);
+
+    // The whole section 6 sequence fed strictly increasing stamps — every
+    // emitted result carried a stamp and none regressed.
+    CHECK("tUs monotonic across seed / lock / removal / re-seed", tMonotonic);
 
     std::printf("%s (%d failure%s)\n", g_fail == 0 ? "ALL PASS" : "FAILURES",
                 g_fail, g_fail == 1 ? "" : "s");

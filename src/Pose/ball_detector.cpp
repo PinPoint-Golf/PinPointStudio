@@ -81,7 +81,7 @@ void BallDetector::startSeed()
     m_absentFrames = 0;
 }
 
-void BallDetector::detect(const cv::Mat &frame)
+void BallDetector::detect(const cv::Mat &frame, qint64 frameTUs)
 {
     if (!isEnabled()) {     // disabled by method — release the throttle, keep ball state
         emit detectionSkipped();
@@ -111,11 +111,11 @@ void BallDetector::detect(const cv::Mat &frame)
     const int rw = qBound(1, static_cast<int>(m_roi.width()  * fw), fw - rx);
     const int rh = qBound(1, static_cast<int>(m_roi.height() * fh), fh - ry);
 
-    detectTemporal(frame, rx, ry, rw, rh, fw, fh, t);
+    detectTemporal(frame, rx, ry, rw, rh, fw, fh, t, frameTUs);
 }
 
 void BallDetector::detectTemporal(const cv::Mat &frame, int rx, int ry, int rw, int rh,
-                                  int fw, int fh, const QElapsedTimer &t)
+                                  int fw, int fh, const QElapsedTimer &t, qint64 frameTUs)
 {
     using namespace pinpoint::balltemporal;
     const double rHat = radiusForWidth(fw);
@@ -141,7 +141,7 @@ void BallDetector::detectTemporal(const cv::Mat &frame, int rx, int ry, int rw, 
     const cv::Rect roiRect(rx, ry, rw, rh);
     const cv::Mat R = paddedResponse(gray32, roiRect, rHat);
     if (R.empty()) {
-        emit ballDetected(BallDetection{false, 0.f, 0.f, 0.f, t.elapsed()});
+        emit ballDetected(BallDetection{false, 0.f, 0.f, 0.f, t.elapsed(), 0.f, frameTUs});
         return;
     }
 
@@ -185,12 +185,12 @@ void BallDetector::detectTemporal(const cv::Mat &frame, int rx, int ry, int rw, 
             // and m_roi are self-consistent here on the detector thread.
             emit baselineReady(BallBaselineSnapshot{B.clone(), m_seedNoise, rHat, m_trackerFps, m_roi});
         }
-        emit ballDetected(BallDetection{false, 0.f, 0.f, 0.f, t.elapsed()});
+        emit ballDetected(BallDetection{false, 0.f, 0.f, 0.f, t.elapsed(), 0.f, frameTUs});
         return;
     }
 
     if (!m_tracker) {   // no baseline yet and not seeding — silent (throttle intact)
-        emit ballDetected(BallDetection{false, 0.f, 0.f, 0.f, t.elapsed()});
+        emit ballDetected(BallDetection{false, 0.f, 0.f, 0.f, t.elapsed(), 0.f, frameTUs});
         return;
     }
 
@@ -219,7 +219,7 @@ void BallDetector::detectTemporal(const cv::Mat &frame, int rx, int ry, int rw, 
         const int framesSince = m_tracker->frameIndex() - LA.idx;
         const double intervalUs = m_trackerFps > 0.0 ? 1.0e6 / m_trackerFps : 0.0;
         const qint64 ageUs = static_cast<qint64>(framesSince * intervalUs) + kBallLaunchLatencyUs;
-        emit ballLaunched(ageUs, static_cast<float>((rx + LA.x) / fw),
+        emit ballLaunched(frameTUs, ageUs, static_cast<float>((rx + LA.x) / fw),
                           static_cast<float>((ry + LA.y) / fh));
         m_tracker->rearm();
         m_locked = false;
@@ -238,7 +238,7 @@ void BallDetector::detectTemporal(const cv::Mat &frame, int rx, int ry, int rw, 
     }
 
     m_present = present;
-    emit ballDetected(BallDetection{present, nx, ny, nr, t.elapsed(), score});
+    emit ballDetected(BallDetection{present, nx, ny, nr, t.elapsed(), score, frameTUs});
 }
 
 #endif // HAVE_OPENCV

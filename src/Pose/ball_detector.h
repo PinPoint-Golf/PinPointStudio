@@ -36,6 +36,7 @@ struct BallDetection {
     float   radius    = 0.f;   // radius normalised to frame width
     qint64  detectMs  = 0;     // wall-clock duration of detect() in ms (0 = skipped)
     float   score     = 0.f;   // at-spot response / L0 while present (0 otherwise)
+    qint64  tUs       = -1;    // frame capture time on the EventBuffer clock (-1 = unknown)
 };
 Q_DECLARE_METATYPE(BallDetection)
 
@@ -85,9 +86,11 @@ public:
 
 
 public slots:
-    // Receives a BGR CV_8UC3 frame from VideoPreprocessorOpenCV.
-    // No-op when no ROI is set.
-    void detect(const cv::Mat &frame);
+    // Receives a BGR CV_8UC3 frame from VideoPreprocessorOpenCV. frameTUs is the
+    // frame's capture time on the EventBuffer clock (same value the ring entry
+    // got); it is stamped onto every emitted BallDetection::tUs and drives the
+    // launch back-dating. No-op when no ROI is set.
+    void detect(const cv::Mat &frame, qint64 frameTUs);
 
     // Update the search region. Safe to call via queued connection. Changing the
     // ROI restarts the empty-mat baseline seed (the mat under a new box differs).
@@ -126,12 +129,13 @@ signals:
     void ballLocked(float x, float y, float radiusNorm);
 
     // The locked ball was struck — a per-frame collapse cliff (design §4.5).
-    // launchAgeUs is how long BEFORE now (this detect() moment) the true impact
+    // launchAgeUs is how long BEFORE the triggering frame the true impact
     // occurred: (frames since the collapse × frame interval) + the ball-departure
-    // latency. The consumer (CameraInstance) converts it to an absolute impact
-    // time on the EventBuffer clock and feeds the shot arbiter as a candidate
-    // (conf < the self-commit floor, so it can only corroborate IMU/acoustic).
-    void ballLaunched(qint64 launchAgeUs, float x, float y);
+    // latency. launchFrameTUs is that frame's capture time on the EventBuffer
+    // clock (-1 if unknown); the consumer (CameraInstance) forms the absolute
+    // impact time as launchFrameTUs − launchAgeUs and feeds the shot arbiter as a
+    // candidate (conf < the self-commit floor, so it can only corroborate).
+    void ballLaunched(qint64 launchFrameTUs, qint64 launchAgeUs, float x, float y);
 
     // ROI over-exposure health (satFrac = fraction of ROI luma >= 250), edge-
     // triggered on crossing the warn threshold. Drives the wizard exposure hint.
@@ -141,7 +145,7 @@ private:
     // v2 temporal matched-filter path (ball_temporal.h). Emits exactly one
     // ballDetected per call (throttle contract), plus the temporal signals.
     void detectTemporal(const cv::Mat &frame, int rx, int ry, int rw, int rh,
-                        int fw, int fh, const QElapsedTimer &t);
+                        int fw, int fh, const QElapsedTimer &t, qint64 frameTUs);
     void startSeed();                              // (re)begin the empty-mat baseline seed
 
     std::atomic<bool> m_enabled{true};

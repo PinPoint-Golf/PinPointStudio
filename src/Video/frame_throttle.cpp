@@ -41,7 +41,7 @@ void FrameThrottle::setRawConsumerCount(int n)
     m_rawConsumerCount = qMax(1, n);
 }
 
-void FrameThrottle::offer(const QVideoFrame &frame)
+void FrameThrottle::offer(const QVideoFrame &frame, qint64 tUs)
 {
     if (++m_offerCount % m_skipFactor != 0)
         return;
@@ -53,12 +53,13 @@ void FrameThrottle::offer(const QVideoFrame &frame)
     {
         QMutexLocker lk(&m_mutex);
         if (m_busy.load(std::memory_order_relaxed)) {
-            m_latest = frame;
+            m_latest    = frame;
+            m_latestTUs = tUs;
             return;
         }
         m_busy.store(true, std::memory_order_relaxed);
     }
-    emit frameReady(frame);
+    emit frameReady(frame, tUs);
 }
 
 void FrameThrottle::clearBusy()
@@ -68,18 +69,21 @@ void FrameThrottle::clearBusy()
     m_doneCount.store(0, std::memory_order_relaxed);
 
     QVideoFrame next;
+    qint64      nextTUs = -1;
     {
         QMutexLocker lk(&m_mutex);
-        next     = m_latest;
-        m_latest = QVideoFrame();
+        next        = m_latest;
+        nextTUs     = m_latestTUs;
+        m_latest    = QVideoFrame();
+        m_latestTUs = -1;
         if (!next.isValid())
             m_busy.store(false, std::memory_order_relaxed);  // idle decision under the lock
     }
     if (next.isValid())
-        emit frameReady(next);
+        emit frameReady(next, nextTUs);
 }
 
-void FrameThrottle::offerRaw(const RawVideoFrame &frame)
+void FrameThrottle::offerRaw(const RawVideoFrame &frame, qint64 tUs)
 {
     if (++m_rawOfferCount % m_skipFactor != 0)
         return;
@@ -88,12 +92,13 @@ void FrameThrottle::offerRaw(const RawVideoFrame &frame)
     {
         QMutexLocker lk(&m_rawMutex);
         if (m_rawBusy.load(std::memory_order_relaxed)) {
-            m_rawLatest = frame;
+            m_rawLatest    = frame;
+            m_rawLatestTUs = tUs;
             return;
         }
         m_rawBusy.store(true, std::memory_order_relaxed);
     }
-    emit rawFrameReady(frame);
+    emit rawFrameReady(frame, tUs);
 }
 
 void FrameThrottle::clearRawBusy()
@@ -103,15 +108,18 @@ void FrameThrottle::clearRawBusy()
     m_rawDoneCount.store(0, std::memory_order_relaxed);
 
     RawVideoFrame next;
+    qint64        nextTUs = -1;
     {
         QMutexLocker lk(&m_rawMutex);
-        next        = m_rawLatest;
-        m_rawLatest = RawVideoFrame();
+        next           = m_rawLatest;
+        nextTUs        = m_rawLatestTUs;
+        m_rawLatest    = RawVideoFrame();
+        m_rawLatestTUs = -1;
         if (next.isNull())
             m_rawBusy.store(false, std::memory_order_relaxed);
     }
     if (!next.isNull())
-        emit rawFrameReady(next);
+        emit rawFrameReady(next, nextTUs);
 }
 
 #endif // HAVE_OPENCV
