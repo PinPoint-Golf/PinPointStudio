@@ -288,7 +288,7 @@ int main()
         const FrameSource render = [&](int f) -> cv::Mat {
             if (f < 0 || f >= nf) return cv::Mat();
             cv::Mat img(H, W, CV_8UC1, cv::Scalar(30));
-            const cv::Point g(int(gx[f]), int(gy[f]));
+            const cv::Point g{int(gx[f]), int(gy[f])};
             cv::line(img, g, cv::Point(g.x, std::min(H - 1, g.y + 150)), cv::Scalar(220), 3);
             cv::circle(img, cv::Point(int(0.50 * W), int(0.85 * H)), 7, cv::Scalar(240), -1);
             return img;
@@ -383,7 +383,7 @@ int main()
         const FrameSource render = [&](int f) -> cv::Mat {
             if (f < 0 || f >= nf) return cv::Mat();
             cv::Mat img(H, W, CV_8UC1, cv::Scalar(30));
-            const cv::Point g(int(gx[f]), int(gy[f]));
+            const cv::Point g{int(gx[f]), int(gy[f])};
             cv::line(img, g, cv::Point(g.x, std::min(H - 1, g.y + 300)), cv::Scalar(220), 3);
             cv::circle(img, cv::Point(int(0.50 * W), int(0.95 * H)), 7, cv::Scalar(240), -1);
             return img;
