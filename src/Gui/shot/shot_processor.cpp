@@ -511,6 +511,11 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
     // with ball detection enabled. Empty ⇒ ShaftTracker falls back to
     // BallRunner's offline replay (correct even live: e.g. detection was
     // enabled mid-swing and the accumulator is still short).
+    // Accumulator samples are stamped with EventBuffer::nowMicros() — absolute
+    // buffer-clock time — but the analyzer (ShaftTracker's ball-anchor pass)
+    // works in swing-window-relative time. Rebase against the window start
+    // here, mirroring the swing.json exporter's SwingBallStream rebase below.
+    const int64_t ballT0 = m_swingWindow->startTimestampUs();
     for (int pass = 0; pass < 2 && job.ballTrack.frames.empty(); ++pass) {
         for (const ReplayTrack &track : m_replayTracks) {
             if (pass == 0 && track.ctrl->perspective() != CameraInstance::FaceOn)
@@ -521,10 +526,10 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
             bt.camera = track.sourceId;
             bt.frames.reserve(samples.size());
             for (const auto &s : samples)
-                bt.frames.push_back({s.tUs, s.found, QPointF(s.x, s.y), s.r, s.conf});
+                bt.frames.push_back({s.tUs - ballT0, s.found, QPointF(s.x, s.y), s.r, s.conf});
             qint64 lTUs = -1; double lx = 0.0, ly = 0.0;
             if (track.ctrl->ballLaunchInfo(lTUs, lx, ly)) {
-                bt.launchTUs    = lTUs;
+                bt.launchTUs    = lTUs - ballT0;
                 bt.launchCenter = QPointF(lx, ly);
             }
             job.ballTrack = std::move(bt);
