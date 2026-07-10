@@ -310,6 +310,7 @@ void SwingDataSource::reload()
     m_loaded = false;
     m_spanUs = 0;
     m_anyImuRoleKnown = false;
+    m_clubLengthSummary.clear();
 
     if (!m_swingDir.isEmpty()) {
         QFile f(QDir(m_swingDir).filePath(QStringLiteral("swing.json")));
@@ -459,6 +460,26 @@ void SwingDataSource::reload()
 
     // club shaft (only when the track is valid)
     const QJsonObject club = analysis.value(QStringLiteral("club")).toObject();
+
+    // Club length-fusion summary (analysis.club.lengths) — independent of shaft-track
+    // validity: fusion can still land a result from ball+band+prior alone even when
+    // the angle track itself is not "valid". Leave m_clubLengthSummary empty (already
+    // cleared above) when the block is absent or fusedPx <= 0 (no fused estimate —
+    // old swings predating fusion, or a total abstain).
+    {
+        const QJsonObject lengths = club.value(QStringLiteral("lengths")).toObject();
+        const double fusedPx = lengths.value(QStringLiteral("fusedPx")).toDouble(-1.0);
+        if (fusedPx > 0.0) {
+            const double fh = club.value(QStringLiteral("frameHeight")).toDouble();
+            m_clubLengthSummary[QStringLiteral("fusedPx")]     = fusedPx;
+            m_clubLengthSummary[QStringLiteral("fusedPctH")]   = fh > 0.0 ? (fusedPx / fh * 100.0) : 0.0;
+            m_clubLengthSummary[QStringLiteral("conf")]        = lengths.value(QStringLiteral("fusedConf")).toDouble();
+            m_clubLengthSummary[QStringLiteral("nEstimators")] = lengths.value(QStringLiteral("nEstimators")).toInt();
+            m_clubLengthSummary[QStringLiteral("priorN")]      = lengths.value(QStringLiteral("priorN")).toInt();
+            m_clubLengthSummary[QStringLiteral("rung")]        = lengths.value(QStringLiteral("ladderRung")).toInt();
+        }
+    }
+
     if (club.value(QStringLiteral("valid")).toBool()) {
         SwingSeries s;
         s.kind = SwingSeries::Club;
