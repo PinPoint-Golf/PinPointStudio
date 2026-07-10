@@ -398,6 +398,22 @@ void ShotProcessor::captureWindowAndLaunch()
         track.ctrl     = ctrl;
         track.sourceId = sid;
         track.entries  = std::move(entries);
+        // Freeze the ball-detector accumulator NOW (design §9): both job builders
+        // run 12–37 s later (from onAnalysisFinished), by when the live deque has
+        // scrolled to post-shot junk and a phantom re-launch may have overwritten
+        // the launch. At this instant the 6 s accumulator still fully covers the
+        // 5 s window. Absolute buffer-clock tUs kept — builders rebase per-window.
+        const auto &ballAccum = ctrl->ballSamples();
+        track.ball.samples.reserve(ballAccum.size());
+        for (const auto &s : ballAccum)
+            track.ball.samples.push_back({s.tUs, s.found, s.x, s.y, s.r, s.conf});
+        qint64 lTUs = -1; double lx = 0.0, ly = 0.0;
+        if (ctrl->ballLaunchInfo(lTUs, lx, ly)) {
+            track.ball.hasLaunch = true;
+            track.ball.launchTUs = lTUs;
+            track.ball.launchX   = lx;
+            track.ball.launchY   = ly;
+        }
         m_replayTracks.push_back(std::move(track));
     }
 
@@ -511,26 +527,27 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
     // with ball detection enabled. Empty ⇒ ShaftTracker falls back to
     // BallRunner's offline replay (correct even live: e.g. detection was
     // enabled mid-swing and the accumulator is still short).
-    // Accumulator samples are stamped with EventBuffer::nowMicros() — absolute
-    // buffer-clock time — but the analyzer (ShaftTracker's ball-anchor pass)
-    // works in swing-window-relative time. Rebase against the window start
-    // here, mirroring the swing.json exporter's SwingBallStream rebase below.
+    // Read from the per-track snapshot frozen at window capture (ReplayTrack::
+    // ball) — NOT live controller state, which by now records post-shot
+    // accumulation, not the swing. Snapshot samples carry absolute buffer-clock
+    // tUs (EventBuffer::nowMicros()); the analyzer works swing-window-relative,
+    // so rebase against the window start here, mirroring the swing.json
+    // exporter's SwingBallStream rebase below.
     const int64_t ballT0 = m_swingWindow->startTimestampUs();
     for (int pass = 0; pass < 2 && job.ballTrack.frames.empty(); ++pass) {
         for (const ReplayTrack &track : m_replayTracks) {
             if (pass == 0 && track.ctrl->perspective() != CameraInstance::FaceOn)
                 continue;
-            const auto &samples = track.ctrl->ballSamples();
+            const auto &samples = track.ball.samples;
             if (samples.empty()) continue;
             pinpoint::analysis::BallTrack2D bt;
             bt.camera = track.sourceId;
             bt.frames.reserve(samples.size());
             for (const auto &s : samples)
                 bt.frames.push_back({s.tUs - ballT0, s.found, QPointF(s.x, s.y), s.r, s.conf});
-            qint64 lTUs = -1; double lx = 0.0, ly = 0.0;
-            if (track.ctrl->ballLaunchInfo(lTUs, lx, ly)) {
-                bt.launchTUs    = lTUs - ballT0;
-                bt.launchCenter = QPointF(lx, ly);
+            if (track.ball.hasLaunch) {
+                bt.launchTUs    = track.ball.launchTUs - ballT0;
+                bt.launchCenter = QPointF(track.ball.launchX, track.ball.launchY);
             }
             job.ballTrack = std::move(bt);
             break;
@@ -812,8 +829,13 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         job.cameras.push_back(std::move(cam));
 
         // v3.4 (design §9.7): this camera's ball stream, window-relative —
-        // additive, empty when ball detection never ran on this camera.
-        const auto &ballSamples = track.ctrl->ballSamples();
+        // additive, empty when ball detection never ran on this camera. Read
+        // from the snapshot frozen at window capture (ReplayTrack::ball), NOT
+        // live controller state: buildSwingExportJob runs 12–37 s after impact,
+        // by when the live accumulator had scrolled to post-shot junk and any
+        // re-launch had overwritten the launch — the archived stream must cover
+        // the swing, not the post-shot accumulation.
+        const auto &ballSamples = track.ball.samples;
         if (!ballSamples.empty() && m_swingWindow) {
             const int64_t t0 = m_swingWindow->startTimestampUs();
             pinpoint::SwingBallStream bs;
@@ -829,11 +851,10 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
                 bs.data.push_back(s.r);
                 bs.data.push_back(s.conf);
             }
-            qint64 lTUs = -1; double lx = 0.0, ly = 0.0;
-            if (track.ctrl->ballLaunchInfo(lTUs, lx, ly)) {
-                bs.launchTUs = lTUs - t0;
-                bs.launchX   = float(lx);
-                bs.launchY   = float(ly);
+            if (track.ball.hasLaunch) {
+                bs.launchTUs = track.ball.launchTUs - t0;
+                bs.launchX   = float(track.ball.launchX);
+                bs.launchY   = float(track.ball.launchY);
             }
             job.ballStreams.push_back(std::move(bs));
         }

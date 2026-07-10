@@ -147,11 +147,28 @@ private slots:
 private:
     enum class Outcome { Pending, Succeeded, Failed, Skipped };
 
+    // Per-camera ball-detector state frozen at window-capture time. Both job
+    // builders run 12–37 s after impact (from onAnalysisFinished), by when the
+    // live CameraInstance accumulator has scrolled to post-shot junk (ball
+    // detection never stops) and a phantom re-launch — the struck ball rolling —
+    // may have overwritten ballLaunchInfo(). So we snapshot the instant the
+    // SwingWindow is frozen, when the 6 s accumulator still fully covers the 5 s
+    // window; both builders read this, never live controller state. Samples
+    // mirror CameraInstance::BallAccumSample (POD, avoids a header dependency).
+    struct BallSnapshot {
+        struct Sample { qint64 tUs = 0; bool found = false; float x = 0.f, y = 0.f, r = 0.f, conf = 0.f; };
+        std::vector<Sample> samples;
+        bool   hasLaunch = false;
+        qint64 launchTUs = -1;
+        double launchX = 0.0, launchY = 0.0;
+    };
+
     struct ReplayTrack {
         CameraInstance                    *ctrl     = nullptr;
         pinpoint::SourceId                 sourceId = pinpoint::kInvalidSourceId;
         std::vector<pinpoint::IndexEntry>  entries;
         size_t                             idx      = 0;
+        BallSnapshot                       ball;   // frozen at window capture
     };
 
     void setState(State s);
