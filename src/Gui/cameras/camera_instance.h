@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include <QByteArray>
 #include <QElapsedTimer>
 #include <QList>
 #include <QMutex>
@@ -165,6 +166,20 @@ public:
     // Last struck-ball launch within the accumulator window. Returns false
     // (outputs untouched) when no launch has been recorded.
     bool ballLaunchInfo(qint64 &tUsOut, double &xOut, double &yOut) const;
+
+    // cv-free cache of the detector's learned empty-mat baseline B (mirrors the
+    // BallAccumSample pattern above — plain POD, no Analysis-layer dependency).
+    // Refreshed from BallDetector::baselineReady(); read by ShotProcessor on the
+    // UI thread at export time. Cleared (not merely stale) whenever the live
+    // baseline is invalidated — see relearnBallBaseline() / setRoi().
+    struct BallBaselineCache {
+        QByteArray blob;   // row-major float32, w*h*4 bytes
+        int w = 0, h = 0;  // ROI px dims at seed time
+        QRectF roi;        // full-frame normalized ROI B was seeded over
+        double rHat = 0.0, fps = 0.0, noise0 = 1.0;
+        bool valid() const { return !blob.isEmpty() && w > 0 && h > 0; }
+    };
+    const BallBaselineCache &ballBaseline() const { return m_ballBaseline; }
     int     frameWidth()          const;
     int     frameHeight()         const;
     double  configuredFps()       const;
@@ -256,6 +271,9 @@ private slots:
 #ifdef HAVE_OPENCV
     void onPoseEstimated(const PoseResult &result);
     void onBallDetected(const BallDetection &result);
+    // BallBaselineSnapshot carries a cv::Mat, so the slot itself is HAVE_OPENCV-
+    // only even though the cache it fills (BallBaselineCache) is cv-free.
+    void onBallBaselineReady(const BallBaselineSnapshot &snap);
 #endif
 
 private:
@@ -357,6 +375,11 @@ private:
     double m_ballLaunchX   = 0.0;
     double m_ballLaunchY   = 0.0;
     void trimBallAccum();
+
+    // See ballBaseline(). Cleared to {} (not just left stale) on relearn/ROI
+    // change so a shot fired mid-reseed exports no baseline rather than a scene
+    // that no longer matches the live ROI.
+    BallBaselineCache m_ballBaseline;
     TingPlayer      *m_tingPlayer           = nullptr;
     bool             m_replaying            = false;
     // Capture-rate FPS: counted on the capture thread, sampled on a timer.

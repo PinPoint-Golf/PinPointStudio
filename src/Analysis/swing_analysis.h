@@ -22,6 +22,7 @@
 #include <QMetaType>
 #include <QPointF>
 #include <QQuaternion>
+#include <QRectF>
 #include <QString>
 #include <array>
 #include <cstdint>
@@ -264,6 +265,25 @@ struct BallTrack2D {
     std::vector<BallSample2D> frames;
     int64_t launchTUs  = -1;    // the collapse-cliff instant (design §9.3); -1 = no launch observed
     QPointF launchCenter;       // ball position at the last pre-launch frame
+};
+
+// The persisted LIVE empty-mat baseline, resolved from swing.json
+// setup.ballDetection.baseline. Lets offline re-analysis (BallRunner) reconstruct
+// the exact baseline the studio session learned instead of self-seeding over the
+// swing window's opening frames — where the ball is already placed (which bakes the
+// ball into the baseline it subtracts against). The blob (row-major float32 B,
+// w*h*4 bytes) stays on disk; BallRunner loads it (loadBallBaselineBlob), never the
+// job. `path` is resolved to absolute by the loader; `roi` is full-frame normalized
+// (the box B covers); `fps` is PROVENANCE ONLY — the offline tracker re-measures its
+// own pushed-frame rate (plan risk R2). cv-free by design (Qt-only header).
+struct BallBaselineRef {
+    QString path;               // absolute path to the .ballbase.f32 blob
+    int     w = 0, h = 0;       // ROI px dims B was seeded over
+    QRectF  roi;                // full-frame normalized ROI
+    double  rHat   = 0.0;       // radiusForWidth at seed time (provenance)
+    double  fps    = 0.0;       // NOT used to build the tracker (see above)
+    double  noise0 = 1.0;       // robustNoise fallback for the tracker
+    bool isValid() const { return !path.isEmpty() && w > 0 && h > 0 && !roi.isEmpty(); }
 };
 
 enum ShaftSampleFlags : uint8_t {

@@ -369,6 +369,8 @@ void CameraInstance::setupPipeline()
                 m_ballDetector, &BallDetector::detect, Qt::QueuedConnection);
         connect(m_ballDetector, &BallDetector::ballDetected,
                 this, &CameraInstance::onBallDetected, Qt::QueuedConnection);
+        connect(m_ballDetector, &BallDetector::baselineReady,
+                this, &CameraInstance::onBallBaselineReady, Qt::QueuedConnection);
         // Struck-ball launch → shot-arbiter candidate. Stamp the detector's launch
         // AGE onto the EventBuffer clock here (this instance owns that clock);
         // approximate for now — precise frame timestamps are a later refinement.
@@ -785,6 +787,10 @@ void CameraInstance::setRoi(QRectF roi)
     if (roi.isEmpty() || m_roi == roi)
         return;
     m_roi = roi;
+    // The mat under the new box differs — invalidate the cache now, on the UI
+    // thread, rather than waiting for the detector's async re-seed, so a shot
+    // fired mid-reseed exports no baseline rather than one over the old ROI.
+    m_ballBaseline = {};
     emit roiChanged();
     // The detector re-seeds its empty-mat baseline on the ROI change (queued to
     // the detector thread via the roiChanged → setRoi connection).
@@ -815,6 +821,10 @@ void CameraInstance::clearRoi()
 
 void CameraInstance::relearnBallBaseline()
 {
+    // Invalidate the cache immediately — the reseed is async, so a shot fired
+    // before it completes exports no baseline rather than the stale one being
+    // replaced (pre-feature behavior for that window).
+    m_ballBaseline = {};
 #ifdef HAVE_OPENCV
     if (m_ballDetector)
         QMetaObject::invokeMethod(m_ballDetector, "relearnBaseline", Qt::QueuedConnection);
@@ -907,6 +917,25 @@ void CameraInstance::onBallDetected(const BallDetection &result)
     m_ballY        = result.y;
     m_ballRadius   = result.radius;
     emit ballDetectedChanged();
+}
+
+// See ballBaseline(): converts the detector's cv::Mat snapshot to the cv-free
+// cache, replacing whatever was cached before (a stale/mid-reseed cache was
+// already cleared synchronously by setRoi()/relearnBallBaseline()).
+void CameraInstance::onBallBaselineReady(const BallBaselineSnapshot &snap)
+{
+    if (!snap.valid()) return;
+    const cv::Mat &B = snap.B;
+    const cv::Mat cont = B.isContinuous() ? B : B.clone();
+    const size_t bytes = cont.total() * cont.elemSize();
+    m_ballBaseline.blob   = QByteArray(reinterpret_cast<const char *>(cont.data),
+                                       static_cast<qsizetype>(bytes));
+    m_ballBaseline.w      = cont.cols;
+    m_ballBaseline.h      = cont.rows;
+    m_ballBaseline.roi    = snap.roi;
+    m_ballBaseline.rHat   = snap.rHat;
+    m_ballBaseline.fps    = snap.fps;
+    m_ballBaseline.noise0 = snap.noise0;
 }
 #endif
 

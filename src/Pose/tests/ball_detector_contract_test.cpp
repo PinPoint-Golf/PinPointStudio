@@ -134,10 +134,12 @@ int main(int argc, char **argv)
     BallDetector td;
     int tDet = 0, tSkip = 0, tBaseline = 0, tLocks = 0;
     bool tFound = false;
+    BallBaselineSnapshot tSnap;   // last baselineReady payload
     QObject::connect(&td, &BallDetector::ballDetected,
                      [&](const BallDetection &r) { ++tDet; tFound = r.found; });
     QObject::connect(&td, &BallDetector::detectionSkipped, [&]() { ++tSkip; });
-    QObject::connect(&td, &BallDetector::baselineReady, [&]() { ++tBaseline; });
+    QObject::connect(&td, &BallDetector::baselineReady,
+                     [&](const BallBaselineSnapshot &s) { ++tBaseline; tSnap = s; });
     QObject::connect(&td, &BallDetector::ballLocked, [&](float, float, float) { ++tLocks; });
     td.setFrameRate(20.0);        // tracker fps=20 → lock after ~10 frames
     td.setRoi(kRoi);
@@ -149,6 +151,15 @@ int main(int argc, char **argv)
     CHECK("seeding: one signal per frame", tDet + tSkip - mark == 30 && tSkip == 0);
     CHECK("seeding: baselineReady fired once", tBaseline == 1);
     CHECK("seeding: no detection while learning", !tFound);
+
+    // The snapshot payload: B is the truncation-denormalized ROI (kRoi over the
+    // 640x480 frame → 320x240 px), CV_32F, carrying the ROI it was seeded over
+    // and a positive noise floor. This is what the exporter persists so offline
+    // re-analysis can reconstruct the tracker from the learned baseline.
+    CHECK("snapshot: B is ROI-sized CV_32F",
+          tSnap.B.rows == kRH && tSnap.B.cols == kRW && tSnap.B.type() == CV_32F);
+    CHECK("snapshot: roi matches the set ROI", tSnap.roi == kRoi);
+    CHECK("snapshot: noise0 > 0", tSnap.noise0 > 0.0);
 
     // Ball present: a ball-scale disc (radius ≈ r_hat @640 px) locks + reports present.
     mark = tDet + tSkip;
@@ -167,6 +178,18 @@ int main(int argc, char **argv)
     for (int i = 0; i < 20; ++i) td.detect(fullFrame(60.0, 3.0, 3000 + i));
     CHECK("removal: one signal per frame", tDet + tSkip - mark == 20);
     CHECK("removal: presence cleared", !tFound);
+
+    // A second setRoi (new rect) re-seeds and re-emits the snapshot with the NEW
+    // rect + dims (the mat under a new box differs — the baseline is rebuilt).
+    std::printf("\nre-seed on ROI change — new rect re-emits the snapshot:\n");
+    const QRectF newRoi(0.1, 0.1, 0.4, 0.4);   // px rect (64, 48, 256, 192)
+    const int nRW = 256, nRH = 192;
+    const int baselineMark = tBaseline;
+    td.setRoi(newRoi);
+    for (int i = 0; i < 30; ++i) td.detect(fullFrame(60.0, 3.0, 4000 + i));
+    CHECK("re-seed: baselineReady fired again", tBaseline == baselineMark + 1);
+    CHECK("re-seed: snapshot carries the new rect + dims",
+          tSnap.roi == newRoi && tSnap.B.rows == nRH && tSnap.B.cols == nRW);
 
     std::printf("%s (%d failure%s)\n", g_fail == 0 ? "ALL PASS" : "FAILURES",
                 g_fail, g_fail == 1 ? "" : "s");

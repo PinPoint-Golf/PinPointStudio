@@ -19,6 +19,7 @@
 #include "swing_reanalyzer.h"
 
 #include <QFile>
+#include <QFileInfo>
 #include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -374,6 +375,41 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
                 if (sr.size() == 4)
                     job.ballSearchRoi = QRectF(sr.at(0).toDouble(), sr.at(1).toDouble(),
                                                sr.at(2).toDouble(), sr.at(3).toDouble());
+
+                // Persisted live empty-mat baseline (captures since baseline
+                // persistence): BallRunner reconstructs the tracker from it instead
+                // of self-seeding over the swing's opening frames, where the ball
+                // already sits. Validate dims, roi rect, and the blob file before
+                // trusting it — any failure warns and leaves the ref empty.
+                const QJsonObject bl = s[QStringLiteral("setup")].toObject()
+                    [QStringLiteral("ballDetection")].toObject()
+                    [QStringLiteral("baseline")].toObject();
+                if (!bl.isEmpty()) {
+                    BallBaselineRef ref;
+                    ref.path = swingDir + QLatin1Char('/') + bl[QStringLiteral("file")].toString();
+                    ref.w    = bl[QStringLiteral("w")].toInt();
+                    ref.h    = bl[QStringLiteral("h")].toInt();
+                    const QJsonArray br = bl[QStringLiteral("roi")].toArray();
+                    if (br.size() == 4)
+                        ref.roi = QRectF(br.at(0).toDouble(), br.at(1).toDouble(),
+                                         br.at(2).toDouble(), br.at(3).toDouble());
+                    ref.rHat   = bl[QStringLiteral("rHat")].toDouble();
+                    ref.fps    = bl[QStringLiteral("fps")].toDouble();
+                    ref.noise0 = bl[QStringLiteral("noise0")].toDouble(1.0);
+                    if (ref.w <= 0 || ref.h <= 0)
+                        ppWarn() << "[Reanalysis]" << swingDir
+                                 << "ballDetection.baseline has bad dims" << ref.w << "x"
+                                 << ref.h << "— ignoring";
+                    else if (br.size() != 4 || ref.roi.isEmpty())
+                        ppWarn() << "[Reanalysis]" << swingDir
+                                 << "ballDetection.baseline roi missing/empty — ignoring";
+                    else if (!QFileInfo::exists(ref.path))
+                        ppWarn() << "[Reanalysis]" << swingDir
+                                 << "ballDetection.baseline blob missing at" << ref.path
+                                 << "— ignoring";
+                    else
+                        job.ballBaseline = std::move(ref);
+                }
             }
 
             const SourceId id = nextId++;
@@ -469,6 +505,30 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
                                           launch[QStringLiteral("y")].toDouble());
             }
             job.ballTrack = std::move(bt);
+        }
+    }
+
+    // Precedence (re-analysis only): a valid persisted baseline makes the
+    // BallRunner re-run authoritative — the recorded "ball" stream carries a known
+    // wrong-time-base accumulator snapshot (junk on live captures to date), so it
+    // must not shadow the re-run. Empty ballTrack ⇒ the wrist_analyzer ladder falls
+    // through to BallRunner.
+    if (job.ballBaseline.isValid())
+        job.ballTrack = {};
+
+    // Sanity gate: drop a recorded ball stream whose WHOLE span lies outside the
+    // reconstructed window [0, tMax−tMin] — the wrong-time-base recording bug
+    // (warn-and-drop; the bug itself is out of scope). Conservative: only when
+    // every frame is out, keyed off the time-ordered ends.
+    if (!job.ballTrack.frames.empty() && tMax > tMin) {
+        const int64_t span = tMax - tMin;
+        if (job.ballTrack.frames.front().t_us > span
+            || job.ballTrack.frames.back().t_us < 0) {
+            ppWarn() << "[Reanalysis]" << swingDir
+                     << "recorded ball stream lies wholly outside the window [0," << span
+                     << "] (t_us" << job.ballTrack.frames.front().t_us << ".."
+                     << job.ballTrack.frames.back().t_us << ") — dropping";
+            job.ballTrack = {};
         }
     }
 

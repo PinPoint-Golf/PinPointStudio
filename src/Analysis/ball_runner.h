@@ -57,12 +57,18 @@ public:
     // is empty. `searchRoi` (full-frame normalized) is the hitting-area box the
     // live detector used, persisted with the swing — when non-empty it REPLACES
     // the stance corridor so re-analysis searches only the ball region (skipping
-    // feet/shoe distractors), matching live detection. Returns an empty track
-    // when the source has no frames, the format is undecodable, or too few
-    // frames are available to seed the baseline.
+    // feet/shoe distractors), matching live detection. `baseline` (re-analysis
+    // only) is the persisted live empty-mat baseline: when valid AND its dims +
+    // blob check out, BallRunner reconstructs the tracker from it (its own rect
+    // wins over searchRoi — B is only valid over that rect) and skips the
+    // self-seed loop entirely, so the tracker regains the address frames the live
+    // seed consumed instead of baking the placed ball into B; any mismatch warns
+    // and falls back to self-seeding. Returns an empty track when the source has
+    // no frames, the format is undecodable, or too few frames are available.
     static pinpoint::analysis::BallTrack2D run(const pinpoint::SwingWindow &window,
                                                pinpoint::SourceId faceOnSource,
                                                const pinpoint::analysis::PoseTrack2D &pose,
                                                const ShotAnalysisRunnerOptions &opt,
-                                               const QRectF &searchRoi = QRectF());
+                                               const QRectF &searchRoi = QRectF(),
+                                               const pinpoint::analysis::BallBaselineRef &baseline = {});
 };

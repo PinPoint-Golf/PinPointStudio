@@ -440,6 +440,42 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
             ballDetection[QStringLiteral("searchRoi")] = QJsonArray{
                 r.x(), r.y(), r.width(), r.height() };
         }
+        // Learned empty-mat baseline sidecar — a raw row-major float32 blob,
+        // not an image (the QImage-not-cv::imwrite rule is moot here).
+        // Written only when CameraInstance actually cached
+        // one live; blob empty ⇒ nothing was learned (legacy swing, or a shot
+        // fired before the first seed completed) — omit sidecar + JSON key.
+        // Short-write handling mirrors the raw sidecar above: drop the file and
+        // the key rather than record a broken reference.
+        if (!rec.cam->ballBaselineBlob.isEmpty() && rec.cam->ballBaselineW > 0
+            && rec.cam->ballBaselineH > 0 && !rec.cam->ballBaselineRoi.isEmpty()) {
+            const QString blobName = rec.cam->alias + QStringLiteral(".ballbase.f32");
+            QFile bf(job.swingDir + QLatin1Char('/') + blobName);
+            if (bf.open(QIODevice::WriteOnly)) {
+                const qint64 want = static_cast<qint64>(rec.cam->ballBaselineBlob.size());
+                const bool ok = (bf.write(rec.cam->ballBaselineBlob) == want);
+                bf.close();
+                if (ok) {
+                    const QRectF &br = rec.cam->ballBaselineRoi;
+                    ballDetection[QStringLiteral("baseline")] = QJsonObject{
+                        {QStringLiteral("file"),   blobName},
+                        {QStringLiteral("w"),      rec.cam->ballBaselineW},
+                        {QStringLiteral("h"),      rec.cam->ballBaselineH},
+                        {QStringLiteral("roi"),    QJsonArray{br.x(), br.y(), br.width(), br.height()}},
+                        {QStringLiteral("rHat"),   rec.cam->ballBaselineRHat},
+                        {QStringLiteral("fps"),    rec.cam->ballBaselineFps},
+                        {QStringLiteral("noise0"), rec.cam->ballBaselineNoise0},
+                    };
+                } else {
+                    ppWarn() << "[SwingExport] short write on baseline sidecar" << blobName
+                             << "— dropping (disk full?)";
+                    bf.remove();
+                }
+            } else {
+                ppWarn() << "[SwingExport] could not open baseline sidecar" << blobName
+                         << "— continuing without a learned baseline";
+            }
+        }
         s[QStringLiteral("setup")] = QJsonObject{
             {QStringLiteral("perspective"),     rec.cam->perspective},
             {QStringLiteral("perspectiveName"), QString::fromLatin1(kPerspectiveNames[pi])},

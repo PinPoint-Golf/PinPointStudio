@@ -39,6 +39,21 @@ struct BallDetection {
 };
 Q_DECLARE_METATYPE(BallDetection)
 
+// Snapshot of the learned empty-mat baseline B, captured on the detector thread
+// at seed completion (see baselineReady). The exporter persists it per swing so
+// offline re-analysis (BallRunner) can reconstruct the TemporalBallTracker from
+// the exact baseline the studio session learned, instead of self-seeding over the
+// swing window's opening frames — where the ball is already placed.
+struct BallBaselineSnapshot {
+    cv::Mat B;              // CV_32F, ROI-sized mean DoG response (deep copy)
+    double  noise0 = 1.0;   // robustNoise of the last seed frame
+    double  rHat   = 0.0;   // radiusForWidth(fw) at seed time
+    double  fps    = 0.0;   // m_trackerFps — PROVENANCE ONLY (offline re-measures its own rate)
+    QRectF  roi;            // full-frame normalized ROI B was seeded over (m_roi)
+    bool valid() const { return !B.empty() && !roi.isEmpty(); }
+};
+Q_DECLARE_METATYPE(BallBaselineSnapshot)
+
 // Detects a golf ball within the hitting-area ROI using the v2 temporal
 // matched-filter core (ball_temporal.h — docs/design/ball_detection_v2.md):
 // self-calibrating, no user calibration profile. The empty-mat baseline is
@@ -100,8 +115,11 @@ signals:
     //    which counts only ballDetected/detectionSkipped) ──────────────────────
 
     // The empty-mat baseline B has been seeded — the hitting area is "learned"
-    // (Option A wizard badge). Detection of a placed ball follows.
-    void baselineReady();
+    // (Option A wizard badge). Detection of a placed ball follows. Carries a
+    // deep-copied snapshot of B + its seed context so the exporter can persist it
+    // and offline re-analysis can reconstruct the tracker from the learned
+    // baseline rather than self-seeding over an already-placed ball.
+    void baselineReady(const BallBaselineSnapshot &snap);
 
     // A stationary ball has been acquired at (x,y) (normalized to the full frame),
     // radiusNorm normalized to frame width. Fires once per acquisition.

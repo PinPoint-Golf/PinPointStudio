@@ -2190,6 +2190,7 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/pose_runner.cpp
     src/Analysis/ball_runner.h
     src/Analysis/ball_runner.cpp
+    src/Analysis/ball_baseline_io.h
     src/Analysis/shot_analyzer.h
     src/Analysis/shot_analyzer.cpp
     src/Analysis/swing_reanalyzer.h

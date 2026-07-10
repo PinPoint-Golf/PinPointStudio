@@ -790,6 +790,20 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         // Recording the v2 auto-detected ball position (locked centre + satFrac)
         // into swing.json is the additive "Provenance v2" follow-up.
         cam.ballSearchRoi = track.ctrl->roi();   // hitting area — re-analysis ball search box
+        // Learned empty-mat baseline snapshot — cv-free cache, no HAVE_OPENCV
+        // guard needed at this call site. Plain copies on the UI thread; blob
+        // stays empty (valid() false) when nothing has been learned live yet
+        // or a relearn/ROI change invalidated the cache mid-reseed.
+        const auto &baseline = track.ctrl->ballBaseline();
+        if (baseline.valid()) {
+            cam.ballBaselineBlob   = baseline.blob;
+            cam.ballBaselineW      = baseline.w;
+            cam.ballBaselineH      = baseline.h;
+            cam.ballBaselineRoi    = baseline.roi;
+            cam.ballBaselineRHat   = baseline.rHat;
+            cam.ballBaselineFps    = baseline.fps;
+            cam.ballBaselineNoise0 = baseline.noise0;
+        }
         job.cameras.push_back(std::move(cam));
 
         // v3.4 (design §9.7): this camera's ball stream, window-relative —

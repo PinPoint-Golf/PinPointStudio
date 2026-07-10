@@ -18,6 +18,7 @@
 
 #include "ball_runner.h"
 
+using pinpoint::analysis::BallBaselineRef;
 using pinpoint::analysis::BallSample2D;
 using pinpoint::analysis::BallTrack2D;
 using pinpoint::analysis::PoseTrack2D;
@@ -38,6 +39,7 @@ using pinpoint::analysis::PoseTrack2D;
 #include <opencv2/imgproc.hpp>
 #include "../Export/frame_decode.h"
 #include "../Pose/ball_temporal.h"
+#include "ball_baseline_io.h"
 #endif
 
 #if defined(HAVE_OPENCV)
@@ -108,7 +110,8 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
                             pinpoint::SourceId faceOnSource,
                             const PoseTrack2D &pose,
                             const ShotAnalysisRunnerOptions &opt,
-                            const QRectF &searchRoi)
+                            const QRectF &searchRoi,
+                            const BallBaselineRef &baseline)
 {
     BallTrack2D track;
     track.camera = faceOnSource;
@@ -149,27 +152,68 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
             --i1;
         if (i0 >= i1) { i0 = 0; i1 = entries.size(); }
     }
-    if (i1 - i0 < size_t(kSeedFrames) + 2) {
-        ppWarn() << "[BallRunner] too few frames in range (" << (i1 - i0)
-                 << ") to seed a baseline — empty track";
+    const int fw = cfmt->width, fh = cfmt->height;
+    const double rHat = radiusForWidth(fw);
+
+    // ── Pre-seeded baseline (re-analysis only): reconstruct the tracker from the
+    //    persisted live empty-mat baseline instead of self-seeding over the
+    //    opening frames, where the ball is already placed (which would bake its
+    //    own response into B — the bug this path fixes). B is only valid over its
+    //    OWN rect, so the baseline's rect wins over searchRoi/corridor. A dims or
+    //    blob mismatch warns and falls through to the self-seed path unchanged.
+    cv::Rect roiRect;
+    cv::Mat  B;
+    double   seedNoise = 1.0;
+    bool     haveB = false;
+    if (baseline.isValid()) {
+        // Denormalize with the EXACT int-truncation the live detector uses
+        // (ball_detector.cpp — static_cast<int> + qBound clamps, NOT round), so
+        // the offline rect matches the pixels B was learned over (plan risk R4).
+        const int rx = qBound(0, static_cast<int>(baseline.roi.x()      * fw), fw - 1);
+        const int ry = qBound(0, static_cast<int>(baseline.roi.y()      * fh), fh - 1);
+        const int rw = qBound(1, static_cast<int>(baseline.roi.width()  * fw), fw - rx);
+        const int rh = qBound(1, static_cast<int>(baseline.roi.height() * fh), fh - ry);
+        cv::Mat loaded;
+        if (rw != baseline.w || rh != baseline.h) {
+            ppWarn() << "[BallRunner] baseline ROI dims" << rw << "x" << rh
+                     << "!= persisted" << baseline.w << "x" << baseline.h
+                     << "(frame" << fw << "x" << fh << ") — self-seeding instead";
+        } else if (!loadBallBaselineBlob(baseline.path, baseline.w, baseline.h, loaded)) {
+            ppWarn() << "[BallRunner] baseline blob missing/truncated at"
+                     << baseline.path << "— self-seeding instead";
+        } else {
+            roiRect   = cv::Rect(rx, ry, rw, rh);
+            B         = loaded;
+            seedNoise = baseline.noise0;
+            haveB     = true;
+        }
+    }
+
+    if (!haveB) {
+        // Prefer the persisted hitting-area box (the region the live detector used)
+        // so re-analysis searches only the ball, never the feet/shoes; fall back to
+        // the pose-derived stance corridor for archival swings without one.
+        if (!searchRoi.isEmpty()) {
+            const int rx = std::clamp(int(searchRoi.x()      * fw), 0, fw - 1);
+            const int ry = std::clamp(int(searchRoi.y()      * fh), 0, fh - 1);
+            const int rw = std::clamp(int(searchRoi.width()  * fw), 1, fw - rx);
+            const int rh = std::clamp(int(searchRoi.height() * fh), 1, fh - ry);
+            roiRect = cv::Rect(rx, ry, rw, rh);
+        } else {
+            roiRect = stanceCorridor(pose, fw, fh);
+        }
+    }
+
+    // Minimum-frames guard: self-seeding needs the full seed window + a couple of
+    // replay frames; a pre-seeded baseline needs only >=2 frames to have something
+    // to replay.
+    const size_t minFrames = haveB ? size_t(2) : size_t(kSeedFrames) + 2;
+    if (i1 - i0 < minFrames) {
+        ppWarn() << "[BallRunner] too few frames in range (" << (i1 - i0) << ") to "
+                 << (haveB ? "replay" : "seed a baseline") << " — empty track";
         return track;
     }
 
-    const int fw = cfmt->width, fh = cfmt->height;
-    const double rHat = radiusForWidth(fw);
-    // Prefer the persisted hitting-area box (the region the live detector used)
-    // so re-analysis searches only the ball, never the feet/shoes; fall back to
-    // the pose-derived stance corridor for archival swings without one.
-    cv::Rect roiRect;
-    if (!searchRoi.isEmpty()) {
-        const int rx = std::clamp(int(searchRoi.x()      * fw), 0, fw - 1);
-        const int ry = std::clamp(int(searchRoi.y()      * fh), 0, fh - 1);
-        const int rw = std::clamp(int(searchRoi.width()  * fw), 1, fw - rx);
-        const int rh = std::clamp(int(searchRoi.height() * fh), 1, fh - ry);
-        roiRect = cv::Rect(rx, ry, rw, rh);
-    } else {
-        roiRect = stanceCorridor(pose, fw, fh);
-    }
     const double fps = 1.0e6 / medianDeltaUs(entries, i0, i1);
 
     cv::Mat bgr, gray8, gray32;   // reused decode scratch
@@ -183,30 +227,33 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
     };
 
     // ── Seed the empty-mat baseline B (mirrors BallDetector::startSeed()) ──
-    cv::Mat seedAccum;
-    int seedHave = 0;
-    double seedNoise = 1.0;
+    // Skipped entirely when a persisted live baseline was loaded above — the
+    // tracker then also gains the ~24 address frames the live seed consumed, and
+    // replay starts at i0 (no frames consumed).
     size_t i = i0;
-    for (; i < i1 && seedHave < kSeedFrames; ++i) {
-        if (!decodeGray32(entries[i]))
-            continue;
-        const cv::Mat R = paddedResponse(gray32, roiRect, rHat);
-        if (R.empty())
-            continue;
-        cv::Mat R64;
-        R.convertTo(R64, CV_64F);
-        if (seedAccum.empty()) seedAccum = R64;
-        else                   seedAccum += R64;
-        seedNoise = robustNoise(R);
-        ++seedHave;
+    if (!haveB) {
+        cv::Mat seedAccum;
+        int seedHave = 0;
+        for (; i < i1 && seedHave < kSeedFrames; ++i) {
+            if (!decodeGray32(entries[i]))
+                continue;
+            const cv::Mat R = paddedResponse(gray32, roiRect, rHat);
+            if (R.empty())
+                continue;
+            cv::Mat R64;
+            R.convertTo(R64, CV_64F);
+            if (seedAccum.empty()) seedAccum = R64;
+            else                   seedAccum += R64;
+            seedNoise = robustNoise(R);
+            ++seedHave;
+        }
+        if (seedHave == 0) {
+            ppWarn() << "[BallRunner] could not seed a baseline (no decodable frames) — empty track";
+            return track;
+        }
+        cv::Mat meanR = seedAccum / seedHave;
+        meanR.convertTo(B, CV_32F);
     }
-    if (seedHave == 0) {
-        ppWarn() << "[BallRunner] could not seed a baseline (no decodable frames) — empty track";
-        return track;
-    }
-    cv::Mat B;
-    cv::Mat meanR = seedAccum / seedHave;
-    meanR.convertTo(B, CV_32F);
     TemporalBallTracker tracker(rHat, fps, B, seedNoise);
 
     // ── Replay the remaining frames through the SAME production core ──────
@@ -260,12 +307,14 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
                             pinpoint::SourceId faceOnSource,
                             const PoseTrack2D &pose,
                             const ShotAnalysisRunnerOptions &opt,
-                            const QRectF &searchRoi)
+                            const QRectF &searchRoi,
+                            const BallBaselineRef &baseline)
 {
     Q_UNUSED(window)
     Q_UNUSED(pose)
     Q_UNUSED(opt)
     Q_UNUSED(searchRoi)
+    Q_UNUSED(baseline)
     ppWarn() << "[BallRunner] built without OpenCV — empty track";
     BallTrack2D track;
     track.camera = faceOnSource;

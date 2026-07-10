@@ -45,6 +45,7 @@ BallDetector::BallDetector(QObject *parent)
     : QObject(parent)
 {
     qRegisterMetaType<BallDetection>();
+    qRegisterMetaType<BallBaselineSnapshot>();
 }
 
 void BallDetector::setRoi(QRectF roi)
@@ -180,7 +181,9 @@ void BallDetector::detectTemporal(const cv::Mat &frame, int rx, int ry, int rw, 
             m_tracker = std::make_unique<TemporalBallTracker>(rHat, m_trackerFps, B, m_seedNoise);
             m_seedTarget = 0;
             m_seedAccum.release();
-            emit baselineReady();
+            // Deep-copy B (the seed accumulator is released next frame) — snapshot
+            // and m_roi are self-consistent here on the detector thread.
+            emit baselineReady(BallBaselineSnapshot{B.clone(), m_seedNoise, rHat, m_trackerFps, m_roi});
         }
         emit ballDetected(BallDetection{false, 0.f, 0.f, 0.f, t.elapsed()});
         return;

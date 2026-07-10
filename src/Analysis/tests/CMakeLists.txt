@@ -172,6 +172,16 @@ pp_add_test(ball_anchor_test
     LINK    ${OpenCV_LIBS}
     COMPILE_OPTIONS -O2)
 
+# Persisted live-baseline blob loader (ball_baseline_io.h) — happy path + the
+# truncated/missing/wrong-dims rejects that force BallRunner's self-seed fallback.
+# Header-only; Qt (QFile/QTemporaryDir) + OpenCV (CV_32F Mat); HAVE_OPENCV un-guards
+# the header.
+pp_add_test(ball_baseline_io_test
+    SOURCES ball_baseline_io_test.cpp
+    INCLUDE ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    DEFINES HAVE_OPENCV)
+
 # Clubhead Stage-2 (Phase B): the per-frame gap-tolerant on-axis terminus
 # (measureHeadRadius, rayEdgeRadius, the B2 ball-length model) and the segmented
 # KF + per-segment RTS temporal model (HeadKf1D, runHeadTemporal). Both synthetic

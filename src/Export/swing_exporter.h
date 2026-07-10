@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include <QByteArray>
 #include <QDateTime>
 #include <QHash>
 #include <QJsonObject>
@@ -65,6 +66,20 @@ struct SwingExportCamera {
     // lets offline re-analysis (BallRunner) search the same box the live
     // detector used instead of the pose-derived stance corridor. Empty ⇒ omitted.
     QRectF   ballSearchRoi;
+    // Learned empty-mat baseline B (v2 temporal detector), cached live by
+    // CameraInstance and copied here at export time so offline re-analysis can
+    // reconstruct the tracker instead of self-seeding over an already-placed
+    // ball. blob empty ⇒ no baseline learned live
+    // (legacy swing, or a shot fired before the first seed completed) — the
+    // exporter omits the sidecar + JSON key entirely. fps is provenance only
+    // (re-analysis re-measures its own rate; see ball_detector.h R2 note).
+    QByteArray ballBaselineBlob;             // row-major float32, w*h*4 bytes
+    int        ballBaselineW    = 0;
+    int        ballBaselineH    = 0;
+    QRectF     ballBaselineRoi;              // full-frame normalized
+    double     ballBaselineRHat   = 0.0;
+    double     ballBaselineFps    = 0.0;
+    double     ballBaselineNoise0 = 1.0;
 };
 
 // Per-IMU device configuration at capture time (stream "device" object),

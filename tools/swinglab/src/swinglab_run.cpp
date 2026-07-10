@@ -429,7 +429,7 @@ int main(int argc, char **argv)
             : (!job.ballTrack.frames.empty()
                    ? job.ballTrack
                    : BallRunner::run(window, job.cameraSources.front(), pose, opt,
-                                     job.ballSearchRoi));
+                                     job.ballSearchRoi, job.ballBaseline));
         ShaftTracker::ShaftTrace trace;
         ShaftTracker::track(window, pose, ball, streams, seg, job, &trace);
 

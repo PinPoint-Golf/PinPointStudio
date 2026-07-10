@@ -90,6 +90,12 @@ struct ShotAnalysisJob {
     // distractors (feet/shoes). Empty ⇒ fall back to the stance corridor.
     QRectF ballSearchRoi;
 
+    // Persisted live empty-mat baseline, resolved from swing.json
+    // setup.ballDetection.baseline. ONLY SwingDiskLoader fills it (live capture
+    // never does) — that scoping is what confines the precedence change to
+    // re-analysis. Empty ⇒ BallRunner self-seeds over the window as before.
+    pinpoint::analysis::BallBaselineRef ballBaseline;
+
     // SwingLab tuning overrides (docs/implementation/swinglab_impl.md):
     // "<area>.<field>" → numeric value, applied onto the config structs at
     // analysis time (e.g. "shaft.ridgeKernelPx", "assembly.coverageMin",

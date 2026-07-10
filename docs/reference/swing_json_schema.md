@@ -163,6 +163,7 @@ An array with one entry per camera or IMU. `kind` discriminates.
 | `calibratedAt` | ISO \| null | v1 calibration timestamp (`null` on v2). |
 | `center` / `radiusNorm` / `positionSource` | float[2] / float / str | **Optional** — a stable calibrated ball position (full-frame normalized; radius to width). Present only when a calibrated position exists (`positionSource: "calibrated"`). |
 | `searchRoi` | float[4] | **Added 2026-07-08.** The hitting-area box `[x, y, w, h]`, full-frame normalized — the region the live ball detector searched. Offline re-analysis (`BallRunner`) searches this box instead of the pose-derived stance corridor, so it matches live detection and skips out-of-box distractors (feet/shoes). **Omitted** when no hitting area is set; swings captured before 2026-07-08 lack it (re-analysis falls back to the stance corridor). |
+| `baseline` | obj | **Added 2026-07-10.** The live detector's learned empty-mat baseline, snapshotted at seed time so offline re-analysis (`BallRunner`) reconstructs the exact baseline the session learned instead of self-seeding over the swing's opening frames (where the ball already sits, which bakes it into the subtracted baseline). `{ "file": "<alias>.ballbase.f32", "w": int, "h": int, "roi": [x,y,w,h], "rHat": float, "fps": float, "noise0": float }`. `file` names the raw float32 sidecar (see below); `w`/`h` are its ROI pixel dims; `roi` is the full-frame-normalized box `B` covers; `rHat` is the seed-time radius; `noise0` is the robust-noise fallback. `fps` is **provenance only** — the offline tracker re-measures its own pushed-frame rate. On re-analysis a valid baseline makes the `BallRunner` re-run authoritative: the recorded `ball` stream (known wrong-time-base) is dropped so it can't shadow the re-run. **Omitted** for swings captured before 2026-07-10, or when the ROI was reset mid-seed. |
 
 ### IMU stream (`kind: "imu"`)
 
@@ -423,6 +424,7 @@ Per-stage analyzer wall times in milliseconds, self-reported by the analyzer so 
 | `<alias>.raw` | When raw-frame saving is on — undecoded sensor sidecar (see `streams[].raw`). |
 | `thumb.jpg` | Always — impact thumbnail. |
 | `imu_<alias>.csv` / `.bin` | When `imuDataFormat` ≠ `json` (otherwise IMU is inline in `streams`). |
+| `<alias>.ballbase.f32` | When the face-on ball detector had a learned empty-mat baseline at export (see `streams[].setup.ballDetection.baseline`). Raw row-major `float32`, `w*h*4` bytes — the live detector's learned empty-mat DoG-response baseline `B` over the search ROI at seed time. Loaded by `BallRunner` on re-analysis; `fps` in the JSON block is provenance only. |
 | `truth.json` | Markup/annotation ground truth (shaft-lab / markup lab), separate from `swing.json`. |
 
 ## Schema version history
@@ -435,3 +437,4 @@ Per-stage analyzer wall times in milliseconds, self-reported by the analyzer so 
 | 2026-07-07 | `capture.club` added; all `analysis` `t_us` normalised to window-relative (readers domain-aware for legacy absolute files). |
 | 2026-07-08 | `analysis.ball` added (face-on ball track for the replay overlay); `setup.ballDetection.searchRoi` added (hitting-area box for offline re-analysis). Both additive — no schema-version bump. |
 | 2026-07-09 | `analysis.timings` added (per-stage analyzer wall times: `poseMs`/`ballMs`/`shaftMs`/`totalMs`). Additive — no schema-version bump. |
+| 2026-07-10 | `setup.ballDetection.baseline` object + `<alias>.ballbase.f32` sidecar added (persisted live empty-mat ball baseline for offline re-analysis). Additive — no schema-version bump. |
