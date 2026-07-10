@@ -153,6 +153,12 @@ class AppSettings : public QObject
     Q_PROPERTY(bool    saveImuStreams        READ saveImuStreams        WRITE setImuStreams            NOTIFY saveImuStreamsChanged)
     Q_PROPERTY(QString imuDataFormat         READ imuDataFormat         WRITE setImuDataFormat         NOTIFY imuDataFormatChanged)
     Q_PROPERTY(bool    saveLaunchMonitorData READ saveLaunchMonitorData WRITE setSaveLaunchMonitorData NOTIFY saveLaunchMonitorDataChanged)
+    // Persistent per-athlete·club·camera club-length prior (club_length_fusion.h /
+    // plan: robust club length — starry-shimmying-wind). Key = "athleteUuid|clubName|
+    // cameraKey" -> {emaPx, varPx, n, disagreeRun, lengthMm, frameW, frameH,
+    // lastUpdatedUtc}. Written ONLY by the live ShotProcessor path; re-analysis reads
+    // the recorded swing.json copy instead (never AppSettings — determinism).
+    Q_PROPERTY(QVariantMap clubLenPrior READ clubLenPrior WRITE setClubLenPrior NOTIFY clubLenPriorChanged)
 
 public:
     Q_INVOKABLE StorageInfo queryStorageInfo() const;
@@ -280,6 +286,8 @@ public:
         m_saveImuStreams         = ppSettings().value(QStringLiteral("storage/saveImuStreams"),        true).toBool();
         m_imuDataFormat         = ppSettings().value(QStringLiteral("storage/imuDataFormat"),         QStringLiteral("json")).toString();
         m_saveLaunchMonitorData = ppSettings().value(QStringLiteral("storage/saveLaunchMonitorData"), true).toBool();
+
+        m_clubLenPrior = ppSettings().value(QStringLiteral("analysis/clubLenPrior"), QVariantMap{}).toMap();
     }
 
     QString appVersion()     const { return QStringLiteral(PINPOINT_VERSION_STRING); }
@@ -369,6 +377,8 @@ public:
     bool    saveImuStreams()        const { return m_saveImuStreams; }
     QString imuDataFormat()         const { return m_imuDataFormat; }
     bool    saveLaunchMonitorData() const { return m_saveLaunchMonitorData; }
+
+    QVariantMap clubLenPrior() const { return m_clubLenPrior; }
 
     QStringList imuExcluded()             const { return m_imuExcluded; }
     QVariantMap imuPlacement()            const { return m_imuPlacement; }
@@ -1032,6 +1042,14 @@ public:
         emit saveLaunchMonitorDataChanged();
     }
 
+    void setClubLenPrior(const QVariantMap &v)
+    {
+        if (m_clubLenPrior == v) return;
+        m_clubLenPrior = v;
+        ppSettings().setValue(QStringLiteral("analysis/clubLenPrior"), v);
+        emit clubLenPriorChanged();
+    }
+
 signals:
     void themeIndexChanged();
     void windowWidthChanged();
@@ -1114,6 +1132,7 @@ signals:
     void saveImuStreamsChanged();
     void imuDataFormatChanged();
     void saveLaunchMonitorDataChanged();
+    void clubLenPriorChanged();
 
 private:
     int     m_themeIndex      = 0;
@@ -1203,4 +1222,6 @@ private:
     bool    m_saveImuStreams        = true;
     QString m_imuDataFormat         = QStringLiteral("json");
     bool    m_saveLaunchMonitorData = true;
+
+    QVariantMap m_clubLenPrior;
 };

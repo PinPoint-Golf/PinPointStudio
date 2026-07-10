@@ -28,6 +28,7 @@
 #include "imu_manager.h"
 #include "session_controller.h"
 #include "shot_list_model.h"
+#include "../Analysis/club_length_fusion.h"
 #include "../Analysis/imu_refusion_check.h"
 #include "../Analysis/imu_vision_fuser.h"
 #include "../Analysis/phase_segmenter.h"
@@ -46,6 +47,7 @@
 #include <QUrl>
 #include <QtConcurrent/QtConcurrentRun>
 #include <algorithm>
+#include <cmath>
 #include <variant>
 
 namespace {
@@ -77,6 +79,33 @@ int postRollMsFor(ShotController::Source s)
 
 // The entire trailing ring — every source's window_duration is 5 s.
 constexpr std::chrono::milliseconds kWindowDuration{5000};
+
+// Multi-estimator club-length fusion result (club_length_fusion.h), nested as
+// "lengths" under the "club" detail block — identical shape in both parity
+// writers (this live-detail path and swing_doc.cpp's disk-reload path; plan:
+// robust club length — starry-shimmying-wind). Always written, even when the
+// fuse abstained (nEstimators==0, fusedPx<0): readers treat <0 as absent, which
+// is simpler than conditionally omitting the block in only one of the writers.
+QVariantMap toLengthsDetail(const pinpoint::analysis::ClubLengthEstimate &l)
+{
+    return QVariantMap{
+        { QStringLiteral("ballPx"),           l.ballPx },
+        { QStringLiteral("bandPx"),           l.bandPx },
+        { QStringLiteral("headP95Px"),        l.headPx },
+        { QStringLiteral("posePx"),           l.posePx },
+        { QStringLiteral("priorPx"),          l.priorPx },
+        { QStringLiteral("fusedPx"),          l.fusedPx },
+        { QStringLiteral("fusedSigmaPx"),     l.fusedSigmaPx },
+        { QStringLiteral("fusedConf"),        l.fusedConf },
+        { QStringLiteral("fusedInstantPx"),   l.fusedInstantPx },
+        { QStringLiteral("fusedInstantConf"), l.fusedInstantConf },
+        { QStringLiteral("ladderRung"),       l.ladderRung },
+        { QStringLiteral("ladderLenPx"),      l.ladderLenPx },
+        { QStringLiteral("nEstimators"),      l.nEstimators },
+        { QStringLiteral("priorN"),           l.priorN },
+        { QStringLiteral("headMeasN"),        l.headMeasN },
+    };
+}
 
 // Convert the analyzer's rich SwingAnalysis into QML-friendly data for the shot's
 // analysisDetail role (the future scrubbable metric graph reads series + phases).
@@ -206,6 +235,9 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
                           { QStringLiteral("measuredClubLenPx"), double(a.shaft.measuredClubLenPx) },
                           { QStringLiteral("frameWidth"),    a.shaft.frameWidth },
                           { QStringLiteral("frameHeight"),   a.shaft.frameHeight },
+                          // Multi-estimator length fusion (club_length_fusion.h) — see
+                          // toLengthsDetail(); mirrors swing_doc.cpp's analysis.club.lengths.
+                          { QStringLiteral("lengths"),       toLengthsDetail(a.shaft.lengths) },
                           { QStringLiteral("samples"),       samples },
                           { QStringLiteral("predicted"),     predicted } });
     }
@@ -430,6 +462,12 @@ void ShotProcessor::captureWindowAndLaunch()
     m_segmentation    = {};
     m_swingDir.clear();
     m_thumbnailPath.clear();
+    // Per-shot club-length prior stash (Phase 3) — re-resolved from scratch in
+    // buildAnalysisJob() below; stays empty/cold when this shot has no
+    // athlete/club/fixed-in-place face-on camera, which onAnalysisFinished()
+    // reads as "nothing to persist".
+    m_lengthPriorKey.clear();
+    m_lengthPriorState = {};
     setState(State::Processing);
 
     ppInfo() << "[ShotProcessor] window captured —"
@@ -599,6 +637,54 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
             const double hoselMm = rec.value(QStringLiteral("hoselFromButtMm")).toDouble();
             if (hoselMm > 0)
                 job.hoselFromButtMm = hoselMm;
+
+            // Persistent club-length prior (club_length_fusion.h / plan: robust
+            // club length — starry-shimmying-wind). Keyed athleteUuid|clubName|
+            // cameraKey (a px prior is meaningless if the camera moves) and only
+            // trusted while that camera is marked fixed-in-place. Resolve the
+            // face-on camera's cameraKey from the already-frozen replay tracks
+            // (m_replayTracks is populated earlier in captureWindowAndLaunch).
+            job.clubName = club;
+            CameraInstance *faceOnCtrl = nullptr;
+            QString faceOnKey;
+            for (const ReplayTrack &track : m_replayTracks) {
+                if (track.ctrl && track.ctrl->perspective() == CameraInstance::FaceOn) {
+                    faceOnCtrl = track.ctrl;
+                    faceOnKey  = track.ctrl->cameraKey();
+                    break;
+                }
+            }
+            if (!faceOnKey.isEmpty() && m_appSettings
+                && m_appSettings->cameraFixedInPlace().value(faceOnKey).toBool()) {
+                // Stashed even on a cold/absent entry — onAnalysisFinished() still
+                // needs the key to seed a brand-new prior on the first confident fuse.
+                m_lengthPriorKey = m_athlete->currentUuid() + QLatin1Char('|') + club
+                                  + QLatin1Char('|') + faceOnKey;
+                const QVariantMap prior = m_appSettings->clubLenPrior().value(m_lengthPriorKey).toMap();
+                if (!prior.isEmpty()) {
+                    const int entryW = prior.value(QStringLiteral("frameW"), 0).toInt();
+                    const int entryH = prior.value(QStringLiteral("frameH"), 0).toInt();
+                    // Camera-move self-heal: an entry with recorded dims must match
+                    // the live camera's resolved frame size, or a silently-moved
+                    // camera would keep feeding a stale px prior. An entry that
+                    // predates this field (no dims recorded) is trusted as-is —
+                    // there is nothing to compare against.
+                    const bool dimsOk = (entryW <= 0 || entryH <= 0)
+                        || (faceOnCtrl && entryW == faceOnCtrl->frameWidth()
+                                       && entryH == faceOnCtrl->frameHeight());
+                    if (dimsOk) {
+                        m_lengthPriorState.emaPx       = prior.value(QStringLiteral("emaPx"), -1.0).toDouble();
+                        m_lengthPriorState.varPx       = prior.value(QStringLiteral("varPx"), 0.0).toDouble();
+                        m_lengthPriorState.n           = prior.value(QStringLiteral("n"), 0).toInt();
+                        m_lengthPriorState.disagreeRun = prior.value(QStringLiteral("disagreeRun"), 0).toInt();
+                        if (m_lengthPriorState.n > 0 && m_lengthPriorState.emaPx > 0.0) {
+                            job.priorClubLenPx    = m_lengthPriorState.emaPx;
+                            job.priorClubLenVarPx = m_lengthPriorState.varPx;
+                            job.priorClubLenN     = m_lengthPriorState.n;
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -779,6 +865,14 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
             if (hoselMm > 0) job.hoselFromButtMm = hoselMm;
         }
     }
+    // Club-length prior (club_length_fusion.h): reuse the exact values already
+    // resolved into m_analysisJob for THIS shot (buildAnalysisJob, called earlier
+    // in captureWindowAndLaunch) — the prior the live analysis fuse actually used,
+    // so re-analysis can reproduce it byte-for-byte.
+    job.clubName          = m_analysisJob.clubName;
+    job.priorClubLenPx    = m_analysisJob.priorClubLenPx;
+    job.priorClubLenVarPx = m_analysisJob.priorClubLenVarPx;
+    job.priorClubLenN     = m_analysisJob.priorClubLenN;
     job.imuBleLatencyUs      = ImuInstance::kImuBleLatencyUs;
     job.audioDeviceLatencyUs = s->audioDeviceLatencyUs();
     job.host.appVersion = QStringLiteral(PP_APP_VERSION);
@@ -1006,6 +1100,35 @@ void ShotProcessor::onAnalysisFinished()
         ppInfo() << "[ShotProcessor] analysis done — score" << m_analysisResult.score;
     else
         emit analysisFailed(m_analysisResult.error);   // toast, not a log line
+
+    // Persistent club-length prior update (club_length_fusion.h / plan: robust
+    // club length — starry-shimmying-wind) — LIVE path only. m_lengthPriorKey was
+    // stashed by buildAnalysisJob() (empty ⇒ no athlete/club/fixed-in-place
+    // face-on camera this shot, nothing to persist). Folds ONLY the PRIOR-FREE
+    // fusedInstant* value into the prior — never the WITH-prior fusedPx, which
+    // would self-reinforce (club_length_fusion.h updateLengthPrior comment).
+    if (m_analysisResult.ok && m_analysisResult.detail && !m_lengthPriorKey.isEmpty()) {
+        const pinpoint::analysis::ClubLengthEstimate &lengths = m_analysisResult.detail->shaft.lengths;
+        const pinpoint::analysis::LengthFusionConfig cfg;   // defaults — live path doesn't sweep fusion.*
+        if (lengths.fusedInstantPx > 0.0 && lengths.fusedInstantConf >= cfg.updateConfMin) {
+            pinpoint::analysis::updateLengthPrior(m_lengthPriorState, lengths.fusedInstantPx,
+                                                  lengths.fusedInstantConf, cfg);
+            AppSettings  fallback;
+            AppSettings *s = m_appSettings ? m_appSettings : &fallback;
+            QVariantMap all   = s->clubLenPrior();
+            QVariantMap entry = all.value(m_lengthPriorKey).toMap();
+            entry[QStringLiteral("emaPx")]          = m_lengthPriorState.emaPx;
+            entry[QStringLiteral("varPx")]          = m_lengthPriorState.varPx;
+            entry[QStringLiteral("n")]              = m_lengthPriorState.n;
+            entry[QStringLiteral("disagreeRun")]    = m_lengthPriorState.disagreeRun;
+            entry[QStringLiteral("lengthMm")]       = static_cast<int>(std::lround(m_analysisJob.clubLengthM * 1000.0));
+            entry[QStringLiteral("frameW")]         = m_analysisResult.detail->shaft.frameWidth;
+            entry[QStringLiteral("frameH")]         = m_analysisResult.detail->shaft.frameHeight;
+            entry[QStringLiteral("lastUpdatedUtc")] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+            all[m_lengthPriorKey] = entry;
+            s->setClubLenPrior(all);
+        }
+    }
 
     // Pose pass is done — only now launch the x264 export, so it has the cores
     // to itself and never contends with the (just-finished) inference. maybeJoin()

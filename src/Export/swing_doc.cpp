@@ -246,6 +246,27 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
                 { QStringLiteral("lenPx"), s.visibleLenPx },
                 { QStringLiteral("conf"),  double(s.conf) },
                 { QStringLiteral("flags"), int(s.flags) } });
+        // Multi-estimator club-length fusion (club_length_fusion.h) — identical
+        // shape in both parity writers (shot_processor.cpp toLengthsDetail is the
+        // live-detail twin). Always written, even on abstain (nEstimators==0,
+        // fusedPx<0): readers treat <0 as absent.
+        const analysis::ClubLengthEstimate &l = a.shaft.lengths;
+        const QJsonObject lengths{
+            { QStringLiteral("ballPx"),           l.ballPx },
+            { QStringLiteral("bandPx"),           l.bandPx },
+            { QStringLiteral("headP95Px"),        l.headPx },
+            { QStringLiteral("posePx"),           l.posePx },
+            { QStringLiteral("priorPx"),          l.priorPx },
+            { QStringLiteral("fusedPx"),          l.fusedPx },
+            { QStringLiteral("fusedSigmaPx"),     l.fusedSigmaPx },
+            { QStringLiteral("fusedConf"),        l.fusedConf },
+            { QStringLiteral("fusedInstantPx"),   l.fusedInstantPx },
+            { QStringLiteral("fusedInstantConf"), l.fusedInstantConf },
+            { QStringLiteral("ladderRung"),       l.ladderRung },
+            { QStringLiteral("ladderLenPx"),      l.ladderLenPx },
+            { QStringLiteral("nEstimators"),      l.nEstimators },
+            { QStringLiteral("priorN"),           l.priorN },
+            { QStringLiteral("headMeasN"),        l.headMeasN } };
         o[QStringLiteral("club")] = QJsonObject{
             { QStringLiteral("camera"),        int(a.shaft.camera) },
             { QStringLiteral("valid"),         a.shaft.valid },
@@ -257,6 +278,7 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
             { QStringLiteral("measuredClubLenPx"), double(a.shaft.measuredClubLenPx) },
             { QStringLiteral("frameWidth"),    a.shaft.frameWidth },
             { QStringLiteral("frameHeight"),   a.shaft.frameHeight },
+            { QStringLiteral("lengths"),       lengths },
             { QStringLiteral("samples"),       samples },
             { QStringLiteral("predicted"),     predicted } };
     }

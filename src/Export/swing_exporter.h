@@ -194,6 +194,17 @@ struct SwingExportJob {
     std::vector<double> bandCentersMm;     // retro-band centres from the butt (mm)
     double  hoselFromButtMm = 0.0;         // hosel offset from the butt (mm); 0 = unknown
 
+    // Club-length prior (club_length_fusion.h / plan: robust club length):
+    // clubName is the canonical club-vocabulary id (persisted so re-analysis can
+    // rebuild the athleteUuid|clubName|cameraKey prior key); priorClubLen* are
+    // the SAME values ShotProcessor fed into the ShotAnalysisJob for this shot
+    // (the prior BEFORE this shot's update), so re-analysis reproduces the exact
+    // fuse the live shot ran. <0 / 0 ⇒ no prior joined this shot.
+    QString clubName;
+    double  priorClubLenPx    = -1.0;
+    double  priorClubLenVarPx = -1.0;
+    int     priorClubLenN     = 0;
+
     // UTC instant snapshotted on the UI thread right after the window was
     // captured — at that moment wallclock ~= monotonic endTimestampUs().
     QDateTime wallclockAnchorUtc;

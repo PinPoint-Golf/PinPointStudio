@@ -598,6 +598,22 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
         job.hoselFromButtMm = clubIn[QStringLiteral("hoselFromButtMm")].toDouble(0.0);
         for (const QJsonValue& v : clubIn[QStringLiteral("bandCentersMm")].toArray())
             job.bandCentersMm.push_back(v.toDouble());
+
+        // Club-length prior (club_length_fusion.h): re-analysis replays the
+        // RECORDED prior — the state the live fuse actually used for THIS shot —
+        // never AppSettings (deterministic, cross-host). Absent block ⇒ the shot
+        // ran prior-free; the fields keep their no-prior defaults.
+        job.clubName = clubIn[QStringLiteral("name")].toString();
+        const QJsonObject priorIn = clubIn[QStringLiteral("lengthPrior")].toObject();
+        if (!priorIn.isEmpty()) {
+            const double px = priorIn[QStringLiteral("px")].toDouble(-1.0);
+            const int    n  = priorIn[QStringLiteral("n")].toInt(0);
+            if (px > 0.0 && n > 0) {
+                job.priorClubLenPx    = px;
+                job.priorClubLenVarPx = priorIn[QStringLiteral("varPx")].toDouble(-1.0);
+                job.priorClubLenN     = n;
+            }
+        }
     }
 
     // IMU → segment bindings: the persisted session A/M calibration, serial-keyed.

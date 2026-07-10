@@ -786,18 +786,34 @@ QJsonObject SwingExporter::captureBlock(const SwingExportJob& job)
         }},
     };
     // Club geometry (shaft-tracker E1 band matcher) — persisted so re-analysis
-    // recovers it. Omitted when unresolved (untaped/no active club).
-    if (job.clubLengthM > 0.0 || !job.bandCentersMm.empty()) {
+    // recovers it. Omitted when unresolved (untaped/no active club). clubName
+    // alone is enough to write the block: an untaped club with no recorded
+    // geometry still carries the length-prior identity (club_length_fusion.h).
+    if (job.clubLengthM > 0.0 || !job.bandCentersMm.empty() || !job.clubName.isEmpty()) {
         QJsonArray bands;
         for (double b : job.bandCentersMm) bands.append(b);
-        cap[QStringLiteral("club")] = QJsonObject{
+        QJsonObject club{
             {QStringLiteral("lengthMm"),        job.clubLengthM * 1000.0},
             {QStringLiteral("shaftType"),       job.shaftType},
             {QStringLiteral("bandCentersMm"),   bands},
             // Additive (Phase A5): hosel offset from the butt, mm. 0 = unknown —
             // absent on swings captured before this field existed.
             {QStringLiteral("hoselFromButtMm"), job.hoselFromButtMm},
+            // Additive (club-length fusion): canonical club-vocabulary id — half
+            // the persistent prior key (athleteUuid|clubName|cameraKey).
+            {QStringLiteral("name"),            job.clubName},
         };
+        // The prior the live analysis fuse ACTUALLY used for this shot (state
+        // BEFORE this shot's update) — re-analysis replays it for a byte-exact
+        // fuse instead of reading AppSettings (deterministic, cross-host).
+        // Omitted when no prior joined (first shot / cold key / camera unfixed).
+        if (job.priorClubLenN > 0 && job.priorClubLenPx > 0.0)
+            club[QStringLiteral("lengthPrior")] = QJsonObject{
+                {QStringLiteral("px"),    job.priorClubLenPx},
+                {QStringLiteral("varPx"), job.priorClubLenVarPx},
+                {QStringLiteral("n"),     job.priorClubLenN},
+            };
+        cap[QStringLiteral("club")] = club;
     }
     return cap;
 }

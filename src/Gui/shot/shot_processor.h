@@ -28,6 +28,7 @@
 
 #include "swing_window.h"
 #include "shot_controller.h"
+#include "../Analysis/club_length_fusion.h"
 #include "../Analysis/shot_analyzer.h"
 #include "../Export/swing_exporter.h"
 #include "../Export/swing_paths.h"
@@ -225,6 +226,15 @@ private:
     bool                            m_segmentationInFlight = false;
     pinpoint::analysis::Segmentation m_segmentation;   // result for THIS shot
     ShotAnalysisJob                 m_analysisJob;      // resolved pre-stage, used at launch
+
+    // Persistent club-length prior (club_length_fusion.h / plan: robust club
+    // length — starry-shimmying-wind). Stashed by buildAnalysisJob() when the
+    // face-on camera is cameraFixedInPlace (else left empty/cold — nothing to
+    // update); onAnalysisFinished() folds the recorded fuse's fusedInstant* into
+    // m_lengthPriorState and persists it to AppSettings under m_lengthPriorKey.
+    // Cleared at the start of every shot alongside m_analysisResult.
+    QString                            m_lengthPriorKey;
+    pinpoint::analysis::LengthPriorState m_lengthPriorState;
 
     // Workers. Both borrow &*m_swingWindow; the window may only be destroyed
     // once BOTH have returned (and replay has stopped) — see maybeJoin()/

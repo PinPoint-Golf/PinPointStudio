@@ -96,7 +96,9 @@ Shot setup + provenance. The `club` sub-block was added 2026-07-07 so re-analysi
   "host": { "app": "PinPointStudio", "version": "0.1.10007", "gitSha": "cb5c646",
             "hostname": "GOLFSIMPC", "platform": "Windows 11 Version 25H2", "poseBackend": "CUDA" },
   "club": { "lengthMm": 940, "shaftType": "steel",
-            "bandCentersMm": [308, 362, 560, 758, 808, 854] }
+            "bandCentersMm": [308, 362, 560, 758, 808, 854],
+            "name": "7 IRON",
+            "lengthPrior": { "px": 372.4, "varPx": 96.1, "n": 5 } }
 }
 ```
 
@@ -110,6 +112,8 @@ Shot setup + provenance. The `club` sub-block was added 2026-07-07 so re-analysi
 | `club.lengthMm` | int | Shaft length; sizes the shaft-tracker head extrapolation. |
 | `club.shaftType` | str | `steel`/`graphite`/`""`. |
 | `club.bandCentersMm` | int[] | Retro-band centres from the butt. **Empty ⇒ untaped** → the shaft tracker runs E2 (ray) evidence only. Absent on swings captured before 2026-07-07. |
+| `club.name` | str | Canonical club-vocabulary id — half the persistent club-length prior key (`athleteUuid\|clubName\|cameraKey`). Added 2026-07-10 (length fusion). |
+| `club.lengthPrior` | obj | The persistent club-length prior **the live fuse actually used for this shot** (state before this shot's update): `px` (EMA length), `varPx` (EW variance, px²), `n` (updates folded in). **Re-analysis replays this recorded prior, never AppSettings** — deterministic, cross-host. Omitted when the shot ran prior-free. |
 
 ---
 
@@ -326,6 +330,12 @@ Written **only when the track is valid** (all-or-nothing consumer contract). Gri
   "camera": 0, "valid": true, "coverage": 0.910,
   "imuVisionCorr": 0, "modelVisionResidualDeg": -1,
   "frameWidth": 1280, "frameHeight": 1024,
+  "lengths": {
+    "ballPx": 361.2, "bandPx": 377.8, "headP95Px": -1, "posePx": 248.5, "priorPx": 372.4,
+    "fusedPx": 371.9, "fusedSigmaPx": 9.8, "fusedConf": 0.71,
+    "fusedInstantPx": 370.2, "fusedInstantConf": 0.63,
+    "ladderRung": 0, "ladderLenPx": 371.9, "nEstimators": 2, "priorN": 5, "headMeasN": 0
+  },
   "samples": [ {
     "t_us": 2720,
     "grip":  [0.5499, 0.6021], "head": [0.4421, 0.8784],
@@ -349,6 +359,7 @@ Written **only when the track is valid** (all-or-nothing consumer contract). Gri
 | `samples[].conf` | float 0–1 | Per-sample confidence. |
 | `samples[].flags` | int (`ShaftSampleFlags`) | Bitfield (below). |
 | `predicted[]` | obj[] | R7 pure-kinematic-model series (same shape); empty in v3. |
+| `lengths` | obj | Multi-estimator club-length fusion (`club_length_fusion.h`), added 2026-07-10. Component estimates in px (`ballPx` grip→ball, `bandPx` band-scale, `headP95Px` Stage-2 head p95, `posePx` pose rung — sanity bound only, never fused; `-1` = estimator absent); `priorPx` = recorded prior; `fusedPx`/`fusedSigmaPx`/`fusedConf` = with-prior posterior; `fusedInstantPx`/`fusedInstantConf` = prior-free variant (the only value folded back into the prior — no self-reinforcement); `ladderRung`/`ladderLenPx` = what the length ladder actually used (rung 0 = fused); `nEstimators`/`priorN`/`headMeasN` = support counts. **Always written** (unlike its parent `club` block's validity gate — parity writers keep it even on abstain, `fusedPx < 0` ⇒ absent). |
 
 **`ShaftSampleFlags`** (bitwise): `0x01` Measured · `0x02` ImuBridged · `0x04` Coasted · `0x08` Wedge · `0x10` HeadProjected · `0x20` KinematicPredicted. E.g. `20` = `0x14` = HeadProjected|Coasted (a `pred`-tier frame); `17` = `0x11` = HeadProjected|Measured (a `ray`-tier frame); `1` = Measured with a real head (a `band`-tier frame).
 
@@ -438,3 +449,4 @@ Per-stage analyzer wall times in milliseconds, self-reported by the analyzer so 
 | 2026-07-08 | `analysis.ball` added (face-on ball track for the replay overlay); `setup.ballDetection.searchRoi` added (hitting-area box for offline re-analysis). Both additive — no schema-version bump. |
 | 2026-07-09 | `analysis.timings` added (per-stage analyzer wall times: `poseMs`/`ballMs`/`shaftMs`/`totalMs`). Additive — no schema-version bump. |
 | 2026-07-10 | `setup.ballDetection.baseline` object + `<alias>.ballbase.f32` sidecar added (persisted live empty-mat ball baseline for offline re-analysis). Additive — no schema-version bump. |
+| 2026-07-10 | Club-length fusion: `capture.club.name` + `capture.club.lengthPrior` (recorded prior for deterministic re-analysis) and `analysis.club.lengths` (fused length ± σ + confidence) added. Additive — no schema-version bump. |
