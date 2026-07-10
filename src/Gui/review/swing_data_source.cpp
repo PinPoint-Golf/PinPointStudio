@@ -33,6 +33,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <limits>
 
 namespace pinpoint {
@@ -476,6 +477,48 @@ void SwingDataSource::reload()
             s.conf.push_back(co.value(QStringLiteral("conf")).toDouble());
         }
         if (!s.t.isEmpty()) { computeCadence(s); m_all.push_back(s); }
+
+        // club head — visible grip→head length as % of frame height. conf reads
+        // low where the head is projected/off-frame (assumed length, not measured),
+        // mirroring the overlay's measured-vs-projected honesty.
+        SwingSeries h;
+        h.kind = SwingSeries::Club;
+        h.ref  = QStringLiteral("head");
+        h.part = QStringLiteral("head");
+        h.label = QStringLiteral("Club · Head");
+        h.header = QStringLiteral("ClubLen%");
+        h.unit = QStringLiteral("%");
+        h.colorKey = QStringLiteral("purple2");
+        const double fh = club.value(QStringLiteral("frameHeight")).toDouble();
+        const double fw = club.value(QStringLiteral("frameWidth")).toDouble();
+        const double aspect = fh > 0.0 ? fw / fh : 1.0;   // grip/head x is normalized by width
+        h.t.reserve(cs.size()); h.value.reserve(cs.size()); h.conf.reserve(cs.size());
+        for (const QJsonValue &cv : cs) {
+            const QJsonObject co = cv.toObject();
+            const int flags = co.value(QStringLiteral("flags")).toInt();
+            const bool projected =
+                flags & (analysis::ShaftHeadProjected | analysis::ShaftHeadOffFrame);
+            const double headConf = co.contains(QStringLiteral("headConf"))
+                                    ? co.value(QStringLiteral("headConf")).toDouble() : -1.0;
+            const double conf = projected ? 0.0
+                              : (headConf >= 0.0 ? headConf
+                                                 : co.value(QStringLiteral("conf")).toDouble());
+            // Drawn grip→head length as % of frame height (aspect-correct, matches
+            // the replay overlay). head is always placed (measured or projected),
+            // so the lane is dense; conf marks measured (bright) vs projected (dim).
+            const QJsonArray g  = co.value(QStringLiteral("grip")).toArray();
+            const QJsonArray hd = co.value(QStringLiteral("head")).toArray();
+            double lenPctH = 0.0;
+            if (g.size() == 2 && hd.size() == 2) {
+                const double dxH = (g.at(0).toDouble() - hd.at(0).toDouble()) * aspect;
+                const double dyH =  g.at(1).toDouble() - hd.at(1).toDouble();
+                lenPctH = std::hypot(dxH, dyH) * 100.0;
+            }
+            h.t.push_back(toRel(co.value(QStringLiteral("t_us")).toDouble()));
+            h.value.push_back(lenPctH);
+            h.conf.push_back(conf);
+        }
+        if (!h.t.isEmpty()) { computeCadence(h); m_all.push_back(h); }
     }
 
     // ball track (analysis.ball preferred, else the raw kind:"ball" ball_v2 stream). One
@@ -782,6 +825,7 @@ QVector<SwingDataSource::PartSpec> SwingDataSource::specsForRegion(const QString
     if (region == QLatin1String("Delivery"))
         return { {pose, {}, QStringLiteral("wrists")}, {pose, {}, QStringLiteral("elbows")},
                  {club, QStringLiteral("shaft"), QStringLiteral("shaft")},
+                 {club, QStringLiteral("head"),  QStringLiteral("head")},
                  {QStringLiteral("ball"), QStringLiteral("ball"), QStringLiteral("ball")},
                  imuRole(R::LeadForearm), imuRole(R::LeadHand),
                  {met, QStringLiteral("leadWristFlexExt"), {}}, {met, QStringLiteral("leadWristRadUln"), {}} };
@@ -799,7 +843,7 @@ const SwingSeries *SwingDataSource::findSeries(const QString &kind, const QStrin
         if (s.kind == SwingSeries::Pose)  { if (s.part == part) return &s; }
         else if (s.kind == SwingSeries::Imu) { if (s.ref == ref) return &s; }
         else if (s.kind == SwingSeries::Metric) { if (s.ref == ref) return &s; }
-        else if (s.kind == SwingSeries::Club) { return &s; }
+        else if (s.kind == SwingSeries::Club) { if (s.ref == ref) return &s; }
         else if (s.kind == SwingSeries::Ball) { return &s; }
     }
     return nullptr;
