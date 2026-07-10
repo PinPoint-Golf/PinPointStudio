@@ -49,6 +49,63 @@ constexpr double kShoulderAnkleFrac = 0.83;
 
 inline double circWrap(double a) { return std::fmod(std::fmod(a + 180.0, 360.0) + 360.0, 360.0) - 180.0; }
 
+// ── club-length fusion helpers (A2b) ─────────────────────────────────────────
+// E-band px = band scale × grip-corrected club length; ≤0 (returns -1) when no
+// band lock. Shared by the pre-pass, post-pass, and out.lengths so all three agree.
+inline double bandLengthPx(double sTypical, double r0Med, double clubLenMm)
+{
+    return (sTypical > 0.0) ? sTypical * std::max(0.0, clubLenMm - r0Med) : -1.0;
+}
+
+// Build the INSTANTANEOUS candidate set (E-ball + E-band). Head is appended by
+// the caller (post-pass only — Stage-2 heads don't exist at the pre-pass).
+inline std::vector<LengthCandidate> instantLengthCandidates(float measuredClubLenPx,
+                                                            double sTypical, double r0Med, double clubLenMm)
+{
+    std::vector<LengthCandidate> cands;
+    if (measuredClubLenPx > 0.f)
+        cands.push_back({LengthSource::Ball, double(measuredClubLenPx), -1.0});
+    const double bl = bandLengthPx(sTypical, r0Med, clubLenMm);
+    if (bl > 0.0)
+        cands.push_back({LengthSource::Band, bl, -1.0});
+    return cands;
+}
+
+// Append E-prior when it has matured (n ≥ 2, positive EMA); returns the prior's
+// support count for confSupport (0 when not appended). σ = sqrt(varPx) (floored
+// inside fuseClubLength).
+inline int appendPriorCandidate(std::vector<LengthCandidate>& cands, const LengthPriorState* prior)
+{
+    if (!prior || prior->n < 2 || !(prior->emaPx > 0.0)) return 0;
+    cands.push_back({LengthSource::Prior, prior->emaPx, std::sqrt(std::max(prior->varPx, 0.0))});
+    return prior->n;
+}
+
+// Linear-interpolation percentile of a copy (type-7). Empty ⇒ NaN. Deterministic.
+inline double percentileOf(std::vector<double> v, double p)
+{
+    if (v.empty()) return std::numeric_limits<double>::quiet_NaN();
+    std::sort(v.begin(), v.end());
+    if (v.size() == 1) return v[0];
+    const double pos = std::clamp(p, 0.0, 1.0) * double(v.size() - 1);
+    const size_t lo = size_t(std::floor(pos));
+    const size_t hi = std::min(lo + 1, v.size() - 1);
+    return v[lo] + (pos - double(lo)) * (v[hi] - v[lo]);
+}
+
+// Median of the finite entries of v (px search ceilings may hold NaN). ≤0 / empty
+// ⇒ NaN (the caller treats a non-positive ceiling as "no pin guard").
+inline double medianFinite(const std::vector<double>& v)
+{
+    std::vector<double> f;
+    f.reserve(v.size());
+    for (double x : v) if (std::isfinite(x)) f.push_back(x);
+    if (f.empty()) return std::numeric_limits<double>::quiet_NaN();
+    std::sort(f.begin(), f.end());
+    const size_t m = f.size();
+    return (m % 2) ? f[m / 2] : 0.5 * (f[m / 2 - 1] + f[m / 2]);
+}
+
 // scipy 'reflect' boundary (…d c b a | a b c d | d c b a…): edge sample dup'd.
 inline int reflectIdx(int i, int n)
 {
@@ -207,6 +264,8 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     // sub-parse (clubhead_track.cpp) so the head parameter set travels with its
     // module; still default enabled=false (dark at merge).
     c.head = ClubheadConfig::fromOverrides(ov);
+    // Multi-estimator club-length fusion: "fusion.*" keys (club_length_fusion.h).
+    c.fusion = LengthFusionConfig::fromOverrides(ov);
     return c;
 }
 
@@ -773,7 +832,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                          int frameW, int frameH, double fps,
                          const std::vector<double>& bandsMm, double clubLenMm,
                          int impactFrame, const ShaftV3Config& cfg, ShaftDecideTrace* trace,
-                         const BallTrack2D* ball)
+                         const BallTrack2D* ball, const LengthPriorState* lengthPrior)
 {
     ShaftTrack2D out;
     out.frameWidth = frameW; out.frameHeight = frameH;
@@ -934,9 +993,39 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
       }
       if (!ext.empty()) { std::nth_element(ext.begin(), ext.begin() + ext.size() / 2, ext.end()); poseExtentPx = ext[ext.size() / 2]; }
       if (!arm.empty()) { std::nth_element(arm.begin(), arm.begin() + arm.size() / 2, arm.end()); armFloorMedPx = 1.05 * arm[arm.size() / 2]; } }
-    int projLenRung = 0;
-    const double projLenPx = projectedClubLenPx(out.measuredClubLenPx, sTypical, r0Med, poseExtentPx,
-                                                armFloorMedPx, clubLenMm, frameH, cfg, projLenRung);
+    // E-pose sanity surrogate (rung-3 math, RECOMPUTED so projectedClubLenPx stays
+    // byte-untouched). fuseClubLength uses it ONLY as a [poseLo, poseHi]× sanity
+    // band, never as a fused value — E-pose reads ~33% short. 0 ⇒ no pose scale.
+    double poseBoundPx = 0.0;
+    if (poseExtentPx > 0.0)
+        poseBoundPx = (poseExtentPx / (kShoulderAnkleFrac * cfg.lenStatureM))
+                      * std::max(0.0, clubLenMm * 1e-3 - cfg.lenGripDownM);
+
+    // ── A2b PRE-PASS length fusion (club_length_fusion): fuse ball+band+prior at
+    // the ladder. conf ≥ ladderConfMin ⇒ rung 0 with the fused px, which then
+    // feeds headBounds' fallback ceiling AND hin.lPx below. ABSTAIN / fusion
+    // disabled ⇒ the EXACT existing projectedClubLenPx call runs (and hin.lPx
+    // keeps its existing expression) — byte-identical to the pre-fusion tracker.
+    int    projLenRung = 0;
+    double projLenPx   = 0.0;
+    LengthFused preFuse;
+    bool   fusedLadder = false;
+    if (cfg.fusion.enabled) {
+        std::vector<LengthCandidate> cands =
+            instantLengthCandidates(out.measuredClubLenPx, sTypical, r0Med, clubLenMm);
+        const int priorNarg = appendPriorCandidate(cands, lengthPrior);
+        preFuse = fuseClubLength(cands, poseBoundPx, armFloorMedPx, double(frameH), priorNarg, cfg.fusion);
+        if (!preFuse.abstained && preFuse.fusedPx > 0.0 && preFuse.conf >= cfg.fusion.ladderConfMin) {
+            // min(max(fused, armFloor), 1.1·fused) — floor to the lead arm, cap at
+            // 1.1× the fused estimate (matches rung 1's own-measurement ceiling).
+            projLenPx   = std::min(std::max(preFuse.fusedPx, armFloorMedPx), 1.1 * preFuse.fusedPx);
+            projLenRung = 0;
+            fusedLadder = true;
+        }
+    }
+    if (!fusedLadder)
+        projLenPx = projectedClubLenPx(out.measuredClubLenPx, sTypical, r0Med, poseExtentPx,
+                                       armFloorMedPx, clubLenMm, frameH, cfg, projLenRung);
     if (trace) { trace->projLenRung = projLenRung; trace->projLenPx = projLenPx; }
 
     enum Tier { PRED = 0, RAY = 1, BAND = 2, RECON = 3 };
@@ -988,9 +1077,14 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     // with the head pass on or off (only headPx/flags/headConf differ). Empty
     // headResults ⇒ head pass off ⇒ placement keeps the Phase-A projected path.
     std::vector<HeadFrameResult> headResults;
+    // Per-frame Stage-2 search ceiling rHi, captured for the A2b post-pass E-head
+    // pinned-at-bound guard (E-head must not ratify its own search bound). NaN
+    // where no head measurement was attempted; empty when the head pass is off.
+    std::vector<double> headRHi;
     if (cfg.head.enabled && !sceneMed.empty()) {
         QElapsedTimer headTimer; headTimer.start();
         const double kHNaN = std::numeric_limits<double>::quiet_NaN();
+        headRHi.assign(size_t(nf), kHNaN);
         const int W = frameW, H = frameH;
         const HeadSceneCtx hctx = makeHeadSceneCtx(sceneMed, W, H, cfg.head);
         // 40 px annulus-bbox inflation covers the 3×3 Sobel kernel + the widest
@@ -1002,7 +1096,11 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         hin.thetaDeg.assign(size_t(nf), kHNaN);
         hin.s1IsMeas.assign(size_t(nf), 0); hin.flipSuspect.assign(size_t(nf), 0);
         hin.rEdge.assign(size_t(nf), 0.0);
-        hin.lPx = (out.measuredClubLenPx > 0.f) ? double(out.measuredClubLenPx) : -1.0;
+        // Pre-pass fused length (rung 0) overrides the ball-only L_px so the
+        // Stage-2 annulus ceiling/floor use the fused estimate; ABSTAIN keeps the
+        // exact existing expression (byte-identical to the pre-fusion path).
+        hin.lPx = fusedLadder ? preFuse.fusedPx
+                              : ((out.measuredClubLenPx > 0.f) ? double(out.measuredClubLenPx) : -1.0);
         hin.dt  = (fps > 0.0) ? 1.0 / fps : 0.0;
         hin.cfg = cfg.head;
 
@@ -1053,6 +1151,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                 }
                 const HeadBounds b = headBounds(rEdge, hin.lPx, projLenPx, armFloor, floorApplies, hctx,
                                                 floorFrac);
+                headRHi[size_t(i)] = b.rHi;   // A2b E-head pinned-at-bound guard
                 const double lPrior = headPrior(hin.lPx, quasiStill);
 
                 // ROI-bounded Sobel of the annulus grip+[rLo,rHi]·dir(θ), written
@@ -1102,6 +1201,79 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                 trace->headR[size_t(i)]    = headResults[size_t(i)].rOut;
                 trace->headZ[size_t(i)]    = hin.z[size_t(i)];
             }
+        }
+    }
+
+    // ── A2b POST-PASS length fusion: add the measured-head estimator ──────────
+    // Re-fuse ball+band+prior+head into the RECORDED length + confidence
+    // (out.lengths.fused*) AND the PRIOR-FREE instant variant (fusedInstant*,
+    // which alone updates the persistent prior — no self-reinforcement). Pure
+    // head/length product: θ and the placement below are untouched (the fused
+    // length already refined projLenPx/hin.lPx in the pre-pass). E-head = p95 of
+    // post-top HeadTier::Meas rOut with UNCAPPED headConf ≥ fusion.headConfMin,
+    // ≥ headMinMeas frames, EXCLUDED when p95 sits within headPinFrac of those
+    // frames' search ceiling rHi (must not ratify its own bound). NB the uncapped
+    // hr.headConf, not the streak-capped sample field placed below.
+    if (cfg.fusion.enabled) {
+        double headLenPx = -1.0;
+        int    headMeasN = 0;
+        if (!headResults.empty()) {
+            std::vector<double> rmeas, rhis;
+            for (int i = pm.top + 1; i < nf && i < int(headResults.size()); ++i) {
+                const HeadFrameResult& hr = headResults[size_t(i)];
+                if (hr.tier != HeadTier::Meas || !std::isfinite(hr.rOut)) continue;
+                if (hr.headConf < float(cfg.fusion.headConfMin)) continue;
+                rmeas.push_back(hr.rOut);
+                rhis.push_back(headRHi.empty() ? std::numeric_limits<double>::quiet_NaN()
+                                               : headRHi[size_t(i)]);
+            }
+            headMeasN = int(rmeas.size());
+            if (headMeasN >= cfg.fusion.headMinMeas) {
+                const double p95     = percentileOf(rmeas, cfg.fusion.headPctile);
+                const double ceilRep = medianFinite(rhis);   // representative search ceiling
+                // Accept E-head only when NOT pinned against its own bound.
+                if (!(ceilRep > 0.0) || p95 < (1.0 - cfg.fusion.headPinFrac) * ceilRep)
+                    headLenPx = p95;
+            }
+        }
+
+        std::vector<LengthCandidate> instCands =
+            instantLengthCandidates(out.measuredClubLenPx, sTypical, r0Med, clubLenMm);
+        if (headLenPx > 0.0) instCands.push_back({LengthSource::Head, headLenPx, -1.0});
+
+        std::vector<LengthCandidate> withPrior = instCands;
+        const int priorNarg = appendPriorCandidate(withPrior, lengthPrior);
+        const LengthFused fRec  = fuseClubLength(withPrior, poseBoundPx, armFloorMedPx, double(frameH),
+                                                 priorNarg, cfg.fusion);
+        const LengthFused fInst = fuseClubLength(instCands, poseBoundPx, armFloorMedPx, double(frameH),
+                                                 0, cfg.fusion);
+
+        ClubLengthEstimate& L = out.lengths;
+        L.ballPx           = (out.measuredClubLenPx > 0.f) ? double(out.measuredClubLenPx) : -1.0;
+        L.bandPx           = bandLengthPx(sTypical, r0Med, clubLenMm);
+        L.headPx           = headLenPx;
+        L.posePx           = (poseBoundPx > 0.0) ? poseBoundPx : -1.0;
+        L.priorPx          = (priorNarg >= 2 && lengthPrior) ? lengthPrior->emaPx : -1.0;
+        L.fusedPx          = fRec.fusedPx;
+        L.fusedSigmaPx     = fRec.sigmaPx;
+        L.fusedConf        = fRec.conf;
+        L.fusedInstantPx   = fInst.fusedPx;
+        L.fusedInstantConf = fInst.conf;
+        L.ladderRung       = projLenRung;    // rung the tracker actually used (0 = pre-pass fused)
+        L.ladderLenPx      = projLenPx;      // px the tracker actually used
+        L.nEstimators      = fRec.nUsed;
+        L.priorN           = priorNarg;
+        L.headMeasN        = headMeasN;
+
+        if (trace) {
+            trace->fuseFusedPx     = fRec.fusedPx;
+            trace->fuseFusedConf   = fRec.conf;
+            trace->fuseInstantPx   = fInst.fusedPx;
+            trace->fuseInstantConf = fInst.conf;
+            trace->fuseHeadPx      = headLenPx;
+            trace->fuseNEst        = fRec.nUsed;
+            trace->fusePriorN      = priorNarg;
+            trace->fuseSpread      = fRec.spread;
         }
     }
 

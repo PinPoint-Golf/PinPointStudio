@@ -423,6 +423,88 @@ int main()
         check(outsideIdentical, "headConf outside the window identical across cap settings");
     }
 
+    // ── A2b fusion: OFF ⇒ ladder unchanged + prior ignored ───────────────────
+    // With cfg.fusion.enabled=false the length ladder is byte-identical whether or
+    // not a (strong) prior is supplied — the fusion pre/post-pass never run and
+    // out.lengths stays default. Reuses the θ-invariance geometry (grip→ball 350).
+    std::printf("=== decideTrack fusion OFF ignores prior ===\n");
+    {
+        const int nf = 60, W = 1000, H = 1000;
+        const double fps = 100.0;
+        std::vector<int64_t> tUs(nf);
+        std::vector<double> gx(nf), gy(nf), phiRaw(nf, 90.0);
+        std::vector<std::vector<cv::Point2d>> joints(nf, std::vector<cv::Point2d>(8));
+        double x = 500, y = 600;
+        for (int f = 0; f < nf; ++f) {
+            tUs[f] = int64_t(f) * 10000;
+            if (f >= 40 && f < 53)      { x -= 4; y -= 9; }
+            else if (f >= 53 && f < 60) { x += 4; y += 9; }
+            gx[f] = x; gy[f] = y;
+            joints[f] = {{450, 300}, {550, 300}, {460, 600}, {540, 600},
+                         {465, 750}, {535, 750}, {470, 900}, {530, 900}};
+        }
+        BallTrack2D ball;
+        for (int f = 0; f < nf; ++f) {
+            BallSample2D b; b.t_us = tUs[f]; b.found = true;
+            b.center = QPointF(0.50, 0.95); b.radiusNorm = 0.02f; b.conf = 1.f;
+            ball.frames.push_back(b);
+        }
+        const FrameSource noFrames = [](int) -> cv::Mat { return cv::Mat(); };
+
+        ShaftV3Config cfgOff = cfg; cfgOff.fusion.enabled = false;
+        LengthPriorState strong; strong.emaPx = 470.0; strong.varPx = 600.0; strong.n = 8;
+
+        const ShaftTrack2D withP = decideTrack(noFrames, tUs, gx, gy, phiRaw, joints, W, H, fps,
+                                               {}, 1120.0, -1, cfgOff, nullptr, &ball, &strong);
+        const ShaftTrack2D noP   = decideTrack(noFrames, tUs, gx, gy, phiRaw, joints, W, H, fps,
+                                               {}, 1120.0, -1, cfgOff, nullptr, &ball, nullptr);
+        bool sameCount = withP.samples.size() == noP.samples.size() && !withP.samples.empty();
+        bool identical = sameCount;
+        for (size_t i = 0; sameCount && i < withP.samples.size(); ++i)
+            if (withP.samples[i].thetaRad != noP.samples[i].thetaRad
+                || withP.samples[i].headPx != noP.samples[i].headPx) identical = false;
+        check(sameCount && identical, "fusion off ⇒ track identical with/without a prior");
+        check(withP.lengths.fusedPx < 0.0 && noP.lengths.fusedPx < 0.0,
+              "fusion off ⇒ no fused length recorded (out.lengths default)");
+    }
+
+    // ── A2b fusion: a strong prior drives the ladder to rung 0 ────────────────
+    // No ball, no band (untaped) ⇒ instantaneous fusion abstains and the ladder
+    // falls to the pose surrogate (rung 3). A matured prior (n≥2) inside the pose
+    // sanity band makes the prior-only fusion clear ladderConfMin ⇒ rung 0.
+    std::printf("=== decideTrack strong prior ⇒ rung 0 ===\n");
+    {
+        const int nf = 60, W = 1000, H = 1000;
+        const double fps = 100.0;
+        std::vector<int64_t> tUs(nf);
+        std::vector<double> gx(nf), gy(nf), phiRaw(nf, 90.0);
+        std::vector<std::vector<cv::Point2d>> joints(nf, std::vector<cv::Point2d>(8));
+        double x = 500, y = 600;
+        for (int f = 0; f < nf; ++f) {
+            tUs[f] = int64_t(f) * 10000;
+            if (f >= 40 && f < 53)      { x -= 4; y -= 9; }
+            else if (f >= 53 && f < 60) { x += 4; y += 9; }
+            gx[f] = x; gy[f] = y;
+            joints[f] = {{450, 300}, {550, 300}, {460, 600}, {540, 600},
+                         {465, 750}, {535, 750}, {470, 900}, {530, 900}};
+        }
+        const FrameSource noFrames = [](int) -> cv::Mat { return cv::Mat(); };
+
+        // no ball ⇒ instantaneous set is empty; prior ema 400 ∈ pose band [~379, 620]
+        LengthPriorState prior; prior.emaPx = 400.0; prior.varPx = 576.0; prior.n = 4;
+        ShaftDecideTrace trNoPrior, trPrior;
+        const ShaftTrack2D a = decideTrack(noFrames, tUs, gx, gy, phiRaw, joints, W, H, fps,
+                                           {}, 1120.0, -1, cfg, &trNoPrior, nullptr, nullptr);
+        const ShaftTrack2D b = decideTrack(noFrames, tUs, gx, gy, phiRaw, joints, W, H, fps,
+                                           {}, 1120.0, -1, cfg, &trPrior,   nullptr, &prior);
+        check(trNoPrior.projLenRung != 0, "no ball / no prior ⇒ ladder falls to a pose/height rung");
+        check(trPrior.projLenRung == 0, "strong prior ⇒ pre-pass fusion sets rung 0");
+        check(b.lengths.priorN == 4 && b.lengths.fusedConf >= cfg.fusion.ladderConfMin,
+              "prior joined the fuse (priorN=4, conf ≥ ladderConfMin)");
+        check(b.lengths.fusedPx > 0.0 && a.lengths.fusedPx < 0.0,
+              "prior ⇒ fused length recorded; no estimators ⇒ abstain");
+    }
+
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);
     return g_fail;
 }

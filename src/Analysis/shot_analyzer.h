@@ -54,6 +54,18 @@ struct ShotAnalysisJob {
     QString             shaftType;   // "steel" | "graphite" | "" (unknown)
     double hoselFromButtMm = 0.0;  // hosel offset from the butt (mm), athlete club record; 0 = unknown
 
+    // Persistent club-length prior (club_length_fusion.h). clubName is the
+    // canonical club-vocabulary id — half the prior key (athleteUuid|clubName|
+    // cameraKey; the rest resolved in ShotProcessor). priorClubLen* carry the
+    // persisted LengthPriorState so decideTrack can join E-prior into the fuse:
+    // filled by ShotProcessor from AppSettings on the LIVE path, or by
+    // SwingDiskLoader from the recorded swing.json on RE-ANALYSIS (deterministic,
+    // never AppSettings) — Agent B wires both. Defaults (N=0) ⇒ no prior joins.
+    QString clubName;
+    double  priorClubLenPx    = -1.0;  // LengthPriorState::emaPx (px); <0 ⇒ uninitialised
+    double  priorClubLenVarPx = -1.0;  // LengthPriorState::varPx (px²); <0 ⇒ absent
+    int     priorClubLenN     = 0;     // LengthPriorState::n (updates folded in); 0 ⇒ no prior
+
     // Resolved IMU -> anatomical-segment bindings (placement slot + the live
     // calibration A/M snapshot), filled on the UI thread — the worker cannot
     // read the live ImuInstance. Empty when no IMU is bound.

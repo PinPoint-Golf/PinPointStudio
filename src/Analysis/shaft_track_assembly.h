@@ -26,8 +26,9 @@
 #include <opencv2/core.hpp>
 
 #include "shaft_tracker_math.h"    // RidgeConfig, BandMatchConfig, BandMatch
-#include "swing_analysis.h"        // ShaftTrack2D / ShaftSample2D / flags
+#include "swing_analysis.h"        // ShaftTrack2D / ShaftSample2D / ClubLengthEstimate / flags
 #include "clubhead_track.h"        // ClubheadConfig (Stage-2 head measurement)
+#include "club_length_fusion.h"    // LengthFusionConfig / LengthPriorState / fuseClubLength
 
 // Shaft-tracker v3.0-r1 DECIDING HALF — the physics/statistics that turn
 // per-frame evidence into one globally-consistent shaft-angle track. Faithful
@@ -145,6 +146,12 @@ struct ShaftV3Config {
     // `head = ClubheadConfig::fromOverrides(ov);` there so "shaft.head.*" keys
     // apply. Until then head keeps its validated-constant defaults.
     ClubheadConfig  head;
+    // Multi-estimator club-length fusion (club_length_fusion.h): "fusion.*" keys.
+    // fromOverrides populates it (`fusion = LengthFusionConfig::fromOverrides(ov)`).
+    // enabled=true by default (feeds the length ladder + Stage-2 search); the
+    // no-regression gate runs with "fusion.enabled" = 0, which reproduces today's
+    // ladder byte-for-byte.
+    LengthFusionConfig fusion;
 
     static ShaftV3Config fromOverrides(const QVariantMap& ov);
 };
@@ -283,6 +290,20 @@ struct ShaftDecideTrace {
     // fed back into the θ path.
     int                 projLenRung = 0;
     double              projLenPx   = 0.0;
+    // A2b club-length fusion (club_length_fusion.h) — SwingLab triage of the
+    // fused length + confidence. fuseFusedPx/Conf include the persistent prior
+    // (the RECORDED length); fuseInstantPx/Conf are prior-free (drive the prior
+    // update); fuseHeadPx = the E-head p95 that entered (−1 = none); fuseNEst =
+    // surviving instantaneous estimators; fusePriorN = prior support; fuseSpread
+    // = relative survivor spread. Head/length diagnostics only — never θ.
+    double              fuseFusedPx     = -1.0;
+    double              fuseFusedConf   = 0.0;
+    double              fuseInstantPx   = -1.0;
+    double              fuseInstantConf = 0.0;
+    double              fuseHeadPx      = -1.0;
+    int                 fuseNEst        = 0;
+    int                 fusePriorN      = 0;
+    double              fuseSpread      = 0.0;
     // A1 golf-prior plausibility gate on the ball length measurement (gateA-
     // 0704: consistent driver-head lock above the ankle line shorted rung 1).
     // 0 accepted / not gated, 1 rejected at/above the ankle line, 2 rejected
@@ -352,6 +373,13 @@ double projectedClubLenPx(double measuredClubLenPx, double sTypical, double r0Me
 // to seed rung 1 of the length ladder — it never enters segmentPhases/emission/
 // DP/reconcile, so θ is identical with or without it (the head/length half is
 // strictly decoupled from the corpus-validated θ path).
+//
+// `lengthPrior` (may be null; null == no persistent prior) joins E-prior into the
+// club-length fusion when cfg.fusion.enabled && its n ≥ 2. Read-only here — the
+// prior UPDATE (from out.lengths.fusedInstant*) happens in the caller after the
+// swing is analysed. Defaulted so the parity/decide harnesses + swinglab_run
+// compile unchanged. With cfg.fusion.enabled == false the fusion is skipped
+// entirely and the length ladder is byte-identical to the pre-fusion tracker.
 ShaftTrack2D decideTrack(const FrameSource& frameAt,
                          const std::vector<int64_t>& tUs,
                          const std::vector<double>& gx, const std::vector<double>& gy,
@@ -361,6 +389,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt,
                          const std::vector<double>& bandsMm, double clubLenMm,
                          int impactFrame, const ShaftV3Config& cfg,
                          ShaftDecideTrace* trace = nullptr,
-                         const BallTrack2D* ball = nullptr);
+                         const BallTrack2D* ball = nullptr,
+                         const LengthPriorState* lengthPrior = nullptr);
 
 } // namespace pinpoint::analysis
