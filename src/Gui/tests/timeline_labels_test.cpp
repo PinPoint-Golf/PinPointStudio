@@ -19,14 +19,23 @@
 // Characterization of TimelineLabels — the pure, font-free maths behind the Transit
 // timeline. stationLayout() is exercised indirectly (it composes distribute()); the
 // font-measuring path needs a QGuiApplication and is left to the visual/manual check.
+//
+// positionLayout() shares that same font-measuring path (QFontMetricsF sizes each
+// "Pn" label) but its non-overlap/sort/filter behaviour is exactly what the P1..P8
+// timeline layer depends on, so it IS worth exercising directly here. A headless
+// QGuiApplication (QT_QPA_PLATFORM=offscreen, no display needed) is bootstrapped in
+// main() just for this — self-contained, so `ctest`/direct-run both work with no
+// external env setup, and it does not change any of the other (still font-free) tests.
 
 #include "timeline_labels.h"
 
+#include <QGuiApplication>
 #include <QVariantList>
 #include <QVariantMap>
 #include <cmath>
 #include <cstdio>
 #include <initializer_list>
+#include <tuple>
 #include <utility>
 
 static int g_fail = 0;
@@ -74,8 +83,31 @@ static QVariantList phases(std::initializer_list<std::pair<int, qint64>> ps)
     return l;
 }
 
-int main()
+// {p, t_us, source, conf} tuples — the fields positionLayout() reads from each
+// club.positions entry (grip/head/theta/… pass through untouched, not needed here).
+static QVariantList positionsList(
+    std::initializer_list<std::tuple<int, qint64, int, double>> ps)
 {
+    QVariantList l;
+    for (const auto &p : ps) {
+        QVariantMap m;
+        m.insert(QStringLiteral("p"),      std::get<0>(p));
+        m.insert(QStringLiteral("t_us"),   QVariant::fromValue<qint64>(std::get<1>(p)));
+        m.insert(QStringLiteral("source"), std::get<2>(p));
+        m.insert(QStringLiteral("conf"),   std::get<3>(p));
+        l.append(m);
+    }
+    return l;
+}
+
+int main(int argc, char **argv)
+{
+    // Headless-safe: offscreen needs no display. Only set the fallback when the
+    // caller (ctest, a dev shell, ...) hasn't already picked a platform.
+    if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM"))
+        qputenv("QT_QPA_PLATFORM", "offscreen");
+    QGuiApplication app(argc, argv);
+
     TimelineLabels t;
     std::printf("=== TimelineLabels ===\n\n");
 
@@ -118,6 +150,69 @@ int main()
         const QVariantList r = t.distribute(vl({2, 5}), vl({10, 10}), 2, 0, 200);
         checkNear("c0 == lo+h", r.at(0).toDouble(), 5);     // 0 + 5
         checkNear("c1 == c0+12", r.at(1).toDouble(), 17);
+    }
+
+    // ── positionLayout: empty/absent input ⇒ empty list ────────────────────────
+    std::printf("-- positionLayout: empty input --\n");
+    {
+        checkTrue("empty positions -> empty list",
+                  t.positionLayout(QVariantList(), 0, 1000000, true, 300, 4,
+                                   QStringLiteral("Arial"), 10).isEmpty());
+    }
+
+    // ── positionLayout: a lone position keeps center == tick frac position ─────
+    std::printf("-- positionLayout: lone position --\n");
+    {
+        const QVariantList p = positionsList({ {4, 500000, 0, 0.9} });
+        const QVariantList r = t.positionLayout(p, 0, 1000000, true, 300, 4,
+                                                QStringLiteral("Arial"), 10);
+        checkTrue("lone -> one entry", r.size() == 1);
+        const QVariantMap m = r.at(0).toMap();
+        const double frac      = m.value(QStringLiteral("frac")).toDouble();
+        const double rawCenter = frac * 300.0;
+        checkEqI("lone p", m.value(QStringLiteral("p")).toLongLong(), 4);
+        checkStr("lone label", m.value(QStringLiteral("label")).toString(), "P4");
+        checkNear("lone center == raw tick frac position",
+                  m.value(QStringLiteral("center")).toDouble(), rawCenter);
+        checkTrue("lone -> no elbow", !m.value(QStringLiteral("elbow")).toBool());
+    }
+
+    // ── positionLayout: clustered P5/P6/P7 solved to non-overlapping centers ───
+    std::printf("-- positionLayout: clustered downswing positions --\n");
+    {
+        // Span is 1,000,000us; P5/P6/P7 sit within ~1% of the span of each other —
+        // exactly the downswing clustering the solver exists to spread apart. P99
+        // (out-of-range p) must be dropped; the survivors must come back sorted by
+        // t_us regardless of input order.
+        const QVariantList p = positionsList({
+            {7, 508000, 0, 0.7},
+            {99, 300000, 0, 0.5},   // out-of-range p — dropped
+            {5, 500000, 0, 0.8},
+            {6, 505000, 1, 0.9},
+        });
+        const QVariantList r = t.positionLayout(p, 0, 1000000, true, 300, 4,
+                                                QStringLiteral("Arial"), 10);
+        checkTrue("drops out-of-range p", r.size() == 3);
+        if (r.size() == 3) {
+            const QVariantMap m0 = r.at(0).toMap();
+            const QVariantMap m1 = r.at(1).toMap();
+            const QVariantMap m2 = r.at(2).toMap();
+            checkEqI("sorted: p5 first",  m0.value(QStringLiteral("p")).toLongLong(), 5);
+            checkEqI("sorted: p6 second", m1.value(QStringLiteral("p")).toLongLong(), 6);
+            checkEqI("sorted: p7 third",  m2.value(QStringLiteral("p")).toLongLong(), 7);
+            checkStr("p5 label", m0.value(QStringLiteral("label")).toString(), "P5");
+            checkStr("p6 label", m1.value(QStringLiteral("label")).toString(), "P6");
+            checkStr("p7 label", m2.value(QStringLiteral("label")).toString(), "P7");
+            checkEqI("p6 source passthrough", m1.value(QStringLiteral("source")).toLongLong(), 1);
+
+            const double c0 = m0.value(QStringLiteral("center")).toDouble();
+            const double c1 = m1.value(QStringLiteral("center")).toDouble();
+            const double c2 = m2.value(QStringLiteral("center")).toDouble();
+            checkTrue("centers within [lo,hi]",
+                      c0 >= 0.0 && c0 <= 300.0 && c1 >= 0.0 && c1 <= 300.0
+                      && c2 >= 0.0 && c2 <= 300.0);
+            checkTrue("centers non-overlapping (monotonic, separated)", c0 < c1 && c1 < c2);
+        }
     }
 
     // ── activeStation ──────────────────────────────────────────────────────────

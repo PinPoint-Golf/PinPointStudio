@@ -22,6 +22,7 @@
 #include <QFontMetricsF>
 #include <QVariantMap>
 #include <QVector>
+#include <algorithm>
 
 namespace {
 
@@ -130,6 +131,86 @@ QVariantList TimelineLabels::stationLayout(const QVariantList &phases, qint64 st
         r.insert(QStringLiteral("name"),     names[i]);
         r.insert(QStringLiteral("isImpact"), phaseIds[i] == kImpactPhase);
         r.insert(QStringLiteral("elbow"),    qAbs(label - center) > 1.5);
+        out.append(r);
+    }
+    return out;
+}
+
+QVariantList TimelineLabels::positionLayout(const QVariantList &positions, qint64 startUs,
+                                            qint64 endUs, bool horizontal, double mainLength,
+                                            double gap, const QString &fontFamily,
+                                            int fontPx) const
+{
+    QVariantList out;
+    if (positions.isEmpty()) return out;
+
+    // Keep only valid P1..P8 entries, sorted by time — unlike phases (already
+    // time-ordered by the analyzer), milestone fits can be revised/added out of order.
+    QVector<QVariantMap> rows;
+    rows.reserve(positions.size());
+    for (const QVariant &pv : positions) {
+        const QVariantMap m = pv.toMap();
+        const int p = m.value(QStringLiteral("p")).toInt();
+        if (p >= 1 && p <= 8) rows.append(m);
+    }
+    std::sort(rows.begin(), rows.end(), [](const QVariantMap &a, const QVariantMap &b) {
+        return a.value(QStringLiteral("t_us")).toLongLong()
+             < b.value(QStringLiteral("t_us")).toLongLong();
+    });
+
+    const int n = rows.size();
+    if (n == 0) return out;
+
+    const double span = qMax<double>(1.0, double(endUs - startUs));
+
+    QFont font(fontFamily);
+    if (fontPx > 0) font.setPixelSize(fontPx);
+    const QFontMetricsF fm(font);
+    const double lineH = fm.height();
+
+    QVariantList centers, sizes;
+    centers.reserve(n);
+    sizes.reserve(n);
+    QVector<double>  fracs(n);
+    QVector<QString> labels(n);
+    QVector<int>     ps(n);
+    QVector<qint64>  tus(n);
+    QVector<int>     sources(n);
+    QVector<double>  confs(n);
+
+    for (int i = 0; i < n; ++i) {
+        const QVariantMap &m = rows[i];
+        const int    p = m.value(QStringLiteral("p")).toInt();
+        const qint64 t = m.value(QStringLiteral("t_us")).toLongLong();
+
+        const double  frac   = qBound(0.0, double(t - startUs) / span, 1.0);
+        const double  center = frac * mainLength;
+        const QString label  = QStringLiteral("P%1").arg(p);
+        // Main-axis size, same rule as stationLayout: measured text width when
+        // horizontal (labels run along the line), a uniform line height when vertical.
+        const double size = horizontal ? fm.horizontalAdvance(label) + 4.0 : lineH;
+
+        fracs[i] = frac; labels[i] = label; ps[i] = p; tus[i] = t;
+        sources[i] = m.value(QStringLiteral("source")).toInt();
+        confs[i]   = m.value(QStringLiteral("conf")).toDouble();
+        centers.append(center);
+        sizes.append(size);
+    }
+
+    const QVariantList solved = distribute(centers, sizes, gap, 0.0, mainLength);
+
+    for (int i = 0; i < n; ++i) {
+        const double rawCenter = centers.at(i).toDouble();
+        const double center    = solved.at(i).toDouble();
+        QVariantMap r;
+        r.insert(QStringLiteral("p"),      ps[i]);
+        r.insert(QStringLiteral("tUs"),    tus[i]);
+        r.insert(QStringLiteral("frac"),   fracs[i]);
+        r.insert(QStringLiteral("center"), center);
+        r.insert(QStringLiteral("label"),  labels[i]);
+        r.insert(QStringLiteral("source"), sources[i]);
+        r.insert(QStringLiteral("conf"),   confs[i]);
+        r.insert(QStringLiteral("elbow"),  qAbs(center - rawCenter) > 1.5);
         out.append(r);
     }
     return out;

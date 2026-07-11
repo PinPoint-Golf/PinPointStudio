@@ -63,6 +63,25 @@ public:
                                            double gap, const QString &fontFamily,
                                            double fontPx) const;
 
+    // Same idea as stationLayout but for the named coaching P1..P8 positions
+    // (shotReplay.analysisDetail.club.positions — the fused TrackSample/MilestoneFit
+    // track, each {p, t_us, grip, head, theta, lenPx, conf, sigmaThetaDeg, sigmaLenPx,
+    // stackN, source}). `t_us` must already be in the SAME domain as `startUs`/`endUs`
+    // (both the live and disk-replay facades re-time positions into window-relative µs,
+    // matching phases/samples — see disk_replay_source.cpp relTimedMap).
+    // Entries with `p` outside 1..8 are dropped; the rest are sorted by t_us (milestone
+    // fits are not guaranteed to arrive in order) before solving. For each surviving
+    // entry, in time order, returns a map:
+    //   { p:int, tUs, frac (0..1 clamped), center (distribute()-solved main-axis
+    //     position — clustered downswing positions, e.g. P5/P6/P7, can sit within ~1%
+    //     of the span of each other, so this is never the raw frac*mainLength), label
+    //     ("P1".."P8"), source (0 TrackSample / 1 MilestoneFit), conf, elbow (true when
+    //     the solved position was nudged >1.5px off its raw frac*mainLength spot) }.
+    Q_INVOKABLE QVariantList positionLayout(const QVariantList &positions, qint64 startUs,
+                                            qint64 endUs, bool horizontal, double mainLength,
+                                            double gap, const QString &fontFamily,
+                                            int fontPx) const;
+
     // Greatest station index whose t_us <= pos (the station "bracketing" the playhead),
     // or -1 when pos precedes the first station / the list is empty.
     Q_INVOKABLE int activeStation(const QVariantList &phases, qint64 pos) const;

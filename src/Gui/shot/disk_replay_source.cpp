@@ -236,6 +236,17 @@ bool DiskReplaySource::load(const QString &swingDir, double speed)
                     synth.append(relTimedMap(sv2.toObject(), t0));
                 club[QStringLiteral("synth")] = synth;
             }
+            // Named P1..P8 coaching positions (fused TrackSample/MilestoneFit — see
+            // shaft_position_first): re-time exactly like samples/synth so the Transit
+            // timeline's P-tick layer indexes them in the same window-relative domain
+            // as the phase stations. The live path (shot_processor toAnalysisDetail)
+            // already writes these absolute-consistent, so only the disk path needs it.
+            if (cb.contains(QStringLiteral("positions"))) {
+                QVariantList positions;
+                for (const QJsonValue &sv2 : cb[QStringLiteral("positions")].toArray())
+                    positions.append(relTimedMap(sv2.toObject(), t0));
+                club[QStringLiteral("positions")] = positions;
+            }
             m_analysisDetail.insert(QStringLiteral("club"), club);
         }
         if (an.contains(QStringLiteral("ball"))) {

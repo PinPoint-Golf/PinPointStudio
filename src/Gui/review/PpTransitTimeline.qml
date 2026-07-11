@@ -74,6 +74,18 @@ Item {
                                _lineLen, Theme.sp(12), Theme.fontData, Theme.fontSzLabel)
         : []
 
+    // Measured coaching positions (P1..P8 — the fused TrackSample/MilestoneFit club
+    // track from shaft_position_first) in the same window-relative µs domain as the
+    // stations. Present on both the live and disk replay facades. No View toggle
+    // today — this is always-on chrome that rides with the timeline itself; a
+    // user-facing show/hide would be a View-menu/ViewLayout concern (per-view display
+    // settings), not something owned here.
+    readonly property var _positions: (_detail && _detail.club) ? (_detail.club.positions || []) : []
+    readonly property var _pTicks: (shotReplay.active && _positions.length > 0)
+        ? solver.positionLayout(_positions, shotReplay.startUs, shotReplay.endUs, _horizontal,
+                                _lineLen, Theme.sp(4), Theme.fontData, Theme.fontSzMicro)
+        : []
+
     // Ground-truth markup positions for the swing currently on the line, in the same
     // window-relative µs domain as the stations. Shown only while the Markup panel is
     // actually on-screen (panelVisible) and focused on THIS swing — so the diamonds
@@ -165,6 +177,54 @@ Item {
                 opacity: 0.5
                 x: (root._horizontal ? tickMain : root._lineCross) - width / 2
                 y: (root._horizontal ? root._lineCross : tickMain) - height / 2
+            }
+        }
+
+        // ── Measured P-positions — small ticks + micro "Pn" labels ──────────────
+        // One tick + label per fused position (see root._pTicks above). The tick
+        // straddles the line at its TRUE proportional time, like the shaft ticks
+        // above; the label sits at the solved (never-overlapping) main-axis position
+        // so clustered downswing positions (P5/P6/P7 can land within ~1% of the span
+        // of each other) stay legible instead of piling on top of one another. Drawn
+        // on the side of the line OPPOSITE the station labels (above when horizontal,
+        // left when vertical) so it never collides with them. Non-interactive and
+        // subtler than the shaft ticks (source-provenance colour only) — this is a
+        // secondary, always-on reference layer, not a seek affordance.
+        Repeater {
+            model: root._pTicks
+            delegate: Item {
+                id: ptick
+                required property var modelData
+                anchors.fill: parent
+                readonly property real tickMain: root._insetMain + ptick.modelData.frac * root._lineLen
+                readonly property real labelMain: root._insetMain + ptick.modelData.center
+                readonly property real len:      Theme.sp(9)
+                readonly property real thick:    Theme.sp(2)
+                readonly property real labelGap: Theme.sp(9)
+
+                // Tick — colour flags fit provenance (MilestoneFit is the discrete,
+                // higher-confidence fit; TrackSample is the raw fused track).
+                Rectangle {
+                    width:  root._horizontal ? ptick.thick : ptick.len
+                    height: root._horizontal ? ptick.len   : ptick.thick
+                    radius: Theme.sp(1)
+                    antialiasing: true
+                    color: ptick.modelData.source === 1 ? Theme.colorGood : Theme.colorText3
+                    opacity: 0.5
+                    x: (root._horizontal ? ptick.tickMain : root._lineCross) - width / 2
+                    y: (root._horizontal ? root._lineCross : ptick.tickMain) - height / 2
+                }
+                // Micro label — opposite side of the line from the station labels.
+                Text {
+                    text: ptick.modelData.label
+                    font.family: Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    color: Theme.colorText2
+                    x: root._horizontal ? (ptick.labelMain - width / 2)
+                                        : (root._lineCross - ptick.labelGap - width)
+                    y: root._horizontal ? (root._lineCross - ptick.labelGap - height)
+                                        : (ptick.labelMain - height / 2)
+                }
             }
         }
 
