@@ -90,6 +90,14 @@ struct PositionFitConfig {
     double ballBonus        = 0.6;    // P7/P1 head-near-ball multiplicative reward (0 = off)
     double ballSigmaPx      = 22.0;   // Gaussian falloff of the ball reward (px)
     double plateauFrac      = 0.9;    // σ = half-width of the ≥plateauFrac·max score plateau
+    // Never-degrade guards (B2 corpus gate 2026-07-11: fits at measured-tier
+    // P2/P4 made them WORSE — 8.4→11.6 px / 2.9→7.9 px — while the ridge-terminus
+    // L was weak everywhere; the fit must only rescue positions the track has
+    // actually lost, and the drawn extent should come from the fused club length).
+    double skipMeasuredConf = 0.5;    // skip the fit when the nearest emitted sample is
+                                      // vision-measured with conf ≥ this (0 = never skip)
+    bool   useFusedLen      = true;   // accepted fits draw at the fused club length
+                                      // (σL from the fusion posterior), not the ridge L
 };
 
 // "positions.*" tuning namespace (design §4). Nested in ShaftV3Config as

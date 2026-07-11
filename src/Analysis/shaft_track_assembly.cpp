@@ -338,6 +338,8 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "positions.hysteresisDeg", c.positions.hysteresisDeg);
     // Layer B milestone fit (B2): "positions.*" keys → PositionsConfig::fit.
     apply(ov, "positions.fitEnabled", c.positions.fit.fitEnabled);
+    apply(ov, "positions.skipMeasuredConf", c.positions.fit.skipMeasuredConf);
+    apply(ov, "positions.useFusedLen", c.positions.fit.useFusedLen);
     apply(ov, "positions.halfWindowFrames", c.positions.fit.halfWindowFrames);
     apply(ov, "positions.minFitConf", c.positions.fit.minFitConf);
     apply(ov, "positions.wideSectorDeg", c.positions.fit.wideSectorDeg);
@@ -1629,6 +1631,22 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
             };
             for (ShaftPosition& pos : out.positions) {
                 const int cf = nearestFrame(pos.t_us);
+                // Never-degrade guard (B2 corpus gate): a position whose underlying
+                // track instant is already a confident vision measurement is NOT
+                // re-fit — the fit only rescues positions the DP lost (pred/coast
+                // tier, weak conf). Nearest emitted sample stands in for the instant.
+                if (cfg.positions.fit.skipMeasuredConf > 0.0 && !out.samples.empty()) {
+                    const ShaftSample2D* ns = nullptr;
+                    int64_t bd = std::numeric_limits<int64_t>::max();
+                    for (const ShaftSample2D& s : out.samples) {
+                        const int64_t d = std::llabs(s.t_us - pos.t_us);
+                        if (d < bd) { bd = d; ns = &s; }
+                    }
+                    if (ns && (ns->flags & (ShaftMeasured | ShaftWedge))
+                           && !(ns->flags & ShaftCoasted)
+                           && ns->conf >= float(cfg.positions.fit.skipMeasuredConf))
+                        continue;
+                }
                 // Ball evidence only where the ball is physically on the tee: address
                 // (P1) and impact (P7). Nearest pre-launch found sample to the P-time.
                 const BallSample2D* ballNear = nullptr;
@@ -1655,6 +1673,17 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                     pos.conf          = fr.conf;
                     pos.sigmaThetaDeg = fr.sigmaThetaDeg;
                     pos.sigmaLenPx    = fr.sigmaLenPx;
+                    // Drawn extent from the fused club length (B2 corpus gate: the
+                    // ridge-terminus L was weak everywhere — blur + band gaps); the
+                    // fit's θ/grip stand, the head is re-projected at the fused L
+                    // with the fusion posterior as σL.
+                    if (cfg.positions.fit.useFusedLen && out.lengths.fusedPx > 0.0) {
+                        pos.lenPx  = out.lengths.fusedPx;
+                        pos.headPx = QPointF{ pos.gripPx.x() + pos.lenPx * std::cos(pos.thetaRad),
+                                              pos.gripPx.y() + pos.lenPx * std::sin(pos.thetaRad) };
+                        if (out.lengths.fusedSigmaPx > 0.0)
+                            pos.sigmaLenPx = float(out.lengths.fusedSigmaPx);
+                    }
                     pos.stackN        = fr.stackN;
                     pos.source        = uint8_t(PositionSource::MilestoneFit);
                 }
