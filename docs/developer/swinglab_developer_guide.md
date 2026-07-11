@@ -337,6 +337,7 @@ output, the score is for trend lines.
 |---|---|---|
 | `truth.theta_rms_deg` | θ RMS vs labelled frames < 3° | fail |
 | `truth.head_median_px` | median head-point error < 25 px | fail |
+| `truth.line_dist` | median ⊥ distance, labelled shaft midpoint → drawn line, < 6 px (provisional pending the Phase A2 corpus gate; per-frame `distances_px` in the check detail) | warn |
 | `truth.event_top_s` | Top timing error ≤ 0.03 s | fail |
 | `truth.event_takeaway_s` / `truth.event_finish_s` | ≤ 0.08 s / ≤ 0.12 s | warn |
 

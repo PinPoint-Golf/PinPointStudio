@@ -10,9 +10,33 @@ import numpy as np
 from . import RunResult, Swing, git_sha
 
 
-def _check(name, ok, value, threshold, severity="fail"):
-    return {"name": name, "pass": bool(ok), "value": value,
-            "threshold": threshold, "severity": severity}
+def _check(name, ok, value, threshold, severity="fail", **detail):
+    c = {"name": name, "pass": bool(ok), "value": value,
+         "threshold": threshold, "severity": severity}
+    c.update(detail)   # additive per-check detail (e.g. truth.line_dist's distances_px)
+    return c
+
+
+def _perp_dist_to_line(pt, a, b):
+    """Perpendicular distance from point `pt` to the infinite line through `a`
+    and `b` (each an (x, y) pair, any array-like). Degenerate `a == b` (zero-
+    length drawn line) falls back to point-to-point distance rather than
+    dividing by zero."""
+    a = np.asarray(a, dtype=float)
+    b = np.asarray(b, dtype=float)
+    pt = np.asarray(pt, dtype=float)
+    d = b - a
+    norm = float(np.hypot(d[0], d[1]))
+    if norm < 1e-6:
+        return float(np.hypot(*(pt - a)))
+    return float(abs(d[0] * (pt[1] - a[1]) - d[1] * (pt[0] - a[0])) / norm)
+
+
+# Layer A — line re-registration ("snap") — shaft_position_first design §6 /
+# impl plan Phase A2. PROVISIONAL: no corpus gate has run yet; re-seat this
+# once the A2 studio numbers land (gate: distance improves on every labelled
+# swing when shaft.snap is enabled).
+LINE_DIST_THRESHOLD_PX = 6.0
 
 
 def invariants(run: RunResult, scope="full"):
@@ -120,8 +144,9 @@ def truth_metrics(run: RunResult, swing: Swing):
     t = np.array([s["t_us"] for s in samples], dtype=np.int64)
     th = np.unwrap(np.array([s["theta"] for s in samples]))
     heads = np.array([s["head"] for s in samples]) * np.array([Wpx, Hpx])
+    grips = np.array([s["grip"] for s in samples]) * np.array([Wpx, Hpx])
 
-    errs_th, errs_head = [], []
+    errs_th, errs_head, errs_line = [], [], []
     for tf in truth["shaft"]:
         tt = tf["t_us"]
         if tt < t[0] or tt > t[-1]:
@@ -135,6 +160,18 @@ def truth_metrics(run: RunResult, swing: Swing):
         errs_th.append(d)
         hi = heads[i - 1] + f * (heads[i] - heads[i - 1])
         errs_head.append(float(np.linalg.norm(hi - np.array(tf["head"]))))
+        # Layer A (design §6 / impl plan A2) — "does the drawn line lie on the
+        # club": perpendicular distance from the labelled shaft segment's
+        # midpoint to the infinite line through the run's (interpolated)
+        # drawn grip->head at this frame. Instrumented-truth "ray" entries
+        # (truth_json_schema.md Variant 2) omit `head` — skip those frames
+        # rather than crash, same "absent ⇒ not counted" spirit as the rest
+        # of this module.
+        tgrip, thead = tf.get("grip"), tf.get("head")
+        if tgrip is not None and thead is not None:
+            gi = grips[i - 1] + f * (grips[i] - grips[i - 1])
+            midpoint = (np.array(tgrip, dtype=float) + np.array(thead, dtype=float)) / 2.0
+            errs_line.append(_perp_dist_to_line(midpoint, gi, hi))
 
     out = []
     if errs_th:
@@ -143,6 +180,13 @@ def truth_metrics(run: RunResult, swing: Swing):
         med_head = float(np.median(errs_head))
         out.append(_check("truth.head_median_px", med_head < 25, round(med_head, 1),
                           "<25 px"))
+    if errs_line:
+        med_line = float(np.median(errs_line))
+        out.append(_check("truth.line_dist", med_line < LINE_DIST_THRESHOLD_PX,
+                          round(med_line, 2),
+                          f"<{LINE_DIST_THRESHOLD_PX} px (provisional)",
+                          severity="warn",
+                          distances_px=[round(float(x), 2) for x in errs_line]))
     ev = truth.get("events", {})
     if ev:
         t0 = ev.get("t0_us", 0)
