@@ -313,6 +313,12 @@ struct ShaftSample2D {
     // treats −1 as "no measured head", distinct from a low-confidence one).
     float   headConf     = -1.f;
     float   headSigmaPx  = -1.f;
+    // Layer A line re-registration (shaft_position_first design §2). Normalized
+    // ridge support under the DRAWN line — the first metric of "does this line lie
+    // on the club", measured by the snap pass. −1 = snap pass off / non-vision
+    // tier (no measurement). Serialized only when ≥ 0 so a snap-off run stays
+    // byte-identical.
+    float   lineConf     = -1.f;
 };
 
 // Multi-estimator club-length fusion result (club_length_fusion.h), recorded per

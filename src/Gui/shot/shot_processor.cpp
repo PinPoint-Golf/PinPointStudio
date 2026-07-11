@@ -195,8 +195,8 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
         && a.shaft.frameWidth > 0 && a.shaft.frameHeight > 0) {
         const double iw = 1.0 / a.shaft.frameWidth, ih = 1.0 / a.shaft.frameHeight;
         QVariantList samples;
-        for (const ShaftSample2D &s : a.shaft.samples)
-            samples.append(QVariantMap{
+        for (const ShaftSample2D &s : a.shaft.samples) {
+            QVariantMap sm{
                 { QStringLiteral("t_us"),  static_cast<qlonglong>(s.t_us) },
                 { QStringLiteral("grip"),  QVariantList{ s.gripPx.x() * iw, s.gripPx.y() * ih } },
                 { QStringLiteral("head"),  QVariantList{ s.headPx.x() * iw, s.headPx.y() * ih } },
@@ -208,7 +208,12 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
                 // off) — the overlay scales the measured-head dot alpha by it.
                 { QStringLiteral("headConf"),  double(s.headConf) },
                 { QStringLiteral("headSigma"), double(s.headSigmaPx) },
-                { QStringLiteral("flags"), int(s.flags) } });
+                { QStringLiteral("flags"), int(s.flags) } };
+            // Layer A snap registration (shaft_position_first §2A) — lock-step with
+            // swing_doc.cpp: written only when measured (≥0), absent ⇒ reader −1.
+            if (s.lineConf >= 0.f) sm.insert(QStringLiteral("lineConf"), double(s.lineConf));
+            samples.append(sm);
+        }
         // R7 predicted series (pure R6 model) for the ghost overlay — same
         // normalized shape as `samples`; σ_β recoverable from conf for the cone.
         QVariantList predicted;

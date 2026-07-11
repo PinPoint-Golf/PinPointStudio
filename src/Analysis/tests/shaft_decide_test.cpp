@@ -505,6 +505,92 @@ int main()
               "prior ⇒ fused length recorded; no estimators ⇒ abstain");
     }
 
+    // ── Layer A snap: the drawn line re-registers onto an offset shaft ────────
+    // Render a bright shaft deliberately offset +12 px perpendicular from the
+    // injected grip anchor. Off the shaft, the v3 evidence engines lock a
+    // COMPROMISE ray that clips it (design §2A finding #1) — here a ~15° tilt —
+    // so the drawn line is a measured tier but sits off the club. With snap on
+    // (override cfg, wide enough to admit that compromise), every measured line
+    // registers onto the true shaft and lineConf reports it; with snap off the
+    // samples carry no lineConf and are untouched.
+    std::printf("=== decideTrack snap re-registration (Layer A) ===\n");
+    {
+        const int nf = 170, W = 1000, H = 1000;
+        const double fps = 150.0;
+        const int kOffset = 12;   // shaft rendered +12 px perpendicular (in −x) from the grip
+        std::vector<int64_t> tUs(nf);
+        std::vector<double> gx(nf), gy(nf), phiRaw(nf, 90.0);
+        std::vector<std::vector<cv::Point2d>> joints(nf, std::vector<cv::Point2d>(8));
+        double x = 500, y = 600;
+        for (int f = 0; f < nf; ++f) {
+            tUs[f] = int64_t(std::llround(f * 1e6 / fps));
+            if (f >= 40 && f < 70)       { x -= 4; y -= 9; }
+            else if (f >= 77 && f < 109) { x += 3; y += 9; }
+            gx[f] = x; gy[f] = y;
+            joints[f] = {{450, 300}, {550, 300}, {460, 600}, {540, 600},
+                         {465, 750}, {535, 750}, {470, 900}, {530, 900}};
+        }
+        const FrameSource render = [&](int f) -> cv::Mat {
+            if (f < 0 || f >= nf) return cv::Mat();
+            cv::Mat img(H, W, CV_8UC1, cv::Scalar(30));
+            const cv::Point top{int(gx[f]) - kOffset, int(gy[f])};   // MSVC MVP: brace-init the Point
+            cv::line(img, top, cv::Point(top.x, std::min(H - 1, top.y + 400)), cv::Scalar(230), 3);
+            return img;
+        };
+        // Head pass off ⇒ every measured frame draws a Phase-A projected head, so
+        // the snap moves grip+θ+head together (the projected-head branch).
+        ShaftV3Config cfgOff = cfg; cfgOff.snap.enabled = false; cfgOff.head.enabled = false;
+        ShaftV3Config cfgOn  = cfgOff; cfgOn.snap.enabled = true;
+        cfgOn.snap.maxOffsetPx = 22.0; cfgOn.snap.maxDeltaDeg = 20.0;  // admit the ~15° compromise tilt
+        ShaftDecideTrace trOn;
+        const ShaftTrack2D off = decideTrack(render, tUs, gx, gy, phiRaw, joints, W, H, fps,
+                                             {}, 1120.0, -1, cfgOff, nullptr, nullptr);
+        const ShaftTrack2D on  = decideTrack(render, tUs, gx, gy, phiRaw, joints, W, H, fps,
+                                             {}, 1120.0, -1, cfgOn,  &trOn, nullptr);
+
+        const bool sizeOk = off.samples.size() == on.samples.size()
+                         && on.samples.size() == trOn.frameIdx.size() && !on.samples.empty();
+        check(sizeOk, "snap off/on emit the same sample count");
+
+        int measured = 0, moved = 0;
+        bool distOk = true, confOk = true, offInert = true, offNoConf = true, onConfSet = true;
+        for (size_t k = 0; sizeOk && k < on.samples.size(); ++k) {
+            const ShaftSample2D &so = off.samples[k], &sn = on.samples[k];
+            const bool vision = (sn.flags & ShaftMeasured) || (sn.flags & ShaftWedge);
+            // (b) snap off never writes lineConf.
+            if (so.lineConf != -1.f) offNoConf = false;
+            if (!vision) {
+                // (b) snap only ever touches vision-tier samples — everything else is
+                // byte-identical off vs on, including the (absent) lineConf.
+                if (sn.gripPx != so.gripPx || sn.headPx != so.headPx
+                    || sn.thetaRad != so.thetaRad || sn.lineConf != -1.f) offInert = false;
+                continue;
+            }
+            ++measured;
+            if (sn.lineConf < 0.f) onConfSet = false;           // measured ⇒ lineConf recorded
+            const int i = trOn.frameIdx[k];
+            const double ux = std::cos(sn.thetaRad), uy = std::sin(sn.thetaRad);
+            // ⊥ distance from the true shaft anchor (grip − kOffset in x) to the
+            // snapped drawn line.
+            const double px = gx[i] - kOffset - sn.gripPx.x(), py = gy[i] - sn.gripPx.y();
+            const double dist = std::abs(px * uy - py * ux);
+            if (dist > 2.0) distOk = false;
+            if (sn.lineConf <= 0.7f) confOk = false;
+            if (sn.gripPx != so.gripPx) ++moved;
+        }
+        check(measured > 0, "measured frames exist off an offset anchor (compromise rays)");
+        check(distOk, "(a) every snapped line lands within 2 px ⊥ of the true shaft");
+        check(confOk, "(a) lineConf > 0.7 on every measured frame");
+        check(onConfSet, "measured frames all carry a recorded lineConf (≥0)");
+        check(moved == measured, "snap moved the anchor on every measured frame");
+        check(offNoConf, "(b) snap off leaves lineConf = -1 on every sample");
+        check(offInert, "(b) snap touches only vision-tier samples (rest byte-identical off vs on)");
+        check(trOn.snapAppliedN == measured && trOn.medianSnapOffsetPx > 10.0
+              && trOn.medianSnapOffsetPx < 14.0,
+              "trace: snapAppliedN + median ⊥ offset ≈ the injected 12 px");
+        check(trOn.medianLineConf > 0.7, "trace: median lineConf > 0.7");
+    }
+
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);
     return g_fail;
 }

@@ -201,6 +201,125 @@ inline bool isMidswing(SwingPhase p)
         || p == SwingPhase::Impact || p == SwingPhase::Thru;
 }
 
+// ── Layer A snap: local ridge line re-registration (shaft_position_first §2A) ──
+// Nearest-neighbour clamped sample of a CV_32F image (matches ridgeSweep's `at`).
+inline float sampleClamp(const cv::Mat& img, double fx, double fy)
+{
+    int x = int(fx), y = int(fy);
+    if (x < 0) x = 0; else if (x >= img.cols) x = img.cols - 1;
+    if (y < 0) y = 0; else if (y >= img.rows) y = img.rows - 1;
+    return img.at<float>(y, x);
+}
+
+// median of exactly 4 (numpy even-count median = mean of the two middle values).
+inline float med4(float a, float b, float c, float d)
+{
+    if (a > b) std::swap(a, b);
+    if (c > d) std::swap(c, d);
+    if (a > c) std::swap(a, c);
+    if (b > d) std::swap(b, d);
+    return 0.5f * (b + c);
+}
+
+// Polarity-aware ridge line-integral of `g32` along the line through (ax,ay) in
+// direction thetaRad, r ∈ [rLo, rEnd) step rStep, integrating a ±corridorHalf px
+// lateral corridor. Per-sample evidence follows ridgeSweep's polarity split (a
+// bright line credited over a dark background, or a dark shaft over blown mat when
+// bg>bgHi) using the MEAN of the corridor as the on-ridge value — a corridor
+// integral (not a lateral max) so the response peaks when the line is CENTRED on
+// the ridge, which is what registers the anchor onto the club. bg is the median of
+// four samples just outside the corridor (default corridorHalf=2 → ±9/±12, exactly
+// ridgeSweep's background offsets). Returns the MEAN per-sample evidence over the
+// FULL drawn extent (the search objective — rewards a line that lies on the shaft
+// along its whole length, not a strong partial run) and, via `support`, the
+// fraction of supported samples (e>8) — the lineConf metric ∈ [0,1].
+double ridgeLineIntegral(const cv::Mat& g32, double ax, double ay, double thetaRad,
+                         double rLo, double rEnd, double rStep, int corridorHalf,
+                         const RidgeConfig& rc, double& support)
+{
+    const double ux = std::cos(thetaRad), uy = std::sin(thetaRad);  // normal (nx,ny)=(-uy,ux)
+    const double bgNear = corridorHalf + 7.0, bgFar = corridorHalf + 10.0;
+    double cum = 0.0;
+    int n = 0, posCount = 0;
+    for (double r = rLo; r < rEnd; r += rStep) {
+        const double cx = ax + ux * r, cy = ay + uy * r;
+        const float b0 = sampleClamp(g32, cx - (-bgFar)  * uy, cy + (-bgFar)  * ux);
+        const float b1 = sampleClamp(g32, cx - (-bgNear) * uy, cy + (-bgNear) * ux);
+        const float b2 = sampleClamp(g32, cx - ( bgNear) * uy, cy + ( bgNear) * ux);
+        const float b3 = sampleClamp(g32, cx - ( bgFar)  * uy, cy + ( bgFar)  * ux);
+        const double bg = med4(b0, b1, b2, b3);
+        double onSum = 0.0; int onN = 0;
+        for (int o = -corridorHalf; o <= corridorHalf; ++o) {
+            onSum += sampleClamp(g32, cx - double(o) * uy, cy + double(o) * ux);
+            ++onN;
+        }
+        const double on = onSum / double(onN);
+        const double e = (bg > rc.bgHi)
+            ? std::clamp(bg - on - 12.0, double(-rc.eClipNeg), double(rc.eClipPos))
+            : std::clamp(on - bg - 12.0, double(-rc.eClipNeg), double(rc.eClipPos));
+        cum += e;
+        ++n;
+        if (e > 8.0) ++posCount;
+    }
+    support = (n > 0) ? double(posCount) / double(n) : 0.0;
+    return (n > 0) ? cum / double(n) : -std::numeric_limits<double>::infinity();
+}
+
+// One sample's snap search over (⊥ offset d, Δθ). Grid: 1 px offset × 0.5° angle.
+struct SnapResult {
+    double offsetPx      = 0.0;   // best perpendicular offset from the original anchor (px)
+    double dThetaDeg     = 0.0;   // best angular delta from the original θ (deg)
+    float  bestLineConf  = 0.f;   // support under the winning line
+    float  originLineConf = 0.f;  // support under the original (d=0,Δθ=0) line — recorded on reject
+};
+SnapResult snapSearch(const cv::Mat& g32, double gx, double gy, double theta0Rad,
+                      double drawnLenPx, const SnapConfig& sc, const RidgeConfig& rc)
+{
+    const double rLo   = double(rc.rLo);
+    const double rStep = double(rc.rStep);
+    const double rEnd  = std::clamp(drawnLenPx, double(rc.minLenPx) + rStep, double(rc.rHi));
+    const double nx = -std::sin(theta0Rad), ny = std::cos(theta0Rad);   // offset axis (⊥ to θ0)
+    SnapResult best;
+    double originSup = 0.0;
+    ridgeLineIntegral(g32, gx, gy, theta0Rad, rLo, rEnd, rStep, sc.corridorHalfPx, rc, originSup);
+    best.originLineConf = float(std::clamp(originSup, 0.0, 1.0));
+
+    // Evaluate the whole (d, Δθ) grid, then pick the CENTRE of the maximal
+    // plateau rather than the first cell that reaches it — a thick/saturating
+    // ridge scores equally across a band of offsets, so the plateau centroid is
+    // the on-ridge centre (registers the anchor to a couple of px, not an arbitrary
+    // plateau edge).
+    struct Cell { double d, dd, obj, sup; };
+    std::vector<Cell> cells;
+    double bestObj = -std::numeric_limits<double>::infinity();
+    for (double d = -sc.maxOffsetPx; d <= sc.maxOffsetPx + 1e-9; d += 1.0) {
+        const double ax = gx + d * nx, ay = gy + d * ny;
+        for (double dd = -sc.maxDeltaDeg; dd <= sc.maxDeltaDeg + 1e-9; dd += 0.5) {
+            double sup = 0.0;
+            const double obj = ridgeLineIntegral(g32, ax, ay, theta0Rad + dd * kPi / 180.0,
+                                                 rLo, rEnd, rStep, sc.corridorHalfPx, rc, sup);
+            cells.push_back({d, dd, obj, sup});
+            bestObj = std::max(bestObj, obj);
+        }
+    }
+    const double eps = 0.5;                       // evidence units — plateau membership
+    double sumD = 0.0, sumDd = 0.0; int cnt = 0;
+    for (const Cell& c : cells)
+        if (c.obj >= bestObj - eps) { sumD += c.d; sumDd += c.dd; ++cnt; }
+    const double cDbar = (cnt > 0) ? sumD / cnt : 0.0, cDDbar = (cnt > 0) ? sumDd / cnt : 0.0;
+    double bestDist = std::numeric_limits<double>::infinity();
+    for (const Cell& c : cells) {                 // the real plateau cell nearest the centroid
+        if (c.obj < bestObj - eps) continue;
+        const double dist = (c.d - cDbar) * (c.d - cDbar) + (c.dd - cDDbar) * (c.dd - cDDbar);
+        if (dist < bestDist) {
+            bestDist = dist;
+            best.offsetPx = c.d; best.dThetaDeg = c.dd;
+            best.bestLineConf = float(std::clamp(c.sup, 0.0, 1.0));
+        }
+    }
+    return best;
+}
+
 } // namespace
 
 // ── config ───────────────────────────────────────────────────────────────────
@@ -266,6 +385,12 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     c.head = ClubheadConfig::fromOverrides(ov);
     // Multi-estimator club-length fusion: "fusion.*" keys (club_length_fusion.h).
     c.fusion = LengthFusionConfig::fromOverrides(ov);
+    // Layer A line re-registration («snap»): "shaft.snap.*" keys.
+    apply(ov, "shaft.snap.enabled", c.snap.enabled);
+    apply(ov, "shaft.snap.maxOffsetPx", c.snap.maxOffsetPx);
+    apply(ov, "shaft.snap.maxDeltaDeg", c.snap.maxDeltaDeg);
+    apply(ov, "shaft.snap.minLineConf", c.snap.minLineConf);
+    apply(ov, "shaft.snap.corridorHalfPx", c.snap.corridorHalfPx);
     return c;
 }
 
@@ -1279,6 +1404,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
 
     // ── PASS 2: placement — build the samples from tierOf/confOf + headResults ─
     int spanFrames = 0, spanMeas = 0;
+    std::vector<int> sampleFrame;   // frame index per emitted sample (Layer A snap map)
     for (int i = 0; i < nf; ++i) {
         if (std::isnan(gx[i])) continue;
         const int tier = int(tierOf[size_t(i)]);
@@ -1358,6 +1484,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         }
 
         out.samples.push_back(s);
+        sampleFrame.push_back(i);
         if (trace) { trace->frameIdx.push_back(i); trace->tier.push_back(tier);
                      trace->thetaDeg.push_back(th); trace->conf.push_back(conf); }
         if (i >= pm.bs0 && i <= pm.fin0) { ++spanFrames; if (tier == BAND || tier == RAY) ++spanMeas; }
@@ -1370,6 +1497,82 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         const double dth = std::remainder(out.samples[b].thetaRad - out.samples[a].thetaRad, 2 * kPi);
         const double dt = double(out.samples[b].t_us - out.samples[a].t_us) * 1e-6;
         out.samples[i].thetaDotRadS = (dt > 0) ? dth / dt : 0.0;
+    }
+
+    // ── Layer A: line re-registration («snap»), shaft_position_first §2A ───────
+    // Dark by default. For each vision-tier sample (Measured|Wedge — never a
+    // coasted/predicted frame), search (⊥ offset, Δθ) for the line that maximises
+    // the local ridge integral, and record lineConf. Accept the snap iff its
+    // lineConf clears minLineConf AND the snapped θ still admits the arm sector
+    // (the same C4 arm-veto the DP emission uses: shaft never points into φ+180);
+    // otherwise keep the original geometry but still record the drawn line's own
+    // lineConf. Runs AFTER the thetaDot derivation so thetaDotRadS stays the
+    // smoothed-track velocity — snap is a spatial registration, not a kinematic
+    // edit. tiers/DP/ψ/coverage/length are all upstream and untouched. With
+    // enabled=false nothing here runs ⇒ byte-identical to the pre-snap tracker.
+    if (cfg.snap.enabled) {
+        std::vector<double> appliedOffsets;   // |⊥ offset| over accepted snaps
+        std::vector<double> measuredConfs;    // lineConf over every measured sample
+        int snapN = 0;
+        for (size_t k = 0; k < out.samples.size(); ++k) {
+            ShaftSample2D& s = out.samples[k];
+            const bool visionTier = (s.flags & ShaftMeasured) || (s.flags & ShaftWedge);
+            if (!visionTier) continue;                          // coasted/pred keep lineConf = -1
+            const int i = sampleFrame[k];
+            cv::Mat g8 = frameAt(i);
+            if (g8.empty()) continue;                           // undecodable — no measurement
+            cv::Mat g32; g8.convertTo(g32, CV_32F);
+
+            const double gx0 = s.gripPx.x(), gy0 = s.gripPx.y();
+            const double theta0 = s.thetaRad;
+            const double drawnLen = std::hypot(s.headPx.x() - gx0, s.headPx.y() - gy0);
+            const SnapResult sr = snapSearch(g32, gx0, gy0, theta0, drawnLen, cfg.snap, cfg.ridge);
+
+            // Arm-plausibility sector: mirror frameEmission's C4 arm-veto — the
+            // snapped shaft must not point within armVetoDeg of the lead forearm
+            // (φ+180). φ NaN ⇒ no witness ⇒ admit.
+            const double snapThetaDeg = theta0 * 180.0 / kPi + sr.dThetaDeg;
+            bool armOk = true;
+            if (i < int(phiS.size()) && !std::isnan(phiS[i])) {
+                const double arm = std::fmod(phiS[i] + 180.0, 360.0);
+                armOk = std::abs(circWrap(snapThetaDeg - arm)) >= cfg.armVetoDeg;
+            }
+            const bool moved  = std::abs(sr.offsetPx) > 1e-9 || std::abs(sr.dThetaDeg) > 1e-9;
+            const bool accept = sr.bestLineConf >= float(cfg.snap.minLineConf) && armOk;
+
+            if (accept && moved) {
+                // Move the anchor to the perpendicular foot of the original grip on
+                // the snapped line, then rotate θ; keep the drawn head consistent.
+                const double thNew = theta0 + sr.dThetaDeg * kPi / 180.0;
+                const double nx = -std::sin(theta0), ny = std::cos(theta0);
+                const double ax = gx0 + sr.offsetPx * nx, ay = gy0 + sr.offsetPx * ny;
+                const double ux = std::cos(thNew), uy = std::sin(thNew);
+                const double t  = (gx0 - ax) * ux + (gy0 - ay) * uy;   // foot of g0 on the line
+                const double gxN = ax + t * ux, gyN = ay + t * uy;
+                // Projected heads follow grip+θ at the same drawn length; a measured
+                // head (BAND / Stage-2 blob — no ShaftHeadProjected) stays put.
+                if (s.flags & ShaftHeadProjected)
+                    s.headPx = QPointF(gxN + drawnLen * ux, gyN + drawnLen * uy);
+                s.gripPx  = QPointF(gxN, gyN);
+                s.thetaRad = thNew;
+                s.lineConf = sr.bestLineConf;
+                appliedOffsets.push_back(std::abs(sr.offsetPx));
+                ++snapN;
+            } else {
+                s.lineConf = sr.originLineConf;   // keep the drawn line, record its own support
+            }
+            measuredConfs.push_back(double(s.lineConf));
+        }
+        if (trace) {
+            trace->snapAppliedN = snapN;
+            auto medianOf = [](std::vector<double> v) -> double {
+                if (v.empty()) return -1.0;
+                std::nth_element(v.begin(), v.begin() + v.size() / 2, v.end());
+                return v[v.size() / 2];
+            };
+            trace->medianSnapOffsetPx = medianOf(appliedOffsets);
+            trace->medianLineConf     = medianOf(measuredConfs);
+        }
     }
 
     out.coverage = spanFrames > 0 ? float(spanMeas) / float(spanFrames) : 0.f;

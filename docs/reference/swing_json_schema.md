@@ -356,7 +356,8 @@ Written **only when the track is valid** (all-or-nothing consumer contract). Gri
 | `samples[].theta` | float rad | Shaft direction grip→head (image atan2 convention). |
 | `samples[].thetaDot` | float rad/s | Smoothed angular velocity. |
 | `samples[].lenPx` | float | Visible shaft extent (decoration; θ is the precision channel). |
-| `samples[].conf` | float 0–1 | Per-sample confidence. |
+| `samples[].conf` | float 0–1 | Per-sample confidence (θ-posterior). |
+| `samples[].lineConf` | float 0–1 | **Layer A snap** (`shaft_position_first`): normalized ridge support under the drawn line — "does this line lie on the club". Written only on vision-tier samples when the snap pass ran; **absent ⇒ −1** (snap off / non-vision tier). Added 2026-07-11. |
 | `samples[].flags` | int (`ShaftSampleFlags`) | Bitfield (below). |
 | `predicted[]` | obj[] | R7 pure-kinematic-model series (same shape); empty in v3. |
 | `lengths` | obj | Multi-estimator club-length fusion (`club_length_fusion.h`), added 2026-07-10. Component estimates in px (`ballPx` grip→ball, `bandPx` band-scale, `headP95Px` Stage-2 head p95, `posePx` pose rung — sanity bound only, never fused; `-1` = estimator absent); `priorPx` = recorded prior; `fusedPx`/`fusedSigmaPx`/`fusedConf` = with-prior posterior; `fusedInstantPx`/`fusedInstantConf` = prior-free variant (the only value folded back into the prior — no self-reinforcement); `ladderRung`/`ladderLenPx` = what the length ladder actually used (rung 0 = fused); `nEstimators`/`priorN`/`headMeasN` = support counts. **Always written** (unlike its parent `club` block's validity gate — parity writers keep it even on abstain, `fusedPx < 0` ⇒ absent). |
@@ -450,3 +451,4 @@ Per-stage analyzer wall times in milliseconds, self-reported by the analyzer so 
 | 2026-07-09 | `analysis.timings` added (per-stage analyzer wall times: `poseMs`/`ballMs`/`shaftMs`/`totalMs`). Additive — no schema-version bump. |
 | 2026-07-10 | `setup.ballDetection.baseline` object + `<alias>.ballbase.f32` sidecar added (persisted live empty-mat ball baseline for offline re-analysis). Additive — no schema-version bump. |
 | 2026-07-10 | Club-length fusion: `capture.club.name` + `capture.club.lengthPrior` (recorded prior for deterministic re-analysis) and `analysis.club.lengths` (fused length ± σ + confidence) added. Additive — no schema-version bump. |
+| 2026-07-11 | Shaft Layer A snap: `analysis.club.samples[].lineConf` (ridge support under the drawn line) added. Written only on vision-tier samples when the snap pass ran (`absent ⇒ −1`), so a snap-off run stays byte-identical. Additive — no schema-version bump. |

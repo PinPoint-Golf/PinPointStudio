@@ -55,6 +55,19 @@ enum class SwingPhase : uint8_t {
     Addr, Backswing, Top, Impact, Downswing, Thru, Finish
 };
 
+// Layer A line re-registration («snap»), shaft_position_first design §2 Layer A.
+// After PASS 2 places each sample, refine the drawn line's (⊥offset, Δθ) against
+// the local ridge line-integral so it lands ON the club, and record lineConf.
+// enabled=false ⇒ the pass is skipped and every emitted byte is identical to the
+// pre-snap tracker (soak contract). "shaft.snap.*" keys via fromOverrides.
+struct SnapConfig {
+    bool   enabled        = false;  // master gate — dark until the A2 corpus gate flips it
+    double maxOffsetPx    = 15.0;   // perpendicular search half-range (px)
+    double maxDeltaDeg    = 3.0;    // angular search half-range (deg)
+    double minLineConf    = 0.25;   // accept-snap floor on the ridge support under the line
+    int    corridorHalfPx = 2;      // lateral half-width integrated along the candidate line (px)
+};
+
 // The full v3.0-r1 parameter set. Every field defaults to the validated Python
 // constant; fromOverrides() applies "shaft.<name>" keys from a tuning map so
 // SwingLab sweeps iterate at binary speed. Geometric-C2 and span-bounding are
@@ -152,6 +165,9 @@ struct ShaftV3Config {
     // no-regression gate runs with "fusion.enabled" = 0, which reproduces today's
     // ladder byte-for-byte.
     LengthFusionConfig fusion;
+    // Layer A line re-registration («snap») — "shaft.snap.*" keys. enabled=false
+    // by default (dark at merge); fromOverrides populates it.
+    SnapConfig      snap;
 
     static ShaftV3Config fromOverrides(const QVariantMap& ov);
 };
@@ -317,6 +333,14 @@ struct ShaftDecideTrace {
     std::vector<int>    headTier;
     std::vector<double> headR, headZ;
     double              headMs = 0.0;
+    // Layer A snap pass (shaft_position_first): SwingLab triage of the line
+    // re-registration. snapAppliedN = accepted snaps; medianSnapOffsetPx = median
+    // |⊥ offset| applied over accepted snaps; medianLineConf = median lineConf over
+    // all vision-tier samples measured (accepted or not). All −1 unless a trace
+    // sink is present AND cfg.snap.enabled (the pass ran).
+    int                 snapAppliedN      = -1;
+    double              medianSnapOffsetPx = -1;
+    double              medianLineConf     = -1;
 };
 
 // Map the hands-only phase model to an app Segmentation with real timestamps:

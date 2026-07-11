@@ -218,8 +218,8 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
         && a.shaft.frameWidth > 0 && a.shaft.frameHeight > 0) {
         const double iw = 1.0 / a.shaft.frameWidth, ih = 1.0 / a.shaft.frameHeight;
         QJsonArray samples;
-        for (const ShaftSample2D &s : a.shaft.samples)
-            samples.append(QJsonObject{
+        for (const ShaftSample2D &s : a.shaft.samples) {
+            QJsonObject so{
                 { QStringLiteral("t_us"),  rel(s.t_us) },
                 { QStringLiteral("grip"),  QJsonArray{ s.gripPx.x() * iw, s.gripPx.y() * ih } },
                 { QStringLiteral("head"),  QJsonArray{ s.headPx.x() * iw, s.headPx.y() * ih } },
@@ -232,7 +232,13 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
                 // simply omits the key; consumers treat missing as −1).
                 { QStringLiteral("headConf"),  double(s.headConf) },
                 { QStringLiteral("headSigma"), double(s.headSigmaPx) },
-                { QStringLiteral("flags"), int(s.flags) } });
+                { QStringLiteral("flags"), int(s.flags) } };
+            // Layer A snap registration (shaft_position_first §2A): ridge support
+            // under the drawn line. Written ONLY when measured (≥0) so a snap-off
+            // run stays byte-identical; absent ⇒ reader defaults −1.
+            if (s.lineConf >= 0.f) so.insert(QStringLiteral("lineConf"), double(s.lineConf));
+            samples.append(so);
+        }
         // R7 dual output (additive): the pure-model predicted series + its
         // agreement with the prior-free vision measurement. Same normalized shape
         // as `samples`; SwingLab consumes it for residual analysis / β̂ calibration.
