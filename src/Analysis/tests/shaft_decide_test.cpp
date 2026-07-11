@@ -675,7 +675,7 @@ int main()
         const FrameSource render = [&](int f) -> cv::Mat {
             if (f < 0 || f >= nf) return cv::Mat();
             cv::Mat img(H, W, CV_8UC1, cv::Scalar(30));
-            const cv::Point g(int(gx[f]), int(gy[f]));
+            const cv::Point g{int(gx[f]), int(gy[f])};
             cv::line(img, g, cv::Point(g.x, std::min(H - 1, g.y + 400)), cv::Scalar(230), 3);
             return img;
         };

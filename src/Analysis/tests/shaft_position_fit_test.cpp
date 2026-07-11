@@ -51,8 +51,8 @@ static cv::Mat renderShaft(int W, int H, double gx, double gy, double thetaDeg, 
         const double t  = (sub == 1) ? 0.0 : (double(j) / double(sub - 1) - 0.5);   // −0.5..0.5
         const double w  = (sub == 1) ? 1.0 : std::pow(std::cos(t * kPi), 2.0);      // peak 1 at centre
         const double th = (thetaDeg + t * blurDeg) * kPi / 180.0;
-        const cv::Point a(int(std::lround(gx)), int(std::lround(gy)));
-        const cv::Point b(int(std::lround(gx + L * std::cos(th))), int(std::lround(gy + L * std::sin(th))));
+        const cv::Point a{int(std::lround(gx)), int(std::lround(gy))};
+        const cv::Point b{int(std::lround(gx + L * std::cos(th))), int(std::lround(gy + L * std::sin(th)))};
         cv::Mat mask(H, W, CV_8UC1, cv::Scalar(0));
         cv::line(mask, a, b, cv::Scalar(255), 3);
         cv::Mat mf; mask.convertTo(mf, CV_32F, w * double(fg - bg) / 255.0);
