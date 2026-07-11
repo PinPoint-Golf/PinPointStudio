@@ -103,12 +103,6 @@ class SwingDataSource : public QObject
     Q_PROPERTY(QVariantList resolvedSources READ resolvedSources NOTIFY viewChanged) // [{label,colorKey,kind,ref,removable}]
     Q_PROPERTY(QVariantList phases          READ phases          NOTIFY loadedChanged) // [{label,t_us,kind}]
     Q_PROPERTY(QVariantList metadata        READ metadata        NOTIFY loadedChanged) // grouped provenance
-    // Club length-fusion summary (analysis.club.lengths), parsed once per swing load.
-    // Empty map when the block is absent (swing predates fusion) or fusedPx <= 0
-    // (total abstain) — QML gates the review pill on non-empty. Keys: fusedPx,
-    // fusedPctH (same %-of-frame-height unit as the Club·Head lane), conf
-    // (fusedConf), nEstimators, priorN, rung (ladderRung).
-    Q_PROPERTY(QVariantMap  clubLengthSummary READ clubLengthSummary NOTIFY loadedChanged)
 
     Q_PROPERTY(QObject *coverage READ coverage CONSTANT)
     Q_PROPERTY(QObject *table    READ table    CONSTANT)
@@ -140,7 +134,6 @@ public:
     QVariantList resolvedSources() const;
     QVariantList phases() const { return m_phases; }
     QVariantList metadata() const { return m_metadata; }
-    QVariantMap  clubLengthSummary() const { return m_clubLengthSummary; }
 
     QObject *coverage() const;
     QObject *table() const;
@@ -200,7 +193,6 @@ private:
     QVariantList m_segments;          // phase-bounded windows ([0]=Full)
     QString      m_bestRegion = QStringLiteral("Axial");
     QVariantMap  m_regionLaneCounts;  // region name → resolved lane count
-    QVariantMap  m_clubLengthSummary; // analysis.club.lengths summary (empty ⇒ no pill)
 
     SwingCoverageModel *m_coverage = nullptr;
     SwingSeriesModel   *m_table    = nullptr;

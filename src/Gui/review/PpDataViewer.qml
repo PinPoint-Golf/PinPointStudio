@@ -30,9 +30,6 @@ Item {
     property string swingDir: ""
 
     readonly property bool hasSwing: root.swingDir !== "" && src.loaded
-    // Gate for the Club·Head lane's fused-length pill: non-empty only once
-    // analysis.club.lengths landed a usable fused estimate (see SwingDataSource).
-    readonly property bool hasClubLength: Object.keys(src.clubLengthSummary).length > 0
 
     // All session screens live in the StackLayout simultaneously (the session screen
     // sits at index sessionType+1), so without this gate EVERY swing reload re-parsed
@@ -314,34 +311,6 @@ Item {
                                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                                        PpPressable { id: rmMa; anchors.margins: -4
                                                      onClicked: src.removeSource(index) } }
-
-                                // Fused club-length readout — Club·Head lane only, and only once
-                                // fusion has landed a usable estimate (empty summary ⇒ old swing
-                                // or total abstain, both silent here).
-                                Row {
-                                    id: lenRow
-                                    visible: modelData.kind === "club" && modelData.ref === "head"
-                                             && root.hasClubLength
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    spacing: Theme.sp(5)
-                                    Text {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: Number(src.clubLengthSummary.fusedPctH || 0).toFixed(1) + " %H"
-                                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                                        color: Theme.colorText3
-                                    }
-                                    PpQualityPill {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        score: Math.round((src.clubLengthSummary.conf || 0) * 100)
-                                    }
-                                    HoverHandler { id: lenHover }
-                                    ToolTip.visible: lenHover.hovered
-                                    ToolTip.text: qsTr("%1 estimators · prior n=%2 · rung %3")
-                                                  .arg(src.clubLengthSummary.nEstimators || 0)
-                                                  .arg(src.clubLengthSummary.priorN || 0)
-                                                  .arg(src.clubLengthSummary.rung || 0)
-                                    ToolTip.delay: 400
-                                }
                             }
                         }
                     }
