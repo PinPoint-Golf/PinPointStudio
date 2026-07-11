@@ -112,7 +112,12 @@ struct PositionsConfig {
     // ball-anchored still-hold sat unused). Camera-first principle: the hold is
     // located from grip stillness on the face-on track, corroborated by the
     // BallAnchored flag span when present.
-    double p1StillSpeedPx = 2.0;    // per-frame grip speed below which a frame is "still"
+    double p1StillSpeedPx = 0.75;   // per-frame grip speed below which a frame is "still".
+                                    // Tight on purpose: takeaway CREEP runs ~0.25 px/frame
+                                    // (under 2.0 ⇒ P1 landed 90 ms into it on Mark's marked
+                                    // driver swing); a threshold miss inside the hold errs
+                                    // EARLY, which is benign — hold geometry is constant —
+                                    // and never-still swings fall back to bs0 anyway.
     int    p1StillWindow  = 5;      // consecutive still frames required (trailing window)
     PositionFitConfig fit;          // B2 milestone fit (dark until fit.fitEnabled flips)
 };
