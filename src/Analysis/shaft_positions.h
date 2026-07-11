@@ -232,16 +232,41 @@ inline int addressHoldEndFrame(const std::vector<double>& gx, const std::vector<
     const int    w    = std::max(1, cfg.p1StillWindow);
     const double thr  = cfg.p1StillSpeedPx;
 
+    // The raw grip is pose-derived (60 Hz hand keypoints lerped to camera rate)
+    // with a ~1–2 px noise floor — comparable to the net-drift threshold, which
+    // let noise masquerade as motion through a genuinely still hold. Median(5)
+    // then box(5) knocks the noise down ~√5 while the directional takeaway
+    // creep (the signal) survives untouched.
+    auto smooth = [nf](const std::vector<double>& v) {
+        std::vector<double> m(v.size());
+        for (int i = 0; i < nf; ++i) {
+            double win[5];
+            int    n = 0;
+            for (int j = std::max(0, i - 2); j <= std::min(nf - 1, i + 2); ++j) win[n++] = v[size_t(j)];
+            std::sort(win, win + n);
+            m[size_t(i)] = win[n / 2];
+        }
+        std::vector<double> out(v.size());
+        for (int i = 0; i < nf; ++i) {
+            double s = 0.0;
+            int    n = 0;
+            for (int j = std::max(0, i - 2); j <= std::min(nf - 1, i + 2); ++j) { s += m[size_t(j)]; ++n; }
+            out[size_t(i)] = s / double(n);
+        }
+        return out;
+    };
+    const std::vector<double> sx = smooth(gx), sy = smooth(gy);
+
     auto stillAt = [&](int f) {
         if (f < w) return false;                       // need a full trailing window
         // Net drift over the window (creep is directional; jitter nets out)…
-        if (std::hypot(gx[size_t(f)] - gx[size_t(f - w)],
-                       gy[size_t(f)] - gy[size_t(f - w)]) >= cfg.p1StillNetPx)
+        if (std::hypot(sx[size_t(f)] - sx[size_t(f - w)],
+                       sy[size_t(f)] - sy[size_t(f - w)]) >= cfg.p1StillNetPx)
             return false;
         // …plus a per-frame spike cap: an oscillating waggle nets ~0 but is not still.
         for (int i = f - w + 1; i <= f; ++i) {
-            const double sp = std::hypot(gx[size_t(i)] - gx[size_t(i - 1)],
-                                         gy[size_t(i)] - gy[size_t(i - 1)]);
+            const double sp = std::hypot(sx[size_t(i)] - sx[size_t(i - 1)],
+                                         sy[size_t(i)] - sy[size_t(i - 1)]);
             if (sp >= thr) return false;
         }
         return true;
