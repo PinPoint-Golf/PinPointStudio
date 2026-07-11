@@ -63,12 +63,42 @@
 
 namespace pinpoint::analysis {
 
+// B2 milestone-fit tuning (shaft_position_first §2 Layer B "B-fit"). Pure POD (no
+// Qt / no OpenCV) so it lives here beside the B-time config; consumed by
+// fitPosition (shaft_position_fit.h) which owns the OpenCV shift-and-stack. Keys
+// are dotted "positions.*" via ShaftV3Config::fromOverrides. fitEnabled=false ⇒
+// the fit never runs ⇒ ShaftTrack2D.positions stays the B1 TrackSample track
+// byte-for-byte (soak contract). The empirical P-shape (B1 baseline gate) drives
+// the two sector widths: at P1–P4 the DP track is already good (local polish);
+// at P5–P8 it is 100+ px off with the direction sometimes FLIPPED ~180°, so the
+// fit searches GLOBALLY over the arm-plausibility-admitted sector around the
+// (reliable) grip anchor — a local refinement cannot recover there.
+struct PositionFitConfig {
+    bool   fitEnabled       = false;  // master gate — dark until its corpus gate flips it
+    int    halfWindowFrames = 4;      // ±k frames stacked (shift-and-stack registration)
+    double minFitConf       = 0.35;   // accept floor on ridge support under the fitted line
+    double wideSectorDeg    = 170.0;  // θ search WIDTH at P5–P8 (global; centred on arm/ball)
+    double narrowSectorDeg  = 15.0;   // θ search WIDTH at P1–P4 (local polish about the track θ)
+    double gripSearchPx     = 6.0;    // grip perturbation half-range (px)
+    // search resolution + plausible radial-length band (design §2 Layer B step 2)
+    double thetaStepDeg     = 0.5;    // coarse θ grid step (deg)
+    double lenStepPx        = 3.0;    // radial-length search step (px)
+    double lenMinFracH      = 0.06;   // Lmin = max(armFloor, lenMinFracH·frameH)
+    double lenMaxFracH      = 0.62;   // Lmax = lenMaxFracH·frameH (matches decideTrack's rmax)
+    double gripStepPx       = 2.0;    // grip perturbation grid step (px)
+    int    corridorHalfPx   = 2;      // lateral corridor half-width for the ridge integral (px)
+    double ballBonus        = 0.6;    // P7/P1 head-near-ball multiplicative reward (0 = off)
+    double ballSigmaPx      = 22.0;   // Gaussian falloff of the ball reward (px)
+    double plateauFrac      = 0.9;    // σ = half-width of the ≥plateauFrac·max score plateau
+};
+
 // "positions.*" tuning namespace (design §4). Nested in ShaftV3Config as
 // `positions`; enabled=false keeps position extraction dark (a positions-off run
 // leaves ShaftTrack2D.positions empty ⇒ swing.json byte-identical).
 struct PositionsConfig {
     bool   enabled       = false;   // master gate — dark until its corpus gate flips it
     double hysteresisDeg = 8.0;     // deadband each side of horizontal (arm + anti-double-fire)
+    PositionFitConfig fit;          // B2 milestone fit (dark until fit.fitEnabled flips)
 };
 
 // One located P-time. `p` is the coaching P-index 1..8 (NOT a Phase enum value);

@@ -650,6 +650,68 @@ int main()
         check(sameCount && identical, "positions on/off ⇒ samples byte-identical");
     }
 
+    // ── Layer B B2 milestone fit: fitEnabled=false ⇒ B1 byte-identical, and the
+    //    fit NEVER touches samples[] (soak contract, shaft_position_first §2B) ────
+    // Real (decodable) frames so the fit COULD run — the gate, not an empty stack,
+    // is what keeps a fit-off run identical.
+    std::printf("=== decideTrack Layer B fit (B2) off-contract ===\n");
+    {
+        const int nf = 170, W = 1000, H = 1000;
+        const double fps = 150.0;
+        std::vector<int64_t> tUs(nf);
+        std::vector<double> gx(nf), gy(nf), phiRaw(nf, 90.0);
+        std::vector<std::vector<cv::Point2d>> joints(nf, std::vector<cv::Point2d>(8));
+        double x = 500, y = 600;
+        for (int f = 0; f < nf; ++f) {
+            tUs[f] = int64_t(std::llround(f * 1e6 / fps));
+            if (f >= 40 && f < 70)       { x -= 4; y -= 9; }
+            else if (f >= 77 && f < 109) { x += 3; y += 9; }
+            gx[f] = x; gy[f] = y;
+            joints[f] = {{450, 300}, {550, 300}, {460, 600}, {540, 600},
+                         {465, 750}, {535, 750}, {470, 900}, {530, 900}};
+        }
+        const FrameSource render = [&](int f) -> cv::Mat {
+            if (f < 0 || f >= nf) return cv::Mat();
+            cv::Mat img(H, W, CV_8UC1, cv::Scalar(30));
+            const cv::Point g(int(gx[f]), int(gy[f]));
+            cv::line(img, g, cv::Point(g.x, std::min(H - 1, g.y + 400)), cv::Scalar(230), 3);
+            return img;
+        };
+
+        ShaftV3Config cfgB1 = cfg; cfgB1.positions.enabled = true;                  // fit off (default)
+        ShaftV3Config cfgB2 = cfg; cfgB2.positions.enabled = true;
+        cfgB2.positions.fit.fitEnabled = true;                                      // fit on
+        const ShaftTrack2D b1  = decideTrack(render, tUs, gx, gy, phiRaw, joints, W, H, fps,
+                                             {}, 1120.0, -1, cfgB1, nullptr, nullptr);
+        const ShaftTrack2D b1b = decideTrack(render, tUs, gx, gy, phiRaw, joints, W, H, fps,
+                                             {}, 1120.0, -1, cfgB1, nullptr, nullptr);
+        const ShaftTrack2D b2  = decideTrack(render, tUs, gx, gy, phiRaw, joints, W, H, fps,
+                                             {}, 1120.0, -1, cfgB2, nullptr, nullptr);
+
+        bool b1IsTrack = !b1.positions.empty();
+        for (const ShaftPosition &p : b1.positions)
+            if (p.source != uint8_t(PositionSource::TrackSample) || p.stackN != 0
+                || p.sigmaThetaDeg != -1.f || p.sigmaLenPx != -1.f) b1IsTrack = false;
+        check(b1IsTrack, "fitEnabled=false ⇒ all positions TrackSample (fit gated)");
+
+        bool byteEq = b1.positions.size() == b1b.positions.size();
+        for (size_t i = 0; byteEq && i < b1.positions.size(); ++i) {
+            const ShaftPosition &a = b1.positions[i], &c = b1b.positions[i];
+            if (a.p != c.p || a.t_us != c.t_us || a.thetaRad != c.thetaRad || a.lenPx != c.lenPx
+                || a.gripPx != c.gripPx || a.headPx != c.headPx || a.conf != c.conf
+                || a.source != c.source || a.stackN != c.stackN) byteEq = false;
+        }
+        check(byteEq, "fitEnabled=false ⇒ positions byte-identical run-to-run (B1 soak)");
+
+        bool sameSamples = b1.samples.size() == b2.samples.size() && !b1.samples.empty();
+        for (size_t i = 0; sameSamples && i < b1.samples.size(); ++i)
+            if (b1.samples[i].thetaRad != b2.samples[i].thetaRad
+                || b1.samples[i].gripPx != b2.samples[i].gripPx
+                || b1.samples[i].headPx != b2.samples[i].headPx
+                || b1.samples[i].flags  != b2.samples[i].flags) sameSamples = false;
+        check(sameSamples, "fit on/off ⇒ samples[] byte-identical (fit upgrades positions[] only)");
+    }
+
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);
     return g_fail;
 }

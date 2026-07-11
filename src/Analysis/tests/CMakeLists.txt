@@ -208,6 +208,16 @@ pp_add_test(club_length_fusion_test SOURCES club_length_fusion_test.cpp)
 # (no P8), NaN-φ (no P3/P5), noisy horizontal (fires once). Header-only, no fixture.
 pp_add_test(shaft_positions_test SOURCES shaft_positions_test.cpp)
 
+# Layer B milestone fitter (shaft_position_fit.h): ±k-frame shift-and-stack +
+# joint (grip,θ,L) fit over the shared ridge integral — still P1, blur-gap P7 with
+# a 180°-flipped init recovered via wide sector + ball, pure-noise reject,
+# determinism. Header-only (inline warpAffine); Qt (QPointF) + OpenCV, no fixture.
+pp_add_test(shaft_position_fit_test
+    SOURCES shaft_position_fit_test.cpp
+    INCLUDE ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    COMPILE_OPTIONS -O2)
+
 # Stage A true-onset segmentation (swing_span_bounding_plan.md §4/§7.1): the bs0
 # walk-back (A1 speed + A2 φ), the impact clamp (A3), the swLow=0 legacy path,
 # and the estimateSwingSpanUs Stage B helper — synthetic grip tracks, no fixture.

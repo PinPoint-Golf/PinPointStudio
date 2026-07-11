@@ -26,6 +26,7 @@
 
 #include "analysis_tuning.h"       // pinpoint::analysis::tuning::apply
 #include "ball_anchor.h"           // medianGripBallLenPx (A1 — L_px before head placement)
+#include "shaft_position_fit.h"    // sampleClamp/med4/ridgeLineIntegral (shared) + fitPosition (Layer B B-fit)
 
 #include <QElapsedTimer>           // Stage-2 head-pass wall-clock (trace->headMs)
 
@@ -202,68 +203,9 @@ inline bool isMidswing(SwingPhase p)
 }
 
 // ── Layer A snap: local ridge line re-registration (shaft_position_first §2A) ──
-// Nearest-neighbour clamped sample of a CV_32F image (matches ridgeSweep's `at`).
-inline float sampleClamp(const cv::Mat& img, double fx, double fy)
-{
-    int x = int(fx), y = int(fy);
-    if (x < 0) x = 0; else if (x >= img.cols) x = img.cols - 1;
-    if (y < 0) y = 0; else if (y >= img.rows) y = img.rows - 1;
-    return img.at<float>(y, x);
-}
-
-// median of exactly 4 (numpy even-count median = mean of the two middle values).
-inline float med4(float a, float b, float c, float d)
-{
-    if (a > b) std::swap(a, b);
-    if (c > d) std::swap(c, d);
-    if (a > c) std::swap(a, c);
-    if (b > d) std::swap(b, d);
-    return 0.5f * (b + c);
-}
-
-// Polarity-aware ridge line-integral of `g32` along the line through (ax,ay) in
-// direction thetaRad, r ∈ [rLo, rEnd) step rStep, integrating a ±corridorHalf px
-// lateral corridor. Per-sample evidence follows ridgeSweep's polarity split (a
-// bright line credited over a dark background, or a dark shaft over blown mat when
-// bg>bgHi) using the MEAN of the corridor as the on-ridge value — a corridor
-// integral (not a lateral max) so the response peaks when the line is CENTRED on
-// the ridge, which is what registers the anchor onto the club. bg is the median of
-// four samples just outside the corridor (default corridorHalf=2 → ±9/±12, exactly
-// ridgeSweep's background offsets). Returns the MEAN per-sample evidence over the
-// FULL drawn extent (the search objective — rewards a line that lies on the shaft
-// along its whole length, not a strong partial run) and, via `support`, the
-// fraction of supported samples (e>8) — the lineConf metric ∈ [0,1].
-double ridgeLineIntegral(const cv::Mat& g32, double ax, double ay, double thetaRad,
-                         double rLo, double rEnd, double rStep, int corridorHalf,
-                         const RidgeConfig& rc, double& support)
-{
-    const double ux = std::cos(thetaRad), uy = std::sin(thetaRad);  // normal (nx,ny)=(-uy,ux)
-    const double bgNear = corridorHalf + 7.0, bgFar = corridorHalf + 10.0;
-    double cum = 0.0;
-    int n = 0, posCount = 0;
-    for (double r = rLo; r < rEnd; r += rStep) {
-        const double cx = ax + ux * r, cy = ay + uy * r;
-        const float b0 = sampleClamp(g32, cx - (-bgFar)  * uy, cy + (-bgFar)  * ux);
-        const float b1 = sampleClamp(g32, cx - (-bgNear) * uy, cy + (-bgNear) * ux);
-        const float b2 = sampleClamp(g32, cx - ( bgNear) * uy, cy + ( bgNear) * ux);
-        const float b3 = sampleClamp(g32, cx - ( bgFar)  * uy, cy + ( bgFar)  * ux);
-        const double bg = med4(b0, b1, b2, b3);
-        double onSum = 0.0; int onN = 0;
-        for (int o = -corridorHalf; o <= corridorHalf; ++o) {
-            onSum += sampleClamp(g32, cx - double(o) * uy, cy + double(o) * ux);
-            ++onN;
-        }
-        const double on = onSum / double(onN);
-        const double e = (bg > rc.bgHi)
-            ? std::clamp(bg - on - 12.0, double(-rc.eClipNeg), double(rc.eClipPos))
-            : std::clamp(on - bg - 12.0, double(-rc.eClipNeg), double(rc.eClipPos));
-        cum += e;
-        ++n;
-        if (e > 8.0) ++posCount;
-    }
-    support = (n > 0) ? double(posCount) / double(n) : 0.0;
-    return (n > 0) ? cum / double(n) : -std::numeric_limits<double>::infinity();
-}
+// sampleClamp / med4 / ridgeLineIntegral are shared with the Layer B milestone
+// fit and now live in shaft_position_fit.h (promoted verbatim from here so the two
+// passes share one definition; snap math unchanged).
 
 // One sample's snap search over (⊥ offset d, Δθ). Grid: 1 px offset × 0.5° angle.
 struct SnapResult {
@@ -394,6 +336,22 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     // Layer B P-position extraction: "positions.*" keys.
     apply(ov, "positions.enabled", c.positions.enabled);
     apply(ov, "positions.hysteresisDeg", c.positions.hysteresisDeg);
+    // Layer B milestone fit (B2): "positions.*" keys → PositionsConfig::fit.
+    apply(ov, "positions.fitEnabled", c.positions.fit.fitEnabled);
+    apply(ov, "positions.halfWindowFrames", c.positions.fit.halfWindowFrames);
+    apply(ov, "positions.minFitConf", c.positions.fit.minFitConf);
+    apply(ov, "positions.wideSectorDeg", c.positions.fit.wideSectorDeg);
+    apply(ov, "positions.narrowSectorDeg", c.positions.fit.narrowSectorDeg);
+    apply(ov, "positions.gripSearchPx", c.positions.fit.gripSearchPx);
+    apply(ov, "positions.thetaStepDeg", c.positions.fit.thetaStepDeg);
+    apply(ov, "positions.lenStepPx", c.positions.fit.lenStepPx);
+    apply(ov, "positions.lenMinFracH", c.positions.fit.lenMinFracH);
+    apply(ov, "positions.lenMaxFracH", c.positions.fit.lenMaxFracH);
+    apply(ov, "positions.gripStepPx", c.positions.fit.gripStepPx);
+    apply(ov, "positions.corridorHalfPx", c.positions.fit.corridorHalfPx);
+    apply(ov, "positions.ballBonus", c.positions.fit.ballBonus);
+    apply(ov, "positions.ballSigmaPx", c.positions.fit.ballSigmaPx);
+    apply(ov, "positions.plateauFrac", c.positions.fit.plateauFrac);
     return c;
 }
 
@@ -1634,6 +1592,73 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
             pos.sigmaLenPx    = -1.f;
             sampleTrackAt(pt.tUs, pos);
             out.positions.push_back(pos);
+        }
+
+        // ── B2 milestone fit (shaft_position_first §2 Layer B "B-fit") ──────────
+        // Dark until positions.fitEnabled. Re-measure each located P by a ±k-frame
+        // shift-and-stack joint (grip, θ, L) fit (shaft_position_fit.h): on ACCEPT it
+        // OVERWRITES the B1 TrackSample with the fitted geometry + source=MilestoneFit
+        // + honest σ from the near-max plateau; on REJECT the B1 sample is KEPT (never
+        // degrade). fitEnabled=false ⇒ the loop never runs ⇒ positions are byte-
+        // identical to B1. A frame-source-less swing (fused / undecodable) leaves the
+        // fit a no-op (empty stack ⇒ reject ⇒ B1 kept). samples[]/θ/coverage/length
+        // above are untouched — the fit upgrades the report-only positions[] only.
+        if (cfg.positions.fit.fitEnabled) {
+            // Per-frame locally-smoothed ω(t) (deg/s) for the stack registration:
+            // central difference of the reconciled θ over the frame timebase, then
+            // median(5)+Gaussian(2) — the φ/joint smoothing convention. A flipped θ
+            // is a constant offset (d/dt unchanged), so ω survives the impact-blur
+            // flip that corrupts the absolute θ.
+            std::vector<double> omega(size_t(nf), 0.0);
+            for (int i = 0; i < nf; ++i) {
+                const int a = std::max(0, i - 1), b = std::min(nf - 1, i + 1);
+                const double dth = circWrap(rec.thetaOut[b] - rec.thetaOut[a]);
+                const double dt  = double(tUs[b] - tUs[a]) * 1e-6;
+                omega[size_t(i)] = (dt > 0.0) ? dth / dt : 0.0;   // deg/s
+            }
+            omega = gaussianFilter1d(medianFilter1d(omega, 5), 2.0);
+
+            const double fusedLen = (out.lengths.fusedPx > 0.0) ? out.lengths.fusedPx : projLenPx;
+            auto nearestFrame = [&](int64_t t) {
+                int best = 0; int64_t bd = std::numeric_limits<int64_t>::max();
+                for (int i = 0; i < nf; ++i) {
+                    const int64_t d = std::llabs(tUs[i] - t);
+                    if (d < bd) { bd = d; best = i; }
+                }
+                return best;
+            };
+            for (ShaftPosition& pos : out.positions) {
+                const int cf = nearestFrame(pos.t_us);
+                // Ball evidence only where the ball is physically on the tee: address
+                // (P1) and impact (P7). Nearest pre-launch found sample to the P-time.
+                const BallSample2D* ballNear = nullptr;
+                BallSample2D bs;
+                if (ball && !ball->frames.empty() && (pos.p == 1 || pos.p == 7)) {
+                    int64_t bd = std::numeric_limits<int64_t>::max();
+                    for (const BallSample2D& f : ball->frames) {
+                        if (!f.found) continue;
+                        if (ball->launchTUs >= 0 && f.t_us > ball->launchTUs) continue;   // pre-launch
+                        const int64_t d = std::llabs(f.t_us - pos.t_us);
+                        if (d < bd) { bd = d; bs = f; }
+                    }
+                    if (bd != std::numeric_limits<int64_t>::max()) ballNear = &bs;
+                }
+                const PositionFitResult fr =
+                    fitPosition(frameAt, pos.p, cf, pos.t_us, tUs, gx, gy, rec.thetaOut, omega,
+                                phiS, armFloorMedPx, fusedLen, ballNear, frameW, frameH,
+                                cfg.ridge, cfg.positions.fit, cfg.armVetoDeg);
+                if (fr.accepted) {
+                    pos.gripPx        = fr.gripPx;
+                    pos.headPx        = fr.headPx;
+                    pos.thetaRad      = fr.thetaRad;
+                    pos.lenPx         = fr.lenPx;
+                    pos.conf          = fr.conf;
+                    pos.sigmaThetaDeg = fr.sigmaThetaDeg;
+                    pos.sigmaLenPx    = fr.sigmaLenPx;
+                    pos.stackN        = fr.stackN;
+                    pos.source        = uint8_t(PositionSource::MilestoneFit);
+                }
+            }
         }
     }
 
