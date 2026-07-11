@@ -615,14 +615,16 @@ int main()
         }
         const FrameSource noFrames = [](int) -> cv::Mat { return cv::Mat(); };
 
-        ShaftV3Config cfgOff = cfg;                                 // positions.enabled=false (default)
+        // Pin both states explicitly — this tests the off-contract mechanism, not
+        // the shipped default (ON since B4).
+        ShaftV3Config cfgOff = cfg; cfgOff.positions.enabled = false;
         ShaftV3Config cfgOn  = cfg; cfgOn.positions.enabled = true;
         const ShaftTrack2D off = decideTrack(noFrames, tUs, gx, gy, phiRaw, joints, W, H, fps,
                                              {}, 1120.0, -1, cfgOff, nullptr, nullptr);
         const ShaftTrack2D on  = decideTrack(noFrames, tUs, gx, gy, phiRaw, joints, W, H, fps,
                                              {}, 1120.0, -1, cfgOn,  nullptr, nullptr);
 
-        check(off.positions.empty(), "positions off ⇒ empty vector (default)");
+        check(off.positions.empty(), "positions off ⇒ empty vector");
         check(!on.positions.empty(), "positions on ⇒ non-empty vector");
         bool ordered = true;
         for (size_t i = 1; i < on.positions.size(); ++i)

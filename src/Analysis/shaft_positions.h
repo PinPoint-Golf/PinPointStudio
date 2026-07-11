@@ -74,7 +74,7 @@ namespace pinpoint::analysis {
 // fit searches GLOBALLY over the arm-plausibility-admitted sector around the
 // (reliable) grip anchor — a local refinement cannot recover there.
 struct PositionFitConfig {
-    bool   fitEnabled       = false;  // master gate — dark until its corpus gate flips it
+    bool   fitEnabled       = true;   // ON since B4 (b2-fit2 gate: never-degrade guards hold, P7 flip fixed)
     int    halfWindowFrames = 4;      // ±k frames stacked (shift-and-stack registration)
     double minFitConf       = 0.35;   // accept floor on ridge support under the fitted line
     double wideSectorDeg    = 170.0;  // θ search WIDTH at P5–P8 (global; centred on arm/ball)
@@ -104,7 +104,7 @@ struct PositionFitConfig {
 // `positions`; enabled=false keeps position extraction dark (a positions-off run
 // leaves ShaftTrack2D.positions empty ⇒ swing.json byte-identical).
 struct PositionsConfig {
-    bool   enabled       = false;   // master gate — dark until its corpus gate flips it
+    bool   enabled       = true;    // ON since B4 (report-only extraction, additive positions[])
     double hysteresisDeg = 8.0;     // deadband each side of horizontal (arm + anti-double-fire)
     PositionFitConfig fit;          // B2 milestone fit (dark until fit.fitEnabled flips)
 };
