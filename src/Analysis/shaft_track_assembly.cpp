@@ -391,6 +391,9 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.snap.maxDeltaDeg", c.snap.maxDeltaDeg);
     apply(ov, "shaft.snap.minLineConf", c.snap.minLineConf);
     apply(ov, "shaft.snap.corridorHalfPx", c.snap.corridorHalfPx);
+    // Layer B P-position extraction: "positions.*" keys.
+    apply(ov, "positions.enabled", c.positions.enabled);
+    apply(ov, "positions.hysteresisDeg", c.positions.hysteresisDeg);
     return c;
 }
 
@@ -1572,6 +1575,65 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
             };
             trace->medianSnapOffsetPx = medianOf(appliedOffsets);
             trace->medianLineConf     = medianOf(measuredConfs);
+        }
+    }
+
+    // ── Layer B: P-position extraction (shaft_position_first §2 Layer B) ────────
+    // Dark by default. Locate P1–P8 from the reconciled θ(t) (deg) + smoothed
+    // lead-arm φ(t) (deg) and the tracker's own address/top/impact landmarks
+    // (shaft_positions.h — image-plane parallel crossings with hysteresis), then
+    // populate out.positions by SAMPLING the final emitted track at each P-time.
+    // Report-only in B1: source = TrackSample, no milestone fit (that is B2), so
+    // samples[]/coverage/length/θ are all untouched (positions ride alongside).
+    // NB PhaseEvent emission for P2/P5/P8 belongs to the analyzer layer and is
+    // DEFERRED — the enum values exist but nothing emits them here (keeps B1's
+    // blast radius to the club block only).
+    if (cfg.positions.enabled && !out.samples.empty()) {
+        // Sample the emitted track at t: linear-interpolate grip/θ between the two
+        // straddling samples; conf/length come from the NEARER sample; the drawn
+        // head follows grip + len·dir(θ).
+        auto sampleTrackAt = [&](int64_t t, ShaftPosition& pos) {
+            const std::vector<ShaftSample2D>& S = out.samples;
+            size_t b = 0;
+            while (b < S.size() && S[b].t_us < t) ++b;
+            if (b == 0 || b >= S.size()) {   // clamp to the boundary sample
+                const ShaftSample2D& s = (b == 0) ? S.front() : S.back();
+                pos.gripPx   = s.gripPx;
+                pos.thetaRad = s.thetaRad;
+                pos.conf     = s.conf;
+                pos.lenPx    = std::hypot(s.headPx.x() - s.gripPx.x(), s.headPx.y() - s.gripPx.y());
+            } else {
+                const ShaftSample2D& a = S[b - 1];
+                const ShaftSample2D& c = S[b];
+                const double denom = double(c.t_us - a.t_us);
+                const double frac  = denom > 0.0 ? double(t - a.t_us) / denom : 0.0;
+                const double gxp = a.gripPx.x() + (c.gripPx.x() - a.gripPx.x()) * frac;
+                const double gyp = a.gripPx.y() + (c.gripPx.y() - a.gripPx.y()) * frac;
+                const double dth = std::remainder(c.thetaRad - a.thetaRad, 2 * kPi);
+                const ShaftSample2D& near = (frac < 0.5) ? a : c;
+                pos.gripPx   = QPointF(gxp, gyp);
+                pos.thetaRad = a.thetaRad + dth * frac;
+                pos.conf     = near.conf;
+                pos.lenPx    = std::hypot(near.headPx.x() - near.gripPx.x(),
+                                          near.headPx.y() - near.gripPx.y());
+            }
+            const double ux = std::cos(pos.thetaRad), uy = std::sin(pos.thetaRad);
+            pos.headPx = QPointF(pos.gripPx.x() + pos.lenPx * ux, pos.gripPx.y() + pos.lenPx * uy);
+        };
+
+        const std::vector<PTime> pts =
+            locatePTimes(tUs, rec.thetaOut, phiS, pm.bs0, pm.top, pm.impact, cfg.positions);
+        out.positions.reserve(pts.size());
+        for (const PTime& pt : pts) {
+            ShaftPosition pos;
+            pos.p      = pt.p;
+            pos.t_us   = pt.tUs;
+            pos.source = uint8_t(PositionSource::TrackSample);
+            pos.stackN = 0;
+            pos.sigmaThetaDeg = -1.f;
+            pos.sigmaLenPx    = -1.f;
+            sampleTrackAt(pt.tUs, pos);
+            out.positions.push_back(pos);
         }
     }
 

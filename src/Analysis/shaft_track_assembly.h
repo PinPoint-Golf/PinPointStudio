@@ -29,6 +29,7 @@
 #include "swing_analysis.h"        // ShaftTrack2D / ShaftSample2D / ClubLengthEstimate / flags
 #include "clubhead_track.h"        // ClubheadConfig (Stage-2 head measurement)
 #include "club_length_fusion.h"    // LengthFusionConfig / LengthPriorState / fuseClubLength
+#include "shaft_positions.h"       // PositionsConfig / PTime / locatePTimes (Layer B B-time location)
 
 // Shaft-tracker v3.0-r1 DECIDING HALF — the physics/statistics that turn
 // per-frame evidence into one globally-consistent shaft-angle track. Faithful
@@ -168,6 +169,11 @@ struct ShaftV3Config {
     // Layer A line re-registration («snap») — "shaft.snap.*" keys. enabled=false
     // by default (dark at merge); fromOverrides populates it.
     SnapConfig      snap;
+    // Layer B P-position extraction (shaft_position_first §2 Layer B) —
+    // "positions.*" keys. enabled=false by default (dark); when on, decideTrack
+    // locates P1–P8 and fills ShaftTrack2D.positions from the emitted track
+    // (report-only in B1). fromOverrides populates it.
+    PositionsConfig positions;
 
     static ShaftV3Config fromOverrides(const QVariantMap& ov);
 };

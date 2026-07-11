@@ -226,25 +226,43 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
                 { QStringLiteral("lenPx"), s.visibleLenPx },
                 { QStringLiteral("conf"),  double(s.conf) },
                 { QStringLiteral("flags"), int(s.flags) } });
-        detail.insert(QStringLiteral("club"),
-                      QVariantMap{
-                          { QStringLiteral("camera"),        int(a.shaft.camera) },
-                          { QStringLiteral("valid"),         a.shaft.valid },
-                          { QStringLiteral("coverage"),      double(a.shaft.coverage) },
-                          { QStringLiteral("imuVisionCorr"), double(a.shaft.imuVisionCorr) },
-                          { QStringLiteral("modelVisionResidualDeg"), double(a.shaft.modelVisionResidualDeg) },
-                          // v3.4 (design §9.4): measured club length in px (grip-to-ball
-                          // at address) — mirrors the swing.json club block (swing_doc.cpp)
-                          // so the live/in-window detail path carries it too, not just the
-                          // disk-reload path. -1 = unmeasured (no ball anchor).
-                          { QStringLiteral("measuredClubLenPx"), double(a.shaft.measuredClubLenPx) },
-                          { QStringLiteral("frameWidth"),    a.shaft.frameWidth },
-                          { QStringLiteral("frameHeight"),   a.shaft.frameHeight },
-                          // Multi-estimator length fusion (club_length_fusion.h) — see
-                          // toLengthsDetail(); mirrors swing_doc.cpp's analysis.club.lengths.
-                          { QStringLiteral("lengths"),       toLengthsDetail(a.shaft.lengths) },
-                          { QStringLiteral("samples"),       samples },
-                          { QStringLiteral("predicted"),     predicted } });
+        // Coaching P-positions P1–P8 (shaft_position_first §2 Layer B) — lock-step
+        // with swing_doc.cpp; grip/head normalized 0..1, t_us absolute like this
+        // path's `samples`. Written only when non-empty (extraction off ⇒ absent).
+        QVariantList positions;
+        for (const ShaftPosition &p : a.shaft.positions)
+            positions.append(QVariantMap{
+                { QStringLiteral("p"),     p.p },
+                { QStringLiteral("t_us"),  static_cast<qlonglong>(p.t_us) },
+                { QStringLiteral("grip"),  QVariantList{ p.gripPx.x() * iw, p.gripPx.y() * ih } },
+                { QStringLiteral("head"),  QVariantList{ p.headPx.x() * iw, p.headPx.y() * ih } },
+                { QStringLiteral("theta"), p.thetaRad },
+                { QStringLiteral("lenPx"), p.lenPx },
+                { QStringLiteral("conf"),  double(p.conf) },
+                { QStringLiteral("sigmaThetaDeg"), double(p.sigmaThetaDeg) },
+                { QStringLiteral("sigmaLenPx"),    double(p.sigmaLenPx) },
+                { QStringLiteral("stackN"), p.stackN },
+                { QStringLiteral("source"), int(p.source) } });
+        QVariantMap clubMap{
+            { QStringLiteral("camera"),        int(a.shaft.camera) },
+            { QStringLiteral("valid"),         a.shaft.valid },
+            { QStringLiteral("coverage"),      double(a.shaft.coverage) },
+            { QStringLiteral("imuVisionCorr"), double(a.shaft.imuVisionCorr) },
+            { QStringLiteral("modelVisionResidualDeg"), double(a.shaft.modelVisionResidualDeg) },
+            // v3.4 (design §9.4): measured club length in px (grip-to-ball
+            // at address) — mirrors the swing.json club block (swing_doc.cpp)
+            // so the live/in-window detail path carries it too, not just the
+            // disk-reload path. -1 = unmeasured (no ball anchor).
+            { QStringLiteral("measuredClubLenPx"), double(a.shaft.measuredClubLenPx) },
+            { QStringLiteral("frameWidth"),    a.shaft.frameWidth },
+            { QStringLiteral("frameHeight"),   a.shaft.frameHeight },
+            // Multi-estimator length fusion (club_length_fusion.h) — see
+            // toLengthsDetail(); mirrors swing_doc.cpp's analysis.club.lengths.
+            { QStringLiteral("lengths"),       toLengthsDetail(a.shaft.lengths) },
+            { QStringLiteral("samples"),       samples },
+            { QStringLiteral("predicted"),     predicted } };
+        if (!positions.isEmpty()) clubMap.insert(QStringLiteral("positions"), positions);
+        detail.insert(QStringLiteral("club"), clubMap);
     }
     // Ball track (v3.4 design §9) for the replay overlay — normalized [0,1]
     // full-frame center + radius, same convention as pose2d/club so QML never

@@ -113,6 +113,9 @@ enum class Phase {
     Delivery      = 9,    // P6 — shaft parallel (downswing); hand-proxy until shaft-measured
     MaxSpeed      = 10,   //      peak hand angular speed (clubhead-speed proxy)
     FollowThrough = 11,   // P9 — lead arm parallel (follow-through)
+    ShaftParallelBack    = 12,  // P2 — shaft parallel (backswing); image-plane (shaft_position_first §1)
+    ArmParallelDown      = 13,  // P5 — lead arm parallel (downswing)
+    ShaftParallelThrough = 14,  // P8 — shaft parallel (follow-through); image-plane
 };
 
 // A detected swing-phase event on the shared phase timeline.
@@ -345,6 +348,32 @@ struct ClubLengthEstimate {
     int    headMeasN        = 0;     // # post-top Meas frames that fed E-head
 };
 
+// How a ShaftPosition's geometry was resolved (shaft_position_first §2 Layer B).
+// TrackSample = sampled from the final emitted samples[] at the P-time (B1,
+// report-only). MilestoneFit = the ±k-frame shift-and-stack joint (grip,θ,L) fit
+// (B2) with honest σ from its residuals.
+enum class PositionSource : uint8_t { TrackSample = 0, MilestoneFit = 1 };
+
+// One located coaching P-position on the shaft track (shaft_position_first §2
+// Layer B / §4). `p` is the coaching P-index 1..8 (NOT a Phase enum value);
+// `t_us` is the sub-frame-located crossing time. gripPx/headPx here are IMAGE px
+// (unlike samples[], which serialization normalizes by frameWidth/Height —
+// documented so a reader never mixes the two spaces). thetaRad is the shaft
+// direction grip→head (image atan2 convention). sigma* < 0 and stackN 0 mark a B1
+// TrackSample (no fit); B2 fills them from the milestone fit.
+struct ShaftPosition {
+    int      p             = 0;
+    int64_t  t_us          = 0;
+    QPointF  gripPx, headPx;          // IMAGE px (not normalized)
+    double   thetaRad      = 0.0;
+    double   lenPx         = -1.0;    // drawn grip→head length (px); < 0 = absent
+    float    conf          = 0.f;
+    float    sigmaThetaDeg = -1.f;    // θ posterior σ (deg); −1 = not fitted (B1)
+    float    sigmaLenPx    = -1.f;    // length posterior σ (px); −1 = not fitted (B1)
+    int      stackN        = 0;       // shift-and-stack frame count (B2); 0 = track sample
+    uint8_t  source        = 0;       // PositionSource
+};
+
 struct ShaftTrack2D {
     pinpoint::SourceId camera = pinpoint::kInvalidSourceId;
     bool  valid = false;        // coverage gate over the swing span (all-or-nothing for consumers)
@@ -370,6 +399,10 @@ struct ShaftTrack2D {
     // its confidence, and every component estimator. Default = no fusion recorded
     // (all absent) — set by decideTrack's post-pass when cfg.fusion.enabled.
     ClubLengthEstimate lengths;
+    // Coaching P-positions P1–P8 (shaft_position_first §2 Layer B). Empty =
+    // extraction off (cfg.positions.enabled == false) / pre-v3.5 swing — readers
+    // treat empty as "no position data" (same contract as `lengths`).
+    std::vector<ShaftPosition> positions;
 };
 
 // The IMU→segment binding as persisted in swing.json (keyed by the device

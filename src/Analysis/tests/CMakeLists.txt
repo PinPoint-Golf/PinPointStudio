@@ -203,6 +203,11 @@ pp_add_test(clubhead_temporal_test
 # (QVariantMap for fromOverrides) — no OpenCV, no fixture.
 pp_add_test(club_length_fusion_test SOURCES club_length_fusion_test.cpp)
 
+# Layer B P-time location (shaft_positions.h): image-plane shaft/arm parallel
+# crossings of θ(t)/φ(t) with hysteresis — full swing (all 8), abbreviated punch
+# (no P8), NaN-φ (no P3/P5), noisy horizontal (fires once). Header-only, no fixture.
+pp_add_test(shaft_positions_test SOURCES shaft_positions_test.cpp)
+
 # Stage A true-onset segmentation (swing_span_bounding_plan.md §4/§7.1): the bs0
 # walk-back (A1 speed + A2 φ), the impact clamp (A3), the swLow=0 legacy path,
 # and the estimateSwingSpanUs Stage B helper — synthetic grip tracks, no fixture.

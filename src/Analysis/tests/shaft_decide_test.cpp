@@ -591,6 +591,65 @@ int main()
         check(trOn.medianLineConf > 0.7, "trace: median lineConf > 0.7");
     }
 
+    // ── Layer B positions: report-only, additive (shaft_position_first §2B) ────
+    // positions.enabled=true fills out.positions from the emitted track (ordered,
+    // monotone t_us); default (false) leaves it empty AND does not perturb samples
+    // (byte-identical contract). Reuses the segmentPhases-validated full-swing
+    // geometry (nf=170, fps=150) so bs0<top<impact and the P1/P4/P7 landmarks
+    // (address/top/impact) are always emitted regardless of ray evidence.
+    std::printf("=== decideTrack Layer B positions ===\n");
+    {
+        const int nf = 170, W = 1000, H = 1000;
+        const double fps = 150.0;
+        std::vector<int64_t> tUs(nf);
+        std::vector<double> gx(nf), gy(nf), phiRaw(nf, 90.0);
+        std::vector<std::vector<cv::Point2d>> joints(nf, std::vector<cv::Point2d>(8));
+        double x = 500, y = 600;
+        for (int f = 0; f < nf; ++f) {
+            tUs[f] = int64_t(std::llround(f * 1e6 / fps));
+            if (f >= 40 && f < 70)       { x -= 4; y -= 9; }   // backswing
+            else if (f >= 77 && f < 109) { x += 3; y += 9; }   // downswing
+            gx[f] = x; gy[f] = y;
+            joints[f] = {{450, 300}, {550, 300}, {460, 600}, {540, 600},
+                         {465, 750}, {535, 750}, {470, 900}, {530, 900}};
+        }
+        const FrameSource noFrames = [](int) -> cv::Mat { return cv::Mat(); };
+
+        ShaftV3Config cfgOff = cfg;                                 // positions.enabled=false (default)
+        ShaftV3Config cfgOn  = cfg; cfgOn.positions.enabled = true;
+        const ShaftTrack2D off = decideTrack(noFrames, tUs, gx, gy, phiRaw, joints, W, H, fps,
+                                             {}, 1120.0, -1, cfgOff, nullptr, nullptr);
+        const ShaftTrack2D on  = decideTrack(noFrames, tUs, gx, gy, phiRaw, joints, W, H, fps,
+                                             {}, 1120.0, -1, cfgOn,  nullptr, nullptr);
+
+        check(off.positions.empty(), "positions off ⇒ empty vector (default)");
+        check(!on.positions.empty(), "positions on ⇒ non-empty vector");
+        bool ordered = true;
+        for (size_t i = 1; i < on.positions.size(); ++i)
+            if (on.positions[i].p <= on.positions[i - 1].p
+                || on.positions[i].t_us < on.positions[i - 1].t_us) ordered = false;
+        check(ordered, "positions ordered (p strictly ↑, t_us ↑)");
+        bool pInRange = true, srcOk = true;
+        for (const ShaftPosition &p : on.positions) {
+            if (p.p < 1 || p.p > 8) pInRange = false;
+            if (p.source != uint8_t(PositionSource::TrackSample) || p.stackN != 0
+                || p.sigmaThetaDeg != -1.f || p.sigmaLenPx != -1.f) srcOk = false;
+        }
+        check(pInRange, "every p ∈ [1,8]");
+        check(srcOk, "B1 provenance: TrackSample, stackN 0, σ = −1");
+
+        // (byte-identical contract) positions extraction never touches samples.
+        bool sameCount = off.samples.size() == on.samples.size() && !off.samples.empty();
+        bool identical = sameCount;
+        for (size_t i = 0; sameCount && i < off.samples.size(); ++i)
+            if (off.samples[i].thetaRad != on.samples[i].thetaRad
+                || off.samples[i].gripPx != on.samples[i].gripPx
+                || off.samples[i].headPx != on.samples[i].headPx
+                || off.samples[i].flags  != on.samples[i].flags
+                || off.samples[i].conf   != on.samples[i].conf) identical = false;
+        check(sameCount && identical, "positions on/off ⇒ samples byte-identical");
+    }
+
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);
     return g_fail;
 }

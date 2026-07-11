@@ -273,7 +273,26 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
             { QStringLiteral("nEstimators"),      l.nEstimators },
             { QStringLiteral("priorN"),           l.priorN },
             { QStringLiteral("headMeasN"),        l.headMeasN } };
-        o[QStringLiteral("club")] = QJsonObject{
+        // Coaching P-positions P1–P8 (shaft_position_first §2 Layer B) — grip/head
+        // normalized by the camera dims like `samples`; t_us window-relative via
+        // rel(). Written only when non-empty (positions extraction off / pre-v3.5
+        // ⇒ absent, so the block stays byte-identical). "image-plane parallel"
+        // (P2/P6/P8) is accepted face-on coaching practice, not 3-D geometry.
+        QJsonArray positions;
+        for (const ShaftPosition &p : a.shaft.positions)
+            positions.append(QJsonObject{
+                { QStringLiteral("p"),     p.p },
+                { QStringLiteral("t_us"),  rel(p.t_us) },
+                { QStringLiteral("grip"),  QJsonArray{ p.gripPx.x() * iw, p.gripPx.y() * ih } },
+                { QStringLiteral("head"),  QJsonArray{ p.headPx.x() * iw, p.headPx.y() * ih } },
+                { QStringLiteral("theta"), p.thetaRad },
+                { QStringLiteral("lenPx"), p.lenPx },
+                { QStringLiteral("conf"),  double(p.conf) },
+                { QStringLiteral("sigmaThetaDeg"), double(p.sigmaThetaDeg) },
+                { QStringLiteral("sigmaLenPx"),    double(p.sigmaLenPx) },
+                { QStringLiteral("stackN"), p.stackN },
+                { QStringLiteral("source"), int(p.source) } });
+        QJsonObject clubObj{
             { QStringLiteral("camera"),        int(a.shaft.camera) },
             { QStringLiteral("valid"),         a.shaft.valid },
             { QStringLiteral("coverage"),      double(a.shaft.coverage) },
@@ -287,6 +306,8 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
             { QStringLiteral("lengths"),       lengths },
             { QStringLiteral("samples"),       samples },
             { QStringLiteral("predicted"),     predicted } };
+        if (!positions.isEmpty()) clubObj.insert(QStringLiteral("positions"), positions);
+        o[QStringLiteral("club")] = clubObj;
     }
     // Ball track (v3.4 design §9) for the replay overlay — normalized [0,1]
     // full-frame center + radius; rel() keeps t_us window-relative like pose2d/
