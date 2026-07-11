@@ -354,6 +354,9 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "positions.ballBonus", c.positions.fit.ballBonus);
     apply(ov, "positions.ballSigmaPx", c.positions.fit.ballSigmaPx);
     apply(ov, "positions.plateauFrac", c.positions.fit.plateauFrac);
+    // Layer C synthesis between anchors: "synth.*" keys.
+    apply(ov, "synth.enabled", c.synth.enabled);
+    apply(ov, "synth.midConfFrac", c.synth.midConfFrac);
     return c;
 }
 
@@ -1421,8 +1424,8 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                 // (0x80 rides on 0x10, so the projected-dim style already applies).
                 const double re = rayEdgeRadius(gx[i], gy[i], th, frameW, frameH);
                 s.headPx = QPointF(gx[i] + re * ux, gy[i] + re * uy);
-                s.flags = uint8_t((tier == RAY ? ShaftMeasured : ShaftCoasted)
-                                  | ShaftHeadProjected | ShaftHeadOffFrame);
+                s.flags = uint16_t((tier == RAY ? ShaftMeasured : ShaftCoasted)
+                                   | ShaftHeadProjected | ShaftHeadOffFrame);
                 s.visibleLenPx = re;
                 s.headConf = hConf; s.headSigmaPx = hSig;
                 placed = true;
@@ -1431,7 +1434,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                 // kinematic guess the emitted head can't beat) — place at the
                 // smoothed rOut but KEEP ShaftHeadProjected (headConf ≤ reinitCap).
                 s.headPx = QPointF(gx[i] + hr.rOut * ux, gy[i] + hr.rOut * uy);
-                s.flags = uint8_t((tier == RAY ? ShaftMeasured : ShaftCoasted) | ShaftHeadProjected);
+                s.flags = uint16_t((tier == RAY ? ShaftMeasured : ShaftCoasted) | ShaftHeadProjected);
                 s.visibleLenPx = hr.rOut;
                 s.headConf = hConf; s.headSigmaPx = hSig;
                 placed = true;
@@ -1443,7 +1446,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
             // Phase-A projected head (bit-identical to the pre-Phase-B path when
             // the head pass is off).
             s.headPx = QPointF(gx[i] + projLenPx * ux, gy[i] + projLenPx * uy);
-            s.flags = uint8_t((tier == RAY ? ShaftMeasured : ShaftCoasted) | ShaftHeadProjected);
+            s.flags = uint16_t((tier == RAY ? ShaftMeasured : ShaftCoasted) | ShaftHeadProjected);
         }
 
         out.samples.push_back(s);
@@ -1689,6 +1692,50 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                 }
             }
         }
+    }
+
+    // ── Layer C: synthesis between anchors (shaft_position_first §2 Layer C) ────
+    // Dark by default. With ≥2 located P-anchors, fill a VISUALIZATION-TIER series
+    // (out.synth) — one C¹ Hermite-interpolated sample per camera frame STRICTLY
+    // between consecutive anchors, flagged ShaftSynthesized so metrics/scoring/
+    // estimands EXCLUDE it (shaft_synthesis.h). samples[]/positions[]/θ/coverage/
+    // length above are untouched — synth rides alongside. cfg.synth.enabled==false
+    // ⇒ out.synth stays empty ⇒ swing.json byte-identical (soak contract).
+    if (cfg.synth.enabled && out.positions.size() >= 2) {
+        // Per-anchor slopes from the smoothed track: θ̇ (deg/s) = central-difference
+        // ω of the reconciled θ(t), median(5)+Gaussian(2) (the ω(t) convention shared
+        // with the B2 fit registration), sampled at the anchor instants → rad/s.
+        std::vector<double> omega(size_t(nf), 0.0);   // deg/s
+        for (int i = 0; i < nf; ++i) {
+            const int a = std::max(0, i - 1), b = std::min(nf - 1, i + 1);
+            const double dth = circWrap(rec.thetaOut[b] - rec.thetaOut[a]);
+            const double dt  = double(tUs[b] - tUs[a]) * 1e-6;
+            omega[size_t(i)] = (dt > 0.0) ? dth / dt : 0.0;
+        }
+        omega = gaussianFilter1d(medianFilter1d(omega, 5), 2.0);
+        // Grip velocity per frame (px/s), central difference of the pose-grip path.
+        std::vector<double> gvx(size_t(nf), 0.0), gvy(size_t(nf), 0.0);
+        for (int i = 0; i < nf; ++i) {
+            const int a = std::max(0, i - 1), b = std::min(nf - 1, i + 1);
+            const double dt = double(tUs[b] - tUs[a]) * 1e-6;
+            if (dt > 0.0) { gvx[size_t(i)] = (gx[b] - gx[a]) / dt; gvy[size_t(i)] = (gy[b] - gy[a]) / dt; }
+        }
+        // Linear-interpolate a per-frame signal at time t over the tUs timebase.
+        auto sampleAt = [&](const std::vector<double>& sig, int64_t t) {
+            int b = 0; while (b < nf && tUs[b] < t) ++b;
+            if (b <= 0)      return sig.front();
+            if (b >= nf)     return sig.back();
+            const double denom = double(tUs[b] - tUs[b - 1]);
+            const double frac  = denom > 0.0 ? double(t - tUs[b - 1]) / denom : 0.0;
+            return sig[size_t(b - 1)] + (sig[size_t(b)] - sig[size_t(b - 1)]) * frac;
+        };
+        std::vector<double>  thetaDot; thetaDot.reserve(out.positions.size());
+        std::vector<QPointF> gripVel;  gripVel.reserve(out.positions.size());
+        for (const ShaftPosition& p : out.positions) {
+            thetaDot.push_back(sampleAt(omega, p.t_us) * kPi / 180.0);   // deg/s → rad/s
+            gripVel.push_back(QPointF{ sampleAt(gvx, p.t_us), sampleAt(gvy, p.t_us) });
+        }
+        out.synth = synthesizeBetweenAnchors(out.positions, thetaDot, gripVel, tUs, cfg.synth);
     }
 
     out.coverage = spanFrames > 0 ? float(spanMeas) / float(spanFrames) : 0.f;

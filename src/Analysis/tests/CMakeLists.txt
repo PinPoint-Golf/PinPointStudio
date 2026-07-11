@@ -208,6 +208,12 @@ pp_add_test(club_length_fusion_test SOURCES club_length_fusion_test.cpp)
 # (no P8), NaN-φ (no P3/P5), noisy horizontal (fires once). Header-only, no fixture.
 pp_add_test(shaft_positions_test SOURCES shaft_positions_test.cpp)
 
+# Layer C synthesis (shaft_synthesis.h): C¹ Hermite interpolation between P-anchors
+# — C⁰ continuity at anchors, conf decay shape, 200° unwrap onto the track branch,
+# strictly-between emission window, absent-anchor subsets. Header-only, Qt (QPointF/
+# ShaftSample2D) only — no OpenCV, no fixture.
+pp_add_test(shaft_synthesis_test SOURCES shaft_synthesis_test.cpp)
+
 # Layer B milestone fitter (shaft_position_fit.h): ±k-frame shift-and-stack +
 # joint (grip,θ,L) fit over the shared ridge integral — still P1, blur-gap P7 with
 # a 180°-flipped init recovered via wide sector + ball, pure-noise reject,

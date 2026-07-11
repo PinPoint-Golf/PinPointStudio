@@ -227,6 +227,15 @@ bool DiskReplaySource::load(const QString &swingDir, double speed)
             for (const QJsonValue &sv2 : cb[QStringLiteral("samples")].toArray())
                 samples.append(relTimedMap(sv2.toObject(), t0));
             club[QStringLiteral("samples")] = samples;
+            // Layer C synthesized series (shaft_position_first §2 Layer C): re-time
+            // exactly like `samples` so the replay overlay's window-relative playhead
+            // indexes it (present only when synthesis was on).
+            if (cb.contains(QStringLiteral("synth"))) {
+                QVariantList synth;
+                for (const QJsonValue &sv2 : cb[QStringLiteral("synth")].toArray())
+                    synth.append(relTimedMap(sv2.toObject(), t0));
+                club[QStringLiteral("synth")] = synth;
+            }
             m_analysisDetail.insert(QStringLiteral("club"), club);
         }
         if (an.contains(QStringLiteral("ball"))) {

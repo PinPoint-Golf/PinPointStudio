@@ -30,6 +30,7 @@
 #include "clubhead_track.h"        // ClubheadConfig (Stage-2 head measurement)
 #include "club_length_fusion.h"    // LengthFusionConfig / LengthPriorState / fuseClubLength
 #include "shaft_positions.h"       // PositionsConfig / PTime / locatePTimes (Layer B B-time location)
+#include "shaft_synthesis.h"       // SynthConfig / synthesizeBetweenAnchors (Layer C synthesis)
 
 // Shaft-tracker v3.0-r1 DECIDING HALF — the physics/statistics that turn
 // per-frame evidence into one globally-consistent shaft-angle track. Faithful
@@ -174,6 +175,11 @@ struct ShaftV3Config {
     // locates P1–P8 and fills ShaftTrack2D.positions from the emitted track
     // (report-only in B1). fromOverrides populates it.
     PositionsConfig positions;
+    // Layer C synthesis between anchors (shaft_position_first §2 Layer C) —
+    // "synth.*" keys. enabled=false by default (dark); when on, decideTrack fills
+    // ShaftTrack2D.synth with the VISUALIZATION-tier interpolated series between the
+    // located P-anchors. fromOverrides populates it.
+    SynthConfig     synth;
 
     static ShaftV3Config fromOverrides(const QVariantMap& ov);
 };

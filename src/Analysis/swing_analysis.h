@@ -289,7 +289,11 @@ struct BallBaselineRef {
     bool isValid() const { return !path.isEmpty() && w > 0 && h > 0 && !roi.isEmpty(); }
 };
 
-enum ShaftSampleFlags : uint8_t {
+// Widened uint8_t → uint16_t at Layer C (shaft_position_first §4): the byte was
+// full (0x01–0x80 all assigned) and ShaftSynthesized needs 0x100. Pure-C++
+// recompile — swing.json serializes flags as int, readers use toInt(), QML sees
+// int, so no schema/JSON/QML break.
+enum ShaftSampleFlags : uint16_t {
     ShaftMeasured          = 0x01,  // vision measurement fused at this sample
     ShaftImuBridged        = 0x02,  // IMU channel fused (no vision this sample)
     ShaftCoasted           = 0x04,  // predict-only (neither channel)
@@ -299,6 +303,9 @@ enum ShaftSampleFlags : uint8_t {
     ShaftBallAnchored      = 0x40,  // theta soft-anchored from the grip->ball line (v3.4 design §9)
     ShaftHeadOffFrame      = 0x80,  // Stage-2 head expected off-frame — headPx is a ray/edge-clamped
                                     // point (NOT a head position); always co-set with ShaftHeadProjected
+    ShaftSynthesized       = 0x100, // kinematically synthesized between P anchors (shaft_position_first
+                                    // §2 Layer C) — VISUALIZATION tier; EXCLUDED from metrics/scoring/
+                                    // estimands. Carried only in ShaftTrack2D.synth, never in samples[].
 };
 
 struct ShaftSample2D {
@@ -308,8 +315,8 @@ struct ShaftSample2D {
     double  thetaRad     = 0.0; // unwrapped, RTS-smoothed image angle (atan2 convention)
     double  thetaDotRadS = 0.0; // smoothed angular velocity
     double  visibleLenPx = 0.0; // ridge extent (median/hold-filtered — θ is the precision channel)
-    float   conf         = 0.f; // 0..1 from the smoothed θ posterior variance
-    uint8_t flags        = 0;
+    float    conf        = 0.f; // 0..1 from the smoothed θ posterior variance
+    uint16_t flags       = 0;   // ShaftSampleFlags bitfield (widened to 16-bit at Layer C)
     // Stage-2 measured-clubhead (Phase B). headConf = the head's own confidence
     // (0..1); headSigmaPx = its posterior σ_r (px, ≤ sigMeasMax ⇒ label-grade).
     // Both −1 = the Stage-2 head pass did not run for this sample (metric gating
@@ -403,6 +410,13 @@ struct ShaftTrack2D {
     // extraction off (cfg.positions.enabled == false) / pre-v3.5 swing — readers
     // treat empty as "no position data" (same contract as `lengths`).
     std::vector<ShaftPosition> positions;
+    // VISUALIZATION-TIER synthesized samples (shaft_position_first §2 Layer C):
+    // one kinematically-interpolated sample per camera frame STRICTLY between
+    // consecutive `positions` anchors, each flagged ShaftSynthesized. Empty =
+    // synthesis off (cfg.synth.enabled == false) / < 2 anchors. EXCLUDED from
+    // metrics/scoring/estimands — a smooth-scrub display channel only; the real
+    // per-frame track stays in `samples`.
+    std::vector<ShaftSample2D> synth;
 };
 
 // The IMU→segment binding as persisted in swing.json (keyed by the device

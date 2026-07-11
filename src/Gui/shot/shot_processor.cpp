@@ -226,6 +226,24 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
                 { QStringLiteral("lenPx"), s.visibleLenPx },
                 { QStringLiteral("conf"),  double(s.conf) },
                 { QStringLiteral("flags"), int(s.flags) } });
+        // Layer C synthesized series (shaft_position_first §2 Layer C) — lock-step
+        // with swing_doc.cpp; VISUALIZATION-tier interpolation between P-anchors,
+        // each flagged ShaftSynthesized (0x100). Same normalized shape as `samples`
+        // minus lineConf. Written only when non-empty (synth off ⇒ absent). Consumers
+        // EXCLUDE these from metrics/scoring by the flag.
+        QVariantList synth;
+        for (const ShaftSample2D &s : a.shaft.synth)
+            synth.append(QVariantMap{
+                { QStringLiteral("t_us"),  static_cast<qlonglong>(s.t_us) },
+                { QStringLiteral("grip"),  QVariantList{ s.gripPx.x() * iw, s.gripPx.y() * ih } },
+                { QStringLiteral("head"),  QVariantList{ s.headPx.x() * iw, s.headPx.y() * ih } },
+                { QStringLiteral("theta"), s.thetaRad },
+                { QStringLiteral("thetaDot"), s.thetaDotRadS },
+                { QStringLiteral("lenPx"), s.visibleLenPx },
+                { QStringLiteral("conf"),  double(s.conf) },
+                { QStringLiteral("headConf"),  double(s.headConf) },
+                { QStringLiteral("headSigma"), double(s.headSigmaPx) },
+                { QStringLiteral("flags"), int(s.flags) } });
         // Coaching P-positions P1–P8 (shaft_position_first §2 Layer B) — lock-step
         // with swing_doc.cpp; grip/head normalized 0..1, t_us absolute like this
         // path's `samples`. Written only when non-empty (extraction off ⇒ absent).
@@ -262,6 +280,7 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
             { QStringLiteral("samples"),       samples },
             { QStringLiteral("predicted"),     predicted } };
         if (!positions.isEmpty()) clubMap.insert(QStringLiteral("positions"), positions);
+        if (!synth.isEmpty())     clubMap.insert(QStringLiteral("synth"), synth);
         detail.insert(QStringLiteral("club"), clubMap);
     }
     // Ball track (v3.4 design §9) for the replay overlay — normalized [0,1]

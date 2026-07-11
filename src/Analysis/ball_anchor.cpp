@@ -320,7 +320,7 @@ void applyBallAnchor(ShaftTrack2D &out, const BallTrack2D &ball,
             sm.visibleLenPx = std::hypot(ballPx[size_t(i)].x() - gx[size_t(i)],
                                          ballPx[size_t(i)].y() - gy[size_t(i)]);
             sm.conf     = std::max(sm.conf, kAnchorConf);
-            sm.flags    = uint8_t((sm.flags & ~ShaftHeadProjected) | ShaftBallAnchored);
+            sm.flags    = uint16_t((sm.flags & ~ShaftHeadProjected) | ShaftBallAnchored);
         }
     }
 
@@ -344,7 +344,7 @@ void applyBallAnchor(ShaftTrack2D &out, const BallTrack2D &ball,
                 sm.headPx   = QPointF(bx, by);
                 sm.visibleLenPx = std::hypot(bx - gx[size_t(fImp)], by - gy[size_t(fImp)]);
                 sm.conf     = std::max(sm.conf, kAnchorConf);
-                sm.flags    = uint8_t((sm.flags & ~ShaftHeadProjected) | ShaftBallAnchored);
+                sm.flags    = uint16_t((sm.flags & ~ShaftHeadProjected) | ShaftBallAnchored);
             }
         }
     }

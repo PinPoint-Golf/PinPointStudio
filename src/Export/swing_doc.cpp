@@ -252,6 +252,25 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
                 { QStringLiteral("lenPx"), s.visibleLenPx },
                 { QStringLiteral("conf"),  double(s.conf) },
                 { QStringLiteral("flags"), int(s.flags) } });
+        // Layer C synthesized series (shaft_position_first §2 Layer C): the
+        // VISUALIZATION-tier interpolation between P-anchors, each flagged
+        // ShaftSynthesized (0x100). Same normalized shape as `samples` MINUS lineConf
+        // (synthesis has no ridge registration). Written only when non-empty
+        // (synth off / < 2 anchors ⇒ absent, block byte-identical). Consumers must
+        // EXCLUDE these from metrics/scoring by the flag.
+        QJsonArray synth;
+        for (const ShaftSample2D &s : a.shaft.synth)
+            synth.append(QJsonObject{
+                { QStringLiteral("t_us"),  rel(s.t_us) },
+                { QStringLiteral("grip"),  QJsonArray{ s.gripPx.x() * iw, s.gripPx.y() * ih } },
+                { QStringLiteral("head"),  QJsonArray{ s.headPx.x() * iw, s.headPx.y() * ih } },
+                { QStringLiteral("theta"), s.thetaRad },
+                { QStringLiteral("thetaDot"), s.thetaDotRadS },
+                { QStringLiteral("lenPx"), s.visibleLenPx },
+                { QStringLiteral("conf"),  double(s.conf) },
+                { QStringLiteral("headConf"),  double(s.headConf) },
+                { QStringLiteral("headSigma"), double(s.headSigmaPx) },
+                { QStringLiteral("flags"), int(s.flags) } });
         // Multi-estimator club-length fusion (club_length_fusion.h) — identical
         // shape in both parity writers (shot_processor.cpp toLengthsDetail is the
         // live-detail twin). Always written, even on abstain (nEstimators==0,
@@ -307,6 +326,7 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
             { QStringLiteral("samples"),       samples },
             { QStringLiteral("predicted"),     predicted } };
         if (!positions.isEmpty()) clubObj.insert(QStringLiteral("positions"), positions);
+        if (!synth.isEmpty())     clubObj.insert(QStringLiteral("synth"), synth);
         o[QStringLiteral("club")] = clubObj;
     }
     // Ball track (v3.4 design §9) for the replay overlay — normalized [0,1]

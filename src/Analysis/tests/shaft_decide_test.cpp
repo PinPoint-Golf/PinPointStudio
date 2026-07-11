@@ -714,6 +714,73 @@ int main()
         check(sameSamples, "fit on/off ⇒ samples[] byte-identical (fit upgrades positions[] only)");
     }
 
+    // ── Layer C synthesis: synth.enabled=false (default) ⇒ out.synth empty AND
+    //    samples[]/positions[] byte-identical; enabled ⇒ synth between anchors only
+    //    (shaft_position_first §2 Layer C) ────────────────────────────────────────
+    // Reuses the full-swing geometry so ≥2 P-anchors are located; noFrames is fine —
+    // synthesis interpolates the located positions, it never decodes frames.
+    std::printf("=== decideTrack Layer C synthesis ===\n");
+    {
+        const int nf = 170, W = 1000, H = 1000;
+        const double fps = 150.0;
+        std::vector<int64_t> tUs(nf);
+        std::vector<double> gx(nf), gy(nf), phiRaw(nf, 90.0);
+        std::vector<std::vector<cv::Point2d>> joints(nf, std::vector<cv::Point2d>(8));
+        double x = 500, y = 600;
+        for (int f = 0; f < nf; ++f) {
+            tUs[f] = int64_t(std::llround(f * 1e6 / fps));
+            if (f >= 40 && f < 70)       { x -= 4; y -= 9; }
+            else if (f >= 77 && f < 109) { x += 3; y += 9; }
+            gx[f] = x; gy[f] = y;
+            joints[f] = {{450, 300}, {550, 300}, {460, 600}, {540, 600},
+                         {465, 750}, {535, 750}, {470, 900}, {530, 900}};
+        }
+        const FrameSource noFrames = [](int) -> cv::Mat { return cv::Mat(); };
+
+        // Pin both states explicitly — synth is OFF by default; positions ON.
+        ShaftV3Config cfgOff = cfg; cfgOff.positions.enabled = true; cfgOff.synth.enabled = false;
+        ShaftV3Config cfgOn  = cfg; cfgOn.positions.enabled  = true; cfgOn.synth.enabled  = true;
+        const ShaftTrack2D off = decideTrack(noFrames, tUs, gx, gy, phiRaw, joints, W, H, fps,
+                                             {}, 1120.0, -1, cfgOff, nullptr, nullptr);
+        const ShaftTrack2D on  = decideTrack(noFrames, tUs, gx, gy, phiRaw, joints, W, H, fps,
+                                             {}, 1120.0, -1, cfgOn,  nullptr, nullptr);
+
+        check(off.synth.empty(), "synth off ⇒ empty vector");
+        check(on.positions.size() >= 2 && !on.synth.empty(), "synth on ⇒ non-empty between anchors");
+
+        // Every synthesized sample carries only ShaftSynthesized, is strictly inside
+        // the anchor span, and is monotone in t_us.
+        const int64_t lo = on.positions.front().t_us, hi = on.positions.back().t_us;
+        bool flagsOk = true, windowOk = true, monoOk = true;
+        for (size_t i = 0; i < on.synth.size(); ++i) {
+            if (on.synth[i].flags != ShaftSynthesized) flagsOk = false;
+            if (on.synth[i].t_us <= lo || on.synth[i].t_us >= hi) windowOk = false;
+            if (i && on.synth[i].t_us <= on.synth[i - 1].t_us) monoOk = false;
+        }
+        check(flagsOk, "synth: every sample flagged ShaftSynthesized (0x100)");
+        check(windowOk, "synth: nothing outside (first, last) anchor");
+        check(monoOk, "synth: t_us strictly increasing");
+
+        // (byte-identical contract) synthesis never touches samples[] or positions[].
+        bool sameSamples = off.samples.size() == on.samples.size() && !off.samples.empty();
+        for (size_t i = 0; sameSamples && i < off.samples.size(); ++i)
+            if (off.samples[i].thetaRad != on.samples[i].thetaRad
+                || off.samples[i].gripPx != on.samples[i].gripPx
+                || off.samples[i].headPx != on.samples[i].headPx
+                || off.samples[i].flags  != on.samples[i].flags
+                || off.samples[i].conf   != on.samples[i].conf) sameSamples = false;
+        check(sameSamples, "synth on/off ⇒ samples[] byte-identical");
+
+        bool samePos = off.positions.size() == on.positions.size() && !off.positions.empty();
+        for (size_t i = 0; samePos && i < off.positions.size(); ++i) {
+            const ShaftPosition &a = off.positions[i], &b = on.positions[i];
+            if (a.p != b.p || a.t_us != b.t_us || a.thetaRad != b.thetaRad || a.lenPx != b.lenPx
+                || a.gripPx != b.gripPx || a.headPx != b.headPx || a.conf != b.conf
+                || a.source != b.source || a.stackN != b.stackN) samePos = false;
+        }
+        check(samePos, "synth on/off ⇒ positions[] byte-identical");
+    }
+
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);
     return g_fail;
 }
