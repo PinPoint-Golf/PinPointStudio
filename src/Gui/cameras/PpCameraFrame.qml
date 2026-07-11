@@ -68,6 +68,11 @@ Item {
     property bool showReplayOverlay:    true   // analyzed skeleton + club shaft during replay
     property bool showPredictedShaft:   false  // R7 dev overlay: dashed ghost of the kinematic-model club
     property bool showPredictedEnvelope:false  // R7 dev overlay: faint ±k·σ_β kinematic cone (needs showPredictedShaft)
+    // Layer C dev overlay (shaft_position_first §2): dim synthesized-tier ghost
+    // + P-position badges. Property-level toggle only for this phase — the View
+    // menu (ViewLayout) owns user-facing overlay toggles and gets wired to this
+    // in a later UX pass, per the standing rule.
+    property bool showSynthTier:        true
     property bool annotationsEnabled:   false  // telestrator overlay (analyse view only)
 
     // Skeleton edge definitions, shared by the live pose canvas and the
@@ -531,6 +536,21 @@ Item {
                 var d = root._replayDetail
                 return (d && d.club && d.club.predicted) ? d.club.predicted : []
             }
+            // Layer C synthesized tier (shaft_position_first §2C) — kinematic
+            // boundary-value fit interpolated between P anchors, each flagged
+            // ShaftSynthesized (0x100). Same shape as `samples` minus lineConf;
+            // absent/empty on pre-v3.5 swings and when synth extraction is off.
+            readonly property var _clubSynth: {
+                var d = root._replayDetail
+                return (d && d.club && d.club.synth) ? d.club.synth : []
+            }
+            // Coaching P-positions P1–P8 (shaft_position_first §2B) — grip/head
+            // normalized like `samples`; absent/empty on pre-v3.5 swings and when
+            // position extraction is off.
+            readonly property var _clubPositions: {
+                var d = root._replayDetail
+                return (d && d.club && d.club.positions) ? d.club.positions : []
+            }
             readonly property int kTrail: 10
 
             // Greatest index with t_us <= t (−1 when empty).
@@ -584,6 +604,8 @@ Item {
             on_PoseFramesChanged:  if (visible) requestPaint()
             on_ClubSamplesChanged: if (visible) requestPaint()
             on_BallSamplesChanged: if (visible) requestPaint()
+            on_ClubSynthChanged:     if (visible) requestPaint()
+            on_ClubPositionsChanged: if (visible) requestPaint()
 
             onPaint: {
                 var ctx = getContext("2d")
@@ -621,6 +643,52 @@ Item {
                     root.paintBlueprint(ctx, cr, gx, gy, gs, 0.7)
                 }
 
+                // Scale the club strokes off the same torso reference as the
+                // skeleton so every club-family tier locks to one dimension;
+                // fall back to frame height when the pose is absent/frozen at
+                // this playhead. Hoisted above the measured-club block (rather
+                // than computed only when a measured sample exists) so the
+                // Layer C synth-tier ghost below, which draws first, shares it.
+                var S
+                if (pi >= 0) {
+                    var pkp = _poseFrames[pi].kp
+                    S = root._blueprintScale(
+                            function(j) { return pkp[j * 3]     * cr.width  + cr.x },
+                            function(j) { return pkp[j * 3 + 1] * cr.height + cr.y },
+                            function(j) { return pkp[j * 3 + 2] }, cr)
+                } else {
+                    S = Math.max(0.15 * cr.height, 20)
+                }
+
+                // Layer C synthesized tier (shaft_position_first design §2 Layer
+                // C): the kinematic boundary-value fit interpolated between P
+                // anchors, flagged ShaftSynthesized (0x100). Drawn BEFORE the
+                // measured/projected club block below so the bright pen always
+                // sits on top. A single dim line only — no sheath/ticks/rings —
+                // visibly a ghost, honest that it is not a per-frame measurement.
+                // Skipped once the playhead has drifted more than one synth-
+                // series frame interval from the nearest sample (derived from
+                // the series' own local spacing), so a coarse/gappy series
+                // doesn't leave a stale ghost sitting at its last anchor.
+                if (root.showSynthTier && _clubSynth.length > 0) {
+                    var si  = _indexFor(_clubSynth, t)
+                    var siN = (si + 1 < _clubSynth.length) ? si + 1 : (si > 0 ? si - 1 : si)
+                    var synthIntervalUs = Math.abs(_clubSynth[siN].t_us - _clubSynth[si].t_us) || 33333
+                    if (Math.abs(_clubSynth[si].t_us - t) <= synthIntervalUs) {
+                        var sy  = _clubSynth[si]
+                        var sgx = sy.grip[0] * cr.width + cr.x, sgy = sy.grip[1] * cr.height + cr.y
+                        var shx = sy.head[0] * cr.width + cr.x, shy = sy.head[1] * cr.height + cr.y
+                        var shd = _clampHeadToRect(sgx, sgy, shx, shy, cr)
+                        if (shd) {
+                            ctx.strokeStyle = cClub
+                            ctx.globalAlpha = 0.22 * clubMute
+                            ctx.lineWidth   = Math.max(1, 0.014 * S)
+                            ctx.beginPath(); ctx.moveTo(sgx, sgy); ctx.lineTo(shd[0], shd[1]); ctx.stroke()
+                            ctx.globalAlpha = 1.0
+                        }
+                    }
+                }
+
                 // Club: fading head trail, then the current shaft in the Biomech
                 // Blueprint language (sheath + gradient hero pen + end ticks + ring
                 // nodes), tinted with the theme accent. A projected head
@@ -632,20 +700,6 @@ Item {
                 var ci = _indexFor(_clubSamples, t)
                 if (ci >= 0) {
                     var kHeadProjected = 0x10
-
-                    // Scale the club strokes off the same torso reference as the
-                    // skeleton so the two lock dimensionally; fall back to frame
-                    // height when the pose is absent/frozen at this playhead.
-                    var S
-                    if (pi >= 0) {
-                        var pkp = _poseFrames[pi].kp
-                        S = root._blueprintScale(
-                                function(j) { return pkp[j * 3]     * cr.width  + cr.x },
-                                function(j) { return pkp[j * 3 + 1] * cr.height + cr.y },
-                                function(j) { return pkp[j * 3 + 2] }, cr)
-                    } else {
-                        S = Math.max(0.15 * cr.height, 20)
-                    }
 
                     // Head trail — measured heads only, accent, scale-relative width.
                     ctx.strokeStyle = cClub
@@ -736,6 +790,53 @@ Item {
                             ctx.lineWidth   = 0.017 * S
                             ctx.beginPath(); ctx.arc(gx, gy, 0.040 * S, 0, Math.PI * 2); ctx.stroke()
                         }
+                    }
+                    ctx.globalAlpha = 1.0
+                }
+
+                // Coaching P-positions P1–P8 (shaft_position_first design §2
+                // Layer B). Persistent faint dots mark every extracted
+                // position's head point so the coach can see where the P
+                // moments land on screen; the position nearest the playhead
+                // (within ±40 ms) is additionally highlighted with its own
+                // shaft line + a "P<n>" label. Green-ish (cGood) marks a
+                // milestone boundary-value fit (PositionSource::MilestoneFit,
+                // source === 1); the standard club accent marks a raw track
+                // sample (source === 0).
+                if (root.showSynthTier && _clubPositions.length > 0) {
+                    var kMilestoneFit = 1
+                    var kPosWindowUs  = 40000
+
+                    // Faint dots — every position, cheap fixed-size loop (≤ 8).
+                    ctx.fillStyle = cClub
+                    for (var dj = 0; dj < _clubPositions.length; ++dj) {
+                        var dp  = _clubPositions[dj]
+                        var dhx = dp.head[0] * cr.width + cr.x, dhy = dp.head[1] * cr.height + cr.y
+                        ctx.globalAlpha = 0.25 * clubMute
+                        ctx.beginPath(); ctx.arc(dhx, dhy, 0.030 * S, 0, Math.PI * 2); ctx.fill()
+                    }
+
+                    // Nearest position to the playhead — highlighted line + label.
+                    var poi    = _indexFor(_clubPositions, t)
+                    var poiN   = (poi + 1 < _clubPositions.length) ? poi + 1 : poi
+                    var poBest = Math.abs(_clubPositions[poiN].t_us - t) < Math.abs(_clubPositions[poi].t_us - t)
+                                 ? poiN : poi
+                    var po = _clubPositions[poBest]
+                    if (Math.abs(po.t_us - t) <= kPosWindowUs) {
+                        var mgx    = po.grip[0] * cr.width + cr.x, mgy = po.grip[1] * cr.height + cr.y
+                        var mhx    = po.head[0] * cr.width + cr.x, mhy = po.head[1] * cr.height + cr.y
+                        var mColor = (po.source === kMilestoneFit) ? cGood : cClub
+
+                        ctx.strokeStyle = mColor
+                        ctx.globalAlpha = 0.9 * clubMute
+                        ctx.lineWidth   = Math.max(1, 0.026 * S)
+                        ctx.beginPath(); ctx.moveTo(mgx, mgy); ctx.lineTo(mhx, mhy); ctx.stroke()
+
+                        ctx.fillStyle    = mColor
+                        ctx.font         = Theme.fontSzMicro + "px " + Theme.fontData
+                        ctx.textAlign    = "left"
+                        ctx.textBaseline = "bottom"
+                        ctx.fillText("P" + po.p, mgx + 0.06 * S, mgy - 0.06 * S)
                     }
                     ctx.globalAlpha = 1.0
                 }
