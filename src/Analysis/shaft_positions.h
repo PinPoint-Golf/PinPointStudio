@@ -106,6 +106,14 @@ struct PositionFitConfig {
 struct PositionsConfig {
     bool   enabled       = true;    // ON since B4 (report-only extraction, additive positions[])
     double hysteresisDeg = 8.0;     // deadband each side of horizontal (arm + anti-double-fire)
+    // P1 = end of the ADDRESS HOLD, not bs0 (Mark's 2026-07-11 markup: bs0 is the
+    // takeaway-start frame and fired ~150 ms late on a slow driver takeaway — P1
+    // landed 164 ms after the labelled address, 29° into the sweep, while a 1.8 s
+    // ball-anchored still-hold sat unused). Camera-first principle: the hold is
+    // located from grip stillness on the face-on track, corroborated by the
+    // BallAnchored flag span when present.
+    double p1StillSpeedPx = 2.0;    // per-frame grip speed below which a frame is "still"
+    int    p1StillWindow  = 5;      // consecutive still frames required (trailing window)
     PositionFitConfig fit;          // B2 milestone fit (dark until fit.fitEnabled flips)
 };
 
@@ -195,6 +203,49 @@ inline Crossing findHorizontalCrossing(const std::vector<int64_t>& tUs,
 }
 
 } // namespace positions_detail
+
+// P1 instant = the END of the address hold: the last frame at/before bs0 whose
+// trailing p1StillWindow frames all have grip speed < p1StillSpeedPx. bs0 is the
+// phase model's TAKEAWAY-start frame — definitionally motion, and it can fire
+// well after true onset on a slow takeaway — so walking back to sustained
+// stillness recovers the coaching P1 (the still setup). When any frame in
+// [0, bs0] carries ball-anchored evidence (baByFrame non-empty), the chosen
+// frame must itself be ball-anchored — the camera-first corroboration that the
+// club is still AT THE BALL, not paused mid-waggle; if no such frame exists the
+// stillness-only frame stands. No sustained stillness at all ⇒ bs0 (unchanged
+// legacy behaviour, e.g. a swing that enters the window already moving).
+inline int addressHoldEndFrame(const std::vector<double>& gx, const std::vector<double>& gy,
+                               const std::vector<char>& baByFrame, int bs0,
+                               const PositionsConfig& cfg)
+{
+    const int nf = int(gx.size());
+    if (nf < 2 || int(gy.size()) != nf || bs0 <= 0) return bs0;
+    const int    last = std::min(bs0, nf - 1);
+    const int    w    = std::max(1, cfg.p1StillWindow);
+    const double thr  = cfg.p1StillSpeedPx;
+
+    auto stillAt = [&](int f) {
+        if (f < w) return false;                       // need a full trailing window
+        for (int i = f - w + 1; i <= f; ++i) {
+            const double sp = std::hypot(gx[size_t(i)] - gx[size_t(i - 1)],
+                                         gy[size_t(i)] - gy[size_t(i - 1)]);
+            if (sp >= thr) return false;
+        }
+        return true;
+    };
+    const bool haveBa = !baByFrame.empty() && int(baByFrame.size()) == nf;
+    bool anyBa = false;
+    if (haveBa)
+        for (int f = 0; f <= last && !anyBa; ++f) anyBa = baByFrame[size_t(f)] != 0;
+
+    int stillOnly = -1;
+    for (int f = last; f >= w; --f) {
+        if (!stillAt(f)) continue;
+        if (stillOnly < 0) stillOnly = f;
+        if (!anyBa || baByFrame[size_t(f)] != 0) return f;   // corroborated (or no BA to demand)
+    }
+    return stillOnly >= 0 ? stillOnly : bs0;
+}
 
 // Locate the coaching P-times P1–P8 from the per-frame reconciled θ(t) and
 // lead-arm φ(t) (both DEGREES, image atan2 convention, one entry per frame; NaN

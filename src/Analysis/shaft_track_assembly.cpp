@@ -336,6 +336,8 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     // Layer B P-position extraction: "positions.*" keys.
     apply(ov, "positions.enabled", c.positions.enabled);
     apply(ov, "positions.hysteresisDeg", c.positions.hysteresisDeg);
+    apply(ov, "positions.p1StillSpeedPx", c.positions.p1StillSpeedPx);
+    apply(ov, "positions.p1StillWindow", c.positions.p1StillWindow);
     // Layer B milestone fit (B2): "positions.*" keys → PositionsConfig::fit.
     apply(ov, "positions.fitEnabled", c.positions.fit.fitEnabled);
     apply(ov, "positions.skipMeasuredConf", c.positions.fit.skipMeasuredConf);
@@ -840,14 +842,19 @@ void interpFillNan(std::vector<double>& v)
 
 } // namespace
 
-Segmentation phasesToSegmentation(const PhaseModel& pm, const std::vector<int64_t>& tUs, float conf)
+Segmentation phasesToSegmentation(const PhaseModel& pm, const std::vector<int64_t>& tUs, float conf,
+                                  int addressFrame)
 {
     Segmentation seg;
     const int nf = int(tUs.size());
     if (nf < 2) return seg;
     auto tAt = [&](int f) { return tUs[std::clamp(f, 0, nf - 1)]; };
     auto add = [&](Phase p, int f) { PhaseEvent e; e.phase = p; e.t_us = tAt(f); e.conf = conf; seg.events.push_back(e); };
-    add(Phase::Address, pm.bs0);
+    // Address = the hold end when the caller located one (addressHoldEndFrame,
+    // camera-first P1 fix); bs0 — the TAKEAWAY-start frame — is the legacy value
+    // and the fallback. swingStartUs stays bs0-derived either way: the heavy-stage
+    // span bound wants motion onset, not the hold.
+    add(Phase::Address, addressFrame >= 0 ? addressFrame : pm.bs0);
     add(Phase::Top,     pm.top);
     add(Phase::Impact,  pm.impact);
     add(Phase::Finish,  pm.fin0);
@@ -1551,6 +1558,10 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     // NB PhaseEvent emission for P2/P5/P8 belongs to the analyzer layer and is
     // DEFERRED — the enum values exist but nothing emits them here (keeps B1's
     // blast radius to the club block only).
+    // Set to the located address-hold end while positions run; the trace
+    // segmentation's Address event follows it (gated here so a positions-off run
+    // keeps the legacy bs0 event byte-for-byte — the V soak contract).
+    int addressEventFrame = -1;
     if (cfg.positions.enabled && !out.samples.empty()) {
         // Sample the emitted track at t: linear-interpolate grip/θ between the two
         // straddling samples; conf/length come from the NEARER sample; the drawn
@@ -1584,8 +1595,24 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
             pos.headPx = QPointF(pos.gripPx.x() + pos.lenPx * ux, pos.gripPx.y() + pos.lenPx * uy);
         };
 
+        // P1 = end of the ball-anchored address hold, NOT bs0 (takeaway start) —
+        // camera-first: grip stillness on the face-on track, corroborated by the
+        // BallAnchored flag span when present (shaft_positions.h addressHoldEndFrame).
+        std::vector<char> baByFrame(size_t(nf), 0);
+        for (const ShaftSample2D& s : out.samples) {
+            if (!(s.flags & ShaftBallAnchored)) continue;
+            int best = 0; int64_t bd = std::numeric_limits<int64_t>::max();
+            for (int i = 0; i < nf; ++i) {
+                const int64_t d = std::llabs(tUs[i] - s.t_us);
+                if (d < bd) { bd = d; best = i; }
+            }
+            baByFrame[size_t(best)] = 1;
+        }
+        const int p1Frame = addressHoldEndFrame(gx, gy, baByFrame, pm.bs0, cfg.positions);
+        addressEventFrame = p1Frame;
+
         const std::vector<PTime> pts =
-            locatePTimes(tUs, rec.thetaOut, phiS, pm.bs0, pm.top, pm.impact, cfg.positions);
+            locatePTimes(tUs, rec.thetaOut, phiS, p1Frame, pm.top, pm.impact, cfg.positions);
         out.positions.reserve(pts.size());
         for (const PTime& pt : pts) {
             ShaftPosition pos;
@@ -1752,7 +1779,8 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         // Vision-only phase landmarks: real swing ⇒ vision-grade conf, else 0.
         const bool swingDetected = std::any_of(pm.phase.begin(), pm.phase.end(),
                                                [](SwingPhase p) { return p != SwingPhase::Addr; });
-        trace->segmentation = phasesToSegmentation(pm, tUs, swingDetected ? 0.5f : 0.0f);
+        trace->segmentation = phasesToSegmentation(pm, tUs, swingDetected ? 0.5f : 0.0f,
+                                                   addressEventFrame);
     }
     return out;
 }

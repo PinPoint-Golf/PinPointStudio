@@ -356,9 +356,13 @@ struct ShaftDecideTrace {
 };
 
 // Map the hands-only phase model to an app Segmentation with real timestamps:
-// Address(bs0)/Top(top)/Impact(impact)/Finish(fin0) events + swing bounds, all
-// at the given (vision-grade) confidence. conf 0 ⇒ "bounds are just the window".
-Segmentation phasesToSegmentation(const PhaseModel& pm, const std::vector<int64_t>& tUs, float conf);
+// Address/Top(top)/Impact(impact)/Finish(fin0) events + swing bounds, all at the
+// given (vision-grade) confidence. conf 0 ⇒ "bounds are just the window".
+// addressFrame >= 0 relocates the Address EVENT to the located hold end
+// (camera-first P1 fix); < 0 keeps the legacy bs0 (takeaway start). Swing
+// bounds always derive from bs0 (motion onset is what the span bound wants).
+Segmentation phasesToSegmentation(const PhaseModel& pm, const std::vector<int64_t>& tUs, float conf,
+                                  int addressFrame = -1);
 
 // Swing span [onset t, fin0 t] in µs for the Stage B two-pass pose bound
 // (swing_span_bounding_plan.md §5). Runs segmentPhases over the coarse grip

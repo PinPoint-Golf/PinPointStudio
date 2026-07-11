@@ -159,6 +159,34 @@ int main()
         check(r.found && r.tUs == t[10], "clean ramp crosses at the exact zero frame");
     }
 
+    std::printf("=== addressHoldEndFrame (camera-first P1) ===\n");
+    {
+        // 100 frames: still hold f0..f59 (sub-px jitter), motion from f60 on;
+        // a LATE bs0 at f75 (the slow-takeaway failure Mark's markup exposed).
+        const int nf = 100;
+        std::vector<double> hgx(nf), hgy(nf);
+        for (int f = 0; f < nf; ++f) {
+            if (f < 60) { hgx[f] = 300.0 + 0.3 * ((f % 2 == 0) ? 1.0 : -1.0); hgy[f] = 500.0; }
+            else        { hgx[f] = 300.0 - 4.0 * double(f - 59); hgy[f] = 500.0 - 6.0 * double(f - 59); }
+        }
+        std::vector<char> noBa;
+        const int he = addressHoldEndFrame(hgx, hgy, noBa, /*bs0=*/75, cfg);
+        check(he >= 57 && he <= 60, "hold end lands at the last still frame (~f59), not late bs0");
+
+        // Ball-anchored corroboration: BA only on f10..f40 ⇒ the chosen frame
+        // must be pulled back inside the BA span.
+        std::vector<char> ba(size_t(nf), 0);
+        for (int f = 10; f <= 40; ++f) ba[size_t(f)] = 1;
+        const int heBa = addressHoldEndFrame(hgx, hgy, ba, 75, cfg);
+        check(heBa >= 10 && heBa <= 40, "BA corroboration clamps the hold end into the BA span");
+
+        // Never still (motion from frame 0) ⇒ bs0 fallback (legacy behaviour).
+        std::vector<double> mgx(nf), mgy(nf);
+        for (int f = 0; f < nf; ++f) { mgx[f] = 5.0 * f; mgy[f] = 3.0 * f; }
+        check(addressHoldEndFrame(mgx, mgy, noBa, 75, cfg) == 75,
+              "no sustained stillness ⇒ bs0 unchanged");
+    }
+
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);
     return g_fail;
 }
