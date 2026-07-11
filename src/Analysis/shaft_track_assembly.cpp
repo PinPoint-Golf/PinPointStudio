@@ -336,6 +336,7 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     // Layer B P-position extraction: "positions.*" keys.
     apply(ov, "positions.enabled", c.positions.enabled);
     apply(ov, "positions.hysteresisDeg", c.positions.hysteresisDeg);
+    apply(ov, "positions.p1StillNetPx", c.positions.p1StillNetPx);
     apply(ov, "positions.p1StillSpeedPx", c.positions.p1StillSpeedPx);
     apply(ov, "positions.p1StillWindow", c.positions.p1StillWindow);
     // Layer B milestone fit (B2): "positions.*" keys → PositionsConfig::fit.

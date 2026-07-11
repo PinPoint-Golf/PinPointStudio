@@ -112,13 +112,16 @@ struct PositionsConfig {
     // ball-anchored still-hold sat unused). Camera-first principle: the hold is
     // located from grip stillness on the face-on track, corroborated by the
     // BallAnchored flag span when present.
-    double p1StillSpeedPx = 0.75;   // per-frame grip speed below which a frame is "still".
-                                    // Tight on purpose: takeaway CREEP runs ~0.25 px/frame
-                                    // (under 2.0 ⇒ P1 landed 90 ms into it on Mark's marked
-                                    // driver swing); a threshold miss inside the hold errs
-                                    // EARLY, which is benign — hold geometry is constant —
-                                    // and never-still swings fall back to bs0 anyway.
-    int    p1StillWindow  = 5;      // consecutive still frames required (trailing window)
+    // Still = small NET drift over the trailing window, not small per-frame
+    // speed: takeaway CREEP (~0.25 px/frame, directional) and pose-keypoint
+    // JITTER (~1 px, zero-mean) overlap per-frame — a speed threshold lands
+    // either 90 ms late (2.0, inside the creep) or arbitrarily early (0.75,
+    // below the noise floor), both measured on Mark's marked driver swing.
+    // Net-over-window separates them: creep nets ~2.5 px/10 frames, jitter <1.
+    double p1StillNetPx   = 2.0;    // net grip displacement across the window ⇒ motion at/above
+    double p1StillSpeedPx = 2.5;    // per-frame spike cap — a violent waggle is not "still"
+                                    // even when it nets out (oscillation returns to the ball)
+    int    p1StillWindow  = 10;     // trailing window (frames; ~67 ms at 150 fps)
     PositionFitConfig fit;          // B2 milestone fit (dark until fit.fitEnabled flips)
 };
 
@@ -231,6 +234,11 @@ inline int addressHoldEndFrame(const std::vector<double>& gx, const std::vector<
 
     auto stillAt = [&](int f) {
         if (f < w) return false;                       // need a full trailing window
+        // Net drift over the window (creep is directional; jitter nets out)…
+        if (std::hypot(gx[size_t(f)] - gx[size_t(f - w)],
+                       gy[size_t(f)] - gy[size_t(f - w)]) >= cfg.p1StillNetPx)
+            return false;
+        // …plus a per-frame spike cap: an oscillating waggle nets ~0 but is not still.
         for (int i = f - w + 1; i <= f; ++i) {
             const double sp = std::hypot(gx[size_t(i)] - gx[size_t(i - 1)],
                                          gy[size_t(i)] - gy[size_t(i - 1)]);
