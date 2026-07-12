@@ -833,7 +833,7 @@ Item {
                         ctx.beginPath(); ctx.moveTo(mgx, mgy); ctx.lineTo(mhx, mhy); ctx.stroke()
 
                         ctx.fillStyle    = mColor
-                        ctx.font         = Theme.fontSzMicro + "px " + Theme.fontData
+                        ctx.font         = Theme.fontSzMicro + "px '" + Theme.fontData + "'"
                         ctx.textAlign    = "left"
                         ctx.textBaseline = "bottom"
                         ctx.fillText("P" + po.p, mgx + 0.06 * S, mgy - 0.06 * S)
