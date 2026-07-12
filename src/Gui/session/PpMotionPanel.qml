@@ -60,6 +60,28 @@ Item {
         return all.filter(function (p) { return p.id === "ballOnly" })
     }
 
+    // The ACTIVE motion config wants fan/trace on a body element — those read
+    // the smoothed pose track exclusively (pose2d.smoothed, written at analysis
+    // time). Swings analysed before the smoother existed lack it until they are
+    // re-analysed, so the overlay would silently draw nothing; surface that
+    // quietly on the preset page instead (Customise already greys per-cell).
+    readonly property bool _wantsSmoothed: {
+        if (_isCapture) return false
+        var mo = ViewLayout.motionFor(_mode)
+        if (!mo.on) return false
+        var body = ["arms", "spine", "shoulders", "hips", "legs"]
+        for (var i = 0; i < body.length; i++) {
+            var m = mo.modes[body[i]]
+            if (m === "fan" || m === "trace") return true
+        }
+        return false
+    }
+    readonly property bool _smoothedMissing: {
+        var d = shotReplay.analysisDetail
+        return !(shotReplay.active && d && d.pose2d && d.pose2d.smoothed
+                 && d.pose2d.smoothed.length > 0)
+    }
+
     readonly property var _bodyRows: [
         { key: "arms",      label: qsTr("Arms") },
         { key: "spine",     label: qsTr("Spine") },
@@ -140,6 +162,20 @@ Item {
                                 presetHint:  modelData.hint
                             }
                         }
+                    }
+
+                    // Quiet guidance when the selected preset can't draw on the
+                    // loaded swing (fan/trace need the smoothed track — absent on
+                    // swings analysed before it existed, or with no swing loaded).
+                    Text {
+                        visible: root._wantsSmoothed && root._smoothedMissing
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: shotReplay.active
+                              ? qsTr("This swing has no smoothed track — re-analyse it to enable fan · trace")
+                              : qsTr("Load a swing to see fan · trace")
+                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro
+                        color: Theme.colorWarn
                     }
 
                     PpDivider { width: parent.width; visible: !root._isCapture }
