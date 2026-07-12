@@ -282,7 +282,7 @@ int main(int argc, char *argv[])
     imuManager.setShotProcessor(&shotProcessor);      // same barrier for IMU deselect
     // Disk-backed replay of saved shots (MP4 + swing.json) — independent of the
     // live SwingWindow that ShotProcessor owns for the just-captured shot.
-    ShotReplayController      shotReplay;
+    ShotReplayController      shotReplay(&appSettings);
     // Any review-state transition tears down an on-screen disk replay, so the
     // previous shot's replay stage + metric graph don't linger over the newly
     // selected (or resumed-live) session. reviewActiveChanged fires on every

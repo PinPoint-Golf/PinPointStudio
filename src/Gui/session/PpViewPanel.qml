@@ -103,6 +103,53 @@ Item {
 
         PpDivider { width: parent.width }
 
+        // ── REPLAY ──────────────────────────────────────────────────────────
+        // Global replay behaviour (like TIMELINE above, stored on appSettings, not
+        // per-mode): whether a just-captured shot auto-replays, and whether replay
+        // playback is trimmed to the detected swing (Address → Finish). Both apply
+        // to post-capture playback AND replaying a selected past swing.
+        Column {
+            width: parent.width
+            spacing: Theme.sp(9)
+            Text {
+                text: qsTr("REPLAY")
+                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+            }
+            Item {
+                width: parent.width
+                height: Theme.sp(20)
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("Auto-replay after capture")
+                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                    color: appSettings.autoReplayAfterCapture ? Theme.colorText : Theme.colorText2
+                }
+                MiniToggle {
+                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                    checked: appSettings.autoReplayAfterCapture
+                    onToggled: appSettings.autoReplayAfterCapture = !checked
+                }
+            }
+            Item {
+                width: parent.width
+                height: Theme.sp(20)
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("Trim to swing (address → finish)")
+                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                    color: appSettings.replayTrimToSwing ? Theme.colorText : Theme.colorText2
+                }
+                MiniToggle {
+                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                    checked: appSettings.replayTrimToSwing
+                    onToggled: appSettings.replayTrimToSwing = !checked
+                }
+            }
+        }
+
+        PpDivider { width: parent.width }
+
         // ── PANELS ──────────────────────────────────────────────────────────
         Column {
             width: parent.width

@@ -58,6 +58,11 @@ class AppSettings : public QObject
     // The on-disk swing_NNNN dir designated as the wrist diagnostics "compare to reference" swing.
     Q_PROPERTY(QString wristReferenceSwingDir READ wristReferenceSwingDir WRITE setWristReferenceSwingDir NOTIFY wristReferenceSwingDirChanged)
     Q_PROPERTY(bool    timelineSnapToPhases READ timelineSnapToPhases WRITE setTimelineSnapToPhases NOTIFY timelineSnapToPhasesChanged)
+    // Global replay behaviour (surfaced in the View menu alongside the timeline
+    // options, not per-mode): whether a just-captured shot auto-replays, and
+    // whether replay playback is trimmed to the detected swing (Address → Finish).
+    Q_PROPERTY(bool    autoReplayAfterCapture READ autoReplayAfterCapture WRITE setAutoReplayAfterCapture NOTIFY autoReplayAfterCaptureChanged)
+    Q_PROPERTY(bool    replayTrimToSwing    READ replayTrimToSwing    WRITE setReplayTrimToSwing    NOTIFY replayTrimToSwingChanged)
     Q_PROPERTY(bool    reduceMotion READ reduceMotion WRITE setReduceMotion NOTIFY reduceMotionChanged)
     Q_PROPERTY(bool    gradientTitles READ gradientTitles WRITE setGradientTitles NOTIFY gradientTitlesChanged)
     Q_PROPERTY(double  overlayOpacity  READ overlayOpacity  WRITE setOverlayOpacity  NOTIFY overlayOpacityChanged)
@@ -194,6 +199,8 @@ public:
         m_timelineOrientation = ppSettings().value(QStringLiteral("ui/timelineOrientation"), QStringLiteral("horizontal")).toString();
         m_wristReferenceSwingDir = ppSettings().value(QStringLiteral("ui/wristReferenceSwingDir"), QString()).toString();
         m_timelineSnapToPhases = ppSettings().value(QStringLiteral("ui/timelineSnapToPhases"), false).toBool();
+        m_autoReplayAfterCapture = ppSettings().value(QStringLiteral("ui/autoReplayAfterCapture"), true).toBool();
+        m_replayTrimToSwing = ppSettings().value(QStringLiteral("ui/replayTrimToSwing"), false).toBool();
         m_reduceMotion    = ppSettings().value(QStringLiteral("ui/reduceMotion"),    false).toBool();
         m_gradientTitles  = ppSettings().value(QStringLiteral("ui/gradientTitles"),  true).toBool();
         m_overlayOpacity  = ppSettings().value(QStringLiteral("ui/overlayOpacity"),  0.7).toDouble();
@@ -299,6 +306,8 @@ public:
     QString timelineOrientation() const { return m_timelineOrientation; }
     QString wristReferenceSwingDir() const { return m_wristReferenceSwingDir; }
     bool    timelineSnapToPhases() const { return m_timelineSnapToPhases; }
+    bool    autoReplayAfterCapture() const { return m_autoReplayAfterCapture; }
+    bool    replayTrimToSwing()   const { return m_replayTrimToSwing; }
     bool    reduceMotion()  const { return m_reduceMotion; }
     bool    gradientTitles() const { return m_gradientTitles; }
     double  overlayOpacity()  const { return m_overlayOpacity; }
@@ -454,6 +463,22 @@ public:
         m_timelineSnapToPhases = v;
         ppSettings().setValue(QStringLiteral("ui/timelineSnapToPhases"), v);
         emit timelineSnapToPhasesChanged();
+    }
+
+    void setAutoReplayAfterCapture(bool v)
+    {
+        if (m_autoReplayAfterCapture == v) return;
+        m_autoReplayAfterCapture = v;
+        ppSettings().setValue(QStringLiteral("ui/autoReplayAfterCapture"), v);
+        emit autoReplayAfterCaptureChanged();
+    }
+
+    void setReplayTrimToSwing(bool v)
+    {
+        if (m_replayTrimToSwing == v) return;
+        m_replayTrimToSwing = v;
+        ppSettings().setValue(QStringLiteral("ui/replayTrimToSwing"), v);
+        emit replayTrimToSwingChanged();
     }
 
     void setReduceMotion(bool v)
@@ -1059,6 +1084,8 @@ signals:
     void timelineOrientationChanged();
     void wristReferenceSwingDirChanged();
     void timelineSnapToPhasesChanged();
+    void autoReplayAfterCaptureChanged();
+    void replayTrimToSwingChanged();
     void reduceMotionChanged();
     void gradientTitlesChanged();
     void overlayOpacityChanged();
@@ -1143,6 +1170,8 @@ private:
     QString m_timelineOrientation = QStringLiteral("horizontal");
     QString m_wristReferenceSwingDir;
     bool    m_timelineSnapToPhases = false;
+    bool    m_autoReplayAfterCapture = true;
+    bool    m_replayTrimToSwing = false;
     bool    m_reduceMotion    = false;
     bool    m_gradientTitles  = true;
     double  m_overlayOpacity  = 0.7;

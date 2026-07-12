@@ -84,7 +84,7 @@ DiskReplaySource::~DiskReplaySource()
 // Load
 // ---------------------------------------------------------------------------
 
-bool DiskReplaySource::load(const QString &swingDir, double speed)
+bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSwing)
 {
     if (swingDir.isEmpty())
         return false;
@@ -161,6 +161,7 @@ bool DiskReplaySource::load(const QString &swingDir, double speed)
     // ── Analysis detail, offset to the window-relative (0-based) domain ─────
     m_analysisDetail = QVariantMap{};
     m_impactUs = -1;
+    qint64 addressUs = -1, finishUs = -1;   // Phase::Address / Phase::Finish, for the trim
     bool hasAnalysis = false;
     if (root.contains(QStringLiteral("analysis"))) {
         const QJsonObject an = root[QStringLiteral("analysis")].toObject();
@@ -193,8 +194,12 @@ bool DiskReplaySource::load(const QString &swingDir, double speed)
             const QJsonObject p = pv.toObject();
             const int phase = p[QStringLiteral("phase")].toInt();
             const qint64 tr = relUs(p[QStringLiteral("t_us")], t0);
-            if (phase == 5)   // Phase::Impact
+            if (phase == 0)        // Phase::Address
+                addressUs = tr;
+            else if (phase == 5)   // Phase::Impact
                 m_impactUs = tr;
+            else if (phase == 7)   // Phase::Finish
+                finishUs = tr;
             phases.append(QVariantMap{
                 { QStringLiteral("phase"), phase },
                 { QStringLiteral("t_us"),  static_cast<qlonglong>(tr) },
@@ -277,6 +282,25 @@ bool DiskReplaySource::load(const QString &swingDir, double speed)
                          : (m_startUs + m_endUs) / 2;
     }
 
+    // ── Playback trim (Address → Finish) ────────────────────────────────────
+    // Default to the full span; only narrow it when trimming is requested AND the
+    // swing carries a usable Address/Finish pair. The scrub range [m_startUs,
+    // m_endUs] is untouched — this only moves where auto-play starts and stops.
+    m_playStartUs = m_startUs;
+    m_playEndUs   = m_endUs;
+    if (trimToSwing && addressUs >= 0 && finishUs > addressUs) {
+        const qint64 lo = std::clamp(addressUs, m_startUs, m_endUs);
+        const qint64 hi = std::clamp(finishUs,  m_startUs, m_endUs);
+        if (hi > lo) {
+            m_playStartUs = lo;
+            m_playEndUs   = hi;
+        }
+    }
+    m_endedAtTrim = false;
+    // Seek to the trim start once media is ready (a pre-load setPosition is dropped
+    // by the FFmpeg backend). Skip when playback starts at the span start anyway.
+    m_pendingStartSeekUs = (m_playStartUs > m_startUs) ? m_playStartUs : -1;
+
     // ── Players + per-stream metadata. The player pool is REUSED across reloads:
     //    each MP4 swap is just setSource() on a persistent QMediaPlayer, which the
     //    backend handles asynchronously — load() stays near-instant. (Recreating
@@ -330,6 +354,13 @@ bool DiskReplaySource::load(const QString &swingDir, double speed)
             if (idx == 0)
                 connect(st.player, &QMediaPlayer::mediaStatusChanged, this,
                         [this](QMediaPlayer::MediaStatus s) {
+                            if ((s == QMediaPlayer::LoadedMedia || s == QMediaPlayer::BufferedMedia)
+                                && m_pendingStartSeekUs >= 0) {
+                                // Apply the trim-start seek now the backend accepts it.
+                                seekPlayersTo(m_pendingStartSeekUs);
+                                setPositionUs(m_pendingStartSeekUs);
+                                m_pendingStartSeekUs = -1;
+                            }
                             if (s == QMediaPlayer::EndOfMedia) {
                                 setPlaying(false);
                                 emit playbackEnded();   // natural end, not a user pause
@@ -353,7 +384,7 @@ bool DiskReplaySource::load(const QString &swingDir, double speed)
         st.player->play();
 
     m_loaded = true;
-    setPositionUs(m_startUs);
+    setPositionUs(m_playStartUs);
     emit spanChanged();
     emit speedChanged();   // load() may have changed m_speed
     setPlaying(true);
@@ -381,6 +412,10 @@ void DiskReplaySource::unload()
     m_startUs    = 0;
     m_endUs      = 0;
     m_positionUs = 0;
+    m_playStartUs = 0;
+    m_playEndUs   = 0;
+    m_pendingStartSeekUs = -1;
+    m_endedAtTrim = false;
     m_loaded     = false;
     setPlaying(false);
     emit spanChanged();
@@ -394,10 +429,12 @@ void DiskReplaySource::togglePlay()
 {
     if (!m_loaded || m_streams.empty())
         return;
-    const bool atEnd = m_positionUs >= m_endUs - 1;
+    const bool atEnd = m_positionUs >= m_playEndUs - 1;
     if (atEnd) {
-        seekPlayersTo(m_startUs);
-        setPositionUs(m_startUs);
+        // Restart the trimmed window from its Address start.
+        m_endedAtTrim = false;
+        seekPlayersTo(m_playStartUs);
+        setPositionUs(m_playStartUs);
         for (Stream &s : m_streams) s.player->play();
         setPlaying(true);
         m_timer->start();
@@ -468,7 +505,8 @@ void DiskReplaySource::endScrub()
 {
     if (!m_loaded)
         return;
-    if (m_wasPlayingBeforeScrub && m_positionUs < m_endUs - 1) {
+    if (m_wasPlayingBeforeScrub && m_positionUs < m_playEndUs - 1) {
+        m_endedAtTrim = false;   // scrubbing back inside the window re-arms the trim stop
         for (Stream &s : m_streams) s.player->play();
         setPlaying(true);
     }
@@ -498,6 +536,18 @@ void DiskReplaySource::onTick()
     QMediaPlayer *master = m_streams.front().player;
     const qint64 captureUs = captureUsForStream(0, master->position());
     setPositionUs(captureUs);
+
+    // Trim-end auto-stop: only when the play window is genuinely narrower than the
+    // full span (the untrimmed case still ends naturally on the master's
+    // EndOfMedia, preserving prior behaviour). Fires playbackEnded once.
+    if (m_playing && !m_endedAtTrim && m_playEndUs < m_endUs && captureUs >= m_playEndUs) {
+        m_endedAtTrim = true;
+        for (Stream &s : m_streams) s.player->pause();
+        setPlaying(false);
+        emit playbackEnded();   // trimmed end — same signal the host acts on
+        m_timer->stop();
+        return;
+    }
 
     // Keep slave cameras on the master's capture clock (R4); cheap no-op for one.
     for (size_t i = 1; i < m_streams.size(); ++i) {

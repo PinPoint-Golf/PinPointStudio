@@ -1351,12 +1351,20 @@ void ShotProcessor::maybeJoin()
     // is no reviewable disk shot do we fall back to the in-window transient (reading
     // the frozen window's frames directly) so the user still sees the swing they
     // just made.
+    // Auto-replay after capture is a user setting (View menu). Off → the shot
+    // still lands on the carousel, but neither the disk-replay auto-promotion (gated
+    // in Main.qml.onShotProcessed) nor this in-window fallback transient plays. Handy
+    // for corpus capture, where uninterrupted back-to-back hitting matters.
+    const bool autoReplay = !m_appSettings || m_appSettings->autoReplayAfterCapture();
+
     if (reviewableOnDisk) {
         finishShot();
-    } else if (!m_skipAnalysisCapture && !m_replayTracks.empty()) {
+    } else if (autoReplay && !m_skipAnalysisCapture && !m_replayTracks.empty()) {
         startReplay();
     } else {
-        if (m_skipAnalysisCapture)
+        if (!autoReplay)
+            ppInfo() << "[ShotProcessor] replay skipped — auto-replay disabled (View menu)";
+        else if (m_skipAnalysisCapture)
             ppInfo() << "[ShotProcessor] replay skipped — skip-analysis corpus capture";
         else
             ppInfo() << "[ShotProcessor] replay skipped — no captured camera tracks"

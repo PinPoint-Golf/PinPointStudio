@@ -312,10 +312,14 @@ ApplicationWindow {
     // shot, the new one just lands in the carousel rather than yanking them away.
     // The `true` marks this as the post-shot auto-replay so it returns to Capture
     // when it finishes (see onPlaybackEnded below).
+    // Gated on the View-menu "Auto-replay after capture" setting: off means the
+    // shot just lands in the carousel and the user stays live at the mat (corpus
+    // capture, or when instant playback isn't wanted).
     Connections {
         target: shotProcessor
         function onShotProcessed(shotId, swingDir) {
-            if (swingDir !== "" && SessionMode.mode === SessionMode.capture)
+            if (swingDir !== "" && SessionMode.mode === SessionMode.capture
+                    && appSettings.autoReplayAfterCapture)
                 SessionMode.enterReplay(shotId, swingDir, true)
         }
     }

@@ -61,7 +61,12 @@ public:
     // multiplier, 1.0 = real time). Returns false if there is no playable stream;
     // a false return on a bad path/doc leaves any current replay intact, whereas a
     // valid doc with no playable stream unloads (streamCount() then 0).
-    virtual bool load(const QString &swingDir, double speed) = 0;
+    //
+    // `trimToSwing` restricts *playback* (not the scrub range) to the detected
+    // swing span — playback starts at the Address phase and stops at the Finish
+    // phase, so the pre-address fidget and post-finish tail are skipped. It is a
+    // no-op when the swing carries no phase analysis (falls back to the full span).
+    virtual bool load(const QString &swingDir, double speed, bool trimToSwing) = 0;
     virtual void unload() = 0;
 
     virtual int                       streamCount()    const = 0;

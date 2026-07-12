@@ -43,7 +43,7 @@ public:
     explicit DiskReplaySource(QObject *parent = nullptr);
     ~DiskReplaySource() override;
 
-    bool load(const QString &swingDir, double speed) override;
+    bool load(const QString &swingDir, double speed, bool trimToSwing) override;
     void unload() override;
 
     int                       streamCount()    const override { return int(m_streams.size()); }
@@ -91,6 +91,16 @@ private:
     qint64      m_endUs      = 0;
     qint64      m_impactUs   = -1;
     qint64      m_positionUs = 0;
+    // Playback trim bounds (Address → Finish when trimToSwing is on, else the full
+    // span). These restrict where auto-play starts and stops; the scrub range stays
+    // [m_startUs, m_endUs] so the timeline/phases remain fully reachable by hand.
+    qint64      m_playStartUs = 0;
+    qint64      m_playEndUs   = 0;
+    // Pending initial seek applied once the master reaches Loaded/Buffered media
+    // (setPosition before load is dropped by the FFmpeg backend). -1 = none.
+    qint64      m_pendingStartSeekUs = -1;
+    // Guards the trim-end auto-stop so playbackEnded fires once per playthrough.
+    bool        m_endedAtTrim = false;
     QVariantMap m_analysisDetail;
 
     QVector<ReplayStreamInfo>         m_streamInfo;   // per-stream metadata for the tiles

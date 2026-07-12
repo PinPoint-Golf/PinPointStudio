@@ -26,6 +26,7 @@
 #include <QVariantMap>
 #include <memory>
 
+class AppSettings;
 class QVideoSink;
 
 // ShotReplayController (QML context property `shotReplay`) — the QML-facing facade
@@ -60,7 +61,9 @@ class ShotReplayController : public QObject
     Q_PROPERTY(QVariantMap  analysisDetail READ analysisDetail NOTIFY activeChanged)
 
 public:
-    explicit ShotReplayController(QObject *parent = nullptr);
+    // appSettings supplies the global replay-trim flag (replayTrimToSwing), read at
+    // each start(); may be null in tests/tools (then trimming is off).
+    explicit ShotReplayController(AppSettings *appSettings = nullptr, QObject *parent = nullptr);
     ~ShotReplayController() override;
 
     bool         active()         const { return m_active; }
@@ -109,6 +112,7 @@ signals:
 private:
     void onAborted();
 
+    AppSettings                  *m_appSettings = nullptr;
     bool                          m_active = false;
     int                           m_shotId = -1;
     QString                       m_swingDir;

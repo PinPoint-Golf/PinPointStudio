@@ -312,6 +312,7 @@ qt_add_qml_module(PinPointStudio
         src/Gui/session/PpStagePanel.qml
         src/Gui/session/PpViewPanel.qml
         src/Gui/session/PpMotionPanel.qml
+        src/Gui/session/PpClubPanel.qml
         src/Gui/cameras/PpCameraTiles.qml
         src/Gui/session/PpModeStage.qml
         src/Gui/review/PpReplayCharts.qml

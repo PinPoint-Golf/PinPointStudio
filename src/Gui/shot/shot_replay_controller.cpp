@@ -18,10 +18,13 @@
 
 #include "shot_replay_controller.h"
 
+#include "app_settings.h"
+
 #include <algorithm>
 
-ShotReplayController::ShotReplayController(QObject *parent)
+ShotReplayController::ShotReplayController(AppSettings *appSettings, QObject *parent)
     : QObject(parent)
+    , m_appSettings(appSettings)
     , m_source(makeDiskReplaySource())
 {
     // Forward the source's transport/clock signals as our own; the QML-facing
@@ -60,7 +63,8 @@ bool ShotReplayController::start(int shotId, const QString &swingDir, double spe
     if (swingDir.isEmpty())
         return false;
 
-    if (m_source->load(swingDir, std::clamp(speed, 0.1, 1.0))) {
+    const bool trim = m_appSettings && m_appSettings->replayTrimToSwing();
+    if (m_source->load(swingDir, std::clamp(speed, 0.1, 1.0), trim)) {
         m_shotId   = shotId;
         m_swingDir = swingDir;
         m_active   = true;

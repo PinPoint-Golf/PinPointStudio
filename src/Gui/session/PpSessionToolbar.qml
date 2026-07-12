@@ -104,6 +104,25 @@ Item {
         return id
     }
 
+    // ── Club pill ─────────────────────────────────────────────────────────────
+    // The session's active club (SessionController.activeClub — the SoT read at
+    // shot-join). Empty before a session starts → fall back to the athlete's
+    // default so the pill always names a club. Taped = the club record carries
+    // retro bands (non-empty bandCentersMm). Reactive to activeClub / athlete edits.
+    readonly property string activeClub: {
+        void athleteController.athletes
+        return sessionController.activeClub !== ""
+            ? sessionController.activeClub
+            : athleteController.effectivePrimaryClub(athleteController.currentUuid)
+    }
+    readonly property bool activeClubTaped: {
+        void athleteController.athletes
+        var c = root.activeClub
+        if (!c || !athleteController.hasCurrentAthlete) return false
+        var rec = athleteController.clubsFor(athleteController.currentUuid)[c]
+        return !!(rec && rec.bandCentersMm && rec.bandCentersMm.length > 0)
+    }
+
     Rectangle {
         anchors.fill: parent
         color: Theme.aesthetic === "instrument" ? Theme.colorBg2 : Theme.colorSurface
@@ -372,13 +391,32 @@ Item {
             Layout.alignment: Qt.AlignVCenter
         }
 
+        // ── Club pill — the session's active club (a capture parameter, so ──
+        // hidden while reviewing a loaded session). Shows the current club and a
+        // taped-club marker dot; its popup lists the athlete's bag. Leads the pill
+        // cluster as session context. Reuses ViewPill (glyph + micro label + chevron).
+        ViewPill {
+            id: clubPill
+            visible: !sessionReviewController.reviewActive
+            glyph: "⚑"
+            microLabel: qsTr("CLUB")
+            label: root.activeClub ? ClubFormat.display(root.activeClub) : qsTr("—")
+            badge: root.activeClubTaped
+            badgeColor: Theme.colorGood
+            active: clubPopup.opened
+            onClicked: {
+                viewPopup.close(); motionPopup.close(); camPopup.close(); imuPopup.close()
+                clubPopup.opened ? clubPopup.close() : clubPopup.open()
+            }
+        }
+
         // ── View pill — edits the CURRENT mode's saved layout ─────────────────
         ViewPill {
             id: viewPill
             label: root.modeNames[SessionMode.mode]
             active: viewPopup.opened
             onClicked: {
-                camPopup.close(); imuPopup.close(); motionPopup.close()
+                camPopup.close(); imuPopup.close(); motionPopup.close(); clubPopup.close()
                 viewPopup.opened ? viewPopup.close() : viewPopup.open()
             }
         }
@@ -393,7 +431,7 @@ Item {
             label: root.motionPillLabel
             active: motionPopup.opened
             onClicked: {
-                viewPopup.close(); camPopup.close(); imuPopup.close()
+                viewPopup.close(); camPopup.close(); imuPopup.close(); clubPopup.close()
                 motionPopup.opened ? motionPopup.close() : motionPopup.open()
             }
         }
@@ -412,7 +450,7 @@ Item {
                        : root.camConnected > 0 ? Theme.colorGood : Theme.colorText3
             attention: root.camNeedsAttention
             onClicked: {
-                imuPopup.close(); viewPopup.close(); motionPopup.close()
+                imuPopup.close(); viewPopup.close(); motionPopup.close(); clubPopup.close()
                 camPopup.opened ? camPopup.close() : camPopup.open()
             }
         }
@@ -438,7 +476,7 @@ Item {
             warn: root.imuBatteryLow
             warnColor: root.imuLowestBattery <= 20 ? Theme.colorError : Theme.colorWarn
             onClicked: {
-                camPopup.close(); viewPopup.close(); motionPopup.close()
+                camPopup.close(); viewPopup.close(); motionPopup.close(); clubPopup.close()
                 imuPopup.opened ? imuPopup.close() : imuPopup.open()
             }
         }
@@ -530,6 +568,26 @@ Item {
         contentItem: PpImuPanel {}
     }
 
+    // Club popup — under its pill in the right cluster (right-aligned like its
+    // siblings). PpClubPanel writes the pick to SessionController.activeClub and
+    // asks to close.
+    Popup {
+        id: clubPopup
+        parent: clubPill
+        y: clubPill.height + Theme.sp(10)
+        x: clubPill.width - width
+        padding: 0
+        margins: Theme.sp(8)
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+        background: Rectangle {
+            color: Theme.colorSurface; radius: Theme.radiusLg
+            border.width: 1; border.color: Theme.colorBorderStrong
+        }
+        contentItem: PpClubPanel {
+            onRequestClose: clubPopup.close()
+        }
+    }
+
     // ── View pill — lighter sibling of DevicePill (no badge; shows the active
     // mode and a chevron; accent ring while its popup is open) ────────────────
     component ViewPill: Rectangle {
@@ -539,6 +597,10 @@ Item {
         // the value line, defaulting to the original View pill's values.
         property string glyph:      "▦"
         property string microLabel: qsTr("VIEW")
+        // Optional corner dot on the glyph tile (ClubPill uses it as the taped-club
+        // marker). Off by default so View/Motion pills are unaffected.
+        property bool   badge:      false
+        property color  badgeColor: Theme.colorGood
         signal clicked()
 
         Layout.alignment: Qt.AlignVCenter
@@ -581,6 +643,14 @@ Item {
                         font.family: Theme.fontSymbol; font.pixelSize: Theme.sp(18)
                         color: active ? Theme.colorAccent : Theme.colorText2
                     }
+                }
+                Rectangle {   // optional taped-club marker dot
+                    visible: badge
+                    anchors { right: parent.right; top: parent.top
+                              rightMargin: -Theme.sp(3); topMargin: -Theme.sp(3) }
+                    width: Theme.sp(11); height: Theme.sp(11); radius: width / 2
+                    color: badgeColor
+                    border.width: 1; border.color: Theme.colorBg2
                 }
             }
             Column {
