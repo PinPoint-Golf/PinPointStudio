@@ -4,6 +4,17 @@
 > verification) pending · **Dates:** planned 2026-06-10, built 2026-06-10/11 ·
 > **Grounded against:** `main` @ `474a6ba`
 >
+> **⚠ Detection core superseded (2026-07-10):** the S1/S2 math described below (anchored
+> radial transform → Viterbi → KF+RTS, `shaft_kinematics.h`) was **replaced** by the v3
+> constraint-DP tracker ported from the `club_track_v3.py` exemplar — same file names
+> (`shaft_tracker{,_math}.*`) plus `shaft_track_assembly.*`; `shaft_kinematics.h` deleted.
+> Current detector design: [`club_tracking_v3_design.md`](../design/club_tracking_v3_design.md)
+> (§10 as-built) · current implementation record:
+> [`shaft_detection_v3_impl.md`](shaft_detection_v3_impl.md) (§5 port resolution). The S0
+> frame/pose plumbing, S3 analyzer integration + persistence, and S4 replay overlay remain
+> as built here. Execution parallelised 2026-07-13 (`057bf31`): decode-once cache +
+> `cv::parallel_for_` evidence loop, output byte-identical, shaft stage 10.8 → 3.1 s.
+>
 > Implements the *Club shaft detection (`ShaftTracker`, hand-anchored)* addendum of
 > [`docs/design/shot_analyzer_design.md`](../design/shot_analyzer_design.md) (sections B.1–B.10)
 > inside the shot analyzer. Scope per product decision: **face-on camera only**, and the result is

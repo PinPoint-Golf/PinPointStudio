@@ -2035,6 +2035,89 @@ complexity on the part that is cheap to run and its runtime on the part that is 
 to optimise, which is exactly the shape one wants to carry into a port — the work
 that begins next.
 
+### 5.6a Resolution addendum (2026-07-13): the port, delivered — and the production pipeline parallelised
+
+The port §5.6 anticipated has since been built, and the projections above can now be
+graded against measurement. The v3.0-r1 tracker (constraint system, DP, ψ-isotonic
+reconciliation, with the v3.2 address companion and the v3.4 ball anchor) was ported
+into the production analyzer (`src/Analysis/shaft_tracker{,_math}.*` +
+`shaft_track_assembly.*`) and validated for numeric parity against the Python
+exemplar on s01: **median and p90 |Δθ| = 0.000°, tier kinds 100% identical**. The
+predicted "specific line to attack first" — the ridge sweep's `np.median` background
+sample, 54% of the sweep (Table 5) — was absorbed by the port itself: the C++
+implementation samples the four lateral offsets through a branch-free four-element
+median with no selection-partition and no allocation, and the raster C2 mask never
+crossed the language boundary at all (the geometric veto of §4.9 is the only form
+ported). The shaft *compute* thus arrived in C++ already at the low-single-digit
+seconds §5.6 projected.
+
+What the port did **not** deliver by itself was the machine. Profiling the full
+production re-analysis pipeline on the development laptop (i7-9750H, 6C/12T) found
+the three stages — offline pose, ball, shaft — running strictly sequentially, with
+the shaft stage at ~18% CPU utilisation and ball at ~20%: essentially serial code on
+a twelve-thread machine, with the same frozen frame decoded once by pose, once by
+ball, and two to five times *within* the shaft stage across its five internal
+passes. The remedy was execution engineering, not algorithm work, and it was gated
+the only honest way: the analysis output (`result.json`) is required to be
+**byte-identical** to the serial baseline — the pipeline is deterministic, so any
+difference is a real regression. Three changes shipped together: a decode-once frame
+cache for the shaft stage (payloads fetched serially per the one-resident-frame
+`SwingPayloadSource` contract, demosaiced in parallel, serving all five passes), a
+`cv::parallel_for_` over the per-frame evidence loop and the scene-median (each
+frame writes only its own indexed slots — the audit found a single shared
+accumulator, made per-frame), and, for ball and pose, the same fetch/compute split:
+ball's matched-filter response precomputed in parallel chunks and consumed by the
+causal tracker strictly in order, pose's decode+preprocess moved to a producer
+thread that hides behind ORT inference.
+
+***Table 6.** The production pipeline before and after parallelisation — one
+746-frame swing (1280×1024 Bayer, 149 fps), dev laptop, swing streamed from local
+NVMe. Output byte-identical in every cell.*
+
+| stage | serial (s) | parallel (s) | speed-up |
+|---|---|---|---|
+| offline pose (ViTPose-B, CPU) | 25.0 | 20.8 | 1.20× |
+| ball (temporal matched filter) | 10.3 | **1.1** | **9.3×** |
+| shaft (v3.0-r1 + companions) | 10.8 | **3.1** | **3.5×** |
+| **total** | **46.1** | **25.0** | **1.84×** |
+
+Two negative results are worth recording so they are not re-attempted. Dynamic INT8
+quantisation of the pose model measured only **1.28×** on this CPU (82 → 64 ms per
+frame — the i7-9750H lacks VNNI, so int8 GEMM barely pays; the lever remains live
+for VNNI-class deployment hardware). And batching pose inference is a wash: batch-4
+measured *slower* per frame (88.6 ms) than single-frame runs (82.0 ms) at the same
+thread count. The pose stage — now 83% of the remaining wall time — is bounded by
+fp32 CPU inference itself, and its real lever is not on this machine at all: the
+studio PC already runs ViTPose under CUDA, where the ~82 ms/frame becomes
+single-digit milliseconds and the pipeline lands well under ten seconds.
+
+The remaining term is storage, and it confirms §5.6's claim that decode "does not
+count against the real-time path" while sharpening it for the offline one. The
+corpus lives on a network share; over Wi-Fi (measured 41 MB/s) the pipeline paid
+~14 s of pure network reading per swing, falling to ~7 s on wired gigabit
+(116 MB/s — the SMB wire-speed ceiling) and to nothing measurable from local NVMe.
+With the stages parallelised, storage leaves the critical path entirely once
+sequential reads exceed roughly 300–400 MB/s; against live capture the frames are
+already in memory and the question does not arise.
+
+***Table 7.** The same analysis, by where the swing's ~1 GB raw stream lives. The
+network cost lands almost entirely in the first stage that touches every frame.*
+
+| storage | total (s) | of which network read |
+|---|---|---|
+| local NVMe | 25.0 | — |
+| gigabit wired CIFS (116 MB/s) | 31.7 | ~7 s |
+| Wi-Fi CIFS (41 MB/s) | 38.9 | ~14 s |
+
+The structural point of §5.6 survives contact with the port intact, and gains a
+coda. The design's complexity (the constraints, the DP, the reconciliation) stayed
+cheap in C++ exactly as it was in Python; the runtime went to generic image work and
+— the coda — to *serial execution and repeated I/O that no profile of the algorithm
+alone would show*. The 4.7× the Python exemplar earned from two algorithmic levers
+was followed in production by 3.5× on the same stage from execution engineering
+with provably identical output. Both kinds of speed were available; neither
+substitutes for the other.
+
 ## 6. Conclusion
 
 Across two detector families, three generations of method, and roughly two

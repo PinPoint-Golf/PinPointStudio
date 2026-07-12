@@ -22,7 +22,8 @@ constraints checked *before* the (validated) evidence engines, inside a global V
 claim.
 
 **Scope (confirmed):** full detail on classical core **v3.0→v3.2** (+ **v3.0-r1** C4 ψ-monotonicity rail,
-+ **v3.11** IMU witness); **v3.3** NN and **v4** C++ port are outlined milestones only.
++ **v3.11** IMU witness); **v3.3** NN is an outlined milestone only. The **v4 C++ port is done**
+(2026-07-10, parity-validated; execution parallelised 2026-07-13 — resolution note in §5).
 
 ---
 
@@ -569,6 +570,26 @@ factory; byte-match target is the attic `shaft_annotate_port` (vision-only) — 
 `ShaftTracker`. *Gate:* byte-agreement modelled on `swing_window_parity_test.cpp` +
 `tuned_constants_parity_test` + the `truth.json` C++↔Python precedent. Cross-platform bit-equality is
 untested → establish the oracle on one platform first.
+
+> **RESOLVED — the port shipped 2026-07-10, by a different route than outlined.** The v3.0-r1 core
+> (with v3.2 and the v3.4 ball anchor) was ported directly into the production analyzer —
+> `src/Analysis/shaft_tracker{,_math}.*` + `shaft_track_assembly.*` (evidence engines / decide core /
+> SwingWindow layer), live in `WristAnalyzer` — rather than behind an `IShaftDetector` ABC against the
+> attic oracle. The gate was met numerically instead of byte-wise: same-host parity vs the Python
+> exemplar on s01 measured **median and p90 |Δθ| = 0.000°, tier kinds 100% identical** (reference
+> regenerated on the dev box, never cross-host, per §6). Standalone regression is C++-vs-C++
+> (`shaft_evidence_test`, `shaft_decide_test`, tests in `src/Analysis/tests/`). The exemplar
+> (`club_track_v3.py`) is retired as a dev surface — new detector work goes straight to C++, verified
+> via `/swinglab`.
+>
+> **Execution model parallelised 2026-07-13 (`057bf31`), output byte-identical.** The C++ stage had
+> inherited the exemplar's serial shape (~18% CPU on 12 threads; each span frame re-decoded 2–5×
+> across the five internal passes). Now: decode-once frame cache (serial payload fetch per the
+> `SwingPayloadSource` one-resident-frame contract, parallel demosaic, ~1 GB cap with serial
+> fallback) + `cv::parallel_for_` over the evidence loop and scene-median. Shaft stage 10.8 → 3.1 s
+> inside a 46.1 → 25.0 s full re-analysis on the dev MBP (ball and pose stages parallelised in the
+> same commit). Full profile + negative results (INT8 1.28× on non-VNNI, pose batching a wash) in
+> the research doc §5.6a.
 
 ---
 

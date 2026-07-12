@@ -630,3 +630,41 @@ and are hardest to measure. It does not touch the moving swing, where the club i
 in free space and the ball is gone — it is an *endpoint* instrument, and the
 endpoints (address labelling, impact θ, club scale) are exactly what v3 is weakest
 on today.
+
+## 10. As-built (2026-07-13): v3 is the production tracker, parallelised
+
+The v3 stack designed above is no longer a research plan — it is the shipping
+face-on shaft detector. Status of each layer:
+
+- **v3.0 / v3.0-r1** (constraint system + DP + ψ-isotonic rail) — corpus-gated
+  (§6 gates: downswing coverage 57→96%, through 54→83%, zero flips on all ten
+  taped swings) and **ported to production C++**
+  (`src/Analysis/shaft_tracker{,_math}.*`, `shaft_track_assembly.*`), numeric
+  parity vs the Python exemplar on s01: median and p90 |Δθ| = 0.000°, tier kinds
+  100% identical. The Python exemplar (`club_track_v3.py`) is retired as a dev
+  surface; new work goes straight to C++ (verified via SwingLab).
+- **v3.1** (shift-and-stack ω) — synth + corpus gated (impact-zone peaks
+  71–92 mph corroborated by the exposure arc); exemplar-only, port on demand.
+- **v3.2** (address/hold θ) — gated and ported with the v3.0-r1 core.
+- **v3.4** (ball far-end anchor, §9) — built in production (`ball_anchor.*`,
+  live `ball` stream + `swing.json` block), gated per research §5.5a.
+- **v3.3 (learned) / v3.11 (IMU witness)** — still gated outline, unchanged.
+
+The execution model was rebuilt on 2026-07-13 (commit `057bf31`): the analyzer's
+stages had run strictly serially (~18% CPU in the shaft stage on a 12-thread dev
+machine, every span frame re-decoded 2–5× across the five internal passes). The
+production tracker now decodes each frame once into a parallel-built cache
+(serial payload fetch per the `SwingPayloadSource` one-resident-frame contract,
+parallel demosaic) and runs the per-frame evidence loop and the scene-median
+under `cv::parallel_for_`. Gate: `result.json` **byte-identical** to the serial
+baseline. Shaft stage 10.8 → 3.1 s inside a 46.1 → 25.0 s full re-analysis on
+the dev laptop; the full measured profile, negative results (INT8, batching),
+and the storage/network findings are recorded in the research doc,
+[`club_detection_from_video.md`](../research/club_detection_from_video.md)
+§4.9 / §5.6 / §5.6a.
+
+What remains open is unchanged by any of this: untaped-club robustness (the
+passive downswing rides the predicted tier; shift-and-stack through the blur gap
+and the Phase-2 blur-line detector await an untaped corpus) and validation
+breadth (multi-club, multi-golfer, raw high-speed subsets) — the accuracy
+frontier is corpus capture, not compute.
