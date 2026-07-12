@@ -22,7 +22,13 @@ using pinpoint::analysis::PoseFrame2D;
 using pinpoint::analysis::PoseTrack2D;
 
 #include <algorithm>
+#include <condition_variable>
+#include <deque>
+#include <mutex>
+#include <thread>
+#include <utility>
 #include <variant>
+#include <vector>
 
 #include <QElapsedTimer>
 #include <QObject>
@@ -122,8 +128,9 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
     }
     estimator.setDecodeHands(true);
 
-    // estimatePose() is synchronous and emits poseEstimated() inline — a
-    // direct connection on this thread captures the result before it returns.
+    // inferPrepared() is synchronous and emits poseEstimated() inline on this
+    // (consumer) thread — a direct connection captures the result before it
+    // returns.
     PoseResult res;
     bool gotPose = false;
     QObject::connect(&estimator, &PoseEstimatorBase::poseEstimated, &estimator,
@@ -140,60 +147,154 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
     constexpr float kMinHandConf  = 0.3f;
 
     size_t  wristOk = 0;
-    cv::Mat bgr;   // reused decode scratch
 
-    // Pose one entry: decode → ViTPose → PoseFrame2D (hand centroids with COCO
-    // wrist fallback). Appends to `out` on success and bumps wristOk; returns
-    // whether a frame was added (decode/pose failures skip silently). Frozen-
-    // window contract: payloadOf() may hand back data == nullptr (slot
-    // overwritten / mid-write) — decodeToBgr rejects null and short payloads
-    // alike, and the handle outlives estimatePose() so the zero-copy `bgr` alias
-    // is safe for the call.
-    auto poseOne = [&](const pinpoint::IndexEntry &e, PoseTrack2D &out) -> bool {
-        const pinpoint::SourceRing::ReadHandle handle = window.payloadOf(e);
-        if (!pinpoint::decodeToBgr(*cfmt, handle.data, handle.bytes, bgr))
-            return false;
+    // ── Pipelined pose ──────────────────────────────────────────────────────────
+    // decode + preprocess run on a producer thread while ORT inference runs on
+    // this (consumer) thread — the ~25 ms decode/preprocess of frame N+1 hides
+    // behind the ~82 ms inference of frame N. Output is byte-identical to the
+    // old serial poseOne(): same frames, same order (a FIFO preserves it), same
+    // math — only the execution overlaps.
+    //
+    // Frozen-window read contract: SwingPayloadSource keeps ONE frame resident
+    // per source, so the producer is the SOLE payloadOf() caller and must fully
+    // consume each frame BEFORE the next fetch. preprocess() reads the whole
+    // decoded frame into an owned NCHW float buffer, so even the zero-copy BGR24
+    // passthrough alias (decodeToBgr may hand back a Mat aliasing the payload
+    // bytes) is safe — the alias never outlives the fetch.
+    struct PipeItem {
+        int64_t            t_us     = 0;
+        float              progress = 0.f;
+        bool               decodeOk = false;
+        std::vector<float> input;   // NCHW tensor buffer (empty when decode failed)
+    };
 
-        gotPose = false;
-        estimator.estimatePose(bgr);   // live path feeds full BGR CV_8UC3 frames too
-        if (!gotPose)
-            return false;
+    // Run one materialized (entryIndex, progress) sequence through the pipeline,
+    // appending posed frames to `out` in sequence order. Decode/inference
+    // failures skip exactly as the old poseOne() did (decode fail → no
+    // inference; a frame ViTPose can't estimate is dropped). progress() is
+    // invoked on THIS worker thread for every sequence entry, matching the old
+    // serial loops (it is never called on the producer thread).
+    auto runPipeline = [&](const std::vector<std::pair<size_t, float>> &jobs,
+                           PoseTrack2D &out) {
+        if (jobs.empty())
+            return;
 
-        PoseFrame2D f;
-        f.t_us = e.timestamp_us;
-        for (int j = 0; j < PoseResult::kNumKeypoints; ++j) {
-            f.kp[j]   = QPointF(res.keypoints[j].x, res.keypoints[j].y);
-            f.conf[j] = res.keypoints[j].score;
+        std::mutex              mtx;
+        std::condition_variable cvNotFull, cvNotEmpty;
+        std::deque<PipeItem>    queue;
+        bool                    producerDone = false;
+        bool                    stop         = false;   // consumer → producer abort
+        constexpr size_t        kMaxDepth    = 3;
+
+        std::thread producer([&] {
+            for (const auto &job : jobs) {
+                {
+                    std::unique_lock<std::mutex> lk(mtx);
+                    cvNotFull.wait(lk, [&] { return queue.size() < kMaxDepth || stop; });
+                    if (stop)
+                        return;
+                }
+                PipeItem item;
+                item.t_us     = entries[job.first].timestamp_us;
+                item.progress = job.second;
+                cv::Mat frameBgr;   // fresh per frame — decodeToBgr may alias the payload
+                const pinpoint::SourceRing::ReadHandle handle =
+                    window.payloadOf(entries[job.first]);
+                if (pinpoint::decodeToBgr(*cfmt, handle.data, handle.bytes, frameBgr)) {
+                    // Fully consumes frameBgr into an owned buffer before the next
+                    // payloadOf() invalidates the resident frame.
+                    estimator.preprocess(frameBgr, item.input);
+                    item.decodeOk = true;
+                }
+                {
+                    std::lock_guard<std::mutex> lk(mtx);
+                    queue.push_back(std::move(item));
+                }
+                cvNotEmpty.notify_one();
+            }
+            {
+                std::lock_guard<std::mutex> lk(mtx);
+                producerDone = true;
+            }
+            cvNotEmpty.notify_one();
+        });
+
+        // Join the producer on EVERY exit from this scope (normal drain or an
+        // exception from the consumer body) — no detached thread, no deadlock
+        // with a producer parked on a full queue.
+        struct Joiner {
+            std::thread             &t;
+            std::mutex              &m;
+            std::condition_variable &cond;
+            bool                    &stop;
+            ~Joiner() {
+                {
+                    std::lock_guard<std::mutex> lk(m);
+                    stop = true;
+                }
+                cond.notify_all();
+                if (t.joinable())
+                    t.join();
+            }
+        } joiner{producer, mtx, cvNotFull, stop};
+
+        for (;;) {
+            PipeItem item;
+            {
+                std::unique_lock<std::mutex> lk(mtx);
+                cvNotEmpty.wait(lk, [&] { return !queue.empty() || producerDone; });
+                if (queue.empty())          // predicate guarantees producerDone here
+                    break;
+                item = std::move(queue.front());
+                queue.pop_front();
+            }
+            cvNotFull.notify_one();
+
+            if (opt.progress)
+                opt.progress(item.progress);
+            if (!item.decodeOk)
+                continue;
+
+            gotPose = false;
+            estimator.inferPrepared(item.input);
+            if (!gotPose)
+                continue;
+
+            PoseFrame2D f;
+            f.t_us = item.t_us;
+            for (int j = 0; j < PoseResult::kNumKeypoints; ++j) {
+                f.kp[j]   = QPointF(res.keypoints[j].x, res.keypoints[j].y);
+                f.conf[j] = res.keypoints[j].score;
+            }
+
+            // Hand anchors: score-weighted knuckle centroids; fall back to the
+            // COCO wrists (with handConf = 0) when either hand is unconvincing —
+            // both anchors must come from the same source or the inter-hand
+            // direction prior d̂ = trail − lead is meaningless.
+            const WholeBodyHands &hands = estimator.lastHands();
+            HandCentroid lc, rc;
+            if (hands.valid) {
+                lc = handCentroid(hands.left,  hands.leftScore);
+                rc = handCentroid(hands.right, hands.rightScore);
+            }
+            QPointF leftPt, rightPt;
+            float   handConf = 0.f;
+            if (lc.ok && rc.ok && std::min(lc.conf, rc.conf) >= kMinHandConf) {
+                leftPt   = lc.pt;
+                rightPt  = rc.pt;
+                handConf = 0.5f * (lc.conf + rc.conf);
+            } else {
+                leftPt  = f.kp[kLeftWrist];
+                rightPt = f.kp[kRightWrist];
+            }
+            f.leadHand  = leftLeads ? leftPt  : rightPt;
+            f.trailHand = leftLeads ? rightPt : leftPt;
+            f.handConf  = handConf;
+
+            if (f.conf[kLeftWrist] > 0.3f && f.conf[kRightWrist] > 0.3f)
+                ++wristOk;
+            out.frames.push_back(std::move(f));
         }
-
-        // Hand anchors: score-weighted knuckle centroids; fall back to the
-        // COCO wrists (with handConf = 0) when either hand is unconvincing —
-        // both anchors must come from the same source or the inter-hand
-        // direction prior d̂ = trail − lead is meaningless.
-        const WholeBodyHands &hands = estimator.lastHands();
-        HandCentroid lc, rc;
-        if (hands.valid) {
-            lc = handCentroid(hands.left,  hands.leftScore);
-            rc = handCentroid(hands.right, hands.rightScore);
-        }
-        QPointF leftPt, rightPt;
-        float   handConf = 0.f;
-        if (lc.ok && rc.ok && std::min(lc.conf, rc.conf) >= kMinHandConf) {
-            leftPt   = lc.pt;
-            rightPt  = rc.pt;
-            handConf = 0.5f * (lc.conf + rc.conf);
-        } else {
-            leftPt  = f.kp[kLeftWrist];
-            rightPt = f.kp[kRightWrist];
-        }
-        f.leadHand  = leftLeads ? leftPt  : rightPt;
-        f.trailHand = leftLeads ? rightPt : leftPt;
-        f.handConf  = handConf;
-
-        if (f.conf[kLeftWrist] > 0.3f && f.conf[kRightWrist] > 0.3f)
-            ++wristOk;
-        out.frames.push_back(std::move(f));
-        return true;
     };
 
     // Dense zone around impact (both scan paths share it): pose every
@@ -211,11 +312,11 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
         const size_t coarse = static_cast<size_t>(std::max(1, opt.coarseStride));
 
         // Pass 1 — coarse, whole window.
-        for (size_t i = 0; i < entries.size(); i += coarse) {
-            poseOne(entries[i], track);
-            if (opt.progress)
-                opt.progress(0.2f * float(i + 1) / float(entries.size()));
-        }
+        std::vector<std::pair<size_t, float>> jobs1;
+        jobs1.reserve(entries.size() / coarse + 1);
+        for (size_t i = 0; i < entries.size(); i += coarse)
+            jobs1.emplace_back(i, 0.2f * float(i + 1) / float(entries.size()));
+        runPipeline(jobs1, track);
         const size_t pass1Posed = track.frames.size();
 
         // Coarse grip track in PIXELS (leadHand/trailHand are normalized [0,1])
@@ -269,6 +370,8 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
         const size_t denseStep  = static_cast<size_t>(std::max(1, opt.denseStride));
         const size_t sparseStep = static_cast<size_t>(std::max(1, opt.sparseStride));
         const size_t span = pHi > pLo ? pHi - pLo : 1;
+        std::vector<std::pair<size_t, float>> jobs2;
+        jobs2.reserve(span);
         for (size_t i = pLo; i < pHi; ++i) {
             if ((i % coarse) == 0)   // posed in pass 1 — never re-pose a timestamp
                 continue;
@@ -277,10 +380,9 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
                             && e.timestamp_us >= denseLo && e.timestamp_us <= denseHi;
             if ((i % (dense ? denseStep : sparseStep)) != 0)
                 continue;
-            if (opt.progress)
-                opt.progress(0.2f + 0.8f * float(i + 1 - pLo) / float(span));
-            poseOne(e, track);
+            jobs2.emplace_back(i, 0.2f + 0.8f * float(i + 1 - pLo) / float(span));
         }
+        runPipeline(jobs2, track);
         const size_t pass2Posed = track.frames.size() - pass1Posed;
 
         // Pass-1 (whole window) and pass-2 (span fill) interleave in time — merge.
@@ -334,7 +436,8 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
     const int addrStride = std::max(1, opt.addressStride);
 
     track.frames.reserve(i1 - iAddr0);
-    size_t sampled = 0;
+    std::vector<std::pair<size_t, float>> jobs;
+    jobs.reserve(i1 - iAddr0);
     for (size_t i = iAddr0; i < i1; ++i) {
         const pinpoint::IndexEntry &e = entries[i];
         const bool inAddressZone = i < i0;   // before G3's own bound: coarse address-hold sampling
@@ -346,11 +449,10 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
         } else if (!dense && (i % static_cast<size_t>(stride)) != 0) {
             continue;
         }
-        ++sampled;
-        if (opt.progress)
-            opt.progress(float(i + 1 - iAddr0) / float(i1 - iAddr0));
-        poseOne(e, track);
+        jobs.emplace_back(i, float(i + 1 - iAddr0) / float(i1 - iAddr0));
     }
+    const size_t sampled = jobs.size();
+    runPipeline(jobs, track);
 
     ppInfo() << "[PoseRunner] source" << faceOnSource << ":" << track.frames.size()
              << "posed of" << sampled << "sampled (" << (i1 - i0) << "in span +"

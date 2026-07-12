@@ -24,14 +24,17 @@
 
 #include "shaft_tracker.h"
 
+#include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 
 #include <QElapsedTimer>
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <limits>
 #include <variant>
+#include <vector>
 
 #include "ball_anchor.h"            // applyBallAnchor — the v3.4 post-hoc pass
 #include "shot_analyzer.h"          // ShotAnalysisJob
@@ -69,23 +72,32 @@ PoseFrame2D lerpPoseFrame(const PoseTrack2D& pose, size_t lo, size_t hi, int64_t
     return o;
 }
 
-// Decode one frozen-ring payload to CV_8UC1 grey, matching the Python path
-// (demosaic → BGR2GRAY). Falls back to the luma fast path. Empty on undecodable
-// formats. The result never aliases the ring (cvtColor/clone).
-cv::Mat decodeGray(const pinpoint::SwingWindow& window, const pinpoint::IndexEntry& e,
-                   const pinpoint::CameraFormat& cfmt)
+// Decode raw payload bytes to CV_8UC1 grey, matching the Python path (demosaic →
+// BGR2GRAY). Falls back to the luma fast path. Empty on undecodable formats. The
+// result never aliases `data` (cvtColor/clone), so it stays valid after the
+// payload buffer is reused — the invariant the parallel-decode cache relies on.
+cv::Mat decodeGrayFromBytes(const pinpoint::CameraFormat& cfmt,
+                            const std::byte* data, size_t bytes)
 {
-    const pinpoint::SourceRing::ReadHandle handle = window.payloadOf(e);
     cv::Mat bgr;
-    if (pinpoint::decodeToBgr(cfmt, handle.data, handle.bytes, bgr) && !bgr.empty()) {
+    if (pinpoint::decodeToBgr(cfmt, data, bytes, bgr) && !bgr.empty()) {
         if (bgr.channels() == 1) return bgr.clone();
         cv::Mat g; cv::cvtColor(bgr, g, cv::COLOR_BGR2GRAY);
         return g;
     }
     cv::Mat luma;
-    if (pinpoint::decodeToLuma(cfmt, handle.data, handle.bytes, luma) && !luma.empty())
+    if (pinpoint::decodeToLuma(cfmt, data, bytes, luma) && !luma.empty())
         return luma.clone();
     return {};
+}
+
+// Fetch + decode one frozen-ring payload (the serial fall-back frameAt path).
+// payloadOf() is single-threaded by contract; the handle is consumed at once.
+cv::Mat decodeGray(const pinpoint::SwingWindow& window, const pinpoint::IndexEntry& e,
+                   const pinpoint::CameraFormat& cfmt)
+{
+    const pinpoint::SourceRing::ReadHandle handle = window.payloadOf(e);
+    return decodeGrayFromBytes(cfmt, handle.data, handle.bytes);
 }
 
 } // namespace
@@ -160,7 +172,44 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
         }
     }
 
-    const FrameSource frameAt = [&](int i) -> cv::Mat { return decodeGray(window, cov[i], *cfmt); };
+    // ── decode-once span cache with parallel decode ──────────────────────────
+    // Payload bytes are valid only until the next payloadOf() on this source and
+    // the disk backing keeps ONE frame resident (swing_payload_source.h), so the
+    // FETCH must stay single-threaded: pull a chunk of payloads serially into
+    // owned byte buffers, then decode the chunk in parallel (decodeGrayFromBytes
+    // writes an owned Mat, so the reused buffers can never be aliased). Capped by
+    // bytes; over the cap we fall back to the per-call decode path below, which
+    // keeps the serial contract and reproduces the pre-cache behaviour exactly.
+    // Cap sized for a full 5 s / 150 fps / 1.3 MP coverage range (~1 GB gray);
+    // offline analysis is a one-at-a-time job so the transient is acceptable.
+    // Must match the decideTrack cap so both layers make the same decision.
+    constexpr size_t kFrameCacheCapBytes = 1200ull * 1024 * 1024;
+    const size_t cacheBytes = size_t(nf) * size_t(w) * size_t(h);   // CV_8UC1: 1 byte/px
+    std::vector<cv::Mat> frameCache;
+    if (cacheBytes > 0 && cacheBytes <= kFrameCacheCapBytes) {
+        frameCache.assign(size_t(nf), cv::Mat());
+        constexpr int kChunk = 16;
+        std::vector<std::vector<std::byte>> chunkBuf(kChunk);
+        for (int base = 0; base < nf; base += kChunk) {
+            const int cnt = std::min(kChunk, nf - base);
+            for (int j = 0; j < cnt; ++j) {                 // serial fetch (payload contract)
+                const pinpoint::SourceRing::ReadHandle hnd = window.payloadOf(cov[base + j]);
+                if (hnd.data && hnd.bytes) chunkBuf[j].assign(hnd.data, hnd.data + hnd.bytes);
+                else                       chunkBuf[j].clear();
+            }
+            cv::parallel_for_(cv::Range(0, cnt), [&](const cv::Range& rng) {   // parallel decode
+                for (int j = rng.start; j < rng.end; ++j)
+                    frameCache[size_t(base + j)] =
+                        chunkBuf[j].empty() ? cv::Mat()
+                                            : decodeGrayFromBytes(*cfmt, chunkBuf[j].data(), chunkBuf[j].size());
+            });
+        }
+    }
+    const bool haveCache = !frameCache.empty();
+    const FrameSource frameAt = [&, haveCache](int i) -> cv::Mat {
+        if (haveCache && i >= 0 && i < nf) return frameCache[size_t(i)];
+        return decodeGray(window, cov[i], *cfmt);
+    };
     // Persistent club-length prior (club_length_fusion.h) from the job — filled by
     // ShotProcessor from AppSettings (live) or SwingDiskLoader from swing.json
     // (re-analysis). Joined into the fusion only when matured (n ≥ 2); pass null

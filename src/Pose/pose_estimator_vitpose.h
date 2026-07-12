@@ -24,6 +24,7 @@
 #include <QPointF>
 #include <array>
 #include <memory>
+#include <vector>
 
 // ViTPose-B whole-body estimator.
 //
@@ -69,6 +70,18 @@ public:
     // only after a synchronous estimatePose() call returns with hand decode
     // enabled and inference succeeded.
     const WholeBodyHands &lastHands() const { return m_lastHands; }
+
+    // Offline pipelined path (PoseRunner only). estimatePose() split into its
+    // two halves so frame decode + preprocess can run on a producer thread
+    // while ORT inference runs on the consumer. preprocess() is a pure function
+    // of `frame` — it touches NO member state, so it is safe to call on the
+    // producer thread concurrently with inferPrepared() on the consumer.
+    // inferPrepared() runs the ORT session + heatmap decode and emits
+    // poseEstimated()/estimationDone() exactly as estimatePose() would; together
+    // preprocess(frame,buf)+inferPrepared(buf) are behaviourally identical to
+    // estimatePose(frame). The live path still calls estimatePose() unchanged.
+    void preprocess(const cv::Mat &frame, std::vector<float> &inputBuf) const;
+    void inferPrepared(std::vector<float> &inputBuf);
 
 public slots:
     void load();

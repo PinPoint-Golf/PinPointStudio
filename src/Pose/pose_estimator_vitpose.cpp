@@ -382,4 +382,138 @@ void PoseEstimatorViTPose::estimatePose(const cv::Mat &frame)
     emit estimationDone();
 }
 
+// Preprocess half of estimatePose() — identical math (lines above), factored so
+// PoseRunner can run it on a producer thread. Touches no member state; the
+// output `inputBuf` is fully self-owned (independent of `frame`'s pixels).
+void PoseEstimatorViTPose::preprocess(const cv::Mat &frame, std::vector<float> &inputBuf) const
+{
+    // Preprocess: resize → BGR→RGB → float32 [0,1] → ImageNet normalise → CHW.
+    cv::Mat resized, rgb, rgbF;
+    cv::resize(frame, resized, cv::Size(kInputW, kInputH));
+    cv::cvtColor(resized, rgb, cv::COLOR_BGR2RGB);
+    rgb.convertTo(rgbF, CV_32FC3, 1.0 / 255.0);
+
+    // Split into channel planes and normalise each channel.
+    std::vector<cv::Mat> planes(3);
+    cv::split(rgbF, planes);
+    for (int c = 0; c < 3; ++c)
+        planes[c] = (planes[c] - kMean[c]) / kStd[c];
+
+    // Build contiguous NCHW tensor buffer [1, 3, 256, 192].
+    static constexpr size_t kPlaneSize = kInputH * kInputW;
+    inputBuf.resize(3 * kPlaneSize);
+    for (int c = 0; c < 3; ++c) {
+        cv::Mat dst(kInputH, kInputW, CV_32FC1, inputBuf.data() + c * kPlaneSize);
+        planes[c].copyTo(dst);
+    }
+}
+
+// Inference half of estimatePose() — ORT Run() + heatmap decode + emit, over a
+// buffer already produced by preprocess(). Caller guarantees the estimator is
+// ready. `inputBuf` is not modified (ORT's CreateTensor wants a non-const
+// pointer; the buffer is only read during Run()).
+void PoseEstimatorViTPose::inferPrepared(std::vector<float> &inputBuf)
+{
+    // Hands from a previous frame must never outlive the call that produced them.
+    if (m_decodeHands)
+        m_lastHands.valid = false;
+
+    if (!m_ready) {
+        emit estimationDone();
+        return;
+    }
+
+    PP_PROFILE_SCOPE("Pose.ViTPose.run");
+
+    const qint64 nowNs = m_ort->wallTimer.nsecsElapsed();
+
+    QElapsedTimer inferTimer;
+    inferTimer.start();
+
+    try {
+        PP_PROFILE_SCOPE("Pose.ViTPose.infer");   // ORT Run() + heatmap decode
+
+        Ort::MemoryInfo memInfo =
+            Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+
+        std::array<int64_t, 4> inputShape{ 1, 3, kInputH, kInputW };
+        auto inputTensor = Ort::Value::CreateTensor<float>(
+            memInfo,
+            inputBuf.data(), inputBuf.size(),
+            inputShape.data(), inputShape.size());
+
+        const char *inputNames[]  = { m_ort->inputName.c_str() };
+        const char *outputNames[] = { m_ort->outputName.c_str() };
+        Ort::Value  inputs[]      = { std::move(inputTensor) };
+
+        auto outputs = m_ort->session->Run(
+            m_ort->runOpts,
+            inputNames, inputs, 1,
+            outputNames, 1);
+
+        const float *heatmapData = outputs[0].GetTensorData<float>();
+
+        PoseResult result;
+        result.timestamp = QDateTime::currentMSecsSinceEpoch();
+
+        for (int j = 0; j < kBodyJoints; ++j) {
+            const float *hm = heatmapData + j * kHeatmapH * kHeatmapW;
+            decodeHeatmapChannel(hm, result.keypoints[j].x,
+                                 result.keypoints[j].y, result.keypoints[j].score);
+        }
+
+        float scoreSum = 0.f;
+        for (int j = 0; j < kBodyJoints; ++j) scoreSum += result.keypoints[j].score;
+        result.confidence = scoreSum / kBodyJoints;
+
+        if (m_decodeHands) {
+            const auto decodeHand = [&](int firstCh, std::array<QPointF, 21> &pts,
+                                        std::array<float, 21> &scores) {
+                for (int k = 0; k < WholeBodyHands::kHandJoints; ++k) {
+                    const float *hm = heatmapData + (firstCh + k) * kHeatmapH * kHeatmapW;
+                    float nx = 0.f, ny = 0.f, score = 0.f;
+                    decodeHeatmapChannel(hm, nx, ny, score);
+                    pts[k]    = QPointF(nx, ny);
+                    scores[k] = score;
+                }
+            };
+            decodeHand(kLeftHandCh,  m_lastHands.left,  m_lastHands.leftScore);
+            decodeHand(kRightHandCh, m_lastHands.right, m_lastHands.rightScore);
+            m_lastHands.valid = true;
+        }
+
+        emit poseEstimated(result);
+
+    } catch (const Ort::Exception &e) {
+        ppError() << "[ViTPose] Inference error:" << e.what();
+        emit estimationDone();
+        return;
+    }
+
+    const double inferMs    = inferTimer.nsecsElapsed() / 1e6;
+    const double intervalMs = (m_lastCallNs >= 0)
+                              ? (nowNs - m_lastCallNs) / 1e6
+                              : inferMs;
+    m_lastCallNs = nowNs;
+
+    m_inferenceSum -= m_inferenceSamples[m_timingIndex];
+    m_intervalSum  -= m_intervalSamples[m_timingIndex];
+    m_inferenceSamples[m_timingIndex] = inferMs;
+    m_intervalSamples[m_timingIndex]  = intervalMs;
+    m_inferenceSum += inferMs;
+    m_intervalSum  += intervalMs;
+    m_timingIndex   = (m_timingIndex + 1) % kWindowSize;
+    if (m_timingCount < kWindowSize)
+        ++m_timingCount;
+
+    if (m_timingCount == kWindowSize) {
+        const double avgInferMs  = m_inferenceSum / kWindowSize;
+        const double avgInterval = m_intervalSum  / kWindowSize;
+        const double fps = (avgInterval > 0.0) ? 1000.0 / avgInterval : 0.0;
+        emit poseStatsUpdated(avgInferMs, fps);
+    }
+
+    emit estimationDone();
+}
+
 #endif // HAVE_OPENCV && HAVE_VITPOSE && HAVE_ONNXRUNTIME

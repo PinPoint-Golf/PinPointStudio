@@ -30,6 +30,7 @@
 
 #include <QElapsedTimer>           // Stage-2 head-pass wall-clock (trace->headMs)
 
+#include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 
 #include <algorithm>
@@ -940,6 +941,28 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     const std::vector<double>& gx = gxIn;
     const std::vector<double>& gy = gyIn;
 
+    // Decode-once span cache. frameAt is called STRICTLY serially here — the
+    // payload contract (bytes valid only to the next fetch) + one-resident-frame
+    // disk backing forbid concurrent decode. In production the upstream tracker
+    // has already parallel-decoded into owned Mats, so this is a cheap header
+    // copy; a synthetic/render frameAt is simply decoded once. The owned Mats let
+    // the evidence loop + scene median below run under cv::parallel_for_ race-
+    // free. Over the byte cap the cache is skipped and every pass falls back to
+    // the serial frameAt (byte-identical to the pre-cache tracker).
+    // Must match the ShaftTracker cap so both layers make the same decision.
+    constexpr size_t kFrameCacheCapBytes = 1200ull * 1024 * 1024;
+    const size_t cacheBytes = size_t(nf) * size_t(std::max(0, frameW)) * size_t(std::max(0, frameH));
+    std::vector<cv::Mat> frameCache;
+    if (cacheBytes > 0 && cacheBytes <= kFrameCacheCapBytes) {
+        frameCache.assign(size_t(nf), cv::Mat());
+        for (int i = 0; i < nf; ++i) frameCache[size_t(i)] = frameAt(i);
+    }
+    const bool parFrames = !frameCache.empty();
+    const FrameSource frameSrc = [&](int i) -> cv::Mat {
+        if (parFrames && i >= 0 && i < nf) return frameCache[size_t(i)];
+        return frameAt(i);
+    };
+
     std::vector<double> phiRaw = phiRawIn;
     interpFillNan(phiRaw);
     const std::vector<double> phiS = smoothPhi(phiRaw, cfg);
@@ -973,19 +996,26 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     cv::Mat sceneMed;
     {
         std::vector<cv::Mat> bg;
-        for (int i = 0; i < nf; i += 8) { cv::Mat g = frameAt(i); if (!g.empty()) bg.push_back(g); }
+        for (int i = 0; i < nf; i += 8) { cv::Mat g = frameSrc(i); if (!g.empty()) bg.push_back(g); }
         if (!bg.empty()) {
             const int H = bg[0].rows, W = bg[0].cols; const size_t n = bg.size();
             sceneMed.create(H, W, CV_32F);
-            std::vector<uchar> vals(n);
-            for (int r = 0; r < H; ++r) {
-                float* orow = sceneMed.ptr<float>(r);
-                for (int c = 0; c < W; ++c) {
-                    for (size_t k = 0; k < n; ++k) vals[k] = bg[k].ptr<uchar>(r)[c];
-                    std::nth_element(vals.begin(), vals.begin() + n / 2, vals.end());
-                    orow[c] = float(vals[n / 2]);
+            // Per-row nth_element median; `vals` is per-thread (the only shared
+            // mutable in the old serial loop). The k-th order statistic is unique,
+            // so the parallel result is byte-identical to the serial scan.
+            const auto medianRows = [&](const cv::Range& rng) {
+                std::vector<uchar> vals(n);
+                for (int r = rng.start; r < rng.end; ++r) {
+                    float* orow = sceneMed.ptr<float>(r);
+                    for (int c = 0; c < W; ++c) {
+                        for (size_t k = 0; k < n; ++k) vals[k] = bg[k].ptr<uchar>(r)[c];
+                        std::nth_element(vals.begin(), vals.begin() + n / 2, vals.end());
+                        orow[c] = float(vals[n / 2]);
+                    }
                 }
-            }
+            };
+            if (parFrames) cv::parallel_for_(cv::Range(0, H), medianRows);
+            else           medianRows(cv::Range(0, H));
         }
     }
 
@@ -1025,13 +1055,21 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     std::vector<std::vector<float>> EV(nf, std::vector<float>(NS, 0.f));
     std::vector<BandMatch> band(nf);
     std::vector<char> bandOk(nf, 0);
-    int heavy = 0;
-    for (int i = 0; i < nf; ++i) {
-        if (std::isnan(gx[i])) continue;
-        if (!(spanLo <= i && i <= spanHi)) continue;
-        cv::Mat g8 = frameAt(i);
-        if (g8.empty()) continue;
-        ++heavy;
+    // Per-frame evidence: each frame writes ONLY its own indexed slots (emis[i],
+    // EV[i], band[i], bandOk[i]) and everything ridgeSweep/frameBandMatch/
+    // frameEmission touches is a per-call local — so the loop is embarrassingly
+    // parallel over frames. The lone serial-loop accumulator (`heavy`) is replaced
+    // by a per-frame processed flag summed afterwards, keeping the count identical
+    // regardless of thread order. sceneMed / gridRad / gridDeg / polys / masks /
+    // phiS / pm are read-only. Runs parallel only when the owned frame cache is
+    // live (frameSrc never touches payloadOf under threads); else serial.
+    std::vector<char> heavyMark(size_t(nf), 0);
+    const auto evidenceBody = [&](int i) {
+        if (std::isnan(gx[i])) return;
+        if (!(spanLo <= i && i <= spanHi)) return;
+        cv::Mat g8 = frameSrc(i);
+        if (g8.empty()) return;
+        heavyMark[size_t(i)] = 1;
         cv::Mat g32; g8.convertTo(g32, CV_32F);
         const RidgeResult sRaw = ridgeSweep(g32, gx[i], gy[i], gridRad, cfg.ridge, false);
         std::vector<float> normRaw = normScores(sRaw.score);
@@ -1050,7 +1088,15 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                       gx[i], gy[i], polys.empty() ? nullptr : &polys[i],
                       masks.empty() ? cv::Mat() : masks[i], gridRad, gridDeg, cfg);
         emis[i] = std::move(em);
-    }
+    };
+    if (parFrames)
+        cv::parallel_for_(cv::Range(0, nf), [&](const cv::Range& rng) {
+            for (int i = rng.start; i < rng.end; ++i) evidenceBody(i);
+        });
+    else
+        for (int i = 0; i < nf; ++i) evidenceBody(i);
+    int heavy = 0;
+    for (int i = 0; i < nf; ++i) heavy += heavyMark[size_t(i)];
 
     const DPResult dp = viterbiDP(emis, pm.phase, cfg);
     std::vector<double> evAt(nf, 0.0);
@@ -1209,7 +1255,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         // validate). Warm-start bg at spanLo so the first frame's change==0.
         cv::Mat prev32, bg32;
         for (int i = spanLo; i <= spanHi; ++i) {
-            cv::Mat g8 = frameAt(i);
+            cv::Mat g8 = frameSrc(i);
             if (g8.empty()) continue;                 // undecodable — prev/bg unchanged
             cv::Mat g32; g8.convertTo(g32, CV_32F);
             if (bg32.empty()) g32.copyTo(bg32);
@@ -1493,7 +1539,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
             const bool visionTier = (s.flags & ShaftMeasured) || (s.flags & ShaftWedge);
             if (!visionTier) continue;                          // coasted/pred keep lineConf = -1
             const int i = sampleFrame[k];
-            cv::Mat g8 = frameAt(i);
+            cv::Mat g8 = frameSrc(i);
             if (g8.empty()) continue;                           // undecodable — no measurement
             cv::Mat g32; g8.convertTo(g32, CV_32F);
 
@@ -1693,7 +1739,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                     if (bd != std::numeric_limits<int64_t>::max()) ballNear = &bs;
                 }
                 const PositionFitResult fr =
-                    fitPosition(frameAt, pos.p, cf, pos.t_us, tUs, gx, gy, rec.thetaOut, omega,
+                    fitPosition(frameSrc, pos.p, cf, pos.t_us, tUs, gx, gy, rec.thetaOut, omega,
                                 phiS, armFloorMedPx, fusedLen, ballNear, frameW, frameH,
                                 cfg.ridge, cfg.positions.fit, cfg.armVetoDeg);
                 if (fr.accepted) {

@@ -24,6 +24,7 @@ using pinpoint::analysis::BallTrack2D;
 using pinpoint::analysis::PoseTrack2D;
 
 #include <algorithm>
+#include <cstddef>
 #include <variant>
 #include <vector>
 
@@ -257,41 +258,94 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
     TemporalBallTracker tracker(rHat, fps, B, seedNoise);
 
     // ── Replay the remaining frames through the SAME production core ──────
+    // Chunked decode/consume split. roiRect and rHat are fixed for the whole run
+    // (assigned once above, never touched by tracker state), so paddedResponse is
+    // a pure per-frame function of the decoded frame — decode + gray + CV_32F +
+    // DoG response can all be precomputed off the critical thread. Only the causal
+    // tracker.push() and its output reads run serially, in exact frame order, so
+    // the state-update order is byte-identical to a fully serial replay.
     track.frames.reserve(i1 - i);
-    for (; i < i1; ++i) {
-        const pinpoint::IndexEntry &e = entries[i];
-        BallSample2D s;
-        s.t_us = e.timestamp_us;
-        if (!decodeGray32(e)) {
-            track.frames.push_back(s);   // found=false — an honest decode gap, not a detector miss
-            continue;
+    constexpr size_t kChunk = 32;
+    struct FrameSlot {
+        std::vector<std::byte> payload;      // owned copy of the ring/disk bytes
+        bool     hasPayload = false;
+        int64_t  t_us       = 0;
+        cv::Mat  R;                          // padded DoG response (empty = skip)
+    };
+    std::vector<FrameSlot> frameSlots(kChunk);
+    for (size_t base = i; base < i1; base += kChunk) {
+        const size_t n = std::min(kChunk, i1 - base);
+
+        // (1) Serial payload fetch. Payload contract (swing_payload_source.h): the
+        //     bytes are valid only until the NEXT payloadOf() on this source (the
+        //     disk source keeps ONE frame resident), so each frame is copied into
+        //     its owned buffer before the next fetch clobbers the handle.
+        for (size_t j = 0; j < n; ++j) {
+            const pinpoint::IndexEntry &e = entries[base + j];
+            FrameSlot &slot = frameSlots[j];
+            slot.t_us = e.timestamp_us;
+            slot.R    = cv::Mat();
+            const pinpoint::SourceRing::ReadHandle handle = window.payloadOf(e);
+            if (handle.data != nullptr && handle.bytes > 0) {
+                slot.payload.assign(handle.data, handle.data + handle.bytes);
+                slot.hasPayload = true;
+            } else {
+                slot.payload.clear();
+                slot.hasPayload = false;
+            }
         }
-        const cv::Mat R = paddedResponse(gray32, roiRect, rHat);
-        if (R.empty()) {
+
+        // (2) Parallel decode → gray → CV_32F → padded DoG response. Frames are
+        //     independent; per-thread scratch Mats; paddedResponse .clone()s its
+        //     output so each slot.R fully owns its data. An undecodable frame (or
+        //     an empty ROI intersection) leaves slot.R empty — the same skip the
+        //     serial path took, with identical effect on tracker state.
+        cv::parallel_for_(cv::Range(0, int(n)), [&](const cv::Range &rng) {
+            cv::Mat bgr, gray8, gray32;
+            for (int j = rng.start; j < rng.end; ++j) {
+                FrameSlot &slot = frameSlots[size_t(j)];
+                if (!slot.hasPayload)
+                    continue;
+                if (!pinpoint::decodeToBgr(*cfmt, slot.payload.data(), slot.payload.size(), bgr))
+                    continue;
+                cv::cvtColor(bgr, gray8, cv::COLOR_BGR2GRAY);
+                gray8.convertTo(gray32, CV_32F);
+                slot.R = paddedResponse(gray32, roiRect, rHat);
+            }
+        });
+
+        // (3) Serial consume — advance the causal tracker strictly in frame order.
+        for (size_t j = 0; j < n; ++j) {
+            FrameSlot &slot = frameSlots[j];
+            BallSample2D s;
+            s.t_us = slot.t_us;
+            if (slot.R.empty()) {
+                track.frames.push_back(s);   // decode gap / empty ROI — not a detector miss
+                continue;
+            }
+            const cv::Mat &R = slot.R;
+            tracker.push(R);
+            const auto &L  = tracker.locked();
+            const auto &LA = tracker.launched();
+
+            if (L.valid) {
+                const float ats = atSpot(R, L.ix, L.iy);
+                const bool present = ats >= kPresenceFrac * L.L0;
+                s.found      = present;
+                s.center     = QPointF((roiRect.x + L.x) / double(fw), (roiRect.y + L.y) / double(fh));
+                s.radiusNorm = float(rHat / fw);
+                s.conf       = L.L0 > 0.f ? std::min(1.0f, ats / L.L0) : 0.f;
+            }
             track.frames.push_back(s);
-            continue;
-        }
-        tracker.push(R);
-        const auto &L  = tracker.locked();
-        const auto &LA = tracker.launched();
 
-        if (L.valid) {
-            const float ats = atSpot(R, L.ix, L.iy);
-            const bool present = ats >= kPresenceFrac * L.L0;
-            s.found      = present;
-            s.center     = QPointF((roiRect.x + L.x) / double(fw), (roiRect.y + L.y) / double(fh));
-            s.radiusNorm = float(rHat / fw);
-            s.conf       = L.L0 > 0.f ? std::min(1.0f, ats / L.L0) : 0.f;
-        }
-        track.frames.push_back(s);
-
-        if (LA.valid && track.launchTUs < 0) {
-            // First collapse this window — record it as the launch instant.
-            // No rearm(): ball_temporal.h's own contract is that an offline,
-            // single-window run does not re-acquire after VANISHED.
-            track.launchTUs    = e.timestamp_us;
-            track.launchCenter = QPointF((roiRect.x + LA.x) / double(fw),
-                                         (roiRect.y + LA.y) / double(fh));
+            if (LA.valid && track.launchTUs < 0) {
+                // First collapse this window — record it as the launch instant.
+                // No rearm(): ball_temporal.h's own contract is that an offline,
+                // single-window run does not re-acquire after VANISHED.
+                track.launchTUs    = slot.t_us;
+                track.launchCenter = QPointF((roiRect.x + LA.x) / double(fw),
+                                             (roiRect.y + LA.y) / double(fh));
+            }
         }
     }
 
