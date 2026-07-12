@@ -187,9 +187,38 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
                 { QStringLiteral("trail"), QVariantList{ f.trailHand.x(), f.trailHand.y() } },
                 { QStringLiteral("handConf"), double(f.handConf) } });
         }
-        detail.insert(QStringLiteral("pose2d"),
-                      QVariantMap{ { QStringLiteral("camera"), int(a.pose2d.camera) },
-                                   { QStringLiteral("frames"), frames } });
+        QVariantMap pose2d{ { QStringLiteral("camera"), int(a.pose2d.camera) },
+                            { QStringLiteral("frames"), frames } };
+        // Motion-overlay smoothed companion track (pose_smoother.cpp) — same flat
+        // kp layout as `frames` (51 doubles: [x,y,c]×17, conf carries the render-
+        // alpha contract), plus per-kp honesty tier[17] (int) / sigma[17] (px). No
+        // lead/trail/handConf — hands are not smoothed. The QML renderer reads
+        // d.pose2d.smoothed[i].kp with this exact layout. Present only when the
+        // analyzer ran the smoother (absent otherwise → the UI greys the motion modes).
+        if (!a.pose2d.smoothed.empty()) {
+            QVariantList smoothed;
+            const size_t n = std::min(a.pose2d.smoothed.size(), a.pose2d.smoothedAux.size());
+            for (size_t i = 0; i < n; ++i) {
+                const PoseFrame2D &f = a.pose2d.smoothed[i];
+                const PoseKpAux   &x = a.pose2d.smoothedAux[i];
+                QVariantList kp, tier, sigma;
+                kp.reserve(17 * 3);
+                for (int j = 0; j < 17; ++j) {
+                    kp.append(f.kp[size_t(j)].x());
+                    kp.append(f.kp[size_t(j)].y());
+                    kp.append(double(f.conf[size_t(j)]));
+                    tier.append(int(x.tier[size_t(j)]));
+                    sigma.append(double(x.sigma[size_t(j)]));
+                }
+                smoothed.append(QVariantMap{
+                    { QStringLiteral("t_us"),  static_cast<qlonglong>(f.t_us) },
+                    { QStringLiteral("kp"),    kp },
+                    { QStringLiteral("tier"),  tier },
+                    { QStringLiteral("sigma"), sigma } });
+            }
+            pose2d.insert(QStringLiteral("smoothed"), smoothed);
+        }
+        detail.insert(QStringLiteral("pose2d"), pose2d);
     }
     if (a.shaft.valid && !a.shaft.samples.empty()
         && a.shaft.frameWidth > 0 && a.shaft.frameHeight > 0) {

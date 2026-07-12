@@ -216,9 +216,20 @@ bool DiskReplaySource::load(const QString &swingDir, double speed)
             QVariantList frames;
             for (const QJsonValue &fv : p2[QStringLiteral("frames")].toArray())
                 frames.append(relTimedMap(fv.toObject(), t0));
-            m_analysisDetail.insert(QStringLiteral("pose2d"),
-                                    QVariantMap{ { QStringLiteral("camera"), p2[QStringLiteral("camera")].toInt() },
-                                                 { QStringLiteral("frames"), frames } });
+            QVariantMap pose2d{ { QStringLiteral("camera"), p2[QStringLiteral("camera")].toInt() },
+                                { QStringLiteral("frames"), frames } };
+            // Motion-overlay smoothed companion track (pose_smoother.cpp): re-time
+            // each frame's t_us into the window-relative domain EXACTLY like `frames`
+            // (relTimedMap re-times only the top-level t_us; kp/tier/sigma pass through
+            // verbatim) so the replay playhead indexes it in the same domain. Present
+            // only when the swing was analysed with the smoother.
+            if (p2.contains(QStringLiteral("smoothed"))) {
+                QVariantList smoothed;
+                for (const QJsonValue &sv2 : p2[QStringLiteral("smoothed")].toArray())
+                    smoothed.append(relTimedMap(sv2.toObject(), t0));
+                pose2d.insert(QStringLiteral("smoothed"), smoothed);
+            }
+            m_analysisDetail.insert(QStringLiteral("pose2d"), pose2d);
         }
         if (an.contains(QStringLiteral("club"))) {
             const QJsonObject cb = an[QStringLiteral("club")].toObject();

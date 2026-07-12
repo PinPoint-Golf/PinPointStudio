@@ -28,6 +28,7 @@
 // the instance's frame feed as soon as the instance arrives.
 
 import QtQuick
+import QtQuick.Shapes
 import PinPointStudio
 import QtMultimedia
 
@@ -75,6 +76,98 @@ Item {
     property bool showSynthTier:        true
     property bool annotationsEnabled:   false  // telestrator overlay (analyse view only)
 
+    // ── Motion overlay (per-element render modes) ─────────────────────────────
+    // The analysed replay overlay renders each skeleton/club element in one of
+    // four modes — off / frame / fan / trace — resolved by ViewLayout per session
+    // mode and passed down by the host. motionOn is the master switch (mirrors the
+    // legacy showReplayOverlay gate; wired to the same value). motionModes is the
+    // {element: mode} map — an EMPTY map means "all frame" (legacy full-skeleton
+    // draw). The LIVE skeletonCanvas is deliberately NOT gated by these: it stays
+    // pixel-identical to the pre-motion live overlay (see skeletonCanvas.onPaint).
+    property bool   motionOn: true
+    property var    motionModes: ({})
+    property string motionTraceTarget: ""      // "" ⇒ per-element default anchors
+    property bool   leadIsLeft: true           // RH golfer ⇒ lead side is left (kp5/7/9)
+    // Dev-only: swap the smoothed pose series back to raw detector frames for
+    // frame/fan debugging (trace is always smoothed-only). No UI hook today —
+    // flip in QML to inspect the raw detections. If a project-wide dev-overlay
+    // AppSettings flag is added later, bind it here.
+    property bool   showRawDetections: false
+    // Fan-mode trailing window (ms of history before the playhead) and the cap on
+    // frames drawn in that window (subsample stride bounds per-paint cost). Both
+    // are tuning candidates.
+    readonly property int fanWindowMs: 240
+    readonly property int kFanMaxFrames: 12
+
+    readonly property var _traceElements: ["arms", "spine", "shoulders", "hips", "legs", "shaft"]
+
+    // Per-element render mode, master-gated. Empty map ⇒ "frame" (legacy full draw).
+    function _elemMode(key) {
+        if (!root.motionOn)
+            return "off"
+        var m = root.motionModes
+        return (m && m[key]) ? m[key] : "frame"
+    }
+
+    // Normalized [x,y] anchor point for an element's trace at one smoothed frame,
+    // or null to skip (tier Off / a missing derived-midpoint parent). `target` is
+    // the explicit motionTraceTarget override, or "" for the element's default.
+    function _traceAnchor(entry, elem, target, leadLeft) {
+        var kp = entry.kp, tier = entry.tier
+        function jtOff(j)  { return tier ? (tier[j] === 0) : (kp[j * 3 + 2] <= 0) }
+        function pt(j)     { return jtOff(j) ? null : [kp[j * 3], kp[j * 3 + 1]] }
+        function mid(a, b) { var pa = pt(a), pb = pt(b)
+                             return (pa && pb) ? [(pa[0] + pb[0]) * 0.5, (pa[1] + pb[1]) * 0.5] : null }
+        var tt = target
+        if (tt === "") {
+            switch (elem) {
+                case "arms":      tt = "leadWrist";    break
+                case "spine":     tt = "neckMid";      break
+                case "shoulders": tt = "leadShoulder"; break
+                case "hips":      tt = "pelvisMid";    break
+                case "legs":      tt = "leadAnkle";    break
+                default:          tt = "clubhead";     break
+            }
+        }
+        switch (tt) {
+            case "head":         return pt(0)
+            case "leadShoulder": return pt(leadLeft ? 5 : 6)
+            case "leadWrist":    return pt(leadLeft ? 9 : 10)
+            case "leadAnkle":    return pt(leadLeft ? 15 : 16)
+            case "neckMid":      return mid(5, 6)
+            case "pelvisMid":    return mid(11, 12)
+        }
+        return null   // clubhead resolved by the shaft-sample path, not here
+    }
+
+    // Normalized polyline for an element's trace from track start → playhead.
+    // Body elements read the SMOOTHED series ONLY (absent ⇒ empty, matching the
+    // panel greying); the shaft reads the club-sample head points (all tiers,
+    // conf>0). O(playhead index) — rebuilt on playhead/series/element change; the
+    // bisect only locates the cut point, the polyline itself is inherently that long.
+    function _traceNormPoints(elem) {
+        var t = root._replayPlayheadUs
+        var out = []
+        var i, pi
+        if (elem === "shaft") {
+            var cs = replayOverlay._clubSamples
+            pi = replayOverlay._indexFor(cs, t)
+            for (i = 0; i <= pi; ++i) {
+                var s = cs[i]
+                if (!s || s.conf <= 0) continue
+                out.push(Qt.point(s.head[0], s.head[1]))
+            }
+            return out
+        }
+        var sm = replayOverlay._smoothed
+        pi = replayOverlay._indexFor(sm, t)
+        for (i = 0; i <= pi; ++i) {
+            var a = root._traceAnchor(sm[i], elem, root.motionTraceTarget, root.leadIsLeft)
+            if (a) out.push(Qt.point(a[0], a[1]))
+        }
+        return out
+    }
+
     // Skeleton edge definitions, shared by the live pose canvas and the
     // replay overlay — colours mapped to theme tokens. Left-body edges use
     // colorGood; right-body use colorAccent; mid-line connections use colorWarn.
@@ -114,9 +207,26 @@ Item {
     // scaled from torso length, the fixed cyan Theme.pose* palette. gx(j)/gy(j)
     // return pixel coords for keypoint j; gs(j) its score; alphaScale mutes the
     // whole overlay (1.0 live, <1 when it sits over replay footage).
-    function paintBlueprint(ctx, cr, gx, gy, gs, alphaScale) {
+    function paintBlueprint(ctx, cr, gx, gy, gs, alphaScale, emOn) {
         var kMinScore = 0.25
         function vis(j) { return gs(j) >= kMinScore }
+        // Per-element render gate — emOn(key) is true when that element should
+        // draw in FRAME mode. When emOn is undefined the whole skeleton draws
+        // (legacy / live path: pixel-identical to the pre-motion behaviour).
+        function on(k) { return !emOn || emOn(k) }
+        function boneElem(a, b) {
+            if (a === 5 && b === 6)   return "shoulders"
+            if (a === 11 && b === 12) return "hips"
+            if ((a === 5 && b === 7) || (a === 7 && b === 9)
+             || (a === 6 && b === 8) || (a === 8 && b === 10)) return "arms"
+            return "legs"   // 11-13, 13-15, 12-14, 14-16
+        }
+        function jointElem(j) {
+            if (j === 5 || j === 6)   return "shoulders"
+            if (j === 7 || j === 8 || j === 9 || j === 10) return "arms"
+            if (j === 11 || j === 12) return "hips"
+            return "legs"   // 13, 14, 15, 16
+        }
 
         // Derived midpoints (visible only when both parents are).
         var neckVis   = vis(5)  && vis(6)
@@ -140,31 +250,34 @@ Item {
 
         ctx.lineCap = "round"
 
-        // 1. Faint torso sides — background structure, drawn first.
-        ctx.strokeStyle = cBone
-        ctx.lineWidth   = 0.017 * scale
-        ctx.globalAlpha = 0.28 * alphaScale
-        if (vis(5) && vis(11)) { ctx.beginPath(); ctx.moveTo(gx(5), gy(5)); ctx.lineTo(gx(11), gy(11)); ctx.stroke() }
-        if (vis(6) && vis(12)) { ctx.beginPath(); ctx.moveTo(gx(6), gy(6)); ctx.lineTo(gx(12), gy(12)); ctx.stroke() }
+        // 1. Faint torso sides — background structure, drawn first. (spine)
+        if (on("spine")) {
+            ctx.strokeStyle = cBone
+            ctx.lineWidth   = 0.017 * scale
+            ctx.globalAlpha = 0.28 * alphaScale
+            if (vis(5) && vis(11)) { ctx.beginPath(); ctx.moveTo(gx(5), gy(5)); ctx.lineTo(gx(11), gy(11)); ctx.stroke() }
+            if (vis(6) && vis(12)) { ctx.beginPath(); ctx.moveTo(gx(6), gy(6)); ctx.lineTo(gx(12), gy(12)); ctx.stroke() }
+        }
 
-        // 2. Bones — graduated width, confidence-driven alpha.
+        // 2. Bones — graduated width, confidence-driven alpha; gated per element.
         ctx.strokeStyle = cBone
         for (var i = 0; i < root.kBlueprintBones.length; ++i) {
             var b = root.kBlueprintBones[i]
             if (!vis(b.a) || !vis(b.b)) continue
+            if (!on(boneElem(b.a, b.b))) continue
             ctx.globalAlpha = (0.4 + 0.6 * Math.min(gs(b.a), gs(b.b))) * alphaScale
             ctx.lineWidth   = b.w * scale
             ctx.beginPath(); ctx.moveTo(gx(b.a), gy(b.a)); ctx.lineTo(gx(b.b), gy(b.b)); ctx.stroke()
         }
-        // Neck bone: derived neck → Nose.
-        if (neckVis && vis(0)) {
+        // Neck bone: derived neck → Nose. (shoulders)
+        if (on("shoulders") && neckVis && vis(0)) {
             ctx.globalAlpha = (0.4 + 0.6 * Math.min(neckScore, gs(0))) * alphaScale
             ctx.lineWidth   = 0.037 * scale
             ctx.beginPath(); ctx.moveTo(nX, nY); ctx.lineTo(gx(0), gy(0)); ctx.stroke()
         }
 
-        // 3. Spine — hero element — gradient pen + a tick at each end.
-        if (haveSpine) {
+        // 3. Spine — hero element — gradient pen + a tick at each end. (spine)
+        if (on("spine") && haveSpine) {
             var grad = ctx.createLinearGradient(nX, nY, pX, pY)
             grad.addColorStop(0, cTop)
             grad.addColorStop(1, cBot)
@@ -189,7 +302,7 @@ Item {
         // 4. Joints — concentric rings for body keypoints 5–16; shoulders/hips
         //    also get a solid centre dot. No ring on the nose.
         for (var j = 5; j <= 16; ++j) {
-            if (!vis(j)) continue
+            if (!vis(j) || !on(jointElem(j))) continue
             var big = (j === 5 || j === 6 || j === 11 || j === 12)
             var r = (big ? 0.056 : 0.049) * scale
             ctx.globalAlpha = alphaScale
@@ -206,8 +319,8 @@ Item {
             }
         }
 
-        // 5. Head marker — the only head geometry: an unfilled ring on the Nose.
-        if (vis(0)) {
+        // 5. Head marker — the only head geometry: an unfilled ring on the Nose. (shoulders)
+        if (on("shoulders") && vis(0)) {
             ctx.globalAlpha = (0.5 + 0.5 * gs(0)) * alphaScale
             ctx.strokeStyle = cBone
             ctx.lineWidth   = 0.025 * scale
@@ -218,15 +331,120 @@ Item {
         ctx.globalAlpha = alphaScale
         ctx.fillStyle   = cTop
         var dd = 0.052 * scale
-        if (neckVis) {
+        if (on("shoulders") && neckVis) {
             ctx.beginPath(); ctx.moveTo(nX, nY - dd); ctx.lineTo(nX + dd, nY)
             ctx.lineTo(nX, nY + dd); ctx.lineTo(nX - dd, nY); ctx.closePath(); ctx.fill()
         }
-        if (pelvisVis) {
+        if (on("hips") && pelvisVis) {
             ctx.beginPath(); ctx.moveTo(pX, pY - dd); ctx.lineTo(pX + dd, pY)
             ctx.lineTo(pX, pY + dd); ctx.lineTo(pX - dd, pY); ctx.closePath(); ctx.fill()
         }
 
+        ctx.globalAlpha = 1.0
+    }
+
+    // One skeleton element drawn for FAN mode (mouse-trail). `full` adds the joint
+    // rings / diamonds / head ring (used only for the current playhead frame);
+    // otherwise bones only — the decaying historical frames. `leadLeft` selects the
+    // lead arm for the arms element (fan draws the lead arm only). Stroke styles and
+    // widths mirror paintBlueprint so a fan's current frame reads like a frame-mode
+    // element. The scale S is passed in (shared across the trail so widths don't
+    // shimmer frame-to-frame). Used only by the replay overlay's fan pass.
+    function _paintElem(ctx, cr, kp, elem, alpha, full, leadLeft, S) {
+        var kMinScore = 0.25
+        function px(j) { return kp[j * 3]     * cr.width  + cr.x }
+        function py(j) { return kp[j * 3 + 1] * cr.height + cr.y }
+        function ps(j) { return kp[j * 3 + 2] }
+        function vis(j) { return ps(j) >= kMinScore }
+        var cBone = Qt.rgba(Theme.poseBone.r, Theme.poseBone.g, Theme.poseBone.b, 1)
+        var cInk  = Qt.rgba(Theme.poseInk.r, Theme.poseInk.g, Theme.poseInk.b, Theme.poseInk.a)
+        var cTop  = Qt.rgba(Theme.poseSpineTop.r,    Theme.poseSpineTop.g,    Theme.poseSpineTop.b,    1)
+        var cBot  = Qt.rgba(Theme.poseSpineBottom.r, Theme.poseSpineBottom.g, Theme.poseSpineBottom.b, 1)
+        ctx.lineCap = "round"
+
+        function bone(a, b, w) {
+            if (!vis(a) || !vis(b)) return
+            ctx.strokeStyle = cBone
+            ctx.globalAlpha = (0.4 + 0.6 * Math.min(ps(a), ps(b))) * alpha
+            ctx.lineWidth   = w * S
+            ctx.beginPath(); ctx.moveTo(px(a), py(a)); ctx.lineTo(px(b), py(b)); ctx.stroke()
+        }
+        function node(j, big) {
+            if (!vis(j)) return
+            var r = (big ? 0.056 : 0.049) * S
+            ctx.globalAlpha = alpha
+            ctx.fillStyle   = cInk
+            ctx.beginPath(); ctx.arc(px(j), py(j), r, 0, Math.PI * 2); ctx.fill()
+            ctx.globalAlpha = (0.5 + 0.5 * ps(j)) * alpha
+            ctx.strokeStyle = cBone
+            ctx.lineWidth   = 0.020 * S
+            ctx.beginPath(); ctx.arc(px(j), py(j), r, 0, Math.PI * 2); ctx.stroke()
+            if (big) {
+                ctx.globalAlpha = alpha
+                ctx.fillStyle   = cBone
+                ctx.beginPath(); ctx.arc(px(j), py(j), 0.017 * S, 0, Math.PI * 2); ctx.fill()
+            }
+        }
+        function diamond(cx, cy) {
+            var ddd = 0.052 * S
+            ctx.globalAlpha = alpha
+            ctx.fillStyle   = cTop
+            ctx.beginPath(); ctx.moveTo(cx, cy - ddd); ctx.lineTo(cx + ddd, cy)
+            ctx.lineTo(cx, cy + ddd); ctx.lineTo(cx - ddd, cy); ctx.closePath(); ctx.fill()
+        }
+
+        if (elem === "arms") {
+            if (leadLeft) { bone(5, 7, 0.049); bone(7, 9, 0.032) }
+            else          { bone(6, 8, 0.049); bone(8, 10, 0.032) }
+            if (full) { node(leadLeft ? 7 : 8, false); node(leadLeft ? 9 : 10, false) }
+        } else if (elem === "shoulders") {
+            bone(5, 6, 0.037)
+            if (vis(5) && vis(6) && vis(0)) {   // derived neck → nose
+                var snx = (px(5) + px(6)) * 0.5, sny = (py(5) + py(6)) * 0.5
+                ctx.strokeStyle = cBone
+                ctx.globalAlpha = (0.4 + 0.6 * Math.min(Math.min(ps(5), ps(6)), ps(0))) * alpha
+                ctx.lineWidth   = 0.037 * S
+                ctx.beginPath(); ctx.moveTo(snx, sny); ctx.lineTo(px(0), py(0)); ctx.stroke()
+            }
+            if (full) {
+                node(5, true); node(6, true)
+                if (vis(0)) {
+                    ctx.globalAlpha = (0.5 + 0.5 * ps(0)) * alpha
+                    ctx.strokeStyle = cBone
+                    ctx.lineWidth   = 0.025 * S
+                    ctx.beginPath(); ctx.arc(px(0), py(0), 0.123 * S, 0, Math.PI * 2); ctx.stroke()
+                }
+                if (vis(5) && vis(6)) diamond((px(5) + px(6)) * 0.5, (py(5) + py(6)) * 0.5)
+            }
+        } else if (elem === "spine") {
+            if (vis(5) && vis(6) && vis(11) && vis(12)) {
+                var sX = (px(5) + px(6)) * 0.5,   sY = (py(5) + py(6)) * 0.5
+                var pX = (px(11) + px(12)) * 0.5, pY = (py(11) + py(12)) * 0.5
+                var grad = ctx.createLinearGradient(sX, sY, pX, pY)
+                grad.addColorStop(0, cTop); grad.addColorStop(1, cBot)
+                ctx.strokeStyle = grad
+                ctx.globalAlpha = alpha
+                ctx.lineWidth   = 0.068 * S
+                ctx.beginPath(); ctx.moveTo(sX, sY); ctx.lineTo(pX, pY); ctx.stroke()
+                if (full) {   // faint torso sides accompany the current-frame spine
+                    ctx.strokeStyle = cBone
+                    ctx.globalAlpha = 0.28 * alpha
+                    ctx.lineWidth   = 0.017 * S
+                    if (vis(5) && vis(11)) { ctx.beginPath(); ctx.moveTo(px(5), py(5)); ctx.lineTo(px(11), py(11)); ctx.stroke() }
+                    if (vis(6) && vis(12)) { ctx.beginPath(); ctx.moveTo(px(6), py(6)); ctx.lineTo(px(12), py(12)); ctx.stroke() }
+                }
+            }
+        } else if (elem === "hips") {
+            bone(11, 12, 0.037)
+            if (full) {
+                node(11, true); node(12, true)
+                if (vis(11) && vis(12)) diamond((px(11) + px(12)) * 0.5, (py(11) + py(12)) * 0.5)
+            }
+        } else if (elem === "legs") {
+            bone(11, 13, 0.054); bone(13, 15, 0.037)
+            bone(12, 14, 0.054); bone(14, 16, 0.037)
+            if (full) { node(13, false); node(15, false); node(14, false); node(16, false) }
+        }
         ctx.globalAlpha = 1.0
     }
 
@@ -517,9 +735,24 @@ Item {
             // Bound from the active replay's detail — pose kp flat [x,y,c]×17 and
             // club samples with normalized grip/head (toAnalysisDetail shapes).
             // root._replayDetail resolves to disk (Review) or in-window (Capture).
+            // Smoothed-first: the Phase-2 smoothed series carries the render-alpha
+            // contract (bridged points ≥0.5) and kills detector jitter; fall back to
+            // raw detector frames on old swings (no smoothed) or when the dev raw
+            // toggle is set. Same {t_us, kp[51]} shape either way — the frame-mode
+            // painter is unchanged. Drives the FRAME pass.
             readonly property var _poseFrames: {
                 var d = root._replayDetail
+                if (!root.showRawDetections && d && d.pose2d && d.pose2d.smoothed && d.pose2d.smoothed.length)
+                    return d.pose2d.smoothed
                 return (d && d.pose2d && d.pose2d.frames) ? d.pose2d.frames : []
+            }
+            // Smoothed-ONLY series — the BODY fan and trace read this (no raw
+            // fallback: a jittery trail/trace is the artefact this feature removes).
+            // Empty on old swings without a smoothed series ⇒ body fan/trace draw
+            // nothing (shaft fan/trace still work — club samples always exist).
+            readonly property var _smoothed: {
+                var d = root._replayDetail
+                return (d && d.pose2d && d.pose2d.smoothed && d.pose2d.smoothed.length) ? d.pose2d.smoothed : []
             }
             readonly property var _clubSamples: {
                 var d = root._replayDetail
@@ -602,6 +835,7 @@ Item {
             }
             onVisibleChanged: if (visible) requestPaint()
             on_PoseFramesChanged:  if (visible) requestPaint()
+            on_SmoothedChanged:    if (visible) requestPaint()
             on_ClubSamplesChanged: if (visible) requestPaint()
             on_BallSamplesChanged: if (visible) requestPaint()
             on_ClubSynthChanged:     if (visible) requestPaint()
@@ -633,22 +867,11 @@ Item {
                 var cClubInk = Qt.rgba(Theme.poseInk.r, Theme.poseInk.g, Theme.poseInk.b, Theme.poseInk.a)
                 var clubMute = 0.9
 
-                // Analyzed skeleton — Biomech Blueprint, muted (sits over footage).
+                // Frame-mode pose index + the shared club/fan scale (torso
+                // reference; fall back to frame height when the pose is absent/frozen
+                // at this playhead). Hoisted so every club-family tier and the fan
+                // pass lock their stroke widths to one dimension.
                 var pi = _indexFor(_poseFrames, t)
-                if (pi >= 0) {
-                    var kp = _poseFrames[pi].kp
-                    var gx = function(j) { return kp[j * 3]     * cr.width  + cr.x }
-                    var gy = function(j) { return kp[j * 3 + 1] * cr.height + cr.y }
-                    var gs = function(j) { return kp[j * 3 + 2] }
-                    root.paintBlueprint(ctx, cr, gx, gy, gs, 0.7)
-                }
-
-                // Scale the club strokes off the same torso reference as the
-                // skeleton so every club-family tier locks to one dimension;
-                // fall back to frame height when the pose is absent/frozen at
-                // this playhead. Hoisted above the measured-club block (rather
-                // than computed only when a measured sample exists) so the
-                // Layer C synth-tier ghost below, which draws first, shares it.
                 var S
                 if (pi >= 0) {
                     var pkp = _poseFrames[pi].kp
@@ -658,6 +881,45 @@ Item {
                             function(j) { return pkp[j * 3 + 2] }, cr)
                 } else {
                     S = Math.max(0.15 * cr.height, 20)
+                }
+                var shaftMode = root._elemMode("shaft")
+
+                // FRAME pass — Biomech Blueprint, muted (sits over footage); only the
+                // body elements in "frame" mode draw. The mask returns true for every
+                // element when motionModes is empty ⇒ legacy full skeleton.
+                if (pi >= 0) {
+                    var kp = _poseFrames[pi].kp
+                    var gx = function(j) { return kp[j * 3]     * cr.width  + cr.x }
+                    var gy = function(j) { return kp[j * 3 + 1] * cr.height + cr.y }
+                    var gs = function(j) { return kp[j * 3 + 2] }
+                    root.paintBlueprint(ctx, cr, gx, gy, gs, 0.7,
+                                        function(key) { return root._elemMode(key) === "frame" })
+                }
+
+                // FAN pass — body elements in "fan" mode: the last fanWindowMs of the
+                // SMOOTHED series before the playhead as a decaying mouse-trail (oldest
+                // faintest), then the current frame full. Subsampled to ≤ kFanMaxFrames
+                // so per-paint cost stays bounded at high capture fps. arms fans the
+                // LEAD arm only; the other body groups fan their bones.
+                var sm = _smoothed
+                if (sm.length > 0) {
+                    var eFi = _indexFor(sm, t)
+                    if (eFi >= 0) {
+                        var sFi = _indexFor(sm, t - root.fanWindowMs * 1000)
+                        if (sFi < 0) sFi = 0
+                        var fspan   = Math.max(1, eFi - sFi)
+                        var fstride = Math.max(1, Math.ceil((eFi - sFi + 1) / root.kFanMaxFrames))
+                        var fanEls  = ["arms", "spine", "shoulders", "hips", "legs"]
+                        for (var fe = 0; fe < fanEls.length; ++fe) {
+                            var fel = fanEls[fe]
+                            if (root._elemMode(fel) !== "fan") continue
+                            for (var fk = sFi; fk < eFi; fk += fstride) {
+                                var fa = 0.08 + 0.47 * (fk - sFi) / fspan     // 0.08 → 0.55
+                                root._paintElem(ctx, cr, sm[fk].kp, fel, fa * 0.7, false, root.leadIsLeft, S)
+                            }
+                            root._paintElem(ctx, cr, sm[eFi].kp, fel, 0.7, true, root.leadIsLeft, S)
+                        }
+                    }
                 }
 
                 // Layer C synthesized tier (shaft_position_first design §2 Layer
@@ -670,7 +932,7 @@ Item {
                 // series frame interval from the nearest sample (derived from
                 // the series' own local spacing), so a coarse/gappy series
                 // doesn't leave a stale ghost sitting at its last anchor.
-                if (root.showSynthTier && _clubSynth.length > 0) {
+                if (shaftMode === "frame" && root.showSynthTier && _clubSynth.length > 0) {
                     var si  = _indexFor(_clubSynth, t)
                     var siN = (si + 1 < _clubSynth.length) ? si + 1 : (si > 0 ? si - 1 : si)
                     var synthIntervalUs = Math.abs(_clubSynth[siN].t_us - _clubSynth[si].t_us) || 33333
@@ -698,7 +960,7 @@ Item {
                 // with 0x10, so it renders in the same projected-dim style. The
                 // trail only bridges two measured heads (no fabricated arcs).
                 var ci = _indexFor(_clubSamples, t)
-                if (ci >= 0) {
+                if (shaftMode === "frame" && ci >= 0) {
                     var kHeadProjected = 0x10
 
                     // Head trail — measured heads only, accent, scale-relative width.
@@ -803,7 +1065,7 @@ Item {
                 // milestone boundary-value fit (PositionSource::MilestoneFit,
                 // source === 1); the standard club accent marks a raw track
                 // sample (source === 0).
-                if (root.showSynthTier && _clubPositions.length > 0) {
+                if (shaftMode === "frame" && root.showSynthTier && _clubPositions.length > 0) {
                     var kMilestoneFit = 1
                     var kPosWindowUs  = 40000
 
@@ -841,11 +1103,57 @@ Item {
                     ctx.globalAlpha = 1.0
                 }
 
+                // FAN mode for the shaft — a decaying grip→head trail over the last
+                // fanWindowMs of measured club samples, then the current sample as a
+                // full-alpha hero pen + head dot. Distinct from the frame-mode kTrail
+                // (a short measured-head trail on the sheathed shaft); the fan is the
+                // longer mouse-trail motion read.
+                if (shaftMode === "fan" && _clubSamples.length > 0) {
+                    var feI = _indexFor(_clubSamples, t)
+                    if (feI >= 0) {
+                        var fsI = _indexFor(_clubSamples, t - root.fanWindowMs * 1000)
+                        if (fsI < 0) fsI = 0
+                        var cspan = Math.max(1, feI - fsI)
+                        var cstr  = Math.max(1, Math.ceil((feI - fsI + 1) / root.kFanMaxFrames))
+                        ctx.lineCap     = "round"
+                        ctx.strokeStyle = cClub
+                        for (var fck = fsI; fck < feI; fck += cstr) {
+                            var fcs = _clubSamples[fck]
+                            if (!fcs || fcs.conf <= 0) continue
+                            var ffgx = fcs.grip[0] * cr.width + cr.x, ffgy = fcs.grip[1] * cr.height + cr.y
+                            var ffhx = fcs.head[0] * cr.width + cr.x, ffhy = fcs.head[1] * cr.height + cr.y
+                            var ffhd = _clampHeadToRect(ffgx, ffgy, ffhx, ffhy, cr)
+                            if (!ffhd) continue
+                            ctx.globalAlpha = (0.08 + 0.47 * (fck - fsI) / cspan) * 0.7 * clubMute
+                            ctx.lineWidth   = 0.020 * S
+                            ctx.beginPath(); ctx.moveTo(ffgx, ffgy); ctx.lineTo(ffhd[0], ffhd[1]); ctx.stroke()
+                        }
+                        var fcur = _clubSamples[feI]
+                        if (fcur && fcur.conf > 0) {
+                            var cgx = fcur.grip[0] * cr.width + cr.x, cgy = fcur.grip[1] * cr.height + cr.y
+                            var chx = fcur.head[0] * cr.width + cr.x, chy = fcur.head[1] * cr.height + cr.y
+                            var chd = _clampHeadToRect(cgx, cgy, chx, chy, cr)
+                            if (chd) {
+                                var gradF = ctx.createLinearGradient(cgx, cgy, chd[0], chd[1])
+                                gradF.addColorStop(0, cClubHi); gradF.addColorStop(1, cClub)
+                                ctx.strokeStyle = gradF
+                                ctx.globalAlpha = (0.4 + 0.6 * fcur.conf) * 0.7 * clubMute
+                                ctx.lineWidth   = 0.034 * S
+                                ctx.beginPath(); ctx.moveTo(cgx, cgy); ctx.lineTo(chd[0], chd[1]); ctx.stroke()
+                                ctx.globalAlpha = 0.7 * clubMute
+                                ctx.fillStyle   = cClub
+                                ctx.beginPath(); ctx.arc(chd[0], chd[1], 0.020 * S, 0, Math.PI * 2); ctx.fill()
+                            }
+                        }
+                        ctx.globalAlpha = 1.0
+                    }
+                }
+
                 // Ball: the detected circle at the current playhead — matches the
                 // live green ball circle. found=false (post-launch) draws nothing,
-                // so the ball vanishes at impact.
+                // so the ball vanishes at impact. Hidden when the ball element is off.
                 var bi = _indexFor(_ballSamples, t)
-                if (bi >= 0 && _ballSamples[bi].found) {
+                if (root._elemMode("ball") !== "off" && bi >= 0 && _ballSamples[bi].found) {
                     var b  = _ballSamples[bi]
                     var bx = b.x * cr.width + cr.x, by = b.y * cr.height + cr.y
                     var br = Math.max(4, b.r * cr.width)
@@ -861,7 +1169,7 @@ Item {
                 // solid actual line; lets you watch model vs measurement diverge.
                 // Dev/test chrome: off by default. σ_β recovered from conf for the
                 // optional envelope cone (conf = 1 − σ_βDeg/60 in the analyzer).
-                if (root.showPredictedShaft && _clubPredicted.length > 0) {
+                if (shaftMode === "frame" && root.showPredictedShaft && _clubPredicted.length > 0) {
                     var ppi = _indexFor(_clubPredicted, t)
                     if (ppi >= 0) {
                         var ps  = _clubPredicted[ppi]
@@ -899,6 +1207,46 @@ Item {
                     }
                 }
                 ctx.globalAlpha = 1.0
+            }
+        }
+
+        // ── Motion TRACE polylines ────────────────────────────────────────
+        // One Shape per traceable element; visible only when that element is in
+        // "trace" mode. Coordinates map through root.contentRect exactly as the
+        // replay Canvas maps normalized → scene (the Shape occupies contentRect and
+        // PathPolyline scales by its width/height — mirrors PpTrace.qml), so a trace
+        // lands pixel-aligned with the skeleton. Body traces come from the smoothed
+        // series (empty ⇒ nothing draws), the shaft trace from club-sample heads.
+        // The point list rebuilds when the playhead / series / element changes.
+        Repeater {
+            model: root._traceElements
+            delegate: Shape {
+                id: traceShape
+                required property string modelData
+                readonly property bool _active: root.motionOn
+                        && root._replayActive
+                        && root._replayPerspective === 2
+                        && root._elemMode(modelData) === "trace"
+                property var pts: _active ? root._traceNormPoints(modelData) : []
+                visible: _active && pts.length > 1
+                x: root.contentRect.x
+                y: root.contentRect.y
+                width:  root.contentRect.width
+                height: root.contentRect.height
+                z: 21
+                preferredRendererType: Shape.CurveRenderer
+                ShapePath {
+                    strokeColor: Theme.colorAccent
+                    strokeWidth: Theme.sp(1)
+                    fillColor:   "transparent"
+                    joinStyle:   ShapePath.RoundJoin
+                    capStyle:    ShapePath.RoundCap
+                    PathPolyline {
+                        path: traceShape.pts.map(function (p) {
+                            return Qt.point(p.x * traceShape.width, p.y * traceShape.height)
+                        })
+                    }
+                }
             }
         }
 

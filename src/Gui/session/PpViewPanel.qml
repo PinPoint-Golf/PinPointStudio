@@ -144,37 +144,6 @@ Item {
                 }
             }
         }
-
-        PpDivider { width: parent.width }
-
-        // ── OVERLAYS ────────────────────────────────────────────────────────
-        // The analysis overlay (pose skeleton + club shaft + ball) drawn on the
-        // camera panel. Per-mode via ViewLayout — Capture / Replay / Analyse each
-        // remember their own state; this edits the CURRENT mode.
-        Column {
-            width: parent.width
-            spacing: Theme.sp(9)
-            Text {
-                text: qsTr("OVERLAYS")
-                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
-            }
-            Item {
-                width: parent.width
-                height: Theme.sp(20)
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("Pose overlay")
-                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                    color: ViewLayout.overlaysOn(SessionMode.mode) ? Theme.colorText : Theme.colorText2
-                }
-                MiniToggle {
-                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                    checked: ViewLayout.overlaysOn(SessionMode.mode)
-                    onToggled: ViewLayout.setOverlays(SessionMode.mode, !checked)
-                }
-            }
-        }
     }
 
     // ── arrangement schematic card ──────────────────────────────────────────

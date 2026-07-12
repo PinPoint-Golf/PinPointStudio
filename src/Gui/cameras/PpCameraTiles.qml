@@ -107,8 +107,16 @@ Item {
                 // Live ball circle rides the same live-pose gate as the ROI hint.
                 showBallOverlay: cameraManager.livePoseEnabled && sessionController.running
                 // Capture-mode ¼× post-shot auto-replay overlay follows the view's
-                // Pose overlay toggle (Capture setting == current mode here).
+                // Pose overlay toggle (Capture setting == current mode here). Chrome
+                // bindings above are left EXACTLY as-is (capture chrome unchanged v1).
                 showReplayOverlay: ViewLayout.overlaysOn(SessionMode.mode)
+                // Per-element motion modes for that ¼× auto-replay overlay. The
+                // Capture guard inside ViewLayout forces every body/shaft element to
+                // "off" (ball only), so the live skeleton is untouched by this.
+                motionOn:          ViewLayout.motionOn(SessionMode.mode)
+                motionModes:       ViewLayout.motionFor(SessionMode.mode).modes
+                motionTraceTarget: ViewLayout.motionTraceTarget(SessionMode.mode)
+                leadIsLeft:        ViewLayout.leadIsLeft()
             }
         }
 
@@ -131,9 +139,15 @@ Item {
                 showPoseOverlay: false        // live-pose canvas — replay uses replayOverlay
                 showStatsOverlay: false
                 showPerspectiveBadge: false
-                // Analyzed pose+shaft+ball overlay follows the view's Pose overlay
-                // toggle — covers both Replay and Analyse (this Repeater serves both).
-                showReplayOverlay: ViewLayout.overlaysOn(SessionMode.mode)
+                // Analyzed pose+shaft+ball overlay follows the view's motion master
+                // switch — covers both Replay and Analyse (this Repeater serves both).
+                // showReplayOverlay gates the Canvas visibility; motionOn is the same
+                // value (master off ⇒ nothing draws), with per-element modes below.
+                showReplayOverlay: ViewLayout.motionOn(SessionMode.mode)
+                motionOn:          ViewLayout.motionOn(SessionMode.mode)
+                motionModes:       ViewLayout.motionFor(SessionMode.mode).modes
+                motionTraceTarget: ViewLayout.motionTraceTarget(SessionMode.mode)
+                leadIsLeft:        ViewLayout.leadIsLeft()
                 // Telestrator is an Analyse-only affordance (not plain Replay).
                 annotationsEnabled: SessionMode.mode === SessionMode.analyse
             }

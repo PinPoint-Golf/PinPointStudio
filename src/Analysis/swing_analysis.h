@@ -240,9 +240,29 @@ struct PoseFrame2D {
     float   handConf = 0.f;          // 0 when wrist-fallback
 };
 
+// ── Motion-overlay pose smoother (Phase 1) honesty aux ──────────────────────
+// Per-frame per-keypoint provenance emitted by the offline RTS smoother
+// (src/Analysis/pose_smoother.{h,cpp}) alongside a smoothed PoseFrame2D. `tier`
+// drives the overlay paint policy (Off ⇒ raw passthrough, don't paint as
+// confident; Pred ⇒ a coasted/bridged estimate rendered like measured; Meas ⇒ a
+// measurement inside a confirmed run). `sigma` is the posterior positional σ in
+// PIXELS; 0 ⇒ no smoothed value for that keypoint that frame (the output kp is
+// the raw input passthrough). Parallel to the smoother's per-frame output.
+enum class PoseTier : uint8_t { Off = 0, Pred = 1, Meas = 2 };
+struct PoseKpAux {                       // per-frame per-keypoint smoother honesty
+    std::array<uint8_t, 17> tier{};      // PoseTier values
+    std::array<float, 17>   sigma{};     // posterior σ (px); 0 = no smoothed value
+};
+
 struct PoseTrack2D {
     pinpoint::SourceId camera = pinpoint::kInvalidSourceId;
     std::vector<PoseFrame2D> frames;
+    // Offline-smoothed companion track (pose_smoother.cpp, Motion overlay):
+    // parallel to `frames` (same t_us grid, normalized kp; conf carries the
+    // render-alpha contract), with per-kp honesty in `smoothedAux`. Empty on
+    // swings analysed before the smoother existed — additive only.
+    std::vector<PoseFrame2D> smoothed;
+    std::vector<PoseKpAux>   smoothedAux;
 };
 
 // One frame of ball-detector output (src/Pose/ball_detector.h BallDetection,

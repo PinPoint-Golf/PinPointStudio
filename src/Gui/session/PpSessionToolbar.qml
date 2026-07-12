@@ -90,6 +90,20 @@ Item {
     readonly property int  imuLowestBattery: imuManager.lowBatteryPercent
     readonly property bool imuBatteryLow:    imuLowestBattery >= 0 && imuLowestBattery < 50
 
+    // ── Motion pill label ────────────────────────────────────────────────────
+    // "Off" wins outright (master switch dominates); otherwise the active
+    // preset's label, or "Custom" once the user hand-edits an element away
+    // from any catalogue preset (ViewLayout.motionPreset flips to "custom").
+    readonly property string motionPillLabel: {
+        if (!ViewLayout.motionOn(SessionMode.mode)) return qsTr("Off")
+        var id = ViewLayout.motionPreset(SessionMode.mode)
+        if (id === "custom") return qsTr("Custom")
+        var cat = ViewLayout.presetCatalog()
+        for (var i = 0; i < cat.length; ++i)
+            if (cat[i].id === id) return cat[i].label
+        return id
+    }
+
     Rectangle {
         anchors.fill: parent
         color: Theme.aesthetic === "instrument" ? Theme.colorBg2 : Theme.colorSurface
@@ -364,8 +378,23 @@ Item {
             label: root.modeNames[SessionMode.mode]
             active: viewPopup.opened
             onClicked: {
-                camPopup.close(); imuPopup.close()
+                camPopup.close(); imuPopup.close(); motionPopup.close()
                 viewPopup.opened ? viewPopup.close() : viewPopup.open()
+            }
+        }
+
+        // ── Motion pill — edits the CURRENT mode's motion overlay layout ────
+        // Adjacent to View. Reuses ViewPill (generalized below with glyph/
+        // microLabel properties) rather than duplicating its markup.
+        ViewPill {
+            id: motionPill
+            glyph: "∿"
+            microLabel: qsTr("MOTION")
+            label: root.motionPillLabel
+            active: motionPopup.opened
+            onClicked: {
+                viewPopup.close(); camPopup.close(); imuPopup.close()
+                motionPopup.opened ? motionPopup.close() : motionPopup.open()
             }
         }
 
@@ -382,7 +411,10 @@ Item {
             ledColor: root.camNeedsAttention ? Theme.colorAttention
                        : root.camConnected > 0 ? Theme.colorGood : Theme.colorText3
             attention: root.camNeedsAttention
-            onClicked: { imuPopup.close(); viewPopup.close(); camPopup.opened ? camPopup.close() : camPopup.open() }
+            onClicked: {
+                imuPopup.close(); viewPopup.close(); motionPopup.close()
+                camPopup.opened ? camPopup.close() : camPopup.open()
+            }
         }
 
         // ── IMUs pill ───────────────────────────────────────────────────────
@@ -405,7 +437,10 @@ Item {
             attention: root.imuNeedsAttention && !root.imuBatteryLow
             warn: root.imuBatteryLow
             warnColor: root.imuLowestBattery <= 20 ? Theme.colorError : Theme.colorWarn
-            onClicked: { camPopup.close(); viewPopup.close(); imuPopup.opened ? imuPopup.close() : imuPopup.open() }
+            onClicked: {
+                camPopup.close(); viewPopup.close(); motionPopup.close()
+                imuPopup.opened ? imuPopup.close() : imuPopup.open()
+            }
         }
     }
 
@@ -451,6 +486,21 @@ Item {
     }
 
     Popup {
+        id: motionPopup
+        parent: motionPill
+        y: motionPill.height + Theme.sp(10)
+        x: motionPill.width - width
+        padding: 0
+        margins: Theme.sp(8)
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+        background: Rectangle {
+            color: Theme.colorSurface; radius: Theme.radiusLg
+            border.width: 1; border.color: Theme.colorBorderStrong
+        }
+        contentItem: PpMotionPanel { }
+    }
+
+    Popup {
         id: camPopup
         parent: camPill
         y: camPill.height + Theme.sp(10)
@@ -485,6 +535,10 @@ Item {
     component ViewPill: Rectangle {
         property string label: ""
         property bool   active: false
+        // Generalized for MotionPill (Phase 4): icon glyph + micro label above
+        // the value line, defaulting to the original View pill's values.
+        property string glyph:      "▦"
+        property string microLabel: qsTr("VIEW")
         signal clicked()
 
         Layout.alignment: Qt.AlignVCenter
@@ -523,7 +577,7 @@ Item {
                 Rectangle {
                     anchors.fill: parent; radius: Theme.radius; color: Theme.colorSurface
                     Text {
-                        anchors.centerIn: parent; text: "▦"   // ▦ — swap for project icon set
+                        anchors.centerIn: parent; text: glyph
                         font.family: Theme.fontSymbol; font.pixelSize: Theme.sp(18)
                         color: active ? Theme.colorAccent : Theme.colorText2
                     }
@@ -532,7 +586,7 @@ Item {
             Column {
                 Layout.alignment: Qt.AlignVCenter; spacing: Theme.sp(2)
                 Text {
-                    text: qsTr("VIEW"); font.family: Theme.fontData
+                    text: microLabel; font.family: Theme.fontData
                     font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingMicro
                     color: Theme.colorText3
                 }

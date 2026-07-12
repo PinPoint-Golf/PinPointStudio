@@ -311,6 +311,7 @@ qt_add_qml_module(PinPointStudio
         src/Gui/components/PpSegmentedControl.qml
         src/Gui/session/PpStagePanel.qml
         src/Gui/session/PpViewPanel.qml
+        src/Gui/session/PpMotionPanel.qml
         src/Gui/cameras/PpCameraTiles.qml
         src/Gui/session/PpModeStage.qml
         src/Gui/review/PpReplayCharts.qml
@@ -2174,6 +2175,8 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/shaft_track_assembly.cpp
     src/Analysis/clubhead_track.h
     src/Analysis/clubhead_track.cpp
+    src/Analysis/pose_smoother.h
+    src/Analysis/pose_smoother.cpp
     src/Analysis/shaft_tracker.h
     src/Analysis/shaft_tracker.cpp
     src/Analysis/ball_anchor.h
@@ -2439,6 +2442,7 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/shaft_tracker_math.cpp
         src/Analysis/shaft_track_assembly.cpp
         src/Analysis/clubhead_track.cpp
+        src/Analysis/pose_smoother.cpp
         src/Export/frame_decode.cpp
         src/Export/swing_doc.cpp
         src/Export/swing_paths.cpp

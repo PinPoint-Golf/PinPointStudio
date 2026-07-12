@@ -208,6 +208,13 @@ pp_add_test(club_length_fusion_test SOURCES club_length_fusion_test.cpp)
 # (no P8), NaN-φ (no P3/P5), noisy horizontal (fires once). Header-only, no fixture.
 pp_add_test(shaft_positions_test SOURCES shaft_positions_test.cpp)
 
+# Phase-1 motion-overlay pose smoother (pose_smoother.{h,cpp}): offline non-causal
+# RTS smoother for the 17 COCO keypoints — a 3-state [p,v,a] white-jerk sibling of
+# the clubhead HeadKf1D + runHeadTemporal, with variable dt + pixel-domain +
+# coast-budget-in-time segmentation. Qt-only (QPointF via swing_analysis.h), no
+# OpenCV; synthetic noisy circular arc, no fixture.
+pp_add_test(pose_smoother_test SOURCES pose_smoother_test.cpp ${ANALYSIS}/pose_smoother.cpp)
+
 # Layer C synthesis (shaft_synthesis.h): C¹ Hermite interpolation between P-anchors
 # — C⁰ continuity at anchors, conf decay shape, 200° unwrap onto the track branch,
 # strictly-between emission window, absent-anchor subsets. Header-only, Qt (QPointF/

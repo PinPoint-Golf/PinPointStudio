@@ -210,9 +210,39 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
                 { QStringLiteral("trail"), QJsonArray{ f.trailHand.x(), f.trailHand.y() } },
                 { QStringLiteral("handConf"), double(f.handConf) } });
         }
-        o[QStringLiteral("pose2d")] = QJsonObject{
+        QJsonObject pose2d{
             { QStringLiteral("camera"), int(a.pose2d.camera) },
             { QStringLiteral("frames"), frames } };
+        // Motion-overlay smoothed companion track (pose_smoother.cpp): parallel to
+        // `frames` on the same t_us grid — kp[x,y,c]×17 flat exactly like `frames`
+        // (conf carries the render-alpha contract) plus per-kp honesty tier[17] (int)
+        // and sigma[17] (px). No lead/trail/handConf — the hands are NOT smoothed.
+        // Written ONLY when non-empty (absent on swings analysed before the smoother
+        // existed, or a format-less path), so an empty smoothed vector serializes
+        // byte-identically to today. t_us is window-relative via rel(), same as frames'.
+        if (!a.pose2d.smoothed.empty()) {
+            QJsonArray smoothed;
+            const size_t n = std::min(a.pose2d.smoothed.size(), a.pose2d.smoothedAux.size());
+            for (size_t i = 0; i < n; ++i) {
+                const PoseFrame2D &f = a.pose2d.smoothed[i];
+                const PoseKpAux   &x = a.pose2d.smoothedAux[i];
+                QJsonArray kp, tier, sigma;
+                for (int j = 0; j < 17; ++j) {
+                    kp.append(f.kp[size_t(j)].x());
+                    kp.append(f.kp[size_t(j)].y());
+                    kp.append(double(f.conf[size_t(j)]));
+                    tier.append(int(x.tier[size_t(j)]));
+                    sigma.append(double(x.sigma[size_t(j)]));
+                }
+                smoothed.append(QJsonObject{
+                    { QStringLiteral("t_us"),  rel(f.t_us) },
+                    { QStringLiteral("kp"),    kp },
+                    { QStringLiteral("tier"),  tier },
+                    { QStringLiteral("sigma"), sigma } });
+            }
+            pose2d.insert(QStringLiteral("smoothed"), smoothed);
+        }
+        o[QStringLiteral("pose2d")] = pose2d;
     }
     if (a.shaft.valid && !a.shaft.samples.empty()
         && a.shaft.frameWidth > 0 && a.shaft.frameHeight > 0) {

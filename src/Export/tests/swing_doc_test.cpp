@@ -225,6 +225,10 @@ int main()
         check(qFuzzyCompare(pf0[QStringLiteral("handConf")].toDouble(), double(0.85f)), "handConf");
         check(qFuzzyCompare(pf0[QStringLiteral("lead")].toArray().at(1).toDouble(), 0.57),
               "lead hand y");
+        // Byte-additivity: an analysis with an empty smoothed vector must NOT emit
+        // the "smoothed" key (Motion-overlay Phase 2 additive contract).
+        check(!p2.contains(QStringLiteral("smoothed")),
+              "pose2d without smoothed omits the block (byte-additive)");
 
         check(an.contains(QStringLiteral("club")), "club block present");
         const QJsonObject cb = an[QStringLiteral("club")].toObject();
@@ -265,6 +269,83 @@ int main()
         check(qFuzzyCompare(b0[QStringLiteral("r")].toDouble(), double(0.02f)), "ball sample 0 radiusNorm");
         check(!bs.at(1).toObject()[QStringLiteral("found")].toBool(),
               "ball sample 1 post-launch not found");
+    }
+
+    std::printf("\n=== pose2d smoothed companion track (Motion overlay) ===\n");
+    {
+        // Absolute-domain manifest so we also verify smoothed t_us is written
+        // window-relative (re-based by clock.t0_us) exactly like frames'.
+        const qint64 T0 = 176400665083LL;
+        QJsonObject mSm = manifest;
+        mSm[QStringLiteral("clock")] = QJsonObject{ {QStringLiteral("t0_us"), double(T0)},
+                                                    {QStringLiteral("wallclock"),
+                                                     QStringLiteral("2026-06-08T16:00:00.000")} };
+        SwingAnalysis aSm;
+        aSm.tier = int(ReconstructionTier::Angles2D);
+        aSm.pose2d.camera = 3;
+        // Two RAW pose frames …
+        PoseFrame2D r0; r0.t_us = T0 + 1000000; r0.kp[5] = QPointF(0.30, 0.40); r0.conf[5] = 0.9f;
+        PoseFrame2D r1; r1.t_us = T0 + 1010000; r1.kp[5] = QPointF(0.31, 0.41); r1.conf[5] = 0.8f;
+        aSm.pose2d.frames = { r0, r1 };
+        // … and the parallel SMOOTHED companion + per-kp honesty aux.
+        PoseFrame2D s0; s0.t_us = T0 + 1000000; s0.kp[5] = QPointF(0.305, 0.405); s0.conf[5] = 0.95f;
+        PoseFrame2D s1; s1.t_us = T0 + 1010000; s1.kp[5] = QPointF(0.312, 0.412); s1.conf[5] = 0.85f;
+        aSm.pose2d.smoothed = { s0, s1 };
+        PoseKpAux x0; x0.tier[5] = uint8_t(PoseTier::Meas); x0.sigma[5] = 2.5f;
+        PoseKpAux x1; x1.tier[5] = uint8_t(PoseTier::Pred); x1.sigma[5] = 4.0f;
+        aSm.pose2d.smoothedAux = { x0, x1 };
+
+        const QString dirS = dir + QStringLiteral("_smoothed");
+        QDir().mkpath(dirS);
+        QString serr;
+        check(SwingDocWriter::writeSwingJson(dirS, mSm, &aSm, &serr), "smoothed write ok");
+
+        QFile fs(dirS + QStringLiteral("/swing.json"));
+        if (!fs.open(QIODevice::ReadOnly)) return 1;
+        const QJsonObject rs = QJsonDocument::fromJson(fs.readAll()).object();
+        fs.close();
+        const QJsonObject p2 =
+            rs[QStringLiteral("analysis")].toObject()[QStringLiteral("pose2d")].toObject();
+        check(p2.contains(QStringLiteral("smoothed")), "smoothed block present when populated");
+        check(p2[QStringLiteral("frames")].toArray().size() == 2,
+              "raw frames still present alongside smoothed");
+        const QJsonArray sm = p2[QStringLiteral("smoothed")].toArray();
+        check(sm.size() == 2, "smoothed two frames");
+        const QJsonObject sm0 = sm.at(0).toObject();
+        // t_us re-based to window-relative like frames.
+        check(static_cast<qint64>(sm0[QStringLiteral("t_us")].toDouble()) == 1000000,
+              "smoothed[0] t_us window-relative");
+        check(static_cast<qint64>(sm.at(1).toObject()[QStringLiteral("t_us")].toDouble()) == 1010000,
+              "smoothed[1] t_us window-relative");
+        check(sm0[QStringLiteral("kp")].toArray().size() == 17 * 3, "smoothed kp flat 51 long");
+        check(qFuzzyCompare(sm0[QStringLiteral("kp")].toArray().at(5 * 3).toDouble(), 0.305),
+              "smoothed kp[5].x carried");
+        check(qFuzzyCompare(sm0[QStringLiteral("kp")].toArray().at(5 * 3 + 2).toDouble(), double(0.95f)),
+              "smoothed kp[5] conf carried");
+        check(sm0[QStringLiteral("tier")].toArray().size() == 17, "smoothed tier 17 long");
+        check(sm0[QStringLiteral("tier")].toArray().at(5).toInt() == int(PoseTier::Meas),
+              "smoothed[0] tier[5] = Meas");
+        check(sm.at(1).toObject()[QStringLiteral("tier")].toArray().at(5).toInt() == int(PoseTier::Pred),
+              "smoothed[1] tier[5] = Pred");
+        check(sm0[QStringLiteral("sigma")].toArray().size() == 17, "smoothed sigma 17 long");
+        check(qFuzzyCompare(sm0[QStringLiteral("sigma")].toArray().at(5).toDouble(), double(2.5f)),
+              "smoothed sigma[5] carried");
+        // No hand fields on the smoothed frames (hands are not smoothed).
+        check(!sm0.contains(QStringLiteral("lead")) && !sm0.contains(QStringLiteral("handConf")),
+              "smoothed frame has no hand fields");
+
+        // Reader passthrough: the whole-object toVariantMap carries smoothed for free.
+        const PersistedShot ps = SwingDocReader::readSwingJson(dirS);
+        check(ps.ok, "smoothed reader ok");
+        const QVariantMap rp2 = ps.analysisDetail.value(QStringLiteral("pose2d")).toMap();
+        const QVariantList rsm = rp2.value(QStringLiteral("smoothed")).toList();
+        check(rsm.size() == 2, "reader analysisDetail.pose2d.smoothed len 2");
+        const QVariantMap rsm0 = rsm.at(0).toMap();
+        check(rsm0.value(QStringLiteral("kp")).toList().size() == 17 * 3, "reader smoothed kp flat 51");
+        check(rsm0.value(QStringLiteral("tier")).toList().at(5).toInt() == int(PoseTier::Meas),
+              "reader smoothed tier[5] = Meas");
+        check(qFuzzyCompare(rsm0.value(QStringLiteral("sigma")).toList().at(5).toDouble(), double(2.5f)),
+              "reader smoothed sigma[5] carried");
     }
 
     std::printf("\n=== reader round-trip ===\n");

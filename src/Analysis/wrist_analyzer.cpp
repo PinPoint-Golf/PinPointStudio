@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <variant>
 
 #include "analysis_tuning.h"
 #include "ball_runner.h"
@@ -32,6 +33,7 @@
 #include "metric_extractor.h"
 #include "phase_segmenter.h"
 #include "pose_runner.h"
+#include "pose_smoother.h"
 #include "shaft_tracker.h"
 #include "wrist_resemblance.h"
 #include "score_uncertainty.h"
@@ -355,6 +357,23 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
                                                         job.cameraSources.front());
         detail->timings.poseMs = int(poseWall.elapsed());
         if (!detail->pose2d.frames.empty()) {
+            // Motion overlay (Phase 2): run the offline non-causal RTS smoother
+            // ONCE here on the worker (never at load/paint), caching a companion
+            // smoothed track parallel to pose2d.frames. Frame pixel dims come from
+            // the face-on camera format — the SAME source PoseRunner / ShaftTracker
+            // de-normalize with (window.formatOf(camera) → CameraFormat width/
+            // height). When the format is unavailable (e.g. a SwingLab poseTrackPath
+            // injection over a source with no camera descriptor) the smoother is
+            // skipped — empty vectors degrade gracefully and the "smoothed" block is
+            // simply omitted from swing.json (additive-only).
+            const pinpoint::FormatDescriptor &fd = window.formatOf(job.cameraSources.front());
+            if (const auto *cfmt = std::get_if<pinpoint::CameraFormat>(&fd.format);
+                cfmt && cfmt->width > 0 && cfmt->height > 0) {
+                PoseSmootherOutput so = smoothPoseTrack(detail->pose2d.frames,
+                                                        int(cfmt->width), int(cfmt->height));
+                detail->pose2d.smoothed    = std::move(so.smoothed);
+                detail->pose2d.smoothedAux = std::move(so.aux);
+            }
             ShotAnalysisJob sub = job;
             if (job.progress)
                 sub.progress = [&job](float f) { job.progress(0.70f + 0.28f * f); };
