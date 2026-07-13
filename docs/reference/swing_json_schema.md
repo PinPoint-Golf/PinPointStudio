@@ -1,6 +1,6 @@
 # `swing.json` schema reference
 
-> **Date:** 2026-07-09 · **Applies to:** the per-shot `swing.json` manifest written to each swing directory · **Schema:** top-level `pinpoint.swing/2`, embedded `analysis` block `pinpoint.analysis/3`
+> **Date:** 2026-07-12 · **Applies to:** the per-shot `swing.json` manifest written to each swing directory · **Schema:** top-level `pinpoint.swing/2`, embedded `analysis` block `pinpoint.analysis/3`
 
 Every captured shot produces one directory (`<session>/swing_<NNNN>/`) containing the media and a single `swing.json` manifest. This document is the field-by-field reference. Snippets are from a real swing — `2026-07-05_Mark-Liversedge_Wrist_02/swing_0006` (a camera-only Wrist shot; "s06" in the shaft-lab corpus) — with IMU-specific blocks taken from an IMU swing where noted.
 
@@ -95,7 +95,7 @@ Shot setup + provenance. The `club` sub-block was added 2026-07-07 so re-analysi
   "latencyUs": { "imuBle": 30000, "audioDevice": 20000 },
   "host": { "app": "PinPointStudio", "version": "0.1.10007", "gitSha": "cb5c646",
             "hostname": "GOLFSIMPC", "platform": "Windows 11 Version 25H2", "poseBackend": "CUDA" },
-  "club": { "lengthMm": 940, "shaftType": "steel",
+  "club": { "lengthMm": 940, "shaftType": "steel", "hoselFromButtMm": 0,
             "bandCentersMm": [308, 362, 560, 758, 808, 854],
             "name": "7 IRON",
             "lengthPrior": { "px": 372.4, "varPx": 96.1, "n": 5 } }
@@ -111,6 +111,7 @@ Shot setup + provenance. The `club` sub-block was added 2026-07-07 so re-analysi
 | `host.*` | str | App/build/machine provenance. `poseBackend` = CUDA/CoreML/CPU. |
 | `club.lengthMm` | int | Shaft length; sizes the shaft-tracker head extrapolation. |
 | `club.shaftType` | str | `steel`/`graphite`/`""`. |
+| `club.hoselFromButtMm` | int | **Added 2026-07-09.** Hosel offset from the butt, mm — where the head sits relative to the grip end (`0` = unknown). Plumbed through `ShotAnalysisJob` and replayed on re-analysis. Absent on swings captured before 2026-07-09. |
 | `club.bandCentersMm` | int[] | Retro-band centres from the butt. **Empty ⇒ untaped** → the shaft tracker runs E2 (ray) evidence only. Absent on swings captured before 2026-07-07. |
 | `club.name` | str | Canonical club-vocabulary id — half the persistent club-length prior key (`athleteUuid\|clubName\|cameraKey`). Added 2026-07-10 (length fusion). |
 | `club.lengthPrior` | obj | The persistent club-length prior **the live fuse actually used for this shot** (state before this shot's update): `px` (EMA length), `varPx` (EW variance, px²), `n` (updates folded in). **Re-analysis replays this recorded prior, never AppSettings** — deterministic, cross-host. Omitted when the shot ran prior-free. |
@@ -285,7 +286,7 @@ Per-metric time series + phase-anchored samples.
 | `conf` | float 0–1 | Detection confidence; low-conf ticks fade in the UI. IMU-derived ≈ high; the vision-only fallback emits a flat 0.5. |
 | `segment` | int (`SegmentRole`) | Which segment the event was measured from (provenance). |
 
-**`Phase`:** `0` Address · `1` Takeaway · `2` Top · `3` Transition · `4` Downswing · `5` Impact · `6` Release · `7` Finish · `8` MidBackswing · `9` Delivery · `10` MaxSpeed · `11` FollowThrough.
+**`Phase`:** `0` Address · `1` Takeaway · `2` Top · `3` Transition · `4` Downswing · `5` Impact · `6` Release · `7` Finish · `8` MidBackswing · `9` Delivery · `10` MaxSpeed · `11` FollowThrough. (The enum also defines `12` ShaftParallelBack · `13` ArmParallelDown · `14` ShaftParallelThrough for the P-position system, but these are **not yet emitted** into `phases[]` — the P-positions live in `analysis.club.positions[]` instead.)
 
 > An IMU swing emits the full ladder; a **camera-only** swing emits only the four anchors `{Address, Top, Impact, Finish}` at vision-grade confidence (the shaft tracker's hands-only phase model — same enum, fewer ticks).
 
@@ -309,6 +310,12 @@ Offline pose keypoints, normalized 0..1.
     "kp":   [0.5469, 0.2930, 0.9349,  0.5573, 0.2852, 0.9591,  … ],   // 17×(x,y,conf) = 51
     "lead":  [0.5599, 0.6012], "trail": [0.5399, 0.6031],
     "handConf": 0.7535
+  }, … ],
+  "smoothed": [ {                                                     // OPTIONAL — motion-overlay track
+    "t_us": 2720,
+    "kp":    [0.5471, 0.2931, 0.9349,  0.5574, 0.2853, 0.9591,  … ],  // 17×(x,y,conf) = 51
+    "tier":  [2, 2, 2,  1, 0,  … ],                                   // PoseTier per kp (17)
+    "sigma": [1.8, 1.8, 2.4,  3.1, 0.0,  … ]                          // posterior σ px (17)
   }, … ]
 }
 ```
@@ -320,6 +327,11 @@ Offline pose keypoints, normalized 0..1.
 | `frames[].kp` | float[51] | 17 COCO keypoints as flat `[x, y, conf] × 17`, normalized. |
 | `frames[].lead` / `trail` | float[2] | Lead/trail hand centroids (COCO wrists on fallback), normalized. |
 | `frames[].handConf` | float | 0 when wrist-fallback. |
+| `smoothed[]` | obj[] | **Optional — added 2026-07-12** (motion-overlay fan/trace track). De-jittered companion to `frames`, produced by one offline RTS pass (`pose_smoother.{h,cpp}`, a per-axis 3-state `[p,v,a]` KF) in `WristAnalyzer`. Written **only when non-empty** (absent on swings analysed before the smoother existed ⇒ old swings must be re-analysed to gain fan/trace; `frame`-mode overlays fall back to raw `frames`). Parallel to `frames` on the **same `t_us` grid**; **no `lead`/`trail`/`handConf`** — the hands are not smoothed. |
+| `smoothed[].t_us` | int µs | Window-relative (matches the aligned `frames` entry). |
+| `smoothed[].kp` | float[51] | Smoothed 17 COCO keypoints, flat `[x, y, conf] × 17`, normalized. `conf` carries the overlay **render-alpha** contract, not the raw detector score. |
+| `smoothed[].tier` | int[17] | Per-keypoint honesty `PoseTier`: **`0` Off** (raw passthrough — don't paint as confident) · **`1` Pred** (coasted/bridged estimate) · **`2` Meas** (measured & smoothed). |
+| `smoothed[].sigma` | float[17] | Per-keypoint posterior σ in **pixels**; `0` ⇒ no smoothed value for that keypoint that frame (the `kp` entry is a raw passthrough). |
 
 ### `club` — the shaft track (`ShaftTrack2D`)
 
@@ -340,7 +352,7 @@ Written **only when the track is valid** (all-or-nothing consumer contract). Gri
     "t_us": 2720,
     "grip":  [0.5499, 0.6021], "head": [0.4421, 0.8784],
     "theta": 2.0246, "thetaDot": 0.0, "lenPx": 0,
-    "conf": 0.30, "flags": 20
+    "conf": 0.30, "headConf": 0.0, "headSigma": -1, "flags": 20
   }, … ],
   "predicted": [ … ]
 }
@@ -357,6 +369,8 @@ Written **only when the track is valid** (all-or-nothing consumer contract). Gri
 | `samples[].thetaDot` | float rad/s | Smoothed angular velocity. |
 | `samples[].lenPx` | float | Visible shaft extent (decoration; θ is the precision channel). |
 | `samples[].conf` | float 0–1 | Per-sample confidence (θ-posterior). |
+| `samples[].headConf` | float 0–1 | **Added 2026-07-09** (clubhead Stage-2 head pass). Confidence of the *measured* clubhead terminus; `0` when the head is projected/off-frame (see flags `0x10`/`0x80`) rather than measured. Default ON (`shaft.head.enabled`) since 2026-07-09; older files omit it ⇒ reader defaults `−1`. |
+| `samples[].headSigma` | float px | **Added 2026-07-09.** Posterior σ (px) of the measured head radius (`headSigmaPx`); `−1` when the head pass is off or the head was not measured. |
 | `samples[].lineConf` | float 0–1 | **Layer A snap** (`shaft_position_first`): normalized ridge support under the drawn line — "does this line lie on the club". Written only on vision-tier samples when the snap pass ran; **absent ⇒ −1** (snap off / non-vision tier). Added 2026-07-11. |
 | `samples[].flags` | int (`ShaftSampleFlags`) | Bitfield (below). |
 | `predicted[]` | obj[] | R7 pure-kinematic-model series (same shape); empty in v3. |
@@ -450,9 +464,11 @@ Per-stage analyzer wall times in milliseconds, self-reported by the analyzer so 
 | `pinpoint.analysis/2` | `score` was a bare integer. Readers still accept it. |
 | 2026-07-07 | `capture.club` added; all `analysis` `t_us` normalised to window-relative (readers domain-aware for legacy absolute files). |
 | 2026-07-08 | `analysis.ball` added (face-on ball track for the replay overlay); `setup.ballDetection.searchRoi` added (hitting-area box for offline re-analysis). Both additive — no schema-version bump. |
+| 2026-07-09 | Clubhead Stage-2 head pass: `capture.club.hoselFromButtMm` + `analysis.club.samples[].headConf`/`headSigma` (measured-head confidence + posterior σ) added, and `ShaftSampleFlags` gained `0x80` `HeadOffFrame`. The head pass (`shaft.head.enabled`) defaults ON from this date, so new Wrist swings carry real values. Additive — no schema-version bump. |
 | 2026-07-09 | `analysis.timings` added (per-stage analyzer wall times: `poseMs`/`ballMs`/`shaftMs`/`totalMs`). Additive — no schema-version bump. |
 | 2026-07-10 | `setup.ballDetection.baseline` object + `<alias>.ballbase.f32` sidecar added (persisted live empty-mat ball baseline for offline re-analysis). Additive — no schema-version bump. |
 | 2026-07-10 | Club-length fusion: `capture.club.name` + `capture.club.lengthPrior` (recorded prior for deterministic re-analysis) and `analysis.club.lengths` (fused length ± σ + confidence) added. Additive — no schema-version bump. |
 | 2026-07-11 | Shaft Layer A snap: `analysis.club.samples[].lineConf` (ridge support under the drawn line) added. Written only on vision-tier samples when the snap pass ran (`absent ⇒ −1`), so a snap-off run stays byte-identical. Additive — no schema-version bump. |
 | 2026-07-11 | Shaft Layer B positions: `analysis.club.positions[]` (coaching P-positions P1–P8, `shaft_position_first`) added — P2/P6/P8 are image-plane shaft-parallel crossings (accepted face-on coaching practice, not 3-D geometry). Written only when non-empty (extraction off ⇒ absent, byte-identical). Additive — no schema-version bump. |
-| 2026-07-11 | Shaft Layer C synthesis: `analysis.club.synth[]` (VISUALIZATION-tier interpolated series between P-anchors, `shaft_position_first`) added, and `ShaftSampleFlags` gained `0x100` `Synthesized` (C++ enum widened `uint8_t → uint16_t`; JSON already int, no reader break). Synthesized samples are excluded from all metrics/scoring by the flag. Written only when non-empty (synthesis off ⇒ absent, byte-identical). Additive — no schema-version bump. |
+| 2026-07-11 | Shaft Layer C synthesis: `analysis.club.synth[]` (VISUALIZATION-tier interpolated series between P-anchors, `shaft_position_first`) added, and `ShaftSampleFlags` gained `0x100` `Synthesized` (C++ enum widened `uint8_t → uint16_t`; JSON already int, no reader break). Synthesized samples are excluded from all metrics/scoring by the flag. Written only when non-empty (synthesis off ⇒ absent, byte-identical). Additive — no schema-version bump. Also: `positions.enabled`/`fitEnabled` flipped default ON, so new Wrist swings carry `analysis.club.positions[]`. |
+| 2026-07-12 | Motion overlay: `analysis.pose2d.smoothed[]` (de-jittered pose companion track for the fan/trace overlays, `pose_smoother.{h,cpp}`) added — parallel to `frames` with per-keypoint `tier`/`sigma` honesty. Written only when non-empty (absent ⇒ re-analyse to gain fan/trace). `Phase` enum gained `ShaftParallelBack=12`/`ArmParallelDown=13`/`ShaftParallelThrough=14` for the P-position system, but these are **not yet emitted** into `phases[]` (deferred). Additive — no schema-version bump. |
