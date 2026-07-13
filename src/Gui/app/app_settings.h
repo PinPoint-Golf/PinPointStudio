@@ -75,6 +75,7 @@ class AppSettings : public QObject
     Q_PROPERTY(bool    autoSaveSession             READ autoSaveSession             WRITE setAutoSaveSession             NOTIFY autoSaveSessionChanged)
     Q_PROPERTY(bool    autoDetectSwing             READ autoDetectSwing             WRITE setAutoDetectSwing             NOTIFY autoDetectSwingChanged)
     Q_PROPERTY(QString swingDetectionSensitivity   READ swingDetectionSensitivity   WRITE setSwingDetectionSensitivity   NOTIFY swingDetectionSensitivityChanged)
+    Q_PROPERTY(QString motionCaptureQuality        READ motionCaptureQuality        WRITE setMotionCaptureQuality        NOTIFY motionCaptureQualityChanged)
     Q_PROPERTY(int     audioDeviceLatencyUs        READ audioDeviceLatencyUs        WRITE setAudioDeviceLatencyUs        NOTIFY audioDeviceLatencyUsChanged)
     Q_PROPERTY(QString audioInputDevice            READ audioInputDevice            WRITE setAudioInputDevice            NOTIFY audioInputDeviceChanged)
     Q_PROPERTY(bool    acousticShotDetectionEnabled READ acousticShotDetectionEnabled WRITE setAcousticShotDetectionEnabled NOTIFY acousticShotDetectionEnabledChanged)
@@ -221,6 +222,7 @@ public:
         m_autoSaveSession           = ppSettings().value(QStringLiteral("General/autoSaveSession"),           true).toBool();
         m_autoDetectSwing           = ppSettings().value(QStringLiteral("General/autoDetectSwing"),           true).toBool();
         m_swingDetectionSensitivity = ppSettings().value(QStringLiteral("General/swingDetectionSensitivity"), QStringLiteral("Medium")).toString();
+        m_motionCaptureQuality      = ppSettings().value(QStringLiteral("General/motionCaptureQuality"),      QStringLiteral("Medium")).toString();
         // Mic capture-chain delay used to back-date acoustic shot onsets
         // (shot detection P2); a fixed estimate until P4 auto-calibration.
         m_audioDeviceLatencyUs      = ppSettings().value(QStringLiteral("General/audioDeviceLatencyUs"),      20000).toInt();
@@ -333,6 +335,7 @@ public:
     bool    autoSaveSession()           const { return m_autoSaveSession; }
     bool    autoDetectSwing()           const { return m_autoDetectSwing; }
     QString swingDetectionSensitivity() const { return m_swingDetectionSensitivity; }
+    QString motionCaptureQuality()      const { return m_motionCaptureQuality; }
     int     audioDeviceLatencyUs()      const { return m_audioDeviceLatencyUs; }
     QString audioInputDevice()          const { return m_audioInputDevice; }
     bool    acousticShotDetectionEnabled() const { return m_acousticShotDetectionEnabled; }
@@ -576,6 +579,14 @@ public:
         m_swingDetectionSensitivity = v;
         ppSettings().setValue(QStringLiteral("General/swingDetectionSensitivity"), v);
         emit swingDetectionSensitivityChanged();
+    }
+
+    void setMotionCaptureQuality(const QString &v)
+    {
+        if (m_motionCaptureQuality == v) return;
+        m_motionCaptureQuality = v;
+        ppSettings().setValue(QStringLiteral("General/motionCaptureQuality"), v);
+        emit motionCaptureQualityChanged();
     }
 
     void setAudioDeviceLatencyUs(int v)
@@ -1098,6 +1109,7 @@ signals:
     void autoSaveSessionChanged();
     void autoDetectSwingChanged();
     void swingDetectionSensitivityChanged();
+    void motionCaptureQualityChanged();
     void audioDeviceLatencyUsChanged();
     void audioInputDeviceChanged();
     void acousticShotDetectionEnabledChanged();
@@ -1185,6 +1197,7 @@ private:
     bool    m_autoSaveSession           = true;
     bool    m_autoDetectSwing           = true;    // ON since the P3 arbiter
     QString m_swingDetectionSensitivity = QStringLiteral("Medium");
+    QString m_motionCaptureQuality      = QStringLiteral("Medium");
     int     m_audioDeviceLatencyUs      = 20000;
     QString m_audioInputDevice;
     bool    m_acousticShotDetectionEnabled = true;

@@ -470,7 +470,7 @@ Item {
                 anchors.fill:  parent
                 currentIndex:  root.activeNavIndex
 
-                GeneralPanel {    id: generalPanel;    Layout.fillWidth: true; Layout.fillHeight: true }  // 0
+                GeneralPanel {    id: generalPanel;    hostVisible: root.visible; Layout.fillWidth: true; Layout.fillHeight: true }  // 0
                 AppearancePanel { id: appearancePanel; Layout.fillWidth: true; Layout.fillHeight: true }  // 1
                 DisplaysPanel {   id: displaysPanel;   Layout.fillWidth: true; Layout.fillHeight: true }  // 2
                 CamerasPanel {    id: camerasPanel;    Layout.fillWidth: true; Layout.fillHeight: true }  // 3

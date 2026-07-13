@@ -68,6 +68,11 @@ QtObject {
           label: qsTr("AI coaching on session end"),      subtitle: qsTr("Automatically generate a Claude observation"),
           itemId: "setting_aiCoaching" },
 
+        { panelIndex: 0, panelLabel: qsTr("General"),    groupLabel: qsTr("Motion capture"),
+          label: qsTr("Motion capture quality"),          subtitle: qsTr("Detail level for pose and swing tracking during analysis"),
+          actions: "motion capture quality pose tracking model low medium high detail accuracy",
+          itemId: "setting_motionCapture" },
+
         { panelIndex: 0, panelLabel: qsTr("General"),    groupLabel: qsTr("Application"),
           label: qsTr("Check for updates automatically"), subtitle: qsTr("Checks on launch — never downloads without confirmation"),
           itemId: "setting_checkUpdates" },

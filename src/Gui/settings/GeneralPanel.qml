@@ -35,6 +35,13 @@ Item {
         { label: qsTr("中文（简体）"),  tag: "zh_CN" }
     ]
 
+    // True while the Settings screen is actually shown (set by ScreenSettings from
+    // its own StackLayout visibility). This panel is instantiated eagerly with the
+    // screen, so it drives the lazy motion-capture hardware probe on first appear
+    // rather than at app launch — see onHostVisibleChanged.
+    property bool hostVisible: false
+    onHostVisibleChanged: if (hostVisible) motionCaptureProbe.refresh()
+
     // ── Search scroll-to support ──────────────────────────────────────────────
 
     property string lastHighlightId: ""
@@ -499,7 +506,98 @@ Item {
 
             PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
 
-            // ── Group 3 — Application ────────────────────────────────────────
+            // ── Group 3 — Motion capture ──────────────────────────────────────
+
+            Text {
+                text: qsTr("MOTION CAPTURE")
+                font.family:         Theme.fontBody
+                font.pixelSize:      Theme.fontSzMicro
+                font.letterSpacing:  Theme.trackingMicro
+                font.capitalization: Font.AllUppercase
+                color: Theme.colorText3
+            }
+
+            // Motion capture quality row
+            RowLayout {
+                objectName: "setting_motionCapture"
+                Layout.fillWidth: true
+                spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
+                // The (lazy) hardware probe is kicked from root.onHostVisibleChanged
+                // when the Settings screen first appears — not here, because this
+                // panel is constructed eagerly at app launch.
+
+                // Graceful fallback: a "High" persisted on a machine that turns out
+                // not to support it drops to "Medium" once the probe completes. Done
+                // in a handler (not a binding) to avoid a binding loop on the value.
+                Connections {
+                    target: motionCaptureProbe
+                    function onStateChanged() {
+                        if (motionCaptureProbe.ready
+                                && !motionCaptureProbe.highTierSupported
+                                && appSettings.motionCaptureQuality === qsTr("High"))
+                            appSettings.motionCaptureQuality = qsTr("Medium")
+                    }
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.sp(3)
+
+                    Text {
+                        text:           qsTr("Motion capture quality")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        color:          Theme.colorText
+                    }
+                    Text {
+                        text:             qsTr("Higher settings track your swing in more detail but take longer to analyse")
+                        font.family:      Theme.fontData
+                        font.pixelSize:   Theme.fontSzMicro
+                        color:            Theme.colorText3
+                        wrapMode:         Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+                    // Status line, in precedence order: measuring → (High selected on
+                    // an unsupported machine) block reason → measured estimate → not
+                    // yet measured. secondsPerSwing[tier] is -1 until measured, which
+                    // falls through to the last case.
+                    Text {
+                        Layout.fillWidth: true
+                        readonly property int selectedSeconds: {
+                            var v = motionCaptureProbe.secondsPerSwing[appSettings.motionCaptureQuality];
+                            return (v === undefined || v === null) ? -1 : v;
+                        }
+                        text: motionCaptureProbe.probing
+                                  ? qsTr("Measuring your computer…")
+                              : (appSettings.motionCaptureQuality === qsTr("High")
+                                 && !motionCaptureProbe.highTierSupported)
+                                  ? motionCaptureProbe.highTierBlockReason
+                              : selectedSeconds > 0
+                                  ? qsTr("About %1 seconds to analyse each swing").arg(selectedSeconds)
+                                  : qsTr("Measured after your first swing")
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText3
+                        wrapMode:       Text.WordWrap
+                    }
+                }
+
+                PpChipGroup {
+                    options:  [qsTr("Low"), qsTr("Medium"), qsTr("High")]
+                    selected: appSettings.motionCaptureQuality
+                    // Grey the High chip until the probe confirms the machine can run it.
+                    disabledOptions: motionCaptureProbe.highTierSupported ? [] : [qsTr("High")]
+                    onSelectionChanged: (value) => appSettings.motionCaptureQuality = value
+                    onBlockedClicked: (value) => { /* block reason is shown in the status line */ }
+                    Layout.alignment: Qt.AlignVCenter
+                }
+            }
+
+            PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
+
+            // ── Group 4 — Application ────────────────────────────────────────
 
             Text {
                 text: qsTr("APPLICATION")

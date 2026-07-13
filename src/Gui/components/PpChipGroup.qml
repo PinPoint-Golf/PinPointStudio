@@ -24,8 +24,13 @@ Row {
 
     property var    options:  []
     property string selected: ""
+    // Chip labels that render greyed and non-selectable. A click on one emits
+    // blockedClicked() instead of selectionChanged(). Default [] = all selectable
+    // (backward-compatible with existing callers).
+    property var    disabledOptions: []
 
     signal selectionChanged(string value)
+    signal blockedClicked(string value)
 
     spacing: Theme.sp(6)
 
@@ -33,22 +38,28 @@ Row {
         model: root.options
 
         Rectangle {
+            id: chip
             required property string modelData
             required property int    index
 
-            readonly property bool _sel: modelData === root.selected
+            readonly property bool _sel:      modelData === root.selected
+            readonly property bool _disabled: root.disabledOptions.indexOf(modelData) >= 0
 
             height:  Theme.sp(28)
             width:   chipLabel.implicitWidth + Theme.sp(24)
             radius:  Theme.radius
-            // Selected: accent wash. Hover (unselected): a faint bg fill that only
-            // ramps alpha (RGB-matched rest) so there's no colour flash; the border
-            // eases to accent on hover — the home-tile / pill language.
-            color:   _sel                 ? Theme.colorAccentLight
+            opacity: chip._disabled ? 0.4 : 1.0
+            // Disabled: flat rest fill, no hover ramp. Selected: accent wash. Hover
+            // (unselected): a faint bg fill that only ramps alpha (RGB-matched rest)
+            // so there's no colour flash; the border eases to accent on hover — the
+            // home-tile / pill language.
+            color:   chip._disabled       ? Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
+                   : _sel                 ? Theme.colorAccentLight
                    : chipMa.containsMouse ? Theme.colorBg2
                    :                        Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
             border.width: 1
-            border.color: _sel                 ? Theme.colorAccent
+            border.color: chip._disabled       ? Theme.colorBorderStrong
+                        : _sel                 ? Theme.colorAccent
                         : chipMa.containsMouse ? Theme.colorAccentMid
                         :                        Theme.colorBorderStrong
             Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
@@ -61,12 +72,19 @@ Row {
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody
                 font.weight:    _sel ? Font.Normal : Theme.fontBodyWeight
-                color:          _sel ? Theme.colorAccent : Theme.colorText2
+                color:          chip._disabled ? Theme.colorText3
+                              : _sel           ? Theme.colorAccent
+                              :                  Theme.colorText2
             }
 
             PpPressable {
                 id: chipMa
-                onClicked: root.selectionChanged(modelData)
+                // Disabled chips keep click handling (to report the block) but drop
+                // the pointing-hand cursor and hover-grow.
+                hoverScale:  chip._disabled ? 1.0 : 1.02
+                cursorShape: chip._disabled ? Qt.ArrowCursor : Qt.PointingHandCursor
+                onClicked:   chip._disabled ? root.blockedClicked(chip.modelData)
+                                            : root.selectionChanged(chip.modelData)
             }
         }
     }

@@ -2089,6 +2089,10 @@ target_sources(PinPointStudio PRIVATE
     src/Video/frame_throttle.cpp
     src/Pose/ball_detector.h
     src/Pose/ball_detector.cpp
+    src/Pose/pose_backend.h
+    src/Pose/pose_backend.cpp
+    src/Pose/motion_capture_probe.h
+    src/Pose/motion_capture_probe.cpp
 )
 if(EXISTS "${_movenet_lightning_path}")
     target_sources(PinPointStudio PRIVATE

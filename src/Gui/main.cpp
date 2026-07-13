@@ -46,6 +46,7 @@
 #include "profiler_controller.h"
 #include "update_controller.h"
 #include "cuda_runtime_controller.h"
+#include "motion_capture_probe.h"
 #include "pp_os_metrics.h"
 #include "clipboard_helper.h"
 #include "llm_controller.h"
@@ -208,6 +209,11 @@ int main(int argc, char *argv[])
     // the separately-packaged GPU runtime when present but not installed, so users who
     // add a GPU later adapt without reinstalling. Inert off Windows. See §4.4.
     CudaRuntimeController   cudaRuntime;
+    // Hardware probe behind the "Motion capture quality" setting: gates the High
+    // tier on an accelerated pose backend + enough graphics memory, and measures
+    // per-swing analysis time. Lazy — refresh() is kicked from the General panel,
+    // and it defers while a session is active (passed sessionController for that).
+    MotionCaptureProbe      motionCaptureProbe(&sessionController);
     ResourceMonitorController resourceMonitor(&eventBuffer, &cameraManager, &imuManager);
     // Resource profiler bridge — owns the single 1 s gauge sampler and the 60 s
     // stats-dump cadence. Per-session profile: reset at session start, dump at end.
@@ -453,6 +459,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("sessionController"), &sessionController);
     engine.rootContext()->setContextProperty(QStringLiteral("updateController"),   &updateController);
     engine.rootContext()->setContextProperty(QStringLiteral("cudaRuntime"),        &cudaRuntime);
+    engine.rootContext()->setContextProperty(QStringLiteral("motionCaptureProbe"), &motionCaptureProbe);
     engine.rootContext()->setContextProperty(QStringLiteral("sessionReviewController"), &sessionReviewController);
     engine.rootContext()->setContextProperty(QStringLiteral("shotController"),    &shotController);
     engine.rootContext()->setContextProperty(QStringLiteral("shotProcessor"),     &shotProcessor);
