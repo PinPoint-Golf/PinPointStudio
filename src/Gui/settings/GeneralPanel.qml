@@ -517,81 +517,215 @@ Item {
                 color: Theme.colorText3
             }
 
-            // Motion capture quality row
-            RowLayout {
-                objectName: "setting_motionCapture"
+            // Motion capture quality row + on-demand High-tier model download.
+            ColumnLayout {
+                id: mcSection
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-                // The (lazy) hardware probe is kicked from root.onHostVisibleChanged
-                // when the Settings screen first appears — not here, because this
-                // panel is constructed eagerly at app launch.
+                spacing: Theme.sp(10)
 
-                // Graceful fallback: a "High" persisted on a machine that turns out
-                // not to support it drops to "Medium" once the probe completes. Done
-                // in a handler (not a binding) to avoid a binding loop on the value.
+                // True while we're asking the user to fetch the High-tier model (or
+                // the fetch is in flight): "High" is committed only once the model is
+                // actually present, so quality==High ⟺ the large model is downloaded.
+                property bool promptHighDownload: false
+
+                // Commit High the moment its model finishes downloading, then clear
+                // the prompt. Keyed off highModelChanged (present/downloading/error).
                 Connections {
                     target: motionCaptureProbe
-                    function onStateChanged() {
-                        if (motionCaptureProbe.ready
-                                && !motionCaptureProbe.highTierSupported
-                                && appSettings.motionCaptureQuality === qsTr("High"))
-                            appSettings.motionCaptureQuality = qsTr("Medium")
-                    }
-                }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.sp(3)
-
-                    Text {
-                        text:           qsTr("Motion capture quality")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:             qsTr("Higher settings track your swing in more detail but take longer to analyse")
-                        font.family:      Theme.fontData
-                        font.pixelSize:   Theme.fontSzMicro
-                        color:            Theme.colorText3
-                        wrapMode:         Text.WordWrap
-                        Layout.fillWidth: true
-                    }
-                    // Status line, in precedence order: measuring → (High selected on
-                    // an unsupported machine) block reason → measured estimate → not
-                    // yet measured. secondsPerSwing[tier] is -1 until measured, which
-                    // falls through to the last case.
-                    Text {
-                        Layout.fillWidth: true
-                        readonly property int selectedSeconds: {
-                            var v = motionCaptureProbe.secondsPerSwing[appSettings.motionCaptureQuality];
-                            return (v === undefined || v === null) ? -1 : v;
+                    function onHighModelChanged() {
+                        if (mcSection.promptHighDownload && motionCaptureProbe.highModelPresent) {
+                            appSettings.motionCaptureQuality = qsTr("High")
+                            mcSection.promptHighDownload = false
                         }
-                        text: motionCaptureProbe.probing
-                                  ? qsTr("Measuring your computer…")
-                              : (appSettings.motionCaptureQuality === qsTr("High")
-                                 && !motionCaptureProbe.highTierSupported)
-                                  ? motionCaptureProbe.highTierBlockReason
-                              : selectedSeconds > 0
-                                  ? qsTr("About %1 seconds to analyse each swing").arg(selectedSeconds)
-                                  : qsTr("Measured after your first swing")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                        wrapMode:       Text.WordWrap
                     }
                 }
 
-                PpChipGroup {
-                    options:  [qsTr("Low"), qsTr("Medium"), qsTr("High")]
-                    selected: appSettings.motionCaptureQuality
-                    // Grey the High chip until the probe confirms the machine can run it.
-                    disabledOptions: motionCaptureProbe.highTierSupported ? [] : [qsTr("High")]
-                    onSelectionChanged: (value) => appSettings.motionCaptureQuality = value
-                    onBlockedClicked: (value) => { /* block reason is shown in the status line */ }
-                    Layout.alignment: Qt.AlignVCenter
+                RowLayout {
+                    objectName: "setting_motionCapture"
+                    Layout.fillWidth: true
+                    spacing: Theme.sp(16)
+                    property bool searchHighlight: false
+                    Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
+                    // The (lazy) hardware probe is kicked from root.onHostVisibleChanged
+                    // when the Settings screen first appears — not here, because this
+                    // panel is constructed eagerly at app launch.
+
+                    // Graceful fallback: a "High" persisted on a machine that turns out
+                    // not to support it drops to "Medium" once the probe completes. Done
+                    // in a handler (not a binding) to avoid a binding loop on the value.
+                    Connections {
+                        target: motionCaptureProbe
+                        function onStateChanged() {
+                            if (motionCaptureProbe.ready
+                                    && !motionCaptureProbe.highTierSupported
+                                    && appSettings.motionCaptureQuality === qsTr("High"))
+                                appSettings.motionCaptureQuality = qsTr("Medium")
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: Theme.sp(3)
+
+                        Text {
+                            text:           qsTr("Motion capture quality")
+                            font.family:    Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody
+                            color:          Theme.colorText
+                        }
+                        Text {
+                            text:             qsTr("Higher settings track your swing in more detail but take longer to analyse")
+                            font.family:      Theme.fontData
+                            font.pixelSize:   Theme.fontSzMicro
+                            color:            Theme.colorText3
+                            wrapMode:         Text.WordWrap
+                            Layout.fillWidth: true
+                        }
+                        // Status line, in precedence order: measuring → (High selected on
+                        // an unsupported machine) block reason → measured estimate → not
+                        // yet measured. secondsPerSwing[tier] is -1 until measured, which
+                        // falls through to the last case.
+                        Text {
+                            Layout.fillWidth: true
+                            readonly property int selectedSeconds: {
+                                var v = motionCaptureProbe.secondsPerSwing[appSettings.motionCaptureQuality];
+                                return (v === undefined || v === null) ? -1 : v;
+                            }
+                            text: motionCaptureProbe.probing
+                                      ? qsTr("Measuring your computer…")
+                                  : (appSettings.motionCaptureQuality === qsTr("High")
+                                     && !motionCaptureProbe.highTierSupported)
+                                      ? motionCaptureProbe.highTierBlockReason
+                                  : selectedSeconds > 0
+                                      ? qsTr("About %1 seconds to analyse each swing").arg(selectedSeconds)
+                                      : qsTr("Measured after your first swing")
+                            font.family:    Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          Theme.colorText3
+                            wrapMode:       Text.WordWrap
+                        }
+                    }
+
+                    PpChipGroup {
+                        options:  [qsTr("Low"), qsTr("Medium"), qsTr("High")]
+                        selected: appSettings.motionCaptureQuality
+                        // Grey the High chip until the probe confirms the machine can run it.
+                        disabledOptions: motionCaptureProbe.highTierSupported ? [] : [qsTr("High")]
+                        // Selecting High needs the (unshipped) large model: prompt to
+                        // download it first and commit High only once it lands. Every
+                        // other tier commits immediately.
+                        onSelectionChanged: (value) => {
+                            if (value === qsTr("High") && !motionCaptureProbe.highModelPresent) {
+                                motionCaptureProbe.clearHighModelDownloadError()
+                                mcSection.promptHighDownload = true
+                            } else {
+                                appSettings.motionCaptureQuality = value
+                            }
+                        }
+                        onBlockedClicked: (value) => { /* block reason is shown in the status line */ }
+                        Layout.alignment: Qt.AlignVCenter
+                    }
+                }
+
+                // Inline High-tier model prompt / progress / error strip. Shown only
+                // when the user has just picked High without the model, a download is
+                // running, or a download failed.
+                Rectangle {
+                    id: dlPanel
+                    Layout.fillWidth: true
+                    visible: mcSection.promptHighDownload
+                             || motionCaptureProbe.highModelDownloading
+                             || motionCaptureProbe.highModelDownloadError !== ""
+                    implicitHeight: dlCol.implicitHeight + Theme.sp(20)
+                    radius: Theme.radius
+                    color:  Theme.colorBg2
+                    border.width: 1
+                    border.color: Theme.colorBorder
+
+                    readonly property real gbSize: Math.round(motionCaptureProbe.highModelSizeBytes / 1e9 * 10) / 10
+                    readonly property int  pct:    Math.max(0, Math.round(motionCaptureProbe.highModelDownloadProgress * 100))
+
+                    ColumnLayout {
+                        id: dlCol
+                        anchors.fill: parent
+                        anchors.margins: Theme.sp(10)
+                        spacing: Theme.sp(8)
+
+                        Text {
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            font.family:    Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            color: motionCaptureProbe.highModelDownloadError !== "" ? Theme.colorWarn : Theme.colorText2
+                            text: motionCaptureProbe.highModelDownloadError !== ""
+                                      ? qsTr("Download failed: %1").arg(motionCaptureProbe.highModelDownloadError)
+                                  : motionCaptureProbe.highModelDownloading
+                                      ? (motionCaptureProbe.highModelDownloadProgress >= 0
+                                             ? qsTr("Downloading high-quality model… %1%").arg(dlPanel.pct)
+                                             : qsTr("Downloading high-quality model…"))
+                                      : qsTr("High quality uses a larger motion model — a one-time download of about %1 GB.").arg(dlPanel.gbSize)
+                        }
+
+                        // Determinate progress bar (only while downloading with a known size).
+                        Rectangle {
+                            Layout.fillWidth: true
+                            visible: motionCaptureProbe.highModelDownloading
+                                     && motionCaptureProbe.highModelDownloadProgress >= 0
+                            height: Theme.sp(4)
+                            radius: height / 2
+                            color:  Theme.colorBorder
+                            Rectangle {
+                                height: parent.height
+                                radius: parent.radius
+                                width:  parent.width * Math.max(0, Math.min(1, motionCaptureProbe.highModelDownloadProgress))
+                                color:  Theme.colorAccent
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: Theme.sp(8)
+                            Item { Layout.fillWidth: true }
+
+                            PpButton {
+                                visible: motionCaptureProbe.highModelDownloading
+                                label:   qsTr("Cancel")
+                                onClicked: {
+                                    motionCaptureProbe.cancelHighModelDownload()
+                                    mcSection.promptHighDownload = false
+                                }
+                            }
+                            PpButton {
+                                visible: !motionCaptureProbe.highModelDownloading
+                                         && motionCaptureProbe.highModelDownloadError === ""
+                                label:   qsTr("Not now")
+                                onClicked: mcSection.promptHighDownload = false
+                            }
+                            PpButton {
+                                visible: !motionCaptureProbe.highModelDownloading
+                                         && motionCaptureProbe.highModelDownloadError === ""
+                                label:   qsTr("Download")
+                                primary: true
+                                onClicked: motionCaptureProbe.downloadHighModel()
+                            }
+                            PpButton {
+                                visible: motionCaptureProbe.highModelDownloadError !== ""
+                                         && !motionCaptureProbe.highModelDownloading
+                                label:   qsTr("Dismiss")
+                                onClicked: {
+                                    motionCaptureProbe.clearHighModelDownloadError()
+                                    mcSection.promptHighDownload = false
+                                }
+                            }
+                            PpButton {
+                                visible: motionCaptureProbe.highModelDownloadError !== ""
+                                         && !motionCaptureProbe.highModelDownloading
+                                label:   qsTr("Try again")
+                                primary: true
+                                onClicked: motionCaptureProbe.downloadHighModel()
+                            }
+                        }
+                    }
                 }
             }
 

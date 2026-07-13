@@ -19,12 +19,14 @@
 #include "motion_capture_probe.h"
 
 #include <QMetaObject>
+#include <QUrl>
 #include <cmath>
 
 #include "pose_backend.h"
 #include "pp_gpu_metrics.h"
 #include "pp_debug.h"
 #include "session_controller.h"
+#include "../TTS/ModelDownloader.h"   // generic URL->path downloader (reused in place)
 
 #ifdef HAVE_OPENCV
 #  include <opencv2/core.hpp>
@@ -43,6 +45,7 @@ namespace {
 // [seam] All three are provisional and flagged for empirical tuning.
 constexpr uint64_t kHighTierMinVramBytes      = 4ull * 1024 * 1024 * 1024; // 4 GB floor for ViTPose++-L
 constexpr double   kHighToMediumComputeFactor = 3.5;   // ViT-L ~60 GFLOPs / ViT-B ~17 GFLOPs; provisional
+constexpr qint64   kHighModelApproxBytes      = 1234579166; // exact vitpose-l-wholebody.onnx size, for the prompt
 constexpr int      kRepresentativeSwingFrames = 120;   // approx analysed frames/swing — [seam] use real count later
 
 // Frames pushed through each estimator to warm its 30-sample rolling window
@@ -69,6 +72,8 @@ MotionCaptureProbe::MotionCaptureProbe(SessionController *session, QObject *pare
     m_secondsPerSwing[QStringLiteral("Low")]    = -1;
     m_secondsPerSwing[QStringLiteral("Medium")] = -1;
     m_secondsPerSwing[QStringLiteral("High")]   = -1;
+
+    refreshHighModelPresent();   // reflect a previously-downloaded High model at launch
 }
 
 MotionCaptureProbe::~MotionCaptureProbe()
@@ -96,6 +101,8 @@ void MotionCaptureProbe::refresh()
 
 void MotionCaptureProbe::runSuitabilityProbe()
 {
+    refreshHighModelPresent();   // reflect an out-of-band download/placement
+
     const QString backend = pinpoint::pose::bestAvailableAcceleratedBackend();
 
     pinpoint::gpumetrics::init();
@@ -133,14 +140,15 @@ void MotionCaptureProbe::kickTimingBenchmark()
     emit stateChanged();
 
     m_worker = std::thread([this]() {
-        double lowMs = -1.0, mediumMs = -1.0;
-        runBenchmark(lowMs, mediumMs);
+        double lowMs = -1.0, mediumMs = -1.0, highMs = -1.0;
+        runBenchmark(lowMs, mediumMs, highMs);
 
         // Marshal back to the GUI thread. If `this` is being destroyed the dtor
         // joins us first, then ~QObject purges this posted event — no dangling.
-        QMetaObject::invokeMethod(this, [this, lowMs, mediumMs]() {
+        QMetaObject::invokeMethod(this, [this, lowMs, mediumMs, highMs]() {
             m_benchLowMs    = lowMs;
             m_benchMediumMs = mediumMs;
+            m_benchHighMs   = highMs;
             m_probing = false;
             m_ready   = true;
             recomputeSecondsPerSwing();
@@ -151,7 +159,7 @@ void MotionCaptureProbe::kickTimingBenchmark()
 
 // Worker thread. Reuses each estimator's own rolling poseStatsUpdated() average
 // rather than timing here, so the value matches what a live analysis pass reports.
-void MotionCaptureProbe::runBenchmark(double &lowMs, double &mediumMs)
+void MotionCaptureProbe::runBenchmark(double &lowMs, double &mediumMs, double &highMs)
 {
 #ifdef HAVE_OPENCV
     // Timing is content-independent for these CNNs — a flat frame is enough. The
@@ -183,10 +191,21 @@ void MotionCaptureProbe::runBenchmark(double &lowMs, double &mediumMs)
         if (est.isReady())
             mediumMs = benchmark(est);
     }
+
+    // High = ViTPose++-L — measured only once the user has downloaded the model
+    // (m_highModelPresent, set on the GUI thread before this worker spawns). Until
+    // then High stays projected from Medium (recomputeSecondsPerSwing).
+    if (!m_cancel.load(std::memory_order_relaxed) && m_highModelPresent) {
+        PoseEstimatorViTPose est(PoseEstimatorViTPose::ModelVariant::WholeBodyLarge);
+        est.load();
+        if (est.isReady())
+            highMs = benchmark(est);
+    }
 #  endif
 #else
     Q_UNUSED(lowMs);
     Q_UNUSED(mediumMs);
+    Q_UNUSED(highMs);
 #endif
 }
 
@@ -209,14 +228,104 @@ void MotionCaptureProbe::recomputeSecondsPerSwing()
     m_secondsPerSwing[QStringLiteral("Low")]    = secondsForInferenceMs(m_benchLowMs);
     m_secondsPerSwing[QStringLiteral("Medium")] = secondsForInferenceMs(mediumMs);
 
-    // High (ViTPose++-L) is not integrated yet: project from Medium and flag it.
-    // Only expose it when the hardware can actually run the tier.
-    if (m_highTierSupported && mediumMs > 0.0) {
+    // High (ViTPose++-L): use a REAL benchmark once the model is downloaded;
+    // otherwise project from Medium and flag it provisional. Only expose it at all
+    // when the hardware can actually run the tier.
+    if (m_highTierSupported && m_benchHighMs > 0.0) {
+        m_secondsPerSwing[QStringLiteral("High")] = secondsForInferenceMs(m_benchHighMs);
+        m_highEstimateProvisional = false;
+    } else if (m_highTierSupported && mediumMs > 0.0) {
         m_secondsPerSwing[QStringLiteral("High")] =
             secondsForInferenceMs(mediumMs * kHighToMediumComputeFactor);
         m_highEstimateProvisional = true;
     } else {
         m_secondsPerSwing[QStringLiteral("High")] = -1;
         m_highEstimateProvisional = false;
+    }
+}
+
+// ── On-demand High-tier model (ViTPose++-L) download ─────────────────────────
+
+qint64 MotionCaptureProbe::highModelSizeBytes() const
+{
+    return kHighModelApproxBytes;
+}
+
+void MotionCaptureProbe::refreshHighModelPresent()
+{
+    bool present = false;
+#if defined(HAVE_VITPOSE) && defined(HAVE_ONNXRUNTIME)
+    present = PoseEstimatorViTPose::isVariantAvailable(
+        PoseEstimatorViTPose::ModelVariant::WholeBodyLarge);
+#endif
+    if (present != m_highModelPresent) {
+        m_highModelPresent = present;
+        emit highModelChanged();
+    }
+}
+
+void MotionCaptureProbe::downloadHighModel()
+{
+#if defined(HAVE_VITPOSE) && defined(HAVE_ONNXRUNTIME)
+    if (m_highModelPresent || m_highModelDownloading)
+        return;   // already have it, or a download is in flight
+
+    if (!m_downloader) {
+        m_downloader = new ModelDownloader(this);
+        connect(m_downloader, &ModelDownloader::progress, this,
+                [this](int, int, qint64 received, qint64 total) {
+                    m_highModelDownloadProgress =
+                        (total > 0) ? double(received) / double(total) : -1.0;
+                    emit highModelChanged();
+                });
+        connect(m_downloader, &ModelDownloader::finished, this, [this]() {
+            m_highModelDownloading      = false;
+            m_highModelDownloadProgress = 1.0;
+            refreshHighModelPresent();   // flips highModelPresent, emits highModelChanged
+            // Re-measure High now that the real model exists (was projected before).
+            m_ready       = false;
+            m_benchHighMs = -1.0;
+            kickTimingBenchmark();
+            emit highModelChanged();
+        });
+        connect(m_downloader, &ModelDownloader::failed, this,
+                [this](const QString &err) {
+                    m_highModelDownloading      = false;
+                    m_highModelDownloadProgress = -1.0;
+                    m_highModelDownloadError    = err;
+                    ppWarn() << "[MotionCaptureProbe] High model download failed:" << err;
+                    emit highModelChanged();
+                });
+    }
+
+    m_highModelDownloadError.clear();
+    m_highModelDownloading      = true;
+    m_highModelDownloadProgress = -1.0;
+    emit highModelChanged();
+
+    const QString dest = PoseEstimatorViTPose::largeModelDir()
+                       + PoseEstimatorViTPose::largeModelFileName();
+    ppInfo() << "[MotionCaptureProbe] downloading High-tier model to" << dest;
+    m_downloader->download({ ModelDownloader::Item{
+        QUrl(PoseEstimatorViTPose::largeModelUrl()), dest } });
+#endif
+}
+
+void MotionCaptureProbe::cancelHighModelDownload()
+{
+    if (m_downloader)
+        m_downloader->abort();
+    if (m_highModelDownloading) {
+        m_highModelDownloading      = false;
+        m_highModelDownloadProgress = -1.0;
+        emit highModelChanged();
+    }
+}
+
+void MotionCaptureProbe::clearHighModelDownloadError()
+{
+    if (!m_highModelDownloadError.isEmpty()) {
+        m_highModelDownloadError.clear();
+        emit highModelChanged();
     }
 }

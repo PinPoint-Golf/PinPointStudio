@@ -401,7 +401,9 @@ The following are fetched at `cmake ..` time — no manual steps required:
 
 If a download fails, the affected feature is disabled but the rest of the build continues normally. Re-run CMake to retry failed downloads.
 
-> **Not downloaded at build time:** the local LLM model (Phi-4-mini) is fetched by the app itself on first run — into the per-user app-data directory, and only when a compatible GPU is present.
+> **Not downloaded at build time:**
+> - The local LLM model (Phi-4-mini) is fetched by the app itself on first run — into the per-user app-data directory, and only when a compatible GPU is present.
+> - **ViTPose++-L wholebody** (`vitpose-l-wholebody.onnx`, ~1.2 GB) — the "High" motion-capture-quality pose model. Deliberately never built or packaged; the app downloads it on demand (with an explicit size warning) when the user selects the **High** tier in Settings → General, into `AppLocalDataLocation/models/vitpose/`. "High" runs ViTPose++-L; "Low"/"Medium" run the packaged ViTPose-B.
 
 ---
 

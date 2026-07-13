@@ -42,6 +42,7 @@ using pinpoint::analysis::PoseTrack2D;
 #include <opencv2/core.hpp>
 #include "../Export/frame_decode.h"
 #include "../Pose/pose_estimator_vitpose.h"
+#include "../Pose/pose_model_selection.h"   // useVitPoseLarge (tier -> model)
 #include "shaft_track_assembly.h"   // estimateSwingSpanUs / ShaftV3Config (Stage B span estimate)
 #endif
 
@@ -119,7 +120,16 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
     // pipeline sequences the x264 export AFTER this pose pass
     // (ShotProcessor::onAnalysisFinished), so the inference is no longer starved
     // by the encoder's threads (which inflated per-frame inference ~5×).
-    PoseEstimatorViTPose estimator;
+    //
+    // Tier -> model: "High" runs ViTPose++-L when the user has downloaded it,
+    // otherwise ViTPose-B (Low/Medium always B). The choice degrades safely to B
+    // whenever the L model is absent — including on machines that never fetched it.
+    using ViTVariant = PoseEstimatorViTPose::ModelVariant;
+    const bool useLarge = pinpoint::pose::useVitPoseLarge(
+        opt.motionCaptureQuality,
+        PoseEstimatorViTPose::isVariantAvailable(ViTVariant::WholeBodyLarge));
+    PoseEstimatorViTPose estimator(useLarge ? ViTVariant::WholeBodyLarge
+                                            : ViTVariant::WholeBodyB);
     estimator.load();
     if (!estimator.isReady()) {
         ppWarn() << "[PoseRunner] ViTPose unavailable (model missing or load failed) "

@@ -41,6 +41,13 @@ pp_add_test(ball_temporal_parity_test
     INCLUDE ${OpenCV_INCLUDE_DIRS}
     LINK    ${OpenCV_LIBS})
 
+# Tier -> pose-model decision (pose_model_selection.h): High + downloaded L -> ViTPose++-L,
+# every other combination -> ViTPose-B. Pure QString logic; no ONNX Runtime (the suite
+# deliberately excludes ORT — model inference is not exercised here).
+pp_add_test(pose_model_selection_test
+    SOURCES pose_model_selection_test.cpp
+    INCLUDE ${POSE})
+
 # BallDetector throttle contract: exactly one ballDetected/detectionSkipped per
 # detect() on every path (disabled, no-ROI, empty, seeding, lock/present, removal).
 # Builds the real ball_detector.cpp (Q_OBJECT → AUTOMOC) with a PpLogStream stub

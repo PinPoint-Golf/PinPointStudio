@@ -73,6 +73,14 @@ struct ShotAnalysisJob {
     int     handedness = 0;     // 0 unknown, 1 right, 2 left (lead-arm sign)
     QString swingDir;           // swing folder for persistence (set at the join)
 
+    // Motion-capture quality tier ("Low"/"Medium"/"High") selecting the offline
+    // pose model: "High" runs ViTPose++-L when downloaded, everything else runs
+    // ViTPose-B (pose_model_selection.h::useVitPoseLarge). Filled on the UI thread
+    // in ShotProcessor::buildAnalysisJob from AppSettings on the LIVE path, or by
+    // SwingDiskLoader from the recorded swing.json on RE-ANALYSIS (deterministic,
+    // never AppSettings). Empty ⇒ ViTPose-B (legacy/default).
+    QString motionCaptureQuality;
+
     // Optional progress sink, 0..1 over the whole analysis. Called from the
     // WORKER thread — the installer must marshal to its own thread (the
     // ShotProcessor lambda posts a queued invoke). May be null; analyzers

@@ -37,6 +37,11 @@ namespace pinpoint { class SwingWindow; }
 struct ShotAnalysisRunnerOptions {
     int64_t impactUs    = -1;   // impact instant (EventBuffer::nowMicros domain)
     int     handedness  = 0;    // 0 unknown, 1 right, 2 left (ShotAnalysisJob convention)
+
+    // Motion-capture quality tier ("Low"/"Medium"/"High"). "High" selects
+    // ViTPose++-L when the on-demand model is present; everything else selects
+    // ViTPose-B (pose_model_selection.h::useVitPoseLarge). Empty ⇒ ViTPose-B.
+    QString motionCaptureQuality;
     int     densePreMs  = 500;  // pose every denseStride-th frame within
     int     densePostMs = 250;  // [impact − densePreMs, impact + densePostMs]
     int     denseStride  = 1;   // stride inside the dense zone (2 = 75 Hz here)

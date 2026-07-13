@@ -26,6 +26,7 @@
 #include <thread>
 
 class SessionController;
+class ModelDownloader;
 
 // Hardware probe behind the "Motion capture quality" setting (General panel).
 // Modelled on CudaRuntimeController: a single QObject, platform/EP code guarded
@@ -38,12 +39,16 @@ class SessionController;
 //      accelerated pose backend with enough graphics memory to run the High tier?
 //      Drives highTierSupported / highTierBlockReason so the panel can grey the
 //      High chip and fall back a persisted "High" to "Medium".
-//   2. Timing (heavy, async, at most once per launch): micro-benchmark the two
-//      *existing* pose models (MoveNet = Low, ViTPose-B = Medium) by reusing the
-//      estimators' own rolling poseStatsUpdated() measurement, and derive a
-//      whole-seconds-per-swing estimate per tier. High is projected from Medium
-//      (ViTPose++-L is not integrated yet — see kHighToMediumComputeFactor) and
-//      flagged provisional.
+//   2. Timing (heavy, async, at most once per launch): micro-benchmark the pose
+//      models (MoveNet = Low, ViTPose-B = Medium, ViTPose++-L = High) by reusing
+//      the estimators' own rolling poseStatsUpdated() measurement, and derive a
+//      whole-seconds-per-swing estimate per tier. High is measured once its model
+//      has been downloaded; until then it is projected from Medium (see
+//      kHighToMediumComputeFactor) and flagged provisional.
+//   3. On-demand download: the High-tier model (ViTPose++-L, ~1.2 GB) is NOT
+//      packaged. When the user opts into High the panel calls downloadHighModel()
+//      here; this owns the ModelDownloader and exposes progress so the panel can
+//      show it and only commit "High" once highModelPresent flips true.
 //
 // Copy stays user-facing everywhere it surfaces: no "ViTPose"/"MoveNet"/"VRAM"/
 // "execution provider" leaks into a Q_PROPERTY string.
@@ -61,6 +66,13 @@ class MotionCaptureProbe : public QObject
     Q_PROPERTY(QVariantMap secondsPerSwing     READ secondsPerSwing         NOTIFY stateChanged)
     Q_PROPERTY(bool    highEstimateProvisional READ highEstimateProvisional NOTIFY stateChanged)
 
+    // On-demand High-tier model (ViTPose++-L) — download state for the panel.
+    Q_PROPERTY(bool    highModelPresent        READ highModelPresent        NOTIFY highModelChanged) // downloaded + on disk
+    Q_PROPERTY(bool    highModelDownloading     READ highModelDownloading    NOTIFY highModelChanged)
+    Q_PROPERTY(double  highModelDownloadProgress READ highModelDownloadProgress NOTIFY highModelChanged) // 0..1, -1 unknown
+    Q_PROPERTY(qint64  highModelSizeBytes      READ highModelSizeBytes      CONSTANT)                 // ~1.2 GB, for the prompt
+    Q_PROPERTY(QString highModelDownloadError  READ highModelDownloadError  NOTIFY highModelChanged) // "" when none
+
 public:
     explicit MotionCaptureProbe(SessionController *session = nullptr, QObject *parent = nullptr);
     ~MotionCaptureProbe() override;
@@ -74,10 +86,22 @@ public:
     QVariantMap secondsPerSwing()         const { return m_secondsPerSwing; }
     bool        highEstimateProvisional() const { return m_highEstimateProvisional; }
 
+    bool        highModelPresent()          const { return m_highModelPresent; }
+    bool        highModelDownloading()      const { return m_highModelDownloading; }
+    double      highModelDownloadProgress() const { return m_highModelDownloadProgress; }
+    qint64      highModelSizeBytes()        const;
+    QString     highModelDownloadError()    const { return m_highModelDownloadError; }
+
     // Idempotent; kicks the timing benchmark if not already ready/probing. The
     // cheap suitability re-runs on every call (so a GPU added since launch is
     // reflected). Called from QML on panel appear (like cudaRuntime.refresh()).
     Q_INVOKABLE void refresh();
+
+    // Start / cancel the one-time High-tier model download. downloadHighModel()
+    // is a no-op if the model is already present or a download is in flight.
+    Q_INVOKABLE void downloadHighModel();
+    Q_INVOKABLE void cancelHighModelDownload();
+    Q_INVOKABLE void clearHighModelDownloadError();
 
 public slots:
     // Feed a live analysis pass's rolling pose stats so a REAL measurement of the
@@ -88,12 +112,14 @@ public slots:
 
 signals:
     void stateChanged();
+    void highModelChanged();
 
 private:
     void runSuitabilityProbe();       // cheap; GUI thread
     void kickTimingBenchmark();       // async; spawns m_worker
-    void runBenchmark(double &lowMs, double &mediumMs);  // heavy; worker thread
+    void runBenchmark(double &lowMs, double &mediumMs, double &highMs);  // heavy; worker thread
     void recomputeSecondsPerSwing();  // folds bench + live; GUI thread
+    void refreshHighModelPresent();   // re-checks the L model file; GUI thread
 
     SessionController *m_session = nullptr;
 
@@ -109,8 +135,16 @@ private:
     // Raw per-frame inference times (ms; -1 = unknown). Kept so recompute can fold
     // a live Medium measurement in without re-benchmarking.
     double m_benchLowMs    = -1.0;   // MoveNet (Low)  micro-benchmark
-    double m_benchMediumMs = -1.0;   // ViTPose (Medium) micro-benchmark
+    double m_benchMediumMs = -1.0;   // ViTPose-B (Medium) micro-benchmark
+    double m_benchHighMs   = -1.0;   // ViTPose++-L (High) micro-benchmark (only when downloaded)
     double m_liveMediumMs  = -1.0;   // ViTPose (Medium) from a live analysis pass (preferred)
+
+    // On-demand High-tier model download.
+    ModelDownloader *m_downloader = nullptr;   // created lazily, GUI thread
+    bool    m_highModelPresent          = false;
+    bool    m_highModelDownloading      = false;
+    double  m_highModelDownloadProgress = -1.0;   // 0..1, -1 = size unknown
+    QString m_highModelDownloadError;
 
     std::atomic<bool> m_cancel{false};  // set in dtor to break the benchmark loop
     std::thread       m_worker;         // joined in dtor; started at most once

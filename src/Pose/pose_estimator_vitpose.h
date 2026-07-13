@@ -53,12 +53,30 @@ class PoseEstimatorViTPose : public PoseEstimatorBase
     Q_OBJECT
 
 public:
-    explicit PoseEstimatorViTPose(QObject *parent = nullptr);
+    // Two whole-body checkpoints, same ONNX I/O ([1,3,256,192] -> [1,133,64,48]),
+    // decoded identically here (17 COCO body joints + opt-in hands). They differ
+    // only in backbone size and where the file lives:
+    //   WholeBodyB     — ships beside the executable (models/, VITPOSE_MODEL_FILE),
+    //                    the Medium tier default.
+    //   WholeBodyLarge — ViTPose++-L (~1.2 GB), NOT packaged; downloaded on demand
+    //                    into the writable app-data dir for the High tier.
+    enum class ModelVariant { WholeBodyB = 0, WholeBodyLarge = 1 };
+
+    explicit PoseEstimatorViTPose(ModelVariant variant = ModelVariant::WholeBodyB,
+                                  QObject *parent = nullptr);
     ~PoseEstimatorViTPose() override;
 
-    static QString modelPath();
-    static bool    isAvailable();
+    static QString modelPath(ModelVariant v = ModelVariant::WholeBodyB);
+    static bool    isVariantAvailable(ModelVariant v);
+    static bool    isAvailable() { return isVariantAvailable(ModelVariant::WholeBodyB); }
 
+    // ViTPose++-L on-demand download coordinates (used by MotionCaptureProbe's
+    // download controller). largeModelDir() is created lazily by the downloader.
+    static QString largeModelFileName();
+    static QString largeModelDir();
+    static QString largeModelUrl();
+
+    ModelVariant variant() const { return m_variant; }
     bool isReady() const { return m_ready; }
 
     // Opt-in decode of the COCO-WholeBody hand channels in the same heatmap
@@ -89,6 +107,7 @@ public slots:
     void resetTracking() override {}   // stateless per-frame; no-op
 
 private:
+    ModelVariant m_variant = ModelVariant::WholeBodyB;
     bool m_ready = false;
 
     bool           m_decodeHands = false;

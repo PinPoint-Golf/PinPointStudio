@@ -307,6 +307,7 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
         ShotAnalysisRunnerOptions opt;
         opt.impactUs   = job.impactUs;
         opt.handedness = job.handedness;
+        opt.motionCaptureQuality = job.motionCaptureQuality;   // High -> ViTPose++-L (if downloaded)
         // Heavy-stage bounding (v3 G3): scan only the detected swing span
         // (+pad for pass-1 timing error). The shaft detection loop follows
         // pose coverage, so this bounds both heavy stages. conf 0 ⇒ full

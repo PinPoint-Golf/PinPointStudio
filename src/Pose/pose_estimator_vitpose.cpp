@@ -22,10 +22,12 @@
 
 #include <QCoreApplication>
 #include <QDateTime>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QLibrary>
+#include <QStandardPaths>
 #include <algorithm>
 #include <thread>
 #include "pp_debug.h"
@@ -100,8 +102,17 @@ struct PoseEstimatorViTPose::OrtState {
 
 // ---------------------------------------------------------------------------
 
-PoseEstimatorViTPose::PoseEstimatorViTPose(QObject *parent)
+// ViTPose++-L is never packaged (it is ~1.2 GB); it is downloaded on demand into
+// the writable app-data dir. These coordinates are shared with the download
+// controller (MotionCaptureProbe).
+static constexpr char kLargeModelFile[] = "vitpose-l-wholebody.onnx";
+static constexpr char kLargeModelUrl[]  =
+    "https://huggingface.co/JunkyByte/easy_ViTPose/resolve/main/onnx/wholebody/"
+    "vitpose-l-wholebody.onnx";
+
+PoseEstimatorViTPose::PoseEstimatorViTPose(ModelVariant variant, QObject *parent)
     : PoseEstimatorBase(parent)
+    , m_variant(variant)
 {}
 
 PoseEstimatorViTPose::~PoseEstimatorViTPose()
@@ -110,8 +121,29 @@ PoseEstimatorViTPose::~PoseEstimatorViTPose()
         PP_PROFILE_MEM_SUB("ONNX.Pose", m_ort->modelBytes);
 }
 
-QString PoseEstimatorViTPose::modelPath()
+QString PoseEstimatorViTPose::largeModelFileName()
 {
+    return QString::fromLatin1(kLargeModelFile);
+}
+
+QString PoseEstimatorViTPose::largeModelDir()
+{
+    // Writable, survives rebuilds, never bundled (same convention as Kokoro TTS
+    // voices in TtsController::modelDataDir()).
+    return QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)
+         + QStringLiteral("/models/vitpose/");
+}
+
+QString PoseEstimatorViTPose::largeModelUrl()
+{
+    return QString::fromLatin1(kLargeModelUrl);
+}
+
+QString PoseEstimatorViTPose::modelPath(ModelVariant v)
+{
+    if (v == ModelVariant::WholeBodyLarge)
+        return largeModelDir() + QString::fromLatin1(kLargeModelFile);
+
     const QString file = QStringLiteral(VITPOSE_MODEL_FILE);
 #ifdef Q_OS_MACOS
     return QCoreApplication::applicationDirPath()
@@ -122,16 +154,17 @@ QString PoseEstimatorViTPose::modelPath()
 #endif
 }
 
-bool PoseEstimatorViTPose::isAvailable()
+bool PoseEstimatorViTPose::isVariantAvailable(ModelVariant v)
 {
-    return QFile::exists(modelPath());
+    return QFile::exists(modelPath(v));
 }
 
 void PoseEstimatorViTPose::load()
 {
-    const QString path = modelPath();
+    const QString path = modelPath(m_variant);
+    const char *variantTag = (m_variant == ModelVariant::WholeBodyLarge) ? "++-L" : "-B";
     if (!QFile::exists(path)) {
-        ppError() << "[ViTPose] Model not found:" << path;
+        ppError() << "[ViTPose" << variantTag << "] Model not found:" << path;
         return;
     }
 
@@ -232,7 +265,8 @@ void PoseEstimatorViTPose::load()
     m_ort->modelBytes = QFileInfo(path).size();   // [seam] file size as ORT arena proxy
     PP_PROFILE_MEM_ADD("ONNX.Pose", m_ort->modelBytes);
 
-    ppInfo() << "[ViTPose] Loaded — input:" << m_ort->inputName.c_str()
+    ppInfo() << "[ViTPose" << variantTag << "] Loaded —" << QFileInfo(path).fileName()
+             << "input:" << m_ort->inputName.c_str()
              << "output:" << m_ort->outputName.c_str()
              << "size:" << kInputW << "×" << kInputH
              << "intraOpThreads:" << intraThreads;

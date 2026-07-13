@@ -558,6 +558,13 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
         && captureIn[QStringLiteral("sessionType")].toInt() >= 0)
         job.sessionType = captureIn[QStringLiteral("sessionType")].toInt();
 
+    // Offline pose-model tier — recorded capture.motionCaptureQuality, so
+    // re-analysis reproduces the model the swing was captured with (High ->
+    // ViTPose++-L when the model is present on THIS host, else it degrades to B),
+    // deterministically and independent of the re-running machine's live setting.
+    // Absent on legacy swings ⇒ empty ⇒ ViTPose-B (unchanged historical behaviour).
+    job.motionCaptureQuality = captureIn[QStringLiteral("motionCaptureQuality")].toString();
+
     // Impact, most-precise source first (all WINDOW-RELATIVE µs to match the
     // reconstructed timeline): capture.impactUs (exact back-dated estimate, already
     // relative — corpus swings incl. analysis-skipped) → the recorded Impact phase

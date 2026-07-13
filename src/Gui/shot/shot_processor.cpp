@@ -608,6 +608,8 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
     job.sessionType = m_sessionType;
     job.shotSource  = static_cast<int>(m_shotSource);
     job.impactUs    = m_impactUs;
+    // Offline pose-model tier (High -> ViTPose++-L when downloaded, else ViTPose-B).
+    job.motionCaptureQuality = m_appSettings ? m_appSettings->motionCaptureQuality() : QString();
     // Produce WristAssessmentEngine findings on the live Wrist pipeline (design §B.0:
     // faults are the AI-coach feedback layer, decoupled from the headline resemblance
     // score — D-3). Was offline-only (SwingLab); now always-on for Wrist so swing.json
@@ -921,6 +923,7 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
     job.sessionType = m_sessionType;
     job.shotSource  = static_cast<int>(m_shotSource);
     job.swingDetectionSensitivity = s->swingDetectionSensitivity();
+    job.motionCaptureQuality      = s->motionCaptureQuality();
     // Club geometry (shaft-tracker E1 band matcher) — persisted into capture.club
     // so re-analysis recovers the club that was used (mirrors buildAnalysisJob).
     if (m_athlete && m_session) {

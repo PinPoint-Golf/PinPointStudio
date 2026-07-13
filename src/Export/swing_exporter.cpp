@@ -772,6 +772,7 @@ QJsonObject SwingExporter::captureBlock(const SwingExportJob& job)
         // present even for analysis-skipped corpus swings (no analysis.phases block).
         {QStringLiteral("impactUs"),    static_cast<qint64>(job.impactUs)},
         {QStringLiteral("swingDetectionSensitivity"), job.swingDetectionSensitivity},
+        {QStringLiteral("motionCaptureQuality"),      job.motionCaptureQuality},
         {QStringLiteral("latencyUs"), QJsonObject{
             {QStringLiteral("imuBle"),      static_cast<qint64>(job.imuBleLatencyUs)},
             {QStringLiteral("audioDevice"), job.audioDeviceLatencyUs},
