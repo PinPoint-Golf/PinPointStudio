@@ -153,6 +153,26 @@ void ShotListModel::addPersistedShot(const QString &swingDir, int ordinal,
     emit activeCountChanged();
 }
 
+void ShotListModel::loadSessionDir(const QString &dir)
+{
+    // Point the live carousel at a specific session folder — today's, on wrist
+    // entry and at session start/end. An empty dir just clears (empty carousel).
+    // Never called during live capture; clears then re-seeds from disk truth.
+    clear();
+    if (dir.isEmpty())
+        return;
+    for (const QString &sd : pinpoint::SwingDocReader::findSwingDirs(dir)) {
+        const pinpoint::PersistedShot ps = pinpoint::SwingDocReader::readSwingJson(sd);
+        if (!ps.ok)
+            continue;
+        addPersistedShot(ps.swingDir, ps.ordinal, ps.timestampLabel, ps.club, ps.hasVideo,
+                         ps.thumbnailPath.isEmpty() ? QUrl()
+                                                    : QUrl::fromLocalFile(ps.thumbnailPath),
+                         ps.score, ps.rating, ps.note, ps.metrics, ps.analysisDetail,
+                         ps.dataWarning);
+    }
+}
+
 void ShotListModel::refreshShot(const QString &swingDir)
 {
     if (swingDir.isEmpty())

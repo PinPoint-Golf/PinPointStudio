@@ -250,6 +250,9 @@ ApplicationWindow {
                             // controller destructors and the aboutToQuit hook.
                             cameraManager.stopCapture()
                             sessionController.endSession()
+                            // Discard the session folder if it captured nothing (to
+                            // the OS trash — recoverable), same as the End Session flow.
+                            shotProcessor.endSessionFolder()
                             root._quitConfirmed = true
                             root.close()
                         }
@@ -553,6 +556,11 @@ ApplicationWindow {
                         // Navigate first: once start(type) runs, navigation is
                         // locked to this very screen (plus System/Settings).
                         navController.navigateRail(sessionWizard.sessionTypes[type].railIndex)
+                        // The wizard always starts a NEW session folder (a deliberate
+                        // fresh session); the carousel begins empty. The toolbar
+                        // Capture button is the path that offers extend-vs-new.
+                        shotProcessor.beginSessionFolder(type, false)
+                        shotModel.loadSessionDir("")
                         sessionController.start(type)   // session active → rail locks
                         cameraManager.startCapture()    // buffer capturing → SHOT arms
                     }

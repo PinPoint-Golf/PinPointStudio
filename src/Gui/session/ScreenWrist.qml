@@ -47,6 +47,22 @@ Item {
     // otherwise an off-screen timeline re-lays-out on every swing reload.
     readonly property bool _screenActive: navController.currentIndex === SessionController.Wrist + 1
 
+    // Today-scoped carousel: on entry (before capture) show today's most-recent
+    // session folder, or an empty carousel when none exists for today. Guarded so
+    // it never clobbers a live session's freshly-captured in-memory shots or an
+    // open review — the toolbar reloads the carousel itself at session start/end
+    // (those don't change the nav index, so this handler doesn't fire there).
+    function _syncTodayCarousel() {
+        if (!root._screenActive) return
+        if (sessionController.running || sessionReviewController.reviewActive) return
+        shotModel.loadSessionDir(shotProcessor.todaySessionDir(SessionController.Wrist))
+    }
+    Component.onCompleted: _syncTodayCarousel()
+    Connections {
+        target: navController
+        function onCurrentIndexChanged() { root._syncTodayCarousel() }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0

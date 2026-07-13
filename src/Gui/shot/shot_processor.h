@@ -81,6 +81,9 @@ class ShotProcessor : public QObject
     // The analyzed swing detail of the shot currently replaying — the ScreenWrist
     // in-replay graph binds to it (same shape as ShotListModel's analysisDetail role).
     Q_PROPERTY(QVariantMap replayAnalysisDetail READ replayAnalysisDetail NOTIFY replayAnalysisDetailChanged)
+    // The active session folder (absolute path), chosen at session start via
+    // beginSessionFolder(). "" when no explicit session is in progress.
+    Q_PROPERTY(QString activeSessionDir READ activeSessionDir NOTIFY activeSessionDirChanged)
 
 public:
     enum class State { Idle, PostRoll, Processing, Replaying };
@@ -104,6 +107,7 @@ public:
     qint64  replayImpactUs()   const { return m_impactUs; }
     QVariantMap replayAnalysisDetail() const { return m_replayAnalysisDetail; }
     double  analysisProgress() const { return m_analysisProgress; }
+    QString activeSessionDir() const { return m_swingPaths.currentSessionDir(); }
 
     // User-initiated skip (ESC). Only meaningful mid-replay: the shot is
     // already on the carousel and saved by the time the replay runs, so
@@ -116,6 +120,21 @@ public:
     // pause/deregister/intent sequence around source registration.
     void finishNowBlocking();
 
+    // ── Session folder lifecycle (QML) ──────────────────────────────────────
+    // The wrist session screen decides the on-disk session folder up front (at
+    // Capture / wizard start) rather than lazily at first save, so it can offer
+    // "extend today vs new" and discard a session that captured nothing.
+
+    // Most-recent existing session folder for TODAY (this athlete + session type),
+    // or "" when none. Drives the Extend/New prompt and the today-scoped carousel.
+    Q_INVOKABLE QString todaySessionDir(int sessionType);
+    // Begin the session's folder: extend today's most-recent one, or allocate a
+    // fresh "_NN". Every swing captured this session lands in it.
+    Q_INVOKABLE void beginSessionFolder(int sessionType, bool extend);
+    // End the session's folder: discard it (to the OS trash) when it captured no
+    // new swings since beginSessionFolder(). Safe with no session in progress.
+    Q_INVOKABLE void endSessionFolder();
+
 public slots:
     void onShotDetected(ShotController::Source source, qint64 timestampUs, int sessionType);
 
@@ -127,6 +146,7 @@ signals:
     void replayPositionChanged();
     void replaySpanChanged();
     void replayAnalysisDetailChanged();
+    void activeSessionDirChanged();
     // analysis+export join reached, all ok — carries the reviewable on-disk swing
     // (swingDir) and its carousel row id so the UI can promote it straight into Review.
     void shotProcessed(int shotId, const QString &swingDir);

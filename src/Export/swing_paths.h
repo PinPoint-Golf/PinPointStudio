@@ -55,11 +55,57 @@ public:
                                 const QString& namingPattern = QStringLiteral("date-name-type"),
                                 const QString& sessionTypeLabel = QString());
 
+    // ── Explicit per-session lifecycle ──────────────────────────────────────
+    // The session folder is normally allocated lazily on the first save (above).
+    // These let the folder be decided up front at session START instead, so the
+    // UI can offer "extend today's session vs start a new one" and discard a
+    // session that captured nothing.
+
+    // Most-recent existing session folder for TODAY matching this athlete +
+    // naming pattern + session type, or "" when none exists today. (The composed
+    // base embeds today's ISO date, so every "<base>_NN" match is a today folder.)
+    QString findTodaySessionDir(const QString& libraryRoot,
+                                const QString& athleteName,
+                                const QString& athleteUuid,
+                                const QString& namingPattern = QStringLiteral("date-name-type"),
+                                const QString& sessionTypeLabel = QString());
+
+    // Begin an explicit session. extendExisting reuses today's most-recent folder
+    // (no counter bump); otherwise a fresh "_NN" is allocated and created. Primes
+    // the allocation cache so every swing this session lands in it, and records a
+    // swing-count baseline for endSession(). Returns the folder path (empty on
+    // failure).
+    QString beginSession(const QString& libraryRoot,
+                         const QString& athleteName,
+                         const QString& athleteUuid,
+                         const QString& namingPattern = QStringLiteral("date-name-type"),
+                         const QString& sessionTypeLabel = QString(),
+                         bool extendExisting = false);
+
+    // The current (primed/cached) session folder, or "".
+    QString currentSessionDir() const { return m_cachedSessionDir; }
+
+    // End the session. When discardIfNoNewSwings and the folder gained no swings
+    // since beginSession() (swing_* count <= baseline), move it to the OS trash
+    // (recoverable). Always clears the cache so the next session re-resolves.
+    void endSession(bool discardIfNoNewSwings);
+
     // Filesystem-safe token: trim, whitespace/path-hostile chars -> '-',
     // collapse separators, truncate; "unknown" when nothing survives.
     static QString sanitise(const QString& raw);
 
 private:
+    // Resolved, pattern-composed session identity (shared by allocate/find/begin).
+    struct Resolved {
+        QString root;         // library root, with AppData fallback applied
+        QString athleteDir;   // <root>/<athlete-token>
+        QString today;        // ISO yyyy-MM-dd
+        QString base;         // composed session-folder base (pre-"_NN" counter)
+    };
+    static Resolved resolveSession(const QString& libraryRoot, const QString& athleteName,
+                                   const QString& athleteUuid, const QString& namingPattern,
+                                   const QString& sessionTypeLabel);
+
     // Session cache key — a new session folder is allocated when any part changes.
     QString m_cachedRoot;
     QString m_cachedAthleteUuid;
@@ -67,6 +113,9 @@ private:
     QString m_cachedBase;        // composed session-folder base (pre-counter)
     QString m_cachedSessionDir;  // absolute path
     QString m_cachedSessionId;   // folder name
+    // Swing_* count in the folder when beginSession() primed it (-1 = no explicit
+    // session in progress). endSession() discards when the count hasn't grown.
+    int     m_sessionBaselineSwings = -1;
 };
 
 } // namespace pinpoint

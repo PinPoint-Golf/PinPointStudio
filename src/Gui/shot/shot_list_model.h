@@ -101,9 +101,16 @@ public:
     // back. No-op if the dir isn't in this model or the doc can't be read.
     Q_INVOKABLE void refreshShot(const QString &swingDir);
 
+    // Point the (live) carousel at one session folder: clear(), then reload every
+    // swing.json under `dir` via SwingDocReader (as addPersistedShot). An empty
+    // `dir` just clears — an empty carousel. Called on wrist-screen entry and at
+    // session start/end to keep the carousel today-scoped; never during live
+    // capture (guarded in QML), so it can't clobber freshly captured in-memory shots.
+    Q_INVOKABLE void loadSessionDir(const QString &dir);
+
     // Drop every row (model reset). Used by SessionReviewController when swapping
-    // the loaded session into its private review instance; the live shotModel
-    // never calls this.
+    // the loaded session into its private review instance, and by loadSessionDir()
+    // above when the live shotModel is re-pointed at a different session folder.
     void clear();
 
     Q_INVOKABLE void setRating(int id, int n);

@@ -231,19 +231,9 @@ int main(int argc, char *argv[])
     {
         const QString sessionDir = pinpoint::SwingDocReader::latestSessionDir(
             appSettings.athleteLibraryPath(), athleteController.currentName());
-        int restored = 0;
-        for (const QString &sd : pinpoint::SwingDocReader::findSwingDirs(sessionDir)) {
-            const pinpoint::PersistedShot ps = pinpoint::SwingDocReader::readSwingJson(sd);
-            if (!ps.ok)
-                continue;
-            shotModel.addPersistedShot(ps.swingDir, ps.ordinal, ps.timestampLabel, ps.club,
-                ps.hasVideo,
-                ps.thumbnailPath.isEmpty() ? QUrl() : QUrl::fromLocalFile(ps.thumbnailPath),
-                ps.score, ps.rating, ps.note, ps.metrics, ps.analysisDetail, ps.dataWarning);
-            ++restored;
-        }
-        if (restored)
-            ppInfo() << "[Reload] restored" << restored << "shots from" << sessionDir;
+        shotModel.loadSessionDir(sessionDir);   // one disk-load path (also used on wrist entry)
+        if (shotModel.activeCount())
+            ppInfo() << "[Reload] restored" << shotModel.activeCount() << "shots from" << sessionDir;
     }
     // Session review: enumerate saved sessions + load one into a private shot
     // model. Constructed after the reload above so its synthesized live-session

@@ -1120,6 +1120,40 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
     return job;
 }
 
+// ── Session folder lifecycle (QML) ──────────────────────────────────────────
+// Same library-path / athlete / naming-pattern accessors buildSwingExportJob
+// uses, so the folder chosen at session start matches the one swings save into.
+
+QString ShotProcessor::todaySessionDir(int sessionType)
+{
+    if (!m_appSettings || !m_athlete)
+        return {};
+    return m_swingPaths.findTodaySessionDir(m_appSettings->athleteLibraryPath(),
+                                            m_athlete->currentName(),
+                                            m_athlete->currentUuid(),
+                                            m_appSettings->sessionNamingPattern(),
+                                            sessionTypeLabel(sessionType));
+}
+
+void ShotProcessor::beginSessionFolder(int sessionType, bool extend)
+{
+    m_sessionType = sessionType;   // so a shot's folder base uses the right type
+    if (m_appSettings && m_athlete)
+        m_swingPaths.beginSession(m_appSettings->athleteLibraryPath(),
+                                  m_athlete->currentName(),
+                                  m_athlete->currentUuid(),
+                                  m_appSettings->sessionNamingPattern(),
+                                  sessionTypeLabel(sessionType),
+                                  extend);
+    emit activeSessionDirChanged();
+}
+
+void ShotProcessor::endSessionFolder()
+{
+    m_swingPaths.endSession(/*discardIfNoNewSwings=*/true);
+    emit activeSessionDirChanged();
+}
+
 QJsonObject ShotProcessor::buildSynthManifest() const
 {
     // Mirrors the exporter's header exactly (swing_exporter.cpp), minus the

@@ -123,6 +123,16 @@ Item {
         return !!(rec && rec.bandCentersMm && rec.bandCentersMm.length > 0)
     }
 
+    // Start a session: choose its on-disk folder, then start the clock + capture.
+    // extend appends to today's most-recent folder (its prior swings load into the
+    // carousel); otherwise a fresh "_NN" folder is created and the carousel clears.
+    function _beginSession(extend) {
+        shotProcessor.beginSessionFolder(root.sessionType, extend)
+        shotModel.loadSessionDir(extend ? shotProcessor.activeSessionDir : "")
+        sessionController.start(root.sessionType)
+        cameraManager.startCapture()
+    }
+
     Rectangle {
         anchors.fill: parent
         color: Theme.aesthetic === "instrument" ? Theme.colorBg2 : Theme.colorSurface
@@ -227,9 +237,91 @@ Item {
                 onClicked: {
                     if (root.captureLive) {
                         cameraManager.stopCapture()
-                    } else {
-                        if (!sessionController.running) sessionController.start(root.sessionType)
+                    } else if (sessionController.running) {
+                        // Session already running (resumed after Stop) — just re-arm
+                        // capture; the folder was chosen when the session started.
                         cameraManager.startCapture()
+                    } else if (shotProcessor.todaySessionDir(root.sessionType) !== "") {
+                        startPrompt.open()        // ask: extend today's session, or new
+                    } else {
+                        root._beginSession(false) // no folder for today → new session
+                    }
+                }
+            }
+
+            // Extend-or-new prompt — shown when today already has a session folder.
+            // Extend appends to it; New starts a fresh "_NN"; Cancel leaves capture off.
+            Popup {
+                id: startPrompt
+                y: captureBtn.height + Theme.sp(10)
+                x: 0
+                padding: Theme.sp(14)
+                margins: Theme.sp(8)
+                closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+                background: Rectangle {
+                    color: Theme.colorSurface; radius: Theme.radiusLg
+                    border.width: 1; border.color: Theme.colorBorderStrong
+                }
+                contentItem: Column {
+                    spacing: Theme.sp(10)
+                    Text {
+                        text: qsTr("A session already exists for today.")
+                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
+                        color: Theme.colorText
+                    }
+                    Row {
+                        spacing: Theme.sp(8)
+                        Rectangle {
+                            width: extendLbl.implicitWidth + Theme.sp(20)
+                            height: Theme.sp(30); radius: Theme.radius
+                            color: extendMa.containsMouse ? Theme.colorAccentLight : "transparent"
+                            border.width: 1; border.color: Theme.colorAccentMid
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            Text {
+                                id: extendLbl
+                                anchors.centerIn: parent; text: qsTr("Extend")
+                                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                                color: Theme.colorAccent
+                            }
+                            PpPressable {
+                                id: extendMa
+                                onClicked: { startPrompt.close(); root._beginSession(true) }
+                            }
+                        }
+                        Rectangle {
+                            width: newLbl.implicitWidth + Theme.sp(20)
+                            height: Theme.sp(30); radius: Theme.radius
+                            color: newMa.containsMouse ? Theme.colorBg3 : Theme.colorBg2
+                            border.width: 1; border.color: Theme.colorBorderMid
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            Text {
+                                id: newLbl
+                                anchors.centerIn: parent; text: qsTr("New session")
+                                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                                color: Theme.colorText2
+                            }
+                            PpPressable {
+                                id: newMa
+                                onClicked: { startPrompt.close(); root._beginSession(false) }
+                            }
+                        }
+                        Rectangle {
+                            width: cancelStartLbl.implicitWidth + Theme.sp(20)
+                            height: Theme.sp(30); radius: Theme.radius
+                            color: cancelStartMa.containsMouse ? Theme.colorBg3 : "transparent"
+                            border.width: 1; border.color: Theme.colorBorderMid
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            Text {
+                                id: cancelStartLbl
+                                anchors.centerIn: parent; text: qsTr("Cancel")
+                                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                                color: Theme.colorText2
+                            }
+                            PpPressable {
+                                id: cancelStartMa
+                                onClicked: startPrompt.close()
+                            }
+                        }
                     }
                 }
             }
@@ -345,6 +437,13 @@ Item {
                                     endPopup.close()
                                     cameraManager.stopCapture()
                                     sessionController.endSession()
+                                    // Discard the session folder if it captured no
+                                    // new swings (moved to the OS trash — recoverable),
+                                    // then re-point the carousel at today's remaining
+                                    // most-recent session, or empty it.
+                                    shotProcessor.endSessionFolder()
+                                    shotModel.loadSessionDir(
+                                        shotProcessor.todaySessionDir(root.sessionType))
                                     // Ending the session releases the devices:
                                     // cameras stop + deselect, IMUs disconnect
                                     // (BLE battery). The next session's wizard
