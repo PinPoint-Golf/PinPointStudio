@@ -858,6 +858,86 @@ always-on health check the vision pipeline has.
 
 ---
 
+## 12. The consistency graph — systematic corroboration across N cameras × N IMUs
+
+Sections 8 and 11 establish *pairwise* corroborations (P2 heading, P6 lean residual, P11
+ω-vs-θ̇, the §11 scale self-test, P9's live checks). This section generalises them: with
+multiple IMUs and multiple calibrated cameras, every sensor pair that shares an observable is
+a **residual edge**, and the set of edges forms a consistency graph whose structure does two
+jobs the pairwise view cannot — *fault isolation* (which device is wrong, not merely that
+something disagrees) and a principled source for P7's confidence weights.
+
+### 12.1 Three edge families
+
+**IMU × IMU — kinematic-chain constraints.** Adjacent instrumented segments share a joint,
+and rigid-body kinematics makes their raw gyros mutually predictive:
+`ω_distal = ω_proximal + ω_joint`, with `ω_joint` confined to the joint's anatomical axes.
+The elbow is the sharp case — a near-hinge, so the forearm and upper-arm angular velocities
+must agree up to rotation about (approximately) one axis; the component of their difference
+*orthogonal* to the best-fit hinge axis is a constraint residual that should sit at gyro-noise
+level. Sustained violation is a **strap-slip detector requiring no camera at all**, and the
+same functional-axis identification that `solveSegment` already performs at calibration time
+supplies the axis (drift in the *identified* axis direction across a session is itself a slip
+signal — a second, slower channel on the same edge). For the Swing/GRF sensor sets this
+compounds along the serial chain: pelvis↔T12↔thorax gives two more hinge-like edges
+(constrained-DOF spinal joints), and thigh↔pelvis edges bracket the hips. Note these edges
+compare *angular rates in segment frames*, so they are immune to the heading-drift problem —
+they corroborate at L1/L2, below where drift lives.
+
+**Camera × camera — epipolar consistency before triangulation.** §11's `Triangulate` stage
+should be preceded by a per-keypoint gate: each FO keypoint must lie within a σ-scaled band of
+the epipolar line induced by its DTL counterpart (and vice versa). A pose hallucination in one
+view — the classic occluded-joint high-confidence miss — violates epipolar geometry and is
+rejected *before* it poisons the 3D product, leaving that keypoint to the single-view path for
+that frame. Nearly free once the stereo calibration exists; the residual (Sampson distance)
+also grades the calibration itself — a slow, global rise in epipolar residuals across all
+keypoints indicates the *rig* moved, not a sensor.
+
+**IMU × camera — the projection lattice.** Every calibrated view can observe every IMU'd
+segment: project the segment's anatomically-mapped IMU orientation (its long axis) through
+that camera's calibration and compare against the view's 2D limb direction from pose. P2 is
+one cell of this matrix (forearm × face-on, used *correctively*); the general N_imu × N_cam
+matrix used *diagnostically* is new. Each cell is cheap (one projection, one angle), phase-
+gated (skip frames where the limb is near the view's optical axis — ill-conditioned exactly
+as P10's ξ), and confidence-weighted by the pose smoother's honesty tier.
+
+### 12.2 Fault isolation — the property pairwise checks lack
+
+A single residual says "these two disagree" — it cannot say which is wrong. The graph can:
+a slipped forearm IMU elevates its chain edge (vs upper arm), its projection edges (vs every
+camera), and the P6/P11 metric residuals it feeds — while the rest of the graph stays quiet.
+The isolation rule is graph-structural and simple: **the faulty sensor is the vertex whose
+incident edges are jointly elevated while the complement subgraph remains consistent.** This
+turns G7's passive `calibAgeSec` decay into an *evidence-based* recalibration prompt naming
+the specific device ("your lead-forearm sensor appears to have moved — recalibrate"), and it
+generalises P9's live wizard check into the same machinery run per-swing offline.
+
+Practical scope discipline: with today's Wrist hardware (2–3 IMUs, 1–2 cameras) the graph is
+tiny — at most ~8 edges — and vertex isolation is a max-over-averages, not an inference
+engine. It should stay that way; the value is in *having* the edges, not in sophisticated
+graph algorithms over them.
+
+### 12.3 Placement in the architecture
+
+One stage: `ConsistencyStage` — requires ≥2 products that share an observable (so it runs on
+any multi-sensor capture, in any permutation), produces a `ConsistencyReport` (per-edge
+residual summaries, per-vertex health, provenance) consumed by three parties: P7's confidence
+algebra (edge residuals → stream/product confidence adjustments), the UI recalibration prompt
+(vertex isolation), and `swing.json` (persisted, so corpus analysis can characterise residual
+distributions before any of them gate anything). It sits after `SegResolve`/`Triangulate` and
+before the metric tail, and is **diagnostic-only in v1** — per the additive discipline, no
+edge modifies a measurement until its residual distribution has been characterised on the
+corpus; correction remains the business of the dedicated fusion stages (P2, P3, P5, P6).
+
+The consistency graph is also the right frame for a closing observation about the whole
+proposal set: P1 aligns the clocks so edges compare like with like; the calibrations (§11 and
+the IMU anatomical solve) define the transforms edges are computed through; the P-proposals
+are the *corrective* subset of edges promoted to estimators; and the graph is everything else
+— cheap, always-on, additive corroboration that makes every added sensor increase the
+system's *self-knowledge*, not merely its channel count.
+
+---
+
 ## Appendix A — file map
 
 | Concern | Files |
