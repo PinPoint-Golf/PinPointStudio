@@ -130,7 +130,14 @@ Item {
             }
         }
         switch (tt) {
-            case "head":         return pt(0)
+            case "head": {
+                // Ear-midpoint preferred — a wider, steadier baseline than the
+                // nose alone (the same two points head_track.cpp's per-frame
+                // head-scale computation favours) — nose is the fallback when
+                // either ear drops below confidence (occlusion / DTL-ish turn).
+                var earMid = mid(3, 4)
+                return earMid ? earMid : pt(0)
+            }
             case "leadShoulder": return pt(leadLeft ? 5 : 6)
             case "leadWrist":    return pt(leadLeft ? 9 : 10)
             case "leadAnkle":    return pt(leadLeft ? 15 : 16)
@@ -180,7 +187,28 @@ Item {
         {a:5,  b:7,  w:0.049}, {a:7,  b:9,  w:0.032},   // left arm
         {a:6,  b:8,  w:0.049}, {a:8,  b:10, w:0.032},   // right arm
         {a:11, b:13, w:0.054}, {a:13, b:15, w:0.037},   // left leg
-        {a:12, b:14, w:0.054}, {a:14, b:16, w:0.037}    // right leg
+        {a:12, b:14, w:0.054}, {a:14, b:16, w:0.037},   // right leg
+        // Feet (WB2/WB3, wholebody_pose_design.md §2.1): COCO-WholeBody indices
+        // 17-22 — mirrors kBones in src/Video/video_overlay_pose.cpp exactly
+        // (keep the two lists consistent). boneElem() below gives these their
+        // OWN "feet" category (NOT "legs" — see that function's comment for
+        // why) so they default ON. Drawn only when maxJoint (passed by the
+        // caller) covers them — the live 17-kp array never does, so these are
+        // inert there and only draw during replay over a widened (133-kp)
+        // offline pose track.
+        {a:15, b:19, w:0.026}, {a:19, b:17, w:0.026}, {a:17, b:18, w:0.026},   // left ankle-heel-bigtoe-smalltoe
+        {a:16, b:22, w:0.026}, {a:22, b:20, w:0.026}, {a:20, b:21, w:0.026},   // right ankle-heel-bigtoe-smalltoe
+        // Hands (WB4, wholebody_pose_design.md §2.2): COCO-WholeBody indices
+        // 91-132 — mirrors kBones in src/Video/video_overlay_pose.cpp exactly.
+        // boneElem() below gives these their OWN "hands" category, registered
+        // "off" in every ViewLayout preset so hands default OFF (unlike feet).
+        // Per hand: wrist-root → {thumb-CMC, index/middle/ring/pinky-MCP} + the
+        // index→pinky knuckle line. Drawn only when maxJoint covers 91+ (a widened
+        // replay track); the live 17-kp array never does, so these stay inert there.
+        {a:91,  b:92,  w:0.018}, {a:91,  b:96,  w:0.018}, {a:91,  b:100, w:0.018},   // left wrist → thumb/index/middle-MCP
+        {a:91,  b:104, w:0.018}, {a:91,  b:108, w:0.018}, {a:96,  b:108, w:0.018},   // left wrist → ring/pinky-MCP + knuckle line
+        {a:112, b:113, w:0.018}, {a:112, b:117, w:0.018}, {a:112, b:121, w:0.018},   // right wrist → thumb/index/middle-MCP
+        {a:112, b:125, w:0.018}, {a:112, b:129, w:0.018}, {a:117, b:129, w:0.018}    // right wrist → ring/pinky-MCP + knuckle line
     ]
 
     // Blueprint scale reference — torso length, with graceful fallbacks (1.5×
@@ -206,10 +234,17 @@ Item {
     // keypoints dropped, derived neck/pelvis midpoints, graduated bone weights
     // scaled from torso length, the fixed cyan Theme.pose* palette. gx(j)/gy(j)
     // return pixel coords for keypoint j; gs(j) its score; alphaScale mutes the
-    // whole overlay (1.0 live, <1 when it sits over replay footage).
-    function paintBlueprint(ctx, cr, gx, gy, gs, alphaScale, emOn) {
+    // whole overlay (1.0 live, <1 when it sits over replay footage). `maxJoint`
+    // is how many keypoints the caller's gx/gy/gs can actually answer for — the
+    // live tile's poseKeypoints is always exactly 17 objects (kps[j].score on an
+    // out-of-range j throws, unlike a flat array's harmless `undefined`), while
+    // the replay tile's flat kp array is 51 (legacy) or 399 (wholebody) floats
+    // wide. Defaults to 17 (pre-WB2/3 behaviour) so any future call site that
+    // forgets the argument degrades to "body only", never a crash.
+    function paintBlueprint(ctx, cr, gx, gy, gs, alphaScale, emOn, maxJoint) {
         var kMinScore = 0.25
-        function vis(j) { return gs(j) >= kMinScore }
+        var maxJ = (maxJoint === undefined) ? 17 : maxJoint
+        function vis(j) { return j < maxJ && gs(j) >= kMinScore }
         // Per-element render gate — emOn(key) is true when that element should
         // draw in FRAME mode. When emOn is undefined the whole skeleton draws
         // (legacy / live path: pixel-identical to the pre-motion behaviour).
@@ -219,6 +254,25 @@ Item {
             if (a === 11 && b === 12) return "hips"
             if ((a === 5 && b === 7) || (a === 7 && b === 9)
              || (a === 6 && b === 8) || (a === 8 && b === 10)) return "arms"
+            // Feet (WB2/WB3) get their OWN category rather than falling into
+            // "legs" — "legs" defaults to "off" in every existing preset
+            // (ViewLayout.qml's "clean"/"ballOnly"/etc all list legs:"off"),
+            // so reusing it would make feet default OFF, the opposite of the
+            // design intent (wholebody_pose_design.md §4.4: "default OFF
+            // except feet"). "feet" is deliberately NOT one of ViewLayout's
+            // known element keys, so root._elemMode("feet") always falls
+            // through its own "unknown key ⇒ frame" default — on whenever the
+            // master motion switch is on, off only with it, and not yet
+            // individually toggleable (same not-wired-to-UI-yet precedent as
+            // showSynthTier above).
+            // Hands (WB4) get their OWN "hands" category — checked BEFORE feet
+            // (91 >= 17 would otherwise catch them). Unlike "feet", "hands" IS a
+            // known ViewLayout element key, registered "off" in every preset so it
+            // defaults OFF (wholebody_pose_design.md §4.4: "default OFF except
+            // feet"). _elemMode("hands") therefore reads the preset — off unless
+            // the user (later UI) turns it on, off entirely with the master switch.
+            if (a >= 91 || b >= 91) return "hands"
+            if (a >= 17 || b >= 17) return "feet"
             return "legs"   // 11-13, 13-15, 12-14, 14-16
         }
         function jointElem(j) {
@@ -709,11 +763,17 @@ Item {
                 if (cr.width <= 0 || cr.height <= 0)
                     return
 
-                // Biomech Blueprint — full strength on the live tile.
+                // Biomech Blueprint — full strength on the live tile. The live
+                // poseKeypoints array is always exactly 17 objects (the live
+                // 60 Hz MoveNet contract never widens), so maxJoint = kps.length
+                // keeps the foot bones permanently inert here — kps[17] on this
+                // object-array shape would throw, unlike a flat array's harmless
+                // out-of-range `undefined`, which is exactly why paintBlueprint's
+                // vis() bounds-checks against maxJoint before ever calling gs(j).
                 var gx = function(j) { return kps[j].x * cr.width  + cr.x }
                 var gy = function(j) { return kps[j].y * cr.height + cr.y }
                 var gs = function(j) { return kps[j].score }
-                root.paintBlueprint(ctx, cr, gx, gy, gs, 1.0)
+                root.paintBlueprint(ctx, cr, gx, gy, gs, 1.0, undefined, kps.length)
             }
         }
 
@@ -892,8 +952,13 @@ Item {
                     var gx = function(j) { return kp[j * 3]     * cr.width  + cr.x }
                     var gy = function(j) { return kp[j * 3 + 1] * cr.height + cr.y }
                     var gs = function(j) { return kp[j * 3 + 2] }
+                    // maxJoint = the flat kp array's own keypoint count — 17 on a
+                    // legacy pre-WB0 track (foot bones stay inert, matching the
+                    // live tile) or 133 on a wholebody track (foot bones eligible,
+                    // still per-endpoint score-gated by vis()).
                     root.paintBlueprint(ctx, cr, gx, gy, gs, 0.7,
-                                        function(key) { return root._elemMode(key) === "frame" })
+                                        function(key) { return root._elemMode(key) === "frame" },
+                                        Math.floor(kp.length / 3))
                 }
 
                 // FAN pass — body elements in "fan" mode: the last fanWindowMs of the

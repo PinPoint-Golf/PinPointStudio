@@ -32,9 +32,6 @@
 #  include <opencv2/core.hpp>
 #endif
 
-#if defined(HAVE_MOVENET) && defined(HAVE_ONNXRUNTIME)
-#  include "pose_estimator_movenet.h"
-#endif
 #if defined(HAVE_VITPOSE) && defined(HAVE_ONNXRUNTIME)
 #  include "pose_estimator_vitpose.h"
 #endif
@@ -69,7 +66,6 @@ MotionCaptureProbe::MotionCaptureProbe(SessionController *session, QObject *pare
     // Deliberately lazy: no probing at construction. gpumetrics init + two ORT
     // session loads are too costly for launch — refresh() is kicked from the
     // General panel's Component.onCompleted instead.
-    m_secondsPerSwing[QStringLiteral("Low")]    = -1;
     m_secondsPerSwing[QStringLiteral("Medium")] = -1;
     m_secondsPerSwing[QStringLiteral("High")]   = -1;
 
@@ -140,13 +136,12 @@ void MotionCaptureProbe::kickTimingBenchmark()
     emit stateChanged();
 
     m_worker = std::thread([this]() {
-        double lowMs = -1.0, mediumMs = -1.0, highMs = -1.0;
-        runBenchmark(lowMs, mediumMs, highMs);
+        double mediumMs = -1.0, highMs = -1.0;
+        runBenchmark(mediumMs, highMs);
 
         // Marshal back to the GUI thread. If `this` is being destroyed the dtor
         // joins us first, then ~QObject purges this posted event — no dangling.
-        QMetaObject::invokeMethod(this, [this, lowMs, mediumMs, highMs]() {
-            m_benchLowMs    = lowMs;
+        QMetaObject::invokeMethod(this, [this, mediumMs, highMs]() {
             m_benchMediumMs = mediumMs;
             m_benchHighMs   = highMs;
             m_probing = false;
@@ -159,7 +154,7 @@ void MotionCaptureProbe::kickTimingBenchmark()
 
 // Worker thread. Reuses each estimator's own rolling poseStatsUpdated() average
 // rather than timing here, so the value matches what a live analysis pass reports.
-void MotionCaptureProbe::runBenchmark(double &lowMs, double &mediumMs, double &highMs)
+void MotionCaptureProbe::runBenchmark(double &mediumMs, double &highMs)
 {
 #ifdef HAVE_OPENCV
     // Timing is content-independent for these CNNs — a flat frame is enough. The
@@ -174,15 +169,6 @@ void MotionCaptureProbe::runBenchmark(double &lowMs, double &mediumMs, double &h
             est.estimatePose(frame);
         return last;
     };
-
-#  if defined(HAVE_MOVENET) && defined(HAVE_ONNXRUNTIME)
-    if (!m_cancel.load(std::memory_order_relaxed)) {          // Low = MoveNet
-        PoseEstimatorMoveNet est;
-        est.load();
-        if (est.isReady())
-            lowMs = benchmark(est);
-    }
-#  endif
 
 #  if defined(HAVE_VITPOSE) && defined(HAVE_ONNXRUNTIME)
     if (!m_cancel.load(std::memory_order_relaxed)) {          // Medium = ViTPose-B
@@ -203,7 +189,6 @@ void MotionCaptureProbe::runBenchmark(double &lowMs, double &mediumMs, double &h
     }
 #  endif
 #else
-    Q_UNUSED(lowMs);
     Q_UNUSED(mediumMs);
     Q_UNUSED(highMs);
 #endif
@@ -225,7 +210,6 @@ void MotionCaptureProbe::recomputeSecondsPerSwing()
     // Live Medium measurement wins over the micro-benchmark when present.
     const double mediumMs = (m_liveMediumMs > 0.0) ? m_liveMediumMs : m_benchMediumMs;
 
-    m_secondsPerSwing[QStringLiteral("Low")]    = secondsForInferenceMs(m_benchLowMs);
     m_secondsPerSwing[QStringLiteral("Medium")] = secondsForInferenceMs(mediumMs);
 
     // High (ViTPose++-L): use a REAL benchmark once the model is downloaded;

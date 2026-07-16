@@ -21,6 +21,7 @@
 #if defined(HAVE_OPENCV) && defined(HAVE_VITPOSE) && defined(HAVE_ONNXRUNTIME)
 
 #include "pose_estimator_base.h"
+#include "heatmap_decode.h"   // pinpoint::pose::DecodeMode + decode functions
 #include <QPointF>
 #include <array>
 #include <memory>
@@ -33,18 +34,19 @@
 // Output: [1, 133, 64, 48] float32 heatmaps — COCO-WholeBody 133-keypoint format.
 //
 // We always consume the first 17 channels (COCO body joints), which map
-// 1-to-1 onto PoseJoint.  The hand channels (91–132) are additionally decoded
-// into WholeBodyHands when setDecodeHands(true) — used by the offline
-// analyzer (PoseRunner); the live path leaves the flag off.  The remaining
-// face/feet channels are still ignored.
+// 1-to-1 onto PoseJoint.  ALL 133 channels — body plus the feet/face/hand
+// tail — are additionally decoded into WholeBodyResult when
+// setDecodeWholeBody(true) — used by the offline analyzer (PoseRunner); the
+// live path leaves the flag off and decodes 17 channels exactly as before.
 
-// COCO-WholeBody hand keypoints — channels 91–111 (left), 112–132 (right).
-// A sibling of PoseResult: the 17-slot PoseResult shape is never widened
-// (BodyPoseAdapter reads it by index).
-struct WholeBodyHands {
-    static constexpr int kHandJoints = 21;
-    std::array<QPointF, 21> left{},      right{};        // normalized x/y like PoseResult
-    std::array<float, 21>   leftScore{}, rightScore{};
+// COCO-WholeBody 133-keypoint decode — the full heatmap output. A sibling of
+// PoseResult: the 17-slot PoseResult shape is never widened (BodyPoseAdapter
+// reads it by index). kp[0..16] carry the SAME values as the emitted
+// PoseResult (copied from the one shared body decode — bit-identical).
+struct WholeBodyResult {
+    static constexpr int kJoints = 133;   // COCO-WholeBody: 0-16 body, 17-22 feet, 23-90 face, 91-111 L hand, 112-132 R hand
+    std::array<QPointF, 133> kp{};        // normalized x/y, PoseResult convention
+    std::array<float, 133>   score{};
     bool valid = false;
 };
 
@@ -79,15 +81,22 @@ public:
     ModelVariant variant() const { return m_variant; }
     bool isReady() const { return m_ready; }
 
-    // Opt-in decode of the COCO-WholeBody hand channels in the same heatmap
+    // Opt-in decode of ALL 133 COCO-WholeBody channels in the same heatmap
     // pass. Default OFF — the live 60 Hz path is behaviourally unchanged.
-    void setDecodeHands(bool on) { m_decodeHands = on; }
-    bool decodeHands() const     { return m_decodeHands; }
+    void setDecodeWholeBody(bool on) { m_decodeWholeBody = on; }
+    bool decodeWholeBody() const     { return m_decodeWholeBody; }
 
-    // Hand keypoints from the most recent inference. Valid (valid == true)
-    // only after a synchronous estimatePose() call returns with hand decode
-    // enabled and inference succeeded.
-    const WholeBodyHands &lastHands() const { return m_lastHands; }
+    // Sub-pixel decode mode (heatmap_decode.h). Default Argmax so the live path
+    // and MotionCaptureProbe benchmarks are byte-identical to before; PoseRunner
+    // selects Dark (DARK refinement) when the pose.decode.dark tunable is on.
+    using DecodeMode = pinpoint::pose::DecodeMode;
+    void       setDecodeMode(DecodeMode m) { m_decodeMode = m; }
+    DecodeMode decodeMode() const          { return m_decodeMode; }
+
+    // Whole-body keypoints from the most recent inference. Valid (valid ==
+    // true) only after a synchronous estimatePose() call returns with
+    // whole-body decode enabled and inference succeeded.
+    const WholeBodyResult &lastWholeBody() const { return m_lastWholeBody; }
 
     // Offline pipelined path (PoseRunner only). estimatePose() split into its
     // two halves so frame decode + preprocess can run on a producer thread
@@ -110,8 +119,14 @@ private:
     ModelVariant m_variant = ModelVariant::WholeBodyB;
     bool m_ready = false;
 
-    bool           m_decodeHands = false;
-    WholeBodyHands m_lastHands;
+    bool            m_decodeWholeBody = false;
+    WholeBodyResult m_lastWholeBody;
+
+    DecodeMode         m_decodeMode = DecodeMode::Argmax;
+    std::vector<float> m_decodeBlur;   // DARK blur scratch (heatmap-sized); reused per channel
+
+    // Decode one heatmap channel per the active mode (Argmax | Dark).
+    void decodeChannel(const float *hm, float &nx, float &ny, float &score);
 
     // 30-sample rolling windows — same pattern as PoseEstimatorMoveNet.
     static constexpr int kWindowSize = 30;

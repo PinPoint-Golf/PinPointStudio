@@ -394,16 +394,33 @@ PoseSmootherOutput smoothPoseTrack(const std::vector<PoseFrame2D> &frames,
         result.smoothed[std::size_t(f)].handConf  = frames[std::size_t(f)].handConf;
     }
 
-    for (int k = 0; k < 17; ++k) {
+    for (int k = 0; k < kWholeBodyJoints; ++k) {
+        // Per-group scales (additive — see the header doc): body 0–16 always
+        // runs the frozen base constants (scale 1.0; ×1.0 is exact, so body
+        // output is byte-identical to a 17-wide run); the feet/face/hand tail
+        // scales the measurement-σ constants and sigmaJerk multiplicatively.
+        double sigScale = 1.0, jerkScale = 1.0;
+        if (k >= kLeftHandFirstKp) {
+            sigScale = cfg.handSigmaScale;  jerkScale = cfg.handJerkScale;
+        } else if (k >= kFaceFirstKp) {
+            sigScale = cfg.faceSigmaScale;  jerkScale = cfg.faceJerkScale;
+        } else if (k >= kFootFirstKp) {
+            sigScale = cfg.feetSigmaScale;  jerkScale = cfg.feetJerkScale;
+        }
+        const double measBase  = cfg.measSigBasePx  * sigScale;
+        const double measSlope = cfg.measSigSlopePx * sigScale;
+        PoseSmootherConfig kcfg = cfg;
+        kcfg.sigmaJerk = cfg.sigmaJerk * jerkScale;
+
         for (int f = 0; f < nf; ++f) {
             const PoseFrame2D &in = frames[std::size_t(f)];
             const double conf = in.conf[std::size_t(k)];
             zx[std::size_t(f)] = in.kp[std::size_t(k)].x() * W;
             zy[std::size_t(f)] = in.kp[std::size_t(k)].y() * H;
             hasZ[std::size_t(f)] = (conf >= cfg.confMeasMin) ? 1 : 0;
-            sigMeas[std::size_t(f)] = cfg.measSigBasePx + (1.0 - conf) * cfg.measSigSlopePx;
+            sigMeas[std::size_t(f)] = measBase + (1.0 - conf) * measSlope;
         }
-        smoothKeypoint(zx, zy, sigMeas, hasZ, dtSec, cfg, kres);
+        smoothKeypoint(zx, zy, sigMeas, hasZ, dtSec, kcfg, kres);
 
         for (int f = 0; f < nf; ++f) {
             const PoseFrame2D &in = frames[std::size_t(f)];

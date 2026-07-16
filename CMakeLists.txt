@@ -2182,6 +2182,13 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/clubhead_track.cpp
     src/Analysis/pose_smoother.h
     src/Analysis/pose_smoother.cpp
+    src/Analysis/head_track.h
+    src/Analysis/head_track.cpp
+    src/Analysis/foot_metrics.h
+    src/Analysis/foot_metrics.cpp
+    src/Analysis/hand_axis.h
+    src/Analysis/pose_wrist_angle_source.h
+    src/Analysis/pose_wrist_angle_source.cpp
     src/Analysis/shaft_tracker.h
     src/Analysis/shaft_tracker.cpp
     src/Analysis/ball_anchor.h
@@ -2448,6 +2455,9 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/shaft_track_assembly.cpp
         src/Analysis/clubhead_track.cpp
         src/Analysis/pose_smoother.cpp
+        src/Analysis/head_track.cpp
+        src/Analysis/foot_metrics.cpp
+        src/Analysis/pose_wrist_angle_source.cpp
         src/Export/frame_decode.cpp
         src/Export/swing_doc.cpp
         src/Export/swing_paths.cpp

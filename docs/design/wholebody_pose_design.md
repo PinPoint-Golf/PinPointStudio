@@ -1,6 +1,15 @@
 # PinPoint — Whole-Body Landmarks (COCO-WholeBody 133): Design Proposal
 
-**Status:** Proposal (2026-07-13). Not yet scheduled.
+**Status:** Proposal (2026-07-13). **Built same day (WB0–WB3, uncommitted):** 133-kp
+offline contract + swing.json widening (byte-parity gated), swing-level person crop +
+DARK decode (corpus mean 69.8→72.7 on the 16-swing raw subset; one shaft-assembly
+validity interaction escalated — /mnt/swingdata/runs-wb1gate/{TRIAGE,ESCALATION}.md),
+head tracking (headSway/headLift/headTilt series), feet consumers (stance corridor v2,
+stanceWidth/flare/toe-line/leadHeelLift, overlay foot edges). Low tier removed (Q2).
+**WB4 built DARK** (defaults-off, byte-parity verified): `pose.gripFromSmoothedHands`,
+`shaft.handAxisPrior.*` DP unary, `PoseWristAngleSource` (apparent angles, IMU-less
+only), hand overlay edges (ViewLayout "hands":"off") — each awaits its own corpus
+evaluation before defaulting on. Q3 avatar deferred; Q4 face-on-only enforced.
 **Scope:** exploit the 133-keypoint COCO-WholeBody output of the ViTPose models
 we already ship — feet, hands, and face channels — to (a) raise the effective
 resolution of joint tracking on the offline analysis path, and (b) extend the
@@ -356,9 +365,10 @@ alone should measurably improve every existing pose-fed algorithm.
 1. **Q1 — decode gating:** decode wholebody always, or only for
    Medium/High + a `pose.wholebody` tunable? (Proposal: always — cost is nil
    and provenance is simpler; the *consumers* are individually flagged.)
-2. **Q2 — MoveNet-Low tier:** Low-tier swings get no wholebody tail. Accept
-   the capability difference (documented via `keypointCount`), or drop
-   MoveNet from the offline tier ladder and make ViTPose-B the floor?
+2. **Q2 — MoveNet-Low tier:** RESOLVED 2026-07-13 — the Low (MoveNet) offline
+   tier was vestigial (the offline pose pass already only ever used ViTPose;
+   Low and Medium were identical) and has been removed. The tier ladder is now
+   Medium/High, both ViTPose, so this question no longer applies.
    (`vitpose-s-wholebody.onnx`, 97 MB, is also available upstream if a
    cheaper wholebody floor is ever wanted.)
 3. **Q3 — replay-driven avatar:** animating feet/hands in `BodyVizView`

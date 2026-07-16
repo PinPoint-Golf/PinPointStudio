@@ -63,6 +63,8 @@ constexpr float kShinW        = 0.037f;
 constexpr float kCrossW       = 0.037f; // neck bone + shoulder/hip crossbars
 constexpr float kForearmW     = 0.032f;
 constexpr float kTorsoSideW   = 0.017f;
+constexpr float kFootW        = 0.026f; // ankle-heel-toe foot bones (WB2/WB3) — thin, subtle
+constexpr float kHandW        = 0.018f; // wrist-knuckle hand bones (WB4) — thinner still
 constexpr float kRingBigR     = 0.056f; // shoulders + hips
 constexpr float kRingR        = 0.049f; // all other joints
 constexpr float kRingOutlineW = 0.020f;
@@ -84,6 +86,28 @@ constexpr Bone kBones[] = {
     {6,  8,  kUpperArmW}, {8,  10, kForearmW}, // right arm
     {11, 13, kThighW},    {13, 15, kShinW},    // left leg
     {12, 14, kThighW},    {14, 16, kShinW},    // right leg
+    // Feet (WB2/WB3, wholebody_pose_design.md §2.1): COCO-WholeBody indices
+    // 17-22 — mirrors PpCameraFrame.qml's kBlueprintBones exactly (keep the two
+    // lists consistent). `pose.keypoints` here is the LIVE PoseResult, which
+    // stays a fixed 17-element array (kNumKeypoints=17, "Live contract —
+    // unchanged" §4.1) — these entries are therefore permanently dormant on
+    // this path (kpVisible() bounds-checks against kNumKeypoints below, so
+    // this is a documented list, never an out-of-bounds read). They exist so
+    // the two mirrored bone lists stay textually in sync; the QML replay
+    // overlay (fed the widened offline PoseFrame2D/pose2d track) is where
+    // these actually draw.
+    {15, 19, kFootW}, {19, 17, kFootW}, {17, 18, kFootW},   // left ankle-heel-bigtoe-smalltoe
+    {16, 22, kFootW}, {22, 20, kFootW}, {20, 21, kFootW},   // right ankle-heel-bigtoe-smalltoe
+    // Hands (WB4, wholebody_pose_design.md §2.2): COCO-WholeBody indices 91-132 —
+    // mirrors PpCameraFrame.qml's kBlueprintBones exactly. Per hand: wrist-root →
+    // {thumb-CMC, index/middle/ring/pinky-MCP} + the index→pinky knuckle line
+    // (6 edges). Permanently dormant on THIS live 17-kp path (kpVisible bounds-
+    // checks against kNumKeypoints), same as the foot bones — they draw only on
+    // the QML replay overlay over a widened offline track, and default OFF there.
+    {91, 92, kHandW}, {91, 96, kHandW}, {91, 100, kHandW},          // left wrist → thumb-CMC/index/middle-MCP
+    {91, 104, kHandW}, {91, 108, kHandW}, {96, 108, kHandW},        // left wrist → ring/pinky-MCP + knuckle line
+    {112, 113, kHandW}, {112, 117, kHandW}, {112, 121, kHandW},     // right wrist → thumb-CMC/index/middle-MCP
+    {112, 125, kHandW}, {112, 129, kHandW}, {117, 129, kHandW},     // right wrist → ring/pinky-MCP + knuckle line
 };
 
 } // namespace
@@ -131,8 +155,15 @@ void VideoOverlayPose::drawSkeleton(QImage &img, const PoseResult &pose) const
     auto kpPoint = [&](int j) -> QPointF {
         return { pose.keypoints[j].x * w, pose.keypoints[j].y * h };
     };
-    auto kpScore   = [&](int j) -> float { return pose.keypoints[j].score; };
-    auto kpVisible = [&](int j) -> bool  { return kpScore(j) >= kMinScore; };
+    auto kpScore = [&](int j) -> float { return pose.keypoints[j].score; };
+    // Bounds-checked BEFORE kpScore so kBones entries beyond kNumKeypoints
+    // (the foot bones, WB2/WB3 — pose.keypoints is a fixed kNumKeypoints=17
+    // array on this live-only path) short-circuit instead of reading past the
+    // end of the array. Existing indices (0-16) are always < kNumKeypoints, so
+    // this is a no-op for every pre-existing bone/joint.
+    auto kpVisible = [&](int j) -> bool {
+        return j >= 0 && j < PoseResult::kNumKeypoints && kpScore(j) >= kMinScore;
+    };
 
     // Derived midpoints. Each is visible only when both parents are, and takes
     // the weaker parent's score so the confidence-driven alpha works unchanged.

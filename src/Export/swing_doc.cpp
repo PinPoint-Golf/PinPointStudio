@@ -198,7 +198,7 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
         QJsonArray frames;
         for (const PoseFrame2D &f : a.pose2d.frames) {
             QJsonArray kp;
-            for (int j = 0; j < 17; ++j) {
+            for (int j = 0; j < kWholeBodyJoints; ++j) {
                 kp.append(f.kp[size_t(j)].x());
                 kp.append(f.kp[size_t(j)].y());
                 kp.append(double(f.conf[size_t(j)]));
@@ -210,13 +210,32 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
                 { QStringLiteral("trail"), QJsonArray{ f.trailHand.x(), f.trailHand.y() } },
                 { QStringLiteral("handConf"), double(f.handConf) } });
         }
+        // keypointCount: explicit kp width (COCO-WholeBody 133; indices 0–16
+        // are the unchanged COCO body joints, tail = feet/face/hands). Readers
+        // use bounded loops so the field is provenance, not a parse contract.
         QJsonObject pose2d{
             { QStringLiteral("camera"), int(a.pose2d.camera) },
+            { QStringLiteral("keypointCount"), kWholeBodyJoints },
             { QStringLiteral("frames"), frames } };
+        // WB1 accuracy-pass provenance (wholebody_pose_design.md §3). Written ONLY
+        // when non-legacy — decode when DARK, cropRect when a crop was actually
+        // used — so a flags-off (crop disabled + argmax) run serialises exactly as
+        // the pre-WB1 tree (the WB1 byte-parity gate). cropRect is full-frame
+        // normalized {x,y,w,h}.
+        if (a.pose2d.decode == QLatin1String("dark"))
+            pose2d.insert(QStringLiteral("decode"), a.pose2d.decode);
+        if (a.pose2d.cropRect) {
+            const QRectF &r = *a.pose2d.cropRect;
+            pose2d.insert(QStringLiteral("cropRect"),
+                          QJsonObject{ { QStringLiteral("x"), r.x() },
+                                       { QStringLiteral("y"), r.y() },
+                                       { QStringLiteral("w"), r.width() },
+                                       { QStringLiteral("h"), r.height() } });
+        }
         // Motion-overlay smoothed companion track (pose_smoother.cpp): parallel to
-        // `frames` on the same t_us grid — kp[x,y,c]×17 flat exactly like `frames`
-        // (conf carries the render-alpha contract) plus per-kp honesty tier[17] (int)
-        // and sigma[17] (px). No lead/trail/handConf — the hands are NOT smoothed.
+        // `frames` on the same t_us grid — kp[x,y,c]×133 flat exactly like `frames`
+        // (conf carries the render-alpha contract) plus per-kp honesty tier[133] (int)
+        // and sigma[133] (px). No lead/trail/handConf — the hands are NOT smoothed.
         // Written ONLY when non-empty (absent on swings analysed before the smoother
         // existed, or a format-less path), so an empty smoothed vector serializes
         // byte-identically to today. t_us is window-relative via rel(), same as frames'.
@@ -227,7 +246,7 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
                 const PoseFrame2D &f = a.pose2d.smoothed[i];
                 const PoseKpAux   &x = a.pose2d.smoothedAux[i];
                 QJsonArray kp, tier, sigma;
-                for (int j = 0; j < 17; ++j) {
+                for (int j = 0; j < kWholeBodyJoints; ++j) {
                     kp.append(f.kp[size_t(j)].x());
                     kp.append(f.kp[size_t(j)].y());
                     kp.append(double(f.conf[size_t(j)]));

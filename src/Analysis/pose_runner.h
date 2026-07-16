@@ -24,6 +24,7 @@
 // (null-checked payloads, shared frame_decode, const reads only).
 
 #include <QString>
+#include <QVariantMap>
 #include <cstdint>
 #include <functional>
 
@@ -87,14 +88,23 @@ struct ShotAnalysisRunnerOptions {
     // position, not posed-frame count — the sparse zone advances it in
     // stride jumps). Called from the worker thread; may be null.
     std::function<void(float)> progress;
+
+    // SwingLab tuning overrides (the job's dotted-key map, forwarded verbatim).
+    // PoseRunner resolves the WB1 pose-accuracy config from it exactly as
+    // ShaftTracker resolves ShaftV3Config — PoseAccuracyConfig::fromOverrides
+    // reads "pose.crop.*" / "pose.decode.dark" (pose_crop.h). Empty = frozen
+    // defaults (crop + DARK both ON).
+    QVariantMap tuningOverrides;
 };
 
 class PoseRunner {
 public:
     // SwingLab: load a PoseTrack2D from a JSON file in the swing.json pose2d
-    // shape ({"frames":[{t_us, kp:[x,y,c]×17, lead, trail, handConf}]}). Used
-    // to inject synthetic tracks and to re-run shaft tuning without paying
-    // for the pose pass. Returns an empty track on any parse problem.
+    // shape ({"frames":[{t_us, kp:[x,y,c]×133, lead, trail, handConf}]} —
+    // COCO-WholeBody, indices 0–16 the unchanged body joints; old 51-float
+    // files load fine, the tail stays default-initialized). Used to inject
+    // synthetic tracks and to re-run shaft tuning without paying for the pose
+    // pass. Returns an empty track on any parse problem.
     static pinpoint::analysis::PoseTrack2D loadFromJson(const QString &file,
                                                         pinpoint::SourceId camera);
 

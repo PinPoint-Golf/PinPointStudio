@@ -43,6 +43,8 @@ using pinpoint::analysis::PoseTrack2D;
 #include "../Export/frame_decode.h"
 #include "../Pose/pose_estimator_vitpose.h"
 #include "../Pose/pose_model_selection.h"   // useVitPoseLarge (tier -> model)
+#include "pose_crop.h"             // PoseAccuracyConfig / computePoseCropRect (WB1)
+#include "hand_axis.h"             // handCentroid / HandCentroid (shared with the smoothed-grip recompute)
 #include "shaft_track_assembly.h"   // estimateSwingSpanUs / ShaftV3Config (Stage B span estimate)
 #endif
 
@@ -50,38 +52,38 @@ using pinpoint::analysis::PoseTrack2D;
 
 namespace {
 
-// Score-weighted centroid of one hand's 21 keypoints (score > 0.2 only).
-// conf = plain mean of the contributing scores; ok = false when no keypoint
-// clears the floor.
-struct HandCentroid {
-    QPointF pt;
-    float   conf = 0.f;
-    bool    ok   = false;
-};
+// handCentroid / HandCentroid are factored into hand_axis.h (WB4) — the exact
+// same score-weighted-centroid math, now shared with the smoothed-hands grip
+// recompute (pose.gripFromSmoothedHands). This raw path is byte-identical.
 
-HandCentroid handCentroid(const std::array<QPointF, 21> &pts,
-                          const std::array<float, 21> &scores)
-{
-    constexpr float kMinKpScore = 0.2f;
-    double sx = 0.0, sy = 0.0, sw = 0.0, sconf = 0.0;
-    int n = 0;
-    for (int k = 0; k < WholeBodyHands::kHandJoints; ++k) {
-        if (scores[k] <= kMinKpScore)
-            continue;
-        sx    += scores[k] * pts[k].x();
-        sy    += scores[k] * pts[k].y();
-        sw    += scores[k];
-        sconf += scores[k];
-        ++n;
+// Union bbox of the body keypoints (COCO 0–16) over the sampled frames, in
+// normalized [0,1] coords — the WB1 swing-level person crop's source (design
+// §3.2). A frame "contributes" when at least one body joint clears the score
+// gate; `frames` is that contributing count (the crop fallback needs ≥ N).
+struct BodyBboxAccum {
+    double x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    int    frames = 0;
+
+    void addPoint(double x, double y) {
+        x0 = std::min(x0, x); y0 = std::min(y0, y);
+        x1 = std::max(x1, x); y1 = std::max(y1, y);
     }
-    HandCentroid c;
-    if (n == 0 || sw <= 0.0)
-        return c;
-    c.pt   = QPointF(sx / sw, sy / sw);
-    c.conf = static_cast<float>(sconf / n);
-    c.ok   = true;
-    return c;
-}
+    // From a stored PoseFrame2D (pass-1 whole-window frames stay in the track).
+    void add(const std::array<QPointF, pinpoint::analysis::kWholeBodyJoints> &kp,
+             const std::array<float, pinpoint::analysis::kWholeBodyJoints> &conf, float thr) {
+        bool any = false;
+        for (int j = 0; j < PoseResult::kNumKeypoints; ++j)
+            if (conf[size_t(j)] >= thr) { any = true; addPoint(kp[size_t(j)].x(), kp[size_t(j)].y()); }
+        if (any) ++frames;
+    }
+    // From a live PoseResult (mini-scan frames, discarded after bbox use).
+    void addResult(const PoseResult &r, float thr) {
+        bool any = false;
+        for (int j = 0; j < PoseResult::kNumKeypoints; ++j)
+            if (r.keypoints[j].score >= thr) { any = true; addPoint(r.keypoints[j].x, r.keypoints[j].y); }
+        if (any) ++frames;
+    }
+};
 
 } // namespace
 
@@ -122,7 +124,7 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
     // by the encoder's threads (which inflated per-frame inference ~5×).
     //
     // Tier -> model: "High" runs ViTPose++-L when the user has downloaded it,
-    // otherwise ViTPose-B (Low/Medium always B). The choice degrades safely to B
+    // otherwise ViTPose-B (Medium always B). The choice degrades safely to B
     // whenever the L model is absent — including on machines that never fetched it.
     using ViTVariant = PoseEstimatorViTPose::ModelVariant;
     const bool useLarge = pinpoint::pose::useVitPoseLarge(
@@ -136,7 +138,19 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
                     "— empty track";
         return track;
     }
-    estimator.setDecodeHands(true);
+    estimator.setDecodeWholeBody(true);
+
+    // WB1 accuracy pass (wholebody_pose_design.md §3): DARK sub-pixel decode + a
+    // swing-level person crop, both from the tuning map (frozen defaults ON). The
+    // decode mode is set once and applies to every pass; the crop rect is computed
+    // after a bbox scan and passed per-pass. pose.crop.enabled=false AND
+    // pose.decode.dark=false reproduce the pre-WB1 full-frame + argmax pipeline
+    // byte-for-byte.
+    const pinpoint::analysis::PoseAccuracyConfig acc =
+        pinpoint::analysis::PoseAccuracyConfig::fromOverrides(opt.tuningOverrides);
+    estimator.setDecodeMode(acc.decodeDark ? PoseEstimatorViTPose::DecodeMode::Dark
+                                           : PoseEstimatorViTPose::DecodeMode::Argmax);
+    track.decode = acc.decodeDark ? QStringLiteral("dark") : QStringLiteral("argmax");
 
     // inferPrepared() is synchronous and emits poseEstimated() inline on this
     // (consumer) thread — a direct connection captures the result before it
@@ -184,10 +198,15 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
     // inference; a frame ViTPose can't estimate is dropped). progress() is
     // invoked on THIS worker thread for every sequence entry, matching the old
     // serial loops (it is never called on the producer thread).
+    // cropRoi (nullptr = full frame) is the swing-level person crop applied to
+    // every frame in this pass; the consumer back-projects the estimator's
+    // crop-normalized peaks to full-frame normalized through the (constant) affine.
     auto runPipeline = [&](const std::vector<std::pair<size_t, float>> &jobs,
-                           PoseTrack2D &out) {
+                           PoseTrack2D &out, const cv::Rect *cropRoi) {
         if (jobs.empty())
             return;
+
+        const double fw = double(cfmt->width), fh = double(cfmt->height);
 
         std::mutex              mtx;
         std::condition_variable cvNotFull, cvNotEmpty;
@@ -212,8 +231,13 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
                     window.payloadOf(entries[job.first]);
                 if (pinpoint::decodeToBgr(*cfmt, handle.data, handle.bytes, frameBgr)) {
                     // Fully consumes frameBgr into an owned buffer before the next
-                    // payloadOf() invalidates the resident frame.
-                    estimator.preprocess(frameBgr, item.input);
+                    // payloadOf() invalidates the resident frame. The crop is a
+                    // plain ROI view (no copy) — mathematically equivalent to a
+                    // warpAffine given the aspect-locked rect (design §3.2).
+                    if (cropRoi)
+                        estimator.preprocess(frameBgr(*cropRoi), item.input);
+                    else
+                        estimator.preprocess(frameBgr, item.input);
                     item.decodeOk = true;
                 }
                 {
@@ -272,20 +296,51 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
 
             PoseFrame2D f;
             f.t_us = item.t_us;
+            // Body 0–16 from the emitted PoseResult — the pre-wholebody source,
+            // kept verbatim so the first-17 outputs are byte-identical by
+            // construction (WholeBodyResult.kp[0..16] are copies of the same
+            // decode, but `res` is the contract the old code read).
             for (int j = 0; j < PoseResult::kNumKeypoints; ++j) {
                 f.kp[j]   = QPointF(res.keypoints[j].x, res.keypoints[j].y);
                 f.conf[j] = res.keypoints[j].score;
+            }
+            // Feet/face/hand tail (17–132) from the whole-body decode.
+            const WholeBodyResult &wb = estimator.lastWholeBody();
+            if (wb.valid) {
+                for (int j = PoseResult::kNumKeypoints;
+                     j < pinpoint::analysis::kWholeBodyJoints; ++j) {
+                    f.kp[size_t(j)]   = wb.kp[size_t(j)];
+                    f.conf[size_t(j)] = wb.score[size_t(j)];
+                }
+            }
+
+            // Back-project all 133 crop-normalized peaks to full-frame normalized
+            // through the (constant) crop affine: x_full = (cropX + x·cropW)/frameW.
+            // No-op — byte-identical — on the full-frame path (cropRoi == nullptr).
+            // Transform the keypoints FIRST, then derive the hand centroids from
+            // them (affine ⇒ transforming points then averaging == averaging then
+            // transforming), so every persisted value stays full-frame normalized.
+            if (cropRoi) {
+                const double cx = cropRoi->x, cy = cropRoi->y;
+                const double cw = cropRoi->width, ch = cropRoi->height;
+                for (int j = 0; j < pinpoint::analysis::kWholeBodyJoints; ++j)
+                    f.kp[size_t(j)] = QPointF((cx + f.kp[size_t(j)].x() * cw) / fw,
+                                              (cy + f.kp[size_t(j)].y() * ch) / fh);
             }
 
             // Hand anchors: score-weighted knuckle centroids; fall back to the
             // COCO wrists (with handConf = 0) when either hand is unconvincing —
             // both anchors must come from the same source or the inter-hand
-            // direction prior d̂ = trail − lead is meaningless.
-            const WholeBodyHands &hands = estimator.lastHands();
-            HandCentroid lc, rc;
-            if (hands.valid) {
-                lc = handCentroid(hands.left,  hands.leftScore);
-                rc = handCentroid(hands.right, hands.rightScore);
+            // direction prior d̂ = trail − lead is meaningless. Read the (now
+            // back-projected) 21-point hand ranges from f (channels 91–111 /
+            // 112–132) — byte-identical to the retired wb read on the full-frame
+            // path (f.kp/f.conf tail == wb.kp/wb.score there).
+            pinpoint::analysis::HandCentroid lc, rc;
+            if (wb.valid) {
+                using pinpoint::analysis::kLeftHandFirstKp;
+                using pinpoint::analysis::kRightHandFirstKp;
+                lc = pinpoint::analysis::handCentroid(&f.kp[kLeftHandFirstKp],  &f.conf[kLeftHandFirstKp]);
+                rc = pinpoint::analysis::handCentroid(&f.kp[kRightHandFirstKp], &f.conf[kRightHandFirstKp]);
             }
             QPointF leftPt, rightPt;
             float   handConf = 0.f;
@@ -307,6 +362,26 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
         }
     };
 
+    // Turn an accumulated body bbox into the swing-level crop for the dense pass
+    // (design §3.2) and record its provenance (track.cropRect, full-frame
+    // normalized). Returns nullptr — the full-frame fallback — when cropping is
+    // disabled or computePoseCropRect rejects the bbox (too sparse / no gain).
+    // cropRectStore lives for the whole run so the returned pointer stays valid
+    // through the pass that reads it.
+    cv::Rect cropRectStore;
+    auto makeCrop = [&](const BodyBboxAccum &bb) -> const cv::Rect * {
+        if (!acc.crop.enabled)
+            return nullptr;
+        const auto pcr = pinpoint::analysis::computePoseCropRect(
+            bb.x0, bb.y0, bb.x1, bb.y1, bb.frames, cfmt->width, cfmt->height, acc.crop);
+        if (!pcr)
+            return nullptr;
+        cropRectStore = cv::Rect(pcr->x, pcr->y, pcr->w, pcr->h);
+        track.cropRect = QRectF(double(pcr->x) / cfmt->width, double(pcr->y) / cfmt->height,
+                                double(pcr->w) / cfmt->width, double(pcr->h) / cfmt->height);
+        return &cropRectStore;
+    };
+
     // Dense zone around impact (both scan paths share it): pose every
     // denseStride-th frame here, every sparseStride-th elsewhere in span.
     const int64_t denseLo = opt.impactUs - static_cast<int64_t>(opt.densePreMs)  * 1000;
@@ -321,13 +396,22 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
     if (opt.twoPass && opt.scanEndUs <= opt.scanStartUs) {
         const size_t coarse = static_cast<size_t>(std::max(1, opt.coarseStride));
 
-        // Pass 1 — coarse, whole window.
+        // Pass 1 — coarse, whole window, always full-frame (its frames stay in the
+        // track as address-hold coverage and its body keypoints seed the crop).
         std::vector<std::pair<size_t, float>> jobs1;
         jobs1.reserve(entries.size() / coarse + 1);
         for (size_t i = 0; i < entries.size(); i += coarse)
             jobs1.emplace_back(i, 0.2f * float(i + 1) / float(entries.size()));
-        runPipeline(jobs1, track);
+        runPipeline(jobs1, track, nullptr);
         const size_t pass1Posed = track.frames.size();
+
+        // Swing-level person crop from the union bbox of pass-1 body keypoints
+        // (design §3.2). Pass-1 frames are already full-frame normalized — kept
+        // as-is (mixed provenance is fine); only pass 2 runs cropped.
+        BodyBboxAccum bb;
+        for (size_t k = 0; k < pass1Posed; ++k)
+            bb.add(track.frames[k].kp, track.frames[k].conf, 0.30f);
+        const cv::Rect *cropPtr = makeCrop(bb);
 
         // Coarse grip track in PIXELS (leadHand/trailHand are normalized [0,1])
         // + coarse frame rate (median inter-frame dt) for the span estimate.
@@ -392,7 +476,7 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
                 continue;
             jobs2.emplace_back(i, 0.2f + 0.8f * float(i + 1 - pLo) / float(span));
         }
-        runPipeline(jobs2, track);
+        runPipeline(jobs2, track, cropPtr);
         const size_t pass2Posed = track.frames.size() - pass1Posed;
 
         // Pass-1 (whole window) and pass-2 (span fill) interleave in time — merge.
@@ -461,8 +545,42 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
         }
         jobs.emplace_back(i, float(i + 1 - iAddr0) / float(i1 - iAddr0));
     }
+    // WB1 person crop (design §3.2). No pass-1 bbox exists on this path, so run a
+    // cheap mini-scan — 8 evenly-spaced full-frame inferences across the scan
+    // range — purely to accumulate the body bbox. Those frames are DISCARDED (not
+    // appended: they don't match the stride sampling semantics). The loop is
+    // serial and fully-consuming (sole payloadOf caller, one resident frame at a
+    // time, finished before runPipeline's producer starts), so the frozen-window
+    // read contract holds. Skipped entirely when cropping is off ⇒ no extra
+    // inference and a byte-identical flags-off path.
+    const cv::Rect *cropPtr = nullptr;
+    if (acc.crop.enabled && i1 > iAddr0) {
+        BodyBboxAccum bb;
+        constexpr int kMiniScanN = 8;
+        const size_t span = i1 - iAddr0;
+        size_t prev = entries.size();   // impossible index ⇒ dedup sentinel
+        for (int k = 0; k < kMiniScanN; ++k) {
+            const size_t idx = iAddr0
+                + (span <= 1 ? 0 : size_t(uint64_t(k) * (span - 1) / (kMiniScanN - 1)));
+            if (idx == prev)            // span < N ⇒ deduplicate repeated indices
+                continue;
+            prev = idx;
+            cv::Mat frameBgr;
+            const pinpoint::SourceRing::ReadHandle handle = window.payloadOf(entries[idx]);
+            if (!pinpoint::decodeToBgr(*cfmt, handle.data, handle.bytes, frameBgr))
+                continue;
+            std::vector<float> buf;
+            estimator.preprocess(frameBgr, buf);
+            gotPose = false;
+            estimator.inferPrepared(buf);
+            if (gotPose)
+                bb.addResult(res, 0.30f);
+        }
+        cropPtr = makeCrop(bb);
+    }
+
     const size_t sampled = jobs.size();
-    runPipeline(jobs, track);
+    runPipeline(jobs, track, cropPtr);
 
     ppInfo() << "[PoseRunner] source" << faceOnSource << ":" << track.frames.size()
              << "posed of" << sampled << "sampled (" << (i1 - i0) << "in span +"
@@ -512,7 +630,9 @@ pinpoint::analysis::PoseTrack2D PoseRunner::loadFromJson(const QString &file,
         PoseFrame2D pf;
         pf.t_us = int64_t(o[QStringLiteral("t_us")].toDouble());
         const QJsonArray kp = o[QStringLiteral("kp")].toArray();
-        for (int j = 0; j < 17 && j * 3 + 2 < kp.size(); ++j) {
+        // Bounded by BOTH the array and the struct width: old 51-float files
+        // fill 0–16 and leave the wholebody tail default-initialized.
+        for (int j = 0; j < kWholeBodyJoints && j * 3 + 2 < kp.size(); ++j) {
             pf.kp[size_t(j)]   = QPointF(kp[j * 3].toDouble(), kp[j * 3 + 1].toDouble());
             pf.conf[size_t(j)] = float(kp[j * 3 + 2].toDouble());
         }

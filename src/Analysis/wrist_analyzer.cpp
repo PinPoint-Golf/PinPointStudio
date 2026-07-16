@@ -28,6 +28,10 @@
 
 #include "analysis_tuning.h"
 #include "ball_runner.h"
+#include "foot_metrics.h"
+#include "hand_axis.h"
+#include "head_track.h"
+#include "pose_wrist_angle_source.h"
 #include "imu_vision_fuser.h"
 #include "orientation_refuse_tuning.h"
 #include "metric_extractor.h"
@@ -308,6 +312,7 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
         opt.impactUs   = job.impactUs;
         opt.handedness = job.handedness;
         opt.motionCaptureQuality = job.motionCaptureQuality;   // High -> ViTPose++-L (if downloaded)
+        opt.tuningOverrides = job.tuningOverrides;              // WB1 pose.crop.* / pose.decode.dark
         // Heavy-stage bounding (v3 G3): scan only the detected swing span
         // (+pad for pass-1 timing error). The shaft detection loop follows
         // pose coverage, so this bounds both heavy stages. conf 0 ⇒ full
@@ -374,6 +379,27 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
                                                         int(cfmt->width), int(cfmt->height));
                 detail->pose2d.smoothed    = std::move(so.smoothed);
                 detail->pose2d.smoothedAux = std::move(so.aux);
+
+                // WB4 smoothed-hands grip anchor (pose.gripFromSmoothedHands, dark).
+                // Recompute each smoothed frame's leadHand/trailHand/handConf from
+                // its SMOOTHED hand keypoints (same centroid math + wrist fallback as
+                // pose_runner) so the anchor inherits the smoother's honesty tiers,
+                // then mirror it onto the parallel raw frame — ShaftTracker reads
+                // pose2d.frames, so this is how it consumes the smoothed grip. OFF ⇒
+                // the whole block is skipped and both tracks are byte-identical.
+                bool gripFromSmoothed = pinpoint::tuned::pose::grip::kFromSmoothedHands;
+                tuning::apply(job.tuningOverrides, "pose.gripFromSmoothedHands", gripFromSmoothed);
+                if (gripFromSmoothed
+                        && detail->pose2d.smoothed.size() == detail->pose2d.frames.size()) {
+                    const bool leftLeads = (job.handedness != 2);
+                    for (size_t k = 0; k < detail->pose2d.smoothed.size(); ++k) {
+                        PoseFrame2D &sf = detail->pose2d.smoothed[k];
+                        computeGripAnchors(sf, leftLeads);
+                        detail->pose2d.frames[k].leadHand  = sf.leadHand;
+                        detail->pose2d.frames[k].trailHand = sf.trailHand;
+                        detail->pose2d.frames[k].handConf  = sf.handConf;
+                    }
+                }
             }
             ShotAnalysisJob sub = job;
             if (job.progress)
@@ -433,6 +459,57 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
     detail->series       = series;
     detail->phases       = phases;
     detail->segmentation = segmentation;
+
+    // Head tracking (WB2) — head position is a first-class golf metric. From the
+    // smoothed (else raw) face-on pose track: per-frame conf-gated head centre +
+    // scale + tilt, then Address-referenced sway/lift/tilt series appended to the
+    // DETAIL only (swing.json/charts/data-viewer) — deliberately not into the local
+    // `series` above, so the wrist carousel/resemblance scorer/trace are untouched.
+    // Camera-only path too (needs only body head keypoints nose/eyes/ears). UNSCORED:
+    // no corpus reference bands yet. Emitted in normalized ×frame units — the only px
+    // scale available (measuredClubLenPx) is a foreshortening-biased grip→ball partial
+    // length, not a clean body px/cm, so no cm conversion (no new scale plumbing).
+    if (hasCamera && !detail->pose2d.frames.empty()) {
+        const pinpoint::FormatDescriptor &fd = window.formatOf(job.cameraSources.front());
+        if (const auto *cfmt = std::get_if<pinpoint::CameraFormat>(&fd.format);
+            cfmt && cfmt->width > 0 && cfmt->height > 0) {
+            int64_t addressUs = -1;
+            if (segmentation.conf > 0.f)
+                if (const PhaseEvent *a = segmentation.eventFor(Phase::Address))
+                    addressUs = a->t_us;
+            const HeadTrackResult head =
+                trackHead(detail->pose2d, int(cfmt->width), int(cfmt->height),
+                          addressUs, HeadTrackConfig::fromOverrides(job.tuningOverrides));
+            for (const MetricSeries &m : buildHeadSeries(head, phases))
+                detail->series.push_back(m);
+        }
+    }
+
+    // Setup + footwork metrics (WB3, wholebody_pose_design.md §2.1/§5) — stance
+    // width, per-foot flare, toe-line angle (address) + the lead-heel-lift
+    // trace. Same shape as the head-tracking block above: DETAIL-only (never
+    // the local `series` the resemblance scorer/carousel/trace read), camera-
+    // only path included (needs only foot keypoints), UNSCORED. Lead foot
+    // follows the same handedness convention already used for the lead arm
+    // (pose_runner.cpp / metric_extractor.cpp): left foot leads unless the
+    // golfer is left-handed (handedness == 2).
+    if (hasCamera && !detail->pose2d.frames.empty()) {
+        const pinpoint::FormatDescriptor &fd = window.formatOf(job.cameraSources.front());
+        if (const auto *cfmt = std::get_if<pinpoint::CameraFormat>(&fd.format);
+            cfmt && cfmt->width > 0 && cfmt->height > 0) {
+            int64_t addressUs = -1;
+            if (segmentation.conf > 0.f)
+                if (const PhaseEvent *a = segmentation.eventFor(Phase::Address))
+                    addressUs = a->t_us;
+            const bool leadIsLeft = (job.handedness != 2);
+            const FootMetricsResult feet =
+                trackFeet(detail->pose2d, int(cfmt->width), int(cfmt->height), leadIsLeft,
+                         addressUs, FootMetricsConfig::fromOverrides(job.tuningOverrides));
+            for (const MetricSeries &m : buildFootSeries(feet, phases))
+                detail->series.push_back(m);
+        }
+    }
+
     for (const ImuSegmentBinding &b : job.imuBindings) {
         BindingRecord rec;
         rec.serial = QString::fromStdString(window.formatOf(b.source).device_serial);
@@ -491,6 +568,34 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
 
         ppInfo() << "[WristAnalysis] assessment:" << detail->findings.size() << "findings, score v2"
                  << detail->assessmentScore;
+    }
+
+    // WB4 IMU-less pose wrist assessment (pose.wristAngles.enabled, dark). Runs
+    // ONLY when NO IMU wrist source exists (!hasImu) and the camera pose track is
+    // present — the IMU assessment path above stays untouched and primary. Builds
+    // APPARENT camera-plane lead-wrist angles (PoseWristAngleSource) and drives the
+    // same assessment engine, so an IMU-less (webcam-only) swing still gets the
+    // coach feed + score. OFF (the default) ⇒ the source is never constructed and
+    // findings/assessmentScore/score stay exactly as above (byte-identical).
+    const PoseWristAngleConfig poseWristCfg =
+        PoseWristAngleConfig::fromOverrides(job.tuningOverrides);
+    if (poseWristCfg.enabled && !hasImu && job.runAssessment && hasCamera
+            && !detail->pose2d.frames.empty()) {
+        const pinpoint::FormatDescriptor &fd = window.formatOf(job.cameraSources.front());
+        if (const auto *cfmt = std::get_if<pinpoint::CameraFormat>(&fd.format);
+            cfmt && cfmt->width > 0 && cfmt->height > 0) {
+            const PoseWristAngleSource src(detail->pose2d, detail->phases, job.handedness,
+                                           int(cfmt->width), int(cfmt->height), poseWristCfg);
+            const auto provider = makeReferenceBandProvider(BandProviderKind::Archetype);
+            const WristAssessmentConfig acfg = wristAssessmentConfigFor(job.tuningOverrides);
+            const PpWristAssessmentResult ar = WristAssessmentEngine::assess(src, *provider, acfg);
+            detail->findings        = ar.findings;
+            detail->assessmentScore = ar.score.total;
+            detail->score.overall   = ar.score.total;
+            detail->score.interval  = ScoreInterval{};   // apparent-angle proxy: no §B.7 interval
+            ppInfo() << "[WristAnalysis] pose (IMU-less) assessment:" << detail->findings.size()
+                     << "findings, score v2" << detail->assessmentScore;
+        }
     }
 
     r.metrics     = buildMetricsMap(series);

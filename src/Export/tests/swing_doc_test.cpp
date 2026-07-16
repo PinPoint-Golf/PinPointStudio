@@ -219,7 +219,9 @@ int main()
         const QJsonArray pframes = p2[QStringLiteral("frames")].toArray();
         check(pframes.size() == 1, "pose2d one frame");
         const QJsonObject pf0 = pframes.at(0).toObject();
-        check(pf0[QStringLiteral("kp")].toArray().size() == 17 * 3, "kp flat array 51 long");
+        check(p2[QStringLiteral("keypointCount")].toInt() == 133, "pose2d.keypointCount 133");
+        check(pf0[QStringLiteral("kp")].toArray().size() == 133 * 3,
+              "kp flat array 399 long (COCO-WholeBody)");
         check(qFuzzyCompare(pf0[QStringLiteral("kp")].toArray().at(9 * 3).toDouble(), 0.40),
               "left-wrist x at kp[27]");
         check(qFuzzyCompare(pf0[QStringLiteral("handConf")].toDouble(), double(0.85f)), "handConf");
@@ -317,17 +319,18 @@ int main()
               "smoothed[0] t_us window-relative");
         check(static_cast<qint64>(sm.at(1).toObject()[QStringLiteral("t_us")].toDouble()) == 1010000,
               "smoothed[1] t_us window-relative");
-        check(sm0[QStringLiteral("kp")].toArray().size() == 17 * 3, "smoothed kp flat 51 long");
+        check(sm0[QStringLiteral("kp")].toArray().size() == 133 * 3,
+              "smoothed kp flat 399 long (COCO-WholeBody)");
         check(qFuzzyCompare(sm0[QStringLiteral("kp")].toArray().at(5 * 3).toDouble(), 0.305),
               "smoothed kp[5].x carried");
         check(qFuzzyCompare(sm0[QStringLiteral("kp")].toArray().at(5 * 3 + 2).toDouble(), double(0.95f)),
               "smoothed kp[5] conf carried");
-        check(sm0[QStringLiteral("tier")].toArray().size() == 17, "smoothed tier 17 long");
+        check(sm0[QStringLiteral("tier")].toArray().size() == 133, "smoothed tier 133 long");
         check(sm0[QStringLiteral("tier")].toArray().at(5).toInt() == int(PoseTier::Meas),
               "smoothed[0] tier[5] = Meas");
         check(sm.at(1).toObject()[QStringLiteral("tier")].toArray().at(5).toInt() == int(PoseTier::Pred),
               "smoothed[1] tier[5] = Pred");
-        check(sm0[QStringLiteral("sigma")].toArray().size() == 17, "smoothed sigma 17 long");
+        check(sm0[QStringLiteral("sigma")].toArray().size() == 133, "smoothed sigma 133 long");
         check(qFuzzyCompare(sm0[QStringLiteral("sigma")].toArray().at(5).toDouble(), double(2.5f)),
               "smoothed sigma[5] carried");
         // No hand fields on the smoothed frames (hands are not smoothed).
@@ -341,7 +344,8 @@ int main()
         const QVariantList rsm = rp2.value(QStringLiteral("smoothed")).toList();
         check(rsm.size() == 2, "reader analysisDetail.pose2d.smoothed len 2");
         const QVariantMap rsm0 = rsm.at(0).toMap();
-        check(rsm0.value(QStringLiteral("kp")).toList().size() == 17 * 3, "reader smoothed kp flat 51");
+        check(rsm0.value(QStringLiteral("kp")).toList().size() == 133 * 3,
+              "reader smoothed kp flat 399");
         check(rsm0.value(QStringLiteral("tier")).toList().at(5).toInt() == int(PoseTier::Meas),
               "reader smoothed tier[5] = Meas");
         check(qFuzzyCompare(rsm0.value(QStringLiteral("sigma")).toList().at(5).toDouble(), double(2.5f)),

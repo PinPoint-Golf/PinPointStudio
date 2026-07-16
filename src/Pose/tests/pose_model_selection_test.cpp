@@ -46,10 +46,15 @@ int main()
     // High but the model has not been downloaded yet -> fall back to B.
     CHECK("High + unavailable -> B",          useVitPoseLarge(QStringLiteral("High"),   false) == false);
 
-    // Medium / Low never use L, regardless of availability.
+    // Medium never uses L, regardless of availability.
     CHECK("Medium + available -> B",          useVitPoseLarge(QStringLiteral("Medium"), true)  == false);
     CHECK("Medium + unavailable -> B",        useVitPoseLarge(QStringLiteral("Medium"), false) == false);
-    CHECK("Low + available -> B",             useVitPoseLarge(QStringLiteral("Low"),    true)  == false);
+
+    // "Low" was a real tier (MoveNet) before it was removed 2026-07-13 as
+    // vestigial; keep it exercised as a legacy/unknown string so an old QSettings
+    // value that somehow slips past the AppSettings migration still degrades
+    // safely to B rather than doing something undefined.
+    CHECK("Low (legacy) + available -> B",    useVitPoseLarge(QStringLiteral("Low"),    true)  == false);
 
     // Case-insensitive on the tier name (defensive against stored casing drift).
     CHECK("high (lowercase) + available -> L", useVitPoseLarge(QStringLiteral("high"),   true)  == true);

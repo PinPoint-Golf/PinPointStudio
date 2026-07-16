@@ -19,13 +19,15 @@
 #pragma once
 
 // Motion-overlay pose smoother (Phase 1) — an offline, NON-CAUSAL RTS smoother
-// for the 17 COCO keypoints of a PoseTrack2D. It is a deliberate sibling of the
-// clubhead Stage-2 temporal model (clubhead_track.h — HeadKf1D + runHeadTemporal):
-// the same segmented-Kalman + per-segment RTS + honesty-tier idioms, taken one
-// derivative order up. Where the club runs a 2-state [r, ṙ] constant-velocity /
-// white-ACCEL scalar filter on the club-head radius, this runs a 3-state [p, v, a]
-// constant-acceleration / white-JERK scalar filter — independently on the x and
-// the y pixel coordinate of every keypoint (34 scalar filters, x ⊥ y). Read
+// for the 133 COCO-WholeBody keypoints of a PoseTrack2D (0–16 the unchanged
+// COCO body joints, tail = feet/face/hands — swing_analysis.h kWholeBodyJoints).
+// It is a deliberate sibling of the clubhead Stage-2 temporal model
+// (clubhead_track.h — HeadKf1D + runHeadTemporal): the same segmented-Kalman +
+// per-segment RTS + honesty-tier idioms, taken one derivative order up. Where
+// the club runs a 2-state [r, ṙ] constant-velocity / white-ACCEL scalar filter
+// on the club-head radius, this runs a 3-state [p, v, a] constant-acceleration
+// / white-JERK scalar filter — independently on the x and the y pixel
+// coordinate of every keypoint (266 scalar filters, x ⊥ y). Read
 // clubhead_track.{h,cpp} FIRST: the 3σ Mahalanobis gate, the coast budget, the
 // trimTail-before-RTS, the confirmed-run flush and the Off/Pred/Meas tier
 // vocabulary are all lifted from it near-verbatim; only the deltas below differ.
@@ -105,6 +107,21 @@ struct PoseSmootherConfig {
     double initSigPPx     = 10.0;   // KF init σ_p (px)
     double initSigV       = 4000.0; // KF init σ_v (px/s)  — a wrist can move fast
     double initSigA       = 6.0e4;  // KF init σ_a (px/s²)
+
+    // ── per-group scales (wholebody tail; ADDITIVE, all default 1.0) ─────────
+    // The COCO-WholeBody groups have different noise/dynamics profiles (hands
+    // move much faster than hips through impact; the face barely moves), so
+    // each non-body group gets a multiplicative scale on the measurement-σ
+    // constants (measSigBasePx AND measSigSlopePx) and on sigmaJerk. Body
+    // keypoints (0–16) ALWAYS use the frozen base values above — the scales
+    // never apply to them, and ×1.0 is exact in IEEE-754, so the defaults
+    // leave every keypoint's output byte-identical to a pre-scale run.
+    double feetSigmaScale = 1.0;    // × measSigBasePx/measSigSlopePx, kp 17–22
+    double faceSigmaScale = 1.0;    // × measSigBasePx/measSigSlopePx, kp 23–90
+    double handSigmaScale = 1.0;    // × measSigBasePx/measSigSlopePx, kp 91–132
+    double feetJerkScale  = 1.0;    // × sigmaJerk, kp 17–22
+    double faceJerkScale  = 1.0;    // × sigmaJerk, kp 23–90
+    double handJerkScale  = 1.0;    // × sigmaJerk, kp 91–132
 };
 
 // Parallel outputs, both sized == frames.size(): a smoothed PoseFrame2D per input

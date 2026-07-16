@@ -145,4 +145,86 @@ inline constexpr double kArchetypeTopDeltaDeg  = 10.0;  // detectArchetype: |FE 
 inline constexpr double kArchetypeFaceOffsetDeg = 10.0; // archetype face-corridor shift (±)
 } // namespace rules
 
+// --- Offline pose accuracy: person crop + DARK decode (wholebody_pose_design.md §3) ---
+// WB1 upgrades the OFFLINE ViTPose pass only (PoseRunner); the live 60 Hz MoveNet
+// path is untouched. Both upgrades default ON; setting crop.kEnabled AND decode.kDark
+// false via "pose.*" overrides reproduces the pre-WB1 full-frame + argmax pipeline
+// byte-for-byte (the WB1 parity gate). Consumed by PoseAccuracyConfig::fromOverrides
+// (src/Analysis/pose_crop.h) and PoseRunner.
+namespace pose {
+namespace crop {
+inline constexpr bool   kEnabled       = true;
+inline constexpr double kMarginFrac    = 0.15;   // bbox expansion each side (arms/club headroom)
+inline constexpr double kMaxAreaFrac   = 0.90;   // crop ≥ this fraction of frame area ⇒ no gain ⇒ full-frame
+inline constexpr int    kMinBboxFrames = 3;      // < this many contributing bbox frames ⇒ full-frame fallback
+} // namespace crop
+namespace decode {
+inline constexpr bool kDark = true;              // DARK sub-pixel decode (else argmax + ±0.25)
+} // namespace decode
+// Per-group confidence-threshold scales (design §3.4). REGISTERED here so a
+// "pose.confScale.*" sweep resolves to a value; WB1 wires NO consumer (the
+// wholebody-group consumers land in WB2/WB3). Body thresholds stay frozen (×1.0).
+namespace confScale {
+inline constexpr double kFeet  = 1.0;
+inline constexpr double kFace  = 1.0;
+inline constexpr double kHands = 1.0;
+} // namespace confScale
+// WB4 hand consumers (wholebody_pose_design.md §2.2). Both ship DARK: with the
+// defaults below the pipeline output is byte-identical to the pre-WB4 tree.
+namespace grip {
+// Recompute leadHand/trailHand/handConf from the SMOOTHED hand keypoints after
+// the RTS smoother, so the grip anchor ShaftTracker consumes inherits the
+// smoother's honesty tiers. false ⇒ smoothed hands copied through unchanged.
+inline constexpr bool kFromSmoothedHands = false;   // pose.gripFromSmoothedHands
+} // namespace grip
+namespace wristAngles {
+inline constexpr bool   kEnabled         = false;   // pose.wristAngles.enabled — IMU-less pose source
+inline constexpr double kConfMin         = 0.30;    // per-keypoint conf gate (codebase-wide)
+inline constexpr double kApparentPenalty = 0.5;     // camera-plane apparent-angle confidence factor
+                                                    //   (× min endpoint conf) — these are PROJECTED,
+                                                    //   not anatomical, angles so trust is halved
+} // namespace wristAngles
+} // namespace pose
+
+// --- Head tracking (WB2 — src/Analysis/head_track.h) --------------------------
+// Head position/tilt from the COCO-WholeBody head keypoints (nose/eyes/ears +
+// optional chin). Consumed by HeadTrackConfig::fromOverrides via "head.*" dotted
+// keys. FROZEN defaults; SwingLab sweeps them without rebuild.
+namespace head {
+inline constexpr double  kConfMin        = 0.30;    // per-keypoint conf gate (codebase-wide)
+inline constexpr double  kEarIpdFactor   = 1.8;     // inter-ear ≈ 1.8× inter-eye (anatomical bi-tragion
+                                                    //   vs inter-pupillary ratio) — head-scale fallback
+inline constexpr double  kChinConfWeight = 0.0;     // chin (kp 31) centroid weight when confident; 0 ⇒
+                                                    //   OFF (body 0–4 only — face channels may be noisy)
+inline constexpr int     kMinContribPts  = 2;       // min confident head kps for a valid head centre
+inline constexpr int     kAddrMinFrames  = 5;       // fallback address ref = first N valid frames
+inline constexpr std::int64_t kAddrWindowUs = 250000; // ±window about the Address event for the robust ref
+} // namespace head
+
+// --- Ball stance corridor v2 (WB3 — src/Analysis/ball_runner.cpp) -------------
+// Toe/heel span + ground line replace the ankle-based v1 corridor when foot
+// keypoint coverage is sufficient (wholebody_pose_design.md §2.1/§5). Consumed
+// by BallCorridorConfig::fromOverrides via "ball.corridor.*" dotted keys.
+// kUseFeet=false, or too few feet-confident frames, falls back VERBATIM to the
+// v1 ankle path — byte-identical on legacy 17-kp tracks (conf[17..] == 0).
+namespace ball {
+namespace corridor {
+inline constexpr bool   kUseFeet     = true;   // false ⇒ ankle path only (pre-WB3 behaviour)
+inline constexpr double kFootConfMin = 0.30;   // per-keypoint conf gate (codebase-wide convention)
+inline constexpr int    kMinFrames   = 5;      // < this many feet-confident frames ⇒ ankle fallback
+} // namespace corridor
+} // namespace ball
+
+// --- Setup + footwork metrics (WB3 — src/Analysis/foot_metrics.h) ------------
+// Stance width / per-foot flare / toe-line angle (address) + the lead-heel-lift
+// trace, from the COCO-WholeBody foot keypoints (bigtoe/heel). Consumed by
+// FootMetricsConfig::fromOverrides via "foot.*" dotted keys. FROZEN defaults;
+// SwingLab sweeps them without rebuild. Mirrors head:: exactly (same defaults
+// for the shared conf-gate / address-reference-window shape).
+namespace foot {
+inline constexpr double       kConfMin       = 0.30;    // per-keypoint conf gate (heel + bigtoe)
+inline constexpr int          kAddrMinFrames = 5;       // fallback address ref = first N valid frames
+inline constexpr std::int64_t kAddrWindowUs  = 250000;  // ±window about the Address event for the robust ref
+} // namespace foot
+
 } // namespace pinpoint::tuned

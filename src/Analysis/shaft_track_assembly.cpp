@@ -361,6 +361,11 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     // Layer C synthesis between anchors: "synth.*" keys.
     apply(ov, "synth.enabled", c.synth.enabled);
     apply(ov, "synth.midConfFrac", c.synth.midConfFrac);
+    // Hand-axis θ prior (WB4): "shaft.handAxisPrior.*" keys.
+    apply(ov, "shaft.handAxisPrior.enabled", c.handAxisPrior.enabled);
+    apply(ov, "shaft.handAxisPrior.weight",  c.handAxisPrior.weight);
+    apply(ov, "shaft.handAxisPrior.confMin", c.handAxisPrior.confMin);
+    apply(ov, "shaft.handAxisPrior.maxDeg",  c.handAxisPrior.maxDeg);
     return c;
 }
 
@@ -592,7 +597,7 @@ void frameEmission(std::vector<float>& emOut, std::vector<float>& insideOut,
                    const BandMatch& band, double phiSDeg, SwingPhase phase, int chir,
                    double gx, double gy, const BodyPoly* poly, const cv::Mat& mask,
                    const std::vector<float>& gridRad, const std::vector<float>& gridDeg,
-                   const ShaftV3Config& cfg)
+                   const ShaftV3Config& cfg, double handAxisDeg, double handAxisConf)
 {
     const int NS = int(evMax.size());
     emOut.assign(NS, 0.f);
@@ -663,8 +668,25 @@ void frameEmission(std::vector<float>& emOut, std::vector<float>& insideOut,
         }
     }
 
+    // WB4 hand-axis θ prior — penalise states far from the grip hand axis. Before
+    // the band well so the well still dominates; skipped entirely when disabled.
+    addHandAxisPrior(emOut, gridDeg, handAxisDeg, handAxisConf, cfg.handAxisPrior);
+
     // band negative well LAST — dominates the gates, forces the global path
     if (band.ok) emOut[bi] = float(-cfg.wBand);
+}
+
+// ── WB4 hand-axis θ prior ────────────────────────────────────────────────────
+void addHandAxisPrior(std::vector<float>& emOut, const std::vector<float>& gridDeg,
+                      double handAxisDeg, double handAxisConf, const HandAxisPriorConfig& cfg)
+{
+    if (!cfg.enabled || handAxisConf < cfg.confMin || std::isnan(handAxisDeg))
+        return;   // guarded ENTIRELY — emOut is bit-identical in every off case
+    const float pen = float(cfg.weight * handAxisConf);
+    const int NS = int(emOut.size());
+    for (int k = 0; k < NS; ++k)
+        if (std::abs(circWrap(double(gridDeg[k]) - handAxisDeg)) > cfg.maxDeg)
+            emOut[k] += pen;
 }
 
 // ── global banded Viterbi DP (club_track_v3 C3) ──────────────────────────────
@@ -932,7 +954,9 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                          int frameW, int frameH, double fps,
                          const std::vector<double>& bandsMm, double clubLenMm,
                          int impactFrame, const ShaftV3Config& cfg, ShaftDecideTrace* trace,
-                         const BallTrack2D* ball, const LengthPriorState* lengthPrior)
+                         const BallTrack2D* ball, const LengthPriorState* lengthPrior,
+                         const std::vector<double>& handAxisDeg,
+                         const std::vector<double>& handAxisConf)
 {
     ShaftTrack2D out;
     out.frameWidth = frameW; out.frameHeight = frameH;
@@ -1084,9 +1108,12 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         BandMatch bm = frameBandMatch(g8, gx[i], gy[i], rmax, bandsMm, cfg.band);
         if (bm.ok && bm.r0 > 0.0f && bm.r0 <= 260.0f) { band[i] = bm; bandOk[i] = 1; }
         std::vector<float> em, inside;
+        const double haDeg  = (i < int(handAxisDeg.size()))  ? handAxisDeg[size_t(i)]
+                                                             : std::numeric_limits<double>::quiet_NaN();
+        const double haConf = (i < int(handAxisConf.size())) ? handAxisConf[size_t(i)] : 0.0;
         frameEmission(em, inside, evMax, normRaw, band[i], phiS[i], pm.phase[i], chir,
                       gx[i], gy[i], polys.empty() ? nullptr : &polys[i],
-                      masks.empty() ? cv::Mat() : masks[i], gridRad, gridDeg, cfg);
+                      masks.empty() ? cv::Mat() : masks[i], gridRad, gridDeg, cfg, haDeg, haConf);
         emis[i] = std::move(em);
     };
     if (parFrames)

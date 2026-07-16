@@ -83,6 +83,15 @@ int main()
           && t::scoring::uncertainty::kIntervalSigmas == 1.0,
           "scoring::uncertainty budget");
 
+    // WB1 pose-accuracy defaults (crop + DARK both ON). The flags-off byte-parity
+    // gate depends on kEnabled/kDark being the ONLY thing an override flips.
+    check(t::pose::crop::kEnabled == true && t::pose::crop::kMarginFrac == 0.15
+          && t::pose::crop::kMaxAreaFrac == 0.90 && t::pose::crop::kMinBboxFrames == 3,
+          "pose::crop defaults == (true,0.15,0.90,3)");
+    check(t::pose::decode::kDark == true, "pose::decode::kDark == true");
+    check(t::pose::confScale::kFeet == 1.0 && t::pose::confScale::kFace == 1.0
+          && t::pose::confScale::kHands == 1.0, "pose::confScale defaults == 1.0");
+
     // --- Default-constructed consumers match their pre-refactor defaults ---------
     check(MadgwickFilter().beta() == 0.05f, "MadgwickFilter() default beta == 0.05");
 

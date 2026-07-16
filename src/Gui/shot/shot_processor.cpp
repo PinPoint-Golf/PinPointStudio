@@ -174,8 +174,8 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
         QVariantList frames;
         for (const PoseFrame2D &f : a.pose2d.frames) {
             QVariantList kp;
-            kp.reserve(17 * 3);
-            for (int j = 0; j < 17; ++j) {
+            kp.reserve(kWholeBodyJoints * 3);
+            for (int j = 0; j < kWholeBodyJoints; ++j) {
                 kp.append(f.kp[size_t(j)].x());
                 kp.append(f.kp[size_t(j)].y());
                 kp.append(double(f.conf[size_t(j)]));
@@ -187,11 +187,27 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
                 { QStringLiteral("trail"), QVariantList{ f.trailHand.x(), f.trailHand.y() } },
                 { QStringLiteral("handConf"), double(f.handConf) } });
         }
+        // keypointCount mirrors the swing.json pose2d block (swing_doc.cpp) so
+        // disk and in-memory replay payloads agree; QML consumers index j*3 for
+        // j<17 and are unaffected by the wholebody tail.
         QVariantMap pose2d{ { QStringLiteral("camera"), int(a.pose2d.camera) },
+                            { QStringLiteral("keypointCount"), kWholeBodyJoints },
                             { QStringLiteral("frames"), frames } };
+        // WB1 accuracy-pass provenance — same conditional-presence rule as the
+        // swing.json writer (swing_doc.cpp) so disk and in-memory replay agree.
+        if (a.pose2d.decode == QLatin1String("dark"))
+            pose2d.insert(QStringLiteral("decode"), a.pose2d.decode);
+        if (a.pose2d.cropRect) {
+            const QRectF &r = *a.pose2d.cropRect;
+            pose2d.insert(QStringLiteral("cropRect"),
+                          QVariantMap{ { QStringLiteral("x"), r.x() },
+                                       { QStringLiteral("y"), r.y() },
+                                       { QStringLiteral("w"), r.width() },
+                                       { QStringLiteral("h"), r.height() } });
+        }
         // Motion-overlay smoothed companion track (pose_smoother.cpp) — same flat
-        // kp layout as `frames` (51 doubles: [x,y,c]×17, conf carries the render-
-        // alpha contract), plus per-kp honesty tier[17] (int) / sigma[17] (px). No
+        // kp layout as `frames` (399 doubles: [x,y,c]×133, conf carries the render-
+        // alpha contract), plus per-kp honesty tier[133] (int) / sigma[133] (px). No
         // lead/trail/handConf — hands are not smoothed. The QML renderer reads
         // d.pose2d.smoothed[i].kp with this exact layout. Present only when the
         // analyzer ran the smoother (absent otherwise → the UI greys the motion modes).
@@ -202,8 +218,8 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
                 const PoseFrame2D &f = a.pose2d.smoothed[i];
                 const PoseKpAux   &x = a.pose2d.smoothedAux[i];
                 QVariantList kp, tier, sigma;
-                kp.reserve(17 * 3);
-                for (int j = 0; j < 17; ++j) {
+                kp.reserve(kWholeBodyJoints * 3);
+                for (int j = 0; j < kWholeBodyJoints; ++j) {
                     kp.append(f.kp[size_t(j)].x());
                     kp.append(f.kp[size_t(j)].y());
                     kp.append(double(f.conf[size_t(j)]));

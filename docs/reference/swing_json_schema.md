@@ -1,6 +1,6 @@
 # `swing.json` schema reference
 
-> **Date:** 2026-07-12 · **Applies to:** the per-shot `swing.json` manifest written to each swing directory · **Schema:** top-level `pinpoint.swing/2`, embedded `analysis` block `pinpoint.analysis/3`
+> **Date:** 2026-07-13 · **Applies to:** the per-shot `swing.json` manifest written to each swing directory · **Schema:** top-level `pinpoint.swing/2`, embedded `analysis` block `pinpoint.analysis/3`
 
 Every captured shot produces one directory (`<session>/swing_<NNNN>/`) containing the media and a single `swing.json` manifest. This document is the field-by-field reference. Snippets are from a real swing — `2026-07-05_Mark-Liversedge_Wrist_02/swing_0006` (a camera-only Wrist shot; "s06" in the shaft-lab corpus) — with IMU-specific blocks taken from an IMU swing where noted.
 
@@ -266,8 +266,8 @@ Per-metric time series + phase-anchored samples.
 
 | Field | Type | Notes |
 |---|---|---|
-| `key` / `label` / `unit` | str | Metric id, display label, unit. Wrist keys: `leadWristFlexExt`, `leadWristRadUln`, `forearmPronation`, `leadArmFlexion`, `impactShaftLean`. |
-| `t_us` / `value` | int[] / float[] | Parallel arrays; window-relative times. |
+| `key` / `label` / `unit` | str | Metric id, display label, unit. Wrist keys: `leadWristFlexExt`, `leadWristRadUln`, `forearmPronation`, `leadArmFlexion`, `impactShaftLean`. Head keys (WB2, added 2026-07-13): `headSway`, `headLift` (unit `×frame` = fraction of frame width, isotropic; Address-referenced), `headTilt` (unit `°`, eye-line angle Δ from address). Foot keys (WB3, added 2026-07-13): `stanceWidth` (unit `×frame`, heel-to-heel, isotropic), `leadFootFlare` / `trailFootFlare` (unit `°`, that foot's heel→bigtoe vs image +x), `toeLineAngle` (unit `°`, lead-bigtoe→trail-bigtoe vs image +x) — these four are **address-only scalars**: `t_us`/`value` are **empty arrays** and the single measurement lives in `phaseSamples[0]` (`phase: 0` Address) — see the note below. `leadHeelLift` (unit `×frame`, Address-referenced heel-vs-toe elevation, `+` = heel lifts) is a normal per-frame curve like the head keys. UNSCORED (no `phaseSamples[].band`). Readers must not assume a fixed key set. |
+| `t_us` / `value` | int[] / float[] | Parallel arrays; window-relative times. **May both be empty** — see `stanceWidth`/`leadFootFlare`/`trailFootFlare`/`toeLineAngle` above: a metric that is one address-time measurement rather than a curve carries it solely in `phaseSamples[0]`. No dedicated "scalar metric" shape exists elsewhere in this schema (`score.metrics`-style audit trails are never serialized), so this reuses the existing `metrics[]` contract as-is — every writer/reader already loops `t_us`/`value`/`phaseSamples` independently with no non-empty-curve assumption. |
 | `phaseSamples[]` | obj[] | Value sampled at each phase: `phase` (Phase int), `t_us`, `value`, `band` (coaching-band label, may be `""`). |
 
 ### `phases[]` — the phase ladder
@@ -300,22 +300,25 @@ Swing bounds consumers truncate to (replay span, metric grids, heavy-stage scan)
 
 ### `pose2d`
 
-Offline pose keypoints, normalized 0..1.
+Offline pose keypoints, normalized 0..1. **Widened 2026-07-13 (WB0, additive):** `kp` grew `float[51]` → `float[399]` — 133 COCO-WholeBody keypoints. Indices 0–16 are the **unchanged** COCO body joints (identical values to a pre-WB0 file); the tail is purely additive: **17–22 feet** (L bigtoe/smalltoe/heel, R bigtoe/smalltoe/heel), **23–90 face** (68-pt contour), **91–111 left hand** / **112–132 right hand** (21 each: wrist root, then 4 per finger thumb→pinky). `smoothed[].kp`/`tier`/`sigma` widened identically; new `keypointCount` field. Readers use bounded loops, so old 51-float files and new 399-float files load interchangeably (old files leave the tail defaulted).
 
 ```json
 "pose2d": {
   "camera": 0,
+  "keypointCount": 133,
+  "decode": "dark",                                                   // OPTIONAL — WB1 provenance
+  "cropRect": { "x": 0.34, "y": 0.11, "w": 0.33, "h": 0.78 },         // OPTIONAL — WB1 person crop
   "frames": [ {
     "t_us": 2720,
-    "kp":   [0.5469, 0.2930, 0.9349,  0.5573, 0.2852, 0.9591,  … ],   // 17×(x,y,conf) = 51
+    "kp":   [0.5469, 0.2930, 0.9349,  0.5573, 0.2852, 0.9591,  … ],   // 133×(x,y,conf) = 399
     "lead":  [0.5599, 0.6012], "trail": [0.5399, 0.6031],
     "handConf": 0.7535
   }, … ],
   "smoothed": [ {                                                     // OPTIONAL — motion-overlay track
     "t_us": 2720,
-    "kp":    [0.5471, 0.2931, 0.9349,  0.5574, 0.2853, 0.9591,  … ],  // 17×(x,y,conf) = 51
-    "tier":  [2, 2, 2,  1, 0,  … ],                                   // PoseTier per kp (17)
-    "sigma": [1.8, 1.8, 2.4,  3.1, 0.0,  … ]                          // posterior σ px (17)
+    "kp":    [0.5471, 0.2931, 0.9349,  0.5574, 0.2853, 0.9591,  … ],  // 133×(x,y,conf) = 399
+    "tier":  [2, 2, 2,  1, 0,  … ],                                   // PoseTier per kp (133)
+    "sigma": [1.8, 1.8, 2.4,  3.1, 0.0,  … ]                          // posterior σ px (133)
   }, … ]
 }
 ```
@@ -323,15 +326,18 @@ Offline pose keypoints, normalized 0..1.
 | Field | Type | Notes |
 |---|---|---|
 | `camera` | int | Source id of the pose camera. |
+| `keypointCount` | int | **Added 2026-07-13 (WB0).** Explicit `kp` width: `133` (COCO-WholeBody). Absent on older files ⇒ `17`. Provenance, not a parse contract — readers stay bounded-loop. |
+| `decode` | string | **Optional — added 2026-07-13 (WB1).** Sub-pixel decode used for the offline pose pass: `"dark"` (DARK distribution-aware refinement). Written **only when non-legacy** — an argmax (`±0.25`-shift) run **omits** the field, so absent ⇒ `"argmax"`. Provenance only. |
+| `cropRect` | obj | **Optional — added 2026-07-13 (WB1).** The swing-level person crop the pose pass ran inference on, `{x, y, w, h}` in **full-frame normalized** coords. **Absent** ⇒ the full-frame fallback ran (bbox too sparse / no resolution gain / crop disabled). Provenance/inspection only — all persisted `kp` are already full-frame normalized (back-projected through this crop). |
 | `frames[].t_us` | int µs | Window-relative; pose is adaptively sampled (dense near impact), so frames < camera frames. |
-| `frames[].kp` | float[51] | 17 COCO keypoints as flat `[x, y, conf] × 17`, normalized. |
-| `frames[].lead` / `trail` | float[2] | Lead/trail hand centroids (COCO wrists on fallback), normalized. |
+| `frames[].kp` | float[399] | 133 COCO-WholeBody keypoints as flat `[x, y, conf] × 133`, normalized. Indices 0–16 = the unchanged COCO body joints; tail = feet/face/hands per the layout above. `float[51]` (17 kp) before 2026-07-13. |
+| `frames[].lead` / `trail` | float[2] | Lead/trail hand centroids (COCO wrists on fallback), normalized. Unchanged by WB0 — still the derived grip anchors all consumers use. |
 | `frames[].handConf` | float | 0 when wrist-fallback. |
 | `smoothed[]` | obj[] | **Optional — added 2026-07-12** (motion-overlay fan/trace track). De-jittered companion to `frames`, produced by one offline RTS pass (`pose_smoother.{h,cpp}`, a per-axis 3-state `[p,v,a]` KF) in `WristAnalyzer`. Written **only when non-empty** (absent on swings analysed before the smoother existed ⇒ old swings must be re-analysed to gain fan/trace; `frame`-mode overlays fall back to raw `frames`). Parallel to `frames` on the **same `t_us` grid**; **no `lead`/`trail`/`handConf`** — the hands are not smoothed. |
 | `smoothed[].t_us` | int µs | Window-relative (matches the aligned `frames` entry). |
-| `smoothed[].kp` | float[51] | Smoothed 17 COCO keypoints, flat `[x, y, conf] × 17`, normalized. `conf` carries the overlay **render-alpha** contract, not the raw detector score. |
-| `smoothed[].tier` | int[17] | Per-keypoint honesty `PoseTier`: **`0` Off** (raw passthrough — don't paint as confident) · **`1` Pred** (coasted/bridged estimate) · **`2` Meas** (measured & smoothed). |
-| `smoothed[].sigma` | float[17] | Per-keypoint posterior σ in **pixels**; `0` ⇒ no smoothed value for that keypoint that frame (the `kp` entry is a raw passthrough). |
+| `smoothed[].kp` | float[399] | Smoothed 133 COCO-WholeBody keypoints, flat `[x, y, conf] × 133`, normalized (widened from `[51]` 2026-07-13). `conf` carries the overlay **render-alpha** contract, not the raw detector score. |
+| `smoothed[].tier` | int[133] | Per-keypoint honesty `PoseTier`: **`0` Off** (raw passthrough — don't paint as confident) · **`1` Pred** (coasted/bridged estimate) · **`2` Meas** (measured & smoothed). Widened from `[17]` 2026-07-13. |
+| `smoothed[].sigma` | float[133] | Per-keypoint posterior σ in **pixels**; `0` ⇒ no smoothed value for that keypoint that frame (the `kp` entry is a raw passthrough). Widened from `[17]` 2026-07-13. |
 
 ### `club` — the shaft track (`ShaftTrack2D`)
 
@@ -472,3 +478,6 @@ Per-stage analyzer wall times in milliseconds, self-reported by the analyzer so 
 | 2026-07-11 | Shaft Layer B positions: `analysis.club.positions[]` (coaching P-positions P1–P8, `shaft_position_first`) added — P2/P6/P8 are image-plane shaft-parallel crossings (accepted face-on coaching practice, not 3-D geometry). Written only when non-empty (extraction off ⇒ absent, byte-identical). Additive — no schema-version bump. |
 | 2026-07-11 | Shaft Layer C synthesis: `analysis.club.synth[]` (VISUALIZATION-tier interpolated series between P-anchors, `shaft_position_first`) added, and `ShaftSampleFlags` gained `0x100` `Synthesized` (C++ enum widened `uint8_t → uint16_t`; JSON already int, no reader break). Synthesized samples are excluded from all metrics/scoring by the flag. Written only when non-empty (synthesis off ⇒ absent, byte-identical). Additive — no schema-version bump. Also: `positions.enabled`/`fitEnabled` flipped default ON, so new Wrist swings carry `analysis.club.positions[]`. |
 | 2026-07-12 | Motion overlay: `analysis.pose2d.smoothed[]` (de-jittered pose companion track for the fan/trace overlays, `pose_smoother.{h,cpp}`) added — parallel to `frames` with per-keypoint `tier`/`sigma` honesty. Written only when non-empty (absent ⇒ re-analyse to gain fan/trace). `Phase` enum gained `ShaftParallelBack=12`/`ArmParallelDown=13`/`ShaftParallelThrough=14` for the P-position system, but these are **not yet emitted** into `phases[]` (deferred). Additive — no schema-version bump. |
+| 2026-07-13 | WB1 offline pose accuracy: `analysis.pose2d.decode` (`"dark"`) + `analysis.pose2d.cropRect` (`{x,y,w,h}` full-frame normalized swing-level person crop) added as provenance. Both written **only when non-legacy** (`decode` omitted for argmax, `cropRect` omitted on the full-frame fallback), so a flags-off run (`pose.crop.enabled=false`, `pose.decode.dark=false`) serialises **byte-identically** to the pre-WB1 tree. `kp` stay full-frame normalized (back-projected). Additive — no schema-version bump. |
+| 2026-07-13 | WB2 head tracking: `analysis.metrics[]` gains `headSway`/`headLift` (`×frame` = fraction of frame width, isotropic — anisotropy of the separately-normalized x/y kp is corrected; Address-referenced) and `headTilt` (`°`, eye-line-angle Δ). Head position is a first-class golf metric. Derived from the (smoothed, else raw) face-on pose head keypoints (`head_track.{h,cpp}`); camera-only path too. UNSCORED (no reference bands yet — no `phaseSamples[].band`). Emitted only when the pose pass produced head-localizable frames. Additive — no schema-version bump; readers already iterate `metrics[]` key-agnostically. |
+| 2026-07-13 | WB3 setup + footwork metrics: `analysis.metrics[]` gains `stanceWidth`/`leadFootFlare`/`trailFootFlare`/`toeLineAngle` (address-only scalars — **empty `t_us`/`value`, the single measurement in `phaseSamples[0]`**, the same generic `metrics[]` contract every reader already tolerates) and `leadHeelLift` (`×frame`, Address-referenced lead-heel-vs-toe elevation curve, `+` = heel lifts — a normal per-frame series like the head keys). Derived from the COCO-WholeBody foot keypoints (`foot_metrics.{h,cpp}`); camera-only path too; lead foot follows the athlete's handedness. UNSCORED. Emitted only when the pose pass produced foot-localizable frames (never on a legacy 17-kp track). Additive — no schema-version bump. Also: `streams[].setup.ballDetection` re-analysis (`BallRunner`) now derives its search corridor from these same foot keypoints when coverage allows (`ball.corridor.useFeet`, default on), falling back to the pre-WB3 ankle-based corridor otherwise — no swing.json field changes, this only affects re-analysis geometry. |

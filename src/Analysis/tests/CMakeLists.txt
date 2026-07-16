@@ -89,7 +89,37 @@ pp_add_test(wrist_resemblance_test SOURCES wrist_resemblance_test.cpp
 
 # --- Tunable-parameter plumbing: frozen-constant parity + dotted-key overrides
 pp_add_test(tuned_constants_parity_test SOURCES tuned_constants_parity_test.cpp)
+
+# WB1 person-crop geometry (pose_crop.h): union bbox → margin → 3:4 aspect → clamp
+# → integer pixels, the full-frame fallback guards, and fromOverrides plumbing.
+pp_add_test(pose_crop_test SOURCES pose_crop_test.cpp)
 pp_add_test(tuning_overrides_test SOURCES tuning_overrides_test.cpp ${ANALYSIS}/swing_scorer.cpp ${ANALYSIS}/reference_bands.cpp)
+
+# WB2 head tracking (head_track.{h,cpp}): conf-gated head centre/scale/tilt from the
+# COCO-WholeBody head keypoints + Address-referenced sway/lift/tilt series (isotropic
+# ×frame units, gap-bridged resample). Qt-only (QPointF/MetricSeries via
+# swing_analysis.h), no OpenCV; synthetic track, no fixture.
+pp_add_test(head_track_test SOURCES head_track_test.cpp ${ANALYSIS}/head_track.cpp)
+
+# WB3 setup + footwork metrics (foot_metrics.{h,cpp}): conf-gated stance width /
+# per-foot flare / toe-line angle (address, phaseSamples-only scalars) + the
+# lead-heel-lift Address-referenced curve (isotropic ×frame, gap-bridged
+# resample) — same conventions as head_track. Qt-only, no OpenCV; synthetic
+# track, no fixture.
+pp_add_test(foot_metrics_test SOURCES foot_metrics_test.cpp ${ANALYSIS}/foot_metrics.cpp)
+
+# WB4 shared hand geometry (hand_axis.h): handCentroid (byte-identical to the
+# pose_runner original), computeGripAnchors (the pose.gripFromSmoothedHands
+# recompute + wrist fallback) and handAxisDirection (the ShaftTracker θ prior).
+# Header-only, Qt-only (QPointF via swing_analysis.h); synthetic, no fixture.
+pp_add_test(hand_axis_test SOURCES hand_axis_test.cpp)
+
+# WB4 pose-derived wrist-angle source (pose_wrist_angle_source.{h,cpp}): apparent
+# camera-plane lead-wrist FE/RUD through the windowed-median sampler, the
+# left-handed image mirror, gap handling, default-OFF. Qt-only (contract +
+# sampler headers), no OpenCV; synthetic pose track, no fixture.
+pp_add_test(pose_wrist_angle_source_test
+    SOURCES pose_wrist_angle_source_test.cpp ${ANALYSIS}/pose_wrist_angle_source.cpp)
 
 # --- Header-only review/shot helpers -----------------------------------------
 pp_add_test(session_summary_test SOURCES session_summary_test.cpp)   # session_summary.h
@@ -160,6 +190,15 @@ pp_add_test(shaft_evidence_test
 # medianGripBallLenPx (A1), now referenced by decideTrack's length ladder.
 pp_add_test(shaft_decide_test
     SOURCES shaft_decide_test.cpp ${ANALYSIS}/shaft_track_assembly.cpp ${ANALYSIS}/shaft_tracker_math.cpp ${ANALYSIS}/ball_anchor.cpp ${ANALYSIS}/clubhead_track.cpp
+    INCLUDE ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    COMPILE_OPTIONS -O2)
+
+# WB4 hand-axis θ prior DP unary (shaft_track_assembly addHandAxisPrior): the
+# conf-gated / wrap-aware off-axis penalty, disabled ⇒ zero contribution, plus
+# the shaft.handAxisPrior.* override plumbing. Same link set as shaft_decide_test.
+pp_add_test(shaft_hand_axis_prior_test
+    SOURCES shaft_hand_axis_prior_test.cpp ${ANALYSIS}/shaft_track_assembly.cpp ${ANALYSIS}/shaft_tracker_math.cpp ${ANALYSIS}/ball_anchor.cpp ${ANALYSIS}/clubhead_track.cpp
     INCLUDE ${OpenCV_INCLUDE_DIRS}
     LINK    ${OpenCV_LIBS}
     COMPILE_OPTIONS -O2)

@@ -40,10 +40,10 @@ class ModelDownloader;
 //      Drives highTierSupported / highTierBlockReason so the panel can grey the
 //      High chip and fall back a persisted "High" to "Medium".
 //   2. Timing (heavy, async, at most once per launch): micro-benchmark the pose
-//      models (MoveNet = Low, ViTPose-B = Medium, ViTPose++-L = High) by reusing
-//      the estimators' own rolling poseStatsUpdated() measurement, and derive a
-//      whole-seconds-per-swing estimate per tier. High is measured once its model
-//      has been downloaded; until then it is projected from Medium (see
+//      models (ViTPose-B = Medium, ViTPose++-L = High) by reusing the estimators'
+//      own rolling poseStatsUpdated() measurement, and derive a whole-seconds-per-
+//      swing estimate per tier. High is measured once its model has been
+//      downloaded; until then it is projected from Medium (see
 //      kHighToMediumComputeFactor) and flagged provisional.
 //   3. On-demand download: the High-tier model (ViTPose++-L, ~1.2 GB) is NOT
 //      packaged. When the user opts into High the panel calls downloadHighModel()
@@ -61,8 +61,8 @@ class MotionCaptureProbe : public QObject
     Q_PROPERTY(QString deviceName              READ deviceName              NOTIFY stateChanged) // for display, best-effort
     Q_PROPERTY(bool    highTierSupported       READ highTierSupported       NOTIFY stateChanged)
     Q_PROPERTY(QString highTierBlockReason     READ highTierBlockReason     NOTIFY stateChanged) // "" when supported
-    // Measured/estimated whole seconds per swing, keyed "Low"/"Medium"/"High";
-    // value -1 = unknown (not yet measured / deferred).
+    // Measured/estimated whole seconds per swing, keyed "Medium"/"High"; value
+    // -1 = unknown (not yet measured / deferred).
     Q_PROPERTY(QVariantMap secondsPerSwing     READ secondsPerSwing         NOTIFY stateChanged)
     Q_PROPERTY(bool    highEstimateProvisional READ highEstimateProvisional NOTIFY stateChanged)
 
@@ -117,7 +117,7 @@ signals:
 private:
     void runSuitabilityProbe();       // cheap; GUI thread
     void kickTimingBenchmark();       // async; spawns m_worker
-    void runBenchmark(double &lowMs, double &mediumMs, double &highMs);  // heavy; worker thread
+    void runBenchmark(double &mediumMs, double &highMs);  // heavy; worker thread
     void recomputeSecondsPerSwing();  // folds bench + live; GUI thread
     void refreshHighModelPresent();   // re-checks the L model file; GUI thread
 
@@ -134,7 +134,6 @@ private:
 
     // Raw per-frame inference times (ms; -1 = unknown). Kept so recompute can fold
     // a live Medium measurement in without re-benchmarking.
-    double m_benchLowMs    = -1.0;   // MoveNet (Low)  micro-benchmark
     double m_benchMediumMs = -1.0;   // ViTPose-B (Medium) micro-benchmark
     double m_benchHighMs   = -1.0;   // ViTPose++-L (High) micro-benchmark (only when downloaded)
     double m_liveMediumMs  = -1.0;   // ViTPose (Medium) from a live analysis pass (preferred)

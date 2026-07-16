@@ -153,7 +153,7 @@ int main()
         const auto b = smoothPoseTrack(in, W, H);
         bool same = a.smoothed.size() == b.smoothed.size() && a.aux.size() == b.aux.size();
         for (std::size_t i = 0; same && i < a.smoothed.size(); ++i) {
-            for (int k = 0; k < 17 && same; ++k) {
+            for (int k = 0; k < kWholeBodyJoints && same; ++k) {
                 same = a.smoothed[i].kp[k] == b.smoothed[i].kp[k]
                     && a.smoothed[i].conf[k] == b.smoothed[i].conf[k]
                     && a.aux[i].tier[k] == b.aux[i].tier[k]
@@ -229,6 +229,76 @@ int main()
         check(passthrough, "Off output is the raw input kp, byte-identical");
         check(zeroConf, "Off output conf is 0 (paint-alpha contract)");
         check(zeroSig, "Off output sigma is 0 (no smoothed value)");
+    }
+
+    // ── 7. wholebody widen: body parity + smoothed tail (WB0) ─────────────────
+    // (a) body keypoint output must be unaffected by confident wholebody-tail
+    // keypoints in the same track (per-keypoint filters are independent, and
+    // body always runs the frozen base constants) — the in-process analogue of
+    // "identical to a 17-wide run". (b) feet/hand keypoints are first-class:
+    // a confident tail arc gets Meas-tier smoothing like any body joint.
+    std::printf("=== smoothPoseTrack: wholebody body-parity + tail smoothing ===\n");
+    {
+        constexpr int KPFOOT = 17;    // L bigtoe — first wholebody tail index
+        constexpr int KPHAND = 100;   // inside the left-hand range (91–111)
+
+        Lcg rngA(0x77AA55EEu);
+        const auto times  = uniformTimes(150.0, 0.6);
+        const auto bodyIn = buildTrack(arc, times, 4.0, 0.8f, rngA);   // KP=9 only
+
+        // Same body samples + confident foot/hand arcs on the tail indices.
+        const Arc footArc{ 700.0, 900.0, 150.0, 4.0, 1.1 };
+        const Arc handArc{ 1100.0, 400.0, 350.0, 5.5, 0.7 };
+        auto wholeIn = bodyIn;
+        Lcg rngB(0x11223344u);
+        for (std::size_t i = 0; i < wholeIn.size(); ++i) {
+            const double t = double(wholeIn[i].t_us) * 1e-6;
+            double px, py;
+            truthPx(footArc, t, px, py);
+            wholeIn[i].kp[KPFOOT]   = QPointF((px + 3.0 * rngB.gauss()) / double(W),
+                                              (py + 3.0 * rngB.gauss()) / double(H));
+            wholeIn[i].conf[KPFOOT] = 0.8f;
+            truthPx(handArc, t, px, py);
+            wholeIn[i].kp[KPHAND]   = QPointF((px + 3.0 * rngB.gauss()) / double(W),
+                                              (py + 3.0 * rngB.gauss()) / double(H));
+            wholeIn[i].conf[KPHAND] = 0.8f;
+        }
+
+        const auto resBody  = smoothPoseTrack(bodyIn,  W, H);
+        const auto resWhole = smoothPoseTrack(wholeIn, W, H);
+
+        bool bodySame = resBody.smoothed.size() == resWhole.smoothed.size();
+        for (std::size_t i = 0; bodySame && i < resBody.smoothed.size(); ++i)
+            bodySame = resBody.smoothed[i].kp[KP]   == resWhole.smoothed[i].kp[KP]
+                    && resBody.smoothed[i].conf[KP] == resWhole.smoothed[i].conf[KP]
+                    && resBody.aux[i].tier[KP]      == resWhole.aux[i].tier[KP]
+                    && resBody.aux[i].sigma[KP]     == resWhole.aux[i].sigma[KP];
+        check(bodySame, "body keypoint output identical with/without a wholebody tail");
+
+        int nFootMeas = 0, nHandMeas = 0;
+        for (const auto &ax : resWhole.aux) {
+            if (ax.tier[KPFOOT] == uint8_t(PoseTier::Meas)) ++nFootMeas;
+            if (ax.tier[KPHAND] == uint8_t(PoseTier::Meas)) ++nHandMeas;
+        }
+        check(nFootMeas > int(wholeIn.size()) * 3 / 4, "confident foot keypoint is mostly meas-tier");
+        check(nHandMeas > int(wholeIn.size()) * 3 / 4, "confident hand keypoint is mostly meas-tier");
+
+        // Per-group scales are additive: a non-1.0 hand scale must change the
+        // hand posterior yet leave body output untouched (frozen constants).
+        PoseSmootherConfig scaled;
+        scaled.handSigmaScale = 3.0;
+        scaled.handJerkScale  = 0.5;
+        const auto resScaled = smoothPoseTrack(wholeIn, W, H, scaled);
+        bool bodyFrozen = true, handMoved = false;
+        for (std::size_t i = 0; i < resWhole.smoothed.size(); ++i) {
+            bodyFrozen = bodyFrozen
+                      && resWhole.smoothed[i].kp[KP]  == resScaled.smoothed[i].kp[KP]
+                      && resWhole.aux[i].sigma[KP]    == resScaled.aux[i].sigma[KP];
+            handMoved  = handMoved
+                      || resWhole.aux[i].sigma[KPHAND] != resScaled.aux[i].sigma[KPHAND];
+        }
+        check(bodyFrozen, "hand-group scales never touch a body keypoint");
+        check(handMoved, "hand-group scales change the hand posterior");
     }
 
     // ── degenerate inputs ─────────────────────────────────────────────────────

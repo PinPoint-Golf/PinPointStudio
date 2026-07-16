@@ -48,6 +48,14 @@ pp_add_test(pose_model_selection_test
     SOURCES pose_model_selection_test.cpp
     INCLUDE ${POSE})
 
+# Heatmap sub-pixel decode (heatmap_decode.h, WB1): DARK Gaussian-peak recovery,
+# raw-score preservation, and the border/flat degenerate fallbacks to the argmax
+# rule. Pure C++ — no ORT / OpenCV / Qt.
+pp_add_test(heatmap_decode_test
+    SOURCES heatmap_decode_test.cpp
+    INCLUDE ${POSE}
+    NO_QT)
+
 # BallDetector throttle contract: exactly one ballDetected/detectionSkipped per
 # detect() on every path (disabled, no-ROI, empty, seeding, lock/present, removal).
 # Builds the real ball_detector.cpp (Q_OBJECT → AUTOMOC) with a PpLogStream stub

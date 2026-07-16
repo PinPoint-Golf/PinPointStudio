@@ -48,40 +48,22 @@ static constexpr int kHeatmapH    = 64;
 static constexpr int kHeatmapW    = 48;
 static constexpr int kTotalJoints = 133; // COCO-WholeBody output channels
 static constexpr int kBodyJoints  = 17;  // COCO body joints consumed here
-static constexpr int kLeftHandCh  = 91;  // first left-hand channel (91–111)
-static constexpr int kRightHandCh = 112; // first right-hand channel (112–132)
 
 // ImageNet normalisation constants (RGB order).
 static constexpr float kMean[3] = { 0.485f, 0.456f, 0.406f };
 static constexpr float kStd[3]  = { 0.229f, 0.224f, 0.225f };
 
-// Decode one [kHeatmapH, kHeatmapW] heatmap channel: argmax + ±0.25 sub-pixel
-// shift toward the higher neighbour ('default' mode), normalised to [0, 1] in
-// frame space (the full input image was resized to exactly kInputW × kInputH,
-// so heatmap coords divide directly by heatmap dims).  Shared by the body and
-// hand decodes — identical math to the original inline body-joint decode.
-static void decodeHeatmapChannel(const float *hm, float &nx, float &ny, float &score)
+// Decode one [kHeatmapH, kHeatmapW] channel per the active mode (heatmap_decode.h),
+// normalised to [0, 1] in input space (the input image was resized to exactly
+// kInputW × kInputH, so heatmap coords divide directly by the heatmap dims).
+// Argmax is byte-identical to the original inline body-joint decode; Dark adds
+// DARK sub-pixel refinement. Shared by the body and whole-body decode loops.
+void PoseEstimatorViTPose::decodeChannel(const float *hm, float &nx, float &ny, float &score)
 {
-    int   maxIdx = 0;
-    float maxVal = hm[0];
-    for (int i = 1; i < kHeatmapH * kHeatmapW; ++i) {
-        if (hm[i] > maxVal) { maxVal = hm[i]; maxIdx = i; }
-    }
-    const int iHx = maxIdx % kHeatmapW;
-    const int iHy = maxIdx / kHeatmapW;
-    float hx = static_cast<float>(iHx);
-    float hy = static_cast<float>(iHy);
-
-    if (iHx > 0 && iHx < kHeatmapW - 1)
-        hx += (hm[iHy * kHeatmapW + iHx + 1] > hm[iHy * kHeatmapW + iHx - 1])
-              ? 0.25f : -0.25f;
-    if (iHy > 0 && iHy < kHeatmapH - 1)
-        hy += (hm[(iHy + 1) * kHeatmapW + iHx] > hm[(iHy - 1) * kHeatmapW + iHx])
-              ? 0.25f : -0.25f;
-
-    nx    = hx / kHeatmapW;
-    ny    = hy / kHeatmapH;
-    score = maxVal;
+    if (m_decodeMode == DecodeMode::Dark)
+        pinpoint::pose::decodeDark(hm, kHeatmapW, kHeatmapH, m_decodeBlur.data(), nx, ny, score);
+    else
+        pinpoint::pose::decodeArgmax(hm, kHeatmapW, kHeatmapH, nx, ny, score);
 }
 
 // All ORT state lives here so onnxruntime_cxx_api.h is not pulled in via the header.
@@ -271,6 +253,8 @@ void PoseEstimatorViTPose::load()
              << "size:" << kInputW << "×" << kInputH
              << "intraOpThreads:" << intraThreads;
 
+    m_decodeBlur.assign(size_t(kHeatmapH) * kHeatmapW, 0.f);   // DARK scratch
+
     m_ort->wallTimer.start();
     m_lastCallNs = -1;
     m_ready      = true;
@@ -279,10 +263,10 @@ void PoseEstimatorViTPose::load()
 
 void PoseEstimatorViTPose::estimatePose(const cv::Mat &frame)
 {
-    // Hands from a previous frame must never outlive the call that produced
-    // them — invalidate before any early-out. No-op on the live path.
-    if (m_decodeHands)
-        m_lastHands.valid = false;
+    // Whole-body keypoints from a previous frame must never outlive the call
+    // that produced them — invalidate before any early-out. No-op live.
+    if (m_decodeWholeBody)
+        m_lastWholeBody.valid = false;
 
     if (!isEnabled()) {     // disabled by method — release the throttle, skip inference
         emit estimationDone();
@@ -346,8 +330,8 @@ void PoseEstimatorViTPose::estimatePose(const cv::Mat &frame)
             outputNames, 1);
 
         // Output: [1, 133, 64, 48] — consume the first kBodyJoints (0–16)
-        // channels always, plus the hand channels (91–132) when opted in.
-        // The remaining face/feet channels are ignored.
+        // channels always, plus ALL remaining feet/face/hand channels
+        // (17–132) when whole-body decode is opted in.
         const float *heatmapData = outputs[0].GetTensorData<float>();
 
         PoseResult result;
@@ -355,7 +339,7 @@ void PoseEstimatorViTPose::estimatePose(const cv::Mat &frame)
 
         for (int j = 0; j < kBodyJoints; ++j) {
             const float *hm = heatmapData + j * kHeatmapH * kHeatmapW;
-            decodeHeatmapChannel(hm, result.keypoints[j].x,
+            decodeChannel(hm, result.keypoints[j].x,
                                  result.keypoints[j].y, result.keypoints[j].score);
         }
 
@@ -363,22 +347,24 @@ void PoseEstimatorViTPose::estimatePose(const cv::Mat &frame)
         for (int j = 0; j < kBodyJoints; ++j) scoreSum += result.keypoints[j].score;
         result.confidence = scoreSum / kBodyJoints;
 
-        // COCO-WholeBody hand channels — same decode pass, opt-in only (the
-        // live 60 Hz path never pays for this).
-        if (m_decodeHands) {
-            const auto decodeHand = [&](int firstCh, std::array<QPointF, 21> &pts,
-                                        std::array<float, 21> &scores) {
-                for (int k = 0; k < WholeBodyHands::kHandJoints; ++k) {
-                    const float *hm = heatmapData + (firstCh + k) * kHeatmapH * kHeatmapW;
-                    float nx = 0.f, ny = 0.f, score = 0.f;
-                    decodeHeatmapChannel(hm, nx, ny, score);
-                    pts[k]    = QPointF(nx, ny);
-                    scores[k] = score;
-                }
-            };
-            decodeHand(kLeftHandCh,  m_lastHands.left,  m_lastHands.leftScore);
-            decodeHand(kRightHandCh, m_lastHands.right, m_lastHands.rightScore);
-            m_lastHands.valid = true;
+        // COCO-WholeBody tail channels — same decode pass, opt-in only (the
+        // live 60 Hz path never pays for this). The body slots (0–16) are
+        // COPIED from the PoseResult decode above — never re-decoded — so the
+        // emitted PoseResult and WholeBodyResult.kp[0..16] are bit-identical.
+        if (m_decodeWholeBody) {
+            WholeBodyResult &wb = m_lastWholeBody;
+            for (int j = 0; j < kBodyJoints; ++j) {
+                wb.kp[size_t(j)]    = QPointF(result.keypoints[j].x, result.keypoints[j].y);
+                wb.score[size_t(j)] = result.keypoints[j].score;
+            }
+            for (int j = kBodyJoints; j < kTotalJoints; ++j) {   // feet + face + hands
+                const float *hm = heatmapData + j * kHeatmapH * kHeatmapW;
+                float nx = 0.f, ny = 0.f, score = 0.f;
+                decodeChannel(hm, nx, ny, score);
+                wb.kp[size_t(j)]    = QPointF(nx, ny);
+                wb.score[size_t(j)] = score;
+            }
+            wb.valid = true;
         }
 
         emit poseEstimated(result);
@@ -448,9 +434,10 @@ void PoseEstimatorViTPose::preprocess(const cv::Mat &frame, std::vector<float> &
 // pointer; the buffer is only read during Run()).
 void PoseEstimatorViTPose::inferPrepared(std::vector<float> &inputBuf)
 {
-    // Hands from a previous frame must never outlive the call that produced them.
-    if (m_decodeHands)
-        m_lastHands.valid = false;
+    // Whole-body keypoints from a previous frame must never outlive the call
+    // that produced them.
+    if (m_decodeWholeBody)
+        m_lastWholeBody.valid = false;
 
     if (!m_ready) {
         emit estimationDone();
@@ -492,7 +479,7 @@ void PoseEstimatorViTPose::inferPrepared(std::vector<float> &inputBuf)
 
         for (int j = 0; j < kBodyJoints; ++j) {
             const float *hm = heatmapData + j * kHeatmapH * kHeatmapW;
-            decodeHeatmapChannel(hm, result.keypoints[j].x,
+            decodeChannel(hm, result.keypoints[j].x,
                                  result.keypoints[j].y, result.keypoints[j].score);
         }
 
@@ -500,20 +487,22 @@ void PoseEstimatorViTPose::inferPrepared(std::vector<float> &inputBuf)
         for (int j = 0; j < kBodyJoints; ++j) scoreSum += result.keypoints[j].score;
         result.confidence = scoreSum / kBodyJoints;
 
-        if (m_decodeHands) {
-            const auto decodeHand = [&](int firstCh, std::array<QPointF, 21> &pts,
-                                        std::array<float, 21> &scores) {
-                for (int k = 0; k < WholeBodyHands::kHandJoints; ++k) {
-                    const float *hm = heatmapData + (firstCh + k) * kHeatmapH * kHeatmapW;
-                    float nx = 0.f, ny = 0.f, score = 0.f;
-                    decodeHeatmapChannel(hm, nx, ny, score);
-                    pts[k]    = QPointF(nx, ny);
-                    scores[k] = score;
-                }
-            };
-            decodeHand(kLeftHandCh,  m_lastHands.left,  m_lastHands.leftScore);
-            decodeHand(kRightHandCh, m_lastHands.right, m_lastHands.rightScore);
-            m_lastHands.valid = true;
+        // Body slots copied from the PoseResult decode (bit-identical), tail
+        // channels decoded fresh — mirrors estimatePose() exactly.
+        if (m_decodeWholeBody) {
+            WholeBodyResult &wb = m_lastWholeBody;
+            for (int j = 0; j < kBodyJoints; ++j) {
+                wb.kp[size_t(j)]    = QPointF(result.keypoints[j].x, result.keypoints[j].y);
+                wb.score[size_t(j)] = result.keypoints[j].score;
+            }
+            for (int j = kBodyJoints; j < kTotalJoints; ++j) {   // feet + face + hands
+                const float *hm = heatmapData + j * kHeatmapH * kHeatmapW;
+                float nx = 0.f, ny = 0.f, score = 0.f;
+                decodeChannel(hm, nx, ny, score);
+                wb.kp[size_t(j)]    = QPointF(nx, ny);
+                wb.score[size_t(j)] = score;
+            }
+            wb.valid = true;
         }
 
         emit poseEstimated(result);

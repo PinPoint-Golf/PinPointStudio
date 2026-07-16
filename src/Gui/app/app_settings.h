@@ -223,6 +223,15 @@ public:
         m_autoDetectSwing           = ppSettings().value(QStringLiteral("General/autoDetectSwing"),           true).toBool();
         m_swingDetectionSensitivity = ppSettings().value(QStringLiteral("General/swingDetectionSensitivity"), QStringLiteral("Medium")).toString();
         m_motionCaptureQuality      = ppSettings().value(QStringLiteral("General/motionCaptureQuality"),      QStringLiteral("Medium")).toString();
+        // The Low tier was removed 2026-07-13 (it was vestigial — the offline pose
+        // pass never used it; ViTPose-B == Medium already). Migrate an old install's
+        // stored "Low" forward to "Medium" so it lands on a valid option; write the
+        // migrated value straight back so it round-trips even if this getter isn't
+        // hit again before the next read (e.g. a tool that only reads QSettings).
+        if (m_motionCaptureQuality.compare(QStringLiteral("Low"), Qt::CaseInsensitive) == 0) {
+            m_motionCaptureQuality = QStringLiteral("Medium");
+            ppSettings().setValue(QStringLiteral("General/motionCaptureQuality"), m_motionCaptureQuality);
+        }
         // Mic capture-chain delay used to back-date acoustic shot onsets
         // (shot detection P2); a fixed estimate until P4 auto-calibration.
         m_audioDeviceLatencyUs      = ppSettings().value(QStringLiteral("General/audioDeviceLatencyUs"),      20000).toInt();

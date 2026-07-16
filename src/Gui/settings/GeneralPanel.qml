@@ -607,7 +607,7 @@ Item {
                     }
 
                     PpChipGroup {
-                        options:  [qsTr("Low"), qsTr("Medium"), qsTr("High")]
+                        options:  [qsTr("Medium"), qsTr("High")]
                         selected: appSettings.motionCaptureQuality
                         // Grey the High chip until the probe confirms the machine can run it.
                         disabledOptions: motionCaptureProbe.highTierSupported ? [] : [qsTr("High")]

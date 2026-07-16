@@ -230,12 +230,25 @@ struct ScoreBreakdown {
 // (Qt-only) so consumers of SwingAnalysis never pull the OpenCV-typed
 // detection headers.
 
-// One offline-posed frame: 17 COCO keypoints + both hands' centroid anchors,
-// all normalized 0..1 frame coordinates (PoseResult convention).
+// COCO-WholeBody keypoint layout (wholebody_pose_design.md §4): indices 0–16
+// are the unchanged COCO body joints (PoseJoint order — every existing index
+// constant stays valid verbatim); the tail is purely additive.
+inline constexpr int kWholeBodyJoints  = 133;
+inline constexpr int kFootFirstKp      = 17;   // feet 17–22 (L bigtoe/smalltoe/heel, R …)
+inline constexpr int kFaceFirstKp      = 23;   // face 23–90 (68-pt contour)
+inline constexpr int kLeftHandFirstKp  = 91;   // left hand 91–111 (21: wrist root + 4/finger)
+inline constexpr int kRightHandFirstKp = 112;  // right hand 112–132 (21, same layout)
+
+// One offline-posed frame: 133 COCO-WholeBody keypoints (0–16 = the unchanged
+// COCO body joints; tail = feet/face/hands per the layout above) + both hands'
+// centroid anchors, all normalized 0..1 frame coordinates (PoseResult
+// convention). leadHand/trailHand stay the derived grip anchors every consumer
+// uses — unchanged by the whole-body widen. Tracks loaded from pre-wholebody
+// swing.json files (51-float kp) leave the tail default-initialized (conf 0).
 struct PoseFrame2D {
     int64_t t_us = 0;
-    std::array<QPointF, 17> kp{};
-    std::array<float, 17>   conf{};
+    std::array<QPointF, kWholeBodyJoints> kp{};
+    std::array<float, kWholeBodyJoints>   conf{};
     QPointF leadHand, trailHand;     // hand centroids; COCO wrists on fallback
     float   handConf = 0.f;          // 0 when wrist-fallback
 };
@@ -250,8 +263,8 @@ struct PoseFrame2D {
 // the raw input passthrough). Parallel to the smoother's per-frame output.
 enum class PoseTier : uint8_t { Off = 0, Pred = 1, Meas = 2 };
 struct PoseKpAux {                       // per-frame per-keypoint smoother honesty
-    std::array<uint8_t, 17> tier{};      // PoseTier values
-    std::array<float, 17>   sigma{};     // posterior σ (px); 0 = no smoothed value
+    std::array<uint8_t, kWholeBodyJoints> tier{};   // PoseTier values (0–16 body, tail = feet/face/hands)
+    std::array<float, kWholeBodyJoints>   sigma{};  // posterior σ (px); 0 = no smoothed value
 };
 
 struct PoseTrack2D {
@@ -263,6 +276,14 @@ struct PoseTrack2D {
     // swings analysed before the smoother existed — additive only.
     std::vector<PoseFrame2D> smoothed;
     std::vector<PoseKpAux>   smoothedAux;
+    // WB1 accuracy-pass provenance (wholebody_pose_design.md §3). cropRect is the
+    // swing-level person crop in FULL-FRAME NORMALIZED coords; nullopt ⇒ the
+    // full-frame fallback ran (no crop). `decode` is "dark" | "argmax" (empty ⇒
+    // legacy/unset). Both are written to swing.json only when they differ from
+    // the pre-WB1 legacy (decode == "argmax" and cropRect absent), so a
+    // flags-off run serialises byte-identically to the pre-WB1 tree.
+    std::optional<QRectF> cropRect;
+    QString               decode;
 };
 
 // One frame of ball-detector output (src/Pose/ball_detector.h BallDetection,

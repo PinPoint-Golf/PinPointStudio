@@ -20,7 +20,8 @@
 
 // Tier -> pose-model decision for the offline analysis pose pass. A pure function
 // of the "Motion capture quality" setting (AppSettings::motionCaptureQuality:
-// "Low"/"Medium"/"High") and whether the ViTPose++-L model has been downloaded.
+// "Medium"/"High" — the vestigial "Low" tier was removed 2026-07-13) and whether
+// the ViTPose++-L model has been downloaded.
 //
 // Deliberately ORT/OpenCV-free so it can be unit-tested standalone (the Pose test
 // suite excludes ONNX Runtime) and shared between PoseRunner (which builds the

@@ -21,6 +21,7 @@
 #include <QVariantMap>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <vector>
 
 #include <opencv2/core.hpp>
@@ -68,6 +69,21 @@ struct SnapConfig {
     double maxDeltaDeg    = 3.0;    // angular search half-range (deg)
     double minLineConf    = 0.25;   // accept-snap floor on the ridge support under the line
     int    corridorHalfPx = 2;      // lateral half-width integrated along the candidate line (px)
+};
+
+// Hand-axis θ prior (WB4, wholebody_pose_design.md §2.2). The grip's hand axis
+// (wrist-root → middle-MCP, averaged over confident hands) approximates the
+// shaft direction at the grip — a per-frame, band-independent DP prior. Adds a
+// cost to states whose θ deviates > maxDeg from the hand axis, scaled by weight ×
+// per-frame hand confidence, ONLY on frames where the hand-axis endpoints clear
+// confMin. enabled=false ⇒ the whole term is skipped (not a zero weight) so the
+// emission cost tables are BIT-IDENTICAL to a pre-WB4 run. "shaft.handAxisPrior.*"
+// keys via fromOverrides.
+struct HandAxisPriorConfig {
+    bool   enabled = false;   // master gate — dark until its own corpus gate flips it
+    double weight  = 6.0;     // cost per off-axis state (× hand conf), DP cost units
+    double confMin = 0.30;    // per-endpoint conf gate (codebase-wide convention)
+    double maxDeg  = 35.0;    // states beyond this from the hand axis are penalised
 };
 
 // The full v3.0-r1 parameter set. Every field defaults to the validated Python
@@ -180,6 +196,10 @@ struct ShaftV3Config {
     // ShaftTrack2D.synth with the VISUALIZATION-tier interpolated series between the
     // located P-anchors. fromOverrides populates it.
     SynthConfig     synth;
+    // Hand-axis θ prior (WB4) — "shaft.handAxisPrior.*" keys. enabled=false by
+    // default (dark); when on, the per-frame hand-axis direction penalises the DP
+    // states far from it near the grip. fromOverrides populates it.
+    HandAxisPriorConfig handAxisPrior;
 
     static ShaftV3Config fromOverrides(const QVariantMap& ov);
 };
@@ -241,13 +261,27 @@ std::vector<char> staticRuns(const std::vector<double>& spdSmoothed, const Shaft
 // `poly` may be null (geometric C2 skipped); `mask` non-empty selects the
 // raster form. Applies, in order: raise ev at the band bin, em = wE2·(1−ev),
 // C4 arm-veto, C4 wide cone (off addr/finish/top), C1 reverse-ridge, C2 veto
-// (mid-swing), then the band negative well em[bi] = −wBand LAST.
+// (mid-swing), the WB4 hand-axis prior, then the band negative well em[bi] =
+// −wBand LAST. handAxisDeg/handAxisConf are this frame's grip hand-axis direction
+// (deg, image atan2 convention) + confidence; the prior term is guarded ENTIRELY
+// on cfg.handAxisPrior.enabled (NaN handAxisDeg / conf 0 also skip it), so with
+// the default-off config the cost row is bit-identical to a pre-WB4 run.
 void frameEmission(std::vector<float>& emOut, std::vector<float>& insideOut,
                    const std::vector<float>& evMax, const std::vector<float>& rawNorm,
                    const BandMatch& band, double phiSDeg, SwingPhase phase, int chir,
                    double gx, double gy, const BodyPoly* poly, const cv::Mat& mask,
                    const std::vector<float>& gridRad, const std::vector<float>& gridDeg,
-                   const ShaftV3Config& cfg);
+                   const ShaftV3Config& cfg,
+                   double handAxisDeg = std::numeric_limits<double>::quiet_NaN(),
+                   double handAxisConf = 0.0);
+
+// WB4 hand-axis θ prior — add `weight × handAxisConf` to every state deviating
+// more than maxDeg from handAxisDeg. Pure (deg wrap via the file-local circWrap);
+// a no-op when cfg.enabled is false, handAxisConf < cfg.confMin, or handAxisDeg
+// is NaN — in every such case emOut is left BIT-IDENTICAL. Applied BEFORE the
+// band negative well so the well still dominates. Unit-tested standalone.
+void addHandAxisPrior(std::vector<float>& emOut, const std::vector<float>& gridDeg,
+                      double handAxisDeg, double handAxisConf, const HandAxisPriorConfig& cfg);
 
 // ── global banded Viterbi DP over the θ grid (C3) ────────────────────────────
 // emis: nf rows × NS cols. Returns the per-frame grid index (thstar) and its
@@ -420,6 +454,11 @@ double projectedClubLenPx(double measuredClubLenPx, double sTypical, double r0Me
 // swing is analysed. Defaulted so the parity/decide harnesses + swinglab_run
 // compile unchanged. With cfg.fusion.enabled == false the fusion is skipped
 // entirely and the length ladder is byte-identical to the pre-fusion tracker.
+// `handAxisDeg`/`handAxisConf` (WB4, may be empty) are the per-coverage-frame
+// grip hand-axis direction (deg, image atan2) + confidence, fed to the DP
+// hand-axis prior (cfg.handAxisPrior). Empty ⇒ the prior contributes nothing;
+// with cfg.handAxisPrior.enabled false the term is skipped regardless, so the
+// θ path is bit-identical to a pre-WB4 run either way.
 ShaftTrack2D decideTrack(const FrameSource& frameAt,
                          const std::vector<int64_t>& tUs,
                          const std::vector<double>& gx, const std::vector<double>& gy,
@@ -430,6 +469,8 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt,
                          int impactFrame, const ShaftV3Config& cfg,
                          ShaftDecideTrace* trace = nullptr,
                          const BallTrack2D* ball = nullptr,
-                         const LengthPriorState* lengthPrior = nullptr);
+                         const LengthPriorState* lengthPrior = nullptr,
+                         const std::vector<double>& handAxisDeg = {},
+                         const std::vector<double>& handAxisConf = {});
 
 } // namespace pinpoint::analysis

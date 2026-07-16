@@ -162,7 +162,7 @@ struct SwingExportJob {
     int     sessionType = -1;    // SessionController::Type (-1 = none)
     int     shotSource  = 0;     // ShotController::Source as int
     QString swingDetectionSensitivity;   // "Low"/"Medium"/"High"
-    QString motionCaptureQuality;        // "Low"/"Medium"/"High" — offline pose model tier
+    QString motionCaptureQuality;        // "Medium"/"High" — offline pose model tier
     qint64  imuBleLatencyUs     = 0;     // detector back-dating constants at capture
     int     audioDeviceLatencyUs = 0;
     SwingHostInfo host;

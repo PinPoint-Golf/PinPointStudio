@@ -37,6 +37,7 @@
 #include <vector>
 
 #include "ball_anchor.h"            // applyBallAnchor — the v3.4 post-hoc pass
+#include "hand_axis.h"              // handAxisDirection — the WB4 shaft θ prior
 #include "shot_analyzer.h"          // ShotAnalysisJob
 #include "swing_window.h"
 #include "format_descriptor.h"
@@ -59,7 +60,11 @@ PoseFrame2D lerpPoseFrame(const PoseTrack2D& pose, size_t lo, size_t hi, int64_t
                          ? 0.0
                          : std::clamp(double(t - a.t_us) / double(b.t_us - a.t_us), 0.0, 1.0);
     PoseFrame2D o; o.t_us = t;
-    for (size_t i = 0; i < 17; ++i) {
+    // Interpolate ALL 133 COCO-WholeBody channels (not just the 17 body joints):
+    // the WB4 hand-axis prior reads the hand keypoints (91–132) at the grip's
+    // sub-frame time. Output-identical on the existing path — nothing but the new
+    // prior reads channels 17+.
+    for (size_t i = 0; i < size_t(kWholeBodyJoints); ++i) {
         o.kp[i] = QPointF(a.kp[i].x() + (b.kp[i].x() - a.kp[i].x()) * f,
                           a.kp[i].y() + (b.kp[i].y() - a.kp[i].y()) * f);
         o.conf[i] = a.conf[i] + (b.conf[i] - a.conf[i]) * float(f);
@@ -145,6 +150,15 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
     std::vector<int64_t> tUs(nf);
     std::vector<double> gx(nf), gy(nf), phiRaw(nf);
     std::vector<std::vector<cv::Point2d>> rawJoints(nf, std::vector<cv::Point2d>(8));
+    // WB4 hand-axis θ prior (dark unless shaft.handAxisPrior.enabled): per-frame
+    // grip hand-axis direction (deg, image atan2) + confidence. Left empty when
+    // the prior is off so decideTrack's cost tables stay bit-identical.
+    const bool wantHandAxis = cfg.handAxisPrior.enabled;
+    std::vector<double> handAxisDeg, handAxisConf;
+    if (wantHandAxis) {
+        handAxisDeg.assign(size_t(nf), std::numeric_limits<double>::quiet_NaN());
+        handAxisConf.assign(size_t(nf), 0.0);
+    }
     size_t poseIdx = 0;
     for (int i = 0; i < nf; ++i) {
         tUs[i] = cov[i].timestamp_us;
@@ -161,6 +175,12 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
                         : std::numeric_limits<double>::quiet_NaN();
         for (int j = 0; j < 8; ++j)
             rawJoints[i][j] = {pf.kp[size_t(kBodyJoints[j])].x() * w, pf.kp[size_t(kBodyJoints[j])].y() * h};
+        if (wantHandAxis) {
+            double aDeg = std::numeric_limits<double>::quiet_NaN();
+            const float aConf = handAxisDirection(pf, w, h, cfg.handAxisPrior.confMin, aDeg);
+            handAxisDeg[size_t(i)]  = (aConf > 0.f) ? aDeg : std::numeric_limits<double>::quiet_NaN();
+            handAxisConf[size_t(i)] = aConf;
+        }
     }
 
     int impf = -1;
@@ -226,7 +246,8 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
     // (same emptiness notion as applyBallAnchor). θ is unaffected either way.
     out = decideTrack(frameAt, tUs, gx, gy, phiRaw, rawJoints, w, h, fps,
                       job.bandCentersMm, job.clubLengthM * 1000.0, impf, cfg, trace,
-                      ball.frames.empty() ? nullptr : &ball, priorPtr);
+                      ball.frames.empty() ? nullptr : &ball, priorPtr,
+                      handAxisDeg, handAxisConf);
     out.camera = pose.camera;
 
     // v3.4 (design §9): additive post-hoc ball anchor — reads the frozen DP

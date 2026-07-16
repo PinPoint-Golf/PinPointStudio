@@ -35,8 +35,8 @@
 //       motion: {
 //           on:          bool,                         // master overlay switch
 //           preset:      string,                       // preset id, or "custom"
-//           modes:       { arms, spine, shoulders, hips, legs, shaft, ball:
-//                          "off"|"frame"|"fan"|"trace" },
+//           modes:       { arms, spine, shoulders, hips, legs, shaft, ball, hands:
+//                          "off"|"frame"|"fan"|"trace" },   // hands (WB4) default off
 //           traceTarget: string                        // optional — only present
 //                                                       // when the preset/edit
 //                                                       // overrides an element's
@@ -96,20 +96,20 @@ QtObject {
     // Global, read-only. Every entry lists all 7 element keys explicitly.
     readonly property var _presets: [
         { id: "clean", label: "Clean", hint: "frame · body + club",
-          modes: { arms: "frame", spine: "frame", shoulders: "frame", hips: "frame", legs: "off", shaft: "frame", ball: "off" } },
+          modes: { arms: "frame", spine: "frame", shoulders: "frame", hips: "frame", legs: "off", shaft: "frame", ball: "off", hands: "off" } },
         { id: "ballOnly", label: "Ball only", hint: "frame · ball",
-          modes: { arms: "off", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "off", ball: "frame" } },
+          modes: { arms: "off", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "off", ball: "frame", hands: "off" } },
         { id: "clubLeadArm", label: "Club + lead arm", hint: "fan · club + lead arm",
-          modes: { arms: "fan", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "fan", ball: "off" } },
+          modes: { arms: "fan", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "fan", ball: "off", hands: "off" } },
         { id: "core", label: "Core", hint: "frame · spine + hips + shoulders",
-          modes: { arms: "off", spine: "frame", shoulders: "frame", hips: "frame", legs: "off", shaft: "off", ball: "off" } },
+          modes: { arms: "off", spine: "frame", shoulders: "frame", hips: "frame", legs: "off", shaft: "off", ball: "off", hands: "off" } },
         { id: "tracePelvis", label: "Trace pelvis", hint: "trace · pelvis",
-          modes: { arms: "off", spine: "off", shoulders: "off", hips: "trace", legs: "off", shaft: "off", ball: "off" } },
+          modes: { arms: "off", spine: "off", shoulders: "off", hips: "trace", legs: "off", shaft: "off", ball: "off", hands: "off" } },
         { id: "traceHead", label: "Trace head", hint: "trace · head",
-          modes: { arms: "off", spine: "off", shoulders: "trace", hips: "off", legs: "off", shaft: "off", ball: "off" },
+          modes: { arms: "off", spine: "off", shoulders: "trace", hips: "off", legs: "off", shaft: "off", ball: "off", hands: "off" },
           traceTarget: "head" },
         { id: "traceLeadSh", label: "Trace lead shoulder", hint: "trace · lead shoulder",
-          modes: { arms: "off", spine: "off", shoulders: "trace", hips: "off", legs: "off", shaft: "off", ball: "off" } }
+          modes: { arms: "off", spine: "off", shoulders: "trace", hips: "off", legs: "off", shaft: "off", ball: "off", hands: "off" } }
     ]
 
     // Fresh copies only — callers must not be able to mutate the catalogue
@@ -153,7 +153,7 @@ QtObject {
         var mo = _rawMotion(mode)
         if (mode !== SessionMode.capture) return mo
 
-        var keys = ["arms", "spine", "shoulders", "hips", "legs", "shaft", "ball"]
+        var keys = ["arms", "spine", "shoulders", "hips", "legs", "shaft", "ball", "hands"]
         var modes = {}
         for (var i = 0; i < keys.length; i++)
             modes[keys[i]] = (keys[i] === "ball") ? mo.modes[keys[i]] : "off"
@@ -298,7 +298,7 @@ QtObject {
     }
 
     function _fillModes(modes, fallback) {
-        var keys = ["arms", "spine", "shoulders", "hips", "legs", "shaft", "ball"]
+        var keys = ["arms", "spine", "shoulders", "hips", "legs", "shaft", "ball", "hands"]
         var out = {}
         for (var i = 0; i < keys.length; i++) {
             var key = keys[i]

@@ -30,10 +30,12 @@ using pinpoint::analysis::PoseTrack2D;
 
 #include <QElapsedTimer>
 
+#include "analysis_tuning.h"
 #include "format_descriptor.h"
 #include "swing_window.h"
 #include "../Core/pp_debug.h"
 #include "../Core/pp_profiler.h"
+#include "../Core/pp_tuned_constants.h"
 
 #if defined(HAVE_OPENCV)
 #include <opencv2/core.hpp>
@@ -62,12 +64,86 @@ constexpr int kLeftAnkle  = 15;
 constexpr int kRightAnkle = 16;
 constexpr float kMinAnkleConf = 0.3f;
 
+// COCO-WholeBody foot keypoints (wholebody_pose_design.md §1.1/§2.1) — stance
+// corridor v2: the true toe-line span + a ground line at actual shoe level
+// (tighter than the ankle line, which sits 8-12 cm above the ground).
+constexpr int kLBigToe = 17, kLSmallToe = 18, kLHeel = 19;
+constexpr int kRBigToe = 20, kRSmallToe = 21, kRHeel = 22;
+
+// "ball.corridor.*" — see pp_tuned_constants.h for the frozen defaults.
+struct BallCorridorConfig {
+    bool   useFeet     = pinpoint::tuned::ball::corridor::kUseFeet;
+    double footConfMin = pinpoint::tuned::ball::corridor::kFootConfMin;
+    int    minFrames   = pinpoint::tuned::ball::corridor::kMinFrames;
+
+    static BallCorridorConfig fromOverrides(const QVariantMap &ov)
+    {
+        using namespace pinpoint::analysis::tuning;
+        BallCorridorConfig c;
+        apply(ov, "ball.corridor.useFeet", c.useFeet);
+        return c;
+    }
+};
+
 // Derive a single, generous search corridor (px, full-frame) spanning every
 // posed frame's stance — offline replay only needs one static ROI for the
 // whole window (the ball never moves once placed), unlike the live per-frame
 // corridor that has to track a moving golfer in real time.
-cv::Rect stanceCorridor(const PoseTrack2D &pose, int fw, int fh)
+//
+// v2 (WB3): when foot keypoints (17-22) clear coverage, the horizontal span
+// and floor are derived from the toe/heel points instead of the ankles — a
+// tighter "ball below the feet" prior at actual shoe level. Conf-gated per
+// keypoint; a foot counts as present when EITHER its toe (bigtoe or smalltoe)
+// OR its heel clears the gate (mirrors the "at least a toe OR heel" coverage
+// rule — the frame still needs BOTH feet present to contribute, matching the
+// ankle path's "both ankles confident" requirement). Falls back VERBATIM to
+// the v1 ankle path when disabled (`ball.corridor.useFeet=false`) or when feet
+// coverage is insufficient — byte-identical on legacy 17-kp tracks, where
+// conf[17..] defaults to 0 and therefore never clears the gate.
+cv::Rect stanceCorridor(const PoseTrack2D &pose, int fw, int fh, const BallCorridorConfig &cfg = {})
 {
+    if (cfg.useFeet) {
+        double minX = 1.0, maxX = 0.0, groundY = 0.0;
+        int n = 0;
+        for (const auto &f : pose.frames) {
+            const bool lHeelOk = f.conf[kLHeel] >= cfg.footConfMin;
+            const bool lToeOk  = f.conf[kLBigToe] >= cfg.footConfMin || f.conf[kLSmallToe] >= cfg.footConfMin;
+            const bool rHeelOk = f.conf[kRHeel] >= cfg.footConfMin;
+            const bool rToeOk  = f.conf[kRBigToe] >= cfg.footConfMin || f.conf[kRSmallToe] >= cfg.footConfMin;
+            if (!(lHeelOk || lToeOk) || !(rHeelOk || rToeOk))
+                continue;   // require BOTH feet present (toe OR heel each)
+            double fMinX = 1.0, fMaxX = 0.0, fMaxY = 0.0;
+            bool any = false;
+            const auto addPt = [&](int idx, bool ok) {
+                if (!ok) return;
+                fMinX = std::min(fMinX, double(f.kp[idx].x()));
+                fMaxX = std::max(fMaxX, double(f.kp[idx].x()));
+                fMaxY = std::max(fMaxY, double(f.kp[idx].y()));
+                any = true;
+            };
+            addPt(kLHeel,     lHeelOk);
+            addPt(kLBigToe,   f.conf[kLBigToe]   >= cfg.footConfMin);
+            addPt(kLSmallToe, f.conf[kLSmallToe] >= cfg.footConfMin);
+            addPt(kRHeel,     rHeelOk);
+            addPt(kRBigToe,   f.conf[kRBigToe]   >= cfg.footConfMin);
+            addPt(kRSmallToe, f.conf[kRSmallToe] >= cfg.footConfMin);
+            if (!any) continue;
+            minX = std::min(minX, fMinX);
+            maxX = std::max(maxX, fMaxX);
+            groundY = std::max(groundY, fMaxY);   // max y over toe/heel points (shoe level)
+            ++n;
+        }
+        if (n >= cfg.minFrames && minX <= maxX) {
+            const double stanceWidth = (maxX - minX) * fw;
+            const double margin = 0.5 * std::max(stanceWidth, 40.0);
+            const int x0 = std::clamp(int(minX * fw - margin), 0, fw - 1);
+            const int x1 = std::clamp(int(maxX * fw + margin), x0 + 1, fw);
+            const int y0 = std::clamp(int(groundY * fh), 0, fh - 1);
+            return cv::Rect(x0, y0, x1 - x0, fh - y0);
+        }
+        // Feet coverage insufficient — fall through to the v1 ankle path below.
+    }
+
     double minX = 1.0, maxX = 0.0, ankleY = 0.0;
     int n = 0;
     for (const auto &f : pose.frames) {
@@ -201,7 +277,7 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
             const int rh = std::clamp(int(searchRoi.height() * fh), 1, fh - ry);
             roiRect = cv::Rect(rx, ry, rw, rh);
         } else {
-            roiRect = stanceCorridor(pose, fw, fh);
+            roiRect = stanceCorridor(pose, fw, fh, BallCorridorConfig::fromOverrides(opt.tuningOverrides));
         }
     }
 
