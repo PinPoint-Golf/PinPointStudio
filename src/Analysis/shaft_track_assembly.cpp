@@ -297,6 +297,7 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.phiOnsetDegPerFrame", c.phiOnsetDegPerFrame);
     apply(ov, "shaft.bsMinBeforeImpactUs", c.bsMinBeforeImpactUs);
     apply(ov, "shaft.bsMaxBeforeImpactUs", c.bsMaxBeforeImpactUs);
+    apply(ov, "shaft.runMaxStartAfterImpactUs", c.runMaxStartAfterImpactUs);
     apply(ov, "shaft.spanBound", c.spanBound);
     apply(ov, "shaft.bodyMargin", c.bodyMargin);
     apply(ov, "shaft.rasterC2", c.rasterC2);
@@ -411,6 +412,18 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
             if (g - f >= 6) runs.emplace_back(f, g);
             f = g + 1;
         } else ++f;
+    }
+    // Run-candidacy clamp: with a supplied impact, a run that STARTS more than
+    // runMaxStartAfterImpactUs after it cannot be backswing or downswing — drop
+    // it so post-finish motion at the window tail never wins a two-longest slot
+    // against a fragmented backswing. Keep the unfiltered list if the clamp
+    // would empty it (degenerate window; preserves the legacy fallback below).
+    if (impactFrame >= 0 && cfg.runMaxStartAfterImpactUs > 0) {
+        const int maxStart = impactFrame
+                             + int(std::lround(double(cfg.runMaxStartAfterImpactUs) * 1e-6 * fps));
+        std::vector<std::pair<int, int>> kept;
+        for (const auto& r : runs) if (r.first <= maxStart) kept.push_back(r);
+        if (!kept.empty()) runs = std::move(kept);
     }
     if (runs.empty()) {
         m.phase.assign(nf, SwingPhase::Addr);

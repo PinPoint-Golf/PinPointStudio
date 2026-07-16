@@ -139,6 +139,13 @@ struct ShaftV3Config {
     double  phiOnsetDegPerFrame = 0.25;   // A2 φ-witness sustained-motion threshold (0 = φ witness off)
     int64_t bsMinBeforeImpactUs = 550000; // A3 onset clamp, near edge (impact − this)
     int64_t bsMaxBeforeImpactUs = 1600000;// A3 onset clamp, far edge (impact − this)
+    // Run-candidacy clamp (same supplied-impact guard as A3): a motion run that
+    // STARTS later than impact + this cannot be a swing phase, so it must not
+    // compete with a fragmented backswing for the two-longest-runs slots (post-
+    // finish fidgeting at the window tail was seen winning fin0, collapsing the
+    // coverage span — 0709_swing_0004 escalation). 0 disables; inert when no
+    // impact frame is supplied (hands-derived impf must not filter its inputs).
+    int64_t runMaxStartAfterImpactUs = 1000000;
     // C2 body ROI
     double  bodyMargin = 34.0;       // px inflation of the body polygon
     double  bodyRLo    = 45.0;       // ray-sample radii for the inside-fraction test
