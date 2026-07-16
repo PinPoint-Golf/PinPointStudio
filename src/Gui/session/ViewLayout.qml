@@ -35,7 +35,8 @@
 //       motion: {
 //           on:          bool,                         // master overlay switch
 //           preset:      string,                       // preset id, or "custom"
-//           modes:       { arms, spine, shoulders, hips, legs, shaft, ball, hands:
+//           modes:       { arms, spine, shoulders, hips, legs, shaft, shaftGrip,
+//                          ball, hands:
 //                          "off"|"frame"|"fan"|"trace" },   // hands (WB4) default off
 //           traceTarget: string                        // optional — only present
 //                                                       // when the preset/edit
@@ -46,7 +47,8 @@
 //
 // Element default trace anchors (owned by the renderer, noted here for
 // context): arms → leadWrist, spine → neckMid, shoulders → leadShoulder,
-// hips → pelvisMid, legs → leadAnkle, shaft → clubhead, ball → none.
+// hips → pelvisMid, legs → leadAnkle, shaft → clubhead, shaftGrip → grip,
+// ball → none.
 //
 // Back-compat: older stores wrote `overlays: bool` instead of `motion`. Reads
 // migrate that losslessly forever (see _rawMotion); the first subsequent write
@@ -93,23 +95,26 @@ QtObject {
     }
 
     // ── motion preset catalogue ─────────────────────────────────────────────
-    // Global, read-only. Every entry lists all 7 element keys explicitly.
+    // Global, read-only. Every entry lists all element keys explicitly (shaftGrip
+    // = the club's GRIP-end trace, companion to shaft = the CLUBHEAD-end trace).
     readonly property var _presets: [
         { id: "clean", label: "Clean", hint: "frame · body + club",
-          modes: { arms: "frame", spine: "frame", shoulders: "frame", hips: "frame", legs: "off", shaft: "frame", ball: "off", hands: "off" } },
+          modes: { arms: "frame", spine: "frame", shoulders: "frame", hips: "frame", legs: "off", shaft: "frame", shaftGrip: "off", ball: "off", hands: "off" } },
         { id: "ballOnly", label: "Ball only", hint: "frame · ball",
-          modes: { arms: "off", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "off", ball: "frame", hands: "off" } },
+          modes: { arms: "off", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "off", shaftGrip: "off", ball: "frame", hands: "off" } },
         { id: "clubLeadArm", label: "Club + lead arm", hint: "fan · club + lead arm",
-          modes: { arms: "fan", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "fan", ball: "off", hands: "off" } },
+          modes: { arms: "fan", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "fan", shaftGrip: "off", ball: "off", hands: "off" } },
+        { id: "clubTrack", label: "Club track", hint: "trace · club grip + head",
+          modes: { arms: "off", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "trace", shaftGrip: "trace", ball: "off", hands: "off" } },
         { id: "core", label: "Core", hint: "frame · spine + hips + shoulders",
-          modes: { arms: "off", spine: "frame", shoulders: "frame", hips: "frame", legs: "off", shaft: "off", ball: "off", hands: "off" } },
+          modes: { arms: "off", spine: "frame", shoulders: "frame", hips: "frame", legs: "off", shaft: "off", shaftGrip: "off", ball: "off", hands: "off" } },
         { id: "tracePelvis", label: "Trace pelvis", hint: "trace · pelvis",
-          modes: { arms: "off", spine: "off", shoulders: "off", hips: "trace", legs: "off", shaft: "off", ball: "off", hands: "off" } },
+          modes: { arms: "off", spine: "off", shoulders: "off", hips: "trace", legs: "off", shaft: "off", shaftGrip: "off", ball: "off", hands: "off" } },
         { id: "traceHead", label: "Trace head", hint: "trace · head",
-          modes: { arms: "off", spine: "off", shoulders: "trace", hips: "off", legs: "off", shaft: "off", ball: "off", hands: "off" },
+          modes: { arms: "off", spine: "off", shoulders: "trace", hips: "off", legs: "off", shaft: "off", shaftGrip: "off", ball: "off", hands: "off" },
           traceTarget: "head" },
         { id: "traceLeadSh", label: "Trace lead shoulder", hint: "trace · lead shoulder",
-          modes: { arms: "off", spine: "off", shoulders: "trace", hips: "off", legs: "off", shaft: "off", ball: "off", hands: "off" } }
+          modes: { arms: "off", spine: "off", shoulders: "trace", hips: "off", legs: "off", shaft: "off", shaftGrip: "off", ball: "off", hands: "off" } }
     ]
 
     // Fresh copies only — callers must not be able to mutate the catalogue
@@ -153,7 +158,7 @@ QtObject {
         var mo = _rawMotion(mode)
         if (mode !== SessionMode.capture) return mo
 
-        var keys = ["arms", "spine", "shoulders", "hips", "legs", "shaft", "ball", "hands"]
+        var keys = ["arms", "spine", "shoulders", "hips", "legs", "shaft", "shaftGrip", "ball", "hands"]
         var modes = {}
         for (var i = 0; i < keys.length; i++)
             modes[keys[i]] = (keys[i] === "ball") ? mo.modes[keys[i]] : "off"
@@ -298,7 +303,7 @@ QtObject {
     }
 
     function _fillModes(modes, fallback) {
-        var keys = ["arms", "spine", "shoulders", "hips", "legs", "shaft", "ball", "hands"]
+        var keys = ["arms", "spine", "shoulders", "hips", "legs", "shaft", "shaftGrip", "ball", "hands"]
         var out = {}
         for (var i = 0; i < keys.length; i++) {
             var key = keys[i]

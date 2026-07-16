@@ -100,7 +100,15 @@ Item {
     readonly property int fanWindowMs: 240
     readonly property int kFanMaxFrames: 24
 
-    readonly property var _traceElements: ["arms", "spine", "shoulders", "hips", "legs", "shaft"]
+    // "shaft" traces the CLUBHEAD end; "shaftGrip" traces the GRIP end (both from
+    // the same dense club series) — the "Club track" preset turns both on.
+    readonly property var _traceElements: ["arms", "spine", "shoulders", "hips", "legs", "shaft", "shaftGrip"]
+
+    // Per-element trace stroke. Body + clubhead ("shaft") use the accent; the grip
+    // end uses a lighter accent so the club's two ends read as one instrument.
+    function _traceColor(elem) {
+        return elem === "shaftGrip" ? Qt.lighter(Theme.colorAccent, 1.7) : Theme.colorAccent
+    }
 
     // Per-element render mode, master-gated. Empty map ⇒ "frame" (legacy full draw).
     function _elemMode(key) {
@@ -148,26 +156,122 @@ Item {
         return null   // clubhead resolved by the shaft-sample path, not here
     }
 
+    // Time-parameterised constant-velocity RTS (Rauch–Tung–Striebel) smoother for a
+    // club-end trace polyline: a forward Kalman (CV / white-acceleration prior) plus
+    // a backward smoothing pass, run independently on x(t) and y(t). Ported from the
+    // eyeball-validated club-trace prototype with two production changes — RTS-only
+    // (the Savitzky–Golay comparison arm is gone) and TIME parameterisation instead
+    // of sample index. The club series (_clubFan) is dense 240 Hz synth between the
+    // P-anchors but source-rate in the measured tails, so a per-step dt keeps the
+    // smoothing time-constant honest across that seam. dt is normalized to the
+    // series' MEDIAN interval, which makes the filter scale-free in time and reduces
+    // EXACTLY to the validated index model on any uniform series (median ⇒ dtn ≈ 1),
+    // while the sparser tails get a proportionally larger F(dt)/Q(dt) — less
+    // over-smoothing across a real gap. `xs`,`ys`,`ts` are parallel arrays (ts = t_us
+    // ascending); returns a list of smoothed Qt.point. `strength` fixes the
+    // measurement/process-noise ratio (R = strength², process q = 1); the Kalman gain
+    // depends only on that ratio, so the absolute normalized scale is irrelevant.
+    // Viz-tier only — the trace is never read by any metric/scoring/estimand, so this
+    // never touches a measured series (same discipline as club.synth / pose2d.synth).
+    function _rtsSmoothClub(xs, ys, ts) {
+        var n = xs.length
+        if (n < 3) {
+            var passthru = new Array(n)
+            for (var q = 0; q < n; ++q) passthru[q] = Qt.point(xs[q], ys[q])
+            return passthru
+        }
+        var strength = 7.0
+        var R = strength * strength                     // meas. noise (process q = 1)
+        // Per-step dt normalized to the median sample interval (dtn[0] unused — k=0
+        // is the prior). Median ⇒ dtn ≈ 1 on a uniform series ⇒ the validated model.
+        var intervals = new Array(n - 1)
+        for (var k = 1; k < n; ++k) {
+            var di = ts[k] - ts[k - 1]
+            intervals[k - 1] = di > 0 ? di : 1
+        }
+        var sorted = intervals.slice().sort(function (a, b) { return a - b })
+        var med = sorted[sorted.length >> 1]
+        if (!(med > 0)) med = 1
+        var dtn = new Array(n)
+        for (var kk = 1; kk < n; ++kk) dtn[kk] = intervals[kk - 1] / med
+
+        function smooth1d(z) {
+            var xf0 = new Array(n), xf1 = new Array(n), xp0 = new Array(n), xp1 = new Array(n)
+            var Pf00 = new Array(n), Pf01 = new Array(n), Pf10 = new Array(n), Pf11 = new Array(n)
+            var Pp00 = new Array(n), Pp01 = new Array(n), Pp10 = new Array(n), Pp11 = new Array(n)
+            var x0 = z[0], x1 = 0, P00 = R, P01 = 0, P10 = 0, P11 = R
+            for (var i = 0; i < n; ++i) {
+                var px0, px1, pp00, pp01, pp10, pp11
+                if (i === 0) {                          // prior = predicted[0]
+                    px0 = x0; px1 = x1; pp00 = P00; pp01 = P01; pp10 = P10; pp11 = P11
+                } else {                                // predict: F = [[1,dt],[0,1]], white-accel Q(dt)
+                    var dt = dtn[i], dt2 = dt * dt, dt3 = dt2 * dt
+                    px0 = x0 + dt * x1; px1 = x1
+                    pp00 = P00 + dt * (P01 + P10) + dt2 * P11 + dt3 / 3.0
+                    pp01 = P01 + dt * P11 + 0.5 * dt2
+                    pp10 = P10 + dt * P11 + 0.5 * dt2
+                    pp11 = P11 + dt
+                }
+                xp0[i] = px0; xp1[i] = px1
+                Pp00[i] = pp00; Pp01[i] = pp01; Pp10[i] = pp10; Pp11[i] = pp11
+                var S = pp00 + R, K0 = pp00 / S, K1 = pp10 / S, innov = z[i] - px0
+                x0 = px0 + K0 * innov; x1 = px1 + K1 * innov
+                P00 = (1 - K0) * pp00; P01 = (1 - K0) * pp01
+                P10 = -K1 * pp00 + pp10; P11 = -K1 * pp01 + pp11
+                xf0[i] = x0; xf1[i] = x1
+                Pf00[i] = P00; Pf01[i] = P01; Pf10[i] = P10; Pf11[i] = P11
+            }
+            var s0 = new Array(n), s1 = new Array(n)
+            s0[n - 1] = xf0[n - 1]; s1[n - 1] = xf1[n - 1]
+            for (var j = n - 2; j >= 0; --j) {
+                var dtj = dtn[j + 1]                    // dt used to predict j+1 from j
+                var A00 = Pf00[j] + dtj * Pf01[j], A01 = Pf01[j]
+                var A10 = Pf10[j] + dtj * Pf11[j], A11 = Pf11[j]
+                var d = Pp00[j + 1] * Pp11[j + 1] - Pp01[j + 1] * Pp10[j + 1]
+                if (Math.abs(d) < 1e-12) { s0[j] = xf0[j]; s1[j] = xf1[j]; continue }
+                var i00 = Pp11[j + 1] / d, i01 = -Pp01[j + 1] / d, i10 = -Pp10[j + 1] / d, i11 = Pp00[j + 1] / d
+                var C00 = A00 * i00 + A01 * i10, C01 = A00 * i01 + A01 * i11
+                var C10 = A10 * i00 + A11 * i10, C11 = A10 * i01 + A11 * i11
+                var e0 = s0[j + 1] - xp0[j + 1], e1 = s1[j + 1] - xp1[j + 1]
+                s0[j] = xf0[j] + C00 * e0 + C01 * e1
+                s1[j] = xf1[j] + C10 * e0 + C11 * e1
+            }
+            return s0
+        }
+        var sx = smooth1d(xs), sy = smooth1d(ys)
+        var out = new Array(n)
+        for (var m = 0; m < n; ++m) out[m] = Qt.point(sx[m], sy[m])
+        return out
+    }
+
     // Normalized polyline for an element's trace from track start → playhead.
     // Body elements read the SMOOTHED series ONLY (absent ⇒ empty, matching the
-    // panel greying); the shaft reads the synth-preferring series (_clubFan) head
-    // points (conf>0), so the traced clubhead path is dense/smooth at 240 Hz rather
-    // than stepped at the source frame rate. O(playhead index) — rebuilt on
-    // playhead/series/element change; the bisect only locates the cut point, the
-    // polyline itself is inherently that long.
+    // panel greying); the club ends read the synth-preferring series (_clubFan) grip/
+    // head points (conf>0) and are RTS/Kalman-smoothed (_rtsSmoothClub), so the traced
+    // club path is both dense at 240 Hz and denoised rather than stepped/jittery at the
+    // source frame rate. O(playhead index) — rebuilt on playhead/series/element change;
+    // the bisect only locates the cut point, the polyline itself is inherently that long.
     function _traceNormPoints(elem) {
         var t = root._replayPlayheadUs
         var out = []
         var i, pi
-        if (elem === "shaft") {
+        if (elem === "shaft" || elem === "shaftGrip") {
+            // Both club ends trace the same dense club series — "shaft" the head
+            // terminus, "shaftGrip" the grip terminus — then RTS/Kalman-smoothed.
+            // Collect the conf-gated points with their timestamps so the smoother can
+            // parameterise by real time (the series is non-uniform in the tails).
+            var useGrip = (elem === "shaftGrip")
             var cs = replayOverlay._clubFan
             pi = replayOverlay._indexFor(cs, t)
+            var cx = [], cy = [], ct = []
             for (i = 0; i <= pi; ++i) {
                 var s = cs[i]
                 if (!s || s.conf <= 0) continue
-                out.push(Qt.point(s.head[0], s.head[1]))
+                cx.push(useGrip ? s.grip[0] : s.head[0])
+                cy.push(useGrip ? s.grip[1] : s.head[1])
+                ct.push(s.t_us)
             }
-            return out
+            return root._rtsSmoothClub(cx, cy, ct)
         }
         var sm = replayOverlay._smoothedDense
         pi = replayOverlay._indexFor(sm, t)
@@ -1324,7 +1428,7 @@ Item {
                 z: 21
                 preferredRendererType: Shape.CurveRenderer
                 ShapePath {
-                    strokeColor: Theme.colorAccent
+                    strokeColor: root._traceColor(modelData)
                     strokeWidth: Theme.sp(1)
                     fillColor:   "transparent"
                     joinStyle:   ShapePath.RoundJoin
