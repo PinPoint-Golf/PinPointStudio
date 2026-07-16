@@ -31,10 +31,14 @@
 // (docs/design/shaft_position_first_design.md §2 Layer C). Header-only, unit-tested
 // per the detector-math convention (shaft_positions.h / impact_detector.h).
 //
-// Given the located coaching P-anchors (P1..P8, whatever subset exists) and the
-// per-frame camera timestamps, emit ONE synthesized shaft state per camera frame
-// STRICTLY between consecutive anchors — a smooth-scrub VISUALIZATION tier flagged
-// ShaftSynthesized. It REPLACES nothing: samples[] keeps the real per-frame track;
+// Given the located coaching P-anchors (P1..P8, whatever subset exists) and a
+// timestamp grid, emit ONE synthesized shaft state per grid tick STRICTLY between
+// consecutive anchors — a smooth-scrub VISUALIZATION tier flagged
+// ShaftSynthesized. The production caller drives the grid at SynthConfig::rateHz
+// (default 240 Hz), NOT the source frame rate, so ¼× replay and the shaft fan read
+// a dense series that fills the inter-frame gaps (the interpolation math is
+// time-continuous — see synthSampleAt). It REPLACES nothing: samples[] keeps the
+// real per-frame track;
 // this series rides alongside and every metric/scoring/estimand consumer filters
 // it out by flag (§2 Layer C, same discipline as ShaftKinematicPredicted).
 //
@@ -63,13 +67,20 @@
 namespace pinpoint::analysis {
 
 // "synth.*" tuning namespace (design §4). Nested in ShaftV3Config as `synth` (lives
-// here beside the Layer-C code, mirroring PositionsConfig in shaft_positions.h);
-// enabled=false keeps synthesis dark — a synth-off run leaves ShaftTrack2D.synth
-// empty ⇒ swing.json byte-identical (soak contract). "synth.enabled" /
-// "synth.midConfFrac" via ShaftV3Config::fromOverrides.
+// here beside the Layer-C code, mirroring PositionsConfig in shaft_positions.h).
+// enabled defaults ON: the synthesized tier is a VISUALIZATION channel only —
+// ShaftSynthesized-flagged and excluded from every metric/scoring/estimand — so it
+// never moves the numbers; the real per-frame track stays in samples[]. Set
+// enabled=false to go dark again (ShaftTrack2D.synth stays empty ⇒ swing.json omits
+// the club.synth block, byte-identical to the pre-synth baseline). Keys
+// "synth.enabled" / "synth.midConfFrac" / "synth.rateHz" via ShaftV3Config::fromOverrides.
 struct SynthConfig {
-    bool   enabled     = false;   // master gate — dark until the Layer-C corpus gate flips it
+    bool   enabled     = true;    // master gate — VIZ tier is live; metrics never read synth
     double midConfFrac = 0.6;     // conf multiplier at a span midpoint (1.0 at the anchors)
+    double rateHz      = 240.0;   // dense visualization cadence (Hz). The series is sampled on
+                                  // this FIXED grid, not the source frame rate, so a low-fps or
+                                  // gappy capture still yields a smooth ¼×-replay/fan trail.
+                                  // <= 0 ⇒ fall back to the source per-frame timestamps.
 };
 
 namespace synth_detail {

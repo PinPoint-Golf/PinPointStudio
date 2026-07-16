@@ -452,8 +452,9 @@ struct ShaftTrack2D {
     // treat empty as "no position data" (same contract as `lengths`).
     std::vector<ShaftPosition> positions;
     // VISUALIZATION-TIER synthesized samples (shaft_position_first §2 Layer C):
-    // one kinematically-interpolated sample per camera frame STRICTLY between
-    // consecutive `positions` anchors, each flagged ShaftSynthesized. Empty =
+    // kinematically-interpolated samples on a dense fixed cadence (SynthConfig::
+    // rateHz, default 240 Hz) STRICTLY between consecutive `positions` anchors,
+    // each flagged ShaftSynthesized. Empty =
     // synthesis off (cfg.synth.enabled == false) / < 2 anchors. EXCLUDED from
     // metrics/scoring/estimands — a smooth-scrub display channel only; the real
     // per-frame track stays in `samples`.

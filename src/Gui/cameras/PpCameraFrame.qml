@@ -94,10 +94,11 @@ Item {
     // AppSettings flag is added later, bind it here.
     property bool   showRawDetections: false
     // Fan-mode trailing window (ms of history before the playhead) and the cap on
-    // frames drawn in that window (subsample stride bounds per-paint cost). Both
-    // are tuning candidates.
+    // lines drawn in that window (subsample stride bounds per-paint cost). The fan
+    // reads the dense 240 Hz synth series (_clubFan), so this cap — not the source
+    // frame rate — governs how many trail lines appear. Both are tuning candidates.
     readonly property int fanWindowMs: 240
-    readonly property int kFanMaxFrames: 12
+    readonly property int kFanMaxFrames: 24
 
     readonly property var _traceElements: ["arms", "spine", "shoulders", "hips", "legs", "shaft"]
 
@@ -149,15 +150,17 @@ Item {
 
     // Normalized polyline for an element's trace from track start → playhead.
     // Body elements read the SMOOTHED series ONLY (absent ⇒ empty, matching the
-    // panel greying); the shaft reads the club-sample head points (all tiers,
-    // conf>0). O(playhead index) — rebuilt on playhead/series/element change; the
-    // bisect only locates the cut point, the polyline itself is inherently that long.
+    // panel greying); the shaft reads the synth-preferring series (_clubFan) head
+    // points (conf>0), so the traced clubhead path is dense/smooth at 240 Hz rather
+    // than stepped at the source frame rate. O(playhead index) — rebuilt on
+    // playhead/series/element change; the bisect only locates the cut point, the
+    // polyline itself is inherently that long.
     function _traceNormPoints(elem) {
         var t = root._replayPlayheadUs
         var out = []
         var i, pi
         if (elem === "shaft") {
-            var cs = replayOverlay._clubSamples
+            var cs = replayOverlay._clubFan
             pi = replayOverlay._indexFor(cs, t)
             for (i = 0; i <= pi; ++i) {
                 var s = cs[i]
@@ -837,6 +840,27 @@ Item {
                 var d = root._replayDetail
                 return (d && d.club && d.club.synth) ? d.club.synth : []
             }
+            // Fan visualization series: the dense 240 Hz synth tier. Metrics never
+            // read this (synth is ShaftSynthesized-flagged and excluded from all
+            // scoring/estimands — the real per-frame track stays in `samples`), so
+            // the fan just shows synth with no measured/synth distinction. Measured
+            // samples are appended ONLY outside the synth time-span (before the first
+            // / after the last P-anchor, where synth doesn't exist by construction)
+            // so the ends of the replay don't go blank. Empty synth (feature off /
+            // pre-v3.5 swing) ⇒ plain measured samples, i.e. the legacy fan. Derived
+            // — recomputed on club-data change, not per paint.
+            readonly property var _clubFan: {
+                var syn = _clubSynth
+                if (syn.length === 0) return _clubSamples
+                var t0 = syn[0].t_us, t1 = syn[syn.length - 1].t_us
+                var out = []
+                var meas = _clubSamples
+                for (var i = 0; i < meas.length; ++i)
+                    if (meas[i] && (meas[i].t_us < t0 || meas[i].t_us > t1)) out.push(meas[i])
+                for (var s = 0; s < syn.length; ++s) out.push(syn[s])
+                out.sort(function(a, b) { return a.t_us - b.t_us })
+                return out
+            }
             // Coaching P-positions P1–P8 (shaft_position_first §2B) — grip/head
             // normalized like `samples`; absent/empty on pre-v3.5 swings and when
             // position extraction is off.
@@ -987,34 +1011,11 @@ Item {
                     }
                 }
 
-                // Layer C synthesized tier (shaft_position_first design §2 Layer
-                // C): the kinematic boundary-value fit interpolated between P
-                // anchors, flagged ShaftSynthesized (0x100). Drawn BEFORE the
-                // measured/projected club block below so the bright pen always
-                // sits on top. A single dim line only — no sheath/ticks/rings —
-                // visibly a ghost, honest that it is not a per-frame measurement.
-                // Skipped once the playhead has drifted more than one synth-
-                // series frame interval from the nearest sample (derived from
-                // the series' own local spacing), so a coarse/gappy series
-                // doesn't leave a stale ghost sitting at its last anchor.
-                if (shaftMode === "frame" && root.showSynthTier && _clubSynth.length > 0) {
-                    var si  = _indexFor(_clubSynth, t)
-                    var siN = (si + 1 < _clubSynth.length) ? si + 1 : (si > 0 ? si - 1 : si)
-                    var synthIntervalUs = Math.abs(_clubSynth[siN].t_us - _clubSynth[si].t_us) || 33333
-                    if (Math.abs(_clubSynth[si].t_us - t) <= synthIntervalUs) {
-                        var sy  = _clubSynth[si]
-                        var sgx = sy.grip[0] * cr.width + cr.x, sgy = sy.grip[1] * cr.height + cr.y
-                        var shx = sy.head[0] * cr.width + cr.x, shy = sy.head[1] * cr.height + cr.y
-                        var shd = _clampHeadToRect(sgx, sgy, shx, shy, cr)
-                        if (shd) {
-                            ctx.strokeStyle = cClub
-                            ctx.globalAlpha = 0.22 * clubMute
-                            ctx.lineWidth   = Math.max(1, 0.014 * S)
-                            ctx.beginPath(); ctx.moveTo(sgx, sgy); ctx.lineTo(shd[0], shd[1]); ctx.stroke()
-                            ctx.globalAlpha = 1.0
-                        }
-                    }
-                }
+                // Layer C synth is no longer drawn as a separate dim ghost here: the
+                // frame-mode shaft below sources its current position from the dense
+                // synth-preferring series (_clubFan), so the shaft line IS the synth
+                // tier — it scrubs smoothly at 240 Hz instead of stepping at the source
+                // frame rate. Metrics still read the measured `samples` only.
 
                 // Club: fading head trail, then the current shaft in the Biomech
                 // Blueprint language (sheath + gradient hero pen + end ticks + ring
@@ -1045,7 +1046,12 @@ Item {
                         ctx.stroke()
                     }
 
-                    var s  = _clubSamples[ci]
+                    // Current shaft from the dense synth-preferring series (_clubFan)
+                    // so it scrubs smoothly at 240 Hz; the faint head trail above
+                    // stays on the measured breadcrumbs (its time-span). Falls back to
+                    // the measured sample when synth is absent (old swings) / off-span.
+                    var fi = _indexFor(_clubFan, t)
+                    var s  = (fi >= 0) ? _clubFan[fi] : _clubSamples[ci]
                     var projected = (s.flags & kHeadProjected) !== 0
                     var gx = s.grip[0] * cr.width + cr.x, gy = s.grip[1] * cr.height + cr.y
                     var hx = s.head[0] * cr.width + cr.x, hy = s.head[1] * cr.height + cr.y
@@ -1173,17 +1179,19 @@ Item {
                 // full-alpha hero pen + head dot. Distinct from the frame-mode kTrail
                 // (a short measured-head trail on the sheathed shaft); the fan is the
                 // longer mouse-trail motion read.
-                if (shaftMode === "fan" && _clubSamples.length > 0) {
-                    var feI = _indexFor(_clubSamples, t)
+                if (shaftMode === "fan" && _clubFan.length > 0) {
+                    // Trail from the merged measured+synth series (dense) so the fan
+                    // fills the inter-frame gaps regardless of source fps.
+                    var feI = _indexFor(_clubFan, t)
                     if (feI >= 0) {
-                        var fsI = _indexFor(_clubSamples, t - root.fanWindowMs * 1000)
+                        var fsI = _indexFor(_clubFan, t - root.fanWindowMs * 1000)
                         if (fsI < 0) fsI = 0
                         var cspan = Math.max(1, feI - fsI)
                         var cstr  = Math.max(1, Math.ceil((feI - fsI + 1) / root.kFanMaxFrames))
                         ctx.lineCap     = "round"
                         ctx.strokeStyle = cClub
                         for (var fck = fsI; fck < feI; fck += cstr) {
-                            var fcs = _clubSamples[fck]
+                            var fcs = _clubFan[fck]
                             if (!fcs || fcs.conf <= 0) continue
                             var ffgx = fcs.grip[0] * cr.width + cr.x, ffgy = fcs.grip[1] * cr.height + cr.y
                             var ffhx = fcs.head[0] * cr.width + cr.x, ffhy = fcs.head[1] * cr.height + cr.y
@@ -1193,7 +1201,7 @@ Item {
                             ctx.lineWidth   = 0.020 * S
                             ctx.beginPath(); ctx.moveTo(ffgx, ffgy); ctx.lineTo(ffhd[0], ffhd[1]); ctx.stroke()
                         }
-                        var fcur = _clubSamples[feI]
+                        var fcur = _clubFan[feI]
                         if (fcur && fcur.conf > 0) {
                             var cgx = fcur.grip[0] * cr.width + cr.x, cgy = fcur.grip[1] * cr.height + cr.y
                             var chx = fcur.head[0] * cr.width + cr.x, chy = fcur.head[1] * cr.height + cr.y

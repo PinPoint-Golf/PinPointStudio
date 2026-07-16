@@ -362,6 +362,7 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     // Layer C synthesis between anchors: "synth.*" keys.
     apply(ov, "synth.enabled", c.synth.enabled);
     apply(ov, "synth.midConfFrac", c.synth.midConfFrac);
+    apply(ov, "synth.rateHz", c.synth.rateHz);
     // Hand-axis θ prior (WB4): "shaft.handAxisPrior.*" keys.
     apply(ov, "shaft.handAxisPrior.enabled", c.handAxisPrior.enabled);
     apply(ov, "shaft.handAxisPrior.weight",  c.handAxisPrior.weight);
@@ -1810,8 +1811,10 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
 
     // ── Layer C: synthesis between anchors (shaft_position_first §2 Layer C) ────
     // Dark by default. With ≥2 located P-anchors, fill a VISUALIZATION-TIER series
-    // (out.synth) — one C¹ Hermite-interpolated sample per camera frame STRICTLY
-    // between consecutive anchors, flagged ShaftSynthesized so metrics/scoring/
+    // (out.synth) — C¹ Hermite-interpolated samples on a dense fixed cadence
+    // (cfg.synth.rateHz, default 240 Hz) STRICTLY between consecutive anchors, so
+    // ¼× replay / the fan fill the inter-frame gaps. Flagged ShaftSynthesized so
+    // metrics/scoring/
     // estimands EXCLUDE it (shaft_synthesis.h). samples[]/positions[]/θ/coverage/
     // length above are untouched — synth rides alongside. cfg.synth.enabled==false
     // ⇒ out.synth stays empty ⇒ swing.json byte-identical (soak contract).
@@ -1849,7 +1852,25 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
             thetaDot.push_back(sampleAt(omega, p.t_us) * kPi / 180.0);   // deg/s → rad/s
             gripVel.push_back(QPointF{ sampleAt(gvx, p.t_us), sampleAt(gvy, p.t_us) });
         }
-        out.synth = synthesizeBetweenAnchors(out.positions, thetaDot, gripVel, tUs, cfg.synth);
+        // Dense visualization grid: sample the synthesized tier at cfg.synth.rateHz
+        // (default 240 Hz) rather than the source frame cadence, so ¼× replay and the
+        // shaft fan read a smooth series that fills the inter-frame gaps. The grid
+        // spans only [first anchor, last anchor] (synth emits strictly between
+        // anchors) and synthesizeBetweenAnchors still drops any tick landing on an
+        // interior anchor. rateHz <= 0 ⇒ fall back to the source frame timestamps.
+        std::vector<int64_t> synthGrid;
+        if (cfg.synth.rateHz > 0.0) {
+            const int64_t t0     = out.positions.front().t_us;
+            const int64_t t1     = out.positions.back().t_us;
+            const double  stepUs = 1.0e6 / cfg.synth.rateHz;
+            if (t1 > t0 && stepUs >= 1.0) {
+                synthGrid.reserve(size_t(double(t1 - t0) / stepUs) + 2);
+                for (double t = double(t0); t <= double(t1) + 0.5; t += stepUs)
+                    synthGrid.push_back(int64_t(t + 0.5));
+            }
+        }
+        const std::vector<int64_t> &synthTimes = synthGrid.empty() ? tUs : synthGrid;
+        out.synth = synthesizeBetweenAnchors(out.positions, thetaDot, gripVel, synthTimes, cfg.synth);
     }
 
     out.coverage = spanFrames > 0 ? float(spanMeas) / float(spanFrames) : 0.f;
