@@ -95,6 +95,13 @@ pp_add_test(tuned_constants_parity_test SOURCES tuned_constants_parity_test.cpp)
 pp_add_test(pose_crop_test SOURCES pose_crop_test.cpp)
 pp_add_test(tuning_overrides_test SOURCES tuning_overrides_test.cpp ${ANALYSIS}/swing_scorer.cpp ${ANALYSIS}/reference_bands.cpp)
 
+# Capability-gated stage pipeline (analysis_stage.h): authored-order orchestration,
+# canRun/skipReason gating, the halted short-circuit, product gating between stages via
+# the shared AnalysisContext, and CaptureCapabilities::fromJob/hasRole/hasRoles. Header-only
+# — the transitive shot_analyzer.h/swing_analysis.h/imu_vision_fuser.h/pose_runner.h
+# includes are type-only on this path (fake stages, window = nullptr), so no extra .cpp.
+pp_add_test(analysis_stage_test SOURCES analysis_stage_test.cpp)
+
 # WB2 head tracking (head_track.{h,cpp}): conf-gated head centre/scale/tilt from the
 # COCO-WholeBody head keypoints + Address-referenced sway/lift/tilt series (isotropic
 # ×frame units, gap-bridged resample). Qt-only (QPointF/MetricSeries via

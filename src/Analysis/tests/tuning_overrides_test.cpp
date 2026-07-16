@@ -9,6 +9,7 @@
 #include "../swing_scorer.h"
 #include "../wrist_assessment_tuning.h"
 #include "../reference_bands.h"
+#include "../analysis_tuning.h"
 
 #include <QVariantMap>
 #include <cstdio>
@@ -128,6 +129,28 @@ int main()
         const Band b1 = prov.band(PpJointDof::LeadWristFlexExt, PpSwingPosition::P4, ctx);
         check(b1.amberLo < b0.amberLo && b1.amberHi > b0.amberHi, "bands.flexExtMargin widens amber");
         check(b1.greenLo == b0.greenLo && b1.greenHi == b0.greenHi, "margin override leaves green unchanged");
+    }
+
+    std::printf("--- analyzer.staged (dark-launch switch) ---\n");
+
+    // 7. analyzer.staged: TEMPORARY dark-launch switch selecting the new stage-pipeline
+    //    orchestrator (analysis_stage.h) over the monolithic analyze(); removed once the
+    //    monolith is retired. Plain tuning::apply(bool&) plumbing, same as every other key.
+    {
+        bool staged = false;
+        tuning::apply(QVariantMap{}, "analyzer.staged", staged);
+        check(!staged, "analyzer.staged: empty overrides map leaves it false (default path)");
+
+        QVariantMap ovBool;
+        ovBool["analyzer.staged"] = true;
+        tuning::apply(ovBool, "analyzer.staged", staged);
+        check(staged, "analyzer.staged: bool true flips it on");
+
+        bool staged2 = false;
+        QVariantMap ovInt;
+        ovInt["analyzer.staged"] = 1;
+        tuning::apply(ovInt, "analyzer.staged", staged2);
+        check(staged2, "analyzer.staged: int 1 flips it on too (QVariant::toBool)");
     }
 
     std::printf("\n=== %s (%d failures) ===\n", g_fail ? "FAILURES" : "ALL PASS", g_fail);

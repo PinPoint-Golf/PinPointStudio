@@ -2165,6 +2165,7 @@ target_sources(PinPointStudio PRIVATE
     src/Export/swing_doc.h
     src/Export/swing_doc.cpp
     src/Analysis/swing_analysis.h
+    src/Analysis/analysis_stage.h
     src/Analysis/wrist_angles.h
     src/Analysis/metric_extractor.h
     src/Analysis/metric_extractor.cpp
