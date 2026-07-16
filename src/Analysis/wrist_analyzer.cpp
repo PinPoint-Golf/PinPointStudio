@@ -74,12 +74,22 @@ MetricSeries buildShaftLeanSeries(const ShaftTrack2D &shaft, int handedness,
     int64_t bestDt = std::numeric_limits<int64_t>::max();
     PhaseSample impact;
     impact.phase = Phase::Impact;
+    // Lean = deviation of the grip→head ray from straight-down (+90° in the y-down
+    // image convention). thetaRad lives on the atan2 branch cut, so accumulate a
+    // CONTINUOUS angle (np.unwrap: wrap each inter-sample DELTA into (−π, π] and
+    // sum) instead of wrapping every sample independently — the shaft rotates
+    // smoothly through the top/finish where the raw angle crosses ±180°, and a
+    // per-sample wrap renders that as a spurious ~360° flip. The shaft never turns
+    // >180° between (dense-near-impact) samples, so the unwrap is unambiguous. The
+    // first sample is normalised into (−π, π] so the curve starts canonically.
+    double cont = 0.0, prevRaw = 0.0;
+    bool first = true;
     for (const ShaftSample2D &s : shaft.samples) {
-        // Lean = deviation of the grip→head ray from straight-down (+90° in
-        // the y-down image convention), wrapped near zero.
-        double lean = s.thetaRad - kPiD / 2.0;
-        lean = std::remainder(lean, 2.0 * kPiD);
-        const double deg = sgn * lean * 180.0 / kPiD;
+        const double raw = s.thetaRad - kPiD / 2.0;
+        if (first) { cont = std::remainder(raw, 2.0 * kPiD); first = false; }
+        else       { cont += std::remainder(raw - prevRaw, 2.0 * kPiD); }
+        prevRaw = raw;
+        const double deg = sgn * cont * 180.0 / kPiD;
         m.t_us.push_back(s.t_us);
         m.value.push_back(deg);
         const int64_t dt = std::llabs(s.t_us - impactUs);
