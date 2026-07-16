@@ -2484,6 +2484,16 @@ if(PINPOINT_BUILD_TOOLS)
             $<$<BOOL:${_vitpose_model_file}>:HAVE_VITPOSE>
             $<$<BOOL:${_vitpose_model_file}>:VITPOSE_MODEL_FILE="${_vitpose_model_file}">
         )
+        # Same platform-guarded EP defines as the app target (~line 951ff);
+        # without them the offline pose pass is compile-time pinned to CPU even
+        # on the CUDA studio box. The EP cascade try/catches registration at
+        # runtime, so a GPU-less machine still degrades safely to CPU.
+        if(WITH_CUDA AND NOT APPLE)
+            target_compile_definitions(${tgt} PRIVATE WITH_CUDA)
+        endif()
+        if(WITH_COREML AND APPLE AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+            target_compile_definitions(${tgt} PRIVATE WITH_COREML)
+        endif()
         target_link_libraries(${tgt} PRIVATE
             Qt6::Core Qt6::Gui Qt6::Multimedia
             pinpoint_buffer whisper
