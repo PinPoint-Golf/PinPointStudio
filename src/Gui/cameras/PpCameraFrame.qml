@@ -169,7 +169,7 @@ Item {
             }
             return out
         }
-        var sm = replayOverlay._smoothed
+        var sm = replayOverlay._smoothedDense
         pi = replayOverlay._indexFor(sm, t)
         for (i = 0; i <= pi; ++i) {
             var a = root._traceAnchor(sm[i], elem, root.motionTraceTarget, root.leadIsLeft)
@@ -817,6 +817,21 @@ Item {
                 var d = root._replayDetail
                 return (d && d.pose2d && d.pose2d.smoothed && d.pose2d.smoothed.length) ? d.pose2d.smoothed : []
             }
+            // Dense synthesized pose tier (pose_synthesis.h) — the smoothed skeleton
+            // temporally upsampled to 240 Hz for smooth replay scrub. Same flat
+            // { t_us, kp[x,y,c]×133 } shape as `smoothed` minus tier/sigma (Off joints
+            // carry conf 0, which the overlays' conf-gate skips). Viz-only (metrics
+            // read frames/smoothed); empty on swings analysed before this tier.
+            readonly property var _poseSynth: {
+                var d = root._replayDetail
+                return (d && d.pose2d && d.pose2d.synth && d.pose2d.synth.length) ? d.pose2d.synth : []
+            }
+            // Dense-preferring series the BODY overlays consume: the synth tier when
+            // present, else the existing series. FRAME keeps its raw fallback (and
+            // yields to the dev raw toggle); FAN/TRACE keep smoothed-only (no raw), so
+            // a swing without the synth tier renders exactly as before.
+            readonly property var _poseFramesDense: (!root.showRawDetections && _poseSynth.length) ? _poseSynth : _poseFrames
+            readonly property var _smoothedDense:   _poseSynth.length ? _poseSynth : _smoothed
             readonly property var _clubSamples: {
                 var d = root._replayDetail
                 return (d && d.club && d.club.valid && d.club.samples) ? d.club.samples : []
@@ -955,10 +970,10 @@ Item {
                 // reference; fall back to frame height when the pose is absent/frozen
                 // at this playhead). Hoisted so every club-family tier and the fan
                 // pass lock their stroke widths to one dimension.
-                var pi = _indexFor(_poseFrames, t)
+                var pi = _indexFor(_poseFramesDense, t)
                 var S
                 if (pi >= 0) {
-                    var pkp = _poseFrames[pi].kp
+                    var pkp = _poseFramesDense[pi].kp
                     S = root._blueprintScale(
                             function(j) { return pkp[j * 3]     * cr.width  + cr.x },
                             function(j) { return pkp[j * 3 + 1] * cr.height + cr.y },
@@ -972,7 +987,7 @@ Item {
                 // body elements in "frame" mode draw. The mask returns true for every
                 // element when motionModes is empty ⇒ legacy full skeleton.
                 if (pi >= 0) {
-                    var kp = _poseFrames[pi].kp
+                    var kp = _poseFramesDense[pi].kp
                     var gx = function(j) { return kp[j * 3]     * cr.width  + cr.x }
                     var gy = function(j) { return kp[j * 3 + 1] * cr.height + cr.y }
                     var gs = function(j) { return kp[j * 3 + 2] }
@@ -990,7 +1005,7 @@ Item {
                 // faintest), then the current frame full. Subsampled to ≤ kFanMaxFrames
                 // so per-paint cost stays bounded at high capture fps. arms fans the
                 // LEAD arm only; the other body groups fan their bones.
-                var sm = _smoothed
+                var sm = _smoothedDense
                 if (sm.length > 0) {
                     var eFi = _indexFor(sm, t)
                     if (eFi >= 0) {

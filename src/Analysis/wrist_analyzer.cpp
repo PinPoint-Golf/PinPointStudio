@@ -38,6 +38,7 @@
 #include "phase_segmenter.h"
 #include "pose_runner.h"
 #include "pose_smoother.h"
+#include "pose_synthesis.h"
 #include "shaft_tracker.h"
 #include "wrist_resemblance.h"
 #include "score_uncertainty.h"
@@ -400,6 +401,16 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
                         detail->pose2d.frames[k].handConf  = sf.handConf;
                     }
                 }
+
+                // Motion overlay: dense VIZ-tier upsample of the smoothed skeleton
+                // (pose_synthesis.h) onto a fixed 240 Hz grid so the replay overlays
+                // scrub smoothly — the body sibling of club.synth. Viz-only (nothing
+                // reads it for metrics); empty ⇒ pose2d.synth omitted (byte-identical).
+                PoseSynthConfig psCfg;
+                tuning::apply(job.tuningOverrides, "poseSynth.enabled", psCfg.enabled);
+                tuning::apply(job.tuningOverrides, "poseSynth.rateHz",  psCfg.rateHz);
+                detail->pose2d.smoothedSynth =
+                    synthesizePoseTrack(detail->pose2d.smoothed, psCfg);
             }
             ShotAnalysisJob sub = job;
             if (job.progress)

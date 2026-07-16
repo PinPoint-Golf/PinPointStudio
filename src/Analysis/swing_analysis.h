@@ -276,6 +276,13 @@ struct PoseTrack2D {
     // swings analysed before the smoother existed — additive only.
     std::vector<PoseFrame2D> smoothed;
     std::vector<PoseKpAux>   smoothedAux;
+    // Dense VISUALIZATION-tier upsample of `smoothed` (pose_synthesis.h): a C¹
+    // Hermite interpolation onto a fixed 240 Hz grid so the replay overlays scrub
+    // the skeleton smoothly. Off joints (conf 0) stay Off. Metrics/scoring NEVER
+    // read this (same discipline as ShaftTrack2D.synth) — additive, empty when the
+    // pose-synth tier is off / < 2 smoothed frames, so swings without it serialize
+    // byte-identically.
+    std::vector<PoseFrame2D> smoothedSynth;
     // WB1 accuracy-pass provenance (wholebody_pose_design.md §3). cropRect is the
     // swing-level person crop in FULL-FRAME NORMALIZED coords; nullopt ⇒ the
     // full-frame fallback ran (no crop). `decode` is "dark" | "argmax" (empty ⇒

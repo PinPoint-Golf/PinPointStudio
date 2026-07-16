@@ -261,6 +261,28 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
             }
             pose2d.insert(QStringLiteral("smoothed"), smoothed);
         }
+        // Dense VIZ-tier pose synth (pose_synthesis.h): the smoothed skeleton
+        // upsampled to 240 Hz so the replay overlays scrub smoothly — the body
+        // sibling of club.synth. Lean shape { t_us, kp[x,y,c]×133 } — no tier/sigma
+        // (the overlay's conf-gate skips Off joints, which carry conf 0 here) and no
+        // hands (not drawn by the body overlays). Written ONLY when non-empty, so a
+        // synth-off run omits it and serializes byte-identically. Metrics NEVER read
+        // it (same discipline as the measured/smoothed split above).
+        if (!a.pose2d.smoothedSynth.empty()) {
+            QJsonArray synth;
+            for (const PoseFrame2D &f : a.pose2d.smoothedSynth) {
+                QJsonArray kp;
+                for (int j = 0; j < kWholeBodyJoints; ++j) {
+                    kp.append(f.kp[size_t(j)].x());
+                    kp.append(f.kp[size_t(j)].y());
+                    kp.append(double(f.conf[size_t(j)]));
+                }
+                synth.append(QJsonObject{
+                    { QStringLiteral("t_us"), rel(f.t_us) },
+                    { QStringLiteral("kp"),   kp } });
+            }
+            pose2d.insert(QStringLiteral("synth"), synth);
+        }
         o[QStringLiteral("pose2d")] = pose2d;
     }
     if (a.shaft.valid && !a.shaft.samples.empty()

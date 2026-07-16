@@ -260,6 +260,12 @@ pp_add_test(pose_smoother_test SOURCES pose_smoother_test.cpp ${ANALYSIS}/pose_s
 # ShaftSample2D) only — no OpenCV, no fixture.
 pp_add_test(shaft_synthesis_test SOURCES shaft_synthesis_test.cpp)
 
+# Motion-overlay pose synthesis (pose_synthesis.h): C¹ Hermite / Catmull-Rom
+# temporal upsampling of the smoothed skeleton — endpoint C⁰, linear reproduction,
+# Off-joint stays Off, window/monotonic, disabled/degenerate. Header-only, Qt
+# (QPointF/PoseFrame2D) only — no OpenCV, no fixture.
+pp_add_test(pose_synthesis_test SOURCES pose_synthesis_test.cpp)
+
 # Layer B milestone fitter (shaft_position_fit.h): ±k-frame shift-and-stack +
 # joint (grip,θ,L) fit over the shared ridge integral — still P1, blur-gap P7 with
 # a 180°-flipped init recovered via wide sector + ball, pure-noise reject,
