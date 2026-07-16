@@ -487,9 +487,13 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
     // DETAIL only (swing.json/charts/data-viewer) — deliberately not into the local
     // `series` above, so the wrist carousel/resemblance scorer/trace are untouched.
     // Camera-only path too (needs only body head keypoints nose/eyes/ears). UNSCORED:
-    // no corpus reference bands yet. Emitted in normalized ×frame units — the only px
-    // scale available (measuredClubLenPx) is a foreshortening-biased grip→ball partial
-    // length, not a clean body px/cm, so no cm conversion (no new scale plumbing).
+    // no corpus reference bands yet. Sway/lift are emitted in MILLIMETRES (address =
+    // 0) via a head-plane px→mm scale: the robust inter-ear pixel distance at address
+    // (head.addrScalePx) over a nominal inter-ear breadth (head.earWidthMm). That
+    // ruler sits at the head's OWN depth — the right scale for a head metric — and
+    // being address-measured it needs no camera calibration. Scale-source priority
+    // for later: 2D camera calibration → inter-ear (here) → athlete height → club
+    // length. Falls back to ×frame units when no ear/eye keypoint ever resolves.
     if (hasCamera && !detail->pose2d.frames.empty()) {
         const pinpoint::FormatDescriptor &fd = window.formatOf(job.cameraSources.front());
         if (const auto *cfmt = std::get_if<pinpoint::CameraFormat>(&fd.format);
@@ -498,10 +502,14 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
             if (segmentation.conf > 0.f)
                 if (const PhaseEvent *a = segmentation.eventFor(Phase::Address))
                     addressUs = a->t_us;
+            const HeadTrackConfig hcfg = HeadTrackConfig::fromOverrides(job.tuningOverrides);
             const HeadTrackResult head =
-                trackHead(detail->pose2d, int(cfmt->width), int(cfmt->height),
-                          addressUs, HeadTrackConfig::fromOverrides(job.tuningOverrides));
-            for (const MetricSeries &m : buildHeadSeries(head, phases))
+                trackHead(detail->pose2d, int(cfmt->width), int(cfmt->height), addressUs, hcfg);
+            // Head-plane px→mm from the inter-ear ruler (calibration/height/club
+            // override this later); ≤ 0 ⇒ buildHeadSeries stays in ×frame units.
+            const double pxPerMm = (head.addrScalePx > 0.0 && hcfg.earWidthMm > 0.0)
+                                       ? head.addrScalePx / hcfg.earWidthMm : -1.0;
+            for (const MetricSeries &m : buildHeadSeries(head, phases, pxPerMm))
                 detail->series.push_back(m);
         }
     }

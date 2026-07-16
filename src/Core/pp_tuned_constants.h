@@ -194,6 +194,9 @@ namespace head {
 inline constexpr double  kConfMin        = 0.30;    // per-keypoint conf gate (codebase-wide)
 inline constexpr double  kEarIpdFactor   = 1.8;     // inter-ear ≈ 1.8× inter-eye (anatomical bi-tragion
                                                     //   vs inter-pupillary ratio) — head-scale fallback
+inline constexpr double  kEarWidthMm     = 145.0;   // nominal inter-ear (bi-tragion) breadth, mm — the
+                                                    //   head-plane px→mm ruler for head sway/lift until
+                                                    //   2D camera calibration lands (head.earWidthMm)
 inline constexpr double  kChinConfWeight = 0.0;     // chin (kp 31) centroid weight when confident; 0 ⇒
                                                     //   OFF (body 0–4 only — face channels may be noisy)
 inline constexpr int     kMinContribPts  = 2;       // min confident head kps for a valid head centre

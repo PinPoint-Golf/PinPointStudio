@@ -202,7 +202,7 @@ HeadTrackResult trackHead(const PoseTrack2D &pose, int frameW, int frameH,
 
 std::vector<MetricSeries> buildHeadSeries(const HeadTrackResult &res,
                                           const std::vector<PhaseEvent> &phases,
-                                          double pxPerCm)
+                                          double pxPerMm)
 {
     std::vector<MetricSeries> out;
     if (!res.valid || res.states.empty())
@@ -215,9 +215,9 @@ std::vector<MetricSeries> buildHeadSeries(const HeadTrackResult &res,
     for (const HeadState &s : res.states)
         grid.push_back(s.t_us);
 
-    const bool    cm      = pxPerCm > 0.0;
-    const double  linGain = cm ? (double(res.frameW) / pxPerCm) : 1.0;  // ×frame → cm, or stay ×frame
-    const QString linUnit = cm ? QStringLiteral("cm") : QStringLiteral("×frame");
+    const bool    mm      = pxPerMm > 0.0;
+    const double  linGain = mm ? (double(res.frameW) / pxPerMm) : 1.0;  // ×frame → mm, or stay ×frame
+    const QString linUnit = mm ? QStringLiteral("mm") : QStringLiteral("×frame");
 
     // NB: not named `emit` — that is a Qt keyword macro (expands to nothing).
     const auto pushSeries = [&](const HeadChannel &ch, const QString &key, const QString &label,

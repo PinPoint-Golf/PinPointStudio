@@ -55,6 +55,7 @@ namespace pinpoint::analysis {
 struct HeadTrackConfig {
     double  confMin        = tuned::head::kConfMin;        // head.confMin
     double  earIpdFactor   = tuned::head::kEarIpdFactor;   // head.earIpdFactor
+    double  earWidthMm     = tuned::head::kEarWidthMm;     // head.earWidthMm (inter-ear px→mm ruler)
     double  chinConfWeight = tuned::head::kChinConfWeight; // head.chinConfWeight (0 ⇒ body 0–4 only)
     int     minContribPts  = tuned::head::kMinContribPts;  // head.minContribPts
     int     addrMinFrames  = tuned::head::kAddrMinFrames;  // head.addrMinFrames
@@ -66,6 +67,7 @@ struct HeadTrackConfig {
         HeadTrackConfig c;
         apply(ov, "head.confMin",        c.confMin);
         apply(ov, "head.earIpdFactor",   c.earIpdFactor);
+        apply(ov, "head.earWidthMm",     c.earWidthMm);
         apply(ov, "head.chinConfWeight", c.chinConfWeight);
         apply(ov, "head.minContribPts",  c.minContribPts);
         apply(ov, "head.addrMinFrames",  c.addrMinFrames);
@@ -118,11 +120,13 @@ HeadTrackResult trackHead(const PoseTrack2D &pose, int frameW, int frameH,
 // MetricSeries with Address/Top/Impact phase samples. UNSCORED (no reference
 // bands until a corpus exists — deliberately no bandLo/bandHi).
 //
-// pxPerCm > 0 ⇒ sway/lift emitted in cm (= ×frame-width × frameW / pxPerCm); else
+// pxPerMm > 0 ⇒ sway/lift emitted in mm (= ×frame-width × frameW / pxPerMm); else
 // ×frame (already normalized). tilt is always degrees. Empty when the address
 // reference is unresolved (no head anywhere) or the channel never had a sample.
+// The caller owns the px→mm scale-source priority (2D calibration → inter-ear
+// addrScalePx/earWidthMm → athlete height → club length); pass ≤ 0 for ×frame.
 std::vector<MetricSeries> buildHeadSeries(const HeadTrackResult &res,
                                           const std::vector<PhaseEvent> &phases,
-                                          double pxPerCm = -1.0);
+                                          double pxPerMm = -1.0);
 
 } // namespace pinpoint::analysis

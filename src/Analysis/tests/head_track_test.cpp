@@ -235,6 +235,7 @@ int main()
         QVariantMap ov;
         ov.insert(QStringLiteral("head.confMin"), 0.5);
         ov.insert(QStringLiteral("head.earIpdFactor"), 2.0);
+        ov.insert(QStringLiteral("head.earWidthMm"), 130.0);
         ov.insert(QStringLiteral("head.chinConfWeight"), 0.3);
         ov.insert(QStringLiteral("head.minContribPts"), 3);
         ov.insert(QStringLiteral("head.addrMinFrames"), 8);
@@ -242,6 +243,7 @@ int main()
         const HeadTrackConfig c = HeadTrackConfig::fromOverrides(ov);
         CHECK("confMin=0.5", near(c.confMin, 0.5, 1e-9));
         CHECK("earIpdFactor=2.0", near(c.earIpdFactor, 2.0, 1e-9));
+        CHECK("earWidthMm=130.0", near(c.earWidthMm, 130.0, 1e-9));
         CHECK("chinConfWeight=0.3", near(c.chinConfWeight, 0.3, 1e-9));
         CHECK("minContribPts=3", c.minContribPts == 3);
         CHECK("addrMinFrames=8", c.addrMinFrames == 8);
@@ -250,6 +252,7 @@ int main()
         const HeadTrackConfig def = HeadTrackConfig::fromOverrides(QVariantMap{});
         CHECK("default confMin==0.30", near(def.confMin, 0.30, 1e-9));
         CHECK("default earIpdFactor==1.8", near(def.earIpdFactor, 1.8, 1e-9));
+        CHECK("default earWidthMm==145.0", near(def.earWidthMm, 145.0, 1e-9));
         CHECK("default chinConfWeight==0.0 (body-only)", near(def.chinConfWeight, 0.0, 1e-9));
     }
 
@@ -271,6 +274,45 @@ int main()
 
         const HeadTrackResult r2 = trackHead(empty, 0, 0, -1, {});   // bad dims
         CHECK("zero frame dims ⇒ not valid", !r2.valid);
+    }
+
+    // ── 7) mm scaling via the inter-ear head-plane ruler ───────────────────────
+    // pxPerMm = addrScalePx / earWidthMm converts the ×frame displacement to mm;
+    // the caller derives it exactly as wrist_analyzer does. Square 1000×1000 so a
+    // normalized x move maps straight to px with no anisotropy.
+    {
+        std::printf("=== 7) mm scaling (inter-ear head-plane ruler) ===\n");
+        const int W = 1000, H = 1000;
+        const int64_t dt = 10000;
+        const double cx0 = 0.5, cy0 = 0.5, eyeL = 0.05;   // inter-ear = 2·1.8·0.05·1000 = 180 px
+        std::vector<PoseFrame2D> frames;
+        for (int k = 0; k <= 5; ++k)                       // still address hold
+            frames.push_back(makeHead(k * dt, cx0, cy0, eyeL, 1.8 * eyeL, 0.0,
+                                      0.9f, 0.9f, 0.9f, 0.0, k));
+        for (int s = 1; s <= 10; ++s)                      // sway ramp to +0.05 (= 50 px)
+            frames.push_back(makeHead((5 + s) * dt, cx0 + s * 0.005, cy0, eyeL,
+                                      1.8 * eyeL, 0.0, 0.9f, 0.9f, 0.9f, 0.0, 5 + s));
+        PoseTrack2D pose; pose.frames = frames;
+
+        HeadTrackConfig cfg; cfg.addrWindowUs = 30000;     // hold frames only
+        const HeadTrackResult res = trackHead(pose, W, H, /*addressUs=*/2 * dt, cfg);
+        CHECK("addr inter-ear scale ~ 180 px", near(res.addrScalePx, 180.0, 2.0));
+
+        const double pxPerMm = res.addrScalePx / cfg.earWidthMm;   // = 180 / 145
+        const std::vector<MetricSeries> series = buildHeadSeries(res, {}, pxPerMm);
+        const MetricSeries *sway = findSeries(series, "headSway");
+        CHECK("headSway emitted", sway != nullptr);
+        if (sway) {
+            CHECK("sway unit == mm", sway->unit == QStringLiteral("mm"));
+            const int64_t t = (5 + 10) * dt;
+            const double swayPx = 10 * 0.005 * W;                  // 50 px
+            const double expMm  = swayPx / pxPerMm;                // = 50·145/180 ≈ 40.28 mm
+            CHECK("sway ~ expected mm", near(valueAt(*sway, t), expMm, 0.5));
+        }
+        // No scale ⇒ ×frame fallback preserved.
+        const std::vector<MetricSeries> raw = buildHeadSeries(res, {}, -1.0);
+        const MetricSeries *rs = findSeries(raw, "headSway");
+        CHECK("no-scale ⇒ ×frame unit", rs && rs->unit == QStringLiteral("×frame"));
     }
 
     std::printf("\n=== %s (%d failures) ===\n", g_fail ? "FAILURES" : "ALL PASS", g_fail);
