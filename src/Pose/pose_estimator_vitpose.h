@@ -93,6 +93,15 @@ public:
     void       setDecodeMode(DecodeMode m) { m_decodeMode = m; }
     DecodeMode decodeMode() const          { return m_decodeMode; }
 
+    // Offline ORT intra-op thread count (pose.intraOpThreads), resolved by
+    // PoseRunner from the job's tuning overrides and applied BEFORE load() sizes
+    // the pool. 0 (default) ⇒ the legacy hardware_concurrency()/2 heuristic
+    // (thread-count-identical to history); -1 ⇒ physical-core topology auto
+    // (opt-in); > 0 ⇒ pinned. Must be set before load(). No effect on the live
+    // MoveNet path, which never uses this estimator.
+    void setIntraOpThreads(int n) { m_intraOpThreads = n; }
+    int  intraOpThreads() const   { return m_intraOpThreads; }
+
     // Whole-body keypoints from the most recent inference. Valid (valid ==
     // true) only after a synchronous estimatePose() call returns with
     // whole-body decode enabled and inference succeeded.
@@ -124,6 +133,8 @@ private:
 
     DecodeMode         m_decodeMode = DecodeMode::Argmax;
     std::vector<float> m_decodeBlur;   // DARK blur scratch (heatmap-sized); reused per channel
+
+    int m_intraOpThreads = 0;          // pose.intraOpThreads (0 = legacy heuristic; see load())
 
     // Decode one heatmap channel per the active mode (Argmax | Dark).
     void decodeChannel(const float *hm, float &nx, float &ny, float &score);

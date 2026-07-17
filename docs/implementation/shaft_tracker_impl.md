@@ -111,8 +111,18 @@ wrist conf > 0.3; wall-time delta logged.
 >   exporter's current behaviour (… BGRA32 …)" was wrong, and industrial BGRA32 shots were
 >   silently skipped at MP4 export. The shared table includes BGRA32, so the extraction
 >   *fixed a real export bug* as a side effect; everything else is byte-identical.
-> - **No intra-op-threads knob added** — `PoseEstimatorViTPose::load()` already pins
->   `SetIntraOpNumThreads(1)`, exactly what the offline path requires.
+> - **Intra-op-threads knob — REVERSED (2026-07).** This S0 note originally read "no knob
+>   added — `load()` already pins `SetIntraOpNumThreads(1)`, exactly what the offline path
+>   requires." That pin was later raised to a `clamp(hardware_concurrency()/2, 1, 8)`
+>   physical-core *proxy* (the offline pose pass is 70%+ of CPU analysis wall-time, and 1
+>   thread ran ~4× slower). The proxy is itself wrong on hardware the fleet now spans:
+>   no-SMT boxes (`/2` halves the machine), hybrid P/E-core Intels, and >16-logical machines
+>   (the cap of 8 starves them). So a `pose.intraOpThreads` tunable now exists (frozen default
+>   `0` = the legacy heuristic, **unchanged and thread-count-identical**; `-1` =
+>   `clamp(physicalCoreCount(), 1, 16)` topology auto via the new header-only
+>   `src/Core/cpu_topology.h`, **opt-in** pending a determinism A/B on the affected hardware;
+>   `> 0` = pinned). Resolved in `PoseRunner` from `opt.tuningOverrides`; the live 60 Hz
+>   MoveNet path stays pinned at 1.
 > - `decodeToLuma` covers **every** format the BGR table supports (incl. Mono8/BGR24/
 >   YUYV/UYVY), not just the four named — the two paths can never diverge in coverage.
 > - `pose_runner.cpp` is guarded by `HAVE_OPENCV && HAVE_VITPOSE && HAVE_ONNXRUNTIME` with

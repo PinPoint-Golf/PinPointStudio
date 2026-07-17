@@ -10,6 +10,7 @@
 #include "../wrist_assessment_tuning.h"
 #include "../reference_bands.h"
 #include "../analysis_tuning.h"
+#include "../../Core/pp_tuned_constants.h"
 
 #include <QVariantMap>
 #include <cstdio>
@@ -129,6 +130,28 @@ int main()
         const Band b1 = prov.band(PpJointDof::LeadWristFlexExt, PpSwingPosition::P4, ctx);
         check(b1.amberLo < b0.amberLo && b1.amberHi > b0.amberHi, "bands.flexExtMargin widens amber");
         check(b1.greenLo == b0.greenLo && b1.greenHi == b0.greenHi, "margin override leaves green unchanged");
+    }
+
+    std::printf("--- pose.* offline ORT intra-op thread count (PoseRunner seam) ---\n");
+
+    // 7. pose.intraOpThreads resolves onto its frozen-constant-seeded local — the
+    //    exact seam PoseRunner uses (seed from opt.intraOpThreads ==
+    //    pose::kIntraOpThreads, then tuning::apply the override, then
+    //    estimator.setIntraOpThreads before load() sizes the pool). Empty map ⇒
+    //    frozen default 0, i.e. the legacy heuristic (thread-count-identical to
+    //    history). > 0 pins; -1 is the opt-in physical-core topology sentinel.
+    {
+        int intraOp = pinpoint::tuned::pose::kIntraOpThreads;
+        tuning::apply(QVariantMap{}, "pose.intraOpThreads", intraOp);
+        check(intraOp == 0, "empty map → pose.intraOpThreads frozen default 0 (legacy auto)");
+
+        QVariantMap ov; ov["pose.intraOpThreads"] = 6;
+        tuning::apply(ov, "pose.intraOpThreads", intraOp);
+        check(intraOp == 6, "pose.intraOpThreads override reaches the load() seam");
+
+        ov["pose.intraOpThreads"] = -1;   // topology-auto sentinel (physicalCoreCount clamped [1,16])
+        tuning::apply(ov, "pose.intraOpThreads", intraOp);
+        check(intraOp == -1, "pose.intraOpThreads = -1 (topology auto) resolves");
     }
 
     std::printf("\n=== %s (%d failures) ===\n", g_fail ? "FAILURES" : "ALL PASS", g_fail);

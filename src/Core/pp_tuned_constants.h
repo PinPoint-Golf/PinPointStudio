@@ -152,6 +152,20 @@ inline constexpr double kArchetypeFaceOffsetDeg = 10.0; // archetype face-corrid
 // byte-for-byte (the WB1 parity gate). Consumed by PoseAccuracyConfig::fromOverrides
 // (src/Analysis/pose_crop.h) and PoseRunner.
 namespace pose {
+// Offline ViTPose ORT intra-op thread count (PoseRunner → PoseEstimatorViTPose::load).
+// The offline pose pass is 70%+ of analysis wall-time on CPU hosts, so pool sizing
+// matters. THREE-WAY resolution via the "pose.intraOpThreads" dotted key:
+//   > 0   → pin exactly this many intra-op threads (manual override)
+//   == -1 → topology auto: clamp(pinpoint::physicalCoreCount(), 1, 16) from
+//           src/Core/cpu_topology.h — OPT-IN, deliberately NOT yet the default (a
+//           determinism A/B on the affected hardware — no-SMT, hybrid P/E-core,
+//           >16-logical — is owed before it can become the default)
+//    0    → (DEFAULT) today's proxy heuristic clamp(hardware_concurrency()/2, 1, 8),
+//           left UNCHANGED so the default path stays byte/thread-count-identical to
+//           the historical behaviour
+// The live 60 Hz MoveNet path is untouched (pinned at 1 in its own estimator).
+inline constexpr int kIntraOpThreads = 0;   // pose.intraOpThreads (0 = legacy auto)
+
 namespace crop {
 inline constexpr bool   kEnabled       = true;
 inline constexpr double kMarginFrac    = 0.15;   // bbox expansion each side (arms/club headroom)

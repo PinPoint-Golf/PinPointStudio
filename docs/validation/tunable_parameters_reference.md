@@ -53,6 +53,7 @@ visible in a scorecard check (§4).
 | `bands.*` | `BandTuning` margins (`reference_bands.h`) | (table; margins runtime) | C2 | `analysis.assessment.findings` → `diag.*` |
 | `filter.*` | `RefuseConfig` (`orientation_refuser.h`) | `filter::` | C1→C2→C3 | wrist angles → `xmodal.imu_vision_corr`, `diag.*`, `filter.impact_continuity` |
 | `seed.*` (status **code**) | `kInit*` (`imu_base.h`) | `seed::` | C1 | live filter convergence (offline-unreachable) |
+| `pose.intraOpThreads` | `ShotAnalysisRunnerOptions` / `PoseEstimatorViTPose::load` (`pose_runner.cpp`) | `pp_tuned_constants.h` `pose::` | perf | offline ViTPose ORT intra-op pool → compute wall-time (default 0 = legacy heuristic) |
 
 ### 2.1 `seg.*` — phase segmentation (≈25 keys)
 Envelope cut-off, top/takeaway/transition windows, vote-agreement, finish stillness gates
@@ -107,6 +108,25 @@ tail:** ESKF `R` is not exposed (vendored lib, no warm-start — outside the re-
 `kInitAccelTolG` (0.15), `kInitGyroMaxRadps` (0.5), `kInitMaxSeedAttempts` (200). Live I/O-thread only;
 sourced from `pp_tuned_constants.h::seed` but not offline-reachable, so classified **code** not
 dotted-key.
+
+### 2.9 `pose.intraOpThreads` — offline ViTPose ORT intra-op pool (perf)
+`pose.intraOpThreads` (**0**). Sizes the ONNX Runtime intra-op thread pool for the offline ViTPose
+pass — 70%+ of analysis wall-time on CPU hosts. Resolved in `PoseRunner` from the job overrides (or the
+`ShotAnalysisRunnerOptions::intraOpThreads` seed) and applied by `PoseEstimatorViTPose::load()` before
+the pool is built. **Three-way**:
+
+- **`0` (default)** — the legacy proxy heuristic `clamp(hardware_concurrency()/2, 1, 8)`, left exactly
+  as-is so the default path is **thread-count-identical** to the historical behaviour.
+- **`-1`** — physical-core **topology** auto: `clamp(physicalCoreCount(), 1, 16)` via the header-only
+  `src/Core/cpu_topology.h` (Linux sysfs `thread_siblings_list` dedup / Windows
+  `GetLogicalProcessorInformationEx` / macOS `hw.physicalcpu`, with the `/2` fallback). **Opt-in** — it
+  does not become the default until a determinism A/B on the affected hardware (no-SMT, hybrid P/E-core
+  Intels, >16-logical machines — all of which defeat the `/2` proxy) is run.
+- **`> 0`** — pinned exactly (manual override).
+
+A **performance** knob only — `0` is byte-identical to history, and the live 60 Hz MoveNet path is
+untouched (pinned at 1). The topology header is discovered once and cached, so it is cheap per model
+load.
 
 ## 3. The frozen-defaults header — the single freeze edit-point
 

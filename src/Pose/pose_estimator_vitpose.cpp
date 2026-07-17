@@ -32,6 +32,7 @@
 #include <thread>
 #include "pp_debug.h"
 #include "pp_profiler.h"
+#include "cpu_topology.h"   // pinpoint::physicalCoreCount() (pose.intraOpThreads == -1)
 
 #include <onnxruntime_cxx_api.h>
 #include "ort_log.h"
@@ -161,11 +162,28 @@ void PoseEstimatorViTPose::load()
     // itself and should spread the inference across cores. This model is heavily
     // single-thread-bound otherwise: measured ~337 ms/frame at 1 intra-op thread
     // versus ~83 ms at the physical-core count on a 6-core/12-thread CPU
-    // (hyperthreads past the physical-core count regress). hardware_concurrency()
-    // reports logical cores, so halve it as a physical-core proxy and clamp to a
-    // sane range. (The live 60 Hz path uses MoveNet, which stays pinned to 1.)
-    const unsigned hwThreads = std::thread::hardware_concurrency();
-    const int intraThreads = std::clamp(static_cast<int>(hwThreads ? hwThreads / 2 : 1), 1, 8);
+    // (hyperthreads past the physical-core count regress).
+    //
+    // Pool size resolves three ways (m_intraOpThreads, from pose.intraOpThreads —
+    // PoseRunner sets it before load()):
+    //   > 0   → pinned exactly (manual override)
+    //   == -1 → topology auto: physical-core count clamped [1,16] via
+    //           cpu_topology.h — OPT-IN; a determinism A/B on the affected hardware
+    //           (no-SMT / hybrid P/E / >16-logical) is owed before it can be the
+    //           default (docs/implementation/shaft_tracker_impl.md S0 note)
+    //    0    → (DEFAULT) the legacy proxy: hardware_concurrency() reports logical
+    //           cores, so halve it and clamp [1,8] — UNCHANGED, so the default path
+    //           is thread-count-identical to the historical behaviour
+    // (The live 60 Hz path uses MoveNet, which stays pinned to 1.)
+    int intraThreads;
+    if (m_intraOpThreads > 0) {
+        intraThreads = m_intraOpThreads;
+    } else if (m_intraOpThreads == -1) {
+        intraThreads = std::clamp(pinpoint::physicalCoreCount(), 1, 16);
+    } else {
+        const unsigned hwThreads = std::thread::hardware_concurrency();
+        intraThreads = std::clamp(static_cast<int>(hwThreads ? hwThreads / 2 : 1), 1, 8);
+    }
     m_ort->opts.SetIntraOpNumThreads(intraThreads);
     m_ort->opts.SetGraphOptimizationLevel(ORT_ENABLE_ALL);
 

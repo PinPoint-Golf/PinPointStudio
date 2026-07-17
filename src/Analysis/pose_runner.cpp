@@ -46,6 +46,7 @@ using pinpoint::analysis::PoseTrack2D;
 #include "pose_crop.h"             // PoseAccuracyConfig / computePoseCropRect (WB1)
 #include "hand_axis.h"             // handCentroid / HandCentroid (shared with the smoothed-grip recompute)
 #include "shaft_track_assembly.h"   // estimateSwingSpanUs / ShaftV3Config (Stage B span estimate)
+#include "analysis_tuning.h"        // tuning::apply — pose.intraOpThreads resolution
 #endif
 
 #if defined(HAVE_OPENCV) && defined(HAVE_VITPOSE) && defined(HAVE_ONNXRUNTIME)
@@ -132,6 +133,15 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
         PoseEstimatorViTPose::isVariantAvailable(ViTVariant::WholeBodyLarge));
     PoseEstimatorViTPose estimator(useLarge ? ViTVariant::WholeBodyLarge
                                             : ViTVariant::WholeBodyB);
+
+    // Offline ORT intra-op pool size (pose.intraOpThreads). Seed from the option
+    // (default 0 = legacy heuristic) and let the override map win — resolved here
+    // and applied BEFORE load() sizes the pool. 0 keeps today's
+    // clamp(hardware_concurrency()/2, 1, 8); -1 opts into the physical-core
+    // topology auto; > 0 pins. Empty overrides ⇒ thread-count-identical to history.
+    int intraOpThreads = opt.intraOpThreads;
+    pinpoint::analysis::tuning::apply(opt.tuningOverrides, "pose.intraOpThreads", intraOpThreads);
+    estimator.setIntraOpThreads(intraOpThreads);
     estimator.load();
     if (!estimator.isReady()) {
         ppWarn() << "[PoseRunner] ViTPose unavailable (model missing or load failed) "

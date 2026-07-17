@@ -89,11 +89,19 @@ struct ShotAnalysisRunnerOptions {
     // stride jumps). Called from the worker thread; may be null.
     std::function<void(float)> progress;
 
+    // Offline ViTPose ORT intra-op thread count (pose.intraOpThreads). Seed for
+    // the load()-time pool size; the tuningOverrides key of the same name (below)
+    // still wins over it. 0 (default) = the legacy hardware_concurrency()/2
+    // heuristic (thread-count-identical to history); -1 = physical-core topology
+    // auto (opt-in); > 0 = pinned. Matches pinpoint::tuned::pose::kIntraOpThreads.
+    int intraOpThreads = 0;
+
     // SwingLab tuning overrides (the job's dotted-key map, forwarded verbatim).
     // PoseRunner resolves the WB1 pose-accuracy config from it exactly as
     // ShaftTracker resolves ShaftV3Config — PoseAccuracyConfig::fromOverrides
-    // reads "pose.crop.*" / "pose.decode.dark" (pose_crop.h). Empty = frozen
-    // defaults (crop + DARK both ON).
+    // reads "pose.crop.*" / "pose.decode.dark" (pose_crop.h); it also resolves
+    // "pose.intraOpThreads" onto the intra-op pool size. Empty = frozen defaults
+    // (crop + DARK both ON, legacy intra-op heuristic).
     QVariantMap tuningOverrides;
 };
 
