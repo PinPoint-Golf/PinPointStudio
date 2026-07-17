@@ -792,6 +792,23 @@ a smaller `CaptureCapabilities` (one camera, Low pose tier) — stages skip, not
 4. Land §8 proposals as stages (each with its own gate); extract `JointAngleStage` from
    stage 4 when the Swing session's placement UX starts — not before.
 
+**As-built (2026-07-16).** Steps 1–3 are done and shipped. `analysis_stage.h` plus the
+Wrist stages / `wristProfile()` / `projectResult()` in `wrist_analyzer.cpp` passed the
+byte-identical gate over the full 61-swing blessed corpus — staged vs. monolith with only
+`analysis.timings` stripped, zero diffs. Live-CUDA pose is run-to-run nondeterministic at
+~1e-9, so the gate pinned pose per swing via `--pose` track injection (the OFF-vs-OFF
+determinism baseline confirmed the residual was pose, not the refactor). The monolith body
+and the temporary `analyzer.staged` flag are now deleted; `WristAnalyzer::analyze()` is the
+profile runner. Five deliberate deviations from §10.2/§10.3, carried for parity: (1)
+`AnalysisContext` owns the `shared_ptr<SwingAnalysis>` in place — slot purification
+("SwingAnalysis as projection") is deferred to the first P-stage that needs
+provenance-tagged slots; (2) `projectResult()` is the profile-runner tail, not a stage (a
+Project *stage* would need special halted-handling in the orchestrator); (3) Uncertainty
+stays fused into the Resemblance stage, preserving the monolith's write order (the §B.7
+interval is computed before assessment may clear it); (4) stages exist for blocks the §10.3
+table omits — HeadTrack, FootMetrics, Bindings, PoseAssessment; (5) no placeholder stages
+for unimplemented P-proposals — they land stage-by-stage in later sessions (step 4).
+
 ### 10.6 Anti-goals
 
 The known failure mode of this pattern is growing a workflow engine. Explicitly out: dynamic

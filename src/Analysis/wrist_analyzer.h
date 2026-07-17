@@ -20,13 +20,17 @@
 
 #include "shot_analyzer.h"
 
-// Real Wrist-session (SessionController::Type::Wrist == 1) analyzer. Runs the M1
-// IMU-only chain on a QtConcurrent worker over the frozen window:
-//   ImuVisionFuser (q_anat = A·q_raw·M, resampled) → PhaseSegmenter (Address/Top/
-//   Impact) → MetricExtractor (lead-wrist flex/ext + radial/ulnar, forearm pronation,
-//   elbow flexion as MetricSeries) → score + trace + SwingAnalysis detail.
-// Degrades gracefully: returns ok=false (lands on the carousel with score 0) when no
-// usable IMU data is present, rather than crashing.
+// Real Wrist-session (SessionController::Type::Wrist == 1) analyzer. analyze() runs a
+// capability-gated stage pipeline over a shared, typed AnalysisContext — the constrained
+// blackboard of analysis_pipeline_fusion_architecture_proposal.md §10. The Wrist profile
+// (wristProfile() in the .cpp) is an authored list of AnalysisStage objects — IMU fusion
+// → segmentation → wrist metrics → pose/smooth/ball/shaft → resemblance/assessment —
+// each gated by its CaptureCapabilities so absent devices skip stages instead of forking
+// the control flow. runStages() executes the list in order on a QtConcurrent worker over
+// the frozen window; projectResult() then flattens the context onto ShotAnalysisResult.
+// Degrades gracefully by capability: an IMU-only capture yields wrist metrics + score, a
+// camera-only capture yields pose/shaft products, and a window with neither returns
+// ok=false (lands on the carousel with score 0) rather than crashing.
 class WristAnalyzer : public ShotAnalyzer
 {
 public:

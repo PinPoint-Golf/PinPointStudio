@@ -32,14 +32,12 @@
 //           run on both windows must produce identical fused streams.
 //   Test 3  MP4 fallback (tolerance) — reload the same swing via the lossy MP4
 //           path: counts/format match, decoded pixels are close (not bit-exact).
-//   Test 4  staged-vs-monolith analyzer parity — WristAnalyzer::analyze() routes
-//           on the TEMPORARY job.tuningOverrides["analyzer.staged"] flag: false
-//           (default) runs the original monolith, true runs the new stage-pipeline
-//           (AnalysisStage list, wrist_analyzer.cpp). Both must produce
-//           byte-identical "analysis" JSON (serialized through the production
-//           SwingDocWriter::writeSwingJson seam, wall-clock "timings" excluded by
-//           design) for the SAME job, over the SAME RAM window Tests 1-3 built.
-//           Run twice: 4a IMU-only (no camera), 4b camera-degrade (+ face-on cam).
+//   Test 4  double-run analyzer determinism — WristAnalyzer::analyze() (the stage
+//           pipeline, wrist_analyzer.cpp) run TWICE over the SAME job with identical
+//           empty overrides must produce byte-identical "analysis" JSON (serialized
+//           through the production SwingDocWriter::writeSwingJson seam, wall-clock
+//           "timings" excluded by design), over the SAME RAM window Tests 1-3 built.
+//           Run twice: 4a IMU-only (no camera), 4b camera path (+ face-on cam).
 //
 // Built as a tools target (PINPOINT_BUILD_TOOLS) in the root CMakeLists, beside
 // swinglab_run, where the Buffer/Export/FFmpeg/OpenCV deps are already wired.
@@ -486,7 +484,7 @@ void testMp4Fallback(const RamSwing& ram, const SwingWindow& mp4)
     std::fprintf(stderr, "  mp4 entries=%zu (ram=%zu)\n", ed.size(), er.size());
 }
 
-// ── Test 4: staged-vs-monolith analyzer parity ──────────────────────────────
+// ── Test 4: double-run analyzer determinism ─────────────────────────────────
 
 // Path to the first differing value between two JSON trees ("" when equal).
 // Object key sets are unioned so a key present on only one side is reported as
@@ -505,8 +503,8 @@ QString firstJsonDiff(const QJsonValue &a, const QJsonValue &b, const QString &p
         keys.sort();
         for (const QString &k : keys) {
             const QString sub = path + QLatin1Char('.') + k;
-            if (!oa.contains(k)) return sub + QStringLiteral(" (missing in monolith)");
-            if (!ob.contains(k)) return sub + QStringLiteral(" (missing in staged)");
+            if (!oa.contains(k)) return sub + QStringLiteral(" (missing in run A)");
+            if (!ob.contains(k)) return sub + QStringLiteral(" (missing in run B)");
             const QString d = firstJsonDiff(oa.value(k), ob.value(k), sub);
             if (!d.isEmpty()) return d;
         }
@@ -541,7 +539,7 @@ QString firstJsonDiff(const QJsonValue &a, const QJsonValue &b, const QString &p
 // smallest available seam) and return its "analysis" object with the wall-
 // clock-only "timings" key removed (the one expected divergence between two
 // runs of a deterministic pipeline — covered separately by the presence-pattern
-// check in runStagedParity). A halted result (detail == nullptr) writes no
+// check in runDoubleRunParity). A halted result (detail == nullptr) writes no
 // "analysis" key at all; that reads back as an empty QJsonObject, same as its
 // counterpart, so the two compare equal without special-casing here.
 QJsonObject serializedAnalysisMinusTimings(const QString &dir, const ShotAnalysisResult &r)
@@ -562,90 +560,88 @@ QJsonObject serializedAnalysisMinusTimings(const QString &dir, const ShotAnalysi
     return an;
 }
 
-// Run WristAnalyzer::analyze() twice over the SAME job (monolith vs staged —
-// tuningOverrides["analyzer.staged"] is the only difference) and assert the
-// results are indistinguishable.
+// Run WristAnalyzer::analyze() TWICE over the SAME job with identical (empty)
+// tuningOverrides and assert the two results are indistinguishable — a determinism
+// check on the stage pipeline (the analyzer must be a pure function of the frozen
+// window + job). Serialization/diff machinery is shared with the RAM-vs-disk tests.
 //
 // imuBindings binds the fixture's ONE synthetic IMU source (ram.imuId) TWICE —
 // once as LeadForearm, once as LeadHand. This is the construction that drives a
-// REAL (non-halted) parity run rather than only the degraded path: metric_
-// extractor.cpp requires a LeadForearm stream together with EITHER a LeadHand
-// or a LeadUpperArm stream before it emits anything, and the fixture (built for
-// Tests 1-3's byte-exact backing parity, not for exercising wrist kinematics)
-// registers exactly one physical IMU source. Binding it under two roles is
-// physically degenerate — both segments read the identical orientation stream,
-// so the relative wrist angle is a fixed constant rather than a real swing —
-// but it is numerically legitimate and fully deterministic (ImuVisionFuser::
-// fuse has no dedup-by-source logic; see imu_vision_fuser.cpp), and it drives
-// WristMetrics -> PhaseSegmenter -> ResemblanceStage -> AssessmentStage on BOTH
-// code paths, instead of only RequireProductsStage's halt branch.
+// REAL (non-halted) run rather than only the degraded path: metric_extractor.cpp
+// requires a LeadForearm stream together with EITHER a LeadHand or a LeadUpperArm
+// stream before it emits anything, and the fixture (built for Tests 1-3's byte-exact
+// backing parity, not for exercising wrist kinematics) registers exactly one physical
+// IMU source. Binding it under two roles is physically degenerate — both segments
+// read the identical orientation stream, so the relative wrist angle is a fixed
+// constant rather than a real swing — but it is numerically legitimate and fully
+// deterministic (ImuVisionFuser::fuse has no dedup-by-source logic; see imu_vision_
+// fuser.cpp), and it drives WristMetrics -> PhaseSegmenter -> ResemblanceStage ->
+// AssessmentStage, instead of only RequireProductsStage's halt branch.
 //
 // withCamera additionally binds the fixture's face-on camera. No particular
 // pose/ball/shaft outcome is assumed: PoseRunner::run() degrades to an empty
 // track when no ViTPose model is resolvable at runtime, and BallRunner needs
 // >= 26 frames (this fixture has 12) so it degrades regardless — but a model
 // IS present in some build trees (checked in next to the test binary), in
-// which case real inference runs instead. Either way both code paths call
+// which case real inference runs instead. Either way both runs call
 // PoseRunner/BallRunner/ShaftTracker with identical arguments over the SAME
-// frozen window, so parity must hold regardless of which outcome occurs.
-void runStagedParity(const RamSwing &ram, bool withCamera)
+// frozen window, so the two must agree regardless of which outcome occurs.
+void runDoubleRunParity(const RamSwing &ram, bool withCamera)
 {
     const char *tag = withCamera ? "4b" : "4a";
-    std::fprintf(stderr, "[Test %s] staged-vs-monolith analyzer parity (%s)\n", tag,
-                 withCamera ? "camera-degrade" : "IMU-only");
+    std::fprintf(stderr, "[Test %s] double-run analyzer determinism (%s)\n", tag,
+                 withCamera ? "camera path" : "IMU-only");
 
     ImuSegmentBinding fore, hand;
     fore.source = ram.imuId; fore.role = SegmentRole::LeadForearm; fore.calibrated = true;
     hand.source = ram.imuId; hand.role = SegmentRole::LeadHand;    hand.calibrated = true;
 
-    ShotAnalysisJob jobMono;
-    jobMono.sessionType   = 1;   // Wrist
-    jobMono.impactUs      = kImpact;
-    jobMono.handedness    = 1;   // right
-    jobMono.runAssessment = true;
-    jobMono.imuBindings   = { fore, hand };
+    ShotAnalysisJob job;
+    job.sessionType   = 1;   // Wrist
+    job.impactUs      = kImpact;
+    job.handedness    = 1;   // right
+    job.runAssessment = true;
+    job.imuBindings   = { fore, hand };
     if (withCamera) {
-        jobMono.cameraSources     = { ram.camId };
-        jobMono.faceOnCameraCount = 1;
+        job.cameraSources     = { ram.camId };
+        job.faceOnCameraCount = 1;
     }
-    ShotAnalysisJob jobStaged = jobMono;
-    jobStaged.tuningOverrides = QVariantMap{ { QStringLiteral("analyzer.staged"), true } };
 
     WristAnalyzer analyzer;
-    const ShotAnalysisResult rMono   = analyzer.analyze(*ram.window, jobMono);
-    const ShotAnalysisResult rStaged = analyzer.analyze(*ram.window, jobStaged);
+    const ShotAnalysisResult rA = analyzer.analyze(*ram.window, job);
+    const ShotAnalysisResult rB = analyzer.analyze(*ram.window, job);
 
-    CHECK(rMono.ok == rStaged.ok);
-    CHECK(rMono.error == rStaged.error);
-    CHECK(rMono.score == rStaged.score);
-    CHECK(rMono.metrics == rStaged.metrics);
-    CHECK(rMono.tracePoints == rStaged.tracePoints);
-    CHECK((rMono.detail == nullptr) == (rStaged.detail == nullptr));
+    CHECK(rA.ok == rB.ok);
+    CHECK(rA.error == rB.error);
+    CHECK(rA.score == rB.score);
+    CHECK(rA.metrics == rB.metrics);
+    CHECK(rA.tracePoints == rB.tracePoints);
+    CHECK((rA.detail == nullptr) == (rB.detail == nullptr));
 
-    if (rMono.detail && rStaged.detail) {
+    if (rA.detail && rB.detail) {
         // Timings are wall-clock, so only their PRESENCE (stage ran vs skipped)
         // is comparable between two independently-timed runs, not the values.
-        const AnalysisTimings &tm = rMono.detail->timings;
-        const AnalysisTimings &ts = rStaged.detail->timings;
-        CHECK((tm.poseMs  >= 0) == (ts.poseMs  >= 0));
-        CHECK((tm.ballMs  >= 0) == (ts.ballMs  >= 0));
-        CHECK((tm.shaftMs >= 0) == (ts.shaftMs >= 0));
-        CHECK((tm.totalMs >= 0) == (ts.totalMs >= 0));
+        const AnalysisTimings &ta = rA.detail->timings;
+        const AnalysisTimings &tb = rB.detail->timings;
+        CHECK((ta.poseMs  >= 0) == (tb.poseMs  >= 0));
+        CHECK((ta.ballMs  >= 0) == (tb.ballMs  >= 0));
+        CHECK((ta.shaftMs >= 0) == (tb.shaftMs >= 0));
+        CHECK((ta.totalMs >= 0) == (tb.totalMs >= 0));
         std::fprintf(stderr, "  ok=%d score=%d series=%zu timings-present(pose/ball/shaft/total)"
-                             " mono=%d/%d/%d/%d staged=%d/%d/%d/%d\n",
-                     rMono.ok, rMono.score, rMono.detail->series.size(),
-                     tm.poseMs >= 0, tm.ballMs >= 0, tm.shaftMs >= 0, tm.totalMs >= 0,
-                     ts.poseMs >= 0, ts.ballMs >= 0, ts.shaftMs >= 0, ts.totalMs >= 0);
+                             " A=%d/%d/%d/%d B=%d/%d/%d/%d\n",
+                     rA.ok, rA.score, rA.detail->series.size(),
+                     ta.poseMs >= 0, ta.ballMs >= 0, ta.shaftMs >= 0, ta.totalMs >= 0,
+                     tb.poseMs >= 0, tb.ballMs >= 0, tb.shaftMs >= 0, tb.totalMs >= 0);
     } else {
-        std::fprintf(stderr, "  ok=%d (halted) error mono=\"%s\" staged=\"%s\"\n", rMono.ok,
-                     rMono.error.toUtf8().constData(), rStaged.error.toUtf8().constData());
+        std::fprintf(stderr, "  ok=%d (halted) error A=\"%s\" B=\"%s\"\n", rA.ok,
+                     rA.error.toUtf8().constData(), rB.error.toUtf8().constData());
     }
 
-    QTemporaryDir dMono, dStaged;
-    CHECK(dMono.isValid() && dStaged.isValid());
-    const QJsonObject anMono   = serializedAnalysisMinusTimings(dMono.path(), rMono);
-    const QJsonObject anStaged = serializedAnalysisMinusTimings(dStaged.path(), rStaged);
-    const QString diff = firstJsonDiff(anMono, anStaged, QStringLiteral("analysis"));
+    QTemporaryDir dA, dB;
+    CHECK(dA.isValid() && dB.isValid());
+    const QJsonObject anA = serializedAnalysisMinusTimings(dA.path(), rA);
+    const QJsonObject anB = serializedAnalysisMinusTimings(dB.path(), rB);
+    const QString diff = firstJsonDiff(anA, anB, QStringLiteral("analysis"));
     CHECK(diff.isEmpty());
     if (!diff.isEmpty())
         std::fprintf(stderr, "  FIRST DIFF: %s\n", diff.toUtf8().constData());
@@ -695,9 +691,9 @@ int main(int argc, char** argv)
         ++g_failures;
     }
 
-    // ── staged-vs-monolith analyzer parity (Test 4) — over the RAM window ──
-    runStagedParity(ram, /*withCamera=*/false);   // 4a: IMU-only
-    runStagedParity(ram, /*withCamera=*/true);    // 4b: camera-degrade
+    // ── double-run analyzer determinism (Test 4) — over the RAM window ──
+    runDoubleRunParity(ram, /*withCamera=*/false);   // 4a: IMU-only
+    runDoubleRunParity(ram, /*withCamera=*/true);    // 4b: camera path
 
     std::fprintf(stderr, "\n%s — %d check failure(s)\n",
                  g_failures == 0 ? "PASS" : "FAIL", g_failures);
