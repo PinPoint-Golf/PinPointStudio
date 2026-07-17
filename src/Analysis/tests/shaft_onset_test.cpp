@@ -35,6 +35,18 @@ static void check(bool c, const char *label)
     if (!c) ++g_fail;
 }
 
+// The 2026-07-17 freeze turned the veto/bridging/Takeaway defaults ON (17-swing
+// truth: Address-error median 0.564 → 0.060 s). These fixtures pin the OFF-vs-ON
+// mechanics, so the dark (legacy) baseline is constructed explicitly.
+static ShaftV3Config darkV3()
+{
+    ShaftV3Config c;
+    c.onsetReturnBoxPx     = 0.0;
+    c.onsetRunBridgeFrames = 0;
+    c.emitTakeaway         = false;
+    return c;
+}
+
 // Real-capture-shaped track builder. The address/fidget half is knot-lerped
 // wander plus a continuous-phase oscillation (period 12 frames — the lerped-
 // pose beat seen in the real dumps); the swing half is velocity-integrated
@@ -121,7 +133,7 @@ int main()
     {
         FidgetSwing s = makeFidgetSwing(0.0);
         const int nf = int(s.t.gx.size());
-        const ShaftV3Config off;                    // veto dark
+        const ShaftV3Config off = darkV3();         // explicit legacy baseline
         const PhaseModel pOff = segmentPhases(s.t.gx, s.t.gy, nf, 150.0, -1, off, nullptr);
         std::printf("    settle=[%d,%d] tkStart=%d | OFF bs0=%d\n",
                     s.settleLo, s.settleHi, s.tkStart, pOff.bs0);
@@ -152,7 +164,7 @@ int main()
     {
         FidgetSwing s = makeFidgetSwing(0.6);        // |dphi| 0.6 deg/f through the fidget
         const int nf = int(s.t.gx.size());
-        const ShaftV3Config off;
+        const ShaftV3Config off = darkV3();
         const PhaseModel pOff = segmentPhases(s.t.gx, s.t.gy, nf, 150.0, -1, off, &s.t.phi);
         check(pOff.bs0 < s.settleLo - 60, "OFF: A2 walks through the fidget too");
         ShaftV3Config on = off; on.onsetReturnBoxPx = 7.0;
@@ -194,7 +206,7 @@ int main()
 
         // (e) bridging: OFF mis-picks the downswing as bs0; ON merges the two
         // backswing fragments (gap 6 < 10) into a run that wins the ranking.
-        ShaftV3Config veto0; veto0.onsetReturnBoxPx = 0.0;
+        const ShaftV3Config veto0 = darkV3();
         const PhaseModel pNoBr = segmentPhases(t.gx, t.gy, nf, 150.0, impact, veto0, &t.phi);
         ShaftV3Config br = veto0; br.onsetRunBridgeFrames = 10;
         const PhaseModel pBr = segmentPhases(t.gx, t.gy, nf, 150.0, impact, br, &t.phi);
@@ -242,7 +254,7 @@ int main()
         t.vel(34, 14.0, 14.0, 0, +1, +2.0);
         t.vel(6, 14.0, 1.0, 0, +1, +1.0);
         const int nf = int(t.gx.size());
-        const ShaftV3Config off;
+        const ShaftV3Config off = darkV3();
         const PhaseModel pOff = segmentPhases(t.gx, t.gy, nf, 150.0, -1, off, &t.phi);
         ShaftV3Config on = off; on.onsetReturnBoxPx = 7.0;
         const PhaseModel pOn = segmentPhases(t.gx, t.gy, nf, 150.0, -1, on, &t.phi);
@@ -257,7 +269,7 @@ int main()
         const int nf = int(s.t.gx.size());
         const int impact = s.tkStart + 90;           // inside the downswing
 
-        ShaftV3Config free; free.onsetReturnBoxPx = 7.0;
+        ShaftV3Config free = darkV3(); free.onsetReturnBoxPx = 7.0;
         const PhaseModel pFree = segmentPhases(s.t.gx, s.t.gy, nf, 150.0, -1, free, nullptr);
         check(pFree.bs0 >= s.settleLo, "veto-only onset sits at the settle (test non-vacuous)");
 
@@ -305,7 +317,7 @@ int main()
         t.vel(6, 14.0, 1.0, 0, +1, 0.0);
         const int nf = int(t.gx.size());
 
-        ShaftV3Config on; on.onsetReturnBoxPx = 7.0;
+        ShaftV3Config on = darkV3(); on.onsetReturnBoxPx = 7.0;
         const PhaseModel pm = segmentPhases(t.gx, t.gy, nf, 150.0, -1, on, nullptr);
         std::printf("    settle=[%d,%d] ON bs0=%d floor=%d\n", settleLo, settleHi, pm.bs0, pm.onsetFloor);
         check(pm.onsetFloor >= settleLo - 2 && pm.onsetFloor <= settleHi,
@@ -325,19 +337,21 @@ int main()
     // ── fromOverrides: the four keys reach ShaftV3Config ──────────────────────
     std::printf("=== fromOverrides key plumbing ===\n");
     {
+        // Defaults FROZEN ON 2026-07-17 (17-swing truth: Address-error median
+        // 0.564 → 0.060 s); the 0-valued overrides below are the legacy dark-out.
         const ShaftV3Config def = ShaftV3Config::fromOverrides(QVariantMap{});
-        check(def.onsetReturnBoxPx == 0.0 && def.onsetReturnGapFrames == 15
-              && def.onsetRunBridgeFrames == 0 && def.emitTakeaway == false,
-              "empty map → frozen dark defaults (veto off, bridge off, no Takeaway)");
+        check(def.onsetReturnBoxPx == 7.0 && def.onsetReturnGapFrames == 15
+              && def.onsetRunBridgeFrames == 10 && def.emitTakeaway == true,
+              "empty map → frozen ON defaults (box 7 / gap 15 / bridge 10 / Takeaway)");
         QVariantMap ov;
-        ov["shaft.onsetReturnBoxPx"] = 7.0;
+        ov["shaft.onsetReturnBoxPx"] = 0.0;
         ov["shaft.onsetReturnGapFrames"] = 20;
-        ov["shaft.onsetRunBridgeFrames"] = 10;
-        ov["shaft.emitTakeaway"] = true;
+        ov["shaft.onsetRunBridgeFrames"] = 0;
+        ov["shaft.emitTakeaway"] = false;
         const ShaftV3Config c = ShaftV3Config::fromOverrides(ov);
-        check(c.onsetReturnBoxPx == 7.0 && c.onsetReturnGapFrames == 20
-              && c.onsetRunBridgeFrames == 10 && c.emitTakeaway == true,
-              "shaft.onsetReturn*/onsetRunBridgeFrames/emitTakeaway overrides reach the config");
+        check(c.onsetReturnBoxPx == 0.0 && c.onsetReturnGapFrames == 20
+              && c.onsetRunBridgeFrames == 0 && c.emitTakeaway == false,
+              "shaft.onsetReturn*/onsetRunBridgeFrames/emitTakeaway overrides (dark-out) reach the config");
     }
 
     // ── W2: the additive vision Takeaway event ────────────────────────────────

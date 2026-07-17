@@ -159,11 +159,11 @@ int main()
     // 8. The four camera-only Address/Takeaway knobs resolve onto their frozen-
     //    constant-seeded locals — the exact seam ShaftV3Config::fromOverrides uses
     //    (seed from tuned::shaft::k*, then tuning::apply the override). Empty map ⇒
-    //    the DARK defaults (box 0 = veto off, bridge 0 = off, emitTakeaway false)
-    //    so segmentPhases / phasesToSegmentation stay byte-identical to the
-    //    pre-veto tracker. (The retired anchor-box veto's shaft.onsetReturnPhiDeg /
-    //    shaft.onsetReturnStillFrames keys are GONE — the departure-referenced
-    //    revisit scan needs neither.)
+    //    the 2026-07-17 FROZEN-ON defaults (box 7 / gap 15 / bridge 10 / Takeaway
+    //    on — 17-swing truth: Address-error median 0.564 → 0.060 s); 0 keys still
+    //    disable each (the legacy soak baseline). (The retired anchor-box veto's
+    //    shaft.onsetReturnPhiDeg / shaft.onsetReturnStillFrames keys are GONE —
+    //    the departure-referenced revisit scan needs neither.)
     {
         double boxPx  = pinpoint::tuned::shaft::kOnsetReturnBoxPx;
         int    gapF   = pinpoint::tuned::shaft::kOnsetReturnGapFrames;
@@ -173,20 +173,20 @@ int main()
         tuning::apply(QVariantMap{}, "shaft.onsetReturnGapFrames", gapF);
         tuning::apply(QVariantMap{}, "shaft.onsetRunBridgeFrames", bridge);
         tuning::apply(QVariantMap{}, "shaft.emitTakeaway", emitTk);
-        check(boxPx == 0.0 && gapF == 15 && bridge == 0 && emitTk == false,
-              "empty map → shaft onset/bridge/Takeaway frozen defaults (all dark)");
+        check(boxPx == 7.0 && gapF == 15 && bridge == 10 && emitTk == true,
+              "empty map → shaft onset/bridge/Takeaway frozen ON defaults (2026-07-17 freeze)");
 
-        QVariantMap ov;
-        ov["shaft.onsetReturnBoxPx"] = 7.0;
+        QVariantMap ov;                            // distinct non-default values
+        ov["shaft.onsetReturnBoxPx"] = 0.0;        // 0 = the legacy dark baseline
         ov["shaft.onsetReturnGapFrames"] = 20;
-        ov["shaft.onsetRunBridgeFrames"] = 10;
-        ov["shaft.emitTakeaway"] = true;
+        ov["shaft.onsetRunBridgeFrames"] = 0;
+        ov["shaft.emitTakeaway"] = false;
         tuning::apply(ov, "shaft.onsetReturnBoxPx", boxPx);
         tuning::apply(ov, "shaft.onsetReturnGapFrames", gapF);
         tuning::apply(ov, "shaft.onsetRunBridgeFrames", bridge);
         tuning::apply(ov, "shaft.emitTakeaway", emitTk);
-        check(boxPx == 7.0 && gapF == 20 && bridge == 10 && emitTk == true,
-              "shaft onset/bridge/Takeaway overrides reach their fromOverrides seam");
+        check(boxPx == 0.0 && gapF == 20 && bridge == 0 && emitTk == false,
+              "shaft onset/bridge/Takeaway overrides (incl. dark-out) reach their fromOverrides seam");
     }
 
     std::printf("--- ball.* club-activity + positions.p1ClubQuietSigma + ball.tk0AddressOverride (W3/W4) ---\n");
@@ -195,8 +195,10 @@ int main()
     //    the W3 club-quiet consumer gate (PositionsConfig via ShaftV3Config::
     //    fromOverrides) and the W4 tk0 A/B key (applyBallAnchor) resolve onto their
     //    frozen-constant-seeded locals — the exact seam each fromOverrides uses.
-    //    Empty map ⇒ the DARK defaults (activity off, tk0 override ON = today), so
-    //    BallRunner/addressHoldEndFrame/applyBallAnchor stay byte-identical.
+    //    Empty map ⇒ activity off (BallRunner byte-identical) and tk0 override
+    //    OFF (FROZEN 2026-07-17: the earliest-departure tk0 fires on the first
+    //    fidget departure and overwrote a good hold-end Address); true restores
+    //    the old overwrite for A/B.
     {
         bool   act    = pinpoint::tuned::ball::activity::kClubActivity;
         int    refF   = pinpoint::tuned::ball::activity::kActivityRefFrames;
@@ -211,8 +213,8 @@ int main()
         tuning::apply(QVariantMap{}, "positions.p1ClubQuietSigma", quietS);
         tuning::apply(QVariantMap{}, "ball.tk0AddressOverride", tk0Ov);
         check(act == false && refF == 9 && innerR == 1.5 && outerR == 5.0
-              && quietS == 3.0 && tk0Ov == true,
-              "empty map → W3/W4 frozen defaults (activity dark, tk0 override on)");
+              && quietS == 3.0 && tk0Ov == false,
+              "empty map → W3/W4 frozen defaults (activity dark, tk0 override OFF — 2026-07-17 freeze)");
 
         QVariantMap ov;
         ov["ball.clubActivity"] = true;
@@ -220,7 +222,7 @@ int main()
         ov["ball.activityInnerR"] = 2.0;
         ov["ball.activityOuterR"] = 6.0;
         ov["positions.p1ClubQuietSigma"] = 2.0;
-        ov["ball.tk0AddressOverride"] = false;
+        ov["ball.tk0AddressOverride"] = true;      // the A/B: restore the old overwrite
         tuning::apply(ov, "ball.clubActivity", act);
         tuning::apply(ov, "ball.activityRefFrames", refF);
         tuning::apply(ov, "ball.activityInnerR", innerR);
@@ -228,7 +230,7 @@ int main()
         tuning::apply(ov, "positions.p1ClubQuietSigma", quietS);
         tuning::apply(ov, "ball.tk0AddressOverride", tk0Ov);
         check(act == true && refF == 5 && innerR == 2.0 && outerR == 6.0
-              && quietS == 2.0 && tk0Ov == false,
+              && quietS == 2.0 && tk0Ov == true,
               "W3/W4 overrides reach their fromOverrides seams");
     }
 

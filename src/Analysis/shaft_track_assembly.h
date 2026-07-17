@@ -162,10 +162,12 @@ struct ShaftV3Config {
     //   fragmented backswings, and the A3 clamp remains the backstop for an
     //   unbridged mis-pick (where the walked-back onset also sits near bs0, so
     //   the gap guard usually empties the scan anyway).
-    // onsetReturnBoxPx <= 0 disables the whole block (the swLow<=0 dark idiom) —
-    // byte-identical to the pre-veto onset. Box/gap coupling: a slow one-piece
-    // creep advances creepSpeed×gap px per exclusion window, so the box must stay
-    // below that to not clip it (box 7 / gap 15 tolerates creep ≥ ~0.6 px/f).
+    // FROZEN ON 2026-07-17 (box 7 / gap 15; 17-swing truth: Address-error median
+    // 0.564 → 0.060 s); onsetReturnBoxPx <= 0 still disables the whole block
+    // (the swLow<=0 dark idiom) — byte-identical to the pre-veto onset. Box/gap
+    // coupling: a slow one-piece creep advances creepSpeed×gap px per exclusion
+    // window, so the box must stay below that to not clip it (box 7 / gap 15
+    // tolerates creep ≥ ~0.6 px/f).
     // Side effect (gated): estimateSwingSpanUs shares segmentPhases, so the veto
     // also tightens the pose/shaft span bound on fidget swings.
     double  onsetReturnBoxPx     = tuned::shaft::kOnsetReturnBoxPx;     // revisit radius (px); 0 = veto off
@@ -174,14 +176,15 @@ struct ShaftV3Config {
     // quiet frames BEFORE the min-length filter and the two-longest ranking. A
     // slow real backswing fragments into short bursts on the lerped-pose speed
     // profile and loses the two-longest race to follow-through fragments — bs0
-    // then lands at the top/downswing. 0 = off (dark, byte-identical);
-    // recommended ~10 for the sweep. Separate key so its effect is separable
-    // from the veto in the evaluation.
+    // then lands at the top/downswing. FROZEN ON 2026-07-17 at 10; 0 = off
+    // (the legacy ranking, byte-identical). Separate key so its effect stays
+    // separable from the veto in A/Bs.
     int     onsetRunBridgeFrames = tuned::shaft::kOnsetRunBridgeFrames;
-    // Additive vision Takeaway event (phasesToSegmentation, W2). false ⇒ the
-    // {Address,Top,Impact,Finish} ladder is emitted unchanged; true ⇒ a Takeaway
-    // event is added at bs0 (the motion onset). Separate key from the veto above
-    // (disjoint failure modes: onset PLACEMENT vs event-SET change).
+    // Additive vision Takeaway event (phasesToSegmentation, W2). FROZEN ON
+    // 2026-07-17: the ladder is {Address,Takeaway,Top,Impact,Finish}; false
+    // drops the Takeaway event (the pre-freeze four-event ladder). Separate key
+    // from the veto above (disjoint failure modes: onset PLACEMENT vs event-SET
+    // change).
     bool    emitTakeaway         = tuned::shaft::kEmitTakeaway;
     // Run-candidacy clamp (same supplied-impact guard as A3): a motion run that
     // STARTS later than impact + this cannot be a swing phase, so it must not

@@ -336,9 +336,10 @@ int main()
     }
 
     // ── applyBallAnchor: W4 ball.tk0AddressOverride A/B ───────────────────────
-    // Default (true) overwrites the reported Address with the ball's earliest-
-    // departure tk0; the A/B key = false skips the overwrite so the ON evaluation
-    // can isolate the addressHoldEndFrame P1 fix. tk0 is computed either way.
+    // Default FROZEN OFF (2026-07-17): the earliest-departure tk0 fires on the
+    // first FIDGET departure and overwrote a good hold-end Address, so the
+    // default job leaves Address on the addressHoldEndFrame path. The A/B key
+    // = true restores the old overwrite. tk0 is computed either way.
     std::printf("=== applyBallAnchor: tk0AddressOverride A/B (W4) ===\n");
     {
         const int nf = 20, bs0 = 15;
@@ -366,22 +367,23 @@ int main()
             tr.segmentation.swingStartUs = tUs[size_t(bs0)];
             return tr;
         };
-        // override ON (default job) — Address moves to tk0
-        ShaftTrack2D t1 = buildTrack(); ShaftDecideTrace trOn = makeTrace();
-        const ShotAnalysisJob jobOn;
-        applyBallAnchor(t1, ball, gx, gy, tUs, W, H, -1, jobOn, &trOn);
-        check(trOn.ballTk0Frame == 8, "tk0 = first departure frame (f8)");
-        check(trOn.segmentation.events[0].t_us == tUs[8] && trOn.segmentation.swingStartUs == tUs[8],
-              "override ON (default): Address moved to tk0");
-
-        // override OFF — tk0 still computed, Address left on the hold-end path
-        ShaftTrack2D t2 = buildTrack(); ShaftDecideTrace trOff = makeTrace();
-        ShotAnalysisJob jobOff; jobOff.tuningOverrides[QStringLiteral("ball.tk0AddressOverride")] = false;
-        applyBallAnchor(t2, ball, gx, gy, tUs, W, H, -1, jobOff, &trOff);
-        check(trOff.ballTk0Frame == 8, "tk0 still computed (f8) with the override off");
+        // override OFF (default job, 2026-07-17 freeze) — tk0 computed, Address
+        // left on the hold-end path
+        ShaftTrack2D t1 = buildTrack(); ShaftDecideTrace trOff = makeTrace();
+        const ShotAnalysisJob jobOff;
+        applyBallAnchor(t1, ball, gx, gy, tUs, W, H, -1, jobOff, &trOff);
+        check(trOff.ballTk0Frame == 8, "tk0 = first departure frame (f8)");
         check(trOff.segmentation.events[0].t_us == tUs[size_t(bs0)]
               && trOff.segmentation.swingStartUs == tUs[size_t(bs0)],
-              "override OFF: Address unchanged (left on the addressHoldEndFrame path)");
+              "override OFF (default): Address unchanged (left on the addressHoldEndFrame path)");
+
+        // override ON (the A/B restore) — Address moves to tk0
+        ShaftTrack2D t2 = buildTrack(); ShaftDecideTrace trOn = makeTrace();
+        ShotAnalysisJob jobOn; jobOn.tuningOverrides[QStringLiteral("ball.tk0AddressOverride")] = true;
+        applyBallAnchor(t2, ball, gx, gy, tUs, W, H, -1, jobOn, &trOn);
+        check(trOn.ballTk0Frame == 8, "tk0 still computed (f8) with the override on");
+        check(trOn.segmentation.events[0].t_us == tUs[8] && trOn.segmentation.swingStartUs == tUs[8],
+              "override ON (A/B): Address moved to tk0 (the pre-freeze behaviour)");
     }
 
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);

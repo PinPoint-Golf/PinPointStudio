@@ -282,15 +282,14 @@ void applyBallAnchor(ShaftTrack2D &out, const BallTrack2D &ball,
     // !hasImu fallback); fused swings' reported Address still comes from the
     // IMU today, untouched here (a separate, later question — Mark).
     // TODO (long-term, tk0 → Takeaway re-scope): now that phasesToSegmentation
-    // can emit a real Takeaway event (shaft.emitTakeaway), the ball's earliest-
+    // emits a real Takeaway event (shaft.emitTakeaway), the ball's earliest-
     // departure tk0 is conceptually the TAKEAWAY instant, not the Address hold
-    // end — this override should refine Takeaway and leave Address on the
-    // addressHoldEndFrame path. Deferred until the W4 A/B evidence (ball.tk0-
-    // AddressOverride, default 1 = today's behaviour) isolates its contribution
-    // (plan §W3/§"Out of scope").
-    // W4 A/B: ball.tk0AddressOverride (default true = today). false skips the
-    // overwrite so the ON evaluation can measure the addressHoldEndFrame P1 fix in
-    // isolation. Default true ⇒ byte-identical to the pre-W4 tracker.
+    // end — a future tk0 consumer should refine Takeaway and leave Address on
+    // the addressHoldEndFrame path (plan §W3/§"Out of scope").
+    // W4 A/B: ball.tk0AddressOverride — FROZEN OFF 2026-07-17 (the 17-swing
+    // truth evaluation showed the first-departure tk0 fires on the first FIDGET
+    // departure and overwrote a good hold-end Address; w2s4 −0.134 s → −1.533 s).
+    // true restores the pre-freeze overwrite for A/B comparison.
     bool tk0AddressOverride = tuned::ball::kTk0AddressOverride;
     tuning::apply(job.tuningOverrides, "ball.tk0AddressOverride", tk0AddressOverride);
     if (tk0AddressOverride && trace && tk0 >= 0 && bs0 >= 0 && tk0 < bs0) {

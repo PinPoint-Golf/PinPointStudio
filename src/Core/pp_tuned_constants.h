@@ -252,13 +252,14 @@ inline constexpr double kActivityInnerR    = 1.5;   // ball.activityInnerR — i
 inline constexpr double kActivityOuterR    = 5.0;   // ball.activityOuterR — outer annulus radius (× ball r)
 } // namespace activity
 
-// tk0 Address override A/B (W4 — src/Analysis/ball_anchor.cpp). true = today's
-// behaviour: the ball's earliest-departure tk0 overwrites the reported Address /
-// swingStartUs on camera-only swings. false skips the overwrite so the ON
-// evaluation can isolate the addressHoldEndFrame contribution (long-term tk0 is
-// conceptually the Takeaway instant, not the Address hold end — see the
-// ball_anchor.cpp TODO). "ball.tk0AddressOverride" dotted key.
-inline constexpr bool kTk0AddressOverride = true;
+// tk0 Address override A/B (W4 — src/Analysis/ball_anchor.cpp). FROZEN OFF
+// 2026-07-17: the earliest-departure tk0 fires on the first FIDGET departure
+// and overwrote a good hold-end Address (w2s4: −0.134 s → −1.533 s; part of
+// the 17-swing truth freeze, Address-error median 0.564 → 0.060 s). true
+// restores the old overwrite for A/B comparison. Long-term tk0 is conceptually
+// the Takeaway instant, not the Address hold end — see the ball_anchor.cpp
+// TODO. "ball.tk0AddressOverride" dotted key.
+inline constexpr bool kTk0AddressOverride = false;
 } // namespace ball
 
 // --- Layer B P-position extraction (src/Analysis/shaft_positions.h) ------------
@@ -302,18 +303,21 @@ inline constexpr std::int64_t kAddrWindowUs  = 250000;  // ±window about the Ad
 // sweeps "shaft.onsetReturn*"/"shaft.onsetRunBridgeFrames". (The 2026-07-17
 // anchor-box veto's kOnsetReturnPhiDeg / kOnsetReturnStillFrames are RETIRED —
 // the revisit scan needs neither.)
+// FROZEN ON 2026-07-17 (user-approved after the in-app eyeball): veto box 7 +
+// gap 15 + bridging 10 + Takeaway event. Evidence: 17-swing truth evaluation —
+// Address-error median 0.564 s → 0.060 s. 0 still disables each (the swLow<=0
+// idiom) — the dark values remain the byte-identical-legacy baseline for soaks.
 namespace shaft {
-inline constexpr double kOnsetReturnBoxPx     = 0.0;   // 0 ⇒ veto OFF (dark); revisit radius (px); sweep 6–8
+inline constexpr double kOnsetReturnBoxPx     = 7.0;   // revisit radius (px); 0 ⇒ veto OFF (legacy onset)
 inline constexpr int    kOnsetReturnGapFrames = 15;    // forward exclusion before a revisit counts (~100 ms @150fps)
 // Run bridging for the two-longest-runs picker: merge >swSpd runs separated by
 // fewer than this many quiet frames BEFORE ranking, so a slow backswing that
 // the lerped-pose speed profile fragments into short bursts still competes as
 // one run (w2s4-class mis-pick: a 14-frame follow-through fragment beat two
 // 9-frame backswing fragments and bs0 landed at the DOWNSWING). 0 = off
-// (dark); recommended-on value ~10 for the sweep. Separate key from the veto
-// so its effect is separable in the evaluation.
-inline constexpr int    kOnsetRunBridgeFrames = 0;
-inline constexpr bool   kEmitTakeaway         = false; // additive vision Takeaway event at bs0 (dark)
+// (legacy ranking). Separate key from the veto so its effect stays separable.
+inline constexpr int    kOnsetRunBridgeFrames = 10;
+inline constexpr bool   kEmitTakeaway         = true;  // vision Takeaway event at bs0 (ladder gains 1 event)
 } // namespace shaft
 
 } // namespace pinpoint::tuned

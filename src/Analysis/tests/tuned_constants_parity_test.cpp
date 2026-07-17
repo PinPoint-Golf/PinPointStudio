@@ -92,13 +92,26 @@ int main()
     check(t::pose::confScale::kFeet == 1.0 && t::pose::confScale::kFace == 1.0
           && t::pose::confScale::kHands == 1.0, "pose::confScale defaults == 1.0");
 
-    // W3/W4 club-activity + tk0 A/B + club-quiet σ. The dark defaults (activity
-    // OFF, tk0 override ON) are what keep BallRunner/swing.json byte-identical.
+    // W3/W4 club-activity + tk0 A/B + club-quiet σ. Activity stays dark (keeps
+    // BallRunner/swing.json byte-identical); the tk0 override was FROZEN OFF in
+    // the 2026-07-17 Address/Takeaway freeze — the earliest-departure tk0 fires
+    // on the first fidget departure and overwrote a good hold-end Address
+    // (17-swing truth: Address-error median 0.564 s → 0.060 s with the freeze set).
     check(t::ball::activity::kClubActivity == false && t::ball::activity::kActivityRefFrames == 9
           && t::ball::activity::kActivityInnerR == 1.5 && t::ball::activity::kActivityOuterR == 5.0,
           "ball::activity defaults == (false,9,1.5,5.0)");
-    check(t::ball::kTk0AddressOverride == true, "ball::kTk0AddressOverride == true");
+    check(t::ball::kTk0AddressOverride == false, "ball::kTk0AddressOverride == false (2026-07-17 freeze)");
     check(t::positions::kP1ClubQuietSigma == 3.0, "positions::kP1ClubQuietSigma == 3.0");
+
+    // Camera-only Address/Takeaway hardening — FROZEN ON 2026-07-17 (user-
+    // approved after the in-app eyeball; 17-swing truth evaluation, Address-
+    // error median 0.564 s → 0.060 s): no-return veto box 7 / gap 15, run
+    // bridging 10, vision Takeaway event on. 0 still disables each (the
+    // swLow<=0 idiom) — the dark values remain the legacy soak baseline.
+    check(t::shaft::kOnsetReturnBoxPx == 7.0 && t::shaft::kOnsetReturnGapFrames == 15,
+          "shaft::onsetReturn == (7.0, 15) (2026-07-17 freeze)");
+    check(t::shaft::kOnsetRunBridgeFrames == 10, "shaft::kOnsetRunBridgeFrames == 10 (2026-07-17 freeze)");
+    check(t::shaft::kEmitTakeaway == true, "shaft::kEmitTakeaway == true (2026-07-17 freeze)");
 
     // --- Default-constructed consumers match their pre-refactor defaults ---------
     check(MadgwickFilter().beta() == 0.05f, "MadgwickFilter() default beta == 0.05");

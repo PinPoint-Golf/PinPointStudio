@@ -54,8 +54,8 @@ visible in a scorecard check (§4).
 | `filter.*` | `RefuseConfig` (`orientation_refuser.h`) | `filter::` | C1→C2→C3 | wrist angles → `xmodal.imu_vision_corr`, `diag.*`, `filter.impact_continuity` |
 | `seed.*` (status **code**) | `kInit*` (`imu_base.h`) | `seed::` | C1 | live filter convergence (offline-unreachable) |
 | `pose.intraOpThreads` | `ShotAnalysisRunnerOptions` / `PoseEstimatorViTPose::load` (`pose_runner.cpp`) | `pp_tuned_constants.h` `pose::` | perf | offline ViTPose ORT intra-op pool → compute wall-time (default 0 = legacy heuristic) |
-| `shaft.onsetReturn*` / `shaft.onsetRunBridgeFrames` / `shaft.emitTakeaway` | `ShaftV3Config` (`shaft_track_assembly.h`) | `pp_tuned_constants.h` `shaft::` | C1 | `truth.p1_address`, `seg.tempo_ratio`, Address→Top duration (camera-only fidget swings; all DARK/byte-identical by default) |
-| `ball.clubActivity` / `ball.activity*` / `positions.p1ClubQuietSigma` / `ball.tk0AddressOverride` | `BallActivityConfig` (`ball_runner.cpp`) / `PositionsConfig` (`shaft_positions.h`) / `applyBallAnchor` (`ball_anchor.cpp`) | `pp_tuned_constants.h` `ball::activity`, `ball::`, `positions::` | C1 | `truth.p1_address`, Address→Top duration (camera-only club-bob fidget swings; all DARK/tk0-override-ON by default ⇒ byte-identical) |
+| `shaft.onsetReturn*` / `shaft.onsetRunBridgeFrames` / `shaft.emitTakeaway` | `ShaftV3Config` (`shaft_track_assembly.h`) | `pp_tuned_constants.h` `shaft::` | C1 | `truth.p1_address`, `seg.tempo_ratio`, Address→Top duration (camera-only fidget swings; **FROZEN ON 2026-07-17** — box 7 / gap 15 / bridge 10 / Takeaway on; 0 disables each) |
+| `ball.clubActivity` / `ball.activity*` / `positions.p1ClubQuietSigma` / `ball.tk0AddressOverride` | `BallActivityConfig` (`ball_runner.cpp`) / `PositionsConfig` (`shaft_positions.h`) / `applyBallAnchor` (`ball_anchor.cpp`) | `pp_tuned_constants.h` `ball::activity`, `ball::`, `positions::` | C1 | `truth.p1_address`, Address→Top duration (camera-only club-bob fidget swings; activity DARK ⇒ byte-identical; tk0 override **FROZEN OFF 2026-07-17**) |
 
 ### 2.1 `seg.*` — phase segmentation (≈25 keys)
 Envelope cut-off, top/takeaway/transition windows, vote-agreement, finish stillness gates
@@ -132,7 +132,10 @@ load.
 
 ### 2.10 `shaft.onsetReturn*` / `shaft.onsetRunBridgeFrames` / `shaft.emitTakeaway` — camera-only Address/Takeaway hardening (C1)
 Frozen in `pp_tuned_constants.h::shaft`, consumed by `ShaftV3Config` (`shaft_track_assembly.h`). Three
-independent camera-only fixes, **all DARK by default** (byte-identical to the pre-fix tracker).
+independent camera-only fixes. **FROZEN ON 2026-07-17** (user-approved after the in-app eyeball;
+17-swing truth evaluation: Address-error median **0.564 s → 0.060 s**): box 7 / gap 15 / bridge 10 /
+Takeaway event on. Setting a key to **0** (`false` for the event) still disables that fix individually —
+the all-dark combination remains the byte-identical-legacy baseline for soaks and A/Bs.
 **Retired keys (2026-07-17):** the first-cut anchor-box veto's `shaft.onsetReturnPhiDeg` and
 `shaft.onsetReturnStillFrames` are **gone** — the 17-swing dump diagnosis proved both of its premises
 unsatisfiable on real capture (the lerped-pose grip keeps a 2–4 px/f smoothed-speed floor through every
@@ -149,8 +152,8 @@ fired on 0/17 truth swings). The revisit scan below replaces it and needs neithe
   revisited by the next excursion's return; the takeaway departs for good, so the boundary lands at the
   final settle. Real-dump validation: w2s6 −214 → **+13 ms**, w1s1 −516 → **+67 ms**, w2s4 (with
   bridging) +744 → **+74 ms** vs truth P1.
-  - **`shaft.onsetReturnBoxPx`** (**0.0** = veto OFF, the `swLow<=0` dark idiom). Revisit radius in px;
-    sweep **6–8 px** to enable.
+  - **`shaft.onsetReturnBoxPx`** (**7.0**, frozen ON; **0 = veto OFF**, the `swLow<=0` dark idiom).
+    Revisit radius in px; the 6–8 px sweep window validated 7.
   - **`shaft.onsetReturnGapFrames`** (15) — forward exclusion (~100 ms @150 fps) before a revisit
     counts, so a frame isn't "revisited" by its own dwell. Coupling: a slow one-piece creep advances
     `creepSpeed × gap` px per window, so the box must stay below that to not clip it (box 7 / gap 15
@@ -167,7 +170,7 @@ fired on 0/17 truth swings). The revisit scan below replaces it and needs neithe
     result: the walk-back skipped through the fidget to the deep pre-fidget hold on 15/17 swings).
   - Side effect (gated): `estimateSwingSpanUs` shares `segmentPhases`, so the veto also tightens the
     pose/shaft span bound on fidget swings.
-- **`shaft.onsetRunBridgeFrames`** (**0** = OFF; recommended-on value **~10** for the sweep). Merges
+- **`shaft.onsetRunBridgeFrames`** (**10**, frozen ON; **0 = OFF**, the legacy ranking). Merges
   min-length-qualified `>swSpd` runs separated by fewer than this many quiet frames before the
   two-longest ranking. A slow real backswing fragments into short bursts on the lerped-pose speed
   profile and loses the ranking to a follow-through fragment — `bs0` then lands at the top/downswing
@@ -175,8 +178,8 @@ fired on 0/17 truth swings). The revisit scan below replaces it and needs neithe
   applied AFTER the ≥7-frame filter: letting sub-7 waggle bursts participate chains a fidget cluster
   into a false run that wins the race and disables the veto (observed on w2s6). Separate key from the
   veto so the evaluation can separate their effects.
-- **`shaft.emitTakeaway`** (**false** = OFF; W2). When on, `phasesToSegmentation` emits an additive
-  vision **Takeaway** event at `bs0` (the motion onset); the ladder becomes
+- **`shaft.emitTakeaway`** (**true**, frozen ON; **false = OFF**; W2). When on, `phasesToSegmentation`
+  emits an additive vision **Takeaway** event at `bs0` (the motion onset); the ladder becomes
   `{Address, Takeaway, Top, Impact, Finish}`. Address stays on the hold-end / `addressFrame` path, and
   `Address ≤ Takeaway` structurally. This lets SwingLab's `seg.tempo_ratio` (Top−Takeaway / Impact−Top)
   start evaluating on camera swings (it was silently skipped with no Takeaway event). Separate key from
@@ -187,10 +190,10 @@ W1's onset veto and W3 attack the same estimand from different signals: W1 is bl
 about a frozen grip** (the grip-only stillness test can't see the club rotating while the wrist is
 still). W3 supplies the only 150 Hz signal that covers the address reach-back — the frames BallRunner
 already decodes — as a **club-corridor activity** trace, then uses it to corroborate the address hold.
-**All DARK by default** (`ball.clubActivity=false` ⇒ byte- AND code-path-identical; `ball.tk0Address‑
-Override=true` ⇒ pre-W4 behaviour). Scope: activity is only produced by the offline BallRunner replay,
-so W3 fires on **analysis-replay swings**, not live-recorded ball tracks (the live-detector twin is
-future work).
+Activity is **DARK by default** (`ball.clubActivity=false` ⇒ byte- AND code-path-identical); the tk0
+override was **FROZEN OFF 2026-07-17** (part of the Address/Takeaway freeze — see §2.10). Scope:
+activity is only produced by the offline BallRunner replay, so W3 fires on **analysis-replay swings**,
+not live-recorded ball tracks (the live-detector twin is future work).
 
 - **Producer — `ball.clubActivity`** (**false** = OFF; `BallRunner::run`, frozen in `pp_tuned_constants.h`
   `ball::activity`). When on, BallRunner keeps an 8-bit gray ROI crop per frame and, after the tracker
@@ -215,12 +218,12 @@ future work).
   never found), keeping legacy behaviour.
 - **Single-consumer contract:** `BallSample2D.clubActivity` feeds **only** this mask — never tk0, length,
   launch, or DP evidence (`ball_anchor_test` asserts `applyBallAnchor` output is invariant to the field).
-- **`ball.tk0AddressOverride`** (**true** = today; W4, `applyBallAnchor`). Keeps the ball's earliest-
-  departure `tk0` overwriting the reported Address / `swingStartUs` on camera-only swings, but behind an
-  A/B key so the ON evaluation can isolate the `addressHoldEndFrame` P1 fix. Set `false` to skip the
-  overwrite (`tk0` is still computed). Long-term `tk0` is conceptually the **Takeaway** instant, not the
-  Address hold end — the re-scope is deferred until this A/B evidence lands (see the `ball_anchor.cpp`
-  TODO and plan §"Out of scope").
+- **`ball.tk0AddressOverride`** (**false**, FROZEN OFF 2026-07-17; W4, `applyBallAnchor`). The
+  earliest-departure `tk0` fires on the **first fidget departure** and overwrote a good hold-end
+  Address (w2s4: −0.134 s → −1.533 s; the freeze evidence set had Address-error median 0.564 → 0.060 s
+  with this off). Set `true` to restore the old overwrite for A/B comparison (`tk0` is computed either
+  way). Long-term `tk0` is conceptually the **Takeaway** instant, not the Address hold end — the
+  re-scope remains future work (see the `ball_anchor.cpp` TODO and plan §"Out of scope").
 
 ## 3. The frozen-defaults header — the single freeze edit-point
 

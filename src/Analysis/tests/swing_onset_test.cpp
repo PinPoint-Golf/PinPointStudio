@@ -142,7 +142,10 @@ int main()
     // ── A1 waggle running into the takeaway: no gap ⇒ walk-back reaches back ──
     std::printf("=== waggle into takeaway (no gap) ===\n");
     {
-        const ShaftV3Config cfg;
+        // This block pins the RAW A1 walk-back contract; the no-return veto
+        // (default ON since the 2026-07-17 freeze) would rightly park the onset
+        // at the waggle's last address return, so it is disabled explicitly.
+        ShaftV3Config cfg; cfg.onsetReturnBoxPx = 0.0;
         Builder b(260);
         // still [0,30), waggle [30,60) 5 px/f, then RAMP UP from 5 (no dip to 0)
         for (int f = 30; f < 60; ++f) b.v[f] = 5.0, b.dir[f] = ((f / 5) % 2 ? +1 : -1);
