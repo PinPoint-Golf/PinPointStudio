@@ -233,6 +233,61 @@ int main()
               "BA corroboration composes with the quiet mask (still+quiet+BA ⇒ f25)");
     }
 
+    std::printf("=== addressHoldEndFrame: onset-veto floor (PhaseModel::onsetFloor) ===\n");
+    {
+        // Real-capture shape: deep pre-fidget hold f0..f39 (sub-px jitter), then
+        // a fidget drifting 0.8 px/f to bs0 — above the swLow scale but below
+        // swSpd, and NEVER passing stillAt (net 8 px per 10-frame window). The
+        // legacy walk-back skips the whole fidget to the deep hold; the floor
+        // (the veto's no-return boundary) is the only thing that stops it.
+        const int nf = 120, bs0 = 100;
+        std::vector<double> fx(nf), fy(nf);
+        for (int f = 0; f < nf; ++f) {
+            if (f < 40) { fx[f] = 300.0 + 0.3 * ((f % 2 == 0) ? 1.0 : -1.0); fy[f] = 500.0; }
+            else        { fx[f] = 300.0; fy[f] = 500.0 + 0.8 * double(f - 40); }
+        }
+        std::vector<char> noBa;
+        const int legacy = addressHoldEndFrame(fx, fy, noBa, bs0, cfg);
+        check(legacy < 46, "no floor: walk-back skips the fidget to the deep hold (defect)");
+        // (ii) floorFrame = -1 explicitly ⇒ byte-identical legacy answer.
+        check(addressHoldEndFrame(fx, fy, noBa, bs0, cfg, nullptr, -1) == legacy,
+              "floor -1 ⇒ byte-identical legacy answer");
+        // (i) nothing in [floor, bs0] passes stillAt ⇒ the floor ITSELF (the
+        // last settle) is the answer — never the deep hold below it.
+        check(addressHoldEndFrame(fx, fy, noBa, bs0, cfg, nullptr, 70) == 70,
+              "nothing still above the floor ⇒ Address = floor (the last settle)");
+        // Floor below the still region ⇒ the normal still answer stands (the
+        // floor only excludes frames BELOW it, it never forces itself).
+        check(addressHoldEndFrame(fx, fy, noBa, bs0, cfg, nullptr, 20) == legacy,
+              "floor below the still region ⇒ normal still answer unchanged");
+        // Floor above bs0 (defensive; the min(boundary, onset) contract should
+        // prevent it) ⇒ clamped to bs0, not returned out of range.
+        check(addressHoldEndFrame(fx, fy, noBa, bs0, cfg, nullptr, bs0 + 10) == bs0,
+              "floor above bs0 clamps to bs0 (defensive)");
+
+        // (iii) floor + clubQuiet interaction. Add a still plateau f70..f89
+        // above the floor so the quiet tier has a candidate.
+        std::vector<double> px = fx, py = fy;
+        for (int f = 70; f < 90; ++f) { px[f] = 300.0; py[f] = 524.0; }
+        for (int f = 90; f < nf; ++f) { py[f] = 524.0 + 0.8 * double(f - 89); }
+        // quiet everywhere ⇒ the plateau passes still+quiet above the floor.
+        std::vector<char> quietAll(size_t(nf), 1);
+        const int heQ = addressHoldEndFrame(px, py, noBa, bs0, cfg, &quietAll, 45);
+        check(heQ >= 80 && heQ <= 92, "floor + all-quiet: still+quiet plateau above the floor wins");
+        // quiet ONLY below the floor ⇒ the below-floor quiet frames are never
+        // considered; the quiet tier finds nothing and falls back to the
+        // (floored) grip-still answer — the plateau, not the deep hold.
+        std::vector<char> quietLow(size_t(nf), 0);
+        for (int f = 0; f < 40; ++f) quietLow[size_t(f)] = 1;
+        const int heQL = addressHoldEndFrame(px, py, noBa, bs0, cfg, &quietLow, 45);
+        check(heQL >= 80 && heQL <= 92,
+              "quiet only below the floor ⇒ floored grip-still fallback (never below the floor)");
+        // all-active mask + floor + nothing still above the floor ⇒ floor.
+        std::vector<char> active(size_t(nf), 0);
+        check(addressHoldEndFrame(fx, fy, noBa, bs0, cfg, &active, 70) == 70,
+              "active mask + floor: two-tier fallback still lands on the floor");
+    }
+
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);
     return g_fail;
 }

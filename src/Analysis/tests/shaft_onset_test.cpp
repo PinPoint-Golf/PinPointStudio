@@ -136,6 +136,10 @@ int main()
         check(pOn.bs0 >= s.settleLo && pOn.bs0 <= s.settleHi,
               "ON: no-return boundary lands inside the final settle");
         check(pOn.bs0 > pOff.bs0, "ON: onset only moved later");
+        // Floor plumbing: dark ⇒ unset; fired without an impact clamp ⇒ the
+        // floor IS the boundary (== the final onset).
+        check(pOff.onsetFloor == -1, "OFF: onsetFloor unset (veto dark)");
+        check(pOn.onsetFloor == pOn.bs0, "ON: onsetFloor == boundary == final onset (no A3)");
         for (double box : {6.0, 8.0}) {             // stable across the sweep window
             ShaftV3Config c = off; c.onsetReturnBoxPx = box;
             const PhaseModel p = segmentPhases(s.t.gx, s.t.gy, nf, 150.0, -1, c, nullptr);
@@ -267,6 +271,55 @@ int main()
                     pFree.bs0, pClamp.impact, hiEdge, pClamp.bs0);
         check(pFree.bs0 > hiEdge, "veto result really violates the near-edge clamp (non-vacuous)");
         check(pClamp.bs0 == hiEdge, "A3 clamp pins the onset to hiEdge (clamp wins over the veto)");
+        // Floor/A3 interaction: A3 pushed the onset EARLIER than the boundary ⇒
+        // the floor follows the onset (min rule — a floor above the walk-back
+        // start would be unreachable by addressHoldEndFrame).
+        check(pClamp.onsetFloor == pClamp.bs0,
+              "A3 pushed the onset below the boundary ⇒ onsetFloor follows the onset");
+    }
+
+    // ── (f) full chain: the boundary floors the Address walk-back ─────────────
+    std::printf("=== (f) onsetFloor floors addressHoldEndFrame ===\n");
+    {
+        // Fidget swing whose final settle DRIFTS slowly (0.5 px/f + the osc
+        // floor): net displacement ≥ ~2.7 px per 10-frame window, so NOTHING in
+        // the settle ever passes the absolute stillAt thresholds (net 2.0 /
+        // spike 2.5) — the round-2 studio failure shape: even from a corrected
+        // bs0 the legacy walk-back skips the whole fidget to the deep hold.
+        Track t;
+        t.start(700, 590);
+        t.wander(700, 590, 45, 0.8, 0.0);            // deep stillness
+        t.wander(688, 616, 16, 4.0, 0.0);            // fidget wander
+        t.wander(714, 602, 15, 4.0, 0.0);
+        t.wander(692, 640, 16, 4.0, 0.0);
+        t.wander(716, 630, 15, 4.0, 0.0);
+        t.wander(700, 650, 16, 4.0, 0.0);
+        const int settleLo = t.frame();
+        t.wander(700, 665, 30, 4.0, 0.0);            // DRIFTING settle (~0.5 px/f)
+        const int settleHi = t.frame();
+        t.vel(16, 1.0, 12.0, 0, -1, 0.0);            // takeaway
+        t.vel(36, 12.0, 12.0, 0, -1, 0.0);
+        t.wander(t.gx.back(), t.gy.back(), 18, 0.5, 0.0);
+        t.vel(10, 1.0, 14.0, 0, +1, 0.0);
+        t.vel(36, 14.0, 14.0, 0, +1, 0.0);
+        t.vel(6, 14.0, 1.0, 0, +1, 0.0);
+        const int nf = int(t.gx.size());
+
+        ShaftV3Config on; on.onsetReturnBoxPx = 7.0;
+        const PhaseModel pm = segmentPhases(t.gx, t.gy, nf, 150.0, -1, on, nullptr);
+        std::printf("    settle=[%d,%d] ON bs0=%d floor=%d\n", settleLo, settleHi, pm.bs0, pm.onsetFloor);
+        check(pm.onsetFloor >= settleLo - 2 && pm.onsetFloor <= settleHi,
+              "onsetFloor lands in the drifting settle");
+
+        const PositionsConfig pc;                    // defaults (net 2.0 / spike 2.5 / w 10)
+        std::vector<char> noBa;
+        const int heNoFloor = addressHoldEndFrame(t.gx, t.gy, noBa, pm.bs0, pc, nullptr, -1);
+        std::printf("    holdEnd no-floor=%d with-floor=%d\n",
+                    heNoFloor, addressHoldEndFrame(t.gx, t.gy, noBa, pm.bs0, pc, nullptr, pm.onsetFloor));
+        check(heNoFloor < settleLo - 60,
+              "no floor: hold-end walks through the fidget to the deep hold (defect)");
+        check(addressHoldEndFrame(t.gx, t.gy, noBa, pm.bs0, pc, nullptr, pm.onsetFloor) == pm.onsetFloor,
+              "with floor: nothing above it passes stillAt ⇒ Address = the floor (last settle)");
     }
 
     // ── fromOverrides: the four keys reach ShaftV3Config ──────────────────────

@@ -262,6 +262,16 @@ struct PhaseModel {
     int  top    = 0;   // transition
     int  impact = 0;   // impact frame
     int  fin0   = 0;   // finish begins
+    // No-return boundary from the onset veto (-1 = veto dark / never fired).
+    // The revisit scan's boundary IS the last address settle, so downstream
+    // walk-backs (addressHoldEndFrame) must never walk below it — the settles
+    // floor at 2–4 px/f on real capture, so an absolute-stillness walk-back
+    // otherwise skips straight through the fidget to the deep pre-fidget hold.
+    // A3 interaction: floor = min(boundary, final bs0) — when the A3 clamp
+    // pushes the onset EARLIER than the boundary, the floor follows the onset
+    // (a floor above the walk-back start would be unreachable); when A3 pushes
+    // it later, the boundary (the settle) still stands as the floor.
+    int  onsetFloor = -1;
     std::vector<double> spdSmoothed;    // smoothed grip speed (px/frame)
 };
 

@@ -240,16 +240,34 @@ inline Crossing findHorizontalCrossing(const std::vector<int64_t>& tUs,
 // no frame passes still+quiet, the plain grip-still answer (the value returned
 // with clubQuiet == nullptr) stands — the mask can only move the hold-end to a
 // BETTER (also-quiet) frame, NEVER degrade below today's result.
+//
+// Optional floorFrame (default -1 ⇒ EVERY existing caller/test is byte-
+// identical): the no-return boundary from segmentPhases' onset veto
+// (PhaseModel::onsetFloor) — the LAST address settle. On real capture the
+// settles floor at 2–4 px/f, so the absolute stillAt thresholds pass NOWHERE
+// near the true settle and the walk-back skips straight through the fidget to
+// the deep pre-fidget hold (0.5–1.5 s early on 12/17 truth swings even with a
+// corrected bs0). With a floor: no frame below floorFrame is ever considered
+// (in either tier), and when NOTHING in [floorFrame, bs0] passes, the answer is
+// floorFrame itself — the settle the veto proved the track never left for good
+// — instead of the legacy deep-hold/bs0 fallback. The floor is only ever set
+// when the veto fired (needs shaft.onsetReturnBoxPx > 0), so the dark path is
+// untouched.
 inline int addressHoldEndFrame(const std::vector<double>& gx, const std::vector<double>& gy,
                                const std::vector<char>& baByFrame, int bs0,
                                const PositionsConfig& cfg,
-                               const std::vector<char>* clubQuiet = nullptr)
+                               const std::vector<char>* clubQuiet = nullptr,
+                               int floorFrame = -1)
 {
     const int nf = int(gx.size());
     if (nf < 2 || int(gy.size()) != nf || bs0 <= 0) return bs0;
     const int    last = std::min(bs0, nf - 1);
     const int    w    = std::max(1, cfg.p1StillWindow);
     const double thr  = cfg.p1StillSpeedPx;
+    // Walk-back floor (see the contract note above). Safety-clamped to the walk
+    // range; loF is the lowest candidate frame either tier may consider.
+    if (floorFrame >= 0) floorFrame = std::min(floorFrame, last);
+    const int loF = floorFrame >= 0 ? std::max(w, floorFrame) : w;
 
     // The raw grip is pose-derived (60 Hz hand keypoints lerped to camera rate)
     // with a ~1–2 px noise floor — comparable to the net-drift threshold, which
@@ -295,15 +313,18 @@ inline int addressHoldEndFrame(const std::vector<double>& gx, const std::vector<
     if (haveBa)
         for (int f = 0; f <= last && !anyBa; ++f) anyBa = baByFrame[size_t(f)] != 0;
 
-    // The legacy grip-still (+ BA corroboration) answer — the NEVER-DEGRADE floor.
+    // The grip-still (+ BA corroboration) answer — the NEVER-DEGRADE fallback.
+    // Candidates never drop below loF; when a floor is set and nothing passes,
+    // the floor (the last settle) is the answer, not the legacy bs0 fallback.
     auto stillAnswer = [&]() -> int {
         int stillOnly = -1;
-        for (int f = last; f >= w; --f) {
+        for (int f = last; f >= loF; --f) {
             if (!stillAt(f)) continue;
             if (stillOnly < 0) stillOnly = f;
             if (!anyBa || baByFrame[size_t(f)] != 0) return f;   // corroborated (or no BA to demand)
         }
-        return stillOnly >= 0 ? stillOnly : bs0;
+        if (stillOnly >= 0) return stillOnly;
+        return floorFrame >= 0 ? floorFrame : bs0;
     };
     const int legacy = stillAnswer();
 
@@ -319,12 +340,12 @@ inline int addressHoldEndFrame(const std::vector<double>& gx, const std::vector<
         return true;
     };
     int stillQuietOnly = -1;
-    for (int f = last; f >= w; --f) {
+    for (int f = last; f >= loF; --f) {     // same floor as the grip-still tier
         if (!stillAt(f) || !quietWindow(f)) continue;
         if (stillQuietOnly < 0) stillQuietOnly = f;
         if (!anyBa || baByFrame[size_t(f)] != 0) return f;   // still + quiet + (BA if demanded)
     }
-    return stillQuietOnly >= 0 ? stillQuietOnly : legacy;
+    return stillQuietOnly >= 0 ? stillQuietOnly : legacy;    // legacy is already floored
 }
 
 // Locate the coaching P-times P1–P8 from the per-frame reconciled θ(t) and

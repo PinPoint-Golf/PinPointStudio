@@ -158,6 +158,13 @@ fired on 0/17 truth swings). The revisit scan below replaces it and needs neithe
   - The scan horizon is `bs0` — the selected (post-bridging) run start — so the revisit test never sees
     the top dwell (which revisits itself); bridging is what makes `bs0` the true takeaway run on
     fragmented backswings, and the A3 clamp is the backstop for an unbridged mis-pick.
+  - **The boundary also floors the Address walk-back** (no extra key — it rides the box flag). The
+    boundary is published as `PhaseModel::onsetFloor` (= `min(boundary, final bs0)`, so an A3 clamp
+    that pushes the onset earlier keeps the floor reachable) and `addressHoldEndFrame` never considers
+    frames below it; when nothing in `[floor, bs0]` passes the absolute `stillAt` thresholds — the
+    normal case, since real settles floor at 2–4 px/f — the answer is the floor itself, the last
+    settle. Without this, a corrected bs0 still yielded a 0.5–1.5 s-early Address (round-2 studio
+    result: the walk-back skipped through the fidget to the deep pre-fidget hold on 15/17 swings).
   - Side effect (gated): `estimateSwingSpanUs` shares `segmentPhases`, so the veto also tightens the
     pose/shaft span bound on fidget swings.
 - **`shaft.onsetRunBridgeFrames`** (**0** = OFF; recommended-on value **~10** for the sweep). Merges

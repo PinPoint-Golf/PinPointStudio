@@ -536,6 +536,7 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
         // true takeaway run on fragmented backswings, and the A3 clamp below is
         // the backstop for an unbridged mis-pick. onsetReturnBoxPx <= 0 disables
         // the whole block (the swLow<=0 dark idiom) — byte-identical onset.
+        int noReturnBoundary = -1;   // → m.onsetFloor (the last settle) when the scan fires
         if (cfg.onsetReturnBoxPx > 0.0) {
             const int gap = std::max(1, cfg.onsetReturnGapFrames);
             if (bs0 - gap > onset) {
@@ -549,6 +550,7 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
                         mn = std::min(mn, std::hypot(gxS[f] - gxS[r], gyS[f] - gyS[r]));
                     if (mn < cfg.onsetReturnBoxPx) boundary = r;
                 }
+                noReturnBoundary = boundary;
                 if (boundary > onset) onset = boundary;
             }
         }
@@ -562,6 +564,12 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
             const int hiEdge = std::max(0, impf - framesMin);
             onset = std::clamp(onset, loEdge, hiEdge);
         }
+        // Publish the no-return boundary as the address-walk-back floor
+        // (PhaseModel::onsetFloor contract). min(boundary, onset): when A3
+        // pushed the onset EARLIER than the boundary the floor follows the
+        // onset (a floor above the walk-back start would be unreachable);
+        // when A3 pushed it later, the boundary — the last settle — stands.
+        if (noReturnBoundary >= 0) m.onsetFloor = std::min(noReturnBoundary, onset);
     }
 
     m.phase.resize(nf);
@@ -1792,7 +1800,13 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         }
         const std::vector<char>* clubQuietPtr = clubQuietByFrame.empty() ? nullptr : &clubQuietByFrame;
 
-        const int p1Frame = addressHoldEndFrame(gx, gy, baByFrame, pm.bs0, cfg.positions, clubQuietPtr);
+        // pm.onsetFloor (the veto's no-return boundary — the LAST settle) floors
+        // the walk-back: without it the absolute stillAt thresholds pass nowhere
+        // near a real 2–4 px/f settle and the hold-end walks through the fidget
+        // to the deep pre-fidget hold even from a corrected bs0. -1 (veto dark /
+        // not fired) keeps the legacy walk byte-identical.
+        const int p1Frame = addressHoldEndFrame(gx, gy, baByFrame, pm.bs0, cfg.positions,
+                                                clubQuietPtr, pm.onsetFloor);
         addressEventFrame = p1Frame;
 
         const std::vector<PTime> pts =
