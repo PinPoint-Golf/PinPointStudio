@@ -1,24 +1,19 @@
-// Standalone tests for the Stage-A "no-return" veto (W1) and the additive vision
-// Takeaway event (W2) in shaft_track_assembly.cpp.
+// Standalone tests for the Stage-A "no-return" onset veto (departure-referenced
+// revisit scan), the run-bridging pre-pass, and the additive vision Takeaway
+// event (W2) in shaft_track_assembly.cpp.
 //
-// The veto post-processes the A1/A2 onset walk-back so a club bob that DEPARTS
-// the address point and RETURNS (a fidget) no longer drags the onset back
-// through the whole fidget. It runs on the pure segmentPhases() over synthetic
-// grip/φ tracks with a directly-controlled speed profile, so the OFF defect and
-// ON fix are hand-reasoned, not golden-fit.
-//
-// The defect is driven by the φ WITNESS (A2): a bob rotates the club about a
-// settled wrist, so |Δφ| stays above threshold and A2 walks the onset back
-// through the fidget even though the GRIP has repeatedly returned to address.
-// The veto recovers the last grip-static, club-back-at-address settle. (This is
-// why the fixtures supply φ — a grip-only bob makes A1 stop at the settle
-// already, so the veto is correctly inert; that case is asserted too.)
-//
-// NOTE: the veto gates atRest on the GRIP being static (spdS < swLow) — the
-// literal reading of the estimand "Address = the last STATIC point". The plan's
-// literal atRest also required dphiS ≤ phiOnsetDegPerFrame, but that makes the
-// veto a provable no-op (it could only re-stop where A2 already stopped); the φ
-// condition lives in inBox's angle term (the club is back near the address φ).
+// The fixtures are REAL-CAPTURE-SHAPED, per the 2026-07-17 dump diagnosis of
+// the 17-swing truth set (w1s1 / w2s4 / w2s6): the address-region grip is
+// low-rate pose lerped to frame rate — slow wander (piecewise-linear knots)
+// plus a fast small oscillation (~12-frame period) that keeps the SMOOTHED
+// speed at a 2–4 px/f floor through every fidget "settle" (true grip rest
+// never happens), and the golfer settles into a final address DISPLACED from
+// the pre-fidget stance. On such data the A1 walk-back runs through the WHOLE
+// fidget to the deep pre-fidget stillness (the documented defect), an anchor-
+// box/absolute-rest veto can never fire (both premises unsatisfiable — the
+// retired 2026-07-17 veto), and only the departure-referenced revisit scan
+// recovers the final settle. The real-data validation lives in the offline
+// harness against the three real dumps; these fixtures pin the mechanism.
 //
 //   cmake --build build/analyzer-tests --target shaft_onset_test
 //   ctest --test-dir build/analyzer-tests -R shaft_onset --output-on-failure
@@ -40,180 +35,236 @@ static void check(bool c, const char *label)
     if (!c) ++g_fail;
 }
 
-// Velocity-integral track builder: per-frame speed magnitude v[] + vertical
-// direction dir[] (gx held constant, so smoothed grip speed == the profile) and
-// a per-frame φ rate (deg/frame, signed). gy/φ are the running integrals.
+// Real-capture-shaped track builder. The address/fidget half is knot-lerped
+// wander plus a continuous-phase oscillation (period 12 frames — the lerped-
+// pose beat seen in the real dumps); the swing half is velocity-integrated
+// directional segments. All appends continue from the current endpoint.
 struct Track {
-    int nf;
-    double fps = 150.0;
-    std::vector<double> v, pr;
-    std::vector<int>    dir;
-    explicit Track(int n) : nf(n), v(n, 0.0), pr(n, 0.0), dir(n, 0) {}
-    void seg(int a, int b, double sp, int d, double rate)
+    std::vector<double> gx, gy, phi;
+    double oscK = 0.0;            // continuous oscillation phase (frames)
+    static constexpr double kOscPeriod = 12.0;
+
+    void start(double x, double y, double p = 10.0) { gx = {x}; gy = {y}; phi = {p}; }
+    int  frame() const { return int(gx.size()) - 1; }
+
+    // Lerp the wander base to (tx, ty) over n frames with oscillation amplitude
+    // `amp` superposed on both coordinates (phase-shifted so the wobble is 2D).
+    // φ advances by dPhi per frame (0 = still forearm).
+    void wander(double tx, double ty, int n, double amp, double dPhi = 0.0)
     {
-        for (int k = a; k < b && k < nf; ++k) { v[k] = sp; dir[k] = d; pr[k] = rate; }
-    }
-    void ramp(int a, int b, double s0, double s1, int d, double rate)
-    {
-        for (int k = a; k < b && k < nf; ++k) {
-            const double t = (b > a) ? double(k - a) / double(b - a) : 0.0;
-            v[k] = s0 + (s1 - s0) * t; dir[k] = d; pr[k] = rate;
+        const double x0 = gx.back() - oscX(0.0), y0 = gy.back() - oscY(0.0);
+        for (int i = 1; i <= n; ++i) {
+            const double t = double(i) / double(n);
+            oscK += 1.0;
+            gx.push_back(x0 + (tx - x0) * t + oscX(amp));
+            gy.push_back(y0 + (ty - y0) * t + oscY(amp));
+            phi.push_back(phi.back() + dPhi);
         }
     }
-    void build(std::vector<double> &gx, std::vector<double> &gy, std::vector<double> &phi,
-               double x0 = 200.0, double y0 = 300.0, double phi0 = 10.0) const
+    // Velocity segment: speed ramps v0→v1 along unit direction (dx, dy).
+    void vel(int n, double v0, double v1, double dx, double dy, double dPhi = 0.0)
     {
-        gx.assign(nf, x0); gy.assign(nf, y0); phi.assign(nf, phi0);
-        for (int k = 1; k < nf; ++k) { gy[k] = gy[k - 1] + dir[k] * v[k]; phi[k] = phi[k - 1] + pr[k]; }
+        const double len = std::hypot(dx, dy);
+        for (int i = 0; i < n; ++i) {
+            const double t = (n > 1) ? double(i) / double(n - 1) : 0.0;
+            const double v = v0 + (v1 - v0) * t;
+            gx.push_back(gx.back() + v * dx / len);
+            gy.push_back(gy.back() + v * dy / len);
+            phi.push_back(phi.back() + dPhi);
+        }
     }
-    std::vector<int64_t> times() const
-    {
-        std::vector<int64_t> t(nf);
-        for (int f = 0; f < nf; ++f) t[f] = int64_t(std::llround(double(f) * 1e6 / fps));
-        return t;
-    }
+    double oscX(double amp) const { return amp * std::sin(2.0 * M_PI * oscK / kOscPeriod); }
+    double oscY(double amp) const { return 0.7 * amp * std::cos(2.0 * M_PI * oscK / kOscPeriod); }
 };
 
-// A fidget swing: two grip bob loops (grip departs +12 px and returns, ~20 f
-// each) with a short settle at address, then a real one-piece takeaway →
-// backswing → top → downswing. φ swings away from and back through the address
-// angle with each bob (continuous |Δφ| ⇒ A2 over-reaches), then rotates through
-// the swing. `settle` = still frames at the end of each bob (address settle).
-static Track makeFidgetSwing(int &tkOut, int settle = 4)
+// The canonical realistic fidget swing. Deep pre-fidget stillness at (700,590),
+// a wandering fidget that settles into a DISPLACED final address (700,650)
+// (the w1s1 pattern: the truth-time grip sat 60 px from the pre-fidget stance),
+// then a one-piece takeaway → backswing → top → downswing. settleLo/settleHi
+// bracket the final settle (the truth region). phiDrift > 0 rotates the forearm
+// through the whole fidget (the A2 over-reach driver).
+struct FidgetSwing {
+    Track t;
+    int settleLo = 0, settleHi = 0, tkStart = 0;
+};
+static FidgetSwing makeFidgetSwing(double phiDrift = 0.0)
 {
-    Track t(320);
-    int f = 40;
-    for (int loop = 0; loop < 2; ++loop) {
-        t.seg(f, f + 8, 1.5, -1, +2.25);           // grip up, club rotates away (+18)
-        t.seg(f + 8, f + 16, 1.5, +1, -2.25);       // grip down to address, club returns (−18)
-        t.seg(f + 16, f + 16 + settle, 0.0, 0, +0.5); // settle: grip still, φ slow drift (never rests)
-        f += 16 + settle;
-    }
-    tkOut = f;
-    t.ramp(f, f + 18, 0.0, 12.0, -1, -1.5);         // one-piece takeaway
-    t.seg(f + 18, f + 52, 12.0, -1, -2.0);          // backswing
-    t.seg(f + 52, f + 70, 0.0, 0, 0.0);             // top hold (run gap)
-    t.ramp(f + 70, f + 80, 0.0, 14.0, +1, +2.0);    // downswing accel
-    t.seg(f + 80, f + 114, 14.0, +1, +2.0);         // downswing (returns through address height)
-    t.ramp(f + 114, f + 120, 14.0, 0.0, +1, +1.0);
-    return t;
+    FidgetSwing s;
+    Track &t = s.t;
+    t.start(700, 590);
+    t.wander(700, 590, 45, 0.8, 0.0);              // deep stillness (sub-swLow)
+    t.wander(688, 616, 16, 4.0, phiDrift);         // fidget: wandering excursions,
+    t.wander(714, 602, 15, 4.0, phiDrift);         //   2-4 px/f smoothed floor,
+    t.wander(692, 640, 16, 4.0, phiDrift);         //   drifting toward the final
+    t.wander(716, 630, 15, 4.0, phiDrift);         //   address
+    t.wander(700, 650, 16, 4.0, phiDrift);         // arrive at the DISPLACED address
+    s.settleLo = t.frame();
+    t.wander(700, 650, 34, 4.0, phiDrift);         // final settle: 2-4 px/f floor —
+                                                   //   never true rest (the real dumps'
+                                                   //   lerped-pose signature)
+    s.settleHi = t.frame();
+    s.tkStart = t.frame() + 1;
+    t.vel(16, 1.0, 12.0, 0, -1, -1.5);             // one-piece takeaway (departs up)
+    t.vel(36, 12.0, 12.0, 0, -1, -2.0);            // backswing
+    t.wander(t.gx.back(), t.gy.back(), 18, 0.5, 0.0);  // top hold
+    t.vel(10, 1.0, 14.0, 0, +1, +2.0);             // downswing accel
+    t.vel(36, 14.0, 14.0, 0, +1, +2.0);            // downswing through address height
+    t.vel(6, 14.0, 1.0, 0, +1, +1.0);
+    t.wander(t.gx.back(), t.gy.back(), 30, 0.5, 0.0);  // finish hold
+    return s;
 }
 
 int main()
 {
-    // ── (a) grip-bob fidget: OFF walks through, ON lands at the takeaway ───────
-    std::printf("=== (a) grip-bob fidget veto ===\n");
+    // ── (a) realistic fidget, grip-driven (A1 over-reach + veto recovery) ──────
+    std::printf("=== (a) realistic fidget (A1 over-reach) ===\n");
     {
-        int tk = 0;
-        Track tr = makeFidgetSwing(tk);            // tk == true takeaway (80)
-        std::vector<double> gx, gy, phi; tr.build(gx, gy, phi);
-        for (int k = 0; k < 40; ++k) gy[k] = 300.0 + ((k % 2) ? 1.0 : 0.0);   // 1 px hold noise
-        const int nf = tr.nf;
-
-        const ShaftV3Config off;                    // veto dark (onsetReturnBoxPx = 0)
-        const PhaseModel pOff = segmentPhases(gx, gy, nf, 150.0, -1, off, &phi);
-        // DEFECT: the φ witness drags the onset back through the whole fidget
-        // (fidget spans [40, tk)); the onset lands before the takeaway.
-        check(pOff.bs0 < 45, "OFF: onset walked into/through the fidget (defect documented)");
-        check(pOff.bs0 < tk - 30, "OFF: onset is far (>30 f) before the true takeaway");
+        FidgetSwing s = makeFidgetSwing(0.0);
+        const int nf = int(s.t.gx.size());
+        const ShaftV3Config off;                    // veto dark
+        const PhaseModel pOff = segmentPhases(s.t.gx, s.t.gy, nf, 150.0, -1, off, nullptr);
+        std::printf("    settle=[%d,%d] tkStart=%d | OFF bs0=%d\n",
+                    s.settleLo, s.settleHi, s.tkStart, pOff.bs0);
+        // DEFECT: the fidget's oscillation floor keeps spdS above swLow through
+        // the settle, so A1 walks back out of it into the fidget (~0.2-0.4 s
+        // early — the real w2s6 scale; the DEEP over-reach is φ-driven, see a2).
+        check(pOff.bs0 < s.settleLo - 15, "OFF: onset walked back out of the settle into the fidget");
 
         ShaftV3Config on = off; on.onsetReturnBoxPx = 7.0;
-        const PhaseModel pOn = segmentPhases(gx, gy, nf, 150.0, -1, on, &phi);
-        check(pOn.bs0 > pOff.bs0 + 30, "ON: veto moved the onset > 30 f later");
-        check(std::abs(pOn.bs0 - tk) <= 5, "ON: onset lands within 5 f of the true takeaway (last settle)");
-        // only later, never earlier (the veto post-processes min(A1,A2))
-        check(pOn.bs0 >= pOff.bs0, "ON: veto only moves the onset later");
-        // stable across the sweep window (box 6–8 px)
-        for (double box : {6.0, 8.0}) {
+        const PhaseModel pOn = segmentPhases(s.t.gx, s.t.gy, nf, 150.0, -1, on, nullptr);
+        std::printf("    ON bs0=%d\n", pOn.bs0);
+        check(pOn.bs0 >= s.settleLo && pOn.bs0 <= s.settleHi,
+              "ON: no-return boundary lands inside the final settle");
+        check(pOn.bs0 > pOff.bs0, "ON: onset only moved later");
+        for (double box : {6.0, 8.0}) {             // stable across the sweep window
             ShaftV3Config c = off; c.onsetReturnBoxPx = box;
-            const PhaseModel p = segmentPhases(gx, gy, nf, 150.0, -1, c, &phi);
-            check(std::abs(p.bs0 - tk) <= 5, "ON: onset stable near the takeaway across box 6–8");
+            const PhaseModel p = segmentPhases(s.t.gx, s.t.gy, nf, 150.0, -1, c, nullptr);
+            check(p.bs0 >= s.settleLo && p.bs0 <= s.settleHi, "ON: stable inside the settle (box 6-8)");
         }
-        // grip-only (no φ): A1 does NOT over-reach ⇒ the veto is correctly inert
-        const PhaseModel gOff = segmentPhases(gx, gy, nf, 150.0, -1, off, nullptr);
-        ShaftV3Config gon = off; gon.onsetReturnBoxPx = 7.0;
-        const PhaseModel gOn = segmentPhases(gx, gy, nf, 150.0, -1, gon, nullptr);
-        check(std::abs(gOff.bs0 - tk) <= 5, "no-φ: A1 alone already lands at the takeaway");
-        check(gOn.bs0 == gOff.bs0, "no-φ: veto inert (nothing to recover)");
     }
 
-    // ── (b) φ-bob variant: grip near-still, φ oscillates ±3° ───────────────────
-    std::printf("=== (b) φ-bob variant ===\n");
+    // ── (a2) same fidget with a rotating forearm (A2 over-reach path) ──────────
+    std::printf("=== (a2) realistic fidget + phi drift (A2 over-reach) ===\n");
     {
-        const int nf = 300;
-        Track tr(nf);
-        int f = 40;
-        for (int loop = 0; loop < 3; ++loop) {      // φ triangle ±3° (period 16)
-            tr.seg(f, f + 8, 0.0, 0, +0.75);
-            tr.seg(f + 8, f + 16, 0.0, 0, -0.75);
-            f += 16;
-        }
-        const int tk = f;                           // 88
-        tr.ramp(tk, tk + 18, 0.0, 12.0, -1, -1.5);
-        tr.seg(tk + 18, tk + 50, 12.0, -1, -2.0);
-        tr.seg(tk + 50, tk + 66, 0.0, 0, 0.0);
-        tr.ramp(tk + 66, tk + 76, 0.0, 14.0, +1, +2.0);
-        tr.seg(tk + 76, tk + 108, 14.0, +1, +2.0);
-        tr.ramp(tk + 108, tk + 114, 14.0, 0.0, +1, +1.0);
-        std::vector<double> gx, gy, phi; tr.build(gx, gy, phi);
-        for (int k = 0; k < tk; ++k) gy[k] = 300.0 + ((k % 2) ? 0.6 : 0.0);   // grip near-still
-
+        FidgetSwing s = makeFidgetSwing(0.6);        // |dphi| 0.6 deg/f through the fidget
+        const int nf = int(s.t.gx.size());
         const ShaftV3Config off;
-        const PhaseModel pOff = segmentPhases(gx, gy, nf, 150.0, -1, off, &phi);
-        check(pOff.bs0 < tk - 30, "OFF: φ witness over-reaches through the φ fidget");
+        const PhaseModel pOff = segmentPhases(s.t.gx, s.t.gy, nf, 150.0, -1, off, &s.t.phi);
+        check(pOff.bs0 < s.settleLo - 60, "OFF: A2 walks through the fidget too");
         ShaftV3Config on = off; on.onsetReturnBoxPx = 7.0;
-        const PhaseModel pOn = segmentPhases(gx, gy, nf, 150.0, -1, on, &phi);
-        check(std::abs(pOn.bs0 - tk) <= 4, "ON: φ-angle-return veto lands onset at the takeaway");
-        check(pOn.bs0 > pOff.bs0, "ON: onset moved later");
+        const PhaseModel pOn = segmentPhases(s.t.gx, s.t.gy, nf, 150.0, -1, on, &s.t.phi);
+        std::printf("    OFF bs0=%d ON bs0=%d settle=[%d,%d]\n", pOff.bs0, pOn.bs0, s.settleLo, s.settleHi);
+        check(pOn.bs0 >= s.settleLo && pOn.bs0 <= s.settleHi,
+              "ON: veto recovers the settle on the A2 path");
+    }
+
+    // ── (b/e) fragmented backswing: bridging + the bs0 scan horizon ────────────
+    std::printf("=== (b/e) fragmented backswing / top dwell / bridging ===\n");
+    {
+        // Fidget + settle, then a backswing FRAGMENTED into two >swSpd bursts
+        // separated by a short sub-swSpd lull (the lerped-pose fragmentation),
+        // a LONG top dwell (> gap frames, far from address), a downswing run
+        // (the longest), and a follow-through fragment longer than either
+        // backswing fragment — the w2s4-class two-longest mis-pick.
+        FidgetSwing s = makeFidgetSwing(0.6);
+        Track &t = s.t;
+        // strip the canonical swing tail: rebuild from the settle
+        const int keep = s.settleHi + 1;
+        t.gx.resize(keep); t.gy.resize(keep); t.phi.resize(keep);
+        const int frag1 = t.frame() + 1;
+        t.vel(9, 12.0, 12.0, 0, -1, -1.0);           // backswing fragment 1
+        t.vel(6, 2.0, 2.0, 0, -1, -0.8);             // sub-swSpd lull (6 quiet frames)
+        t.vel(9, 12.0, 12.0, 0, -1, -1.0);           // backswing fragment 2
+        const int dwellLo = t.frame() + 1;
+        t.wander(t.gx.back(), t.gy.back(), 26, 0.5, -0.4);  // top dwell (26 f, phi still creeps)
+        const int dwellHi = t.frame();
+        const int downStart = t.frame() + 1;
+        t.vel(10, 1.0, 14.0, 0, +1, +2.0);
+        t.vel(30, 14.0, 14.0, 0, +1, +2.0);          // downswing (longest run)
+        t.vel(8, 14.0, 1.0, 0, +1, +1.0);
+        t.wander(t.gx.back(), t.gy.back(), 8, 0.5, 0.0);
+        t.vel(13, 12.0, 12.0, +1, 0, +0.5);          // follow-through fragment (13 f)
+        t.wander(t.gx.back(), t.gy.back(), 20, 0.5, 0.0);
+        const int nf = int(t.gx.size());
+        const int impact = downStart + 30;
+
+        // (e) bridging: OFF mis-picks the downswing as bs0; ON merges the two
+        // backswing fragments (gap 6 < 10) into a run that wins the ranking.
+        ShaftV3Config veto0; veto0.onsetReturnBoxPx = 0.0;
+        const PhaseModel pNoBr = segmentPhases(t.gx, t.gy, nf, 150.0, impact, veto0, &t.phi);
+        ShaftV3Config br = veto0; br.onsetRunBridgeFrames = 10;
+        const PhaseModel pBr = segmentPhases(t.gx, t.gy, nf, 150.0, impact, br, &t.phi);
+        std::printf("    frag1=%d dwell=[%d,%d] downStart=%d impact=%d | "
+                    "OFF-veto: noBr bs0=%d top=%d  br bs0=%d top=%d\n",
+                    frag1, dwellLo, dwellHi, downStart, impact,
+                    pNoBr.bs0, pNoBr.top, pBr.bs0, pBr.top);
+        check(pNoBr.bs0 < frag1, "no bridge: walk-back from the mis-picked run lands before the fragments");
+        // The ranking observable is `top`: with the mis-pick (downswing +
+        // follow-through win) the top lands AFTER the downswing; with the
+        // fragments bridged into one backswing run it lands in the real dwell.
+        check(pNoBr.top >= downStart, "no bridge: top mis-detected after the downswing (mis-pick documented)");
+        check(pBr.top >= dwellLo && pBr.top <= downStart,
+              "bridge=10: top recovered into the real top dwell (fragments won the ranking)");
+
+        // (b) scan horizon: with bridging ON the veto scan is capped at the
+        // bridged bs0 (fragment side) — the top dwell can never be the boundary.
+        ShaftV3Config both = veto0; both.onsetReturnBoxPx = 7.0; both.onsetRunBridgeFrames = 10;
+        const PhaseModel pBoth = segmentPhases(t.gx, t.gy, nf, 150.0, impact, both, &t.phi);
+        std::printf("    veto+bridge bs0=%d (settle=[%d,%d])\n", pBoth.bs0, s.settleLo, s.settleHi);
+        check(pBoth.bs0 < dwellLo, "veto+bridge: boundary is NOT in the top dwell");
+        check(pBoth.bs0 >= s.settleLo && pBoth.bs0 <= s.settleHi + 2,
+              "veto+bridge: onset lands at the final settle");
+        // Unbridged + veto: the mis-picked bs0 (downswing) puts the dwell in
+        // range, but the A3 near-edge clamp (impact − bsMin) sits BEFORE the
+        // dwell (dwell + downswing < bsMin frames), so the onset still cannot
+        // land inside it — the documented backstop.
+        ShaftV3Config vetoOnly = veto0; vetoOnly.onsetReturnBoxPx = 7.0;
+        const PhaseModel pV = segmentPhases(t.gx, t.gy, nf, 150.0, impact, vetoOnly, &t.phi);
+        std::printf("    veto only (no bridge) bs0=%d\n", pV.bs0);
+        check(pV.bs0 < dwellLo, "veto w/o bridge: A3 backstop keeps the onset out of the top dwell");
     }
 
     // ── (c) slow one-piece creep: the veto must NOT clip a genuine takeaway ────
     std::printf("=== (c) slow one-piece creep ===\n");
     {
-        const int nf = 300;
-        Track tr(nf);
-        const int creep = 50;
-        tr.seg(creep, 110, 0.8, -1, -0.5);          // ~0.8 px/f monotone departure, never returns
-        tr.ramp(110, 128, 0.8, 12.0, -1, -1.5);
-        tr.seg(128, 158, 12.0, -1, -2.0);
-        tr.seg(158, 174, 0.0, 0, 0.0);
-        tr.ramp(174, 184, 0.0, 14.0, +1, +2.0);
-        tr.seg(184, 216, 14.0, +1, +2.0);
-        tr.ramp(216, 222, 14.0, 0.0, +1, +1.0);
-        std::vector<double> gx, gy, phi; tr.build(gx, gy, phi);
-
+        Track t;
+        t.start(700, 620);
+        t.wander(700, 620, 60, 0.8, 0.0);            // still address (low noise)
+        t.vel(70, 0.8, 0.8, 0, -1, -0.4);            // ~0.8 px/f monotone creep, never returns
+        t.vel(18, 0.8, 12.0, 0, -1, -1.5);           // accel into backswing
+        t.vel(30, 12.0, 12.0, 0, -1, -2.0);
+        t.wander(t.gx.back(), t.gy.back(), 16, 0.5, 0.0);   // top hold
+        t.vel(10, 1.0, 14.0, 0, +1, +2.0);
+        t.vel(34, 14.0, 14.0, 0, +1, +2.0);
+        t.vel(6, 14.0, 1.0, 0, +1, +1.0);
+        const int nf = int(t.gx.size());
         const ShaftV3Config off;
-        const PhaseModel pOff = segmentPhases(gx, gy, nf, 150.0, -1, off, &phi);
+        const PhaseModel pOff = segmentPhases(t.gx, t.gy, nf, 150.0, -1, off, &t.phi);
         ShaftV3Config on = off; on.onsetReturnBoxPx = 7.0;
-        const PhaseModel pOn = segmentPhases(gx, gy, nf, 150.0, -1, on, &phi);
-        // a monotone departure never re-enters the box ⇒ no meaningful forward move
-        check(pOn.bs0 <= pOff.bs0 + 2, "ON: creep onset ≤ OFF + 2 (no clipping)");
-        check(pOn.bs0 <= creep + 4, "ON: onset stays at the creep foot, not pushed into the swing");
+        const PhaseModel pOn = segmentPhases(t.gx, t.gy, nf, 150.0, -1, on, &t.phi);
+        std::printf("    OFF bs0=%d ON bs0=%d (creep starts at 61)\n", pOff.bs0, pOn.bs0);
+        check(pOn.bs0 <= pOff.bs0 + 2, "ON: creep onset <= OFF + 2 (no clipping)");
     }
 
     // ── (d) A3 impact clamp wins over the veto ────────────────────────────────
     std::printf("=== (d) A3 clamp wins ===\n");
     {
-        int tk = 0;
-        Track tr = makeFidgetSwing(tk);
-        std::vector<double> gx, gy, phi; tr.build(gx, gy, phi);
-        for (int k = 0; k < 40; ++k) gy[k] = 300.0 + ((k % 2) ? 1.0 : 0.0);
-        const int nf = tr.nf;
-        const int impact = 190;
+        FidgetSwing s = makeFidgetSwing(0.0);
+        const int nf = int(s.t.gx.size());
+        const int impact = s.tkStart + 90;           // inside the downswing
 
-        // veto alone (no impact) parks the onset at the takeaway (~tk).
-        ShaftV3Config free = ShaftV3Config{}; free.onsetReturnBoxPx = 7.0;
-        const PhaseModel pFree = segmentPhases(gx, gy, nf, 150.0, -1, free, &phi);
-        check(std::abs(pFree.bs0 - tk) <= 5, "veto-only onset sits at the takeaway (test non-vacuous)");
+        ShaftV3Config free; free.onsetReturnBoxPx = 7.0;
+        const PhaseModel pFree = segmentPhases(s.t.gx, s.t.gy, nf, 150.0, -1, free, nullptr);
+        check(pFree.bs0 >= s.settleLo, "veto-only onset sits at the settle (test non-vacuous)");
 
-        // now clamp near-edge tight so hiEdge = impact − bsMin lands BEFORE the
-        // veto result — the clamp must override it.
-        ShaftV3Config on = free;
-        on.bsMinBeforeImpactUs = int64_t(double(impact - 60) / 150.0 * 1e6);  // hiEdge ≈ frame 60
-        on.bsMaxBeforeImpactUs = int64_t(double(impact -  0) / 150.0 * 1e6);
-        const PhaseModel pClamp = segmentPhases(gx, gy, nf, 150.0, impact, on, &phi);
+        ShaftV3Config on = free;                     // clamp near edge tight: hiEdge < settleLo
+        on.bsMinBeforeImpactUs = int64_t(double(impact - (s.settleLo - 20)) / 150.0 * 1e6);
+        on.bsMaxBeforeImpactUs = int64_t(double(impact) / 150.0 * 1e6);
+        const PhaseModel pClamp = segmentPhases(s.t.gx, s.t.gy, nf, 150.0, impact, on, nullptr);
         const int framesMin = int(std::lround(double(on.bsMinBeforeImpactUs) * 1e-6 * 150.0));
-        const int hiEdge = std::max(0, impact - framesMin);
+        const int hiEdge = std::max(0, pClamp.impact - framesMin);
+        std::printf("    veto-free=%d impact=%d hiEdge=%d clamped=%d\n",
+                    pFree.bs0, pClamp.impact, hiEdge, pClamp.bs0);
         check(pFree.bs0 > hiEdge, "veto result really violates the near-edge clamp (non-vacuous)");
         check(pClamp.bs0 == hiEdge, "A3 clamp pins the onset to hiEdge (clamp wins over the veto)");
     }
@@ -222,18 +273,18 @@ int main()
     std::printf("=== fromOverrides key plumbing ===\n");
     {
         const ShaftV3Config def = ShaftV3Config::fromOverrides(QVariantMap{});
-        check(def.onsetReturnBoxPx == 0.0 && def.onsetReturnPhiDeg == 1.5
-              && def.onsetReturnStillFrames == 3 && def.emitTakeaway == false,
-              "empty map → frozen dark defaults (veto off, no Takeaway)");
+        check(def.onsetReturnBoxPx == 0.0 && def.onsetReturnGapFrames == 15
+              && def.onsetRunBridgeFrames == 0 && def.emitTakeaway == false,
+              "empty map → frozen dark defaults (veto off, bridge off, no Takeaway)");
         QVariantMap ov;
         ov["shaft.onsetReturnBoxPx"] = 7.0;
-        ov["shaft.onsetReturnPhiDeg"] = 2.5;
-        ov["shaft.onsetReturnStillFrames"] = 5;
+        ov["shaft.onsetReturnGapFrames"] = 20;
+        ov["shaft.onsetRunBridgeFrames"] = 10;
         ov["shaft.emitTakeaway"] = true;
         const ShaftV3Config c = ShaftV3Config::fromOverrides(ov);
-        check(c.onsetReturnBoxPx == 7.0 && c.onsetReturnPhiDeg == 2.5
-              && c.onsetReturnStillFrames == 5 && c.emitTakeaway == true,
-              "shaft.onsetReturn* / shaft.emitTakeaway overrides reach the config");
+        check(c.onsetReturnBoxPx == 7.0 && c.onsetReturnGapFrames == 20
+              && c.onsetRunBridgeFrames == 10 && c.emitTakeaway == true,
+              "shaft.onsetReturn*/onsetRunBridgeFrames/emitTakeaway overrides reach the config");
     }
 
     // ── W2: the additive vision Takeaway event ────────────────────────────────
@@ -271,9 +322,7 @@ int main()
         check(monotone(segOn), "ON: events time-ordered");
         check(segOn.eventFor(Phase::Takeaway)->t_us == tUs[pm.bs0], "ON: Takeaway t_us == bs0 time");
         check(segOn.eventFor(Phase::Address)->t_us <= segOn.eventFor(Phase::Takeaway)->t_us,
-              "ON: Address ≤ Takeaway");
-        // Address defaults to bs0 (no hold end) ⇒ same time; stable_sort keeps
-        // Address before Takeaway.
+              "ON: Address <= Takeaway");
         check(segOn.events[0].phase == Phase::Address && segOn.events[1].phase == Phase::Takeaway,
               "ON: Address ordered before Takeaway at equal time");
 

@@ -54,7 +54,7 @@ visible in a scorecard check (§4).
 | `filter.*` | `RefuseConfig` (`orientation_refuser.h`) | `filter::` | C1→C2→C3 | wrist angles → `xmodal.imu_vision_corr`, `diag.*`, `filter.impact_continuity` |
 | `seed.*` (status **code**) | `kInit*` (`imu_base.h`) | `seed::` | C1 | live filter convergence (offline-unreachable) |
 | `pose.intraOpThreads` | `ShotAnalysisRunnerOptions` / `PoseEstimatorViTPose::load` (`pose_runner.cpp`) | `pp_tuned_constants.h` `pose::` | perf | offline ViTPose ORT intra-op pool → compute wall-time (default 0 = legacy heuristic) |
-| `shaft.onsetReturn*` / `shaft.emitTakeaway` | `ShaftV3Config` (`shaft_track_assembly.h`) | `pp_tuned_constants.h` `shaft::` | C1 | `truth.p1_address`, `seg.tempo_ratio`, Address→Top duration (camera-only fidget swings; all DARK/byte-identical by default) |
+| `shaft.onsetReturn*` / `shaft.onsetRunBridgeFrames` / `shaft.emitTakeaway` | `ShaftV3Config` (`shaft_track_assembly.h`) | `pp_tuned_constants.h` `shaft::` | C1 | `truth.p1_address`, `seg.tempo_ratio`, Address→Top duration (camera-only fidget swings; all DARK/byte-identical by default) |
 | `ball.clubActivity` / `ball.activity*` / `positions.p1ClubQuietSigma` / `ball.tk0AddressOverride` | `BallActivityConfig` (`ball_runner.cpp`) / `PositionsConfig` (`shaft_positions.h`) / `applyBallAnchor` (`ball_anchor.cpp`) | `pp_tuned_constants.h` `ball::activity`, `ball::`, `positions::` | C1 | `truth.p1_address`, Address→Top duration (camera-only club-bob fidget swings; all DARK/tk0-override-ON by default ⇒ byte-identical) |
 
 ### 2.1 `seg.*` — phase segmentation (≈25 keys)
@@ -130,27 +130,44 @@ A **performance** knob only — `0` is byte-identical to history, and the live 6
 untouched (pinned at 1). The topology header is discovered once and cached, so it is cheap per model
 load.
 
-### 2.10 `shaft.onsetReturn*` / `shaft.emitTakeaway` — camera-only Address/Takeaway hardening (C1)
-Frozen in `pp_tuned_constants.h::shaft`, consumed by `ShaftV3Config` (`shaft_track_assembly.h`). Two
-independent camera-only fixes, **both DARK by default** (byte-identical to the pre-fix tracker):
+### 2.10 `shaft.onsetReturn*` / `shaft.onsetRunBridgeFrames` / `shaft.emitTakeaway` — camera-only Address/Takeaway hardening (C1)
+Frozen in `pp_tuned_constants.h::shaft`, consumed by `ShaftV3Config` (`shaft_track_assembly.h`). Three
+independent camera-only fixes, **all DARK by default** (byte-identical to the pre-fix tracker).
+**Retired keys (2026-07-17):** the first-cut anchor-box veto's `shaft.onsetReturnPhiDeg` and
+`shaft.onsetReturnStillFrames` are **gone** — the 17-swing dump diagnosis proved both of its premises
+unsatisfiable on real capture (the lerped-pose grip keeps a 2–4 px/f smoothed-speed floor through every
+fidget settle, so an absolute-rest gate never fires; and the golfer settles into an address **displaced**
+from the pre-fidget stance — 60 px on w1s1 — so an anchor-box return test never fires either; the veto
+fired on 0/17 truth swings). The revisit scan below replaces it and needs neither knob.
 
-- **The "no-return" veto** (`segmentPhases`, W1). The Stage-A onset walk-back (A1 grip speed + A2 φ
-  witness) cannot tell a club bob that *departs* the address point and *returns* from a one-piece
-  takeaway, so on a fidgety address it walks the onset back **through** the whole fidget. The veto runs
-  after A1/A2 and before the A3 impact clamp, and can only move the onset **later**: it takes the last
-  frame in `[onset, bs0]` whose smoothed grip has settled back inside a box around the address anchor
-  (per-coordinate median of smoothed grip over `[0, onset)`) — and, when φ is present, within
-  `onsetReturnPhiDeg` of the address φ — while at rest (`spd < swLow`, `|Δφ| ≤ phiOnsetDegPerFrame`)
-  sustained for `onsetReturnStillFrames` frames.
-  - **`shaft.onsetReturnBoxPx`** (**0.0** = veto OFF, the `swLow<=0` dark idiom). Address-box radius in
-    px; sweep **6–8 px** to enable. A genuine one-piece takeaway never re-enters the box, so its onset
-    is untouched; a mid-swing pause happens *outside* the box ⇒ no veto.
-  - **`shaft.onsetReturnPhiDeg`** (1.5) — φ tolerance for "returned to address" (deg); only used when a
-    φ track is present.
-  - **`shaft.onsetReturnStillFrames`** (3) — the sustained at-rest run length ending at the candidate
-    frame (reuses the A1/A2 thresholds `swLow` / `phiOnsetDegPerFrame`).
+- **The "no-return" veto** (`segmentPhases`). On real capture the A1/A2 walk-back runs through the
+  whole fidget to the deep pre-fidget stillness (0.5–1.5 s early on 12/17 truth swings). The veto runs
+  after A1/A2 and before the A3 impact clamp, can only move the onset **later**, and is
+  **departure-referenced**: `revisit(r) = min dist(gS[f], gS[r])` over `f ∈ [r + gap, bs0]`
+  (`gS = gauss(median5(grip))`); the last `r` with `revisit(r) < onsetReturnBoxPx` is the no-return
+  boundary — the last instant the track ever comes back to. Every fidget settle (and waggle burst) is
+  revisited by the next excursion's return; the takeaway departs for good, so the boundary lands at the
+  final settle. Real-dump validation: w2s6 −214 → **+13 ms**, w1s1 −516 → **+67 ms**, w2s4 (with
+  bridging) +744 → **+74 ms** vs truth P1.
+  - **`shaft.onsetReturnBoxPx`** (**0.0** = veto OFF, the `swLow<=0` dark idiom). Revisit radius in px;
+    sweep **6–8 px** to enable.
+  - **`shaft.onsetReturnGapFrames`** (15) — forward exclusion (~100 ms @150 fps) before a revisit
+    counts, so a frame isn't "revisited" by its own dwell. Coupling: a slow one-piece creep advances
+    `creepSpeed × gap` px per window, so the box must stay below that to not clip it (box 7 / gap 15
+    tolerates creep ≥ ~0.6 px/f).
+  - The scan horizon is `bs0` — the selected (post-bridging) run start — so the revisit test never sees
+    the top dwell (which revisits itself); bridging is what makes `bs0` the true takeaway run on
+    fragmented backswings, and the A3 clamp is the backstop for an unbridged mis-pick.
   - Side effect (gated): `estimateSwingSpanUs` shares `segmentPhases`, so the veto also tightens the
     pose/shaft span bound on fidget swings.
+- **`shaft.onsetRunBridgeFrames`** (**0** = OFF; recommended-on value **~10** for the sweep). Merges
+  min-length-qualified `>swSpd` runs separated by fewer than this many quiet frames before the
+  two-longest ranking. A slow real backswing fragments into short bursts on the lerped-pose speed
+  profile and loses the ranking to a follow-through fragment — `bs0` then lands at the top/downswing
+  (w2s4: Takeaway/top/impact all mis-placed; bridging alone recovered +744 → +74 ms). Deliberately
+  applied AFTER the ≥7-frame filter: letting sub-7 waggle bursts participate chains a fidget cluster
+  into a false run that wins the race and disables the veto (observed on w2s6). Separate key from the
+  veto so the evaluation can separate their effects.
 - **`shaft.emitTakeaway`** (**false** = OFF; W2). When on, `phasesToSegmentation` emits an additive
   vision **Takeaway** event at `bs0` (the motion onset); the ladder becomes
   `{Address, Takeaway, Top, Impact, Finish}`. Address stays on the hold-end / `addressFrame` path, and

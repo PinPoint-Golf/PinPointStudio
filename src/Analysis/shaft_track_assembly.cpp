@@ -298,8 +298,8 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.bsMinBeforeImpactUs", c.bsMinBeforeImpactUs);
     apply(ov, "shaft.bsMaxBeforeImpactUs", c.bsMaxBeforeImpactUs);
     apply(ov, "shaft.onsetReturnBoxPx", c.onsetReturnBoxPx);
-    apply(ov, "shaft.onsetReturnPhiDeg", c.onsetReturnPhiDeg);
-    apply(ov, "shaft.onsetReturnStillFrames", c.onsetReturnStillFrames);
+    apply(ov, "shaft.onsetReturnGapFrames", c.onsetReturnGapFrames);
+    apply(ov, "shaft.onsetRunBridgeFrames", c.onsetRunBridgeFrames);
     apply(ov, "shaft.emitTakeaway", c.emitTakeaway);
     apply(ov, "shaft.runMaxStartAfterImpactUs", c.runMaxStartAfterImpactUs);
     apply(ov, "shaft.spanBound", c.spanBound);
@@ -419,6 +419,26 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
             f = g + 1;
         } else ++f;
     }
+    // Run bridging (dark: 0 = off): merge min-length-QUALIFIED runs separated by
+    // fewer than onsetRunBridgeFrames quiet frames, BEFORE the two-longest
+    // ranking. A slow real backswing fragments into short bursts on the
+    // lerped-pose speed profile and loses the two-longest race to a
+    // follow-through fragment — bs0 then lands at the top/downswing (w2s4-class
+    // mis-pick). Deliberately AFTER the >=7-frame filter: letting sub-7 waggle
+    // bursts participate chains a fidget waggle cluster into a false "run" that
+    // wins the race and parks bs0 mid-fidget, disabling the no-return veto
+    // (observed on the w2s6 dump — veto-only +13 ms, sub-7-chained bridging
+    // regressed it to the unfixed -214 ms).
+    if (cfg.onsetRunBridgeFrames > 0 && runs.size() > 1) {
+        std::vector<std::pair<int, int>> merged{ runs.front() };
+        for (size_t i = 1; i < runs.size(); ++i) {
+            if (runs[i].first - merged.back().second - 1 < cfg.onsetRunBridgeFrames)
+                merged.back().second = runs[i].second;
+            else
+                merged.push_back(runs[i]);
+        }
+        runs = std::move(merged);
+    }
     // Run-candidacy clamp: with a supplied impact, a run that STARTS more than
     // runMaxStartAfterImpactUs after it cannot be backswing or downswing — drop
     // it so post-finish motion at the window tail never wins a two-longest slot
@@ -485,13 +505,10 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
         int onsetSpd = bs0;
         while (onsetSpd > 0 && spdS[onsetSpd] >= cfg.swLow) --onsetSpd;
         onset = onsetSpd;
-        // φ presence (size-checked) — shared by A2's witness and the veto's
-        // inBox angle term below.
-        const bool phiPresent = phiSmoothed && int(phiSmoothed->size()) == nf;
         // A2: φ-onset witness — the lead forearm rotates before the grip moves.
         // Smooth wrap-aware |Δφ| the same way as speed (median5 + gauss2) and
         // walk back from the ORIGINAL bs0 while it stays above threshold.
-        if (phiPresent && cfg.phiOnsetDegPerFrame > 0.0) {
+        if (phiSmoothed && cfg.phiOnsetDegPerFrame > 0.0 && int(phiSmoothed->size()) == nf) {
             const std::vector<double>& phi = *phiSmoothed;
             std::vector<double> dphi(nf, 0.0);
             for (int f = 1; f < nf; ++f) dphi[f] = std::abs(circWrap(phi[f] - phi[f - 1]));
@@ -500,62 +517,40 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
             while (onsetPhi > 0 && dphiS[onsetPhi] > cfg.phiOnsetDegPerFrame) --onsetPhi;
             onset = std::min(onset, onsetPhi);
         }
-        // No-return veto (fidget-proofing, W1). A1/A2 walk back through ANY
-        // sub-threshold motion, including a club bob that DEPARTS the address
-        // point and RETURNS — the onset then lands mid-fidget. This pass can only
-        // move the onset LATER: it takes the LAST frame in [onset, bs0] whose
-        // smoothed grip has settled back inside a box around the address anchor
-        // AND is at rest, i.e. the last place the club returned to address before
-        // departing for good. A genuine one-piece takeaway never re-enters the
-        // box, so its onset is untouched; a mid-swing pause happens OUTSIDE the
-        // box ⇒ no veto. onsetReturnBoxPx <= 0 disables the whole block (the
-        // swLow<=0 dark idiom) — byte-identical to the pre-veto onset.
+        // No-return veto (fidget-proofing). A1/A2 walk back through ANY
+        // sub-threshold motion — and on real capture the lerped-pose grip keeps
+        // a 2–4 px/f smoothed-speed floor through every fidget settle, so the
+        // walk-back runs 0.5–1.5 s past the true takeaway to the deep pre-fidget
+        // stillness. This pass can only move the onset LATER, via a DEPARTURE-
+        // REFERENCED revisit scan: a frame the track later comes back to (within
+        // onsetReturnBoxPx, at least onsetReturnGapFrames ahead — excluding the
+        // immediate dwell) is pre-departure fidget; the LAST such frame is the
+        // no-return boundary, after which the grip departs for good (the
+        // takeaway). No address anchor and no absolute-rest gate — the golfer
+        // settles into an address DISPLACED from the pre-fidget stance, and true
+        // grip rest never happens on the lerped signal (both premises of the
+        // retired anchor-box veto were unsatisfiable on the 17-swing truth set).
+        // The scan horizon is bs0 — the selected (post-bridging) run start, the
+        // takeaway-run candidate — so the revisit test never sees the top dwell
+        // (which revisits itself); onsetRunBridgeFrames is what makes bs0 the
+        // true takeaway run on fragmented backswings, and the A3 clamp below is
+        // the backstop for an unbridged mis-pick. onsetReturnBoxPx <= 0 disables
+        // the whole block (the swLow<=0 dark idiom) — byte-identical onset.
         if (cfg.onsetReturnBoxPx > 0.0) {
-            // Smoothed grip position (gauss(median5), the spd/joint convention).
-            const std::vector<double> gxS = gaussianFilter1d(medianFilter1d(gx, 5), 2.0);
-            const std::vector<double> gyS = gaussianFilter1d(medianFilter1d(gy, 5), 2.0);
-            // np.median with the even-count mean-of-two-middle (the addrGy idiom).
-            auto medianOf = [](std::vector<double> v) -> double {
-                const size_t h = v.size() / 2;
-                std::nth_element(v.begin(), v.begin() + h, v.end());
-                double m = v[h];
-                if (v.size() % 2 == 0)
-                    m = 0.5 * (*std::max_element(v.begin(), v.begin() + h) + m);
-                return m;
-            };
-            // Address anchor = per-coordinate median of smoothed grip over the
-            // pre-onset hold [0, onset); aPhi likewise when φ is present.
-            const int anchorHi = std::max(onset, 1);
-            const double aGx = medianOf(std::vector<double>(gxS.begin(), gxS.begin() + anchorHi));
-            const double aGy = medianOf(std::vector<double>(gyS.begin(), gyS.begin() + anchorHi));
-            const double aPhi = phiPresent
-                ? medianOf(std::vector<double>(phiSmoothed->begin(), phiSmoothed->begin() + anchorHi))
-                : 0.0;
-            // inBox carries the RETURN discrimination: the smoothed grip is back
-            // inside the address box AND — when φ is present — the club has swung
-            // back near the address ANGLE (|φ − aφ| small). A bob returns to the
-            // address angle even mid-return (when |Δφ| is high), so the angle test,
-            // not the φ-RATE, is what proves "the club came back".
-            auto inBox = [&](int f) -> bool {
-                if (std::hypot(gxS[f] - aGx, gyS[f] - aGy) >= cfg.onsetReturnBoxPx) return false;
-                return !phiPresent
-                       || std::abs(circWrap((*phiSmoothed)[f] - aPhi)) < cfg.onsetReturnPhiDeg;
-            };
-            // atRest gates on the GRIP being static (spdS < swLow, sustained), the
-            // literal reading of Mark's estimand — "Address = the last STATIC point"
-            // — where static means the hands have settled, not that the club has
-            // stopped waggling. (The φ WITNESS drives A2's over-reach through the
-            // fidget; requiring φ ALSO be at rest here would only re-stop where A2
-            // already stopped, so the veto could never recover the settle. See the
-            // header contract note.)
-            auto atRest = [&](int f) -> bool {
-                if (f - (cfg.onsetReturnStillFrames - 1) < 0) return false;
-                for (int g = f - (cfg.onsetReturnStillFrames - 1); g <= f; ++g)
-                    if (spdS[g] >= cfg.swLow) return false;
-                return true;
-            };
-            for (int f = bs0; f >= onset; --f)
-                if (inBox(f) && atRest(f)) { onset = f; break; }
+            const int gap = std::max(1, cfg.onsetReturnGapFrames);
+            if (bs0 - gap > onset) {
+                // Smoothed grip position (gauss(median5), the spd/joint convention).
+                const std::vector<double> gxS = gaussianFilter1d(medianFilter1d(gx, 5), 2.0);
+                const std::vector<double> gyS = gaussianFilter1d(medianFilter1d(gy, 5), 2.0);
+                int boundary = -1;
+                for (int r = onset; r <= bs0 - gap; ++r) {
+                    double mn = std::numeric_limits<double>::infinity();
+                    for (int f = r + gap; f <= bs0; ++f)
+                        mn = std::min(mn, std::hypot(gxS[f] - gxS[r], gyS[f] - gyS[r]));
+                    if (mn < cfg.onsetReturnBoxPx) boundary = r;
+                }
+                if (boundary > onset) onset = boundary;
+            }
         }
         // A3: impact-anchored clamp (the safety rail). Only when a real impact
         // frame was supplied — a hands-derived impf must not clamp its own

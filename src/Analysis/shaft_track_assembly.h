@@ -141,40 +141,48 @@ struct ShaftV3Config {
     int64_t bsMinBeforeImpactUs = 550000; // A3 onset clamp, near edge (impact − this)
     int64_t bsMaxBeforeImpactUs = 1600000;// A3 onset clamp, far edge (impact − this)
     // Stage A "no-return" veto (fidget-proofing, defaults in pp_tuned_constants.h
-    // shaft::). A1/A2 walk the onset back through ANY sub-threshold motion; in
-    // particular the φ witness (A2) walks back through a club bob whose grip has
-    // already settled (the club rotates about the still wrist), landing the onset
-    // mid-fidget instead of at the true takeaway. Run AFTER A1/A2 and BEFORE the
-    // A3 clamp, this veto can only move the onset LATER: it takes the LAST frame
-    // in [onset, bs0] that is BOTH
-    //   • inBox — the SMOOTHED grip is within onsetReturnBoxPx of the address
-    //     anchor (per-coordinate median of smoothed grip over [0, onset)) AND,
-    //     when φ is present, the club has swung back within onsetReturnPhiDeg of
-    //     the address φ (the RETURN discriminator — a bob returns to the address
-    //     angle even while |Δφ| is high, so it is the angle, not the rate, that
-    //     proves the club came back), AND
-    //   • atRest — the GRIP is static (spdS < swLow) sustained for
-    //     onsetReturnStillFrames frames. This is the literal reading of the
-    //     estimand ("Address = the last STATIC point"): the HANDS have settled,
-    //     even if the club is still waggling.
-    // A genuine one-piece takeaway never re-enters the box, so its onset is
-    // untouched; a bob re-enters the box at rest between excursions and the last
-    // such settle wins. onsetReturnBoxPx <= 0 disables the whole block (the
-    // swLow<=0 dark idiom) — byte-identical to the pre-veto onset. Side effect
-    // (gated): estimateSwingSpanUs shares segmentPhases, so the veto also tightens
-    // the pose/shaft span bound on fidget swings.
-    // NOTE (deviation from the plan's literal atRest, which also required
-    // dphiS ≤ phiOnsetDegPerFrame): gating atRest on the φ RATE as well makes the
-    // veto a provable no-op (it could only re-stop where A2 already stopped), so
-    // the φ condition lives in inBox's angle term instead.
-    double  onsetReturnBoxPx       = tuned::shaft::kOnsetReturnBoxPx;       // px radius of the address box (0 = veto off)
-    double  onsetReturnPhiDeg      = tuned::shaft::kOnsetReturnPhiDeg;      // φ tolerance for "returned to address" (deg)
-    int     onsetReturnStillFrames = tuned::shaft::kOnsetReturnStillFrames;// sustained at-rest run length ending at the candidate
+    // shaft::). On real capture the lerped-pose grip keeps a 2–4 px/f smoothed
+    // speed floor through every fidget settle, so A1 walks the onset back through
+    // the WHOLE fidget to the deep pre-fidget stillness (and A2's φ witness walks
+    // further still) — 0.5–1.5 s early against the truth annotations. The veto
+    // runs AFTER A1/A2 and BEFORE the A3 clamp and can only move the onset
+    // LATER, via a DEPARTURE-REFERENCED revisit scan (no address anchor, no
+    // absolute rest gate — both premises were unsatisfiable on real capture: the
+    // golfer settles into an address DISPLACED from the pre-fidget stance, and
+    // true grip rest never happens):
+    //   revisit(r) = min dist(gS[f], gS[r]) over f ∈ [r + onsetReturnGapFrames,
+    //   bs0], gS = gauss(median5(grip)); the veto takes the LAST r in
+    //   [onset, bs0 − gap] with revisit(r) < onsetReturnBoxPx — the last instant
+    //   the track ever comes back to. Every fidget settle (and waggle burst) is
+    //   revisited by the next excursion's return; the takeaway departs for good,
+    //   so the boundary lands at the final settle. The scan horizon is bs0 — the
+    //   selected (post-bridging) run start, i.e. the takeaway-run candidate — so
+    //   the revisit test never sees the top dwell (which revisits itself);
+    //   onsetRunBridgeFrames is what makes bs0 the true takeaway run on
+    //   fragmented backswings, and the A3 clamp remains the backstop for an
+    //   unbridged mis-pick (where the walked-back onset also sits near bs0, so
+    //   the gap guard usually empties the scan anyway).
+    // onsetReturnBoxPx <= 0 disables the whole block (the swLow<=0 dark idiom) —
+    // byte-identical to the pre-veto onset. Box/gap coupling: a slow one-piece
+    // creep advances creepSpeed×gap px per exclusion window, so the box must stay
+    // below that to not clip it (box 7 / gap 15 tolerates creep ≥ ~0.6 px/f).
+    // Side effect (gated): estimateSwingSpanUs shares segmentPhases, so the veto
+    // also tightens the pose/shaft span bound on fidget swings.
+    double  onsetReturnBoxPx     = tuned::shaft::kOnsetReturnBoxPx;     // revisit radius (px); 0 = veto off
+    int     onsetReturnGapFrames = tuned::shaft::kOnsetReturnGapFrames; // forward exclusion before a revisit counts
+    // Run bridging (C): merge >swSpd runs separated by fewer than this many
+    // quiet frames BEFORE the min-length filter and the two-longest ranking. A
+    // slow real backswing fragments into short bursts on the lerped-pose speed
+    // profile and loses the two-longest race to follow-through fragments — bs0
+    // then lands at the top/downswing. 0 = off (dark, byte-identical);
+    // recommended ~10 for the sweep. Separate key so its effect is separable
+    // from the veto in the evaluation.
+    int     onsetRunBridgeFrames = tuned::shaft::kOnsetRunBridgeFrames;
     // Additive vision Takeaway event (phasesToSegmentation, W2). false ⇒ the
     // {Address,Top,Impact,Finish} ladder is emitted unchanged; true ⇒ a Takeaway
     // event is added at bs0 (the motion onset). Separate key from the veto above
     // (disjoint failure modes: onset PLACEMENT vs event-SET change).
-    bool    emitTakeaway           = tuned::shaft::kEmitTakeaway;
+    bool    emitTakeaway         = tuned::shaft::kEmitTakeaway;
     // Run-candidacy clamp (same supplied-impact guard as A3): a motion run that
     // STARTS later than impact + this cannot be a swing phase, so it must not
     // compete with a fragmented backswing for the two-longest-runs slots (post-

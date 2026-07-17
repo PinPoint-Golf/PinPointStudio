@@ -287,24 +287,33 @@ inline constexpr std::int64_t kAddrWindowUs  = 250000;  // ±window about the Ad
 
 // --- Shaft onset segmentation (src/Analysis/shaft_track_assembly.cpp) ----------
 // Camera-only Address/Takeaway hardening (fidget-proofing). The Stage-A onset
-// walk-back (A1 grip speed + A2 φ witness) cannot tell a club bob that DEPARTS
-// the address point and RETURNS from a one-piece takeaway, so on a fidgety
-// address it walks the onset back THROUGH the whole fidget. The "no-return"
-// veto post-processes onset = min(A1, A2) and can only push it LATER — to the
-// last frame that settled back INSIDE a box around the address anchor while at
-// rest (the last place the club returned to address before departing for good).
-// A genuine one-piece takeaway never re-enters the box, so its onset is
-// untouched. Consumed by ShaftV3Config (shaft_track_assembly.h); SwingLab sweeps
-// "shaft.onsetReturn*". kOnsetReturnBoxPx = 0 disables the veto (the swLow<=0
-// dark idiom) so onset is byte-identical to the pre-veto tracker; sweep 6–8 px
-// to enable. kEmitTakeaway gates the additive vision Takeaway event at bs0
-// (phasesToSegmentation) — dark ⇒ the {Address,Top,Impact,Finish} ladder is
-// unchanged.
+// walk-back (A1 grip speed + A2 φ witness) cannot tell fidget motion that
+// DEPARTS and RETURNS from a one-piece takeaway, so on a fidgety address it
+// walks the onset back THROUGH the whole fidget (real capture: the lerped-pose
+// grip keeps 2–4 px/f smoothed speed through every fidget settle, so A1 only
+// stops at the DEEP pre-fidget stillness — 0.5–1.5 s early on the 17-swing
+// truth set). The "no-return" veto post-processes onset = min(A1, A2) with a
+// departure-referenced revisit scan and can only push the onset LATER — to the
+// last frame whose own grip position the track ever comes back to before the
+// takeaway run (everything after departs for good). No absolute-rest gate and
+// no address anchor: both were unsatisfiable on real capture (the golfer
+// settles into an address DISPLACED from the pre-fidget stance; true grip rest
+// never happens). Consumed by ShaftV3Config (shaft_track_assembly.h); SwingLab
+// sweeps "shaft.onsetReturn*"/"shaft.onsetRunBridgeFrames". (The 2026-07-17
+// anchor-box veto's kOnsetReturnPhiDeg / kOnsetReturnStillFrames are RETIRED —
+// the revisit scan needs neither.)
 namespace shaft {
-inline constexpr double kOnsetReturnBoxPx       = 0.0;   // 0 ⇒ veto OFF (dark); px radius of the address box
-inline constexpr double kOnsetReturnPhiDeg      = 1.5;   // φ within this of the address φ still counts as "returned"
-inline constexpr int    kOnsetReturnStillFrames = 3;     // sustained at-rest run length ending at the candidate frame
-inline constexpr bool   kEmitTakeaway           = false; // additive vision Takeaway event at bs0 (dark)
+inline constexpr double kOnsetReturnBoxPx     = 0.0;   // 0 ⇒ veto OFF (dark); revisit radius (px); sweep 6–8
+inline constexpr int    kOnsetReturnGapFrames = 15;    // forward exclusion before a revisit counts (~100 ms @150fps)
+// Run bridging for the two-longest-runs picker: merge >swSpd runs separated by
+// fewer than this many quiet frames BEFORE ranking, so a slow backswing that
+// the lerped-pose speed profile fragments into short bursts still competes as
+// one run (w2s4-class mis-pick: a 14-frame follow-through fragment beat two
+// 9-frame backswing fragments and bs0 landed at the DOWNSWING). 0 = off
+// (dark); recommended-on value ~10 for the sweep. Separate key from the veto
+// so its effect is separable in the evaluation.
+inline constexpr int    kOnsetRunBridgeFrames = 0;
+inline constexpr bool   kEmitTakeaway         = false; // additive vision Takeaway event at bs0 (dark)
 } // namespace shaft
 
 } // namespace pinpoint::tuned

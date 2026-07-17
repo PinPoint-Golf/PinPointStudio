@@ -154,36 +154,39 @@ int main()
         check(intraOp == -1, "pose.intraOpThreads = -1 (topology auto) resolves");
     }
 
-    std::printf("--- shaft.* onset no-return veto + Takeaway event (segmentPhases seam) ---\n");
+    std::printf("--- shaft.* onset no-return veto + bridging + Takeaway event (segmentPhases seam) ---\n");
 
     // 8. The four camera-only Address/Takeaway knobs resolve onto their frozen-
     //    constant-seeded locals — the exact seam ShaftV3Config::fromOverrides uses
     //    (seed from tuned::shaft::k*, then tuning::apply the override). Empty map ⇒
-    //    the DARK defaults (box 0 = veto off, emitTakeaway false) so segmentPhases /
-    //    phasesToSegmentation stay byte-identical to the pre-veto tracker.
+    //    the DARK defaults (box 0 = veto off, bridge 0 = off, emitTakeaway false)
+    //    so segmentPhases / phasesToSegmentation stay byte-identical to the
+    //    pre-veto tracker. (The retired anchor-box veto's shaft.onsetReturnPhiDeg /
+    //    shaft.onsetReturnStillFrames keys are GONE — the departure-referenced
+    //    revisit scan needs neither.)
     {
-        double boxPx = pinpoint::tuned::shaft::kOnsetReturnBoxPx;
-        double phiDeg = pinpoint::tuned::shaft::kOnsetReturnPhiDeg;
-        int    still  = pinpoint::tuned::shaft::kOnsetReturnStillFrames;
-        bool   emitTk   = pinpoint::tuned::shaft::kEmitTakeaway;
+        double boxPx  = pinpoint::tuned::shaft::kOnsetReturnBoxPx;
+        int    gapF   = pinpoint::tuned::shaft::kOnsetReturnGapFrames;
+        int    bridge = pinpoint::tuned::shaft::kOnsetRunBridgeFrames;
+        bool   emitTk = pinpoint::tuned::shaft::kEmitTakeaway;
         tuning::apply(QVariantMap{}, "shaft.onsetReturnBoxPx", boxPx);
-        tuning::apply(QVariantMap{}, "shaft.onsetReturnPhiDeg", phiDeg);
-        tuning::apply(QVariantMap{}, "shaft.onsetReturnStillFrames", still);
+        tuning::apply(QVariantMap{}, "shaft.onsetReturnGapFrames", gapF);
+        tuning::apply(QVariantMap{}, "shaft.onsetRunBridgeFrames", bridge);
         tuning::apply(QVariantMap{}, "shaft.emitTakeaway", emitTk);
-        check(boxPx == 0.0 && phiDeg == 1.5 && still == 3 && emitTk == false,
-              "empty map → shaft onset/Takeaway frozen defaults (all dark)");
+        check(boxPx == 0.0 && gapF == 15 && bridge == 0 && emitTk == false,
+              "empty map → shaft onset/bridge/Takeaway frozen defaults (all dark)");
 
         QVariantMap ov;
         ov["shaft.onsetReturnBoxPx"] = 7.0;
-        ov["shaft.onsetReturnPhiDeg"] = 2.5;
-        ov["shaft.onsetReturnStillFrames"] = 5;
+        ov["shaft.onsetReturnGapFrames"] = 20;
+        ov["shaft.onsetRunBridgeFrames"] = 10;
         ov["shaft.emitTakeaway"] = true;
         tuning::apply(ov, "shaft.onsetReturnBoxPx", boxPx);
-        tuning::apply(ov, "shaft.onsetReturnPhiDeg", phiDeg);
-        tuning::apply(ov, "shaft.onsetReturnStillFrames", still);
+        tuning::apply(ov, "shaft.onsetReturnGapFrames", gapF);
+        tuning::apply(ov, "shaft.onsetRunBridgeFrames", bridge);
         tuning::apply(ov, "shaft.emitTakeaway", emitTk);
-        check(boxPx == 7.0 && phiDeg == 2.5 && still == 5 && emitTk == true,
-              "shaft onset/Takeaway overrides reach their fromOverrides seam");
+        check(boxPx == 7.0 && gapF == 20 && bridge == 10 && emitTk == true,
+              "shaft onset/bridge/Takeaway overrides reach their fromOverrides seam");
     }
 
     std::printf("--- ball.* club-activity + positions.p1ClubQuietSigma + ball.tk0AddressOverride (W3/W4) ---\n");
