@@ -92,6 +92,14 @@ int main()
     check(t::pose::confScale::kFeet == 1.0 && t::pose::confScale::kFace == 1.0
           && t::pose::confScale::kHands == 1.0, "pose::confScale defaults == 1.0");
 
+    // W3/W4 club-activity + tk0 A/B + club-quiet σ. The dark defaults (activity
+    // OFF, tk0 override ON) are what keep BallRunner/swing.json byte-identical.
+    check(t::ball::activity::kClubActivity == false && t::ball::activity::kActivityRefFrames == 9
+          && t::ball::activity::kActivityInnerR == 1.5 && t::ball::activity::kActivityOuterR == 5.0,
+          "ball::activity defaults == (false,9,1.5,5.0)");
+    check(t::ball::kTk0AddressOverride == true, "ball::kTk0AddressOverride == true");
+    check(t::positions::kP1ClubQuietSigma == 3.0, "positions::kP1ClubQuietSigma == 3.0");
+
     // --- Default-constructed consumers match their pre-refactor defaults ---------
     check(MadgwickFilter().beta() == 0.05f, "MadgwickFilter() default beta == 0.05");
 

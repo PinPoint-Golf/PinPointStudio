@@ -154,6 +154,81 @@ int main()
         check(intraOp == -1, "pose.intraOpThreads = -1 (topology auto) resolves");
     }
 
+    std::printf("--- shaft.* onset no-return veto + Takeaway event (segmentPhases seam) ---\n");
+
+    // 8. The four camera-only Address/Takeaway knobs resolve onto their frozen-
+    //    constant-seeded locals — the exact seam ShaftV3Config::fromOverrides uses
+    //    (seed from tuned::shaft::k*, then tuning::apply the override). Empty map ⇒
+    //    the DARK defaults (box 0 = veto off, emitTakeaway false) so segmentPhases /
+    //    phasesToSegmentation stay byte-identical to the pre-veto tracker.
+    {
+        double boxPx = pinpoint::tuned::shaft::kOnsetReturnBoxPx;
+        double phiDeg = pinpoint::tuned::shaft::kOnsetReturnPhiDeg;
+        int    still  = pinpoint::tuned::shaft::kOnsetReturnStillFrames;
+        bool   emitTk   = pinpoint::tuned::shaft::kEmitTakeaway;
+        tuning::apply(QVariantMap{}, "shaft.onsetReturnBoxPx", boxPx);
+        tuning::apply(QVariantMap{}, "shaft.onsetReturnPhiDeg", phiDeg);
+        tuning::apply(QVariantMap{}, "shaft.onsetReturnStillFrames", still);
+        tuning::apply(QVariantMap{}, "shaft.emitTakeaway", emitTk);
+        check(boxPx == 0.0 && phiDeg == 1.5 && still == 3 && emitTk == false,
+              "empty map → shaft onset/Takeaway frozen defaults (all dark)");
+
+        QVariantMap ov;
+        ov["shaft.onsetReturnBoxPx"] = 7.0;
+        ov["shaft.onsetReturnPhiDeg"] = 2.5;
+        ov["shaft.onsetReturnStillFrames"] = 5;
+        ov["shaft.emitTakeaway"] = true;
+        tuning::apply(ov, "shaft.onsetReturnBoxPx", boxPx);
+        tuning::apply(ov, "shaft.onsetReturnPhiDeg", phiDeg);
+        tuning::apply(ov, "shaft.onsetReturnStillFrames", still);
+        tuning::apply(ov, "shaft.emitTakeaway", emitTk);
+        check(boxPx == 7.0 && phiDeg == 2.5 && still == 5 && emitTk == true,
+              "shaft onset/Takeaway overrides reach their fromOverrides seam");
+    }
+
+    std::printf("--- ball.* club-activity + positions.p1ClubQuietSigma + ball.tk0AddressOverride (W3/W4) ---\n");
+
+    // 9. The W3 club-activity producer knobs (BallActivityConfig::fromOverrides),
+    //    the W3 club-quiet consumer gate (PositionsConfig via ShaftV3Config::
+    //    fromOverrides) and the W4 tk0 A/B key (applyBallAnchor) resolve onto their
+    //    frozen-constant-seeded locals — the exact seam each fromOverrides uses.
+    //    Empty map ⇒ the DARK defaults (activity off, tk0 override ON = today), so
+    //    BallRunner/addressHoldEndFrame/applyBallAnchor stay byte-identical.
+    {
+        bool   act    = pinpoint::tuned::ball::activity::kClubActivity;
+        int    refF   = pinpoint::tuned::ball::activity::kActivityRefFrames;
+        double innerR = pinpoint::tuned::ball::activity::kActivityInnerR;
+        double outerR = pinpoint::tuned::ball::activity::kActivityOuterR;
+        double quietS = pinpoint::tuned::positions::kP1ClubQuietSigma;
+        bool   tk0Ov  = pinpoint::tuned::ball::kTk0AddressOverride;
+        tuning::apply(QVariantMap{}, "ball.clubActivity", act);
+        tuning::apply(QVariantMap{}, "ball.activityRefFrames", refF);
+        tuning::apply(QVariantMap{}, "ball.activityInnerR", innerR);
+        tuning::apply(QVariantMap{}, "ball.activityOuterR", outerR);
+        tuning::apply(QVariantMap{}, "positions.p1ClubQuietSigma", quietS);
+        tuning::apply(QVariantMap{}, "ball.tk0AddressOverride", tk0Ov);
+        check(act == false && refF == 9 && innerR == 1.5 && outerR == 5.0
+              && quietS == 3.0 && tk0Ov == true,
+              "empty map → W3/W4 frozen defaults (activity dark, tk0 override on)");
+
+        QVariantMap ov;
+        ov["ball.clubActivity"] = true;
+        ov["ball.activityRefFrames"] = 5;
+        ov["ball.activityInnerR"] = 2.0;
+        ov["ball.activityOuterR"] = 6.0;
+        ov["positions.p1ClubQuietSigma"] = 2.0;
+        ov["ball.tk0AddressOverride"] = false;
+        tuning::apply(ov, "ball.clubActivity", act);
+        tuning::apply(ov, "ball.activityRefFrames", refF);
+        tuning::apply(ov, "ball.activityInnerR", innerR);
+        tuning::apply(ov, "ball.activityOuterR", outerR);
+        tuning::apply(ov, "positions.p1ClubQuietSigma", quietS);
+        tuning::apply(ov, "ball.tk0AddressOverride", tk0Ov);
+        check(act == true && refF == 5 && innerR == 2.0 && outerR == 6.0
+              && quietS == 2.0 && tk0Ov == false,
+              "W3/W4 overrides reach their fromOverrides seams");
+    }
+
     std::printf("\n=== %s (%d failures) ===\n", g_fail ? "FAILURES" : "ALL PASS", g_fail);
     return g_fail ? 1 : 0;
 }

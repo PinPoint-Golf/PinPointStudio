@@ -26,6 +26,7 @@
 
 #include <opencv2/core.hpp>
 
+#include "../Core/pp_tuned_constants.h"  // tuned::shaft:: (Stage-A no-return veto + Takeaway defaults)
 #include "shaft_tracker_math.h"    // RidgeConfig, BandMatchConfig, BandMatch
 #include "swing_analysis.h"        // ShaftTrack2D / ShaftSample2D / ClubLengthEstimate / flags
 #include "clubhead_track.h"        // ClubheadConfig (Stage-2 head measurement)
@@ -139,6 +140,41 @@ struct ShaftV3Config {
     double  phiOnsetDegPerFrame = 0.25;   // A2 φ-witness sustained-motion threshold (0 = φ witness off)
     int64_t bsMinBeforeImpactUs = 550000; // A3 onset clamp, near edge (impact − this)
     int64_t bsMaxBeforeImpactUs = 1600000;// A3 onset clamp, far edge (impact − this)
+    // Stage A "no-return" veto (fidget-proofing, defaults in pp_tuned_constants.h
+    // shaft::). A1/A2 walk the onset back through ANY sub-threshold motion; in
+    // particular the φ witness (A2) walks back through a club bob whose grip has
+    // already settled (the club rotates about the still wrist), landing the onset
+    // mid-fidget instead of at the true takeaway. Run AFTER A1/A2 and BEFORE the
+    // A3 clamp, this veto can only move the onset LATER: it takes the LAST frame
+    // in [onset, bs0] that is BOTH
+    //   • inBox — the SMOOTHED grip is within onsetReturnBoxPx of the address
+    //     anchor (per-coordinate median of smoothed grip over [0, onset)) AND,
+    //     when φ is present, the club has swung back within onsetReturnPhiDeg of
+    //     the address φ (the RETURN discriminator — a bob returns to the address
+    //     angle even while |Δφ| is high, so it is the angle, not the rate, that
+    //     proves the club came back), AND
+    //   • atRest — the GRIP is static (spdS < swLow) sustained for
+    //     onsetReturnStillFrames frames. This is the literal reading of the
+    //     estimand ("Address = the last STATIC point"): the HANDS have settled,
+    //     even if the club is still waggling.
+    // A genuine one-piece takeaway never re-enters the box, so its onset is
+    // untouched; a bob re-enters the box at rest between excursions and the last
+    // such settle wins. onsetReturnBoxPx <= 0 disables the whole block (the
+    // swLow<=0 dark idiom) — byte-identical to the pre-veto onset. Side effect
+    // (gated): estimateSwingSpanUs shares segmentPhases, so the veto also tightens
+    // the pose/shaft span bound on fidget swings.
+    // NOTE (deviation from the plan's literal atRest, which also required
+    // dphiS ≤ phiOnsetDegPerFrame): gating atRest on the φ RATE as well makes the
+    // veto a provable no-op (it could only re-stop where A2 already stopped), so
+    // the φ condition lives in inBox's angle term instead.
+    double  onsetReturnBoxPx       = tuned::shaft::kOnsetReturnBoxPx;       // px radius of the address box (0 = veto off)
+    double  onsetReturnPhiDeg      = tuned::shaft::kOnsetReturnPhiDeg;      // φ tolerance for "returned to address" (deg)
+    int     onsetReturnStillFrames = tuned::shaft::kOnsetReturnStillFrames;// sustained at-rest run length ending at the candidate
+    // Additive vision Takeaway event (phasesToSegmentation, W2). false ⇒ the
+    // {Address,Top,Impact,Finish} ladder is emitted unchanged; true ⇒ a Takeaway
+    // event is added at bs0 (the motion onset). Separate key from the veto above
+    // (disjoint failure modes: onset PLACEMENT vs event-SET change).
+    bool    emitTakeaway           = tuned::shaft::kEmitTakeaway;
     // Run-candidacy clamp (same supplied-impact guard as A3): a motion run that
     // STARTS later than impact + this cannot be a swing phase, so it must not
     // compete with a fragmented backswing for the two-longest-runs slots (post-
@@ -402,8 +438,11 @@ struct ShaftDecideTrace {
 // addressFrame >= 0 relocates the Address EVENT to the located hold end
 // (camera-first P1 fix); < 0 keeps the legacy bs0 (takeaway start). Swing
 // bounds always derive from bs0 (motion onset is what the span bound wants).
+// emitTakeaway = true additionally emits a Takeaway event at bs0 (the motion
+// onset, always ≥ the Address hold end); false ⇒ the {Address,Top,Impact,Finish}
+// ladder is byte-identical to the pre-W2 tracker (W2, cfg.emitTakeaway).
 Segmentation phasesToSegmentation(const PhaseModel& pm, const std::vector<int64_t>& tUs, float conf,
-                                  int addressFrame = -1);
+                                  int addressFrame = -1, bool emitTakeaway = false);
 
 // Swing span [onset t, fin0 t] in µs for the Stage B two-pass pose bound
 // (swing_span_bounding_plan.md §5). Runs segmentPhases over the coarse grip

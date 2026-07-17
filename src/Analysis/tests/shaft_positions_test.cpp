@@ -187,6 +187,52 @@ int main()
               "no sustained stillness ⇒ bs0 unchanged");
     }
 
+    std::printf("=== addressHoldEndFrame: W3 club-quiet mask ===\n");
+    {
+        // Grip STILL for the whole pre-takeaway period (sub-px jitter) — the
+        // grip-only test alone lands the hold-end at bs0. The CLUB, however, is
+        // bobbing about the frozen wrist; the quiet mask is what sees that.
+        const int nf = 100, bs0 = 80;
+        std::vector<double> qx(nf), qy(nf);
+        for (int f = 0; f < nf; ++f) { qx[f] = 300.0 + 0.3 * ((f % 2 == 0) ? 1.0 : -1.0); qy[f] = 500.0; }
+        std::vector<char> noBa;
+        const int legacy = addressHoldEndFrame(qx, qy, noBa, bs0, cfg);   // no mask
+        check(legacy == bs0, "no mask: grip still throughout ⇒ hold-end at bs0 (inside the club bob)");
+
+        // (A) club quiet f0..40, then an ACTIVE bob f41..end (right up to takeaway):
+        // the mask must pull the hold-end back to the last quiet frame (f40).
+        std::vector<char> quietA(size_t(nf), 0);
+        for (int f = 0; f <= 40; ++f) quietA[size_t(f)] = 1;
+        check(addressHoldEndFrame(qx, qy, noBa, bs0, cfg, &quietA) == 40,
+              "club-quiet mask pulls the hold-end back to the last quiet frame (f40)");
+
+        // (B) two quiet holds (A: f0..30, B: f56..end) with an ACTIVE band between:
+        // the hold-end must land in the LATER quiet hold, never in the active band.
+        std::vector<char> quietB(size_t(nf), 0);
+        for (int f = 0;  f <= 30;     ++f) quietB[size_t(f)] = 1;
+        for (int f = 56; f <  nf;     ++f) quietB[size_t(f)] = 1;
+        const int he = addressHoldEndFrame(qx, qy, noBa, bs0, cfg, &quietB);
+        check(he >= 56 && he <= bs0, "active band between two quiet holds ⇒ hold-end in the later hold");
+
+        // (C) all-active mask ⇒ nothing passes still+quiet ⇒ grip-still-only fallback.
+        std::vector<char> allActive(size_t(nf), 0);
+        check(addressHoldEndFrame(qx, qy, noBa, bs0, cfg, &allActive) == legacy,
+              "all-active mask ⇒ grip-still-only fallback (never degrades below today)");
+
+        // (D) nullptr / empty mask ⇒ byte-identical to the legacy (no-mask) answer.
+        std::vector<char> emptyMask;
+        check(addressHoldEndFrame(qx, qy, noBa, bs0, cfg, nullptr) == legacy
+              && addressHoldEndFrame(qx, qy, noBa, bs0, cfg, &emptyMask) == legacy,
+              "nullptr / empty mask ⇒ byte-identical to the legacy answer");
+
+        // (E) BA corroboration composes with quiet: quiet f0..40 but BA only on
+        // f10..25 ⇒ the chosen frame is the last still+quiet+ball-anchored one (f25).
+        std::vector<char> ba(size_t(nf), 0);
+        for (int f = 10; f <= 25; ++f) ba[size_t(f)] = 1;
+        check(addressHoldEndFrame(qx, qy, ba, bs0, cfg, &quietA) == 25,
+              "BA corroboration composes with the quiet mask (still+quiet+BA ⇒ f25)");
+    }
+
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);
     return g_fail;
 }

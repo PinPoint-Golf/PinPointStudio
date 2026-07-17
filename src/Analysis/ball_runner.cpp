@@ -42,6 +42,7 @@ using pinpoint::analysis::PoseTrack2D;
 #include <opencv2/imgproc.hpp>
 #include "../Export/frame_decode.h"
 #include "../Pose/ball_temporal.h"
+#include "ball_activity.h"
 #include "ball_baseline_io.h"
 #endif
 
@@ -81,6 +82,28 @@ struct BallCorridorConfig {
         using namespace pinpoint::analysis::tuning;
         BallCorridorConfig c;
         apply(ov, "ball.corridor.useFeet", c.useFeet);
+        return c;
+    }
+};
+
+// "ball.clubActivity" + "ball.activity*" — W3 club-corridor activity (see
+// pp_tuned_constants.h ball::activity for the frozen defaults + full rationale).
+// enabled=false ⇒ BallRunner retains no gray crops / ring buffer and computes no
+// annulus, so the ball track is byte- AND code-path-identical to the pre-W3 run.
+struct BallActivityConfig {
+    bool   enabled   = pinpoint::tuned::ball::activity::kClubActivity;
+    int    refFrames = pinpoint::tuned::ball::activity::kActivityRefFrames;
+    double innerR    = pinpoint::tuned::ball::activity::kActivityInnerR;
+    double outerR    = pinpoint::tuned::ball::activity::kActivityOuterR;
+
+    static BallActivityConfig fromOverrides(const QVariantMap &ov)
+    {
+        using namespace pinpoint::analysis::tuning;
+        BallActivityConfig c;
+        apply(ov, "ball.clubActivity", c.enabled);
+        apply(ov, "ball.activityRefFrames", c.refFrames);
+        apply(ov, "ball.activityInnerR", c.innerR);
+        apply(ov, "ball.activityOuterR", c.outerR);
         return c;
     }
 };
@@ -340,6 +363,13 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
     // DoG response can all be precomputed off the critical thread. Only the causal
     // tracker.push() and its output reads run serially, in exact frame order, so
     // the state-update order is byte-identical to a fully serial replay.
+    // W3 club-corridor activity (ball.clubActivity) — dark by default. Resolved
+    // once; when disabled NONE of the crop-retention / ring / annulus code below
+    // runs, so the track is byte- + code-path-identical to the pre-W3 tracker.
+    const BallActivityConfig actCfg = BallActivityConfig::fromOverrides(opt.tuningOverrides);
+    std::vector<cv::Mat> actRing;   // the previous refFrames gray ROI crops (serial state)
+    if (actCfg.enabled) actRing.reserve(size_t(std::max(1, actCfg.refFrames)));
+
     track.frames.reserve(i1 - i);
     constexpr size_t kChunk = 32;
     struct FrameSlot {
@@ -347,6 +377,8 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
         bool     hasPayload = false;
         int64_t  t_us       = 0;
         cv::Mat  R;                          // padded DoG response (empty = skip)
+        cv::Mat  grayCrop;                   // W3: 8-bit ROI gray crop (only when actCfg.enabled)
+        float    cropNoise = 1.f;            // W3: robustNoise(crop) — σ for the activity ratio
     };
     std::vector<FrameSlot> frameSlots(kChunk);
     for (size_t base = i; base < i1; base += kChunk) {
@@ -361,6 +393,7 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
             FrameSlot &slot = frameSlots[j];
             slot.t_us = e.timestamp_us;
             slot.R    = cv::Mat();
+            if (actCfg.enabled) slot.grayCrop = cv::Mat();   // W3: no stale crop from the prior chunk
             const pinpoint::SourceRing::ReadHandle handle = window.payloadOf(e);
             if (handle.data != nullptr && handle.bytes > 0) {
                 slot.payload.assign(handle.data, handle.data + handle.bytes);
@@ -387,6 +420,18 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
                 cv::cvtColor(bgr, gray8, cv::COLOR_BGR2GRAY);
                 gray8.convertTo(gray32, CV_32F);
                 slot.R = paddedResponse(gray32, roiRect, rHat);
+                // W3: retain the 8-bit ROI gray crop + its robustNoise for the
+                // serial club-activity pass. Independent per frame (per-thread
+                // scratch), so it stays inside the parallel region. Crop-boundary
+                // safe: intersect roiRect with the decoded frame (uniform in
+                // practice; a mismatch just yields an activity of -1 downstream).
+                if (actCfg.enabled) {
+                    const cv::Rect cropRect = roiRect & cv::Rect(0, 0, gray8.cols, gray8.rows);
+                    if (!cropRect.empty()) {
+                        slot.grayCrop  = gray8(cropRect).clone();
+                        slot.cropNoise = float(robustNoise(gray32(cropRect)));
+                    }
+                }
             }
         });
 
@@ -411,6 +456,20 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
                 s.center     = QPointF((roiRect.x + L.x) / double(fw), (roiRect.y + L.y) / double(fh));
                 s.radiusNorm = float(rHat / fw);
                 s.conf       = L.L0 > 0.f ? std::min(1.0f, ats / L.L0) : 0.f;
+            }
+
+            // W3 club-corridor activity (ball.clubActivity). Compute the annulus
+            // ratio against the PREVIOUS refFrames crops (the ring holds them,
+            // filled strictly in frame order below), around the locked ball centre
+            // in ROI-local coords (L.x/L.y). Absent (-1) until the ring is full and
+            // the ball is locked — matching the first-refFrames / no-lock contract.
+            if (actCfg.enabled && !slot.grayCrop.empty()) {
+                if (L.valid && int(actRing.size()) >= actCfg.refFrames)
+                    s.clubActivity = pinpoint::analysis::clubCorridorActivity(
+                        slot.grayCrop, actRing, L.x, L.y,
+                        actCfg.innerR * rHat, actCfg.outerR * rHat, double(slot.cropNoise));
+                actRing.push_back(slot.grayCrop);   // roll AFTER computing (ring = previous crops)
+                if (int(actRing.size()) > actCfg.refFrames) actRing.erase(actRing.begin());
             }
             track.frames.push_back(s);
 
@@ -477,6 +536,9 @@ BallTrack2D BallRunner::loadFromJson(const QString &file, pinpoint::SourceId cam
         s.center     = QPointF(o[QStringLiteral("x")].toDouble(), o[QStringLiteral("y")].toDouble());
         s.radiusNorm = float(o[QStringLiteral("r")].toDouble());
         s.conf       = float(o[QStringLiteral("conf")].toDouble());
+        // W3 club-corridor activity round-trip: absent ⇒ -1 (never computed).
+        s.clubActivity = o.contains(QStringLiteral("act"))
+                             ? float(o[QStringLiteral("act")].toDouble()) : -1.f;
         track.frames.push_back(s);
     }
     const QJsonObject launch = root[QStringLiteral("launch")].toObject();

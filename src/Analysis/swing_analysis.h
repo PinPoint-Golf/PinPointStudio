@@ -304,6 +304,16 @@ struct BallSample2D {
     QPointF center;             // normalized [0,1], full frame
     float   radiusNorm  = 0.f;  // normalized to frame width
     float   conf        = 0.f;
+    // W3 club-corridor activity (ball_runner.cpp; ball.clubActivity): mean
+    // |crop − medRef| / σ over an annulus around the locked ball centre — high
+    // when the clubhead is moving beside a still ball (a fidget bob). -1 = absent
+    // (never computed: dark ball.clubActivity, the first refFrames warm-up frames,
+    // or a frame where the ball wasn't found). SINGLE-CONSUMER CONTRACT: this
+    // field feeds ONLY addressHoldEndFrame's club-quiet mask (shaft_positions.h) —
+    // never tk0, length, launch, or any DP evidence (ball_anchor_test asserts
+    // applyBallAnchor is invariant to it). Persisted as "act" ONLY when >= 0, so a
+    // dark run serialises byte-identically.
+    float   clubActivity = -1.f;
 };
 
 // Face-on ball track: either populated live (CameraInstance's accumulator /

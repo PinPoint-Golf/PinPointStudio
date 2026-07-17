@@ -406,14 +406,21 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
     // (replay overlay) and SwingDocReader.
     if (!a.ball.frames.empty()) {
         QJsonArray samples;
-        for (const BallSample2D &s : a.ball.frames)
-            samples.append(QJsonObject{
+        for (const BallSample2D &s : a.ball.frames) {
+            QJsonObject so{
                 { QStringLiteral("t_us"),  rel(s.t_us) },
                 { QStringLiteral("x"),     s.center.x() },
                 { QStringLiteral("y"),     s.center.y() },
                 { QStringLiteral("r"),     double(s.radiusNorm) },
                 { QStringLiteral("conf"),  double(s.conf) },
-                { QStringLiteral("found"), s.found } });
+                { QStringLiteral("found"), s.found } };
+            // W3 club-corridor activity — additive "act" per sample ONLY when it
+            // was computed (>= 0); a dark ball.clubActivity run leaves clubActivity
+            // at -1 so the field is absent and the file is byte-identical to pre-W3.
+            if (s.clubActivity >= 0.f)
+                so.insert(QStringLiteral("act"), double(s.clubActivity));
+            samples.append(so);
+        }
         o[QStringLiteral("ball")] = QJsonObject{
             { QStringLiteral("camera"),    int(a.ball.camera) },
             { QStringLiteral("valid"),     true },

@@ -54,6 +54,8 @@ visible in a scorecard check (§4).
 | `filter.*` | `RefuseConfig` (`orientation_refuser.h`) | `filter::` | C1→C2→C3 | wrist angles → `xmodal.imu_vision_corr`, `diag.*`, `filter.impact_continuity` |
 | `seed.*` (status **code**) | `kInit*` (`imu_base.h`) | `seed::` | C1 | live filter convergence (offline-unreachable) |
 | `pose.intraOpThreads` | `ShotAnalysisRunnerOptions` / `PoseEstimatorViTPose::load` (`pose_runner.cpp`) | `pp_tuned_constants.h` `pose::` | perf | offline ViTPose ORT intra-op pool → compute wall-time (default 0 = legacy heuristic) |
+| `shaft.onsetReturn*` / `shaft.emitTakeaway` | `ShaftV3Config` (`shaft_track_assembly.h`) | `pp_tuned_constants.h` `shaft::` | C1 | `truth.p1_address`, `seg.tempo_ratio`, Address→Top duration (camera-only fidget swings; all DARK/byte-identical by default) |
+| `ball.clubActivity` / `ball.activity*` / `positions.p1ClubQuietSigma` / `ball.tk0AddressOverride` | `BallActivityConfig` (`ball_runner.cpp`) / `PositionsConfig` (`shaft_positions.h`) / `applyBallAnchor` (`ball_anchor.cpp`) | `pp_tuned_constants.h` `ball::activity`, `ball::`, `positions::` | C1 | `truth.p1_address`, Address→Top duration (camera-only club-bob fidget swings; all DARK/tk0-override-ON by default ⇒ byte-identical) |
 
 ### 2.1 `seg.*` — phase segmentation (≈25 keys)
 Envelope cut-off, top/takeaway/transition windows, vote-agreement, finish stillness gates
@@ -127,6 +129,74 @@ the pool is built. **Three-way**:
 A **performance** knob only — `0` is byte-identical to history, and the live 60 Hz MoveNet path is
 untouched (pinned at 1). The topology header is discovered once and cached, so it is cheap per model
 load.
+
+### 2.10 `shaft.onsetReturn*` / `shaft.emitTakeaway` — camera-only Address/Takeaway hardening (C1)
+Frozen in `pp_tuned_constants.h::shaft`, consumed by `ShaftV3Config` (`shaft_track_assembly.h`). Two
+independent camera-only fixes, **both DARK by default** (byte-identical to the pre-fix tracker):
+
+- **The "no-return" veto** (`segmentPhases`, W1). The Stage-A onset walk-back (A1 grip speed + A2 φ
+  witness) cannot tell a club bob that *departs* the address point and *returns* from a one-piece
+  takeaway, so on a fidgety address it walks the onset back **through** the whole fidget. The veto runs
+  after A1/A2 and before the A3 impact clamp, and can only move the onset **later**: it takes the last
+  frame in `[onset, bs0]` whose smoothed grip has settled back inside a box around the address anchor
+  (per-coordinate median of smoothed grip over `[0, onset)`) — and, when φ is present, within
+  `onsetReturnPhiDeg` of the address φ — while at rest (`spd < swLow`, `|Δφ| ≤ phiOnsetDegPerFrame`)
+  sustained for `onsetReturnStillFrames` frames.
+  - **`shaft.onsetReturnBoxPx`** (**0.0** = veto OFF, the `swLow<=0` dark idiom). Address-box radius in
+    px; sweep **6–8 px** to enable. A genuine one-piece takeaway never re-enters the box, so its onset
+    is untouched; a mid-swing pause happens *outside* the box ⇒ no veto.
+  - **`shaft.onsetReturnPhiDeg`** (1.5) — φ tolerance for "returned to address" (deg); only used when a
+    φ track is present.
+  - **`shaft.onsetReturnStillFrames`** (3) — the sustained at-rest run length ending at the candidate
+    frame (reuses the A1/A2 thresholds `swLow` / `phiOnsetDegPerFrame`).
+  - Side effect (gated): `estimateSwingSpanUs` shares `segmentPhases`, so the veto also tightens the
+    pose/shaft span bound on fidget swings.
+- **`shaft.emitTakeaway`** (**false** = OFF; W2). When on, `phasesToSegmentation` emits an additive
+  vision **Takeaway** event at `bs0` (the motion onset); the ladder becomes
+  `{Address, Takeaway, Top, Impact, Finish}`. Address stays on the hold-end / `addressFrame` path, and
+  `Address ≤ Takeaway` structurally. This lets SwingLab's `seg.tempo_ratio` (Top−Takeaway / Impact−Top)
+  start evaluating on camera swings (it was silently skipped with no Takeaway event). Separate key from
+  the veto — disjoint failure modes: onset **placement** vs event-**set** change.
+
+### 2.11 `ball.clubActivity` / `positions.p1ClubQuietSigma` / `ball.tk0AddressOverride` — club-bob detector (C1)
+W1's onset veto and W3 attack the same estimand from different signals: W1 is blind to a **pure club bob
+about a frozen grip** (the grip-only stillness test can't see the club rotating while the wrist is
+still). W3 supplies the only 150 Hz signal that covers the address reach-back — the frames BallRunner
+already decodes — as a **club-corridor activity** trace, then uses it to corroborate the address hold.
+**All DARK by default** (`ball.clubActivity=false` ⇒ byte- AND code-path-identical; `ball.tk0Address‑
+Override=true` ⇒ pre-W4 behaviour). Scope: activity is only produced by the offline BallRunner replay,
+so W3 fires on **analysis-replay swings**, not live-recorded ball tracks (the live-detector twin is
+future work).
+
+- **Producer — `ball.clubActivity`** (**false** = OFF; `BallRunner::run`, frozen in `pp_tuned_constants.h`
+  `ball::activity`). When on, BallRunner keeps an 8-bit gray ROI crop per frame and, after the tracker
+  locks, computes `act = mean(|crop − medRef|) / σ` over an **annulus** around the ball centre:
+  - **`ball.activityInnerR`** (1.5) — inner radius (× ball r); **excludes the ball disc** so ball-lock
+    jitter isn't read as activity.
+  - **`ball.activityOuterR`** (5.0) — outer radius (× ball r); covers the resting clubhead beside the ball.
+  - **`ball.activityRefFrames`** (9) — `medRef` is the per-pixel temporal **median** of the previous this
+    many crops (a bob dwells at its travel extremes, so a median reference beats a raw frame-diff). σ is
+    the crop's `robustNoise` (exposure normalisation). The first `refFrames` frames, and any frame where
+    the ball isn't found, get activity `-1` (absent). Persisted as an additive `"act"` per-sample field in
+    swing.json's ball block **only when ≥ 0** (dark ⇒ absent ⇒ byte-identical); the annulus/median math is
+    factored into the unit-tested `ball_activity.h` helper.
+- **Consumer — `positions.p1ClubQuietSigma`** (3.0; `PositionsConfig`, `shaft_positions.h`
+  `addressHoldEndFrame`). A frame is **club-quiet** when its nearest ball sample's activity is present and
+  `< p1ClubQuietSigma`. `addressHoldEndFrame` gains an optional `clubQuiet` mask (nullptr ⇒ every existing
+  caller byte-identical); a frame counts as the hold end only if grip-still **and** its whole trailing
+  window is club-quiet. **Two-tier fallback** (mirrors the `baByFrame` corroboration): if nothing passes
+  still+quiet, the grip-still-only answer stands — the mask can only move the hold-end to a BETTER
+  (also-quiet) frame, **never degrade below today**. The call site builds the mask only when a **majority
+  (≥ 50%)** of pre-`bs0` frames carry activity — else it passes nullptr (live tracks, dark runs, ball
+  never found), keeping legacy behaviour.
+- **Single-consumer contract:** `BallSample2D.clubActivity` feeds **only** this mask — never tk0, length,
+  launch, or DP evidence (`ball_anchor_test` asserts `applyBallAnchor` output is invariant to the field).
+- **`ball.tk0AddressOverride`** (**true** = today; W4, `applyBallAnchor`). Keeps the ball's earliest-
+  departure `tk0` overwriting the reported Address / `swingStartUs` on camera-only swings, but behind an
+  A/B key so the ON evaluation can isolate the `addressHoldEndFrame` P1 fix. Set `false` to skip the
+  overwrite (`tk0` is still computed). Long-term `tk0` is conceptually the **Takeaway** instant, not the
+  Address hold end — the re-scope is deferred until this A/B evidence lands (see the `ball_anchor.cpp`
+  TODO and plan §"Out of scope").
 
 ## 3. The frozen-defaults header — the single freeze edit-point
 

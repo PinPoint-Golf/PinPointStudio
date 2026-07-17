@@ -230,7 +230,48 @@ inline constexpr bool   kUseFeet     = true;   // false ⇒ ankle path only (pre
 inline constexpr double kFootConfMin = 0.30;   // per-keypoint conf gate (codebase-wide convention)
 inline constexpr int    kMinFrames   = 5;      // < this many feet-confident frames ⇒ ankle fallback
 } // namespace corridor
+
+// --- Club-corridor activity (W3 — src/Analysis/ball_runner.cpp) ---------------
+// Per-frame "is the club moving near the ball" signal, computed over an ANNULUS
+// around the locked ball centre (inner radius excludes the ball disc so ball-lock
+// jitter isn't read as activity; outer covers the resting clubhead beside it):
+//   act = mean(|crop − medRef|) / σ
+// medRef = rolling per-pixel temporal median of the previous kActivityRefFrames
+// gray crops (a bob dwells at its extremes, so a median reference beats a raw
+// frame-diff), σ = the crop's robustNoise (exposure/noise normalisation). Feeds
+// exactly ONE consumer — addressHoldEndFrame's club-quiet mask (shaft_positions.h)
+// — corroborating that the address hold is quiet at the CLUB, not just the grip (a
+// club bob about a frozen wrist is invisible to the grip-only stillness test).
+// Consumed by BallActivityConfig::fromOverrides via "ball.*" dotted keys.
+// kClubActivity=false ⇒ NO crop retention / ring buffer / annulus math ⇒ the ball
+// track and swing.json are byte-identical (and code-path-identical) to pre-W3.
+namespace activity {
+inline constexpr bool   kClubActivity      = false; // ball.clubActivity — master gate (dark)
+inline constexpr int    kActivityRefFrames = 9;     // ball.activityRefFrames — median-ref ring depth
+inline constexpr double kActivityInnerR    = 1.5;   // ball.activityInnerR — inner annulus radius (× ball r)
+inline constexpr double kActivityOuterR    = 5.0;   // ball.activityOuterR — outer annulus radius (× ball r)
+} // namespace activity
+
+// tk0 Address override A/B (W4 — src/Analysis/ball_anchor.cpp). true = today's
+// behaviour: the ball's earliest-departure tk0 overwrites the reported Address /
+// swingStartUs on camera-only swings. false skips the overwrite so the ON
+// evaluation can isolate the addressHoldEndFrame contribution (long-term tk0 is
+// conceptually the Takeaway instant, not the Address hold end — see the
+// ball_anchor.cpp TODO). "ball.tk0AddressOverride" dotted key.
+inline constexpr bool kTk0AddressOverride = true;
 } // namespace ball
+
+// --- Layer B P-position extraction (src/Analysis/shaft_positions.h) ------------
+// "positions.*" tuning. Most PositionsConfig defaults are struct literals; the
+// club-quiet sigma is frozen here because it is the W3 addition consumed by
+// addressHoldEndFrame's optional club-quiet mask — a frame counts as club-quiet
+// when its ball-corridor activity (ball::activity) is below this many robustNoise
+// σ. SwingLab sweeps "positions.p1ClubQuietSigma"; the mask is only built when the
+// ball track actually carries activity, so a dark ball.clubActivity ⇒ no mask ⇒
+// the legacy grip-only hold-end (byte-identical).
+namespace positions {
+inline constexpr double kP1ClubQuietSigma = 3.0;   // positions.p1ClubQuietSigma
+} // namespace positions
 
 // --- Setup + footwork metrics (WB3 — src/Analysis/foot_metrics.h) ------------
 // Stance width / per-foot flare / toe-line angle (address) + the lead-heel-lift
@@ -243,5 +284,27 @@ inline constexpr double       kConfMin       = 0.30;    // per-keypoint conf gat
 inline constexpr int          kAddrMinFrames = 5;       // fallback address ref = first N valid frames
 inline constexpr std::int64_t kAddrWindowUs  = 250000;  // ±window about the Address event for the robust ref
 } // namespace foot
+
+// --- Shaft onset segmentation (src/Analysis/shaft_track_assembly.cpp) ----------
+// Camera-only Address/Takeaway hardening (fidget-proofing). The Stage-A onset
+// walk-back (A1 grip speed + A2 φ witness) cannot tell a club bob that DEPARTS
+// the address point and RETURNS from a one-piece takeaway, so on a fidgety
+// address it walks the onset back THROUGH the whole fidget. The "no-return"
+// veto post-processes onset = min(A1, A2) and can only push it LATER — to the
+// last frame that settled back INSIDE a box around the address anchor while at
+// rest (the last place the club returned to address before departing for good).
+// A genuine one-piece takeaway never re-enters the box, so its onset is
+// untouched. Consumed by ShaftV3Config (shaft_track_assembly.h); SwingLab sweeps
+// "shaft.onsetReturn*". kOnsetReturnBoxPx = 0 disables the veto (the swLow<=0
+// dark idiom) so onset is byte-identical to the pre-veto tracker; sweep 6–8 px
+// to enable. kEmitTakeaway gates the additive vision Takeaway event at bs0
+// (phasesToSegmentation) — dark ⇒ the {Address,Top,Impact,Finish} ladder is
+// unchanged.
+namespace shaft {
+inline constexpr double kOnsetReturnBoxPx       = 0.0;   // 0 ⇒ veto OFF (dark); px radius of the address box
+inline constexpr double kOnsetReturnPhiDeg      = 1.5;   // φ within this of the address φ still counts as "returned"
+inline constexpr int    kOnsetReturnStillFrames = 3;     // sustained at-rest run length ending at the candidate frame
+inline constexpr bool   kEmitTakeaway           = false; // additive vision Takeaway event at bs0 (dark)
+} // namespace shaft
 
 } // namespace pinpoint::tuned

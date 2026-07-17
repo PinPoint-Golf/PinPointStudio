@@ -11,6 +11,8 @@
 #include "../shot_analyzer.h"   // ShotAnalysisJob (applyBallAnchor arg)
 
 #include <QPointF>
+#include <QString>
+#include <QVariantMap>
 
 #include <cmath>
 #include <cstdio>
@@ -281,6 +283,105 @@ int main()
         std::vector<int64_t> tUsShort = {0, 10000};
         applyBallAnchor(out, ball, gx, gy, tUsShort, W, H, -1, job, nullptr);
         check(near(out.samples[0].headPx.x(), 7.0, 1e-6), "size mismatch ⇒ track unchanged");
+    }
+
+    // ── applyBallAnchor: single-consumer contract — invariant to clubActivity ──
+    // W3 club-corridor activity feeds ONLY addressHoldEndFrame's quiet mask; it
+    // must never perturb the ball-anchor pass. Same inputs with the field set to
+    // -1 / 0 / a huge value must produce byte-identical output.
+    std::printf("=== applyBallAnchor: clubActivity invariance (W3 single-consumer) ===\n");
+    {
+        const int nf = 20, bs0 = 15;
+        const ShotAnalysisJob job;
+        std::vector<int64_t> tUs(nf);
+        std::vector<double> gx(nf, 500.0), gy(nf, 500.0);
+        for (int i = 0; i < nf; ++i) tUs[i] = int64_t(i) * 10000;
+        auto buildBall = [&](float act) {
+            BallTrack2D b;
+            for (int i = 0; i < nf; ++i) {
+                BallSample2D s;
+                s.t_us = tUs[size_t(i)]; s.found = true;
+                s.center = QPointF(0.50, 0.80); s.radiusNorm = 0.02f; s.conf = 1.f;
+                s.clubActivity = act;   // the field under test
+                b.frames.push_back(s);
+            }
+            return b;
+        };
+        auto buildTrack = [&]() {
+            ShaftTrack2D out;
+            out.frameWidth = W; out.frameHeight = H; out.addressPhaseFrame = bs0;
+            for (int i = 0; i < nf; ++i) {
+                ShaftSample2D s; s.t_us = tUs[size_t(i)];
+                s.gripPx = QPointF(500, 500); s.thetaRad = kPi / 2.0;   // club at the ball
+                s.headPx = QPointF(0, 0); s.flags = ShaftHeadProjected | ShaftCoasted;
+                out.samples.push_back(s);
+            }
+            return out;
+        };
+        ShaftTrack2D a = buildTrack(); BallTrack2D ba = buildBall(-1.f);
+        ShaftTrack2D b = buildTrack(); BallTrack2D bb = buildBall(0.0f);
+        ShaftTrack2D c = buildTrack(); BallTrack2D bc = buildBall(999.0f);
+        applyBallAnchor(a, ba, gx, gy, tUs, W, H, -1, job, nullptr);
+        applyBallAnchor(b, bb, gx, gy, tUs, W, H, -1, job, nullptr);
+        applyBallAnchor(c, bc, gx, gy, tUs, W, H, -1, job, nullptr);
+        bool same = a.samples.size() == b.samples.size() && a.samples.size() == c.samples.size();
+        for (size_t k = 0; same && k < a.samples.size(); ++k)
+            same = a.samples[k].headPx == b.samples[k].headPx
+                && a.samples[k].headPx == c.samples[k].headPx
+                && a.samples[k].flags == b.samples[k].flags
+                && a.samples[k].flags == c.samples[k].flags
+                && a.samples[k].thetaRad == b.samples[k].thetaRad
+                && a.samples[k].thetaRad == c.samples[k].thetaRad;
+        check(same, "applyBallAnchor output byte-identical across clubActivity = -1/0/999");
+    }
+
+    // ── applyBallAnchor: W4 ball.tk0AddressOverride A/B ───────────────────────
+    // Default (true) overwrites the reported Address with the ball's earliest-
+    // departure tk0; the A/B key = false skips the overwrite so the ON evaluation
+    // can isolate the addressHoldEndFrame P1 fix. tk0 is computed either way.
+    std::printf("=== applyBallAnchor: tk0AddressOverride A/B (W4) ===\n");
+    {
+        const int nf = 20, bs0 = 15;
+        std::vector<int64_t> tUs(nf);
+        std::vector<double> gx(nf, 500.0), gy(nf, 500.0);
+        BallTrack2D ball;
+        for (int i = 0; i < nf; ++i) { tUs[i] = int64_t(i) * 10000; addBall(ball, tUs[i], 0.50, 0.80); }
+        auto buildTrack = [&]() {
+            ShaftTrack2D out;
+            out.frameWidth = W; out.frameHeight = H; out.addressPhaseFrame = bs0;
+            for (int i = 0; i < nf; ++i) {
+                ShaftSample2D s; s.t_us = tUs[size_t(i)]; s.gripPx = QPointF(500, 500);
+                // club at the ball (+90°) except a mid departure f8..f12 (+130°),
+                // returning to the ball by bs0 so the adaptive floor stays at 25°.
+                s.thetaRad = (i >= 8 && i <= 12) ? (130.0 * kPi / 180.0) : (kPi / 2.0);
+                s.headPx = QPointF(0, 0); s.flags = ShaftHeadProjected | ShaftCoasted;
+                out.samples.push_back(s);
+            }
+            return out;
+        };
+        auto makeTrace = [&]() {
+            ShaftDecideTrace tr;
+            PhaseEvent ev; ev.phase = Phase::Address; ev.t_us = tUs[size_t(bs0)];
+            tr.segmentation.events.push_back(ev);
+            tr.segmentation.swingStartUs = tUs[size_t(bs0)];
+            return tr;
+        };
+        // override ON (default job) — Address moves to tk0
+        ShaftTrack2D t1 = buildTrack(); ShaftDecideTrace trOn = makeTrace();
+        const ShotAnalysisJob jobOn;
+        applyBallAnchor(t1, ball, gx, gy, tUs, W, H, -1, jobOn, &trOn);
+        check(trOn.ballTk0Frame == 8, "tk0 = first departure frame (f8)");
+        check(trOn.segmentation.events[0].t_us == tUs[8] && trOn.segmentation.swingStartUs == tUs[8],
+              "override ON (default): Address moved to tk0");
+
+        // override OFF — tk0 still computed, Address left on the hold-end path
+        ShaftTrack2D t2 = buildTrack(); ShaftDecideTrace trOff = makeTrace();
+        ShotAnalysisJob jobOff; jobOff.tuningOverrides[QStringLiteral("ball.tk0AddressOverride")] = false;
+        applyBallAnchor(t2, ball, gx, gy, tUs, W, H, -1, jobOff, &trOff);
+        check(trOff.ballTk0Frame == 8, "tk0 still computed (f8) with the override off");
+        check(trOff.segmentation.events[0].t_us == tUs[size_t(bs0)]
+              && trOff.segmentation.swingStartUs == tUs[size_t(bs0)],
+              "override OFF: Address unchanged (left on the addressHoldEndFrame path)");
     }
 
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);

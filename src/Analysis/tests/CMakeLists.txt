@@ -218,6 +218,16 @@ pp_add_test(ball_anchor_test
     LINK    ${OpenCV_LIBS}
     COMPILE_OPTIONS -O2)
 
+# W3 club-corridor activity helper (ball_activity.h): the annulus + per-pixel
+# temporal-median math (quiet ⇒ 0, uniform-annulus diff ⇒ mean/σ, inner-disc
+# exclusion, median-ref outlier robustness, the -1 absent contracts). Header-only,
+# OpenCV core only, no Qt, no fixture.
+pp_add_test(ball_activity_test
+    SOURCES ball_activity_test.cpp
+    INCLUDE ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    NO_QT)
+
 # Persisted live-baseline blob loader (ball_baseline_io.h) — happy path + the
 # truncated/missing/wrong-dims rejects that force BallRunner's self-seed fallback.
 # Header-only; Qt (QFile/QTemporaryDir) + OpenCV (CV_32F Mat); HAVE_OPENCV un-guards
@@ -289,6 +299,16 @@ pp_add_test(shaft_position_fit_test
 # ball_anchor.cpp resolves medianGripBallLenPx, referenced from shaft_track_assembly.
 pp_add_test(swing_onset_test
     SOURCES swing_onset_test.cpp ${ANALYSIS}/shaft_track_assembly.cpp ${ANALYSIS}/shaft_tracker_math.cpp ${ANALYSIS}/ball_anchor.cpp ${ANALYSIS}/clubhead_track.cpp
+    INCLUDE ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    COMPILE_OPTIONS -O2)
+
+# Stage-A "no-return" veto (W1) + additive vision Takeaway event (W2): the
+# fidget-proof onset (a club bob that departs and returns no longer drags the
+# onset back through the fidget) and the shaft.emitTakeaway ladder. Same link set
+# as swing_onset_test (segmentPhases + phasesToSegmentation are pure).
+pp_add_test(shaft_onset_test
+    SOURCES shaft_onset_test.cpp ${ANALYSIS}/shaft_track_assembly.cpp ${ANALYSIS}/shaft_tracker_math.cpp ${ANALYSIS}/ball_anchor.cpp ${ANALYSIS}/clubhead_track.cpp
     INCLUDE ${OpenCV_INCLUDE_DIRS}
     LINK    ${OpenCV_LIBS}
     COMPILE_OPTIONS -O2)

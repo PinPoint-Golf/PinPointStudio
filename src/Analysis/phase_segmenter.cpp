@@ -142,6 +142,14 @@ Cand vote(const Cand &hand, const Cand &fore, int64_t agreeUs)
 // ≥ quietUs, and Takeaway is the rise out of that dip. Because the walk
 // starts inside the backswing, waggles (separated from the swing by a quiet
 // beat) cannot capture it.
+// TODO (future, IMU-ladder no-return analog): the vision path grew a "no-return"
+// veto (shaft_track_assembly.cpp segmentPhases) that rejects a club bob which
+// DEPARTS the address point and RETURNS, so the Takeaway lands at the last
+// settle before the one-piece motion. A fidget with a quiet beat is already
+// rejected here by the quiet-gap rule, but a bob with NO quiet beat (continuous
+// low-envelope wobble) is not — the analog fix would anchor Address at the last
+// still return-to-address of the hand/forearm envelope. Out of scope until a
+// calibrated-IMU fidget corpus exists to gate it (plan §"Out of scope").
 Cand detectTakeaway(const std::vector<double> &env, const std::vector<int64_t> &grid,
                     int idxTop, int idxImpact, int64_t topUs,
                     const SegmentationConfig &cfg)

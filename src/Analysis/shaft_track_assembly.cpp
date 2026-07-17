@@ -297,6 +297,10 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.phiOnsetDegPerFrame", c.phiOnsetDegPerFrame);
     apply(ov, "shaft.bsMinBeforeImpactUs", c.bsMinBeforeImpactUs);
     apply(ov, "shaft.bsMaxBeforeImpactUs", c.bsMaxBeforeImpactUs);
+    apply(ov, "shaft.onsetReturnBoxPx", c.onsetReturnBoxPx);
+    apply(ov, "shaft.onsetReturnPhiDeg", c.onsetReturnPhiDeg);
+    apply(ov, "shaft.onsetReturnStillFrames", c.onsetReturnStillFrames);
+    apply(ov, "shaft.emitTakeaway", c.emitTakeaway);
     apply(ov, "shaft.runMaxStartAfterImpactUs", c.runMaxStartAfterImpactUs);
     apply(ov, "shaft.spanBound", c.spanBound);
     apply(ov, "shaft.bodyMargin", c.bodyMargin);
@@ -341,6 +345,7 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "positions.p1StillNetPx", c.positions.p1StillNetPx);
     apply(ov, "positions.p1StillSpeedPx", c.positions.p1StillSpeedPx);
     apply(ov, "positions.p1StillWindow", c.positions.p1StillWindow);
+    apply(ov, "positions.p1ClubQuietSigma", c.positions.p1ClubQuietSigma);   // W3 club-quiet gate
     // Layer B milestone fit (B2): "positions.*" keys → PositionsConfig::fit.
     apply(ov, "positions.fitEnabled", c.positions.fit.fitEnabled);
     apply(ov, "positions.skipMeasuredConf", c.positions.fit.skipMeasuredConf);
@@ -480,10 +485,13 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
         int onsetSpd = bs0;
         while (onsetSpd > 0 && spdS[onsetSpd] >= cfg.swLow) --onsetSpd;
         onset = onsetSpd;
+        // φ presence (size-checked) — shared by A2's witness and the veto's
+        // inBox angle term below.
+        const bool phiPresent = phiSmoothed && int(phiSmoothed->size()) == nf;
         // A2: φ-onset witness — the lead forearm rotates before the grip moves.
         // Smooth wrap-aware |Δφ| the same way as speed (median5 + gauss2) and
         // walk back from the ORIGINAL bs0 while it stays above threshold.
-        if (phiSmoothed && cfg.phiOnsetDegPerFrame > 0.0 && int(phiSmoothed->size()) == nf) {
+        if (phiPresent && cfg.phiOnsetDegPerFrame > 0.0) {
             const std::vector<double>& phi = *phiSmoothed;
             std::vector<double> dphi(nf, 0.0);
             for (int f = 1; f < nf; ++f) dphi[f] = std::abs(circWrap(phi[f] - phi[f - 1]));
@@ -491,6 +499,63 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
             int onsetPhi = bs0;
             while (onsetPhi > 0 && dphiS[onsetPhi] > cfg.phiOnsetDegPerFrame) --onsetPhi;
             onset = std::min(onset, onsetPhi);
+        }
+        // No-return veto (fidget-proofing, W1). A1/A2 walk back through ANY
+        // sub-threshold motion, including a club bob that DEPARTS the address
+        // point and RETURNS — the onset then lands mid-fidget. This pass can only
+        // move the onset LATER: it takes the LAST frame in [onset, bs0] whose
+        // smoothed grip has settled back inside a box around the address anchor
+        // AND is at rest, i.e. the last place the club returned to address before
+        // departing for good. A genuine one-piece takeaway never re-enters the
+        // box, so its onset is untouched; a mid-swing pause happens OUTSIDE the
+        // box ⇒ no veto. onsetReturnBoxPx <= 0 disables the whole block (the
+        // swLow<=0 dark idiom) — byte-identical to the pre-veto onset.
+        if (cfg.onsetReturnBoxPx > 0.0) {
+            // Smoothed grip position (gauss(median5), the spd/joint convention).
+            const std::vector<double> gxS = gaussianFilter1d(medianFilter1d(gx, 5), 2.0);
+            const std::vector<double> gyS = gaussianFilter1d(medianFilter1d(gy, 5), 2.0);
+            // np.median with the even-count mean-of-two-middle (the addrGy idiom).
+            auto medianOf = [](std::vector<double> v) -> double {
+                const size_t h = v.size() / 2;
+                std::nth_element(v.begin(), v.begin() + h, v.end());
+                double m = v[h];
+                if (v.size() % 2 == 0)
+                    m = 0.5 * (*std::max_element(v.begin(), v.begin() + h) + m);
+                return m;
+            };
+            // Address anchor = per-coordinate median of smoothed grip over the
+            // pre-onset hold [0, onset); aPhi likewise when φ is present.
+            const int anchorHi = std::max(onset, 1);
+            const double aGx = medianOf(std::vector<double>(gxS.begin(), gxS.begin() + anchorHi));
+            const double aGy = medianOf(std::vector<double>(gyS.begin(), gyS.begin() + anchorHi));
+            const double aPhi = phiPresent
+                ? medianOf(std::vector<double>(phiSmoothed->begin(), phiSmoothed->begin() + anchorHi))
+                : 0.0;
+            // inBox carries the RETURN discrimination: the smoothed grip is back
+            // inside the address box AND — when φ is present — the club has swung
+            // back near the address ANGLE (|φ − aφ| small). A bob returns to the
+            // address angle even mid-return (when |Δφ| is high), so the angle test,
+            // not the φ-RATE, is what proves "the club came back".
+            auto inBox = [&](int f) -> bool {
+                if (std::hypot(gxS[f] - aGx, gyS[f] - aGy) >= cfg.onsetReturnBoxPx) return false;
+                return !phiPresent
+                       || std::abs(circWrap((*phiSmoothed)[f] - aPhi)) < cfg.onsetReturnPhiDeg;
+            };
+            // atRest gates on the GRIP being static (spdS < swLow, sustained), the
+            // literal reading of Mark's estimand — "Address = the last STATIC point"
+            // — where static means the hands have settled, not that the club has
+            // stopped waggling. (The φ WITNESS drives A2's over-reach through the
+            // fidget; requiring φ ALSO be at rest here would only re-stop where A2
+            // already stopped, so the veto could never recover the settle. See the
+            // header contract note.)
+            auto atRest = [&](int f) -> bool {
+                if (f - (cfg.onsetReturnStillFrames - 1) < 0) return false;
+                for (int g = f - (cfg.onsetReturnStillFrames - 1); g <= f; ++g)
+                    if (spdS[g] >= cfg.swLow) return false;
+                return true;
+            };
+            for (int f = bs0; f >= onset; --f)
+                if (inBox(f) && atRest(f)) { onset = f; break; }
         }
         // A3: impact-anchored clamp (the safety rail). Only when a real impact
         // frame was supplied — a hands-derived impf must not clamp its own
@@ -881,7 +946,7 @@ void interpFillNan(std::vector<double>& v)
 } // namespace
 
 Segmentation phasesToSegmentation(const PhaseModel& pm, const std::vector<int64_t>& tUs, float conf,
-                                  int addressFrame)
+                                  int addressFrame, bool emitTakeaway)
 {
     Segmentation seg;
     const int nf = int(tUs.size());
@@ -893,6 +958,10 @@ Segmentation phasesToSegmentation(const PhaseModel& pm, const std::vector<int64_
     // and the fallback. swingStartUs stays bs0-derived either way: the heavy-stage
     // span bound wants motion onset, not the hold.
     add(Phase::Address, addressFrame >= 0 ? addressFrame : pm.bs0);
+    // W2: additive vision Takeaway event at bs0 (motion onset). Dark by default;
+    // Address (hold end) ≤ bs0 structurally, so the stable_sort below keeps
+    // Address before Takeaway even when they share a timestamp (addressFrame < 0).
+    if (emitTakeaway) add(Phase::Takeaway, pm.bs0);
     add(Phase::Top,     pm.top);
     add(Phase::Impact,  pm.impact);
     add(Phase::Finish,  pm.fin0);
@@ -1696,7 +1765,39 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
             }
             baByFrame[size_t(best)] = 1;
         }
-        const int p1Frame = addressHoldEndFrame(gx, gy, baByFrame, pm.bs0, cfg.positions);
+
+        // W3 club-quiet mask: for each frame, the nearest ball sample's club-corridor
+        // activity (BallSample2D.clubActivity) discriminates a still-grip club BOB
+        // (activity high, near the ball) from a genuine quiet address (activity low).
+        // quiet = activity present (>= 0) AND < positions.p1ClubQuietSigma. The mask
+        // is passed only when a MAJORITY (>= 50%) of the pre-bs0 frames actually carry
+        // activity — otherwise (live tracks, dark ball.clubActivity, or the ball never
+        // found) it is nullptr and addressHoldEndFrame keeps its legacy grip-only
+        // behaviour. The 50% floor is a judgement call: the mask's per-window "every
+        // frame quiet" test needs dense coverage over the hold to be trustworthy;
+        // below it, sparse -1 gaps would spuriously break otherwise-quiet holds (and
+        // the two-tier fallback would just return the legacy answer anyway).
+        std::vector<char> clubQuietByFrame;
+        if (ball && !ball->frames.empty()) {
+            std::vector<char> quiet(size_t(nf), 0);
+            const int  qLast    = std::clamp(pm.bs0, 0, nf - 1);
+            const int  qSpan    = qLast + 1;               // frames in [0, bs0]
+            int        nPresent = 0;                       // of those, how many carry activity
+            for (int i = 0; i < nf; ++i) {
+                const BallSample2D* best = nullptr; int64_t bd = std::numeric_limits<int64_t>::max();
+                for (const BallSample2D& f : ball->frames) {
+                    const int64_t d = std::llabs(f.t_us - tUs[i]);
+                    if (d < bd) { bd = d; best = &f; }
+                }
+                if (!best || best->clubActivity < 0.f) continue;   // absent ⇒ not quiet
+                if (i <= qLast) ++nPresent;
+                if (best->clubActivity < cfg.positions.p1ClubQuietSigma) quiet[size_t(i)] = 1;
+            }
+            if (qSpan > 0 && nPresent * 2 >= qSpan) clubQuietByFrame = std::move(quiet);
+        }
+        const std::vector<char>* clubQuietPtr = clubQuietByFrame.empty() ? nullptr : &clubQuietByFrame;
+
+        const int p1Frame = addressHoldEndFrame(gx, gy, baByFrame, pm.bs0, cfg.positions, clubQuietPtr);
         addressEventFrame = p1Frame;
 
         const std::vector<PTime> pts =
@@ -1888,7 +1989,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         const bool swingDetected = std::any_of(pm.phase.begin(), pm.phase.end(),
                                                [](SwingPhase p) { return p != SwingPhase::Addr; });
         trace->segmentation = phasesToSegmentation(pm, tUs, swingDetected ? 0.5f : 0.0f,
-                                                   addressEventFrame);
+                                                   addressEventFrame, cfg.emitTakeaway);
     }
     return out;
 }

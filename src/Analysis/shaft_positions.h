@@ -23,6 +23,8 @@
 #include <cstdint>
 #include <vector>
 
+#include "../Core/pp_tuned_constants.h"   // tuned::positions:: (P1 club-quiet σ; Qt/OpenCV-free)
+
 // Position-first shaft measurement — Layer B "B-time location"
 // (docs/design/shaft_position_first_design.md §2 Layer B). Header-only, standalone
 // (no Qt / no OpenCV), unit-tested per the detector-math convention
@@ -122,6 +124,12 @@ struct PositionsConfig {
     double p1StillSpeedPx = 2.5;    // per-frame spike cap — a violent waggle is not "still"
                                     // even when it nets out (oscillation returns to the ball)
     int    p1StillWindow  = 10;     // trailing window (frames; ~67 ms at 150 fps)
+    // W3 club-quiet gate (addressHoldEndFrame's optional clubQuiet mask): a frame
+    // counts as club-quiet when its ball-corridor activity (BallSample2D.clubActivity,
+    // ball.clubActivity) is below this many robustNoise σ. Only consulted when the
+    // ball track carries activity — a club bob about a FROZEN grip is invisible to
+    // the grip-only stillness test above, and this is what catches it.
+    double p1ClubQuietSigma = tuned::positions::kP1ClubQuietSigma;
     PositionFitConfig fit;          // B2 milestone fit (dark until fit.fitEnabled flips)
 };
 
@@ -222,9 +230,20 @@ inline Crossing findHorizontalCrossing(const std::vector<int64_t>& tUs,
 // club is still AT THE BALL, not paused mid-waggle; if no such frame exists the
 // stillness-only frame stands. No sustained stillness at all ⇒ bs0 (unchanged
 // legacy behaviour, e.g. a swing that enters the window already moving).
+//
+// W3 optional clubQuiet mask (default nullptr ⇒ EVERY existing caller/test is
+// byte-identical): a per-frame flag (1 = the CLUB is quiet near the ball, from
+// BallSample2D.clubActivity < p1ClubQuietSigma). The grip-stillness test above is
+// blind to a club bob about a FROZEN grip (the club rotates while the wrist is
+// still), so when the mask is present a frame additionally counts only if its
+// whole trailing window is club-quiet. Two-tier fallback mirroring baByFrame: if
+// no frame passes still+quiet, the plain grip-still answer (the value returned
+// with clubQuiet == nullptr) stands — the mask can only move the hold-end to a
+// BETTER (also-quiet) frame, NEVER degrade below today's result.
 inline int addressHoldEndFrame(const std::vector<double>& gx, const std::vector<double>& gy,
                                const std::vector<char>& baByFrame, int bs0,
-                               const PositionsConfig& cfg)
+                               const PositionsConfig& cfg,
+                               const std::vector<char>* clubQuiet = nullptr)
 {
     const int nf = int(gx.size());
     if (nf < 2 || int(gy.size()) != nf || bs0 <= 0) return bs0;
@@ -276,13 +295,36 @@ inline int addressHoldEndFrame(const std::vector<double>& gx, const std::vector<
     if (haveBa)
         for (int f = 0; f <= last && !anyBa; ++f) anyBa = baByFrame[size_t(f)] != 0;
 
-    int stillOnly = -1;
+    // The legacy grip-still (+ BA corroboration) answer — the NEVER-DEGRADE floor.
+    auto stillAnswer = [&]() -> int {
+        int stillOnly = -1;
+        for (int f = last; f >= w; --f) {
+            if (!stillAt(f)) continue;
+            if (stillOnly < 0) stillOnly = f;
+            if (!anyBa || baByFrame[size_t(f)] != 0) return f;   // corroborated (or no BA to demand)
+        }
+        return stillOnly >= 0 ? stillOnly : bs0;
+    };
+    const int legacy = stillAnswer();
+
+    // W3 club-quiet mask (present ⇒ nf-sized). Prefer the last frame that is still
+    // AND whose whole trailing window is club-quiet; two-tier like anyBa (prefer a
+    // BA-corroborated one). Nothing passing still+quiet ⇒ fall back to `legacy`.
+    const bool haveQuiet = clubQuiet && !clubQuiet->empty() && int(clubQuiet->size()) == nf;
+    if (!haveQuiet) return legacy;
+
+    auto quietWindow = [&](int f) {
+        for (int i = f - w + 1; i <= f; ++i)
+            if ((*clubQuiet)[size_t(i)] == 0) return false;   // one non-quiet frame breaks the hold
+        return true;
+    };
+    int stillQuietOnly = -1;
     for (int f = last; f >= w; --f) {
-        if (!stillAt(f)) continue;
-        if (stillOnly < 0) stillOnly = f;
-        if (!anyBa || baByFrame[size_t(f)] != 0) return f;   // corroborated (or no BA to demand)
+        if (!stillAt(f) || !quietWindow(f)) continue;
+        if (stillQuietOnly < 0) stillQuietOnly = f;
+        if (!anyBa || baByFrame[size_t(f)] != 0) return f;   // still + quiet + (BA if demanded)
     }
-    return stillOnly >= 0 ? stillOnly : bs0;
+    return stillQuietOnly >= 0 ? stillQuietOnly : legacy;
 }
 
 // Locate the coaching P-times P1–P8 from the per-frame reconciled θ(t) and
