@@ -180,9 +180,12 @@ struct ShaftV3Config {
     // (the legacy ranking, byte-identical). Separate key so its effect stays
     // separable from the veto in A/Bs.
     int     onsetRunBridgeFrames = tuned::shaft::kOnsetRunBridgeFrames;
-    // m3gate (DARK, 0 = off; freeze candidate 0.2): a bridged run assembled
-    // from >= 3 raw runs enters the two-longest ranking only if its smoothed
-    // net displacement >= this fraction of its raw path length. Kills the
+    // m3gate (FROZEN ON 2026-07-18 at 0.2; 0 = off, the legacy ranking): a
+    // bridged run assembled from >= 3 raw runs enters the two-longest ranking
+    // only if its smoothed net displacement >= this fraction of its raw path
+    // length. Freeze evidence: 17-swing truth — s0002 Takeaway +0.100, s0001
+    // Address +0.042, other 15 zero-movement; corpus 19 corrective moves, 0
+    // score changes. Kills the
     // s0002-class mis-pick: grip-anchor pose FLAPPING during a presentation
     // move produced seven 7–8-frame >swSpd oscillation runs (gaps 4–6) that
     // bridged into a 79-frame chain going nowhere (net/path 0.013), tied the

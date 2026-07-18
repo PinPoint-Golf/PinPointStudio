@@ -112,6 +112,12 @@ int main()
           "shaft::onsetReturn == (7.0, 15) (2026-07-17 freeze)");
     check(t::shaft::kOnsetRunBridgeFrames == 10, "shaft::kOnsetRunBridgeFrames == 10 (2026-07-17 freeze)");
     check(t::shaft::kEmitTakeaway == true, "shaft::kEmitTakeaway == true (2026-07-17 freeze)");
+    // m3gate FROZEN ON 2026-07-18 at 0.2 (0 still disables). Evidence: 17-swing
+    // truth — s0002 Takeaway 1.857 → 2.480 s (+0.100), s0001 Address → +0.042,
+    // other 15 zero-movement; 61-swing corpus — 19 corrective moves, 0 score
+    // changes; 25× net/path separation (flap 0.013 vs legit >= 0.34).
+    check(t::shaft::kOnsetBridgeMinNetFrac == 0.2,
+          "shaft::kOnsetBridgeMinNetFrac == 0.2 (2026-07-18 freeze)");
 
     // --- Default-constructed consumers match their pre-refactor defaults ---------
     check(MadgwickFilter().beta() == 0.05f, "MadgwickFilter() default beta == 0.05");

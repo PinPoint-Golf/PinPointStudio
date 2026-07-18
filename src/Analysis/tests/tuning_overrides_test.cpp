@@ -177,20 +177,20 @@ int main()
         tuning::apply(QVariantMap{}, "shaft.emitTakeaway", emitTk);
         check(boxPx == 7.0 && gapF == 15 && bridge == 10 && emitTk == true,
               "empty map → shaft onset/bridge/Takeaway frozen ON defaults (2026-07-17 freeze)");
-        check(m3gate == 0.0, "empty map → shaft.onsetBridgeMinNetFrac frozen dark 0 (m3gate off)");
+        check(m3gate == 0.2, "empty map → shaft.onsetBridgeMinNetFrac frozen ON 0.2 (2026-07-18 freeze)");
 
         QVariantMap ov;                            // distinct non-default values
         ov["shaft.onsetReturnBoxPx"] = 0.0;        // 0 = the legacy dark baseline
         ov["shaft.onsetReturnGapFrames"] = 20;
         ov["shaft.onsetRunBridgeFrames"] = 0;
-        ov["shaft.onsetBridgeMinNetFrac"] = 0.2;   // the m3gate freeze candidate
+        ov["shaft.onsetBridgeMinNetFrac"] = 0.0;   // 0 = m3gate dark-out
         ov["shaft.emitTakeaway"] = false;
         tuning::apply(ov, "shaft.onsetReturnBoxPx", boxPx);
         tuning::apply(ov, "shaft.onsetReturnGapFrames", gapF);
         tuning::apply(ov, "shaft.onsetRunBridgeFrames", bridge);
         tuning::apply(ov, "shaft.onsetBridgeMinNetFrac", m3gate);
         tuning::apply(ov, "shaft.emitTakeaway", emitTk);
-        check(boxPx == 0.0 && gapF == 20 && bridge == 0 && m3gate == 0.2 && emitTk == false,
+        check(boxPx == 0.0 && gapF == 20 && bridge == 0 && m3gate == 0.0 && emitTk == false,
               "shaft onset/bridge/m3gate/Takeaway overrides (incl. dark-out) reach their fromOverrides seam");
     }
 

@@ -41,9 +41,10 @@ static void check(bool c, const char *label)
 static ShaftV3Config darkV3()
 {
     ShaftV3Config c;
-    c.onsetReturnBoxPx     = 0.0;
-    c.onsetRunBridgeFrames = 0;
-    c.emitTakeaway         = false;
+    c.onsetReturnBoxPx      = 0.0;
+    c.onsetRunBridgeFrames  = 0;
+    c.onsetBridgeMinNetFrac = 0.0;
+    c.emitTakeaway          = false;
     return c;
 }
 
@@ -370,9 +371,9 @@ int main()
         const int nf = int(t.gx.size());
         const int impact = downStart + 35;
 
-        ShaftV3Config off;                           // frozen defaults, m3gate dark
+        ShaftV3Config off; off.onsetBridgeMinNetFrac = 0.0;   // m3gate darked out (frozen ON 2026-07-18)
         const PhaseModel pOff = segmentPhases(t.gx, t.gy, nf, 150.0, impact, off, nullptr);
-        ShaftV3Config on = off; on.onsetBridgeMinNetFrac = 0.2;
+        ShaftV3Config on = off; on.onsetBridgeMinNetFrac = 0.2;   // the frozen value
         const PhaseModel pOn = segmentPhases(t.gx, t.gy, nf, 150.0, impact, on, nullptr);
         std::printf("    flap=[%d,%d] quiet=%d tk=%d bsEnd=%d down=%d impact=%d\n"
                     "    OFF bs0=%d top=%d fin0=%d | ON bs0=%d top=%d fin0=%d\n",
@@ -416,7 +417,7 @@ int main()
         const int nf = int(t.gx.size());
         const int impact = downStart + 30;
 
-        const ShaftV3Config noGate;                  // frozen defaults (bridge 10)
+        ShaftV3Config noGate; noGate.onsetBridgeMinNetFrac = 0.0;   // gate darked out (frozen ON 2026-07-18)
         const PhaseModel p0 = segmentPhases(t.gx, t.gy, nf, 150.0, impact, noGate, &t.phi);
         for (double k : {0.2, 0.5, 0.9}) {
             ShaftV3Config g = noGate; g.onsetBridgeMinNetFrac = k;
@@ -450,7 +451,7 @@ int main()
         const int nf = int(t.gx.size());
         const int impact = downStart + 35;
 
-        const ShaftV3Config noGate;
+        ShaftV3Config noGate; noGate.onsetBridgeMinNetFrac = 0.0;   // gate darked out (frozen ON 2026-07-18)
         const PhaseModel p0 = segmentPhases(t.gx, t.gy, nf, 150.0, impact, noGate, nullptr);
         ShaftV3Config g = noGate; g.onsetBridgeMinNetFrac = 0.2;
         const PhaseModel p = segmentPhases(t.gx, t.gy, nf, 150.0, impact, g, nullptr);
@@ -471,16 +472,16 @@ int main()
         check(def.onsetReturnBoxPx == 7.0 && def.onsetReturnGapFrames == 15
               && def.onsetRunBridgeFrames == 10 && def.emitTakeaway == true,
               "empty map → frozen ON defaults (box 7 / gap 15 / bridge 10 / Takeaway)");
-        check(def.onsetBridgeMinNetFrac == 0.0, "empty map → m3gate frozen dark (0)");
+        check(def.onsetBridgeMinNetFrac == 0.2, "empty map → m3gate frozen ON 0.2 (2026-07-18 freeze)");
         QVariantMap ov;
         ov["shaft.onsetReturnBoxPx"] = 0.0;
         ov["shaft.onsetReturnGapFrames"] = 20;
         ov["shaft.onsetRunBridgeFrames"] = 0;
-        ov["shaft.onsetBridgeMinNetFrac"] = 0.2;
+        ov["shaft.onsetBridgeMinNetFrac"] = 0.0;   // dark-out
         ov["shaft.emitTakeaway"] = false;
         const ShaftV3Config c = ShaftV3Config::fromOverrides(ov);
         check(c.onsetReturnBoxPx == 0.0 && c.onsetReturnGapFrames == 20
-              && c.onsetRunBridgeFrames == 0 && c.onsetBridgeMinNetFrac == 0.2
+              && c.onsetRunBridgeFrames == 0 && c.onsetBridgeMinNetFrac == 0.0
               && c.emitTakeaway == false,
               "shaft.onsetReturn*/onsetRunBridgeFrames/onsetBridgeMinNetFrac/emitTakeaway overrides reach the config");
     }

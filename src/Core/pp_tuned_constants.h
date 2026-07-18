@@ -318,15 +318,18 @@ inline constexpr int    kOnsetReturnGapFrames = 15;    // forward exclusion befo
 // (legacy ranking). Separate key from the veto so its effect stays separable.
 inline constexpr int    kOnsetRunBridgeFrames = 10;
 // m3gate — chain-qualified net-displacement gate on the two-longest run
-// ranking (DARK, 0 = off; freeze candidate 0.2). A grip-anchor oscillation
-// cluster (s0002's presentation-move pose flapping) bridges >= 3 raw runs into
-// a chain long enough to win the ranking while going nowhere; the gate demands
-// net displacement >= this fraction of path length from such chains.
-// Separation evidence (2026-07-18 Phase-0 dumps): the flap chain nets
-// 0.013×path vs >= 0.34 for every legitimate merged run — 25× — and m = 2
-// merges (the frozen w2s4 evidence, including the legitimately low-net
-// downswing+follow-through reversal merge at 0.08) are structurally exempt.
-inline constexpr double kOnsetBridgeMinNetFrac = 0.0;
+// ranking. A grip-anchor oscillation cluster (s0002's presentation-move pose
+// flapping) bridges >= 3 raw runs into a chain long enough to win the ranking
+// while going nowhere; the gate demands net displacement >= this fraction of
+// path length from such chains. FROZEN ON 2026-07-18 at 0.2 (0 still
+// disables). Evidence: 17-swing truth — s0002 Takeaway 1.857 → 2.480 s
+// (+0.100 vs truth), s0001 Address → +0.042, the other 15 swings zero-
+// movement; 61-swing corpus — 19 move in the corrective direction, 0 score
+// changes; net/path separation 25× (flap chain 0.013 vs >= 0.34 for every
+// legitimate merged run). m = 2 merges (the frozen w2s4 evidence, including
+// the legitimately low-net downswing+follow-through reversal merge at 0.08)
+// are structurally exempt.
+inline constexpr double kOnsetBridgeMinNetFrac = 0.2;
 inline constexpr bool   kEmitTakeaway         = true;  // vision Takeaway event at bs0 (ladder gains 1 event)
 } // namespace shaft
 

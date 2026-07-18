@@ -468,8 +468,9 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
         m.bs0 = 0; m.top = nf / 2; m.impact = nf / 2; m.fin0 = nf - 1;
         return m;
     }
-    // m3gate (dark: 0 = off) — chain-qualified net-displacement gate on the
-    // two-longest RANKING. A grip-anchor oscillation cluster (s0002's
+    // m3gate (FROZEN ON 2026-07-18 at 0.2; 0 = off) — chain-qualified
+    // net-displacement gate on the two-longest RANKING. A grip-anchor
+    // oscillation cluster (s0002's
     // presentation-move pose flapping: seven 7–8-frame >swSpd runs, gaps 4–6)
     // bridges into a run long enough to win the ranking while going NOWHERE
     // (net 11 px over an 824 px path, net/path 0.013) — bs0 then lands in the
