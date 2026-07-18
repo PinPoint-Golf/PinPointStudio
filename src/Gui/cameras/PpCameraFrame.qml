@@ -55,6 +55,27 @@ Item {
                ? shotReplay.streams[replayStreamIndex].perspective : -1)
             : (instance ? instance.perspective : -1)
 
+    // Swing-window gate — during replay, analysis overlays draw ONLY while the
+    // playhead is between the Address (phase 0) and Finish (phase 7) timeline
+    // positions; the pre-swing setup/waggle and the post-Finish settling carry no
+    // overlay. Phase timestamps come from the same source-agnostic detail the
+    // overlay geometry does, in the shared window-relative µs domain as the
+    // playhead (t0 subtracted), so no conversion is needed. If either boundary
+    // phase is absent (a swing whose segmentation lacked them) the window is left
+    // open — overlays behave exactly as before rather than vanishing entirely.
+    function _phaseUs(idx) {
+        var d = root._replayDetail
+        var ph = (d && d.phases) ? d.phases : []
+        for (var i = 0; i < ph.length; ++i)
+            if (ph[i].phase === idx) return ph[i].t_us
+        return -1
+    }
+    readonly property real _addressUs: _phaseUs(0)   // Phase::Address
+    readonly property real _finishUs:  _phaseUs(7)   // Phase::Finish
+    readonly property bool _inSwingWindow:
+            (_addressUs < 0 || _finishUs < 0)
+            || (_replayPlayheadUs >= _addressUs && _replayPlayheadUs <= _finishUs)
+
     // Camera name shown in-frame (muted overlay; also the placeholder title).
     property string displayName: ""
 
@@ -896,6 +917,7 @@ Item {
             visible: root.showReplayOverlay
                      && root._replayActive
                      && root._replayPerspective === 2
+                     && root._inSwingWindow
                      && (_poseFrames.length > 0 || _clubSamples.length > 0
                          || _ballSamples.length > 0)
 
@@ -1418,6 +1440,7 @@ Item {
                 readonly property bool _active: root.motionOn
                         && root._replayActive
                         && root._replayPerspective === 2
+                        && root._inSwingWindow
                         && root._elemMode(modelData) === "trace"
                 property var pts: _active ? root._traceNormPoints(modelData) : []
                 visible: _active && pts.length > 1
