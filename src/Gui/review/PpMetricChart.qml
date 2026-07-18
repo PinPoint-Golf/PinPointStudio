@@ -81,8 +81,8 @@ Item {
     property bool summaryCollapsed:  false
 
     readonly property string _sectionKeyBase: root.sessionType + ":" + SessionMode.mode + ":"
-    on_SectionKeyBaseChanged: root._restoreSections()
-    Component.onCompleted:    root._restoreSections()
+    on_SectionKeyBaseChanged: { root._restoreSections(); root._restorePrefs() }
+    Component.onCompleted:    { root._restoreSections(); root._restorePrefs() }
 
     function _restoreSections() {
         if (root.sessionType < 0) return            // compact / transient — keep defaults
@@ -99,6 +99,36 @@ Item {
         appSettings.sectionCollapse = mm
     }
 
+    // Display controls (Split/Overlay, P dots, Cursor) + series visibility, persisted
+    // per screen+mode alongside the section-collapse state — so Replay (mode 1) and
+    // Analyse (mode 2) each remember their own chart, per session type. Same key base
+    // ("<sessionType>:<mode>:"); stored in appSettings.chartPrefs. Restore resets a
+    // field to its built-in default when this view never saved it, so the views stay
+    // fully independent (no value bleeds from the one last edited).
+    //
+    // Persist is called explicitly from the control handlers (_toggle, the toolbar
+    // toggles) — NOT from on<Property>Changed. This chart is a lazily-created panel
+    // delegate, so it is constructed while already in Replay/Analyse; a `var`
+    // property's construction-time change signal would otherwise fire _persistPref
+    // with the default {} and clobber the saved selection before _restorePrefs reads
+    // it. Interaction-only persistence has no such construction-time fire.
+    function _restorePrefs() {
+        if (root.sessionType < 0) return            // compact / transient — keep defaults
+        var m = appSettings.chartPrefs, b = root._sectionKeyBase
+        root.splitMode  = (m[b + "split"]  !== undefined) ? (m[b + "split"]  === true) : true
+        root.showDots   = (m[b + "dots"]   !== undefined) ? (m[b + "dots"]   === true) : true
+        root.showCursor = (m[b + "cursor"] !== undefined) ? (m[b + "cursor"] === true) : true
+        root.enabledKeys = (m[b + "series"] && typeof m[b + "series"] === "object")
+                           ? m[b + "series"] : ({})
+    }
+    function _persistPref(name, val) {
+        if (root.sessionType < 0) return            // compact / transient — don't persist
+        var mm = {}
+        for (var k in appSettings.chartPrefs) mm[k] = appSettings.chartPrefs[k]
+        mm[root._sectionKeyBase + name] = val
+        appSettings.chartPrefs = mm
+    }
+
     // Shared geometry (one source of truth for plots + tooltip placement). Split needs a
     // wider gutter for the per-facet name + @end caption.
     readonly property real _gutterLeft: root._effSplit ? Theme.sp(92) : Theme.sp(54)
@@ -111,6 +141,7 @@ Item {
         var e = Object.assign({}, root.enabledKeys)
         e[key] = !root._isOn(key)
         root.enabledKeys = e
+        root._persistPref("series", root.enabledKeys)
     }
     function _color(i) { return Theme.chartSeriesColor(i) }
     function _name(s)  { return cm.shortLabel(s.key) || s.label || s.key }
@@ -299,7 +330,8 @@ Item {
                 Layout.preferredWidth: Theme.sp(150)
                 options:  [qsTr("Split"), qsTr("Overlay")]
                 selected: root.splitMode ? qsTr("Split") : qsTr("Overlay")
-                onActivated: (v) => root.splitMode = (v === qsTr("Split"))
+                onActivated: (v) => { root.splitMode = (v === qsTr("Split"))
+                                      root._persistPref("split", root.splitMode) }
             }
 
             Item { Layout.fillWidth: true }      // spacer
@@ -332,8 +364,15 @@ Item {
                         color: Theme.colorText2
                     }
                     TapHandler {
-                        onTapped: tog.modelData.k === "dots" ? (root.showDots = !root.showDots)
-                                                             : (root.showCursor = !root.showCursor)
+                        onTapped: {
+                            if (tog.modelData.k === "dots") {
+                                root.showDots = !root.showDots
+                                root._persistPref("dots", root.showDots)
+                            } else {
+                                root.showCursor = !root.showCursor
+                                root._persistPref("cursor", root.showCursor)
+                            }
+                        }
                     }
                 }
             }

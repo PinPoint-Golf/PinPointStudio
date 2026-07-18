@@ -146,6 +146,12 @@ class AppSettings : public QObject
     // (e.g. "1:1:scope"), value = bool (true = collapsed). Read/written by
     // PpDataViewer and PpMetricChart so each screen+mode remembers its layout.
     Q_PROPERTY(QVariantMap sectionCollapse      READ sectionCollapse      WRITE setSectionCollapse      NOTIFY sectionCollapseChanged)
+    // Metric-chart display controls + series selections, persisted per screen+mode
+    // so Replay and Analyse each remember their own chart. Key =
+    // "<sessionTypeInt>:<modeInt>:<field>" (e.g. "1:1:split"); value is a bool for
+    // split/dots/cursor or a { seriesKey: bool } visibility map for series. Read/
+    // written by PpMetricChart, alongside sectionCollapse.
+    Q_PROPERTY(QVariantMap chartPrefs           READ chartPrefs           WRITE setChartPrefs           NOTIFY chartPrefsChanged)
     Q_PROPERTY(int         lastSessionType   READ lastSessionType   WRITE setLastSessionType   NOTIFY lastSessionTypeChanged)
 
     Q_PROPERTY(QString sessionNamingPattern  READ sessionNamingPattern  WRITE setSessionNamingPattern  NOTIFY sessionNamingPatternChanged)
@@ -287,6 +293,7 @@ public:
         m_viewLayoutByMode      = ppSettings().value(QStringLiteral("view/layoutByMode"),      QVariantMap{}).toMap();
         m_dataRegionByType      = ppSettings().value(QStringLiteral("view/dataRegionByType"),  QVariantMap{}).toMap();
         m_sectionCollapse       = ppSettings().value(QStringLiteral("view/sectionCollapse"),   QVariantMap{}).toMap();
+        m_chartPrefs            = ppSettings().value(QStringLiteral("view/chartPrefs"),         QVariantMap{}).toMap();
         m_lastSessionType    = ppSettings().value(QStringLiteral("session/lastType"), 0).toInt();
 
         m_sessionNamingPattern  = ppSettings().value(QStringLiteral("storage/sessionNamingPattern"),  QStringLiteral("date-name-type")).toString();
@@ -385,6 +392,7 @@ public:
     QVariantMap viewLayoutByMode()      const { return m_viewLayoutByMode; }
     QVariantMap dataRegionByType()      const { return m_dataRegionByType; }
     QVariantMap sectionCollapse()       const { return m_sectionCollapse; }
+    QVariantMap chartPrefs()            const { return m_chartPrefs; }
     int         lastSessionType()    const { return m_lastSessionType; }
 
     QString sessionNamingPattern()  const { return m_sessionNamingPattern; }
@@ -992,6 +1000,14 @@ public:
         emit sectionCollapseChanged();
     }
 
+    void setChartPrefs(const QVariantMap &v)
+    {
+        if (m_chartPrefs == v) return;
+        m_chartPrefs = v;
+        ppSettings().setValue(QStringLiteral("view/chartPrefs"), v);
+        emit chartPrefsChanged();
+    }
+
     void setLastSessionType(int v)
     {
         if (m_lastSessionType == v) return;
@@ -1168,6 +1184,7 @@ signals:
     void viewLayoutByModeChanged();
     void dataRegionByTypeChanged();
     void sectionCollapseChanged();
+    void chartPrefsChanged();
     void lastSessionTypeChanged();
     void sessionNamingPatternChanged();
     void videoResolutionModeChanged();
@@ -1260,6 +1277,7 @@ private:
     QVariantMap m_viewLayoutByMode;
     QVariantMap m_dataRegionByType;
     QVariantMap m_sectionCollapse;
+    QVariantMap m_chartPrefs;
     int         m_lastSessionType = 0;
 
     QString m_sessionNamingPattern  = QStringLiteral("date-name-type");
