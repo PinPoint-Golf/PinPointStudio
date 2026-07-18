@@ -168,25 +168,30 @@ int main()
         double boxPx  = pinpoint::tuned::shaft::kOnsetReturnBoxPx;
         int    gapF   = pinpoint::tuned::shaft::kOnsetReturnGapFrames;
         int    bridge = pinpoint::tuned::shaft::kOnsetRunBridgeFrames;
+        double m3gate = pinpoint::tuned::shaft::kOnsetBridgeMinNetFrac;
         bool   emitTk = pinpoint::tuned::shaft::kEmitTakeaway;
         tuning::apply(QVariantMap{}, "shaft.onsetReturnBoxPx", boxPx);
         tuning::apply(QVariantMap{}, "shaft.onsetReturnGapFrames", gapF);
         tuning::apply(QVariantMap{}, "shaft.onsetRunBridgeFrames", bridge);
+        tuning::apply(QVariantMap{}, "shaft.onsetBridgeMinNetFrac", m3gate);
         tuning::apply(QVariantMap{}, "shaft.emitTakeaway", emitTk);
         check(boxPx == 7.0 && gapF == 15 && bridge == 10 && emitTk == true,
               "empty map → shaft onset/bridge/Takeaway frozen ON defaults (2026-07-17 freeze)");
+        check(m3gate == 0.0, "empty map → shaft.onsetBridgeMinNetFrac frozen dark 0 (m3gate off)");
 
         QVariantMap ov;                            // distinct non-default values
         ov["shaft.onsetReturnBoxPx"] = 0.0;        // 0 = the legacy dark baseline
         ov["shaft.onsetReturnGapFrames"] = 20;
         ov["shaft.onsetRunBridgeFrames"] = 0;
+        ov["shaft.onsetBridgeMinNetFrac"] = 0.2;   // the m3gate freeze candidate
         ov["shaft.emitTakeaway"] = false;
         tuning::apply(ov, "shaft.onsetReturnBoxPx", boxPx);
         tuning::apply(ov, "shaft.onsetReturnGapFrames", gapF);
         tuning::apply(ov, "shaft.onsetRunBridgeFrames", bridge);
+        tuning::apply(ov, "shaft.onsetBridgeMinNetFrac", m3gate);
         tuning::apply(ov, "shaft.emitTakeaway", emitTk);
-        check(boxPx == 0.0 && gapF == 20 && bridge == 0 && emitTk == false,
-              "shaft onset/bridge/Takeaway overrides (incl. dark-out) reach their fromOverrides seam");
+        check(boxPx == 0.0 && gapF == 20 && bridge == 0 && m3gate == 0.2 && emitTk == false,
+              "shaft onset/bridge/m3gate/Takeaway overrides (incl. dark-out) reach their fromOverrides seam");
     }
 
     std::printf("--- ball.* club-activity + positions.p1ClubQuietSigma + ball.tk0AddressOverride (W3/W4) ---\n");

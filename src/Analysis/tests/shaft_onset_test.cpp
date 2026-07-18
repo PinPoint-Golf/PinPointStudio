@@ -334,6 +334,134 @@ int main()
               "with floor: nothing above it passes stillAt ⇒ Address = the floor (last settle)");
     }
 
+    // ── (k) s0002-shaped presentation flap chain — the m3gate ─────────────────
+    std::printf("=== (k) flap-chain mis-pick / m3gate ===\n");
+    {
+        // Grip-anchor pose FLAPPING (the s0002 presentation move): seven ~8-frame
+        // >swSpd oscillation bursts with short sub-swSpd lulls — bridging chains
+        // them into a going-nowhere run (net/path ~0.02) long enough to beat the
+        // real runs, and bs0 parks in the flap. The real swing follows: quiet
+        // patch, fragmented takeaway/backswing (m=2 merge), top hold, downswing.
+        Track t;
+        t.start(760, 650);
+        t.wander(760, 650, 50, 0.8, 0.0);            // deep still address
+        const int flapLo = t.frame() + 1;
+        for (int c = 0; c < 7; ++c) {                // flap burst: 5 up + 5 down @12
+            t.vel(5, 12.0, 12.0, 0, -1, 0.0);
+            t.vel(5, 12.0, 12.0, 0, +1, 0.0);
+            t.vel(6, 0.5, 0.5, 0, (c % 2) ? -1 : +1, 0.0);   // deep lull ⇒ runs split; net ~0
+        }
+        const int flapHi = t.frame();
+        const int quietLo = t.frame() + 1;
+        t.vel(12, 1.2, 1.2, 0, +1, 0.0);             // quiet patch (dips below swLow, the s0002 shape)
+        const int tkStart = t.frame() + 1;
+        t.vel(20, 9.0, 12.0, 0, -1, 0.0);            // takeaway run
+        t.vel(6, 2.0, 2.0, 0, -1, 0.0);              // lull fragmenting the backswing
+        t.vel(10, 12.0, 12.0, 0, -1, 0.0);           // backswing fragment (m=2 merge)
+        const int bsEnd = t.frame();
+        t.wander(t.gx.back(), t.gy.back(), 20, 0.5, 0.0);   // top hold
+        const int downStart = t.frame() + 1;
+        t.vel(10, 1.0, 14.0, 0, +1, 0.0);
+        t.vel(40, 14.0, 14.0, 0, +1, 0.0);           // downswing
+        t.vel(8, 14.0, 1.0, 0, +1, 0.0);
+        t.wander(t.gx.back(), t.gy.back(), 8, 0.5, 0.0);
+        t.vel(13, 12.0, 12.0, +1, 0, 0.0);           // follow-through fragment
+        t.wander(t.gx.back(), t.gy.back(), 15, 0.5, 0.0);
+        const int nf = int(t.gx.size());
+        const int impact = downStart + 35;
+
+        ShaftV3Config off;                           // frozen defaults, m3gate dark
+        const PhaseModel pOff = segmentPhases(t.gx, t.gy, nf, 150.0, impact, off, nullptr);
+        ShaftV3Config on = off; on.onsetBridgeMinNetFrac = 0.2;
+        const PhaseModel pOn = segmentPhases(t.gx, t.gy, nf, 150.0, impact, on, nullptr);
+        std::printf("    flap=[%d,%d] quiet=%d tk=%d bsEnd=%d down=%d impact=%d\n"
+                    "    OFF bs0=%d top=%d fin0=%d | ON bs0=%d top=%d fin0=%d\n",
+                    flapLo, flapHi, quietLo, tkStart, bsEnd, downStart, impact,
+                    pOff.bs0, pOff.top, pOff.fin0, pOn.bs0, pOn.top, pOn.fin0);
+        // DEFECT (gate dark): the flap chain wins the ranking; bs0 parks in or
+        // before the flap, far from the real takeaway.
+        check(pOff.bs0 <= flapHi, "gate OFF: bs0 parks in/before the flap (mis-pick documented)");
+        // gate ON: the true run selection is restored — onset lands at the quiet
+        // patch / takeaway foot, with top and fin0 intact.
+        check(pOn.bs0 >= quietLo && pOn.bs0 <= tkStart + 4,
+              "gate 0.2: bs0 recovers to the quiet patch / takeaway foot");
+        check(pOn.top > bsEnd && pOn.top < downStart + 2, "gate 0.2: top lands in the real top hold");
+        check(pOn.fin0 == pOff.fin0, "gate 0.2: fin0 unchanged (downswing end)");
+        // The gate only ever REMOVES a going-nowhere chain — the onset can only
+        // move later.
+        check(pOn.bs0 >= pOff.bs0, "gate 0.2: onset only moved later");
+    }
+
+    // ── (l) m=2 exemption: the frozen w2s4 rescue is untouchable ──────────────
+    std::printf("=== (l) m=2 bridged runs exempt from the m3gate ===\n");
+    {
+        // Reuse the (b/e) shape: fidget, settle, two backswing fragments (m=2
+        // merge), top dwell, downswing, follow-through fragment. At ANY kFrac
+        // the m=2 merges must be exempt ⇒ selection identical to gate-off.
+        FidgetSwing s = makeFidgetSwing(0.6);
+        Track &t = s.t;
+        const int keep = s.settleHi + 1;
+        t.gx.resize(keep); t.gy.resize(keep); t.phi.resize(keep);
+        t.vel(9, 12.0, 12.0, 0, -1, -1.0);
+        t.vel(6, 2.0, 2.0, 0, -1, -0.8);
+        t.vel(9, 12.0, 12.0, 0, -1, -1.0);
+        t.wander(t.gx.back(), t.gy.back(), 26, 0.5, -0.4);
+        const int downStart = t.frame() + 1;
+        t.vel(10, 1.0, 14.0, 0, +1, +2.0);
+        t.vel(30, 14.0, 14.0, 0, +1, +2.0);
+        t.vel(8, 14.0, 1.0, 0, +1, +1.0);
+        t.wander(t.gx.back(), t.gy.back(), 8, 0.5, 0.0);
+        t.vel(13, 12.0, 12.0, +1, 0, +0.5);
+        t.wander(t.gx.back(), t.gy.back(), 20, 0.5, 0.0);
+        const int nf = int(t.gx.size());
+        const int impact = downStart + 30;
+
+        const ShaftV3Config noGate;                  // frozen defaults (bridge 10)
+        const PhaseModel p0 = segmentPhases(t.gx, t.gy, nf, 150.0, impact, noGate, &t.phi);
+        for (double k : {0.2, 0.5, 0.9}) {
+            ShaftV3Config g = noGate; g.onsetBridgeMinNetFrac = k;
+            const PhaseModel p = segmentPhases(t.gx, t.gy, nf, 150.0, impact, g, &t.phi);
+            check(p.bs0 == p0.bs0 && p.top == p0.top && p.impact == p0.impact && p.fin0 == p0.fin0
+                  && p.onsetFloor == p0.onsetFloor,
+                  "m=2 merges exempt at any kFrac (w2s4 rescue pinned)");
+        }
+    }
+
+    // ── (m) a legitimate m=3 chain with high net survives the gate ────────────
+    std::printf("=== (m) high-net m=3 chain survives ===\n");
+    {
+        // A slow monotone backswing fragmented into THREE bursts (m=3 chain,
+        // net/path ~0.85 — the legitimate case the >= 3 qualifier must not harm).
+        Track t;
+        t.start(700, 650);
+        t.wander(700, 650, 50, 0.8, 0.0);
+        const int tkStart = t.frame() + 1;
+        for (int c = 0; c < 3; ++c) {
+            t.vel(9, 12.0, 12.0, 0, -1, 0.0);        // monotone fragment
+            t.vel(5, 2.0, 2.0, 0, -1, 0.0);          // lull (gap 5 < bridge 10)
+        }
+        const int bsEnd = t.frame();
+        t.wander(t.gx.back(), t.gy.back(), 20, 0.5, 0.0);   // top hold
+        const int downStart = t.frame() + 1;
+        t.vel(10, 1.0, 14.0, 0, +1, 0.0);
+        t.vel(40, 14.0, 14.0, 0, +1, 0.0);
+        t.vel(8, 14.0, 1.0, 0, +1, 0.0);
+        t.wander(t.gx.back(), t.gy.back(), 20, 0.5, 0.0);
+        const int nf = int(t.gx.size());
+        const int impact = downStart + 35;
+
+        const ShaftV3Config noGate;
+        const PhaseModel p0 = segmentPhases(t.gx, t.gy, nf, 150.0, impact, noGate, nullptr);
+        ShaftV3Config g = noGate; g.onsetBridgeMinNetFrac = 0.2;
+        const PhaseModel p = segmentPhases(t.gx, t.gy, nf, 150.0, impact, g, nullptr);
+        std::printf("    tk=%d bsEnd=%d down=%d | noGate bs0=%d top=%d fin0=%d | gate bs0=%d\n",
+                    tkStart, bsEnd, downStart, p0.bs0, p0.top, p0.fin0, p.bs0);
+        check(p0.bs0 <= tkStart && p0.bs0 > tkStart - 30,
+              "m=3 monotone chain wins the ranking without the gate (fixture sane)");
+        check(p.bs0 == p0.bs0 && p.top == p0.top && p.impact == p0.impact && p.fin0 == p0.fin0,
+              "gate 0.2: high-net m=3 chain survives (selection identical)");
+    }
+
     // ── fromOverrides: the four keys reach ShaftV3Config ──────────────────────
     std::printf("=== fromOverrides key plumbing ===\n");
     {
@@ -343,15 +471,18 @@ int main()
         check(def.onsetReturnBoxPx == 7.0 && def.onsetReturnGapFrames == 15
               && def.onsetRunBridgeFrames == 10 && def.emitTakeaway == true,
               "empty map → frozen ON defaults (box 7 / gap 15 / bridge 10 / Takeaway)");
+        check(def.onsetBridgeMinNetFrac == 0.0, "empty map → m3gate frozen dark (0)");
         QVariantMap ov;
         ov["shaft.onsetReturnBoxPx"] = 0.0;
         ov["shaft.onsetReturnGapFrames"] = 20;
         ov["shaft.onsetRunBridgeFrames"] = 0;
+        ov["shaft.onsetBridgeMinNetFrac"] = 0.2;
         ov["shaft.emitTakeaway"] = false;
         const ShaftV3Config c = ShaftV3Config::fromOverrides(ov);
         check(c.onsetReturnBoxPx == 0.0 && c.onsetReturnGapFrames == 20
-              && c.onsetRunBridgeFrames == 0 && c.emitTakeaway == false,
-              "shaft.onsetReturn*/onsetRunBridgeFrames/emitTakeaway overrides (dark-out) reach the config");
+              && c.onsetRunBridgeFrames == 0 && c.onsetBridgeMinNetFrac == 0.2
+              && c.emitTakeaway == false,
+              "shaft.onsetReturn*/onsetRunBridgeFrames/onsetBridgeMinNetFrac/emitTakeaway overrides reach the config");
     }
 
     // ── W2: the additive vision Takeaway event ────────────────────────────────

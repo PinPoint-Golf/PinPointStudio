@@ -54,7 +54,7 @@ visible in a scorecard check (§4).
 | `filter.*` | `RefuseConfig` (`orientation_refuser.h`) | `filter::` | C1→C2→C3 | wrist angles → `xmodal.imu_vision_corr`, `diag.*`, `filter.impact_continuity` |
 | `seed.*` (status **code**) | `kInit*` (`imu_base.h`) | `seed::` | C1 | live filter convergence (offline-unreachable) |
 | `pose.intraOpThreads` | `ShotAnalysisRunnerOptions` / `PoseEstimatorViTPose::load` (`pose_runner.cpp`) | `pp_tuned_constants.h` `pose::` | perf | offline ViTPose ORT intra-op pool → compute wall-time (default 0 = legacy heuristic) |
-| `shaft.onsetReturn*` / `shaft.onsetRunBridgeFrames` / `shaft.emitTakeaway` | `ShaftV3Config` (`shaft_track_assembly.h`) | `pp_tuned_constants.h` `shaft::` | C1 | `truth.p1_address`, `seg.tempo_ratio`, Address→Top duration (camera-only fidget swings; **FROZEN ON 2026-07-17** — box 7 / gap 15 / bridge 10 / Takeaway on; 0 disables each) |
+| `shaft.onsetReturn*` / `shaft.onsetRunBridgeFrames` / `shaft.onsetBridgeMinNetFrac` / `shaft.emitTakeaway` | `ShaftV3Config` (`shaft_track_assembly.h`) | `pp_tuned_constants.h` `shaft::` | C1 | `truth.p1_address`, `seg.tempo_ratio`, Address→Top duration (camera-only fidget swings; **FROZEN ON 2026-07-17** — box 7 / gap 15 / bridge 10 / Takeaway on; m3gate `onsetBridgeMinNetFrac` still DARK 0, freeze candidate 0.2; 0 disables each) |
 | `ball.clubActivity` / `ball.activity*` / `positions.p1ClubQuietSigma` / `ball.tk0AddressOverride` | `BallActivityConfig` (`ball_runner.cpp`) / `PositionsConfig` (`shaft_positions.h`) / `applyBallAnchor` (`ball_anchor.cpp`) | `pp_tuned_constants.h` `ball::activity`, `ball::`, `positions::` | C1 | `truth.p1_address`, Address→Top duration (camera-only club-bob fidget swings; activity DARK ⇒ byte-identical; tk0 override **FROZEN OFF 2026-07-17**) |
 
 ### 2.1 `seg.*` — phase segmentation (≈25 keys)
@@ -178,6 +178,19 @@ fired on 0/17 truth swings). The revisit scan below replaces it and needs neithe
   applied AFTER the ≥7-frame filter: letting sub-7 waggle bursts participate chains a fidget cluster
   into a false run that wins the race and disables the veto (observed on w2s6). Separate key from the
   veto so the evaluation can separate their effects.
+- **`shaft.onsetBridgeMinNetFrac`** (**0.0** = m3gate OFF, dark; freeze candidate **0.2**). The
+  chain-qualified net-displacement gate on the two-longest ranking: a bridged run assembled from **≥3
+  raw runs** enters the ranking only if its smoothed net displacement ≥ this fraction of its raw path
+  length; the gate falls back to the ungated ranking if it would empty the candidate list. Kills the
+  s0002-class presentation-move mis-pick, where grip-anchor pose **flapping** produced seven 7–8-frame
+  oscillation runs that bridged into a 79-frame going-nowhere chain (net/path **0.013**), tied the
+  downswing for two-longest and pinned Takeaway at the A3 far edge (−0.52 s → **+0.100 s** with the
+  gate). The ≥3-chain qualifier is a fixed structural rule, not a knob — **m=2 merges are the frozen
+  w2s4 evidence** (fragmented-backswing rescue; the reversal-containing downswing+follow-through merge
+  legitimately nets only 0.08×path) and are permanently exempt. Separation margin: flap 0.013 vs ≥0.34
+  for every legitimate chain (25×; Phase-0 dumps, 2026-07-18). s0002's remaining **Address** residual
+  (−0.58 s) is accepted pending the upstream grip-anchor flapping fix (recorded in the ShaftV3Config
+  contract).
 - **`shaft.emitTakeaway`** (**true**, frozen ON; **false = OFF**; W2). When on, `phasesToSegmentation`
   emits an additive vision **Takeaway** event at `bs0` (the motion onset); the ladder becomes
   `{Address, Takeaway, Top, Impact, Finish}`. Address stays on the hold-end / `addressFrame` path, and

@@ -300,6 +300,7 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.onsetReturnBoxPx", c.onsetReturnBoxPx);
     apply(ov, "shaft.onsetReturnGapFrames", c.onsetReturnGapFrames);
     apply(ov, "shaft.onsetRunBridgeFrames", c.onsetRunBridgeFrames);
+    apply(ov, "shaft.onsetBridgeMinNetFrac", c.onsetBridgeMinNetFrac);
     apply(ov, "shaft.emitTakeaway", c.emitTakeaway);
     apply(ov, "shaft.runMaxStartAfterImpactUs", c.runMaxStartAfterImpactUs);
     apply(ov, "shaft.spanBound", c.spanBound);
@@ -429,15 +430,24 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
     // wins the race and parks bs0 mid-fidget, disabling the no-return veto
     // (observed on the w2s6 dump — veto-only +13 ms, sub-7-chained bridging
     // regressed it to the unfixed -214 ms).
+    // chain[i] = how many RAW runs were folded into runs[i] by bridging (1 = an
+    // unmerged run). Carried through the clamp so the m3gate below can tell a
+    // long oscillation chain from an ordinary run or a 2-fragment merge.
+    std::vector<int> chain(runs.size(), 1);
     if (cfg.onsetRunBridgeFrames > 0 && runs.size() > 1) {
         std::vector<std::pair<int, int>> merged{ runs.front() };
+        std::vector<int> mChain{ 1 };
         for (size_t i = 1; i < runs.size(); ++i) {
-            if (runs[i].first - merged.back().second - 1 < cfg.onsetRunBridgeFrames)
+            if (runs[i].first - merged.back().second - 1 < cfg.onsetRunBridgeFrames) {
                 merged.back().second = runs[i].second;
-            else
+                ++mChain.back();
+            } else {
                 merged.push_back(runs[i]);
+                mChain.push_back(1);
+            }
         }
         runs = std::move(merged);
+        chain = std::move(mChain);
     }
     // Run-candidacy clamp: with a supplied impact, a run that STARTS more than
     // runMaxStartAfterImpactUs after it cannot be backswing or downswing — drop
@@ -448,13 +458,52 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
         const int maxStart = impactFrame
                              + int(std::lround(double(cfg.runMaxStartAfterImpactUs) * 1e-6 * fps));
         std::vector<std::pair<int, int>> kept;
-        for (const auto& r : runs) if (r.first <= maxStart) kept.push_back(r);
-        if (!kept.empty()) runs = std::move(kept);
+        std::vector<int> keptChain;
+        for (size_t i = 0; i < runs.size(); ++i)
+            if (runs[i].first <= maxStart) { kept.push_back(runs[i]); keptChain.push_back(chain[i]); }
+        if (!kept.empty()) { runs = std::move(kept); chain = std::move(keptChain); }
     }
     if (runs.empty()) {
         m.phase.assign(nf, SwingPhase::Addr);
         m.bs0 = 0; m.top = nf / 2; m.impact = nf / 2; m.fin0 = nf - 1;
         return m;
+    }
+    // m3gate (dark: 0 = off) — chain-qualified net-displacement gate on the
+    // two-longest RANKING. A grip-anchor oscillation cluster (s0002's
+    // presentation-move pose flapping: seven 7–8-frame >swSpd runs, gaps 4–6)
+    // bridges into a run long enough to win the ranking while going NOWHERE
+    // (net 11 px over an 824 px path, net/path 0.013) — bs0 then lands in the
+    // flap and the A3 far edge pins Takeaway at impact − bsMax. A bridged run
+    // assembled from >= 3 raw runs enters the ranking only if its smoothed net
+    // displacement >= onsetBridgeMinNetFrac × its path length. The >= 3-chain
+    // qualifier is a FIXED structural rule, not a knob: m = 2 merges are the
+    // frozen w2s4 evidence (fragmented backswing rescue, and the downswing +
+    // follow-through merge whose reversal legitimately nets low, ratio 0.08) —
+    // permanently exempt. Degenerate fallback: if the gate would empty the
+    // candidate list, rank the ungated list (never fewer candidates than
+    // ungated reach the ranking floor of the legacy behaviour).
+    if (cfg.onsetBridgeMinNetFrac > 0.0) {
+        bool anyLongChain = false;
+        for (int c : chain) anyLongChain = anyLongChain || c >= 3;
+        if (anyLongChain) {
+            // Smoothed grip endpoints (gauss(median5), the spd/joint convention);
+            // path = raw per-frame travel over the run.
+            const std::vector<double> gxS = gaussianFilter1d(medianFilter1d(gx, 5), 2.0);
+            const std::vector<double> gyS = gaussianFilter1d(medianFilter1d(gy, 5), 2.0);
+            std::vector<std::pair<int, int>> kept;
+            for (size_t i = 0; i < runs.size(); ++i) {
+                bool ok = chain[i] < 3;
+                if (!ok) {
+                    const double net = std::hypot(gxS[runs[i].second] - gxS[runs[i].first],
+                                                  gyS[runs[i].second] - gyS[runs[i].first]);
+                    double path = 0.0;
+                    for (int f = runs[i].first + 1; f <= runs[i].second; ++f) path += spd[f];
+                    ok = net >= cfg.onsetBridgeMinNetFrac * path;
+                }
+                if (ok) kept.push_back(runs[i]);
+            }
+            if (!kept.empty()) runs = std::move(kept);
+        }
     }
     std::stable_sort(runs.begin(), runs.end(),
                      [](const std::pair<int, int>& a, const std::pair<int, int>& b) {

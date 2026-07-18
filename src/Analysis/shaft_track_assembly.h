@@ -180,6 +180,27 @@ struct ShaftV3Config {
     // (the legacy ranking, byte-identical). Separate key so its effect stays
     // separable from the veto in A/Bs.
     int     onsetRunBridgeFrames = tuned::shaft::kOnsetRunBridgeFrames;
+    // m3gate (DARK, 0 = off; freeze candidate 0.2): a bridged run assembled
+    // from >= 3 raw runs enters the two-longest ranking only if its smoothed
+    // net displacement >= this fraction of its raw path length. Kills the
+    // s0002-class mis-pick: grip-anchor pose FLAPPING during a presentation
+    // move produced seven 7–8-frame >swSpd oscillation runs (gaps 4–6) that
+    // bridged into a 79-frame chain going nowhere (net/path 0.013), tied the
+    // downswing for two-longest, and parked bs0 in the flap (A3 far-edge pin
+    // at impact − bsMax, Takeaway −0.52 s). The >= 3-chain qualifier is a
+    // FIXED structural rule, deliberately not a knob: m = 2 merges are the
+    // frozen w2s4 evidence — the fragmented-backswing rescue AND the
+    // downswing+follow-through reversal merge (legitimately low net, ratio
+    // 0.08) — and are permanently exempt. Separation: flap 0.013 vs >= 0.34
+    // for every legitimate chain (25×); degenerate fallback re-ranks the
+    // ungated list if the gate would empty it. NOTE (recorded decision,
+    // 2026-07-18): the gate fixes s0002's TAKEAWAY (+0.100 s); its ADDRESS
+    // residual (−0.58 s, hold-end reverts to the deep pre-flap hold because
+    // the flap corrupts every stillness window) is ACCEPTED pending the
+    // upstream grip-anchor flapping fix — once the pose anchor is stable the
+    // flap runs disappear and the frozen revisit/floor machinery handles the
+    // swing natively.
+    double  onsetBridgeMinNetFrac = tuned::shaft::kOnsetBridgeMinNetFrac;
     // Additive vision Takeaway event (phasesToSegmentation, W2). FROZEN ON
     // 2026-07-17: the ladder is {Address,Takeaway,Top,Impact,Finish}; false
     // drops the Takeaway event (the pre-freeze four-event ladder). Separate key
