@@ -81,9 +81,11 @@ Item {
     // user-facing show/hide would be a View-menu/ViewLayout concern (per-view display
     // settings), not something owned here.
     readonly property var _positions: (_detail && _detail.club) ? (_detail.club.positions || []) : []
+    // gap arg (Theme.sp(6)) reserves the chip's horizontal padding between
+    // neighbours so clustered chips (the P5/P6/P7 downswing group) never touch.
     readonly property var _pTicks: (shotReplay.active && _positions.length > 0)
         ? solver.positionLayout(_positions, shotReplay.startUs, shotReplay.endUs, _horizontal,
-                                _lineLen, Theme.sp(4), Theme.fontData, Theme.fontSzMicro)
+                                _lineLen, Theme.sp(6), Theme.fontData, Theme.fontSzMicro)
         : []
 
     // Ground-truth markup positions for the swing currently on the line, in the same
@@ -180,51 +182,29 @@ Item {
             }
         }
 
-        // ── Measured P-positions — small ticks + micro "Pn" labels ──────────────
-        // One tick + label per fused position (see root._pTicks above). The tick
-        // straddles the line at its TRUE proportional time, like the shaft ticks
-        // above; the label sits at the solved (never-overlapping) main-axis position
-        // so clustered downswing positions (P5/P6/P7 can land within ~1% of the span
-        // of each other) stay legible instead of piling on top of one another. Drawn
-        // on the side of the line OPPOSITE the station labels (above when horizontal,
-        // left when vertical) so it never collides with them. Non-interactive and
-        // subtler than the shaft ticks (source-provenance colour only) — this is a
-        // secondary, always-on reference layer, not a seek affordance.
+        // ── Measured P-positions — provenance ticks ─────────────────────────────
+        // One tick per fused position (see root._pTicks above), straddling the line
+        // at its TRUE proportional time like the shaft ticks above. Colour flags fit
+        // provenance (MilestoneFit = the discrete higher-confidence fit; TrackSample
+        // = the raw fused track). Subtle reference chrome, drawn under the dots. The
+        // clickable "Pn" chips that carry the label and seek to each position are a
+        // SEPARATE layer declared after the scrub band (so their taps win) — below.
         Repeater {
             model: root._pTicks
-            delegate: Item {
+            delegate: Rectangle {
                 id: ptick
                 required property var modelData
-                anchors.fill: parent
                 readonly property real tickMain: root._insetMain + ptick.modelData.frac * root._lineLen
-                readonly property real labelMain: root._insetMain + ptick.modelData.center
-                readonly property real len:      Theme.sp(9)
-                readonly property real thick:    Theme.sp(2)
-                readonly property real labelGap: Theme.sp(9)
-
-                // Tick — colour flags fit provenance (MilestoneFit is the discrete,
-                // higher-confidence fit; TrackSample is the raw fused track).
-                Rectangle {
-                    width:  root._horizontal ? ptick.thick : ptick.len
-                    height: root._horizontal ? ptick.len   : ptick.thick
-                    radius: Theme.sp(1)
-                    antialiasing: true
-                    color: ptick.modelData.source === 1 ? Theme.colorGood : Theme.colorText3
-                    opacity: 0.5
-                    x: (root._horizontal ? ptick.tickMain : root._lineCross) - width / 2
-                    y: (root._horizontal ? root._lineCross : ptick.tickMain) - height / 2
-                }
-                // Micro label — opposite side of the line from the station labels.
-                Text {
-                    text: ptick.modelData.label
-                    font.family: Theme.fontData
-                    font.pixelSize: Theme.fontSzMicro
-                    color: Theme.colorText2
-                    x: root._horizontal ? (ptick.labelMain - width / 2)
-                                        : (root._lineCross - ptick.labelGap - width)
-                    y: root._horizontal ? (root._lineCross - ptick.labelGap - height)
-                                        : (ptick.labelMain - height / 2)
-                }
+                readonly property real len:   Theme.sp(9)
+                readonly property real thick: Theme.sp(2)
+                width:  root._horizontal ? thick : len
+                height: root._horizontal ? len   : thick
+                radius: Theme.sp(1)
+                antialiasing: true
+                color: ptick.modelData.source === 1 ? Theme.colorGood : Theme.colorText3
+                opacity: 0.5
+                x: (root._horizontal ? tickMain : root._lineCross) - width / 2
+                y: (root._horizontal ? root._lineCross : tickMain) - height / 2
             }
         }
 
@@ -347,6 +327,53 @@ Item {
                 y: root._horizontal ? (root._labelBand + Theme.sp(2)) : (labelMain - height / 2)
                 TapHandler { onTapped: shotReplay.seekToUs(lbl.modelData.tUs) }
                 HoverHandler { cursorShape: Qt.PointingHandCursor }
+            }
+        }
+
+        // ── Measured P-positions — clickable "Pn" chips ─────────────────────────
+        // The seek affordance for the measured coaching positions: one small chip
+        // per fused position, carrying the "Pn" label at the solved (never-
+        // overlapping) main-axis position so the clustered downswing positions stay
+        // legible. Sits on the side of the line OPPOSITE the station labels (above
+        // when horizontal, left when vertical), over its provenance tick above.
+        // Subtle by default, brightening on hover (chromeless-until-hover house
+        // style); tap seeks the playhead here, mirroring a station tap. Declared
+        // after the scrub band so a chip tap wins over a scrub drag.
+        Repeater {
+            model: root._pTicks
+            delegate: Rectangle {
+                id: pchip
+                required property var modelData
+                readonly property bool hovered: pchipHover.hovered
+                readonly property real labelMain: root._insetMain + pchip.modelData.center
+                readonly property real gap:  Theme.sp(9)
+                readonly property real padH: Theme.sp(4)
+                readonly property real padV: Theme.sp(2)
+                width:  plabel.implicitWidth  + 2 * padH
+                height: plabel.implicitHeight + 2 * padV
+                radius: height / 2
+                antialiasing: true
+                color: pchip.hovered
+                       ? Theme.colorSurface
+                       : Qt.rgba(Theme.colorSurface.r, Theme.colorSurface.g,
+                                 Theme.colorSurface.b, 0.5)
+                border.width: 1
+                border.color: pchip.hovered ? Theme.colorBorderStrong : Theme.colorBorderMid
+                x: root._horizontal ? (labelMain - width / 2)
+                                    : (root._lineCross - gap - width)
+                y: root._horizontal ? (root._lineCross - gap - height)
+                                    : (labelMain - height / 2)
+
+                Text {
+                    id: plabel
+                    anchors.centerIn: parent
+                    text: pchip.modelData.label
+                    font.family: Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    color: pchip.hovered ? Theme.colorText : Theme.colorText2
+                }
+                TapHandler { onTapped: shotReplay.seekToUs(pchip.modelData.tUs) }
+                HoverHandler { id: pchipHover; cursorShape: Qt.PointingHandCursor }
             }
         }
 
