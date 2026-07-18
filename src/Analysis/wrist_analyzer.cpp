@@ -37,6 +37,7 @@
 #include "imu_vision_fuser.h"
 #include "orientation_refuse_tuning.h"
 #include "metric_extractor.h"
+#include "kinematic_series.h"
 #include "phase_segmenter.h"
 #include "pose_runner.h"
 #include "pose_smoother.h"
@@ -646,6 +647,38 @@ struct FootMetricsStage : AnalysisStage {
     }
 };
 
+// 13b. Club kinematics — clubhead speed / hand speed (mph) + lag angle (°),
+//      appended to the DETAIL series only (unscored), mirroring HeadTrack/FootMetrics.
+//      Derived purely from the face-on camera products: the shaft track (clubhead/grip
+//      px → linear speed, preferring the dense synth channel) and pose (lead forearm vs
+//      shaft direction → lag). No IMU input; a curve is omitted, never fabricated, when
+//      its product is absent. Lands DARK behind kinematics.enabled (developer guide
+//      §6.3): OFF ⇒ skipped ⇒ detail->series byte-identical to the pre-stage pipeline.
+//      Runs after RequireProducts, so a halted shot skips it free.
+struct KinematicsStage : AnalysisStage {
+    QString name() const override { return QStringLiteral("Kinematics"); }
+    bool canRun(const AnalysisContext &ctx) const override
+    {
+        return KinematicSeriesConfig::fromOverrides(ctx.job.tuningOverrides).enabled;
+    }
+    QString skipReason(const AnalysisContext &) const override
+    {
+        return QStringLiteral("kinematics disabled (dark)");
+    }
+    void run(AnalysisContext &ctx) override
+    {
+        KinematicSeriesInputs in;
+        in.shaft       = ctx.detail->shaft.valid ? &ctx.detail->shaft : nullptr;
+        in.pose        = ctx.detail->pose2d.frames.empty() ? nullptr : &ctx.detail->pose2d;
+        in.impactUs    = ctx.job.impactUs;
+        in.handedness  = ctx.job.handedness;
+        in.clubLengthM = ctx.job.clubLengthM;
+        in.phases      = ctx.seg.events;
+        for (MetricSeries &m : buildKinematicSeries(in))
+            ctx.detail->series.push_back(std::move(m));
+    }
+};
+
 // 14. IMU calibration bindings — one BindingRecord per bound
 //     device, keyed by the stable device serial.
 struct BindingsStage : AnalysisStage {
@@ -775,6 +808,7 @@ SessionProfile wristProfile()
     p.stages.push_back(std::make_unique<BindDetailStage>());
     p.stages.push_back(std::make_unique<HeadTrackStage>());
     p.stages.push_back(std::make_unique<FootMetricsStage>());
+    p.stages.push_back(std::make_unique<KinematicsStage>());
     p.stages.push_back(std::make_unique<BindingsStage>());
     p.stages.push_back(std::make_unique<ResemblanceStage>());
     p.stages.push_back(std::make_unique<AssessmentStage>());
@@ -824,3 +858,25 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
 
     return projectResult(ctx);
 }
+
+// Shared camera-only profile for the non-Wrist session types (declared in
+// wrist_analyzer.h). External linkage so shot_analyzer.cpp's CameraKinematicsAnalyzer
+// can run it; the stage structs it constructs stay file-local in the anon namespace
+// above (still visible for the rest of this translation unit). No IMU/scoring stages —
+// SegResolve adopts the vision segmentation the Shaft stage emits, BindDetail binds the
+// (empty) local products, and KinematicsStage appends the display series to the detail.
+namespace pinpoint::analysis {
+SessionProfile cameraKinematicsProfile()
+{
+    SessionProfile p;
+    p.name = QStringLiteral("CameraKinematics");
+    p.stages.push_back(std::make_unique<PoseStage>());
+    p.stages.push_back(std::make_unique<PoseSmoothStage>());
+    p.stages.push_back(std::make_unique<BallStage>());
+    p.stages.push_back(std::make_unique<ShaftStage>());
+    p.stages.push_back(std::make_unique<SegResolveStage>());
+    p.stages.push_back(std::make_unique<BindDetailStage>());
+    p.stages.push_back(std::make_unique<KinematicsStage>());
+    return p;
+}
+} // namespace pinpoint::analysis

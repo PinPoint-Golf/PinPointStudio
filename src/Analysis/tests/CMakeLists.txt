@@ -108,6 +108,12 @@ pp_add_test(analysis_stage_test SOURCES analysis_stage_test.cpp)
 # swing_analysis.h), no OpenCV; synthetic track, no fixture.
 pp_add_test(head_track_test SOURCES head_track_test.cpp ${ANALYSIS}/head_track.cpp)
 
+# Club-kinematics display series (kinematic_series.{h,cpp}): clubhead/hand speed (mph)
+# from the shaft track + lead-forearm-vs-shaft lag (°) from pose. Qt-only, synthetic
+# constant-velocity tracks (exact mph scale + lag geometry) and the product-absent
+# omission contract; no OpenCV, no fixture.
+pp_add_test(kinematic_series_test SOURCES kinematic_series_test.cpp ${ANALYSIS}/kinematic_series.cpp)
+
 # WB3 setup + footwork metrics (foot_metrics.{h,cpp}): conf-gated stance width /
 # per-foot flare / toe-line angle (address, phaseSamples-only scalars) + the
 # lead-heel-lift Address-referenced curve (isotropic ×frame, gap-bridged

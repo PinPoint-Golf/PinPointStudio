@@ -373,4 +373,28 @@ inline constexpr double kMinConf           = 0.8;   // refine.minConf — apply 
 inline constexpr double kMaxShiftS         = 3.0;   // refine.maxShiftS — abstain if |t_refined − t_old| exceeds
 } // namespace refine
 
+// ── Kinematics display series (kinematic_series.*) ───────────────────────────
+// Clubhead speed / hand speed (mph) + lag angle (°) for the review chart — three
+// UNSCORED per-frame curves derived purely from the face-on camera products: the
+// shaft grip/head positions give the two linear speeds, and the lead-forearm vs
+// clubshaft direction gives the lag angle. Prefer the dense synth shaft channel,
+// fall back to the measured samples. Session-type-agnostic: the Wrist profile
+// appends them (KinematicsStage) and the Swing/GRF/Coach analyzers reuse the same
+// camera stages (Pose→Ball→Shaft) to produce them. Consumed by
+// KinematicSeriesConfig::fromOverrides via the "kinematics.*" dotted key.
+//
+// kEnabled=false ⇒ KinematicsStage never runs (Wrist byte-identical) AND the
+// Swing/GRF/Coach analyzers keep their instant stub (no pose/shaft compute) — the
+// whole feature is dark and code-path-identical to before.
+//
+// ENABLED 2026-07-18 by product decision: this is an UNSCORED, additive display
+// feature (three review-chart curves; it touches neither the score nor segmentation),
+// its OFF state is proven byte-identical (swing_window_parity_test Test 4), and the ON
+// path is verified end-to-end on a real Wrist swing (clubhead/hand speed + lag land in
+// analysis.metrics with Address/Top/Impact dots). The corpus ON-eval (guide §6.6 gate
+// 5) is a quality check on the curves, not a correctness gate — set false to dark it.
+namespace kinematics {
+inline constexpr bool kEnabled = true;   // kinematics.enabled — master gate (ON 2026-07-18, display-only)
+} // namespace kinematics
+
 } // namespace pinpoint::tuned

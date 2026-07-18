@@ -11,6 +11,7 @@
 #include "../reference_bands.h"
 #include "../analysis_tuning.h"
 #include "../event_refine.h"
+#include "../kinematic_series.h"
 #include "../../Core/pp_tuned_constants.h"
 
 #include <QVariantMap>
@@ -272,6 +273,23 @@ int main()
               && c.activityQuietSigma == 2.5 && c.returnHoldMs == 150
               && c.minConf == 0.4 && c.maxShiftS == 2.0,
               "refine.* overrides (incl. enabled dark-out) reach EventRefineConfig::fromOverrides");
+    }
+
+    std::printf("--- kinematics.* club-kinematics display series (KinematicSeriesConfig::fromOverrides) ---\n");
+
+    // 11. kinematics.enabled maps onto KinematicSeriesConfig; empty map ⇒ the ON default
+    //     (2026-07-18 — the clubhead/hand-speed + lag review-chart series live on Wrist and
+    //     the Swing/GRF/Coach camera-kinematics analyzer). Override direction is DARK-OUT:
+    //     kinematics.enabled = false skips the stage (Wrist byte-identical, others stub).
+    {
+        const KinematicSeriesConfig def = KinematicSeriesConfig::fromOverrides(QVariantMap{});
+        check(def.enabled == true, "empty map → kinematics.enabled ON default (2026-07-18)");
+
+        QVariantMap ov;
+        ov["kinematics.enabled"] = false;   // dark-out: restores the pre-kinematics pipeline
+        const KinematicSeriesConfig c = KinematicSeriesConfig::fromOverrides(ov);
+        check(c.enabled == false,
+              "kinematics.enabled dark-out override reaches KinematicSeriesConfig::fromOverrides");
     }
 
     std::printf("\n=== %s (%d failures) ===\n", g_fail ? "FAILURES" : "ALL PASS", g_fail);

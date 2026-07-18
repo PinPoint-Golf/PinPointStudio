@@ -19,6 +19,7 @@
 #pragma once
 
 #include "shot_analyzer.h"
+#include "analysis_stage.h"
 
 // Real Wrist-session (SessionController::Type::Wrist == 1) analyzer. analyze() runs a
 // capability-gated stage pipeline over a shared, typed AnalysisContext — the constrained
@@ -37,3 +38,16 @@ public:
     ShotAnalysisResult analyze(const pinpoint::SwingWindow &window,
                                const ShotAnalysisJob &job) override;
 };
+
+namespace pinpoint::analysis {
+
+// Reusable camera-only profile that produces the kinematic display series (clubhead
+// speed / hand speed / lag) for the non-Wrist session types. It reuses the Wrist
+// profile's face-on camera stages — Pose → PoseSmooth → Ball → Shaft → SegResolve →
+// BindDetail → Kinematics — with no IMU or scoring stages. KinematicsStage self-gates
+// on kinematics.enabled, so the profile yields an empty detail when the feature is
+// dark. The stage structs stay file-local to wrist_analyzer.cpp; this builder is the
+// shared seam (developer guide §10.5 — share when the second session needs it).
+SessionProfile cameraKinematicsProfile();
+
+} // namespace pinpoint::analysis

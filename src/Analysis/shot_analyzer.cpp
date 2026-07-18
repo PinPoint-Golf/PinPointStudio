@@ -18,10 +18,13 @@
 
 #include "shot_analyzer.h"
 #include "wrist_analyzer.h"
+#include "analysis_stage.h"
+#include "kinematic_series.h"
 
 #include <QPointF>
 #include <algorithm>
 #include <cmath>
+#include <memory>
 
 #include "swing_window.h"
 #include "../Core/pp_debug.h"
@@ -44,9 +47,14 @@ QVariantList stubTracePoints(int seed)
     return pts;
 }
 
+// Deterministic placeholder score from the impact timestamp — distinct per shot,
+// stable across re-runs. Shared by the dark stub path and the kinematics analyzer.
+int stubScore(const ShotAnalysisJob &job)
+{
+    return 40 + static_cast<int>((job.impactUs / 1000) % 56);   // 40–95
+}
+
 // Shared stub behaviour: an immediate, deterministic placeholder result.
-// Score and trace derive from the impact timestamp so each shot differs but
-// re-running the same shot is stable.
 ShotAnalysisResult stubResult(const pinpoint::SwingWindow &window,
                               const ShotAnalysisJob &job,
                               QVariantMap metrics)
@@ -57,39 +65,47 @@ ShotAnalysisResult stubResult(const pinpoint::SwingWindow &window,
 
     ShotAnalysisResult r;
     r.ok          = true;
-    r.score       = 40 + static_cast<int>((job.impactUs / 1000) % 56);  // 40–95
+    r.score       = stubScore(job);
     r.tracePoints = stubTracePoints(static_cast<int>(job.impactUs % 97));
     r.metrics     = std::move(metrics);
     return r;
 }
 
-class SwingStubAnalyzer : public ShotAnalyzer
+// Non-Wrist session analyzer (Swing 0 / GRF 2 / Coach 3). Placeholder score/trace like
+// the old per-type stubs, PLUS the real camera-derived kinematic series (clubhead/hand
+// speed + lag) on the detail so the review chart shows them for every session type. The
+// camera pipeline (cameraKinematicsProfile — Pose→Ball→Shaft→…→Kinematics) runs ONLY
+// when kinematics.enabled; dark, this is byte-identical to the old instant stub (no
+// pose/shaft compute). Real Swing/GRF/Coach scoring profiles land later
+// (analysis_pipeline_developer_guide.md §4) — this reuses the shared camera stages now.
+class CameraKinematicsAnalyzer : public ShotAnalyzer
 {
 public:
     ShotAnalysisResult analyze(const pinpoint::SwingWindow &window,
                                const ShotAnalysisJob &job) override
     {
-        return stubResult(window, job, {});
-    }
-};
+        using namespace pinpoint::analysis;
+        // Dark ⇒ the old instant stub, unchanged (the camera pipeline never runs).
+        if (!KinematicSeriesConfig::fromOverrides(job.tuningOverrides).enabled)
+            return stubResult(window, job, {});
 
-class GrfStubAnalyzer : public ShotAnalyzer
-{
-public:
-    ShotAnalysisResult analyze(const pinpoint::SwingWindow &window,
-                               const ShotAnalysisJob &job) override
-    {
-        return stubResult(window, job, {});
-    }
-};
+        // Enabled ⇒ run the shared camera profile to produce the real kinematic series.
+        AnalysisContext ctx{ CaptureCapabilities::fromJob(job), job, &window };
+        ctx.detail = std::make_shared<SwingAnalysis>();
+        ctx.wall.start();
+        runStages(cameraKinematicsProfile(), ctx);
 
-class CoachStubAnalyzer : public ShotAnalyzer
-{
-public:
-    ShotAnalysisResult analyze(const pinpoint::SwingWindow &window,
-                               const ShotAnalysisJob &job) override
-    {
-        return stubResult(window, job, {});
+        ShotAnalysisResult r;
+        r.ok          = true;
+        r.score       = stubScore(job);
+        r.tracePoints = stubTracePoints(static_cast<int>(job.impactUs % 97));
+        // Attach the detail only when the camera actually produced series, so a
+        // no-camera shot stays stub-identical (no empty analysis block persisted).
+        if (!ctx.detail->series.empty()) {
+            ctx.detail->timings.totalMs = static_cast<int>(ctx.wall.elapsed());
+            r.detail = ctx.detail;
+        }
+        return r;
     }
 };
 
@@ -97,11 +113,10 @@ public:
 
 std::unique_ptr<ShotAnalyzer> makeShotAnalyzer(int sessionType)
 {
-    switch (sessionType) {
-    case 1:  return std::make_unique<WristAnalyzer>();       // Wrist (real M1 analysis)
-    case 2:  return std::make_unique<GrfStubAnalyzer>();     // GRF
-    case 3:  return std::make_unique<CoachStubAnalyzer>();   // Coach
-    case 0:                                                  // Swing
-    default: return std::make_unique<SwingStubAnalyzer>();
-    }
+    // Wrist (1) runs the full IMU + camera Wrist profile. Swing (0) / GRF (2) / Coach (3)
+    // run the shared camera-kinematics analyzer — a placeholder score today, plus the real
+    // clubhead/hand speed + lag series from the face-on camera once kinematics.enabled.
+    if (sessionType == 1)
+        return std::make_unique<WristAnalyzer>();
+    return std::make_unique<CameraKinematicsAnalyzer>();
 }

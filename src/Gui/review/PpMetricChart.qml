@@ -103,7 +103,16 @@ Item {
     }
     function _color(i) { return Theme.chartSeriesColor(i) }
     function _name(s)  { return cm.shortLabel(s.key) || s.label || s.key }
-    function _fmt(v)   { var r = Math.round(v); return (r > 0 ? "+" : "") + r + "°" }
+    // Format a value in its series' own unit. Degrees keep the signed-deviation
+    // convention ("+12°", no separator); other units (e.g. "mph") read as "75 mph"
+    // with no forced + sign. Unit omitted ⇒ degrees (the pre-multi-unit default).
+    function _fmt(v, unit) {
+        var u = (unit === undefined || unit === null || unit === "") ? "°" : unit
+        var r = Math.round(v)
+        var sign = (r > 0 && u === "°") ? "+" : ""
+        var sep  = (u === "°") ? "" : " "
+        return sign + r + sep + u
+    }
 
     readonly property bool _hasAny: {
         for (var i = 0; i < root._list.length; ++i)
@@ -480,7 +489,8 @@ Item {
                         facetName:     facetSeries ? root._name(facetSeries) : ""
                         facetEndText:  facetSeries
                             ? "@end " + root._fmt(cm.summary(facetSeries.t_us, facetSeries.value,
-                                                             root.viewStartUs, root.viewEndUs).end)
+                                                             root.viewStartUs, root.viewEndUs).end,
+                                                  facetSeries.unit)
                             : ""
 
                         onHoverMoved: (t) => root._cursorUs =
@@ -534,7 +544,8 @@ Item {
                             }
                             Text {
                                 text: root._fmt(labels.valueAtNearest(trow.modelData.t_us,
-                                                                      trow.modelData.value, root._cursorUs))
+                                                                      trow.modelData.value, root._cursorUs),
+                                                trow.modelData.unit)
                                 font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
                                 font.weight: Font.Medium
                                 color: Theme.colorText
@@ -575,7 +586,8 @@ Item {
                         color: Theme.colorText2
                     }
                     Text {
-                        text: root._fmt(chip.val) + "  Δ" + root._fmt(chip.val - root._addrValue(chip.modelData))
+                        text: root._fmt(chip.val, chip.modelData.unit)
+                              + "  Δ" + root._fmt(chip.val - root._addrValue(chip.modelData), chip.modelData.unit)
                         anchors.verticalCenter: parent.verticalCenter
                         font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
                         color: Theme.colorText3
@@ -602,6 +614,7 @@ Item {
             series:      root._visible
             startUs:     root.viewStartUs
             endUs:       root.viewEndUs
+            impactUs:    root.impactUs
             segmentName: root._preset === "Full" ? qsTr("full swing")
                        : (labels.phaseFullName(root._nearStart) + " → "
                           + labels.phaseFullName(root._nearEnd)).toLowerCase()

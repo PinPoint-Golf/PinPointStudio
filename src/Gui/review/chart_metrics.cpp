@@ -212,6 +212,9 @@ QString ChartMetrics::shortLabel(const QString &key) const
         { QStringLiteral("leadWristRadUln"),  QStringLiteral("Hinge")   },
         { QStringLiteral("forearmPronation"), QStringLiteral("Roll")    },
         { QStringLiteral("leadArmFlexion"),   QStringLiteral("Elbow")   },
+        { QStringLiteral("clubheadSpeed"),    QStringLiteral("Club spd")},
+        { QStringLiteral("handSpeed"),        QStringLiteral("Hand spd")},
+        { QStringLiteral("lagAngle"),         QStringLiteral("Lag")     },
     };
     return kShort.value(key);
 }

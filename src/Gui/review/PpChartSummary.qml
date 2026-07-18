@@ -17,11 +17,13 @@
  */
 
 // PpChartSummary — the per-window summary cards row: one card per series, each fed by
-// ChartMetrics.summary(series.t_us, series.value, startUs, endUs). A card shows @end / peak
-// / Δ-segment / peak-rate over the active window, with the @end value tinted by the band of
-// the swing state nearest the window edge. Recomputes live as the segment chips / brush move
-// the window — selecting TOP→IMP shows the downswing's numbers, not the full swing's. Pure
-// binding; all stats come from ChartMetrics.
+// ChartMetrics.summary(series.t_us, series.value, startUs, endUs). A card shows @impact /
+// peak / Δ-segment / peak-rate over the active window, with the @impact value tinted by the
+// band of the swing state at impact. @impact is the value at the impact landmark (read from
+// the whole series, a fixed reference more useful to compare against PEAK than the window
+// edge); peak/Δ/rate stay window-scoped, so selecting TOP→IMP shows the downswing's numbers.
+// Recomputes live as the segment chips / brush move the window. Pure binding; all stats come
+// from ChartMetrics (value-at-impact via TimelineLabels.valueAtNearest).
 
 pragma ComponentBehavior: Bound
 
@@ -36,14 +38,24 @@ ColumnLayout {
     property var    series:      []
     property real   startUs:     0
     property real   endUs:       0
+    property real   impactUs:    -1       // impact instant; the @impact card reads the series here
     property string segmentName: ""
     property bool   showHeader:  true     // false when a host SectionHeader labels this
 
     spacing: Theme.sp(9)
 
-    ChartMetrics { id: cm }
+    ChartMetrics   { id: cm }
+    TimelineLabels { id: labels }         // value-at-time lookup (impact landmark)
 
-    function _fmt(v) { var r = Math.round(v); return (r > 0 ? "+" : "") + r + "°" }
+    // Format a value in its series' own unit (see PpMetricChart._fmt): degrees keep the
+    // signed "+12°" convention, word units read as "75 mph"; omitted ⇒ degrees.
+    function _fmt(v, unit) {
+        var u = (unit === undefined || unit === null || unit === "") ? "°" : unit
+        var r = Math.round(v)
+        var sign = (r > 0 && u === "°") ? "+" : ""
+        var sep  = (u === "°") ? "" : " "
+        return sign + r + sep + u
+    }
     function _bandColor(b) {
         return b === "warn"      ? Theme.colorWarn
              : b === "attention" ? Theme.colorAttention
@@ -79,7 +91,15 @@ ColumnLayout {
                 required property var modelData
                 readonly property var    st:  cm.summary(card.modelData.t_us, card.modelData.value,
                                                          root.startUs, root.endUs)
-                readonly property string bnd: cm.bandAtNearest(card.modelData.phaseSamples, root.endUs)
+                // Value at the impact landmark — a fixed anatomical reference, so it reads the
+                // whole series (not the view window); the more useful thing to compare against
+                // PEAK. Falls back to the window @end when no impact is known.
+                readonly property real   impVal: root.impactUs > 0
+                                                 ? labels.valueAtNearest(card.modelData.t_us,
+                                                       card.modelData.value, root.impactUs)
+                                                 : card.st.end
+                readonly property string bnd: cm.bandAtNearest(card.modelData.phaseSamples,
+                                                  root.impactUs > 0 ? root.impactUs : root.endUs)
                 readonly property string nm:  cm.shortLabel(card.modelData.key)
                                               || card.modelData.label || card.modelData.key
 
@@ -124,13 +144,13 @@ ColumnLayout {
                         columns: 2
                         columnSpacing: Theme.sp(12); rowSpacing: Theme.sp(9)
 
-                        // @ end — tinted by band at the window edge.
+                        // @ impact — the landmark value, tinted by band at impact.
                         Column {
                             Layout.fillWidth: true
-                            Text { text: qsTr("@ END"); font.family: Theme.fontData
+                            Text { text: qsTr("@ IMPACT"); font.family: Theme.fontData
                                    font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingData
                                    color: Theme.colorText3 }
-                            Text { text: root._fmt(card.st.end); font.family: Theme.fontData
+                            Text { text: root._fmt(card.impVal, card.modelData.unit); font.family: Theme.fontData
                                    font.pixelSize: Theme.fontSzData; color: root._bandColor(card.bnd) }
                         }
                         Column {
@@ -138,7 +158,7 @@ ColumnLayout {
                             Text { text: qsTr("PEAK"); font.family: Theme.fontData
                                    font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingData
                                    color: Theme.colorText3 }
-                            Text { text: root._fmt(card.st.peak); font.family: Theme.fontData
+                            Text { text: root._fmt(card.st.peak, card.modelData.unit); font.family: Theme.fontData
                                    font.pixelSize: Theme.fontSzData; color: Theme.colorText }
                         }
                         Column {
@@ -146,7 +166,7 @@ ColumnLayout {
                             Text { text: qsTr("Δ SEGMENT"); font.family: Theme.fontData
                                    font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingData
                                    color: Theme.colorText3 }
-                            Text { text: root._fmt(card.st.delta); font.family: Theme.fontData
+                            Text { text: root._fmt(card.st.delta, card.modelData.unit); font.family: Theme.fontData
                                    font.pixelSize: Theme.fontSzData; color: Theme.colorText }
                         }
                         Column {
@@ -160,7 +180,8 @@ ColumnLayout {
                                        text: Math.round(card.st.rate); font.family: Theme.fontData
                                        font.pixelSize: Theme.fontSzData; color: Theme.colorText }
                                 Text { anchors.baseline: rateVal.baseline
-                                       text: qsTr("°/100ms"); font.family: Theme.fontData
+                                       text: (card.modelData.unit || "°") + qsTr("/100ms")
+                                       font.family: Theme.fontData
                                        font.pixelSize: Theme.fontSzMicro; color: Theme.colorText3 }
                             }
                         }

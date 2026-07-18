@@ -2204,6 +2204,8 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/score_uncertainty.cpp
     src/Analysis/wrist_analyzer.h
     src/Analysis/wrist_analyzer.cpp
+    src/Analysis/kinematic_series.h
+    src/Analysis/kinematic_series.cpp
     src/Analysis/pose_runner.h
     src/Analysis/pose_runner.cpp
     src/Analysis/ball_runner.h
@@ -2438,6 +2440,7 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/swing_reanalyzer.cpp
         src/Analysis/shot_analyzer.cpp
         src/Analysis/wrist_analyzer.cpp
+        src/Analysis/kinematic_series.cpp
         src/Analysis/imu_vision_fuser.cpp
         src/Analysis/phase_segmenter.cpp
         src/Analysis/phase_signals.cpp
