@@ -3,7 +3,7 @@
 **Audience**: Developers adding or modifying analysis stages (metrics, tracking passes, fusion proposals)  
 **Location**: `src/Analysis/analysis_stage.h` (mechanism), `src/Analysis/wrist_analyzer.cpp` (the Wrist profile + all current stages)  
 **Language**: C++17 (analysis value types and math) / C++20 (app integration)  
-**Status**: Production. The Wrist profile (17 stages) is the only real profile; it passed the byte-identical staged-vs-monolith gate over the 61-swing blessed corpus before the monolith was deleted. Swing / GRF profiles land as stage lists when their placement UX arrives.
+**Status**: Production. The Wrist profile (18 stages) is the only real profile; the original 17 passed the byte-identical staged-vs-monolith gate over the 61-swing blessed corpus before the monolith was deleted, and EventRefine (stage 11) landed afterwards through its own dark-then-freeze gate (2026-07-18). Swing / GRF profiles land as stage lists when their placement UX arrives.
 
 ---
 
@@ -71,7 +71,7 @@ ShotProcessor::startAnalysis (live shot)            swinglab_run / in-app re-ana
                         │
         AnalysisContext ctx { caps, job, &window }
                         │
-        runStages(wristProfile(), ctx)         ← 17 stages, authored order
+        runStages(wristProfile(), ctx)         ← 18 stages, authored order
                         │     each: canRun? → run(ctx) → trace entry (name, ns, skip reason)
                         ▼
         projectResult(ctx)                     ← metrics map, trace, score, detail
@@ -196,28 +196,46 @@ shared until the Swing session needs it, §10.5 step 4):
 | 8 | SegResolve | always | `seg` = segImu, else confident segVision, else default |
 | 9 | ShaftLean | `shaft.valid` | appends to **local** `series` |
 | 10 | RequireProducts | always | `halted` when `series` empty **and** no pose frames |
-| 11 | BindDetail | always | `detail->series/phases/segmentation` ← local products |
-| 12 | HeadTrack | FaceOn && pose frames | appends to `detail->series` only (unscored) |
-| 13 | FootMetrics | FaceOn && pose frames | appends to `detail->series` only (unscored) |
-| 14 | Bindings | always | `detail->bindings` (calibration snapshot per device) |
-| 15 | Resemblance | always | `detail->score` + §B.7 interval + tier |
-| 16 | Assessment | `runAssessment` && IMU streams && local series | findings; **overrides** headline score, clears interval |
-| 17 | PoseAssessment | dark flag && **no** IMU streams && pose frames | the IMU-less assessment fallback |
+| 11 | EventRefine | `refine.enabled` && **no** `segImu` && FaceOn && `shaft.valid` && `seg.conf > 0` | retimed Address/Takeaway `t_us` + conf + `provenance = Club`, `Segmentation.version = 3`, `swingStartUs` clamped ≤ refined Address (never Impact; abstains below `minConf` / beyond `maxShiftS`) |
+| 12 | BindDetail | always | `detail->series/phases/segmentation` ← local products |
+| 13 | HeadTrack | FaceOn && pose frames | appends to `detail->series` only (unscored) |
+| 14 | FootMetrics | FaceOn && pose frames | appends to `detail->series` only (unscored) |
+| 15 | Bindings | always | `detail->bindings` (calibration snapshot per device) |
+| 16 | Resemblance | always | `detail->score` + §B.7 interval + tier |
+| 17 | Assessment | `runAssessment` && IMU streams && local series | findings; **overrides** headline score, clears interval |
+| 18 | PoseAssessment | dark flag && **no** IMU streams && pose frames | the IMU-less assessment fallback |
 
 Reading the table top-down gives the degradation story for free: IMU-only ⇒
-stages 4–9, 12–13, 17 skip and the wrist metrics + resemblance/assessment
-still produce a scored shot; camera-only ⇒ stages 2–3, 16 skip, `segVision`
-is adopted at SegResolve, and pose/shaft products carry the shot; neither ⇒
+stages 4–7, 9, 11, 13–14, 18 skip and the wrist metrics + resemblance/assessment
+still produce a scored shot; camera-only ⇒ stages 2–3, 17 skip, `segVision`
+is adopted at SegResolve, EventRefine fine-tunes its events from the finished
+shaft/ball products, and pose/shaft products carry the shot; neither ⇒
 RequireProducts halts and `projectResult` degrades to `ok=false` (the shot
 still lands on the carousel, score 0 — see the shot analyzer guide).
+
+Two things the table's row granularity hides:
+
+- **The vision segmentation now carries a Takeaway event.** `phasesToSegmentation`
+  emits `{Address, Takeaway, Top, Impact, Finish}` (`shaft.emitTakeaway`, frozen
+  ON 2026-07-17) — a camera-only `segVision` ladder is five events, not four.
+- **The shaft-side onset machinery is stage internals, not stages.** The
+  fidget-proofing that places bs0/Address on camera-only swings — the
+  departure-referenced revisit ("no-return") veto, the m3gate bridged-run
+  net-displacement gate, and the `addressHoldEndFrame` walk-back with its
+  onset-veto floor — all lives INSIDE ShaftTracker (stage 7:
+  `shaft_track_assembly.cpp` `segmentPhases`/`decideTrack`,
+  `shaft_positions.h`). EventRefine (stage 11) then re-walks the same
+  `addressHoldEndFrame` machinery from its refined takeaway; it reuses, never
+  re-derives.
 
 ---
 
 ## 5. Ordering Invariants — What Must Not Move
 
 These are enforced structurally (distinct context slots) but the *order*
-itself is only protected by this list and the parity tests. All five were
-carried deliberately through the byte-identical gate (§10.5 as-built note):
+itself is only protected by this list and the parity tests. The first five
+were carried deliberately through the byte-identical gate (§10.5 as-built
+note); 6–7 arrived with EventRefine:
 
 1. **Local `series` vs `detail->series` are different products.** The scorer,
    carousel metrics map, and trace read the **local** `ctx.series` (wrist
@@ -230,8 +248,8 @@ carried deliberately through the byte-identical gate (§10.5 as-built note):
    `ctx.seg`. A stage that reads `ctx.seg` before stage 8 reads a
    default-constructed value.
 3. **RequireProducts halts via `ctx.halted`**, and the orchestrator
-   short-circuits stages 11–17 — the fail case must produce a *null* detail
-   projection, not a half-bound one.
+   short-circuits stages 11–18 — the fail case must produce a *null* detail
+   projection, not a half-bound one (halted contexts skip EventRefine free).
 4. **Uncertainty stays fused into Resemblance** (not a separate stage): the
    §B.7 interval brackets the *resemblance* value and must be computed before
    Assessment may override the headline score and clear it. Splitting these
@@ -239,6 +257,23 @@ carried deliberately through the byte-identical gate (§10.5 as-built note):
 5. **`projectResult()` is the profile-runner tail, not a stage** — a Project
    stage would need special halted-handling in the orchestrator (it must run
    *especially* when halted), which is exactly the machinery §10.6 forbids.
+6. **EventRefine sits after SegResolve and before BindDetail — exactly there.**
+   It mutates `ctx.seg` in place, so it must run after the resolve (there is
+   no seg to refine earlier) and before BindDetail so the refined ladder binds
+   with zero extra plumbing — every downstream `ctx.seg` reader (HeadTrack /
+   FootMetrics addressUs, assessment P1, buildTrace, swing.json, timeline)
+   picks the refined times up automatically. Only ShaftLean and
+   RequireProducts sit between SegResolve and EventRefine, and neither reads
+   `seg.events`, so the refine slot is the last safe point. A stage inserted
+   between EventRefine and BindDetail that reads `seg.events` would see
+   refined times — usually what you want, but say so in its design note.
+7. **EventRefine NEVER touches Impact.** Impact is the acoustic-anchored
+   marker contract (`ShotController` back-dated true-impact estimate; every
+   truth swing is acoustic-anchored) — the refine pass retimes existing
+   Address/Takeaway events only, never inserts events, and carries
+   `refine.impactResidual` as log-only launch−impact telemetry. Any future
+   stage that wants to move Impact is a marker-contract change, not a refine
+   tweak.
 
 Also load-bearing: Assessment reads `detail->series`/`detail->phases`
 (including head/foot — deliberately, the AI-coach sees everything) while its
@@ -251,6 +286,19 @@ Also load-bearing: Assessment reads `detail->series`/`detail->phases`
 The whole point of the architecture: a new analysis module is **one stage
 struct + one profile line**, plus the supporting setup below. Work through
 this as a checklist — every item exists because a shipped stage needed it.
+
+**Worked example shipped:** EventRefine (2026-07-18) is the newest stage to
+run this exact checklist end-to-end and is the best current model to crib
+from: pure engine in `event_refine.{h,cpp}` (`refineEvents` over plain
+`ShaftTrack2D`/`BallTrack2D`/`Segmentation` — no window, no context) + a
+~30-line file-local `EventRefineStage` glue in `wrist_analyzer.cpp`; dark
+`refine.*` keys seeded from `pinpoint::tuned::refine::` with
+`EventRefineConfig::fromOverrides`; conf-gated abstention as the safety
+posture (apply only above `minConf`, within `maxShiftS`, monotone ladder —
+else leave the event untouched, which IS the byte-identical outcome); then
+the freeze-edit procedure — evidence table in hand, flip the constants in
+`pp_tuned_constants.h` with one-line evidence comments and invert the guard
+tests to the dark-out direction.
 
 ### 6.1 Decide the shape before writing code
 
@@ -390,7 +438,9 @@ this order (cheapest first):
 4. **OFF-parity on the corpus** — the stage dark must be byte-identical over
    the blessed corpus. Use the stagegate harness (`parity_run.py` two
    passes + `tools/swinglab/parity_diff.py`, timings stripped) with
-   **injected pose** so CUDA jitter doesn't drown the diff (§7.4).
+   **injected pose** so CUDA jitter doesn't drown the diff (§7.4). ⚠ If your
+   stage touches segmentation or event times, this gate is blind to it — see
+   the §8 caveat and gate through the live-pose A/B + truth harness instead.
 5. **ON-evaluation on the corpus** — accuracy/coverage judged at corpus
    scale on the studio PC (Release + CUDA). **A single swing never judges
    model accuracy** — one labeled swing is development data only.
@@ -436,6 +486,23 @@ export; the swing-span-bounding plan's telemetry exists to hold that line).
 A new stage that adds seconds to every shot needs a corpus-measured
 justification.
 
+Two levers/examples worth knowing by name:
+
+- **`pose.intraOpThreads`** — the offline ViTPose ORT intra-op pool size
+  (`pose_runner.cpp` seam, frozen default in `pp_tuned_constants.h`
+  `pose::kIntraOpThreads`). Three-way: `0` (default) = the legacy heuristic
+  `clamp(hardware_concurrency()/2, 1, 8)`, kept so the default path stays
+  thread-count-identical to history; `-1` = topology auto
+  (`physicalCoreCount()` from `src/Core/cpu_topology.h`, clamped [1,16]) —
+  opt-in until its determinism A/B on no-SMT/hybrid hardware is done; `> 0`
+  = pin exactly that many threads.
+- **`ball.clubActivity` as the worked cost-measurement example** — the
+  club-corridor activity producer was frozen ON (2026-07-18, the EventRefine
+  Tier-B input) with its cost measured the way every enable should be: the
+  corpus A/B put the delta at **+~207 ms median on the ball stage**
+  (`timings.ballMs`), recorded in the freeze evidence. That is the pattern —
+  a flag flip ships with its measured `AnalysisTimings` delta, not a guess.
+
 ### 7.3 The three structural levers (already built — reuse, don't reinvent)
 
 1. **Capability/product gating order.** Cheap IMU stages run first and their
@@ -478,11 +545,11 @@ it will pay for itself at the first parity gate.
   `SWINGLAB_BIN` → Release-Installer `swinglab_run.exe`). Never compare
   timings across hosts or configs; MSVC Debug alone is a ~5–6× tax.
 - **Sequencing beats overlap on the worker.** The pose pass sizes its ORT
-  intra-op pool to the physical core count and is starved badly (~5×
-  measured) by a concurrent encoder — which is why ShotProcessor sequences
-  analysis before export. Do not add threads inside a stage; the
-  QtConcurrent job is the concurrency boundary and ORT already owns the
-  cores during pose.
+  intra-op pool for the whole machine (`pose.intraOpThreads`, §7.2) and is
+  starved badly (~5× measured) by a concurrent encoder — which is why
+  ShotProcessor sequences analysis before export. Do not add threads inside
+  a stage; the QtConcurrent job is the concurrency boundary and ORT already
+  owns the cores during pose.
 - **Local dev box limits:** build with `--parallel 4` (15 GiB box OOMs
   above ~4 jobs); one heavy analysis job at a time; if everything is
   mysteriously ~4× slow, check the BD_PROCHOT 800 MHz clamp (MSR `0x1FC`
@@ -518,8 +585,12 @@ Pipeline-specific coverage:
 |---|---|
 | `analysis_stage_test` | the orchestrator: authored order, `canRun` gating + skip reasons, halt short-circuit, one-trace-entry-per-stage — over a windowless context |
 | `tuning_overrides_test` | every dotted tuning key reaches its config field |
+| `event_refine_test` | the EventRefine engine: three-tier at-ball evidence, last-departure/no-return takeaway, flicker debounce, abstention gates, enabled=false byte-identity, swingStartUs clamp |
 | `swing_window_parity_test` (root build, Test 4a/4b) | double-run determinism of the full `analyze()` — IMU-only and camera paths, serialized diff with timings stripped |
 | `pipeline_test`, `swing_scorer_test`, per-module tests | the math inside individual stages |
+
+The suite is 52 tests as of the EventRefine landing — run it whole; it is
+fast (~7 s).
 
 Corpus-scale gating lives outside ctest: the stagegate harness
 (`parity_run.py` + `extract_pose.py` on the studio share,
@@ -529,6 +600,27 @@ refactor — determinism baseline first, pose injected, timings stripped, zero
 diffs required — is the template for every future stage gate. SwingLab
 itself (`/swinglab`, `docs/developer/swinglab_developer_guide.md`) is the
 tool for accuracy/coverage evaluation once parity is established.
+
+**CRITICAL caveat — the pose-injected byte-gate is segmentation-blind.** The
+pose-injection path produces **empty segmentation on every corpus swing** (a
+harness gap, observed on the stagegate corpora and unfixed): the serialized
+event ladder is empty on both sides of any pose-injected diff. A
+pose-injected zero-diff therefore proves plumbing inertness for everything
+EXCEPT segmentation/event-time changes — it can never catch an event
+regression.
+Segmentation-affecting work gates through two live-pose instruments instead:
+
+- **Live-pose same-binary metric A/Bs** — run the corpus twice on ONE binary
+  (same host, same config), flag OFF vs ON, and compare event times/metrics
+  rather than bytes. Run the OFF-vs-OFF pair first: its event-movement noise
+  floor is **zero** (CUDA pose jitter does not move event times), so any
+  OFF-vs-ON movement is the change under test.
+- **`fidget_eval.py` (stagegate share) — the 17-swing truth harness.** Runs
+  `swinglab_run` over every swing carrying a `truth.json` `events.p1_s`
+  annotation and reports per-swing Address (and Takeaway, when present)
+  error vs truth, resumable, with an optional params file for the A/B side.
+  This is what produced the EventRefine freeze evidence (median held
+  0.052 s, max 0.577 → 0.145 s, within-100ms 12 → 14).
 
 ---
 
@@ -603,7 +695,7 @@ src/Analysis/
 ├── analysis_stage.h            THE mechanism: CaptureCapabilities, AnalysisContext,
 │                                 AnalysisStage, SessionProfile, runStages, StageTraceEntry
 ├── analysis_tuning.h           tuning::apply — dotted-key overrides onto config fields
-├── wrist_analyzer.{h,cpp}      The Wrist profile: all 17 stage structs (file-local),
+├── wrist_analyzer.{h,cpp}      The Wrist profile: all 18 stage structs (file-local),
 │                                 wristProfile(), projectResult(), analyze()
 ├── swing_analysis.h            Product shapes incl. AnalysisTimings, SwingAnalysis
 ├── imu_vision_fuser.*          Stage 1's engine (FusedStreams)
@@ -611,13 +703,28 @@ src/Analysis/
 ├── metric_extractor.*          Stage 3's engine
 ├── pose_runner.* / pose_smoother.* / pose_synthesis.h      Stages 4–5
 ├── ball_runner.* / shaft_tracker.* / shaft_track_assembly.*  Stages 6–7
-├── head_track.* / foot_metrics.*   Stages 12–13 — the model for new pose-derived stages
-├── wrist_resemblance.* / score_uncertainty.*               Stage 15
-├── wrist_assessment_engine.* / pose_wrist_angle_source.*   Stages 16–17
-└── tests/                      Standalone suite (build/analyzer-tests):
-                                  analysis_stage_test, tuning_overrides_test, per-module tests
+│                                 (shaft_track_assembly also owns the onset
+│                                 machinery: revisit veto, m3gate, onsetFloor)
+├── ball_activity.h             Club-corridor activity math (annulus + temporal
+│                                 median) — the BallSample2D.clubActivity producer
+│                                 helper, unit-tested standalone
+├── shaft_positions.h           addressHoldEndFrame + P1–P8 locators (header-only)
+│                                 — REUSED by both ShaftTracker and EventRefine
+├── ball_anchor.*               v3.4 ball-anchor pass + buildThetaBallSeries, the
+│                                 SHARED θ_ball builder (one implementation for
+│                                 applyBallAnchor and EventRefine Tier A)
+├── event_refine.{h,cpp}        Stage 11's engine (refineEvents — pure over
+│                                 ShaftTrack2D/BallTrack2D/Segmentation)
+├── head_track.* / foot_metrics.*   Stages 13–14 — the model for new pose-derived stages
+├── wrist_resemblance.* / score_uncertainty.*               Stage 16
+├── wrist_assessment_engine.* / pose_wrist_angle_source.*   Stages 17–18
+└── tests/                      Standalone suite (build/analyzer-tests, 52 tests):
+                                  analysis_stage_test, tuning_overrides_test,
+                                  event_refine_test, per-module tests
 
 src/Core/pp_tuned_constants.h   Frozen defaults for every dark flag / tunable
+src/Core/cpu_topology.h         physicalCoreCount() — the pose.intraOpThreads=-1
+                                  topology-auto source
 tools/swinglab/parity_diff.py   Corpus result differ (timings-stripped byte compare)
 CMakeLists.txt                  Root, single file: app target_sources +
                                   _pinpoint_offline_sources (PINPOINT_BUILD_TOOLS)
