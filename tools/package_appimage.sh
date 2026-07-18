@@ -198,8 +198,12 @@ log "bundling GPU runtime (CUDA 12 + cuDNN 9) — required for GPU ORT"
 [[ -n "${CUDA_LIB_DIR:-}"  ]] && copy_lib "$CUDA_LIB_DIR"/libcudart.so* "$CUDA_LIB_DIR"/libcublas*.so* "$CUDA_LIB_DIR"/libcufft.so* || log "WARN: CUDA_LIB_DIR unset — GPU ORT will fall back to CPU on hosts without CUDA"
 [[ -n "${CUDNN_LIB_DIR:-}" ]] && copy_lib "$CUDNN_LIB_DIR"/libcudnn*.so* || log "WARN: CUDNN_LIB_DIR unset"
 
+# The Spinnaker SDK EULA forbids redistribution — do NOT bundle it in a shipped
+# package. The Windows build delay-loads a user-installed SDK at runtime; on Linux
+# HAVE_SPINNAKER is not defined so no Spinnaker code is present. The SPINNAKER_DIR
+# hook is retained only for private/local rigs where you have accepted those terms.
 if [[ -n "${SPINNAKER_DIR:-}" ]]; then
-    log "bundling Spinnaker SDK (confirm redistribution terms!)"
+    log "bundling Spinnaker SDK (LOCAL/private only — EULA forbids redistribution!)"
     copy_lib "$SPINNAKER_DIR"/lib/libSpinnaker*.so*
 else
     log "Spinnaker not bundled — industrial cameras degrade to absent (enumerator tolerates this)"

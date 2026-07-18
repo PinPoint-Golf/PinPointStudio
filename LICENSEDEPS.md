@@ -21,9 +21,10 @@ the Apache-licensed dependencies and model assets listed below.
 ## Compatibility
 
 All third-party components are compatible with the project licence, with one
-exception: the optional Teledyne FLIR Spinnaker SDK, which is proprietary and
-must not be distributed in a GPL binary. See **Known conflict — Teledyne FLIR
-Spinnaker SDK** below.
+exception to note: the optional Teledyne FLIR Spinnaker SDK, which is proprietary.
+It is never redistributed — it is delay-loaded and discovered at runtime from a
+user-installed SDK — but the build still links its import library, leaving a residual
+GPL note. See **Known conflict — Teledyne FLIR Spinnaker SDK** below.
 
 ### Linked and bundled libraries
 
@@ -42,8 +43,8 @@ Spinnaker SDK** below.
 | Sparkle (macOS updater) | pinned | MIT | Permissive; GPL-compatible. |
 | Vulkan loader / headers (optional) | system | Apache-2.0 | Compatible with GPL-3.0; ordinarily a System Library. |
 | CUDA Toolkit / cuDNN / TensorRT (optional GPU execution providers) | user-installed | Proprietary (NVIDIA) | User-installed platform runtime, not shipped in the binary — used under the GPL System Library exception. |
-| GenICam runtime (shipped with Spinnaker) | system | GenICam Licence (permissive) | Permissive; GPL-compatible in itself. Bundled only when the Spinnaker backend is built — see Known conflict. |
-| Teledyne FLIR Spinnaker SDK (optional, `HAVE_SPINNAKER`) | system | Proprietary | **Not compatible — see Known conflict.** |
+| GenICam runtime (shipped with Spinnaker) | user-installed | GenICam Licence (permissive) | Permissive; part of the user-installed Spinnaker SDK — discovered at runtime, never redistributed. See Known conflict. |
+| Teledyne FLIR Spinnaker SDK (optional, `HAVE_SPINNAKER`) | user-installed | Proprietary | Delay-loaded and discovered at runtime; **never redistributed** in a PinPoint installer. See Known conflict. |
 
 ### Model and data assets
 
@@ -66,22 +67,29 @@ terms, not by a copyright licence.
 ## Known conflict — Teledyne FLIR Spinnaker SDK
 
 The optional high-speed camera backend (`src/Video/VideoInputSpinnaker.cpp`,
-guarded by `HAVE_SPINNAKER`) links Teledyne FLIR's **proprietary** Spinnaker SDK.
-The GPL requires the entire combined work to be distributable under the GPL, which
-Spinnaker's terms do not permit. A binary that links Spinnaker therefore cannot be
-distributed under the GPL. This is a copyright-level incompatibility and is
-unaffected by the choice of GPL version.
+guarded by `HAVE_SPINNAKER`) uses Teledyne FLIR's **proprietary** Spinnaker SDK.
+Two distinct concerns arise, one now resolved and one a residual note:
 
-**PinPoint Studio does not distribute Spinnaker-enabled binaries.** Release builds
-are produced with `HAVE_SPINNAKER` disabled. The Spinnaker backend is available
-only in locally compiled builds, which are not distributed and so incur no GPL
-distribution obligation — for example, a personal capture rig.
+**Redistribution (resolved).** Spinnaker's EULA forbids bundling the SDK in an
+installer. PinPoint therefore ships **none** of the SDK's DLLs. The imports are
+**delay-loaded** (`/DELAYLOAD:Spinnaker_v140.dll` — see `CMakeLists.txt`): the build
+links only the import library for symbols, and the DLL is touched only on first use.
+At runtime `src/Video/spinnaker_runtime.cpp` discovers a **user-installed** SDK
+(default `C:\Program Files\Teledyne\Spinnaker`), preloads its core DLL so the
+GenICam/runtime siblings resolve from the SDK folder, and gates every Spinnaker
+entry point on that probe. A machine without the SDK simply runs without the
+high-speed camera backend. The SDK (and its bundled GenICam runtime) is thus a
+user-installed platform component, analogous to the CUDA/cuDNN runtime above — never
+part of a distributed PinPoint binary.
 
-The intended resolution is to isolate the Spinnaker backend behind the existing
-`VideoInput` factory as a separately loaded plugin (via `dlopen` or a separate
-process), so that the proprietary SDK is not part of the linked GPL work. Until
-that boundary exists, Spinnaker support remains local-build-only and is excluded
-from all distributed builds.
+**GPL linking (residual).** Because the build still links Spinnaker's import library,
+distributed binaries carry Spinnaker references in their delay-import table. Strictly,
+combining GPL code with a proprietary library can raise a GPL "combined work"
+question even when the proprietary library is not itself redistributed. As sole
+copyright holder, the author may add a GPL linking exception permitting this
+combination; that is a licensing decision recorded separately and is **not** drafted
+here. A fully separate `dlopen`/plugin or out-of-process boundary remains an option
+if a cleaner separation is ever required.
 
 ## Mobile distribution
 

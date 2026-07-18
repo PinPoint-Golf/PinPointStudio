@@ -1948,27 +1948,30 @@ if(WIN32)
     find_library(SPINNAKER_LIBRARIES NAMES Spinnaker_v140 HINTS ${SPINNAKER_ROOT}/lib64/vs2015)
 
     if(SPINNAKER_INCLUDE_DIRS AND SPINNAKER_LIBRARIES)
-        message(STATUS "Spinnaker: found at ${SPINNAKER_ROOT}")
+        message(STATUS "Spinnaker: found at ${SPINNAKER_ROOT} (build-time headers + import lib; delay-loaded, not redistributed)")
         target_compile_definitions(PinPointStudio PRIVATE HAVE_SPINNAKER)
         target_include_directories(PinPointStudio PRIVATE ${SPINNAKER_INCLUDE_DIRS})
         target_link_libraries(PinPointStudio PRIVATE ${SPINNAKER_LIBRARIES})
-        
+
         target_sources(PinPointStudio PRIVATE
             src/Video/VideoInputSpinnaker.h
             src/Video/VideoInputSpinnaker.cpp
+            src/Video/spinnaker_runtime.h
+            src/Video/spinnaker_runtime.cpp
         )
 
-        # Copy Spinnaker DLLs next to the dev executable AND install them (core).
-        # bin64 also holds SpinView's managed/GUI assemblies (Qt5*, Actipro WPF,
-        # OpenTK, Newtonsoft, the .NET wrappers + GUI selectors) which a native
-        # C++ consumer never loads — exclude them so the installer doesn't ship
-        # tens of unrelated DLLs (incl. a conflicting-looking Qt5 set). The native
-        # runtime + GenICam DLLs (Spinnaker[C]_v140, GenApi/GCBase/Log/…, libiomp)
-        # are kept.
-        file(GLOB _spinnaker_dlls "${SPINNAKER_ROOT}/bin64/vs2015/*.dll")
-        list(FILTER _spinnaker_dlls EXCLUDE REGEX
-            "(Qt5|ActiproSoftware|OpenTK|Newtonsoft|[Ll]og4net|GALogger|SpinSwitch|NETGUI|NET_v140|GUI_WPF|GUISelector|SpinVideoNET)")
-        pp_win_bundle_dll(core ${_spinnaker_dlls})
+        # The Spinnaker SDK is proprietary and its EULA forbids redistributing it in
+        # an installer, so we ship NONE of its DLLs. Instead the sole imported DLL is
+        # delay-loaded: the build links the import lib (Spinnaker_v140.lib) for symbols,
+        # but the DLL is only touched on first use. At runtime spinnaker_runtime.cpp
+        # discovers a user-installed SDK, preloads Spinnaker_v140.dll (which pulls in
+        # its GenICam/runtime siblings from the SDK folder), and gates every Spinnaker
+        # entry point on that — so a machine without the SDK simply runs without the
+        # high-speed camera backend instead of failing to launch. /DELAYLOAD auto-links
+        # delayimp.lib (MSVC). Only Spinnaker_v140.dll is directly imported; its
+        # dependencies load transitively.
+        target_link_options(PinPointStudio PRIVATE "/DELAYLOAD:Spinnaker_v140.dll")
+        target_link_libraries(PinPointStudio PRIVATE delayimp.lib)
     else()
         message(STATUS "Spinnaker: not found (high-speed camera support disabled)")
     endif()

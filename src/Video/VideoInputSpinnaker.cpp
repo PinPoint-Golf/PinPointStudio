@@ -26,6 +26,7 @@
 #endif
 
 #include "VideoInputSpinnaker.h"
+#include "spinnaker_runtime.h"
 #include "frame_crop.h"
 #include "raw_video_frame.h"
 #include <QVideoFrame>
@@ -162,6 +163,12 @@ bool VideoInputSpinnaker::start(const QString &deviceId)
     m_abort = false;
 
 #ifdef HAVE_SPINNAKER
+    // The SDK is delay-loaded and never redistributed; bail out (without touching any
+    // Spinnaker symbol) when the user has not installed it.
+    if (!pinpoint::spinnaker::runtimeAvailable()) {
+        emit errorOccurred(tr("Spinnaker SDK not found."));
+        return false;
+    }
     try {
         SystemPtr *system = new SystemPtr(System::GetInstance());
         m_system = system;

@@ -5,7 +5,8 @@
 # Start Menu entry, optional desktop shortcut, and an uninstaller. The install
 # tree is populated by the install() rules in the top-level CMakeLists.txt:
 #   • component "core" — app, Qt (via windeployqt), ONNX Runtime, OpenCV, FFmpeg,
-#     Spinnaker, models, espeak-ng data, yt-dlp.
+#     models, espeak-ng data, yt-dlp. (The Spinnaker SDK is delay-loaded and
+#     discovered at runtime — never bundled; see the Spinnaker block in CMakeLists.txt.)
 #   • component "cuda" — NVIDIA toolkit + cuDNN runtime (GPU acceleration).
 #
 # Build the installer (Release) — see packaging/build_installer.ps1:

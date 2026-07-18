@@ -195,8 +195,9 @@ runs it. The full installer is ~1.8 GB only because of the CUDA + cuDNN runtime
 already splits this and `packaging/build_installer.ps1` already produces the variants
 `PinPointStudioSetup-<ver>-core.exe` and `…-cuda.exe`:
 
-- **core** — app + Qt + ONNX Runtime + OpenCV + FFmpeg + Spinnaker + models + espeak
-  data + yt-dlp. Hundreds of MB. **Hardware-agnostic** — runs on any machine, CPU or
+- **core** — app + Qt + ONNX Runtime + OpenCV + FFmpeg + models + espeak
+  data + yt-dlp. Hundreds of MB. (The Spinnaker SDK is *not* bundled — it is
+  delay-loaded and discovered at runtime from a user-installed SDK.) **Hardware-agnostic** — runs on any machine, CPU or
   GPU; ORT just uses the CUDA EP *if* the runtime is present (the existing
   `nvcuda.dll` probe in `KokoroTTSEngine.cpp` already degrades gracefully when it is
   not).

@@ -33,6 +33,7 @@
 #define SPINNAKER_DEPRECATED_CLASS(msg) class SPINNAKER_API __declspec(deprecated(msg))
 #include <Spinnaker.h>
 #include "VideoInputSpinnaker.h"
+#include "spinnaker_runtime.h"
 #endif
 
 #ifdef HAVE_ARAVIS
@@ -163,7 +164,9 @@ void VideoInputFactory::enumerateDevices()
 #endif
 
 #ifdef HAVE_SPINNAKER
-    try {
+    // Only touch the SDK when it has been discovered and made loadable at runtime;
+    // the imports are delay-loaded, so calling in without the DLLs present would crash.
+    if (pinpoint::spinnaker::runtimeAvailable()) try {
         Spinnaker::SystemPtr system = Spinnaker::System::GetInstance();
         Spinnaker::CameraList camList = system->GetCameras();
         for (unsigned int i = 0; i < camList.GetSize(); ++i) {
@@ -310,7 +313,7 @@ VideoInputBase* VideoInputFactory::create(Backend backend, QObject *parent)
 
     if (backend == Backend::Auto) {
 #ifdef HAVE_SPINNAKER
-        if (DeviceEnumerator::instance()->devices().count() > 0) {
+        if (pinpoint::spinnaker::runtimeAvailable()) {
             for (const auto &dev : DeviceEnumerator::instance()->devices()) {
                 if (dev.backend == Backend::Spinnaker) {
                     ppInfo() << "[VideoInputFactory] Spinnaker camera detected; selecting Spinnaker backend.";
@@ -354,7 +357,10 @@ VideoInputBase* VideoInputFactory::create(Backend backend, QObject *parent)
 #endif
 #ifdef HAVE_SPINNAKER
         case Backend::Spinnaker:
-            return new VideoInputSpinnaker(parent);
+            if (pinpoint::spinnaker::runtimeAvailable())
+                return new VideoInputSpinnaker(parent);
+            ppWarn() << "[VideoInputFactory] Spinnaker backend requested but SDK not found; falling back to Qt Multimedia.";
+            return new VideoInput(parent);
 #endif
         default:
             ppWarn() << "[VideoInputFactory] Requested backend not available on this platform; falling back to Qt Multimedia.";
@@ -388,7 +394,8 @@ QList<VideoInputFactory::Backend> VideoInputFactory::availableBackends()
     list << Backend::Aravis;
 #endif
 #ifdef HAVE_SPINNAKER
-    list << Backend::Spinnaker;
+    if (pinpoint::spinnaker::runtimeAvailable())
+        list << Backend::Spinnaker;
 #endif
     return list;
 }

@@ -238,10 +238,12 @@ if ! ls "$FW"/libonnxruntime*.dylib >/dev/null 2>&1; then
 fi
 
 # 4b. Spinnaker (proprietary, dlopen'd → not in NEEDED, so macdeployqt skips it).
-#     Bundle only if present AND redistribution terms allow; the device enumerator
-#     already degrades gracefully when absent.
+#     Its EULA forbids redistribution, so do NOT bundle it in a shipped package. The
+#     Windows build delay-loads a user-installed SDK at runtime; on macOS HAVE_SPINNAKER
+#     is not defined so no Spinnaker code is present. The SPINNAKER_DIR hook is retained
+#     only for private/local rigs where you have accepted those terms.
 if [[ -n "${SPINNAKER_DIR:-}" ]]; then
-    log "bundling Spinnaker SDK from $SPINNAKER_DIR (confirm redistribution terms!)"
+    log "bundling Spinnaker SDK from $SPINNAKER_DIR (LOCAL/private only — EULA forbids redistribution!)"
     for s in "$SPINNAKER_DIR"/lib/libSpinnaker*.dylib; do
         [[ -f "$s" ]] && cp -L "$s" "$FW/" || true
     done

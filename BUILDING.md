@@ -139,6 +139,15 @@ CMake automatically copies the matching cuDNN DLLs next to the executable at POS
 ### 4. Spinnaker SDK (Optional)
 For Teledyne/FLIR industrial cameras, install the [Spinnaker SDK](https://www.teledyneflir.com/products/spinnaker-sdk/) to the default location: `C:\Program Files\Teledyne\Spinnaker`.
 
+The build machine needs the SDK to compile the backend (headers + import lib), and
+`HAVE_SPINNAKER` is defined automatically when CMake finds it. The SDK is **never
+redistributed**: its imports are delay-loaded and the DLLs are not bundled in the
+installer (its EULA forbids it). Distributed release builds therefore include the
+integration but discover a **user-installed** SDK at runtime (`spinnaker_runtime.cpp`,
+probing the default path above; override with `PINPOINT_SPINNAKER_ROOT`). End users
+install the Spinnaker SDK separately to enable high-speed cameras; without it the app
+runs normally minus that backend.
+
 ### 5. Aravis (Optional)
 Set the `ARAVIS_ROOT` environment variable to your Aravis installation directory.
 
@@ -291,8 +300,9 @@ bump `version.h` only).
 
 ### Components & the auto-update payload
 - **core** — app + Qt + ORT (incl. the CUDA provider DLLs) + OpenCV + FFmpeg +
-  Spinnaker + models. Hardware-agnostic; runs CPU or GPU. **This is the only thing
-  WinSparkle updates.**
+  models. Hardware-agnostic; runs CPU or GPU. **This is the only thing
+  WinSparkle updates.** (The Spinnaker SDK is *not* bundled — it is delay-loaded and
+  discovered at runtime from a user-installed SDK; see §4.)
 - **cuda** — the NVIDIA CUDA + cuDNN runtime, packaged under its **own stable AppId**
   so a `-core` auto-update never touches it. It is **not** in the appcast: the app
   detects an NVIDIA GPU (`nvcuda.dll`) and whether the runtime is present
