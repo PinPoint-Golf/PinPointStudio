@@ -201,10 +201,11 @@ int main()
     //    the W3 club-quiet consumer gate (PositionsConfig via ShaftV3Config::
     //    fromOverrides) and the W4 tk0 A/B key (applyBallAnchor) resolve onto their
     //    frozen-constant-seeded locals — the exact seam each fromOverrides uses.
-    //    Empty map ⇒ activity off (BallRunner byte-identical) and tk0 override
-    //    OFF (FROZEN 2026-07-17: the earliest-departure tk0 fires on the first
-    //    fidget departure and overwrote a good hold-end Address); true restores
-    //    the old overwrite for A/B.
+    //    Empty map ⇒ activity ON (FROZEN 2026-07-18 with refine.enabled — the
+    //    load-bearing Tier-B input; a false key still darks it out, the soak
+    //    baseline) and tk0 override OFF (FROZEN 2026-07-17: the earliest-departure
+    //    tk0 fires on the first fidget departure and overwrote a good hold-end
+    //    Address); true restores the old overwrite for A/B.
     {
         bool   act    = pinpoint::tuned::ball::activity::kClubActivity;
         int    refF   = pinpoint::tuned::ball::activity::kActivityRefFrames;
@@ -218,12 +219,12 @@ int main()
         tuning::apply(QVariantMap{}, "ball.activityOuterR", outerR);
         tuning::apply(QVariantMap{}, "positions.p1ClubQuietSigma", quietS);
         tuning::apply(QVariantMap{}, "ball.tk0AddressOverride", tk0Ov);
-        check(act == false && refF == 9 && innerR == 1.5 && outerR == 5.0
+        check(act == true && refF == 9 && innerR == 1.5 && outerR == 5.0
               && quietS == 3.0 && tk0Ov == false,
-              "empty map → W3/W4 frozen defaults (activity dark, tk0 override OFF — 2026-07-17 freeze)");
+              "empty map → W3/W4 frozen defaults (activity ON 2026-07-18, tk0 override OFF 2026-07-17)");
 
         QVariantMap ov;
-        ov["ball.clubActivity"] = true;
+        ov["ball.clubActivity"] = false;           // dark-out: the byte-identical soak baseline
         ov["ball.activityRefFrames"] = 5;
         ov["ball.activityInnerR"] = 2.0;
         ov["ball.activityOuterR"] = 6.0;
@@ -235,26 +236,28 @@ int main()
         tuning::apply(ov, "ball.activityOuterR", outerR);
         tuning::apply(ov, "positions.p1ClubQuietSigma", quietS);
         tuning::apply(ov, "ball.tk0AddressOverride", tk0Ov);
-        check(act == true && refF == 5 && innerR == 2.0 && outerR == 6.0
+        check(act == false && refF == 5 && innerR == 2.0 && outerR == 6.0
               && quietS == 2.0 && tk0Ov == true,
-              "W3/W4 overrides reach their fromOverrides seams");
+              "W3/W4 overrides (incl. activity dark-out) reach their fromOverrides seams");
     }
 
     std::printf("--- refine.* late-pipeline event refinement (EventRefineConfig::fromOverrides) ---\n");
 
     // 10. Every refine.* key maps onto EventRefineConfig; empty map ⇒ the frozen
-    //     DARK defaults (enabled false ⇒ byte-identical AND code-path-identical to
-    //     the pre-refine pipeline). enabled flips only at the evidence-freeze commit.
+    //     2026-07-18 ON defaults (enabled true, minConf 0.8 — 17-swing truth: median
+    //     held 0.052 s, max 0.577 → 0.145 s, within-100ms 12 → 14, zero regressions).
+    //     The override direction is DARK-OUT: refine.enabled = false restores the
+    //     byte- and code-path-identical pre-refine pipeline (the soak baseline).
     {
         const EventRefineConfig def = EventRefineConfig::fromOverrides(QVariantMap{});
-        check(def.enabled == false && def.takeaway == true && def.address == true
+        check(def.enabled == true && def.takeaway == true && def.address == true
               && def.impactResidual == true && def.departThetaDeg == 25.0
               && def.activityQuietSigma == 3.0 && def.returnHoldMs == 200
-              && def.minConf == 0.5 && def.maxShiftS == 3.0,
-              "empty map → refine.* frozen dark defaults");
+              && def.minConf == 0.8 && def.maxShiftS == 3.0,
+              "empty map → refine.* frozen ON defaults (2026-07-18 freeze)");
 
         QVariantMap ov;
-        ov["refine.enabled"]           = true;
+        ov["refine.enabled"]           = false;    // dark-out: the pre-refine soak baseline
         ov["refine.takeaway"]          = false;
         ov["refine.address"]           = false;
         ov["refine.impactResidual"]    = false;
@@ -264,11 +267,11 @@ int main()
         ov["refine.minConf"]           = 0.4;
         ov["refine.maxShiftS"]         = 2.0;
         const EventRefineConfig c = EventRefineConfig::fromOverrides(ov);
-        check(c.enabled == true && c.takeaway == false && c.address == false
+        check(c.enabled == false && c.takeaway == false && c.address == false
               && c.impactResidual == false && c.departThetaDeg == 30.0
               && c.activityQuietSigma == 2.5 && c.returnHoldMs == 150
               && c.minConf == 0.4 && c.maxShiftS == 2.0,
-              "refine.* overrides reach EventRefineConfig::fromOverrides");
+              "refine.* overrides (incl. enabled dark-out) reach EventRefineConfig::fromOverrides");
     }
 
     std::printf("\n=== %s (%d failures) ===\n", g_fail ? "FAILURES" : "ALL PASS", g_fail);

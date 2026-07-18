@@ -249,7 +249,9 @@ inline constexpr int    kMinFrames   = 5;      // < this many feet-confident fra
 // kClubActivity=false ⇒ NO crop retention / ring buffer / annulus math ⇒ the ball
 // track and swing.json are byte-identical (and code-path-identical) to pre-W3.
 namespace activity {
-inline constexpr bool   kClubActivity      = false; // ball.clubActivity — master gate (dark)
+// FROZEN ON 2026-07-18 with refine::kEnabled (activity is the load-bearing EventRefine
+// Tier-B input); live cost ballMs +207 ms median on the corpus run. 0 still disables.
+inline constexpr bool   kClubActivity      = true;  // ball.clubActivity — master gate
 inline constexpr int    kActivityRefFrames = 9;     // ball.activityRefFrames — median-ref ring depth
 inline constexpr double kActivityInnerR    = 1.5;   // ball.activityInnerR — inner annulus radius (× ball r)
 inline constexpr double kActivityOuterR    = 5.0;   // ball.activityOuterR — outer annulus radius (× ball r)
@@ -347,11 +349,15 @@ inline constexpr bool   kEmitTakeaway         = true;  // vision Takeaway event 
 // "refine.*" dotted keys; SwingLab sweeps them without rebuild.
 //
 // kEnabled=false ⇒ the stage never runs ⇒ ctx.seg (and every downstream consumer)
-// is byte-identical AND code-path-identical to the pre-refine pipeline. All keys
-// dark at V1 — the evidence freeze flips kEnabled (paired with ball::activity::
-// kClubActivity, the load-bearing Tier-B input) in a later commit, not here.
+// is byte-identical AND code-path-identical to the pre-refine pipeline.
+//
+// FROZEN ON 2026-07-18 (V1 evidence freeze, paired with ball::activity::
+// kClubActivity — the load-bearing Tier-B input): 17-swing truth A/B — median
+// |p1 err| held 0.052 s, max 0.577 → 0.145 s (the s0002 holdout rescued),
+// within-100ms 12 → 14, ZERO regressions at minConf 0.8; 61-swing corpus —
+// 3 movers, 0 score changes. false still darks the whole stage (the soak baseline).
 namespace refine {
-inline constexpr bool   kEnabled           = false; // refine.enabled — master gate (dark)
+inline constexpr bool   kEnabled           = true;  // refine.enabled — master gate (2026-07-18 freeze)
 inline constexpr bool   kTakeaway          = true;  // refine.takeaway — retime the Takeaway event
 inline constexpr bool   kAddress           = true;  // refine.address — retime the Address event
 inline constexpr bool   kImpactResidual    = true;  // refine.impactResidual — log-only launch−impact telemetry
@@ -361,7 +367,9 @@ inline constexpr double kActivityQuietSigma = positions::kP1ClubQuietSigma; // r
                                                     //   — Tier-B club-quiet σ (seeded from the P1 gate)
 inline constexpr int    kReturnHoldMs      = 200;   // refine.returnHoldMs — min at-ball run to count as a
                                                     //   genuine return (shorter = flicker, debounced out)
-inline constexpr double kMinConf           = 0.5;   // refine.minConf — apply floor on the fused confidence
+inline constexpr double kMinConf           = 0.8;   // refine.minConf — apply floor on the fused confidence
+                                                    //   (0.5 → 0.8 at the 2026-07-18 freeze: zero
+                                                    //   regressions on the 17-swing truth A/B at 0.8)
 inline constexpr double kMaxShiftS         = 3.0;   // refine.maxShiftS — abstain if |t_refined − t_old| exceeds
 } // namespace refine
 

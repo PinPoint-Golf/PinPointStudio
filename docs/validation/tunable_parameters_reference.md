@@ -55,7 +55,8 @@ visible in a scorecard check (§4).
 | `seed.*` (status **code**) | `kInit*` (`imu_base.h`) | `seed::` | C1 | live filter convergence (offline-unreachable) |
 | `pose.intraOpThreads` | `ShotAnalysisRunnerOptions` / `PoseEstimatorViTPose::load` (`pose_runner.cpp`) | `pp_tuned_constants.h` `pose::` | perf | offline ViTPose ORT intra-op pool → compute wall-time (default 0 = legacy heuristic) |
 | `shaft.onsetReturn*` / `shaft.onsetRunBridgeFrames` / `shaft.onsetBridgeMinNetFrac` / `shaft.emitTakeaway` | `ShaftV3Config` (`shaft_track_assembly.h`) | `pp_tuned_constants.h` `shaft::` | C1 | `truth.p1_address`, `seg.tempo_ratio`, Address→Top duration (camera-only fidget swings; **ALL FROZEN ON** — box 7 / gap 15 / bridge 10 / Takeaway on (2026-07-17), m3gate 0.2 (2026-07-18); 0 disables each) |
-| `ball.clubActivity` / `ball.activity*` / `positions.p1ClubQuietSigma` / `ball.tk0AddressOverride` | `BallActivityConfig` (`ball_runner.cpp`) / `PositionsConfig` (`shaft_positions.h`) / `applyBallAnchor` (`ball_anchor.cpp`) | `pp_tuned_constants.h` `ball::activity`, `ball::`, `positions::` | C1 | `truth.p1_address`, Address→Top duration (camera-only club-bob fidget swings; activity DARK ⇒ byte-identical; tk0 override **FROZEN OFF 2026-07-17**) |
+| `ball.clubActivity` / `ball.activity*` / `positions.p1ClubQuietSigma` / `ball.tk0AddressOverride` | `BallActivityConfig` (`ball_runner.cpp`) / `PositionsConfig` (`shaft_positions.h`) / `applyBallAnchor` (`ball_anchor.cpp`) | `pp_tuned_constants.h` `ball::activity`, `ball::`, `positions::` | C1 | `truth.p1_address`, Address→Top duration (camera-only club-bob fidget swings; activity **FROZEN ON 2026-07-18** with `refine.enabled` — `false` still darks it out, byte-identical; tk0 override **FROZEN OFF 2026-07-17**) |
+| `refine.*` | `EventRefineConfig` (`event_refine.h`) | `pp_tuned_constants.h` `refine::` | C1 | `truth.p1_address`, Takeaway vs truth (late-pipeline event refinement; **FROZEN ON 2026-07-18**, minConf 0.8 — `refine.enabled=false` restores the byte- and code-path-identical pre-refine ladder) |
 
 ### 2.1 `seg.*` — phase segmentation (≈25 keys)
 Envelope cut-off, top/takeaway/transition windows, vote-agreement, finish stillness gates
@@ -205,13 +206,15 @@ W1's onset veto and W3 attack the same estimand from different signals: W1 is bl
 about a frozen grip** (the grip-only stillness test can't see the club rotating while the wrist is
 still). W3 supplies the only 150 Hz signal that covers the address reach-back — the frames BallRunner
 already decodes — as a **club-corridor activity** trace, then uses it to corroborate the address hold.
-Activity is **DARK by default** (`ball.clubActivity=false` ⇒ byte- AND code-path-identical); the tk0
-override was **FROZEN OFF 2026-07-17** (part of the Address/Takeaway freeze — see §2.10). Scope:
-activity is only produced by the offline BallRunner replay, so W3 fires on **analysis-replay swings**,
-not live-recorded ball tracks (the live-detector twin is future work).
+Activity is **FROZEN ON 2026-07-18** (the V1 EventRefine evidence freeze — it is the load-bearing
+Tier-B refine input; live cost ballMs +207 ms median on the corpus run). Setting
+`ball.clubActivity=false` still darks it out completely (byte- AND code-path-identical — the soak
+baseline); the tk0 override was **FROZEN OFF 2026-07-17** (part of the Address/Takeaway freeze — see
+§2.10). Scope: activity is only produced by the offline BallRunner replay, so W3 fires on
+**analysis-replay swings**, not live-recorded ball tracks (the live-detector twin is future work).
 
-- **Producer — `ball.clubActivity`** (**false** = OFF; `BallRunner::run`, frozen in `pp_tuned_constants.h`
-  `ball::activity`). When on, BallRunner keeps an 8-bit gray ROI crop per frame and, after the tracker
+- **Producer — `ball.clubActivity`** (**true**, frozen on 2026-07-18; `false` = OFF; `BallRunner::run`,
+  frozen in `pp_tuned_constants.h` `ball::activity`). When on, BallRunner keeps an 8-bit gray ROI crop per frame and, after the tracker
   locks, computes `act = mean(|crop − medRef|) / σ` over an **annulus** around the ball centre:
   - **`ball.activityInnerR`** (1.5) — inner radius (× ball r); **excludes the ball disc** so ball-lock
     jitter isn't read as activity.
@@ -231,14 +234,30 @@ not live-recorded ball tracks (the live-detector twin is future work).
   (also-quiet) frame, **never degrade below today**. The call site builds the mask only when a **majority
   (≥ 50%)** of pre-`bs0` frames carry activity — else it passes nullptr (live tracks, dark runs, ball
   never found), keeping legacy behaviour.
-- **Single-consumer contract:** `BallSample2D.clubActivity` feeds **only** this mask — never tk0, length,
-  launch, or DP evidence (`ball_anchor_test` asserts `applyBallAnchor` output is invariant to the field).
+- **Two-consumer contract** (widened from single when EventRefine landed): `BallSample2D.clubActivity`
+  feeds **only** the named pair — (1) this mask and (2) the EventRefine Tier-B at-ball gate
+  (`refine.activityQuietSigma`, `event_refine.h`) — never tk0, length, launch, or DP evidence
+  (`ball_anchor_test` asserts `applyBallAnchor` output is invariant to the field).
 - **`ball.tk0AddressOverride`** (**false**, FROZEN OFF 2026-07-17; W4, `applyBallAnchor`). The
   earliest-departure `tk0` fires on the **first fidget departure** and overwrote a good hold-end
   Address (w2s4: −0.134 s → −1.533 s; the freeze evidence set had Address-error median 0.564 → 0.060 s
   with this off). Set `true` to restore the old overwrite for A/B comparison (`tk0` is computed either
   way). Long-term `tk0` is conceptually the **Takeaway** instant, not the Address hold end — the
   re-scope remains future work (see the `ball_anchor.cpp` TODO and plan §"Out of scope").
+
+### 2.12 `refine.*` — late-pipeline timeline-event refinement (C1)
+`EventRefineConfig` (`event_refine.h`; the engine is `refineEvents`, the glue is the file-local
+`EventRefineStage` in `wrist_analyzer.cpp`, slotted between RequireProducts and BindDetail). Fine-tunes
+the Takeaway/Address events users see from the FINISHED shaft/ball products — three at-ball evidence
+tiers (A measured θ-vs-θ_ball / B club activity / C grip radius), a last-departure/no-return takeaway,
+and an `addressHoldEndFrame` re-walk from it. Never refines Impact; never inserts events; abstains
+below `refine.minConf` or beyond `refine.maxShiftS`. **FROZEN ON 2026-07-18** (V1 evidence freeze,
+paired with `ball.clubActivity`): 17-swing truth A/B — median |p1 err| held 0.052 s, max 0.577 →
+0.145 s, within-100ms 12 → 14, zero regressions at `minConf` 0.8 (frozen 0.5 → 0.8); 61-swing corpus —
+3 movers, 0 score changes. `refine.enabled=false` restores the byte- AND code-path-identical
+pre-refine ladder (the soak baseline). Keys: `enabled` (true) / `takeaway` (true) / `address` (true) /
+`impactResidual` (true, log-only) / `departThetaDeg` (25) / `activityQuietSigma` (3.0, seeded from
+`positions.p1ClubQuietSigma`) / `returnHoldMs` (200) / `minConf` (0.8) / `maxShiftS` (3.0).
 
 ## 3. The frozen-defaults header — the single freeze edit-point
 

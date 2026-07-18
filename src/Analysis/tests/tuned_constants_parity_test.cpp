@@ -92,14 +92,16 @@ int main()
     check(t::pose::confScale::kFeet == 1.0 && t::pose::confScale::kFace == 1.0
           && t::pose::confScale::kHands == 1.0, "pose::confScale defaults == 1.0");
 
-    // W3/W4 club-activity + tk0 A/B + club-quiet σ. Activity stays dark (keeps
-    // BallRunner/swing.json byte-identical); the tk0 override was FROZEN OFF in
+    // W3/W4 club-activity + tk0 A/B + club-quiet σ. Activity FROZEN ON 2026-07-18
+    // with refine::kEnabled (the load-bearing EventRefine Tier-B input; live cost
+    // ballMs +207 ms median on the corpus run; 0 still disables — the dark value
+    // remains the byte-identical soak baseline); the tk0 override was FROZEN OFF in
     // the 2026-07-17 Address/Takeaway freeze — the earliest-departure tk0 fires
     // on the first fidget departure and overwrote a good hold-end Address
     // (17-swing truth: Address-error median 0.564 s → 0.060 s with the freeze set).
-    check(t::ball::activity::kClubActivity == false && t::ball::activity::kActivityRefFrames == 9
+    check(t::ball::activity::kClubActivity == true && t::ball::activity::kActivityRefFrames == 9
           && t::ball::activity::kActivityInnerR == 1.5 && t::ball::activity::kActivityOuterR == 5.0,
-          "ball::activity defaults == (false,9,1.5,5.0)");
+          "ball::activity defaults == (true,9,1.5,5.0) (2026-07-18 freeze)");
     check(t::ball::kTk0AddressOverride == false, "ball::kTk0AddressOverride == false (2026-07-17 freeze)");
     check(t::positions::kP1ClubQuietSigma == 3.0, "positions::kP1ClubQuietSigma == 3.0");
 
@@ -119,16 +121,18 @@ int main()
     check(t::shaft::kOnsetBridgeMinNetFrac == 0.2,
           "shaft::kOnsetBridgeMinNetFrac == 0.2 (2026-07-18 freeze)");
 
-    // Late-pipeline event refinement (EventRefine, P3) — all keys DARK at V1
-    // (enabled flips only at the evidence-freeze commit, paired with
-    // ball::activity::kClubActivity). activityQuietSigma seeds from the P1
-    // club-quiet σ (positions::kP1ClubQuietSigma == 3.0).
-    check(t::refine::kEnabled == false && t::refine::kTakeaway == true
+    // Late-pipeline event refinement (EventRefine, P3) — FROZEN ON 2026-07-18
+    // (V1 evidence freeze, paired with ball::activity::kClubActivity): 17-swing
+    // truth A/B — median |p1 err| held 0.052 s, max 0.577 → 0.145 s, within-100ms
+    // 12 → 14, zero regressions at minConf 0.8 (hence 0.5 → 0.8); 61-swing corpus
+    // — 3 movers, 0 score changes. false still darks the stage (soak baseline).
+    // activityQuietSigma seeds from the P1 club-quiet σ (kP1ClubQuietSigma == 3.0).
+    check(t::refine::kEnabled == true && t::refine::kTakeaway == true
           && t::refine::kAddress == true && t::refine::kImpactResidual == true
           && t::refine::kDepartThetaDeg == 25.0 && t::refine::kActivityQuietSigma == 3.0
-          && t::refine::kReturnHoldMs == 200 && t::refine::kMinConf == 0.5
+          && t::refine::kReturnHoldMs == 200 && t::refine::kMinConf == 0.8
           && t::refine::kMaxShiftS == 3.0,
-          "refine defaults == (off,on,on,on,25,3.0,200,0.5,3.0)");
+          "refine defaults == (ON,on,on,on,25,3.0,200,0.8,3.0) (2026-07-18 freeze)");
 
     // --- Default-constructed consumers match their pre-refactor defaults ---------
     check(MadgwickFilter().beta() == 0.05f, "MadgwickFilter() default beta == 0.05");

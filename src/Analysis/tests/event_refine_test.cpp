@@ -89,7 +89,12 @@ static const PhaseEvent *ev(const Segmentation &seg, Phase p) { return seg.event
 
 int main()
 {
-    EventRefineConfig on;  on.enabled = true;   // default knobs otherwise (depart 25, hold 200 ms, minConf 0.5)
+    // Test config: enabled (the 2026-07-18 frozen default), minConf PINNED at the
+    // pre-freeze 0.5 — the tier-ladder scenarios exercise a Tier-B apply (base 0.65
+    // + corroboration 0.75), deliberately below the frozen 0.8 production floor
+    // (which is asserted in tuning_overrides_test / tuned_constants_parity_test).
+    // Other knobs default (depart 25, hold 200 ms, maxShift 3 s).
+    EventRefineConfig on;  on.enabled = true;  on.minConf = 0.5;
 
     // ── 1. Clean departure → Club provenance + version 3 ─────────────────────
     std::printf("=== 1. clean departure ===\n");

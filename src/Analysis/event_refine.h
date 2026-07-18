@@ -70,9 +70,10 @@
 namespace pinpoint::analysis {
 
 // EventRefine knobs. Defaults track the frozen constants (pp_tuned_constants.h
-// refine::); SwingLab sweeps them via "refine.*" dotted keys. All dark at V1 —
-// enabled flips only at the evidence-freeze commit (paired with ball::activity::
-// kClubActivity, the load-bearing Tier-B input).
+// refine::); SwingLab sweeps them via "refine.*" dotted keys. FROZEN ON 2026-07-18
+// (V1 evidence freeze, paired with ball::activity::kClubActivity — the load-bearing
+// Tier-B input); "refine.enabled" = false still darks the whole stage out, the
+// byte- and code-path-identical soak baseline.
 struct EventRefineConfig {
     bool    enabled            = tuned::refine::kEnabled;            // refine.enabled (master)
     bool    takeaway           = tuned::refine::kTakeaway;           // refine.takeaway
