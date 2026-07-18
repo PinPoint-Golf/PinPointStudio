@@ -308,8 +308,10 @@ struct BallSample2D {
     // |crop − medRef| / σ over an annulus around the locked ball centre — high
     // when the clubhead is moving beside a still ball (a fidget bob). -1 = absent
     // (never computed: dark ball.clubActivity, the first refFrames warm-up frames,
-    // or a frame where the ball wasn't found). SINGLE-CONSUMER CONTRACT: this
-    // field feeds ONLY addressHoldEndFrame's club-quiet mask (shaft_positions.h) —
+    // or a frame where the ball wasn't found). TWO-CONSUMER CONTRACT (widened from
+    // the W3 single consumer when EventRefine landed): this field feeds ONLY the
+    // named pair (1) addressHoldEndFrame's club-quiet mask (shaft_positions.h) and
+    // (2) the EventRefine Tier-B at-ball activity gate (event_refine.h) — still
     // never tk0, length, launch, or any DP evidence (ball_anchor_test asserts
     // applyBallAnchor is invariant to it). Persisted as "act" ONLY when >= 0, so a
     // dark run serialises byte-identically.
@@ -451,6 +453,15 @@ struct ShaftTrack2D {
     // anchor's address-boundary correction (v3.4) works in fused mode too,
     // not just when a ShaftDecideTrace happens to be requested. -1 = unset.
     int   addressPhaseFrame = -1;
+    // No-return onset floor (segmentPhases → PhaseModel::onsetFloor): the LAST
+    // address settle the onset veto proved the track never left for good. Mirrors
+    // addressPhaseFrame — always exposed (decideTrack copies pm.onsetFloor here
+    // unconditionally) so the EventRefine slot can re-floor its refined-Address
+    // walk-back (addressHoldEndFrame floorFrame) without threading the trace. -1 =
+    // veto dark / never fired. IN-MEMORY ONLY: never serialized to swing.json (it
+    // is a same-pass conduit decideTrack → EventRefine, recomputed on re-analysis),
+    // so adding it keeps swing.json byte-identical.
+    int   onsetFloorFrame = -1;
     std::vector<ShaftSample2D> samples;     // ACTUAL — detector-inferred (vision+IMU fused)
     // R7 dual output (skeleton-aware enhancement): the pure R6 kinematic-model
     // prediction emitted per frame alongside `samples`, plus its agreement with

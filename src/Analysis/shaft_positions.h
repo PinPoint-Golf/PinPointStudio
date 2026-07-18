@@ -128,7 +128,10 @@ struct PositionsConfig {
     // counts as club-quiet when its ball-corridor activity (BallSample2D.clubActivity,
     // ball.clubActivity) is below this many robustNoise σ. Only consulted when the
     // ball track carries activity — a club bob about a FROZEN grip is invisible to
-    // the grip-only stillness test above, and this is what catches it.
+    // the grip-only stillness test above, and this is what catches it. The same
+    // activity σ is the seed for the EventRefine Tier-B at-ball gate (refine.
+    // activityQuietSigma, event_refine.h) — the two-consumer contract widened when
+    // EventRefine landed (swing_analysis.h BallSample2D.clubActivity).
     double p1ClubQuietSigma = tuned::positions::kP1ClubQuietSigma;
     PositionFitConfig fit;          // B2 milestone fit (dark until fit.fitEnabled flips)
 };
@@ -230,6 +233,12 @@ inline Crossing findHorizontalCrossing(const std::vector<int64_t>& tUs,
 // club is still AT THE BALL, not paused mid-waggle; if no such frame exists the
 // stillness-only frame stands. No sustained stillness at all ⇒ bs0 (unchanged
 // legacy behaviour, e.g. a swing that enters the window already moving).
+//
+// SECOND CALLER (reuse, don't re-derive): the late-pipeline EventRefine slot
+// (event_refine.h) re-invokes this with the SAME signature but a bs0 set to its
+// refined Takeaway frame (the last-departure/no-return L) and a clubQuiet mask
+// built from refine.activityQuietSigma — so the refined Address is the hold end
+// walked back from the refined takeaway, on identical machinery.
 //
 // W3 optional clubQuiet mask (default nullptr ⇒ EVERY existing caller/test is
 // byte-identical): a per-frame flag (1 = the CLUB is quiet near the ball, from

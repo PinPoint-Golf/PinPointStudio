@@ -239,9 +239,12 @@ inline constexpr int    kMinFrames   = 5;      // < this many feet-confident fra
 // medRef = rolling per-pixel temporal median of the previous kActivityRefFrames
 // gray crops (a bob dwells at its extremes, so a median reference beats a raw
 // frame-diff), σ = the crop's robustNoise (exposure/noise normalisation). Feeds
-// exactly ONE consumer — addressHoldEndFrame's club-quiet mask (shaft_positions.h)
-// — corroborating that the address hold is quiet at the CLUB, not just the grip (a
-// club bob about a frozen wrist is invisible to the grip-only stillness test).
+// the NAMED PAIR of consumers — (1) addressHoldEndFrame's club-quiet mask
+// (shaft_positions.h) and (2) the EventRefine Tier-B at-ball activity gate
+// (event_refine.h) — corroborating that the address hold is quiet at the CLUB,
+// not just the grip (a club bob about a frozen wrist is invisible to the
+// grip-only stillness test). Still never tk0 / length / launch / DP evidence
+// (ball_anchor_test asserts applyBallAnchor is invariant to it).
 // Consumed by BallActivityConfig::fromOverrides via "ball.*" dotted keys.
 // kClubActivity=false ⇒ NO crop retention / ring buffer / annulus math ⇒ the ball
 // track and swing.json are byte-identical (and code-path-identical) to pre-W3.
@@ -332,5 +335,34 @@ inline constexpr int    kOnsetRunBridgeFrames = 10;
 inline constexpr double kOnsetBridgeMinNetFrac = 0.2;
 inline constexpr bool   kEmitTakeaway         = true;  // vision Takeaway event at bs0 (ladder gains 1 event)
 } // namespace shaft
+
+// --- Late-pipeline timeline-event refinement (src/Analysis/event_refine.h) -----
+// EventRefineStage (analysis_pipeline_fusion_architecture_proposal.md P3 — event
+// fusion) fine-tunes the timeline events users see from the FINISHED shaft/ball/
+// pose products, per Mark's definition (Address = the last static point before the
+// clubhead departs the ball and doesn't come back). V1 refines Takeaway + Address
+// only (never Impact — the acoustic-anchored marker contract), retimes EXISTING
+// events (never inserts), and abstains unless the evidence clears minConf and the
+// shift stays within maxShiftS. Consumed by EventRefineConfig::fromOverrides via
+// "refine.*" dotted keys; SwingLab sweeps them without rebuild.
+//
+// kEnabled=false ⇒ the stage never runs ⇒ ctx.seg (and every downstream consumer)
+// is byte-identical AND code-path-identical to the pre-refine pipeline. All keys
+// dark at V1 — the evidence freeze flips kEnabled (paired with ball::activity::
+// kClubActivity, the load-bearing Tier-B input) in a later commit, not here.
+namespace refine {
+inline constexpr bool   kEnabled           = false; // refine.enabled — master gate (dark)
+inline constexpr bool   kTakeaway          = true;  // refine.takeaway — retime the Takeaway event
+inline constexpr bool   kAddress           = true;  // refine.address — retime the Address event
+inline constexpr bool   kImpactResidual    = true;  // refine.impactResidual — log-only launch−impact telemetry
+inline constexpr double kDepartThetaDeg    = 25.0;  // refine.departThetaDeg — at-ball θ-vs-θ_ball tolerance
+                                                    //   (adaptive-floored at the address ref, like tk0)
+inline constexpr double kActivityQuietSigma = positions::kP1ClubQuietSigma; // refine.activityQuietSigma
+                                                    //   — Tier-B club-quiet σ (seeded from the P1 gate)
+inline constexpr int    kReturnHoldMs      = 200;   // refine.returnHoldMs — min at-ball run to count as a
+                                                    //   genuine return (shorter = flicker, debounced out)
+inline constexpr double kMinConf           = 0.5;   // refine.minConf — apply floor on the fused confidence
+inline constexpr double kMaxShiftS         = 3.0;   // refine.maxShiftS — abstain if |t_refined − t_old| exceeds
+} // namespace refine
 
 } // namespace pinpoint::tuned

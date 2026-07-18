@@ -29,6 +29,7 @@
 #include "analysis_stage.h"
 #include "analysis_tuning.h"
 #include "ball_runner.h"
+#include "event_refine.h"
 #include "foot_metrics.h"
 #include "hand_axis.h"
 #include "head_track.h"
@@ -535,6 +536,45 @@ struct RequireProductsStage : AnalysisStage {
     }
 };
 
+// 10b. EventRefine (P3 event fusion) — fine-tune the timeline events users see
+//     from the FINISHED shaft/ball products (event_refine.h), slotted after
+//     RequireProducts so halted contexts skip it free and BEFORE BindDetail so the
+//     refined ctx.seg binds with zero extra plumbing (every downstream consumer —
+//     HeadTrack/FootMetrics addressUs, assessment P1, buildTrace, swing.json,
+//     timeline — picks the refined times up automatically). canRun gates on "the
+//     ladder we'd mutate is the VISION one" (no IMU segmentation — fused-swing
+//     refine is documented future work, cross-ref ball_anchor.cpp's tk0 TODO) plus
+//     a valid shaft product and real vision conf. The refine.enabled gate lives in
+//     canRun too (mirroring PoseAssessmentStage): dark ⇒ the stage is SKIPPED, not
+//     a no-op run, so ctx.seg is code-path-identical when off.
+struct EventRefineStage : AnalysisStage {
+    QString name() const override { return QStringLiteral("EventRefine"); }
+    bool canRun(const AnalysisContext &ctx) const override
+    {
+        return EventRefineConfig::fromOverrides(ctx.job.tuningOverrides).enabled
+            && !ctx.segImu.has_value() && ctx.caps.hasCamera(CameraPlacement::FaceOn)
+            && ctx.detail->shaft.valid && ctx.seg.conf > 0.f;
+    }
+    void run(AnalysisContext &ctx) override
+    {
+        const EventRefineConfig cfg = EventRefineConfig::fromOverrides(ctx.job.tuningOverrides);
+        // Impact is NEVER refined (marker contract; all truth swings acoustic-
+        // anchored). refine.impactResidual is log-only P6 telemetry (launch −
+        // impact); the job.impactUs < 0 legitimate-refine path is out of scope for
+        // V1. P2/P6/P8 ladder promotion is DEFERRED (no truth marks) — a future
+        // refine.positionsLadder key.
+        const EventRefineResult r = refineEvents(ctx.seg, ctx.detail->shaft, ctx.detail->ball,
+                                                 ctx.job.impactUs, cfg);
+        if (r.impactResidualValid)
+            ppInfo() << "[WristAnalysis] refine impactResidual (launch−impact) us"
+                     << qint64(r.impactResidualUs);
+        if (r.refined)
+            ppInfo() << "[WristAnalysis] refine → version 3:"
+                     << (r.takeawayRefined ? "Takeaway" : "-") << (r.addressRefined ? "Address" : "-")
+                     << "conf" << r.conf << "tier" << r.tier << "L" << r.departFrame;
+    }
+};
+
 // 11. Bind the local products onto the detail. detail->phases is
 //     bound AFTER the vision-segmentation fallback may have reassigned it (ctx.seg).
 struct BindDetailStage : AnalysisStage {
@@ -731,6 +771,7 @@ SessionProfile wristProfile()
     p.stages.push_back(std::make_unique<SegResolveStage>());
     p.stages.push_back(std::make_unique<ShaftLeanStage>());
     p.stages.push_back(std::make_unique<RequireProductsStage>());
+    p.stages.push_back(std::make_unique<EventRefineStage>());
     p.stages.push_back(std::make_unique<BindDetailStage>());
     p.stages.push_back(std::make_unique<HeadTrackStage>());
     p.stages.push_back(std::make_unique<FootMetricsStage>());

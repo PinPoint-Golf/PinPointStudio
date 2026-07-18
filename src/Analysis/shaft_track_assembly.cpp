@@ -2039,6 +2039,10 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     // hasImu swings on the production path) so the ball-anchor post-hoc pass
     // can find the current address boundary regardless of presence mode.
     out.addressPhaseFrame = pm.bs0;
+    // Same unconditional exposure for the onset veto's no-return floor — the
+    // EventRefine slot re-floors its Address walk-back on it (swing_analysis.h
+    // ShaftTrack2D::onsetFloorFrame). -1 when the veto is dark / never fired.
+    out.onsetFloorFrame = pm.onsetFloor;
 
     if (trace) {
         trace->phases = pm; trace->phiSmoothed = phiS; trace->chir = chir;

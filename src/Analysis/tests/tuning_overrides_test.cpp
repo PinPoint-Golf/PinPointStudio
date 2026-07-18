@@ -10,6 +10,7 @@
 #include "../wrist_assessment_tuning.h"
 #include "../reference_bands.h"
 #include "../analysis_tuning.h"
+#include "../event_refine.h"
 #include "../../Core/pp_tuned_constants.h"
 
 #include <QVariantMap>
@@ -237,6 +238,37 @@ int main()
         check(act == true && refF == 5 && innerR == 2.0 && outerR == 6.0
               && quietS == 2.0 && tk0Ov == true,
               "W3/W4 overrides reach their fromOverrides seams");
+    }
+
+    std::printf("--- refine.* late-pipeline event refinement (EventRefineConfig::fromOverrides) ---\n");
+
+    // 10. Every refine.* key maps onto EventRefineConfig; empty map ⇒ the frozen
+    //     DARK defaults (enabled false ⇒ byte-identical AND code-path-identical to
+    //     the pre-refine pipeline). enabled flips only at the evidence-freeze commit.
+    {
+        const EventRefineConfig def = EventRefineConfig::fromOverrides(QVariantMap{});
+        check(def.enabled == false && def.takeaway == true && def.address == true
+              && def.impactResidual == true && def.departThetaDeg == 25.0
+              && def.activityQuietSigma == 3.0 && def.returnHoldMs == 200
+              && def.minConf == 0.5 && def.maxShiftS == 3.0,
+              "empty map → refine.* frozen dark defaults");
+
+        QVariantMap ov;
+        ov["refine.enabled"]           = true;
+        ov["refine.takeaway"]          = false;
+        ov["refine.address"]           = false;
+        ov["refine.impactResidual"]    = false;
+        ov["refine.departThetaDeg"]    = 30.0;
+        ov["refine.activityQuietSigma"] = 2.5;
+        ov["refine.returnHoldMs"]      = 150;
+        ov["refine.minConf"]           = 0.4;
+        ov["refine.maxShiftS"]         = 2.0;
+        const EventRefineConfig c = EventRefineConfig::fromOverrides(ov);
+        check(c.enabled == true && c.takeaway == false && c.address == false
+              && c.impactResidual == false && c.departThetaDeg == 30.0
+              && c.activityQuietSigma == 2.5 && c.returnHoldMs == 150
+              && c.minConf == 0.4 && c.maxShiftS == 2.0,
+              "refine.* overrides reach EventRefineConfig::fromOverrides");
     }
 
     std::printf("\n=== %s (%d failures) ===\n", g_fail ? "FAILURES" : "ALL PASS", g_fail);

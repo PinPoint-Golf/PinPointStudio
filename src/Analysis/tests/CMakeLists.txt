@@ -218,6 +218,19 @@ pp_add_test(ball_anchor_test
     LINK    ${OpenCV_LIBS}
     COMPILE_OPTIONS -O2)
 
+# Late-pipeline event refinement (event_refine.{h,cpp}): the three-tier at-ball
+# evidence, LAST-departure/no-return takeaway (the s0002 lesson), flicker debounce,
+# tier confidence + minConf/maxShift abstention, Club-provenance/version-3 mutation,
+# monotone-ladder invariant, enabled=false byte-identity, swingStartUs coupling.
+# Pulls ball_anchor.cpp for the shared buildThetaBallSeries; addressHoldEndFrame is
+# header-only (shaft_positions.h). Same OpenCV link set as ball_anchor_test (the
+# transitive shaft_track_assembly.h drags in cv:: types).
+pp_add_test(event_refine_test
+    SOURCES event_refine_test.cpp ${ANALYSIS}/event_refine.cpp ${ANALYSIS}/ball_anchor.cpp
+    INCLUDE ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    COMPILE_OPTIONS -O2)
+
 # W3 club-corridor activity helper (ball_activity.h): the annulus + per-pixel
 # temporal-median math (quiet ⇒ 0, uniform-annulus diff ⇒ mean/σ, inner-disc
 # exclusion, median-ref outlier robustness, the -1 absent contracts). Header-only,

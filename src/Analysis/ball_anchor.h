@@ -42,12 +42,35 @@
 #include <cstdint>
 #include <vector>
 
+#include <QPointF>
+
 #include "swing_analysis.h"       // ShaftTrack2D, BallTrack2D
 #include "shaft_track_assembly.h" // ShaftDecideTrace
 
 struct ShotAnalysisJob;
 
 namespace pinpoint::analysis {
+
+// Per-coverage-frame grip→ball direction series (design §9.1). theta_ball(f) =
+// atan2(B − G) wherever a stable ball sample sits near frame f, with the mis-lock
+// jump gate (a "found" sample that jumped > kMaxJumpNormPx from the last accepted
+// one is a mis-lock, not a moved ball — the ball is stationary by construction at
+// address). haveBall marks the frames that resolved; thetaBall/ballPx are defined
+// only there (0 / default elsewhere). Extracted from applyBallAnchor so BOTH it and
+// the EventRefine Tier-A at-ball test build the series from ONE implementation
+// (applyBallAnchor's byte-for-byte behaviour is guarded by ball_anchor_test).
+struct ThetaBallSeries {
+    std::vector<bool>    haveBall;    // one per frame — a stable ball resolved here
+    std::vector<double>  thetaBall;   // atan2(B − G) radians (image atan2 convention)
+    std::vector<QPointF> ballPx;      // ball centre (px); default where !haveBall
+};
+
+// Build the θ_ball series over the tUs grid. gx/gy are the per-frame grip anchors
+// (px). frameW/H de-normalize the ball centres. Empty/mismatched inputs return an
+// all-false series (haveBall.size() == tUs.size()).
+ThetaBallSeries buildThetaBallSeries(const BallTrack2D &ball,
+                                     const std::vector<double> &gx, const std::vector<double> &gy,
+                                     const std::vector<int64_t> &tUs, int frameW, int frameH);
 
 // Median grip→ball distance (px) over the ADDRESS HOLD PROPER — the swing's own
 // per-camera club-length measurement (design §9.4): golfer set, club behind the

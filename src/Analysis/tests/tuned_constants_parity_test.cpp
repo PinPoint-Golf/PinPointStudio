@@ -119,6 +119,17 @@ int main()
     check(t::shaft::kOnsetBridgeMinNetFrac == 0.2,
           "shaft::kOnsetBridgeMinNetFrac == 0.2 (2026-07-18 freeze)");
 
+    // Late-pipeline event refinement (EventRefine, P3) — all keys DARK at V1
+    // (enabled flips only at the evidence-freeze commit, paired with
+    // ball::activity::kClubActivity). activityQuietSigma seeds from the P1
+    // club-quiet σ (positions::kP1ClubQuietSigma == 3.0).
+    check(t::refine::kEnabled == false && t::refine::kTakeaway == true
+          && t::refine::kAddress == true && t::refine::kImpactResidual == true
+          && t::refine::kDepartThetaDeg == 25.0 && t::refine::kActivityQuietSigma == 3.0
+          && t::refine::kReturnHoldMs == 200 && t::refine::kMinConf == 0.5
+          && t::refine::kMaxShiftS == 3.0,
+          "refine defaults == (off,on,on,on,25,3.0,200,0.5,3.0)");
+
     // --- Default-constructed consumers match their pre-refactor defaults ---------
     check(MadgwickFilter().beta() == 0.05f, "MadgwickFilter() default beta == 0.05");
 

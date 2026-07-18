@@ -2194,6 +2194,8 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/shaft_tracker.cpp
     src/Analysis/ball_anchor.h
     src/Analysis/ball_anchor.cpp
+    src/Analysis/event_refine.h
+    src/Analysis/event_refine.cpp
     src/Analysis/swing_scorer.h
     src/Analysis/swing_scorer.cpp
     src/Analysis/wrist_resemblance.h
@@ -2452,6 +2454,7 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/ball_runner.cpp
         src/Analysis/shaft_tracker.cpp
         src/Analysis/ball_anchor.cpp
+        src/Analysis/event_refine.cpp
         src/Analysis/shaft_tracker_math.cpp
         src/Analysis/shaft_track_assembly.cpp
         src/Analysis/clubhead_track.cpp

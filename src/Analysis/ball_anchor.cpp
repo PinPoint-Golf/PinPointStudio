@@ -96,6 +96,47 @@ int64_t ballMatchToleranceUs(const BallTrack2D &ball, const std::vector<int64_t>
 
 } // namespace
 
+ThetaBallSeries buildThetaBallSeries(const BallTrack2D &ball,
+                                     const std::vector<double> &gx, const std::vector<double> &gy,
+                                     const std::vector<int64_t> &tUs, int frameW, int frameH)
+{
+    const int nf = int(tUs.size());
+    ThetaBallSeries out;
+    out.haveBall.assign(size_t(nf), false);
+    out.thetaBall.assign(size_t(nf), 0.0);
+    out.ballPx.assign(size_t(nf), QPointF());
+    if (ball.frames.empty() || nf == 0 || gx.size() != size_t(nf) || gy.size() != size_t(nf))
+        return out;   // no ball data / shapes don't line up — all-false series
+
+    const int64_t frameToleranceUs = ballMatchToleranceUs(ball, tUs);
+
+    // Per-frame theta_ball(f) = atan2(B - G) wherever a stable ball sample is
+    // available near this coverage frame (design §9.1). A "found" sample that
+    // jumped a long way from the last accepted one is treated as a mis-lock,
+    // not a moved ball (the ball is stationary by construction at this stage
+    // — design §9.7's "constant plus one step"). The θ loop deliberately keeps
+    // the sequential jump gate (per-frame anchoring — no single robust statistic
+    // to gate against, unlike the length measurement's two-pass cluster gate).
+    QPointF lastAccepted;
+    bool haveLast = false;
+    for (int i = 0; i < nf; ++i) {
+        const BallSample2D *s = nearestBallSample(ball, tUs[size_t(i)], frameToleranceUs);
+        if (!s || !s->found) continue;
+        const QPointF centerPx(s->center.x() * frameW, s->center.y() * frameH);
+        if (haveLast) {
+            const double jump = std::hypot(centerPx.x() - lastAccepted.x(),
+                                           centerPx.y() - lastAccepted.y());
+            if (jump > kMaxJumpNormPx) continue;   // mis-lock — skip this sample
+        }
+        lastAccepted = centerPx;
+        haveLast = true;
+        out.ballPx[size_t(i)]   = centerPx;
+        out.thetaBall[size_t(i)] = std::atan2(centerPx.y() - gy[size_t(i)], centerPx.x() - gx[size_t(i)]);
+        out.haveBall[size_t(i)]  = true;
+    }
+    return out;
+}
+
 double medianGripBallLenPx(const BallTrack2D &ball,
                            const std::vector<double> &gx, const std::vector<double> &gy,
                            const std::vector<int64_t> &tUs, int frameW, int frameH,
@@ -207,17 +248,15 @@ void applyBallAnchor(ShaftTrack2D &out, const BallTrack2D &ball,
         return;   // no ball data, or shapes don't line up — additive-only, no-op
 
     const int nf = int(out.samples.size());
-    const int64_t frameToleranceUs = ballMatchToleranceUs(ball, tUs);
 
     // Per-frame theta_ball(f) = atan2(B - G) wherever a stable ball sample is
-    // available near this coverage frame (design §9.1). A "found" sample that
-    // jumped a long way from the last accepted one is treated as a mis-lock,
-    // not a moved ball (the ball is stationary by construction at this stage
-    // — design §9.7's "constant plus one step").
+    // available near this coverage frame (design §9.1) — the mis-lock jump gate
+    // is inside the shared builder now (ball_anchor.h buildThetaBallSeries), so
+    // this pass and the EventRefine Tier-A at-ball test agree by construction.
     //
     // Known asymmetry vs medianGripBallLenPx: the length measurement moved to
-    // an order-independent two-pass cluster gate (a warm-up mis-lock here can
-    // chain-reject every later good sample), but this θ loop deliberately keeps
+    // an order-independent two-pass cluster gate (a warm-up mis-lock there can
+    // chain-reject every later good sample), but the θ series deliberately keeps
     // the sequential gate for now — θ anchoring is per-frame (no single robust
     // statistic to gate against) and its departure/abstain logic downstream is
     // corpus-validated as-is. Revisit if warm-up locks show up in tk0.
@@ -227,26 +266,10 @@ void applyBallAnchor(ShaftTrack2D &out, const BallTrack2D &ball,
     // it via the ankle-line/feet golf priors (medianGripBallLenPx), but the
     // per-frame θ anchors here have no equivalent plausibility gate yet.
     // Separate audit owed before the anchors are trusted on teed clubs.
-    std::vector<bool>    haveBall(size_t(nf), false);
-    std::vector<double>  thetaBall(size_t(nf), 0.0);
-    std::vector<QPointF> ballPx(static_cast<size_t>(nf));
-    QPointF lastAccepted;
-    bool haveLast = false;
-    for (int i = 0; i < nf; ++i) {
-        const BallSample2D *s = nearestBallSample(ball, tUs[i], frameToleranceUs);
-        if (!s || !s->found) continue;
-        const QPointF centerPx(s->center.x() * frameW, s->center.y() * frameH);
-        if (haveLast) {
-            const double jump = std::hypot(centerPx.x() - lastAccepted.x(),
-                                           centerPx.y() - lastAccepted.y());
-            if (jump > kMaxJumpNormPx) continue;   // mis-lock — skip this sample
-        }
-        lastAccepted = centerPx;
-        haveLast = true;
-        ballPx[size_t(i)] = centerPx;
-        thetaBall[size_t(i)] = std::atan2(centerPx.y() - gy[size_t(i)], centerPx.x() - gx[size_t(i)]);
-        haveBall[size_t(i)] = true;
-    }
+    const ThetaBallSeries tb = buildThetaBallSeries(ball, gx, gy, tUs, frameW, frameH);
+    const std::vector<bool>    &haveBall  = tb.haveBall;
+    const std::vector<double>  &thetaBall = tb.thetaBall;
+    const std::vector<QPointF> &ballPx    = tb.ballPx;
 
     // ── Exploit 1 (design §9.2, refined 2026-07-08) — tk0: first departure
     // of the club's own tracked theta from theta_ball, scanned forward from
@@ -281,11 +304,12 @@ void applyBallAnchor(ShaftTrack2D &out, const BallTrack2D &ball,
     // vision Segmentation adopted for camera-only swings (wrist_analyzer.cpp's
     // !hasImu fallback); fused swings' reported Address still comes from the
     // IMU today, untouched here (a separate, later question — Mark).
-    // TODO (long-term, tk0 → Takeaway re-scope): now that phasesToSegmentation
-    // emits a real Takeaway event (shaft.emitTakeaway), the ball's earliest-
-    // departure tk0 is conceptually the TAKEAWAY instant, not the Address hold
-    // end — a future tk0 consumer should refine Takeaway and leave Address on
-    // the addressHoldEndFrame path (plan §W3/§"Out of scope").
+    // tk0 → Takeaway re-scope (LANDED): the ball's departure-from-θ_ball evidence
+    // now refines Takeaway (and leaves Address on the addressHoldEndFrame path) in
+    // the EventRefine slot (src/Analysis/event_refine.h — the LAST-departure/no-
+    // return search, which supersedes this FIRST-departure tk0 that fired on the
+    // first fidget). This in-DP tk0 stays report-only (trace->ballTk0Frame); the
+    // W4 A/B override below is the frozen-off legacy overwrite path.
     // W4 A/B: ball.tk0AddressOverride — FROZEN OFF 2026-07-17 (the 17-swing
     // truth evaluation showed the first-departure tk0 fires on the first FIDGET
     // departure and overwrote a good hold-end Address; w2s4 −0.134 s → −1.533 s).
