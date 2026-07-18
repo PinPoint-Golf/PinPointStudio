@@ -53,6 +53,17 @@ Item {
     property var  enabledKeys: ({})                 // legend visibility ({} = all on)
     property bool showDots:    true
     property bool showCursor:  true
+
+    // Click/drag on a plot seeks the replay to that time — the host wires these to
+    // shotReplay (seekToUs / beginScrub / endScrub) so the video, overlay, timeline
+    // and every other panel scrub together. Off by default: the chart stays prop-
+    // driven and never touches the replay facade itself, and the compact transient
+    // graph stays non-interactive.
+    property bool seekable:    false
+    signal seekRequested(real tUs)
+    signal scrubBegan()
+    signal scrubEnded()
+
     property string _preset:   "Full"               // active segment ("Full" / "ADR→TKW" / "Custom")
 
     // Compact mode: just the overlay plot (no toolbar / segment chips / brush / header /
@@ -496,6 +507,14 @@ Item {
                         onHoverMoved: (t) => root._cursorUs =
                             Math.max(root.viewStartUs, Math.min(root.viewEndUs, t))
                         onHoverExited: root._cursorUs = -1
+
+                        // Seek forwarding (host wires to shotReplay). Clamp to the
+                        // active view window — the same window the plot is drawn over.
+                        seekEnabled: root.seekable
+                        onSeekRequested: (t) => root.seekRequested(
+                            Math.max(root.viewStartUs, Math.min(root.viewEndUs, t)))
+                        onScrubBegan: root.scrubBegan()
+                        onScrubEnded: root.scrubEnded()
                     }
                 }
             }

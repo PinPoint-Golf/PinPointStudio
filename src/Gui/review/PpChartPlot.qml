@@ -69,6 +69,15 @@ Item {
     signal hoverMoved(real tUs)
     signal hoverExited()
 
+    // Optional click/drag-to-seek. When enabled the plot becomes a scrub surface —
+    // a tap seeks, a drag scrubs — reported up as seekRequested/scrubBegan/scrubEnded
+    // for the host to wire to the replay (this plotter never touches it directly).
+    // Off by default so decorative / compact instances stay non-interactive.
+    property bool seekEnabled: false
+    signal seekRequested(real tUs)
+    signal scrubBegan()
+    signal scrubEnded()
+
     ChartMetrics   { id: cm }
     TimelineLabels { id: labels }
 
@@ -287,7 +296,8 @@ Item {
             }
         }
 
-        // Hover tracking — NoButton so a future click-to-seek can own the press.
+        // Hover tracking — NoButton so the seek handlers below own the press while
+        // this keeps the shared crosshair alive.
         MouseArea {
             anchors.fill: parent
             hoverEnabled: true
@@ -295,6 +305,33 @@ Item {
             onPositionChanged: (m) => root.hoverMoved(
                 root.domStartUs + (m.x / clipArea.width) * (root.domEndUs - root.domStartUs))
             onExited: root.hoverExited()
+        }
+
+        // Click/drag-to-seek — mirrors the transit timeline's scrub surface so the
+        // chart is a second master seek surface (gated on seekEnabled). A tap seeks
+        // (preserving play state); a drag brackets a scrub so playback pauses while
+        // dragging and resumes after if it was playing. hoverMoved keeps the crosshair
+        // riding with the playhead through a drag (the hover MouseArea above freezes
+        // once the drag grab is taken).
+        function _seekT(mx) {
+            return root.domStartUs
+                 + Math.max(0, Math.min(1, mx / clipArea.width)) * (root.domEndUs - root.domStartUs)
+        }
+        DragHandler {
+            enabled: root.seekEnabled
+            target: null
+            dragThreshold: 0
+            cursorShape: Qt.PointingHandCursor
+            onActiveChanged: active ? root.scrubBegan() : root.scrubEnded()
+            onCentroidChanged: if (active) {
+                var t = clipArea._seekT(centroid.position.x)
+                root.seekRequested(t)
+                root.hoverMoved(t)
+            }
+        }
+        TapHandler {
+            enabled: root.seekEnabled
+            onTapped: (ep) => root.seekRequested(clipArea._seekT(ep.position.x))
         }
     }
 

@@ -53,6 +53,13 @@ Item {
         impactUs:   root._screenActive ? shotReplay.impactUs   : 0
         playheadUs: root._screenActive ? shotReplay.positionUs : 0
         showPlayhead: true
+
+        // Click/drag a plot to scrub — drives the shared replay playhead, so the
+        // video, overlay, timeline and every other panel follow to that instant.
+        seekable: true
+        onSeekRequested: (t) => shotReplay.seekToUs(t)
+        onScrubBegan:    shotReplay.beginScrub()
+        onScrubEnded:    shotReplay.endScrub()
     }
 
     Column {
