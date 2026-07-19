@@ -46,7 +46,7 @@ class ShotListModel;
 //
 //   shotDetected ─► POSTROLL  per-source delay; the buffer keeps capturing so
 //                             the follow-through lands in the ring
-//                ─► pauseBuffer → captureSwingWindow(5 s trailing ring)
+//                ─► pauseBuffer → captureSwingWindow(4 s trailing ring)
 //                ─► PROCESSING analysis (ShotAnalyzer) ∥ export (SwingExporter)
 //                             — both QtConcurrent workers reading the frozen
 //                             window concurrently (const, zero-copy)
@@ -173,7 +173,7 @@ private:
     // live CameraInstance accumulator has scrolled to post-shot junk (ball
     // detection never stops) and a phantom re-launch — the struck ball rolling —
     // may have overwritten ballLaunchInfo(). So we snapshot the instant the
-    // SwingWindow is frozen, when the 6 s accumulator still fully covers the 5 s
+    // SwingWindow is frozen, when the 6 s accumulator still fully covers the 4 s
     // window; both builders read this, never live controller state. Samples
     // mirror CameraInstance::BallAccumSample (POD, avoids a header dependency).
     struct BallSnapshot {

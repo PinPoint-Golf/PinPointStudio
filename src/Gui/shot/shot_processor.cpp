@@ -57,7 +57,7 @@ namespace {
 // for this long after the trigger so the follow-through lands in the ring
 // before it freezes. Auto detectors use 1250 ms (segmentation v3: the finish
 // is follow-through ~0.67 s + decay-to-still, physically truncated at 500 ms
-// — design A.6; impact then sits ~3.75 s into the 5 s ring, leaving ample
+// — design A.6; impact then sits ~2.75 s into the 4 s ring, leaving ample
 // pre-impact room). Manual stays 500 ms: the user presses after the swing and
 // impact is back-dated, so the finish is already in the ring.
 constexpr int kPostRollManualMs   = 500;
@@ -78,8 +78,18 @@ int postRollMsFor(ShotController::Source s)
     return kPostRollManualMs;
 }
 
-// The entire trailing ring — every source's window_duration is 5 s.
-constexpr std::chrono::milliseconds kWindowDuration{5000};
+// The entire trailing ring — every source's window_duration. Trimmed 5 s → 4 s
+// (2026-07-19): the window is anchored at the pause instant, so it only reaches
+// back from impact — post-impact room (~1.5 s: hold + back-date + post-roll) is
+// unaffected and shrinking only trims pre-impact reach. The analyzer never reads
+// further back than impact − 1.75 s (onset clamp bsMaxBeforeImpactUs = 1.6 s +
+// 150 ms fill pad, shaft_track_assembly.h), so the floor is set by that clamp,
+// not by tempo. 4 s leaves ~2.45 s pre-impact — ~0.7 s of margin over the floor —
+// while cutting a fifth off the frozen window: ~190 MB of raw frame copy per
+// camera at export and 20 % of the x264 encode. The per-source ring retention
+// (SourceDescriptor::window_duration, still 5 s) is deliberately left larger so
+// the captured window keeps drain/post-roll headroom inside the ring.
+constexpr std::chrono::milliseconds kWindowDuration{4000};
 
 // Multi-estimator club-length fusion result (club_length_fusion.h), nested as
 // "lengths" under the "club" detail block — identical shape in both parity
@@ -522,7 +532,7 @@ void ShotProcessor::captureWindowAndLaunch()
         // run 12–37 s later (from onAnalysisFinished), by when the live deque has
         // scrolled to post-shot junk and a phantom re-launch may have overwritten
         // the launch. At this instant the 6 s accumulator still fully covers the
-        // 5 s window. Absolute buffer-clock tUs kept (the analyzer consumes the
+        // 4 s window. Absolute buffer-clock tUs kept (the analyzer consumes the
         // window's native domain; the exporter rebases).
         const auto &ballAccum = ctrl->ballSamples();
         track.ball.samples.reserve(ballAccum.size());

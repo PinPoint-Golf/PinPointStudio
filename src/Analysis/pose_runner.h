@@ -50,7 +50,7 @@ struct ShotAnalysisRunnerOptions {
 
     // Scan bounds (segmentation v3 G3): only frames inside
     // [scanStartUs, scanEndUs] are decoded/posed — the detected swing span
-    // (plus pad) instead of the whole 5 s ring. 0/0 = unbounded. If the
+    // (plus pad) instead of the whole 4 s ring. 0/0 = unbounded. If the
     // bounds exclude every frame (clock mismatch), the runner falls back to
     // the full window rather than returning an empty track.
     int64_t scanStartUs = 0;
@@ -71,7 +71,7 @@ struct ShotAnalysisRunnerOptions {
 
     // Two-pass pose (swing_span_bounding_plan.md §5). The camera-only path has
     // no IMU-derived span (G3's scanStartUs/EndUs need segmentation conf > 0),
-    // so the pose pass would otherwise decode+pose the whole 5 s ring. twoPass
+    // so the pose pass would otherwise decode+pose the whole 4 s ring. twoPass
     // breaks that chicken-and-egg: pass 1 poses every coarseStride-th frame over
     // the whole window and runs estimateSwingSpanUs() over the coarse grip track;
     // pass 2 then fills only [onset − 150 ms, finish + 150 ms] (dense zone stride

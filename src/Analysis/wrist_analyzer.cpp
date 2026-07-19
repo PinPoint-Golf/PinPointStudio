@@ -145,7 +145,7 @@ SegmentationConfig segConfigFor(const QVariantMap &ov)
 }
 
 // Copy of the fused streams restricted to [fromUs, toUs] — the metric grid
-// spans the detected swing, not the raw 5 s ring. Timestamps stay absolute.
+// spans the detected swing, not the raw 4 s ring. Timestamps stay absolute.
 FusedStreams trimStreams(const FusedStreams &in, int64_t fromUs, int64_t toUs)
 {
     const auto lo = std::lower_bound(in.timeGrid.begin(), in.timeGrid.end(), fromUs);
