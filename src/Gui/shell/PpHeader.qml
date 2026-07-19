@@ -17,6 +17,7 @@
  */
 
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import PinPointStudio
 
@@ -41,6 +42,8 @@ Item {
     signal fullscreenToggleRequested()
     signal backRequested()
     signal forwardRequested()
+    // Version pill clicked — Main.qml opens the About PinPoint Studio dialog.
+    signal aboutRequested()
     // Close button pressed — Main.qml routes this through window.close() so it
     // shares the onClosing interception (session-active confirm) with the WM
     // close. Never call Qt.quit() here: it bypasses onClosing entirely.
@@ -143,7 +146,9 @@ Item {
 
         Item { Layout.fillWidth: true }
 
+        // Clickable version pill → opens the About PinPoint Studio dialog.
         Item {
+            id: versionPill
             Layout.alignment:   Qt.AlignVCenter
             implicitWidth:      versionLabel.implicitWidth + Theme.sp(10)
             implicitHeight:     versionLabel.implicitHeight + Theme.sp(6)
@@ -151,10 +156,11 @@ Item {
 
             Rectangle {
                 anchors.fill:  parent
-                color:         "transparent"
+                color:         versionPillMa.containsMouse ? Theme.colorBg2 : "transparent"
                 border.width:  1
-                border.color:  Theme.colorBorderMid
+                border.color:  versionPillMa.containsMouse ? Theme.colorBorderStrong : Theme.colorBorderMid
                 radius:        Theme.radius
+                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
             }
 
             Text {
@@ -164,8 +170,17 @@ Item {
                 font.family:         Theme.fontData
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingData
-                color:               Theme.colorText3
+                color:               versionPillMa.containsMouse ? Theme.colorText2 : Theme.colorText3
             }
+
+            PpPressable {
+                id: versionPillMa
+                onClicked: root.aboutRequested()
+            }
+
+            ToolTip.visible: versionPillMa.containsMouse
+            ToolTip.text:    qsTr("About PinPoint Studio")
+            ToolTip.delay:   500
         }
 
         // Fullscreen toggle button — corner-bracket expand/compress icon

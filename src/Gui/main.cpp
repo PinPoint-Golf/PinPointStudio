@@ -27,6 +27,7 @@
 
 #include "pp_debug.h"
 #include "app_settings.h"
+#include "app_info.h"
 #ifdef HAVE_OPENCV
 #  include <opencv2/core.hpp>
 #  include <opencv2/core/utils/logger.hpp>
@@ -187,6 +188,8 @@ int main(int argc, char *argv[])
     eventBuffer.start();
 
     AppSettings              appSettings;
+    // Read-only app/build/dependency info for the About box (appInfo context property).
+    AppInfo                  appInfo;
     SecretsBridge            secrets;
     ImuManager              imuManager(&eventBuffer, &appSettings);
     TranscriptionController controller(&appSettings);
@@ -444,6 +447,7 @@ int main(int argc, char *argv[])
     markupController.setImageProvider(markupProvider);
     engine.addImageProvider(QStringLiteral("markup"), markupProvider);
     engine.rootContext()->setContextProperty(QStringLiteral("appSettings"),       &appSettings);
+    engine.rootContext()->setContextProperty(QStringLiteral("appInfo"),           &appInfo);
     engine.rootContext()->setContextProperty(QStringLiteral("secrets"),           &secrets);
     engine.rootContext()->setContextProperty(QStringLiteral("athleteController"), &athleteController);
     engine.rootContext()->setContextProperty(QStringLiteral("navController"),     &navController);

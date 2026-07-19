@@ -395,6 +395,8 @@ qt_add_qml_module(PinPointStudio
         src/Gui/diagnostics/FindingsList.qml
         src/Gui/diagnostics/StrengthsList.qml
         src/Gui/session/PpMarkupPanel.qml
+        src/Gui/shell/PpAboutDialog.qml
+        src/Gui/shell/MacAboutMenu.qml
     SOURCES
         src/Audio/ting_player.h
         src/Audio/ting_player.cpp
@@ -483,6 +485,8 @@ target_compile_definitions(PinPointStudio PRIVATE
 target_sources(PinPointStudio PRIVATE
     src/Core/pp_debug.h
     src/Core/pp_debug.cpp
+    src/Core/app_info.h
+    src/Core/app_info.cpp
     src/Core/pp_settings.h
     src/Core/PpMessageLog.h
     src/Core/PpMessageLog.cpp
@@ -553,8 +557,10 @@ configure_file(
 
 qt_add_resources(PinPointStudio "app_icons"
     PREFIX "/icons"
+    BASE   "src/Resources/icons"
     FILES
         src/Resources/icons/pinpointstudio_256.png
+        src/Resources/icons/pinpointstudio_512.png
 )
 
 # Pinned release public keys for the in-app updaters' signature gates:
@@ -2543,6 +2549,17 @@ if(PINPOINT_BUILD_TOOLS)
     add_test(NAME swing_window_parity COMMAND swing_window_parity_test)
     message(STATUS "SwingLab tools: swing_window_parity_test enabled")
 endif()
+
+# ── Dependency version header for the About box ──────────────────────────────
+# Generated LAST so every find_package / FetchContent version variable above is
+# already resolved (the pp_version.h configure at the top runs too early for
+# these). Feeds src/Core/app_info.cpp -> the About dialog's library list. Tag-
+# pinned deps with no version variable are supplied as literals here (kept in
+# lockstep with their FetchContent GIT_TAG above).
+set(PP_WHISPER_VERSION    "1.7.2")   # whisper FetchContent GIT_TAG v1.7.2
+set(PP_EIGEN_VERSION      "3.4.0")   # eigen  FetchContent GIT_TAG 3.4.0
+set(PP_SAMPLERATE_VERSION "0.2.2")   # libsamplerate FetchContent GIT_TAG 0.2.2
+configure_file(cmake/pp_deps.h.in "${CMAKE_BINARY_DIR}/generated/pp_deps.h" @ONLY)
 
 # ── Windows installer packaging (CPack + Inno Setup) ─────────────────────────
 # Must come last: include(CPack) snapshots the CPACK_* variables and component

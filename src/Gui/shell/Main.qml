@@ -282,6 +282,28 @@ ApplicationWindow {
         }
     }
 
+    // About PinPoint Studio — icon, version/build stats, bundled library versions,
+    // and (where supported) an update check/trigger. Opened from the header version
+    // pill on every platform, and additionally from the macOS application menu below.
+    PpAboutDialog {
+        id: aboutDialog
+    }
+
+    // Native macOS application-menu "About PinPoint Studio" item. Isolated to a
+    // separate QML file loaded ONLY on macOS, so its Qt.labs.platform import and the
+    // native menu bar never touch Linux/Windows (where the header pill is the trigger).
+    Loader {
+        active: Qt.platform.os === "osx"
+        source: Qt.platform.os === "osx" ? "MacAboutMenu.qml" : ""
+        onLoaded: {
+            if (!item) return
+            item.aboutRequested.connect(function() { aboutDialog.open() })
+            // Route Quit through window.close() so the session-active confirm fires,
+            // same as the header ✕ (never Qt.quit(), which bypasses onClosing).
+            item.quitRequested.connect(function() { root.close() })
+        }
+    }
+
     // Commit any in-progress text-field edit before the screen changes.
     // StackLayout keeps all screens alive (not destroyed on switch), so items in
     // hidden screens retain activeFocus and onActiveFocusChanged never fires.
@@ -424,7 +446,8 @@ ApplicationWindow {
                                                                  : qsTr("Edit athlete"))
                             : (navController.currentIndex < screenNames.length
                                ? screenNames[navController.currentIndex] : "")
-                showVersionPill: navController.currentIndex === root.screenSettings
+                // Shown app-wide so its click target (the About dialog) is always reachable.
+                showVersionPill: true
                 // Session screens (Swing/Wrist/GRF/Coach) gate the centred DETECT
                 // cluster the header hosts during live Capture.
                 sessionScreenActive: navController.currentIndex >= root.screenSwing
@@ -434,6 +457,8 @@ ApplicationWindow {
                 // Route through window.close() so the session-active confirm
                 // (onClosing) intercepts the in-app ✕ too.
                 onCloseRequested: root.close()
+                // Version pill → About PinPoint Studio.
+                onAboutRequested: aboutDialog.open()
 
                 // When on the wizard, ‹/› navigate steps; otherwise delegate to
                 // navController. Step skipping (Triangulate/Calibrate/Confirm)
