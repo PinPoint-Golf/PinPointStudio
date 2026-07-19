@@ -36,6 +36,21 @@ Rectangle {
 
     readonly property color okColor: (root.runData && root.runData.ok) ? Theme.colorGood : Theme.colorWarn
 
+    // Slowest ran stage in this run — the denominator for the per-stage time bars
+    // below, so the longest stage fills its track and the rest scale relative to it.
+    readonly property real maxStageMs: {
+        if (!root.runData || !root.runData.stages)
+            return 0
+        var stages = root.runData.stages
+        var peak = 0
+        for (var i = 0; i < stages.length; ++i) {
+            var s = stages[i]
+            if (s.ran && s.ms > peak)
+                peak = s.ms
+        }
+        return peak
+    }
+
     Column {
         id: col
         width: parent.width
@@ -136,6 +151,21 @@ Rectangle {
                     // Offset by the run's own band so the first stage always contrasts
                     // with the summary row above — one continuous stripe per run.
                     color: (index % 2 === (root.isAlternate ? 1 : 0)) ? Theme.colorBg : Theme.colorSurface
+
+                    // Horizontal time bar: width proportional to this stage's wall time
+                    // relative to the slowest stage in the run. Low-alpha accent fill
+                    // behind the row text (drawn first → text stays on top and legible),
+                    // left-aligned under the stage name and stopping short of the value.
+                    Rectangle {
+                        readonly property real frac: (modelData.ran && root.maxStageMs > 0)
+                                                     ? Math.min(1, modelData.ms / root.maxStageMs) : 0
+                        anchors { left: parent.left; leftMargin: Theme.sp(34); verticalCenter: parent.verticalCenter }
+                        width: Math.max(0, (parent.width - Theme.sp(34) - Theme.sp(72))) * frac
+                        height: Theme.sp(14)
+                        radius: Theme.sp(2)
+                        visible: frac > 0
+                        color: Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.20)
+                    }
 
                     Text {
                         anchors { left: parent.left; leftMargin: Theme.sp(34); verticalCenter: parent.verticalCenter }
