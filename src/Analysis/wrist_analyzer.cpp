@@ -27,6 +27,7 @@
 #include <variant>
 
 #include "analysis_stage.h"
+#include "analysis_profiling.h"
 #include "analysis_tuning.h"
 #include "ball_runner.h"
 #include "event_refine.h"
@@ -856,7 +857,9 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
     if (!ctx.hasImuStreams())
         ppInfo() << "[WristAnalysis] no fusable IMU streams — camera-only (pose) analysis";
 
-    return projectResult(ctx);
+    ShotAnalysisResult r = projectResult(ctx);
+    recordAnalysisRun(QStringLiteral("Wrist"), ctx);   // per-stage profiler + run history
+    return r;
 }
 
 // Shared camera-only profile for the non-Wrist session types (declared in

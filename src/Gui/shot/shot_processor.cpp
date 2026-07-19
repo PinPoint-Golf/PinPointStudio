@@ -35,6 +35,7 @@
 #include "../Analysis/swing_analysis.h"
 #include "../Export/swing_doc.h"
 #include "../Core/pp_debug.h"
+#include "../Core/pp_os_metrics.h"
 #include "pp_version.h"
 
 #include <QSysInfo>
@@ -829,6 +830,10 @@ void ShotProcessor::startAnalysis()
     m_analysisInFlight = true;
     m_analysisWatcher.setFuture(QtConcurrent::run(
         [job = std::move(job), win] {
+            // Name this pooled thread so it shows in the profiler's per-thread
+            // CPU table for the duration of the analysis (RAII across all the
+            // return paths below).
+            pinpoint::osmetrics::ThreadScope _tscope("Analysis.Worker");
             // Exception barrier: anything escaping the worker (e.g. a
             // cv::Exception on malformed frame geometry) would be rethrown by
             // QtConcurrent on the GUI thread at result()/waitForFinished()

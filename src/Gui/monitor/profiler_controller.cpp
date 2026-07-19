@@ -22,6 +22,7 @@
 #include "pp_gpu_metrics.h"
 #include "pp_debug.h"
 #include "PpStatsLog.h"
+#include "AnalysisProfileLog.h"
 
 #include <QDateTime>
 #include <QDir>
@@ -68,6 +69,47 @@ QString fmtMs(quint64 ns)
 }
 
 QString fmtPct(double p) { return QString::number(p, 'f', 1) + QStringLiteral("%"); }
+
+// Human label for a SessionController::Type (Swing 0 / Wrist 1 / GRF 2 / Coach 3).
+QString sessionLabel(int t)
+{
+    switch (t) {
+    case 0:  return QStringLiteral("Swing");
+    case 1:  return QStringLiteral("Wrist");
+    case 2:  return QStringLiteral("GRF");
+    case 3:  return QStringLiteral("Coach");
+    default: return QStringLiteral("—");
+    }
+}
+
+// Flatten one AnalysisProfileLog run into a QVariantMap row (with a nested
+// per-stage list) for the ANALYSIS RUNS drill-down.
+QVariantMap analysisRunToMap(const AnalysisProfileLog::AnalysisRun &r)
+{
+    QVariantMap m;
+    m[QStringLiteral("timestamp")]    = r.timestamp;
+    m[QStringLiteral("profile")]      = r.profile;
+    m[QStringLiteral("ok")]           = r.ok;
+    m[QStringLiteral("okStr")]        = r.ok ? QStringLiteral("ok") : QStringLiteral("halted");
+    m[QStringLiteral("sessionType")]  = r.sessionType;
+    m[QStringLiteral("sessionLabel")] = sessionLabel(r.sessionType);
+    m[QStringLiteral("totalMsStr")]   = fmtMs(quint64(r.totalMs * 1e6));
+    m[QStringLiteral("frames")]       = r.frames;
+    m[QStringLiteral("score")]        = r.score;
+    m[QStringLiteral("scoreStr")]     = QString::number(r.score, 'f', 0);
+    QVariantList stages;
+    for (const auto &st : r.stages) {
+        QVariantMap sm;
+        sm[QStringLiteral("name")]       = st.name;
+        sm[QStringLiteral("ran")]        = st.ran;
+        sm[QStringLiteral("ms")]         = st.ms;
+        sm[QStringLiteral("msStr")]      = st.ran ? fmtMs(quint64(st.ms * 1e6)) : QStringLiteral("—");
+        sm[QStringLiteral("skipReason")] = st.skipReason;
+        stages.append(sm);
+    }
+    m[QStringLiteral("stages")] = stages;
+    return m;
+}
 
 } // namespace
 
@@ -209,7 +251,36 @@ void ProfilerController::refresh()
             m_memory.append(m);
     }
 
+    // ANALYSIS STAGES — pull the pipeline-stage scopes (Analysis.Stage.*, plus the
+    // whole-run Analysis.analyze) out of the generic scope list into their own
+    // table. No CPU column: per-stage CPU is intentionally not attributed (the
+    // pose stage's work is spread across ORT's own thread pool).
+    m_analysisStages.clear();
+    for (const auto &s : snap.scopes) {
+        const QString name = QString::fromStdString(s.name);
+        QString disp;
+        if (name.startsWith(QStringLiteral("Analysis.Stage.")))
+            disp = name.mid(15);   // strip "Analysis.Stage."
+        else if (name == QStringLiteral("Analysis.analyze"))
+            disp = QStringLiteral("· whole analyze ·");
+        else
+            continue;
+        const quint64 avg = s.calls ? s.wall_ns_total / s.calls : 0;
+        QVariantMap m;
+        m[QStringLiteral("name")]     = disp;
+        m[QStringLiteral("calls")]    = quint64(s.calls);
+        m[QStringLiteral("callsStr")] = fmtCount(s.calls);
+        m[QStringLiteral("totalStr")] = fmtMs(s.wall_ns_total);
+        m[QStringLiteral("avgStr")]   = fmtMs(avg);
+        m[QStringLiteral("minStr")]   = fmtMs(s.wall_ns_min);
+        m[QStringLiteral("maxStr")]   = fmtMs(s.wall_ns_max);
+        m[QStringLiteral("cpuStr")]   = QString();
+        m[QStringLiteral("deep")]     = false;
+        m_analysisStages.append(m);
+    }
+
     pullStats();
+    pullAnalysisRuns();
     rebuildStatsFiltered();
     emit snapshotChanged();
 }
@@ -295,6 +366,59 @@ QString ProfilerController::exportStats()
     return path;
 }
 
+void ProfilerController::clearAnalysisRuns()
+{
+    // Mirror clearStats: drop the local display copy and advance the read cursor;
+    // the global AnalysisProfileLog ring is left intact.
+    m_analysisRuns.clear();
+    m_analysisSeq = AnalysisProfileLog::instance()->currentSeq();
+    emit snapshotChanged();
+}
+
+QString ProfilerController::exportAnalysisRuns()
+{
+    pullAnalysisRuns();   // make sure the file is current even if the screen was closed
+
+    const QDateTime now = QDateTime::currentDateTime();
+    const QString   ts  = now.toString(QStringLiteral("yyyyMMdd_HHmmss"));
+    const QString   path =
+        QDir(QDir::homePath()).filePath(QStringLiteral("PinPointStudio_analysis_%1.txt").arg(ts));
+
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        ppError() << "[Profiler] Cannot open analysis export file for writing:" << path;
+        return QString();
+    }
+
+    QTextStream out(&file);
+    out << "PinPointStudio analysis-pipeline run history — exported "
+        << now.toString(QStringLiteral("yyyy-MM-dd HH:mm:ss")) << "\n\n";
+
+    // m_analysisRuns is newest-first; write oldest-first, each run followed by its
+    // per-stage breakdown.
+    for (auto it = m_analysisRuns.crbegin(); it != m_analysisRuns.crend(); ++it) {
+        const QVariantMap r = it->toMap();
+        out << r.value(QStringLiteral("timestamp")).toString() << "  "
+            << r.value(QStringLiteral("profile")).toString() << "  "
+            << r.value(QStringLiteral("okStr")).toString()
+            << "  total=" << r.value(QStringLiteral("totalMsStr")).toString()
+            << "  frames="  << r.value(QStringLiteral("frames")).toInt()
+            << "  score="   << r.value(QStringLiteral("scoreStr")).toString() << "\n";
+        const QVariantList stages = r.value(QStringLiteral("stages")).toList();
+        for (const QVariant &sv : stages) {
+            const QVariantMap s = sv.toMap();
+            out << "      " << s.value(QStringLiteral("name")).toString().leftJustified(18) << "  ";
+            if (s.value(QStringLiteral("ran")).toBool())
+                out << s.value(QStringLiteral("msStr")).toString() << "\n";
+            else
+                out << "skipped (" << s.value(QStringLiteral("skipReason")).toString() << ")\n";
+        }
+        out << "\n";
+    }
+
+    return path;
+}
+
 // ── Stats ring plumbing ───────────────────────────────────────────────────────
 void ProfilerController::pullStats()
 {
@@ -308,6 +432,16 @@ void ProfilerController::pullStats()
     }
     while (m_statsAll.size() > kMaxStatsEntries)
         m_statsAll.removeLast();
+}
+
+// ── Analysis run history plumbing ─────────────────────────────────────────────
+void ProfilerController::pullAnalysisRuns()
+{
+    const auto newRuns = AnalysisProfileLog::instance()->fetchSince(m_analysisSeq);
+    for (const auto &r : newRuns)            // oldest-first → prepend for newest-first
+        m_analysisRuns.prepend(analysisRunToMap(r));
+    while (m_analysisRuns.size() > AnalysisProfileLog::kMaxRuns)
+        m_analysisRuns.removeLast();
 }
 
 void ProfilerController::rebuildStatsFiltered()

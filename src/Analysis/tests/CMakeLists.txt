@@ -102,6 +102,22 @@ pp_add_test(tuning_overrides_test SOURCES tuning_overrides_test.cpp ${ANALYSIS}/
 # includes are type-only on this path (fake stages, window = nullptr), so no extra .cpp.
 pp_add_test(analysis_stage_test SOURCES analysis_stage_test.cpp)
 
+# Analysis → profiler bridge (analysis_profiling.{h,cpp}): feeds ctx.trace into
+# the resource-profiler scopes (Analysis.Stage.*) + the per-run AnalysisProfileLog
+# ring. Links the profiler core (pp_profiler/pp_os_metrics/PpStatsLog +
+# AnalysisProfileLog) and a PpLogStream (imu_test_stubs) — same provisioning as
+# pipeline_test; imu_test_stubs → event_buffer.h (std::span) forces C++20.
+pp_add_test(analysis_profiling_test
+    SOURCES analysis_profiling_test.cpp
+            ${ANALYSIS}/analysis_profiling.cpp
+            ${SRC}/Core/pp_profiler.cpp
+            ${SRC}/Core/pp_os_metrics.cpp
+            ${SRC}/Core/PpStatsLog.cpp
+            ${SRC}/Core/AnalysisProfileLog.cpp
+            imu_test_stubs.cpp
+    INCLUDE ${SRC}/Core
+    STD 20)
+
 # WB2 head tracking (head_track.{h,cpp}): conf-gated head centre/scale/tilt from the
 # COCO-WholeBody head keypoints + Address-referenced sway/lift/tilt series (isotropic
 # ×frame units, gap-bridged resample). Qt-only (QPointF/MetricSeries via

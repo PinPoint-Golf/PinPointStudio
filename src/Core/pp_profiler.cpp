@@ -50,6 +50,23 @@ ScopeRecord *Profiler::internScope(const char *name)
     return raw;
 }
 
+ScopeRecord *Profiler::internScopeCopied(const std::string &name)
+{
+    std::lock_guard<std::mutex> lk(m_mutex);
+    if (auto it = m_scopeIndex.find(name); it != m_scopeIndex.end())
+        return it->second;
+    // Own the name — a deque never invalidates references to existing elements,
+    // so owned.c_str() stays valid for the life of the process (unlike
+    // internScope, whose char* is assumed to be a static literal).
+    const std::string &owned = m_ownedNames.emplace_back(name);
+    auto rec  = std::make_unique<ScopeRecord>();
+    rec->name = owned.c_str();
+    ScopeRecord *raw = rec.get();
+    m_scopes.push_back(std::move(rec));
+    m_scopeIndex.emplace(name, raw);
+    return raw;
+}
+
 MemRecord *Profiler::internMem(const char *name)
 {
     const std::string key(name ? name : "");

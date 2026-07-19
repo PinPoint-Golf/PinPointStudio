@@ -19,6 +19,7 @@
 #include "shot_analyzer.h"
 #include "wrist_analyzer.h"
 #include "analysis_stage.h"
+#include "analysis_profiling.h"
 #include "kinematic_series.h"
 
 #include <QPointF>
@@ -105,6 +106,7 @@ public:
             ctx.detail->timings.totalMs = static_cast<int>(ctx.wall.elapsed());
             r.detail = ctx.detail;
         }
+        recordAnalysisRun(QStringLiteral("CameraKinematics"), ctx);   // per-stage profiler + run history
         return r;
     }
 };

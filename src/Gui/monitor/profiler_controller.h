@@ -85,6 +85,11 @@ class ProfilerController : public QObject
     Q_PROPERTY(QVariantList statsHistory    READ statsHistory    NOTIFY snapshotChanged)
     Q_PROPERTY(QVariantList statsCategories READ statsCategories NOTIFY snapshotChanged)
 
+    // ANALYSIS — per-stage aggregate (Analysis.Stage.* scopes, filtered out of the
+    // generic scope table) and the per-run drill-down (the AnalysisProfileLog ring).
+    Q_PROPERTY(QVariantList analysisStages READ analysisStages NOTIFY snapshotChanged)
+    Q_PROPERTY(QVariantList analysisRuns   READ analysisRuns   NOTIFY snapshotChanged)
+
 public:
     explicit ProfilerController(QObject *parent = nullptr);
 
@@ -126,6 +131,9 @@ public:
     QVariantList statsHistory()    const { return m_statsFiltered; }
     QVariantList statsCategories() const;
 
+    QVariantList analysisStages() const { return m_analysisStages; }
+    QVariantList analysisRuns()   const { return m_analysisRuns; }
+
     // Screen-driven (500 ms while visible): rebuilds scope/memory/stats tables.
     Q_INVOKABLE void refresh();
     // Start a fresh measurement window (counters + OS-gauge peaks/baselines).
@@ -137,6 +145,9 @@ public:
     Q_INVOKABLE void setStatsTextFilter(const QString &text);
     Q_INVOKABLE void clearStats();
     Q_INVOKABLE QString exportStats();
+    // ANALYSIS RUNS drill-down maintenance (mirrors the stats Clear/Export).
+    Q_INVOKABLE void clearAnalysisRuns();
+    Q_INVOKABLE QString exportAnalysisRuns();
 
 signals:
     void gaugeChanged();
@@ -147,6 +158,7 @@ private:
     void onSamplerTick();      // the single gauge owner
     void pullStats();          // fetch new PpStatsLog entries into m_statsAll
     void rebuildStatsFiltered();
+    void pullAnalysisRuns();   // fetch new AnalysisProfileLog runs into m_analysisRuns
 
     QTimer m_sampler;
     int    m_tick = 0;
@@ -177,6 +189,10 @@ private:
     int           m_statsSeq = -1;  // last PpStatsLog seq fetched
     QSet<QString> m_activeCategories;
     QString       m_statsTextFilter;
+
+    QVariantList  m_analysisStages;  // Analysis.Stage.* aggregate rows (refresh)
+    QVariantList  m_analysisRuns;    // per-run drill-down, newest-first
+    int           m_analysisSeq = -1;// last AnalysisProfileLog seq fetched
 
     static constexpr int kSamplerIntervalMs = 1000;
     static constexpr int kDumpEveryTicks    = 60;   // 60 s at 1 s cadence

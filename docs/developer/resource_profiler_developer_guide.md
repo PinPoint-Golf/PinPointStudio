@@ -167,7 +167,20 @@ once per call site by pointer, so the steady-state cost is a deref plus a few re
 `Pose.ViTPose.infer`, `Analysis.PoseRunner.run`, `Video.preprocess`; categories `ONNX.Pose`,
 `ONNX.LLM`, `Video.FramePool`, `Video.Preproc`, `Export.Staging`, `Analysis.Series`;
 registered threads `UI`, `Camera.Capture`, `IMU.IO`, `Buffer.Merger`, `Pose.Worker`,
-`Export.Zip`. Add to it freely.
+`Export.Zip`, `Analysis.Worker`. Add to it freely.
+
+**Analysis-pipeline stages are auto-instrumented.** Every shot-analysis pipeline
+stage feeds a scope `Analysis.Stage.<StageName>` (plus a whole-run
+`Analysis.analyze`) — not via a per-call-site macro but from the orchestrator's
+in-memory stage trace: `analysis_profiling.cpp` (`recordAnalysisRun`, called at
+the tail of `WristAnalyzer::analyze()` / `CameraKinematicsAnalyzer::analyze()`)
+reads `ctx.trace` and calls `Profiler::recordWall()` for each ran stage. A new
+analysis stage therefore appears **automatically** — no profiler edit is needed
+when adding one. These scopes are surfaced in a dedicated **ANALYSIS STAGES**
+table (see §5), and each run is also recorded to `AnalysisProfileLog` for the
+per-run drill-down. Per-stage CPU is intentionally *not* attributed (the pose
+stage's work is spread across ORT's own thread pool that a calling-thread CPU
+clock cannot see) — read the process/per-thread gauge for the CPU story.
 
 ## 5. Reading the Profiler in the Resource Monitor
 
@@ -178,11 +191,21 @@ shows:
 - **Per-thread CPU** — one row per registered thread, CPU% over the last sample interval.
 - **Scopes table** — NAME / CALLS / TOTAL / AVG / MAX, plus a CPU column when the deep tier is
   on. Deep-only scopes are greyed while the toggle is off.
+- **Analysis stages table** — the `Analysis.Stage.*` scopes (STAGE / CALLS / TOTAL / AVG / MAX),
+  pulled out of the generic scope list into their own table so per-stage analysis wall time
+  (averaged and peaked across the session) is a first-class view. No CPU column (see §4).
 - **Memory table** — CATEGORY / CURRENT / PEAK.
 - **Stats history** — the dedicated `PpStatsLog` ring (periodic + session-end summaries),
   each row tagged GAUGE / THREAD / SCOPE / MEM, with its own **category-chip filter**, text
   filter, **Clear**, and **Export**. This is separate from the Message Log below it — profiling
   data never lands in the application log.
+- **Analysis runs** — a third bottom tab (beside Message Log / Stats History) backed by
+  `AnalysisProfileLog`: one row per `analyze()` call (time · session · ok/halted ·
+  frames/total/score), tap to expand its full per-stage breakdown (each stage's ms, or the
+  skip reason for a stage that did not run — so a camera-only or IMU-only run is legible from
+  the breakdown alone). Its own **Clear** and **Export** (`PinPointStudio_analysis_*.txt`, one
+  block per run with the stage list) — the artifact to attach when a user reports a slow
+  analysis. Runtime only — never persisted to swing.json.
 - **Controls** — a **deep** toggle (greyed when `PINPOINT_PROFILE` is not compiled in),
   **Reset** (start a fresh measurement window), and **Dump to log** (append a summary to the
   stats ring now).

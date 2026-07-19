@@ -73,6 +73,16 @@ void registerThread(const std::string &name);
 // exits without unregistering simply reports 0% and can be pruned by the caller).
 void unregisterThread();
 
+// RAII: register the calling thread on construction, unregister on destruction.
+// For transient / pooled worker threads (a QtConcurrent job) that want a
+// per-thread CPU row only for the duration of the work, across all return paths.
+struct ThreadScope {
+    explicit ThreadScope(const std::string &name) { registerThread(name); }
+    ~ThreadScope() { unregisterThread(); }
+    ThreadScope(const ThreadScope &) = delete;
+    ThreadScope &operator=(const ThreadScope &) = delete;
+};
+
 // Per-registered-thread CPU% over the interval since the previous call.  Threads
 // appear in registration order.
 std::vector<ThreadSample> sampleThreads();

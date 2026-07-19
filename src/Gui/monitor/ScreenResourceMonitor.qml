@@ -25,7 +25,7 @@ Item {
 
     signal navigateToSettings(int panelIndex)
 
-    // Bottom log area is tabbed: 0 = Message Log, 1 = Stats History.
+    // Bottom log area is tabbed: 0 = Message Log, 1 = Stats History, 2 = Analysis Runs.
     // Always reset to Message Log when the screen is (re)entered.
     property int logTab: 0
     onVisibleChanged: if (visible) logTab = 0
@@ -871,6 +871,129 @@ Item {
                     }
                 }
 
+                // Analysis stages table — per-pipeline-stage wall time (STAGE / CALLS / TOTAL / AVG / MAX)
+                Column {
+                    width: parent.width
+                    spacing: 0
+
+                    Text {
+                        text: qsTr("ANALYSIS STAGES")
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fontSzMicro
+                        font.letterSpacing: Theme.trackingMicro
+                        color: Theme.colorText3
+                        bottomPadding: 2
+                    }
+                    Text {
+                        text: qsTr("per shot-analysis pipeline stage, averaged/peaked across this session — CPU is not attributed per stage (see the process/thread gauge)")
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fontSzMicro
+                        color: Theme.colorText3
+                        bottomPadding: 8
+                    }
+
+                    Rectangle {
+                        width: parent.width
+                        height: Theme.sp(30)
+                        color: Theme.colorBg2
+                        radius: Theme.radiusLg
+                        Rectangle {
+                            anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
+                            height: Theme.radiusLg; color: Theme.colorBg2
+                        }
+                        Rectangle {
+                            anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
+                            height: 1; color: Theme.colorBorderMid
+                        }
+
+                        Row {
+                            anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
+                            property int nameW: parent.width - Theme.sp(10) - Theme.sp(10) - Theme.sp(64) - Theme.sp(76) - Theme.sp(76) - Theme.sp(76) - Theme.sp(76)
+
+                            Item {
+                                width: parent.nameW; height: parent.height
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: qsTr("STAGE")
+                                    font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                                }
+                            }
+                            Item {
+                                width: Theme.sp(64); height: parent.height
+                                Text {
+                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                    text: qsTr("CALLS")
+                                    font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                                }
+                            }
+                            Item {
+                                width: Theme.sp(76); height: parent.height
+                                Text {
+                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                    text: qsTr("TOTAL")
+                                    font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                                }
+                            }
+                            Item {
+                                width: Theme.sp(76); height: parent.height
+                                Text {
+                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                    text: qsTr("AVG")
+                                    font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                                }
+                            }
+                            Item {
+                                width: Theme.sp(76); height: parent.height
+                                Text {
+                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                    text: qsTr("MAX")
+                                    font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                                }
+                            }
+                            Item {
+                                width: Theme.sp(76); height: parent.height
+                                Text {
+                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                    text: qsTr("CPU")
+                                    font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorBorderStrong
+                                }
+                            }
+                        }
+                    }
+
+                    Repeater {
+                        model: profiler.analysisStages
+                        RmProfilerRow {
+                            scopeData: modelData
+                            isAlternate: index % 2 === 1
+                            deepOn: profiler.deepEnabled
+                            width: parent.width
+                        }
+                    }
+
+                    Rectangle {
+                        visible: profiler.analysisStages.length === 0
+                        width: parent.width
+                        height: Theme.sp(28)
+                        color: Theme.colorSurface
+                        Text {
+                            anchors.centerIn: parent
+                            text: qsTr("No analyses recorded — run a shot or re-analyse a swing")
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody2
+                            color: Theme.colorText3
+                        }
+                    }
+                }
+
                 // Memory table — CATEGORY / CURRENT / PEAK
                 Column {
                     width: parent.width
@@ -1185,6 +1308,37 @@ Item {
                     }
                     TapHandler   { id: statsTabTap; onTapped: root.logTab = 1 }
                     HoverHandler { id: statsTabHover; cursorShape: Qt.PointingHandCursor }
+                }
+
+                // Analysis Runs tab — the per-analysis drill-down (profiler compiled in)
+                Item {
+                    visible: profiler.available
+                    width: anTabLbl.implicitWidth
+                    height: Theme.sp(24)
+                    transformOrigin: Item.Left
+                    scale: anTabTap.pressed ? 0.97 : anTabHover.hovered ? 1.02 : 1.0
+                    Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
+
+                    Text {
+                        id: anTabLbl
+                        anchors { left: parent.left; top: parent.top; topMargin: Theme.sp(3) }
+                        text: qsTr("ANALYSIS RUNS")
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fontSzMicro
+                        font.letterSpacing: Theme.trackingMicro
+                        color: root.logTab === 2 ? Theme.colorText2
+                             : anTabHover.hovered ? Theme.colorText2 : Theme.colorText3
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    }
+                    Rectangle {
+                        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                        height: Theme.sp(2)
+                        radius: 1
+                        color: Theme.colorAccent
+                        visible: root.logTab === 2
+                    }
+                    TapHandler   { id: anTabTap; onTapped: root.logTab = 2 }
+                    HoverHandler { id: anTabHover; cursorShape: Qt.PointingHandCursor }
                 }
             }
 
@@ -1789,6 +1943,161 @@ Item {
                     model: profiler.statsHistory
                     RmStatRow {
                         statData: modelData
+                        isAlternate: index % 2 === 1
+                        width: parent.width
+                    }
+                }
+            }
+
+            // ── Analysis runs (per-analysis drill-down) ───────────────────────
+            Column {
+                id: analysisRunsCol
+                visible: root.logTab === 2 && profiler.available
+                width: parent.width - 40
+                spacing: 0
+
+                // Header: hint + Clear/Export
+                Item {
+                    width: parent.width
+                    height: Theme.sp(32)
+
+                    Text {
+                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                        text: qsTr("tap a run to expand its per-stage breakdown")
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.sp(10)
+                        color: Theme.colorText3
+                    }
+
+                    // Clear
+                    Rectangle {
+                        id: anClearBtn
+                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                        width: anClearLbl.implicitWidth + Theme.sp(16)
+                        height: Theme.sp(18)
+                        radius: Theme.radius
+                        color: anClearHover.hovered
+                               ? Theme.colorBg2
+                               : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
+                        border.width: 1
+                        border.color: anClearHover.hovered ? Theme.colorAccentMid : Theme.colorBorderMid
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                        scale: anClearTap.pressed ? 0.97 : anClearHover.hovered ? 1.02 : 1.0
+                        Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
+                        Text {
+                            id: anClearLbl
+                            anchors.centerIn: parent
+                            text: qsTr("Clear")
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.sp(10)
+                            color: Theme.colorText3
+                        }
+                        TapHandler   { id: anClearTap; onTapped: profiler.clearAnalysisRuns() }
+                        HoverHandler { id: anClearHover; cursorShape: Qt.PointingHandCursor }
+                    }
+
+                    // Export
+                    Rectangle {
+                        id: anExportBtn
+                        anchors { right: anClearBtn.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
+                        width: anExportLbl.implicitWidth + Theme.sp(16)
+                        height: Theme.sp(18)
+                        radius: Theme.radius
+                        color: anExportHover.hovered
+                               ? Theme.colorBg2
+                               : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
+                        border.width: 1
+                        border.color: anExportHover.hovered ? Theme.colorAccentMid : Theme.colorBorderMid
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                        scale: anExportTap.pressed ? 0.97 : anExportHover.hovered ? 1.02 : 1.0
+                        Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
+                        Text {
+                            id: anExportLbl
+                            anchors.centerIn: parent
+                            text: qsTr("Export")
+                            font.family: Theme.fontBody
+                            font.pixelSize: Theme.sp(10)
+                            color: Theme.colorText3
+                        }
+                        TapHandler {
+                            id: anExportTap
+                            onTapped: {
+                                var path = profiler.exportAnalysisRuns()
+                                exportToast.copyText = path
+                                if (path.length > 0) exportToast.show(qsTr("Analysis runs exported to %1").arg(path))
+                                else                 exportToast.show(qsTr("Analysis export failed"))
+                            }
+                        }
+                        HoverHandler { id: anExportHover; cursorShape: Qt.PointingHandCursor }
+                    }
+                }
+
+                // Column header
+                Rectangle {
+                    width: parent.width
+                    height: Theme.sp(24)
+                    color: Theme.colorBg2
+                    radius: Theme.radiusLg
+                    Rectangle {
+                        anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
+                        height: Theme.radiusLg; color: Theme.colorBg2
+                    }
+                    Rectangle {
+                        anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
+                        height: 1; color: Theme.colorBorderMid
+                    }
+
+                    Row {
+                        anchors { fill: parent; leftMargin: Theme.sp(24); rightMargin: Theme.sp(10) }
+                        spacing: Theme.sp(8)
+
+                        Item {
+                            width: Theme.sp(52); height: parent.height
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: qsTr("TIME")
+                                font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                            }
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: qsTr("SESSION")
+                            font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                            font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                        }
+                    }
+                    Text {
+                        anchors { right: parent.right; rightMargin: Theme.sp(10); verticalCenter: parent.verticalCenter }
+                        text: qsTr("FRAMES · TOTAL · SCORE")
+                        font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
+                        font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                    }
+                }
+
+                // Empty state
+                Rectangle {
+                    visible: profiler.analysisRuns.length === 0
+                    width: parent.width
+                    height: Theme.sp(40)
+                    color: Theme.colorSurface
+                    radius: Theme.radius
+                    border.width: 1
+                    border.color: Theme.colorBorderMid
+                    Text {
+                        anchors.centerIn: parent
+                        text: qsTr("No analyses yet — run a shot or re-analyse a swing")
+                        font.family: Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody2
+                        color: Theme.colorText3
+                    }
+                }
+
+                // Rows — newest first, tap to expand the per-stage breakdown
+                Repeater {
+                    model: profiler.analysisRuns
+                    RmAnalysisRunRow {
+                        runData: modelData
                         isAlternate: index % 2 === 1
                         width: parent.width
                     }

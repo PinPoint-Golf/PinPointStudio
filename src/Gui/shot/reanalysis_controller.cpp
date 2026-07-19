@@ -25,6 +25,7 @@
 
 #include "../Export/swing_doc.h"
 #include "../Core/pp_debug.h"
+#include "../Core/pp_os_metrics.h"
 
 ReanalysisController::ReanalysisController(QObject *parent)
     : QObject(parent)
@@ -97,6 +98,7 @@ void ReanalysisController::startNext()
     // two-pass path as a live shot. ReanalyzeOptions::fullWindow remains as an
     // escape hatch for SwingLab/debugging only.
     m_watcher.setFuture(QtConcurrent::run([dir] {
+        pinpoint::osmetrics::ThreadScope _tscope("Analysis.Worker");
         return pinpoint::analysis::reanalyzeSwingDir(dir, pinpoint::analysis::ReanalyzeOptions{});
     }));
 }

@@ -478,8 +478,16 @@ the real levers were background sampling and decode.
 | Tool | Granularity | Where |
 |---|---|---|
 | `AnalysisTimings` | pose/ball/shaft/total ms, every shot | swing.json `analysis.timings`, runmeta — trend it, budget against it |
-| `ctx.trace` | every stage, ns, skip provenance | in-memory; log it temporarily via ppInfo when hunting a regression |
+| `ctx.trace` → profiler | every stage, ns + skip provenance | fed live to the resource profiler by `analysis_profiling.cpp` (`recordAnalysisRun`): aggregate `Analysis.Stage.*` scopes (avg/peak across the session, in the monitor's ANALYSIS STAGES table + the 60 s STATS HISTORY dumps + stats Export) **and** a per-run drill-down in the ANALYSIS RUNS tab (own Export). Also still in-memory on `ctx.trace` for a temporary ppInfo when hunting a regression |
 | SwingLab runmeta | per-swing totals across a corpus | `swinglab_run` output dirs |
+
+The profiler feed is pure instrumentation — it only reads `ctx.trace`/`ctx.wall`
+and changes no analysis output, so it is byte-identical to omitting it (nothing
+new lands in swing.json). Because it reads the trace, a **new stage is profiled
+automatically** — the §6 checklist needs no profiler step. See the resource
+profiler developer guide §4–§5 for the surfaced views and the honest-CPU note
+(per-stage CPU is deliberately not attributed — the pose stage parallelises
+inside ORT).
 
 The live-shot budget is **< 20 s** end-to-end on studio hardware (analysis +
 export; the swing-span-bounding plan's telemetry exists to hold that line).

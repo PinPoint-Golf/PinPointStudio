@@ -21,6 +21,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <deque>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -109,6 +110,19 @@ inline void memAdd(MemRecord *r, int64_t delta)
     }
 }
 
+// Accumulate a pre-measured wall time into a scope, mirroring ScopeTimer's
+// non-deep path — for callers that already timed the region (e.g. the analysis
+// orchestrator's per-stage QElapsedTimer captured in ctx.trace) and want it
+// aggregated without re-timing it.  Lock-free, safe from any thread; does not
+// touch CPU time (that needs a live ScopeTimer around the actual work).
+inline void recordWall(ScopeRecord *rec, uint64_t wall_ns)
+{
+    rec->calls.fetch_add(1, std::memory_order_relaxed);
+    rec->wall_ns_total.fetch_add(wall_ns, std::memory_order_relaxed);
+    atomicMaxU(rec->wall_ns_max, wall_ns);
+    atomicMinU(rec->wall_ns_min, wall_ns);
+}
+
 // RAII scope timer.  Always records wall time; when deep, also attributes the
 // calling thread's CPU time over the scope.  Defined in the .cpp so the header
 // stays free of the OS-metrics include.
@@ -148,6 +162,13 @@ public:
     // per call site (cached behind a function-local static by the macros).
     ScopeRecord *internScope(const char *name);
     MemRecord   *internMem(const char *name);
+
+    // Like internScope but OWNS the name (copied into node-stable storage) so
+    // callers with a runtime-computed name — the analysis stage names, which
+    // come from QString name(), not a literal — get a record whose char* stays
+    // valid for the life of the process.  Off the hot path; interned once per
+    // unique name and cached by the caller.
+    ScopeRecord *internScopeCopied(const std::string &name);
 
     // Deep-tier runtime gate (the UI toggle).  Default off.
     static bool deepEnabled() noexcept { return s_deepEnabled.load(std::memory_order_relaxed); }
@@ -195,6 +216,7 @@ private:
     std::vector<std::unique_ptr<MemRecord>>         m_mem;
     std::unordered_map<std::string, ScopeRecord *>  m_scopeIndex;
     std::unordered_map<std::string, MemRecord *>    m_memIndex;
+    std::deque<std::string>                         m_ownedNames;   // backs internScopeCopied (node-stable char*)
 
     static std::atomic<bool> s_deepEnabled;
 };

@@ -345,6 +345,7 @@ qt_add_qml_module(PinPointStudio
         src/Gui/monitor/RmSourceRow.qml
         src/Gui/monitor/RmProfilerRow.qml
         src/Gui/monitor/RmStatRow.qml
+        src/Gui/monitor/RmAnalysisRunRow.qml
         src/Gui/monitor/RmTimelineChart.qml
         src/Gui/monitor/RmWarningNotice.qml
         src/Gui/home/ScreenHome.qml
@@ -492,6 +493,8 @@ target_sources(PinPointStudio PRIVATE
     src/Core/PpMessageLog.cpp
     src/Core/PpStatsLog.h
     src/Core/PpStatsLog.cpp
+    src/Core/AnalysisProfileLog.h
+    src/Core/AnalysisProfileLog.cpp
     src/Core/pp_profiler.h
     src/Core/pp_profiler.cpp
     src/Core/pp_os_metrics.h
@@ -2213,6 +2216,8 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/score_uncertainty.cpp
     src/Analysis/wrist_analyzer.h
     src/Analysis/wrist_analyzer.cpp
+    src/Analysis/analysis_profiling.h
+    src/Analysis/analysis_profiling.cpp
     src/Analysis/kinematic_series.h
     src/Analysis/kinematic_series.cpp
     src/Analysis/pose_runner.h
@@ -2449,6 +2454,7 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/swing_reanalyzer.cpp
         src/Analysis/shot_analyzer.cpp
         src/Analysis/wrist_analyzer.cpp
+        src/Analysis/analysis_profiling.cpp
         src/Analysis/kinematic_series.cpp
         src/Analysis/imu_vision_fuser.cpp
         src/Analysis/phase_segmenter.cpp
@@ -2482,6 +2488,7 @@ if(PINPOINT_BUILD_TOOLS)
         src/Core/pp_debug.cpp
         src/Core/PpMessageLog.cpp
         src/Core/PpStatsLog.cpp
+        src/Core/AnalysisProfileLog.cpp
         src/Core/pp_profiler.cpp
         src/Core/pp_os_metrics.cpp
     )
