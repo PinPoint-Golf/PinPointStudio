@@ -168,6 +168,8 @@ private:
     bool    m_locked     = false;    // ballLocked emitted for the current acquisition
     bool    m_present    = false;    // last emitted presence
     int     m_absentFrames = 0;      // consecutive absent frames while locked
+    int     m_quietRun     = 0;      // consecutive frames with no ball present (empty ROI)
+    bool    m_reseedArmed  = true;   // may auto-reseed the empty mat this idle period
     bool    m_exposureWarned = false;
 };
 

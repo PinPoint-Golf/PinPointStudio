@@ -33,6 +33,8 @@ namespace {
 constexpr int    kSeedFrames       = 24;     // empty-mat baseline seed window (frames)
 constexpr float  kPresenceFrac     = 0.40f;  // present if at-spot R >= this * L0
 constexpr double kReacquireSeconds = 0.30;   // absent this long -> re-arm to re-search
+constexpr double kReseedEmptySeconds = 1.5;  // ROI quiet this long -> relearn the empty-mat B
+constexpr double kReseedRearmSeconds = 20.0; // ... re-arm after this long idle (cold-seed backstop)
 constexpr int    kSatThresh        = 250;    // ROI luma at/above this is clipped
 constexpr double kSatWarn          = 0.25;   // satFrac above this -> exposure warning
 // Ball-departure latency: the visible collapse lands ~20-27 ms AFTER true impact
@@ -79,6 +81,7 @@ void BallDetector::startSeed()
     m_tracker.reset();
     m_locked = m_present = false;
     m_absentFrames = 0;
+    m_quietRun = 0;                   // fresh box -> restart the empty-mat idle count
 }
 
 void BallDetector::detect(const cv::Mat &frame, qint64 frameTUs)
@@ -235,6 +238,41 @@ void BallDetector::detectTemporal(const cv::Mat &frame, int rx, int ry, int rw, 
         }
     } else {
         m_absentFrames = 0;
+    }
+
+    // ── Auto re-seed the empty-mat baseline between shots (heal a contaminated
+    //    seed) ─────────────────────────────────────────────────────────────────
+    // The one-shot seed at setRoi()/setFrameRate() time bakes whatever sits under
+    // the box into B. A ball already on the mat — a saved ROI restored on connect,
+    // the box nudged with the ball down, a rate change at address — is subtracted
+    // into B and then never becomes novel, so it is never detected. The design
+    // intent (ball_temporal.h) is that live B tracks the EMPTY mat, so relearn it
+    // whenever no ball has been PRESENT in the ROI for kReseedEmpty frames. Gating
+    // on presence (not the raw SEARCH state) is robust to the noise-driven
+    // candidate flicker that never locks but would otherwise keep resetting the
+    // idle counter. This is SAFE for a good baseline: with a valid B a ball at
+    // address reports present, holding the counter at zero, so a reseed never fires
+    // while a DETECTABLE ball is down — it only runs on a genuinely empty mat (a
+    // harmless relearn, and the between-shots refresh the offline path reuses) or
+    // on a baseline already blind to the ball (where a rebuild can only help). One
+    // reseed per empty period; a long-idle mat re-arms so a cold contaminated seed
+    // still recovers even though its ball, never having locked, could not re-arm
+    // the latch by leaving.
+    if (m_tracker && m_seedTarget == 0) {
+        if (!present) {
+            const int reseedN = std::max(1, int(std::lround(kReseedEmptySeconds * m_trackerFps)));
+            const int rearmN  = std::max(reseedN + 1, int(std::lround(kReseedRearmSeconds * m_trackerFps)));
+            if (++m_quietRun >= reseedN && m_reseedArmed) {
+                m_reseedArmed = false;   // one reseed per empty period
+                startSeed();             // rebuild B over the next kSeedFrames frames (resets m_quietRun)
+            } else if (m_quietRun >= rearmN) {
+                m_reseedArmed = true;    // long-idle backstop: re-arm even with no lock
+                m_quietRun    = 0;
+            }
+        } else {
+            m_quietRun    = 0;           // a ball is present -> re-arm for the next
+            m_reseedArmed = true;        // empty period
+        }
     }
 
     m_present = present;

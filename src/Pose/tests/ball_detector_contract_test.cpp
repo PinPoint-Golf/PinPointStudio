@@ -217,6 +217,59 @@ int main(int argc, char **argv)
     // emitted result carried a stamp and none regressed.
     CHECK("tUs monotonic across seed / lock / removal / re-seed", tMonotonic);
 
+    // 7. Auto re-seed heals a baseline that was seeded with the ball ALREADY on
+    //    the mat (the live seeding bug: setRoi/rate-change/ROI-restore bakes the
+    //    ball into B, which then subtracts it away and never detects it). Once the
+    //    ROI reads quiet (SEARCH) for kReseedEmpty frames the detector relearns the
+    //    empty-mat baseline, so a ball placed AFTER the mat clears is detected.
+    std::printf("\nauto re-seed heals a ball-contaminated baseline:\n");
+    BallDetector hd;
+    int   hBaseline = 0;
+    bool  hFound = false;
+    QObject::connect(&hd, &BallDetector::ballDetected,
+                     [&](const BallDetection &r) { hFound = r.found; });
+    QObject::connect(&hd, &BallDetector::baselineReady,
+                     [&](const BallBaselineSnapshot &) { ++hBaseline; });
+    hd.setFrameRate(20.0);            // reseedN = round(1.5 s * 20) = 30 frames
+    hd.setRoi(kRoi);
+
+    // Contaminated seed: the ball is present for the whole 30-frame seed window,
+    // so it is baked into B.
+    for (int i = 0; i < 30; ++i) {
+        cv::Mat f = fullFrame(60.0, 3.0, 7000 + i);
+        drawBall(f, 200.0, 5.f);
+        hd.detect(f, tStamp += tStep);
+    }
+    CHECK("contaminated seed: baseline learned", hBaseline == 1);
+
+    // Ball still present, fewer than reseedN frames — the baked-in ball is NOT
+    // detected (demonstrates the bug) and no auto-reseed has fired yet.
+    bool blindWhilePresent = true;
+    for (int i = 0; i < 20; ++i) {
+        cv::Mat f = fullFrame(60.0, 3.0, 7100 + i);
+        drawBall(f, 200.0, 5.f);
+        hd.detect(f, tStamp += tStep);
+        if (hFound) blindWhilePresent = false;
+    }
+    CHECK("contaminated baseline is blind to the baked-in ball", blindWhilePresent);
+    CHECK("no auto-reseed while still inside the quiet window", hBaseline == 1);
+
+    // Clear the mat — the ROI now reads quiet, so the auto-reseed fires and B is
+    // relearned over the genuinely empty mat.
+    for (int i = 0; i < 45; ++i)
+        hd.detect(fullFrame(60.0, 3.0, 7200 + i), tStamp += tStep);
+    CHECK("empty mat triggers an auto-reseed", hBaseline >= 2);
+
+    // Place a ball again — against the healed baseline it now locks + reports present.
+    bool healedFound = false;
+    for (int i = 0; i < 40; ++i) {
+        cv::Mat f = fullFrame(60.0, 3.0, 7300 + i);
+        drawBall(f, 200.0, 5.f);
+        hd.detect(f, tStamp += tStep);
+        if (hFound) healedFound = true;
+    }
+    CHECK("healed baseline detects a freshly placed ball", healedFound);
+
     std::printf("%s (%d failure%s)\n", g_fail == 0 ? "ALL PASS" : "FAILURES",
                 g_fail, g_fail == 1 ? "" : "s");
     return g_fail == 0 ? 0 : 1;
