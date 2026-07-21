@@ -71,10 +71,46 @@ struct PersistedShot {
     bool        dataWarning = false;// IMU re-fusion parity failed (imuIntegrity block) → not re-analysable
 };
 
+// The handful of fields a session-list row needs — everything pinpoint::ShotSummaryInput
+// (session_summary.h) consumes, plus ordering/display scalars. Deliberately NOT a subset
+// view of PersistedShot: that struct carries analysisDetail (incl. the multi-MB pose2d
+// keypoint track needed for replay overlays), and the whole point here is to summarise a
+// session WITHOUT touching it.
+struct SwingSummary {
+    bool    ok = false;
+    QString swingDir;
+    int     ordinal = 0;
+    QString timestampLabel;         // hh:mm:ss from clock.wallclock
+    qint64  wallclockMs = 0;        // absolute instant (epoch ms); 0 = unknown
+    QString club;
+    bool    hasVideo = false;
+    QString thumbnailPath;          // absolute, empty if none
+    int     score = 0;
+    // Provenance, never persisted: true when this came from the sidecar, false when the
+    // full swing.json had to be parsed. Lets the parity test prove it actually exercised
+    // the cheap path — a bug that always fell back would otherwise pass silently while
+    // the stall crept back.
+    bool    fromSidecar = false;
+};
+
 // Reads the single unified swing.json back into reloadable shots.
 class SwingDocReader {
 public:
     static PersistedShot readSwingJson(const QString &swingDir);
+
+    // Cheap per-swing summary for the session picker. Prefers <swingDir>/swing_summary.json
+    // (a few hundred bytes), validating its source{size,mtime_ms} against the real
+    // swing.json; on a miss or a stale guard it falls back to the full readSwingJson()
+    // parse and — when writeSidecar is true — writes the sidecar so the next read is cheap.
+    //
+    // Pass writeSidecar=false on any GUI-thread path that must never fat-parse: the caller
+    // then gets ok=false for an un-indexed swing and renders it without detail, rather than
+    // stalling. The sidecar is pure cache — always safe to delete, always regenerable.
+    static SwingSummary readSwingSummary(const QString &swingDir, bool writeSidecar = true);
+
+    // Derive a summary from an already-parsed shot and write its sidecar. Called where a
+    // fat parse has happened anyway (session load), so indexing costs nothing extra.
+    static bool writeSwingSummary(const PersistedShot &shot, QString *error = nullptr);
     // swing_*/ directories under sessionDir, ascending (swing_0001 .. swing_NNNN).
     static QStringList findSwingDirs(const QString &sessionDir);
     // Most recent session dir for an athlete, by directory modification time

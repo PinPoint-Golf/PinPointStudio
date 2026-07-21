@@ -23,6 +23,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QTime>
+#include <QTimer>
 #include <QUrl>
 
 #include "app_settings.h"
@@ -115,18 +116,26 @@ SessionListModel::Row SessionReviewController::buildLiveRow(qint64 nowMs) const
 SessionListModel::Row SessionReviewController::buildDiskRow(const QString &sessionDir,
                                                             qint64 nowMs) const
 {
+    const QStringList swingDirs = pinpoint::SwingDocReader::findSwingDirs(sessionDir);
+
+    // Summary sidecars ONLY — writeSidecar=false forbids the fat swing.json parse. This
+    // runs on the GUI thread every time the picker opens, and the documents behind a
+    // session run to hundreds of MB; parsing them here is what used to freeze the app long
+    // enough for the compositor to offer to kill it.
     QVector<pinpoint::ShotSummaryInput> ins;
-    for (const QString &sd : pinpoint::SwingDocReader::findSwingDirs(sessionDir)) {
-        const pinpoint::PersistedShot ps = pinpoint::SwingDocReader::readSwingJson(sd);
-        if (!ps.ok)
-            continue;
-        ins.append({ ps.score, ps.hasVideo, ps.wallclockMs, ps.club, ps.thumbnailPath });
+    bool indexed = true;
+    for (const QString &sd : swingDirs) {
+        const pinpoint::SwingSummary s =
+            pinpoint::SwingDocReader::readSwingSummary(sd, /*writeSidecar=*/false);
+        if (!s.ok) { indexed = false; continue; }
+        ins.append({ s.score, s.hasVideo, s.wallclockMs, s.club, s.thumbnailPath });
     }
     const pinpoint::SessionSummary sum = pinpoint::summarizeSession(ins, nowMs);
 
     SessionListModel::Row row;
     row.sessionId     = QFileInfo(sessionDir).absoluteFilePath();
     row.isLive        = false;
+    row.indexed       = indexed;
     row.dayLabel      = sum.dayLabel;
     row.timeLabel     = sum.timeLabel;
     row.clubMix       = sum.clubMix;
@@ -134,6 +143,30 @@ SessionListModel::Row SessionReviewController::buildDiskRow(const QString &sessi
     row.lengthLabel   = sum.lengthLabel;
     row.avgQuality    = sum.avgQuality;
     row.previewThumbs = toThumbUrls(sum.previewThumbs);
+
+    if (!indexed) {
+        // Nothing (or not everything) indexed yet. Fall back to facts a directory listing
+        // and a stat() can supply, so the row stays recognisable and clickable; opening it
+        // indexes the session and the next refresh fills in the rest.
+        row.shotCount = swingDirs.size();
+        if (row.dayLabel.isEmpty()) {
+            // Prefer the date the session folder is named for. The dir's mtime is its LAST
+            // write (the final swing), while an indexed row's dayLabel comes from the
+            // EARLIEST shot — those disagree across midnight, and the label would then
+            // change as the session finished indexing. The naming pattern is
+            // user-configurable, so fall back to the mtime when there is no leading date.
+            const QDate named =
+                QDate::fromString(QFileInfo(sessionDir).fileName().left(10),
+                                  QStringLiteral("yyyy-MM-dd"));
+            const qint64 anchorMs =
+                named.isValid() ? QDateTime(named, QTime(0, 0)).toMSecsSinceEpoch()
+                                : QFileInfo(sessionDir).lastModified().toMSecsSinceEpoch();
+            row.dayLabel = pinpoint::relativeDayLabel(anchorMs, nowMs);
+            // Leave timeLabel blank: the drawer renders "day · time" only when time is
+            // non-empty, so an unknown fact reads honestly instead of showing a dir mtime
+            // that is not the session's start.
+        }
+    }
     return row;
 }
 
@@ -168,9 +201,13 @@ void SessionReviewController::loadSession(const QString &sessionId)
 
     QVector<pinpoint::ShotSummaryInput> ins;
     for (const QString &sd : pinpoint::SwingDocReader::findSwingDirs(sessionId)) {
+        // The full parse is unavoidable here: analysisDetail carries the pose2d keypoint
+        // track the replay overlays read. Since the document is in hand anyway, index it —
+        // the sidecar costs one small write and is what keeps the picker cheap from now on.
         const pinpoint::PersistedShot ps = pinpoint::SwingDocReader::readSwingJson(sd);
         if (!ps.ok)
             continue;
+        pinpoint::SwingDocReader::writeSwingSummary(ps);
         m_reviewModel.addPersistedShot(
             ps.swingDir, ps.ordinal, ps.timestampLabel, ps.club, ps.hasVideo,
             ps.thumbnailPath.isEmpty() ? QUrl() : QUrl::fromLocalFile(ps.thumbnailPath),
@@ -187,6 +224,20 @@ void SessionReviewController::loadSession(const QString &sessionId)
     m_reviewActive = true;
     emit reviewActiveChanged();          // also re-evaluates the activeDay/Time/ClubMix bindings
     emit activeShotCountChanged();
+
+    // The loop above just indexed this session, so its row can now show full detail
+    // instead of the shot count alone. Cheap — refresh() reads sidecars only — but it
+    // resets the sessions model, which destroys the drawer's delegates. loadSession() is
+    // called FROM one of those delegates' click handlers (PpSessionDrawer.qml), so run it
+    // on the next event-loop turn rather than pulling the delegate out from under itself.
+    QTimer::singleShot(0, this, [this] { refresh(); });
+}
+
+void SessionReviewController::onAthleteChanged()
+{
+    if (m_reviewActive)
+        resumeLive();                    // the loaded session belongs to the previous athlete
+    refresh();                           // sidecar-only, so this is safe to run inline
 }
 
 void SessionReviewController::resumeLive()

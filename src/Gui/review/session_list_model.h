@@ -43,6 +43,7 @@ public:
         AvgQualityRole,
         IsLiveRole,
         PreviewThumbsRole,                  // QStringList of thumbnail URLs (may be empty)
+        IndexedRole,                        // false → summary not built yet; detail fields are blank
     };
 
     struct Row {
@@ -55,6 +56,11 @@ public:
         int         avgQuality = 0;
         bool        isLive     = false;
         QStringList previewThumbs;
+        // A session is "indexed" once every swing has a summary sidecar. Un-indexed rows
+        // carry only the cheap facts (shot count, day/time from the folder) — building the
+        // rest would mean parsing tens of MB of swing.json on the GUI thread, which is
+        // exactly the stall this avoids. Opening the session fills it in.
+        bool        indexed    = true;
     };
 
     explicit SessionListModel(QObject *parent = nullptr);

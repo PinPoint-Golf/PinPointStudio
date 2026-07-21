@@ -165,6 +165,9 @@ void ShotListModel::loadSessionDir(const QString &dir)
         const pinpoint::PersistedShot ps = pinpoint::SwingDocReader::readSwingJson(sd);
         if (!ps.ok)
             continue;
+        // Index while the document is in hand — this is the live session, the one the
+        // picker is most likely to be asked about first.
+        pinpoint::SwingDocReader::writeSwingSummary(ps);
         addPersistedShot(ps.swingDir, ps.ordinal, ps.timestampLabel, ps.club, ps.hasVideo,
                          ps.thumbnailPath.isEmpty() ? QUrl()
                                                     : QUrl::fromLocalFile(ps.thumbnailPath),

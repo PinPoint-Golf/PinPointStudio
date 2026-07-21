@@ -276,6 +276,16 @@ int main(int argc, char *argv[])
     // row reflects the just-restored shots.
     SessionReviewController   sessionReviewController(&shotModel, &appSettings,
                                                       &athleteController);
+    // Sessions and the live carousel are both athlete-scoped, but the reload above only
+    // ever ran once, at startup — so switching athlete left BOTH showing the previous
+    // athlete's shots. Re-point them whenever the current athlete changes.
+    QObject::connect(&athleteController, &AthleteController::currentAthleteChanged,
+                     &sessionReviewController, &SessionReviewController::onAthleteChanged);
+    QObject::connect(&athleteController, &AthleteController::currentAthleteChanged,
+                     &shotModel, [&shotModel, &appSettings, &athleteController] {
+        shotModel.loadSessionDir(pinpoint::SwingDocReader::latestSessionDir(
+            appSettings.athleteLibraryPath(), athleteController.currentName()));
+    });
     // DATA-SOURCE transition (a past session opened/closed from disk). This is the
     // ONLY axis that pauses capture: opening a loaded session stops live capture
     // (which disarms the shot trigger via the buffer state) and gates ShotController;

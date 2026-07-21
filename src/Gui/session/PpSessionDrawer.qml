@@ -137,6 +137,7 @@ Item {
             required property int    avgQuality
             required property bool   isLive
             required property var    previewThumbs
+            required property bool   indexed
 
             width:  ListView.view.width - Theme.sp(16)
             x:      Theme.sp(8)
@@ -237,11 +238,16 @@ Item {
                     }
                 }
 
-                // Right-aligned stats: shots / length / avg quality.
+                // Right-aligned stats: shots / length / avg quality. Shot count comes from
+                // a directory listing so it is always known; length and quality need the
+                // session's summaries, which are built when the session is first opened —
+                // show "—" rather than a misleading 0 until then.
                 Stat { value: rowBg.shotCount;                    unit: qsTr("shots") }
-                Stat { value: rowBg.lengthLabel || "—";           unit: qsTr("length") }
-                Stat { value: rowBg.avgQuality; unit: qsTr("avg q")
-                       valueColor: Theme.qualityColor(rowBg.avgQuality) }
+                Stat { value: rowBg.indexed ? (rowBg.lengthLabel || "—") : "—"
+                       unit: qsTr("length") }
+                Stat { value: rowBg.indexed ? rowBg.avgQuality : "—"; unit: qsTr("avg q")
+                       valueColor: rowBg.indexed ? Theme.qualityColor(rowBg.avgQuality)
+                                                 : Theme.colorText3 }
 
                 // ── Per-row '...' menu (Export session / Move to trash) ──────
                 // Excluded from the layout on the live row (no on-disk session),

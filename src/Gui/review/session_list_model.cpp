@@ -43,6 +43,7 @@ QVariant SessionListModel::data(const QModelIndex &index, int role) const
     case AvgQualityRole:    return r.avgQuality;
     case IsLiveRole:        return r.isLive;
     case PreviewThumbsRole: return r.previewThumbs;
+    case IndexedRole:       return r.indexed;
     default:                return {};
     }
 }
@@ -59,6 +60,7 @@ QHash<int, QByteArray> SessionListModel::roleNames() const
         { AvgQualityRole,    "avgQuality"    },
         { IsLiveRole,        "isLive"        },
         { PreviewThumbsRole, "previewThumbs" },
+        { IndexedRole,       "indexed"       },
     };
 }
 

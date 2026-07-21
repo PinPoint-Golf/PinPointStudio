@@ -12,6 +12,7 @@ QString pinpoint::SwingPaths::sanitise(const QString &raw) { return raw; }
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -512,6 +513,144 @@ int main()
     f2.close();
     check(!root2.contains(QStringLiteral("analysis")), "no analysis block when null");
     check(root2[QStringLiteral("schema")].toString() == QStringLiteral("pinpoint.swing/2"), "schema still /2");
+
+    // ── summary sidecar ─────────────────────────────────────────────────────
+    // swing_summary.json is a regenerable cache of the scalars the session picker needs,
+    // so it never has to parse a multi-MB swing.json on the GUI thread. Everything below
+    // guards that it stays truthful — a sidecar that silently goes stale, or one that is
+    // never actually read, reintroduces the freeze it exists to prevent.
+    const QString sumPath = dir + QStringLiteral("/swing_summary.json");
+
+    std::printf("\n=== summary sidecar: written on the happy path ===\n");
+    {
+        // updateReview() above rewrote swing.json last, so the sidecar must already be
+        // present and stamped against that rewrite.
+        check(QFile::exists(sumPath), "swing_summary.json exists after a write");
+
+        QFile f(sumPath);
+        if (!f.open(QIODevice::ReadOnly)) return 1;
+        const QJsonObject s = QJsonDocument::fromJson(f.readAll()).object();
+        f.close();
+        check(s[QStringLiteral("schema")].toString() == QStringLiteral("pinpoint.swingsummary/1"),
+              "sidecar schema tag");
+        const QFileInfo srcInfo(dir + QStringLiteral("/swing.json"));
+        const QJsonObject src = s[QStringLiteral("source")].toObject();
+        check(qint64(src[QStringLiteral("size")].toDouble()) == srcInfo.size(),
+              "sidecar stamps the COMMITTED source size");
+        check(qint64(src[QStringLiteral("mtime_ms")].toDouble())
+                  == srcInfo.lastModified().toMSecsSinceEpoch(),
+              "sidecar stamps the COMMITTED source mtime");
+    }
+
+    std::printf("\n=== summary sidecar: PARITY with the full reader ===\n");
+    {
+        const PersistedShot fat  = SwingDocReader::readSwingJson(dir);
+        const SwingSummary  lean = SwingDocReader::readSwingSummary(dir);
+        // Without this the whole section could pass while every read silently fell back to
+        // the fat parse — i.e. correct data, and the stall quietly back.
+        check(lean.fromSidecar, "parity exercised the SIDECAR path, not a fat fallback");
+        check(lean.ok == fat.ok,                         "parity ok");
+        check(lean.ordinal == fat.ordinal,               "parity ordinal");
+        check(lean.timestampLabel == fat.timestampLabel, "parity timestampLabel");
+        check(lean.wallclockMs == fat.wallclockMs,       "parity wallclockMs");
+        check(lean.club == fat.club,                     "parity club");
+        check(lean.hasVideo == fat.hasVideo,             "parity hasVideo");
+        check(lean.thumbnailPath == fat.thumbnailPath,   "parity thumbnailPath");
+        check(lean.score == fat.score,                   "parity score");
+
+        // Delete it: the fallback must produce identical values AND self-heal.
+        QFile::remove(sumPath);
+        const SwingSummary rebuilt = SwingDocReader::readSwingSummary(dir);
+        check(!rebuilt.fromSidecar, "deleted sidecar → fat fallback");
+        check(rebuilt.ok == fat.ok && rebuilt.ordinal == fat.ordinal
+                  && rebuilt.timestampLabel == fat.timestampLabel
+                  && rebuilt.wallclockMs == fat.wallclockMs && rebuilt.club == fat.club
+                  && rebuilt.hasVideo == fat.hasVideo
+                  && rebuilt.thumbnailPath == fat.thumbnailPath
+                  && rebuilt.score == fat.score,
+              "fat-fallback parity (identical to the sidecar path)");
+        check(QFile::exists(sumPath), "fallback self-heals: sidecar rewritten");
+        check(SwingDocReader::readSwingSummary(dir).fromSidecar, "healed sidecar is used next time");
+    }
+
+    std::printf("\n=== summary sidecar: stale detection ===\n");
+    {
+        const auto patchSidecar = [&](const char *key, const QJsonValue &v) {
+            QFile f(sumPath);
+            if (!f.open(QIODevice::ReadOnly)) return;
+            QJsonObject s = QJsonDocument::fromJson(f.readAll()).object();
+            f.close();
+            if (QLatin1String(key) == QLatin1String("schema")) {
+                s[QStringLiteral("schema")] = v;
+            } else {
+                QJsonObject src = s[QStringLiteral("source")].toObject();
+                src[QString::fromLatin1(key)] = v;
+                s[QStringLiteral("source")] = src;
+            }
+            QFile o(sumPath);
+            if (!o.open(QIODevice::WriteOnly)) return;
+            o.write(QJsonDocument(s).toJson(QJsonDocument::Compact));
+        };
+
+        patchSidecar("size", QJsonValue(1.0));
+        check(!SwingDocReader::readSwingSummary(dir).fromSidecar, "wrong source.size → stale");
+        check(SwingDocReader::readSwingSummary(dir).fromSidecar,  "…and is rewritten correctly");
+
+        patchSidecar("mtime_ms", QJsonValue(1.0));
+        check(!SwingDocReader::readSwingSummary(dir).fromSidecar, "wrong source.mtime_ms → stale");
+        check(SwingDocReader::readSwingSummary(dir).fromSidecar,  "…and is rewritten correctly");
+
+        // An unknown schema is a miss, not an error — forward compatibility is free.
+        patchSidecar("schema", QJsonValue(QStringLiteral("pinpoint.swingsummary/2")));
+        check(!SwingDocReader::readSwingSummary(dir).fromSidecar, "unknown schema → miss, not error");
+        check(SwingDocReader::readSwingSummary(dir).ok,           "…and still returns good data");
+    }
+
+    std::printf("\n=== summary sidecar: review write-through keeps it fresh ===\n");
+    {
+        // updateReview rewrites swing.json, changing its size+mtime. If the sidecar were
+        // not refreshed here — or were stamped BEFORE the commit — every later read would
+        // fall back to the full parse and the picker would quietly get slow again.
+        check(SwingDocWriter::updateReview(dir, 3, QStringLiteral("after-index"),
+                                           QStringLiteral("5 WOOD"), nullptr),
+              "updateReview ok");
+        const SwingSummary s = SwingDocReader::readSwingSummary(dir);
+        check(s.fromSidecar, "sidecar still fresh after updateReview (stamped post-commit)");
+        check(s.club == QStringLiteral("5 WOOD"), "sidecar carries the new club");
+    }
+
+    std::printf("\n=== summary sidecar: missing and orphan documents ===\n");
+    {
+        const SwingSummary none = SwingDocReader::readSwingSummary(
+            QStringLiteral("/tmp/swingdoc_test_nope"));
+        check(!none.ok, "no swing.json → !ok");
+        check(!QFile::exists(QStringLiteral("/tmp/swingdoc_test_nope/swing_summary.json")),
+              "no sidecar created for a missing document");
+
+        // An orphan sidecar (swing.json trashed under it) must never be trusted: a
+        // recreated swing_NNNN dir would otherwise show the previous occupant's data.
+        const QString orphanDir = QStringLiteral("/tmp/swingdoc_test_orphan");
+        QDir().mkpath(orphanDir);
+        QFile::copy(sumPath, orphanDir + QStringLiteral("/swing_summary.json"));
+        check(!SwingDocReader::readSwingSummary(orphanDir).ok, "orphan sidecar → !ok (fail closed)");
+        QDir(orphanDir).removeRecursively();
+    }
+
+    std::printf("\n=== summary sidecar: default parity (no review block) ===\n");
+    {
+        // A doc that never had a review block: both paths must land on the "DRIVER" stub.
+        const QString d2 = QStringLiteral("/tmp/swingdoc_test_noreview");
+        QDir().mkpath(d2);
+        QString werr;
+        check(SwingDocWriter::writeSwingJson(d2, manifest, nullptr, &werr), "write bare doc");
+        const PersistedShot fat  = SwingDocReader::readSwingJson(d2);
+        const SwingSummary  lean = SwingDocReader::readSwingSummary(d2);
+        check(lean.fromSidecar, "bare doc indexed at write time");
+        check(lean.club == QStringLiteral("DRIVER") && fat.club == lean.club,
+              "no review block → DRIVER on both paths");
+        check(lean.score == fat.score, "no analysis block → score parity");
+        QDir(d2).removeRecursively();
+    }
 
     std::printf("\n=== %s (%d failures) ===\n", g_fail ? "FAILURES" : "ALL PASS", g_fail);
     return g_fail ? 1 : 0;

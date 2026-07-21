@@ -458,9 +458,39 @@ Per-stage analyzer wall times in milliseconds, self-reported by the analyzer so 
 | `<alias>.mp4` | Always — encoded video per camera. |
 | `<alias>.raw` | When raw-frame saving is on — undecoded sensor sidecar (see `streams[].raw`). |
 | `thumb.jpg` | Always — impact thumbnail. |
+| `swing_summary.json` | Regenerable cache of the session-picker scalars — a few hundred bytes (see below). Written whenever `swing.json` is written or first read; **safe to delete**. |
 | `imu_<alias>.csv` / `.bin` | When `imuDataFormat` ≠ `json` (otherwise IMU is inline in `streams`). |
 | `<alias>.ballbase.f32` | When the face-on ball detector had a learned empty-mat baseline at export (see `streams[].setup.ballDetection.baseline`). Raw row-major `float32`, `w*h*4` bytes — the live detector's learned empty-mat DoG-response baseline `B` over the search ROI at seed time. Loaded by `BallRunner` on re-analysis; `fps` in the JSON block is provenance only. |
 | `truth.json` | Markup/annotation ground truth (shaft-lab / markup lab), separate from `swing.json`. |
+
+The **full per-swing / per-session folder layout** — including which of the above are app-written vs tooling artifacts — is documented in [`swing_folder_layout.md`](swing_folder_layout.md).
+
+### `swing_summary.json` — the picker sidecar
+
+A lean, regenerable cache of just the scalars the session picker needs, so opening the "choose a session" drawer never has to read a multi-MB `swing.json` (analysis blocks can run to tens of MB — `analysis.pose2d` alone is ~13 MB on a Wrist swing). Schema `pinpoint.swingsummary/1`.
+
+```json
+{
+  "schema": "pinpoint.swingsummary/1",
+  "source": { "size": 32710082, "mtime_ms": 1784667323792 },
+  "ordinal": 1, "timestampLabel": "19:31:49", "wallclockMs": 1783708309065,
+  "club": "DRIVER", "hasVideo": true, "thumbnailFile": "thumb.jpg", "score": 0
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `schema` | str | `pinpoint.swingsummary/1`. Any other value ⇒ treated as a miss (re-derived), so forward-compat is free. |
+| `source.size` / `mtime_ms` | int | Size (bytes) and mtime (epoch ms) of the `swing.json` this was derived from. **Both** must match a fresh `stat()` or the sidecar is stale and re-derived. |
+| `ordinal` | int | `swing.index`. |
+| `timestampLabel` | str | Display `hh:mm:ss`; readers re-derive it from `wallclockMs` (absolute), so a library carried across timezones shows local times, not the indexer's. |
+| `wallclockMs` | int | Absolute instant (epoch ms) from `clock.wallclock`; `0` = unknown. |
+| `club` | str | Resolved club (`review.club`, else the `"DRIVER"` stub) — matches `readSwingJson`'s resolution exactly. |
+| `hasVideo` | bool | True when any `streams[]` entry is `kind: "video"`. |
+| `thumbnailFile` | str | Thumbnail **file name** (relative), resolved against the swing dir; empty when the doc has no `thumbnail` block. |
+| `score` | int | Resolved overall score (`analysis.score.overall` in /3, or the bare int in /2). |
+
+**Lifecycle.** Written by `SwingDocReader::writeSwingSummary` — inline at the end of `SwingDocWriter::writeSwingJson()` / `updateReview()` (so a newly captured, re-analysed, or re-rated swing indexes itself), and self-healingly on any read that finds the sidecar missing or stale (`readSwingSummary`). It is **pure cache**: an orphan (sidecar present, `swing.json` gone) is never trusted, and `find … -name swing_summary.json -delete` is always safe. It is **not** swept into session zip exports (the exporter matches `swing.json` by exact name). Source of truth: `src/Export/swing_doc.cpp`.
 
 ## Schema version history
 
@@ -483,3 +513,4 @@ Per-stage analyzer wall times in milliseconds, self-reported by the analyzer so 
 | 2026-07-13 | WB2 head tracking: `analysis.metrics[]` gains `headSway`/`headLift` (`×frame` = fraction of frame width, isotropic — anisotropy of the separately-normalized x/y kp is corrected; Address-referenced) and `headTilt` (`°`, eye-line-angle Δ). Head position is a first-class golf metric. Derived from the (smoothed, else raw) face-on pose head keypoints (`head_track.{h,cpp}`); camera-only path too. UNSCORED (no reference bands yet — no `phaseSamples[].band`). Emitted only when the pose pass produced head-localizable frames. Additive — no schema-version bump; readers already iterate `metrics[]` key-agnostically. |
 | 2026-07-13 | WB3 setup + footwork metrics: `analysis.metrics[]` gains `stanceWidth`/`leadFootFlare`/`trailFootFlare`/`toeLineAngle` (address-only scalars — **empty `t_us`/`value`, the single measurement in `phaseSamples[0]`**, the same generic `metrics[]` contract every reader already tolerates) and `leadHeelLift` (`×frame`, Address-referenced lead-heel-vs-toe elevation curve, `+` = heel lifts — a normal per-frame series like the head keys). Derived from the COCO-WholeBody foot keypoints (`foot_metrics.{h,cpp}`); camera-only path too; lead foot follows the athlete's handedness. UNSCORED. Emitted only when the pose pass produced foot-localizable frames (never on a legacy 17-kp track). Additive — no schema-version bump. Also: `streams[].setup.ballDetection` re-analysis (`BallRunner`) now derives its search corridor from these same foot keypoints when coverage allows (`ball.corridor.useFeet`, default on), falling back to the pre-WB3 ankle-based corridor otherwise — no swing.json field changes, this only affects re-analysis geometry. |
 | 2026-07-21 | Tempo, stance-width mm, and ball position: `analysis.metrics[]` gains `tempoBackswing` (`s`, Address→Top) and `tempoRatio` (`:1`, `(Top−Address)/(Impact−Top)`) — both **Summary scalars** (empty `t_us`/`value`, single `phaseSamples[0]` at `phase: 5` **Impact**, since they describe the whole swing), emitted only when the ladder carries a confident Address+Top+Impact (the IMU `clampFallback` ladder has no Top ⇒ omitted, never estimated). Also `ballPosition` (`%`, ball projected onto the lead-heel→trail-heel line ÷ stance width; `phase: 0` Address scalar; **unclamped** — below 0 % means forward of the lead heel), emitted only when a ball is detected at address. `metrics[]` entries gain the **optional** `sigma` field (see the table above) — written today only by the two tempo metrics. **Changed, not added:** `stanceWidth`'s unit is now `mm` when the ball-diameter px→mm ruler resolves (`42.67 mm ÷ 2·radiusPx`, `src/Core/pp_physical_constants.h`), falling back to the previous `×frame` when no ball is detected — **readers must branch on `unit`, not assume it**. `leadHeelLift` deliberately stays `×frame`. All three producers gate on `tempo.enabled` / `ballpos.enabled`; both off ⇒ byte-identical to the pre-change tree (including `stanceWidth` reverting to `×frame`). Additive — no schema-version bump. |
+| 2026-07-21 | Session-picker sidecar: a `swing_summary.json` companion file (`pinpoint.swingsummary/1`) is written beside each `swing.json` to cache the handful of scalars the "choose a session" drawer needs, so the picker never parses a multi-MB `swing.json` on the GUI thread. Pure regenerable cache, guarded by the source doc's size+mtime; written on every `swing.json` write/rewrite and self-healed on read. **Does not touch the `swing.json` schema** — separate file, separate schema id. See the sidecar section above and [`swing_folder_layout.md`](swing_folder_layout.md). |

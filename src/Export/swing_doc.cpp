@@ -450,6 +450,125 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
     return o;
 }
 
+// ── summary sidecar ─────────────────────────────────────────────────────────
+//
+// swing.json is the source of truth, but it is never read to build a session-list row: the
+// documents run to tens of MB (analysis.pose2d alone is ~13 MB on a Wrist swing, retained
+// for replay overlays) while the picker needs a handful of scalars from each.
+// swing_summary.json caches exactly those, guarded by the source document's size+mtime so
+// any out-of-band rewrite — re-analysis, corpus tooling — is detected and the sidecar
+// regenerated. It is pure cache: always safe to delete, always regenerable.
+
+constexpr auto kSummarySchema = "pinpoint.swingsummary/1";
+
+QString summaryPath(const QString &swingDir) { return swingDir + QStringLiteral("/swing_summary.json"); }
+QString sourcePath (const QString &swingDir) { return swingDir + QStringLiteral("/swing.json"); }
+
+// THE extractor for the session-picker scalars. readSwingJson() and the sidecar both go
+// through this, so the cheap path can never disagree with the full path about a score
+// shape, a club fallback or a thumbnail name.
+SwingSummary summaryFromRoot(const QJsonObject &root, const QString &swingDir)
+{
+    SwingSummary s;
+    s.swingDir = swingDir;
+    if (root.isEmpty())
+        return s;
+
+    s.ordinal = root[QStringLiteral("swing")].toObject()[QStringLiteral("index")].toInt();
+    s.club    = QStringLiteral("DRIVER");   // stub default; overridden by review.club below
+
+    const QString wc = root[QStringLiteral("clock")].toObject()[QStringLiteral("wallclock")].toString();
+    const QDateTime dt = QDateTime::fromString(wc, Qt::ISODateWithMs);
+    s.timestampLabel = dt.isValid() ? dt.toLocalTime().toString(QStringLiteral("hh:mm:ss")) : wc;
+    s.wallclockMs    = dt.isValid() ? dt.toMSecsSinceEpoch() : 0;
+
+    for (const QJsonValue &v : root[QStringLiteral("streams")].toArray())
+        if (v.toObject()[QStringLiteral("kind")].toString() == QLatin1String("video")) { s.hasVideo = true; break; }
+
+    const QJsonObject thumb = root[QStringLiteral("thumbnail")].toObject();
+    if (!thumb.isEmpty())
+        s.thumbnailPath = swingDir + QStringLiteral("/")
+                        + thumb[QStringLiteral("file")].toString(QStringLiteral("thumb.jpg"));
+
+    if (root.contains(QStringLiteral("analysis"))) {
+        // "score" is a bare int in /2 docs, a ScoreBreakdown object in /3+ (design §B.0a).
+        const QJsonValue scoreVal = root[QStringLiteral("analysis")].toObject()[QStringLiteral("score")];
+        s.score = scoreVal.isObject()
+                      ? scoreVal.toObject()[QStringLiteral("overall")].toInt()
+                      : scoreVal.toInt();
+    }
+
+    // Older review blocks predate club; keep the stub default when absent/empty.
+    if (root.contains(QStringLiteral("review"))) {
+        const QString club = root[QStringLiteral("review")].toObject()[QStringLiteral("club")].toString();
+        if (!club.isEmpty())
+            s.club = club;
+    }
+
+    s.ok = true;
+    return s;
+}
+
+SwingSummary summaryFromShot(const PersistedShot &ps)
+{
+    SwingSummary s;
+    s.ok             = ps.ok;
+    s.swingDir       = ps.swingDir;
+    s.ordinal        = ps.ordinal;
+    s.timestampLabel = ps.timestampLabel;
+    s.wallclockMs    = ps.wallclockMs;
+    s.club           = ps.club;
+    s.hasVideo       = ps.hasVideo;
+    s.thumbnailPath  = ps.thumbnailPath;
+    s.score          = ps.score;
+    return s;
+}
+
+bool writeSummaryFile(const SwingSummary &s, QString *error)
+{
+    if (!s.ok || s.swingDir.isEmpty()) {
+        if (error) *error = QStringLiteral("refusing to index a swing that did not parse");
+        return false;
+    }
+    const QFileInfo src(sourcePath(s.swingDir));
+    if (!src.exists()) {
+        if (error) *error = QStringLiteral("no swing.json in %1").arg(s.swingDir);
+        return false;
+    }
+
+    // Thumbnails are stored relative so a moved or renamed library still resolves.
+    const QString thumbFile = s.thumbnailPath.isEmpty()
+                                  ? QString()
+                                  : QFileInfo(s.thumbnailPath).fileName();
+
+    const QJsonObject root{
+        { QStringLiteral("schema"), QString::fromLatin1(kSummarySchema) },
+        { QStringLiteral("source"), QJsonObject{
+              { QStringLiteral("size"),     double(src.size()) },
+              { QStringLiteral("mtime_ms"), double(src.lastModified().toMSecsSinceEpoch()) } } },
+        { QStringLiteral("ordinal"),        s.ordinal },
+        { QStringLiteral("timestampLabel"), s.timestampLabel },
+        { QStringLiteral("wallclockMs"),    double(s.wallclockMs) },
+        { QStringLiteral("club"),           s.club },
+        { QStringLiteral("hasVideo"),       s.hasVideo },
+        { QStringLiteral("thumbnailFile"),  thumbFile },
+        { QStringLiteral("score"),          s.score },
+    };
+
+    const QString path = summaryPath(s.swingDir);
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) {
+        if (error) *error = QStringLiteral("cannot write %1: %2").arg(path, file.errorString());
+        return false;
+    }
+    file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+    if (!file.commit()) {
+        if (error) *error = QStringLiteral("failed to commit %1: %2").arg(path, file.errorString());
+        return false;
+    }
+    return true;
+}
+
 } // namespace
 
 bool SwingDocWriter::writeSwingJson(const QString &swingDir, const QJsonObject &rawManifest,
@@ -476,6 +595,12 @@ bool SwingDocWriter::writeSwingJson(const QString &swingDir, const QJsonObject &
         if (error) *error = QStringLiteral("failed to commit %1: %2").arg(path, file.errorString());
         return false;
     }
+
+    // Index the swing while its document is still in hand — the summary sidecar costs one
+    // small write here and saves the session picker a multi-MB parse later. Best-effort:
+    // a failure here only means the picker re-derives it on demand. Must follow commit(),
+    // so the guard records the committed file's final size and mtime.
+    writeSummaryFile(summaryFromRoot(root, swingDir), nullptr);
     return true;
 }
 
@@ -516,6 +641,11 @@ bool SwingDocWriter::updateReview(const QString &swingDir, int rating, const QSt
         if (error) *error = QStringLiteral("failed to commit %1: %2").arg(path, out.errorString());
         return false;
     }
+
+    // Club lives in the summary, and this rewrite changes swing.json's size+mtime — which
+    // would invalidate the existing sidecar. Refresh it from the document we already hold
+    // rather than leaving a stale guard for the picker to trip over.
+    writeSummaryFile(summaryFromRoot(root, swingDir), nullptr);
     return true;
 }
 
@@ -534,35 +664,28 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
     if (pe.error != QJsonParseError::NoError || root.isEmpty())
         return ps;
 
-    ps.ordinal = root[QStringLiteral("swing")].toObject()[QStringLiteral("index")].toInt();
-    ps.club    = QStringLiteral("DRIVER");   // stub default; overridden by review.club below
-
-    const QString wc = root[QStringLiteral("clock")].toObject()[QStringLiteral("wallclock")].toString();
-    const QDateTime dt = QDateTime::fromString(wc, Qt::ISODateWithMs);
-    ps.timestampLabel = dt.isValid() ? dt.toLocalTime().toString(QStringLiteral("hh:mm:ss")) : wc;
-    ps.wallclockMs    = dt.isValid() ? dt.toMSecsSinceEpoch() : 0;
+    // Shared scalars (ordinal, timestamp, video presence, thumbnail, score, club).
+    // Note: club here already reflects the review block, which the tail of this
+    // function re-applies harmlessly alongside rating/note.
+    const SwingSummary sum = summaryFromRoot(root, swingDir);
+    ps.ordinal        = sum.ordinal;
+    ps.club           = sum.club;
+    ps.timestampLabel = sum.timestampLabel;
+    ps.wallclockMs    = sum.wallclockMs;
+    ps.hasVideo       = sum.hasVideo;
+    ps.thumbnailPath  = sum.thumbnailPath;
+    ps.score          = sum.score;
 
     // Only video presence is reconstructed here. imu / pose streams and the raw
     // sidecar are not parsed on reload yet — see the "Reload & replay consumer
     // contract" in docs/developer/swing_export_developer_guide.md for the shapes a future
     // consumer must honor (IMU json/csv/binary, pose coco17, raw reconstruction).
-    for (const QJsonValue &v : root[QStringLiteral("streams")].toArray())
-        if (v.toObject()[QStringLiteral("kind")].toString() == QLatin1String("video")) { ps.hasVideo = true; break; }
-
-    const QJsonObject thumb = root[QStringLiteral("thumbnail")].toObject();
-    if (!thumb.isEmpty())
-        ps.thumbnailPath = swingDir + QStringLiteral("/")
-                         + thumb[QStringLiteral("file")].toString(QStringLiteral("thumb.jpg"));
 
     if (root.contains(QStringLiteral("analysis"))) {
         const QJsonObject an = root[QStringLiteral("analysis")].toObject();
-        // "score" is a bare int in /2 docs, a ScoreBreakdown object in /3+ (design §B.0a).
         const QJsonValue scoreVal = an[QStringLiteral("score")];
         const QJsonObject scoreObj = scoreVal.toObject();   // empty if /2 (a number)
-        const int overall = scoreVal.isObject()
-                                ? scoreObj[QStringLiteral("overall")].toInt()
-                                : scoreVal.toInt();
-        ps.score = overall;
+        const int overall = sum.score;
 
         // analysisDetail in the live QML-role shape (metrics→series, score→overall).
         ps.analysisDetail = QVariantMap{
@@ -681,6 +804,76 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
 
     ps.ok = true;
     return ps;
+}
+
+bool SwingDocReader::writeSwingSummary(const PersistedShot &shot, QString *error)
+{
+    return writeSummaryFile(summaryFromShot(shot), error);
+}
+
+SwingSummary SwingDocReader::readSwingSummary(const QString &swingDir, bool writeSidecar)
+{
+    SwingSummary s;
+    s.swingDir = swingDir;
+
+    const QFileInfo src(sourcePath(swingDir));
+    if (!src.exists())
+        return s;                       // no document at all — nothing to summarise
+
+    // Fast path: a sidecar whose guard still matches the source document.
+    QFile f(summaryPath(swingDir));
+    if (f.open(QIODevice::ReadOnly)) {
+        QJsonParseError pe;
+        const QJsonObject root = QJsonDocument::fromJson(f.readAll(), &pe).object();
+        f.close();
+        const QJsonObject srcObj = root[QStringLiteral("source")].toObject();
+        const bool fresh =
+            pe.error == QJsonParseError::NoError
+            && root[QStringLiteral("schema")].toString() == QLatin1String(kSummarySchema)
+            && qint64(srcObj[QStringLiteral("size")].toDouble())     == src.size()
+            && qint64(srcObj[QStringLiteral("mtime_ms")].toDouble()) == src.lastModified().toMSecsSinceEpoch();
+        if (fresh) {
+            s.ordinal     = root[QStringLiteral("ordinal")].toInt();
+            s.wallclockMs = qint64(root[QStringLiteral("wallclockMs")].toDouble());
+            // Re-derive the label rather than trusting the cached one: it is local-time
+            // formatted, so a library carried across timezones would otherwise show the
+            // times of wherever it was indexed. wallclockMs is absolute and is not.
+            s.timestampLabel =
+                s.wallclockMs != 0
+                    ? QDateTime::fromMSecsSinceEpoch(s.wallclockMs).toLocalTime()
+                          .toString(QStringLiteral("hh:mm:ss"))
+                    : root[QStringLiteral("timestampLabel")].toString();
+            s.club           = root[QStringLiteral("club")].toString();
+            s.hasVideo       = root[QStringLiteral("hasVideo")].toBool();
+            const QString tf = root[QStringLiteral("thumbnailFile")].toString();
+            s.thumbnailPath  = tf.isEmpty() ? QString() : swingDir + QStringLiteral("/") + tf;
+            s.score          = root[QStringLiteral("score")].toInt();
+            s.fromSidecar    = true;
+            s.ok             = true;
+            return s;
+        }
+    }
+
+    // Miss or stale. Callers that must not block say so; they get ok=false and render the
+    // swing without detail until something that is allowed to fat-parse indexes it.
+    if (!writeSidecar)
+        return s;
+
+    // Parse the source document directly rather than going through readSwingJson(): this
+    // skips building analysisDetail, whose pose2d keypoint track is the bulk of the cost.
+    QFile src_f(sourcePath(swingDir));
+    if (!src_f.open(QIODevice::ReadOnly))
+        return s;
+    QJsonParseError pe;
+    const QJsonObject root = QJsonDocument::fromJson(src_f.readAll(), &pe).object();
+    src_f.close();
+    if (pe.error != QJsonParseError::NoError)
+        return s;
+
+    s = summaryFromRoot(root, swingDir);
+    if (s.ok)
+        writeSummaryFile(s, nullptr);   // best-effort; a read-only library just stays slow
+    return s;
 }
 
 QStringList SwingDocReader::findSwingDirs(const QString &sessionDir)

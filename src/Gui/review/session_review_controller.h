@@ -96,6 +96,12 @@ public:
     // success.
     Q_INVOKABLE bool trashSession(const QString &sessionId);
 
+public slots:
+    // The session list is athlete-scoped. Nothing used to react to an athlete switch, so
+    // the drawer kept showing the previous athlete's sessions until something else forced
+    // a rebuild. Drops any loaded session (it belongs to the previous athlete) and rebuilds.
+    void onAthleteChanged();
+
 signals:
     void reviewActiveChanged();
     void activeShotCountChanged();
