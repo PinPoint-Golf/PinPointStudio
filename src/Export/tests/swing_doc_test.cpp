@@ -70,6 +70,17 @@ int main()
     m.value = { 0.0, 12.5, -8.0 };
     m.phaseSamples.push_back({ Phase::Impact, 1010000, -8.0, QStringLiteral("green") });
     a.series.push_back(m);
+    // A Summary scalar carrying a measurement uncertainty: empty curve, one
+    // Impact phaseSample, non-degree unit. Covers both additions at once — the
+    // optional `sigma` field and the unit-aware flat-metric formatting (this
+    // used to render as "3°" because the reader hardcoded degrees).
+    MetricSeries tr;
+    tr.key   = QStringLiteral("tempoRatio");
+    tr.label = QStringLiteral("Tempo ratio");
+    tr.unit  = QStringLiteral(":1");
+    tr.sigma = 0.25;
+    tr.phaseSamples.push_back({ Phase::Impact, 1010000, 3.0, QString() });
+    a.series.push_back(tr);
     a.phases.push_back({ Phase::Impact, 1010000, 1.0f });
     a.phases.push_back({ Phase::Top, 700000, 0.9f, SegmentRole::LeadHand });
 
@@ -153,12 +164,23 @@ int main()
     check(scoreObj[QStringLiteral("kind")].toString() == QStringLiteral("adherence"), "analysis score.kind = adherence");
     check(an[QStringLiteral("tier")].toInt() == int(ReconstructionTier::Mono3DPlusImu), "tier");
     const QJsonArray mets = an[QStringLiteral("metrics")].toArray();
-    check(mets.size() == 1, "one metric series");
+    check(mets.size() == 2, "two metric series");
     const QJsonObject m0 = mets.at(0).toObject();
     check(m0[QStringLiteral("key")].toString() == QStringLiteral("leadWristFlexExt"), "metric key");
     check(m0[QStringLiteral("t_us")].toArray().size() == 3 && m0[QStringLiteral("value")].toArray().size() == 3, "t_us + value arrays (len 3)");
     check(qFuzzyCompare(m0[QStringLiteral("value")].toArray().at(1).toDouble(), 12.5), "value[1] == 12.5");
     check(m0[QStringLiteral("phaseSamples")].toArray().size() == 1, "phaseSamples");
+    // sigma is OPTIONAL and absent-by-default: a metric that never set one must
+    // not gain the key, or every pre-existing swing.json stops round-tripping
+    // byte-identically.
+    check(!m0.contains(QStringLiteral("sigma")), "no sigma key when the producer set none");
+    const QJsonObject m1 = mets.at(1).toObject();
+    check(m1[QStringLiteral("key")].toString() == QStringLiteral("tempoRatio"), "summary metric key");
+    check(m1[QStringLiteral("t_us")].toArray().isEmpty() && m1[QStringLiteral("value")].toArray().isEmpty(),
+          "summary scalar has an empty curve");
+    check(m1.contains(QStringLiteral("sigma"))
+              && qFuzzyCompare(m1[QStringLiteral("sigma")].toDouble(), 0.25),
+          "sigma serialized when present");
     check(an[QStringLiteral("phases")].toArray().size() == 2, "phases array");
     check(static_cast<qint64>(an[QStringLiteral("phases")].toArray().at(0).toObject()[QStringLiteral("t_us")].toDouble()) == 1010000, "phase t_us preserved");
     check(an[QStringLiteral("phases")].toArray().at(1).toObject()[QStringLiteral("segment")].toInt()
@@ -363,8 +385,13 @@ int main()
         check(ps.score == 82, "score == 82");
         const QVariantMap fe = ps.metrics.value(QStringLiteral("leadWristFlexExt")).toMap();
         check(fe.value(QStringLiteral("value")).toString() == QStringLiteral("-8°"), "flat metric value -8 deg");
+        // Non-degree metrics format in their OWN unit — this reader used to
+        // hardcode "°" and rendered every ratio/speed/×frame value as degrees.
+        const QVariantMap tro = ps.metrics.value(QStringLiteral("tempoRatio")).toMap();
+        check(tro.value(QStringLiteral("value")).toString() == QStringLiteral("3.00:1"),
+              "flat metric formats in its own unit, not degrees");
         check(ps.analysisDetail.value(QStringLiteral("overall")).toInt() == 82, "analysisDetail.overall");
-        check(ps.analysisDetail.value(QStringLiteral("series")).toList().size() == 1, "analysisDetail.series len 1");
+        check(ps.analysisDetail.value(QStringLiteral("series")).toList().size() == 2, "analysisDetail.series len 2");
         check(ps.analysisDetail.value(QStringLiteral("phases")).toList().size() == 2, "analysisDetail.phases len 2");
         const QVariantMap sg = ps.analysisDetail.value(QStringLiteral("segmentation")).toMap();
         check(sg.value(QStringLiteral("swingStartUs")).toLongLong() == 250000

@@ -118,6 +118,14 @@ struct FootState {
 struct FootSetup {
     bool   stanceWidthValid = false;
     double stanceWidthXFrame = 0.0;    // heel-to-heel, isotropic px / frameW ("×frame")
+    // The address heel pair itself (px), component-wise median over the SAME
+    // reference frames stanceWidth is measured from — so anything built on it
+    // shares stanceWidth's denominator by construction rather than by luck.
+    // Exported for ball_position.h (ball-along-the-stance needs the line, not
+    // just its length); `heelsValid` carries the same both-feet-valid condition
+    // as stanceWidthValid and is a separate flag purely for readability.
+    bool    heelsValid = false;
+    QPointF leadHeelPxAddr, trailHeelPxAddr;
     bool   leadFlareValid = false;
     double leadFlareDeg = 0.0;         // lead heel→bigtoe vs image +x axis, degrees
     bool   trailFlareValid = false;
@@ -156,7 +164,21 @@ FootMetricsResult trackFeet(const PoseTrack2D &pose, int frameW, int frameH, boo
 // (empty curve, single Address phaseSample — see the header note above).
 // UNSCORED (no reference bands until a corpus exists). Empty when the address
 // reference is unresolved (no lead foot anywhere, e.g. a legacy 17-kp track).
+//
+// `mmPerPx` is the ball-diameter ruler (ball_position.h) at the ball's
+// ground-plane depth, which face-on is essentially the feet's depth — so it is
+// the right ruler for stance geometry. When it resolves (> 0), stanceWidth is
+// emitted in REAL mm; when it does not, it falls back to the frame-relative
+// "×frame" with an honest unit string. Same two-unit convention head_track uses
+// for sway/lift via the inter-ear ruler, and `mmPerPx <= 0` is byte-identical to
+// the pre-ruler behaviour.
+//
+// NB `leadHeelLift` stays "×frame" even when the ruler resolves. It shares the
+// ruler and the depth plane, so converting it would be MORE internally
+// consistent — but it is a separately-shipped live metric and changing its unit
+// is its own gate, not a side effect of this one.
 std::vector<MetricSeries> buildFootSeries(const FootMetricsResult &res,
-                                          const std::vector<PhaseEvent> &phases);
+                                          const std::vector<PhaseEvent> &phases,
+                                          double mmPerPx = -1.0);
 
 } // namespace pinpoint::analysis

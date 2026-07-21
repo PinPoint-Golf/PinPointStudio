@@ -158,11 +158,18 @@ FootMetricsResult trackFeet(const PoseTrack2D &pose, int frameW, int frameH, boo
         return res;   // no lead foot anywhere (e.g. a legacy 17-kp track) — leave valid == false
 
     std::vector<double> widths, leadFlares, trailFlares, toeLines, addrElev;
+    std::vector<double> leadHeelX, leadHeelY, trailHeelX, trailHeelY;
     for (const FootState *s : ref) {
         // stanceWidth / toeLine need BOTH feet valid on this reference frame.
         if (s->leadValid && s->trailValid) {
             widths.push_back(distPx(s->leadHeelPx, s->trailHeelPx));
             toeLines.push_back(angleDeg(s->leadToePx, s->trailToePx));
+            // The heel pair itself, from the SAME frames as `widths` — so
+            // anything projected onto this line shares stanceWidth's denominator.
+            leadHeelX.push_back(s->leadHeelPx.x());
+            leadHeelY.push_back(s->leadHeelPx.y());
+            trailHeelX.push_back(s->trailHeelPx.x());
+            trailHeelY.push_back(s->trailHeelPx.y());
         }
         leadFlares.push_back(angleDeg(s->leadHeelPx, s->leadToePx));   // s->leadValid guaranteed by ref
         if (s->trailValid)
@@ -173,6 +180,13 @@ FootMetricsResult trackFeet(const PoseTrack2D &pose, int frameW, int frameH, boo
     res.setup.stanceWidthValid = !widths.empty();
     if (res.setup.stanceWidthValid)
         res.setup.stanceWidthXFrame = medianOf(widths) / frameW;   // isotropic ×frame (single ref dim)
+    // Component-wise median, matching every other robust reference here — it is
+    // order-independent, so one bad reference frame cannot drag the heel line.
+    res.setup.heelsValid = !leadHeelX.empty();
+    if (res.setup.heelsValid) {
+        res.setup.leadHeelPxAddr  = QPointF(medianOf(leadHeelX),  medianOf(leadHeelY));
+        res.setup.trailHeelPxAddr = QPointF(medianOf(trailHeelX), medianOf(trailHeelY));
+    }
     res.setup.leadFlareValid = !leadFlares.empty();
     if (res.setup.leadFlareValid)
         res.setup.leadFlareDeg = medianOf(leadFlares);
@@ -198,7 +212,8 @@ FootMetricsResult trackFeet(const PoseTrack2D &pose, int frameW, int frameH, boo
 }
 
 std::vector<MetricSeries> buildFootSeries(const FootMetricsResult &res,
-                                          const std::vector<PhaseEvent> &phases)
+                                          const std::vector<PhaseEvent> &phases,
+                                          double mmPerPx)
 {
     std::vector<MetricSeries> out;
     if (!res.valid || res.states.empty())
@@ -228,8 +243,16 @@ std::vector<MetricSeries> buildFootSeries(const FootMetricsResult &res,
         m.phaseSamples.push_back({ Phase::Address, addrT, value, QString() });
         out.push_back(std::move(m));
     };
+    // Stance width in REAL mm when the ball-diameter ruler resolved, else the
+    // frame-relative fallback with an honest unit string (head_track.cpp's
+    // convention verbatim). mmPerPx <= 0 ⇒ byte-identical to the pre-ruler build.
+    // stanceWidthXFrame is px/frameW, so × frameW recovers px before scaling.
+    const bool    swMm   = mmPerPx > 0.0;
+    const double  swVal  = swMm ? res.setup.stanceWidthXFrame * res.frameW * mmPerPx
+                                : res.setup.stanceWidthXFrame;
+    const QString swUnit = swMm ? QStringLiteral("mm") : QStringLiteral("×frame");
     pushScalar(res.setup.stanceWidthValid, QStringLiteral("stanceWidth"),
-              QStringLiteral("Stance width"), QStringLiteral("×frame"), res.setup.stanceWidthXFrame);
+              QStringLiteral("Stance width"), swUnit, swVal);
     pushScalar(res.setup.leadFlareValid, QStringLiteral("leadFootFlare"),
               QStringLiteral("Lead foot flare"), QStringLiteral("°"), res.setup.leadFlareDeg);
     pushScalar(res.setup.trailFlareValid, QStringLiteral("trailFootFlare"),

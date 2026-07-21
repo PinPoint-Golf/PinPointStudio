@@ -121,8 +121,15 @@ def invariants(run: RunResult, scope="full"):
     checks.append(_check("seg.monotone", ts == sorted(ts), 0, "ordered"))
     # Tempo ratio is a full-swing notion (backswing vs downswing); partial swings
     # don't have a comparable top, so skip it for pitch/chip/putt.
-    if full and 1 in phases and 2 in phases and 5 in phases:
-        back = (phases[2]["t_us"] - phases[1]["t_us"]) / 1e6
+    #
+    # Basis: ADDRESS(0)→Top(2) over Top(2)→Impact(5) — matching the shipped
+    # tempoRatio metric (src/Analysis/tempo_metrics.h). This check used to run on
+    # Takeaway(1)→Top, which is the definition the golf literature uses; the two
+    # disagreed, so the harness was measuring something the product never showed.
+    # The band stays [1.2, 6.0]: it is a plausibility range, not the coaching
+    # corridor, and it is wide enough to absorb the (small) basis shift.
+    if full and 0 in phases and 2 in phases and 5 in phases:
+        back = (phases[2]["t_us"] - phases[0]["t_us"]) / 1e6
         down = (phases[5]["t_us"] - phases[2]["t_us"]) / 1e6
         ratio = back / down if down > 0 else 0
         checks.append(_check("seg.tempo_ratio", 1.2 <= ratio <= 6.0,

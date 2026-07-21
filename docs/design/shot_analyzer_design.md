@@ -1177,8 +1177,16 @@ Consumers:
 - **`ShotProcessor` replay** starts at `swingStartUs` and ends at `swingEndUs`.
 - **`MetricExtractor`** restricts the metric `TimeGrid` to the truncated span, so every graph spans
   address → finish, not the raw ring.
-- **Free metrics:** `backswingMs = Top − Takeaway`, `downswingMs = Impact − Top`,
+- **Free metrics:** `tempoBackswing = Top − Address`, `downswingMs = Impact − Top`,
   `tempoRatio = backswing/downswing` (tour ≈ 3:1) join the catalog with no extra computation.
+  **The numerator is ADDRESS→Top, not Takeaway→Top** (shipped 2026-07-21,
+  `src/Analysis/tempo_metrics.h`): the catalogue always described it that way, so the
+  metric follows the catalogue and this section, §A.8 and SwingLab's `seg.tempo_ratio`
+  were corrected to match. Consequence to keep in mind: the published ~3:1 / 2.2–3.0:1
+  figures are Takeaway-based, so this basis reads slightly high against them by the
+  Address→Takeaway gap — small (Address ≤ Takeaway structurally) but not yet measured,
+  which is why `tempoRatio`'s corridor is flagged provisional. `downswingMs` has no
+  catalogue descriptor yet.
 
 **Sequencing change.** *(Landed: the segmentation pre-stage now runs first and gates the heavy
 stages, and the two heavy stages are themselves sequenced — analysis then export — so they no longer
@@ -1220,8 +1228,13 @@ Reload (`SwingDocReader`) treats a missing `segmentation` block as full-window b
   pre-shot motion, 100 Hz vs 200 Hz grids.
 - **Golden captures:** the pending hardware-verification session records N real swings; hand-label
   events from video frames and regression-test (same harness as the detector goldens).
-- **Telemetry sanity:** log per-shot `(Top−Takeaway)/(Impact−Top)` — the tempo-ratio distribution
-  centring near 3:1 is a cheap field check that Top and Takeaway are landing where they should.
+- **Telemetry sanity:** log per-shot `(Top−Address)/(Impact−Top)` — the tempo-ratio distribution
+  centring near 3:1 is a cheap field check that Top and Address are landing where they should.
+  **Caveat now that the ratio also ships as a coaching metric:** it cannot be both the
+  instrument under test and the test. Use it as a smoke check only; Top accuracy is
+  gated properly by `truth.event_top_s` (≤ 30 ms) on the labelled subset, which is
+  still unmeasured — and Top error is doubly leveraged here, appearing in both halves
+  of the ratio with opposite sign (a 30 ms error moves it ~15 %).
 
 ### A.9 Deferred
 

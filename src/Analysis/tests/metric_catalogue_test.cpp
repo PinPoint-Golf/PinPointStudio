@@ -53,28 +53,31 @@ int main()
     std::printf("=== metric catalogue ===\n");
     const MetricCatalogue cat = makeMetricCatalogue();
 
-    // 1. Manifest completeness — the full design catalogue (18 live + 20 planned), each resolvable.
+    // 1. Manifest completeness — the full design catalogue (21 live + 22 planned), each resolvable.
     {
-        checkEqI(static_cast<int>(cat.all().size()), 42, "descriptor count == 42");
+        checkEqI(static_cast<int>(cat.all().size()), 43, "descriptor count == 43");
         const char *live[] = { "leadWristFlexExt", "leadWristRadUln", "forearmPronation",
                                "leadArmFlexion",  "clubheadSpeed",   "handSpeed", "lagAngle",
                                "impactShaftLean", "stanceWidth",     "leadFootFlare",
                                "trailFootFlare",  "toeLineAngle",    "leadHeelLift",
+                               "ballPosition",
                                "headSway",        "headLift",        "headTilt",
+                               "tempoBackswing",  "tempoRatio",
                                "wristScore",      "wristResemblance" };
         bool allPresent = true;
         for (const char *k : live)
             if (!cat.descriptor(QString::fromLatin1(k))) { allPresent = false;
                 std::printf("    missing live descriptor: %s\n", k); }
-        check(allPresent, "all 18 live keys have a descriptor");
+        check(allPresent, "all 21 live keys have a descriptor");
         check(cat.descriptor(QStringLiteral("tempo")) == nullptr, "tempo absent (use tempoBackswing)");
-        check(cat.descriptor(QStringLiteral("ballPosition")) == nullptr, "ballPosition absent");
+        // ballPosition used to be asserted ABSENT here; it now has a producer
+        // (ball_position.cpp via FootMetricsStage), so it is in the live list above.
     }
 
     // 2. Type / group / scored filtering.
     {
         checkEqI(countType(cat, MetricType::TimeSeries),  24, "TimeSeries count");
-        checkEqI(countType(cat, MetricType::PointInTime), 12, "PointInTime count");
+        checkEqI(countType(cat, MetricType::PointInTime), 13, "PointInTime count");
         checkEqI(countType(cat, MetricType::Summary),      5, "Summary count");
         checkEqI(countType(cat, MetricType::Sequence),     1, "Sequence count (kinematicSequence)");
 
@@ -160,7 +163,7 @@ int main()
                                   "hipInternalRotation", "spineForwardBend", "spineSideBend",
                                   "secondaryAxisTilt", "pelvisSway", "pelvisThrust", "pelvisLift",
                                   "swingPlane", "clubPath", "attackAngle", "faceAngle",
-                                  "lowPointAhead", "tempoBackswing", "tempoRatio",
+                                  "lowPointAhead",
                                   "kinematicSequence", "swingScore",
                                   "shoulderAlignment", "elbowAlignment", "hipAlignment",
                                   "feetAlignment" };
@@ -178,8 +181,8 @@ int main()
             const MetricAvailability a = cat.resolve(QString::fromLatin1(k), capable);
             if (a.state == MetricAvailability::Unavailable) ++unavailable;
         }
-        checkEqI(flagged, 24, "all 24 planned metrics carry .planned == true");
-        checkEqI(unavailable, 24, "all 24 planned metrics resolve Unavailable even fully-equipped");
+        checkEqI(flagged, 22, "all 22 planned metrics carry .planned == true");
+        checkEqI(unavailable, 22, "all 22 planned metrics resolve Unavailable even fully-equipped");
         check(cat.resolve(QStringLiteral("pelvisRotation"), capable).reason.contains(QStringLiteral("planned")),
               "planned reason says 'planned'");
     }
@@ -206,6 +209,28 @@ int main()
         ShotContext noCam = wristShot({}, /*faceOn*/ false);
         check(cat.resolve(QStringLiteral("stanceWidth"), noCam).state == MetricAvailability::Unavailable,
               "stanceWidth Unavailable without face-on camera");
+
+        // ballPosition is the one foot-group key that needs more than the feet.
+        // FootMetricProvider used to be key-agnostic; these two pin that it is not.
+        check(cat.resolve(QStringLiteral("ballPosition"), feet).state == MetricAvailability::Unavailable,
+              "ballPosition Unavailable with face-on camera but no ball track");
+        ShotContext ballCtx = wristShot({}, /*faceOn*/ true);
+        ballCtx.hasBallTrack = true;
+        check(cat.resolve(QStringLiteral("ballPosition"), ballCtx).state == MetricAvailability::Measured,
+              "ballPosition Measured with face-on camera + ball track");
+        check(cat.resolve(QStringLiteral("stanceWidth"), ballCtx).state == MetricAvailability::Measured,
+              "stanceWidth still Measured without needing a ball track");
+
+        // Tempo needs no devices at all beyond something that segmented the swing —
+        // an IMU-only shot with no camera and no club must still resolve Measured.
+        const ShotContext imuOnly = wristShot({ SegmentRole::LeadForearm, SegmentRole::LeadHand },
+                                              /*faceOn*/ false, /*club*/ false);
+        check(cat.resolve(QStringLiteral("tempoRatio"), imuOnly).state == MetricAvailability::Measured,
+              "tempoRatio Measured on an IMU-only shot (no camera, no club)");
+        check(cat.resolve(QStringLiteral("tempoBackswing"), noCam).state == MetricAvailability::Measured,
+              "tempoBackswing Measured with no devices bound at all");
+        check(cat.descriptor(QStringLiteral("tempoRatio"))->planned == false,
+              "tempoRatio no longer planned");
     }
 
     // 5. query availableOnly gates on the resolved context.
@@ -213,8 +238,10 @@ int main()
         MetricQuery aq; aq.availableOnly = true;
         const ShotContext core = wristShot({ SegmentRole::LeadForearm, SegmentRole::LeadHand });
         const auto avail = cat.query(aq, &core);
-        // forearm+hand, no camera, no club → bow/cup + hinge + wristScore + wristResemblance.
-        checkEqI(static_cast<int>(avail.size()), 4, "availableOnly (forearm+hand only) → 4");
+        // forearm+hand, no camera, no club → bow/cup + hinge + wristScore +
+        // wristResemblance + both tempo metrics (tempo needs no devices beyond
+        // whatever segmented the swing, which an IMU pair does).
+        checkEqI(static_cast<int>(avail.size()), 6, "availableOnly (forearm+hand only) → 6");
         check(cat.query(aq, nullptr).empty(), "availableOnly without ctx → empty");
     }
 
@@ -234,6 +261,27 @@ int main()
 
         check(!cat.corridor(QStringLiteral("clubheadSpeed"), Phase::Impact).has_value(),
               "corridor(clubheadSpeed) → nullopt (no DOF, no inline)");
+
+        // tempoRatio is the first INLINE corridor in the manifest — the non-DOF
+        // path, which has no reference_bands delegation to fall back on. The
+        // dashboard Verdict tile renders only when BOTH a sample and a corridor
+        // resolve at Impact, so losing either silently hides the tile.
+        const auto tempoC = cat.corridor(QStringLiteral("tempoRatio"), Phase::Impact);
+        check(tempoC.has_value(), "corridor(tempoRatio, Impact) has a value (inline, non-DOF)");
+        if (tempoC) {
+            check(tempoC->greenLo == 2.2 && tempoC->greenHi == 3.0,
+                  "tempoRatio green corridor is the 2.2–3.0:1 tour core");
+            check(tempoC->amberLo < tempoC->greenLo && tempoC->amberHi > tempoC->greenHi,
+                  "tempoRatio amber margin brackets the green core");
+            check(!tempoC->deltaFromAddress,
+                  "tempoRatio corridor is absolute, not Δ-from-address");
+        }
+        check(!cat.corridor(QStringLiteral("tempoRatio"), Phase::Top).has_value(),
+              "corridor(tempoRatio, Top) → nullopt (only Impact is declared)");
+        check(!cat.corridor(QStringLiteral("tempoBackswing"), Phase::Impact).has_value(),
+              "corridor(tempoBackswing) → nullopt (no defensible band yet)");
+        check(!cat.corridor(QStringLiteral("ballPosition"), Phase::Address).has_value(),
+              "corridor(ballPosition) → nullopt (club-dependent, no single band)");
         check(!cat.corridor(QStringLiteral("wristScore"), Phase::Impact).has_value(),
               "corridor(wristScore) → nullopt (Summary, no normative)");
         check(!cat.corridor(QStringLiteral("leadWristFlexExt"), Phase::Finish).has_value(),

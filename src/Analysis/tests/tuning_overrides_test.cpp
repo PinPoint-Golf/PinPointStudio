@@ -10,8 +10,10 @@
 #include "../wrist_assessment_tuning.h"
 #include "../reference_bands.h"
 #include "../analysis_tuning.h"
+#include "../ball_position.h"
 #include "../event_refine.h"
 #include "../kinematic_series.h"
+#include "../tempo_metrics.h"
 #include "../../Core/pp_tuned_constants.h"
 
 #include <QVariantMap>
@@ -290,6 +292,58 @@ int main()
         const KinematicSeriesConfig c = KinematicSeriesConfig::fromOverrides(ov);
         check(c.enabled == false,
               "kinematics.enabled dark-out override reaches KinematicSeriesConfig::fromOverrides");
+    }
+
+    std::printf("--- tempo.* tempo metrics (TempoConfig::fromOverrides) ---\n");
+
+    // 12. Every tempo.* key maps onto TempoConfig; empty map ⇒ the frozen ON
+    //     defaults. Override direction is DARK-OUT: tempo.enabled = false emits
+    //     no series, which is the OFF-parity path for the corpus gate.
+    {
+        const TempoConfig def = TempoConfig::fromOverrides(QVariantMap{});
+        check(def.enabled == true && def.minConf == pinpoint::tuned::tempo::kMinConf
+              && def.baseSigmaS == pinpoint::tuned::tempo::kBaseSigmaS
+              && def.confInflate == pinpoint::tuned::tempo::kConfInflate,
+              "empty map → tempo.* frozen defaults");
+
+        QVariantMap ov;
+        ov["tempo.enabled"]     = false;   // dark-out: no tempo series at all
+        ov["tempo.minConf"]     = 0.75;
+        ov["tempo.baseSigmaS"]  = 0.05;
+        ov["tempo.confInflate"] = 2.0;
+        const TempoConfig c = TempoConfig::fromOverrides(ov);
+        check(c.enabled == false && c.minConf == 0.75 && c.baseSigmaS == 0.05
+              && c.confInflate == 2.0,
+              "tempo.* overrides (incl. enabled dark-out) reach TempoConfig::fromOverrides");
+    }
+
+    std::printf("--- ballpos.* ball position at address (BallPositionConfig::fromOverrides) ---\n");
+
+    // 13. Every ballpos.* key maps onto BallPositionConfig; empty map ⇒ the frozen
+    //     ON defaults. Dark-out: ballpos.enabled = false emits no ballPosition
+    //     series AND no px→mm ruler, so stanceWidth reverts to ×frame — i.e. the
+    //     single flag restores the whole pre-change foot-metrics output.
+    {
+        const BallPositionConfig def = BallPositionConfig::fromOverrides(QVariantMap{});
+        check(def.enabled == true
+              && def.addrWindowUs == pinpoint::tuned::ballpos::kAddrWindowUs
+              && def.minSamples == pinpoint::tuned::ballpos::kMinSamples
+              && def.maxJumpPx == pinpoint::tuned::ballpos::kMaxJumpPx
+              && def.fracLo == pinpoint::tuned::ballpos::kFracLo
+              && def.fracHi == pinpoint::tuned::ballpos::kFracHi,
+              "empty map → ballpos.* frozen defaults");
+
+        QVariantMap ov;
+        ov["ballpos.enabled"]      = false;   // dark-out: no ball position, no mm ruler
+        ov["ballpos.addrWindowUs"] = qint64(500000);
+        ov["ballpos.minSamples"]   = 7;
+        ov["ballpos.maxJumpPx"]    = 12.5;
+        ov["ballpos.fracLo"]       = -0.25;
+        ov["ballpos.fracHi"]       = 1.25;
+        const BallPositionConfig c = BallPositionConfig::fromOverrides(ov);
+        check(c.enabled == false && c.addrWindowUs == 500000 && c.minSamples == 7
+              && c.maxJumpPx == 12.5 && c.fracLo == -0.25 && c.fracHi == 1.25,
+              "ballpos.* overrides (incl. enabled dark-out) reach BallPositionConfig::fromOverrides");
     }
 
     std::printf("\n=== %s (%d failures) ===\n", g_fail ? "FAILURES" : "ALL PASS", g_fail);

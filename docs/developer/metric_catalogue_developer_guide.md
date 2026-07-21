@@ -35,9 +35,10 @@ Design invariants (do not break):
 - **The full design catalogue — live + planned.** The manifest declares every metric in
   `shot_analyzer_design.md §A`, each either **live** (a producer emits it) or a **planned**
   placeholder (`.planned = true`, no producer yet). Live today: metric_extractor ×4,
-  kinematic_series ×3, shaft-lean, foot_metrics ×5, head_track ×3, plus the `wristScore` /
-  `wristResemblance` `Summary` scores (sourced from a `ScoreBreakdown`, not a `MetricSeries`).
-  Planned: the whole-body rotation / spine / pelvis / club-delivery / tempo / kinematic-sequence /
+  kinematic_series ×3, shaft-lean, foot_metrics ×5, ball_position ×1, head_track ×3,
+  tempo_metrics ×2, plus the `wristScore` / `wristResemblance` `Summary` scores (sourced from a
+  `ScoreBreakdown`, not a `MetricSeries`).
+  Planned: the whole-body rotation / spine / pelvis / club-delivery / kinematic-sequence /
   address-and-impact alignment (shoulder / elbow / hip / feet) metrics and `swingScore`.
 - **Placeholders resolve "planned", not "missing sensors".** The `PlannedMetricProvider` claims every
   planned key and always returns `Unavailable` with reason `"planned — not yet produced in this
@@ -162,10 +163,14 @@ directory view.
 
 ## 4. Deferred (not in v1)
 
-The new-dashboard rewrite (query-driven zones); the kinematic **Sequence** producer; `tempo` and
-`ballPosition` (no producer); wiring a live swing adherence scorer so `swingScore` becomes Measured;
-a non-DOF `SpeedBandProvider` / player-baseline normative provider; retiring
-`ChartMetrics::shortLabel` once the catalogue is the single source of short names.
+The new-dashboard rewrite (query-driven zones); the kinematic **Sequence** producer; wiring a live
+swing adherence scorer so `swingScore` becomes Measured; a non-DOF `SpeedBandProvider` /
+player-baseline normative provider; retiring `ChartMetrics::shortLabel` once the catalogue is the
+single source of short names.
+
+*(2026-07-21: `tempoBackswing` / `tempoRatio` / `ballPosition` left this list — all three now have
+producers. `tempoRatio` is also the manifest's first user of `inlineCorridors`, the non-DOF normative
+path; worth cribbing from if you need a band for a speed or a setup scalar.)*
 
 ## Appendix A — per-metric work plan (capture · detection · calibration · V&V)
 
@@ -244,19 +249,20 @@ V&V: unit = header-only standalone test (`src/Analysis/tests`); validation sourc
 
 | Metric | Status | Capture | Detection | Calibration | Verification & validation |
 |---|---|---|---|---|---|
-| `tempoBackswing` | planned | Phases | Address→Top duration (segmentation-only; easy) | none | `phase_segmenter_test` · (corpus) |
-| `tempoRatio` | planned | Phases | backswing ÷ downswing time | none | `phase_segmenter_test` · (corpus) |
+| `tempoBackswing` | **live** | Phases | Address→Top duration (`tempo_metrics.cpp`; refuses an unconfident ladder) | none | `tempo_metrics_test` · corpus distribution owed |
+| `tempoRatio` | **live** | Phases | backswing ÷ downswing time, + propagated 1σ | none | `tempo_metrics_test` · **`truth.event_top_s` still unmeasured — Top error is doubly leveraged here**; corridor provisional pending the Address→Takeaway gap distribution |
 | `kinematicSequence` | planned | Plv+Thx+F + Club | per-segment peak-ω order/timing stage (Sequence shape) | anat+mount | new unit · (mocap sequence) |
 
 ### Feet & stance
 
 | Metric | Status | Capture | Detection | Calibration | Verification & validation |
 |---|---|---|---|---|---|
-| `stanceWidth` | live | FaceCam | `buildFootSeries` heel-to-heel ✓ | none (×frame isotropic) | `foot_metrics_test` · (corpus) |
+| `stanceWidth` | live | FaceCam (+Ball) | `buildFootSeries` heel-to-heel ✓ | **ball-diameter px→mm ruler**; falls back to ×frame when no ball | `foot_metrics_test` · mm distribution owed (no corridor yet) |
+| `ballPosition` | **live** | FaceCam + Ball | ball projected on the heel line ÷ stance width (`ball_position.cpp`) | none — a same-plane ratio, scale-free | `ball_position_test` · per-club distribution owed |
 | `leadFootFlare` | live | FaceCam | foot heel→bigtoe angle ✓ | none | `foot_metrics_test` · (corpus) |
 | `trailFootFlare` | live | FaceCam | foot heel→bigtoe angle ✓ | none | `foot_metrics_test` · (corpus) |
 | `toeLineAngle` | live | FaceCam | bigtoe→bigtoe line angle ✓ | none | `foot_metrics_test` · (corpus) |
-| `leadHeelLift` | live | FaceCam | heel-vs-toe elevation curve ✓ | none | `foot_metrics_test` · (corpus) |
+| `leadHeelLift` | live | FaceCam | heel-vs-toe elevation curve ✓ | none (still ×frame — deliberately not converted with stanceWidth) | `foot_metrics_test` · (corpus) |
 
 ### Alignment
 

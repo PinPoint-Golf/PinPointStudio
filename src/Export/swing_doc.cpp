@@ -106,12 +106,19 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
                                         { QStringLiteral("t_us"),  rel(ps.t_us) },
                                         { QStringLiteral("value"), ps.value },
                                         { QStringLiteral("band"),  ps.band } });
-        metrics.append(QJsonObject{ { QStringLiteral("key"),   m.key },
-                                    { QStringLiteral("label"), m.label },
-                                    { QStringLiteral("unit"),  m.unit },
-                                    { QStringLiteral("t_us"),  ts },
-                                    { QStringLiteral("value"), vs },
-                                    { QStringLiteral("phaseSamples"), samples } });
+        QJsonObject mo{ { QStringLiteral("key"),   m.key },
+                        { QStringLiteral("label"), m.label },
+                        { QStringLiteral("unit"),  m.unit },
+                        { QStringLiteral("t_us"),  ts },
+                        { QStringLiteral("value"), vs },
+                        { QStringLiteral("phaseSamples"), samples } };
+        // 1σ measurement uncertainty — emitted ONLY when the producer actually
+        // propagated an error budget. Absent means "not characterised", never
+        // "zero", so every metric that predates this field serialises exactly as
+        // before (the optional-absence contract at the serialization layer).
+        if (m.sigma)
+            mo.insert(QStringLiteral("sigma"), *m.sigma);
+        metrics.append(mo);
     }
     o[QStringLiteral("metrics")] = metrics;
 
@@ -629,8 +636,23 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
             }
             if (!found)
                 continue;
-            const long r = std::lround(impact);
-            const QString val = (r > 0 ? QStringLiteral("+") : QString()) + QString::number(r) + QStringLiteral("°");
+            // Format against the metric's OWN unit. This loop sees every detail
+            // series, not just the signed-degree wrist ones, so hardcoding "°"
+            // rendered a ×frame heel lift or an mph clubhead speed as "+0°".
+            // Degrees keep their exact previous formatting (signed, rounded) so
+            // the wrist metrics that drive the carousel are unchanged; everything
+            // else now reads in the unit it was actually measured in.
+            const QString unit = m[QStringLiteral("unit")].toString();
+            QString val;
+            if (unit == QStringLiteral("°")) {
+                const long r = std::lround(impact);
+                val = (r > 0 ? QStringLiteral("+") : QString()) + QString::number(r) + unit;
+            } else {
+                // 2 sf past the point for small magnitudes, whole numbers for
+                // large ones (mm, ms) — and no forced "+", which is meaningless
+                // for a ratio, a percentage or a speed.
+                val = QString::number(impact, 'f', std::abs(impact) < 100.0 ? 2 : 0) + unit;
+            }
             metrics.insert(m[QStringLiteral("key")].toString(),
                            QVariantMap{ { QStringLiteral("label"), m[QStringLiteral("label")].toString() },
                                         { QStringLiteral("value"), val } });

@@ -163,6 +163,14 @@ struct MetricSeries {
     std::vector<double>  value;           // one per t_us — the continuous curve
     std::vector<PhaseSample> phaseSamples;
     std::optional<double> bandLo, bandHi; // ideal/tour band (unit-space, one-sided ok)
+    // 1σ MEASUREMENT uncertainty on this metric's value, in unit-space — the
+    // separate track from bandLo/bandHi (which are coaching tolerance, not noise;
+    // same split as score_uncertainty.h's §B.7 interval vs the band σ). ABSENT
+    // means "not characterised", NOT "zero error" — every metric that predates
+    // this field leaves it unset and serialises byte-identically. Set it only
+    // when a real error budget was propagated; confidence must WIDEN this, never
+    // nudge `value`.
+    std::optional<double> sigma;
     bool flexPositive = true;             // stored-sign polarity (flip only at the label)
 };
 

@@ -198,9 +198,12 @@ fired on 0/17 truth swings). The revisit scan below replaces it and needs neithe
 - **`shaft.emitTakeaway`** (**true**, frozen ON; **false = OFF**; W2). When on, `phasesToSegmentation`
   emits an additive vision **Takeaway** event at `bs0` (the motion onset); the ladder becomes
   `{Address, Takeaway, Top, Impact, Finish}`. Address stays on the hold-end / `addressFrame` path, and
-  `Address ≤ Takeaway` structurally. This lets SwingLab's `seg.tempo_ratio` (Top−Takeaway / Impact−Top)
-  start evaluating on camera swings (it was silently skipped with no Takeaway event). Separate key from
-  the veto — disjoint failure modes: onset **placement** vs event-**set** change.
+  `Address ≤ Takeaway` structurally. Separate key from the veto — disjoint failure modes: onset
+  **placement** vs event-**set** change.
+  *(Historical note: this key originally existed so SwingLab's `seg.tempo_ratio` — then defined
+  Top−Takeaway / Impact−Top — could evaluate on camera swings. As of 2026-07-21 that check, and the
+  shipped `tempoRatio` metric, are both **Address**-based, so the Takeaway event no longer gates it.
+  The event remains valuable in its own right as a ladder rung.)*
 
 ### 2.11 `ball.clubActivity` / `positions.p1ClubQuietSigma` / `ball.tk0AddressOverride` — club-bob detector (C1)
 W1's onset veto and W3 attack the same estimand from different signals: W1 is blind to a **pure club bob
@@ -259,6 +262,42 @@ paired with `ball.clubActivity`): 17-swing truth A/B — median |p1 err| held 0.
 pre-refine ladder (the soak baseline). Keys: `enabled` (true) / `takeaway` (true) / `address` (true) /
 `impactResidual` (true, log-only) / `departThetaDeg` (25) / `activityQuietSigma` (3.0, seeded from
 `positions.p1ClubQuietSigma`) / `returnHoldMs` (200) / `minConf` (0.8) / `maxShiftS` (3.0).
+
+### 2.13 `tempo.*` — tempo metrics (2026-07-21)
+`TempoConfig` (`tempo_metrics.h`; the engine is `buildTempoSeries`, the glue is the file-local
+`TempoStage` in `wrist_analyzer.cpp`, slotted between FootMetrics and Kinematics). Emits
+`tempoBackswing` (Address→Top, s) and `tempoRatio` ((Top−Address)/(Impact−Top)) into
+**detail->series** — unscored, so the resemblance score is untouched. **Basis is ADDRESS→Top**, not
+the Takeaway→Top of the published tour figures; SwingLab's `seg.tempo_ratio` was realigned to match
+(2026-07-21) so the harness and the shipped number agree.
+
+Refuses rather than approximates: no series at all when `seg.conf <= minConf`, or when any of
+Address/Top/Impact is missing (the IMU `clampFallback` ladder has **no Top**). Every emitted series
+carries a propagated 1σ in `MetricSeries::sigma` — Top appears in both halves of the ratio with
+opposite sign, so its error is doubly leveraged (a 30 ms Top error ≈ 15 % of the ratio) and
+real-capture Top error has **never been measured** (the ≤30 ms `truth.event_top_s` target exists; no
+result does). Confidence widens σ, never moves the value. Keys: `enabled` (true) / `minConf` (0.0) /
+`baseSigmaS` (0.020) / `confInflate` (1.0). `tempo.enabled=false` is the OFF-parity path.
+
+### 2.14 `ballpos.*` — ball position at address (2026-07-21)
+`BallPositionConfig` (`ball_position.h`; `computeBallPosition`, called from `FootMetricsStage`).
+Produces two independent things: the `ballPosition` metric (ball along the lead-heel→trail-heel line
+as a % of stance width — a ratio of two same-plane distances, so scale-free and comparable across
+captures) and the **ball-diameter px→mm ruler** that puts `stanceWidth` into real millimetres
+(`kGolfBallDiameterMm / (2·radiusPx)`, `src/Core/pp_physical_constants.h`). The ruler resolves
+independently of the heel geometry, and vice versa.
+
+Robustness comes from a component-wise median over the address window plus a cluster gate — the same
+order-independent construction as `ball_anchor`'s `medianGripBallLenPx` pass 1, for the same reason (a
+leading detector mis-lock must not veto every later good sample). Refuses on too-few samples or an
+implausible position. Keys: `enabled` (true) / `addrWindowUs` (250000) / `minSamples` (3) /
+`maxJumpPx` (40.0) / `fracLo` (−0.5) / `fracHi` (1.5). `ballpos.enabled=false` is the OFF-parity path
+and reverts `stanceWidth` to `×frame` as well as dropping `ballPosition`.
+
+⚠ **mm stance width is an estimate, not a calibration.** The ruler is exact only at the ball's
+ground-plane depth (face-on, essentially the feet's depth — so it is the right ruler here), but it
+rests on a ~9.5 px radius measurement: ±1 px of radius is ~10 % of scale. No corridor has been set for
+`stanceWidth` because no measured distribution exists yet.
 
 ## 3. The frozen-defaults header — the single freeze edit-point
 

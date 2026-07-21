@@ -96,18 +96,42 @@ std::vector<QString> FootMetricProvider::provides() const
 {
     return { QStringLiteral("stanceWidth"), QStringLiteral("leadFootFlare"),
              QStringLiteral("trailFootFlare"), QStringLiteral("toeLineAngle"),
-             QStringLiteral("leadHeelLift") };
+             QStringLiteral("leadHeelLift"), QStringLiteral("ballPosition") };
 }
 
 MetricAvailability FootMetricProvider::availability(const QString &key, const ShotContext &ctx) const
 {
-    Q_UNUSED(key)
     if (!wristSessionOk(ctx.sessionType))
         return wristSessionOnly();
 
     MetricRequirement req;
     req.faceOnCamera = true;                       // whole-body pose feet keypoints
+    // ballPosition is the one key here that needs more than the feet: without a
+    // detected ball there is nothing to locate along the stance. (This provider
+    // used to be key-agnostic; it no longer can be.)
+    if (key == QStringLiteral("ballPosition"))
+        req.ballTrack = true;
     return fromRequirement(req, ctx);
+}
+
+// ------------------------------------------------------------------------------------ TempoProvider
+
+std::vector<QString> TempoProvider::provides() const
+{
+    return { QStringLiteral("tempoBackswing"), QStringLiteral("tempoRatio") };
+}
+
+MetricAvailability TempoProvider::availability(const QString &key, const ShotContext &ctx) const
+{
+    Q_UNUSED(key)
+    if (!wristSessionOk(ctx.sessionType))
+        return wristSessionOnly();
+    // Deliberately EMPTY: tempo needs only a phase ladder, and either an IMU or a
+    // face-on camera can produce one. Requiring both would be wrong and requiring
+    // either is not expressible here — so the capability answer is "yes", and the
+    // per-shot honesty lives in the producer, which refuses an unreliable ladder
+    // outright rather than emitting a plausible-looking wrong number.
+    return fromRequirement(MetricRequirement{}, ctx);
 }
 
 // ------------------------------------------------------------------------------ HeadMetricProvider
@@ -190,7 +214,6 @@ std::vector<QString> PlannedMetricProvider::provides() const
         QStringLiteral("swingPlane"),       QStringLiteral("clubPath"),
         QStringLiteral("attackAngle"),      QStringLiteral("faceAngle"),
         QStringLiteral("lowPointAhead"),
-        QStringLiteral("tempoBackswing"),   QStringLiteral("tempoRatio"),
         QStringLiteral("kinematicSequence"),
         QStringLiteral("shoulderAlignment"), QStringLiteral("elbowAlignment"),
         QStringLiteral("hipAlignment"),      QStringLiteral("feetAlignment"),

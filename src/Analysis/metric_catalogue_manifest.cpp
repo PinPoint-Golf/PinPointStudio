@@ -21,11 +21,11 @@
 // The one place every descriptor is declared (design §3.3 / build order §3) — the full design
 // catalogue (shot_analyzer_design.md §A), each metric either LIVE or a PLANNED placeholder.
 //
-// LIVE (18) — a producer emits it today: metric_extractor ×4, kinematic_series ×3 + shaft-lean,
-//   foot_metrics ×5, head_track ×3, plus wristScore / wristResemblance (Summary, from a
-//   ScoreBreakdown, Wrist session).
-// PLANNED (24, `.planned = true`) — in the design catalogue but no producer in this build: the
-//   whole-body rotation / spine / pelvis / club-delivery / tempo / kinematic-sequence / alignment
+// LIVE (21) — a producer emits it today: metric_extractor ×4, kinematic_series ×3 + shaft-lean,
+//   foot_metrics ×5 + ball_position ×1, head_track ×3, tempo_metrics ×2, plus wristScore /
+//   wristResemblance (Summary, from a ScoreBreakdown, Wrist session).
+// PLANNED (22, `.planned = true`) — in the design catalogue but no producer in this build: the
+//   whole-body rotation / spine / pelvis / club-delivery / kinematic-sequence / alignment
 //   metrics and swingScore. The PlannedMetricProvider claims these so they resolve "planned", and
 //   their `.requirement` reads as "will need …" on the detail page.
 //
@@ -706,7 +706,12 @@ void installMetricManifest(MetricCatalogue &cat)
         .requirement = { .faceOnCamera = true, .clubTrack = true, .ballTrack = true },
     });
 
-    // --------------------------------------------- Tempo & sequence (PLANNED — phase events / fused)
+    // --------------------------------------------- Tempo & sequence (phase events / fused)
+    // Both tempo metrics are anchored at IMPACT rather than a setup phase: they
+    // describe the WHOLE swing, and Impact is the one instant every ladder has
+    // (it is the acoustic marker, not a detection). The phase list must be
+    // non-empty or no corridor can reach QML — MetricCatalog::descriptor() builds
+    // the corridor list by looping `phases`.
 
     cat.addDescriptor({
         .key = QStringLiteral("tempoBackswing"),
@@ -721,10 +726,12 @@ void installMetricManifest(MetricCatalogue &cat)
             "remarkably consistent within a good player, even across clubs."),
         .howToRead = QStringLiteral(
             "As a reference, tour backswings cluster around 0.75–0.85 s (TPI report 0.847 ± 0.111 "
-            "s). The absolute value matters less than its consistency and its ratio to the "
-            "downswing (see tempo ratio). Planned: it only needs a reliably segmented swing (the "
-            "phase events), so it is one of the easier metrics to bring live."),
-        .planned = true,
+            "s). Note those published figures are measured from the TAKEAWAY, while this one is "
+            "measured from ADDRESS, so it reads slightly longer. The absolute value matters less "
+            "than its consistency and its ratio to the downswing (see tempo ratio). Needs a "
+            "confidently segmented swing — it is refused rather than estimated when the phase "
+            "events are unreliable."),
+        .phases = { P::Impact },
         .normative = { .heuristic = true },
     });
 
@@ -733,7 +740,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .type = MetricType::Summary,
         .label = QStringLiteral("Tempo ratio"),
         .shortLabel = QStringLiteral("Tempo"),
-        .unit = QString(),
+        .unit = QStringLiteral(":1"),
         .group = QStringLiteral("Tempo & sequence"),
         .description = QStringLiteral(
             "The rhythm of the swing as a single number — backswing time divided by downswing time "
@@ -744,9 +751,30 @@ void installMetricManifest(MetricCatalogue &cat)
             "The classic tour figure is about 3:1 (backswing three times as long as the "
             "downswing), with most good players between roughly 2.2:1 and 3.0:1. A ratio that "
             "drifts from a player's norm — often a quick, snatchy transition dropping it well below "
-            "3:1 — is a reliable early warning of a rhythm problem. Planned: needs a segmented swing."),
-        .planned = true,
-        .normative = { .heuristic = true },
+            "3:1 — is a reliable early warning of a rhythm problem. Read it alongside its "
+            "uncertainty: the top of the swing sits in both halves of the sum, so a small error in "
+            "locating it moves this number more than you would expect."),
+        .phases = { P::Impact },
+        .normative = {
+            // The FIRST inline corridor in the manifest. Non-DOF, so it cannot
+            // delegate to reference_bands (guide step D).
+            //
+            // PROVISIONAL. These are the published tour figures, and they are
+            // measured Takeaway→Top while this metric is Address→Top — so the
+            // band sits slightly low for this basis by the (small, structurally
+            // bounded, but so far UNMEASURED) Address→Takeaway gap. Re-centre it
+            // from the corpus distribution before treating it as authoritative.
+            .inlineCorridors = { { .phase = P::Impact,
+                                   .greenLo = 2.2, .greenHi = 3.0,
+                                   .amberLo = 1.8, .amberHi = 3.6,
+                                   .deltaFromAddress = false } },
+            .contextNote = QStringLiteral(
+                "Measured from address to the top, then top to impact. Published tour figures are "
+                "measured from the takeaway instead, so this reads a little higher than the 3:1 "
+                "benchmark; the corridor is provisional until the difference is measured on a "
+                "corpus."),
+            .heuristic = true,
+        },
     });
 
     cat.addDescriptor({
@@ -780,20 +808,49 @@ void installMetricManifest(MetricCatalogue &cat)
         .type = MetricType::PointInTime,
         .label = QStringLiteral("Stance width"),
         .shortLabel = QStringLiteral("Stance"),
-        .unit = QStringLiteral("×frame"),
+        .unit = QStringLiteral("mm"),
         .group = QStringLiteral("Feet & stance"),
         .description = QStringLiteral(
-            "How wide the feet are set at address, measured heel-to-heel as a fraction of the frame "
-            "width (so it is independent of camera distance) from the whole-body pose. Stance width "
-            "is a foundation of balance and turn: too narrow costs stability, too wide restricts "
-            "the hips."),
+            "How wide the feet are set at address, measured heel-to-heel from the whole-body pose. "
+            "Stance width is a foundation of balance and turn: too narrow costs stability, too wide "
+            "restricts the hips."),
         .howToRead = QStringLiteral(
-            "This is a single setup measurement, taken at address. Read it as a proportion — "
-            "commonly compared to shoulder width — with wider stances suiting the longer clubs and "
-            "narrower ones the wedges. Needs a face-on whole-body camera."),
+            "This is a single setup measurement, taken at address, with wider stances suiting the "
+            "longer clubs and narrower ones the wedges. Real-world millimetres come from the golf "
+            "ball itself, whose diameter is fixed by the rules — so the reading depends on the ball "
+            "being detected at address. Without it the metric falls back to a fraction of the frame "
+            "width, which is only comparable within one camera setup; check the unit before "
+            "comparing two swings. Needs a face-on whole-body camera."),
         .phases = { P::Address },
+        // No corridor yet: the metric only just gained real-world units, so there
+        // is no measured distribution to draw a defensible band from.
         .normative = { .heuristic = true },
         .requirement = { .faceOnCamera = true },
+        .usedBy = { QStringLiteral("chart:review") },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("ballPosition"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Ball position"),
+        .shortLabel = QStringLiteral("Ball pos"),
+        .unit = QStringLiteral("%"),
+        .group = QStringLiteral("Feet & stance"),
+        .description = QStringLiteral(
+            "Where the ball sits along the stance at address, as a percentage of stance width: 0 % "
+            "is level with the lead heel, 100 % level with the trail heel. Ball position sets the "
+            "low point of the swing arc relative to the ball, which is why the same swing produces "
+            "very different strikes as it moves."),
+        .howToRead = QStringLiteral(
+            "Read it against the club in hand rather than against a single ideal: the driver wants "
+            "the ball forward, off the lead heel, while the wedges want it closer to the middle of "
+            "the stance. Values below 0 % are normal and mean the ball is forward of the lead heel. "
+            "Because this is a ratio of two distances in the same plane it is directly comparable "
+            "between swings and cameras, unlike stance width itself. Needs a face-on camera and a "
+            "detected ball at address."),
+        .phases = { P::Address },
+        .normative = { .heuristic = true },
+        .requirement = { .faceOnCamera = true, .ballTrack = true },
         .usedBy = { QStringLiteral("chart:review") },
     });
 

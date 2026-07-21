@@ -53,15 +53,21 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 
+#include "../Core/pp_physical_constants.h"
+
 namespace pinpoint::balltemporal {
 
 // Physical golf-ball diameter (R&A/USGA spec, 1.68"). The single code constant
 // for the ball's real-world size — the px→mm scale primitive at the ball's
 // ground-plane depth: mm/px = kBallDiameterMm / (2·radiusPx). Consumed by the
-// deferred low-point-ahead-of-ball metric (docs/design/low_point_metric_design.md).
+// deferred low-point-ahead-of-ball metric (docs/design/low_point_metric_design.md)
+// and by ball_position.h (the stance-width mm ruler).
 // (Moved here from ball_model.h as part of the v1→v2 migration; ball_model.h is
-// slated for deletion in V3.)
-inline constexpr double kBallDiameterMm = 42.67;
+// slated for deletion in V3. The VALUE now lives one layer lower still, in
+// src/Core/pp_physical_constants.h, so the Qt-only analysis modules can reach it
+// without pulling in OpenCV; this stays as the established name for the existing
+// callers and is the same constant.)
+inline constexpr double kBallDiameterMm = pinpoint::physical::kGolfBallDiameterMm;
 
 // ── Tuning constants (design §8 / bible §9; fixed by corpus evidence only) ────
 namespace tuning {

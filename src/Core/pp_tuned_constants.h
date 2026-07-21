@@ -291,6 +291,54 @@ inline constexpr int          kAddrMinFrames = 5;       // fallback address ref 
 inline constexpr std::int64_t kAddrWindowUs  = 250000;  // ±window about the Address event for the robust ref
 } // namespace foot
 
+// --- Tempo metrics (src/Analysis/tempo_metrics.h) -----------------------------
+// tempoBackswing (Address→Top, s) and tempoRatio ((Top−Address)/(Impact−Top)).
+// Consumed by TempoConfig::fromOverrides via "tempo.*" dotted keys.
+//
+// BASIS NOTE: the numerator is ADDRESS→Top, not Takeaway→Top. This matches the
+// metric catalogue's own descriptions; the ~3:1 / 2.2–3.0:1 tour figures in the
+// literature (Tour Tempo, TPI 0.847 ± 0.111 s) are TAKEAWAY-based and therefore
+// read slightly LOW against this basis by the Address→Takeaway gap. The gap is
+// structurally small (Address ≤ Takeaway by construction) but uncharacterised —
+// the tempoRatio corridor in metric_catalogue_manifest.cpp is provisional until
+// the corpus supplies that distribution.
+//
+// UNCERTAINTY: Top appears in BOTH the numerator and the denominator with
+// opposite sign, so its timing error is doubly leveraged (a 30 ms Top error —
+// exactly the ≤30 ms validation target — swings the ratio ~15 %). Real-capture
+// Top error has never been measured, so every emitted tempo series carries a
+// propagated 1σ rather than pretending to a precision nobody has demonstrated.
+// Confidence WIDENS the interval, it never nudges the value (score_uncertainty).
+namespace tempo {
+inline constexpr bool   kEnabled     = true;   // tempo.enabled — false ⇒ emit nothing (OFF-parity path)
+inline constexpr double kMinConf     = 0.0;    // tempo.minConf — refuse at or below this seg.conf;
+                                               //   0 rejects the IMU clampFallback ladder (conf == 0,
+                                               //   Address pinned to the window edge, NO Top at all)
+inline constexpr double kBaseSigmaS  = 0.020;  // tempo.baseSigmaS — 1σ event-timing floor, s. Seeded at
+                                               //   the ≤30 ms Top target's order of magnitude; re-seat
+                                               //   from the labelled-swing Top-error distribution
+inline constexpr double kConfInflate = 1.0;    // tempo.confInflate — σ_e = base·(1 + (1−conf)·inflate)
+} // namespace tempo
+
+// --- Ball position at address (src/Analysis/ball_position.h) ------------------
+// Where the ball sits along the stance, as a fraction of the heel-to-heel line:
+// 0 = at the lead heel, 1 = at the trail heel. UNCLAMPED — a ball forward of the
+// lead heel is a real (and coachable) setup, not an error. The denominator is
+// exactly foot_metrics' stanceWidth measurement, so the two agree by
+// construction. Both are px distances in the same image plane at the same depth,
+// so the RATIO needs no scale factor and IS comparable across captures — unlike
+// stance width in absolute units. Consumed via "ballpos.*" dotted keys.
+namespace ballpos {
+inline constexpr bool         kEnabled      = true;    // ballpos.enabled — false ⇒ no series (OFF-parity)
+inline constexpr std::int64_t kAddrWindowUs = 250000;  // ±window about Address (mirrors foot::/head::)
+inline constexpr int          kMinSamples   = 3;       // min accepted ball samples for a valid measurement
+inline constexpr double       kMaxJumpPx    = 40.0;    // cluster gate about the component-wise median —
+                                                       //   an off-cluster sample is a detector mis-lock,
+                                                       //   not a moved ball (it is stationary at address)
+inline constexpr double       kFracLo       = -0.5;    // ballpos.fracLo — plausibility floor
+inline constexpr double       kFracHi       = 1.5;     // ballpos.fracHi — plausibility ceiling
+} // namespace ballpos
+
 // --- Shaft onset segmentation (src/Analysis/shaft_track_assembly.cpp) ----------
 // Camera-only Address/Takeaway hardening (fidget-proofing). The Stage-A onset
 // walk-back (A1 grip speed + A2 φ witness) cannot tell fidget motion that

@@ -44,7 +44,9 @@ public:
     MetricAvailability   availability(const QString &key, const ShotContext &ctx) const override;
 };
 
-// foot_metrics.cpp — Wrist Motion session only today. All need face-on whole-body pose (foot keypoints).
+// foot_metrics.cpp + ball_position.cpp — Wrist Motion session only today. All need face-on
+// whole-body pose (foot keypoints); ballPosition additionally needs the ball track, so this
+// provider is NOT key-agnostic.
 class FootMetricProvider : public IMetricProvider {
 public:
     std::vector<QString> provides() const override;
@@ -60,6 +62,17 @@ public:
 
 // wrist_analyzer.cpp ShaftLeanStage — Wrist Motion session only. impactShaftLean needs the club track.
 class ShaftLeanProvider : public IMetricProvider {
+public:
+    std::vector<QString> provides() const override;
+    MetricAvailability   availability(const QString &key, const ShotContext &ctx) const override;
+};
+
+// tempo_metrics.cpp — Wrist Motion session only today. Needs NO devices beyond whatever produced
+// a confident phase ladder: an IMU-only swing and a camera-only swing both qualify, which is a
+// disjunction MetricRequirement cannot express — hence the empty requirement plus the note that
+// availability here means "the pipeline can produce it", not "this shot's ladder was good enough"
+// (the producer refuses an unreliable ladder at analysis time; see tempo_metrics.h).
+class TempoProvider : public IMetricProvider {
 public:
     std::vector<QString> provides() const override;
     MetricAvailability   availability(const QString &key, const ShotContext &ctx) const override;

@@ -105,6 +105,49 @@ int main()
         const double naive = std::hypot(0.10, 0.02);   // wrong: mixes norm x/y directly
         CHECK("stance width is NOT the naive normalized-only distance",
               !near(res.setup.stanceWidthXFrame, naive, 0.0008));
+
+        // The address heel pair, exported for ball_position. Same reference
+        // frames as `widths`, so a consumer projecting onto this line shares
+        // stanceWidth's denominator by construction.
+        CHECK("address heel pair exported", res.setup.heelsValid);
+        CHECK("lead heel is the lead foot in px",
+              near(res.setup.leadHeelPxAddr.x(), 0.45 * W, 1e-6)
+                  && near(res.setup.leadHeelPxAddr.y(), 0.90 * H, 1e-6));
+        CHECK("trail heel is the trail foot in px",
+              near(res.setup.trailHeelPxAddr.x(), 0.55 * W, 1e-6)
+                  && near(res.setup.trailHeelPxAddr.y(), 0.92 * H, 1e-6));
+        // The exported pair must reproduce the reported stance width exactly.
+        CHECK("heel pair separation == stanceWidth",
+              near(std::hypot(res.setup.trailHeelPxAddr.x() - res.setup.leadHeelPxAddr.x(),
+                              res.setup.trailHeelPxAddr.y() - res.setup.leadHeelPxAddr.y()) / W,
+                   res.setup.stanceWidthXFrame, 1e-9));
+
+        // ── units: mm when the ball ruler resolved, ×frame when it did not ──
+        // mmPerPx <= 0 must be byte-identical to the pre-ruler build; that is
+        // the OFF-parity path for the whole stance-width change.
+        const std::vector<MetricSeries> off = buildFootSeries(res, {}, /*mmPerPx*/ -1.0);
+        const MetricSeries *swOff = findSeries(off, "stanceWidth");
+        CHECK("no ruler -> unit stays ×frame", swOff && swOff->unit == QStringLiteral("×frame"));
+        CHECK("no ruler -> value stays the ×frame measurement",
+              swOff && near(swOff->phaseSamples[0].value, res.setup.stanceWidthXFrame, 1e-12));
+
+        const double mmPerPx = 2.0;
+        const std::vector<MetricSeries> on = buildFootSeries(res, {}, mmPerPx);
+        const MetricSeries *swOn = findSeries(on, "stanceWidth");
+        CHECK("ruler -> unit becomes mm", swOn && swOn->unit == QStringLiteral("mm"));
+        CHECK("ruler -> value is real millimetres",
+              swOn && near(swOn->phaseSamples[0].value,
+                           res.setup.stanceWidthXFrame * W * mmPerPx, 1e-9));
+
+        // leadHeelLift shares the ruler and the depth plane but is deliberately
+        // NOT converted — it is a separately-shipped metric with its own gate.
+        const MetricSeries *liftOn = findSeries(on, "leadHeelLift");
+        CHECK("leadHeelLift stays ×frame even with a ruler",
+              liftOn && liftOn->unit == QStringLiteral("×frame"));
+        // Every other setup scalar is an angle and must be untouched by the ruler.
+        const MetricSeries *flareOn = findSeries(on, "leadFootFlare");
+        CHECK("angles are unaffected by the ruler",
+              flareOn && flareOn->unit == QStringLiteral("°"));
     }
 
     // ── 2) Flare + toe-line angle recovery (square 1000×1000) ───────────────

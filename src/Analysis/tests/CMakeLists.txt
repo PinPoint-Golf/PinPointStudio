@@ -148,6 +148,19 @@ pp_add_test(kinematic_series_test SOURCES kinematic_series_test.cpp ${ANALYSIS}/
 # track, no fixture.
 pp_add_test(foot_metrics_test SOURCES foot_metrics_test.cpp ${ANALYSIS}/foot_metrics.cpp)
 
+# Ball position at address (ball_position.{h,cpp}): the heel-line projection, the
+# order-independent median lock (leading detector mis-locks must not win), the
+# ball-diameter px→mm ruler, and the refuse-don't-fabricate contract. Qt-only, no
+# OpenCV — the ball-diameter constant lives in Core/pp_physical_constants.h
+# precisely so this stays OpenCV-free. Synthetic tracks, no fixture.
+pp_add_test(ball_position_test SOURCES ball_position_test.cpp ${ANALYSIS}/ball_position.cpp)
+
+# Tempo metrics (tempo_metrics.{h,cpp}): the Address→Top basis (NOT the Takeaway→Top
+# one the literature uses — asserted explicitly), every refusal gate, the Summary
+# series shape the dashboard Verdict tile depends on, and the correlated uncertainty
+# propagation in which Top dominates. Qt-only; synthetic ladders, no fixture.
+pp_add_test(tempo_metrics_test SOURCES tempo_metrics_test.cpp ${ANALYSIS}/tempo_metrics.cpp)
+
 # Metric Catalogue (metric_catalogue / manifest / providers / resolver): descriptor
 # identity + metadata, per-shot availability resolution over the provider seam, and
 # normative-corridor delegation to reference_bands. Qt-only; reuses wristCheckpoints()

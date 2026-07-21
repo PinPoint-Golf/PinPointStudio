@@ -29,6 +29,7 @@
 #include "analysis_stage.h"
 #include "analysis_profiling.h"
 #include "analysis_tuning.h"
+#include "ball_position.h"
 #include "ball_runner.h"
 #include "event_refine.h"
 #include "foot_metrics.h"
@@ -44,6 +45,7 @@
 #include "pose_smoother.h"
 #include "pose_synthesis.h"
 #include "shaft_tracker.h"
+#include "tempo_metrics.h"
 #include "wrist_resemblance.h"
 #include "score_uncertainty.h"
 #include "wrist_angles.h"
@@ -620,8 +622,16 @@ struct HeadTrackStage : AnalysisStage {
     }
 };
 
-// 13. Setup + footwork metrics — stance width, per-foot flare,
-//     toe-line angle + lead-heel-lift trace. DETAIL series only, UNSCORED.
+// 13. Setup + footwork metrics — stance width, per-foot flare, toe-line angle +
+//     lead-heel-lift trace, PLUS ball-position-along-the-stance. DETAIL series
+//     only, UNSCORED.
+//
+//     Ball position lives here rather than in its own stage because it needs the
+//     address heel pair AND the stance width as its denominator — both already
+//     computed by trackFeet over a resolved address reference. A separate stage
+//     would have to redo that reference resolution to say the same thing. The
+//     ball track it reads is written by BallStage (6) / ShaftStage (7), long
+//     before this stage runs, so no reordering is involved.
 struct FootMetricsStage : AnalysisStage {
     QString name() const override { return QStringLiteral("FootMetrics"); }
     bool canRun(const AnalysisContext &ctx) const override
@@ -642,9 +652,75 @@ struct FootMetricsStage : AnalysisStage {
             const FootMetricsResult feet =
                 trackFeet(ctx.detail->pose2d, int(cfmt->width), int(cfmt->height), leadIsLeft,
                          addressUs, FootMetricsConfig::fromOverrides(ctx.job.tuningOverrides));
-            for (const MetricSeries &m : buildFootSeries(feet, phases))
+
+            // Ball position + the ball-diameter px→mm ruler. The ruler resolves
+            // independently of the heel geometry, so a swing whose feet are
+            // unusable can still put stance width in mm — and vice versa.
+            const BallPositionResult bp =
+                computeBallPosition(ctx.detail->ball, feet.setup.leadHeelPxAddr,
+                                    feet.setup.trailHeelPxAddr,
+                                    feet.setup.heelsValid ? addressUs : -1,
+                                    int(cfmt->width), int(cfmt->height),
+                                    BallPositionConfig::fromOverrides(ctx.job.tuningOverrides));
+
+            for (const MetricSeries &m : buildFootSeries(feet, phases, bp.mmPerPx))
                 ctx.detail->series.push_back(m);
+
+            if (bp.valid && feet.setup.heelsValid) {
+                // Anchor instant: the Address event when we have one, else the
+                // first posed frame — the same "ultimate fallback" buildFootSeries
+                // uses for its own setup scalars, so all the address-time tiles
+                // on the dashboard agree about when address was.
+                const int64_t addrT = addressUs >= 0            ? addressUs
+                                    : ctx.detail->pose2d.frames.empty()
+                                        ? 0
+                                        : ctx.detail->pose2d.frames.front().t_us;
+                // Address-time setup scalar — empty curve, one Address
+                // phaseSample (the foot_metrics.h representation note).
+                MetricSeries m;
+                m.key   = QStringLiteral("ballPosition");
+                m.label = QStringLiteral("Ball position");
+                m.unit  = QStringLiteral("%");
+                m.phaseSamples.push_back({ Phase::Address, addrT,
+                                           bp.fracOfStance * 100.0, QString() });
+                ctx.detail->series.push_back(std::move(m));
+            }
         }
+    }
+};
+
+// 13a. Tempo — backswing duration (Address→Top) and the tempo ratio
+//      ((Top−Address)/(Impact−Top)). DETAIL series only, UNSCORED.
+//
+//      Segmentation-only: no pose, no club, no IMU, so it works on every capture
+//      regime that produced a real ladder. It must sit AFTER EventRefine (11) so
+//      the refined Address is what it reads, and AFTER BindDetail (12) which
+//      assigns detail->series wholesale — appending before that would be
+//      overwritten. Writing to detail->series rather than the local scored series
+//      keeps the resemblance score byte-identical (ordering invariant §5.1).
+//
+//      The engine refuses outright on an untrustworthy ladder (conf gate, or any
+//      of Address/Top/Impact missing — the IMU clampFallback path has no Top at
+//      all), so canRun and the engine agree: no ladder, no series, never a
+//      plausible-looking wrong number.
+struct TempoStage : AnalysisStage {
+    QString name() const override { return QStringLiteral("Tempo"); }
+    bool canRun(const AnalysisContext &ctx) const override
+    {
+        const TempoConfig cfg = TempoConfig::fromOverrides(ctx.job.tuningOverrides);
+        return cfg.enabled && double(ctx.seg.conf) > cfg.minConf
+            && ctx.seg.eventFor(Phase::Address) && ctx.seg.eventFor(Phase::Top)
+            && ctx.seg.eventFor(Phase::Impact);
+    }
+    QString skipReason(const AnalysisContext &) const override
+    {
+        return QStringLiteral("disabled or no confident Address/Top/Impact ladder");
+    }
+    void run(AnalysisContext &ctx) override
+    {
+        for (const MetricSeries &m :
+             buildTempoSeries(ctx.seg, TempoConfig::fromOverrides(ctx.job.tuningOverrides)))
+            ctx.detail->series.push_back(m);
     }
 };
 
@@ -809,6 +885,7 @@ SessionProfile wristProfile()
     p.stages.push_back(std::make_unique<BindDetailStage>());
     p.stages.push_back(std::make_unique<HeadTrackStage>());
     p.stages.push_back(std::make_unique<FootMetricsStage>());
+    p.stages.push_back(std::make_unique<TempoStage>());
     p.stages.push_back(std::make_unique<KinematicsStage>());
     p.stages.push_back(std::make_unique<BindingsStage>());
     p.stages.push_back(std::make_unique<ResemblanceStage>());

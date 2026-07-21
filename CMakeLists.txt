@@ -2223,6 +2223,10 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/head_track.cpp
     src/Analysis/foot_metrics.h
     src/Analysis/foot_metrics.cpp
+    src/Analysis/ball_position.h
+    src/Analysis/ball_position.cpp
+    src/Analysis/tempo_metrics.h
+    src/Analysis/tempo_metrics.cpp
     src/Analysis/hand_axis.h
     src/Analysis/pose_wrist_angle_source.h
     src/Analysis/pose_wrist_angle_source.cpp
@@ -2513,6 +2517,8 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/pose_smoother.cpp
         src/Analysis/head_track.cpp
         src/Analysis/foot_metrics.cpp
+        src/Analysis/ball_position.cpp
+        src/Analysis/tempo_metrics.cpp
         src/Analysis/pose_wrist_angle_source.cpp
         src/Analysis/metric_catalogue.cpp
         src/Analysis/metric_resolver.cpp
