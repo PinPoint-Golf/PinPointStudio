@@ -51,12 +51,35 @@ public:
     MetricAvailability   availability(const QString &key, const ShotContext &ctx) const override;
 };
 
+// head_track.cpp — Wrist Motion session only. headSway / headLift / headTilt need face-on pose.
+class HeadMetricProvider : public IMetricProvider {
+public:
+    std::vector<QString> provides() const override;
+    MetricAvailability   availability(const QString &key, const ShotContext &ctx) const override;
+};
+
+// wrist_analyzer.cpp ShaftLeanStage — Wrist Motion session only. impactShaftLean needs the club track.
+class ShaftLeanProvider : public IMetricProvider {
+public:
+    std::vector<QString> provides() const override;
+    MetricAvailability   availability(const QString &key, const ShotContext &ctx) const override;
+};
+
 // Summary scores (produced as ScoreBreakdown, not MetricSeries — hence keyed synthetically):
 //   wristScore / wristResemblance — LIVE for the Wrist session (WristResemblanceScorer +
 //     WristAssessmentEngine, wrist_analyzer.cpp); need the lead forearm + hand IMUs.
 //   swingScore — the Swing/GRF/Coach adherence score, ASPIRATIONAL: SwingScorer is dead code and
 //     CameraKinematicsAnalyzer returns a stub, so this always resolves Unavailable ("no live scorer").
 class ScoreProvider : public IMetricProvider {
+public:
+    std::vector<QString> provides() const override;
+    MetricAvailability   availability(const QString &key, const ShotContext &ctx) const override;
+};
+
+// Roadmap placeholders — every design-catalogue metric with no producer in this build (whole-body
+// rotation, spine/pelvis, club delivery, tempo, kinematic sequence). Claims the keys so the resolver
+// reports a "planned" verdict rather than a misleading "your setup lacks X"; always Unavailable.
+class PlannedMetricProvider : public IMetricProvider {
 public:
     std::vector<QString> provides() const override;
     MetricAvailability   availability(const QString &key, const ShotContext &ctx) const override;

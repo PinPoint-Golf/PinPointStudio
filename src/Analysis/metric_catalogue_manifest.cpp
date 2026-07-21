@@ -18,12 +18,19 @@
 
 #include "metric_catalogue.h"
 
-// The one place every descriptor is declared (design §3.3 / build order §3). v1 covers the metrics
-// real producers emit today: 12 MetricSeries keys from metric_extractor (×4), kinematic_series (×3)
-// and foot_metrics (×5), plus 3 Summary scores produced as a ScoreBreakdown (wristScore /
-// wristResemblance — live for the Wrist session; swingScore — aspirational, no live scorer yet).
-// tempo / ballPosition / the kinematic sequence have no producer and are intentionally absent; see
-// the metric-catalogue developer guide for adding a new metric end-to-end.
+// The one place every descriptor is declared (design §3.3 / build order §3) — the full design
+// catalogue (shot_analyzer_design.md §A), each metric either LIVE or a PLANNED placeholder.
+//
+// LIVE (18) — a producer emits it today: metric_extractor ×4, kinematic_series ×3 + shaft-lean,
+//   foot_metrics ×5, head_track ×3, plus wristScore / wristResemblance (Summary, from a
+//   ScoreBreakdown, Wrist session).
+// PLANNED (20, `.planned = true`) — in the design catalogue but no producer in this build: the
+//   whole-body rotation / spine / pelvis / club-delivery / tempo / kinematic-sequence metrics and
+//   swingScore. The PlannedMetricProvider claims these so they resolve "planned", and their
+//   `.requirement` reads as "will need …" on the detail page.
+//
+// See the metric-catalogue developer guide for promoting a placeholder to live (add the producer,
+// drop `.planned`, move the key from PlannedMetricProvider to a real provider).
 //
 // Prose (description / howToRead) is consolidated from:
 //   docs/design/shot_analyzer_design.md   (metric catalog table + single-camera viability)
@@ -99,6 +106,7 @@ void installMetricManifest(MetricCatalogue &cat)
             "0–100; higher is closer to the reference action. Not yet produced — the swing "
             "adherence scorer is not wired into a live analyzer, so this metric is documented but "
             "currently unavailable."),
+        .planned = true,
         .normative = { .heuristic = true },
         .requirement = { .faceOnCamera = true },
         .usedBy = { QStringLiteral("review:verdict"), QStringLiteral("shotlist:score") },
@@ -207,6 +215,209 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("assessment:wrist") },
     });
 
+    // ---------------------------------------------------- Body rotation (PLANNED — body IMUs, no producer)
+
+    cat.addDescriptor({
+        .key = QStringLiteral("pelvisRotation"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Pelvis rotation"),
+        .shortLabel = QStringLiteral("Pelvis turn"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Body rotation"),
+        .description = QStringLiteral(
+            "Axial pelvis turn relative to address — the pelvis medio-lateral axis rotated into the "
+            "horizontal plane."),
+        .howToRead = QStringLiteral(
+            "Read at Top and Impact. Reference: ~45° at the top, ~35–45° open at impact. Will need "
+            "a pelvis IMU."),
+        .phases = { P::Top, P::Impact },
+        .planned = true,
+        .normative = { .heuristic = true },
+        .requirement = { .imuRoles = { R::Pelvis } },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("thoraxRotation"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Thorax rotation"),
+        .shortLabel = QStringLiteral("Chest turn"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Body rotation"),
+        .description = QStringLiteral("Axial thorax (chest) turn relative to address."),
+        .howToRead = QStringLiteral(
+            "Read at Top and Impact. Reference: shoulders ~90° at the top. Will need a thorax IMU."),
+        .phases = { P::Top, P::Impact },
+        .planned = true,
+        .normative = { .heuristic = true },
+        .requirement = { .imuRoles = { R::Thorax } },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("xFactor"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("X-factor"),
+        .shortLabel = QStringLiteral("X-factor"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Body rotation"),
+        .description = QStringLiteral(
+            "Thorax-minus-pelvis axial separation — the classic X-factor (shoulder-vs-pelvis is "
+            "≈2× the spine measure)."),
+        .howToRead = QStringLiteral(
+            "Read at the top. Reference ~40–42° (TPI). Will need pelvis + thorax IMUs."),
+        .phases = { P::Top },
+        .planned = true,
+        .normative = { .heuristic = true },
+        .requirement = { .imuRoles = { R::Pelvis, R::Thorax } },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("xFactorStretch"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("X-factor stretch"),
+        .shortLabel = QStringLiteral("X-stretch"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Body rotation"),
+        .description = QStringLiteral(
+            "The extra separation gained early in the downswing: max(X-factor over early "
+            "downswing) − X-factor at the top. The stretch-shorten power signal."),
+        .howToRead = QStringLiteral(
+            "Larger = more stored stretch; a better speed predictor than static X-factor. "
+            "Reference ~5°. Will need pelvis + thorax IMUs."),
+        .phases = { P::Transition, P::Downswing },
+        .planned = true,
+        .normative = { .heuristic = true },
+        .requirement = { .imuRoles = { R::Pelvis, R::Thorax } },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("hipInternalRotation"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Hip internal rotation"),
+        .shortLabel = QStringLiteral("Hip rotation"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Body rotation"),
+        .description = QStringLiteral(
+            "True hip-joint rotation — thigh axial turn relative to the pelvis, per side."),
+        .howToRead = QStringLiteral(
+            "Read at Top and Impact. Reference: lead ~50° / trail ~40° amplitude. Will need pelvis "
+            "+ thigh IMUs."),
+        .phases = { P::Top, P::Impact },
+        .planned = true,
+        .normative = { .heuristic = true },
+        .requirement = { .imuRoles = { R::Pelvis, R::LeadThigh, R::TrailThigh } },
+    });
+
+    // ------------------------------------------------ Spine & pelvis (PLANNED — camera-3D / fused)
+
+    cat.addDescriptor({
+        .key = QStringLiteral("spineForwardBend"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Spine forward bend"),
+        .shortLabel = QStringLiteral("Fwd bend"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Spine & pelvis"),
+        .description = QStringLiteral(
+            "Posture / forward bend — flexion-extension of the thorax relative to the pelvis."),
+        .howToRead = QStringLiteral(
+            "Read at Address and Impact; a retained ~30–40° (irons) from address is the goal. Will "
+            "need pelvis + thorax IMUs (or a 3D camera)."),
+        .phases = { P::Address, P::Impact },
+        .planned = true,
+        .normative = { .heuristic = true },
+        .requirement = { .imuRoles = { R::Pelvis, R::Thorax } },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("spineSideBend"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Spine side bend"),
+        .shortLabel = QStringLiteral("Side bend"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Spine & pelvis"),
+        .description = QStringLiteral(
+            "Lateral flexion (trail-side bend) of the thorax relative to the pelvis."),
+        .howToRead = QStringLiteral(
+            "Read at Impact. Reference: thorax ~32° / pelvis ~10° at driver impact. Will need a "
+            "face-on camera (or IMUs)."),
+        .phases = { P::Impact },
+        .planned = true,
+        .normative = { .heuristic = true },
+        .requirement = { .faceOnCamera = true },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("secondaryAxisTilt"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Secondary axis tilt"),
+        .shortLabel = QStringLiteral("Axis tilt"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Spine & pelvis"),
+        .description = QStringLiteral(
+            "Spine lean away from the target — angle of the mid-hip→mid-shoulder vector from "
+            "vertical in the frontal plane."),
+        .howToRead = QStringLiteral(
+            "Read at Impact. Reference ~20–25° at impact (~6–8° at address). Will need a face-on "
+            "camera."),
+        .phases = { P::Impact },
+        .planned = true,
+        .normative = { .heuristic = true },
+        .requirement = { .faceOnCamera = true },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("pelvisSway"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Pelvis sway"),
+        .shortLabel = QStringLiteral("Sway"),
+        .unit = QStringLiteral("cm"),
+        .group = QStringLiteral("Spine & pelvis"),
+        .description = QStringLiteral(
+            "Lateral pelvis displacement along the target line relative to address."),
+        .howToRead = QStringLiteral(
+            "Away from target in the backswing, toward it in the downswing. Read near the top and "
+            "at Impact. Will need a face-on camera + ground plane."),
+        .phases = { P::Top, P::Impact },
+        .planned = true,
+        .normative = { .heuristic = true },
+        .requirement = { .faceOnCamera = true },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("pelvisThrust"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Pelvis thrust"),
+        .shortLabel = QStringLiteral("Thrust"),
+        .unit = QStringLiteral("cm"),
+        .group = QStringLiteral("Spine & pelvis"),
+        .description = QStringLiteral(
+            "Toward-ball pelvis displacement; positive too early is an early-extension fault."),
+        .howToRead = QStringLiteral(
+            "Should stay minimal toward the ball until late. Read in the downswing and at Impact. "
+            "Needs a down-the-line camera (the depth axis) — a lone face-on camera cannot resolve "
+            "it."),
+        .phases = { P::Downswing, P::Impact },
+        .planned = true,
+        .normative = { .heuristic = true },
+        .requirement = { .faceOnCamera = true, .minTier = ReconstructionTier::Stereo3D },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("pelvisLift"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Pelvis lift"),
+        .shortLabel = QStringLiteral("Lift"),
+        .unit = QStringLiteral("cm"),
+        .group = QStringLiteral("Spine & pelvis"),
+        .description = QStringLiteral("Vertical pelvis displacement relative to address."),
+        .howToRead = QStringLiteral(
+            "A small controlled rise is normal. Read at Impact. Will need a face-on camera + "
+            "ground plane."),
+        .phases = { P::Impact },
+        .planned = true,
+        .normative = { .heuristic = true },
+        .requirement = { .faceOnCamera = true },
+    });
+
     // ------------------------------------------------------- Club & speed (face-on club track, 2D)
 
     cat.addDescriptor({
@@ -266,6 +477,173 @@ void installMetricManifest(MetricCatalogue &cat)
         .normative = { .heuristic = true },
         .requirement = { .faceOnCamera = true, .clubTrack = true },
         .usedBy = { QStringLiteral("chart:review") },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("impactShaftLean"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Shaft lean"),
+        .shortLabel = QStringLiteral("Shaft lean"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Club & speed"),
+        .description = QStringLiteral(
+            "Forward shaft lean — the shaft's angle from vertical, from the tracked club/shaft."),
+        .howToRead = QStringLiteral(
+            "Read at Impact; forward lean (hands ahead of the ball) is typical for irons. Needs "
+            "the face-on club track. Wrist Motion session."),
+        .phases = { P::Impact },
+        .normative = { .heuristic = true },
+        .requirement = { .faceOnCamera = true, .clubTrack = true },
+        .usedBy = { QStringLiteral("chart:review") },
+    });
+
+    // ------------------------------------------------ Club delivery (PLANNED — club track / DTL)
+
+    cat.addDescriptor({
+        .key = QStringLiteral("swingPlane"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Swing plane"),
+        .shortLabel = QStringLiteral("Plane"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Club delivery"),
+        .description = QStringLiteral(
+            "Best-fit plane of the clubhead (or lead-hand proxy) path over the knee-to-knee "
+            "downswing — reported as tilt vs ground plus azimuth."),
+        .howToRead = QStringLiteral(
+            "Read over the downswing; values are club-dependent. A down-the-line camera is the "
+            "classic swing-plane view. Will need the club track."),
+        .phases = { P::Downswing },
+        .planned = true,
+        .normative = { .heuristic = true },
+        .requirement = { .clubTrack = true, .minTier = ReconstructionTier::Stereo3D },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("clubPath"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Club path"),
+        .shortLabel = QStringLiteral("Path"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Club delivery"),
+        .description = QStringLiteral(
+            "Horizontal angle of the clubhead velocity vs the target line at impact "
+            "(+ in-to-out / − out-to-in)."),
+        .howToRead = QStringLiteral(
+            "Read at Impact; near 0 ± a few degrees. The discriminating axis is the optical axis, "
+            "so this is a canonical down-the-line metric. Will need the club track + a DTL camera."),
+        .phases = { P::Impact },
+        .planned = true,
+        .normative = { .heuristic = true },
+        .requirement = { .clubTrack = true, .minTier = ReconstructionTier::Stereo3D },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("attackAngle"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Attack angle"),
+        .shortLabel = QStringLiteral("Attack"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Club delivery"),
+        .description = QStringLiteral("Vertical angle of the clubhead velocity at impact."),
+        .howToRead = QStringLiteral(
+            "Read at Impact. Reference: driver ~−1.3°, 7-iron ~−4.5° (TrackMan). Will need the "
+            "club track (a DTL camera makes it fully in-plane)."),
+        .phases = { P::Impact },
+        .planned = true,
+        .normative = { .heuristic = true },
+        .requirement = { .clubTrack = true, .minTier = ReconstructionTier::Stereo3D },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("faceAngle"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Face angle"),
+        .shortLabel = QStringLiteral("Face"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Club delivery"),
+        .description = QStringLiteral(
+            "Horizontal angle of the clubface normal vs the target line at impact — the primary "
+            "gate on ball start direction."),
+        .howToRead = QStringLiteral(
+            "Read at Impact; small open/closed. Needs a club device (or club tracking); a camera "
+            "alone gives only a labelled forearm+wrist proxy."),
+        .phases = { P::Impact },
+        .planned = true,
+        .normative = { .heuristic = true },
+        .requirement = { .clubTrack = true, .minTier = ReconstructionTier::ClubInstrumented },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("lowPointAhead"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Low point"),
+        .shortLabel = QStringLiteral("Low pt"),
+        .unit = QStringLiteral("in"),
+        .group = QStringLiteral("Club delivery"),
+        .description = QStringLiteral(
+            "Signed target-line distance from the ball to the clubhead arc's low point "
+            "(+ ahead = a descending blow)."),
+        .howToRead = QStringLiteral(
+            "Read near Impact; + (ahead of the ball) is a descending blow for irons, driver is "
+            "behind. Will need a face-on camera with shaft-head + ball tracking; deferred pending "
+            "the measured-clubhead detector."),
+        .phases = { P::Impact },
+        .planned = true,
+        .normative = { .heuristic = true },
+        .requirement = { .faceOnCamera = true, .clubTrack = true, .ballTrack = true },
+    });
+
+    // --------------------------------------------- Tempo & sequence (PLANNED — phase events / fused)
+
+    cat.addDescriptor({
+        .key = QStringLiteral("tempoBackswing"),
+        .type = MetricType::Summary,
+        .label = QStringLiteral("Backswing tempo"),
+        .shortLabel = QStringLiteral("Backswing"),
+        .unit = QStringLiteral("s"),
+        .group = QStringLiteral("Tempo & sequence"),
+        .description = QStringLiteral("Duration of the backswing (Address → Top)."),
+        .howToRead = QStringLiteral(
+            "Reference ~0.75–0.85 s (TPI 0.847 ± 0.111). Will need a segmented swing (phase "
+            "events)."),
+        .planned = true,
+        .normative = { .heuristic = true },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("tempoRatio"),
+        .type = MetricType::Summary,
+        .label = QStringLiteral("Tempo ratio"),
+        .shortLabel = QStringLiteral("Tempo"),
+        .unit = QString(),
+        .group = QStringLiteral("Tempo & sequence"),
+        .description = QStringLiteral(
+            "Backswing-to-downswing time ratio (backswing time ÷ Top→Impact time)."),
+        .howToRead = QStringLiteral(
+            "Reference ~3:1 (tour 2.2–3.0:1). Will need a segmented swing."),
+        .planned = true,
+        .normative = { .heuristic = true },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("kinematicSequence"),
+        .type = MetricType::Sequence,
+        .label = QStringLiteral("Kinematic sequence"),
+        .shortLabel = QStringLiteral("Sequence"),
+        .unit = QString(),
+        .group = QStringLiteral("Tempo & sequence"),
+        .description = QStringLiteral(
+            "The proximal-to-distal peak-speed sequence — the order, timing gaps and magnitudes of "
+            "peak axial angular speed for pelvis → thorax → lead-arm → club."),
+        .howToRead = QStringLiteral(
+            "Look for a clean proximal-to-distal order with only the club still accelerating "
+            "through impact (reference peaks e.g. pelvis ~480, thorax ~605, lead-arm ~1310 °/s; "
+            "transition ~50 ms). Will need body IMUs (pelvis + thorax + lead forearm) and the club "
+            "track."),
+        .phases = { P::Transition, P::Impact },
+        .planned = true,
+        .normative = { .heuristic = true },
+        .requirement = { .imuRoles = { R::Pelvis, R::Thorax, R::LeadForearm }, .clubTrack = true },
     });
 
     // ------------------------------------------------ Feet & stance (whole-body pose, face-on, 2D)
@@ -358,6 +736,139 @@ void installMetricManifest(MetricCatalogue &cat)
             "A per-frame curve. Some lift at the top is common; staying grounded is a style "
             "choice. Read the trend, not an absolute. Needs a face-on whole-body camera."),
         .phases = { P::Top },
+        .normative = { .heuristic = true },
+        .requirement = { .faceOnCamera = true },
+        .usedBy = { QStringLiteral("chart:review") },
+    });
+
+    // -------------------------------------------- Alignment (PLANNED — pose lines at address/impact)
+
+    cat.addDescriptor({
+        .key = QStringLiteral("shoulderAlignment"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Shoulder alignment"),
+        .shortLabel = QStringLiteral("Shoulders"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Alignment"),
+        .description = QStringLiteral(
+            "Angle of the shoulder line (lead→trail shoulder) in the image plane — how open or "
+            "closed the shoulders are."),
+        .howToRead = QStringLiteral(
+            "Read at Address and Impact; square at address and a touch open at impact is typical. "
+            "Will need a face-on camera (a down-the-line view gives true target-line alignment)."),
+        .phases = { P::Address, P::Impact },
+        .planned = true,
+        .normative = { .heuristic = true },
+        .requirement = { .faceOnCamera = true },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("elbowAlignment"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Elbow alignment"),
+        .shortLabel = QStringLiteral("Elbows"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Alignment"),
+        .description = QStringLiteral(
+            "Angle of the line between the elbows (lead→trail elbow) in the image plane."),
+        .howToRead = QStringLiteral(
+            "Read at Address and Impact; reflects how the arms are structured through the strike. "
+            "Will need a face-on camera."),
+        .phases = { P::Address, P::Impact },
+        .planned = true,
+        .normative = { .heuristic = true },
+        .requirement = { .faceOnCamera = true },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("hipAlignment"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Hip alignment"),
+        .shortLabel = QStringLiteral("Hips"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Alignment"),
+        .description = QStringLiteral(
+            "Angle of the hip line (lead→trail hip) in the image plane — how open or closed the "
+            "hips are."),
+        .howToRead = QStringLiteral(
+            "Read at Address and Impact; the hips are typically more open than the shoulders at "
+            "impact. Will need a face-on camera (down-the-line for true target-line alignment)."),
+        .phases = { P::Address, P::Impact },
+        .planned = true,
+        .normative = { .heuristic = true },
+        .requirement = { .faceOnCamera = true },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("feetAlignment"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Feet alignment"),
+        .shortLabel = QStringLiteral("Feet"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Alignment"),
+        .description = QStringLiteral(
+            "Angle of the foot line (lead→trail ankle) in the image plane — the stance line."),
+        .howToRead = QStringLiteral(
+            "Read at Address and Impact; complements the address-only toe line. Will need a "
+            "face-on camera."),
+        .phases = { P::Address, P::Impact },
+        .planned = true,
+        .normative = { .heuristic = true },
+        .requirement = { .faceOnCamera = true },
+    });
+
+    // ---------------------------------------------------- Head (whole-body pose, face-on, 2D; live)
+
+    cat.addDescriptor({
+        .key = QStringLiteral("headSway"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Head sway"),
+        .shortLabel = QStringLiteral("Head sway"),
+        .unit = QStringLiteral("×frame"),
+        .group = QStringLiteral("Head"),
+        .description = QStringLiteral(
+            "Lateral head displacement relative to address, as a fraction of frame width "
+            "(isotropic)."),
+        .howToRead = QStringLiteral(
+            "A per-frame curve; some lateral movement is normal, excessive sway is a fault — read "
+            "the trend. Needs a face-on camera. Wrist Motion session."),
+        .phases = { P::Top, P::Impact },
+        .normative = { .heuristic = true },
+        .requirement = { .faceOnCamera = true },
+        .usedBy = { QStringLiteral("chart:review") },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("headLift"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Head lift"),
+        .shortLabel = QStringLiteral("Head lift"),
+        .unit = QStringLiteral("×frame"),
+        .group = QStringLiteral("Head"),
+        .description = QStringLiteral(
+            "Vertical head displacement relative to address, as a fraction of frame width; "
+            "+ = the head rises."),
+        .howToRead = QStringLiteral(
+            "A per-frame curve; read the trend against address. Needs a face-on camera. Wrist "
+            "Motion session."),
+        .phases = { P::Top, P::Impact },
+        .normative = { .heuristic = true },
+        .requirement = { .faceOnCamera = true },
+        .usedBy = { QStringLiteral("chart:review") },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("headTilt"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Head tilt"),
+        .shortLabel = QStringLiteral("Head tilt"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Head"),
+        .description = QStringLiteral("Eye-line tilt angle relative to address."),
+        .howToRead = QStringLiteral(
+            "A per-frame curve of the eye-line angle change from address. Needs a face-on camera. "
+            "Wrist Motion session."),
+        .phases = { P::Top, P::Impact },
         .normative = { .heuristic = true },
         .requirement = { .faceOnCamera = true },
         .usedBy = { QStringLiteral("chart:review") },

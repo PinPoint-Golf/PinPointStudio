@@ -143,11 +143,17 @@ MetricCatalogue makeMetricCatalogue()
     static const WristMetricProvider     wristProvider;
     static const KinematicSeriesProvider kinematicProvider;
     static const FootMetricProvider      footProvider;
+    static const HeadMetricProvider      headProvider;
+    static const ShaftLeanProvider       shaftLeanProvider;
     static const ScoreProvider           scoreProvider;
+    static const PlannedMetricProvider   plannedProvider;
     cat.addProvider(&wristProvider);
     cat.addProvider(&kinematicProvider);
     cat.addProvider(&footProvider);
+    cat.addProvider(&headProvider);
+    cat.addProvider(&shaftLeanProvider);
     cat.addProvider(&scoreProvider);
+    cat.addProvider(&plannedProvider);
 
     return cat;
 }

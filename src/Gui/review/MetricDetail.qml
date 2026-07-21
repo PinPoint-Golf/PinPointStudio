@@ -39,9 +39,10 @@ Item {
     // Full descriptor map for the current key (empty when unset / unknown).
     readonly property var d: (mc && metricKey && metricKey.length > 0) ? mc.descriptor(metricKey) : ({})
 
-    readonly property var _norm:      (d && d.normative) ? d.normative : ({})
-    readonly property var _corridors: (_norm && _norm.corridors) ? _norm.corridors : []
-    readonly property var _usedBy:    (d && d.usedBy) ? d.usedBy : []
+    readonly property var  _norm:      (d && d.normative) ? d.normative : ({})
+    readonly property var  _corridors: (_norm && _norm.corridors) ? _norm.corridors : []
+    readonly property var  _usedBy:    (d && d.usedBy) ? d.usedBy : []
+    readonly property bool _planned:   (d && d.planned === true)   // roadmap placeholder
 
     // ── plain-language helpers ────────────────────────────────────────────────
     function _typeName(t) {
@@ -204,6 +205,40 @@ Item {
                         font.pixelSize:     Theme.fontSzMicro
                         font.letterSpacing: Theme.trackingMicro
                         color: Theme.colorAccent
+                    }
+                }
+            }
+
+            // ── Planned banner — this metric is a roadmap placeholder ──────────
+            Rectangle {
+                visible: root._planned
+                Layout.fillWidth: true
+                implicitHeight: plannedRow.implicitHeight + Theme.sp(20)
+                radius: Theme.radius
+                color: Theme.colorBg2
+                border.width: 1
+                border.color: Theme.colorBorderMid
+
+                RowLayout {
+                    id: plannedRow
+                    anchors.fill: parent
+                    anchors.margins: Theme.sp(10)
+                    spacing: Theme.sp(10)
+
+                    Text {
+                        text: "◷"
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzHeading
+                        color: Theme.colorText3
+                        Layout.alignment: Qt.AlignVCenter
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: qsTr("Planned — not yet produced in this build. The requirements below describe what it will need.")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody2
+                        color: Theme.colorText2
+                        wrapMode: Text.WordWrap
                     }
                 }
             }

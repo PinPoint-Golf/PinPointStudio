@@ -40,6 +40,7 @@ Item {
                                     : (metric.key || "")
     readonly property var    _sources: metric.sources || []
     readonly property bool   _hovered: rowMa.containsMouse
+    readonly property bool   _planned: metric.planned === true    // roadmap placeholder
 
     // Human-readable name for a MetricType token.
     function _typeName(t) {
@@ -103,8 +104,29 @@ Item {
                     text: root._label
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody
-                    color: root._hovered ? Theme.colorText : Theme.colorText
+                    color: root._planned ? Theme.colorText2 : Theme.colorText
                     elide: Text.ElideRight
+                }
+
+                // Roadmap placeholder marker.
+                Rectangle {
+                    visible: root._planned
+                    Layout.alignment: Qt.AlignVCenter
+                    implicitWidth:  plannedLbl.implicitWidth + Theme.sp(12)
+                    implicitHeight: Theme.sp(16)
+                    radius: Theme.radius
+                    color: "transparent"
+                    border.width: 1
+                    border.color: Theme.colorBorderMid
+                    Text {
+                        id: plannedLbl
+                        anchors.centerIn: parent
+                        text: qsTr("PLANNED")
+                        font.family:        Theme.fontData
+                        font.pixelSize:     Theme.fontSzMicro
+                        font.letterSpacing: Theme.trackingMicro
+                        color: Theme.colorText3
+                    }
                 }
             }
 

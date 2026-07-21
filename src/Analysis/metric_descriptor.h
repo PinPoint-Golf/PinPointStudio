@@ -80,6 +80,9 @@ struct MetricDescriptor {
 
     std::vector<Phase> phases;             // phases sampled (PointInTime) / where peak matters (TimeSeries)
     bool               scored = false;     // has a band and contributes to a score
+    // Roadmap placeholder: in the design catalogue but no producer yet (always resolves Unavailable).
+    // Surfaced so the directory can badge it "Planned" — the requirement then reads as "will need …".
+    bool               planned = false;
 
     MetricNormative    normative;
     // NB: named `requirement`, NOT `requires` — `requires` is a C++20 keyword and cannot be an identifier.

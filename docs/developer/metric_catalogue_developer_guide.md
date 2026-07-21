@@ -32,12 +32,20 @@ Design invariants (do not break):
   `makeMetricCatalogue()` (mirrors `makeReferenceBandProvider(Kind)`), which installs the manifest
   and a fixed provider set. This matches the Analysis module's ban on stage/provider registration
   (`analysis_stage.h` anti-goals).
-- **Live producers, plus documented aspirational.** v1 declares the 12 `MetricSeries` keys real
-  producers emit (metric_extractor ×4, kinematic_series ×3, foot_metrics ×5) and 3 `Summary` scores
-  sourced from the `ScoreBreakdown` (not `MetricSeries`): `wristScore` / `wristResemblance` (live for
-  the Wrist session) and `swingScore` (aspirational — the swing adherence scorer is not wired, so it
-  is declared but always resolves `Unavailable`). Prefer live producers; only declare an aspirational
-  metric deliberately, and make its provider return `Unavailable` with a clear reason.
+- **The full design catalogue — live + planned.** The manifest declares every metric in
+  `shot_analyzer_design.md §A`, each either **live** (a producer emits it) or a **planned**
+  placeholder (`.planned = true`, no producer yet). Live today: metric_extractor ×4,
+  kinematic_series ×3, shaft-lean, foot_metrics ×5, head_track ×3, plus the `wristScore` /
+  `wristResemblance` `Summary` scores (sourced from a `ScoreBreakdown`, not a `MetricSeries`).
+  Planned: the whole-body rotation / spine / pelvis / club-delivery / tempo / kinematic-sequence /
+  address-and-impact alignment (shoulder / elbow / hip / feet) metrics and `swingScore`.
+- **Placeholders resolve "planned", not "missing sensors".** The `PlannedMetricProvider` claims every
+  planned key and always returns `Unavailable` with reason `"planned — not yet produced in this
+  build"`, regardless of the shot's capability — a planned metric's `.requirement` is documentation
+  of *what it will need*, surfaced as "will need …" on the detail page and a **Planned** badge in the
+  directory. **Promoting a placeholder to live:** add the producer, drop `.planned`, move the key out
+  of `PlannedMetricProvider::provides()` into a real provider that returns `Measured` when capable,
+  and update the metric_catalogue_test counts.
 
 Two easy traps:
 - The descriptor member is `requirement`, **not** `requires` — `requires` is a C++20 keyword and

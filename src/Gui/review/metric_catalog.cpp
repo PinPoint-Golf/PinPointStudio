@@ -108,6 +108,7 @@ QVariantMap rowMap(const MetricDescriptor &d, const MetricAvailability &a)
     m.insert(QStringLiteral("type"),         metricTypeName(d.type));
     m.insert(QStringLiteral("group"),        d.group);
     m.insert(QStringLiteral("scored"),       d.scored);
+    m.insert(QStringLiteral("planned"),      d.planned);
     m.insert(QStringLiteral("sources"),      sourceHints(d.requirement));
     m.insert(QStringLiteral("availability"), availabilityMap(a));
     return m;

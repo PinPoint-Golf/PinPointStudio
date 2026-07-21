@@ -110,6 +110,41 @@ MetricAvailability FootMetricProvider::availability(const QString &key, const Sh
     return fromRequirement(req, ctx);
 }
 
+// ------------------------------------------------------------------------------ HeadMetricProvider
+
+std::vector<QString> HeadMetricProvider::provides() const
+{
+    return { QStringLiteral("headSway"), QStringLiteral("headLift"), QStringLiteral("headTilt") };
+}
+
+MetricAvailability HeadMetricProvider::availability(const QString &key, const ShotContext &ctx) const
+{
+    Q_UNUSED(key)
+    if (!wristSessionOk(ctx.sessionType))
+        return wristSessionOnly();
+    MetricRequirement req;
+    req.faceOnCamera = true;                       // head keypoints from the face-on pose
+    return fromRequirement(req, ctx);
+}
+
+// ------------------------------------------------------------------------------- ShaftLeanProvider
+
+std::vector<QString> ShaftLeanProvider::provides() const
+{
+    return { QStringLiteral("impactShaftLean") };
+}
+
+MetricAvailability ShaftLeanProvider::availability(const QString &key, const ShotContext &ctx) const
+{
+    Q_UNUSED(key)
+    if (!wristSessionOk(ctx.sessionType))
+        return wristSessionOnly();
+    MetricRequirement req;
+    req.faceOnCamera = true;
+    req.clubTrack    = true;                        // shaft lean from the club/shaft track
+    return fromRequirement(req, ctx);
+}
+
 // ---------------------------------------------------------------------------------- ScoreProvider
 
 std::vector<QString> ScoreProvider::provides() const
@@ -136,6 +171,40 @@ MetricAvailability ScoreProvider::availability(const QString &key, const ShotCon
     MetricRequirement req;
     req.imuRoles = { SegmentRole::LeadForearm, SegmentRole::LeadHand };
     return fromRequirement(req, ctx);
+}
+
+// -------------------------------------------------------------------------- PlannedMetricProvider
+
+std::vector<QString> PlannedMetricProvider::provides() const
+{
+    // The design-catalogue metrics with no producer in this build. Keep in sync with the manifest's
+    // `.planned = true` descriptors (the metric_catalogue_test asserts they resolve Unavailable).
+    return {
+        QStringLiteral("pelvisRotation"),   QStringLiteral("thoraxRotation"),
+        QStringLiteral("xFactor"),          QStringLiteral("xFactorStretch"),
+        QStringLiteral("hipInternalRotation"),
+        QStringLiteral("spineForwardBend"), QStringLiteral("spineSideBend"),
+        QStringLiteral("secondaryAxisTilt"),
+        QStringLiteral("pelvisSway"),       QStringLiteral("pelvisThrust"),
+        QStringLiteral("pelvisLift"),
+        QStringLiteral("swingPlane"),       QStringLiteral("clubPath"),
+        QStringLiteral("attackAngle"),      QStringLiteral("faceAngle"),
+        QStringLiteral("lowPointAhead"),
+        QStringLiteral("tempoBackswing"),   QStringLiteral("tempoRatio"),
+        QStringLiteral("kinematicSequence"),
+        QStringLiteral("shoulderAlignment"), QStringLiteral("elbowAlignment"),
+        QStringLiteral("hipAlignment"),      QStringLiteral("feetAlignment"),
+    };
+}
+
+MetricAvailability PlannedMetricProvider::availability(const QString &key, const ShotContext &ctx) const
+{
+    Q_UNUSED(key)
+    MetricAvailability a;
+    a.tier   = ctx.tier;
+    a.state  = MetricAvailability::Unavailable;
+    a.reason = QStringLiteral("planned — not yet produced in this build");
+    return a;
 }
 
 } // namespace pinpoint::analysis
