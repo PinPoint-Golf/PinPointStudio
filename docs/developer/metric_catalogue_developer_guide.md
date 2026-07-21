@@ -166,3 +166,111 @@ The new-dashboard rewrite (query-driven zones); the kinematic **Sequence** produ
 `ballPosition` (no producer); wiring a live swing adherence scorer so `swingScore` becomes Measured;
 a non-DOF `SpeedBandProvider` / player-baseline normative provider; retiring
 `ChartMetrics::shortLabel` once the catalogue is the single source of short names.
+
+## Appendix A — per-metric work plan (capture · detection · calibration · V&V)
+
+The work needed to bring each metric to production, across the pipeline stages. For **live** metrics
+the cells describe what is already in place (the producer + its test); for **planned** metrics they
+describe the outstanding work. This is a roadmap, not a contract — effort estimates live in the
+per-feature plans, and every "validate" step is corpus-scale (a single labelled swing is development
+data only). Promote a planned metric only when all four columns are satisfied.
+
+**Legend.** Capture: `F/H/U` = lead forearm/hand/upper-arm IMU · `Plv/Thx/Thg` = pelvis/thorax/thigh
+IMU · `FaceCam` = face-on whole-body camera (pose) · `DTL` = down-the-line camera (depth axis) ·
+`Club` = shaft/club track · `Ball` = ball track · `Phases` = segmentation phase events.
+Calibration: `anat+mount` = IMU anatomical zero + mount check ([[calibration-state-signals]]) ·
+`camCal` = camera intrinsic/extrinsic (`cameraFixedInPlace`) · `ground` = ground-plane · `px→mm` =
+ball-scale (`setup.ballDetection`) · `stereo` = DTL/stereo extrinsics · `clubDev` = club-device mount.
+V&V: unit = header-only standalone test (`src/Analysis/tests`); validation source in parentheses.
+
+### Score
+
+| Metric | Status | Capture | Detection | Calibration | Verification & validation |
+|---|---|---|---|---|---|
+| `wristScore` | live | F+H (+U) | WristAssessmentEngine rollup ✓ | anat+mount | `composite_score_v2_test` · (corpus: score stability) |
+| `wristResemblance` | live | F+H | WristResemblanceScorer ✓ | anat+mount | `wrist_resemblance_test` · (corpus: per-archetype) |
+| `swingScore` | planned | Plv+Thx + FaceCam | wire a live adherence scorer (SwingScorer is dark) | anat+mount, camCal | `swing_scorer_test` (exists) · (corpus: adherence vs coach) |
+
+### Wrist & forearm
+
+| Metric | Status | Capture | Detection | Calibration | Verification & validation |
+|---|---|---|---|---|---|
+| `leadWristFlexExt` | live | F+H | MetricExtractor Cardan-1 ✓ | anat+mount | `wrist_angles_test` · per-rig sign ("check your sensors") · (corpus) |
+| `leadWristRadUln` | live | F+H | MetricExtractor Cardan-2 ✓ | anat+mount | `wrist_angles_test` · (corpus; weakest IMU axis ~5°) |
+| `forearmPronation` | live | F+H+U | MetricExtractor twist ✓ | anat+mount | `wrist_angles_test` · (corpus) |
+| `leadArmFlexion` | live | F+H+U | MetricExtractor elbow angle ✓ | anat+mount | `wrist_angles_test` · (corpus) |
+
+### Body rotation
+
+| Metric | Status | Capture | Detection | Calibration | Verification & validation |
+|---|---|---|---|---|---|
+| `pelvisRotation` | planned | Plv (slot map lacks a pelvis mount today) | axial `turn(e_ml)` extractor | anat+mount | new unit · (mocap ground truth) |
+| `thoraxRotation` | planned | Thx | axial-turn extractor | anat+mount | new unit · (mocap) |
+| `xFactor` | planned | Plv+Thx | thorax−pelvis separation | anat+mount (both) | new unit · (mocap) |
+| `xFactorStretch` | planned | Plv+Thx | early-downswing peak − top | anat+mount (both) | new unit · (corpus: speed correlation) |
+| `hipInternalRotation` | planned | Plv+Thg | thigh-vs-pelvis twist | anat+mount (pelvis+thigh) | new unit · (mocap) |
+
+### Spine & pelvis
+
+| Metric | Status | Capture | Detection | Calibration | Verification & validation |
+|---|---|---|---|---|---|
+| `spineForwardBend` | planned | Plv+Thx (or 3D cam) | thorax-rel-pelvis flex | anat+mount / camCal | new unit · (mocap) |
+| `spineSideBend` | planned | FaceCam (or IMU) | lateral flexion | camCal | new unit · (mocap) |
+| `secondaryAxisTilt` | planned | FaceCam | frontal spine vector vs vertical | camCal, ground | new unit · (mocap) |
+| `pelvisSway` | planned | FaceCam + ground | lateral pelvis translation | camCal, ground | new unit · (mocap) |
+| `pelvisThrust` | planned | **DTL** (optical axis) | toward-ball translation | stereo | new unit · (mocap; needs depth) |
+| `pelvisLift` | planned | FaceCam + ground | vertical translation | camCal, ground | new unit · (mocap) |
+
+### Club & speed
+
+| Metric | Status | Capture | Detection | Calibration | Verification & validation |
+|---|---|---|---|---|---|
+| `clubheadSpeed` | live | Club | `buildKinematicSeries` head-path speed ✓ | px→mm / ground | `kinematic_series_test` · (launch monitor) |
+| `handSpeed` | live | Club (grip) | grip-path speed ✓ | px→mm | `kinematic_series_test` · (launch monitor) |
+| `lagAngle` | live | Club + FaceCam pose | forearm-vs-shaft angle ✓ | px→mm, pose | `kinematic_series_test` · (strobe/montage review) |
+| `impactShaftLean` | live | Club | shaft-lean stage ✓ | px→mm | `shaft_*` tests · (corpus) |
+
+### Club delivery
+
+| Metric | Status | Capture | Detection | Calibration | Verification & validation |
+|---|---|---|---|---|---|
+| `swingPlane` | planned | Club (DTL best) | SVD best-fit plane of head path | camCal | new unit · (DTL cross-check) |
+| `clubPath` | planned | **DTL** + Club | horizontal velocity angle | stereo | new unit · (launch monitor) |
+| `attackAngle` | planned | Club (DTL) | vertical velocity angle | camCal / stereo | new unit · (launch monitor) |
+| `faceAngle` | planned | **clubDev** (or Club proxy) | clubface-normal angle | clubDev | new unit · (launch monitor) |
+| `lowPointAhead` | planned | FaceCam shaft-head + Ball | arc low-point vs ball (needs measured clubhead) | px→mm | `low_point_*` · (corpus) |
+
+### Tempo & sequence
+
+| Metric | Status | Capture | Detection | Calibration | Verification & validation |
+|---|---|---|---|---|---|
+| `tempoBackswing` | planned | Phases | Address→Top duration (segmentation-only; easy) | none | `phase_segmenter_test` · (corpus) |
+| `tempoRatio` | planned | Phases | backswing ÷ downswing time | none | `phase_segmenter_test` · (corpus) |
+| `kinematicSequence` | planned | Plv+Thx+F + Club | per-segment peak-ω order/timing stage (Sequence shape) | anat+mount | new unit · (mocap sequence) |
+
+### Feet & stance
+
+| Metric | Status | Capture | Detection | Calibration | Verification & validation |
+|---|---|---|---|---|---|
+| `stanceWidth` | live | FaceCam | `buildFootSeries` heel-to-heel ✓ | none (×frame isotropic) | `foot_metrics_test` · (corpus) |
+| `leadFootFlare` | live | FaceCam | foot heel→bigtoe angle ✓ | none | `foot_metrics_test` · (corpus) |
+| `trailFootFlare` | live | FaceCam | foot heel→bigtoe angle ✓ | none | `foot_metrics_test` · (corpus) |
+| `toeLineAngle` | live | FaceCam | bigtoe→bigtoe line angle ✓ | none | `foot_metrics_test` · (corpus) |
+| `leadHeelLift` | live | FaceCam | heel-vs-toe elevation curve ✓ | none | `foot_metrics_test` · (corpus) |
+
+### Alignment
+
+| Metric | Status | Capture | Detection | Calibration | Verification & validation |
+|---|---|---|---|---|---|
+| `shoulderAlignment` | planned | FaceCam (DTL for target-line) | shoulder-line angle @Address+Impact | camCal (target-line ref needs DTL) | new unit · (corpus) |
+| `elbowAlignment` | planned | FaceCam | elbow-line angle @Address+Impact | camCal | new unit · (corpus) |
+| `hipAlignment` | planned | FaceCam (DTL for target-line) | hip-line angle @Address+Impact | camCal | new unit · (corpus) |
+| `feetAlignment` | planned | FaceCam | ankle-line angle @Address+Impact | camCal | new unit · (corpus) |
+
+### Head
+
+| Metric | Status | Capture | Detection | Calibration | Verification & validation |
+|---|---|---|---|---|---|
+| `headSway` | live | FaceCam | `buildHeadSeries` lateral disp ✓ | none (×frame isotropic) | `head_track_test` · (corpus) |
+| `headLift` | live | FaceCam | `buildHeadSeries` vertical disp ✓ | none | `head_track_test` · (corpus) |
+| `headTilt` | live | FaceCam | `buildHeadSeries` eye-line angle ✓ | none | `head_track_test` · (corpus) |
