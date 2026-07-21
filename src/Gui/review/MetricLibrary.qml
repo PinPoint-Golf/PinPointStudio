@@ -32,8 +32,10 @@ Item {
     id: root
 
     // ── façade + labels (declared declaratively; assembled once, read-only) ────
-    MetricCatalog  { id: mc }
-    TimelineLabels { id: labels }
+    // NB: ids must NOT collide with MetricDetail's `mc`/`labels` properties — inside the Loader's
+    // Component, `mc: mc` would self-reference the (undefined) local property, blanking the detail.
+    MetricCatalog  { id: catalog }
+    TimelineLabels { id: metricLabels }
 
     // ── view state ────────────────────────────────────────────────────────────
     property string _typeFilter:  ""    // "" = all types
@@ -64,10 +66,10 @@ Item {
     function _query(group) {
         var f = root._baseFilters()
         f.group = group
-        return mc.query(f, {})
+        return catalog.query(f, {})
     }
     // Total rows under the active type filter (drives the empty state).
-    readonly property int _totalCount: mc.query(root._baseFilters(), {}).length
+    readonly property int _totalCount: catalog.query(root._baseFilters(), {}).length
 
     // ══ Directory (master) ════════════════════════════════════════════════════
     ScrollView {
@@ -141,7 +143,7 @@ Item {
 
                 // One chip per metric type
                 Repeater {
-                    model: mc.types
+                    model: catalog.types
                     delegate: Rectangle {
                         required property var modelData
                         readonly property bool active: root._typeFilter === modelData
@@ -177,7 +179,7 @@ Item {
 
             // ── Grouped metric list ────────────────────────────────────────────
             Repeater {
-                model: mc.groups
+                model: catalog.groups
                 delegate: ColumnLayout {
                     id: groupBlock
                     required property var modelData
@@ -231,8 +233,9 @@ Item {
         visible: active
         sourceComponent: Component {
             MetricDetail {
-                mc:        mc
-                labels:    labels
+                anchors.fill: parent   // fill the Loader — else width-dependent body text collapses
+                mc:        catalog
+                labels:    metricLabels
                 metricKey: root._selectedKey
                 onBack:    root._selectedKey = ""
             }
