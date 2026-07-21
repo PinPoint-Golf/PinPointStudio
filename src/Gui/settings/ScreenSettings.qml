@@ -59,7 +59,7 @@ Item {
             var panels = [
                 generalPanel, appearancePanel, displaysPanel,
                 camerasPanel, imusPanel, microphonesPanel,
-                null, storagePanel
+                null, storagePanel, null, metricLibraryPanel
             ]
             var panel = panels[entry.panelIndex]
             if (panel) scrollWithRetry(panel, entry.itemId, 0)
@@ -186,7 +186,8 @@ Item {
                                 { navIdx: 5, icon: "♪", label: qsTr("Microphone"),     sectionHead: "",               hasBadge: false },
                                 { navIdx: 6, icon: "◎", label: qsTr("Launch Monitor"), sectionHead: "",               hasBadge: false },
                                 { navIdx: 7, icon: "▥", label: qsTr("Storage"),        sectionHead: qsTr("Data"),     hasBadge: false },
-                                { navIdx: 8, icon: "▤", label: qsTr("Archiving"),      sectionHead: "",               hasBadge: false }
+                                { navIdx: 8, icon: "▤", label: qsTr("Archiving"),      sectionHead: "",               hasBadge: false },
+                                { navIdx: 9, icon: "≣", label: qsTr("Metrics"),        sectionHead: qsTr("Reference"), hasBadge: false }
                             ]
 
                             delegate: Column {
@@ -479,6 +480,7 @@ Item {
                 ScreenPlaceholder { titleText: "Launch Monitor" }                                          // 6
                 StoragePanel {    id: storagePanel;    Layout.fillWidth: true; Layout.fillHeight: true }  // 7
                 ScreenPlaceholder { titleText: "Archiving" }                                               // 8
+                MetricLibrary {   id: metricLibraryPanel; Layout.fillWidth: true; Layout.fillHeight: true }  // 9
             }
         }
     }

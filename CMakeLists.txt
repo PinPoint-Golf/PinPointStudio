@@ -388,6 +388,10 @@ qt_add_qml_module(PinPointStudio
         src/Gui/review/PpDataViewer.qml
         src/Gui/review/PpCoverageStrip.qml
         src/Gui/review/PpPropertiesPanel.qml
+        src/Gui/review/MetricRow.qml
+        src/Gui/review/NormativeBar.qml
+        src/Gui/review/MetricDetail.qml
+        src/Gui/review/MetricLibrary.qml
         src/Gui/diagnostics/WristDiagnostics.qml
         src/Gui/diagnostics/DofTrajectoryStrip.qml
         src/Gui/diagnostics/PositionAngleGrid.qml
@@ -417,6 +421,8 @@ qt_add_qml_module(PinPointStudio
         src/Gui/review/timeline_labels.cpp
         src/Gui/review/chart_metrics.h
         src/Gui/review/chart_metrics.cpp
+        src/Gui/review/metric_catalog.h
+        src/Gui/review/metric_catalog.cpp
         src/Gui/diagnostics/wrist_diagnostics_model.h
         src/Gui/diagnostics/wrist_diagnostics_model.cpp
         src/Analysis/reference_bands.h
@@ -2229,6 +2235,16 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/shot_analyzer.cpp
     src/Analysis/swing_reanalyzer.h
     src/Analysis/swing_reanalyzer.cpp
+    src/Analysis/metric_type.h
+    src/Analysis/metric_descriptor.h
+    src/Analysis/metric_provider.h
+    src/Analysis/metric_catalogue.h
+    src/Analysis/metric_catalogue.cpp
+    src/Analysis/metric_resolver.h
+    src/Analysis/metric_resolver.cpp
+    src/Analysis/metric_catalogue_manifest.cpp
+    src/Analysis/metric_providers.h
+    src/Analysis/metric_providers.cpp
 )
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)
@@ -2480,6 +2496,10 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/head_track.cpp
         src/Analysis/foot_metrics.cpp
         src/Analysis/pose_wrist_angle_source.cpp
+        src/Analysis/metric_catalogue.cpp
+        src/Analysis/metric_resolver.cpp
+        src/Analysis/metric_catalogue_manifest.cpp
+        src/Analysis/metric_providers.cpp
         src/Export/frame_decode.cpp
         src/Export/swing_doc.cpp
         src/Export/swing_paths.cpp

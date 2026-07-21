@@ -317,7 +317,14 @@ QtObject {
 
         { panelIndex: 7, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Sensor data"),
           label: qsTr("Save launch monitor data"),         subtitle: qsTr("Ball-flight data from connected launch monitor"),
-          itemId: "setting_saveLaunchMon" }
+          itemId: "setting_saveLaunchMon" },
+
+        // ── Metrics (panelIndex: 9) ───────────────────────────────────────────
+
+        { panelIndex: 9, panelLabel: qsTr("Metrics"),     groupLabel: qsTr("Metric catalogue"),
+          label: qsTr("Metric catalogue"),                 subtitle: qsTr("Browse every metric — meaning, how to read it, and requirements"),
+          actions: "metric catalogue directory reference normative corridor tour wrist bow cup hinge roll elbow clubhead hand speed lag stance foot flare toe heel",
+          itemId: "" }
 
         // TODO: add entries when Launch Monitor panel is implemented (panelIndex: 6)
         // TODO: add entries when Archiving panel is implemented (panelIndex: 8)

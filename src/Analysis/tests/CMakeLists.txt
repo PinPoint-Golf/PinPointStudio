@@ -137,6 +137,18 @@ pp_add_test(kinematic_series_test SOURCES kinematic_series_test.cpp ${ANALYSIS}/
 # track, no fixture.
 pp_add_test(foot_metrics_test SOURCES foot_metrics_test.cpp ${ANALYSIS}/foot_metrics.cpp)
 
+# Metric Catalogue (metric_catalogue / manifest / providers / resolver): descriptor
+# identity + metadata, per-shot availability resolution over the provider seam, and
+# normative-corridor delegation to reference_bands. Qt-only; reuses wristCheckpoints()
+# (wrist_analysis_adapter.h, header-only) for the Phase→P-position map; no fixture.
+pp_add_test(metric_catalogue_test
+    SOURCES metric_catalogue_test.cpp
+            ${ANALYSIS}/metric_catalogue.cpp
+            ${ANALYSIS}/metric_resolver.cpp
+            ${ANALYSIS}/metric_catalogue_manifest.cpp
+            ${ANALYSIS}/metric_providers.cpp
+            ${ANALYSIS}/reference_bands.cpp)
+
 # WB4 shared hand geometry (hand_axis.h): handCentroid (byte-identical to the
 # pose_runner original), computeGripAnchors (the pose.gripFromSmoothedHands
 # recompute + wrist fallback) and handAxisDirection (the ShaftTracker θ prior).
