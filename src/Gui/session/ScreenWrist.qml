@@ -122,7 +122,7 @@ Item {
                 chartsDelegate: Component { PpReplayCharts { sessionType: SessionController.Wrist } }
                 // Post-shot dashboard — the configurable, glanceable, wall-castable summary
                 // (Verdict/Setup/Motion/Sequence), broad-scope across session types.
-                dashboardDelegate: Component { PpDashboardPanel { sessionType: SessionController.Wrist } }
+                dashboardDelegate: Component { PpDashboardPanel { sessionType: SessionController.Wrist; interactive: true } }
                 // Wrist motion analysis — the detailed Tier-1 assessment surface (per-DOF
                 // trajectory strips, position×phase grid, findings). A normal stage panel:
                 // place/arrange it via the View control like camera/charts/table.

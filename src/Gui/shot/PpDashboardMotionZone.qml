@@ -16,13 +16,21 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Motion zone — headline cards for the time-series metrics. NO charts. The metric set
-// is SWING-AGNOSTIC (the dashboard is configured to display any swing): it shows the
-// zone's configured metrics — the pinned list, or by default every LIVE scored
-// time-series metric — and for the CURRENT swing reduces each one's curve to a big
-// band-tinted number (@impact where present, else peak) plus a micro sub-line. A
-// configured metric the swing has no value for shows "NA" (it is NOT dropped), so the
-// layout stays stable across swings. Reduction is ChartMetrics.summary (C++).
+// Motion zone — a grid of PpBandRail tiles, one per time-series metric. The rail is
+// the primary read (see PpBandRail): checkpoints in position order against their
+// normative corridor, which answers "was it in bounds, and where did it leave" —
+// the question a post-shot glance actually has. Speeds pass oneSided, so their
+// floor/target corridor is drawn as a zone rather than a band with an aspirational
+// ceiling that would crush the trace. A metric with no corridor yet degrades to the
+// rail's phase-anchored sparkline; nothing here ever renders as a bare number.
+//
+// The metric set is SWING-AGNOSTIC: the zone shows its CONFIGURED metrics (the pinned
+// list, else every live time-series metric) and joins each to the current swing. A
+// configured metric this swing has no curve for renders as a GHOST rail carrying "NA"
+// (live, not measured here) or "soon" (planned, no producer yet) — it is NOT dropped.
+// A fixed template is what keeps the layout stable across swings, which is what makes
+// the wall readable; and the ghosts double as a visible ledger of remaining pipeline
+// work. The zone therefore does not collapse.
 
 import QtQuick
 import QtQuick.Layouts
@@ -37,13 +45,18 @@ Item {
     property int sessionType: -1
     property var pinnedMetrics: []
 
-    readonly property int _phaseImpact: 5   // Phase::Impact
+    // Interaction (window only). playheadUs is -1 on the wall cast, so every rail's
+    // resting render there is identical to the in-app panel's at rest.
+    property bool interactive: false
+    property real playheadUs: -1
 
-    ChartMetrics   { id: cm }
-    TimelineLabels { id: labels }
+    signal metricActivated(string key)
+    signal seekRequested(real tUs)
 
-    readonly property var _cards: _build()
-    readonly property bool _hasContent: _cards.length > 0
+    readonly property int _phaseImpact: 5    // Phase::Impact
+
+    readonly property var _tiles: _build()
+    readonly property bool _hasContent: _tiles.length > 0
     implicitHeight: _hasContent ? card.implicitHeight : 0
     visible: _hasContent
 
@@ -52,28 +65,22 @@ Item {
         for (var i = 0; i < s.length; ++i) if (s[i].key === key) return s[i]
         return null
     }
-    function _sampleAt(series, phase) {
-        var ps = series && series.phaseSamples ? series.phaseSamples : []
-        for (var i = 0; i < ps.length; ++i) if (ps[i].phase === phase) return ps[i]
-        return null
-    }
-    function _bandColor(b) {
-        return b === "green"  ? Theme.colorRagGood
-             : b === "yellow" ? Theme.colorRagWatch
-             : b === "red"    ? Theme.colorRagFault
-             :                  Theme.colorText
-    }
-    function _fmtVal(v) {
-        var a = Math.abs(v)
-        return a >= 100 ? String(Math.round(v)) : String(Math.round(v * 10) / 10)
+
+    // Speeds are floor/target metrics: there is a number you want to EXCEED, not a
+    // band you want to sit inside. Keyed off the unit rather than the key name so a
+    // new speed metric picks it up without editing this list.
+    function _isOneSided(row, series) {
+        var u = (series && series.unit) ? series.unit : (row ? row.unit : "")
+        return u === "m/s" || u === "mph" || u === "°/s" || u === "deg/s"
     }
 
-    // Configured metric cards for this zone (swing-agnostic), each joined to the current
-    // swing → reduced value, or has=false ("NA").
+    // The zone's CONFIGURED metric set, each joined to the current swing. Queried
+    // WITHOUT availableOnly — the config is a swing-agnostic template, so a metric
+    // stays on the grid whether or not this particular rig could measure it.
     function _build() {
         var out = []
         if (!catalog) return out
-        var cat = catalog.query({ type: "timeSeries", scored: true }, {})
+        var cat = catalog.query({ type: "timeSeries" }, {})
         var byKey = {}
         for (var i = 0; i < cat.length; ++i) byKey[cat[i].key] = cat[i]
 
@@ -86,26 +93,35 @@ Item {
         }
 
         for (var k = 0; k < keys.length; ++k) {
-            var desc = byKey[keys[k]]
-            if (!desc) continue
-            var label = (desc.shortLabel && desc.shortLabel.length) ? desc.shortLabel : desc.label
+            var row = byKey[keys[k]]
+            if (!row) continue                                   // not in the catalogue at all
             var s = _seriesFor(keys[k])
-            if (!s || !s.t_us || s.t_us.length === 0) {
-                out.push({ label: label, unit: desc.unit, has: false,
-                           planned: desc.planned === true })   // NA / not-computed card
-                continue
-            }
-            var summ = cm.summary(s.t_us, s.value, s.t_us[0], s.t_us[s.t_us.length - 1])
-            var imp  = _sampleAt(s, _phaseImpact)
-            out.push({ label: label, unit: s.unit, has: true,
-                       value: imp ? imp.value : summ.peak,
-                       band:  imp ? imp.band  : "",
-                       peak:  summ.peak,
-                       peakPhase: labels.phaseShortTag(cm.nearestPhase(detail.phases, summ.tPeakUs)),
-                       impact: imp ? imp.value : NaN })
+            var has = s && s.t_us && s.t_us.length > 0
+            var desc = catalog.descriptor(keys[k], shotCtx)
+            out.push({ key: keys[k],
+                       label: (row.shortLabel && row.shortLabel.length) ? row.shortLabel : row.label,
+                       unit: has ? (s.unit || row.unit) : row.unit,
+                       has: has,
+                       // "soon" = planned (no producer yet); "NA" = live metric this
+                       // swing simply didn't measure. Distinct on purpose.
+                       emptyLabel: row.planned === true ? qsTr("soon") : qsTr("NA"),
+                       series: has ? s : null,
+                       corridors: (desc && desc.normative && desc.normative.corridors)
+                                  ? desc.normative.corridors : [],
+                       oneSided: _isOneSided(row, s) })
         }
         return out
     }
+
+    // Rails per row. A rail needs real width to separate its checkpoints — at a
+    // glance from across the room, two generous rails beat four cramped ones, so the
+    // thresholds are deliberately high and a narrow panel goes single-column rather
+    // than shrinking the tile.
+    readonly property real _gap: Theme.sp(8)
+    readonly property real _avail: Math.max(0, zone.width - Theme.sp(22))
+    readonly property int  _cols: _avail >= Theme.sp(1180) ? 3
+                                : _avail >= Theme.sp(700)  ? 2 : 1
+    readonly property real _tileW: (_avail - _gap * (_cols - 1)) / _cols
 
     Rectangle {
         id: card
@@ -119,7 +135,7 @@ Item {
         ColumnLayout {
             id: col
             anchors { left: parent.left; right: parent.right; top: parent.top
-                      leftMargin: Theme.sp(16); rightMargin: Theme.sp(14); topMargin: Theme.sp(11) }
+                      leftMargin: Theme.sp(11); rightMargin: Theme.sp(11); topMargin: Theme.sp(9) }
             spacing: Theme.sp(8)
 
             Text {
@@ -131,72 +147,66 @@ Item {
 
             Flow {
                 Layout.fillWidth: true
-                spacing: Theme.sp(10)
+                spacing: zone._gap
                 Repeater {
-                    model: zone._cards
-                    delegate: MetricCard { required property var modelData; data_: modelData }
+                    model: zone._tiles
+                    delegate: RailTile { required property var modelData; data_: modelData }
                 }
             }
         }
     }
 
-    component MetricCard: Rectangle {
+    component RailTile: Rectangle {
         property var data_: ({})
-        readonly property bool _has: data_.has === true
-        width: Theme.sp(150)
-        implicitHeight: mcCol.implicitHeight + Theme.sp(16)
-        radius: Theme.radius
-        color: Theme.colorBg
-        border.width: Theme.borderWidth
-        border.color: Theme.colorBorder
-        opacity: _has ? 1.0 : 0.6
 
-        Rectangle {
-            anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-            width: Theme.sp(3); radius: Theme.radius
-            color: _has ? zone._bandColor(data_.band) : Theme.colorRagNone
+        width: zone._tileW
+        implicitHeight: rail.implicitHeight + Theme.sp(18)
+        radius: Theme.radius
+        color: tileHover.hovered && zone.interactive ? Theme.colorBg2 : Theme.colorBg
+        border.width: Theme.borderWidth
+        border.color: tileHover.hovered && zone.interactive ? Theme.colorBorderMid : Theme.colorBorder
+        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+        PpBandRail {
+            id: rail
+            anchors { left: parent.left; right: parent.right; top: parent.top
+                      leftMargin: Theme.sp(11); rightMargin: Theme.sp(11); topMargin: Theme.sp(9) }
+
+            label: data_.label || ""
+            unit:  data_.unit || ""
+            phaseValues: data_.series && data_.series.phaseSamples ? data_.series.phaseSamples : []
+            corridors:   data_.corridors || []
+            curveT:      data_.series ? data_.series.t_us : []
+            curveV:      data_.series ? data_.series.value : []
+            impactPhase: zone._phaseImpact
+            oneSided:    data_.oneSided === true
+            emptyLabel:  data_.has ? "" : (data_.emptyLabel || qsTr("NA"))
+
+            interactive: zone.interactive
+            playheadUs:  zone.playheadUs
+
+            onSeekRequested:  (tUs) => zone.seekRequested(tUs)
+            onScrubRequested: (tUs) => zone.seekRequested(tUs)
         }
 
-        ColumnLayout {
-            id: mcCol
-            anchors { left: parent.left; right: parent.right; top: parent.top
-                      leftMargin: Theme.sp(12); rightMargin: Theme.sp(8); topMargin: Theme.sp(8) }
-            spacing: Theme.sp(1)
-            Text {
-                text: (data_.label || "").toUpperCase()
-                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
-                elide: Text.ElideRight; Layout.fillWidth: true
-            }
-            RowLayout {
-                spacing: Theme.sp(3)
-                Text {
-                    // Value, else "NA" (live, no value this swing) or "soon" (planned).
-                    text: _has ? zone._fmtVal(data_.value)
-                               : (data_.planned ? qsTr("soon") : qsTr("NA"))
-                    font.family: Theme.fontData
-                    font.pixelSize: _has ? Theme.sp(28) : Theme.sp(22); font.weight: Font.DemiBold
-                    font.italic: !_has && data_.planned === true
-                    color: _has ? zone._bandColor(data_.band) : Theme.colorText3
-                }
-                Text {
-                    Layout.alignment: Qt.AlignBottom; Layout.bottomMargin: Theme.sp(5)
-                    visible: _has
-                    text: data_.unit || ""
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
-                    color: Theme.colorText3
-                }
-            }
-            Text {
-                Layout.fillWidth: true
-                text: _has
-                      ? (qsTr("PEAK %1 · %2").arg(zone._fmtVal(data_.peak)).arg(data_.peakPhase)
-                         + (isNaN(data_.impact) ? "" : ("  ·  @IMP " + zone._fmtVal(data_.impact))))
-                      : (data_.planned ? qsTr("not yet computed") : qsTr("not measured in this swing"))
-                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
-                elide: Text.ElideRight
-            }
+        // The tile (not the rail) owns the click-through, so the rail's own
+        // checkpoint taps keep their click-to-seek meaning. There is deliberately NO
+        // hover tooltip: a Controls ToolTip is unthemed chrome, unbounded in width,
+        // and set in a size nobody can read from across the room. MetricDetail is
+        // the readable home for a metric's narrative, and one click away.
+        HoverHandler { id: tileHover; enabled: zone.interactive }
+
+        // Click-through to the catalogue detail page, from the tile chrome only —
+        // the rail body is reserved for seek/scrub.
+        Text {
+            anchors { right: parent.right; top: parent.top
+                      rightMargin: Theme.sp(9); topMargin: Theme.sp(9) }
+            visible: zone.interactive && tileHover.hovered
+            text: "›"
+            font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody
+            color: Theme.colorText3
+            TapHandler { onTapped: zone.metricActivated(data_.key) }
         }
     }
 }

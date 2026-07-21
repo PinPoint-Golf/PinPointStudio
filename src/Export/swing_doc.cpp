@@ -57,6 +57,19 @@ QJsonObject serializeScore(const analysis::ScoreBreakdown &s)
             { QStringLiteral("halfWidth"), s.interval.halfWidth },
             { QStringLiteral("lo"),        s.interval.lo },
             { QStringLiteral("hi"),        s.interval.hi } };
+    // Adherence contribution maps (§B.0). Additive and OMITTED WHEN EMPTY, so a
+    // resemblance score's doc is byte-identical to before this key existed. They back
+    // the dashboard Verdict donut's hover breakdown — a score the athlete can take
+    // apart is worth more than one they can only read.
+    auto emitBuckets = [&o](const char *name, const QHash<QString,int> &h) {
+        if (h.isEmpty()) return;
+        QJsonObject b;
+        for (auto it = h.constBegin(); it != h.constEnd(); ++it)
+            b[it.key()] = it.value();
+        o[QString::fromLatin1(name)] = b;
+    };
+    emitBuckets("perRegion", s.perRegion);
+    emitBuckets("perPhase",  s.perPhase);
     return o;
 }
 
@@ -567,6 +580,18 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
             if (scoreObj.contains(QStringLiteral("interval")))
                 ps.analysisDetail.insert(QStringLiteral("interval"),
                                          scoreObj[QStringLiteral("interval")].toObject().toVariantMap());
+        }
+        // Adherence contribution maps — surfaced as sibling keys (detail.perRegion /
+        // .perPhase) for the Verdict donut breakdown. Absent for /2 docs, for
+        // resemblance scores, and for any doc written before serializeScore emitted
+        // them; the donut simply renders without segments then.
+        if (scoreVal.isObject()) {
+            if (scoreObj.contains(QStringLiteral("perRegion")))
+                ps.analysisDetail.insert(QStringLiteral("perRegion"),
+                                         scoreObj[QStringLiteral("perRegion")].toObject().toVariantMap());
+            if (scoreObj.contains(QStringLiteral("perPhase")))
+                ps.analysisDetail.insert(QStringLiteral("perPhase"),
+                                         scoreObj[QStringLiteral("perPhase")].toObject().toVariantMap());
         }
         // Additive ShaftTracker + segmentation blocks — same variant shapes as
         // the live toAnalysisDetail (shot_processor.cpp); absent in older files

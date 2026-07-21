@@ -66,6 +66,16 @@ Item {
         })
     }
 
+    // Deep link straight to one metric's detail page (dashboard tile click-through,
+    // routed via MetricRoute). Same callLater shape as navigateToResult: the panel
+    // Loader must have instantiated before we can address it.
+    function showMetricDetail(key) {
+        searchInput.text = ""
+        root.searchQuery = ""
+        root.activeNavIndex = 9                       // Metrics
+        Qt.callLater(function() { metricLibraryPanel.showMetric(key) })
+    }
+
     function scrollWithRetry(panel, itemId, retries) {
         if (!panel || retries > 3) return
         var ok = panel.scrollToItem(itemId)

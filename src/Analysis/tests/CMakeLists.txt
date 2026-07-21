@@ -58,6 +58,12 @@ pp_add_test(composite_score_v2_test SOURCES composite_score_v2_test.cpp ${WRIST_
 # degrade-gracefully backing for the dashboard Sequence zone (ChartMetrics::
 # sequenceNodes façade). Header-only, Qt-only (QString), no fixture.
 pp_add_test(kinematic_sequence_test SOURCES kinematic_sequence_test.cpp)
+
+# Dashboard band-rail reductions (dashboard_reductions.h) — phase-keyed sample↔
+# corridor join, the value→y domain (one-sided speeds + the always-present 0
+# line), and playhead interpolation with endpoint clamping. The backing for
+# PpBandRail (ChartMetrics::railCheckpoints/railRange/valueAtUs façade).
+pp_add_test(dashboard_reductions_test SOURCES dashboard_reductions_test.cpp)
 pp_add_test(imu_calibration_test  SOURCES imu_calibration_test.cpp)   # A·q·M solve + keystone golden
 pp_add_test(live_wrist_angles_test SOURCES live_wrist_angles_test.cpp) # live tick() math contract
 pp_add_test(imu_sample_test       SOURCES imu_sample_test.cpp)         # exported swing.json vector frame

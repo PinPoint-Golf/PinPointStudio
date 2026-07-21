@@ -323,14 +323,29 @@ QVariantMap WristDiagnosticsModel::findingMap(const PpWristFinding &f) const
         tags.append(m_labels.phaseShortTag(cps[static_cast<int>(p)].phase));
     m[QStringLiteral("positions")] = tags;
 
-    // Seek target = the primary (first) contributing checkpoint's timeline timestamp.
-    qint64 seek = 0;
+    // Seek target = the primary (first) contributing checkpoint's timeline timestamp,
+    // and `phase` = that checkpoint's Phase enum — the vocabulary the dashboard's
+    // corridor lookup and TimelineLabels already speak, so a fix can be resolved to a
+    // phase without re-deriving it from seekUs. -1 when the finding has no position.
+    qint64 seek  = 0;
+    int    phase = -1;
     if (!f.positions.empty()) {
         const int ci = static_cast<int>(f.positions.front());
+        phase = static_cast<int>(cps[ci].phase);
         if (m_timeline.positions[ci].present)
             seek = m_timeline.positions[ci].t_us;
     }
     m[QStringLiteral("seekUs")] = seek;
+    m[QStringLiteral("phase")]  = phase;
+
+    // Points this finding cost the composite score (design §7.6) — the matching
+    // contribution's penalty, or 0 when the finding did not score (strengths, and any
+    // finding the scorer weighted out). Lets the Verdict fix line say what it is worth
+    // rather than only naming itself.
+    int pointsLost = 0;
+    for (const PpScoreContribution &c : m_result.score.contributions)
+        if (c.id == f.id) { pointsLost = qRound(c.penalty); break; }
+    m[QStringLiteral("pointsLost")] = pointsLost;
     return m;
 }
 

@@ -286,6 +286,7 @@ set_source_files_properties(src/Gui/settings/SettingsIndex.qml PROPERTIES QT_QML
 set_source_files_properties(src/Gui/session/ViewLayout.qml     PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set_source_files_properties(src/Gui/session/SessionMode.qml    PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set_source_files_properties(src/Gui/cameras/AnnotationTool.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set_source_files_properties(src/Gui/review/MetricRoute.qml     PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
 qt_add_qml_module(PinPointStudio
     URI PinPointStudio
@@ -382,9 +383,18 @@ qt_add_qml_module(PinPointStudio
         src/Gui/shot/PpDashboardSequenceZone.qml
         src/Gui/shot/PpDashboardPresetEditor.qml
         src/Gui/shot/PpDashboardWindow.qml
+        # Dashboard paint primitives — every metric renders as one of these
+        # (no bare numbers); each is Shape-painted and fed pre-reduced values.
+        src/Gui/shot/PpBandRail.qml
+        src/Gui/shot/PpDonutStat.qml
+        src/Gui/shot/PpRangeBar.qml
+        src/Gui/shot/PpSequenceStrip.qml
+        src/Gui/shot/PpStateChip.qml
+        src/Gui/shot/PpOrientationGlyph.qml
         src/Gui/components/PpQualityPill.qml
         src/Gui/components/PpStarRating.qml
         src/Gui/components/PpTrace.qml
+        src/Gui/components/PpToolPill.qml
         src/Gui/components/PpTopoBackground.qml
         src/Gui/review/PpMetricChart.qml
         src/Gui/review/PpChartPlot.qml
@@ -399,6 +409,7 @@ qt_add_qml_module(PinPointStudio
         src/Gui/review/NormativeBar.qml
         src/Gui/review/MetricDetail.qml
         src/Gui/review/MetricLibrary.qml
+        src/Gui/review/MetricRoute.qml
         src/Gui/diagnostics/WristDiagnostics.qml
         src/Gui/diagnostics/DofTrajectoryStrip.qml
         src/Gui/diagnostics/PositionAngleGrid.qml

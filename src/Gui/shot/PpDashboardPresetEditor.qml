@@ -81,9 +81,14 @@ Popup {
         border.width: 1; border.color: Theme.colorBorderStrong
     }
 
+    // MUST stay in lock-step with each zone's own query — a zone that renders a
+    // metric this pool omits is a metric the user can see but cannot turn off.
+    // Motion is deliberately NOT filtered on `scored`: the speeds (clubheadSpeed,
+    // handSpeed) and the geometry reads (lagAngle, impactShaftLean) are live and
+    // rendered as one-sided / plain band rails, they simply carry no band score.
     function _poolQuery(zoneKey) {
         if (zoneKey === "setup")    return { type: "pointInTime" }
-        if (zoneKey === "motion")   return { type: "timeSeries", scored: true }
+        if (zoneKey === "motion")   return { type: "timeSeries" }
         if (zoneKey === "sequence") return { type: "sequence" }
         return null   // verdict has no metric pool (fixed content)
     }
@@ -235,6 +240,47 @@ Popup {
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        Rectangle { Layout.fillWidth: true; height: 1; color: Theme.colorBorderMid; opacity: Theme.borderOpacityNormal }
+
+        // ── cast scale ────────────────────────────────────────────────────────
+        // Lives HERE, with the rest of the dashboard's configuration, rather than
+        // in Settings → Displays: it is a property of how this dashboard is read,
+        // and it belongs next to the zones it resizes. Unlike the zone/metric
+        // config it is NOT per-session-type or part of a preset — it is a single
+        // global viewing-distance preference (appSettings.dashboardScale), so
+        // changing it does NOT fork the active preset to "Custom".
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: Theme.sp(4)
+            Text {
+                text: qsTr("CAST SCALE")
+                font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
+                font.letterSpacing: Theme.trackingLabel; color: Theme.colorText2
+            }
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("Content size on the cast display — match it to how far away it is read.")
+                wrapMode: Text.WordWrap
+                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2; color: Theme.colorText3
+            }
+            Flow {
+                Layout.fillWidth: true
+                Layout.topMargin: Theme.sp(2)
+                spacing: Theme.sp(6)
+                Repeater {
+                    model: [ { id: "small",  label: qsTr("Small")  },
+                             { id: "medium", label: qsTr("Medium") },
+                             { id: "large",  label: qsTr("Large")  } ]
+                    delegate: Chip {
+                        required property var modelData
+                        label: modelData.label
+                        on: appSettings.dashboardScale === modelData.id
+                        onClicked: appSettings.dashboardScale = modelData.id
                     }
                 }
             }

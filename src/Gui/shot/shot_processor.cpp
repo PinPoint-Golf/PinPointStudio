@@ -167,6 +167,19 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
                                    { QStringLiteral("lo"),        a.score.interval.lo },
                                    { QStringLiteral("hi"),        a.score.interval.hi } });
 
+    // Adherence contribution maps — the Verdict donut's hover breakdown. Omitted when
+    // empty (a resemblance score has neither), matching serializeScore/SwingDocReader
+    // so a live shot and its reloaded twin expose the same keys.
+    auto insertBuckets = [&detail](const char *name, const QHash<QString,int> &h) {
+        if (h.isEmpty()) return;
+        QVariantMap m;
+        for (auto it = h.constBegin(); it != h.constEnd(); ++it)
+            m.insert(it.key(), it.value());
+        detail.insert(QString::fromLatin1(name), m);
+    };
+    insertBuckets("perRegion", a.score.perRegion);
+    insertBuckets("perPhase",  a.score.perPhase);
+
     // Swing bounds + ladder meta (v3 G2) — same shape the doc reader reloads.
     if (a.segmentation.swingEndUs > a.segmentation.swingStartUs)
         detail.insert(QStringLiteral("segmentation"),

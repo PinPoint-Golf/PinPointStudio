@@ -52,6 +52,16 @@ Item {
         return true
     }
 
+    // Deep link from elsewhere in the app (a dashboard tile → MetricRoute → Main →
+    // ScreenSettings). Opens the detail view directly on `key`; an unknown key is
+    // ignored so a stale link lands on the directory rather than a blank page.
+    function showMetric(key) {
+        if (!key || key.length === 0) return false
+        if (Object.keys(catalog.descriptor(key, {})).length === 0) return false
+        root._selectedKey = key
+        return true
+    }
+
     function _typeName(t) {
         switch (t) {
         case "summary":     return qsTr("Summary")

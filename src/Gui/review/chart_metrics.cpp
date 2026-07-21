@@ -18,7 +18,8 @@
 
 #include "chart_metrics.h"
 
-#include "../Analysis/kinematic_sequence.h"   // kinematicSequenceNodes (pure reduction)
+#include "../Analysis/kinematic_sequence.h"     // kinematicSequenceNodes (pure reduction)
+#include "../Analysis/dashboard_reductions.h"   // railCheckpoints / railRange / interpolateAtUs
 
 #include <QHash>
 #include <QtGlobal>
@@ -267,4 +268,118 @@ QString ChartMetrics::shortLabel(const QString &key) const
         { QStringLiteral("lagAngle"),         QStringLiteral("Lag")     },
     };
     return kShort.value(key);
+}
+
+// ── PpBandRail backing — marshalling only; the maths is dashboard_reductions.h ───
+
+QVariantList ChartMetrics::railCheckpoints(const QVariantList &phaseSamples,
+                                           const QVariantList &corridors) const
+{
+    using namespace pinpoint::analysis;
+
+    std::vector<RailSample> samples;
+    samples.reserve(phaseSamples.size());
+    for (const QVariant &v : phaseSamples) {
+        const QVariantMap m = v.toMap();
+        RailSample s;
+        s.phase = m.value(QStringLiteral("phase"), -1).toInt();
+        s.tUs   = m.value(QStringLiteral("t_us")).toLongLong();
+        s.value = m.value(QStringLiteral("value")).toDouble();
+        s.band  = m.value(QStringLiteral("band")).toString();
+        samples.push_back(std::move(s));
+    }
+
+    std::vector<RailCorridor> cors;
+    cors.reserve(corridors.size());
+    for (const QVariant &v : corridors) {
+        const QVariantMap m = v.toMap();
+        RailCorridor c;
+        c.phase   = m.value(QStringLiteral("phase"), -1).toInt();
+        c.greenLo = m.value(QStringLiteral("greenLo")).toDouble();
+        c.greenHi = m.value(QStringLiteral("greenHi")).toDouble();
+        c.amberLo = m.value(QStringLiteral("amberLo")).toDouble();
+        c.amberHi = m.value(QStringLiteral("amberHi")).toDouble();
+        cors.push_back(std::move(c));
+    }
+
+    QVariantList out;
+    for (const RailPoint &p : pinpoint::analysis::railCheckpoints(samples, cors)) {
+        out.append(QVariantMap{
+            { QStringLiteral("phase"),       p.phase },
+            { QStringLiteral("tUs"),         qlonglong(p.tUs) },
+            { QStringLiteral("value"),       p.value },
+            { QStringLiteral("band"),        p.band },
+            { QStringLiteral("hasCorridor"), p.hasCorridor },
+            { QStringLiteral("greenLo"),     p.greenLo },
+            { QStringLiteral("greenHi"),     p.greenHi },
+            { QStringLiteral("amberLo"),     p.amberLo },
+            { QStringLiteral("amberHi"),     p.amberHi } });
+    }
+    return out;
+}
+
+QVariantMap ChartMetrics::railRange(const QVariantList &points, bool oneSided) const
+{
+    using namespace pinpoint::analysis;
+
+    // Round-trip the checkpoints back through the value type. Cheap (a handful of
+    // phases) and keeps ONE domain rule — QML can hand back exactly what
+    // railCheckpoints() gave it without a second, divergent shape.
+    std::vector<RailPoint> pts;
+    pts.reserve(points.size());
+    for (const QVariant &v : points) {
+        const QVariantMap m = v.toMap();
+        RailPoint p;
+        p.phase       = m.value(QStringLiteral("phase"), -1).toInt();
+        p.tUs         = m.value(QStringLiteral("tUs")).toLongLong();
+        p.value       = m.value(QStringLiteral("value")).toDouble();
+        p.band        = m.value(QStringLiteral("band")).toString();
+        p.hasCorridor = m.value(QStringLiteral("hasCorridor")).toBool();
+        p.greenLo     = m.value(QStringLiteral("greenLo")).toDouble();
+        p.greenHi     = m.value(QStringLiteral("greenHi")).toDouble();
+        p.amberLo     = m.value(QStringLiteral("amberLo")).toDouble();
+        p.amberHi     = m.value(QStringLiteral("amberHi")).toDouble();
+        pts.push_back(std::move(p));
+    }
+
+    const RailRange r = pinpoint::analysis::railRange(pts, oneSided);
+    return QVariantMap{ { QStringLiteral("lo"),    r.lo },
+                        { QStringLiteral("hi"),    r.hi },
+                        { QStringLiteral("valid"), r.valid } };
+}
+
+double ChartMetrics::valueAtUs(const QVariantList &tUs, const QVariantList &value,
+                               qint64 us) const
+{
+    const int n = int(qMin(tUs.size(), value.size()));
+    std::vector<int64_t> t;
+    std::vector<double>  v;
+    t.reserve(n);
+    v.reserve(n);
+    for (int i = 0; i < n; ++i) {
+        t.push_back(tUs.at(i).toLongLong());
+        v.push_back(value.at(i).toDouble());
+    }
+    return pinpoint::analysis::interpolateAtUs(t, v, us);
+}
+
+QVariantList ChartMetrics::scoreSegments(const QVariantMap &buckets) const
+{
+    std::vector<pinpoint::analysis::ScoreSegment> segs;
+    segs.reserve(buckets.size());
+    for (auto it = buckets.constBegin(); it != buckets.constEnd(); ++it)
+        segs.push_back({ it.key(), it.value().toInt() });
+
+    segs = pinpoint::analysis::orderScoreSegments(std::move(segs));
+
+    QVariantList out;
+    for (const pinpoint::analysis::ScoreSegment &s : segs)
+        out.append(QVariantMap{ { QStringLiteral("label"), s.label },
+                                { QStringLiteral("value"), s.value } });
+    return out;
+}
+
+QString ChartMetrics::orientationLabel(double value, double greenLo, double greenHi) const
+{
+    return pinpoint::analysis::orientationLabel(value, greenLo, greenHi);
 }

@@ -493,8 +493,8 @@ Item {
         // ── Club pill — the session's active club (a capture parameter, so ──
         // hidden while reviewing a loaded session). Shows the current club and a
         // taped-club marker dot; its popup lists the athlete's bag. Leads the pill
-        // cluster as session context. Reuses ViewPill (glyph + micro label + chevron).
-        ViewPill {
+        // cluster as session context. Reuses PpToolPill (glyph + micro label + chevron).
+        PpToolPill {
             id: clubPill
             visible: !sessionReviewController.reviewActive
             glyph: "⚑"
@@ -510,7 +510,7 @@ Item {
         }
 
         // ── View pill — edits the CURRENT mode's saved layout ─────────────────
-        ViewPill {
+        PpToolPill {
             id: viewPill
             label: root.modeNames[SessionMode.mode]
             active: viewPopup.opened
@@ -521,9 +521,9 @@ Item {
         }
 
         // ── Motion pill — edits the CURRENT mode's motion overlay layout ────
-        // Adjacent to View. Reuses ViewPill (generalized below with glyph/
-        // microLabel properties) rather than duplicating its markup.
-        ViewPill {
+        // Adjacent to View. Reuses PpToolPill (glyph / microLabel properties)
+        // rather than duplicating its markup.
+        PpToolPill {
             id: motionPill
             glyph: "∿"
             microLabel: qsTr("MOTION")
@@ -689,96 +689,9 @@ Item {
 
     // ── View pill — lighter sibling of DevicePill (no badge; shows the active
     // mode and a chevron; accent ring while its popup is open) ────────────────
-    component ViewPill: Rectangle {
-        property string label: ""
-        property bool   active: false
-        // Generalized for MotionPill (Phase 4): icon glyph + micro label above
-        // the value line, defaulting to the original View pill's values.
-        property string glyph:      "▦"
-        property string microLabel: qsTr("VIEW")
-        // Optional corner dot on the glyph tile (ClubPill uses it as the taped-club
-        // marker). Off by default so View/Motion pills are unaffected.
-        property bool   badge:      false
-        property color  badgeColor: Theme.colorGood
-        signal clicked()
-
-        Layout.alignment: Qt.AlignVCenter
-        implicitWidth: vpRow.implicitWidth + Theme.sp(24)
-        implicitHeight: Theme.sp(44)
-        radius: Theme.radius
-        color: vpMa.containsMouse ? Theme.colorBg3 : Theme.colorBg2
-        border.width: 1
-        border.color: active             ? Theme.colorAccent
-                    : vpMa.containsMouse ? Theme.colorAccentMid
-                    :                      Theme.colorBorderMid
-
-        // Hover/press motion — the home-tile / shot-card language adapted to a
-        // toolbar pill: a subtle scale (no vertical lift — a pill must not float
-        // out of the bar) that grows on hover, holds while its popup is open, and
-        // dips on press. OutCubic + Theme.durationFast keeps it calm and snappy
-        // (a frequently-touched control grates if it lingers), and reduceMotion
-        // zeroes it. Both colour endpoints are opaque (bg2↔bg3), so unlike the
-        // home card there is no tint-flash to guard against.
-        transformOrigin: Item.Center
-        scale: vpMa.pressed              ? 0.97
-             : (active || vpMa.containsMouse) ? 1.02
-             :                             1.0
-
-        Behavior on color        { ColorAnimation  { duration: Theme.durationFast } }
-        Behavior on border.color { ColorAnimation  { duration: Theme.durationFast } }
-        Behavior on scale        { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
-
-        RowLayout {
-            id: vpRow
-            anchors { fill: parent; leftMargin: Theme.sp(11); rightMargin: Theme.sp(11) }
-            spacing: Theme.sp(11)
-            Item {
-                Layout.preferredWidth: Theme.sp(34); Layout.preferredHeight: Theme.sp(34)
-                Layout.alignment: Qt.AlignVCenter
-                Rectangle {
-                    anchors.fill: parent; radius: Theme.radius; color: Theme.colorSurface
-                    Text {
-                        anchors.centerIn: parent; text: glyph
-                        font.family: Theme.fontSymbol; font.pixelSize: Theme.sp(18)
-                        color: active ? Theme.colorAccent : Theme.colorText2
-                    }
-                }
-                Rectangle {   // optional taped-club marker dot
-                    visible: badge
-                    anchors { right: parent.right; top: parent.top
-                              rightMargin: -Theme.sp(3); topMargin: -Theme.sp(3) }
-                    width: Theme.sp(11); height: Theme.sp(11); radius: width / 2
-                    color: badgeColor
-                    border.width: 1; border.color: Theme.colorBg2
-                }
-            }
-            Column {
-                Layout.alignment: Qt.AlignVCenter; spacing: Theme.sp(2)
-                Text {
-                    text: microLabel; font.family: Theme.fontData
-                    font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingMicro
-                    color: Theme.colorText3
-                }
-                Row {
-                    spacing: Theme.sp(4)
-                    Text {
-                        text: label
-                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                        color: Theme.colorText
-                    }
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "▾"  // ▾
-                        font.pixelSize: Theme.fontSzMicro; color: Theme.colorText2
-                    }
-                }
-            }
-        }
-        MouseArea {
-            id: vpMa; anchors.fill: parent; hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor; onClicked: parent.clicked()
-        }
-    }
+    // The View/Motion/Club/Cameras/IMUs pill is now the SHARED PpToolPill
+    // (src/Gui/components/PpToolPill.qml) — extracted so the dashboard preset
+    // control presents the same item instead of a lookalike that drifts.
 
     // ── Inline pill component ───────────────────────────────────────────────
     component DevicePill: Rectangle {
@@ -803,7 +716,7 @@ Item {
                     : pillMa.containsMouse ? Theme.colorAccentMid
                     :                        Theme.colorBorderMid
 
-        // Same hover/press motion as ViewPill (see note there): subtle scale up
+        // Same hover/press motion as PpToolPill (see note there): subtle scale up
         // on hover, held while the popup is open, dip on press. No lift — keeps
         // the pill anchored in the bar.
         transformOrigin: Item.Center

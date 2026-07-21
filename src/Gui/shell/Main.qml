@@ -399,7 +399,10 @@ ApplicationWindow {
         _dashWin = dashWinComp.createObject(root, {
             "targetScreen": postShotCast.target,
             "kiosk":  kioskMode,
-            "mirror": appSettings.postShotMirror
+            "mirror": appSettings.postShotMirror,
+            // Drives the window's interactive layer: only the auto-closing pop is
+            // inert (see PpDashboardWindow.interactive).
+            "autoClose": temporary
         })
         _dashWinTemporary = temporary
         if (!_dashWin) return
@@ -453,7 +456,14 @@ ApplicationWindow {
         id: castDwellTimer
         repeat: false
         interval: Math.max(1, appSettings.postShotDwell) * 1000
-        onTriggered: if (root._dashWin && root._dashWinTemporary) root._closeCast()
+        onTriggered: {
+            // Dwell reconciliation: a presenter reading the window (pointer over it)
+            // or one who pinned it holds the auto-close off. Re-arm rather than
+            // cancel, so releasing the hover resumes a full dwell instead of closing
+            // instantly on the next mouse-out.
+            if (root._dashWin && root._dashWin.dwellHeld) { restart(); return }
+            if (root._dashWin && root._dashWinTemporary) root._closeCast()
+        }
     }
     Timer {
         id: castShowTimer
@@ -684,6 +694,16 @@ ApplicationWindow {
                 ScreenSettings {                                           // screenSettings — settings
                     id: settingsScreen
                     onResourceMonitorRequested: navController.navigate(root.screenSystem)
+                }
+                // Dashboard tile → its catalogue detail page. Navigation is owned
+                // here, so the tiles (several layers inside a stage delegate, and
+                // again inside the cast Window) just announce the key.
+                Connections {
+                    target: MetricRoute
+                    function onOpenRequested(key) {
+                        navController.navigate(root.screenSettings)
+                        settingsScreen.showMetricDetail(key)
+                    }
                 }
                 ScreenSessionWizard {                                      // screenWizard — session setup wizard
                     id: sessionWizard

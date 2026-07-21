@@ -40,6 +40,42 @@ Item {
     // stage delegates (PpReplayCharts { sessionType: … }).
     property int sessionType: -1
 
+    // The interactive layer — playhead sweep, click-to-seek, hover-scrub, tile
+    // click-through. GUARDRAIL: the resting (non-hovered, non-playing) render is
+    // identical either way, so the auto-closing wall cast and the interactive desk
+    // window are genuinely one component. A wall cast passes false; the in-app stage
+    // and a persistent desk window pass true.
+    property bool interactive: false
+
+    // Cast zoom for viewing distance (PpDashboardWindow.contentScale), applied to
+    // the ZONE CONTENT ONLY — never to the header. The zoom exists so DATA can be
+    // read across a room; the preset control is chrome, and chrome that grows with
+    // the room stops being the control the user knows from the session toolbar.
+    // Keeping the header out of the transform also keeps its Popup honest: a Popup
+    // is reparented into the window overlay, so it could never inherit the
+    // transform anyway, and a scaled anchor with an unscaled popup cannot align.
+    property real uiScale: 1.0
+
+    // True while the pointer is anywhere over the dashboard — the cast window holds
+    // its auto-close dwell open on this, so a presenter reading the wall is never
+    // cut off mid-sentence.
+    readonly property bool hovered: panelHover.hovered
+
+    // Playhead, forwarded to every rail and the sequence strip at once. -1 (idle)
+    // whenever the surface is non-interactive, which is what keeps the resting render
+    // of the wall cast free of a sweep line.
+    readonly property real playheadUs: interactive && shotReplay.active
+                                       ? shotReplay.positionUs : -1
+
+    // Click-through target: the catalogue's MetricDetail page for one key. Routed
+    // through the MetricRoute singleton because this panel is instantiated deep
+    // inside a stage delegate (and again inside the cast Window) — Main.qml owns the
+    // navigation. The signal stays public so a host can intercept it instead.
+    signal metricDetailRequested(string key)
+    onMetricDetailRequested: (key) => MetricRoute.open(key)
+
+    HoverHandler { id: panelHover }
+
     // The focused shot's flattened analysis. Recomputed shotCtx tracks it.
     readonly property var detail: shotReplay.analysisDetail
     readonly property var shotCtx: root._ctx(detail, sessionType)
@@ -77,54 +113,32 @@ Item {
     Rectangle {
         id: header
         anchors { left: parent.left; right: parent.right; top: parent.top }
-        height: Theme.sp(30)
+        // EXACTLY the session toolbar's geometry — sp(60) tall, sp(16)/sp(14)
+        // margins, an sp(44) PpToolPill — so the dashboard's control row and the
+        // session toolbar are the same bar, not two that merely resemble each other.
+        height: Theme.sp(60)
         color: "transparent"
 
         Text {
-            anchors { left: parent.left; leftMargin: Theme.sp(12); verticalCenter: parent.verticalCenter }
+            anchors { left: parent.left; leftMargin: Theme.sp(16); verticalCenter: parent.verticalCenter }
             text: qsTr("Dashboard")
             font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
             font.capitalization: Font.AllUppercase; font.letterSpacing: Theme.trackingMicro
             color: Theme.colorText3
         }
 
-        // Preset chip — reads the active preset (with a '*' when Custom); click opens
-        // the editor popover anchored here.
-        Rectangle {
-            id: presetChip
-            anchors { right: parent.right; rightMargin: Theme.sp(12); verticalCenter: parent.verticalCenter }
-            implicitWidth: chipRow.implicitWidth + Theme.sp(14)
-            implicitHeight: Theme.sp(24)
-            radius: Theme.radius
-            color: chipMa.containsMouse || editor.opened ? Theme.colorBg3 : "transparent"
-            border.width: Theme.borderWidth
-            border.color: chipMa.containsMouse || editor.opened ? Theme.colorBorderMid : Theme.colorBorder
-            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-            Row {
-                id: chipRow
-                anchors.centerIn: parent
-                spacing: Theme.sp(5)
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: root._presetLabel(root._activeId)
-                          + (root._activeId === "custom" ? " *" : "")
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
-                    color: Theme.colorText2
-                }
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "▾"
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
-                    color: Theme.colorText3
-                }
-            }
-            PpPressable {
-                id: chipMa
-                hoverScale: 1.0
-                onClicked: editor.opened ? editor.close() : editor.open()
-            }
+        // Preset control — THE standard toolbar item (PpToolPill), not a lookalike:
+        // it does the same job as the View/Motion pills and must read as the same
+        // control. Shows the active preset (with a '*' when Custom).
+        PpToolPill {
+            id: presetPill
+            anchors { right: parent.right; rightMargin: Theme.sp(14); verticalCenter: parent.verticalCenter }
+            glyph: "▤"
+            microLabel: qsTr("DASHBOARD")
+            label: root._presetLabel(root._activeId)
+                   + (root._activeId === "custom" ? " *" : "")
+            active: editor.opened
+            onClicked: editor.opened ? editor.close() : editor.open()
         }
     }
 
@@ -144,23 +158,43 @@ Item {
         anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: parent.bottom
                   topMargin: Theme.sp(6) }
         visible: root.hasShot
-        contentHeight: zoneCol.implicitHeight + Theme.sp(24)
+        contentWidth: width
+        // Content is laid out at 1/uiScale and drawn scaled, so the SCROLLABLE
+        // height is the laid-out height times the zoom.
+        contentHeight: zoneWrap.implicitHeight * root.uiScale
         clip: true
         boundsBehavior: Flickable.StopAtBounds
 
-        ColumnLayout {
-            id: zoneCol
-            x: Theme.sp(12)
-            width: flick.width - Theme.sp(24)
-            spacing: Theme.sp(12)
+        // The cast zoom lives HERE, not on the panel — the header above stays at
+        // native size. A `transform: Scale` (origin 0,0) is used rather than the
+        // `scale` property so the top-left corner is the fixed point and the
+        // content grows down-and-right from the header, with no transformOrigin
+        // bookkeeping.
+        Item {
+            id: zoneWrap
+            width: flick.width / root.uiScale
+            implicitHeight: zoneCol.implicitHeight + Theme.sp(24)
+            height: implicitHeight
+            transform: Scale { xScale: root.uiScale; yScale: root.uiScale }
 
-            Repeater {
-                model: ViewLayout.dashboardZones(root.sessionType)
-                delegate: Loader {
-                    required property var modelData      // zone key string
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: item ? item.implicitHeight : 0
-                    sourceComponent: root._zoneComp(modelData)
+            ColumnLayout {
+                id: zoneCol
+                // A dashboard earns its keep by filling the surface — the gutters here
+                // are a seam between cards, not a document margin. The zone cards carry
+                // their own internal padding, so this only needs to keep their borders
+                // off the edge.
+                x: Theme.sp(4)
+                width: zoneWrap.width - Theme.sp(8)
+                spacing: Theme.sp(6)
+
+                Repeater {
+                    model: ViewLayout.dashboardZones(root.sessionType)
+                    delegate: Loader {
+                        required property var modelData      // zone key string
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: item ? item.implicitHeight : 0
+                        sourceComponent: root._zoneComp(modelData)
+                    }
                 }
             }
         }
@@ -183,6 +217,9 @@ Item {
         PpDashboardVerdictZone {
             width: parent ? parent.width : 0
             detail: root.detail; wristModel: wristDx
+            catalog: metricCat; shotCtx: root.shotCtx
+            interactive: root.interactive
+            onMetricActivated: (key) => root.metricDetailRequested(key)
         }
     }
     Component {
@@ -192,6 +229,8 @@ Item {
             catalog: metricCat; shotCtx: root.shotCtx; detail: root.detail
             sessionType: root.sessionType
             pinnedMetrics: ViewLayout.dashboardZoneMetrics(root.sessionType, "setup")
+            interactive: root.interactive
+            onMetricActivated: (key) => root.metricDetailRequested(key)
         }
     }
     Component {
@@ -201,6 +240,10 @@ Item {
             catalog: metricCat; shotCtx: root.shotCtx; detail: root.detail
             sessionType: root.sessionType
             pinnedMetrics: ViewLayout.dashboardZoneMetrics(root.sessionType, "motion")
+            interactive: root.interactive
+            playheadUs:  root.playheadUs
+            onMetricActivated: (key) => root.metricDetailRequested(key)
+            onSeekRequested:   (tUs) => shotReplay.seekToUs(tUs)
         }
     }
     Component {
@@ -209,6 +252,9 @@ Item {
             width: parent ? parent.width : 0
             catalog: metricCat; shotCtx: root.shotCtx; detail: root.detail
             sessionType: root.sessionType
+            interactive: root.interactive
+            playheadUs:  root.playheadUs
+            onSeekRequested: (tUs) => shotReplay.seekToUs(tUs)
         }
     }
 
@@ -218,9 +264,13 @@ Item {
         sessionType: root.sessionType
         catalog: metricCat
         shotCtx: root.shotCtx
-        // Anchor under the header chip.
-        parent: root
-        x: Math.max(Theme.sp(8), presetChip.x + presetChip.width - width)
-        y: header.height + Theme.sp(4)
+        // The toolbar's popup-anchoring convention, verbatim (see PpToolPill):
+        // PARENT the popup to the pill, then position in the pill's own space.
+        // Both the pill and this popup render at native scale — the cast zoom
+        // stops at the header — so no scale compensation is needed and this is
+        // byte-for-byte what the View/Motion/Club popups do.
+        parent: presetPill
+        y: presetPill.height + Theme.sp(10)
+        x: presetPill.width - width
     }
 }

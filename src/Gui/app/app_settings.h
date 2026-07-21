@@ -106,6 +106,12 @@ class AppSettings : public QObject
     // Seconds the post-shot WINDOW stays before auto-closing (only meaningful when
     // postShotDisplayMode == "window"). Distinct from postShotDelay (the pre-show delay).
     Q_PROPERTY(double  postShotDwell               READ postShotDwell               WRITE setPostShotDwell               NOTIFY postShotDwellChanged)
+    // Dashboard content scale on the cast surface: "small" | "medium" | "large".
+    // Purely a viewing-distance preference — a 13" laptop mirrored at arm's length
+    // and a 65" TV across a bay want very different type, and neither is "correct".
+    // The window turns this into a uniform zoom (PpDashboardWindow.contentScale), so
+    // proportions are identical at every setting. Default "medium".
+    Q_PROPERTY(QString dashboardScale              READ dashboardScale              WRITE setDashboardScale              NOTIFY dashboardScaleChanged)
     Q_PROPERTY(QString uiFrameRateCap              READ uiFrameRateCap              WRITE setUiFrameRateCap              NOTIFY uiFrameRateCapChanged)
     Q_PROPERTY(bool    hardwareAcceleration        READ hardwareAcceleration        WRITE setHardwareAcceleration        NOTIFY hardwareAccelerationChanged)
     Q_PROPERTY(QStringList cameraExcluded  READ cameraExcluded  WRITE setCameraExcluded  NOTIFY cameraExcludedChanged)
@@ -276,6 +282,7 @@ public:
         m_postShotMirror         = ppSettings().value(QStringLiteral("display/postShotMirror"),         false).toBool();
         m_postShotDisplayMode    = ppSettings().value(QStringLiteral("display/postShotDisplayMode"),    QStringLiteral("panel")).toString();
         m_postShotDwell          = ppSettings().value(QStringLiteral("display/postShotDwell"),          8.0).toDouble();
+        m_dashboardScale         = ppSettings().value(QStringLiteral("display/dashboardScale"),         QStringLiteral("medium")).toString();
         m_uiFrameRateCap         = ppSettings().value(QStringLiteral("display/uiFrameRateCap"),         QStringLiteral("display")).toString();
         m_hardwareAcceleration   = ppSettings().value(QStringLiteral("display/hardwareAcceleration"),   true).toBool();
 
@@ -392,6 +399,7 @@ public:
     bool    postShotMirror()         const { return m_postShotMirror; }
     QString postShotDisplayMode()    const { return m_postShotDisplayMode; }
     double  postShotDwell()          const { return m_postShotDwell; }
+    QString dashboardScale()         const { return m_dashboardScale; }
     QString uiFrameRateCap()         const { return m_uiFrameRateCap; }
     bool    hardwareAcceleration()   const { return m_hardwareAcceleration; }
 
@@ -789,6 +797,14 @@ public:
         m_postShotDwell = v;
         ppSettings().setValue(QStringLiteral("display/postShotDwell"), v);
         emit postShotDwellChanged();
+    }
+
+    void setDashboardScale(const QString &v)
+    {
+        if (m_dashboardScale == v) return;
+        m_dashboardScale = v;
+        ppSettings().setValue(QStringLiteral("display/dashboardScale"), v);
+        emit dashboardScaleChanged();
     }
 
     void setUiFrameRateCap(const QString &v)
@@ -1210,6 +1226,7 @@ signals:
     void postShotMirrorChanged();
     void postShotDisplayModeChanged();
     void postShotDwellChanged();
+    void dashboardScaleChanged();
     void uiFrameRateCapChanged();
     void hardwareAccelerationChanged();
     void cameraExcludedChanged();
@@ -1304,6 +1321,7 @@ private:
     bool    m_postShotMirror         = false;
     QString m_postShotDisplayMode    = QStringLiteral("panel");
     double  m_postShotDwell          = 8.0;
+    QString m_dashboardScale         = QStringLiteral("medium");
     QString m_uiFrameRateCap         = QStringLiteral("display");
     bool    m_hardwareAcceleration   = true;
 
