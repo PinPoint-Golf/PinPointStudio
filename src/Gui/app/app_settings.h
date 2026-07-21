@@ -58,6 +58,9 @@ class AppSettings : public QObject
     // The on-disk swing_NNNN dir designated as the wrist diagnostics "compare to reference" swing.
     Q_PROPERTY(QString wristReferenceSwingDir READ wristReferenceSwingDir WRITE setWristReferenceSwingDir NOTIFY wristReferenceSwingDirChanged)
     Q_PROPERTY(bool    timelineSnapToPhases READ timelineSnapToPhases WRITE setTimelineSnapToPhases NOTIFY timelineSnapToPhasesChanged)
+    // Metric catalogue (Settings → Metrics) directory filter: hide roadmap-
+    // placeholder (PLANNED) metrics. A view preference, persisted in the ui/ group.
+    Q_PROPERTY(bool    metricsHidePlanned READ metricsHidePlanned WRITE setMetricsHidePlanned NOTIFY metricsHidePlannedChanged)
     // Global replay behaviour (surfaced in the View menu alongside the timeline
     // options, not per-mode): whether a just-captured shot auto-replays, and
     // whether replay playback is trimmed to the detected swing (Address → Finish).
@@ -206,6 +209,7 @@ public:
         m_timelineOrientation = ppSettings().value(QStringLiteral("ui/timelineOrientation"), QStringLiteral("horizontal")).toString();
         m_wristReferenceSwingDir = ppSettings().value(QStringLiteral("ui/wristReferenceSwingDir"), QString()).toString();
         m_timelineSnapToPhases = ppSettings().value(QStringLiteral("ui/timelineSnapToPhases"), false).toBool();
+        m_metricsHidePlanned = ppSettings().value(QStringLiteral("ui/metricsHidePlanned"), false).toBool();
         m_autoReplayAfterCapture = ppSettings().value(QStringLiteral("ui/autoReplayAfterCapture"), true).toBool();
         m_replayTrimToSwing = ppSettings().value(QStringLiteral("ui/replayTrimToSwing"), false).toBool();
         m_reduceMotion    = ppSettings().value(QStringLiteral("ui/reduceMotion"),    false).toBool();
@@ -324,6 +328,7 @@ public:
     QString timelineOrientation() const { return m_timelineOrientation; }
     QString wristReferenceSwingDir() const { return m_wristReferenceSwingDir; }
     bool    timelineSnapToPhases() const { return m_timelineSnapToPhases; }
+    bool    metricsHidePlanned()  const { return m_metricsHidePlanned; }
     bool    autoReplayAfterCapture() const { return m_autoReplayAfterCapture; }
     bool    replayTrimToSwing()   const { return m_replayTrimToSwing; }
     bool    reduceMotion()  const { return m_reduceMotion; }
@@ -483,6 +488,14 @@ public:
         m_timelineSnapToPhases = v;
         ppSettings().setValue(QStringLiteral("ui/timelineSnapToPhases"), v);
         emit timelineSnapToPhasesChanged();
+    }
+
+    void setMetricsHidePlanned(bool v)
+    {
+        if (m_metricsHidePlanned == v) return;
+        m_metricsHidePlanned = v;
+        ppSettings().setValue(QStringLiteral("ui/metricsHidePlanned"), v);
+        emit metricsHidePlannedChanged();
     }
 
     void setAutoReplayAfterCapture(bool v)
@@ -1120,6 +1133,7 @@ signals:
     void timelineOrientationChanged();
     void wristReferenceSwingDirChanged();
     void timelineSnapToPhasesChanged();
+    void metricsHidePlannedChanged();
     void autoReplayAfterCaptureChanged();
     void replayTrimToSwingChanged();
     void reduceMotionChanged();
@@ -1208,6 +1222,7 @@ private:
     QString m_timelineOrientation = QStringLiteral("horizontal");
     QString m_wristReferenceSwingDir;
     bool    m_timelineSnapToPhases = false;
+    bool    m_metricsHidePlanned = false;
     bool    m_autoReplayAfterCapture = true;
     bool    m_replayTrimToSwing = false;
     bool    m_reduceMotion    = false;

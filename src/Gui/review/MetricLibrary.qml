@@ -39,6 +39,10 @@ Item {
 
     // ── view state ────────────────────────────────────────────────────────────
     property string _typeFilter:  ""    // "" = all types
+    // Hide roadmap-placeholder (PLANNED) metrics. Persisted via appSettings so the
+    // choice survives across app launches; the setter round-trips to QSettings and
+    // its NOTIFY keeps this in sync if the value changes elsewhere.
+    property bool   _hidePlanned: appSettings.metricsHidePlanned
     property string _selectedKey: ""    // "" = directory (master)
 
     // Settings-search hook (see ScreenSettings.navigateToResult): return to the
@@ -62,14 +66,20 @@ Item {
     function _baseFilters() {
         return root._typeFilter.length > 0 ? { type: root._typeFilter } : ({})
     }
+    // Post-filter: drop planned (roadmap-placeholder) rows when the toggle is on.
+    // Reads _hidePlanned so callers' bindings re-run when the toggle flips.
+    function _applyPlannedFilter(rows) {
+        if (!root._hidePlanned) return rows
+        return rows.filter(function(r) { return !r.planned })
+    }
     // Rows for one group under the active type filter.
     function _query(group) {
         var f = root._baseFilters()
         f.group = group
-        return catalog.query(f, {})
+        return root._applyPlannedFilter(catalog.query(f, {}))
     }
-    // Total rows under the active type filter (drives the empty state).
-    readonly property int _totalCount: catalog.query(root._baseFilters(), {}).length
+    // Total rows under the active filters (drives the empty state).
+    readonly property int _totalCount: root._applyPlannedFilter(catalog.query(root._baseFilters(), {})).length
 
     // ══ Directory (master) ════════════════════════════════════════════════════
     ScrollView {
@@ -107,70 +117,108 @@ Item {
                 wrapMode:       Text.WordWrap
             }
 
-            // ── Type filter chips ──────────────────────────────────────────────
-            Flow {
+            // ── Filter row: type chips (left) + Hide-planned toggle (right) ─────
+            RowLayout {
                 Layout.fillWidth: true
-                spacing: Theme.sp(7)
+                spacing: Theme.sp(12)
 
-                // "All" chip
-                Rectangle {
-                    readonly property bool active: root._typeFilter === ""
-                    height: Theme.sp(28); radius: height / 2
-                    width:  allLbl.implicitWidth + Theme.sp(24)
-                    color: active ? Theme.colorAccentLight
-                                  : allMa.containsMouse ? Theme.colorAccentMid : "transparent"
-                    border.width: 1
-                    border.color: active ? Theme.colorAccentMid
-                                         : allMa.containsMouse ? Theme.colorAccentMid : Theme.colorBorderMid
-                    Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
-                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-                    Text {
-                        id: allLbl
-                        anchors.centerIn: parent
-                        text: qsTr("All")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody2
-                        color: parent.active ? Theme.colorAccent : Theme.colorText2
-                    }
-                    MouseArea {
-                        id: allMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root._typeFilter = ""
-                    }
-                }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: Theme.sp(7)
 
-                // One chip per metric type
-                Repeater {
-                    model: catalog.types
-                    delegate: Rectangle {
-                        required property var modelData
-                        readonly property bool active: root._typeFilter === modelData
+                    // "All" chip
+                    Rectangle {
+                        readonly property bool active: root._typeFilter === ""
                         height: Theme.sp(28); radius: height / 2
-                        width:  typeChipLbl.implicitWidth + Theme.sp(24)
+                        width:  allLbl.implicitWidth + Theme.sp(24)
                         color: active ? Theme.colorAccentLight
-                                      : typeChipMa.containsMouse ? Theme.colorAccentMid : "transparent"
+                                      : allMa.containsMouse ? Theme.colorAccentMid : "transparent"
                         border.width: 1
                         border.color: active ? Theme.colorAccentMid
-                                             : typeChipMa.containsMouse ? Theme.colorAccentMid : Theme.colorBorderMid
+                                             : allMa.containsMouse ? Theme.colorAccentMid : Theme.colorBorderMid
                         Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
                         Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
                         Text {
-                            id: typeChipLbl
+                            id: allLbl
                             anchors.centerIn: parent
-                            text: root._typeName(modelData)
+                            text: qsTr("All")
                             font.family:    Theme.fontBody
                             font.pixelSize: Theme.fontSzBody2
                             color: parent.active ? Theme.colorAccent : Theme.colorText2
                         }
                         MouseArea {
-                            id: typeChipMa
+                            id: allMa
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: root._typeFilter = modelData
+                            onClicked: root._typeFilter = ""
                         }
+                    }
+
+                    // One chip per metric type
+                    Repeater {
+                        model: catalog.types
+                        delegate: Rectangle {
+                            required property var modelData
+                            readonly property bool active: root._typeFilter === modelData
+                            height: Theme.sp(28); radius: height / 2
+                            width:  typeChipLbl.implicitWidth + Theme.sp(24)
+                            color: active ? Theme.colorAccentLight
+                                          : typeChipMa.containsMouse ? Theme.colorAccentMid : "transparent"
+                            border.width: 1
+                            border.color: active ? Theme.colorAccentMid
+                                                 : typeChipMa.containsMouse ? Theme.colorAccentMid : Theme.colorBorderMid
+                            Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
+                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+                            Text {
+                                id: typeChipLbl
+                                anchors.centerIn: parent
+                                text: root._typeName(modelData)
+                                font.family:    Theme.fontBody
+                                font.pixelSize: Theme.fontSzBody2
+                                color: parent.active ? Theme.colorAccent : Theme.colorText2
+                            }
+                            MouseArea {
+                                id: typeChipMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root._typeFilter = modelData
+                            }
+                        }
+                    }
+                }
+
+                // Hide-planned toggle — mirrors the "All" chip. When active,
+                // roadmap-placeholder (PLANNED) metrics are dropped from the list.
+                Rectangle {
+                    Layout.alignment: Qt.AlignVCenter
+                    readonly property bool active: root._hidePlanned
+                    implicitHeight: Theme.sp(28); radius: implicitHeight / 2
+                    implicitWidth:  hidePlannedLbl.implicitWidth + Theme.sp(24)
+                    color: active ? Theme.colorAccentLight
+                                  : hidePlannedMa.containsMouse ? Theme.colorAccentMid : "transparent"
+                    border.width: 1
+                    border.color: active ? Theme.colorAccentMid
+                                         : hidePlannedMa.containsMouse ? Theme.colorAccentMid : Theme.colorBorderMid
+                    Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
+                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+                    Text {
+                        id: hidePlannedLbl
+                        anchors.centerIn: parent
+                        text: qsTr("Hide planned")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody2
+                        color: parent.active ? Theme.colorAccent : Theme.colorText2
+                    }
+                    MouseArea {
+                        id: hidePlannedMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        // Write through to the persisted setting; _hidePlanned is bound
+                        // to it and re-evaluates via NOTIFY (keeps the binding intact).
+                        onClicked: appSettings.metricsHidePlanned = !appSettings.metricsHidePlanned
                     }
                 }
             }
@@ -211,12 +259,13 @@ Item {
                 }
             }
 
-            // ── Empty state (e.g. a type with no metrics yet) ──────────────────
+            // ── Empty state (a type with no metrics yet, or all filtered out) ──
             Text {
                 Layout.fillWidth: true
                 Layout.topMargin: Theme.sp(8)
                 visible: root._totalCount === 0
-                text: qsTr("No metrics of this type yet.")
+                text: root._hidePlanned ? qsTr("No live metrics of this type — all are planned.")
+                                        : qsTr("No metrics of this type yet.")
                 font.family:    Theme.fontData
                 font.pixelSize: Theme.fontSzMicro
                 color: Theme.colorText3

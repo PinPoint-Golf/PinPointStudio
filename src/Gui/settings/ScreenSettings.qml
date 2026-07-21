@@ -162,12 +162,12 @@ Item {
                 }
 
                 // ── Nav list — hidden while searching ────────────────────────
-                // Reserve sp(46) top (search field) + sp(92) bottom (the two
-                // pinned actions: Developer + Resource Monitor) so neither
-                // overlaps the nav rows.
+                // Reserve sp(46) top (search field) only; System now lives in
+                // the nav list (Reference section) rather than pinned to the
+                // bottom, so no bottom reservation is needed.
                 Item {
                     width:   parent.width
-                    height:  root.isSearching ? 0 : parent.height - Theme.sp(46) - Theme.sp(92)
+                    height:  root.isSearching ? 0 : parent.height - Theme.sp(46)
                     clip:    true
                     visible: !root.isSearching
                     Behavior on height { NumberAnimation { duration: Theme.durationFast } }
@@ -187,7 +187,10 @@ Item {
                                 { navIdx: 6, icon: "◎", label: qsTr("Launch Monitor"), sectionHead: "",               hasBadge: false },
                                 { navIdx: 7, icon: "▥", label: qsTr("Storage"),        sectionHead: qsTr("Data"),     hasBadge: false },
                                 { navIdx: 8, icon: "▤", label: qsTr("Archiving"),      sectionHead: "",               hasBadge: false },
-                                { navIdx: 9, icon: "≣", label: qsTr("Metrics"),        sectionHead: qsTr("Reference"), hasBadge: false }
+                                { navIdx: 9, icon: "≣", label: qsTr("Metrics"),        sectionHead: qsTr("Reference"), hasBadge: false },
+                                // Not a panel: emits resourceMonitorRequested() (its
+                                // own screen) rather than switching activeNavIndex.
+                                { navIdx: 10, icon: "◈", label: qsTr("System"),        sectionHead: "",               hasBadge: false, action: "system" }
                             ]
 
                             delegate: Column {
@@ -296,7 +299,12 @@ Item {
                                     PpPressable {
                                         id: navArea
                                         hoverScale: 1.0
-                                        onClicked:  root.activeNavIndex = modelData.navIdx
+                                        onClicked: {
+                                            if (modelData.action === "system")
+                                                root.resourceMonitorRequested()
+                                            else
+                                                root.activeNavIndex = modelData.navIdx
+                                        }
                                     }
                                 }
                             }
@@ -307,7 +315,7 @@ Item {
                 // ── Search results — shown while searching ────────────────────
                 Item {
                     width:   parent.width
-                    height:  root.isSearching ? parent.height - Theme.sp(46) - Theme.sp(92) : 0
+                    height:  root.isSearching ? parent.height - Theme.sp(46) : 0
                     clip:    true
                     visible: root.isSearching
                     Behavior on height { NumberAnimation { duration: Theme.durationFast } }
@@ -387,75 +395,6 @@ Item {
                                 onClicked:  root.navigateToResult(modelData)
                             }
                         }
-                    }
-                }
-            }
-
-            // ── Pinned bottom action: System Info ────────────────────────────
-            // Not a panel: jumps to its own screen (Main.qml navigate);
-            // the header back arrow returns here.
-            Column {
-                id: pinnedActions
-                anchors.left:   parent.left
-                anchors.right:  parent.right
-                anchors.bottom: parent.bottom
-                spacing: 0
-
-                // System Info (index 8)
-                Item {
-                    id: rmNav
-                    width:  parent.width
-                    height: Theme.sp(46)
-
-                    readonly property bool hovered: rmArea.containsMouse
-
-                    Rectangle {
-                        anchors { top: parent.top; left: parent.left; right: parent.right }
-                        height:  1
-                        color:   Theme.colorBorderMid
-                        opacity: Theme.borderOpacityNormal
-                    }
-
-                    Rectangle {
-                        anchors.fill:      parent
-                        anchors.topMargin: 1
-                        color: rmNav.hovered ? Theme.colorBg2 : "transparent"
-                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                    }
-
-                    Text {
-                        id: rmIcon
-                        anchors.left:           parent.left
-                        anchors.leftMargin:     Theme.sp(16)
-                        anchors.verticalCenter: parent.verticalCenter
-                        text:           "◈"
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzBody
-                        color: rmNav.hovered ? Theme.colorText2 : Theme.colorText3
-                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                    }
-
-                    Text {
-                        anchors.left:           rmIcon.right
-                        anchors.leftMargin:     Theme.sp(10)
-                        anchors.right:          parent.right
-                        anchors.rightMargin:    Theme.sp(10)
-                        anchors.verticalCenter: parent.verticalCenter
-                        text:           qsTr("System")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody2
-                        font.weight:    Theme.fontBodyWeight
-                        color: rmNav.hovered ? Theme.colorText : Theme.colorText2
-                        elide: Text.ElideRight
-                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                    }
-
-                    MouseArea {
-                        id: rmArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape:  Qt.PointingHandCursor
-                        onClicked:    root.resourceMonitorRequested()
                     }
                 }
             }
