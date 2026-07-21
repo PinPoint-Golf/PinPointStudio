@@ -24,18 +24,18 @@
 // LIVE (18) — a producer emits it today: metric_extractor ×4, kinematic_series ×3 + shaft-lean,
 //   foot_metrics ×5, head_track ×3, plus wristScore / wristResemblance (Summary, from a
 //   ScoreBreakdown, Wrist session).
-// PLANNED (20, `.planned = true`) — in the design catalogue but no producer in this build: the
-//   whole-body rotation / spine / pelvis / club-delivery / tempo / kinematic-sequence metrics and
-//   swingScore. The PlannedMetricProvider claims these so they resolve "planned", and their
-//   `.requirement` reads as "will need …" on the detail page.
+// PLANNED (24, `.planned = true`) — in the design catalogue but no producer in this build: the
+//   whole-body rotation / spine / pelvis / club-delivery / tempo / kinematic-sequence / alignment
+//   metrics and swingScore. The PlannedMetricProvider claims these so they resolve "planned", and
+//   their `.requirement` reads as "will need …" on the detail page.
 //
 // See the metric-catalogue developer guide for promoting a placeholder to live (add the producer,
 // drop `.planned`, move the key from PlannedMetricProvider to a real provider).
 //
-// Prose (description / howToRead) is consolidated from:
-//   docs/design/shot_analyzer_design.md   (metric catalog table + single-camera viability)
-//   docs/reference/wristmetrics.md         (bow/cup · hinge · roll sign + norms)
-//   docs/reference/swing_json_schema.md    (WB2/WB3 foot-metric definitions + units)
+// `description` (what it is + why it matters) and `howToRead` (sign, what good looks like, caveats)
+// are written as coach-facing narratives for the directory detail page; the biomechanics, formulae
+// and reference ranges draw on docs/design/shot_analyzer_design.md, docs/reference/wristmetrics.md,
+// docs/reference/golf_swing_normative_reference.md and docs/reference/swing_json_schema.md.
 //
 // requirement.minTier stays Angles2D for every metric: wrist DOFs come from the fused IMU regardless
 // of camera reconstruction tier, and the speed/foot metrics are 2D face-on — gating is by IMU role /
@@ -58,14 +58,17 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QString(),
         .group = QStringLiteral("Score"),
         .description = QStringLiteral(
-            "The overall Wrist Motion score for the shot (0–100): the assessment engine's rollup "
-            "over the banded lead-wrist checkpoints (bow/cup, hinge, roll, elbow at Top and "
-            "Impact). Criterion-referenced — how well the motion matches the reference model, not "
-            "a ranking against other golfers."),
+            "A single 0–100 summary of the lead-wrist motion for the shot. The assessment engine "
+            "bands each lead-wrist checkpoint — bow/cup, hinge, roll and elbow, at the Top and at "
+            "Impact — against its reference corridor, then rolls those results into one number. It "
+            "is criterion-referenced: it measures how closely this swing matches an efficient "
+            "reference model, not how it ranks against other golfers, so the same swing always "
+            "earns the same score."),
         .howToRead = QStringLiteral(
-            "0–100; higher is closer to the reference. It summarises the individual wrist metrics — "
-            "read those to see what is driving the number. Wrist Motion session; needs the lead "
-            "forearm + hand IMUs."),
+            "Read it as a headline, then drill into the individual wrist metrics to see what moved "
+            "it. Higher is closer to the reference; a low score points you at whichever checkpoint "
+            "fell outside its band — most often a cupped lead wrist at the top. It needs the "
+            "lead-forearm and lead-hand IMUs and is produced only in a Wrist Motion session."),
         .normative = { .heuristic = true },
         .requirement = { .imuRoles = { R::LeadForearm, R::LeadHand } },
         .usedBy = { QStringLiteral("review:verdict"), QStringLiteral("shotlist:score") },
@@ -79,14 +82,18 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QString(),
         .group = QStringLiteral("Score"),
         .description = QStringLiteral(
-            "Which tour lead-wrist pattern the swing most resembles — bowed, neutral or cupped — "
-            "with an independent 0–100 resemblance score for each "
-            "(R_p = 100·exp(−½·d_p²) over Top and Impact). Not a quality grade: all three are "
-            "workable patterns."),
+            "A classification of the lead-wrist release pattern rather than a grade. For each of "
+            "the three tour archetypes — bowed, neutral and cupped — it computes an independent "
+            "0–100 resemblance from how close the wrist's flex/extension sits to that archetype's "
+            "centres at the Top and Impact (R_p = 100·exp(−½·d_p²)). The scores are independent, so "
+            "a clean bowed action reads e.g. bowed 86 / neutral 40 / cupped 8. None of the patterns "
+            "is 'wrong' — they are all workable ways to deliver the club."),
         .howToRead = QStringLiteral(
-            "The label is the best-matching pattern (argmax); the per-pattern scores show how "
-            "strongly (e.g. bowed 86 / neutral 40 / cupped 8), and 'blended' flags a close top "
-            "two. v1 scores lead-wrist flex/extension only. Needs the lead forearm + hand IMUs."),
+            "The headline is the best-matching pattern (the highest of the three); the trio tells "
+            "you how decisively. When the top two are within a few points the result is flagged "
+            "'blended' — the player sits between styles. Use it to read a player's natural pattern "
+            "before coaching toward or away from it. v1 scores lead-wrist flex/extension only; it "
+            "needs the lead-forearm and lead-hand IMUs."),
         .normative = { .heuristic = true },
         .requirement = { .imuRoles = { R::LeadForearm, R::LeadHand } },
         .usedBy = { QStringLiteral("review:verdict") },
@@ -100,12 +107,16 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QString(),
         .group = QStringLiteral("Score"),
         .description = QStringLiteral(
-            "The overall Swing / GRF / Coach adherence score (0–100): how closely the full-body "
-            "action reproduces an idealised efficient swing. Adherence-referenced (design §B.0)."),
+            "The planned whole-swing counterpart to the wrist score: a single 0–100 rating of how "
+            "closely the full-body action reproduces an idealised, efficient swing for the session "
+            "type (Swing, GRF or Coach). Unlike the resemblance-based wrist score it is "
+            "adherence-referenced — it rewards proximity to one efficient model rather than "
+            "matching a chosen style."),
         .howToRead = QStringLiteral(
-            "0–100; higher is closer to the reference action. Not yet produced — the swing "
-            "adherence scorer is not wired into a live analyzer, so this metric is documented but "
-            "currently unavailable."),
+            "0–100, higher being closer to the reference action. This metric is a placeholder: the "
+            "swing adherence scorer is not yet wired into a live analyzer, so no value is produced "
+            "today. When it lands it will summarise the body-rotation, sequence and delivery "
+            "metrics the way the wrist score summarises the wrist checkpoints."),
         .planned = true,
         .normative = { .heuristic = true },
         .requirement = { .faceOnCamera = true },
@@ -122,14 +133,17 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Wrist & forearm"),
         .description = QStringLiteral(
-            "How much the lead wrist is bowed (flexed, +) or cupped (extended, −) relative to "
-            "address — the axis that most shapes the clubface. Cardan component 1 of "
-            "q_forearm⁻¹·q_hand about the hand medio-lateral axis."),
+            "The bow/cup axis of the lead wrist — how flexed (bowed, +) or cupped (extended, −) it "
+            "is relative to address — from the fused forearm and hand IMUs (first Cardan component "
+            "of q_forearm⁻¹·q_hand about the hand's medio-lateral axis). Of the three wrist motions "
+            "this is the one that most directly shapes the clubface, which is why it carries the "
+            "highest weight in the wrist score."),
         .howToRead = QStringLiteral(
-            "+ bowed / flexed, − cupped / extended. Read at Top and Impact; impact is typically "
-            "15–30° more flexed than address, and a cupped position at the top tends to open the "
-            "face. Flex/ext drives clubhead speed more than the other wrist axes. Wrist Motion "
-            "session; needs the lead forearm + hand IMUs."),
+            "+ is bowed/flexed (the strong, hands-forward look), − is cupped/extended. Read it at "
+            "the Top and Impact: a good move bows the wrist through transition so impact sits "
+            "roughly 15–30° more flexed than address, while a cupped top tends to leave the face "
+            "open. Restricting this axis costs more clubhead speed than the others, so treat a "
+            "cupping trend as a priority. Wrist Motion session; needs the lead-forearm and hand IMUs."),
         .flexPositive = true,
         .phases = { P::Top, P::Impact },
         .scored = true,
@@ -149,12 +163,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Wrist & forearm"),
         .description = QStringLiteral(
-            "Radial (−) / ulnar (+) deviation of the lead wrist — the hinge/cock that sets and "
-            "holds lag. Cardan component 2 of q_forearm⁻¹·q_hand about the dorsal-palmar axis."),
+            "The hinge (or 'cock') of the lead wrist — radial (−, toward the thumb) versus ulnar "
+            "(+, toward the little finger) — as the second Cardan component of q_forearm⁻¹·q_hand "
+            "about the dorsal-palmar axis. This is the axis that sets and stores wrist lag in the "
+            "backswing and releases it through the strike."),
         .howToRead = QStringLiteral(
-            "+ ulnar (hinged/cocked), − radial. A large ulnar value at the top is normal; less "
-            "deviation at impact tends to go with lower handicaps. This is the weakest IMU axis "
-            "(~5° error) — read the trend, not the absolute. Needs the lead forearm + hand IMUs."),
+            "+ is ulnar (hinged/cocked), − is radial. A large ulnar value at the top is normal and "
+            "desirable; better players hold less deviation into impact, where lower handicaps show "
+            "noticeably less wandering. This is the least reliable IMU axis (~5° typical error), so "
+            "trust the shape of the trend over any single value. Needs the lead-forearm and hand IMUs."),
         .flexPositive = true,
         .phases = { P::Top, P::Impact },
         .scored = true,
@@ -174,12 +191,16 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Wrist & forearm"),
         .description = QStringLiteral(
-            "Lead-forearm pronation (+) / supination (−) — the roll that squares the face through "
-            "impact. twist(q_upperarm⁻¹·q_forearm, elbow→wrist)."),
+            "The roll of the lead forearm — pronation (+, palm rolling down) versus supination (−, "
+            "palm rolling up) — as the axial twist of q_upperarm⁻¹·q_forearm about the elbow-to-"
+            "wrist axis. It is the rotational component that helps square the clubface through "
+            "impact, working together with the bow/cup axis."),
         .howToRead = QStringLiteral(
-            "+ pronated, − supinated. The forearm rolls toward square through impact. There is no "
-            "published tour benchmark for this axis — read it as a trend. Needs the lead forearm, "
-            "hand and upper-arm IMUs."),
+            "+ is pronated, − is supinated; through the strike the lead forearm rolls toward "
+            "square. There is no published tour benchmark, so read it as a trend and as a matched "
+            "pair with bow/cup — a player short on bow may compensate with roll, and vice versa. It "
+            "needs the lead-forearm, hand and upper-arm IMUs (the upper-arm gives the forearm a "
+            "reference to rotate against)."),
         .flexPositive = true,
         .phases = { P::Top, P::Impact },
         .scored = true,
@@ -199,11 +220,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Wrist & forearm"),
         .description = QStringLiteral(
-            "Lead-elbow flexion magnitude — how bent the lead arm is. acos(dot(û_upper, û_fore)) "
-            "from the shoulder / elbow / wrist chain."),
+            "How bent the lead arm is at the elbow, reported as a flexion magnitude from the angle "
+            "between the upper-arm and forearm segments (acos of their dot product) along the "
+            "shoulder–elbow–wrist chain. A connected, structured swing keeps the lead arm long and "
+            "relatively straight through the hitting area."),
         .howToRead = QStringLiteral(
-            "0 = straight, larger = more bent. A near-straight lead arm (small flexion) through "
-            "impact is the goal. Needs the lead forearm, hand and upper-arm IMUs."),
+            "0° is a perfectly straight arm; larger values mean more bend. A near-straight lead arm "
+            "through impact is the goal. A chicken-wing — rising flexion into and past impact — "
+            "usually signals an early release or a stalling body and shows up here as a growing "
+            "value. It needs the lead-forearm, hand and upper-arm IMUs."),
         .flexPositive = true,
         .phases = { P::Top, P::Impact },
         .scored = true,
@@ -225,11 +250,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Body rotation"),
         .description = QStringLiteral(
-            "Axial pelvis turn relative to address — the pelvis medio-lateral axis rotated into the "
-            "horizontal plane."),
+            "How far the pelvis has turned about the body's vertical axis relative to address — the "
+            "engine of the swing's rotational power. It is taken from the pelvis IMU as the pelvis "
+            "medio-lateral axis projected into the horizontal plane, so it isolates true axial turn "
+            "from sway or tilt."),
         .howToRead = QStringLiteral(
-            "Read at Top and Impact. Reference: ~45° at the top, ~35–45° open at impact. Will need "
-            "a pelvis IMU."),
+            "Read at the Top and Impact. As a guide the pelvis reaches roughly 45° of turn at the "
+            "top and is already re-rotating to about 35–45° open by impact — the pelvis leading the "
+            "chest open is a hallmark of an efficient downswing. Planned: it needs a dedicated "
+            "pelvis IMU, which today's placement slots do not yet provide."),
         .phases = { P::Top, P::Impact },
         .planned = true,
         .normative = { .heuristic = true },
@@ -243,9 +272,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Chest turn"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Body rotation"),
-        .description = QStringLiteral("Axial thorax (chest) turn relative to address."),
+        .description = QStringLiteral(
+            "How far the chest (thorax) has turned about the vertical axis relative to address, "
+            "from the thorax IMU. Together with pelvis rotation it defines the body's coil and how "
+            "the upper body unwinds into the ball."),
         .howToRead = QStringLiteral(
-            "Read at Top and Impact. Reference: shoulders ~90° at the top. Will need a thorax IMU."),
+            "Read at the Top and Impact; the shoulders typically reach around 90° of turn at the "
+            "top of a full swing. The relationship between chest and pelvis turn — how much the "
+            "chest outruns the pelvis going back, and how the pelvis leads coming down — is where "
+            "the power story lives (see X-factor). Planned: needs a thorax IMU."),
         .phases = { P::Top, P::Impact },
         .planned = true,
         .normative = { .heuristic = true },
@@ -260,10 +295,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Body rotation"),
         .description = QStringLiteral(
-            "Thorax-minus-pelvis axial separation — the classic X-factor (shoulder-vs-pelvis is "
-            "≈2× the spine measure)."),
+            "The separation between the chest and the pelvis — thorax turn minus pelvis turn — "
+            "which stretches the trunk and stores elastic energy at the top of the backswing. It "
+            "is the most talked-about power number in the modern swing; note that a shoulder-vs-"
+            "pelvis measure reads roughly twice the pure spine value, so the method matters."),
         .howToRead = QStringLiteral(
-            "Read at the top. Reference ~40–42° (TPI). Will need pelvis + thorax IMUs."),
+            "Read at the top of the backswing. Tour players commonly show around 40–42° of "
+            "separation (TPI), but more is not automatically better — it has to be separation the "
+            "player can actually use going down. Pair it with X-factor stretch, which captures how "
+            "much the gap grows early in the downswing. Planned: needs pelvis and thorax IMUs."),
         .phases = { P::Top },
         .planned = true,
         .normative = { .heuristic = true },
@@ -278,11 +318,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Body rotation"),
         .description = QStringLiteral(
-            "The extra separation gained early in the downswing: max(X-factor over early "
-            "downswing) − X-factor at the top. The stretch-shorten power signal."),
+            "The extra chest-over-pelvis separation gained at the very start of the downswing — the "
+            "peak X-factor in early downswing minus the X-factor at the top. This stretch-shorten "
+            "spike is the trunk loading against a pelvis that has already begun to unwind, and it "
+            "predicts clubhead speed better than the static top-of-backswing X-factor."),
         .howToRead = QStringLiteral(
-            "Larger = more stored stretch; a better speed predictor than static X-factor. "
-            "Reference ~5°. Will need pelvis + thorax IMUs."),
+            "Look for a positive spike through transition into early downswing; roughly 5° of added "
+            "stretch is typical, and skilled players add proportionally more. A player who reaches "
+            "the top with big separation but no stretch is not using the coil — the fix is "
+            "sequencing, not more turn. Planned: needs pelvis and thorax IMUs."),
         .phases = { P::Transition, P::Downswing },
         .planned = true,
         .normative = { .heuristic = true },
@@ -297,10 +341,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Body rotation"),
         .description = QStringLiteral(
-            "True hip-joint rotation — thigh axial turn relative to the pelvis, per side."),
+            "True rotation at the hip joints — each thigh turning axially relative to the pelvis — "
+            "as opposed to how far the pelvis as a whole has turned. It is what lets a player load "
+            "into the trail hip going back and clear the lead hip coming down; limited hip internal "
+            "rotation is a common physical restriction behind sway and early extension."),
         .howToRead = QStringLiteral(
-            "Read at Top and Impact. Reference: lead ~50° / trail ~40° amplitude. Will need pelvis "
-            "+ thigh IMUs."),
+            "Read per side at the Top and Impact; amplitudes of roughly 50° on the lead hip and 40° "
+            "on the trail hip are typical references. Restricted rotation on one side often forces "
+            "a compensation elsewhere in the chain, so this is as much a physical-screening tool as "
+            "a swing metric. Planned: needs a pelvis IMU plus thigh IMUs."),
         .phases = { P::Top, P::Impact },
         .planned = true,
         .normative = { .heuristic = true },
@@ -317,10 +366,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Spine & pelvis"),
         .description = QStringLiteral(
-            "Posture / forward bend — flexion-extension of the thorax relative to the pelvis."),
+            "The forward tilt of the trunk over the ball — the flexion/extension of the thorax "
+            "relative to the pelvis — which sets the posture the whole swing rotates around. Losing "
+            "this angle (standing up) or adding to it (dipping) through the downswing changes the "
+            "low point and the strike."),
         .howToRead = QStringLiteral(
-            "Read at Address and Impact; a retained ~30–40° (irons) from address is the goal. Will "
-            "need pelvis + thorax IMUs (or a 3D camera)."),
+            "Read at Address and Impact; the aim is to retain most of the address posture, with "
+            "irons commonly holding around 30–40° into impact. A loss of forward bend into impact "
+            "is early extension and pairs with the pelvis-thrust metric; too much is a dip that "
+            "moves the low point. Planned: needs pelvis and thorax IMUs (or a calibrated 3D camera)."),
         .phases = { P::Address, P::Impact },
         .planned = true,
         .normative = { .heuristic = true },
@@ -335,10 +389,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Spine & pelvis"),
         .description = QStringLiteral(
-            "Lateral flexion (trail-side bend) of the thorax relative to the pelvis."),
+            "Lateral flexion of the trunk toward the trail side — the side-bend of the thorax "
+            "relative to the pelvis — which naturally appears in the downswing as the trail "
+            "shoulder works down and under. It is closely tied to attack angle and to hitting up or "
+            "down on the ball."),
         .howToRead = QStringLiteral(
-            "Read at Impact. Reference: thorax ~32° / pelvis ~10° at driver impact. Will need a "
-            "face-on camera (or IMUs)."),
+            "Read at Impact; at driver impact the thorax commonly shows around 32° of side bend "
+            "versus about 10° at the pelvis. Too little side bend often goes with a steep, "
+            "over-the-top delivery; too much can throw the low point behind the ball. Planned: "
+            "needs a face-on camera (or IMUs)."),
         .phases = { P::Impact },
         .planned = true,
         .normative = { .heuristic = true },
@@ -353,11 +412,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Spine & pelvis"),
         .description = QStringLiteral(
-            "Spine lean away from the target — angle of the mid-hip→mid-shoulder vector from "
-            "vertical in the frontal plane."),
+            "How much the spine leans away from the target at impact — the angle of the mid-hip-to-"
+            "mid-shoulder line from vertical in the frontal (face-on) plane. It reflects the "
+            "trail-side tilt that lets the club approach from the inside and, for the driver, on a "
+            "slight upswing."),
         .howToRead = QStringLiteral(
-            "Read at Impact. Reference ~20–25° at impact (~6–8° at address). Will need a face-on "
-            "camera."),
+            "Read at Impact. Players tend to set roughly 6–8° of tilt at address and increase it to "
+            "about 20–25° by impact; a driver wants more of this than an iron. Too little tilt at "
+            "impact is a classic reverse-pivot or early-extension signature. Planned: needs a "
+            "face-on camera."),
         .phases = { P::Impact },
         .planned = true,
         .normative = { .heuristic = true },
@@ -372,10 +435,14 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("cm"),
         .group = QStringLiteral("Spine & pelvis"),
         .description = QStringLiteral(
-            "Lateral pelvis displacement along the target line relative to address."),
+            "How far the pelvis slides laterally along the target line, toward or away from the "
+            "target, relative to address — the linear partner to pelvis rotation. A little pressure "
+            "shift is powerful; too much slide replaces rotation and hurts consistency."),
         .howToRead = QStringLiteral(
-            "Away from target in the backswing, toward it in the downswing. Read near the top and "
-            "at Impact. Will need a face-on camera + ground plane."),
+            "Read near the top and at Impact. A good pattern moves slightly away from the target in "
+            "the backswing and then toward it in the downswing (a pressure shift), returning near "
+            "or just ahead of address by impact. Excessive sway away going back usually costs turn "
+            "and centredness of strike. Planned: needs a face-on camera and a calibrated ground plane."),
         .phases = { P::Top, P::Impact },
         .planned = true,
         .normative = { .heuristic = true },
@@ -390,11 +457,16 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("cm"),
         .group = QStringLiteral("Spine & pelvis"),
         .description = QStringLiteral(
-            "Toward-ball pelvis displacement; positive too early is an early-extension fault."),
+            "How far the pelvis pushes toward the ball (along the line from the player to the ball) "
+            "relative to address — the depth-axis partner to sway. A late, controlled move is "
+            "normal, but thrusting toward the ball early is the mechanical definition of early "
+            "extension, one of the most common amateur faults."),
         .howToRead = QStringLiteral(
-            "Should stay minimal toward the ball until late. Read in the downswing and at Impact. "
-            "Needs a down-the-line camera (the depth axis) — a lone face-on camera cannot resolve "
-            "it."),
+            "Read in the downswing and at Impact; the pelvis should stay back over the toe-line and "
+            "move toward the ball only late, if at all. A rising, toward-ball trace through the "
+            "downswing is early extension and pairs with a loss of spine forward bend. This motion "
+            "lives along the camera's optical axis, so it genuinely needs a down-the-line view — a "
+            "lone face-on camera cannot resolve it. Planned."),
         .phases = { P::Downswing, P::Impact },
         .planned = true,
         .normative = { .heuristic = true },
@@ -408,10 +480,16 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Lift"),
         .unit = QStringLiteral("cm"),
         .group = QStringLiteral("Spine & pelvis"),
-        .description = QStringLiteral("Vertical pelvis displacement relative to address."),
+        .description = QStringLiteral(
+            "How much the pelvis rises or drops vertically relative to address — the up/down "
+            "component of pelvis motion. Some rise through impact is part of a powerful, "
+            "ground-force-driven action; an uncontrolled early rise is another face of early "
+            "extension."),
         .howToRead = QStringLiteral(
-            "A small controlled rise is normal. Read at Impact. Will need a face-on camera + "
-            "ground plane."),
+            "Read at Impact. A small, controlled rise as the player pushes off the ground is normal "
+            "and even desirable; what you are watching for is an early or excessive lift that pulls "
+            "the club off its path. Read it alongside pelvis thrust and spine forward bend. "
+            "Planned: needs a face-on camera and a calibrated ground plane."),
         .phases = { P::Impact },
         .planned = true,
         .normative = { .heuristic = true },
@@ -428,12 +506,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("mph"),
         .group = QStringLiteral("Club & speed"),
         .description = QStringLiteral(
-            "Clubhead speed near impact from the tracked head path: ‖v_clubhead‖, a central "
-            "difference of the clubhead's 2D position scaled to the ground plane."),
+            "How fast the clubhead is travelling near impact — the magnitude of its velocity, taken "
+            "as a central difference of the tracked head position and scaled to real-world units "
+            "on the ground plane. It is the headline power number and the biggest single driver of "
+            "distance."),
         .howToRead = QStringLiteral(
-            "Read the peak / @impact value. Reference (TrackMan 2024): driver ~113 mph, 7-iron "
-            "~89 mph. On a single face-on camera this is an in-plane estimate — depth-axis motion "
-            "is approximate. Needs face-on club tracking."),
+            "Read the peak, which occurs right around impact. As references, tour drivers run about "
+            "113 mph and 7-irons about 89 mph (TrackMan 2024), but the right number is club- and "
+            "player-dependent. On a single face-on camera this is an in-plane estimate, so treat "
+            "motion along the depth axis as approximate. Needs face-on club tracking."),
         .phases = { P::Impact },
         .normative = { .contextNote = QStringLiteral("club-dependent — see reference norms"),
                        .heuristic = true },
@@ -449,11 +530,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("mph"),
         .group = QStringLiteral("Club & speed"),
         .description = QStringLiteral(
-            "Speed of the lead-hand (grip) point from the tracked grip path — the hand-path proxy "
-            "for delivery speed."),
+            "How fast the hands (the grip end of the club) are moving, from the tracked grip point "
+            "— a proxy for how much speed the body and arms are delivering to the handle before the "
+            "clubhead releases. In an efficient swing the hands lead and then decelerate as the "
+            "clubhead accelerates past them."),
         .howToRead = QStringLiteral(
-            "Read the peak / @impact value. Hand speed peaks slightly before impact in an "
-            "efficient release. Needs face-on club tracking (grip point)."),
+            "Read the peak, which in a good release comes slightly before impact — the hands "
+            "slowing lets the clubhead sling past for maximum speed at the ball. Hands still "
+            "accelerating at impact usually mean the release is late or the body has stalled. Needs "
+            "face-on club tracking (the grip point)."),
         .phases = { P::Impact },
         .normative = { .heuristic = true },
         .requirement = { .faceOnCamera = true, .clubTrack = true },
@@ -468,11 +553,14 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club & speed"),
         .description = QStringLiteral(
-            "Angle between the lead forearm and the club shaft — the retained wrist lag. Derived "
-            "from the shaft track (grip→head) and the lead-forearm pose."),
+            "The angle held between the lead forearm and the club shaft — the visible 'lag' that "
+            "stores energy in the downswing. It is derived from the shaft track (grip to head) and "
+            "the lead-forearm pose, and its release is what delivers clubhead speed to the ball."),
         .howToRead = QStringLiteral(
-            "Larger through the downswing = more retained lag; it releases toward impact. Needs "
-            "both the face-on club track and lead-forearm pose."),
+            "Read through the downswing into impact: a larger retained angle deep into the "
+            "downswing means more stored lag, which then releases toward impact. Casting (the angle "
+            "widening early) throws away speed and steepens the club, while holding it too long can "
+            "leave the face open. It needs both the face-on club track and the lead-forearm pose."),
         .phases = { P::Downswing, P::Impact },
         .normative = { .heuristic = true },
         .requirement = { .faceOnCamera = true, .clubTrack = true },
@@ -487,10 +575,14 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club & speed"),
         .description = QStringLiteral(
-            "Forward shaft lean — the shaft's angle from vertical, from the tracked club/shaft."),
+            "How far the shaft leans forward (toward the target) from vertical at impact, from the "
+            "tracked club and shaft. Forward shaft lean means the hands are ahead of the clubhead "
+            "at the strike, which de-lofts the club and is a signature of solid iron contact."),
         .howToRead = QStringLiteral(
-            "Read at Impact; forward lean (hands ahead of the ball) is typical for irons. Needs "
-            "the face-on club track. Wrist Motion session."),
+            "Read at Impact; forward lean with the hands ahead of the ball is typical and desirable "
+            "for irons, while the driver is played with the shaft close to vertical or leaning "
+            "back. Too little lean (or backward lean) on an iron usually means an early release, "
+            "with thin/fat tendencies. It needs the face-on club track; Wrist Motion session."),
         .phases = { P::Impact },
         .normative = { .heuristic = true },
         .requirement = { .faceOnCamera = true, .clubTrack = true },
@@ -507,11 +599,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club delivery"),
         .description = QStringLiteral(
-            "Best-fit plane of the clubhead (or lead-hand proxy) path over the knee-to-knee "
-            "downswing — reported as tilt vs ground plus azimuth."),
+            "The tilt and direction of the plane the clubhead swings on through the downswing — a "
+            "best-fit plane of the head path (or a lead-hand proxy) over the knee-to-knee section, "
+            "reported as a tilt angle from the ground plus an azimuth. It captures whether the club "
+            "is delivered on an inclined circle that matches the player and the club."),
         .howToRead = QStringLiteral(
-            "Read over the downswing; values are club-dependent. A down-the-line camera is the "
-            "classic swing-plane view. Will need the club track."),
+            "Read over the downswing; the numbers are club-dependent, so compare like with like and "
+            "look for consistency across swings more than an absolute target. A down-the-line "
+            "camera is the classic view for plane, and with no club tracked the value falls back to "
+            "a hand-path proxy that should be labelled as such. Planned: needs the club track."),
         .phases = { P::Downswing },
         .planned = true,
         .normative = { .heuristic = true },
@@ -526,11 +622,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club delivery"),
         .description = QStringLiteral(
-            "Horizontal angle of the clubhead velocity vs the target line at impact "
-            "(+ in-to-out / − out-to-in)."),
+            "The horizontal direction the clubhead is travelling at impact relative to the target "
+            "line — in-to-out (+) or out-to-in (−). Together with face angle it determines the "
+            "ball's start line and curvature, making it one of the two numbers that most directly "
+            "explain shot shape."),
         .howToRead = QStringLiteral(
-            "Read at Impact; near 0 ± a few degrees. The discriminating axis is the optical axis, "
-            "so this is a canonical down-the-line metric. Will need the club track + a DTL camera."),
+            "Read at Impact; most good iron shots sit within a few degrees either side of zero, "
+            "with the desired path depending on the shape being played. The discriminating axis is "
+            "the optical (toward-ball) axis, which is exactly what a face-on camera cannot see — "
+            "this is a canonical down-the-line metric. Planned: needs the club track and a DTL camera."),
         .phases = { P::Impact },
         .planned = true,
         .normative = { .heuristic = true },
@@ -544,10 +644,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Attack"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club delivery"),
-        .description = QStringLiteral("Vertical angle of the clubhead velocity at impact."),
+        .description = QStringLiteral(
+            "Whether the clubhead is moving down or up at impact — the vertical angle of its "
+            "velocity. It controls compression and low point: irons are struck with a descending "
+            "blow, while the driver is best hit slightly on the up to launch it high with low spin."),
         .howToRead = QStringLiteral(
-            "Read at Impact. Reference: driver ~−1.3°, 7-iron ~−4.5° (TrackMan). Will need the "
-            "club track (a DTL camera makes it fully in-plane)."),
+            "Read at Impact. References run about −1.3° for the driver (many good drives are "
+            "positive, +3 to +5°) and about −4.5° for a 7-iron (TrackMan). A too-steep iron angle "
+            "digs and loses speed; a downward driver angle costs carry. A down-the-line camera "
+            "makes it fully in-plane. Planned: needs the club track."),
         .phases = { P::Impact },
         .planned = true,
         .normative = { .heuristic = true },
@@ -562,11 +667,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club delivery"),
         .description = QStringLiteral(
-            "Horizontal angle of the clubface normal vs the target line at impact — the primary "
-            "gate on ball start direction."),
+            "Where the clubface is pointing at impact relative to the target line — the primary "
+            "control on where the ball starts, since start direction is dominated by face angle. "
+            "Small open/closed differences here are the difference between a fairway and a penalty "
+            "area."),
         .howToRead = QStringLiteral(
-            "Read at Impact; small open/closed. Needs a club device (or club tracking); a camera "
-            "alone gives only a labelled forearm+wrist proxy."),
+            "Read at Impact; you want small, repeatable open/closed values matched to the intended "
+            "path. Face angle really needs a club-mounted device or full club tracking to measure "
+            "directly — a camera alone can only offer a forearm-and-wrist proxy, which must be "
+            "clearly labelled as an estimate. Planned: needs club instrumentation."),
         .phases = { P::Impact },
         .planned = true,
         .normative = { .heuristic = true },
@@ -581,12 +690,16 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("in"),
         .group = QStringLiteral("Club delivery"),
         .description = QStringLiteral(
-            "Signed target-line distance from the ball to the clubhead arc's low point "
-            "(+ ahead = a descending blow)."),
+            "Where the bottom of the swing arc is relative to the ball, as a signed distance along "
+            "the target line — positive when the low point is ahead of (target-side of) the ball. "
+            "It is the single best 2D summary of ball-then-turf contact and the one club-delivery "
+            "number a lone face-on camera can estimate."),
         .howToRead = QStringLiteral(
-            "Read near Impact; + (ahead of the ball) is a descending blow for irons, driver is "
-            "behind. Will need a face-on camera with shaft-head + ball tracking; deferred pending "
-            "the measured-clubhead detector."),
+            "Read near impact; a positive value (low point ahead of the ball) is the descending, "
+            "ball-first strike you want with irons, while the driver is normally struck with the "
+            "low point behind the ball. A low point behind the ball on an iron is the fat/thin "
+            "signature. Planned: needs a face-on camera with shaft-head and ball tracking, and is "
+            "deferred until the measured-clubhead detector lands so the head is measured, not projected."),
         .phases = { P::Impact },
         .planned = true,
         .normative = { .heuristic = true },
@@ -602,10 +715,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Backswing"),
         .unit = QStringLiteral("s"),
         .group = QStringLiteral("Tempo & sequence"),
-        .description = QStringLiteral("Duration of the backswing (Address → Top)."),
+        .description = QStringLiteral(
+            "How long the backswing takes, from address to the top of the swing. Backswing time is "
+            "the foundation of tempo — it sets the rhythm the downswing has to match — and it is "
+            "remarkably consistent within a good player, even across clubs."),
         .howToRead = QStringLiteral(
-            "Reference ~0.75–0.85 s (TPI 0.847 ± 0.111). Will need a segmented swing (phase "
-            "events)."),
+            "As a reference, tour backswings cluster around 0.75–0.85 s (TPI report 0.847 ± 0.111 "
+            "s). The absolute value matters less than its consistency and its ratio to the "
+            "downswing (see tempo ratio). Planned: it only needs a reliably segmented swing (the "
+            "phase events), so it is one of the easier metrics to bring live."),
         .planned = true,
         .normative = { .heuristic = true },
     });
@@ -618,9 +736,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QString(),
         .group = QStringLiteral("Tempo & sequence"),
         .description = QStringLiteral(
-            "Backswing-to-downswing time ratio (backswing time ÷ Top→Impact time)."),
+            "The rhythm of the swing as a single number — backswing time divided by downswing time "
+            "(top to impact). It captures the relationship between the two halves of the swing "
+            "independently of how fast the player swings overall, which is why teachers lean on it "
+            "so heavily."),
         .howToRead = QStringLiteral(
-            "Reference ~3:1 (tour 2.2–3.0:1). Will need a segmented swing."),
+            "The classic tour figure is about 3:1 (backswing three times as long as the "
+            "downswing), with most good players between roughly 2.2:1 and 3.0:1. A ratio that "
+            "drifts from a player's norm — often a quick, snatchy transition dropping it well below "
+            "3:1 — is a reliable early warning of a rhythm problem. Planned: needs a segmented swing."),
         .planned = true,
         .normative = { .heuristic = true },
     });
@@ -633,13 +757,16 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QString(),
         .group = QStringLiteral("Tempo & sequence"),
         .description = QStringLiteral(
-            "The proximal-to-distal peak-speed sequence — the order, timing gaps and magnitudes of "
-            "peak axial angular speed for pelvis → thorax → lead-arm → club."),
+            "The order, timing and size of the peak rotational speeds of the body segments — "
+            "pelvis, then thorax, then lead arm, then club — as the swing fires from the ground up. "
+            "A proximal-to-distal sequence, with each segment peaking and handing off to the next, "
+            "is the signature of an efficient, powerful downswing, and this metric shows it directly."),
         .howToRead = QStringLiteral(
-            "Look for a clean proximal-to-distal order with only the club still accelerating "
-            "through impact (reference peaks e.g. pelvis ~480, thorax ~605, lead-arm ~1310 °/s; "
-            "transition ~50 ms). Will need body IMUs (pelvis + thorax + lead forearm) and the club "
-            "track."),
+            "You want a clean proximal-to-distal order (pelvis → chest → arm → club) with only the "
+            "club still accelerating through impact; out-of-order or overlapping peaks flag a leak "
+            "of speed or a stall. Reference peaks run roughly pelvis ~480, thorax ~605 and lead-arm "
+            "~1310 °/s with about a 50 ms transition gap. Planned: needs body IMUs (pelvis, thorax "
+            "and lead forearm) and the club track."),
         .phases = { P::Transition, P::Impact },
         .planned = true,
         .normative = { .heuristic = true },
@@ -656,11 +783,14 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("×frame"),
         .group = QStringLiteral("Feet & stance"),
         .description = QStringLiteral(
-            "Heel-to-heel stance width at address as a fraction of frame width (isotropic), from "
-            "the whole-body pose feet keypoints."),
+            "How wide the feet are set at address, measured heel-to-heel as a fraction of the frame "
+            "width (so it is independent of camera distance) from the whole-body pose. Stance width "
+            "is a foundation of balance and turn: too narrow costs stability, too wide restricts "
+            "the hips."),
         .howToRead = QStringLiteral(
-            "Measured once, at address. Read as a proportion of the frame; wider or narrower "
-            "relative to shoulder width suits different clubs. Needs a face-on whole-body camera."),
+            "This is a single setup measurement, taken at address. Read it as a proportion — "
+            "commonly compared to shoulder width — with wider stances suiting the longer clubs and "
+            "narrower ones the wedges. Needs a face-on whole-body camera."),
         .phases = { P::Address },
         .normative = { .heuristic = true },
         .requirement = { .faceOnCamera = true },
@@ -675,10 +805,13 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Feet & stance"),
         .description = QStringLiteral(
-            "Lead-foot flare at address — that foot's heel→big-toe direction vs the image +x axis."),
+            "How much the lead foot is turned out (flared) at address, from the angle of that "
+            "foot's heel-to-big-toe line in the image plane. Lead-foot flare is a setup choice that "
+            "changes how freely the lead hip can clear through impact."),
         .howToRead = QStringLiteral(
-            "Measured once, at address. More flare (toe-out) on the lead foot can ease the "
-            "follow-through. Needs a face-on whole-body camera."),
+            "A single address measurement. More flare (toe pointing out toward the target) makes it "
+            "easier for the lead hip to rotate open and clear through the strike, which can help "
+            "players who struggle to finish their turn. Needs a face-on whole-body camera."),
         .phases = { P::Address },
         .normative = { .heuristic = true },
         .requirement = { .faceOnCamera = true },
@@ -693,10 +826,14 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Feet & stance"),
         .description = QStringLiteral(
-            "Trail-foot flare at address — that foot's heel→big-toe direction vs the image +x axis."),
+            "How much the trail foot is turned out at address, from the angle of its heel-to-big-"
+            "toe line in the image plane. Trail-foot flare regulates how much the trail hip can "
+            "turn and load in the backswing."),
         .howToRead = QStringLiteral(
-            "Measured once, at address. Trail-foot flare influences how the hips can turn in the "
-            "backswing. Needs a face-on whole-body camera."),
+            "A single address measurement. A square (un-flared) trail foot restrains and stores the "
+            "backswing turn, while flaring it out lets the hips turn more freely going back — a "
+            "useful lever for players who lack mobility or over-rotate. Needs a face-on whole-body "
+            "camera."),
         .phases = { P::Address },
         .normative = { .heuristic = true },
         .requirement = { .faceOnCamera = true },
@@ -711,11 +848,14 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Feet & stance"),
         .description = QStringLiteral(
-            "Alignment of the toe line at address: the lead-big-toe→trail-big-toe direction vs the "
-            "image +x axis."),
+            "The alignment of the stance at address, taken as the angle of the line joining the two "
+            "big toes relative to the image horizontal. It is a quick read on whether the feet are "
+            "set open, square or closed to the intended line."),
         .howToRead = QStringLiteral(
-            "Measured once, at address. Indicates stance alignment (open / square / closed) in the "
-            "image plane. Needs a face-on whole-body camera."),
+            "A single address measurement of stance alignment (open / square / closed) in the image "
+            "plane. Because it is measured face-on it reads the apparent line rather than true "
+            "target-line alignment, which a down-the-line or overhead view would resolve more "
+            "directly. Needs a face-on whole-body camera."),
         .phases = { P::Address },
         .normative = { .heuristic = true },
         .requirement = { .faceOnCamera = true },
@@ -730,11 +870,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("×frame"),
         .group = QStringLiteral("Feet & stance"),
         .description = QStringLiteral(
-            "Lead-heel elevation relative to address (heel vs toe) as a fraction of frame height; "
-            "+ = the heel lifts off the ground."),
+            "How far the lead heel rises off the ground through the swing, relative to address, as "
+            "a fraction of frame height (positive when the heel lifts). Some players anchor both "
+            "heels; others let the lead heel come up in the backswing to allow a bigger turn — both "
+            "can work."),
         .howToRead = QStringLiteral(
-            "A per-frame curve. Some lift at the top is common; staying grounded is a style "
-            "choice. Read the trend, not an absolute. Needs a face-on whole-body camera."),
+            "This is a per-frame curve, usually read for how much the heel comes up around the top. "
+            "A little lift is common and can free up the backswing turn; keeping the heel down is a "
+            "legitimate stylistic choice for stability. Read the trend rather than any single "
+            "value. Needs a face-on whole-body camera."),
         .phases = { P::Top },
         .normative = { .heuristic = true },
         .requirement = { .faceOnCamera = true },
@@ -751,11 +895,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Alignment"),
         .description = QStringLiteral(
-            "Angle of the shoulder line (lead→trail shoulder) in the image plane — how open or "
-            "closed the shoulders are."),
+            "Which way the shoulder line points — the angle of the line joining the lead and trail "
+            "shoulders in the image plane — read at address and again at impact. The shoulders are "
+            "the most influential alignment line for a player's start direction, and how they "
+            "return at impact tells a different story from how they were set."),
         .howToRead = QStringLiteral(
-            "Read at Address and Impact; square at address and a touch open at impact is typical. "
-            "Will need a face-on camera (a down-the-line view gives true target-line alignment)."),
+            "Read at Address and Impact. A common pattern is close to square at address and a touch "
+            "open by impact as the upper body clears; shoulders open at address, or slammed wide "
+            "open at impact, often signal an out-to-in delivery. Planned: needs a face-on camera "
+            "for the image-plane line, with a down-the-line view giving true target-line alignment."),
         .phases = { P::Address, P::Impact },
         .planned = true,
         .normative = { .heuristic = true },
@@ -770,10 +918,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Alignment"),
         .description = QStringLiteral(
-            "Angle of the line between the elbows (lead→trail elbow) in the image plane."),
+            "The angle of the line joining the two elbows in the image plane, read at address and "
+            "at impact — a compact read on how the arms and elbows are structured relative to the "
+            "body. It complements the shoulder line by showing what the arms are doing "
+            "independently of the torso."),
         .howToRead = QStringLiteral(
-            "Read at Address and Impact; reflects how the arms are structured through the strike. "
-            "Will need a face-on camera."),
+            "Read at Address and Impact; the change between the two reflects how the arms fold, "
+            "rotate and re-deliver through the strike (for example the trail elbow tucking on the "
+            "way down). Read it together with lead-arm flexion and shoulder alignment. Planned: "
+            "needs a face-on camera."),
         .phases = { P::Address, P::Impact },
         .planned = true,
         .normative = { .heuristic = true },
@@ -788,11 +941,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Alignment"),
         .description = QStringLiteral(
-            "Angle of the hip line (lead→trail hip) in the image plane — how open or closed the "
-            "hips are."),
+            "Which way the hip line points — the angle of the line joining the lead and trail hips "
+            "in the image plane — read at address and at impact. The hips both set a player's aim "
+            "and, by how far they open by impact, reveal how well the lower body is leading the "
+            "downswing."),
         .howToRead = QStringLiteral(
-            "Read at Address and Impact; the hips are typically more open than the shoulders at "
-            "impact. Will need a face-on camera (down-the-line for true target-line alignment)."),
+            "Read at Address and Impact. Near-square at address is typical, and by impact the hips "
+            "are usually more open than the shoulders — a lower body that clears ahead of the upper "
+            "body is a good sign, whereas hips that stay closed into impact often force the arms to "
+            "take over. Planned: needs a face-on camera (down-the-line for true target-line alignment)."),
         .phases = { P::Address, P::Impact },
         .planned = true,
         .normative = { .heuristic = true },
@@ -807,10 +964,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Alignment"),
         .description = QStringLiteral(
-            "Angle of the foot line (lead→trail ankle) in the image plane — the stance line."),
+            "The alignment of the feet as a body line — the angle of the line joining the lead and "
+            "trail ankles in the image plane — read at address and at impact. It complements the "
+            "address-only toe line by adding an impact read and by using the ankle joints rather "
+            "than the toes, so it is less affected by foot flare."),
         .howToRead = QStringLiteral(
-            "Read at Address and Impact; complements the address-only toe line. Will need a "
-            "face-on camera."),
+            "Read at Address and Impact. At address it reports the stance line (open / square / "
+            "closed); the impact read shows how the feet and lower legs have worked — for example "
+            "the trail foot rolling and the ankles re-orienting as the player pushes off. Planned: "
+            "needs a face-on camera."),
         .phases = { P::Address, P::Impact },
         .planned = true,
         .normative = { .heuristic = true },
@@ -827,11 +989,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("×frame"),
         .group = QStringLiteral("Head"),
         .description = QStringLiteral(
-            "Lateral head displacement relative to address, as a fraction of frame width "
-            "(isotropic)."),
+            "How much the head moves side-to-side relative to address, as a fraction of frame width "
+            "so it is camera-distance independent. The head is a convenient, stable proxy for "
+            "whether the upper body is staying centred: rotating around a steady head is efficient, "
+            "while sliding the head off the ball tends to move the low point."),
         .howToRead = QStringLiteral(
-            "A per-frame curve; some lateral movement is normal, excessive sway is a fault — read "
-            "the trend. Needs a face-on camera. Wrist Motion session."),
+            "This is a per-frame curve; some lateral movement (especially a small shift back and "
+            "through) is normal, and only excessive sway is a fault. Read the trend and the peak "
+            "rather than any single frame, and pair it with pelvis sway to see whether the whole "
+            "body is sliding. Needs a face-on camera; Wrist Motion session."),
         .phases = { P::Top, P::Impact },
         .normative = { .heuristic = true },
         .requirement = { .faceOnCamera = true },
@@ -846,11 +1012,14 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("×frame"),
         .group = QStringLiteral("Head"),
         .description = QStringLiteral(
-            "Vertical head displacement relative to address, as a fraction of frame width; "
-            "+ = the head rises."),
+            "How much the head rises or drops relative to address, as a fraction of frame width "
+            "(positive when it rises). Vertical head movement is an early, easy-to-see indicator of "
+            "standing up out of posture or dipping into the ball, both of which change the strike."),
         .howToRead = QStringLiteral(
-            "A per-frame curve; read the trend against address. Needs a face-on camera. Wrist "
-            "Motion session."),
+            "A per-frame curve read against the address height. A steady head is ideal; an early "
+            "rise through the downswing points toward standing up / early extension, while a dip "
+            "suggests a drop into the shot. Read it alongside spine forward bend and pelvis lift. "
+            "Needs a face-on camera; Wrist Motion session."),
         .phases = { P::Top, P::Impact },
         .normative = { .heuristic = true },
         .requirement = { .faceOnCamera = true },
@@ -864,10 +1033,16 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Head tilt"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Head"),
-        .description = QStringLiteral("Eye-line tilt angle relative to address."),
+        .description = QStringLiteral(
+            "How the eye-line tilts relative to its address angle, in degrees — the rotational "
+            "(not translational) head measure. It picks up the head cocking or levelling through "
+            "the swing, which can influence how level the shoulders turn and how the player sees "
+            "the ball."),
         .howToRead = QStringLiteral(
-            "A per-frame curve of the eye-line angle change from address. Needs a face-on camera. "
-            "Wrist Motion session."),
+            "A per-frame curve of the eye-line angle change from address. Small, stable changes are "
+            "normal; a large or abrupt tilt change can accompany a loss of posture or an "
+            "over-active head. Read it with head sway and lift for the full picture of head motion. "
+            "Needs a face-on camera; Wrist Motion session."),
         .phases = { P::Top, P::Impact },
         .normative = { .heuristic = true },
         .requirement = { .faceOnCamera = true },
