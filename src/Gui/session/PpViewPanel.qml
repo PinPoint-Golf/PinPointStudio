@@ -31,13 +31,14 @@ Item {
     implicitHeight: col.implicitHeight + Theme.sp(26)
 
     readonly property var panelMeta: [
-        { key: "camera",    label: qsTr("Camera"),    ready: true  },
-        { key: "dashboard", label: qsTr("Dashboard"), ready: false },
-        { key: "carousel",  label: qsTr("Carousel"),  ready: true  },
-        { key: "timeline",  label: qsTr("Timeline"),  ready: true  },
-        { key: "charts",    label: qsTr("Charts"),    ready: false },
-        { key: "table",     label: qsTr("Table"),     ready: false },
-        { key: "markup",    label: qsTr("Markup"),    ready: true  }
+        { key: "camera",      label: qsTr("Camera"),                ready: true  },
+        { key: "dashboard",   label: qsTr("Dashboard"),             ready: true  },
+        { key: "wristMotion", label: qsTr("Wrist motion analysis"), ready: true  },
+        { key: "carousel",    label: qsTr("Carousel"),              ready: true  },
+        { key: "timeline",    label: qsTr("Timeline"),              ready: true  },
+        { key: "charts",      label: qsTr("Charts"),                ready: false },
+        { key: "table",       label: qsTr("Table"),                 ready: false },
+        { key: "markup",      label: qsTr("Markup"),                ready: true  }
     ]
 
     Column {

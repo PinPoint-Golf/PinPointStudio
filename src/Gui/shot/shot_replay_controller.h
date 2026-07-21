@@ -97,6 +97,16 @@ public:
     // before start(); a live player at that index is rebound immediately.
     Q_INVOKABLE void setVideoSink(int index, QVideoSink *sink) { m_source->setVideoSink(index, sink); }
 
+    // Builds the metric-catalogue ShotContext map for the focused shot from its
+    // analysisDetail (tier + pose/club/ball presence + calibration bindings) and
+    // its own stream list, tagged with `sessionType` (the caller's screen type).
+    // Shape: { tier, sessionType, hasFaceOn, hasClubTrack, hasBallTrack,
+    // imuRoles:[roleName…] } — consumed by MetricCatalog.query/descriptor. Sourced
+    // from the DISK shot, so analysis.bindings[] (hence imuRoles) are present,
+    // unlike the live transient. archetype/club/shape are not persisted in
+    // swing.json today, so they are left at their catalogue defaults (0).
+    Q_INVOKABLE QVariantMap shotContext(int sessionType) const;
+
 signals:
     void activeChanged();
     void playingChanged();

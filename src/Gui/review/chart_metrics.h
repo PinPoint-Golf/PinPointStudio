@@ -20,6 +20,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QVariantList>
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
@@ -81,4 +82,14 @@ public:
     // Band ("good"/"attention"/"warn") of the phaseSample nearest `us` (default "good").
     // Used to tint a summary card's @end value by the swing's state at the window edge.
     Q_INVOKABLE QString bandAtNearest(const QVariantList &phaseSamples, qint64 us) const;
+
+    // Ordered kinematic-sequence nodes for the dashboard Sequence zone. `series` is
+    // analysisDetail.series ([{key,t_us,value,…}]); `keys` selects which series to
+    // include (e.g. ["handSpeed","clubheadSpeed"]). Returns one map per series that
+    // has data — { key, tPeakUs, peak, gapMs, order } — ordered by peak time, gapMs =
+    // ms since the previous node. Series absent from `series` (or empty) are dropped,
+    // so a partially-instrumented capture degrades to the measurable nodes only.
+    // The reduction itself is the pure kinematicSequenceNodes() (kinematic_sequence.h).
+    Q_INVOKABLE QVariantList sequenceNodes(const QVariantList &series,
+                                           const QStringList &keys) const;
 };

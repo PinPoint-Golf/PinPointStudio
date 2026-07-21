@@ -139,6 +139,10 @@ Item {
                     PpCameraTiles { sessionType: root.sessionType }
                 }
                 chartsDelegate: Component { PpReplayCharts { sessionType: root.sessionType } }
+                // Post-shot dashboard — the configurable, glanceable, wall-castable summary.
+                // Broad-scope: available on every session screen (Verdict degrades to score +
+                // pattern where the analyzer is still a stub).
+                dashboardDelegate: Component { PpDashboardPanel { sessionType: root.sessionType } }
                 // Table panel — read-only inspector of the focused swing.json. The
                 // focused swing is the active replay, else the carousel's selection.
                 tableDelegate: Component {

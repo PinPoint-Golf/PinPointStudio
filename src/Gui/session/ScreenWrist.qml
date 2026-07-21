@@ -120,10 +120,13 @@ Item {
                     PpCameraTiles { sessionType: SessionController.Wrist; showHittingArea: false }
                 }
                 chartsDelegate: Component { PpReplayCharts { sessionType: SessionController.Wrist } }
-                // Wrist Motion diagnostics — the Tier-1 assessment surface (Phase 1: demo-fed; the
-                // live data adapter lands in Phase 3). A normal stage panel: place/arrange it via
-                // the View control like camera/charts/table.
-                dashboardDelegate: Component { WristDiagnostics {} }
+                // Post-shot dashboard — the configurable, glanceable, wall-castable summary
+                // (Verdict/Setup/Motion/Sequence), broad-scope across session types.
+                dashboardDelegate: Component { PpDashboardPanel { sessionType: SessionController.Wrist } }
+                // Wrist motion analysis — the detailed Tier-1 assessment surface (per-DOF
+                // trajectory strips, position×phase grid, findings). A normal stage panel:
+                // place/arrange it via the View control like camera/charts/table.
+                wristMotionDelegate: Component { WristDiagnostics {} }
                 // Table panel — read-only inspector of the focused swing.json. The
                 // focused swing is the active replay, else the carousel's selection.
                 tableDelegate: Component {

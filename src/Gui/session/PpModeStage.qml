@@ -32,21 +32,23 @@ import PinPointStudio
 Item {
     id: stage
 
-    property Component cameraDelegate:    null
-    property Component chartsDelegate:    null
-    property Component dashboardDelegate: null
-    property Component tableDelegate:     null
-    property Component markupDelegate:    null
+    property Component cameraDelegate:      null
+    property Component chartsDelegate:      null
+    property Component dashboardDelegate:   null
+    property Component wristMotionDelegate: null
+    property Component tableDelegate:       null
+    property Component markupDelegate:      null
 
     // Layout resolves on the active session MODE, not the session type.
     readonly property string arrangement: ViewLayout.arrangementFor(SessionMode.mode)
 
     readonly property var _defs: [
-        { key: "camera",    label: qsTr("Camera"),    comp: cameraDelegate },
-        { key: "dashboard", label: qsTr("Dashboard"), comp: dashboardDelegate },
-        { key: "charts",    label: qsTr("Charts"),    comp: chartsDelegate },
-        { key: "table",     label: qsTr("Table"),     comp: tableDelegate },
-        { key: "markup",    label: qsTr("Markup"),    comp: markupDelegate }
+        { key: "camera",      label: qsTr("Camera"),                comp: cameraDelegate },
+        { key: "dashboard",   label: qsTr("Dashboard"),             comp: dashboardDelegate },
+        { key: "wristMotion", label: qsTr("Wrist motion analysis"), comp: wristMotionDelegate },
+        { key: "charts",      label: qsTr("Charts"),                comp: chartsDelegate },
+        { key: "table",       label: qsTr("Table"),                 comp: tableDelegate },
+        { key: "markup",      label: qsTr("Markup"),                comp: markupDelegate }
     ]
     // ordered; enabled AND actually wired by the host screen. A panel a screen does not provide a
     // delegate for (e.g. "dashboard" on Swing/GRF/Coach, which only ScreenWrist wires today) is

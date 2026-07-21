@@ -26,17 +26,33 @@ Item {
 
     // Build a model of connected screens for use in ComboBoxes.
     // Qt.application.screens returns the list of QScreen objects available at runtime.
+    // Friendly manufacturer names for the common EDID PNP vendor codes.
+    readonly property var _vendorNames: ({
+        "AUS": "ASUS", "APP": "Apple", "DEL": "Dell", "SAM": "Samsung", "LGD": "LG",
+        "GSM": "LG", "BNQ": "BenQ", "ACR": "Acer", "HWP": "HP", "LEN": "Lenovo",
+        "MSI": "MSI", "AOC": "AOC", "VSC": "ViewSonic", "PHL": "Philips", "EIZ": "EIZO"
+    })
+
     readonly property var screenModel: {
         var list = []
         var screens = Qt.application.screens
         for (var i = 0; i < screens.length; i++) {
             var s = screens[i]
+            // Human-friendly name: built-in panels (eDP/LVDS/DSI) → "Built-in display";
+            // everything else → "<Vendor> <Model>" (e.g. "ASUS PA279CRV"), falling back
+            // to the connector name. NOTE: on this setup screen index 0 is the EXTERNAL
+            // monitor, so no "primary" label — the resolution + name are what identify it.
+            var friendly
+            if (/^(eDP|LVDS|DSI)/i.test(s.name || "")) {
+                friendly = qsTr("Built-in display")
+            } else if (s.model && s.model.length) {
+                var v = root._vendorNames[s.manufacturer] || ""
+                friendly = (v ? v + " " : "") + s.model
+            } else {
+                friendly = (s.name && s.name.length) ? s.name : qsTr("Display %1").arg(i + 1)
+            }
             list.push({
-                label: qsTr("Display %1 — %2 · %3×%4")
-                           .arg(i + 1)
-                           .arg(s.name)
-                           .arg(s.width)
-                           .arg(s.height),
+                label: friendly + "  ·  " + s.width + "×" + s.height,
                 value: "screen:" + i
             })
         }
@@ -543,6 +559,50 @@ Item {
                 }
             }
 
+            // Post-shot display mode row — how the dashboard is surfaced on the target
+            // display (persistent panel / auto-closing window / full-screen kiosk).
+            RowLayout {
+                objectName: "setting_postShotDisplayMode"
+                Layout.fillWidth: true
+                spacing: Theme.sp(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
+                opacity: appSettings.secondaryDisplayMode === "none" ? 0.4 : 1.0
+                Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.sp(3)
+                    Text {
+                        text:           qsTr("Post-shot display mode")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        color:          Theme.colorText
+                    }
+                    Text {
+                        text:           qsTr("Persistent panel, an auto-closing window, or a full-screen kiosk")
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText3
+                    }
+                }
+
+                PpChipGroup {
+                    options: [qsTr("Panel"), qsTr("Window"), qsTr("Kiosk")]
+                    selected: {
+                        if (appSettings.postShotDisplayMode === "window") return qsTr("Window")
+                        if (appSettings.postShotDisplayMode === "kiosk")  return qsTr("Kiosk")
+                        return qsTr("Panel")
+                    }
+                    onSelectionChanged: (value) => {
+                        if (value === qsTr("Window"))     appSettings.postShotDisplayMode = "window"
+                        else if (value === qsTr("Kiosk")) appSettings.postShotDisplayMode = "kiosk"
+                        else                              appSettings.postShotDisplayMode = "panel"
+                    }
+                    Layout.alignment: Qt.AlignVCenter
+                }
+            }
+
             // Display delay row (dimmed when no secondary display)
             RowLayout {
                 objectName: "setting_postShotDelay"
@@ -584,6 +644,54 @@ Item {
                         else if (value === qsTr("0.5 s"))     appSettings.postShotDelay = 0.5
                         else if (value === qsTr("1.0 s"))     appSettings.postShotDelay = 1.0
                         else                                  appSettings.postShotDelay = 2.0
+                    }
+                    Layout.alignment: Qt.AlignVCenter
+                }
+            }
+
+            // Window dwell row — how long the post-shot WINDOW stays before auto-closing.
+            // Inert (dimmed) outside "window" mode, mirroring the no-secondary dimming.
+            RowLayout {
+                objectName: "setting_postShotDwell"
+                Layout.fillWidth: true
+                spacing: Theme.sp(16)
+                opacity: (appSettings.secondaryDisplayMode === "none"
+                          || appSettings.postShotDisplayMode !== "window") ? 0.4 : 1.0
+                Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.sp(3)
+                    Text {
+                        text:           qsTr("Window dwell")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        color:          Theme.colorText
+                    }
+                    Text {
+                        text:           qsTr("How long the post-shot window stays before closing")
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText3
+                    }
+                }
+
+                PpChipGroup {
+                    options: [qsTr("5 s"), qsTr("8 s"), qsTr("12 s"), qsTr("20 s")]
+                    selected: {
+                        var d = appSettings.postShotDwell
+                        if (d < 6.5)  return qsTr("5 s")
+                        if (d < 10)   return qsTr("8 s")
+                        if (d < 16)   return qsTr("12 s")
+                        return qsTr("20 s")
+                    }
+                    onSelectionChanged: (value) => {
+                        if (value === qsTr("5 s"))       appSettings.postShotDwell = 5.0
+                        else if (value === qsTr("8 s"))  appSettings.postShotDwell = 8.0
+                        else if (value === qsTr("12 s")) appSettings.postShotDwell = 12.0
+                        else                             appSettings.postShotDwell = 20.0
                     }
                     Layout.alignment: Qt.AlignVCenter
                 }

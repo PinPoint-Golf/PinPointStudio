@@ -18,6 +18,8 @@
 
 #include "chart_metrics.h"
 
+#include "../Analysis/kinematic_sequence.h"   // kinematicSequenceNodes (pure reduction)
+
 #include <QHash>
 #include <QtGlobal>
 #include <QtMath>
@@ -201,6 +203,54 @@ QString ChartMetrics::bandAtNearest(const QVariantList &phaseSamples, qint64 us)
         if (d < bestD) { bestD = d; best = m.value(QStringLiteral("band")).toString(); }
     }
     return best.isEmpty() ? QStringLiteral("good") : best;
+}
+
+QVariantList ChartMetrics::sequenceNodes(const QVariantList &series,
+                                         const QStringList &keys) const
+{
+    using pinpoint::analysis::SeqSeries;
+    using pinpoint::analysis::SeqNode;
+
+    // Index the incoming series by key so we can honour the caller's key ordering
+    // and skip keys that are absent from this shot.
+    QHash<QString, QVariantMap> byKey;
+    byKey.reserve(series.size());
+    for (const QVariant &sv : series) {
+        const QVariantMap m = sv.toMap();
+        byKey.insert(m.value(QStringLiteral("key")).toString(), m);
+    }
+
+    std::vector<SeqSeries> inputs;
+    inputs.reserve(keys.size());
+    for (const QString &key : keys) {
+        const auto it = byKey.constFind(key);
+        if (it == byKey.constEnd()) continue;          // series not present → dropped
+        const QVariantList tUs = it->value(QStringLiteral("t_us")).toList();
+        const QVariantList val = it->value(QStringLiteral("value")).toList();
+        const int n = int(qMin(tUs.size(), val.size()));
+        if (n == 0) continue;                          // no curve → dropped
+
+        SeqSeries s;
+        s.key = key;
+        s.tUs.reserve(n);
+        s.value.reserve(n);
+        for (int i = 0; i < n; ++i) {
+            s.tUs.push_back(tUs.at(i).toLongLong());
+            s.value.push_back(val.at(i).toDouble());
+        }
+        inputs.push_back(std::move(s));
+    }
+
+    QVariantList out;
+    for (const SeqNode &nd : pinpoint::analysis::kinematicSequenceNodes(inputs)) {
+        out.append(QVariantMap{
+            { QStringLiteral("key"),     nd.key },
+            { QStringLiteral("tPeakUs"), qlonglong(nd.tPeakUs) },
+            { QStringLiteral("peak"),    nd.peak },
+            { QStringLiteral("gapMs"),   nd.gapMs },
+            { QStringLiteral("order"),   nd.order } });
+    }
+    return out;
 }
 
 QString ChartMetrics::shortLabel(const QString &key) const

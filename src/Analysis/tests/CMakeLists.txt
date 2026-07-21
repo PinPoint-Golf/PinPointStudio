@@ -53,6 +53,11 @@ pp_add_test(confidence_test         SOURCES confidence_test.cpp         ${WRIST_
 pp_add_test(composite_score_v2_test SOURCES composite_score_v2_test.cpp ${WRIST_ENGINE})
 
 # --- Header-only math contracts ----------------------------------------------
+# Kinematic-sequence reduction (kinematic_sequence.h) — peak-of-largest-magnitude
+# selection, ordering by peak time + inter-node gaps, empty-series drop. The
+# degrade-gracefully backing for the dashboard Sequence zone (ChartMetrics::
+# sequenceNodes façade). Header-only, Qt-only (QString), no fixture.
+pp_add_test(kinematic_sequence_test SOURCES kinematic_sequence_test.cpp)
 pp_add_test(imu_calibration_test  SOURCES imu_calibration_test.cpp)   # A·q·M solve + keystone golden
 pp_add_test(live_wrist_angles_test SOURCES live_wrist_angles_test.cpp) # live tick() math contract
 pp_add_test(imu_sample_test       SOURCES imu_sample_test.cpp)         # exported swing.json vector frame

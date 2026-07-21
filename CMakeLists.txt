@@ -375,6 +375,13 @@ qt_add_qml_module(PinPointStudio
         src/Gui/session/PpSessionDrawer.qml
         src/Gui/shot/PpShotFilter.qml
         src/Gui/shot/PpSwingEditPanel.qml
+        src/Gui/shot/PpDashboardPanel.qml
+        src/Gui/shot/PpDashboardVerdictZone.qml
+        src/Gui/shot/PpDashboardSetupZone.qml
+        src/Gui/shot/PpDashboardMotionZone.qml
+        src/Gui/shot/PpDashboardSequenceZone.qml
+        src/Gui/shot/PpDashboardPresetEditor.qml
+        src/Gui/shot/PpDashboardWindow.qml
         src/Gui/components/PpQualityPill.qml
         src/Gui/components/PpStarRating.qml
         src/Gui/components/PpTrace.qml

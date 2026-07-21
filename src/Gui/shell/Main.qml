@@ -361,6 +361,128 @@ ApplicationWindow {
         }
     }
 
+    // ── Post-shot dashboard secondary-display cast ───────────────────────────
+    // Surfaces the configurable dashboard on the secondary display, in one of three
+    // ways chosen by postShotDisplayMode — ALL of them on the target screen:
+    //   • PANEL — a PERSISTENT windowed (framed, movable) dashboard, shown the moment
+    //     it is configured (panel + a secondary screen). Persistent ⇒ dwell inert.
+    //   • KIOSK — a PERSISTENT full-screen dashboard, also shown as soon as configured.
+    //   • WINDOW — a TEMPORARY windowed overlay that pops after a freshly captured shot
+    //     (postShotDelay) and auto-closes after the dwell; gated on post-shot content
+    //     including metrics.
+    // All three FOLLOW THE FOCUSED SHOT: selecting a carousel card focuses shotReplay
+    // (SessionMode.enterReplay), and the window binds the same shotReplay + per-type
+    // preset store as the in-app panel, so metrics update live on selection.
+    QtObject {
+        id: postShotCast
+        function screenFor(mode) {
+            if (!mode || mode.indexOf("screen:") !== 0) return null
+            var idx = parseInt(mode.substring(7))
+            var screens = Qt.application.screens
+            return (idx >= 0 && idx < screens.length) ? screens[idx] : null
+        }
+        readonly property bool metricsWanted: appSettings.postShotContent === "metrics"
+                                            || appSettings.postShotContent === "replay+metrics"
+        readonly property var target: screenFor(appSettings.secondaryDisplayMode)
+    }
+
+    property var  _dashWin: null
+    property bool _dashWinTemporary: false     // window-mode (auto-closes) vs persistent
+    Component { id: dashWinComp; PpDashboardWindow {} }
+
+    // Create the window HIDDEN with its target screen + geometry already set, then
+    // show() — relocating a window across monitors after its first map is unreliable
+    // (compositor/DPI, see the main-window geometry note). So we recreate fresh on
+    // each (re)open rather than moving a live window. Mirror-only changes go live.
+    function _openCast(kioskMode, temporary) {
+        if (_dashWin) { _dashWin.destroy(); _dashWin = null }
+        _dashWin = dashWinComp.createObject(root, {
+            "targetScreen": postShotCast.target,
+            "kiosk":  kioskMode,
+            "mirror": appSettings.postShotMirror
+        })
+        _dashWinTemporary = temporary
+        if (!_dashWin) return
+        if (kioskMode) {
+            // Map NORMAL first, then fullscreen AFTER the compositor has mapped it — a
+            // first-map-fullscreen window has its output hint ignored by mutter, but
+            // fullscreening an already-mapped window honours window.screen.
+            _dashWin.visible = true
+            kioskFsTimer.restart()
+        } else {
+            _dashWin.show()          // panel + window: a normal framed window
+        }
+        _dashWin.raise()
+    }
+    Timer {
+        id: kioskFsTimer
+        interval: 200; repeat: false
+        onTriggered: if (root._dashWin && root._dashWin.kiosk) root._dashWin.showFullScreen()
+    }
+    function _closeCast() { if (_dashWin) { _dashWin.destroy(); _dashWin = null; _dashWinTemporary = false } }
+
+    // Persistent modes (PANEL + KIOSK) — open whenever configured, stay up, recreate
+    // if the target screen or windowed/fullscreen mode changes. Redundant calls
+    // (already up, right screen + mode) are no-ops so the content just refreshes.
+    function _syncPersistent() {
+        var m = appSettings.postShotDisplayMode
+        var wantPersistent = (m === "panel" || m === "kiosk") && postShotCast.target !== null
+        if (wantPersistent) {
+            var kioskMode = (m === "kiosk")
+            if (_dashWin && _dashWin.visible && !_dashWinTemporary
+                    && _dashWin.targetScreen === postShotCast.target
+                    && _dashWin.kiosk === kioskMode)
+                return
+            _openCast(kioskMode, false)
+        } else if (_dashWin && !_dashWinTemporary) {
+            _closeCast()             // left a persistent mode (→ window, or no screen)
+        }
+    }
+    Connections {
+        target: appSettings
+        function onPostShotDisplayModeChanged()  { root._syncPersistent() }
+        function onSecondaryDisplayModeChanged() { root._syncPersistent() }
+        // Mirror is a content transform — apply it live, no re-map needed.
+        function onPostShotMirrorChanged()       { if (root._dashWin) root._dashWin.mirror = appSettings.postShotMirror }
+    }
+    // Open at startup if a persistent mode is already configured (a bound readonly
+    // can't emit an initial change); a short delay lets the screen list settle.
+    Timer { interval: 250; running: true; repeat: false; onTriggered: root._syncPersistent() }
+
+    Timer {
+        id: castDwellTimer
+        repeat: false
+        interval: Math.max(1, appSettings.postShotDwell) * 1000
+        onTriggered: if (root._dashWin && root._dashWinTemporary) root._closeCast()
+    }
+    Timer {
+        id: castShowTimer
+        repeat: false
+        onTriggered: { root._openCast(false, true); castDwellTimer.restart() }   // window = windowed + temporary
+    }
+
+    Connections {
+        target: shotProcessor
+        function onShotProcessed(shotId, swingDir) {
+            if (swingDir === "" || !postShotCast.target)
+                return
+            var mode = appSettings.postShotDisplayMode
+            if (mode === "panel" || mode === "kiosk") {
+                // Persistent already up (or opened at config) — just focus the new shot
+                // so its metrics show, and ensure the surface exists.
+                if (shotReplay.swingDir !== swingDir)
+                    shotReplay.start(shotId, swingDir)
+                root._syncPersistent()
+            } else if (mode === "window" && postShotCast.metricsWanted) {
+                if (shotReplay.swingDir !== swingDir)
+                    shotReplay.start(shotId, swingDir)
+                castDwellTimer.stop()
+                castShowTimer.interval = Math.max(0, appSettings.postShotDelay) * 1000
+                castShowTimer.restart()
+            }
+        }
+    }
+
     // Live pose inference follows the Capture view's Pose overlay toggle: off means
     // the estimator stops (CPU saved), not just a hidden overlay. livePoseEnabled
     // drives the live rig, which is only used in Capture, so it tracks the CAPTURE

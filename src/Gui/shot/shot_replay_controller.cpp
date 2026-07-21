@@ -20,6 +20,8 @@
 
 #include "app_settings.h"
 
+#include "../Analysis/swing_analysis.h"   // SegmentRole + segmentRoleName
+
 #include <algorithm>
 
 ShotReplayController::ShotReplayController(AppSettings *appSettings, QObject *parent)
@@ -104,4 +106,50 @@ void ShotReplayController::onAborted()
     m_shotId   = -1;
     m_swingDir.clear();
     emit activeChanged();
+}
+
+QVariantMap ShotReplayController::shotContext(int sessionType) const
+{
+    // Face-on perspective value (swing.json setup.perspective); see disk_replay_source.
+    constexpr int kPerspectiveFaceOn = 2;
+
+    QVariantMap ctx;
+    const QVariantMap d = m_source->analysisDetail();
+
+    // The reconstruction tier the shot was analysed at (drives normative-band lookup).
+    if (d.contains(QStringLiteral("tier")))
+        ctx.insert(QStringLiteral("tier"), d.value(QStringLiteral("tier")).toInt());
+
+    // A face-on camera: pose only runs on a face-on stream, so an analysisDetail
+    // pose2d block implies one; also accept an explicit face-on stream.
+    bool faceOn = d.contains(QStringLiteral("pose2d"));
+    if (!faceOn) {
+        for (const ReplayStreamInfo &s : m_source->streams())
+            if (s.perspective == kPerspectiveFaceOn) { faceOn = true; break; }
+    }
+    ctx.insert(QStringLiteral("hasFaceOn"), faceOn);
+
+    // Club / ball tracks — present AND valid in the analysis detail.
+    ctx.insert(QStringLiteral("hasClubTrack"),
+               d.value(QStringLiteral("club")).toMap().value(QStringLiteral("valid")).toBool());
+    ctx.insert(QStringLiteral("hasBallTrack"),
+               d.value(QStringLiteral("ball")).toMap().value(QStringLiteral("valid")).toBool());
+
+    // IMU roles bound + calibrated this shot — from the persisted analysis.bindings[]
+    // (present on the disk path; role names round-trip through roleFromName()).
+    QVariantList roles;
+    const QVariantList bindings = d.value(QStringLiteral("bindings")).toList();
+    for (const QVariant &bv : bindings) {
+        const int r = bv.toMap().value(QStringLiteral("role"), 0).toInt();
+        const pinpoint::analysis::SegmentRole role =
+            static_cast<pinpoint::analysis::SegmentRole>(r);
+        if (role == pinpoint::analysis::SegmentRole::Unknown)
+            continue;
+        roles.append(pinpoint::analysis::segmentRoleName(role));
+    }
+    ctx.insert(QStringLiteral("imuRoles"), roles);
+
+    ctx.insert(QStringLiteral("sessionType"), sessionType);
+    // archetype/club/shape: not derivable from swing.json today → catalogue defaults.
+    return ctx;
 }

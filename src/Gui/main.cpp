@@ -97,6 +97,33 @@ int main(int argc, char *argv[])
         return 0;
     }, nullptr);
 #endif
+
+#if defined(Q_OS_LINUX)
+    // Wayland/mutter does not let a client choose which monitor a window opens on
+    // (see the geometry notes in Main.qml) — a secondary/kiosk post-shot display or
+    // a pinned/cursor main window is placed by the compositor, not honoured. Under
+    // XWayland (the xcb backend) Qt's setScreen()/geometry ARE honoured, so prefer
+    // it WHEN the user actually relies on multi-display placement. Gated tightly so
+    // single-display Wayland users keep native Wayland (and its better HiDPI on the
+    // retina panel): only on a Wayland session with XWayland present (DISPLAY set),
+    // only when QT_QPA_PLATFORM was not pinned by the user, and only when a
+    // multi-display placement is configured. The platform is chosen once here, so a
+    // change to these settings applies on the next launch.
+    const bool onWayland = qgetenv("XDG_SESSION_TYPE") == "wayland"
+                           || qEnvironmentVariableIsSet("WAYLAND_DISPLAY");
+    if (!qEnvironmentVariableIsSet("QT_QPA_PLATFORM")
+        && onWayland
+        && qEnvironmentVariableIsSet("DISPLAY")) {   // DISPLAY set ⇒ XWayland available
+        QSettings s = ppSettings();
+        const QString mainMode = s.value(QStringLiteral("display/mainDisplayMode"),
+                                         QStringLiteral("primary")).toString();
+        const QString secMode  = s.value(QStringLiteral("display/secondaryDisplayMode"),
+                                         QStringLiteral("none")).toString();
+        if (mainMode != QLatin1String("primary") || secMode != QLatin1String("none"))
+            qputenv("QT_QPA_PLATFORM", "xcb");
+    }
+#endif
+
     QGuiApplication app(argc, argv);
 
     // Force the Basic Qt Quick Controls style on all platforms. Without this, files
