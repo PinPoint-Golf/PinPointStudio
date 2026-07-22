@@ -78,6 +78,15 @@ Item {
              : b === "red"    ? Theme.colorRagFault
              :                  Theme.colorRagNone
     }
+    function _isRag(b) { return b === "green" || b === "yellow" || b === "red" }
+    // The headline colour. A real RAG band drives it vibrant; a metric with no
+    // corridor (nothing to score against — e.g. stance width, ball position) falls
+    // back to bright PRIMARY text, never the muted grey a bare _bandColor("") gives.
+    // This is exactly what the Motion tile's headline does (PpBandRail _headColor).
+    function _valueColor(band, has) {
+        if (has !== true) return Theme.colorText3
+        return _isRag(band) ? _bandColor(band) : Theme.colorText
+    }
 
     // The zone's CONFIGURED tiles, each joined to the current swing's Address sample.
     // Queried WITHOUT availableOnly — the config is a swing-agnostic template, so a
@@ -160,13 +169,14 @@ Item {
         }
     }
 
-    // One metric = one tile: RAG dot + label, then the primitive.
+    // One metric = one tile: a coloured left edge, the heading, then the primitive.
     component SetupTile: Rectangle {
         property var data_: ({})
 
-        // Sized for a glance, not a spreadsheet: wide enough that the corridor bar
-        // has room to place its marker meaningfully and the label doesn't elide.
-        width: Theme.sp(210)
+        // Sized for a glance, not a spreadsheet: wide enough that the big headline
+        // value breathes, the corridor bar can place its marker meaningfully, and the
+        // label doesn't elide. Matches the Motion tile's read-at-distance intent.
+        width: Theme.sp(232)
         implicitHeight: tCol.implicitHeight + Theme.sp(20)
         radius: Theme.radius
         opacity: data_.has === true ? 1.0 : 0.6
@@ -176,28 +186,46 @@ Item {
         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
         Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
+        // Coloured left edge — the splash of colour that replaced the (useless) RAG
+        // dot, and the tile's verdict at a glance: the value's RAG band, or the accent
+        // when the metric carries no corridor to score against.
+        Rectangle {
+            anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+            width: Theme.sp(3)
+            radius: Theme.radius
+            color: zone._isRag(data_.band) ? zone._bandColor(data_.band) : Theme.colorAccent
+            opacity: data_.has === true ? 1.0 : 0.5
+        }
+
         ColumnLayout {
             id: tCol
             anchors { left: parent.left; right: parent.right; top: parent.top
-                      leftMargin: Theme.sp(10); rightMargin: Theme.sp(10); topMargin: Theme.sp(8) }
+                      leftMargin: Theme.sp(12); rightMargin: Theme.sp(10); topMargin: Theme.sp(8) }
             spacing: Theme.sp(5)
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: Theme.sp(6)
-                Rectangle {
-                    Layout.alignment: Qt.AlignVCenter
-                    implicitWidth: Theme.sp(7); implicitHeight: Theme.sp(7); radius: width / 2
-                    color: zone._bandColor(data_.band)
-                    opacity: data_.has === true ? 1.0 : 0.5
-                }
+                spacing: Theme.sp(4)
                 Text {
                     Layout.fillWidth: true
                     text: (data_.label || "").toUpperCase()
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
                     font.letterSpacing: Theme.trackingMicro
-                    color: Theme.colorText3
+                    // Brightens on hover — part of the "this heading is clickable" cue.
+                    color: tileHover.hovered && zone.interactive ? Theme.colorText : Theme.colorText3
                     elide: Text.ElideRight
+                }
+                // Hover affordance: a chevron marking that the heading opens the
+                // metric's catalogue page. Mirrors the Motion tile. Kept permanently in
+                // the layout and toggled by OPACITY (not visible) so its taller glyph
+                // always reserves its row space — otherwise the header, and the whole
+                // tile, would grow on hover (a jarring geometry jump).
+                Text {
+                    opacity: tileHover.hovered && zone.interactive ? 1 : 0
+                    text: "›"
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody
+                    color: Theme.colorText2
+                    Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
                 }
             }
 
@@ -225,26 +253,32 @@ Item {
                             var a = Math.abs(v)
                             return a >= 100 ? String(Math.round(v)) : String(Math.round(v * 10) / 10)
                         }
-                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzHeading
+                        // Motion-tile headline scale: a big number is the whole point
+                        // of a wall-readable stat tile. Coloured vibrant by RAG band,
+                        // or bright primary text when the metric has no corridor.
+                        font.family: Theme.fontData; font.pixelSize: Theme.sp(25)
                         font.weight: Font.DemiBold
                         font.italic: data_.has !== true && data_.emptyLabel === qsTr("soon")
-                        color: data_.has === true ? zone._bandColor(data_.band) : Theme.colorText3
+                        color: zone._valueColor(data_.band, data_.has)
                     }
                     Text {
                         Layout.alignment: Qt.AlignBottom
-                        Layout.bottomMargin: Theme.sp(2)
+                        Layout.bottomMargin: Theme.sp(4)
                         visible: data_.has === true
                         text: data_.unit || ""
-                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
+                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
                         color: Theme.colorText3
                     }
                     Item { Layout.fillWidth: true }
                 }
+                // A corridor bar only when there IS a corridor: with none, the bar's
+                // domain is value±1, so the marker always lands dead-centre — a bogus
+                // "perfectly mid-range" read. There the big headline number stands
+                // alone, which is what makes the tile read as a confident stat.
                 PpRangeBar {
+                    visible: data_.hasCorridor === true
                     Layout.fillWidth: true
                     compact: true
-                    // hasValue false ⇒ the neutral corridor track with no marker: the
-                    // tile still reads as a bar, it just has nothing to place on it.
                     hasValue: data_.has === true
                     value: data_.value
                     band: data_.band || ""

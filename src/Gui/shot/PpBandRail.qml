@@ -61,6 +61,7 @@ Item {
 
     signal seekRequested(real tUs)       // checkpoint clicked
     signal scrubRequested(real tUs)      // hover-scrub: video follows the finger
+    signal labelActivated()              // heading clicked → open the catalogue page
 
     ChartMetrics   { id: cm }
     TimelineLabels { id: labels }
@@ -167,15 +168,30 @@ Item {
         anchors { left: parent.left; right: parent.right; top: parent.top }
         height: Theme.sp(40)
 
+        // The heading opens the metric's catalogue page; the plot below is reserved
+        // for seek/scrub. Gated on interactive, so the wall cast's resting render is
+        // unchanged (no cursor, no chevron, same as the in-app panel at rest).
+        HoverHandler { id: headHover; enabled: root.interactive; cursorShape: Qt.PointingHandCursor }
+        TapHandler   { enabled: root.interactive; onTapped: root.labelActivated() }
+
         Text {
             id: headLabel
             anchors { left: parent.left; top: parent.top }
             text: root.label.toUpperCase()
             font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
             font.letterSpacing: Theme.trackingMicro
-            color: Theme.colorText3
+            // Brightens on hover — part of the "this heading is clickable" cue.
+            color: (root.interactive && headHover.hovered) ? Theme.colorText : Theme.colorText3
             elide: Text.ElideRight
             width: Math.min(implicitWidth, parent.width * 0.5)
+        }
+        // Hover affordance: a chevron marking the heading as a link to the catalogue.
+        Text {
+            visible: root.interactive && headHover.hovered
+            anchors { left: headLabel.right; leftMargin: Theme.sp(4); baseline: headLabel.baseline }
+            text: "›"
+            font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody
+            color: Theme.colorText2
         }
 
         // Headline value — flips to the interpolated playhead value during replay.

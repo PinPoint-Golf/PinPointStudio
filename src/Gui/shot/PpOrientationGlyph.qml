@@ -42,7 +42,11 @@ Item {
              :                  Theme.colorRagNone
     }
 
-    readonly property color _color: _bandColor(root.band)
+    // Vibrant by RAG band; bright primary text when the state is known but unscored,
+    // never the muted grey a bare _bandColor("") would give (matches the stat tiles).
+    readonly property color _color: (root.band === "green" || root.band === "yellow"
+                                     || root.band === "red")
+                                    ? _bandColor(root.band) : Theme.colorText
     readonly property bool  _known: root.orientation === "square"
                                   || root.orientation === "open"
                                   || root.orientation === "closed"
@@ -50,8 +54,8 @@ Item {
                                    : root.orientation === "closed" ?  18
                                    : 0
 
-    readonly property int _glyphSize: Theme.sp(34)
-    readonly property int _margin:    Theme.sp(5)
+    readonly property int _glyphSize: Theme.sp(46)
+    readonly property int _margin:    Theme.sp(6)
 
     implicitWidth:  col.implicitWidth
     implicitHeight: col.implicitHeight
@@ -110,7 +114,7 @@ Item {
 
                 ShapePath {
                     strokeColor: root._color
-                    strokeWidth: Theme.sp(2)
+                    strokeWidth: Theme.sp(3)
                     fillColor:   "transparent"
                     capStyle:    ShapePath.RoundCap
 
@@ -124,11 +128,14 @@ Item {
             }
         }
 
+        // The categorical read is this tile's "value" — sized and weighted to match
+        // the scalar tiles' big band-coloured number, not a micro caption.
         Text {
             visible: root.orientation.length > 0
             text: root.orientation.toUpperCase()
             font.family:        Theme.fontData
-            font.pixelSize:     Theme.fontSzMicro
+            font.pixelSize:     Theme.fontSzHeading
+            font.weight:        Font.DemiBold
             font.letterSpacing: Theme.trackingMicro
             color:              root._color
         }

@@ -188,25 +188,17 @@ Item {
 
             onSeekRequested:  (tUs) => zone.seekRequested(tUs)
             onScrubRequested: (tUs) => zone.seekRequested(tUs)
+            // Clicking the HEADING opens the catalogue page (same as the Setup tiles);
+            // the rail body stays reserved for seek/scrub. The rail draws its own
+            // hover affordance (label brightens + a chevron). There is deliberately NO
+            // hover tooltip: a Controls ToolTip is unthemed chrome, unbounded in width,
+            // and set in a size nobody can read from across the room. MetricDetail is
+            // the readable home for a metric's narrative, and one click away.
+            onLabelActivated: zone.metricActivated(data_.key)
         }
 
-        // The tile (not the rail) owns the click-through, so the rail's own
-        // checkpoint taps keep their click-to-seek meaning. There is deliberately NO
-        // hover tooltip: a Controls ToolTip is unthemed chrome, unbounded in width,
-        // and set in a size nobody can read from across the room. MetricDetail is
-        // the readable home for a metric's narrative, and one click away.
+        // Tile-level hover only drives the card's background/border tint; the rail
+        // owns the heading click-through and its cursor/affordance.
         HoverHandler { id: tileHover; enabled: zone.interactive }
-
-        // Click-through to the catalogue detail page, from the tile chrome only —
-        // the rail body is reserved for seek/scrub.
-        Text {
-            anchors { right: parent.right; top: parent.top
-                      rightMargin: Theme.sp(9); topMargin: Theme.sp(9) }
-            visible: zone.interactive && tileHover.hovered
-            text: "›"
-            font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody
-            color: Theme.colorText3
-            TapHandler { onTapped: zone.metricActivated(data_.key) }
-        }
     }
 }

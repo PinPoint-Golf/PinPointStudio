@@ -93,6 +93,17 @@ Item {
         for (var i = 0; i < cs.length; ++i) if (cs[i].phase === phase) return cs[i]
         return null
     }
+    // Same tiny mapping every dashboard zone carries — keep it in sync.
+    function _bandColor(b) {
+        return b === "green"  ? Theme.colorRagGood
+             : b === "yellow" ? Theme.colorRagWatch
+             : b === "red"    ? Theme.colorRagFault
+             :                  Theme.colorRagNone
+    }
+    function _fmt(v) {
+        var a = Math.abs(v)
+        return a >= 100 ? String(Math.round(v)) : String(Math.round(v * 10) / 10)
+    }
 
     // Which catalogue entry the headline score IS — a resemblance estimand (Wrist)
     // carries a pattern label, adherence (Swing/GRF) does not. Lets the donut open
@@ -178,26 +189,41 @@ Item {
                         emphasis: true
                     }
 
-                    // Tempo ratio — marker in the ideal band. Absent with no producer.
+                    // Tempo ratio — big band-coloured headline, the same stat recipe as
+                    // the Setup tiles. A corridor bar added nothing here (the number
+                    // carries the read), so it's dropped. Absent with no producer.
                     ColumnLayout {
                         visible: zone._hasTempo
                         Layout.fillWidth: true
-                        spacing: Theme.sp(2)
+                        spacing: Theme.sp(3)
                         Text {
                             text: qsTr("TEMPO")
                             font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
                             font.letterSpacing: Theme.trackingMicro
                             color: Theme.colorText3
                         }
-                        PpRangeBar {
+                        RowLayout {
                             Layout.fillWidth: true
-                            value:   zone._tempoSample ? zone._tempoSample.value : 0
-                            band:    zone._tempoSample ? zone._tempoSample.band : ""
-                            unit:    zone._tempo ? zone._tempo.unit : ""
-                            greenLo: zone._tempoCorridor ? zone._tempoCorridor.greenLo : 0
-                            greenHi: zone._tempoCorridor ? zone._tempoCorridor.greenHi : 0
-                            amberLo: zone._tempoCorridor ? zone._tempoCorridor.amberLo : 0
-                            amberHi: zone._tempoCorridor ? zone._tempoCorridor.amberHi : 0
+                            spacing: Theme.sp(3)
+                            Text {
+                                text: zone._fmt(zone._tempoSample ? zone._tempoSample.value : 0)
+                                font.family: Theme.fontData; font.pixelSize: Theme.sp(25)
+                                font.weight: Font.DemiBold
+                                // Vibrant by RAG band, bright primary text when unscored.
+                                color: {
+                                    var b = zone._tempoSample ? zone._tempoSample.band : ""
+                                    return (b === "green" || b === "yellow" || b === "red")
+                                           ? zone._bandColor(b) : Theme.colorText
+                                }
+                            }
+                            Text {
+                                Layout.alignment: Qt.AlignBottom
+                                Layout.bottomMargin: Theme.sp(4)
+                                text: zone._tempo ? zone._tempo.unit : ""
+                                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                                color: Theme.colorText3
+                            }
+                            Item { Layout.fillWidth: true }
                         }
                     }
                 }
