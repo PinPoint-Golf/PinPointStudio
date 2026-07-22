@@ -575,7 +575,8 @@ struct EventRefineStage : AnalysisStage {
         if (r.refined)
             ppInfo() << "[WristAnalysis] refine → version 3:"
                      << (r.takeawayRefined ? "Takeaway" : "-") << (r.addressRefined ? "Address" : "-")
-                     << "conf" << r.conf << "tier" << r.tier << "L" << r.departFrame;
+                     << (r.p1Synced ? "+P1" : "-") << "conf" << r.conf << "tier" << r.tier
+                     << "L" << r.departFrame;
     }
 };
 

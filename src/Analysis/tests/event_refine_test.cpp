@@ -86,6 +86,12 @@ static Segmentation buildSeg(int a, int t, int p, int m, int f, int s)
     return seg;
 }
 static const PhaseEvent *ev(const Segmentation &seg, Phase p) { return seg.eventFor(p); }
+static const ShaftPosition *p1Of(const ShaftTrack2D &s)
+{
+    for (const ShaftPosition &p : s.positions)
+        if (p.p == 1) return &p;
+    return nullptr;
+}
 
 int main()
 {
@@ -115,6 +121,18 @@ int main()
               "refined Takeaway = sub-frame L→departure crossing");
         check(ev(seg, Phase::Address)->t_us <= ev(seg, Phase::Takeaway)->t_us
               && ev(seg, Phase::Takeaway)->t_us <= ev(seg, Phase::Top)->t_us, "ladder stays monotone");
+
+        // P1 (club.positions) follows the refined Address — re-derived off the
+        // refined frame's track sample and downgraded to a plain TrackSample.
+        const ShaftPosition *p1 = p1Of(shaft);
+        check(r.p1Synced && p1 && p1->t_us == ev(seg, Phase::Address)->t_us,
+              "P1 position re-timed to the refined Address (frame 24)");
+        check(p1 && p1->gripPx == shaft.samples[24].gripPx
+              && p1->thetaRad == shaft.samples[24].thetaRad && p1->conf == shaft.samples[24].conf,
+              "P1 geometry re-derived from the refined frame's track sample");
+        check(p1 && p1->source == uint8_t(PositionSource::TrackSample)
+              && p1->sigmaThetaDeg == -1.f && p1->sigmaLenPx == -1.f && p1->stackN == 0,
+              "P1 downgraded to TrackSample (fit cleared) at the new anchor");
     }
 
     // ── 2. Fidget-requiet swing (s0002 shape): last-departure, not first ──────
@@ -215,11 +233,13 @@ int main()
         };
         BallTrack2D ballD = buildBall(nf);
         Segmentation segAnc = buildSeg(20, 25, 35, 38, 39, 15);
-        const EventRefineResult rAnc = refineEvents(segAnc, buildAnchoredHold(ShaftBallAnchored), ballD, -1, on);
+        ShaftTrack2D sAnc = buildAnchoredHold(ShaftBallAnchored);
+        const EventRefineResult rAnc = refineEvents(segAnc, sAnc, ballD, -1, on);
         check(rAnc.refined && rAnc.departFrame == 24 && rAnc.tier == 3,
               "ShaftBallAnchored hold asserts at-ball (excluded from the θ distance test)");
         Segmentation segMeas = buildSeg(20, 25, 35, 38, 39, 15);
-        const EventRefineResult rMeas = refineEvents(segMeas, buildAnchoredHold(ShaftMeasured), ballD, -1, on);
+        ShaftTrack2D sMeas = buildAnchoredHold(ShaftMeasured);
+        const EventRefineResult rMeas = refineEvents(segMeas, sMeas, ballD, -1, on);
         check(!rMeas.refined && rMeas.departFrame < 0 && segMeas.version == 2,
               "same wrong-θ hold as ShaftMeasured fails the distance test ⇒ abstain (contrast)");
     }
@@ -268,6 +288,8 @@ int main()
         const int    ver0   = seg.version;
         const int64_t start0 = seg.swingStartUs;
 
+        const ShaftPosition p1Before = *p1Of(shaft);   // built at t_us=0 by buildShaftMeasured
+
         EventRefineConfig off = on; off.enabled = false;
         const EventRefineResult r = refineEvents(seg, shaft, ball, -1, off);
 
@@ -277,6 +299,11 @@ int main()
             same = seg.events[k].phase == before[k].p && seg.events[k].t_us == before[k].t
                 && seg.events[k].conf == before[k].c && seg.events[k].provenance == before[k].prov;
         check(same, "enabled=false ⇒ seg (events/version/swingStart) byte-identical");
+
+        const ShaftPosition *p1After = p1Of(shaft);
+        check(!r.p1Synced && p1After && p1After->t_us == p1Before.t_us
+              && p1After->gripPx == p1Before.gripPx && p1After->source == p1Before.source,
+              "enabled=false ⇒ P1 position left untouched");
     }
 
     // ── 8. swingStartUs coupling (clamp ≤ refined Address, never later) ───────

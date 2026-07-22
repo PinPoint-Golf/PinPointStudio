@@ -67,7 +67,7 @@ int nearestFrame(const std::vector<int64_t> &tUs, int64_t t)
 
 } // namespace
 
-EventRefineResult refineEvents(Segmentation &seg, const ShaftTrack2D &shaft,
+EventRefineResult refineEvents(Segmentation &seg, ShaftTrack2D &shaft,
                                const BallTrack2D &ball, int64_t impactUs,
                                const EventRefineConfig &cfg)
 {
@@ -299,6 +299,33 @@ EventRefineResult refineEvents(Segmentation &seg, const ShaftTrack2D &shaft,
             seg.swingStartUs   = std::min(seg.swingStartUs, addrUs);
             res.addressRefined = true;
             res.addressUs      = addrUs;
+
+            // Keep the P1 coaching position in lock-step with its Address twin:
+            // both were born from addressHoldEndFrame at shaft-assembly time, so a
+            // refined Address must drag P1 with it or the two blocks (phases[] vs
+            // club.positions[]) diverge on the timeline. addrFrame is an exact
+            // sample index, so re-derive P1 straight off that frame's track sample
+            // (grip→head length + drawn direction, matching sampleTrackAt in
+            // shaft_track_assembly.cpp) and downgrade it to a plain TrackSample —
+            // any prior milestone fit no longer applies at the new anchor.
+            for (ShaftPosition &p : shaft.positions) {
+                if (p.p != 1) continue;
+                const ShaftSample2D &s = shaft.samples[size_t(addrFrame)];
+                p.t_us         = addrUs;
+                p.gripPx       = s.gripPx;
+                p.thetaRad     = s.thetaRad;
+                p.conf         = s.conf;
+                p.lenPx        = std::hypot(s.headPx.x() - s.gripPx.x(),
+                                            s.headPx.y() - s.gripPx.y());
+                p.headPx       = QPointF(s.gripPx.x() + p.lenPx * std::cos(p.thetaRad),
+                                         s.gripPx.y() + p.lenPx * std::sin(p.thetaRad));
+                p.source       = uint8_t(PositionSource::TrackSample);
+                p.sigmaThetaDeg = -1.f;
+                p.sigmaLenPx    = -1.f;
+                p.stackN        = 0;
+                res.p1Synced   = true;
+                break;
+            }
         }
     }
 

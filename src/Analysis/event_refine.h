@@ -37,6 +37,16 @@
 // FootMetrics addressUs, assessment P1, buildTrace, swing.json, timeline, SwingLab)
 // pick the refined times up for free.
 //
+// P1 ↔ ADDRESS: the Address event and the P1 coaching position are two copies of
+// the SAME instant, born together from addressHoldEndFrame at shaft-assembly time
+// (shaft_track_assembly.cpp) but serialized into two separate blocks (phases[] vs
+// club.positions[]). When a refinement moves the Address event, refineEvents ALSO
+// re-times shaft.positions[p==1] (the position twin) so the two never diverge on
+// the timeline — hence `shaft` is a NON-const reference. P1 is the ONLY position
+// resynced: P1/P4/P7 are the anchored positions (address/top/impact) and Impact/Top
+// are never refined; P2↔Takeaway is a θ-crossing, NOT an anchor identity, so it is
+// intentionally left where the tracker located it.
+//
 // EVIDENCE, three tiers (highest AVAILABLE decides; the others corroborate the
 // confidence): A — measured θ within departThetaDeg of θ_ball on ShaftMeasured
 // frames only (ShaftBallAnchored frames assert at-ball directly, θ = θ_ball by
@@ -116,6 +126,7 @@ struct EventRefineResult {
     int     departFrame     = -1;      // L (last-departure frame; −1 = none found ⇒ abstain)
     int     addressFrame    = -1;      // refined Address hold-end frame (addressHoldEndFrame)
     int     tier            = 0;       // deciding tier at L: 0 none / 1 C / 2 B / 3 A
+    bool    p1Synced        = false;   // shaft.positions[p==1] re-timed to the refined Address
     // P6 residual-first telemetry (log-only; no swing.json field): launch − impact
     // when both exist. Computed regardless of whether any event was refined.
     bool    impactResidualValid = false;
@@ -125,10 +136,12 @@ struct EventRefineResult {
 // Refine the timeline events in `seg` from the finished shaft/ball products.
 // Mutates seg IN PLACE (retimes Takeaway/Address t_us + conf + provenance = Club,
 // shifts swingStartUs with the Address delta, bumps version to 3) and returns the
-// applied mutations. See the header preamble for the tier/last-departure/safety
-// contract. impactUs (job.impactUs) drives the impactResidual telemetry only —
-// Impact is never refined.
-EventRefineResult refineEvents(Segmentation &seg, const ShaftTrack2D &shaft,
+// applied mutations. When the Address refinement applies, ALSO re-times the P1
+// position twin `shaft.positions[p==1]` to the refined frame (see the P1 ↔ ADDRESS
+// note above) — the sole reason `shaft` is non-const. See the header preamble for
+// the tier/last-departure/safety contract. impactUs (job.impactUs) drives the
+// impactResidual telemetry only — Impact is never refined.
+EventRefineResult refineEvents(Segmentation &seg, ShaftTrack2D &shaft,
                                const BallTrack2D &ball, int64_t impactUs,
                                const EventRefineConfig &cfg);
 
