@@ -430,7 +430,8 @@ struct ClubLengthEstimate {
 enum class PositionSource : uint8_t { TrackSample = 0, MilestoneFit = 1 };
 
 // One located coaching P-position on the shaft track (shaft_position_first §2
-// Layer B / §4). `p` is the coaching P-index 1..8 (NOT a Phase enum value);
+// Layer B / §4). `p` is the coaching P-index 1..8, or 10 (Finish; P9 reserved,
+// deferred) (NOT a Phase enum value);
 // `t_us` is the sub-frame-located crossing time. gripPx/headPx here are IMAGE px
 // (unlike samples[], which serialization normalizes by frameWidth/Height —
 // documented so a reader never mixes the two spaces). thetaRad is the shaft

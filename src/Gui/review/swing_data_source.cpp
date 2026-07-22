@@ -693,15 +693,15 @@ void SwingDataSource::reload()
                      + QString::number(lengths.value(QStringLiteral("ladderRung")).toInt()));
         }
         // Coaching P-positions (analysis.club.positions, shaft_position_first §2
-        // Layer B) — per-P coverage n/8 + the weakest per-P confidence. Absent
-        // block ⇒ no row (extraction off / pre-v3.5).
+        // Layer B) — per-P coverage n/9 (P1–P8 + P10/Finish; P9 reserved) + the
+        // weakest per-P confidence. Absent block ⇒ no row (extraction off / pre-v3.5).
         const QJsonArray positions = cl.value(QStringLiteral("positions")).toArray();
         if (!positions.isEmpty()) {
             double minConf = 1.0;
             for (const QJsonValue &pv : positions)
                 minConf = std::min(minConf, pv.toObject().value(QStringLiteral("conf")).toDouble());
             r << row(QStringLiteral("Positions"),
-                     QString::number(positions.size()) + QStringLiteral("/8 · min conf ")
+                     QString::number(positions.size()) + QStringLiteral("/9 · min conf ")
                      + QString::number(minConf, 'f', 2));
         }
         pushGroup(QStringLiteral("Analysis"), r);

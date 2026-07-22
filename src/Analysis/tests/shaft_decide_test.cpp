@@ -630,14 +630,14 @@ int main()
         for (size_t i = 1; i < on.positions.size(); ++i)
             if (on.positions[i].p <= on.positions[i - 1].p
                 || on.positions[i].t_us < on.positions[i - 1].t_us) ordered = false;
-        check(ordered, "positions ordered (p strictly ↑, t_us ↑)");
+        check(ordered, "positions ordered (p strictly ↑, t_us ↑ — incl. P10/Finish)");
         bool pInRange = true, srcOk = true;
         for (const ShaftPosition &p : on.positions) {
-            if (p.p < 1 || p.p > 8) pInRange = false;
+            if (p.p < 1 || p.p > 10) pInRange = false;
             if (p.source != uint8_t(PositionSource::TrackSample) || p.stackN != 0
                 || p.sigmaThetaDeg != -1.f || p.sigmaLenPx != -1.f) srcOk = false;
         }
-        check(pInRange, "every p ∈ [1,8]");
+        check(pInRange, "every p ∈ [1,10]");
         check(srcOk, "B1 provenance: TrackSample, stackN 0, σ = −1");
 
         // (byte-identical contract) positions extraction never touches samples.

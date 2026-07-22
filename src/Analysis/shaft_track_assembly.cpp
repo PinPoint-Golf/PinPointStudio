@@ -1860,7 +1860,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         addressEventFrame = p1Frame;
 
         const std::vector<PTime> pts =
-            locatePTimes(tUs, rec.thetaOut, phiS, p1Frame, pm.top, pm.impact, cfg.positions);
+            locatePTimes(tUs, rec.thetaOut, phiS, p1Frame, pm.top, pm.impact, pm.fin0, cfg.positions);
         out.positions.reserve(pts.size());
         for (const PTime& pt : pts) {
             ShaftPosition pos;

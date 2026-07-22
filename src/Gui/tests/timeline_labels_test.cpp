@@ -215,6 +215,25 @@ int main(int argc, char **argv)
         }
     }
 
+    // ── positionLayout: P10 (Finish) kept, p>10 dropped ───────────────────────
+    std::printf("-- positionLayout: P10 kept, out-of-range dropped --\n");
+    {
+        const QVariantList p = positionsList({
+            {1,  100000, 0, 0.9},
+            {10, 950000, 0, 0.8},   // Finish — must survive with label "P10"
+            {11, 300000, 0, 0.5},   // out-of-range p — dropped
+        });
+        const QVariantList r = t.positionLayout(p, 0, 1000000, true, 300, 4,
+                                                QStringLiteral("Arial"), 10);
+        checkTrue("P10 kept, P11 dropped -> two entries", r.size() == 2);
+        if (r.size() == 2) {
+            checkStr("first label P1", r.at(0).toMap().value(QStringLiteral("label")).toString(), "P1");
+            checkEqI("second p == 10", r.at(1).toMap().value(QStringLiteral("p")).toLongLong(), 10);
+            checkStr("second label P10",
+                     r.at(1).toMap().value(QStringLiteral("label")).toString(), "P10");
+        }
+    }
+
     // ── activeStation ──────────────────────────────────────────────────────────
     std::printf("-- activeStation --\n");
     {

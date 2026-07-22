@@ -24,11 +24,11 @@ static void check(bool c, const char *label)
 }
 
 // Timebase: 200 Hz (dt = 5000 µs), 121 frames. Landmarks: address 10, top 60,
-// impact 110, last frame 120. Elevation ≡ angle whenever the angle stays in
-// (−90°,90°) (cos > 0), so the constructed profiles below cross HORIZONTAL exactly
+// impact 110, finish 118, last frame 120. Elevation ≡ angle whenever the angle stays
+// in (−90°,90°) (cos > 0), so the constructed profiles below cross HORIZONTAL exactly
 // where their value passes through 0 — the P-times are hand-placeable.
 static constexpr int    kNf  = 121;
-static constexpr int    kAF  = 10, kTopF = 60, kImpF = 110;
+static constexpr int    kAF  = 10, kTopF = 60, kImpF = 110, kFinF = 118;
 static constexpr int64_t kDt  = 5000;
 
 static std::vector<int64_t> times()
@@ -87,21 +87,22 @@ int main()
     const std::vector<int64_t> t = times();
     PositionsConfig cfg;   // enabled=false, hysteresisDeg=8
 
-    // ── (1) full swing: all 8 located, crossings within 1 sample ──────────────
-    std::printf("=== full swing (all 8) ===\n");
+    // ── (1) full swing: all 8 + P10 located, crossings within 1 sample ────────
+    std::printf("=== full swing (all 8 + P10) ===\n");
     {
         const std::vector<double> th = buildTheta(true), ph = buildPhi(false);
-        const std::vector<PTime> ps = locatePTimes(t, th, ph, kAF, kTopF, kImpF, cfg);
-        check(ps.size() == 8, "all eight P-positions found");
-        // ordered by p AND monotone in t_us
+        const std::vector<PTime> ps = locatePTimes(t, th, ph, kAF, kTopF, kImpF, kFinF, cfg);
+        check(ps.size() == 9, "all eight P-positions + P10 (Finish) found");
+        // ordered by p AND monotone in t_us (P10/Finish falls after the P8 crossing here)
         bool ordered = true;
         for (size_t i = 1; i < ps.size(); ++i)
             if (ps[i].p <= ps[i - 1].p || ps[i].tUs < ps[i - 1].tUs) ordered = false;
         check(ordered, "result ordered (p strictly ↑, t_us ↑)");
-        const PTime *p1 = find(ps, 1), *p4 = find(ps, 4), *p7 = find(ps, 7);
-        check(p1 && p1->tUs == t[kAF],   "P1 = address landmark");
-        check(p4 && p4->tUs == t[kTopF], "P4 = top landmark");
-        check(p7 && p7->tUs == t[kImpF], "P7 = impact landmark");
+        const PTime *p1 = find(ps, 1), *p4 = find(ps, 4), *p7 = find(ps, 7), *p10 = find(ps, 10);
+        check(p1 && p1->tUs == t[kAF],    "P1 = address landmark");
+        check(p4 && p4->tUs == t[kTopF],  "P4 = top landmark");
+        check(p7 && p7->tUs == t[kImpF],  "P7 = impact landmark");
+        check(p10 && p10->tUs == t[kFinF], "P10 = finish landmark");
         auto within1 = [&](const PTime *p, int f) {
             return p && std::llabs(p->tUs - t[f]) <= kDt;
         };
@@ -116,19 +117,21 @@ int main()
     std::printf("=== abbreviated punch (no P8) ===\n");
     {
         const std::vector<double> th = buildTheta(false), ph = buildPhi(false);
-        const std::vector<PTime> ps = locatePTimes(t, th, ph, kAF, kTopF, kImpF, cfg);
+        const std::vector<PTime> ps = locatePTimes(t, th, ph, kAF, kTopF, kImpF, kFinF, cfg);
         check(find(ps, 8) == nullptr, "P8 absent (follow-through never reaches horizontal)");
-        check(ps.size() == 7 && find(ps, 7) != nullptr, "the other seven still located");
+        check(ps.size() == 8 && find(ps, 7) != nullptr && find(ps, 10) != nullptr,
+              "the other seven + P10 (Finish) still located");
     }
 
     // ── (3) NaN φ: no P3/P5, shaft positions still found ──────────────────────
     std::printf("=== NaN phi (no P3/P5) ===\n");
     {
         const std::vector<double> th = buildTheta(true), ph = buildPhi(true);
-        const std::vector<PTime> ps = locatePTimes(t, th, ph, kAF, kTopF, kImpF, cfg);
+        const std::vector<PTime> ps = locatePTimes(t, th, ph, kAF, kTopF, kImpF, kFinF, cfg);
         check(find(ps, 3) == nullptr && find(ps, 5) == nullptr, "arm-parallel P3/P5 absent (NaN φ)");
         check(find(ps, 2) && find(ps, 6) && find(ps, 8), "shaft-parallel P2/P6/P8 unaffected");
-        check(ps.size() == 6, "six positions (P1,2,4,6,7,8)");
+        check(find(ps, 10) != nullptr, "P10 (Finish) unaffected by absent φ");
+        check(ps.size() == 7, "seven positions (P1,2,4,6,7,8,10)");
     }
 
     // ── (4) hysteresis: noise around horizontal cannot double-fire / false-fire ─
@@ -138,7 +141,7 @@ int main()
         // (a) a genuine transit with ±5° noise near horizontal fires ONCE.
         std::vector<double> th = buildTheta(true);
         for (int f = 30; f <= 40; ++f) th[f] += (f % 2 == 0 ? 5.0 : -5.0);   // ±5 < hyst 8
-        const std::vector<PTime> ps = locatePTimes(t, th, buildPhi(false), kAF, kTopF, kImpF, cfg);
+        const std::vector<PTime> ps = locatePTimes(t, th, buildPhi(false), kAF, kTopF, kImpF, kFinF, cfg);
         int p2count = 0;
         const PTime *p2 = nullptr;
         for (const PTime &p : ps) if (p.p == 2) { ++p2count; p2 = &p; }

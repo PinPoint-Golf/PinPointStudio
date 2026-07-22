@@ -136,8 +136,9 @@ struct PositionsConfig {
     PositionFitConfig fit;          // B2 milestone fit (dark until fit.fitEnabled flips)
 };
 
-// One located P-time. `p` is the coaching P-index 1..8 (NOT a Phase enum value);
-// `tUs` is the sub-frame-interpolated event time in the input tUs domain.
+// One located P-time. `p` is the coaching P-index 1..8, or 10 (Finish) — P9 and a
+// fuller follow-through model are reserved (NOT a Phase enum value); `tUs` is the
+// sub-frame-interpolated event time in the input tUs domain.
 struct PTime {
     int     p   = 0;
     int64_t tUs = 0;
@@ -357,19 +358,25 @@ inline int addressHoldEndFrame(const std::vector<double>& gx, const std::vector<
     return stillQuietOnly >= 0 ? stillQuietOnly : legacy;    // legacy is already floored
 }
 
-// Locate the coaching P-times P1–P8 from the per-frame reconciled θ(t) and
-// lead-arm φ(t) (both DEGREES, image atan2 convention, one entry per frame; NaN
-// permitted, e.g. φ where the pose lead-arm is absent). tUs[] is the per-frame
-// time domain. addressFrame/topFrame/impactFrame are the tracker's P1/P4/P7
-// landmark frame indices (segmentPhases bs0/top/impact); each < 0 or out of range
-// simply omits that landmark. Windows: P2 ∈ (P1,P4), P6 ∈ (P4,P7), P8 after P7,
-// P3 ∈ (P2,P4), P5 ∈ (P4,P6); a window whose bounding crossing is absent omits its
-// dependent P (P3 needs P2, P5 needs P6). Returns the found P-times ORDERED by p
-// (1..8), so the result is monotone in both p and tUs.
+// Locate the coaching P-times P1–P8 (plus P10 = Finish) from the per-frame
+// reconciled θ(t) and lead-arm φ(t) (both DEGREES, image atan2 convention, one
+// entry per frame; NaN permitted, e.g. φ where the pose lead-arm is absent). tUs[]
+// is the per-frame time domain. addressFrame/topFrame/impactFrame/finishFrame are
+// the tracker's P1/P4/P7/P10 landmark frame indices (segmentPhases bs0/top/impact/
+// fin0); each < 0 or out of range simply omits that landmark. P9 and a fuller
+// follow-through P-model are DEFERRED — for now P10 is simply the Finish milestone
+// so the review timeline carries a marker there (aligned with the Finish station by
+// construction, as Finish is never refined). Windows: P2 ∈ (P1,P4), P6 ∈ (P4,P7),
+// P8 after P7, P3 ∈ (P2,P4), P5 ∈ (P4,P6); a window whose bounding crossing is
+// absent omits its dependent P (P3 needs P2, P5 needs P6). Returns the found P-times
+// ORDERED by p (1..8, then 10) and STRICTLY ascending in t_us — P10 (Finish) is
+// emitted only when it is genuinely last in time (see the P10 note below), so both
+// orderings hold together (the Layer C synthesis t_us-ascending contract depends on it).
 inline std::vector<PTime> locatePTimes(const std::vector<int64_t>& tUs,
                                        const std::vector<double>& thetaDeg,
                                        const std::vector<double>& phiDeg,
                                        int addressFrame, int topFrame, int impactFrame,
+                                       int finishFrame,
                                        const PositionsConfig& cfg)
 {
     using namespace positions_detail;
@@ -422,6 +429,16 @@ inline std::vector<PTime> locatePTimes(const std::vector<int64_t>& tUs,
         const Crossing p8 = findHorizontalCrossing(tUs, thetaDeg, impactFrame, nf - 1, hyst);
         if (p8.found) out.push_back({8, p8.tUs});
     }
+
+    // P10 — finish landmark. P9 and a full follow-through P-model are deferred; for
+    // now P10 is simply the Finish milestone so the timeline shows a marker there.
+    // Only emitted when it is genuinely LAST in time: in a short finish the P8
+    // follow-through crossing can fall after fin0, and appending an out-of-order P10
+    // would break the strictly-t_us-ascending contract Layer C synthesis relies on
+    // (shaft_synthesis.h). Omitting it there is safe — P10 would be temporally tangled
+    // with P8 anyway.
+    if (inRange(finishFrame) && (out.empty() || tUs[finishFrame] > out.back().tUs))
+        out.push_back({10, tUs[finishFrame]});
     return out;
 }
 

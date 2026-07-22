@@ -144,14 +144,15 @@ QVariantList TimelineLabels::positionLayout(const QVariantList &positions, qint6
     QVariantList out;
     if (positions.isEmpty()) return out;
 
-    // Keep only valid P1..P8 entries, sorted by time — unlike phases (already
-    // time-ordered by the analyzer), milestone fits can be revised/added out of order.
+    // Keep only valid P1..P8 + P10 (Finish) entries, sorted by time — unlike phases
+    // (already time-ordered by the analyzer), milestone fits can be revised/added out
+    // of order, so we re-sort defensively.
     QVector<QVariantMap> rows;
     rows.reserve(positions.size());
     for (const QVariant &pv : positions) {
         const QVariantMap m = pv.toMap();
         const int p = m.value(QStringLiteral("p")).toInt();
-        if (p >= 1 && p <= 8) rows.append(m);
+        if (p >= 1 && p <= 10) rows.append(m);
     }
     std::sort(rows.begin(), rows.end(), [](const QVariantMap &a, const QVariantMap &b) {
         return a.value(QStringLiteral("t_us")).toLongLong()
