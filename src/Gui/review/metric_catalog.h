@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "../../Analysis/metric_catalogue.h"
+#include "../../Metrics/metric_catalogue.h"
 
 #include <QObject>
 #include <QString>

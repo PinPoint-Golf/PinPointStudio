@@ -277,6 +277,7 @@ target_include_directories(PinPointStudio PRIVATE
     src/Gui/imu src/Gui/viz src/Gui/session src/Gui/shot src/Gui/review
     src/Gui/media src/Gui/calibration src/Gui/diagnostics src/Gui/markup
     src/IMU src/Audio src/Video src/Pose src/STT src/TTS src/LLM src/Secrets src/Core src/Buffer
+    src/Analysis src/Metrics
     src/Update
     "${CMAKE_BINARY_DIR}/generated")
 
@@ -2257,16 +2258,16 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/shot_analyzer.cpp
     src/Analysis/swing_reanalyzer.h
     src/Analysis/swing_reanalyzer.cpp
-    src/Analysis/metric_type.h
-    src/Analysis/metric_descriptor.h
-    src/Analysis/metric_provider.h
-    src/Analysis/metric_catalogue.h
-    src/Analysis/metric_catalogue.cpp
-    src/Analysis/metric_resolver.h
-    src/Analysis/metric_resolver.cpp
-    src/Analysis/metric_catalogue_manifest.cpp
-    src/Analysis/metric_providers.h
-    src/Analysis/metric_providers.cpp
+    src/Metrics/metric_type.h
+    src/Metrics/metric_descriptor.h
+    src/Metrics/metric_provider.h
+    src/Metrics/metric_catalogue.h
+    src/Metrics/metric_catalogue.cpp
+    src/Metrics/metric_resolver.h
+    src/Metrics/metric_resolver.cpp
+    src/Metrics/metric_catalogue_manifest.cpp
+    src/Metrics/metric_providers.h
+    src/Metrics/metric_providers.cpp
 )
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)
@@ -2520,10 +2521,10 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/ball_position.cpp
         src/Analysis/tempo_metrics.cpp
         src/Analysis/pose_wrist_angle_source.cpp
-        src/Analysis/metric_catalogue.cpp
-        src/Analysis/metric_resolver.cpp
-        src/Analysis/metric_catalogue_manifest.cpp
-        src/Analysis/metric_providers.cpp
+        src/Metrics/metric_catalogue.cpp
+        src/Metrics/metric_resolver.cpp
+        src/Metrics/metric_catalogue_manifest.cpp
+        src/Metrics/metric_providers.cpp
         src/Export/frame_decode.cpp
         src/Export/swing_doc.cpp
         src/Export/swing_paths.cpp
@@ -2540,7 +2541,7 @@ if(PINPOINT_BUILD_TOOLS)
     # Common include/define/link wiring for an offline tool target.
     function(pinpoint_configure_offline_target tgt)
         target_include_directories(${tgt} PRIVATE
-            src/Buffer src/Analysis src/Export src/Pose src/Core src/IMU
+            src/Buffer src/Analysis src/Metrics src/Export src/Pose src/Core src/IMU
             "${_ort_root}/include"
             ${OpenCV_INCLUDE_DIRS}
             ${whisper_SOURCE_DIR}/include

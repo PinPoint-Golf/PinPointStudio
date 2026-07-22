@@ -9,8 +9,8 @@
 // IMU-role gating, club-track / face-on gating), and corridor() delegation (DOF → reference_bands,
 // non-DOF → nullopt, non-checkpoint phase → nullopt).
 
-#include "../metric_catalogue.h"
-#include "../reference_bands.h"
+#include "metric_catalogue.h"
+#include "reference_bands.h"
 
 #include <cstdio>
 

@@ -166,12 +166,13 @@ pp_add_test(tempo_metrics_test SOURCES tempo_metrics_test.cpp ${ANALYSIS}/tempo_
 # normative-corridor delegation to reference_bands. Qt-only; reuses wristCheckpoints()
 # (wrist_analysis_adapter.h, header-only) for the Phase→P-position map; no fixture.
 pp_add_test(metric_catalogue_test
-    SOURCES metric_catalogue_test.cpp
-            ${ANALYSIS}/metric_catalogue.cpp
-            ${ANALYSIS}/metric_resolver.cpp
-            ${ANALYSIS}/metric_catalogue_manifest.cpp
-            ${ANALYSIS}/metric_providers.cpp
-            ${ANALYSIS}/reference_bands.cpp)
+    SOURCES ${SRC}/Metrics/tests/metric_catalogue_test.cpp
+            ${SRC}/Metrics/metric_catalogue.cpp
+            ${SRC}/Metrics/metric_resolver.cpp
+            ${SRC}/Metrics/metric_catalogue_manifest.cpp
+            ${SRC}/Metrics/metric_providers.cpp
+            ${ANALYSIS}/reference_bands.cpp
+    INCLUDE ${SRC}/Metrics ${ANALYSIS})
 
 # WB4 shared hand geometry (hand_axis.h): handCentroid (byte-identical to the
 # pose_runner original), computeGripAnchors (the pose.gripFromSmoothedHands
