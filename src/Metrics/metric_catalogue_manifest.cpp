@@ -502,7 +502,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .key = QStringLiteral("clubheadSpeed"),
         .type = MetricType::TimeSeries,
         .label = QStringLiteral("Clubhead speed"),
-        .shortLabel = QStringLiteral("Club spd"),
+        .shortLabel = QStringLiteral("Club speed"),
         .unit = QStringLiteral("mph"),
         .group = QStringLiteral("Club & speed"),
         .description = QStringLiteral(
@@ -526,7 +526,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .key = QStringLiteral("handSpeed"),
         .type = MetricType::TimeSeries,
         .label = QStringLiteral("Hand speed"),
-        .shortLabel = QStringLiteral("Hand spd"),
+        .shortLabel = QStringLiteral("Hand speed"),
         .unit = QStringLiteral("mph"),
         .group = QStringLiteral("Club & speed"),
         .description = QStringLiteral(
