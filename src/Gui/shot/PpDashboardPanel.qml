@@ -202,10 +202,11 @@ Item {
 
     function _zoneComp(key) {
         switch (key) {
-        case "verdict":  return verdictComp
-        case "setup":    return setupComp
-        case "motion":   return motionComp
-        case "sequence": return sequenceComp
+        case "verdict":    return verdictComp
+        case "setup":      return setupComp
+        case "motion":     return motionComp
+        case "sequence":   return sequenceComp
+        case "swingplane": return swingplaneComp
         }
         return null
     }
@@ -255,6 +256,16 @@ Item {
             interactive: root.interactive
             playheadUs:  root.playheadUs
             onSeekRequested: (tUs) => shotReplay.seekToUs(tUs)
+        }
+    }
+    Component {
+        id: swingplaneComp
+        PpDashboardSwingPlaneZone {
+            width: parent ? parent.width : 0
+            catalog: metricCat; shotCtx: root.shotCtx; detail: root.detail
+            sessionType: root.sessionType
+            pinnedMetrics: ViewLayout.dashboardZoneMetrics(root.sessionType, "swingplane")
+            interactive: root.interactive
         }
     }
 

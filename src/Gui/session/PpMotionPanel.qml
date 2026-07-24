@@ -90,8 +90,9 @@ Item {
         { key: "legs",      label: qsTr("Legs") }
     ]
     readonly property var _objectRows: [
-        { key: "shaft", label: qsTr("Shaft") },
-        { key: "ball",  label: qsTr("Ball") }
+        { key: "shaft",     label: qsTr("Shaft") },
+        { key: "ball",      label: qsTr("Ball") },
+        { key: "reference", label: qsTr("Reference") }
     ]
 
     // Land back on Presets whenever the popup closes, and never leave Page 2
@@ -413,6 +414,14 @@ Item {
                 return m === "frame" && !!(d && d.ball && d.ball.samples && d.ball.samples.length > 0)
             if (seg.elementKey === "shaft")
                 return !!(d && d.club && d.club.samples && d.club.samples.length > 0)
+            // Reference swing (WP5a): needs an analysed swing whose SwingRefStage
+            // succeeded — the block is inserted into analysisDetail ONLY when
+            // valid (shot_processor.cpp / swing_doc.cpp), so its mere presence
+            // is already the "did this stage run and succeed" gate. off/frame
+            // only — the whole ghost+surface+trace+chips composite is one unit,
+            // not a per-frame anchor fan/trace could sensibly trail.
+            if (seg.elementKey === "reference")
+                return m === "frame" && !!(d && d.reference !== undefined)
             if (m === "frame")
                 return !!(d && d.pose2d && d.pose2d.frames && d.pose2d.frames.length > 0)
             // fan / trace — the additive smoothed series (re-analyse-gated;
