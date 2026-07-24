@@ -147,6 +147,7 @@ MetricCatalogue makeMetricCatalogue()
     static const HeadMetricProvider      headProvider;
     static const ShaftLeanProvider       shaftLeanProvider;
     static const ScoreProvider           scoreProvider;
+    static const SwingRefMetricProvider  swingRefProvider;
     static const PlannedMetricProvider   plannedProvider;
     cat.addProvider(&wristProvider);
     cat.addProvider(&kinematicProvider);
@@ -155,6 +156,7 @@ MetricCatalogue makeMetricCatalogue()
     cat.addProvider(&headProvider);
     cat.addProvider(&shaftLeanProvider);
     cat.addProvider(&scoreProvider);
+    cat.addProvider(&swingRefProvider);
     cat.addProvider(&plannedProvider);
 
     return cat;

@@ -169,6 +169,26 @@ MetricAvailability ShaftLeanProvider::availability(const QString &key, const Sho
     return fromRequirement(req, ctx);
 }
 
+// -------------------------------------------------------------------------- SwingRefMetricProvider
+
+std::vector<QString> SwingRefMetricProvider::provides() const
+{
+    return { QStringLiteral("refShaftDelta"),     QStringLiteral("refLagDelta"),
+             QStringLiteral("refHubShift"),       QStringLiteral("refRmsBackswing"),
+             QStringLiteral("refRmsDownswing"),   QStringLiteral("refExitDelta"),
+             QStringLiteral("refLagRetention"),   QStringLiteral("refLeanDeltaP7"),
+             QStringLiteral("refTempoDelta"),     QStringLiteral("refProjResidual") };
+}
+
+MetricAvailability SwingRefMetricProvider::availability(const QString &key, const ShotContext &ctx) const
+{
+    Q_UNUSED(key)
+    MetricRequirement req;
+    req.faceOnCamera = true;
+    req.clubTrack    = true;                        // comparator needs the face-on shaft track
+    return fromRequirement(req, ctx);
+}
+
 // ---------------------------------------------------------------------------------- ScoreProvider
 
 std::vector<QString> ScoreProvider::provides() const
@@ -217,6 +237,8 @@ std::vector<QString> PlannedMetricProvider::provides() const
         QStringLiteral("kinematicSequence"),
         QStringLiteral("shoulderAlignment"), QStringLiteral("elbowAlignment"),
         QStringLiteral("hipAlignment"),      QStringLiteral("feetAlignment"),
+        QStringLiteral("refShaftDeltaDtl"),  QStringLiteral("refPlaneShift"),
+        QStringLiteral("refP4LaidOff"),      QStringLiteral("refButtDeviation"),
     };
 }
 
