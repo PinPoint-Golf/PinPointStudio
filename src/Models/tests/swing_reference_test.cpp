@@ -17,9 +17,17 @@
 //   * β: interior arm→shaft angle, applied as a sgn·(180−β) rotation of the arm about n.
 //   * Shaft ∥ +X ⟺ β = α−90; shaft ∥ −X ⟺ β = α+90 (plane-inclination-independent).
 //   * Butt-side convention: at P1 the butt (hands/grip end) is on the −Y side (hub side).
-//   * P7 forward lean tilts the butt toward the target (+X) → butt.x > 0 for lean > 0.
+//   * Anchors are BALL-CONTACT-FIRST (src/Models/swing_reference.cpp): the clubhead
+//     lands EXACTLY on the ball at P1 and P7 (two-circle IK), and the P7 hands reach
+//     forward of the ball from the hub — so butt.x > 0 at P7 for any hub ahead of the
+//     ball (not only under forward lean). Ball contact has priority over the static
+//     lie/lean, so the P1 shaft-ground angle may differ from the labelled lie by ≲1°.
+//   * P8 (FollowThrough s=1) is on the TARGET side: shaft ∥ +X (clubhead toward the
+//     target, dir.x > 0) with the hands on the target side (butt.x > 0). β = α−90
+//     (mod 360) there (α=−65 → β=205).
 //   * LH is the exact y→−y mirror (sgn flips both the plane-basis y-components and the
-//     rotation angles).
+//     rotation angles); the ball-contact branch penalty is mirror-aware (sgn·h.y) so
+//     this still holds exactly.
 
 #include "swing_reference.h"
 
@@ -100,7 +108,7 @@ int main()
     }
 
     // ---------------------------------------------------------------- Test 2: P7 ----
-    std::printf("\n-- 2. P7 (Downswing s=1): clubhead on ball, in FSP, forward lean --\n");
+    std::printf("\n-- 2. P7 (Downswing s=1): clubhead on ball, in FSP, hands forward --\n");
     {
         auto m = makeDriver();
         const double fsp = m->fspInclinationDeg();
@@ -108,14 +116,20 @@ int main()
         const QVector3D ch = p.clubhead(kDriverClubLen);
         CHECK_NEAR("clubhead-to-ball (mm)", double(ch.length()) * 1000.0, 0.0, 5.0);
         CHECK("shaft in FSP (|dot(dir,n)|<1e-3)", dotNfsp(p, fsp) < 1e-3);
-        CHECK_NEAR("driver lean → butt.x≈0", double(p.butt.x()), 0.0, 5e-3);
+        // BALL-CONTACT-FIRST (deviation from the old lean-only anchor): the P7 hands
+        // are the FORWARD two-circle-IK candidate (max h.x), reaching forward of the
+        // ball from the hub — so butt.x > 0 whenever the hub sits ahead of the ball
+        // (this fixture: hub.x = 0.2), regardless of the static forward lean. The old
+        // anchor put a zero-lean driver's hands straight up the fall-line (butt.x ≈ 0);
+        // ball contact now has priority over the lie/lean, so that no longer holds.
+        CHECK("driver P7 hands forward of ball (butt.x>0)", p.butt.x() > 0.0f);
 
-        // A wedge (8° lean) leans the butt toward the target (+X).
+        // A wedge fixture likewise reaches its hands forward of the ball (+X).
         GolferAnthro aw{ QVector3D(0.2f, -0.85f, 1.40f), 0.60, true };
         ClubSpec cw; cw.length = 0.89; cw.lieDeg = 64.0; cw.ballOffsetX = -0.02; cw.forwardLeanP7Deg = 8.0;
         auto mw = makeSwingReferenceModel(aw, cw);
         const ShaftPose pw = mw->evaluate(Segment::Downswing, 1.0);
-        CHECK("wedge forward lean → butt.x>0", pw.butt.x() > 0.0f);
+        CHECK("wedge P7 hands forward of ball (butt.x>0)", pw.butt.x() > 0.0f);
         CHECK("wedge P7 shaft in FSP", dotNfsp(pw, mw->fspInclinationDeg()) < 1e-3);
     }
 
@@ -180,13 +194,17 @@ int main()
     }
 
     // ---------------------------------------------------------------- Test 6: P8 ----
-    std::printf("\n-- 6. P8 (FollowThrough s=1): shaft horizontal ∥ X, in FSP --\n");
+    std::printf("\n-- 6. P8 (FollowThrough s=1): shaft horizontal ∥ +X (target side), in FSP --\n");
     {
         auto m = makeDriver();
         const ShaftPose p = m->evaluate(Segment::FollowThrough, 1.0);
         CHECK_NEAR("shaft-ground angle (deg)", shaftGroundAngleDeg(p), 0.0, 0.5);
         CHECK_NEAR("shaft-vs-X-axis (deg)",    shaftToXAxisDeg(p),     0.0, 0.5);
         CHECK("shaft in FSP (|dot(dir,n)|<1e-3)", dotNfsp(p, m->fspInclinationDeg()) < 1e-3);
+        // Corrected authoring: P8 is on the TARGET side — hands past impact toward the
+        // target, shaft pointing ∥ +X (clubhead toward the target), NOT the old ∥ −X.
+        CHECK("P8 hands on target side (butt.x>0)", p.butt.x() > 0.0f);
+        CHECK("P8 shaft points +X (dir.x>0)",       p.dir.x() > 0.0f);
     }
 
     // ---------------------------------------------------- Test 7: C¹ across P7 join -

@@ -47,6 +47,7 @@
 #include "shaft_tracker.h"
 #include "swing_comparator.h"       // SwingRefStage (T5) — pinpoint::swingref
 #include "swing_ref_anthro.h"
+#include "swing_ref_fit.h"          // fitSwingReference (swingref.fit.enabled)
 #include "camera_projection.h"
 #include "../Models/swing_reference.h"
 #include "tempo_metrics.h"
@@ -957,12 +958,75 @@ struct SwingRefStage : AnalysisStage {
         club.forwardLeanP7Deg = leanP7;
         club.ballOffsetX      = anthroOpt->ballOffsetX;
 
-        const std::unique_ptr<SwingReferenceModel> model =
+        // Seed model (anthro-estimated hub/arm + labelled club). Used to derive the
+        // projection mirror sign and as the fit seed / degrade fallback.
+        std::unique_ptr<SwingReferenceModel> model =
             makeSwingReferenceModel(anthroOpt->anthro, club, refCfg);
+
+        // Projection mirror sign — from the SEED model's canonical P1 shaft (butt.x)
+        // vs the measured P1 grip→head direction. Fixed here (anthro-measured) and
+        // unchanged by any subsequent fit; the fitted model is still a canonical
+        // swing (target = world +X) so its P1 shaft points the same way.
+        double xSign = 1.0;
+        {
+            const ShaftPose seedRef1 = model->evaluate(Segment::Backswing, 0.0);
+            for (const ShaftPosition &p : ctx.detail->shaft.positions) {
+                if (p.p != 1) continue;
+                if (double(seedRef1.butt.x()) * (p.headPx.x() - p.gripPx.x()) > 0.0)
+                    xSign = -1.0;
+                break;
+            }
+        }
+
+        // ── P-position fit (swingref.fit.enabled, default ON) ────────────────────
+        // Refine hub X/Z, lead-arm length, club length and Δθ_bs to the measured P
+        // grip/head px (the seed reference arc is ~36% oversized). On success rebuild
+        // the model from the fitted params — hubY stays seed, handedness unchanged,
+        // lie/lean/ballOffsetX unchanged, plane offset = fitted. The projection
+        // (origin/pxPerM/xSign) is NOT re-fitted: the clubhead-at-ball anchor is held
+        // by the model's ball-contact IK, not the projection. Degrades (< 4 distinct
+        // P anchors / no scale) to the seed model — byte-identical bar the fit block.
+        double clubLenM = ctx.job.clubLengthM;
+        GolferAnthro modelAnthro = anthroOpt->anthro;
+        SwingRefFit &fitBlock = ctx.detail->reference.fit;   // default: fitted=false
+        if (refCfg.fitEnabled && anthroOpt->pxPerM > 0.0) {
+            SwingRefFitInput fin;
+            fin.seedAnthro  = anthroOpt->anthro;
+            fin.ballOffsetX = anthroOpt->ballOffsetX;
+            fin.seedClub    = club;
+            fin.cfg         = refCfg;
+            fin.originPx    = anthroOpt->originPx;
+            fin.pxPerM      = anthroOpt->pxPerM;
+            fin.xSign       = xSign;
+            for (const ShaftPosition &p : ctx.detail->shaft.positions) {
+                if (p.p < 1 || p.p > 8) continue;
+                fin.anchors.push_back({ p.p, p.gripPx, p.headPx, p.conf });
+            }
+            const SwingRefFitResult fr = fitSwingReference(fin);
+            fitBlock.fitted        = fr.fitted;
+            fitBlock.anchorsUsed   = fr.anchorsUsed;
+            fitBlock.rmsBeforePx   = fr.rmsBeforePx;
+            fitBlock.rmsAfterPx    = fr.rmsAfterPx;
+            fitBlock.armLengthM    = fr.anthro.armLength;
+            fitBlock.clubLengthM   = fr.clubLengthM;
+            fitBlock.hubX          = double(fr.anthro.hub.x());
+            fitBlock.hubY          = double(fr.anthro.hub.y());
+            fitBlock.hubZ          = double(fr.anthro.hub.z());
+            fitBlock.planeOffsetDeg = fr.planeOffsetDeg;
+            if (fr.fitted) {
+                modelAnthro = fr.anthro;              // fitted hub/arm (hubY = seed)
+                clubLenM    = fr.clubLengthM;
+                ClubSpec fitClub = club;              // lie/lean/ballOffsetX unchanged
+                fitClub.length   = fr.clubLengthM;
+                RefConfig fitCfg = refCfg;
+                fitCfg.backswingPlaneOffsetDeg = fr.planeOffsetDeg;
+                model = makeSwingReferenceModel(fr.anthro, fitClub, fitCfg);
+            }
+        }
 
         const std::vector<PointCorrespondence> corr =
             buildSwingRefCorrespondences(*model, ctx.detail->shaft, ctx.detail->pose2d,
-                                        ctx.detail->ball, *anthroOpt, ctx.job.clubLengthM,
+                                        ctx.detail->ball, *anthroOpt, clubLenM,
                                         addressUs);
 
         CameraIntrinsics intr;
@@ -986,19 +1050,11 @@ struct SwingRefStage : AnalysisStage {
             // fallback below; a genuinely calibrated intrinsics+extrinsics rig
             // would enter via makeCameraProjection's CalibratedProjection path.
             //
-            // Mirror sign: the model builds a canonical swing (target = world +X);
-            // orient it so the reference P1 shaft points the SAME way as the
-            // measured P1 shaft (grip→head) — flips a selfie-mirrored / other-side
-            // capture without needing a camera-mirror flag. The origin (X=0) and
-            // hub (X≈0) are unaffected, so only the shaft/arc side changes.
+            // Mirror sign (xSign) was resolved above from the seed model's canonical
+            // P1 shaft vs the measured P1 shaft (grip→head) — it flips a selfie-
+            // mirrored / other-side capture without a camera-mirror flag. The origin
+            // (X=0) and hub (X≈0) are unaffected, so only the shaft/arc side changes.
             const ShaftPose ref1 = model->evaluate(Segment::Backswing, 0.0);
-            double xSign = 1.0;
-            for (const ShaftPosition &p : ctx.detail->shaft.positions) {
-                if (p.p != 1) continue;
-                if (double(ref1.butt.x()) * (p.headPx.x() - p.gripPx.x()) > 0.0)
-                    xSign = -1.0;
-                break;
-            }
             auto ortho = std::make_unique<OrthographicProjection>(
                 anthroOpt->originPx.x(), anthroOpt->originPx.y(), anthroOpt->pxPerM, xSign);
             // Residual = REGISTRATION quality: how faithfully the projection puts
@@ -1036,7 +1092,7 @@ struct SwingRefStage : AnalysisStage {
         const auto *poseFit = dynamic_cast<const PoseFitProjection *>(proj.get());
 
         ComparatorConfig ccfg = ComparatorConfig::fromOverrides(ov);
-        ccfg.anthro      = anthroOpt->anthro;
+        ccfg.anthro      = modelAnthro;   // fitted hub/arm when the fit succeeded, else seed
         ccfg.anthroValid = true;
         if (anthroOpt->pxPerM > 0.0)
             ccfg.pxPerM = anthroOpt->pxPerM;
@@ -1044,7 +1100,7 @@ struct SwingRefStage : AnalysisStage {
         const std::unique_ptr<SwingComparator> cmp = makeSwingComparator(ComparatorTier::TwoD);
         const ComparisonResult result =
             cmp->compare(*model, *proj, ctx.detail->shaft, ctx.detail->pose2d, ctx.seg,
-                        ctx.job.clubLengthM, kViewFaceOn, ccfg);
+                        clubLenM, kViewFaceOn, ccfg);
         if (!result.valid)
             return;   // degrade: write nothing — byte-identical to the stage never running
 
@@ -1167,7 +1223,7 @@ struct SwingRefStage : AnalysisStage {
             const int segIdx = int(sp2.segment);
             if (segIdx < 0 || segIdx > 2)
                 continue;
-            const ProjectedShaftLine line = proj->projectShaftLine(sp2, ctx.job.clubLengthM);
+            const ProjectedShaftLine line = proj->projectShaftLine(sp2, clubLenM);
             if (!line.valid)
                 continue;
             SwingRefPolyPoint pt;

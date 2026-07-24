@@ -2279,6 +2279,8 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/camera_projection.cpp
     src/Analysis/swing_ref_anthro.h
     src/Analysis/swing_ref_anthro.cpp
+    src/Analysis/swing_ref_fit.h
+    src/Analysis/swing_ref_fit.cpp
     src/Analysis/swing_comparator.h
     src/Analysis/swing_comparator.cpp
     # Idealised swing-reference model core, Phase A WP1 (dark by default via the
@@ -2544,6 +2546,7 @@ if(PINPOINT_BUILD_TOOLS)
         # lockstep with the app target so swinglab_run/re-analyse never diverge.
         src/Analysis/camera_projection.cpp
         src/Analysis/swing_ref_anthro.cpp
+        src/Analysis/swing_ref_fit.cpp
         src/Analysis/swing_comparator.cpp
         src/Models/swing_reference.cpp
         src/Analysis/shaft_tracker_math.cpp

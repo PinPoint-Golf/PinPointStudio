@@ -518,9 +518,26 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
                 { QStringLiteral("key"),      co.key },
                 { QStringLiteral("valueDeg"), co.valueDeg } });
 
+        // Additive P-position fit block (swingref.fit.*): the effective fitted
+        // hub/arm/club/plane that the projected ghost was built from. `anthro`
+        // above documents the SEED estimate; this carries the fitted values.
+        const SwingRefFit &refFit = a.reference.fit;
+        const QJsonObject refFitObj{
+            { QStringLiteral("fitted"),        refFit.fitted },
+            { QStringLiteral("anchorsUsed"),   refFit.anchorsUsed },
+            { QStringLiteral("rmsBeforePx"),   refFit.rmsBeforePx },
+            { QStringLiteral("rmsAfterPx"),    refFit.rmsAfterPx },
+            { QStringLiteral("armLengthM"),    refFit.armLengthM },
+            { QStringLiteral("clubLengthM"),   refFit.clubLengthM },
+            { QStringLiteral("hubX"),          refFit.hubX },
+            { QStringLiteral("hubY"),          refFit.hubY },
+            { QStringLiteral("hubZ"),          refFit.hubZ },
+            { QStringLiteral("planeOffsetDeg"), refFit.planeOffsetDeg } };
+
         o[QStringLiteral("reference")] = QJsonObject{
             { QStringLiteral("anthro"),            refAnthroObj },
             { QStringLiteral("club"),              refClubObj },
+            { QStringLiteral("fit"),               refFitObj },
             { QStringLiteral("fspInclinationDeg"), a.reference.fspInclinationDeg },
             { QStringLiteral("projection"),        refProjObj },
             { QStringLiteral("projected"),         refProjected },

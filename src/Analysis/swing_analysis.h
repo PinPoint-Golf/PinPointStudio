@@ -609,6 +609,25 @@ struct SwingRefCallout {
     double  valueDeg = 0.0;
 };
 
+// P-position fit result (swing_ref_fit.h SwingRefFitResult mirror). The fit
+// (swingref.fit.enabled, default ON) refines the model's hub X/Z, lead-arm length,
+// club length and backswing plane offset to the measured P grip/head px BEFORE
+// projecting — so the projected ghost matches the measured arc scale. `block.anthro`
+// keeps reporting the SEED estimator output (documentation of the estimate) and
+// `block.club` the labelled club; THIS block carries the effective fitted values.
+// fitted=false (disabled or < 4 distinct P anchors) ⇒ the stage used the seed model
+// and the output is byte-identical to before this block existed bar its presence.
+struct SwingRefFit {
+    bool   fitted        = false;
+    int    anchorsUsed   = 0;
+    double rmsBeforePx   = -1.0;
+    double rmsAfterPx    = -1.0;
+    double armLengthM    = 0.0;
+    double clubLengthM   = 0.0;
+    double hubX          = 0.0, hubY = 0.0, hubZ = 0.0;
+    double planeOffsetDeg = 0.0;
+};
+
 // The full swing-reference product for one shot. Bound onto SwingAnalysis
 // AFTER BindDetail (D3 — no new AnalysisContext slot; the stage writes
 // ctx.detail->reference directly, same pattern as HeadTrack/FootMetrics
@@ -617,6 +636,7 @@ struct SwingReferenceBlock {
     bool   valid = false;
     SwingRefAnthro     anthro;
     SwingRefClub       club;
+    SwingRefFit        fit;
     double             fspInclinationDeg = 0.0;
     SwingRefProjection projection;
     std::vector<SwingRefPolyline> projected;

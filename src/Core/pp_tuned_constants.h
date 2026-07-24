@@ -463,6 +463,7 @@ inline constexpr bool   kEnabled                 = false; // swingref.enabled �
 inline constexpr double kBackswingPlaneOffsetDeg = 4.0;    // swingref.planeOffsetDeg — Δθ_bs; 0 → one-plane reference
 inline constexpr int    kSamplesPerSegment       = 200;    // swingref.samplesPerSegment — ALSO reused by ComparatorConfig::sGridPerSegment (one key, two consumers)
 inline constexpr double kReferenceTempoRatio     = 3.0;    // swingref.referenceTempoRatio — classic 3:1 backswing:downswing reference, dark default
+inline constexpr bool   kFitEnabled              = true;   // swingref.fit.enabled — fit the model's hub/arm/club/plane to the measured P positions (swing_ref_fit.h); default ON, degrades to the seed model when <4 distinct P anchors
 // Camera projection (src/Analysis/camera_projection.h) — carried on RefConfig;
 // there is no ProjectionConfig struct, so the stage threads these straight into
 // makeCameraProjection()'s nominalFovDeg parameter and the overlay's residual

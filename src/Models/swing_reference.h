@@ -65,6 +65,11 @@ struct RefConfig {
     // false ⇒ the stage never runs, so the whole feature is byte- and
     // code-path-identical to its absence. swingref.enabled.
     bool   enabled                 = tuned::swingref::kEnabled;
+    // Fit the model (hub X/Z, arm, club length, backswing plane offset) to the
+    // measured P positions before projecting — swing_ref_fit.h. Default ON; the
+    // stage degrades to the seed model (byte-identical output bar an additive
+    // fit{fitted:false} block) when there are < 4 distinct P anchors. swingref.fit.enabled.
+    bool   fitEnabled              = tuned::swingref::kFitEnabled;
     double backswingPlaneOffsetDeg = tuned::swingref::kBackswingPlaneOffsetDeg; // swingref.planeOffsetDeg; Δθ_bs, 0 → one-plane reference
     int    samplesPerSegment       = tuned::swingref::kSamplesPerSegment;       // swingref.samplesPerSegment (ALSO reused by ComparatorConfig::sGridPerSegment)
     double referenceTempoRatio     = tuned::swingref::kReferenceTempoRatio;     // swingref.referenceTempoRatio; classic 3:1 backswing:downswing reference
@@ -87,9 +92,15 @@ struct RefConfig {
     Track alphaDown {{0.00, 180}, {0.40, 100}, {0.80,  40}, {1.00,   0}};
     Track betaDown  {{0.00,  90}, {0.40,  90}, {0.80, 130}, {1.00, 168}};
     // Follow-through: P7 endpoints (s=0) overwritten by the shared anchor; P8 (s=1)
-    // authored ∥−X (β=α+90, α=65 → β=155).
-    Track alphaFollow {{0.00,   0}, {0.55,  35}, {1.00,  65}};
-    Track betaFollow  {{0.00, 168}, {1.00, 155}};
+    // authored ∥+X (clubhead toward the TARGET). Measured P8 has the hands on the
+    // target side with the shaft ∥+X, so α must CONTINUE in the downswing's rotation
+    // direction (α falling through impact → negative) and β = α−90 (mod 360) at P8 ⇒
+    // α=−65 → β=205. The old +35/+65/155 authoring put the whole follow-through on the
+    // TRAIL side with the shaft pointing ∥−X — 180° off the measured swing. The
+    // downswing end tangents (α falling, β rising) match these corrected values, so the
+    // runtime C¹ join knot (buildTracks) cooperates rather than fighting a sign flip.
+    Track alphaFollow {{0.00,   0}, {0.55, -35}, {1.00, -65}};
+    Track betaFollow  {{0.00, 168}, {1.00, 205}};
     // Fraction of Δθ_bs still applied through the downswing: 1 at P4 → 0 from P5.5.
     Track thetaBlendDown {{0.00, 1.0}, {0.50, 0.15}, {0.75, 0.0}, {1.00, 0.0}};
 

@@ -11,13 +11,19 @@
 //     shaftDir = R(n, sgn·(180−β)) · armDir.
 //   sgn = +1 RH, −1 LH gives the y→−y mirror.
 //
-// Anchor solve (closed form, orientation-first): the exemplar's two-unknown (α,β)
-// solve is realised as — fix the shaft orientation exactly (lie at P1, forward lean at
-// P7), place the hands at −L_c·shaftDir so the clubhead sits on the ball, then read α
-// off the arm direction C→hands and β off the interior arm–shaft angle. This nails the
-// tight orientation tolerance (lie 0.1°) exactly and lands the clubhead on the ball to
-// within the arm-length residual (the loose 5 mm tolerance) — see the deviation note in
-// the test header. No Newton iteration or solver dependency is required.
+// Anchor solve (closed form, BALL-CONTACT-FIRST): the exemplar's two-unknown (α,β)
+// solve is realised as a two-circle IK in the swing plane at inclination θ. With
+// C = hub projected onto the plane, find the hand position h that satisfies BOTH
+// |h| = L_c (clubhead lands exactly on the ball, since shaftDir = −h/|h| carries the
+// clubhead from the hands through the origin) AND |h − C| = armLength (the lead arm
+// reaches the hands). Then read α off the arm direction C→h and β off the interior
+// arm–shaft angle. Ball contact is now EXACT (not the old arm-length residual), at the
+// cost of the shaft no longer sitting at the static lie/lean to the degree the geometry
+// forbids — ball contact has priority. Branch selection preserves the original
+// conventions (P1: β nearest 143° with the butt on the golfer's −Y side; P7: hands
+// forward of the ball) and is mirror-aware so the LH golfer stays an exact y→−y mirror.
+// Infeasible reach (d ≥ arm+L_c) or degenerate reach (d ≤ |L_c−arm|) fall back to a
+// single clamped candidate on the origin→C line. No Newton iteration is required.
 
 #include "swing_reference.h"
 
@@ -204,70 +210,94 @@ private:
         return 180.0 - sgn * signedAngleDeg(armDir, shaftDir, b.n);
     }
 
-    // Solve (α,β) at an anchor given a fully-determined target shaft direction (unit).
-    // Places hands at −L_c·shaftDir (clubhead on the ball), reads α/β. Writes both.
-    void anchorFromShaft(double theta, const QVector3D& shaftDir, double& alphaOut, double& betaOut) const
+    // Two-circle IK in the plane at inclination `theta`: return the in-plane hand
+    // candidate(s) h (WORLD coords) satisfying |h| = L_c (clubhead on the ball) and
+    // |h − C| = armLength (arm reaches the hands), C = hub projected onto the plane.
+    // `Cout` returns C. Feasible reach → the two circle-circle intersections;
+    // infeasible (d ≥ arm+L_c) or degenerate (d ≤ |L_c−arm|) reach → one clamped
+    // candidate on the origin→C line; d < 1e-9 → h = −L_c·e2. Ports ref_model.py
+    // `_ik_hands`. (In-plane math only — no rotation representation involved, so the
+    // quaternions-only rule is untouched; the candidates feed alphaFor/betaFor which
+    // read α/β for evaluate()'s quaternion reconstruction.)
+    std::vector<QVector3D> ikHands(double theta, double sgn, QVector3D& Cout) const
     {
-        const double sgn = m_a.rightHanded ? 1.0 : -1.0;
-        const Basis b   = planeBasis(theta, sgn);
+        const Basis b = planeBasis(theta, sgn);
         const QVector3D C = m_a.hub - float(QVector3D::dotProduct(m_a.hub, b.n)) * b.n;
-
-        const QVector3D hands  = -float(m_c.length) * shaftDir;
-        const QVector3D armDir = (hands - C).normalized();
-        alphaOut = alphaFor(b, sgn, armDir);
-        betaOut  = betaFor(b, sgn, armDir, shaftDir);
+        Cout = C;
+        const double c1 = QVector3D::dotProduct(C, b.e1);
+        const double c2 = QVector3D::dotProduct(C, b.e2);
+        const double d  = std::hypot(c1, c2);
+        const double arm = m_a.armLength, Lc = m_c.length;
+        auto planePt = [&](double h1, double h2) {
+            return float(h1) * b.e1 + float(h2) * b.e2;
+        };
+        if (d < 1e-9)
+            return { planePt(0.0, -Lc) };                        // h = −L_c·e2
+        const double ux = c1 / d, uy = c2 / d;
+        if (d >= arm + Lc) {                                     // too far: stretch toward origin
+            const double t = (d - arm) / d;
+            return { planePt(c1 * t, c2 * t) };
+        }
+        if (d <= std::abs(Lc - arm)) {                          // degenerate: clamp
+            const double r = (Lc > arm) ? Lc : std::max(d - arm, 1e-6);
+            return { planePt(ux * r, uy * r) };
+        }
+        // Feasible: intersect the circles |h| = L_c and |h − C| = arm.
+        const double a  = (Lc * Lc - arm * arm + d * d) / (2.0 * d);   // along origin→C
+        const double k  = std::sqrt(std::max(Lc * Lc - a * a, 0.0));
+        const double px = ux * a, py = uy * a;
+        return { planePt(px - uy * k, py + ux * k),
+                 planePt(px + uy * k, py - ux * k) };
     }
 
-    // Candidate address shaft directions consistent with the lie elevation, in-plane.
-    // shaftDir points butt→clubhead (downward): z = −sin(lie). In the plane a unit
-    // vector is cosφ·e1 + sinφ·e2 with z = sinφ·sinθ, so sinφ = −sin(lie)/sinθ.
+    // Ball-contact-first anchor solve: place the clubhead EXACTLY on the ball at both
+    // ends via the two-circle IK, then read (α,β) off the chosen hand candidate. Ball
+    // contact has priority over the static lie/lean (see the file-header note).
     void solveAnchors()
     {
         const double sgn = m_a.rightHanded ? 1.0 : -1.0;
 
-        // ---- P1 (Backswing s=0): shaft at lie angle, clubhead on ball -------------
+        // ---- P1 (Backswing s=0): clubhead on ball; prefer β≈143 & butt on −Y -------
         {
             const double theta = fspInclinationDeg() + m_cfg.backswingPlaneOffsetDeg;
             const Basis b = planeBasis(theta, sgn);
-            const double st = std::sin(qDegreesToRadians(theta));
-            const double sphi = std::clamp(-std::sin(qDegreesToRadians(m_c.lieDeg)) / (st != 0 ? st : 1.0),
-                                           -1.0, 1.0);
-            const double phi = std::asin(sphi);                 // cosφ ≥ 0 branch
-
+            QVector3D C;
+            const std::vector<QVector3D> cands = ikHands(theta, sgn, C);
             double bestAlpha = 0, bestBeta = 143, bestErr = 1e18;
-            for (double cphi : { std::cos(phi), -std::cos(phi) }) {
-                const QVector3D shaftDir =
-                    (float(cphi) * b.e1 + float(sphi) * b.e2).normalized();
-                double al, be;
-                anchorFromShaft(theta, shaftDir, al, be);
-                // Prefer the branch with β nearest the tabulated P1 default (≈143°)
-                // and butt on the −Y side (hands.y < 0).
-                const QVector3D hands = -float(m_c.length) * shaftDir;
-                const double penalty = std::abs(be - 143.0) + (hands.y() < 0 ? 0.0 : 90.0);
+            for (const QVector3D& h : cands) {
+                const float hl = h.length();
+                const QVector3D shaftDir = hl > 1e-9f ? (-h / hl) : (-b.e2);
+                const QVector3D armDir   = (h - C).normalized();
+                const double al = alphaFor(b, sgn, armDir);
+                const double be = betaFor(b, sgn, armDir, shaftDir);
+                // Prefer the branch with β nearest the tabulated P1 default (≈143°) and
+                // the butt on the golfer's −Y (hub) side. Mirror-aware: sgn·h.y < 0 is
+                // the hub side for BOTH handednesses (RH sgn=+1 reduces to the old
+                // hands.y() < 0 test); the T5 LH-mirror test requires this sgn factor.
+                const double penalty = std::abs(be - 143.0)
+                                     + (sgn * double(h.y()) < 0.0 ? 0.0 : 90.0);
                 if (penalty < bestErr) { bestErr = penalty; bestAlpha = al; bestBeta = be; }
             }
             m_alphaP1 = bestAlpha;
             m_betaP1  = bestBeta;
         }
 
-        // ---- P7 (Downswing s=1 == FollowThrough s=0): forward lean, clubhead on ball
+        // ---- P7 (Downswing s=1 == FollowThrough s=0): clubhead on ball; hands fwd ---
         {
             const double theta = fspInclinationDeg();           // on the FSP
             const Basis b = planeBasis(theta, sgn);
-            // No-lean impact shaft = straight down the plane fall-line (−e2, hands
-            // up-plane over the ball). Forward lean L tilts the butt toward the target
-            // (+X); pick the rotation sign that moves the hands to +X.
-            const double L = m_c.forwardLeanP7Deg;
+            QVector3D C;
+            const std::vector<QVector3D> cands = ikHands(theta, sgn, C);
             double bestAlpha = 0, bestBeta = 168, bestScore = -1e18;
-            for (double g : { L, -L }) {
-                const QQuaternion R = QQuaternion::fromAxisAndAngle(b.n, float(g));
-                const QVector3D shaftDir = R.rotatedVector(-b.e2).normalized();
-                const QVector3D hands = -float(m_c.length) * shaftDir;
-                double al, be;
-                anchorFromShaft(theta, shaftDir, al, be);
-                // Prefer hands forward of the ball (hands.x > 0); ties (L=0) resolve to
-                // the first candidate.
-                const double score = double(hands.x());
+            for (const QVector3D& h : cands) {
+                const float hl = h.length();
+                const QVector3D shaftDir = hl > 1e-9f ? (-h / hl) : (-b.e2);
+                const QVector3D armDir   = (h - C).normalized();
+                const double al = alphaFor(b, sgn, armDir);
+                const double be = betaFor(b, sgn, armDir, shaftDir);
+                // Prefer hands forward of the ball (world +X) — forward lean at impact.
+                // h.x is mirror-invariant, so the branch choice is handedness-agnostic.
+                const double score = double(h.x());
                 if (score > bestScore) { bestScore = score; bestAlpha = al; bestBeta = be; }
             }
             m_alphaP7 = bestAlpha;
@@ -377,6 +407,7 @@ RefConfig RefConfig::fromOverrides(const QVariantMap &ov)
 {
     RefConfig c;   // struct defaults are already seeded from tuned::swingref::
     pinpoint::analysis::tuning::apply(ov, "swingref.enabled",             c.enabled);
+    pinpoint::analysis::tuning::apply(ov, "swingref.fit.enabled",         c.fitEnabled);
     pinpoint::analysis::tuning::apply(ov, "swingref.planeOffsetDeg",      c.backswingPlaneOffsetDeg);
     pinpoint::analysis::tuning::apply(ov, "swingref.samplesPerSegment",   c.samplesPerSegment);
     pinpoint::analysis::tuning::apply(ov, "swingref.referenceTempoRatio", c.referenceTempoRatio);

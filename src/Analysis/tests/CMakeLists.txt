@@ -197,6 +197,14 @@ pp_add_test(swing_reference_test
     SOURCES ${SRC}/Models/tests/swing_reference_test.cpp ${SRC}/Models/swing_reference.cpp
     INCLUDE ${SRC}/Models)
 
+# P-position fit (swing_ref_fit.{h,cpp}): deterministic bounded coordinate descent of
+# the model to measured P grip/head px. Synthetic-recovery (perturbed seed → truth
+# arc), determinism (two runs bit-identical), and the < 4-anchor degrade. Sources the
+# fit cpp + swing_reference.cpp; Qt-only (QPointF/QVector3D), no OpenCV.
+pp_add_test(swing_ref_fit_test
+    SOURCES swing_ref_fit_test.cpp ${ANALYSIS}/swing_ref_fit.cpp ${SRC}/Models/swing_reference.cpp
+    INCLUDE ${SRC}/Models)
+
 # WP5a overlay (T7) pure math: OpenCV-projection <-> Qt Quick3D camera
 # conversion + playhead(us) -> reference-model global-s phase mapping
 # (src/Gui/viz/swing_ref_overlay_math.h). Qt Core/Gui only, no OpenCV, no
