@@ -137,7 +137,16 @@ public:
     bool writeAll(const void *buf, std::size_t len) override
     {
         if (m_fd < 0) return false;
+        // ⛔ Mirror the shipped `TcpStream::writeAll` (ppcp_bootstrap.cpp:461).
+        // `noSigPipe()` above compiles to `(void)fd` where `SO_NOSIGPIPE` is
+        // absent — i.e. on Linux — so the per-call flag is the only protection
+        // this double has, and without it the deliberately-dead endpoint below
+        // kills the process instead of failing an assertion.
+#if defined(MSG_NOSIGNAL)
+        return ::send(m_fd, buf, len, MSG_NOSIGNAL) == static_cast<ssize_t>(len);
+#else
         return ::send(m_fd, buf, len, 0) == static_cast<ssize_t>(len);
+#endif
     }
     void close() override { if (m_fd >= 0) { ::close(m_fd); m_fd = -1; } }
     bool isOpen() const override { return m_fd >= 0; }

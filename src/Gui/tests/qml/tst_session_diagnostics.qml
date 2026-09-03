@@ -2490,7 +2490,11 @@ Item {
                 setReview(sources[s], readouts[s])
                 for (let i = 0; i < sizes.length; ++i) {
                     probe.width = sizes[i][0]; probe.height = sizes[i][1]
-                    wait(0)
+                    // ⛔ `wait(0)` is ONE event-loop pass, and a resize settles on the
+                    // POLISH phase — Layouts and anchors have not necessarily re-measured
+                    // by then.  Measuring in that gap reads a card at its pre-resize width
+                    // and reports an overhang that never renders: this failed ~1 run in 5.
+                    waitForRendering(body)
 
                     // In the 396 arrangement the rail lives in a clipped Flickable and
                     // SCROLLS (12c), so the things inside it are checked through the

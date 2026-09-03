@@ -1055,7 +1055,7 @@ int PpcpHostService::requestCaptureForShot(const QString &shotId, qint64 t0HostN
         for (const Ppcp::PpcpLiveSession::BufferMargin &b : ph->peer->liveSession().bufferMargins()) {
             if (!b.hasRetentionTarget || b.retentionTargetNs <= 0) continue;
             if (std::find(ids.begin(), ids.end(), b.streamId) == ids.end()) continue;
-            preNs = std::min(preNs, b.retentionTargetNs);
+            preNs = std::min<qint64>(preNs, b.retentionTargetNs);
         }
 
         std::string err;
