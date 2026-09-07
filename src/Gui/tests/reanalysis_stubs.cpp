@@ -50,4 +50,11 @@ void applyImuIntegrity(QJsonObject & /*manifest*/, const ImuRefusionVerdict * /*
     // Same seam, same reason — onWorkerFinished is never reached by this test.
 }
 
+void applyCaptureIntegrity(QJsonObject & /*manifest*/, const CaptureIntegrityVerdict * /*v*/)
+{
+    // Ditto. Added when the re-analysis write-back learned to re-reach (or withdraw)
+    // the capture-integrity verdict alongside the IMU one; without it this target
+    // does not link, which is how it stood from 85f7c29 until it was noticed.
+}
+
 } // namespace pinpoint

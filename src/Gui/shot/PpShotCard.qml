@@ -174,6 +174,7 @@ Rectangle {
         }
 
         Text {
+            objectName: "provenanceLabel"
             anchors { left: parent.left; bottom: parent.bottom
                       leftMargin: Theme.sp(7)
                       // Steps up out of the pip row's band when there is one. The provenance
@@ -200,6 +201,7 @@ Rectangle {
         color:  card.scrimColor
         Text {
             id: ordinalText
+            objectName: "ordinalText"
             anchors.centerIn: parent
             text:           "#" + card.ordinal
             font.family:    Theme.fontData
@@ -285,6 +287,7 @@ Rectangle {
             GradientStop { position: 1.0; color: card.scrimColor }
         }
         PpStarRating {
+            objectName: "starRating"
             anchors { left: parent.left; bottom: parent.bottom
                       leftMargin: Theme.sp(7); bottomMargin: Theme.sp(7) }
             value:       card.rating
@@ -311,6 +314,7 @@ Rectangle {
     // tooltip says which, and the session assessment leaves the shot out.
     Rectangle {
         id: dataWarnBadge
+        objectName: "dataWarnBadge"
         visible: card.dataWarning
         anchors { right: parent.right; bottom: parent.bottom; margins: Theme.sp(6) }
         width:  warnGlyph.implicitWidth + Theme.sp(8)

@@ -36,6 +36,7 @@
 #include "../Analysis/shot_analyzer.h"
 #include "../Export/swing_exporter.h"
 #include "../Export/swing_paths.h"
+#include "shot_outcome.h"
 
 namespace pinpoint { class EventBuffer; }
 class AppSettings;
@@ -202,7 +203,9 @@ private slots:
     void onReplayTick();
 
 private:
-    enum class Outcome { Pending, Succeeded, Failed, Skipped };
+    // The per-stage result vocabulary lives in shot_outcome.h alongside the
+    // join rules that read it, so the two cannot drift.
+    using Outcome = pinpoint::StageOutcome;
 
     // Per-camera ball-detector state frozen at window-capture time. Both job
     // builders run 12–37 s after impact (from onAnalysisFinished), by when the

@@ -386,6 +386,24 @@ pp_add_test(pose_wrist_angle_source_test
 pp_add_test(session_summary_test SOURCES session_summary_test.cpp)   # session_summary.h
 pp_add_test(arbiter_test         SOURCES arbiter_test.cpp)           # shot_arbiter.h
 
+# ShotProcessor's launch + join decisions (src/Gui/shot/shot_outcome.h). Header-only
+# and Qt-free by design: the logic used to live inline in maybeJoin(), where reaching
+# it meant linking camera_instance.h, ShotAnalyzer and ImuVisionFuser — i.e. ONNX,
+# OpenCV and FFmpeg — which is why the busiest state machine in the app had no tests
+# at all. Same precedent as arbiter_test above.
+pp_add_test(shot_outcome_test
+    SOURCES shot_outcome_test.cpp
+    INCLUDE ${SRC}/Gui)
+
+# Shot provenance across the arbiter (src/Gui/shot/shot_source_map.h). Header-only:
+# what it decides is written into swing.json as capture.shotSource and read back by
+# swing_reanalyzer years later, and it lived in an anonymous namespace where no test
+# could reach it. Needs src/Buffer on the include path via shot_controller.h.
+pp_add_test(shot_source_map_test
+    SOURCES shot_source_map_test.cpp
+    INCLUDE ${SRC}/Gui ${SRC}/Gui/shot ${SRC}/Buffer
+    LINK    Qt6::Core)
+
 # --- Unified swing.json writer/reader round-trip (Export subsystem) ----------
 # PP_SRC_DIR lets the suite read the tree: `origin` is provenance and the test
 # asserts that nothing in src/Analysis keys on it, the same shape of rule as
@@ -396,6 +414,20 @@ pp_add_test(swing_doc_test
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
     INCLUDE ${SRC}/LaunchMonitor
     DEFINES PP_SRC_DIR="${SRC}")
+
+# --- Session / swing folder layout on disk (Export subsystem) ----------------
+# Filesystem logic, so the suite builds real trees under a QTemporaryDir
+# (temp_library.h) rather than varying arguments: what these functions do
+# depends on what is already on disk and whether the volume will take a write.
+# ppWarn/ppError go to the real log (pp_log_stream + PpMessageLog), matching
+# shot_list_model_test — swing_paths.cpp reports every failure through it.
+pp_add_test(swing_paths_test
+    SOURCES ${SRC}/Export/tests/swing_paths_test.cpp
+            ${SRC}/Export/swing_paths.cpp
+            ${SRC}/Core/pp_log_stream.cpp
+            ${SRC}/Core/PpMessageLog.cpp
+    INCLUDE ${SRC}/Export ${SRC}/Export/tests ${SRC}/Core
+    AUTOMOC)
 
 # --- Orientation filters (Phase 0.4): Madgwick (header-only) + ESKF (Eigen) ---
 # The ESKF .cpp pulls the vendored imu_ekf headers through the Arduino-style

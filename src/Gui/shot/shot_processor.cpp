@@ -32,6 +32,7 @@
 #include "imu_manager.h"
 #include "session_controller.h"
 #include "shot_list_model.h"
+#include "shot_outcome.h"
 #include "../Analysis/club_length_fusion.h"
 #include "../Analysis/imu_refusion_check.h"
 #include "../Analysis/capture_integrity_check.h"
@@ -1848,11 +1849,23 @@ void ShotProcessor::maybeJoin()
 {
     if (m_state != State::Processing)
         return;   // aborted via finishNowBlocking()
-    if (m_analysisOutcome == Outcome::Pending || m_exportOutcome == Outcome::Pending)
+    // The decision logic lives in shot_outcome.h so it can be tested without the
+    // camera stack behind it (shot_outcome_test). Filled in twice: once now, for
+    // the persist path, and again below once the write has been attempted.
+    pinpoint::ShotJoinInputs join;
+    join.analysis            = m_analysisOutcome;
+    join.mediaExport         = m_exportOutcome;
+    join.hasAnalysisDetail   = static_cast<bool>(m_analysisResult.detail);
+    join.swingDirAllocated   = !m_swingDir.isEmpty();
+    join.skipAnalysisCapture = m_skipAnalysisCapture;
+    join.hasReplayTracks     = !m_replayTracks.empty();
+
+    const pinpoint::ShotJoinDecision gate = pinpoint::decideJoin(join);
+    if (!gate.ready)
         return;   // wait for BOTH workers
 
-    const bool analysisOk = m_analysisOutcome == Outcome::Succeeded;
-    const bool exportOk   = m_exportOutcome   == Outcome::Succeeded;
+    const bool analysisOk = gate.analysisOk;
+    const bool exportOk   = gate.exportOk;
 
     // IMU data-integrity (offline re-fusion parity): re-fuse each IMU source from its
     // recorded raw accel+gyro and confirm it reproduces the stored quaternion. A
@@ -1915,7 +1928,8 @@ void ShotProcessor::maybeJoin()
     // actually written, so the carousel row links to a real file (rating/note write-through,
     // reload) and an unwritten shot stays in-memory only.
     QString savedSwingDir;
-    if (exportOk) {
+    const pinpoint::PersistPath persist = pinpoint::persistPathFor(join);
+    if (persist == pinpoint::PersistPath::FullDocument) {
         QString werr;
         if (pinpoint::SwingDocWriter::writeSwingJson(
                 m_swingDir, m_exportManifest,
@@ -1927,7 +1941,7 @@ void ShotProcessor::maybeJoin()
         } else {
             ppError() << "[SwingDoc]" << werr;
         }
-    } else if (analysisOk && m_analysisResult.detail && !m_swingDir.isEmpty()) {
+    } else if (persist == pinpoint::PersistPath::AnalysisOnlyDocument) {
         // Degraded persist: export failed/skipped but analysis succeeded — write a
         // minimal, analysis-only swing.json so the shot reloads after a restart.
         QString werr;
@@ -1978,9 +1992,11 @@ void ShotProcessor::maybeJoin()
     // "Reviewable on disk": analysis + export both succeeded AND a swing.json was
     // actually written — that is the swing the UI promotes straight into Review for
     // instant playback (the disk replay reads the just-written MP4(s), not the ring).
-    const bool reviewableOnDisk = analysisOk && exportOk && !savedSwingDir.isEmpty();
+    join.documentWritten = !savedSwingDir.isEmpty();
+    const pinpoint::ShotJoinDecision decision = pinpoint::decideJoin(join);
+    const bool reviewableOnDisk = decision.reviewableOnDisk;
 
-    if (analysisOk && exportOk)
+    if (decision.terminal == pinpoint::Terminal::Processed)
         emit shotProcessed(newShotId, savedSwingDir);
     else
         emit shotFailed(!analysisOk ? m_analysisResult.error
@@ -2009,11 +2025,12 @@ void ShotProcessor::maybeJoin()
     // in Main.qml.onShotProcessed) nor this in-window fallback transient plays. Handy
     // for corpus capture, where uninterrupted back-to-back hitting matters.
     const bool autoReplay = !m_appSettings || m_appSettings->autoReplayAfterCapture();
+    join.autoReplay = autoReplay;
 
-    if (reviewableOnDisk) {
-        finishShot();
-    } else if (autoReplay && !m_skipAnalysisCapture && !m_replayTracks.empty()) {
+    if (pinpoint::decideJoin(join).after == pinpoint::AfterJoin::Replay) {
         startReplay();
+    } else if (reviewableOnDisk) {
+        finishShot();
     } else {
         if (!autoReplay)
             ppInfo() << "[ShotProcessor] replay skipped — auto-replay disabled (View menu)";

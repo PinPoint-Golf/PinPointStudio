@@ -17,6 +17,7 @@
  */
 
 #include "shot_controller.h"
+#include "shot_source_map.h"
 
 #ifdef HAVE_PPCP
 #include "../../Ppcp/ppcp_shot_bridge.h"
@@ -40,34 +41,11 @@ const char *sourceName(ShotController::Source s)
         .valueToKey(static_cast<int>(s));
 }
 
-// ShotController::Source ↔ the arbiter's modality set. Manual has no arbiter
-// modality (it commits directly); Pose rides the vision slot with Ball.
-bool toArbSource(ShotController::Source s, pinpoint::ArbSource &out)
-{
-    switch (s) {
-    case ShotController::Source::Acoustic: out = pinpoint::ArbSource::Acoustic; return true;
-    case ShotController::Source::Imu:      out = pinpoint::ArbSource::Imu;      return true;
-    case ShotController::Source::Ball:
-    case ShotController::Source::Pose:     out = pinpoint::ArbSource::Ball;     return true;
-    // Neither has a local modality: Manual commits directly, and a PPCP Shot
-    // has ALREADY been arbitrated by the time it is seen here — feeding it to
-    // the local arbiter would be the second arbiter this design exists to
-    // prevent.
-    case ShotController::Source::Manual:
-    case ShotController::Source::Ppcp:     break;
-    }
-    return false;
-}
-
-ShotController::Source fromArbSource(pinpoint::ArbSource a)
-{
-    switch (a) {
-    case pinpoint::ArbSource::Acoustic: return ShotController::Source::Acoustic;
-    case pinpoint::ArbSource::Imu:      return ShotController::Source::Imu;
-    case pinpoint::ArbSource::Ball:     return ShotController::Source::Ball;
-    }
-    return ShotController::Source::Manual;
-}
+// The Source ↔ ArbSource mapping now lives in shot_source_map.h so a test can
+// reach it: what it decides is persisted into swing.json and read by offline
+// re-analysis, and it had no coverage at all in here.
+using pinpoint::fromArbSource;
+using pinpoint::toArbSource;
 } // namespace
 
 ShotController::ShotController(pinpoint::EventBuffer *buffer,

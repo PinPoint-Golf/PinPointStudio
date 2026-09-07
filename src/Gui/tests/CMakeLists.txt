@@ -23,7 +23,7 @@ if(NOT COMMAND pp_add_test)
     enable_testing()
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Qml Concurrent)
+find_package(Qt6 REQUIRED COMPONENTS Qml Concurrent Test)
 
 set(GUI ${CMAKE_CURRENT_SOURCE_DIR}/..)   # src/Gui
 set(SRC ${GUI}/..)                         # src
@@ -103,6 +103,40 @@ pp_add_test(reanalysis_controller_test
             ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
     LINK    Qt6::Qml Qt6::Concurrent  AUTOMOC)
+
+# SessionController — the live session clock and the active session type.
+# The class states its own invariants (single active session; sessionStarted means
+# "a session began"; the type is a QML index), and none of them had a test. The
+# athlete's preferred-club seed is stubbed (session_clock_stubs.cpp) so the suite
+# does not drag in the athlete store and the Diagnostics norm stack behind it.
+# Qt6::Test is for QSignalSpy; the clock cases spin a real event loop for ~2.5 s.
+pp_add_test(session_clock_test
+    SOURCES session_clock_test.cpp
+            session_clock_stubs.cpp
+            ${GUI}/session/session_controller.cpp
+            ${SRC}/Core/pp_log_stream.cpp
+            ${SRC}/Core/PpMessageLog.cpp
+    INCLUDE ${GUI} ${GUI}/athlete ${GUI}/session ${SRC} ${SRC}/Core
+    LINK    Qt6::Qml Qt6::Test  AUTOMOC)
+
+# ShotListModel's ledger — the carousel's ordinals, its reload from disk, and the
+# write-through of the user's review.  Distinct from shot_list_model_test above,
+# which covers shotSummary() only: this one puts real swing.json documents on disk
+# (temp_library.h) and reads them back, because "the number survives a restart" and
+# "the note comes back verbatim" are round-trip properties and cannot be asserted
+# against an in-memory model alone.  Qt6::Test is for QSignalSpy.
+pp_add_test(shot_ledger_test
+    SOURCES shot_ledger_test.cpp
+            ${GUI}/shot/shot_list_model.cpp
+            ${SRC}/Export/swing_doc.cpp
+            ${SRC}/Export/swing_paths.cpp
+            ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
+            ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
+            ${SRC}/Core/pp_log_stream.cpp
+            ${SRC}/Core/PpMessageLog.cpp
+    INCLUDE ${GUI} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
+            ${SRC}/Export ${SRC}/Export/tests
+    LINK    Qt6::Qml Qt6::Test  AUTOMOC)
 
 # NotificationCenter — the one notification sink: stable ids, coalescing,
 # cause-suppression and condition latching (design doc §7.4-7.5, item H-g).
