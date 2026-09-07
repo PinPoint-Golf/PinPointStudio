@@ -15,9 +15,23 @@
 //
 // ── The fixtures, and what each is for ─────────────────────────────────────────────────────────
 //
-//   rich_7iron      2026-07-10 Wrist_02 / swing_0001 — 39 metrics, 5 segmented phases, club 7 IRON.
+//   rich_7iron      2026-07-10 Wrist_02 / swing_0001 — 43 metrics, 10 segmented phases, club 7 IRON.
 //                   The best capture in the corpus, and therefore the ceiling on what today's
 //                   producers can answer.
+//
+//                   ⚠ RE-COPIED FROM THE LIBRARY ON 2026-09-07, AND KEEP DOING THAT. It had been
+//                   sitting here since 11 August, analysed by a build from before the P5/P6 ladder
+//                   work — 5 phases and 39 metrics — so the ceiling it measured was the ceiling of
+//                   a month-old pipeline, not of today's. Re-copying moved the coverage number
+//                   from 54 to 63 and the resolved measures from 39 to 53, which is nine
+//                   conditions the model could already answer and this file was reporting that it
+//                   could not. It also replaced a 41° impact shaft lean — not a golf swing — with
+//                   12.5°, and with it a `excessive_shaft_lean` firing that had only ever been an
+//                   artefact of the bad number.
+//
+//                   A STALE FIXTURE UNDERSTATES THE MODEL AND IT DOES IT SILENTLY: every number
+//                   below still passes, so nothing says the yardstick has drifted. Re-copy it
+//                   whenever the analysis pipeline changes materially, and re-pin what moves.
 //   lm_7iron        2026-08-04 Wrist_05 / swing_0025 — 25 lm.* metrics from a GCQuad, ONE phase
 //                   (impact), no body metrics at all. The launch-monitor half of the vocabulary.
 //   sparse_noclub   2026-07-08 Wrist_01 / swing_0002 — one metric, four phases, and no review block
@@ -46,6 +60,7 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QMap>
 #include <QStringList>
 #include <QFile>
 #include <QTemporaryDir>
@@ -132,6 +147,8 @@ struct Coverage {
     // reason, ready to be written down.
     int assessedPartial = 0;   // assessed, but with at least one term it could not read
     QStringList assessableIds;
+    QStringList firedIds;
+    QStringList phaseBlockedIds;   // live, the metric is here, a phase the reducer needs is not
     QStringList resolvedMeasureIds;
 };
 
@@ -141,11 +158,19 @@ static void dumpCoverage(const Coverage &cov, const char *label)
     if (qEnvironmentVariableIsEmpty("PP_COVERAGE_DUMP"))
         return;
     QStringList conds = cov.assessableIds;
+    QStringList fired = cov.firedIds;
     QStringList meas  = cov.resolvedMeasureIds;
     conds.sort();
+    fired.sort();
     meas.sort();
     for (const QString &id : conds)
         std::printf("  DUMP %s assessable %s\n", label, qPrintable(id));
+    for (const QString &id : fired)
+        std::printf("  DUMP %s FIRED      %s\n", label, qPrintable(id));
+    QStringList blocked = cov.phaseBlockedIds;
+    blocked.sort();
+    for (const QString &id : blocked)
+        std::printf("  DUMP %s phaseBlocked %s\n", label, qPrintable(id));
     for (const QString &id : meas)
         std::printf("  DUMP %s measure    %s\n", label, qPrintable(id));
 }
@@ -167,7 +192,7 @@ static Coverage runFixture(const QString &dir, const CharacteristicPack &pack,
     bool shapeOk = true;
     for (const Finding &f : d.result.findings) {
         switch (f.state) {
-        case FindingState::Fired:    ++cov.fired; [[fallthrough]];
+        case FindingState::Fired:    ++cov.fired; cov.firedIds.append(f.conditionId); [[fallthrough]];
         case FindingState::NotFired: ++cov.assessable;
             cov.assessableIds.append(f.conditionId);
             if (!f.missingMeasures.isEmpty()) ++cov.assessedPartial;
@@ -185,11 +210,25 @@ static Coverage runFixture(const QString &dir, const CharacteristicPack &pack,
         }
     }
 
-    for (const Measure &m : pack.measures)
-        if (m.status == MeasureStatus::Live && src.value(m.id).has_value()) {
+    // WHY THE OTHERS DID NOT READ, counted by kind. The coverage number says how much of
+    // the model a swing can answer; this says what is standing in the way, which is the
+    // question the next stage of work is actually asking. A capture whose gap is
+    // MetricNotProduced needs a producer; one whose gap is PhaseNotSegmented needs the
+    // ladder, and re-analysing it may be enough on its own.
+    QMap<MissingKind, int> why;
+    for (const Measure &m : pack.measures) {
+        if (m.status != MeasureStatus::Live)
+            continue;
+        if (src.value(m.id).has_value()) {
             ++cov.measures;
             cov.resolvedMeasureIds.append(m.id);
+            continue;
         }
+        const MissingKind k = src.missingKind(m.id);
+        why[k] += 1;
+        if (k == MissingKind::PhaseNotSegmented)
+            cov.phaseBlockedIds.append(m.id);
+    }
 
     std::printf("  club %s -> context %s (session %s)\n", qPrintable(d.club),
                 qPrintable(d.contextId), qPrintable(src.sessionId()));
@@ -205,6 +244,24 @@ static Coverage runFixture(const QString &dir, const CharacteristicPack &pack,
     std::printf("  MEASURES: %d of %d live measures resolved\n", cov.measures, liveTotal);
     std::printf("  PARTIAL:  %d of %d assessed with a term they could not read\n",
                 cov.assessedPartial, cov.assessable);
+    const auto kindName = [](MissingKind k) {
+        switch (k) {
+        case MissingKind::None:                     return "read";
+        case MissingKind::UnknownMeasure:           return "unknownMeasure";
+        case MissingKind::NoMetricBinding:          return "noMetricBinding";
+        case MissingKind::NoAnalysis:               return "noAnalysis";
+        case MissingKind::NoLaunchMonitor:          return "noLaunchMonitor";
+        case MissingKind::LaunchMonitorFieldAbsent: return "lmFieldAbsent";
+        case MissingKind::MetricNotProduced:        return "metricNotProduced";
+        case MissingKind::PhaseNotSegmented:        return "phaseNotSegmented";
+        case MissingKind::CaptureDataIssue:         return "captureDataIssue";
+        }
+        return "?";
+    };
+    std::printf("  BLOCKED: ");
+    for (auto it = why.constBegin(); it != why.constEnd(); ++it)
+        std::printf("%s=%d ", kindName(it.key()), it.value());
+    std::printf("\n");
     dumpCoverage(cov, label);
 
     check(shapeOk, "every finding is assessed WITH evidence or unavailable WITHOUT it");
@@ -288,22 +345,22 @@ int main(int argc, char **argv)
         check(src.club() == QLatin1String("7 IRON"), "the club is read off the swing doc");
         check(src.contextId() == QLatin1String("iron_7"), "…and resolves to the iron_7 context node");
         check(!src.hasLaunchMonitor(), "no launch monitor on this capture");
-        check(src.grid().metrics.size() == 39, "39 metrics reached the phase grid");
+        check(src.grid().metrics.size() == 43, "43 metrics reached the phase grid");
 
         // At P1, straight off the metric's phaseSamples entry — ballPosition ships with an EMPTY
         // curve, so this is the fallback path measure_sample.h argues for.
-        checkValue(src, "m_ballPosition", 45.485331989515046);
-        checkValue(src, "m_stanceWidth",  84.31632042149685);
+        checkValue(src, "m_ballPosition", 45.4721757);
+        checkValue(src, "m_stanceWidth",  84.3203248);
 
         // At P7, from the windowed median of a 745-sample curve.
-        checkValue(src, "m_impactShaftLean",     41.00000000000002);
-        checkValue(src, "m_clubheadSpeedImpact", 73.8041484205068);
+        checkValue(src, "m_impactShaftLean",     12.5);
+        checkValue(src, "m_clubheadSpeedImpact", 61.5298797);
 
         // Summary metric, empty curve, labelled at impact.
-        checkValue(src, "m_tempoRatio", 3.0696358098669494);
+        checkValue(src, "m_tempoRatio", 2.9368742);
 
         // Delta P1 -> P4.
-        checkValue(src, "m_headSwayBack", -2.6973052058455864);
+        checkValue(src, "m_headSwayBack", -2.69404549);
 
         // THE ONE THAT PROVES THE SPANS ARE REAL. An anchored Extremum over P1..P4: the pelvis
         // reaches -28.60 somewhere between the top and address, while the P4 ENDPOINT reads only
@@ -313,15 +370,15 @@ int main(int argc, char **argv)
         // (-28.6010); the span extremes are now the extremum of the 40 ms centred-window mean
         // (series_reduce.h, design §5.2), which pulls a one-frame trough toward its neighbours —
         // the direction every extremum measure is expected to move, by about one frame's noise.
-        checkValue(src, "m_pelvisSwayBack", -28.359885646456314);
-        checkValue(src, "m_pelvisSwayImpact", 17.063654641156035);
+        checkValue(src, "m_pelvisSwayBack", -28.3617744);
+        checkValue(src, "m_pelvisSwayImpact", 17.1839723);
         // Was `m_pelvisSwayFinish`, 20.78817002111798, until 2026-09-04. That measure read
         // pelvisSway at the FINISH, and pelvisSway is a P1-P7 quantity: past impact the pelvis has
         // turned, so its lateral offset in a face-on image is the rotation and not the translation
         // the measure named (MetricDescriptor::domain, design 5.1). It was deleted, and the honest
         // finish reading is this one — a distance ALONG the stance line, which survives the turn.
         // Single-sample +-15 ms window here, which is why it equals the producer's own phaseSample.
-        checkValue(src, "m_comOverLeadFootFinish", 47.091467601995205);
+        checkValue(src, "m_comOverLeadFootFinish", 50.5375417);
     }
 
     std::printf("\nlm_7iron: known values\n");
@@ -378,7 +435,16 @@ int main(int argc, char **argv)
         // regenerated from a current segmenter run, re-check whether it still lacks P5/P6 (and
         // still exercises PhaseNotSegmented) or whether this assertion needs to flip to a
         // different missing-measure fixture.
-        checkMissing(rich_, "m_lagAngleDown", MissingKind::PhaseNotSegmented);
+        // ⚠ MOVED ON 2026-09-07 WHEN THE FIXTURE WAS REGENERATED, and the note above is now
+        // history: rich_7iron came from a current analysis run and DOES have P5 and P6, so
+        // `m_lagAngleDown` reads and no longer exercises this. Three live measures still do,
+        // all of them reading `at p4`: m_shoulderPlane, m_spineSideBendTop, m_trailElbowRise.
+        //
+        // WORTH A LOOK BY SOMEONE CHASING COVERAGE, because the capture is not obviously short
+        // of a top: it carries a Top tick, and these three still cannot be resolved at P4. So
+        // the block is in how the reducer resolves p4 rather than in a plainly absent phase,
+        // and three measures is three conditions' worth of coverage sitting behind it.
+        checkMissing(rich_, "m_spineSideBendTop", MissingKind::PhaseNotSegmented);
 
         // (c) Nothing that has no producer reports a number. Zero would be a value the golfer's
         // ledger would happily plot.
@@ -448,15 +514,15 @@ int main(int argc, char **argv)
     // both signals on it are gone, so the condition has no detector and reports Unavailable. Its
     // sibling `off_balance_finish` is NOT in the delta: it kept `sig_offBalanceFinish` on
     // `m_comOverLeadFootFinish`, which this fixture carries, so it is still assessable.
-    check(cRich.assessable == 54, "rich_7iron: 54 of 157 conditions assessable (observed)");
+    check(cRich.assessable == 63, "rich_7iron: 63 of 157 conditions assessable (observed)");
     // HOW MANY OF THOSE ANSWERS RESTED ON EVIDENCE THE CAPTURE DID NOT HAVE. A conjunction
     // settled by one known-false term is a real negative, but it is a different kind of "no"
     // from one where every term was read, and it can only ever be a no. Pinned because the
     // engine's own comment expects partial settlement to be "the common case by a distance"
     // and on real swings it is not: 3 of 54 here, 2 of 21 on lm_7iron, 0 of 2 on sparse_noclub.
     // If that starts climbing, the panel is answering more and more from less and less.
-    check(cRich.assessedPartial == 3,
-          "rich_7iron: 3 of its 54 answers rest on a term it could not read (observed)");
+    check(cRich.assessedPartial == 1,
+          "rich_7iron: 1 of its 63 answers rests on a term it could not read (observed)");
     // 38 -> 40 with the two new hipLineTilt measures. Both read a curve this fixture ALREADY
     // carries — the reduction samples the series itself at each segmented phase and does not need
     // the producer to have listed that phase — so a swing written by an older build gains them
@@ -466,7 +532,7 @@ int main(int argc, char **argv)
     // 40 -> 39 on 2026-09-04: `m_pelvisSwayFinish` was one of the live measures this fixture
     // resolved, and it was deleted as an out-of-domain reading. Nothing else moved — the three
     // remaining pelvisSway measures all sit inside P1-P7.
-    check(cRich.measures   == 39, "rich_7iron: 39 live measures resolved (observed)");
+    check(cRich.measures   == 53, "rich_7iron: 53 live measures resolved (observed)");
     // 12 → 14 on 2026-08-09: sig_launchLow/sig_launchHigh moved onto m_lmLaunchAngle (the
     // measured key this fixture actually carries), so launch_low and launch_high became
     // assessable on an LM-only capture.
@@ -507,19 +573,42 @@ int main(int argc, char **argv)
         const LiveMeasureSource src(rich, pack);
         const LiveDetection     d = detectForSwing(src, pack, norms);
 
-        // m_impactShaftLean = 41.0°, graded at `iron` (inherited by iron_7): mu 8, sigmaHi 6, so
-        // the Ideal band tops out at 14 and Action begins at 26. 41 is 5.5 tolerances out on the
-        // high side — the high tail fires, the low tail cannot.
+        // m_impactShaftLean = 12.5°, graded at `iron` (inherited by iron_7): mu 8, sigmaLo 4,
+        // sigmaHi 6, so the Ideal band runs 4..14. 12.5 is z = +0.75 — inside Ideal, and NEITHER
+        // tail may fire.
+        //
+        // ⚠ IT USED TO BE 41°, AND THIS BLOCK USED TO ASSERT THE FIRING THAT PRODUCED. 41° of
+        // forward shaft lean at impact is not a golf swing; 12.5° is an ordinary 7 iron. The old
+        // fixture was analysed by a build whose impact shaft-lean was wrong, so what this test
+        // pinned was a fault firing on a broken number — a reading that would have told a golfer
+        // to fix something they were already doing correctly. Regenerating the fixture from a
+        // current run (2026-09-07) replaced it. The not-firing direction is the one worth having
+        // here anyway: over-flagging is the failure this file exists to catch.
         const Finding *hi = d.result.find(QStringLiteral("excessive_shaft_lean"));
         const Finding *lo = d.result.find(QStringLiteral("insufficient_shaft_lean"));
-        check(hi && hi->state == FindingState::Fired,
-              "41° of shaft lean fires excessive_shaft_lean (5.5 sigma above an iron's 8°)");
+        check(hi && hi->state == FindingState::NotFired,
+              "12.5° of shaft lean is inside an iron's Ideal band, so the high tail does NOT fire");
         check(lo && lo->state == FindingState::NotFired,
-              "…and the same reading does NOT fire the low tail of the same axis");
-        check(hi && hi->evidence.hasEvidence && near(hi->evidence.value, 41.0, 1e-9),
-              "the finding carries the 41° that produced it");
+              "…and neither does the low tail of the same axis");
+        check(hi && hi->evidence.hasEvidence && near(hi->evidence.value, 12.5, 1e-6),
+              "the NotFired finding still carries the 12.5° it was judged on");
         check(hi && hi->evidence.hasCorridor && near(hi->evidence.corridorHi, 14.0),
               "…and the corridor it was tested against");
+
+        // A FIRING that carries its own evidence, which the shaft-lean case used to supply.
+        // Asserted as the invariant rather than a pinned corridor: `sig_offBalanceFinish` is
+        // outsideCorridor on the HIGH side, so whatever band the norm resolves to, a fired
+        // finding must carry a value above its own corridorHi — and that value must be the one
+        // the source reports for the measure, not a number assembled somewhere else.
+        const Finding *bal = d.result.find(QStringLiteral("off_balance_finish"));
+        const std::optional<IMeasureValueSource::Value> com =
+            src.value(QStringLiteral("m_comOverLeadFootFinish"));
+        check(bal && bal->state == FindingState::Fired,
+              "a finish 50.5% of a stance width off the lead foot fires off_balance_finish");
+        check(bal && com && bal->evidence.hasEvidence && near(bal->evidence.value, com->value, 1e-9),
+              "…carrying the very value the source reports for the measure");
+        check(bal && bal->evidence.hasCorridor && bal->evidence.value > bal->evidence.corridorHi,
+              "…and a high-tail firing sits above its own corridor");
 
         // m_ballPosition = 45.49% of stance width, graded at `iron`: mu 33, sigma 10. That is
         // OUTSIDE the Ideal band (23..43) and well inside Good (13..53). THE SIGNAL MUST NOT FIRE.
@@ -532,7 +621,7 @@ int main(int argc, char **argv)
         check(back && back->evidence.hasEvidence && back->evidence.z > 1.0 && back->evidence.z < 2.0,
               "…and the NotFired finding still records how far out it sat (1 < z < 2)");
 
-        // m_pelvisSwayBack = -28.60% of stance width against mu -5, sigma 7.5: 3.15 tolerances
+        // m_pelvisSwayBack = -28.36% of stance width against mu -5, sigma 7.5: 3.1 tolerances
         // below, past the Watch edge at -27.5, so Action on the low tail.
         const Finding *sway = d.result.find(QStringLiteral("sway"));
         check(sway && sway->state == FindingState::Fired,
