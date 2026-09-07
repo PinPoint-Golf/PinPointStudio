@@ -46,6 +46,7 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QStringList>
 #include <QFile>
 #include <QTemporaryDir>
 
@@ -122,7 +123,32 @@ struct Coverage {
     int fired       = 0;
     int unavailable = 0;
     int measures    = 0;   // live measures that produced a value
+    // WHICH conditions and measures, not just how many. The pinned counts below
+    // are a ledger of what the model can answer, and every move of one is
+    // supposed to arrive with a written reason — but a count cannot tell you
+    // which condition moved, so working that reason out meant rebuilding the
+    // pack at two revisions and reasoning about the graph by hand. Set
+    // PP_COVERAGE_DUMP=1 to print these; diff two runs and the delta is the
+    // reason, ready to be written down.
+    int assessedPartial = 0;   // assessed, but with at least one term it could not read
+    QStringList assessableIds;
+    QStringList resolvedMeasureIds;
 };
+
+// Print the sets behind the counts, on request. Sorted so two runs diff cleanly.
+static void dumpCoverage(const Coverage &cov, const char *label)
+{
+    if (qEnvironmentVariableIsEmpty("PP_COVERAGE_DUMP"))
+        return;
+    QStringList conds = cov.assessableIds;
+    QStringList meas  = cov.resolvedMeasureIds;
+    conds.sort();
+    meas.sort();
+    for (const QString &id : conds)
+        std::printf("  DUMP %s assessable %s\n", label, qPrintable(id));
+    for (const QString &id : meas)
+        std::printf("  DUMP %s measure    %s\n", label, qPrintable(id));
+}
 
 static Coverage runFixture(const QString &dir, const CharacteristicPack &pack,
                            const std::shared_ptr<const INormProvider> &norms, const char *label)
@@ -143,6 +169,8 @@ static Coverage runFixture(const QString &dir, const CharacteristicPack &pack,
         switch (f.state) {
         case FindingState::Fired:    ++cov.fired; [[fallthrough]];
         case FindingState::NotFired: ++cov.assessable;
+            cov.assessableIds.append(f.conditionId);
+            if (!f.missingMeasures.isEmpty()) ++cov.assessedPartial;
             if (!f.evidence.hasEvidence) {
                 shapeOk = false;
                 std::printf("      %s assessed with no evidence\n", qPrintable(f.conditionId));
@@ -158,8 +186,10 @@ static Coverage runFixture(const QString &dir, const CharacteristicPack &pack,
     }
 
     for (const Measure &m : pack.measures)
-        if (m.status == MeasureStatus::Live && src.value(m.id).has_value())
+        if (m.status == MeasureStatus::Live && src.value(m.id).has_value()) {
             ++cov.measures;
+            cov.resolvedMeasureIds.append(m.id);
+        }
 
     std::printf("  club %s -> context %s (session %s)\n", qPrintable(d.club),
                 qPrintable(d.contextId), qPrintable(src.sessionId()));
@@ -173,6 +203,9 @@ static Coverage runFixture(const QString &dir, const CharacteristicPack &pack,
     for (const Measure &m : pack.measures)
         if (m.status == MeasureStatus::Live) ++liveTotal;
     std::printf("  MEASURES: %d of %d live measures resolved\n", cov.measures, liveTotal);
+    std::printf("  PARTIAL:  %d of %d assessed with a term they could not read\n",
+                cov.assessedPartial, cov.assessable);
+    dumpCoverage(cov, label);
 
     check(shapeOk, "every finding is assessed WITH evidence or unavailable WITHOUT it");
     check(cov.findings == 130,
@@ -216,10 +249,15 @@ int main(int argc, char **argv)
     // 130 -> 135 with the plumb-bob work: hipLineTilt gained an impact reading and an
     // address-to-impact delta, and plumbBobDistance arrived with three of its own.
     //
+    // 134 -> 135 on 2026-09-06 (39542bc): the posture cluster was rebuilt. `m_spineBendLoss` went
+    // and `m_spineBendDive` and `m_headLiftDown` arrived, so net one. That commit did not update
+    // this line and the suite has been red since; the numbers here are a ledger and moving one
+    // without writing down why is the whole thing this file is for.
+    //
     // 135 -> 134 on 2026-09-04: `m_pelvisSwayFinish` deleted. It reduced pelvisSway at the FINISH,
     // and pelvisSway carries a P1-P7 phase domain — past impact the pelvis has turned, so its
     // lateral offset in a face-on image is the rotation and not the translation the measure named.
-    check(pack.measures.size() == 134, "…and 134 measures");
+    check(pack.measures.size() == 135, "…and 135 measures");
     check(!norms->norms().norms.empty(), "the shipped norm set loaded");
 
     QTemporaryDir tmp;
@@ -386,13 +424,39 @@ int main(int argc, char **argv)
     // "Definitely not a top" is a real answer, and the conjunction reaches it from evidence no
     // single one of its terms could.
     //
+    // 53 -> 54 on 2026-09-06 (39542bc), and NOT ONE NEW MEASURE RESOLVED — the resolved count
+    // below is unchanged at 39, and the fired count is unchanged at 15. The one is
+    // `coming_out_of_it`, which replaced `loss_of_posture`, and it moved from Unavailable to
+    // NotFired. The old condition read spine forward bend alone, which is sagittal, needs
+    // down-the-line or trunk IMUs and has no producer at all, so it could never be answered
+    // either way. The new one is a conjunction of `sig_headRiseDown` (on the new
+    // `m_headLiftDown`, which this fixture cannot produce — it is a verbatim corpus copy from an
+    // older build with no headLift key) AND `sig_axisTiltImpactHigh` (on `m_axisTiltImpact`,
+    // which the fixture does carry). The axis tilt was assessed and did not fire, and one
+    // known-false conjunct settles an AND whatever the unreadable term would have said. Same
+    // mechanism as `top` and `sky` on 2026-08-12.
+    //
+    // ⚠ WORTH KNOWING WHAT THAT KIND OF "NO" IS: on a capture that cannot read the other
+    // conjunct, this condition can answer NO and never YES — a true head-rise would leave the
+    // AND unsettled and report Unavailable. So the negative is sound and the fault's prevalence
+    // across unre-analysed swings is structurally understated. The PARTIAL line printed by
+    // runFixture() counts these; see the pin below.
+    //
     // 54 -> 53 on 2026-09-04, and the one is exactly the deleted content. `weight_back_at_finish`
     // was detected only by `sig_weightBackFinish`, which read `m_pelvisSwayFinish` — pelvisSway at
     // the finish, outside the P1-P7 domain where that projection means anything. The measure and
     // both signals on it are gone, so the condition has no detector and reports Unavailable. Its
     // sibling `off_balance_finish` is NOT in the delta: it kept `sig_offBalanceFinish` on
     // `m_comOverLeadFootFinish`, which this fixture carries, so it is still assessable.
-    check(cRich.assessable == 53, "rich_7iron: 53 of 157 conditions assessable (observed)");
+    check(cRich.assessable == 54, "rich_7iron: 54 of 157 conditions assessable (observed)");
+    // HOW MANY OF THOSE ANSWERS RESTED ON EVIDENCE THE CAPTURE DID NOT HAVE. A conjunction
+    // settled by one known-false term is a real negative, but it is a different kind of "no"
+    // from one where every term was read, and it can only ever be a no. Pinned because the
+    // engine's own comment expects partial settlement to be "the common case by a distance"
+    // and on real swings it is not: 3 of 54 here, 2 of 21 on lm_7iron, 0 of 2 on sparse_noclub.
+    // If that starts climbing, the panel is answering more and more from less and less.
+    check(cRich.assessedPartial == 3,
+          "rich_7iron: 3 of its 54 answers rest on a term it could not read (observed)");
     // 38 -> 40 with the two new hipLineTilt measures. Both read a curve this fixture ALREADY
     // carries — the reduction samples the series itself at each segmented phase and does not need
     // the producer to have listed that phase — so a swing written by an older build gains them
