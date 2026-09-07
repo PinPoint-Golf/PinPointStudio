@@ -321,7 +321,7 @@ static void testReviewWriteThrough()
     const QString note = QStringLiteral("Left wrist cupped at the top — “fix this”\nline two");
     m.setRating(id, 4);
     m.setNote(id, note);
-    m.setClub(id, QStringLiteral("Driver"));
+    m.setClub(id, QStringLiteral("DRIVER"));   // as the picker offers it
 
     // Round-trip through a fresh model, exactly as the next session would.
     ShotListModel reloaded;
@@ -332,7 +332,7 @@ static void testReviewWriteThrough()
              reloaded.data(reloaded.index(0), ShotListModel::NoteRole).toString(), note);
     checkStr(QStringLiteral("W3 the club comes back"),
              reloaded.data(reloaded.index(0), ShotListModel::ClubRole).toString(),
-             QStringLiteral("Driver"));
+             QStringLiteral("DRIVER"));
 
     // Ratings are 0..5; the model clamps rather than storing nonsense.
     m.setRating(id, 99);

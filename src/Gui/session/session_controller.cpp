@@ -36,9 +36,32 @@ void SessionController::setActiveClub(const QString &club)
     emit activeClubChanged();
 }
 
+// A session type is one of four things. The value indexes the QML session-type
+// list, selects the session folder's type token (ShotProcessor::beginSessionFolder
+// -> sessionTypeLabel) and gates navigation; anything outside the enum is none of
+// those, and used to be accepted and propagated as if it were.
+static bool isStartableType(SessionController::Type t)
+{
+    switch (t) {
+    case SessionController::Type::Swing:
+    case SessionController::Type::Wrist:
+    case SessionController::Type::Grf:
+    case SessionController::Type::Coach:
+        return true;
+    case SessionController::Type::None:   // "no session" is not a session to start
+        break;
+    }
+    return false;
+}
+
 void SessionController::start(int sessionType)
 {
     const Type type = static_cast<Type>(sessionType);
+
+    if (!isStartableType(type)) {
+        ppWarn() << "[SessionController] start refused — no such session type:" << sessionType;
+        return;
+    }
 
     // Single-active-session invariant: a running session owns the clock; a
     // start for a different type is refused (the UI gating makes this
@@ -47,6 +70,17 @@ void SessionController::start(int sessionType)
         ppWarn() << "[SessionController] start refused — session type"
                  << static_cast<int>(m_sessionType) << "already active, requested"
                  << sessionType;
+        return;
+    }
+
+    // ⚠ AND A RESTART OF THE SESSION ALREADY RUNNING IS NOT A START.  Nothing
+    // began: this session already owns the clock.  Falling through used to
+    // restart it — a second press of Capture put the toolbar back to 00:00:00
+    // and lost how long the golfer had been hitting — and to emit
+    // sessionStarted a second time, which is the signal main.cpp's
+    // session-start preflight runs off.
+    if (m_running && type == m_sessionType) {
+        ppInfo() << "[SessionController] start ignored — this session is already running";
         return;
     }
 

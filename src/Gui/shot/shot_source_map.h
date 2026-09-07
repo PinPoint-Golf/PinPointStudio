@@ -34,15 +34,17 @@
 // Tested by shot_source_map_test.
 namespace pinpoint {
 
-// Manual has no arbiter modality (it commits directly); Pose rides the vision
-// slot with Ball. Returns false for a source that never enters the arbiter.
+// Manual has no arbiter modality (it commits directly). Every detector that does
+// have one has its OWN — see the warning on ArbSource: Pose used to ride Ball's
+// slot, which cost it both the ability to corroborate and its own name on the
+// commit. Returns false for a source that never enters the arbiter.
 inline bool toArbSource(ShotController::Source s, ArbSource &out)
 {
     switch (s) {
     case ShotController::Source::Acoustic: out = ArbSource::Acoustic; return true;
     case ShotController::Source::Imu:      out = ArbSource::Imu;      return true;
-    case ShotController::Source::Ball:
-    case ShotController::Source::Pose:     out = ArbSource::Ball;     return true;
+    case ShotController::Source::Ball:     out = ArbSource::Ball;     return true;
+    case ShotController::Source::Pose:     out = ArbSource::Pose;     return true;
     // Neither has a local modality: Manual commits directly, and a PPCP Shot
     // has ALREADY been arbitrated by the time it is seen here — feeding it to
     // the local arbiter would be the second arbiter this design exists to
@@ -59,6 +61,7 @@ inline ShotController::Source fromArbSource(ArbSource a)
     case ArbSource::Acoustic: return ShotController::Source::Acoustic;
     case ArbSource::Imu:      return ShotController::Source::Imu;
     case ArbSource::Ball:     return ShotController::Source::Ball;
+    case ArbSource::Pose:     return ShotController::Source::Pose;
     }
     return ShotController::Source::Manual;
 }

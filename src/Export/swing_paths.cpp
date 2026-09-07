@@ -66,10 +66,43 @@ QString SwingPaths::sanitise(const QString& raw)
     s.replace(runs, QStringLiteral("-"));
     while (s.startsWith(QLatin1Char('-')) || s.startsWith(QLatin1Char('.')))
         s.removeFirst();
+    // ⚠ TRUNCATE FIRST, THEN STRIP THE TAIL — in that order, and it used to be
+    // the other way round.  Cutting a long name at 64 can land the cut on a
+    // separator, and Windows silently drops a trailing '.' from a directory
+    // name: the folder the app then computes and the folder that exists are
+    // different strings, and every later lookup misses one it created itself.
+    s.truncate(64);
     while (s.endsWith(QLatin1Char('-')) || s.endsWith(QLatin1Char('.')))
         s.removeLast();
-    s.truncate(64);
-    return s.isEmpty() ? QStringLiteral("unknown") : s;
+    if (s.isEmpty())
+        return QStringLiteral("unknown");
+
+    // ⚠ AND A NAME CAN BE LEGAL EVERYWHERE AND IMPOSSIBLE ON WINDOWS.  "Con" is
+    // an ordinary surname and a reserved device; so are Prn, Aux, Nul, Com1-9
+    // and Lpt1-9, with or without an extension ("CON.txt" is reserved too), so
+    // the test is on the stem.  mkpath fails for such a folder on that platform
+    // and nowhere else, which is the worst shape a bug can have.  A trailing
+    // '_' is enough to clear it, is inside the allowed character class, and
+    // survives a second pass through here unchanged (sanitise is idempotent).
+    static const QStringList reserved = {
+        QStringLiteral("CON"), QStringLiteral("PRN"), QStringLiteral("AUX"),
+        QStringLiteral("NUL"),
+        QStringLiteral("COM1"), QStringLiteral("COM2"), QStringLiteral("COM3"),
+        QStringLiteral("COM4"), QStringLiteral("COM5"), QStringLiteral("COM6"),
+        QStringLiteral("COM7"), QStringLiteral("COM8"), QStringLiteral("COM9"),
+        QStringLiteral("LPT1"), QStringLiteral("LPT2"), QStringLiteral("LPT3"),
+        QStringLiteral("LPT4"), QStringLiteral("LPT5"), QStringLiteral("LPT6"),
+        QStringLiteral("LPT7"), QStringLiteral("LPT8"), QStringLiteral("LPT9"),
+    };
+    const QString stem = s.left(s.indexOf(QLatin1Char('.')) < 0 ? s.size()
+                                                                : s.indexOf(QLatin1Char('.')));
+    for (const QString& r : reserved) {
+        if (stem.compare(r, Qt::CaseInsensitive) == 0) {
+            s.append(QLatin1Char('_'));
+            break;
+        }
+    }
+    return s;
 }
 
 SwingPaths::Resolved SwingPaths::resolveSession(const QString& libraryRoot,
@@ -194,6 +227,7 @@ QString SwingPaths::beginSession(const QString& libraryRoot,
 
     QString sessionDir;
     QString sessionId;
+    bool    created = false;
 
     // Extend today's most-recent folder when asked and one exists.
     if (extendExisting) {
@@ -212,6 +246,7 @@ QString SwingPaths::beginSession(const QString& libraryRoot,
             ppError() << "[SwingExport] failed to create session folder" << sessionDir;
             return {};
         }
+        created = true;   // ours to discard if it stays empty; nothing else is
     }
 
     // Prime the allocation cache so every subsequent allocateSwingDir() reuses it.
@@ -221,22 +256,23 @@ QString SwingPaths::beginSession(const QString& libraryRoot,
     m_cachedBase        = r.base;
     m_cachedSessionDir  = sessionDir;
     m_cachedSessionId   = sessionId;
-    m_sessionBaselineSwings = countSwingDirs(sessionDir);
+    m_sessionCreated    = created;
 
     ppInfo() << "[SwingExport] begin session:" << sessionDir
-             << (extendExisting ? "(extend)" : "(new)")
-             << "baseline swings" << m_sessionBaselineSwings;
+             << (created ? "(new)" : "(extend)")
+             << "holding" << countSwingDirs(sessionDir) << "swing(s)";
     return sessionDir;
 }
 
 void SwingPaths::endSession(bool discardIfNoNewSwings)
 {
-    if (discardIfNoNewSwings && !m_cachedSessionDir.isEmpty()) {
-        // Only discard when the session captured nothing new since it began. The
-        // baseline is 0 for a fresh folder and N for an extended one; a mid-flight
-        // shot has already mkpath'd its swing_NNNN/, so it is never in this set.
+    if (discardIfNoNewSwings && m_sessionCreated && !m_cachedSessionDir.isEmpty()) {
+        // Only a folder THIS session created, and only while it is still empty.
+        // An extended session's folder is somebody's earlier work and is never a
+        // candidate, whatever its count did; a mid-flight shot has already
+        // mkpath'd its swing_NNNN/, so it is never in this set either.
         const int now = countSwingDirs(m_cachedSessionDir);
-        if (now <= m_sessionBaselineSwings) {
+        if (now == 0) {
             // Recoverable removal (OS trash), not a permanent delete — matches the
             // shot-trash convention, so an accidentally-discarded session survives.
             QString where;
@@ -255,7 +291,7 @@ void SwingPaths::endSession(bool discardIfNoNewSwings)
     m_cachedBase.clear();
     m_cachedSessionDir.clear();
     m_cachedSessionId.clear();
-    m_sessionBaselineSwings = -1;
+    m_sessionCreated = false;
 }
 
 bool SwingPaths::trashPath(const QString& path, QString* where)

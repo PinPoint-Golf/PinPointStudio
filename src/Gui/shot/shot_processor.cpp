@@ -882,7 +882,18 @@ void ShotProcessor::finishGatherAndLaunch()
     if (m_skipAnalysisCapture) {
         ppInfo() << "[ShotProcessor] skip-analysis corpus capture — export only";
         m_analysisOutcome = Outcome::Skipped;   // maybeJoin → raw-only swing.json
-        startSwingSave();                        // onSwingSaveFinished() joins
+        startSwingSave();
+        // ⚠ AND JOIN IT OURSELVES IF NOTHING ELSE WILL — shot_outcome.h,
+        // JoinArrival::LaunchPathDirectly. startSwingSave() returns without
+        // starting a worker when there is no swing folder (an unwritable
+        // library) or no camera to encode (an IMU-only corpus shot), and
+        // maybeJoin() otherwise only ever runs from a worker's completion. This
+        // path used to return here and the shot never joined at all: Processing
+        // for ever, the trigger never re-armed, the buffer never resumed, and
+        // nothing on screen said so. The ordinary path is already covered —
+        // onAnalysisFinished() calls maybeJoin() whatever the export did.
+        if (!m_swingSaveInFlight)
+            maybeJoin();
         return;
     }
 
@@ -1999,8 +2010,9 @@ void ShotProcessor::maybeJoin()
     if (decision.terminal == pinpoint::Terminal::Processed)
         emit shotProcessed(newShotId, savedSwingDir);
     else
-        emit shotFailed(!analysisOk ? m_analysisResult.error
-                                    : QStringLiteral("export failed or skipped"));
+        emit shotFailed(decision.analysisFaulted ? m_analysisResult.error
+                      : decision.exportFaulted   ? tr("The video could not be saved")
+                                                 : tr("Nothing was saved for this shot"));
 
     // ⭐ §7.5 R4 — ONE TERMINAL STATEMENT PER SHOT, NOT ONE PER STAGE.
     // The stages above each announced themselves and the user had to assemble
@@ -2012,7 +2024,13 @@ void ShotProcessor::maybeJoin()
     // The carousel's number, not the model's id — they diverge once a shot is
     // trashed, and "Shot 7" has to mean the row the user can point at.
     const int ordinal = (m_shotModel && newShotId >= 0) ? m_shotModel->ordinalForId(newShotId) : 0;
-    emit shotOutcome(ordinal, exportOk, analysisOk);
+    // ⚠ FAULTED, NOT "DID NOT SUCCEED". A stage skipped on request went wrong
+    // with nothing, and this signal is the ONE thing the golfer is told about
+    // the shot: a corpus capture with analysis deliberately off announced
+    // "analysis incomplete" on every ball, and an IMU-only shot whose
+    // analysis-only swing.json was written exactly as designed announced "not
+    // saved". Both were the pipeline doing as it was asked.
+    emit shotOutcome(ordinal, !decision.exportFaulted, !decision.analysisFaulted);
 
     // Post-shot playback now lives on the Review stage: a reviewable shot is auto-
     // promoted into Review (disk replay) by the UI from shotProcessed(), so skip the

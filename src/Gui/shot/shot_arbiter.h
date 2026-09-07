@@ -26,7 +26,7 @@
 // ShotController owns one and supplies the QTimer: candidate → hold → fuse →
 // commit. All on the GUI thread, so no locks.
 //
-// Every auto detector (IMU impact, acoustic onset, ball launch) reports an
+// Every auto detector (IMU impact, acoustic onset, ball launch, pose) reports an
 // *estimated true-impact instant* (its arrival stamp minus its own latency)
 // plus a confidence. The first report opens a hold window (kArbHoldMs); at
 // the deadline the candidates are fused:
@@ -34,15 +34,27 @@
 //     candidate is strong (conf >= strongConf — its detector gates already
 //     passed);
 //   - the committed timestamp comes from the most authoritative agreeing
-//     modality: Acoustic (sample-accurate pinpoint) > Imu > Ball (coarse);
+//     modality: Acoustic (sample-accurate pinpoint) > Imu > Ball > Pose
+//     (coarsest);
 //   - a refractory after each commit absorbs echoes the ShotProcessor busy
 //     gate might miss around its edges.
 // The manual SHOT button never enters the arbiter — ShotController commits
 // it directly and only notes the commit here for the refractory.
 namespace pinpoint {
 
-// Order IS the timestamp-authority priority.
-enum class ArbSource : uint8_t { Acoustic = 0, Imu = 1, Ball = 2 };
+// Order IS the timestamp-authority priority: sample-accurate acoustic onset
+// first, then the IMU's impact spike, then ball launch, then pose.
+//
+// ⚠ POSE HAS ITS OWN SLOT, AND IT USED TO SHARE BALL'S.  decide() keeps the
+// highest-confidence candidate PER MODALITY, so two detectors mapped to one
+// slot collapse into a single entry and the ">= 2 modalities agree" rule can
+// never see them: a pose detection and a ball detection of the same strike
+// could not corroborate each other, and pose could only ever commit
+// lone-strong. Worse, the commit came back out labelled Ball, and
+// ShotController::Source is persisted into swing.json as capture.shotSource —
+// so a pose-triggered shot recorded a detector that had not found it.
+// Pose is last because keypoint timing is the coarsest of the four.
+enum class ArbSource : uint8_t { Acoustic = 0, Imu = 1, Ball = 2, Pose = 3 };
 
 struct ArbiterConfig {
     int32_t holdMs       = 200;    // collect window after the first candidate
@@ -165,7 +177,7 @@ public:
     }
 
 private:
-    static constexpr int kModalities    = 3;
+    static constexpr int kModalities    = 4;
     static constexpr int kMaxCandidates = 8;
 
     bool inRefractory(int64_t nowUs) const

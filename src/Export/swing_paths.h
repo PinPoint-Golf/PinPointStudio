@@ -98,9 +98,18 @@ public:
     // The current (primed/cached) session folder, or "".
     QString currentSessionDir() const { return m_cachedSessionDir; }
 
-    // End the session. When discardIfNoNewSwings and the folder gained no swings
-    // since beginSession() (swing_* count <= baseline), move it to the OS trash
+    // End the session. When discardIfNoNewSwings, and this beginSession() CREATED
+    // the folder, and it holds no swings at all, move it to the OS trash
     // (recoverable). Always clears the cache so the next session re-resolves.
+    //
+    // ⚠ THE FOLDER MUST BE ONE WE MADE.  The rule used to be "the swing_* count
+    // did not grow since we began", which is a count and not an identity: an
+    // EXTENDED session is a folder that already held an afternoon's work, its
+    // baseline was that count, and a session that then captured nothing — or
+    // captured one swing and had one older one deleted — read as "gained
+    // nothing" and took the whole folder to the trash with everything in it.
+    // Discarding is for tidying away a folder this session made and left empty;
+    // it was never a licence to delete work that was already there.
     void endSession(bool discardIfNoNewSwings);
 
     // Filesystem-safe token: trim, whitespace/path-hostile chars -> '-',
@@ -126,9 +135,10 @@ private:
     QString m_cachedBase;        // composed session-folder base (pre-counter)
     QString m_cachedSessionDir;  // absolute path
     QString m_cachedSessionId;   // folder name
-    // Swing_* count in the folder when beginSession() primed it (-1 = no explicit
-    // session in progress). endSession() discards when the count hasn't grown.
-    int     m_sessionBaselineSwings = -1;
+    // Did THIS beginSession() create the cached folder? Only then may endSession()
+    // discard it — see the warning on endSession() above. False for an extended
+    // session, for a lazily-allocated one, and whenever no session is in progress.
+    bool    m_sessionCreated = false;
 };
 
 } // namespace pinpoint

@@ -55,20 +55,42 @@ struct ShotLaunch {
     bool hasExportableCameras  = false;  // the export job has at least one camera
 };
 
-// ⚠ NOT YET CONSULTED BY THE PIPELINE. finishGatherAndLaunch() still returns
-// straight after startSwingSave() on the corpus-capture path without checking
-// this, which is the defect shot_outcome_test pins down; wiring it in is the
-// fix, and the fix is deliberately not part of the extraction.
-constexpr bool joinIsReachable(const ShotLaunch &l)
+// WHO delivers the join for a given launch. Naming it is the point: the join
+// used to be assumed to arrive and for one configuration it never did.
+enum class JoinArrival : uint8_t {
+    AnalysisWorker,      // the ordinary path — onAnalysisFinished() joins
+    ExportWorker,        // corpus capture with something to encode
+    LaunchPathDirectly,  // no worker starts, so finishGatherAndLaunch() joins itself
+    Never,               // nothing joins — the shot wedges. Must be unreachable.
+};
+
+constexpr JoinArrival joinArrivalFor(const ShotLaunch &l)
 {
     // The ordinary path always launches the analysis worker, and
     // onAnalysisFinished() calls maybeJoin() unconditionally after
     // startSwingSave() — so the export's early returns are covered there.
     if (!l.skipAnalysisCapture)
-        return true;
-    // Corpus capture launches the export and nothing else, so the export's own
-    // early returns decide whether anything ever joins.
-    return l.swingDirAllocated && l.hasExportableCameras;
+        return JoinArrival::AnalysisWorker;
+    // Corpus capture launches the export and nothing else.
+    if (l.swingDirAllocated && l.hasExportableCameras)
+        return JoinArrival::ExportWorker;
+    // ⚠ AND HERE IS WHERE THE SHOT USED TO DIE. startSwingSave() has two early
+    // returns — no swing folder (an unwritable library: /mnt/swingdata
+    // unmounted, 1 September 2026) and no exportable camera (an IMU-only
+    // corpus shot) — and neither starts a worker. maybeJoin() only ever ran
+    // from a worker's completion handler, so nothing joined: ShotProcessor sat
+    // in Processing for ever, busy() stayed true so ShotController never
+    // re-armed, and the SwingWindow held the EventBuffer Paused. Capture was
+    // dead for the rest of the session with nothing on screen to say so.
+    // finishGatherAndLaunch() now joins the shot itself in this case.
+    return JoinArrival::LaunchPathDirectly;
+}
+
+// Every shot the pipeline accepts must reach a join, however little it produced:
+// the join is what returns the buffer to the user's capture intent.
+constexpr bool joinIsReachable(const ShotLaunch &l)
+{
+    return joinArrivalFor(l) != JoinArrival::Never;
 }
 
 // ── Join: what the shot became ──────────────────────────────────────────────
@@ -99,8 +121,16 @@ struct ShotJoinInputs {
 
 struct ShotJoinDecision {
     bool        ready              = false;  // both stages settled
-    bool        analysisOk         = false;
-    bool        exportOk           = false;
+    bool        analysisOk         = false;  // == Succeeded — it produced something
+    bool        exportOk           = false;  // == Succeeded — it produced something
+    // ⚠ NOT THE NEGATION OF THE TWO ABOVE, AND THE DIFFERENCE IS THE WHOLE
+    // POINT OF StageOutcome::Skipped. A stage that was deliberately not run —
+    // analysis off for a corpus capture, an export with no camera to encode —
+    // produced nothing AND went wrong with nothing. Folding the two together is
+    // what told the golfer their shot had failed when the pipeline had done
+    // exactly what was asked of it.
+    bool        analysisFaulted    = false;  // == Failed
+    bool        exportFaulted      = false;  // == Failed
     bool        includeAnalysis    = false;  // inline the analysis block in the document
     bool        reviewableOnDisk   = false;  // promote straight into Review
     Terminal    terminal           = Terminal::Failed;
@@ -128,10 +158,18 @@ constexpr ShotJoinDecision decideJoin(const ShotJoinInputs &in)
 
     d.analysisOk = in.analysis    == StageOutcome::Succeeded;
     d.exportOk   = in.mediaExport == StageOutcome::Succeeded;
+    d.analysisFaulted = in.analysis    == StageOutcome::Failed;
+    d.exportFaulted   = in.mediaExport == StageOutcome::Failed;
 
     d.includeAnalysis  = d.analysisOk && in.hasAnalysisDetail;
     d.reviewableOnDisk = d.analysisOk && d.exportOk && in.documentWritten;
-    d.terminal = (d.analysisOk && d.exportOk) ? Terminal::Processed : Terminal::Failed;
+
+    // §7.5 R4 — what the shot BECAME. It became a shot when nothing went wrong
+    // and something was kept: a stage that was skipped on purpose is not a
+    // fault, and a shot with no document is not a shot however well the stages
+    // ran, because there is nothing left of it after a restart.
+    d.terminal = (!d.analysisFaulted && !d.exportFaulted && in.documentWritten)
+                     ? Terminal::Processed : Terminal::Failed;
 
     if (d.reviewableOnDisk)
         d.after = AfterJoin::Finish;               // Review owns the playback

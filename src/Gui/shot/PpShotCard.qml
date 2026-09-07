@@ -88,6 +88,19 @@ Rectangle {
         return true
     }
 
+    // Did anything actually watch this swing move? A trace to draw, or any metric
+    // that is not a launch-monitor reading. Both stages can fail — the shot still
+    // lands on the carousel (ShotProcessor::maybeJoin: "The shot happened — it
+    // always lands on the carousel, with whatever the pipeline produced") — and
+    // then there is no video, no reading and no motion at all.
+    readonly property bool sawMotion: {
+        if ((card.tracePoints || []).length > 0) return true
+        var keys = Object.keys(card.metrics || {})
+        for (var i = 0; i < keys.length; ++i)
+            if (keys[i].indexOf("lm.") !== 0) return true
+        return false
+    }
+
     property bool selected: false
     property bool hovered:  hover.hovered
 
@@ -183,8 +196,14 @@ Rectangle {
                       bottomMargin: pipBand.visible ? Theme.sp(38) : Theme.sp(22) }
             visible:        !card.hasVideo
             // "IMU ONLY" on a shot with no IMU would be a small lie in the one place a
-            // reader looks to find out what produced it.
-            text:           card.deviceOnly ? qsTr("MONITOR ONLY") : qsTr("IMU ONLY")
+            // reader looks to find out what produced it — and it was being told, on the
+            // shot with the least to say for itself. A shot whose export AND analysis
+            // both produced nothing has no video, no reading and no trace, and the card
+            // announced it as an IMU swing. The rule was written for the monitor and
+            // never extended to the case underneath it.
+            text:           card.deviceOnly ? qsTr("MONITOR ONLY")
+                          : card.sawMotion  ? qsTr("IMU ONLY")
+                          :                   qsTr("NOT RECORDED")
             font.family:    Theme.fontData
             font.pixelSize: Theme.fontSzMicro
             font.letterSpacing: Theme.trackingLabel

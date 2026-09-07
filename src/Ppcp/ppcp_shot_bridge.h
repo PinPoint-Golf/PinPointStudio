@@ -23,7 +23,7 @@
 //
 // ⚠ IT REPLACES `ShotArbiter`, IT DOES NOT WRAP IT, and that is the whole
 // design.  `src/Gui/shot/shot_arbiter.h` models THREE FIXED MODALITIES
-// (`ArbSource::Acoustic | Imu | Ball`) in a fixed-width ring, discards every
+// (`ArbSource::Acoustic | Imu | Ball | Pose`) in a fixed-width ring, discards every
 // candidate on `decide()`, and rejects anything inside a 1500 ms refractory.
 // Each of those is an I8 violation the moment a second peer is in the Session:
 //

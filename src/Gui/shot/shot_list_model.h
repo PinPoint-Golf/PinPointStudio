@@ -204,4 +204,9 @@ private:
 
     QVector<Shot> m_shots;
     int           m_nextId = 1;
+    // Next carousel number to hand a shot that has no document of its own.
+    // Monotonic within a load: a number this model has issued is never issued
+    // again, so "Shot 7" names one shot for the life of the session. Reset by
+    // clear(), and moved past every reloaded ordinal by addPersistedShot().
+    int           m_nextOrdinal = 1;
 };

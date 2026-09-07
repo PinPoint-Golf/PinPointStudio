@@ -110,13 +110,37 @@ int ShotListModel::addShot(const QString &swingDir, const QString &timestampLabe
                            const QVariantMap &analysisDetail, bool dataWarning,
                            const QVariantMap &dataWarningDetail)
 {
-    int maxOrdinal = 0;
-    for (const Shot &s : m_shots)
-        maxOrdinal = std::max(maxOrdinal, s.ordinal);
+    // ⚠ THE NUMBER COMES FROM THE DOCUMENT, NOT FROM COUNTING THE ROWS.
+    //
+    // Two things number a swing: SwingPaths::allocateSwingDir, which counts
+    // swing_* folders and probes upward, and this, which used to take
+    // max(ordinal) + 1 over the rows. They agree until a swing is deleted from
+    // the middle of a session, and then they do not: a carousel reloaded from a
+    // folder holding swing_0001 and swing_0005 called the next shot "Shot 6"
+    // while its swing.json recorded index 3 — so the same swing was Shot 6 this
+    // afternoon and Shot 3 after a restart, and "Shot 6" in a toast named a row
+    // nobody could find tomorrow. The document is the one that survives, so the
+    // document wins. The summary read is the cheap path (no analysisDetail, no
+    // pose track) and the file was written moments ago by the join.
+    int ordinal = 0;
+    if (!swingDir.isEmpty()) {
+        const pinpoint::SwingSummary sum =
+            pinpoint::SwingDocReader::readSwingSummary(swingDir, /*writeSidecar=*/false);
+        if (sum.ok)
+            ordinal = sum.ordinal;
+    }
+    // A shot with no document — export and analysis both produced nothing — has
+    // no number of its own, so it takes the next one this model has not issued.
+    // ⚠ NOT max(ordinal) + 1 OVER THE ROWS: trash the newest shot and hit
+    // another, and that recomputed the number that just left, so two shots in
+    // one session were both announced as "Shot 4".
+    if (ordinal <= 0)
+        ordinal = m_nextOrdinal;
+    m_nextOrdinal = std::max(m_nextOrdinal, ordinal + 1);
 
     Shot shot;
     shot.id              = m_nextId++;
-    shot.ordinal         = maxOrdinal + 1;
+    shot.ordinal         = ordinal;
     shot.swingDir        = swingDir;
     shot.timestampLabel  = timestampLabel;
     shot.club            = club;
@@ -145,6 +169,11 @@ void ShotListModel::addPersistedShot(const QString &swingDir, int ordinal,
                                      bool dataWarning, const QString &lmDeviceKind,
                                      const QVariantMap &dataWarningDetail)
 {
+    // Reloaded numbers come from the documents, so move the allocator past them:
+    // the first live shot after a reload must not be handed a number the session
+    // has already used.
+    m_nextOrdinal = std::max(m_nextOrdinal, ordinal + 1);
+
     Shot shot;
     shot.id              = m_nextId++;
     shot.ordinal         = ordinal;          // preserve the on-disk swing index
@@ -265,6 +294,10 @@ void ShotListModel::attachSwingDir(int id, const QString &swingDir)
 
 void ShotListModel::clear()
 {
+    // The allocator belongs to whatever the model is holding, so it resets even
+    // when there are no rows to drop — loadSessionDir() clears an empty model
+    // before seeding it from a different session's documents.
+    m_nextOrdinal = 1;
     if (m_shots.isEmpty())
         return;
     beginResetModel();
@@ -314,6 +347,15 @@ void ShotListModel::setClub(int id, const QString &club)
     const int row = rowForId(id);
     if (row < 0 || m_shots.at(row).club == club)
         return;
+    // ⚠ ONE OF THE CLUBS IN THE BAG, AND NOTHING ELSE. The picker only offers
+    // clubOptions(), but this is Q_INVOKABLE and took whatever it was given —
+    // and the value goes into swing.json's review block, where the session
+    // ledger groups by it and the club-length prior is keyed on it. A club from
+    // outside the vocabulary is a club nothing downstream can read.
+    if (!clubOptions().contains(club)) {
+        ppWarn() << "[ShotListModel] setClub refused — not in the bag:" << club;
+        return;
+    }
     m_shots[row].club = club;
     emit dataChanged(index(row), index(row), { ClubRole });
     persistReview(row);
