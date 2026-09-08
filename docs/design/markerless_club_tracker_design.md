@@ -1,6 +1,6 @@
 # Markerless club tracking — design
 
-**Status: design 2026-09-08; P0–P3b built and graded the same day (§6). P2 missed its targets and redefined Phase 3; P3a meets the direction, position and scale gates; P3b wires the lock into the tracker's consumers, dark behind `shaft.seg.enabled`. Every result is reported against the marked club's band lock on the same frames (§5.1). Open: the scale tail, the still frames outside the evidence span, and P4 (club record, athlete `handsEndMm`, UI, persistence), P5 (unmarked capture), P6 (flip).** Successor to club tracking v3 (`club_tracking_v3_design.md`,
+**Status: design 2026-09-08; P0–P3b built and graded the same day (§6). P2 missed its targets and redefined Phase 3; P3a meets the direction, position and scale gates; P3b wires the lock into the tracker's consumers, dark behind `shaft.seg.enabled`. Every result is reported against the marked club's band lock on the same frames (§5.1). P4 adds the two club-record fields, the UI, the persistence and the still-frame probe. Open: the scale tail, the held finish, P5 (unmarked capture — Mark records 2026-09-09), P6 (flip).** Successor to club tracking v3 (`club_tracking_v3_design.md`,
 as-built `shaft_track_assembly.*` / `shaft_tracker_math.*`). Premise, from Mark: the
 retroreflective bands on the shaft change the club's swing weight, and a club whose swing
 weight has changed produces a different swing. The tracker must therefore reach today's
@@ -367,14 +367,16 @@ about 2–3% of the 175 px span, which is well inside what the length ladder tol
 | `shaftLengthMm` *(new)* | int | exposed shaft: bottom of grip to top of hosel, measured with a tape | `hoselFromButtMm − 265` when hosel is known; else 0 = unknown |
 | `hoselFromButtMm` *(existing, now read)* | int | butt to top of hosel | per-family seed: irons/wedges `lengthMm − 58` (the lab 7-iron measures 940 − 882 = 58), hybrids `− 60`, woods/driver `− 50`, putter 0 (unsupported) |
 | `bandCentersMm` *(existing)* | list | retro-band centres | empty = unmarked |
+| `handsEndMm` *(new, P3a/P4)* | int | where the golfer's hands end on the grip, mm from the butt, measured once with a tape at address | 0 = unknown ⇒ 180 (corpus: 165 p50, 121–208) |
 | `shaftType` *(existing, now read)* | steel/graphite | polarity prior for E4 | "steel" |
 
 `gripEndFromButtMm` is not stored; it is `hoselFromButtMm − shaftLengthMm` at job-build
-time. The UI (`AthleteClubsSection.qml`) gains one field, **SHAFT LENGTH (MM)**, under
-CLUB LENGTH, with the helper text: "Exposed shaft from the bottom of the grip to the top
-of the hosel. Lets the tracker measure geometry on an unmarked club." Band fields stay as
-they are; the toolbar badge (`PpSessionToolbar.qml:141-154`) reads "marked" / "unmarked"
-instead of taped / untaped.
+time. The UI (`AthleteClubsSection.qml`) gains two fields under CLUB LENGTH, **SHAFT
+LENGTH (MM)** and **HANDS END (MM FROM BUTT)**, and the section's helper text says what
+they are for. `handsEndMm` is physically a property of the golfer's grip, not the club,
+but the club record is already per athlete and the athlete form's save path is a fixed
+positional signature through QML — so it lives with the club (P4 decision, 2026-09-08).
+Band fields stay as they are.
 
 `ShotAnalysisJob` gains `shaftLengthMm` and starts filling `gripEndFromButtMm`
 (`shot_processor.cpp:1046-1058`); `swing.json` `capture.club` persists both so re-analysis
@@ -717,6 +719,21 @@ all (8% → 63%).
 | `coverage` p50 (min) | 0.958 (0.881) | 0.973 (0.901) |
 | lock-off output vs the recorded tracker | — | byte-identical bar four wall-clock timing fields |
 
+**Still frames outside the evidence span (P4, same 38 swings).** No band lock and no
+ridge evidence exist there, so this is segment-only:
+
+| phase | frames outside the span | segment lock | FULL |
+|---|---|---|---|
+| address hold | 11,220 | 30% (22% FULL) | 22% |
+| held finish | 6,517 | 2% | 1% |
+
+The address hold covers up to three seconds of setup per swing — waggles, re-gripping,
+looking at the target — and the in-span direction only applies while the club is
+actually at address, so 30% is a floor set by the probe's assumption, not by the
+detector. The held finish is the club over the shoulder against the dark ceiling, or out
+of frame: 2% says that region is out of reach without a light on it. Coverage over the
+span moves 0.958 → 0.977 with the lock on.
+
 **Scale, against the reference's own precision.** The band lock's scale changes by 1.6%
 between adjacent band frames at p50 and 6.8% at p90 (1,863 pairs) — that is the floor a
 per-frame scale can be graded against. The segment's 6.2% p50 is four times that floor;
@@ -783,7 +800,7 @@ normalisation) still apply to anything that shares code with E2.
 | **P2 — grade** ✅ 2026-09-08 | segment probe inside the evidence loop behind `shaft.seg.enabled` (pass 1 prior-free, pass 2 with the swing's median FULL scale), traced beside the band lock; `tools/shaftlab/segment_grade.py`; 38 taped swings | done — **§5.1 targets NOT met**; the corpus located the two design errors (§4.8 items 1–2) |
 | **P3a — change of shape** ✅ 2026-09-08 | probe **along the DP's θ** after the Viterbi (and the band's when present); onset classified by what precedes the run (visible grip → grip end; hands' bloom → hands' edge at `handsEndMm`); terminus = hosel end unless a ferrule is resolved; look-back unmarked-only; image-edge guard; hands'-edge r0 floor; one-sided length gate; re-graded on the same 38 swings (§5.1) | θ p50/p90 **1.0°/1.4°**, terminus **−1 px** p50, `s` p50 **6.2%** — gate met; FULL-lock rate 40%, coverage is the open item |
 | **P3b — consumers** ✅ 2026-09-08 | lock union: SEG tier (BAND > SEG > RAY, conf 0.70/0.62), `lockNear` in the verifiable clause, rail weights 6/3 via a weight override, ladder rung 2 from segment medians on an unmarked club, E-seg (σ 0.35) in the fusion, head placed from the terminus unless a Stage-2 measured head exists; all behind `shaft.seg.enabled`; the emission well deferred (P3a: the DP already sits 0.2° from the band) | done — lock-off byte-identical to the recorded tracker (timings aside); segment lock on 57% of span frames vs the band's 26%; coverage 0.958 → 0.973 (§5.1) |
-| **P4 — record + UI + persistence** | `shaftLengthMm` in the club record, seed defaults, `AthleteClubsSection.qml` field, job fill, `swing.json` fields, loader | round-trips through record → job → swing.json → re-analysis |
+| **P4 — record + UI + persistence** ✅ 2026-09-08 | `shaftLengthMm` + `handsEndMm` in the club record (defaults 0 = unknown), two fields in `AthleteClubsSection.qml`, both jobs filled from the record, `swing.json` `capture.club` carries both, re-analysis replays them, the tracker reads them; schema doc rows; **still frames** outside the evidence span are now probed along the nearest in-span DP direction (`shaft.seg.probeStill`) | app, tests and tool build; round-trip record → job → swing.json → re-analysis by construction (same read sites as `hoselFromButtMm`) |
 | **P5 — corpus + capture** | the untaped 7-iron session (§5.2), markup, gate CSVs in the repo, run trees deleted | §5.2 gates met |
 | **P6 — flip** | `shaft.seg.enabled` default 1; docs updated (`shaft_tracker_impl.md`, protocol docs, best-practices ladder row) | gate report attached |
 
@@ -812,12 +829,11 @@ without tape".
   untaped DP still routes down the wrong branch across impact with 6, the answer is to
   measure conflict and false-lock rates at 8, not to assume.
 - **Daylight confound in the existing untaped data.** Bounded, not resolved, until P5.
-- **Address and finish frames are not probed.** The evidence span runs from 100 ms
-  before the takeaway to 100 ms after the finish onset, so the address hold and the
-  held finish are never given a probe. §5.1's address/finish lock rates measure that,
-  not the detector. P3b decides whether the segment probe runs over the whole window
-  for still frames (a still frame is cheap: one ray) or whether the address-hold stack
-  feeds it once.
+- **Address and finish frames outside the evidence span** (resolved P4). The span runs
+  from 100 ms before the takeaway to 100 ms after the finish onset; the address hold
+  and the held finish were never probed. P4 probes them along the nearest in-span DP
+  direction — the club is still there, so the direction is the same — and they publish
+  as SEG-tier samples. Coverage still counts span frames only. Result in §5.1.
 - **Corpus labels.** `corpus.json` `conditions.club` and pre-0.1.10011 club records do not
   say which club was hit (§2.4). Every gate report that split by club or by taped/untaped
   using those labels needs re-reading; the probe's condition assignment (BAND-tier count

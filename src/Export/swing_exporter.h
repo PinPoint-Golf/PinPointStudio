@@ -318,6 +318,8 @@ struct SwingExportJob {
     QString shaftType;                     // "steel" | "graphite" | ""
     std::vector<double> bandCentersMm;     // retro-band centres from the butt (mm)
     double  hoselFromButtMm = 0.0;         // hosel offset from the butt (mm); 0 = unknown
+    double shaftLengthMm = 0.0;   // markerless P4: exposed shaft (mm), 0 = unknown
+    double handsEndMm    = 0.0;   // markerless P4: hands' end from the butt (mm), 0 = unknown
 
     // Club-length prior (club_length_fusion.h / plan: robust club length):
     // clubName is the canonical club-vocabulary id (persisted so re-analysis can

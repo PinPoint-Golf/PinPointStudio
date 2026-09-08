@@ -174,6 +174,7 @@ struct SegmentConfig {
     float ferruleTolMm = 5.0f;    // … and when it is
     // Assembly-side (P2 wiring; unread by the engine): candidate directions per
     // frame, emission well depths, tier confidences, wrist-rail weights, fusion σ.
+    bool  probeStill   = true;    // probe frames OUTSIDE the evidence span (address hold, held finish) along the nearest in-span DP direction
     int   maxCand      = 6;
     float well         = 6.0f;
     float wellTerminus = 4.0f;

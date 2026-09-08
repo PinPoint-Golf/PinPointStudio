@@ -114,6 +114,8 @@ Shot setup + provenance. The `club` sub-block was added 2026-07-07 so re-analysi
 | `club.lengthMm` | int | Shaft length; sizes the shaft-tracker head extrapolation. |
 | `club.shaftType` | str | `steel`/`graphite`/`""`. |
 | `club.hoselFromButtMm` | int | **Added 2026-07-09.** Hosel offset from the butt, mm — where the head sits relative to the grip end (`0` = unknown). Plumbed through `ShotAnalysisJob` and replayed on re-analysis. Absent on swings captured before 2026-07-09. |
+| `club.shaftLengthMm` | int | **Added 2026-09-08 (markerless P4).** Exposed shaft, bottom of grip → top of hosel, mm (`0` = unknown ⇒ the tracker assumes a 265 mm grip). Grip end from the butt = `hoselFromButtMm − shaftLengthMm`. Replayed on re-analysis. |
+| `club.handsEndMm` | int | **Added 2026-09-08 (markerless P4).** Where the golfer's hands end on the grip, mm from the butt (`0` = unknown ⇒ 180). The steel-segment lock's proximal landmark. Replayed on re-analysis. |
 | `club.bandCentersMm` | int[] | Retro-band centres from the butt. **Empty ⇒ untaped** → the shaft tracker runs E2 (ray) evidence only. Absent on swings captured before 2026-07-07. |
 | `club.name` | str | Canonical club-vocabulary id — half the persistent club-length prior key (`athleteUuid\|clubName\|cameraKey`). Added 2026-07-10 (length fusion). |
 | `club.lengthPrior` | obj | The persistent club-length prior **the live fuse actually used for this shot** (state before this shot's update): `px` (EMA length), `varPx` (EW variance, px²), `n` (updates folded in). **Re-analysis replays this recorded prior, never AppSettings** — deterministic, cross-host. Omitted when the shot ran prior-free. |

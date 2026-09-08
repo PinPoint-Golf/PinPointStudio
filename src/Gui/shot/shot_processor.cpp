@@ -1055,6 +1055,10 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
             const double hoselMm = rec.value(QStringLiteral("hoselFromButtMm")).toDouble();
             if (hoselMm > 0)
                 job.hoselFromButtMm = hoselMm;
+            // Markerless geometry (steel-segment lock): exposed shaft length and the
+            // hands' end on the grip. 0 = unknown ⇒ the tracker's defaults.
+            job.shaftLengthMm = rec.value(QStringLiteral("shaftLengthMm")).toDouble();
+            job.handsEndMm    = rec.value(QStringLiteral("handsEndMm")).toDouble();
 
             // Persistent club-length prior (club_length_fusion.h / plan: robust
             // club length — starry-shimmying-wind). Keyed athleteUuid|clubName|
@@ -1369,6 +1373,8 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
             for (const QVariant &bv : bands) job.bandCentersMm.push_back(bv.toDouble());
             const double hoselMm = rec.value(QStringLiteral("hoselFromButtMm")).toDouble();
             if (hoselMm > 0) job.hoselFromButtMm = hoselMm;
+            job.shaftLengthMm = rec.value(QStringLiteral("shaftLengthMm")).toDouble();   // markerless P4
+            job.handsEndMm    = rec.value(QStringLiteral("handsEndMm")).toDouble();
         }
     }
     // Club-length prior (club_length_fusion.h): reuse the exact values already

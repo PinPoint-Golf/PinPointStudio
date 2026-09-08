@@ -128,6 +128,8 @@ public:
     //   { shaftType: "steel"|"graphite", loftDeg: double, lengthMm: int, bandWidthMm: int,
     //     bandCentersMm: list<int> (retro-band CENTRES from the butt, mm;
     //     empty = untaped), hoselFromButtMm: int, headPatch: bool,
+    //     shaftLengthMm: int (exposed shaft, grip end → hosel top; 0 unknown),
+    //     handsEndMm: int (bottom of the hands from the butt; 0 unknown),
     //     tapedOn: "YYYY-MM-DD", notes: string }
     // Consumers: shaft-tracker search radius (lengthMm) and the
     // instrumented-club pipeline (docs/validation/instrumented_club_protocol.md).

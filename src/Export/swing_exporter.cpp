@@ -971,6 +971,10 @@ QJsonObject SwingExporter::captureBlock(const SwingExportJob& job)
             // Additive (Phase A5): hosel offset from the butt, mm. 0 = unknown —
             // absent on swings captured before this field existed.
             {QStringLiteral("hoselFromButtMm"), job.hoselFromButtMm},
+            // Additive (markerless P4): exposed shaft length and the hands' end on
+            // the grip, mm. 0 = unknown — absent on swings captured before.
+            {QStringLiteral("shaftLengthMm"),   job.shaftLengthMm},
+            {QStringLiteral("handsEndMm"),      job.handsEndMm},
             // Additive (club-length fusion): canonical club-vocabulary id — half
             // the persistent prior key (athleteUuid|clubName|cameraKey).
             {QStringLiteral("name"),            job.clubName},

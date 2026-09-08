@@ -385,6 +385,12 @@ static QVariantMap defaultClubRecordFor(const QString &clubId)
     rec[QStringLiteral("bandWidthMm")]     = 25;
     rec[QStringLiteral("bandCentersMm")]   = QVariantList{};
     rec[QStringLiteral("hoselFromButtMm")] = 0;
+    // Markerless tracking (docs/design/markerless_club_tracker_design.md §4.1):
+    // exposed shaft, bottom of grip → top of hosel (mm), and where the golfer's
+    // hands end on the grip (mm from the butt). 0 = unknown ⇒ the tracker assumes
+    // a 265 mm grip and a 180 mm hands' end.
+    rec[QStringLiteral("shaftLengthMm")]   = 0;
+    rec[QStringLiteral("handsEndMm")]      = 0;
     rec[QStringLiteral("headPatch")]       = false;
     rec[QStringLiteral("tapedOn")]         = QString();
     rec[QStringLiteral("notes")]           = QString();

@@ -74,6 +74,16 @@ def grade(rows, out_md):
                  f"{q(tb,50):.1f}°/{q(tb,90):.1f}° | {q(ts,50):.1f}°/{q(ts,90):.1f}° | "
                  f"{t['band']/n*100:.0f}% | {t['seg']/n*100:.0f}% | {t['ray']/n*100:.0f}% | {t['wedge']/n*100:.0f}% | {t['pred']/n*100:.0f}% |")
     L.append("\nBand and segment scale, where both exist on a frame, are compared in A; the band's own frame-to-frame scale jitter (the reference's precision) is in A4.\n")
+    # still frames outside the evidence span: no band, no ridge — segment only
+    L.append("### 0b. Still frames OUTSIDE the evidence span (address hold, held finish) — segment lock only, no band reference exists there\n")
+    L.append("| phase | frames | segment lock | FULL | tier seg | tier pred |\n|---|---|---|---|---|---|")
+    for ph in ("addr", "finish", "ALL"):
+        R = [r for r in rows if not r["span"] and (ph == "ALL" or r["phase"] == ph)]
+        if not R: continue
+        n = len(R); S = [r for r in R if r["seg_mode"] > 0]; F = [r for r in R if r["seg_mode"] == 1]
+        t = collections.Counter(r["tier"] for r in R)
+        L.append(f"| {ph} | {n} | {len(S)/n*100:.0f}% | {len(F)/n*100:.0f}% | {t['seg']/n*100:.0f}% | {t['pred']/n*100:.0f}% |")
+    L.append("")
 
     # ── A. vs the band lock ─────────────────────────────────────────────────
     L.append("### A. Segment lock vs band lock, same frame (band = reference)\n")

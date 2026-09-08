@@ -368,6 +368,7 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.seg.hoselTolMm", c.seg.hoselTolMm);
     apply(ov, "shaft.seg.ferruleTolMm", c.seg.ferruleTolMm);
     apply(ov, "shaft.seg.maxCand", c.seg.maxCand);
+    apply(ov, "shaft.seg.probeStill", c.seg.probeStill);
     apply(ov, "shaft.seg.well", c.seg.well);
     apply(ov, "shaft.seg.wellTerminus", c.seg.wellTerminus);
     apply(ov, "shaft.seg.conf", c.seg.conf);
@@ -1670,12 +1671,20 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
 
     const DPResult dp = viterbiDP(emis, pm.phase, cfg);
     if (segRun) {
+        // Frames outside the evidence span (the address hold before spanLo, the held
+        // finish after spanHi) were never given evidence, so the DP coasts there.
+        // The club is still on those frames: probe them along the nearest in-span
+        // DP direction (design §7 "still frames"), which is what lets an unmarked
+        // club's address and finish publish at all.
         const auto segFrame = [&](int i, double sPrior, int pass) {
-            if (!heavyMark[size_t(i)] || (pass == 2 && seg[size_t(i)].ok)) return;
+            const bool still = !heavyMark[size_t(i)] && cfg.seg.probeStill && !std::isnan(gx[i])
+                               && ((i < spanLo && spanLo < nf) || (i > spanHi && spanHi >= 0));
+            if ((!heavyMark[size_t(i)] && !still) || (pass == 2 && seg[size_t(i)].ok)) return;
             cv::Mat g8 = frameSrc(i);
             if (g8.empty()) return;
             cv::Mat g32; g8.convertTo(g32, CV_32F);
-            std::vector<double> thetas{dp.thetaDeg[i] * kPi / 180.0};
+            const int ref = heavyMark[size_t(i)] ? i : (i < spanLo ? spanLo : spanHi);
+            std::vector<double> thetas{dp.thetaDeg[ref] * kPi / 180.0};
             if (bandOk[i]) thetas.push_back(double(band[i].thetaDeg) * kPi / 180.0);
             segProbe(i, g32, thetas, sPrior, pass);
         };

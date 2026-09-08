@@ -163,7 +163,7 @@ Rectangle {
 
                 Text {
                     width: parent.width
-                    text: qsTr("Club length sets the shaft-tracker search radius. Band centres describe retroreflective tape (optional — high value in dark rooms), measured from the butt end of the grip in millimetres.")
+                    text: qsTr("Club length sets the shaft-tracker search radius. Shaft length (bottom of grip to top of hosel) and hands end (bottom of your hands from the butt) let the tracker measure an unmarked club. Band centres describe retroreflective tape (optional), measured from the butt end of the grip in millimetres.")
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzMicro
                     color:          Theme.colorText3
@@ -358,6 +358,44 @@ Rectangle {
                                     onEditingFinished: {
                                         var v = parseInt(text, 10)
                                         root.commitField(root.selectedClubId, "lengthMm", isNaN(v) ? 0 : v)
+                                    }
+                                }
+
+                                Text {
+                                    text:               qsTr("SHAFT LENGTH (MM)")
+                                    font.family:        Theme.fontData
+                                    font.pixelSize:     Theme.fontSzMicro
+                                    font.letterSpacing: Theme.trackingLabel
+                                    color:              Theme.colorText3
+                                }
+                                PpTextField {
+                                    implicitWidth: Theme.sp(120)
+                                    text: root.recField(root.selectedClubId, "shaftLengthMm", 0) > 0
+                                          ? String(root.recField(root.selectedClubId, "shaftLengthMm", 0)) : ""
+                                    placeholderText: qsTr("e.g. 617")
+                                    validator: IntValidator { bottom: 0; top: 1400 }
+                                    onEditingFinished: {
+                                        var v = parseInt(text, 10)
+                                        root.commitField(root.selectedClubId, "shaftLengthMm", isNaN(v) ? 0 : v)
+                                    }
+                                }
+
+                                Text {
+                                    text:               qsTr("HANDS END (MM FROM BUTT)")
+                                    font.family:        Theme.fontData
+                                    font.pixelSize:     Theme.fontSzMicro
+                                    font.letterSpacing: Theme.trackingLabel
+                                    color:              Theme.colorText3
+                                }
+                                PpTextField {
+                                    implicitWidth: Theme.sp(120)
+                                    text: root.recField(root.selectedClubId, "handsEndMm", 0) > 0
+                                          ? String(root.recField(root.selectedClubId, "handsEndMm", 0)) : ""
+                                    placeholderText: qsTr("e.g. 180")
+                                    validator: IntValidator { bottom: 0; top: 400 }
+                                    onEditingFinished: {
+                                        var v = parseInt(text, 10)
+                                        root.commitField(root.selectedClubId, "handsEndMm", isNaN(v) ? 0 : v)
                                     }
                                 }
 

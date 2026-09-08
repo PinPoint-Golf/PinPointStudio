@@ -253,6 +253,7 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
     segGeom.hoselMm   = job.hoselFromButtMm > 0.0 ? job.hoselFromButtMm : segGeom.clubLenMm - 58.0;
     segGeom.gripEndMm = job.shaftLengthMm > 0.0 ? segGeom.hoselMm - job.shaftLengthMm : 265.0;
     segGeom.bandsMm   = job.bandCentersMm;
+    if (job.handsEndMm > 0.0) cfg.seg.handsEndMm = float(job.handsEndMm);   // measured once with a tape (club record)
     out = decideTrack(frameAt, tUs, gx, gy, phiRaw, rawJoints, w, h, fps,
                       job.bandCentersMm, job.clubLengthM * 1000.0, impf, cfg, trace,
                       ball.frames.empty() ? nullptr : &ball, priorPtr,
