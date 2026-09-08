@@ -355,6 +355,10 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.seg.r0Min", c.seg.r0Min);
     apply(ov, "shaft.seg.r0Max", c.seg.r0Max);
     apply(ov, "shaft.seg.lenTol", c.seg.lenTol);
+    apply(ov, "shaft.seg.lenMinFrac", c.seg.lenMinFrac);
+    apply(ov, "shaft.seg.r0MinHands", c.seg.r0MinHands);
+    apply(ov, "shaft.seg.handsEndMm", c.seg.handsEndMm);
+    apply(ov, "shaft.seg.handsSigmaMm", c.seg.handsSigmaMm);
     apply(ov, "shaft.seg.sTol", c.seg.sTol);
     apply(ov, "shaft.seg.bandSat", c.seg.bandSat);
     apply(ov, "shaft.seg.rmsMax", c.seg.rmsMax);
@@ -1442,7 +1446,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         if (segRun) {
             trace->segMode.assign(size_t(nf), 0);  trace->segPass.assign(size_t(nf), 0);
             trace->segN.assign(size_t(nf), 0);     trace->segDistal.assign(size_t(nf), 0);
-            trace->segStage.assign(size_t(nf), 0);
+            trace->segStage.assign(size_t(nf), 0); trace->segOnset.assign(size_t(nf), 0);
             trace->bandN.assign(size_t(nf), 0);
             for (auto* v : { &trace->segTheta, &trace->segS, &trace->segR0, &trace->segRG, &trace->segRF,
                              &trace->segSup, &trace->bandTheta, &trace->bandS, &trace->bandR0 })
@@ -1492,48 +1496,23 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                                    && std::abs(omegaPred[size_t(i)]) >= cfg.wedge.omegaMinDegS;
         }
     }
-    // E4 per-frame probe. Candidate directions: the E2 local maxima above
-    // rayEvMin (≤ maxCand), the band θ when E1 locked, the wedge centroid when
-    // the fan triggered. Best lock by (FULL > TERMINUS, support, n). Pass 1 runs
-    // prior-free inside the evidence loop; pass 2 (after it) retries the frames
-    // still unlocked with the swing's median FULL scale as sPrior, which is what
-    // lets a frame whose onset sits in the hands' bloom lock on its terminus.
-    const auto segProbe = [&](int i, const cv::Mat& g32, double sPrior, int pass) {
-        const std::vector<float>& ev = EV[i];
-        std::vector<std::pair<float, int>> cands;
-        for (int k = 0; k < NS; ++k) {
-            const float v = ev[k];
-            if (v < float(cfg.rayEvMin)) continue;
-            if (v >= ev[(k + NS - 1) % NS] && v >= ev[(k + 1) % NS]) cands.emplace_back(v, k);
-        }
-        std::sort(cands.begin(), cands.end(), [](const auto& p, const auto& q) { return p.first > q.first; });
-        if (int(cands.size()) > cfg.seg.maxCand) cands.resize(size_t(cfg.seg.maxCand));
-        std::vector<double> thetas;
-        for (const auto& c : cands) thetas.push_back(double(gridRad[c.second]));
-        if (bandOk[i]) thetas.push_back(double(band[i].thetaDeg) * kPi / 180.0);
-        if (wedgeTrig[size_t(i)] && wedgeCand[size_t(i)].ok)
-            thetas.push_back(wedgeCand[size_t(i)].centroidDeg * kPi / 180.0);
+    // E4 per-frame probe (P3a, design §4.8 item 1): along the DP's own
+    // direction — and the band's when E1 locked — never along E2 candidates,
+    // which a crease or the lead arm wins on a third of frames. Called after
+    // the Viterbi: pass 1 prior-free, pass 2 with the swing's median FULL scale
+    // for the frames still unlocked (a hidden onset then locks on its terminus).
+    const auto segProbe = [&](int i, const cv::Mat& g32, const std::vector<double>& thetas, double sPrior, int pass) {
         const double lenPrior = out.measuredClubLenPx > 0.f ? double(out.measuredClubLenPx) : 0.0;
-        // C4 arm veto and C1 reverse-ray test, as frameEmission applies them: a
-        // direction into the lead forearm, or one whose reverse carries stronger
-        // normalised evidence off the forearm, is a scene line, not the club.
-        const double arm = std::fmod(phiS[i] + 180.0, 360.0);
-        const double phiMod = std::fmod(std::fmod(phiS[i], 360.0) + 360.0, 360.0);
-        SegmentLock best; double bestScore = -1.0;
+        SegmentLock best;
         for (double th : thetas) {
-            const double thDeg = std::fmod(th * 180.0 / kPi + 360.0, 360.0);
-            if (std::abs(circWrap(thDeg - arm)) < cfg.armVetoDeg) continue;
-            const int k = ((int(std::lround(thDeg / cfg.grid)) % NS) + NS) % NS;
-            const double evHere = ev[k], evRev = ev[(k + NS / 2) % NS];
-            if (evRev > cfg.c1Tol && evRev > 1.15 * evHere && std::abs(circWrap(thDeg - phiMod)) > cfg.armVetoDeg) continue;
             const SegmentLock L = segmentLock(g32, gx[i], gy[i], th, rmax, *segGeom, cfg.seg, cfg.ridge,
                                               sPrior, lenPrior);
             if (L.stage > segStage[size_t(i)]) segStage[size_t(i)] = char(L.stage);
             if (!L.ok) continue;
-            // rank by the E2 evidence the DP will see, times the run's support;
-            // FULL locks carry a measured scale and outrank TERMINUS ones
-            const double score = std::max(double(evHere), 0.05) * double(L.support) * (L.mode == SegmentMode::Full ? 1.3 : 1.0);
-            if (score > bestScore) { bestScore = score; best = L; }
+            const bool better = !best.ok
+                || (L.mode == SegmentMode::Full && best.mode != SegmentMode::Full)
+                || (L.mode == best.mode && L.runLenPx * L.support > best.runLenPx * best.support);
+            if (better) best = L;
         }
         if (best.ok) { seg[size_t(i)] = best; segPass[size_t(i)] = char(pass); }
     };
@@ -1608,7 +1587,6 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         }
         BandMatch bm = frameBandMatch(g8, gx[i], gy[i], rmax, bandsMm, cfg.band);
         if (bm.ok && bm.r0 > 0.0f && bm.r0 <= 260.0f) { band[i] = bm; bandOk[i] = 1; }
-        if (segRun) segProbe(i, g32, 0.0, 1);
         std::vector<float> em, inside;
         const double haDeg  = (i < int(handAxisDeg.size()))  ? handAxisDeg[size_t(i)]
                                                              : std::numeric_limits<double>::quiet_NaN();
@@ -1624,49 +1602,6 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         });
     else
         for (int i = 0; i < nf; ++i) evidenceBody(i);
-    if (segRun) {
-        // pass 2: the swing's median FULL scale as the prior (≥ 5 FULL locks)
-        std::vector<double> sv;
-        for (int i = 0; i < nf; ++i)
-            if (seg[size_t(i)].ok && seg[size_t(i)].mode == SegmentMode::Full) sv.push_back(double(seg[size_t(i)].s));
-        double sPrior = 0.0;
-        if (sv.size() >= 5) {
-            std::sort(sv.begin(), sv.end());
-            sPrior = sv[sv.size() / 2];
-        }
-        if (trace) trace->segSPrior = sPrior > 0.0 ? sPrior : -1.0;
-        if (sPrior > 0.0) {
-            const auto pass2 = [&](int i) {
-                if (seg[size_t(i)].ok || !heavyMark[size_t(i)]) return;
-                cv::Mat g8 = frameSrc(i);
-                if (g8.empty()) return;
-                cv::Mat g32; g8.convertTo(g32, CV_32F);
-                segProbe(i, g32, sPrior, 2);
-            };
-            if (parFrames)
-                cv::parallel_for_(cv::Range(0, nf), [&](const cv::Range& rng) {
-                    for (int i = rng.start; i < rng.end; ++i) pass2(i);
-                });
-            else
-                for (int i = 0; i < nf; ++i) pass2(i);
-        }
-        if (trace)
-            for (int i = 0; i < nf; ++i) {
-                const SegmentLock& L = seg[size_t(i)];
-                trace->segStage[size_t(i)] = int(segStage[size_t(i)]);
-                if (L.ok) {
-                    trace->segMode[size_t(i)] = int(L.mode); trace->segPass[size_t(i)] = int(segPass[size_t(i)]);
-                    trace->segN[size_t(i)] = L.n; trace->segDistal[size_t(i)] = L.distal;
-                    trace->segTheta[size_t(i)] = L.thetaDeg; trace->segS[size_t(i)] = L.s;
-                    trace->segR0[size_t(i)] = L.r0; trace->segRG[size_t(i)] = L.rG; trace->segRF[size_t(i)] = L.rF;
-                    trace->segSup[size_t(i)] = L.support;
-                }
-                if (bandOk[i]) {
-                    trace->bandN[size_t(i)] = band[i].n; trace->bandTheta[size_t(i)] = band[i].thetaDeg;
-                    trace->bandS[size_t(i)] = band[i].s; trace->bandR0[size_t(i)] = band[i].r0;
-                }
-            }
-    }
     int heavy = 0;
     for (int i = 0; i < nf; ++i) heavy += heavyMark[size_t(i)];
 
@@ -1729,6 +1664,49 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     }
 
     const DPResult dp = viterbiDP(emis, pm.phase, cfg);
+    if (segRun) {
+        const auto segFrame = [&](int i, double sPrior, int pass) {
+            if (!heavyMark[size_t(i)] || (pass == 2 && seg[size_t(i)].ok)) return;
+            cv::Mat g8 = frameSrc(i);
+            if (g8.empty()) return;
+            cv::Mat g32; g8.convertTo(g32, CV_32F);
+            std::vector<double> thetas{dp.thetaDeg[i] * kPi / 180.0};
+            if (bandOk[i]) thetas.push_back(double(band[i].thetaDeg) * kPi / 180.0);
+            segProbe(i, g32, thetas, sPrior, pass);
+        };
+        const auto runPass = [&](double sPrior, int pass) {
+            if (parFrames)
+                cv::parallel_for_(cv::Range(0, nf), [&](const cv::Range& rng) {
+                    for (int i = rng.start; i < rng.end; ++i) segFrame(i, sPrior, pass);
+                });
+            else
+                for (int i = 0; i < nf; ++i) segFrame(i, sPrior, pass);
+        };
+        runPass(0.0, 1);
+        std::vector<double> sv;
+        for (int i = 0; i < nf; ++i)
+            if (seg[size_t(i)].ok && seg[size_t(i)].mode == SegmentMode::Full) sv.push_back(double(seg[size_t(i)].s));
+        double sPrior = 0.0;
+        if (sv.size() >= 5) { std::sort(sv.begin(), sv.end()); sPrior = sv[sv.size() / 2]; }
+        if (trace) trace->segSPrior = sPrior > 0.0 ? sPrior : -1.0;
+        if (sPrior > 0.0) runPass(sPrior, 2);
+        if (trace)
+            for (int i = 0; i < nf; ++i) {
+                const SegmentLock& L = seg[size_t(i)];
+                trace->segStage[size_t(i)] = int(segStage[size_t(i)]);
+                if (L.ok) {
+                    trace->segMode[size_t(i)] = int(L.mode); trace->segPass[size_t(i)] = int(segPass[size_t(i)]);
+                    trace->segN[size_t(i)] = L.n; trace->segDistal[size_t(i)] = L.distal; trace->segOnset[size_t(i)] = L.onset;
+                    trace->segTheta[size_t(i)] = L.thetaDeg; trace->segS[size_t(i)] = L.s;
+                    trace->segR0[size_t(i)] = L.r0; trace->segRG[size_t(i)] = L.rG; trace->segRF[size_t(i)] = L.rF;
+                    trace->segSup[size_t(i)] = L.support;
+                }
+                if (bandOk[i]) {
+                    trace->bandN[size_t(i)] = band[i].n; trace->bandTheta[size_t(i)] = band[i].thetaDeg;
+                    trace->bandS[size_t(i)] = band[i].s; trace->bandR0[size_t(i)] = band[i].r0;
+                }
+            }
+    }
     std::vector<double> evAt(nf, 0.0);
     for (int i = 0; i < nf; ++i) evAt[i] = EV[i][dp.thstar[i]];
     ReconResult rec;

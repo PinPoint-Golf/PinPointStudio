@@ -555,6 +555,7 @@ int main(int argc, char **argv)
                     line.insert("seg_n",      trace.segN[size_t(f)]);
                     line.insert("seg_sup",    trace.segSup[size_t(f)]);
                     line.insert("seg_distal", trace.segDistal[size_t(f)]);
+                    line.insert("seg_onset",  trace.segOnset[size_t(f)]);
                 }
                 if (trace.bandN[size_t(f)] > 0) {
                     line.insert("band_theta", trace.bandTheta[size_t(f)]);

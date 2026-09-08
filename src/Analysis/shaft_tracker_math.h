@@ -121,6 +121,7 @@ struct RayProfile {
     std::vector<float>   bg;      // lateral background (median of 4 at ±9/±12 px)
     std::vector<float>   wide;    // mean of 4 lateral samples at ±5/±7 px (thin line vs blob)
     std::vector<uint8_t> bright;  // 1 = bright-line regime (bg ≤ bgHi), 0 = dark line on blown bg
+    std::vector<uint8_t> inb;     // 1 = sample inside the image; off-frame samples carry zero evidence
 };
 
 // Sample r = rLo, rLo+rStep, … < rHi along direction thetaRad from (gx,gy) on a
@@ -140,7 +141,10 @@ struct SegmentConfig {
     int   minLenPx     = 60;      // shortest credible steel run (px)
     int   maxHolePx    = 80;      // evidence-free samples bridged inside a run: bare steel drops out for 50–70 px
                                   // between lit stretches on real frames; support (below) bounds the total
-    float onsetFrac    = 0.45f;   // the grip gap is the LAST dark stretch within this fraction of the run
+    float onsetFrac    = 0.45f;   // the proximal landmark is searched within this fraction of the run
+    float handsEndMm   = 180.f;   // butt → bottom of the trail hand for a standard grip (lead hand ~100 mm, trail ~80 mm);
+                                  // the hands'-edge onset's millimetre. An athlete setting in P4 (measured once with a tape).
+    float handsSigmaMm = 25.f;    // its σ (corpus: the hands' edge measured 127–181 mm from the butt on one swing)
     float holeBgTol    = 60.0f;   // a hole is bridged only if its background stays within this of the anchor's:
                                   // a steel dropout sits on the same background, a head's interior does not
     int   minDarkPx    = 3;       // dark samples required before the onset / after the terminus
@@ -156,7 +160,11 @@ struct SegmentConfig {
     float sMax         = 0.55f;
     float r0Min        = 0.0f;    // butt→anchor offset (mm): the anchor sits inside the grip
     float r0Max        = 260.0f;
-    float lenTol       = 0.20f;   // |s·(clubLenMm − r0) − lenPriorPx| ≤ lenTol·lenPriorPx
+    float lenTol       = 0.20f;   // projected length s·(clubLenMm − r0) ≤ (1 + lenTol)·lenPriorPx …
+    float lenMinFrac   = 0.40f;   // … and ≥ lenMinFrac·lenPriorPx: the prior is the in-plane (address) length,
+                                  // a foreshortened mid-swing projection is legitimately much shorter
+    float r0MinHands   = -60.0f;  // r0 floor for a hands'-edge onset: handsEndMm carries σ 25–40 mm, so the
+                                  // implied anchor may sit "behind the butt" by that much and still be real
     float sTol         = 0.25f;   // |s − sPrior| ≤ sTol·sPrior (FULL mode only)
     float bandSat      = 235.0f;  // band plateau level on the run (bright regime)
     float rmsMax       = 3.0f;    // landmark-fit RMS gate when bands join (n ≥ 3)
@@ -200,6 +208,7 @@ struct SegmentLock {
     float support  = 0.f;   // fraction of e > eOff over the run
     int   distal   = 0;     // 0 unresolved · 1 ferrule (dark gap, then the hosel/head) · 2 ran into the bright head · 3 dark end
     float sigmaMm  = 0.f;   // σ of the distal landmark (ferruleTolMm / hoselTolMm)
+    int   onset    = 0;     // 0 unresolved · 1 grip end (a visible dark grip precedes the run) · 2 hands' edge (the hands' bloom precedes it)
     int   stage    = 0;     // how far the probe got: 0 geom · 1 no run · 2 support · 3 off-frame · 4 no distal landmark
                             // · 5 distal edge · 6 no onset and no prior · 7 s/r0 gate · 8 length gate · 9 locked
     float runLenPx = 0.f;   // the steel run's length (px), for ranking refinements

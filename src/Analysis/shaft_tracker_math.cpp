@@ -404,6 +404,7 @@ RayProfile rayProfile(const cv::Mat& img, double gx, double gy, double thetaRad,
         const double cx = gx + ux * r, cy = gy + uy * r;
         const bool inb = (cx >= 0.0 && cx < W && cy >= 0.0 && cy < H);
         P.r.push_back(float(r));
+        P.inb.push_back(inb ? 1 : 0);
         if (!inb) {   // off-frame: zero evidence, as ridgeSweep
             P.e.push_back(0.f); P.on.push_back(0.f); P.bg.push_back(0.f);
             P.wide.push_back(0.f); P.bright.push_back(1);
@@ -525,7 +526,12 @@ SegmentLock segmentLockAt(const cv::Mat& img, double gx, double gy, double theta
     out.stage = 3;
 
     // ── distal landmark: what follows the run within lookAheadPx ────────────
-    if (b >= n - 3) return out;                     // run leaves the frame / search radius: no terminus
+    if (b >= n - 3) return out;                     // run reaches the search radius: no terminus
+    // A run that ends within lookAheadPx of the image edge has no terminus: the
+    // club may continue out of frame (a ray a degree off the line leaves the
+    // 4 px steel a few samples before the edge, which is why 3 px is not enough).
+    for (int i = b + 1; i <= std::min(n - 1, b + cfg.lookAheadPx); ++i)
+        if (!P.inb[size_t(i)]) return out;
     out.stage = 4;
     int bSteel = b;
     {
@@ -554,8 +560,11 @@ SegmentLock segmentLockAt(const cv::Mat& img, double gx, double gy, double theta
         const bool headAfter = nOn > 0 && (P.bright[size_t(b)]
             ? (bgAfter - bgRun) >= cfg.headBgFrac * (onRun - bgRun)
             : (bgRun - bgAfter) >= cfg.headBgFrac * (bgRun - onRun));
-        if (dark >= cfg.minDarkPx && nextBright > 0)      { out.distal = 1; out.sigmaMm = cfg.ferruleTolMm; }
-        else if (headAfter)                               { out.distal = 2; out.sigmaMm = cfg.hoselTolMm; }
+        // Order: a head beginning at the run's end (its interior is evidence-free
+        // and its far rim reads bright) would otherwise pass as "dark gap, then
+        // bright" — the ferrule signature.
+        if (headAfter)                                    { out.distal = 2; out.sigmaMm = cfg.hoselTolMm; }
+        else if (dark >= cfg.minDarkPx && nextBright > 0) { out.distal = 1; out.sigmaMm = cfg.ferruleTolMm; }
         else if (dark >= cfg.minDarkPx)                   { out.distal = 3; out.sigmaMm = cfg.hoselTolMm; }
         else return out;                                  // dim tail: the run petered out, no landmark
         out.stage = 5;
@@ -567,7 +576,10 @@ SegmentLock segmentLockAt(const cv::Mat& img, double gx, double gy, double theta
     // the steel there — the ferrule is then resolved after all. Always: a
     // specular dropout this close to the end costs at most 25 px, inside the
     // ferrule tolerance, while a swallowed ferrule costs the hosel length.
-    {
+    // Marked clubs only ever reach here for grading: their tip group's 25 mm
+    // inter-band gaps are ferrule-sized dips (corpus: distal-1 median −17 px),
+    // so the look-back is unmarked-only and a marked club keeps the hosel end.
+    if (geom.bandsMm.empty()) {
         for (int i = b; i >= std::max(a + cfg.minLenPx, b - cfg.lookAheadPx); --i)
             if (drk[size_t(i)] && drk[size_t(i - 1)]) {
                 int j = i - 1;
@@ -577,63 +589,48 @@ SegmentLock segmentLockAt(const cv::Mat& img, double gx, double gy, double theta
             }
     }
     out.rF = P.r[size_t(bSteel)];
-    // the millimetre the terminus refers to depends on what ended the run
-    const double mF = (out.distal == 2) ? geom.hoselMm + cfg.hoselLenMm      // ran into the wide head
-                                        : geom.hoselMm - cfg.ferruleMm;      // steel ends at the ferrule
+    // The millimetre the terminus refers to: the ferrule is a bridged hole and
+    // the hosel is chrome, so a run ends at the HOSEL END unless the look-back
+    // positively resolved the ferrule (corpus: dark-end runs sit ~20 px past
+    // the steel's end, one hosel length at the rig's scale).
+    const double mF = (out.distal == 1) ? geom.hoselMm - cfg.ferruleMm       // steel ends at the resolved ferrule
+                                        : geom.hoselMm + cfg.hoselLenMm;     // ran to the end of the hosel
 
-    // ── proximal landmark: the visible grip ─────────────────────────────────
-    // With long holes bridged, the run can begin at the hands' bright pixels or at
-    // the grip cap. The grip is the LAST dark stretch (≥ minDarkPx) inside the
-    // proximal onsetFrac of the run — or immediately before the run — and the
-    // onset is the first bright sample after it. The hands' bloom is
-    // evidence-free too (on = bg = 255 ⇒ e = −12), so a dark gap is only a grip
-    // when the on-ridge level steps UP by edgeMin into the steel (bright regime);
-    // over a blown background the grip is itself a dark line and the onset is
-    // unresolved by construction.
+    // ── proximal landmark ───────────────────────────────────────────────────
+    // Phase 3a (design §4.8): the run's start is the landmark; WHAT PRECEDES it
+    // says which millimetre it is. A dark, background-like stretch (a visible
+    // matte grip) ⇒ the GRIP END, gripEndMm. The hands' bloom (evidence-free,
+    // bright: on ≈ bg ≥ headBgFrac × the steel's level) ⇒ the HANDS' EDGE,
+    // handsEndMm (σ handsSigmaMm). A light grip is bright like the steel and
+    // belongs to the run, so its run also starts at the hands' edge — which is
+    // why no interior step is searched: on a light grip the first upward step
+    // is the hands, and the corpus measured it at 127–181 mm, not 265.
     bool onsetOk = false;
     int aOn = a;
-    {
-        const int lim = a + int(cfg.onsetFrac * float(bSteel - a));
-        int gapEnd = -1;
-        for (int i = lim; i >= a; --i) {
-            if (!drk[size_t(i)]) continue;
-            int j = i;
-            while (j > 0 && drk[size_t(j - 1)]) --j;
-            if (i - j + 1 >= cfg.minDarkPx) { gapEnd = i; break; }
-            i = j;
-        }
-        if (gapEnd < 0 && a >= cfg.minDarkPx + 2) {   // the gap sits just before the run
-            int dark = 0;
-            for (int i = a - cfg.minDarkPx - 2; i <= a - 1; ++i) if (drk[size_t(i)]) ++dark;
-            if (dark >= cfg.minDarkPx) gapEnd = a - 1;
-        }
-        if (gapEnd >= 0) {
-            int k = gapEnd + 1;
-            while (k < bSteel && !brt[size_t(k)]) ++k;      // first bright sample after the gap
-            aOn = k;
-            if (P.r[size_t(aOn)] <= cfg.proxFrac * rmax && aOn >= 4 && aOn + 3 < n && P.bright[size_t(aOn)]) {
-                double onIn = 0.0, onOut = 0.0;
-                for (int i = aOn; i <= aOn + 3; ++i) onIn += P.on[size_t(i)];
-                for (int i = gapEnd - 3; i <= gapEnd; ++i) onOut += P.on[size_t(std::max(i, 0))];
-                onsetOk = (onIn - onOut) / 4.0 >= cfg.edgeMin;
-            }
-        }
+    if (a >= 6 && P.bright[size_t(a)] && P.r[size_t(a)] <= cfg.proxFrac * rmax) {
+        double onIn = 0.0, onBefore = 0.0, bgBefore = 0.0; int dark = 0;
+        for (int i = a; i <= a + 3; ++i) onIn += P.on[size_t(i)];
+        for (int i = a - 6; i <= a - 1; ++i) { onBefore += P.on[size_t(i)]; bgBefore += P.bg[size_t(i)]; if (drk[size_t(i)]) ++dark; }
+        onIn /= 4.0; onBefore /= 6.0; bgBefore /= 6.0;
+        if (bgBefore >= cfg.headBgFrac * onIn)                       { out.onset = 2; onsetOk = true; }   // the hands
+        else if (dark >= cfg.minDarkPx && onIn - onBefore >= cfg.edgeMin) { out.onset = 1; onsetOk = true; }   // a visible dark grip
     }
     if (onsetOk) {
         // support is re-read over the steel proper [aOn, bSteel]
         int pos = 0;
         for (int i = aOn; i <= bSteel; ++i) if (!drk[size_t(i)]) ++pos;
         out.support = float(double(pos) / double(bSteel - aOn + 1));
-        if (out.support < cfg.supportMin) onsetOk = false;
+        if (out.support < cfg.supportMin) { onsetOk = false; out.onset = 0; }
     }
+    const double mG = (out.onset == 2) ? double(cfg.handsEndMm) : geom.gripEndMm;
 
     // ── fit ─────────────────────────────────────────────────────────────────
     double s = 0.0, r0 = 0.0;
     if (onsetOk) {
         out.rG = P.r[size_t(aOn)];
-        s  = (double(out.rF) - double(out.rG)) / (mF - geom.gripEndMm);
+        s  = (double(out.rF) - double(out.rG)) / (mF - mG);
         if (s <= 0.0) return out;
-        r0 = geom.gripEndMm - double(out.rG) / s;
+        r0 = mG - double(out.rG) / s;
         out.n = 2; out.mode = SegmentMode::Full;
         // bands, when present, join as extra landmarks — assigned by the two-end
         // fit's prediction, then a joint least-squares refit (E1's tolerance).
@@ -655,7 +652,7 @@ SegmentLock segmentLockAt(const cv::Mat& img, double gx, double gy, double theta
             double sFit = s, r0Fit = r0;
             for (int pass = 0; pass < 2; ++pass) {
                 const double tol = pass == 0 ? tolLoose : tolTight;
-                std::vector<double> rr{double(out.rG), double(out.rF)}, mm{geom.gripEndMm, mF};
+                std::vector<double> rr{double(out.rG), double(out.rF)}, mm{mG, mF};
                 std::vector<char> used(centres.size(), 0);
                 for (double m : geom.bandsMm) {
                     const double rp = sFit * (m - r0Fit);
@@ -691,11 +688,12 @@ SegmentLock segmentLockAt(const cv::Mat& img, double gx, double gy, double theta
     // ── gates ───────────────────────────────────────────────────────────────
     out.stage = 7;
     if (s < cfg.sMin || s > cfg.sMax) { out.mode = SegmentMode::None; return out; }
-    if (r0 <= cfg.r0Min || r0 > cfg.r0Max) { out.mode = SegmentMode::None; return out; }
+    const double r0Floor = (out.onset == 2) ? double(cfg.r0MinHands) : double(cfg.r0Min);
+    if (r0 <= r0Floor || r0 > cfg.r0Max) { out.mode = SegmentMode::None; return out; }
     out.stage = 8;
     if (lenPriorPx > 0.0) {
         const double L = s * (geom.clubLenMm - r0);
-        if (std::abs(L - lenPriorPx) > cfg.lenTol * lenPriorPx) { out.mode = SegmentMode::None; return out; }
+        if (L > (1.0 + cfg.lenTol) * lenPriorPx || L < cfg.lenMinFrac * lenPriorPx) { out.mode = SegmentMode::None; return out; }
     }
     out.s = float(s); out.r0 = float(r0); out.ok = true; out.stage = 9;
     return out;

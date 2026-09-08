@@ -613,7 +613,7 @@ struct ShaftDecideTrace {
     // the E1 lock's (θ, s, r0, n) on the same frame (bandN 0 = no band lock).
     // Empty unless a trace sink is present AND cfg.seg.enabled. Diagnostics
     // only — nothing downstream reads them (P2); P3 wires the consumers.
-    std::vector<int>    segMode, segPass, segN, segDistal, segStage, bandN;
+    std::vector<int>    segMode, segPass, segN, segDistal, segStage, segOnset, bandN;
     std::vector<double> segTheta, segS, segR0, segRG, segRF, segSup, bandTheta, bandS, bandR0;
     double              segSPrior = -1.0;   // the pass-2 scale prior (px/mm), −1 = none
     double              wedgeTExpS = -1.0;

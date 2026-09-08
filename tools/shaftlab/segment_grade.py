@@ -43,7 +43,7 @@ def load(run_root):
                              seg_mode=r.get("seg_mode", 0), seg_pass=r.get("seg_pass"), seg_theta=r.get("seg_theta"),
                              seg_s=r.get("seg_s"), seg_r0=r.get("seg_r0"), seg_n=r.get("seg_n"),
                              seg_sup=r.get("seg_sup"), seg_distal=r.get("seg_distal"), seg_stage=r.get("seg_stage"),
-                             seg_rg=r.get("seg_rg"), seg_rf=r.get("seg_rf"),
+                             seg_rg=r.get("seg_rg"), seg_rf=r.get("seg_rf"), seg_onset=r.get("seg_onset"),
                              band_theta=r.get("band_theta"), band_s=r.get("band_s"), band_r0=r.get("band_r0"),
                              band_n=r.get("band_n")))
     return rows
@@ -90,6 +90,31 @@ def grade(rows, out_md):
         L.append(f"| {ph} | {len(F)} | {q(rg,50):.0f} | {q(rg,90):.0f} | {q(rfF,50):.0f} | {q(rfF,90):.0f} | {q(rfFp,50):.0f}% | "
                  f"{len(T)} | {q(rfT,50):.0f} | {q(rfT,90):.0f} |")
     L.append("\n(rows restricted to locks within 6° of the band direction, so the landmark error is measured on the right ray)")
+    # ── A2b. terminus placement vs the two candidate millimetres ─────────────
+    L.append("\n### A2b. Terminus by distal tag: signed error vs the steel end (870 mm) and vs the hosel end (922 mm)\n")
+    L.append("| distal | locks | vs 870: p50 (px) | vs 922: p50 (px) | within ±15 px of the better | ")
+    L.append("|---|---|---|---|---|")
+    for dt, name in ((1, "ferrule resolved"), (2, "head after"), (3, "dark end")):
+        R = [r for r in rows if r["band_n"] and r["seg_mode"] > 0 and r["seg_distal"] == dt
+             and abs(wrap(r["seg_theta"] - r["band_theta"])) <= 6.0]
+        if not R: continue
+        e870 = [r["seg_rf"] - r["band_s"] * (870.0 - r["band_r0"]) for r in R]
+        e922 = [r["seg_rf"] - r["band_s"] * (922.0 - r["band_r0"]) for r in R]
+        better = e870 if abs(q(e870, 50)) < abs(q(e922, 50)) else e922
+        L.append(f"| {name} | {len(R)} | {q(e870,50):+.0f} | {q(e922,50):+.0f} | {np.mean([abs(x) <= 15 for x in better])*100:.0f}% |")
+
+    # ── A3. onset anatomy: which landmark, and what millimetre it really sat at ─
+    L.append("\n### A3. Proximal landmark by onset type (FULL locks on band frames within 6°)\n")
+    L.append("| phase | onset | locks | s err p50 | s err p90 | measured m_G p50 (mm from butt) | m_G p10 | m_G p90 | assumed |")
+    L.append("|---|---|---|---|---|---|---|---|---|")
+    for ph in PORDER + ["ALL"]:
+        for on_t, assumed in ((1, 265), (2, 180)):
+            R = [r for r in rows if r["band_n"] and r["seg_mode"] == 1 and r.get("seg_onset") == on_t
+                 and (ph == "ALL" or r["phase"] == ph) and abs(wrap(r["seg_theta"] - r["band_theta"])) <= 6.0]
+            if not R: continue
+            se = [abs(r["seg_s"] - r["band_s"]) / r["band_s"] * 100 for r in R]
+            mg = [r["seg_rg"] / r["band_s"] + r["band_r0"] for r in R]
+            L.append(f"| {ph} | {'grip end' if on_t == 1 else 'hands edge'} | {len(R)} | {q(se,50):.1f}% | {q(se,90):.1f}% | {q(mg,50):.0f} | {q(mg,10):.0f} | {q(mg,90):.0f} | {assumed} |")
 
     # ── B. where the band lock is absent ────────────────────────────────────
     L.append("\n### B. Segment lock where the band lock is ABSENT (θ vs the tracker's final θ on RAY frames)\n")

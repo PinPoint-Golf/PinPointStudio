@@ -1,6 +1,6 @@
 # Markerless club tracking — design
 
-**Status: design 2026-09-08; P0 measured, P1 engine built and P2 graded the same day (§6). P2 did not meet its targets and redefined Phase 3 (§4.8, §5.1).** Successor to club tracking v3 (`club_tracking_v3_design.md`,
+**Status: design 2026-09-08; P0 measured, P1 engine built, P2 graded and P3a re-shaped and re-graded the same day (§6). P2 missed its targets and redefined Phase 3; P3a meets the direction, position and scale gates (§4.8 item 6, §5.1); coverage is open.** Successor to club tracking v3 (`club_tracking_v3_design.md`,
 as-built `shaft_track_assembly.*` / `shaft_tracker_math.*`). Premise, from Mark: the
 retroreflective bands on the shaft change the club's swing weight, and a club whose swing
 weight has changed produces a different swing. The tracker must therefore reach today's
@@ -602,8 +602,26 @@ and is recorded here.
    evidence-free. The class was dropped; the rim of a wide blob, which reads bright for
    1–3 px, is excluded by the anchor rule instead.
 
-The engine as committed after Phase 2 embodies 3, 4 and 5 and passes the synthetic
-suite; 1 and 2 are the Phase 3 change of shape and are not built.
+6. **Phase 3a built items 1 and 2 and re-graded (2026-09-08).** The probe now runs
+   after the Viterbi along the DP's direction (and the band's when E1 locked); the
+   onset is classified by what precedes the run — a dark, background-like stretch is a
+   visible matte grip (grip end, 265 mm), the hands' bloom is the hands' edge
+   (`handsEndMm`, default 180). Measured on 812 hands'-edge locks the edge sits at
+   **165 mm from the butt at p50 (p10 121, p90 208)**, so the default carries a few
+   percent of bias and the spread is the σ the design guessed; it is view-dependent
+   (impact 146, finish 206) and is the natural athlete setting for P4. The 82 locks
+   classed as a grip end but measured at 166–187 mm are a hands' edge that happened to
+   be preceded by a dark stretch, and carry the 14% scale error of that misclassification.
+   The terminus millimetre was settled by the corpus: a run ends at the **hosel end**
+   (922 mm) — dark-end and head-after locks sit at −1 px from it at p50 — unless a
+   ferrule dip is positively resolved, and on marked clubs the look-back is off because
+   the tip group's 25 mm inter-band gaps are ferrule-sized dips. Two gates were wrong for
+   what the probe now sees: the butt-offset floor rejected hands'-edge locks whose
+   assumed millimetre implied an anchor a little behind the butt (`r0MinHands` −60 mm),
+   and the length gate was two-sided although a foreshortened mid-swing projection is
+   legitimately far shorter than the address length it is compared with (now an upper
+   bound plus a loose 0.4 floor). A run that ends within 25 px of the image edge has no
+   terminus — a ray a degree off the line leaves a 4 px steel before the edge.
 
 ---
 
@@ -651,6 +669,24 @@ Verdict: **as a pre-DP pin with a grip-end landmark the segment lock does not re
 band lock, and the corpus says why**. Along the right ray the terminus is a usable
 landmark; the onset is not; and the ray must come from the DP. Phase 3 is redefined
 accordingly (§6).
+
+**Phase 3a result (2026-09-08, same 38 swings; graded binary = committed engine).**
+
+| metric | target | Phase 2 | **Phase 3a** |
+|---|---|---|---|
+| θ error, locks on band frames | p50 ≤ 1.5°, p90 ≤ 5° | 1.7° / 71.6° | **1.0° / 1.4°**, 0.4% > 15° |
+| lock conflict (> 6°) | ≤ 2% | 27.9% | **3.6%** (address 58% on 47 frames, downswing 11%; every other phase ≤ 7%) |
+| `s` error, FULL locks | p50 ≤ 8% (P3a gate) | 27.7% | **6.2%** (hands'-edge locks 5.6%, n 812); p90 43% |
+| `r0` error | p50 ≤ 20 mm | 81 mm | 28 mm |
+| terminus, on-ray, vs the hosel end | p50 ≤ 10 px | — | **−1 px**, 53–61% within ±15 px; p90 105 px (runs stopping at the mid band) |
+| FULL-lock rate where band locked | ≥ 70% | 27% | **40%** (any lock 52%) |
+| any lock at address / finish where band did not lock | ≥ 50% | 3% / 0% | 2% / 1% — those frames sit outside the evidence span and are not probed |
+| lock rate on band-absent frames, backswing / top | — | 38% / 21% | 34% / 49%, θ vs the DP 0.5–1.0° |
+
+Direction and terminus position are solved; scale is at the P3a gate with a tail; coverage
+is the open item. Of the 2,300 band frames the probe left unlocked, 712 fell at the s/r0
+gate and 202 found no run of 60 px; the rest are spread thinly. The address and finish
+numbers are a span question (§7), not a detector one.
 
 ### 5.2 Unmarked-club corpus
 
@@ -708,7 +744,7 @@ normalisation) still apply to anything that shares code with E2.
 | **P0 — measure** ✅ 2026-09-08 | `tools/shaftlab/steel_profile_probe.py`; `docs/research/data/markerless/steel_profile_probe.csv` (21,635 frames, 83 swings) + `_summary.md`; results in §2.4 | done — 64 taped + 19 unmarked swings; the two-frame table of §2.1 holds corpus-wide, with delivery as the exception |
 | **P1 — engine (C++)** ✅ 2026-09-08 | `rayProfile()` + `segmentLock()` in `shaft_tracker_math.*`; E2's per-sample reduction factored into a shared `sampleRay()`; `SegmentConfig` on `ShaftV3Config` with every `shaft.seg.*` key parsed; `shaft_segment_test` (28 checks: bit-for-bit ridge-score pin, FULL/TERMINUS, polarity flip, forearm/off-axis/off-frame counterfeits, length and scale gates, bands as extra landmarks, four foreshortening scales) | done — 7 suites green under ctest, E2 pinned identical |
 | **P2 — grade** ✅ 2026-09-08 | segment probe inside the evidence loop behind `shaft.seg.enabled` (pass 1 prior-free, pass 2 with the swing's median FULL scale), traced beside the band lock; `tools/shaftlab/segment_grade.py`; 38 taped swings | done — **§5.1 targets NOT met**; the corpus located the two design errors (§4.8 items 1–2) |
-| **P3a — change of shape** | probe **along the DP's θ** after the Viterbi (and along the band θ when present), not along E2 candidates; proximal landmark = **hands' edge** with `m_H = gripEndMm − handsOverhangMm` (σ 20 mm) and a per-swing calibration from the address ball length; terminus referenced to the hosel top; re-grade on the same 38 swings | θ p90 ≤ 5° and conflict ≤ 2% become trivially true (the ray is the DP's); the real gate is `s` p50 ≤ 8% and terminus p50 ≤ 10 px |
+| **P3a — change of shape** ✅ 2026-09-08 | probe **along the DP's θ** after the Viterbi (and the band's when present); onset classified by what precedes the run (visible grip → grip end; hands' bloom → hands' edge at `handsEndMm`); terminus = hosel end unless a ferrule is resolved; look-back unmarked-only; image-edge guard; hands'-edge r0 floor; one-sided length gate; re-graded on the same 38 swings (§5.1) | θ p50/p90 **1.0°/1.4°**, terminus **−1 px** p50, `s` p50 **6.2%** — gate met; FULL-lock rate 40%, coverage is the open item |
 | **P3b — consumers** | `ShaftLock`, SEG tier, `lockNear`, ladder/fusion/placement from the post-DP lock; a second DP pass with the segment well only if P3a shows a pin is still needed; all behind `shaft.seg.enabled` | `enabled=0` byte-identical (§5.3); `shaft_decide_test` covers lock precedence and the Finish-publish change |
 | **P4 — record + UI + persistence** | `shaftLengthMm` in the club record, seed defaults, `AthleteClubsSection.qml` field, job fill, `swing.json` fields, loader | round-trips through record → job → swing.json → re-analysis |
 | **P5 — corpus + capture** | the untaped 7-iron session (§5.2), markup, gate CSVs in the repo, run trees deleted | §5.2 gates met |
@@ -739,6 +775,12 @@ without tape".
   untaped DP still routes down the wrong branch across impact with 6, the answer is to
   measure conflict and false-lock rates at 8, not to assume.
 - **Daylight confound in the existing untaped data.** Bounded, not resolved, until P5.
+- **Address and finish frames are not probed.** The evidence span runs from 100 ms
+  before the takeaway to 100 ms after the finish onset, so the address hold and the
+  held finish are never given a probe. §5.1's address/finish lock rates measure that,
+  not the detector. P3b decides whether the segment probe runs over the whole window
+  for still frames (a still frame is cheap: one ray) or whether the address-hold stack
+  feeds it once.
 - **Corpus labels.** `corpus.json` `conditions.club` and pre-0.1.10011 club records do not
   say which club was hit (§2.4). Every gate report that split by club or by taped/untaped
   using those labels needs re-reading; the probe's condition assignment (BAND-tier count
