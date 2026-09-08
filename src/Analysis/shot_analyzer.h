@@ -53,6 +53,10 @@ struct ShotAnalysisJob {
     std::vector<double> bandCentersMm;
     QString             shaftType;   // "steel" | "graphite" | "" (unknown)
     double hoselFromButtMm = 0.0;  // hosel offset from the butt (mm), athlete club record; 0 = unknown
+    // Exposed shaft, bottom of grip → top of hosel (mm), athlete club record
+    // (markerless_club_tracker_design.md §4.1); 0 = unknown ⇒ the tracker assumes
+    // a 265 mm grip. Grip end from the butt = hoselFromButtMm − shaftLengthMm.
+    double shaftLengthMm = 0.0;
 
     // Persistent club-length prior (club_length_fusion.h). clubName is the
     // canonical club-vocabulary id — half the prior key (athleteUuid|clubName|

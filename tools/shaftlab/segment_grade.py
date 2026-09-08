@@ -1,0 +1,145 @@
+#!/usr/bin/env python3
+"""
+segment_grade — Phase 2 of the markerless club tracker
+(docs/design/markerless_club_tracker_design.md §5.1).
+
+Grades the E4 steel-segment lock against the E1 band lock, frame by frame, from
+swinglab_run --trace output (trace.jsonl, one line per frame carrying seg_* and
+band_* when `shaft.seg.enabled` was set). The band lock is the per-frame
+reference: it exists only where E1 matched ≥ 4 collinear saturated blobs at the
+recorded band ratios, and is corpus-validated to 0.3° — so a segment lock on the
+same frame can be scored on θ, s and r0 with no hand truth.
+
+Where no band lock exists the segment lock is scored against the tracker's
+final θ (theta_out) on RAY-tier frames — a weaker reference (1.7° class) — and
+its lock RATE per phase is what §5.1 asks for at address and the finish.
+
+Usage:
+  segment_grade.py --runs <run_root> --out-csv frames.csv --out-md summary.md
+"""
+import argparse, collections, csv, glob, json, math, os
+import numpy as np
+
+# shaft_track_assembly.h SwingPhase
+PHASE = {0: "addr", 1: "back", 2: "top", 3: "down", 4: "impact", 5: "thru", 6: "finish"}
+PORDER = ["addr", "back", "top", "down", "impact", "thru", "finish"]
+
+def wrap(d):
+    d = (d + 180.0) % 360.0 - 180.0
+    return d
+
+def q(v, p):
+    return float(np.percentile(v, p)) if len(v) else float("nan")
+
+def load(run_root):
+    rows = []
+    for tf in sorted(glob.glob(os.path.join(run_root, "*", "trace.jsonl"))):
+        run = os.path.basename(os.path.dirname(tf))
+        for line in open(tf):
+            r = json.loads(line)
+            if "tier" not in r: continue
+            rows.append(dict(run=run, frame=r.get("frame", r.get("f")), phase=PHASE.get(r.get("phase"), "?"),
+                             tier=r["tier"], theta_out=r.get("theta_out"), theta_dp=r.get("theta_dp"),
+                             seg_mode=r.get("seg_mode", 0), seg_pass=r.get("seg_pass"), seg_theta=r.get("seg_theta"),
+                             seg_s=r.get("seg_s"), seg_r0=r.get("seg_r0"), seg_n=r.get("seg_n"),
+                             seg_sup=r.get("seg_sup"), seg_distal=r.get("seg_distal"), seg_stage=r.get("seg_stage"),
+                             seg_rg=r.get("seg_rg"), seg_rf=r.get("seg_rf"),
+                             band_theta=r.get("band_theta"), band_s=r.get("band_s"), band_r0=r.get("band_r0"),
+                             band_n=r.get("band_n")))
+    return rows
+
+def grade(rows, out_md):
+    L = []
+    runs = sorted({r["run"] for r in rows})
+    L.append(f"### Population\n\n{len(runs)} swings, {len(rows)} traced frames.\n")
+
+    # ── A. vs the band lock ─────────────────────────────────────────────────
+    L.append("### A. Segment lock vs band lock, same frame (band = reference)\n")
+    L.append("| phase | band frames | seg any | seg FULL | θ err p50 | θ err p90 | θ >15° | s err p50 | s err p90 | r0 err p50 (mm) | conflict >6° |")
+    L.append("|---|---|---|---|---|---|---|---|---|---|---|")
+    allrows = []
+    for ph in PORDER + ["ALL"]:
+        R = [r for r in rows if r["band_n"] and (ph == "ALL" or r["phase"] == ph)]
+        if not R: continue
+        S = [r for r in R if r["seg_mode"] > 0]
+        F = [r for r in R if r["seg_mode"] == 1]
+        th = [abs(wrap(r["seg_theta"] - r["band_theta"])) for r in S]
+        se = [abs(r["seg_s"] - r["band_s"]) / r["band_s"] * 100 for r in F]
+        r0 = [abs(r["seg_r0"] - r["band_r0"]) for r in F]
+        conf = np.mean([e > 6.0 for e in th]) * 100 if th else float("nan")
+        big = np.mean([e > 15.0 for e in th]) * 100 if th else float("nan")
+        L.append(f"| {ph} | {len(R)} | {len(S)/len(R)*100:.0f}% | {len(F)/len(R)*100:.0f}% | {q(th,50):.1f}° | {q(th,90):.1f}° | {big:.1f}% | "
+                 f"{q(se,50):.1f}% | {q(se,90):.1f}% | {q(r0,50):.0f} | {conf:.1f}% |")
+
+    # ── A2. landmark anatomy against the band geometry ──────────────────────
+    # The band lock's (s, r0) predicts where the steel's ends sit on the same ray:
+    # rG* = s·(gripEnd − r0), rF* = s·(hoselTop − ferrule − r0). Scoring the two
+    # ends separately says WHICH landmark carries the scale error.
+    L.append("\n### A2. Landmark error vs the band geometry (same frame; grip end 265 mm, steel end 870 mm)\n")
+    L.append("| phase | FULL locks | rG err p50 (px) | rG err p90 | rF err p50 (px) | rF err p90 | rF err p50 (% of steel) | TERMINUS locks | rF err p50 (px) | rF err p90 |")
+    L.append("|---|---|---|---|---|---|---|---|---|---|")
+    for ph in PORDER + ["ALL"]:
+        R = [r for r in rows if r["band_n"] and r["seg_mode"] > 0 and (ph == "ALL" or r["phase"] == ph)
+             and abs(wrap(r["seg_theta"] - r["band_theta"])) <= 6.0]
+        if not R: continue
+        F = [r for r in R if r["seg_mode"] == 1]; T = [r for r in R if r["seg_mode"] == 2]
+        rg = [abs(r["seg_rg"] - r["band_s"] * (265.0 - r["band_r0"])) for r in F]
+        rfF = [abs(r["seg_rf"] - r["band_s"] * (870.0 - r["band_r0"])) for r in F]
+        rfFp = [abs(r["seg_rf"] - r["band_s"] * (870.0 - r["band_r0"])) / (r["band_s"] * 605.0) * 100 for r in F]
+        rfT = [abs(r["seg_rf"] - r["band_s"] * (870.0 - r["band_r0"])) for r in T]
+        L.append(f"| {ph} | {len(F)} | {q(rg,50):.0f} | {q(rg,90):.0f} | {q(rfF,50):.0f} | {q(rfF,90):.0f} | {q(rfFp,50):.0f}% | "
+                 f"{len(T)} | {q(rfT,50):.0f} | {q(rfT,90):.0f} |")
+    L.append("\n(rows restricted to locks within 6° of the band direction, so the landmark error is measured on the right ray)")
+
+    # ── B. where the band lock is absent ────────────────────────────────────
+    L.append("\n### B. Segment lock where the band lock is ABSENT (θ vs the tracker's final θ on RAY frames)\n")
+    L.append("| phase | frames | seg any | seg FULL | seg TERMINUS | RAY frames | θ err p50 | θ err p90 | θ >15° |")
+    L.append("|---|---|---|---|---|---|---|---|---|")
+    for ph in PORDER + ["ALL"]:
+        R = [r for r in rows if not r["band_n"] and (ph == "ALL" or r["phase"] == ph)]
+        if not R: continue
+        S = [r for r in R if r["seg_mode"] > 0]
+        F = [r for r in R if r["seg_mode"] == 1]; T = [r for r in R if r["seg_mode"] == 2]
+        ray = [r for r in S if r["tier"] == "ray" and r["theta_out"] is not None]
+        th = [abs(wrap(r["seg_theta"] - r["theta_out"])) for r in ray]
+        big = np.mean([e > 15.0 for e in th]) * 100 if th else float("nan")
+        L.append(f"| {ph} | {len(R)} | {len(S)/len(R)*100:.0f}% | {len(F)/len(R)*100:.0f}% | {len(T)/len(R)*100:.0f}% | {len(ray)} | "
+                 f"{q(th,50):.1f}° | {q(th,90):.1f}° | {big:.1f}% |")
+
+    # ── C. lock anatomy ────────────────────────────────────────────────────
+    L.append("\n### C. Lock anatomy (all segment locks)\n")
+    S = [r for r in rows if r["seg_mode"] > 0]
+    dist = collections.Counter(r["seg_distal"] for r in S)
+    pas = collections.Counter(r["seg_pass"] for r in S)
+    nb = collections.Counter(r["seg_n"] for r in S)
+    L.append(f"- locks: {len(S)} of {len(rows)} frames ({len(S)/max(len(rows),1)*100:.0f}%); pass 1 {pas.get(1,0)}, pass 2 {pas.get(2,0)}")
+    L.append(f"- distal: ferrule {dist.get(1,0)}, hosel {dist.get(2,0)}, dark end {dist.get(3,0)}")
+    L.append(f"- landmarks n: " + ", ".join(f"{k}: {v}" for k, v in sorted(nb.items())))
+    sup = [r["seg_sup"] for r in S]
+    L.append(f"- support p50 {q(sup,50):.2f}, p10 {q(sup,10):.2f}")
+    U = [r for r in rows if r["seg_mode"] == 0 and r.get("seg_stage") is not None]
+    st = collections.Counter(r["seg_stage"] for r in U)
+    names = {0: "not probed", 1: "no run", 2: "support", 3: "off-frame", 4: "no distal landmark", 5: "distal edge", 6: "no onset, no prior", 7: "s/r0 gate", 8: "length gate"}
+    L.append("- unlocked frames by furthest stage reached: " + ", ".join(f"{names.get(k,k)} {v}" for k, v in sorted(st.items())))
+
+    # ── D. per swing ───────────────────────────────────────────────────────
+    L.append("\n### D. Per swing\n\n| run | frames | band | seg | both | θ err p50 (both) | θ >6° (both) | s err p50 |\n|---|---|---|---|---|---|---|---|")
+    for run in runs:
+        R = [r for r in rows if r["run"] == run]
+        B = [r for r in R if r["band_n"]]; S = [r for r in R if r["seg_mode"] > 0]
+        both = [r for r in R if r["band_n"] and r["seg_mode"] > 0]
+        th = [abs(wrap(r["seg_theta"] - r["band_theta"])) for r in both]
+        se = [abs(r["seg_s"] - r["band_s"]) / r["band_s"] * 100 for r in both if r["seg_mode"] == 1]
+        c6 = np.mean([e > 6 for e in th]) * 100 if th else float("nan")
+        L.append(f"| {run} | {len(R)} | {len(B)} | {len(S)} | {len(both)} | {q(th,50):.1f}° | {c6:.0f}% | {q(se,50):.1f}% |")
+    open(out_md, "w").write("\n".join(L) + "\n")
+    print("\n".join(L))
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--runs", required=True); ap.add_argument("--out-csv", required=True); ap.add_argument("--out-md", required=True)
+    a = ap.parse_args()
+    rows = load(a.runs)
+    with open(a.out_csv, "w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=list(rows[0].keys())); w.writeheader(); w.writerows(rows)
+    grade(rows, a.out_md)

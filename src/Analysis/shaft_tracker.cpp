@@ -244,10 +244,19 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
     // Pass the ball into decideTrack (A1) so out.measuredClubLenPx is measured
     // before head placement and can drive the length ladder; null when empty
     // (same emptiness notion as applyBallAnchor). θ is unaffected either way.
+    // E4 club geometry (markerless_club_tracker_design.md §4.1): hosel from the
+    // record, else the iron-family seed (length − 58 mm, the lab 7-iron measures
+    // 940 − 882); grip end = hosel − shaftLengthMm, else a 265 mm grip. Only read
+    // when shaft.seg.enabled.
+    SegmentGeom segGeom;
+    segGeom.clubLenMm = job.clubLengthM * 1000.0;
+    segGeom.hoselMm   = job.hoselFromButtMm > 0.0 ? job.hoselFromButtMm : segGeom.clubLenMm - 58.0;
+    segGeom.gripEndMm = job.shaftLengthMm > 0.0 ? segGeom.hoselMm - job.shaftLengthMm : 265.0;
+    segGeom.bandsMm   = job.bandCentersMm;
     out = decideTrack(frameAt, tUs, gx, gy, phiRaw, rawJoints, w, h, fps,
                       job.bandCentersMm, job.clubLengthM * 1000.0, impf, cfg, trace,
                       ball.frames.empty() ? nullptr : &ball, priorPtr,
-                      handAxisDeg, handAxisConf);
+                      handAxisDeg, handAxisConf, &segGeom);
     out.camera = pose.camera;
 
     // v3.4 (design §9): additive post-hoc ball anchor — reads the frozen DP

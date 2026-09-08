@@ -607,6 +607,15 @@ struct ShaftDecideTrace {
     // candidate). wedgeTExpS = the calibrated exposure estimate (s; −1 = wedge
     // dark). Empty unless a trace sink is present AND cfg.wedge.enabled.
     std::vector<double> wedgeOmegaDegS, wedgeCentroidDeg, wedgeWidthDeg;
+    // E4 steel-segment lock beside the E1 band lock, per frame [0,nf)
+    // (markerless_club_tracker_design.md §5.1 grading). segMode 0 none / 1 full /
+    // 2 terminus; segPass 1 = prior-free pass, 2 = scale-prior pass; band* are
+    // the E1 lock's (θ, s, r0, n) on the same frame (bandN 0 = no band lock).
+    // Empty unless a trace sink is present AND cfg.seg.enabled. Diagnostics
+    // only — nothing downstream reads them (P2); P3 wires the consumers.
+    std::vector<int>    segMode, segPass, segN, segDistal, segStage, bandN;
+    std::vector<double> segTheta, segS, segR0, segRG, segRF, segSup, bandTheta, bandS, bandR0;
+    double              segSPrior = -1.0;   // the pass-2 scale prior (px/mm), −1 = none
     double              wedgeTExpS = -1.0;
     // P7 impact-geometry diagnostics (shaft.impactGeom.*): the located
     // theta==theta_ball crossing (-1 = dark / no address ball / not found),
@@ -703,6 +712,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt,
                          const BallTrack2D* ball = nullptr,
                          const LengthPriorState* lengthPrior = nullptr,
                          const std::vector<double>& handAxisDeg = {},
-                         const std::vector<double>& handAxisConf = {});
+                         const std::vector<double>& handAxisConf = {},
+                         const SegmentGeom* segGeom = nullptr);
 
 } // namespace pinpoint::analysis

@@ -435,9 +435,11 @@ double meanE(const RayProfile& P, int a, int b)
 
 } // namespace
 
-SegmentLock segmentLock(const cv::Mat& img, double gx, double gy, double thetaRad,
-                        double rmax, const SegmentGeom& geom, const SegmentConfig& cfg,
-                        const RidgeConfig& ridge, double sPrior, double lenPriorPx)
+namespace {
+
+SegmentLock segmentLockAt(const cv::Mat& img, double gx, double gy, double thetaRad,
+                          double rmax, const SegmentGeom& geom, const SegmentConfig& cfg,
+                          const RidgeConfig& ridge, double sPrior, double lenPriorPx)
 {
     SegmentLock out;
     double thDeg = std::fmod(thetaRad * 180.0 / kPi, 360.0);
@@ -450,35 +452,68 @@ SegmentLock segmentLock(const cv::Mat& img, double gx, double gy, double thetaRa
     if (n < cfg.minLenPx + 8) return out;
 
     // ── sample classes ──────────────────────────────────────────────────────
-    // WIDE: the lateral ±5/±7 samples are lit like the ridge — a blob (hands,
-    // glove, head, forearm), not a line. Polarity follows the regime.
-    std::vector<uint8_t> wide(size_t(n), 0), brt(size_t(n), 0), drk(size_t(n), 0);
+    // BRIGHT = evidence ≥ eOn. Width is NOT a veto: at a 6.6 ms exposure the
+    // moving shaft is a bloomed ribbon 10–20 px wide, and E2's reduction already
+    // bounds width — anything wider than the ±9/±12 background offsets (hands,
+    // glove, head, forearm) has on ≈ bg and reads as evidence-free.
+    std::vector<uint8_t> brt(size_t(n), 0), drk(size_t(n), 0);
     for (int i = 0; i < n; ++i) {
-        const double contrast = P.bright[size_t(i)] ? double(P.wide[size_t(i)]) - double(P.bg[size_t(i)])
-                                                    : double(P.bg[size_t(i)]) - double(P.wide[size_t(i)]);
-        wide[size_t(i)] = contrast >= cfg.wideMin ? 1 : 0;
-        brt[size_t(i)]  = (P.e[size_t(i)] >= cfg.eOn && !wide[size_t(i)]) ? 1 : 0;
-        drk[size_t(i)]  = (P.e[size_t(i)] <= cfg.eOff) ? 1 : 0;
+        brt[size_t(i)] = (P.e[size_t(i)] >= cfg.eOn) ? 1 : 0;
+        drk[size_t(i)] = (P.e[size_t(i)] <= cfg.eOff) ? 1 : 0;
     }
 
-    // ── the steel run: longest BRIGHT stretch bridging ≤ maxHolePx non-bright
-    //    samples, never bridging a WIDE stretch longer than the hole ──────────
+    // ── the steel run ───────────────────────────────────────────────────────
+    // Bright stretches of ≥ minBrightPx are ANCHORS; the run is the longest chain
+    // of anchors whose gaps are ≤ maxHolePx. Slivers shorter than minBrightPx
+    // (the 1–3 px rim of a wide blob crossed obliquely, a single lit pixel in a
+    // dropout) count toward support inside a run but can never begin, end, or
+    // extend one — so a run cannot be dragged across a head by its far rim.
     int bestA = -1, bestB = -1;
     {
-        int a = -1, last = -1;
+        std::vector<std::pair<int, int>> anchors;
         for (int i = 0; i < n; ++i) {
-            if (brt[size_t(i)]) {
-                if (a < 0) a = i;
-                last = i;
-            } else if (a >= 0 && i - last > cfg.maxHolePx) {
-                if (bestA < 0 || last - a > bestB - bestA) { bestA = a; bestB = last; }
-                a = -1;
+            if (!brt[size_t(i)]) continue;
+            int j = i;
+            while (j + 1 < n && brt[size_t(j + 1)]) ++j;
+            if (j - i + 1 >= cfg.minBrightPx) anchors.emplace_back(i, j);
+            i = j;
+        }
+        auto medianBg = [&](int i0, int i1) {
+            std::vector<float> v(P.bg.begin() + i0, P.bg.begin() + i1 + 1);
+            std::nth_element(v.begin(), v.begin() + v.size() / 2, v.end());
+            return double(v[v.size() / 2]);
+        };
+        int a = -1, last = -1;
+        for (const auto& an : anchors) {
+            if (a >= 0) {
+                // bridge only a hole that is short AND background-like: a
+                // dropout of bare steel leaves the scene background under the
+                // ray, a head's interior replaces it with the head
+                // The reference is the chain so far (steel-dominated: a retro band's
+                // bloom lifts the local background at the anchor's own end) or the
+                // next anchor — the gap must match either side.
+                const int gap = an.first - last - 1;
+                bool bridge = gap <= cfg.maxHolePx;
+                if (bridge && gap > 0) {
+                    const double gapBg = medianBg(last + 1, an.first - 1);
+                    bridge = std::abs(gapBg - medianBg(a, last)) <= cfg.holeBgTol
+                          || std::abs(gapBg - medianBg(an.first, an.second)) <= cfg.holeBgTol;
+                }
+                if (!bridge) {
+                    if (bestA < 0 || last - a > bestB - bestA) { bestA = a; bestB = last; }
+                    a = -1;
+                }
             }
+            if (a < 0) a = an.first;
+            last = an.second;
         }
         if (a >= 0 && (bestA < 0 || last - a > bestB - bestA)) { bestA = a; bestB = last; }
     }
+    out.stage = 1;
     if (bestA < 0 || bestB - bestA + 1 < cfg.minLenPx) return out;
     const int a = bestA, b = bestB;
+    out.runLenPx = float(P.r[size_t(b)] - P.r[size_t(a)] + 1.0);
+    out.stage = 2;
 
     // support: fraction of e > eOff over the run
     {
@@ -487,30 +522,52 @@ SegmentLock segmentLock(const cv::Mat& img, double gx, double gy, double thetaRa
         out.support = float(double(pos) / double(b - a + 1));
     }
     if (out.support < cfg.supportMin) return out;
+    out.stage = 3;
 
     // ── distal landmark: what follows the run within lookAheadPx ────────────
     if (b >= n - 3) return out;                     // run leaves the frame / search radius: no terminus
+    out.stage = 4;
+    int bSteel = b;
     {
+        // on-level and background of the run's last stretch, and the background just past it
+        double onRun = 0.0, bgRun = 0.0; int nOn = 0;
+        for (int i = std::max(a, b - 15); i <= b; ++i) if (brt[size_t(i)]) { onRun += P.on[size_t(i)]; bgRun += P.bg[size_t(i)]; ++nOn; }
+        onRun = nOn ? onRun / nOn : 0.0; bgRun = nOn ? bgRun / nOn : 0.0;
+        double bgAfter = 0.0; int nBg = 0;
+        for (int i = b + 1; i <= std::min(n - 1, b + 6); ++i) { bgAfter += P.bg[size_t(i)]; ++nBg; }
+        bgAfter = nBg ? bgAfter / nBg : 0.0;
         int dark = 0;
         for (int i = b + 1; i <= std::min(n - 1, b + cfg.minDarkPx + 2); ++i) if (drk[size_t(i)]) ++dark;
-        int firstWide = -1;
-        for (int i = b + 1; i <= std::min(n - 1, b + cfg.lookAheadPx); ++i)
-            if (wide[size_t(i)]) { firstWide = i; break; }
-        // Order matters: a wide blob's interior is evidence-free (on ≈ bg ⇒ e ≈ −12)
-        // and so reads as "dark" — a head that begins right at the run's end is
-        // the hosel case, not a ferrule gap followed by a head.
-        if (firstWide > 0 && firstWide - b <= 3)          { out.distal = 2; out.sigmaMm = cfg.hoselTolMm; }
-        else if (dark >= cfg.minDarkPx && firstWide > 0)  { out.distal = 1; out.sigmaMm = cfg.ferruleTolMm; }
+        int nextBright = -1;   // the hosel: a bright RUN (≥ minBrightPx) resuming after the ferrule gap;
+                               // the rim of a wide blob reads bright for 1–3 px and must not count
+        for (int i = b + cfg.minDarkPx + 1; i <= std::min(n - 1, b + cfg.lookAheadPx); ++i) {
+            if (!brt[size_t(i)]) continue;
+            int j = i;
+            while (j + 1 < n && brt[size_t(j + 1)]) ++j;
+            if (j - i + 1 >= cfg.minBrightPx) { nextBright = i; break; }
+            i = j;
+        }
+        // The head: past the run the background departs from the run's
+        // background toward the run's own level by at least headBgFrac of the
+        // contrast — a bright wide thing after a bright line, a dark wide thing
+        // (the head on a blown mat) after a dark line.
+        const bool headAfter = nOn > 0 && (P.bright[size_t(b)]
+            ? (bgAfter - bgRun) >= cfg.headBgFrac * (onRun - bgRun)
+            : (bgRun - bgAfter) >= cfg.headBgFrac * (bgRun - onRun));
+        if (dark >= cfg.minDarkPx && nextBright > 0)      { out.distal = 1; out.sigmaMm = cfg.ferruleTolMm; }
+        else if (headAfter)                               { out.distal = 2; out.sigmaMm = cfg.hoselTolMm; }
         else if (dark >= cfg.minDarkPx)                   { out.distal = 3; out.sigmaMm = cfg.hoselTolMm; }
         else return out;                                  // dim tail: the run petered out, no landmark
+        out.stage = 5;
         if (out.distal != 2 && meanE(P, b - 3, b) - meanE(P, b + 1, b + 4) < cfg.edgeMin) return out;
     }
     // A ferrule of 3–4 px is shorter than the hole the run bridges, so a run
-    // that reached the wide head may have swallowed it: look back over the last
-    // lookAheadPx for ≥ 2 consecutive dark samples and, if found, end the steel
-    // there — the ferrule is then resolved after all.
-    int bSteel = b;
-    if (out.distal == 2) {
+    // that reached the head or the hosel may have swallowed it: look back over
+    // the last lookAheadPx for ≥ 2 consecutive dark samples and, if found, end
+    // the steel there — the ferrule is then resolved after all. Always: a
+    // specular dropout this close to the end costs at most 25 px, inside the
+    // ferrule tolerance, while a swallowed ferrule costs the hosel length.
+    {
         for (int i = b; i >= std::max(a + cfg.minLenPx, b - cfg.lookAheadPx); --i)
             if (drk[size_t(i)] && drk[size_t(i - 1)]) {
                 int j = i - 1;
@@ -524,25 +581,56 @@ SegmentLock segmentLock(const cv::Mat& img, double gx, double gy, double thetaRa
     const double mF = (out.distal == 2) ? geom.hoselMm + cfg.hoselLenMm      // ran into the wide head
                                         : geom.hoselMm - cfg.ferruleMm;      // steel ends at the ferrule
 
-    // ── proximal landmark: a dark gap (visible grip) right before the run ───
-    // The hands' bloom is evidence-free too (on = bg = 255 ⇒ e = −12), so a dark
-    // gap is only a GRIP when its on-ridge level sits below the steel's by the
-    // edge step (bright regime). Over a blown background the grip is itself a
-    // dark line and the onset is unresolved by construction.
+    // ── proximal landmark: the visible grip ─────────────────────────────────
+    // With long holes bridged, the run can begin at the hands' bright pixels or at
+    // the grip cap. The grip is the LAST dark stretch (≥ minDarkPx) inside the
+    // proximal onsetFrac of the run — or immediately before the run — and the
+    // onset is the first bright sample after it. The hands' bloom is
+    // evidence-free too (on = bg = 255 ⇒ e = −12), so a dark gap is only a grip
+    // when the on-ridge level steps UP by edgeMin into the steel (bright regime);
+    // over a blown background the grip is itself a dark line and the onset is
+    // unresolved by construction.
     bool onsetOk = false;
-    if (P.r[size_t(a)] <= cfg.proxFrac * rmax && a >= cfg.minDarkPx + 2 && P.bright[size_t(a)]) {
-        int dark = 0;
-        for (int i = a - cfg.minDarkPx - 2; i <= a - 1; ++i) if (drk[size_t(i)]) ++dark;
-        double onIn = 0.0, onOut = 0.0;
-        for (int i = a; i <= a + 3; ++i) onIn += P.on[size_t(i)];
-        for (int i = a - 4; i <= a - 1; ++i) onOut += P.on[size_t(i)];
-        onsetOk = dark >= cfg.minDarkPx && (onIn - onOut) / 4.0 >= cfg.edgeMin;
+    int aOn = a;
+    {
+        const int lim = a + int(cfg.onsetFrac * float(bSteel - a));
+        int gapEnd = -1;
+        for (int i = lim; i >= a; --i) {
+            if (!drk[size_t(i)]) continue;
+            int j = i;
+            while (j > 0 && drk[size_t(j - 1)]) --j;
+            if (i - j + 1 >= cfg.minDarkPx) { gapEnd = i; break; }
+            i = j;
+        }
+        if (gapEnd < 0 && a >= cfg.minDarkPx + 2) {   // the gap sits just before the run
+            int dark = 0;
+            for (int i = a - cfg.minDarkPx - 2; i <= a - 1; ++i) if (drk[size_t(i)]) ++dark;
+            if (dark >= cfg.minDarkPx) gapEnd = a - 1;
+        }
+        if (gapEnd >= 0) {
+            int k = gapEnd + 1;
+            while (k < bSteel && !brt[size_t(k)]) ++k;      // first bright sample after the gap
+            aOn = k;
+            if (P.r[size_t(aOn)] <= cfg.proxFrac * rmax && aOn >= 4 && aOn + 3 < n && P.bright[size_t(aOn)]) {
+                double onIn = 0.0, onOut = 0.0;
+                for (int i = aOn; i <= aOn + 3; ++i) onIn += P.on[size_t(i)];
+                for (int i = gapEnd - 3; i <= gapEnd; ++i) onOut += P.on[size_t(std::max(i, 0))];
+                onsetOk = (onIn - onOut) / 4.0 >= cfg.edgeMin;
+            }
+        }
+    }
+    if (onsetOk) {
+        // support is re-read over the steel proper [aOn, bSteel]
+        int pos = 0;
+        for (int i = aOn; i <= bSteel; ++i) if (!drk[size_t(i)]) ++pos;
+        out.support = float(double(pos) / double(bSteel - aOn + 1));
+        if (out.support < cfg.supportMin) onsetOk = false;
     }
 
     // ── fit ─────────────────────────────────────────────────────────────────
     double s = 0.0, r0 = 0.0;
     if (onsetOk) {
-        out.rG = P.r[size_t(a)];
+        out.rG = P.r[size_t(aOn)];
         s  = (double(out.rF) - double(out.rG)) / (mF - geom.gripEndMm);
         if (s <= 0.0) return out;
         r0 = geom.gripEndMm - double(out.rG) / s;
@@ -553,7 +641,7 @@ SegmentLock segmentLock(const cv::Mat& img, double gx, double gy, double thetaRa
             std::vector<double> centres;   // plateau centres (px) on the run
             {
                 int ps = -1;
-                for (int i = a; i <= bSteel + 1; ++i) {
+                for (int i = aOn; i <= bSteel + 1; ++i) {
                     const bool sat = i <= bSteel && P.bright[size_t(i)] && P.on[size_t(i)] >= cfg.bandSat;
                     if (sat) { if (ps < 0) ps = i; }
                     else if (ps >= 0) { if (i - ps >= 3) centres.push_back(0.5 * (P.r[size_t(ps)] + P.r[size_t(i - 1)])); ps = -1; }
@@ -590,24 +678,52 @@ SegmentLock segmentLock(const cv::Mat& img, double gx, double gy, double thetaRa
                 if (rms <= cfg.rmsMax) { s = s2; r0 = r02; out.n = int(rr.size()); out.rms = float(rms); }
             }
         }
-        if (sPrior > 0.0 && std::abs(s - sPrior) > cfg.sTol * sPrior) return out;
+        if (sPrior > 0.0 && std::abs(s - sPrior) > cfg.sTol * sPrior) { out.mode = SegmentMode::None; out.stage = 7; return out; }
     } else if (sPrior > 0.0) {
         s  = sPrior;
         r0 = mF - double(out.rF) / s;
         out.n = 1; out.mode = SegmentMode::Terminus;
     } else {
+        out.stage = 6;
         return out;
     }
 
     // ── gates ───────────────────────────────────────────────────────────────
+    out.stage = 7;
     if (s < cfg.sMin || s > cfg.sMax) { out.mode = SegmentMode::None; return out; }
     if (r0 <= cfg.r0Min || r0 > cfg.r0Max) { out.mode = SegmentMode::None; return out; }
+    out.stage = 8;
     if (lenPriorPx > 0.0) {
         const double L = s * (geom.clubLenMm - r0);
         if (std::abs(L - lenPriorPx) > cfg.lenTol * lenPriorPx) { out.mode = SegmentMode::None; return out; }
     }
-    out.s = float(s); out.r0 = float(r0); out.ok = true;
+    out.s = float(s); out.r0 = float(r0); out.ok = true; out.stage = 9;
     return out;
+}
+
+} // namespace
+
+SegmentLock segmentLock(const cv::Mat& img, double gx, double gy, double thetaRad,
+                        double rmax, const SegmentGeom& geom, const SegmentConfig& cfg,
+                        const RidgeConfig& ridge, double sPrior, double lenPriorPx)
+{
+    // A 1° grid is 4.4 px lateral at 250 px — wider than the on-ridge ±2 px
+    // window — so a hairline of bare steel can fall between rays. Refine over
+    // ±refineDeg and keep the best: locked over not, FULL over TERMINUS, then
+    // the longest supported run, then the furthest stage reached.
+    SegmentLock best;
+    const double step = std::max(0.05, double(cfg.refineStep));
+    for (double d = -double(cfg.refineDeg); d <= double(cfg.refineDeg) + 1e-9; d += step) {
+        const SegmentLock L = segmentLockAt(img, gx, gy, thetaRad + d * kPi / 180.0, rmax, geom, cfg, ridge,
+                                            sPrior, lenPriorPx);
+        const bool better =
+            (L.ok && !best.ok)
+            || (L.ok && best.ok && (int(L.mode) < int(best.mode)   // Full(1) beats Terminus(2)
+                                    || (L.mode == best.mode && L.runLenPx * L.support > best.runLenPx * best.support)))
+            || (!L.ok && !best.ok && L.stage > best.stage);
+        if (better) best = L;
+    }
+    return best;
 }
 
 } // namespace pinpoint::analysis

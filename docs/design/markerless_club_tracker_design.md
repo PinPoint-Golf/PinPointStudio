@@ -1,6 +1,6 @@
 # Markerless club tracking — design
 
-**Status: design 2026-09-08; P0 measured and P1 engine built the same day (§6).** Successor to club tracking v3 (`club_tracking_v3_design.md`,
+**Status: design 2026-09-08; P0 measured, P1 engine built and P2 graded the same day (§6). P2 did not meet its targets and redefined Phase 3 (§4.8, §5.1).** Successor to club tracking v3 (`club_tracking_v3_design.md`,
 as-built `shaft_track_assembly.*` / `shaft_tracker_math.*`). Premise, from Mark: the
 retroreflective bands on the shaft change the club's swing weight, and a club whose swing
 weight has changed produces a different swing. The tracker must therefore reach today's
@@ -559,6 +559,54 @@ Exposure itself is not revisited (§8).
 
 ---
 
+### 4.8 What Phase 2 found on real frames (2026-09-08)
+
+The engine of §4.2 was wired into the evidence loop behind `shaft.seg.enabled`, traced
+beside the band lock, and run over the 38 taped swings whose recorded club record carries
+the band centres (07-05, 07-09, 07-10, 08-18 — the ones where E1 ran and a per-frame
+reference exists). The numbers are in §5.1; the *shape* of the result changed the design
+and is recorded here.
+
+1. **Candidate selection before the DP is the dominant failure, and the DP already
+   solves it.** Probing the E2 local maxima, the band direction and the wedge centroid,
+   then ranking by evidence × support with the arm veto and reverse-ray test, still picks
+   a wrong direction on roughly a third of the frames — with support 0.97–1.00, because
+   a trouser crease or the lead arm is a perfectly good line. On the same frames the
+   global Viterbi agrees with the band lock to 0.2° p50 / 0.5° p90. The segment lock
+   cannot be a *pre-DP pin* on the strength of a 1-D profile; it can be a **post-DP
+   measurement** along the DP's own direction, feeding a second DP pass if a pin is
+   wanted (the same two-pass shape the ψ-reconcile already uses).
+2. **The grip-end landmark does not exist on this club.** The grip is light-coloured,
+   and from the takeaway on the hands cover it to within 10–30 mm. The onset the engine
+   finds is the hands' bloom edge, 20–40 px early, which is where the 30–40% scale error
+   of FULL locks comes from. The proximal feature that *is* present on every frame is
+   the **end of the hands along the ray** (a wide bright blob giving way to a thin
+   line). Its millimetre position is unknown but constant within a swing — hands do not
+   slide on the grip — and close to the grip end for a normal grip. §4.2's onset becomes
+   a *hands-edge* landmark with `m_H = gripEndMm − handsOverhangMm` (default 25, σ 20 mm,
+   3% of the steel span), calibrated per swing when a better witness exists (address
+   ball length, or the band lock on an instrumented club).
+3. **The terminus is real, but its millimetre is the hosel top, not the ferrule.** On
+   real rays the run ends 4–14 px past the steel's end, at the hosel/head junction: the
+   ferrule gap is not resolved under bloom at 3–4 px. The look-back finds it on synthetic
+   images and almost never on the corpus. The terminus therefore references
+   `hoselMm + hoselOverhangMm` (default 10, σ 15) whatever ended the run, unless a
+   ferrule dip is positively resolved.
+4. **Bare steel drops out for 50–70 px between lit stretches** on the band-locked ray,
+   and a retro band's bloom raises the background under the ray by 60–100 grey levels.
+   Runs are chains of ≥ 5 px bright anchors bridged across background-like holes of up to
+   80 px, with the hole's background compared to *either* side.
+5. **The wide class was wrong.** At 6.6 ms the moving shaft is a bloomed ribbon 10–20 px
+   wide; "lateral ±5/±7 also lit" classified the shaft as a blob. E2's own reduction
+   already bounds width: anything wider than the ±9/±12 background offsets reads as
+   evidence-free. The class was dropped; the rim of a wide blob, which reads bright for
+   1–3 px, is excluded by the anchor rule instead.
+
+The engine as committed after Phase 2 embodies 3, 4 and 5 and passes the synthetic
+suite; 1 and 2 are the Phase 3 change of shape and are not built.
+
+---
+
 ## 5. Validation
 
 ### 5.1 The taped corpus grades the segment lock directly
@@ -575,6 +623,34 @@ and scored frame by frame against the band truth — without a new capture. Metr
 | FULL-lock rate where band locked | ≥ 70% | — |
 | Any-lock rate where band did **not** lock (address, tip-on-mat, finish) | ≥ 50% at address and finish | band: 0% |
 | Lock conflict rate (band vs segment > 6°) | ≤ 2% | — |
+
+**Phase 2 result (2026-09-08, 38 swings, 26,602 traced frames, 2,300 band-locked
+frames; `docs/research/data/markerless/segment_grade_summary.md`, per-frame CSV beside
+it).** Graded with the engine as built through §4.8 items 3–5, before the Phase 3 change
+of shape (§4.8 items 1–2). The committed engine differs from the graded binary by one
+later rule — a hole's background is compared to either side of the gap, not only the
+chain — which the synthetic suite covers and the corpus has not re-run.
+
+| metric | target | measured | verdict |
+|---|---|---|---|
+| θ error, locks on band frames | p50 ≤ 1.5°, p90 ≤ 5°, 0% > 15° | p50 **1.7°**, p90 **71.6°**, **18.2%** > 15° | p50 near, tails fail: wrong-candidate locks (§4.8 item 1) |
+| `s` error, FULL locks | p50 ≤ 5% | p50 **27.7%**, p90 66% | fails: the onset lands on the hands' edge (§4.8 item 2) |
+| `r0` error | p50 ≤ 20 mm | 81 mm | fails, same cause |
+| FULL-lock rate where band locked | ≥ 70% | **27%** (any lock 51%) | fails |
+| any-lock rate at address / finish where band did not lock | ≥ 50% | 3% / 0% | fails — most address and finish frames sit outside the evidence span and are never probed |
+| lock conflict (> 6°) | ≤ 2% | **27.9%** | fails |
+
+Landmark anatomy on the on-ray locks (within 6° of the band): the **terminus** is 20 px
+off at p50 (10% of the steel span; 173 px at p90 where the run stops at the mid band or
+runs past the hosel), the **onset** is 37 px off at p50 and 47 at p90 — it is the hands'
+edge, consistently. In the backswing, the phase with the most band frames (1,137), the
+picture is the clearest: θ p50 1.2° but 22% conflict, FULL scale error 24%, terminus
+18 px, onset 39 px. The DP on the same frames: 0.2° p50, 0.5° p90 against the band.
+
+Verdict: **as a pre-DP pin with a grip-end landmark the segment lock does not reach the
+band lock, and the corpus says why**. Along the right ray the terminus is a usable
+landmark; the onset is not; and the ray must come from the DP. Phase 3 is redefined
+accordingly (§6).
 
 ### 5.2 Unmarked-club corpus
 
@@ -631,8 +707,9 @@ normalisation) still apply to anything that shares code with E2.
 |---|---|---|
 | **P0 — measure** ✅ 2026-09-08 | `tools/shaftlab/steel_profile_probe.py`; `docs/research/data/markerless/steel_profile_probe.csv` (21,635 frames, 83 swings) + `_summary.md`; results in §2.4 | done — 64 taped + 19 unmarked swings; the two-frame table of §2.1 holds corpus-wide, with delivery as the exception |
 | **P1 — engine (C++)** ✅ 2026-09-08 | `rayProfile()` + `segmentLock()` in `shaft_tracker_math.*`; E2's per-sample reduction factored into a shared `sampleRay()`; `SegmentConfig` on `ShaftV3Config` with every `shaft.seg.*` key parsed; `shaft_segment_test` (28 checks: bit-for-bit ridge-score pin, FULL/TERMINUS, polarity flip, forearm/off-axis/off-frame counterfeits, length and scale gates, bands as extra landmarks, four foreshortening scales) | done — 7 suites green under ctest, E2 pinned identical |
-| **P2 — grade** | segment lock computed per frame inside the evidence loop behind `shaft.seg.enabled`, written to the tracker trace beside the band lock; a comparison over the taped corpus | §5.1 targets met |
-| **P3 — assembly wiring** | `ShaftLock`, emission wells, SEG tier, `lockNear`, reconcile weights, ladder/fusion/placement consumers; all behind `shaft.seg.enabled` | `enabled=0` byte-identical (§5.3); `shaft_decide_test` covers lock precedence and the Finish-publish change |
+| **P2 — grade** ✅ 2026-09-08 | segment probe inside the evidence loop behind `shaft.seg.enabled` (pass 1 prior-free, pass 2 with the swing's median FULL scale), traced beside the band lock; `tools/shaftlab/segment_grade.py`; 38 taped swings | done — **§5.1 targets NOT met**; the corpus located the two design errors (§4.8 items 1–2) |
+| **P3a — change of shape** | probe **along the DP's θ** after the Viterbi (and along the band θ when present), not along E2 candidates; proximal landmark = **hands' edge** with `m_H = gripEndMm − handsOverhangMm` (σ 20 mm) and a per-swing calibration from the address ball length; terminus referenced to the hosel top; re-grade on the same 38 swings | θ p90 ≤ 5° and conflict ≤ 2% become trivially true (the ray is the DP's); the real gate is `s` p50 ≤ 8% and terminus p50 ≤ 10 px |
+| **P3b — consumers** | `ShaftLock`, SEG tier, `lockNear`, ladder/fusion/placement from the post-DP lock; a second DP pass with the segment well only if P3a shows a pin is still needed; all behind `shaft.seg.enabled` | `enabled=0` byte-identical (§5.3); `shaft_decide_test` covers lock precedence and the Finish-publish change |
 | **P4 — record + UI + persistence** | `shaftLengthMm` in the club record, seed defaults, `AthleteClubsSection.qml` field, job fill, `swing.json` fields, loader | round-trips through record → job → swing.json → re-analysis |
 | **P5 — corpus + capture** | the untaped 7-iron session (§5.2), markup, gate CSVs in the repo, run trees deleted | §5.2 gates met |
 | **P6 — flip** | `shaft.seg.enabled` default 1; docs updated (`shaft_tracker_impl.md`, protocol docs, best-practices ladder row) | gate report attached |

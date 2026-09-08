@@ -542,6 +542,27 @@ int main(int argc, char **argv)
             // S2 wedge columns (empty unless shaft.wedge.enabled): the R6
             // predicted club rate, and the measured fan centroid/width where a
             // candidate was found.
+            if (f < int(trace.segMode.size())) {   // E4 vs E1, same frame
+                line.insert("seg_mode", trace.segMode[size_t(f)]);
+                line.insert("seg_stage", trace.segStage[size_t(f)]);
+                if (trace.segMode[size_t(f)] > 0) {
+                    line.insert("seg_pass",   trace.segPass[size_t(f)]);
+                    line.insert("seg_theta",  trace.segTheta[size_t(f)]);
+                    line.insert("seg_s",      trace.segS[size_t(f)]);
+                    line.insert("seg_r0",     trace.segR0[size_t(f)]);
+                    line.insert("seg_rg",     trace.segRG[size_t(f)]);
+                    line.insert("seg_rf",     trace.segRF[size_t(f)]);
+                    line.insert("seg_n",      trace.segN[size_t(f)]);
+                    line.insert("seg_sup",    trace.segSup[size_t(f)]);
+                    line.insert("seg_distal", trace.segDistal[size_t(f)]);
+                }
+                if (trace.bandN[size_t(f)] > 0) {
+                    line.insert("band_theta", trace.bandTheta[size_t(f)]);
+                    line.insert("band_s",     trace.bandS[size_t(f)]);
+                    line.insert("band_r0",    trace.bandR0[size_t(f)]);
+                    line.insert("band_n",     trace.bandN[size_t(f)]);
+                }
+            }
             if (f < int(trace.wedgeOmegaDegS.size()))
                 line.insert("omega_pred", trace.wedgeOmegaDegS[size_t(f)]);
             if (f < int(trace.wedgeCentroidDeg.size())
@@ -554,6 +575,7 @@ int main(int argc, char **argv)
         QJsonObject summary{
             { "summary", QJsonObject{
                 { "chir", trace.chir },
+                { "seg_s_prior", trace.segSPrior },
                 { "bs0", trace.phases.bs0 }, { "top", trace.phases.top },
                 { "impact", trace.phases.impact }, { "fin0", trace.phases.fin0 },
                 { "spanLo", trace.spanLo }, { "spanHi", trace.spanHi },

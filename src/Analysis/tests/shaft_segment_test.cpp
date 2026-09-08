@@ -69,13 +69,15 @@ static Scene drawClub(const ClubDraw& d, int W = 800, int H = 640)
     const SegmentGeom geo = lab7iron();
     seg(0.0, geo.gripEndMm, d.grip, 9);                              // grip: dark, fat
     seg(geo.gripEndMm, geo.hoselMm - d.ferruleMm, d.steel, 4);       // exposed steel: thin, bright
-    seg(geo.hoselMm - d.ferruleMm, geo.hoselMm, d.grip, 5);          // ferrule: dark gap
     if (!d.noHead) {
         seg(geo.hoselMm, geo.hoselMm + 40.0, d.head, 4);             // hosel: thin chrome, 40 mm
         const double headR = 16.0;                                   // wide chrome head beyond the hosel
         cv::Point2d hc = P(geo.hoselMm + 40.0 + headR / d.s + 2.0);
         cv::circle(g8, cv::Point(int(hc.x), int(hc.y)), int(headR), cv::Scalar(d.head), -1);
     }
+    // ferrule LAST and thick: cv::line's caps overrun their endpoints by ~2 px and
+    // would otherwise paint over a 3–4 px gap
+    if (d.ferruleMm > 0.0) seg(geo.hoselMm - d.ferruleMm, geo.hoselMm, d.grip, 7);
     if (d.bands)
         for (double m : lab7iron(true).bandsMm) seg(m - 12.5, m + 12.5, 255, 5);
     if (d.hands) cv::circle(g8, cv::Point(int(gx), int(gy)), 26, cv::Scalar(255), -1);

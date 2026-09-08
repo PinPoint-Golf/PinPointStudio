@@ -136,13 +136,21 @@ struct SegmentConfig {
     float rLo          = 4.0f;    // first radius (px)
     float eOn          = 30.0f;   // sample is BRIGHT (shaft) at e ≥ this
     float eOff         = 8.0f;    // sample is DARK at e ≤ this (E2's support threshold)
-    float wideMin      = 30.0f;   // lateral ±5/±7 also lit by ≥ this over bg ⇒ WIDE (hands, glove, head, forearm)
+    float wideMin      = 30.0f;   // (diagnostic) lateral ±5/±7 lit by ≥ this over bg ⇒ the sample is a ribbon, not a hairline
     int   minLenPx     = 60;      // shortest credible steel run (px)
-    int   maxHolePx    = 4;       // non-bright samples bridged inside a run
+    int   maxHolePx    = 80;      // evidence-free samples bridged inside a run: bare steel drops out for 50–70 px
+                                  // between lit stretches on real frames; support (below) bounds the total
+    float onsetFrac    = 0.45f;   // the grip gap is the LAST dark stretch within this fraction of the run
+    float holeBgTol    = 60.0f;   // a hole is bridged only if its background stays within this of the anchor's:
+                                  // a steel dropout sits on the same background, a head's interior does not
     int   minDarkPx    = 3;       // dark samples required before the onset / after the terminus
-    int   lookAheadPx  = 25;      // window after the terminus in which the head must appear
+    int   minBrightPx  = 5;       // a bright RUN this long after the ferrule gap is the hosel; a wide blob's rim is 1–3 px
+    int   lookAheadPx  = 25;      // window after the terminus in which the hosel/head must appear
     float proxFrac     = 0.45f;   // onset must lie within this fraction of rmax
-    float supportMin   = 0.80f;   // fraction of e > eOff over the run
+    float supportMin   = 0.60f;   // fraction of e > eOff over the run
+    float refineDeg    = 1.0f;    // the probed direction is refined over ±this …
+    float refineStep   = 0.5f;    // … in these steps; a 1° grid misses a 4 px line at 250 px
+    float headBgFrac   = 0.5f;    // after the run, bg ≥ this × the run's on-level ⇒ a bright wide head follows (distal 2)
     float edgeMin      = 30.0f;   // evidence step at a landmark: mean of 4 px inside − 4 px outside
     float sMin         = 0.05f;   // px/mm foreshortening bounds (E1's)
     float sMax         = 0.55f;
@@ -190,8 +198,11 @@ struct SegmentLock {
     int   n        = 0;     // landmarks in the fit: 2 ends + matched bands; 1 in Terminus mode
     float rms      = 0.f;   // landmark-fit RMS (px); 0 for n ≤ 2
     float support  = 0.f;   // fraction of e > eOff over the run
-    int   distal   = 0;     // 0 unresolved · 1 ferrule (dark gap then wide) · 2 hosel (wide at once) · 3 dark end
+    int   distal   = 0;     // 0 unresolved · 1 ferrule (dark gap, then the hosel/head) · 2 ran into the bright head · 3 dark end
     float sigmaMm  = 0.f;   // σ of the distal landmark (ferruleTolMm / hoselTolMm)
+    int   stage    = 0;     // how far the probe got: 0 geom · 1 no run · 2 support · 3 off-frame · 4 no distal landmark
+                            // · 5 distal edge · 6 no onset and no prior · 7 s/r0 gate · 8 length gate · 9 locked
+    float runLenPx = 0.f;   // the steel run's length (px), for ranking refinements
 };
 
 // One ray. sPrior (px/mm, ≤ 0 = none) lets a frame whose onset is hidden in the
