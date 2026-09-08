@@ -528,7 +528,8 @@ ReconResult reconcilePsi(const std::vector<double>& thetaDeg,
                          const std::vector<SwingPhase>& phase,
                          const std::vector<char>& bandOk,
                          const std::vector<double>& evAt, int top, int nf,
-                         const ShaftV3Config& cfg);
+                         const ShaftV3Config& cfg,
+                         const std::vector<float>* wOverride = nullptr);
 
 // ── SwingWindow-free decide core (shared by the live tracker + the parity
 //    harness) ────────────────────────────────────────────────────────────────
@@ -541,7 +542,7 @@ struct ShaftDecideTrace {
     DPResult            dp;
     ReconResult         recon;
     std::vector<int>    frameIdx;   // one entry per emitted (anchored) frame
-    std::vector<int>    tier;       // 0 pred / 1 ray / 2 band / 3 recon / 4 wedge
+    std::vector<int>    tier;       // 0 pred / 1 ray / 2 band / 3 recon / 4 wedge / 5 seg
     std::vector<double> thetaDeg;   // reconciled θ (deg)
     std::vector<float>  conf;
     // Vision-only phase landmarks (hands-only C3 model → app Segmentation),

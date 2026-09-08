@@ -595,6 +595,7 @@ SegmentLock segmentLockAt(const cv::Mat& img, double gx, double gy, double theta
     // the steel's end, one hosel length at the rig's scale).
     const double mF = (out.distal == 1) ? geom.hoselMm - cfg.ferruleMm       // steel ends at the resolved ferrule
                                         : geom.hoselMm + cfg.hoselLenMm;     // ran to the end of the hosel
+    out.mFmm = float(mF);
 
     // ── proximal landmark ───────────────────────────────────────────────────
     // Phase 3a (design §4.8): the run's start is the landmark; WHAT PRECEDES it

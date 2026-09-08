@@ -2,6 +2,23 @@
 
 38 swings, 26602 traced frames.
 
+### 0. Yardstick — the marked club's band lock vs the segment lock, all span frames
+
+θ is scored against the DP's direction (the tracker's own answer) for both; band is the corpus-validated 0.3° reference.
+
+| phase | span frames | band lock | segment lock | either | band θ vs DP p50/p90 | seg θ vs DP p50/p90 | tier band | tier seg | tier ray | tier wedge | tier pred |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| addr | 570 | 8% | 63% | 67% | 0.4°/10.5° | 0.5°/1.0° | 5% | 61% | 14% | 0% | 20% |
+| back | 4462 | 25% | 68% | 79% | 0.3°/0.5° | 1.0°/1.0° | 25% | 53% | 17% | 0% | 5% |
+| top | 190 | 56% | 53% | 88% | 0.3°/2.6° | 1.0°/1.1° | 52% | 34% | 12% | 0% | 3% |
+| down | 950 | 9% | 33% | 38% | 0.2°/2.2° | 0.5°/1.0° | 8% | 29% | 52% | 9% | 1% |
+| impact | 1060 | 28% | 58% | 73% | 0.3°/5.3° | 1.0°/1.0° | 26% | 46% | 27% | 1% | 0% |
+| thru | 1070 | 19% | 31% | 40% | 0.3°/0.5° | 1.0°/1.0° | 18% | 21% | 51% | 9% | 1% |
+| finish | 563 | 75% | 55% | 92% | 0.3°/0.5° | 1.0°/1.3° | 75% | 17% | 6% | 1% | 1% |
+| ALL | 8865 | 26% | 57% | 69% | 0.3°/0.5° | 1.0°/1.0° | 25% | 44% | 25% | 2% | 4% |
+
+Band and segment scale, where both exist on a frame, are compared in A; the band's own frame-to-frame scale jitter (the reference's precision) is in A4.
+
 ### A. Segment lock vs band lock, same frame (band = reference)
 
 | phase | band frames | seg any | seg FULL | θ err p50 | θ err p90 | θ >15° | s err p50 | s err p90 | r0 err p50 (mm) | conflict >6° |
@@ -58,18 +75,27 @@
 | ALL | grip end | 82 | 14.5% | 39.9% | 187 | 166 | 295 | 265 |
 | ALL | hands edge | 812 | 5.6% | 40.2% | 165 | 121 | 208 | 180 |
 
+### A4. Reference precision — band lock scale and offset, consecutive-frame relative change
+
+| quantity | p50 | p90 | n pairs |
+|---|---|---|---|
+| band s, % change between adjacent band frames | 1.6% | 6.8% | 1863 |
+| band r0, mm change between adjacent band frames | 10 | 42 | 1863 |
+
+(a segment-vs-band scale error at or below the band's own adjacent-frame change is at the reference's floor)
+
 ### B. Segment lock where the band lock is ABSENT (θ vs the tracker's final θ on RAY frames)
 
 | phase | frames | seg any | seg FULL | seg TERMINUS | RAY frames | θ err p50 | θ err p90 | θ >15° |
 |---|---|---|---|---|---|---|---|---|
-| addr | 11743 | 3% | 2% | 0% | 139 | 0.5° | 1.0° | 0.0% |
-| back | 3325 | 71% | 59% | 13% | 2269 | 1.0° | 1.0° | 0.0% |
-| top | 84 | 74% | 67% | 7% | 62 | 1.0° | 1.0° | 0.0% |
-| down | 862 | 32% | 27% | 5% | 260 | 0.5° | 1.0° | 0.0% |
-| impact | 759 | 63% | 59% | 3% | 476 | 1.0° | 1.0° | 0.0% |
-| thru | 870 | 26% | 15% | 11% | 214 | 1.0° | 1.0° | 0.0% |
-| finish | 6659 | 1% | 1% | 0% | 86 | 1.0° | 1.0° | 0.0% |
-| ALL | 24302 | 16% | 13% | 3% | 3506 | 1.0° | 1.0° | 0.0% |
+| addr | 11743 | 3% | 2% | 0% | 0 | nan° | nan° | nan% |
+| back | 3325 | 71% | 59% | 13% | 0 | nan° | nan° | nan% |
+| top | 84 | 74% | 67% | 7% | 0 | nan° | nan° | nan% |
+| down | 862 | 32% | 27% | 5% | 0 | nan° | nan° | nan% |
+| impact | 759 | 63% | 59% | 3% | 0 | nan° | nan° | nan% |
+| thru | 870 | 26% | 15% | 11% | 0 | nan° | nan° | nan% |
+| finish | 6659 | 1% | 1% | 0% | 0 | nan° | nan° | nan% |
+| ALL | 24302 | 16% | 13% | 3% | 0 | nan° | nan° | nan% |
 
 ### C. Lock anatomy (all segment locks)
 

@@ -63,7 +63,8 @@ inline double bandLengthPx(double sTypical, double r0Med, double clubLenMm)
 // Build the INSTANTANEOUS candidate set (E-ball + E-band). Head is appended by
 // the caller (post-pass only — Stage-2 heads don't exist at the pre-pass).
 inline std::vector<LengthCandidate> instantLengthCandidates(float measuredClubLenPx,
-                                                            double sTypical, double r0Med, double clubLenMm)
+                                                            double sTypical, double r0Med, double clubLenMm,
+                                                            double segLenPx = -1.0)
 {
     std::vector<LengthCandidate> cands;
     if (measuredClubLenPx > 0.f)
@@ -71,6 +72,8 @@ inline std::vector<LengthCandidate> instantLengthCandidates(float measuredClubLe
     const double bl = bandLengthPx(sTypical, r0Med, clubLenMm);
     if (bl > 0.0)
         cands.push_back({LengthSource::Band, bl, -1.0});
+    if (segLenPx > 0.0)   // E4 steel-segment length (markerless P3b): median of s·(clubLenMm − r0) over FULL locks
+        cands.push_back({LengthSource::Segment, segLenPx, -1.0});
     return cands;
 }
 
@@ -1099,7 +1102,8 @@ std::vector<double> robustIsotonic(const std::vector<double>& y, const std::vect
 
 ReconResult reconcilePsi(const std::vector<double>& thetaDeg, const std::vector<double>& phiS,
                          const std::vector<SwingPhase>& phase, const std::vector<char>& bandOk,
-                         const std::vector<double>& evAt, int top, int nf, const ShaftV3Config& cfg)
+                         const std::vector<double>& evAt, int top, int nf, const ShaftV3Config& cfg,
+                         const std::vector<float>* wOverride)
 {
     ReconResult rr;
     rr.thetaOut = thetaDeg;
@@ -1118,6 +1122,7 @@ ReconResult reconcilePsi(const std::vector<double>& thetaDeg, const std::vector<
     };
     auto weight = [&](int f) {
         if (!bandOk[f] && phase[f] == SwingPhase::Impact) return cfg.wIsoPred;   // RECON_PHASES=(impact,)
+        if (wOverride && (*wOverride)[size_t(f)] > 0.f) return double((*wOverride)[size_t(f)]);   // a segment lock (P3b)
         if (bandOk[f]) return cfg.wIsoBand;
         return evAt[f] >= cfg.rayEvMin ? cfg.wIsoRay : cfg.wIsoPred;
     };
@@ -1707,11 +1712,38 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                 }
             }
     }
+    // ── P3b lock union: a band lock or a segment lock is "a lock" downstream ──
+    // (design §4.3). Band wins where both exist; the rail weight and the tier
+    // confidence say which kind it was. Everything here is a no-op when !segRun.
+    std::vector<char>  lockOk(size_t(nf), 0);
+    std::vector<float> wRail(size_t(nf), 0.f);
+    double segLenPx = -1.0, segSTyp = 0.0, segR0Med = 0.0;
+    for (int i = 0; i < nf; ++i) {
+        lockOk[size_t(i)] = char(bandOk[i] || (segRun && seg[size_t(i)].ok));
+        if (segRun && !bandOk[i] && seg[size_t(i)].ok)
+            wRail[size_t(i)] = seg[size_t(i)].mode == SegmentMode::Full ? cfg.seg.wIso : cfg.seg.wIsoTerminus;
+    }
+    if (segRun) {
+        std::vector<double> ls, ss, rr;
+        for (int i = 0; i < nf; ++i) {
+            const SegmentLock& L = seg[size_t(i)];
+            if (L.ok && L.mode == SegmentMode::Full) {
+                ls.push_back(double(L.s) * std::max(0.0, clubLenMm - double(L.r0)));
+                ss.push_back(double(L.s)); rr.push_back(double(L.r0));
+            }
+        }
+        if (ls.size() >= 5) {
+            std::nth_element(ls.begin(), ls.begin() + ls.size() / 2, ls.end()); segLenPx = ls[ls.size() / 2];
+            std::nth_element(ss.begin(), ss.begin() + ss.size() / 2, ss.end()); segSTyp  = ss[ss.size() / 2];
+            std::nth_element(rr.begin(), rr.begin() + rr.size() / 2, rr.end()); segR0Med = rr[rr.size() / 2];
+        }
+    }
     std::vector<double> evAt(nf, 0.0);
     for (int i = 0; i < nf; ++i) evAt[i] = EV[i][dp.thstar[i]];
     ReconResult rec;
     if (cfg.psiRail)
-        rec = reconcilePsi(dp.thetaDeg, phiS, pm.phase, bandOk, evAt, pm.top, nf, cfg);
+        rec = reconcilePsi(dp.thetaDeg, phiS, pm.phase, segRun ? lockOk : bandOk, evAt, pm.top, nf, cfg,
+                           segRun ? &wRail : nullptr);
     else {
         rec.thetaOut = dp.thetaDeg;
         rec.psiResid.assign(nf, std::numeric_limits<double>::quiet_NaN());
@@ -1727,7 +1759,9 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     { std::vector<double> ss, rr;
       for (int i = 0; i < nf; ++i) if (bandOk[i]) { ss.push_back(band[i].s); rr.push_back(band[i].r0); }
       if (!ss.empty()) { std::nth_element(ss.begin(), ss.begin() + ss.size() / 2, ss.end()); sTypical = ss[ss.size() / 2]; }
-      if (!rr.empty()) { std::nth_element(rr.begin(), rr.begin() + rr.size() / 2, rr.end()); r0Med = rr[rr.size() / 2]; } }
+      if (!rr.empty()) { std::nth_element(rr.begin(), rr.begin() + rr.size() / 2, rr.end()); r0Med = rr[rr.size() / 2]; }
+      // unmarked club (P3b): the segment lock's FULL medians take rung 2 when no band ever locked
+      if (ss.empty() && segRun && segSTyp > 0.0) { sTypical = segSTyp; r0Med = segR0Med; } }
     // Pose-scale surrogate + arm floor over the still frames: shoulder-mid→ankle-
     // mid extent (stature) and shoulder-mid→grip reach (arm). smoothed[i] joints
     // are kBodyJoints order — 0/1 = L/R shoulders, 6/7 = L/R ankles.
@@ -1765,7 +1799,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     bool   fusedLadder = false;
     if (cfg.fusion.enabled) {
         std::vector<LengthCandidate> cands =
-            instantLengthCandidates(out.measuredClubLenPx, sTypical, r0Med, clubLenMm);
+            instantLengthCandidates(out.measuredClubLenPx, sTypical, r0Med, clubLenMm, segLenPx);
         const int priorNarg = appendPriorCandidate(cands, lengthPrior);
         preFuse = fuseClubLength(cands, poseBoundPx, armFloorMedPx, double(frameH), priorNarg, cfg.fusion);
         if (!preFuse.abstained && preFuse.fusedPx > 0.0 && preFuse.conf >= cfg.fusion.ladderConfMin) {
@@ -1781,7 +1815,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                                        armFloorMedPx, clubLenMm, frameH, cfg, projLenRung);
     if (trace) { trace->projLenRung = projLenRung; trace->projLenPx = projLenPx; }
 
-    enum Tier { PRED = 0, RAY = 1, BAND = 2, RECON = 3, WEDGE = 4 };
+    enum Tier { PRED = 0, RAY = 1, BAND = 2, RECON = 3, WEDGE = 4, SEG = 5 };
 
     // ── PASS 1: tier decision, HOISTED out of the placement loop ─────────────
     // Precompute the per-frame tier + confidence (Phase B needs s1IsMeas[i] = the
@@ -1803,6 +1837,13 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         if (bandOk[i] && std::abs(circWrap(thDp - band[i].thetaDeg)) <= cfg.bandTol) {
             tier = BAND;
             conf = float(std::min(0.9, 0.75 + 0.05 * (band[i].n - 4)));
+        // SEG tier (P3b, design §4.3): a steel-segment lock along the DP's own
+        // direction — chain BAND > SEG > RAY. It carries a measured terminus (and
+        // in FULL mode a scale) and is publishable on a still frame like a band.
+        } else if (segRun && seg[size_t(i)].ok
+                   && std::abs(circWrap(thDp - seg[size_t(i)].thetaDeg)) <= cfg.bandTol) {
+            tier = SEG;
+            conf = seg[size_t(i)].mode == SegmentMode::Full ? cfg.seg.conf : cfg.seg.confTerminus;
         // Addr-labelled frames are normally excluded from ray publication (a
         // static hold is the classic counterfeit trap) — EXCEPT inside the
         // widened address collar (i >= spanLo), where bs0's grip-speed lag is
@@ -1814,7 +1855,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         } else if (pm.phase[i] != SwingPhase::Addr || i >= spanLo) {
             const double evs = EV[i][thi], evrev = EV[i][(thi + NS / 2) % NS];
             bool bandNear = false;
-            for (int j = std::max(0, i - cfg.bandNear); j <= std::min(nf - 1, i + cfg.bandNear); ++j) if (bandOk[j]) { bandNear = true; break; }
+            for (int j = std::max(0, i - cfg.bandNear); j <= std::min(nf - 1, i + cfg.bandNear); ++j) if (lockOk[size_t(j)]) { bandNear = true; break; }   // lockNear (P3b)
             const bool verifiable = (pm.phase[i] == SwingPhase::Finish) ? bandNear : (!stat[i] || bandNear);
             // The support gate is absolute, unlike evs: a blur frame can win the
             // normalised comparison in both directions and still have no
@@ -2006,7 +2047,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         }
 
         std::vector<LengthCandidate> instCands =
-            instantLengthCandidates(out.measuredClubLenPx, sTypical, r0Med, clubLenMm);
+            instantLengthCandidates(out.measuredClubLenPx, sTypical, r0Med, clubLenMm, segLenPx);
         if (headLenPx > 0.0) instCands.push_back({LengthSource::Head, headLenPx, -1.0});
 
         std::vector<LengthCandidate> withPrior = instCands;
@@ -2065,7 +2106,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         // Measured, WEDGE ⇒ the blur-wedge flag (deliberately NOT Measured —
         // its consumers, snap + the B2 fit skip-guard, already accept 0x08),
         // else Coasted.
-        const uint16_t s1Flag = (tier == RAY)   ? ShaftMeasured
+        const uint16_t s1Flag = (tier == RAY || tier == SEG) ? ShaftMeasured
                               : (tier == WEDGE) ? ShaftWedge
                                                 : ShaftCoasted;
 
@@ -2081,6 +2122,23 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
             s.flags = ShaftMeasured;
             s.visibleLenPx = std::hypot(headX - gx[i], headY - gy[i]);
             placed = true;
+        }
+
+        // SEG geometry (P3b): the terminus is a measured point on the club, so the
+        // head is rF plus the known millimetres from the terminus to the sole at
+        // the lock's scale. A Stage-2 MEASURED head, when one exists, keeps
+        // precedence (design §4.3: segment frames are eligible for override).
+        if (!placed && tier == SEG) {
+            const SegmentLock& L = seg[size_t(i)];
+            const bool stage2Meas = !headResults.empty() && headResults[size_t(i)].tier == HeadTier::Meas
+                                    && std::isfinite(headResults[size_t(i)].rOut);
+            if (!stage2Meas && L.rF > 0.f && L.s > 0.f) {
+                const double rHead = double(L.rF) + double(L.s) * std::max(0.0, clubLenMm - double(L.mFmm));
+                s.headPx = QPointF(gx[i] + rHead * ux, gy[i] + rHead * uy);
+                s.flags = ShaftMeasured;
+                s.visibleLenPx = float(rHead);
+                placed = true;
+            }
         }
 
         // Stage-2 head result (empty headResults ⇒ Phase-A path; BAND already
@@ -2143,7 +2201,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
             // WEDGE counts as measured coverage: it is a vision measurement
             // (integrated, not per-pixel) and restores the spanMeas the S1
             // demotions took away (the coverage-coupling trap).
-            if (tier == BAND || tier == RAY || tier == WEDGE) ++spanMeas;
+            if (tier == BAND || tier == RAY || tier == WEDGE || tier == SEG) ++spanMeas;
         }
     }
 

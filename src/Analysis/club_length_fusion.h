@@ -54,7 +54,7 @@ namespace pinpoint::analysis {
 // Which estimator produced a candidate. E-pose never appears here (sanity bound
 // only). Prior carries its own explicit σ; the instantaneous three derive σ from
 // cfg.sigFrac*·value.
-enum class LengthSource : uint8_t { Ball = 0, Band = 1, Head = 2, Prior = 3 };
+enum class LengthSource : uint8_t { Ball = 0, Band = 1, Head = 2, Prior = 3, Segment = 4 };
 
 // One length estimate fed to fuseClubLength. px ≤ 0 ⇒ "absent" (skipped).
 // sigmaPx > 0 pins an explicit σ (the prior passes sqrt(varPx)); sigmaPx ≤ 0 ⇒
@@ -84,6 +84,7 @@ struct LengthFusionConfig {
     double sigFracBall      = 0.07;   // ball @address — tightest instant source, deweighted vs a matured prior (P6: raw ball spread ±8% ⇒ fused ±2.6%)
     double sigFracBand      = 0.30;   // band scale — P6 RMS deviation vs ball ≈ 0.29 (foreshortening bias, see header note)
     double sigFracHead      = 0.30;   // measured-head p95 — P6 RMS deviation vs ball ≈ 0.31
+    double sigFracSeg       = 0.35;   // E4 steel-segment scale × (clubLenMm − r0), median over FULL locks (markerless P3b)
     double sigFloorPx       = 4.0;    // σ floor (px) — a starved estimate must not crush the fuse
 
     // leave-one-out outlier rejection (only when ≥ 3 survivors)
@@ -128,6 +129,7 @@ struct LengthFusionConfig {
         apply(ov, "fusion.sigFracBall", c.sigFracBall);
         apply(ov, "fusion.sigFracBand", c.sigFracBand);
         apply(ov, "fusion.sigFracHead", c.sigFracHead);
+        apply(ov, "fusion.sigFracSeg",  c.sigFracSeg);
         apply(ov, "fusion.sigFloorPx", c.sigFloorPx);
         apply(ov, "fusion.outlierFrac", c.outlierFrac);
         apply(ov, "fusion.spread0", c.spread0);
@@ -186,6 +188,7 @@ inline double lengthCandidateSigma(const LengthCandidate& c, const LengthFusionC
             case LengthSource::Band:  frac = cfg.sigFracBand; break;
             case LengthSource::Head:  frac = cfg.sigFracHead; break;
             case LengthSource::Prior: frac = cfg.sigFracBand; break;   // unreached: prior always carries explicit σ
+            case LengthSource::Segment: frac = cfg.sigFracSeg; break;
         }
         s = frac * c.px;
     }

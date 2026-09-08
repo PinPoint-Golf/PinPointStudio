@@ -40,6 +40,7 @@ def load(run_root):
             if "tier" not in r: continue
             rows.append(dict(run=run, frame=r.get("frame", r.get("f")), phase=PHASE.get(r.get("phase"), "?"),
                              tier=r["tier"], theta_out=r.get("theta_out"), theta_dp=r.get("theta_dp"),
+                             span=("raw_p97" in r),
                              seg_mode=r.get("seg_mode", 0), seg_pass=r.get("seg_pass"), seg_theta=r.get("seg_theta"),
                              seg_s=r.get("seg_s"), seg_r0=r.get("seg_r0"), seg_n=r.get("seg_n"),
                              seg_sup=r.get("seg_sup"), seg_distal=r.get("seg_distal"), seg_stage=r.get("seg_stage"),
@@ -52,6 +53,27 @@ def grade(rows, out_md):
     L = []
     runs = sorted({r["run"] for r in rows})
     L.append(f"### Population\n\n{len(runs)} swings, {len(rows)} traced frames.\n")
+
+    # ── 0. Yardstick: band lock vs segment lock on the SAME denominator ──────
+    # Mark, 2026-09-08: quantify progress against the marked club's existing
+    # approach. Every span frame (the tracker probed it) counts; a lock is a lock.
+    L.append("### 0. Yardstick — the marked club's band lock vs the segment lock, all span frames\n")
+    L.append("θ is scored against the DP's direction (the tracker's own answer) for both; band is the corpus-validated 0.3° reference.\n")
+    L.append("| phase | span frames | band lock | segment lock | either | band θ vs DP p50/p90 | seg θ vs DP p50/p90 | tier band | tier seg | tier ray | tier wedge | tier pred |")
+    L.append("|---|---|---|---|---|---|---|---|---|---|---|---|")
+    for ph in PORDER + ["ALL"]:
+        R = [r for r in rows if r["span"] and (ph == "ALL" or r["phase"] == ph)]
+        if not R: continue
+        n = len(R)
+        B = [r for r in R if r["band_n"]]; S = [r for r in R if r["seg_mode"] > 0]
+        E = [r for r in R if r["band_n"] or r["seg_mode"] > 0]
+        tb = [abs(wrap(r["band_theta"] - r["theta_dp"])) for r in B if r["theta_dp"] is not None]
+        ts = [abs(wrap(r["seg_theta"] - r["theta_dp"])) for r in S if r["theta_dp"] is not None]
+        t = collections.Counter(r["tier"] for r in R)
+        L.append(f"| {ph} | {n} | {len(B)/n*100:.0f}% | {len(S)/n*100:.0f}% | {len(E)/n*100:.0f}% | "
+                 f"{q(tb,50):.1f}°/{q(tb,90):.1f}° | {q(ts,50):.1f}°/{q(ts,90):.1f}° | "
+                 f"{t['band']/n*100:.0f}% | {t['seg']/n*100:.0f}% | {t['ray']/n*100:.0f}% | {t['wedge']/n*100:.0f}% | {t['pred']/n*100:.0f}% |")
+    L.append("\nBand and segment scale, where both exist on a frame, are compared in A; the band's own frame-to-frame scale jitter (the reference's precision) is in A4.\n")
 
     # ── A. vs the band lock ─────────────────────────────────────────────────
     L.append("### A. Segment lock vs band lock, same frame (band = reference)\n")
@@ -115,6 +137,22 @@ def grade(rows, out_md):
             se = [abs(r["seg_s"] - r["band_s"]) / r["band_s"] * 100 for r in R]
             mg = [r["seg_rg"] / r["band_s"] + r["band_r0"] for r in R]
             L.append(f"| {ph} | {'grip end' if on_t == 1 else 'hands edge'} | {len(R)} | {q(se,50):.1f}% | {q(se,90):.1f}% | {q(mg,50):.0f} | {q(mg,10):.0f} | {q(mg,90):.0f} | {assumed} |")
+
+    # ── A4. the reference's own precision: band s / r0 frame-to-frame ─────────
+    L.append("\n### A4. Reference precision — band lock scale and offset, consecutive-frame relative change\n")
+    L.append("| quantity | p50 | p90 | n pairs |\n|---|---|---|---|")
+    byrun = collections.defaultdict(list)
+    for r in rows:
+        if r["band_n"]: byrun[r["run"]].append(r)
+    ds, dr = [], []
+    for run, R in byrun.items():
+        R.sort(key=lambda r: r["frame"])
+        for a, b in zip(R, R[1:]):
+            if b["frame"] - a["frame"] <= 2:
+                ds.append(abs(b["band_s"] - a["band_s"]) / a["band_s"] * 100); dr.append(abs(b["band_r0"] - a["band_r0"]))
+    L.append(f"| band s, % change between adjacent band frames | {q(ds,50):.1f}% | {q(ds,90):.1f}% | {len(ds)} |")
+    L.append(f"| band r0, mm change between adjacent band frames | {q(dr,50):.0f} | {q(dr,90):.0f} | {len(dr)} |")
+    L.append("\n(a segment-vs-band scale error at or below the band's own adjacent-frame change is at the reference's floor)")
 
     # ── B. where the band lock is absent ────────────────────────────────────
     L.append("\n### B. Segment lock where the band lock is ABSENT (θ vs the tracker's final θ on RAY frames)\n")

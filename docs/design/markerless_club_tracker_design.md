@@ -1,6 +1,6 @@
 # Markerless club tracking — design
 
-**Status: design 2026-09-08; P0 measured, P1 engine built, P2 graded and P3a re-shaped and re-graded the same day (§6). P2 missed its targets and redefined Phase 3; P3a meets the direction, position and scale gates (§4.8 item 6, §5.1); coverage is open.** Successor to club tracking v3 (`club_tracking_v3_design.md`,
+**Status: design 2026-09-08; P0–P3b built and graded the same day (§6). P2 missed its targets and redefined Phase 3; P3a meets the direction, position and scale gates; P3b wires the lock into the tracker's consumers, dark behind `shaft.seg.enabled`. Every result is reported against the marked club's band lock on the same frames (§5.1). Open: the scale tail, the still frames outside the evidence span, and P4 (club record, athlete `handsEndMm`, UI, persistence), P5 (unmarked capture), P6 (flip).** Successor to club tracking v3 (`club_tracking_v3_design.md`,
 as-built `shaft_track_assembly.*` / `shaft_tracker_math.*`). Premise, from Mark: the
 retroreflective bands on the shaft change the club's swing weight, and a club whose swing
 weight has changed produces a different swing. The tracker must therefore reach today's
@@ -684,7 +684,44 @@ accordingly (§6).
 | lock rate on band-absent frames, backswing / top | — | 38% / 21% | 34% / 49%, θ vs the DP 0.5–1.0° |
 
 Direction and terminus position are solved; scale is at the P3a gate with a tail; coverage
-is the open item. Of the 2,300 band frames the probe left unlocked, 712 fell at the s/r0
+is the open item.
+
+**Phase 3b result (2026-09-08, same 38 swings) — measured against the marked club's own
+lock on the same frames**, which is how every result is reported from here on. The lock
+union of §4.3 is wired (SEG tier, `lockNear`, rail weights, ladder rung 2 for unmarked
+clubs, E-seg in the fusion, head from the terminus); the emission well is not, because
+P3a showed the DP already agrees with the band to 0.2° where a band exists and the
+well's value in band-free regions cannot be measured on this corpus.
+
+| phase | span frames | **band lock** | **segment lock** | either | band θ vs DP p50/p90 | seg θ vs DP p50/p90 |
+|---|---|---|---|---|---|---|
+| address (collar) | 570 | 8% | 63% | 67% | 0.4° / 10.5° | 0.5° / 1.0° |
+| backswing | 4,462 | 25% | 68% | 79% | 0.3° / 0.5° | 1.0° / 1.0° |
+| top | 190 | 56% | 53% | 88% | 0.3° / 2.6° | 1.0° / 1.1° |
+| downswing | 950 | 9% | 33% | 38% | 0.2° / 2.2° | 0.5° / 1.0° |
+| impact | 1,060 | 28% | 58% | 73% | 0.3° / 5.3° | 1.0° / 1.0° |
+| through | 1,070 | 19% | 31% | 40% | 0.3° / 0.5° | 1.0° / 1.0° |
+| finish (collar) | 563 | 75% | 55% | 92% | 0.3° / 0.5° | 1.0° / 1.3° |
+| **all** | **8,865** | **26%** | **57%** | **69%** | 0.3° / 0.5° | 1.0° / 1.0° |
+
+Read across: on the marked club the band lock covers a quarter of the span frames; the
+segment lock covers more than half, and where both exist the segment sits 1.0° from the
+DP against the band's 0.3° (the 1.0° is the ±0.5° refinement step, not measurement
+noise). The band remains better in the two places it was built for — the top and the
+held finish — and the segment lock is the wider net everywhere else, address most of
+all (8% → 63%).
+
+| tracker output, 38 swings | recorded (band only) | with the segment lock |
+|---|---|---|
+| tier mix over span frames: band / seg / ray / wedge / pred | 25 / — / 65 / 4 / 6% (Phase 0 D) | 25 / 44 / 25 / 2 / 4% |
+| `coverage` p50 (min) | 0.958 (0.881) | 0.973 (0.901) |
+| lock-off output vs the recorded tracker | — | byte-identical bar four wall-clock timing fields |
+
+**Scale, against the reference's own precision.** The band lock's scale changes by 1.6%
+between adjacent band frames at p50 and 6.8% at p90 (1,863 pairs) — that is the floor a
+per-frame scale can be graded against. The segment's 6.2% p50 is four times that floor;
+its 43% p90 is the short-terminus tail of §5.1 and is where the fusion (σ 35%, one voice
+among ball, band, head and prior) is meant to arbitrate rather than the per-frame engine. Of the 2,300 band frames the probe left unlocked, 712 fell at the s/r0
 gate and 202 found no run of 60 px; the rest are spread thinly. The address and finish
 numbers are a span question (§7), not a detector one.
 
@@ -745,7 +782,7 @@ normalisation) still apply to anything that shares code with E2.
 | **P1 — engine (C++)** ✅ 2026-09-08 | `rayProfile()` + `segmentLock()` in `shaft_tracker_math.*`; E2's per-sample reduction factored into a shared `sampleRay()`; `SegmentConfig` on `ShaftV3Config` with every `shaft.seg.*` key parsed; `shaft_segment_test` (28 checks: bit-for-bit ridge-score pin, FULL/TERMINUS, polarity flip, forearm/off-axis/off-frame counterfeits, length and scale gates, bands as extra landmarks, four foreshortening scales) | done — 7 suites green under ctest, E2 pinned identical |
 | **P2 — grade** ✅ 2026-09-08 | segment probe inside the evidence loop behind `shaft.seg.enabled` (pass 1 prior-free, pass 2 with the swing's median FULL scale), traced beside the band lock; `tools/shaftlab/segment_grade.py`; 38 taped swings | done — **§5.1 targets NOT met**; the corpus located the two design errors (§4.8 items 1–2) |
 | **P3a — change of shape** ✅ 2026-09-08 | probe **along the DP's θ** after the Viterbi (and the band's when present); onset classified by what precedes the run (visible grip → grip end; hands' bloom → hands' edge at `handsEndMm`); terminus = hosel end unless a ferrule is resolved; look-back unmarked-only; image-edge guard; hands'-edge r0 floor; one-sided length gate; re-graded on the same 38 swings (§5.1) | θ p50/p90 **1.0°/1.4°**, terminus **−1 px** p50, `s` p50 **6.2%** — gate met; FULL-lock rate 40%, coverage is the open item |
-| **P3b — consumers** | `ShaftLock`, SEG tier, `lockNear`, ladder/fusion/placement from the post-DP lock; a second DP pass with the segment well only if P3a shows a pin is still needed; all behind `shaft.seg.enabled` | `enabled=0` byte-identical (§5.3); `shaft_decide_test` covers lock precedence and the Finish-publish change |
+| **P3b — consumers** ✅ 2026-09-08 | lock union: SEG tier (BAND > SEG > RAY, conf 0.70/0.62), `lockNear` in the verifiable clause, rail weights 6/3 via a weight override, ladder rung 2 from segment medians on an unmarked club, E-seg (σ 0.35) in the fusion, head placed from the terminus unless a Stage-2 measured head exists; all behind `shaft.seg.enabled`; the emission well deferred (P3a: the DP already sits 0.2° from the band) | done — lock-off byte-identical to the recorded tracker (timings aside); segment lock on 57% of span frames vs the band's 26%; coverage 0.958 → 0.973 (§5.1) |
 | **P4 — record + UI + persistence** | `shaftLengthMm` in the club record, seed defaults, `AthleteClubsSection.qml` field, job fill, `swing.json` fields, loader | round-trips through record → job → swing.json → re-analysis |
 | **P5 — corpus + capture** | the untaped 7-iron session (§5.2), markup, gate CSVs in the repo, run trees deleted | §5.2 gates met |
 | **P6 — flip** | `shaft.seg.enabled` default 1; docs updated (`shaft_tracker_impl.md`, protocol docs, best-practices ladder row) | gate report attached |

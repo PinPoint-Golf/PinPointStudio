@@ -208,6 +208,7 @@ struct SegmentLock {
     float support  = 0.f;   // fraction of e > eOff over the run
     int   distal   = 0;     // 0 unresolved · 1 ferrule (dark gap, then the hosel/head) · 2 ran into the bright head · 3 dark end
     float sigmaMm  = 0.f;   // σ of the distal landmark (ferruleTolMm / hoselTolMm)
+    float mFmm     = 0.f;   // the millimetre the terminus refers to (hosel end, or hosel − ferrule when resolved)
     int   onset    = 0;     // 0 unresolved · 1 grip end (a visible dark grip precedes the run) · 2 hands' edge (the hands' bloom precedes it)
     int   stage    = 0;     // how far the probe got: 0 geom · 1 no run · 2 support · 3 off-frame · 4 no distal landmark
                             // · 5 distal edge · 6 no onset and no prior · 7 s/r0 gate · 8 length gate · 9 locked

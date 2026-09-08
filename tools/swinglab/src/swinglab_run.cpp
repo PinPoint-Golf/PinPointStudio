@@ -503,7 +503,7 @@ int main(int argc, char **argv)
         }
         // v3.0-r1 per-emitted-frame diagnostics: DP θ, reconciled θ, ψ residual,
         // tier (0 pred/1 ray/2 band/3 recon/4 wedge), phase.
-        static const char *kTierName[] = { "pred", "ray", "band", "recon", "wedge" };
+        static const char *kTierName[] = { "pred", "ray", "band", "recon", "wedge", "seg" };
         // Stage-2 head tiers (clubhead_track HeadTier): off/pred/meas.
         static const char *kHeadTierName[] = { "off", "pred", "meas" };
         for (size_t i = 0; i < trace.frameIdx.size(); ++i) {
@@ -513,7 +513,7 @@ int main(int argc, char **argv)
             QJsonObject line{
                 { "frame", f },
                 { "phase", int(trace.phases.phase[size_t(f)]) },
-                { "tier", (trace.tier[i] >= 0 && trace.tier[i] < 5) ? kTierName[trace.tier[i]] : "?" },
+                { "tier", (trace.tier[i] >= 0 && trace.tier[i] < 6) ? kTierName[trace.tier[i]] : "?" },
                 { "theta_dp", trace.dp.thetaDeg[size_t(f)] },
                 { "theta_out", trace.thetaDeg[i] },
                 { "conf", trace.conf[i] },
