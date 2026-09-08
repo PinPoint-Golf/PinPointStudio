@@ -327,6 +327,10 @@ struct ShaftV3Config {
     // evidence engine sub-configs
     RidgeConfig     ridge;
     BandMatchConfig band;
+    // E4 steel-segment lock (markerless_club_tracker_design.md §4.2): "shaft.seg.*"
+    // keys. enabled=false by default (dark at merge) — the engine is never called
+    // and the tracker is byte-identical.
+    SegmentConfig   seg;
     // Stage-2 measured-clubhead config (Phase B, clubhead_track.h). Defaults to
     // enabled=false (dark at merge). NOTE: ShaftV3Config::fromOverrides (in
     // shaft_track_assembly.cpp) does NOT populate this — the B3 wiring agent adds

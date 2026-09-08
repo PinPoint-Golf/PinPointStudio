@@ -1,6 +1,6 @@
 # Markerless club tracking — design
 
-**Status: design, 2026-09-08.** Successor to club tracking v3 (`club_tracking_v3_design.md`,
+**Status: design 2026-09-08; P0 measured and P1 engine built the same day (§6).** Successor to club tracking v3 (`club_tracking_v3_design.md`,
 as-built `shaft_track_assembly.*` / `shaft_tracker_math.*`). Premise, from Mark: the
 retroreflective bands on the shaft change the club's swing weight, and a club whose swing
 weight has changed produces a different swing. The tracker must therefore reach today's
@@ -436,6 +436,23 @@ re-fit uses, so `s` and `r0` mean exactly what they mean in `BandMatch`. Gates:
 | Reverse ray | no BRIGHT run ≥ 60 px on θ+180 outside the forearm sector | C1 weak form, as in `frameEmission` |
 | Fit RMS | ≤ 3 px with bands, n/a with 2 landmarks | E1's n≥5 gate |
 
+**Three details the implementation settled (P1).**
+- *The distal millimetre depends on what ended the run.* A resolved ferrule (dark gap,
+  then the head within 25 px) puts the steel's end at `hoselMm − ferruleMm` (12 mm, σ 5);
+  a run that reaches the wide head with no gap ends at `hoselMm + hoselLenMm` (40 mm,
+  σ 15); a bright→dark end with no head in reach is referenced to the ferrule at σ 15.
+  A ferrule of 3–4 px is shorter than the hole the run bridges, so a run that reached the
+  head is scanned back for ≥ 2 consecutive dark samples and cut there.
+- *"Wide at once" is tested before "dark then wide".* The interior of a wide blob is
+  evidence-free (`on ≈ bg ⇒ e ≈ −12`) and reads as dark, so a head beginning at the
+  run's end would otherwise be mislabelled as a ferrule gap.
+- *The grip must be darker than the steel, not merely evidence-free.* The hands' bloom is
+  also `e ≈ −12`. The onset therefore requires the on-ridge level to step up by `edgeMin`
+  into the run (bright regime); over a blown background the grip is itself a dark line and
+  the onset is unresolved by construction.
+- Bands are assigned in two passes: loose (8 px or 8% of the run) from the two-end fit,
+  refit, then E1's tight tolerance from the refit.
+
 **Result.** `SegmentLock { ok, mode, thetaDeg, s, r0, rG, rF, nLandmarks, rms }` with
 `mode ∈ {FULL, TERMINUS}`. TERMINUS mode (onset unresolved) borrows `s` from the temporal
 median and reports only `θ` and `r_f`; it exists so the blur regime, where the hands bloom
@@ -613,7 +630,7 @@ normalisation) still apply to anything that shares code with E2.
 | Phase | Deliverable | Done when |
 |---|---|---|
 | **P0 — measure** ✅ 2026-09-08 | `tools/shaftlab/steel_profile_probe.py`; `docs/research/data/markerless/steel_profile_probe.csv` (21,635 frames, 83 swings) + `_summary.md`; results in §2.4 | done — 64 taped + 19 unmarked swings; the two-frame table of §2.1 holds corpus-wide, with delivery as the exception |
-| **P1 — engine (C++)** | `rayProfile()` factored out of `ridgeSweep` (E2 output byte-identical); `segmentLock()` in `shaft_tracker_math.*` (profile, run parse, landmark fit, gates); unit tests in `src/Analysis/tests` on synthetic profiles | tests green under ctest; E2 unchanged |
+| **P1 — engine (C++)** ✅ 2026-09-08 | `rayProfile()` + `segmentLock()` in `shaft_tracker_math.*`; E2's per-sample reduction factored into a shared `sampleRay()`; `SegmentConfig` on `ShaftV3Config` with every `shaft.seg.*` key parsed; `shaft_segment_test` (28 checks: bit-for-bit ridge-score pin, FULL/TERMINUS, polarity flip, forearm/off-axis/off-frame counterfeits, length and scale gates, bands as extra landmarks, four foreshortening scales) | done — 7 suites green under ctest, E2 pinned identical |
 | **P2 — grade** | segment lock computed per frame inside the evidence loop behind `shaft.seg.enabled`, written to the tracker trace beside the band lock; a comparison over the taped corpus | §5.1 targets met |
 | **P3 — assembly wiring** | `ShaftLock`, emission wells, SEG tier, `lockNear`, reconcile weights, ladder/fusion/placement consumers; all behind `shaft.seg.enabled` | `enabled=0` byte-identical (§5.3); `shaft_decide_test` covers lock precedence and the Finish-publish change |
 | **P4 — record + UI + persistence** | `shaftLengthMm` in the club record, seed defaults, `AthleteClubsSection.qml` field, job fill, `swing.json` fields, loader | round-trips through record → job → swing.json → re-analysis |

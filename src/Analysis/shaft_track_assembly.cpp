@@ -337,6 +337,37 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.minLenPx", c.ridge.minLenPx);
     apply(ov, "shaft.satT", c.band.satT);
     apply(ov, "shaft.gripGate", c.band.gripGate);
+    // E4 steel-segment lock: "shaft.seg.*" (shaft_tracker_math.h SegmentConfig).
+    apply(ov, "shaft.seg.enabled", c.seg.enabled);
+    apply(ov, "shaft.seg.rLo", c.seg.rLo);
+    apply(ov, "shaft.seg.eOn", c.seg.eOn);
+    apply(ov, "shaft.seg.eOff", c.seg.eOff);
+    apply(ov, "shaft.seg.wideMin", c.seg.wideMin);
+    apply(ov, "shaft.seg.minLenPx", c.seg.minLenPx);
+    apply(ov, "shaft.seg.maxHolePx", c.seg.maxHolePx);
+    apply(ov, "shaft.seg.minDarkPx", c.seg.minDarkPx);
+    apply(ov, "shaft.seg.lookAheadPx", c.seg.lookAheadPx);
+    apply(ov, "shaft.seg.proxFrac", c.seg.proxFrac);
+    apply(ov, "shaft.seg.supportMin", c.seg.supportMin);
+    apply(ov, "shaft.seg.edgeMin", c.seg.edgeMin);
+    apply(ov, "shaft.seg.sMin", c.seg.sMin);
+    apply(ov, "shaft.seg.sMax", c.seg.sMax);
+    apply(ov, "shaft.seg.r0Min", c.seg.r0Min);
+    apply(ov, "shaft.seg.r0Max", c.seg.r0Max);
+    apply(ov, "shaft.seg.lenTol", c.seg.lenTol);
+    apply(ov, "shaft.seg.sTol", c.seg.sTol);
+    apply(ov, "shaft.seg.bandSat", c.seg.bandSat);
+    apply(ov, "shaft.seg.rmsMax", c.seg.rmsMax);
+    apply(ov, "shaft.seg.hoselTolMm", c.seg.hoselTolMm);
+    apply(ov, "shaft.seg.ferruleTolMm", c.seg.ferruleTolMm);
+    apply(ov, "shaft.seg.maxCand", c.seg.maxCand);
+    apply(ov, "shaft.seg.well", c.seg.well);
+    apply(ov, "shaft.seg.wellTerminus", c.seg.wellTerminus);
+    apply(ov, "shaft.seg.conf", c.seg.conf);
+    apply(ov, "shaft.seg.confTerminus", c.seg.confTerminus);
+    apply(ov, "shaft.seg.wIso", c.seg.wIso);
+    apply(ov, "shaft.seg.wIsoTerminus", c.seg.wIsoTerminus);
+    apply(ov, "shaft.seg.sigFrac", c.seg.sigFrac);
     // Stage-2 measured-clubhead (Phase B): "shaft.head.*" keys. Kept a separate
     // sub-parse (clubhead_track.cpp) so the head parameter set travels with its
     // module; still default enabled=false (dark at merge).

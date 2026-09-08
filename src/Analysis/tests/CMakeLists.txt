@@ -502,6 +502,17 @@ pp_add_test(shaft_evidence_test
     COMPILE_OPTIONS -O2
     NO_QT)
 
+# E4 steel-segment lock (markerless_club_tracker_design.md §4.2): synthetic
+# clubs with known geometry — FULL/TERMINUS modes, polarity flip, counterfeits,
+# the length/scale gates, bands as extra landmarks, and the pin that rayProfile's
+# shared sampler reproduces ridgeSweep's score bit-for-bit.
+pp_add_test(shaft_segment_test
+    SOURCES shaft_segment_test.cpp ${ANALYSIS}/shaft_tracker_math.cpp
+    INCLUDE ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    COMPILE_OPTIONS -O2
+    NO_QT)
+
 # Shaft v3.0-r1 deciding half (phase model, geometry, emission, banded Viterbi
 # DP, ψ-isotonic reconcile, tiering + the decideTrack core, which calls the E1/E2
 # engines) — needs Qt (QVariantMap config) + OpenCV. ball_anchor.cpp supplies
