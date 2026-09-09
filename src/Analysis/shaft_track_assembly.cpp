@@ -369,6 +369,8 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.seg.ferruleTolMm", c.seg.ferruleTolMm);
     apply(ov, "shaft.seg.maxCand", c.seg.maxCand);
     apply(ov, "shaft.seg.probeStill", c.seg.probeStill);
+    apply(ov, "shaft.seg.refineAddrDeg", c.seg.refineAddrDeg);
+    apply(ov, "shaft.seg.addrLenTol", c.seg.addrLenTol);
     apply(ov, "shaft.seg.well", c.seg.well);
     apply(ov, "shaft.seg.wellTerminus", c.seg.wellTerminus);
     apply(ov, "shaft.seg.conf", c.seg.conf);
@@ -1507,11 +1509,12 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     // which a crease or the lead arm wins on a third of frames. Called after
     // the Viterbi: pass 1 prior-free, pass 2 with the swing's median FULL scale
     // for the frames still unlocked (a hidden onset then locks on its terminus).
-    const auto segProbe = [&](int i, const cv::Mat& g32, const std::vector<double>& thetas, double sPrior, int pass) {
+    const auto segProbe = [&](int i, const cv::Mat& g32, const std::vector<double>& thetas, double sPrior, int pass,
+                              const SegmentConfig& segCfg) {
         const double lenPrior = out.measuredClubLenPx > 0.f ? double(out.measuredClubLenPx) : 0.0;
         SegmentLock best;
         for (double th : thetas) {
-            const SegmentLock L = segmentLock(g32, gx[i], gy[i], th, rmax, *segGeom, cfg.seg, cfg.ridge,
+            const SegmentLock L = segmentLock(g32, gx[i], gy[i], th, rmax, *segGeom, segCfg, cfg.ridge,
                                               sPrior, lenPrior);
             if (L.stage > segStage[size_t(i)]) segStage[size_t(i)] = char(L.stage);
             if (!L.ok) continue;
@@ -1671,6 +1674,11 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
 
     const DPResult dp = viterbiDP(emis, pm.phase, cfg);
     if (segRun) {
+        // At address the DP's direction is a clamp (90°, the down-cone default) while
+        // the club is really 8–14° off it, and a probe along that clamp locks the
+        // trouser leg (unmarked 6-iron, 2026-09-09). The address direction the
+        // tracker trusts is grip→ball (v3.4, ball_anchor.h): use it for every
+        // address-phase frame and every frame before the span where the ball resolved.
         // Frames outside the evidence span (the address hold before spanLo, the held
         // finish after spanHi) were never given evidence, so the DP coasts there.
         // The club is still on those frames: probe them along the nearest in-span
@@ -1684,9 +1692,25 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
             if (g8.empty()) return;
             cv::Mat g32; g8.convertTo(g32, CV_32F);
             const int ref = heavyMark[size_t(i)] ? i : (i < spanLo ? spanLo : spanHi);
-            std::vector<double> thetas{dp.thetaDeg[ref] * kPi / 180.0};
+            // The ball is stationary at address, so the accepted address cluster
+            // centre (A1, addrBallPx) gives every address-like frame its direction
+            // from its own anchor — including the early hold, before the detector's
+            // per-frame samples exist. With no address ball there is no witness and
+            // the DP's clamp locks a trouser crease: those frames are not probed.
+            const bool addressLike = (i < spanLo) || pm.phase[i] == SwingPhase::Addr;
+            const bool haveBall = addressLike && haveAddrBall;
+            if (addressLike && !haveBall) return;
+            std::vector<double> thetas;
+            if (haveBall) thetas.push_back(std::atan2(addrBallPx.y() - gy[i], addrBallPx.x() - gx[i]));
+            else          thetas.push_back(dp.thetaDeg[ref] * kPi / 180.0);
             if (bandOk[i]) thetas.push_back(double(band[i].thetaDeg) * kPi / 180.0);
-            segProbe(i, g32, thetas, sPrior, pass);
+            // Address: grip→ball is a far-end anchor, not the shaft — the head sits
+            // behind the ball, ~3° at this framing, 15 px lateral at the far end — so
+            // refine wider; and the club is in-plane there, so the ball length gates
+            // tightly (a trouser crease locks long and bright but 40% short).
+            SegmentConfig segCfg = cfg.seg;
+            if (haveBall) { segCfg.refineDeg = cfg.seg.refineAddrDeg; segCfg.lenTol = cfg.seg.addrLenTol; segCfg.lenMinFrac = 1.0f - cfg.seg.addrLenTol; }
+            segProbe(i, g32, thetas, sPrior, pass, segCfg);
         };
         const auto runPass = [&](double sPrior, int pass) {
             if (parFrames)
@@ -1733,13 +1757,25 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
             wRail[size_t(i)] = seg[size_t(i)].mode == SegmentMode::Full ? cfg.seg.wIso : cfg.seg.wIsoTerminus;
     }
     if (segRun) {
-        std::vector<double> ls, ss, rr;
+        // The length voice is an IN-PLANE length like the ball's: address-phase FULL
+        // locks when ≥ 5 exist, else every FULL lock (a foreshortened median, which
+        // is what E-band is too and what σ 0.35 covers).
+        std::vector<double> ls, ss, rr, lsAddr;
         for (int i = 0; i < nf; ++i) {
             const SegmentLock& L = seg[size_t(i)];
             if (L.ok && L.mode == SegmentMode::Full) {
-                ls.push_back(double(L.s) * std::max(0.0, clubLenMm - double(L.r0)));
+                const double len = double(L.s) * std::max(0.0, clubLenMm - double(L.r0));
+                ls.push_back(len);
+                if (i < spanLo || pm.phase[i] == SwingPhase::Addr) lsAddr.push_back(len);
                 ss.push_back(double(L.s)); rr.push_back(double(L.r0));
             }
+        }
+        if (lsAddr.size() >= 5) ls = lsAddr;
+        else if (ls.size() >= 5) {
+            // no in-plane witness: the least-foreshortened quartile of the swing's
+            // projected lengths stands in (a median here is 40–50% short — 6-iron 0909)
+            std::sort(ls.begin(), ls.end());
+            ls.erase(ls.begin(), ls.begin() + ls.size() * 3 / 4);
         }
         if (ls.size() >= 5) {
             std::nth_element(ls.begin(), ls.begin() + ls.size() / 2, ls.end()); segLenPx = ls[ls.size() / 2];

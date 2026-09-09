@@ -1,6 +1,6 @@
 # Markerless club tracking — design
 
-**Status: design 2026-09-08; P0–P3b built and graded the same day (§6). P2 missed its targets and redefined Phase 3; P3a meets the direction, position and scale gates; P3b wires the lock into the tracker's consumers, dark behind `shaft.seg.enabled`. Every result is reported against the marked club's band lock on the same frames (§5.1). P4 adds the two club-record fields, the UI, the persistence and the still-frame probe. Open: the scale tail, the held finish, P5 (unmarked capture — Mark records 2026-09-09), P6 (flip).** Successor to club tracking v3 (`club_tracking_v3_design.md`,
+**Status: design 2026-09-08; P0–P3b built and graded the same day (§6). P2 missed its targets and redefined Phase 3; P3a meets the direction, position and scale gates; P3b wires the lock into the tracker's consumers, dark behind `shaft.seg.enabled`. Every result is reported against the marked club's band lock on the same frames (§5.1). P4 adds the two club-record fields, the UI, the persistence and the still-frame probe. P5 graded 2026-09-09 on an unmarked 6-iron (§5.1): the segment lock covers 40% of span frames against the taped club's 54% segment / 26% band, at 1.0° from the tracker's direction; club length matches the ball to 3% when a ball exists and is unsolved without one. Open: the scale tail, the held finish, length without a ball, P6 (flip).** Successor to club tracking v3 (`club_tracking_v3_design.md`,
 as-built `shaft_track_assembly.*` / `shaft_tracker_math.*`). Premise, from Mark: the
 retroreflective bands on the shaft change the club's swing weight, and a club whose swing
 weight has changed produces a different swing. The tracker must therefore reach today's
@@ -719,20 +719,55 @@ all (8% → 63%).
 | `coverage` p50 (min) | 0.958 (0.881) | 0.973 (0.901) |
 | lock-off output vs the recorded tracker | — | byte-identical bar four wall-clock timing fields |
 
-**Still frames outside the evidence span (P4, same 38 swings).** No band lock and no
-ridge evidence exist there, so this is segment-only:
+**Still frames outside the evidence span (P4, same 38 swings) — corrected 2026-09-09.**
+The first P4 pass reported a 30% address-hold lock rate. The unmarked 6-iron session
+showed those locks were the trouser crease: at address the DP's direction is a 90°
+clamp while the club sits 8–14° off it, and a probe along the clamp finds the leg edge
+beside the shaft, long, bright and 40% short. Address-like frames (the pre-span hold and
+the address phase) are now probed from each frame's own anchor toward the **accepted
+address ball centre**, with a ±5° refinement because grip→ball is a far-end anchor
+about 3° off the shaft, and the ball length gates them at ±15% because the club is
+in-plane there. Frames with no address ball are not probed — there is no witness.
 
-| phase | frames outside the span | segment lock | FULL |
+| phase | frames outside the span | taped 7-iron, segment lock | unmarked 6-iron, segment lock |
 |---|---|---|---|
-| address hold | 11,220 | 30% (22% FULL) | 22% |
-| held finish | 6,517 | 2% | 1% |
+| address hold | 11,220 / 994 | 6% | 9% |
+| held finish | 6,517 / 1,122 | 1% | 0% |
 
-The address hold covers up to three seconds of setup per swing — waggles, re-gripping,
-looking at the target — and the in-span direction only applies while the club is
-actually at address, so 30% is a floor set by the probe's assumption, not by the
-detector. The held finish is the club over the shoulder against the dark ceiling, or out
-of frame: 2% says that region is out of reach without a light on it. Coverage over the
-span moves 0.958 → 0.977 with the lock on.
+Where an address lock now exists its terminus sits on the hosel within a few pixels of
+the ball-implied position and the fused length matches the ball to 1–3%. The low rate
+is the regime the validation protocol already names: bare steel over a lit but
+unclipped mat has no contrast, and the tape does no better there (band lock at address
+8%). The held finish is out of reach for both without a light on it.
+
+**P5 — the unmarked club (2026-09-09, 6-iron, 7 swings, same rig, ring light, no
+tape; club record from Mark's tape measure: length 955, hosel 892 taken as the 880 mm
+ferrule entry plus 12, shaft 612, hands end 220).** Same engine, same day, graded beside
+the taped 7-iron's 38 swings:
+
+| phase | taped 7-iron **band lock** | taped 7-iron **segment lock** | **unmarked 6-iron segment lock** |
+|---|---|---|---|
+| address (collar) | 8% | 11% | 9% |
+| backswing | 25% | 69% | 50% |
+| top | 56% | 55% | 51% |
+| downswing | 9% | 31% | 16% |
+| impact | 28% | 59% | 54% |
+| through | 19% | 30% | 15% |
+| finish (collar) | 75% | 55% | 17% |
+| **all span frames** | **26%** | **54%** | **40%** |
+| θ vs the DP, p50 / p90 | 0.3° / 0.5° | 1.0° / 1.0° | 1.0° / 1.0° |
+| coverage, p50 | 0.958 (recorded) | 0.976 | 0.963 (recorded 0.960) |
+
+Fused club length against the ball's address measurement on the 6-iron: 0.97–1.00 on
+all five swings with a ball. On the two swings without a ball the segment voice is a
+projected length with no in-plane witness: one fusion abstained, one came out 40%
+short. Without a ball or bands, club length on an unmarked club is not yet solved.
+
+So on a bare club the segment lock reaches the same frames the taped club's segment
+lock reaches in the backswing, top and impact, half as many in the downswing and
+through-swing, and a third as many in the finish collar — and everywhere it locks it
+sits 1.0° from the tracker's direction. Against the band lock it is ahead on every
+phase but the top and the held finish.
 
 **Scale, against the reference's own precision.** The band lock's scale changes by 1.6%
 between adjacent band frames at p50 and 6.8% at p90 (1,863 pairs) — that is the floor a
@@ -801,7 +836,7 @@ normalisation) still apply to anything that shares code with E2.
 | **P3a — change of shape** ✅ 2026-09-08 | probe **along the DP's θ** after the Viterbi (and the band's when present); onset classified by what precedes the run (visible grip → grip end; hands' bloom → hands' edge at `handsEndMm`); terminus = hosel end unless a ferrule is resolved; look-back unmarked-only; image-edge guard; hands'-edge r0 floor; one-sided length gate; re-graded on the same 38 swings (§5.1) | θ p50/p90 **1.0°/1.4°**, terminus **−1 px** p50, `s` p50 **6.2%** — gate met; FULL-lock rate 40%, coverage is the open item |
 | **P3b — consumers** ✅ 2026-09-08 | lock union: SEG tier (BAND > SEG > RAY, conf 0.70/0.62), `lockNear` in the verifiable clause, rail weights 6/3 via a weight override, ladder rung 2 from segment medians on an unmarked club, E-seg (σ 0.35) in the fusion, head placed from the terminus unless a Stage-2 measured head exists; all behind `shaft.seg.enabled`; the emission well deferred (P3a: the DP already sits 0.2° from the band) | done — lock-off byte-identical to the recorded tracker (timings aside); segment lock on 57% of span frames vs the band's 26%; coverage 0.958 → 0.973 (§5.1) |
 | **P4 — record + UI + persistence** ✅ 2026-09-08 | `shaftLengthMm` + `handsEndMm` in the club record (defaults 0 = unknown), two fields in `AthleteClubsSection.qml`, both jobs filled from the record, `swing.json` `capture.club` carries both, re-analysis replays them, the tracker reads them; schema doc rows; **still frames** outside the evidence span are now probed along the nearest in-span DP direction (`shaft.seg.probeStill`) | app, tests and tool build; round-trip record → job → swing.json → re-analysis by construction (same read sites as `hoselFromButtMm`) |
-| **P5 — corpus + capture** | the untaped 7-iron session (§5.2), markup, gate CSVs in the repo, run trees deleted | §5.2 gates met |
+| **P5 — corpus + capture** ✅ 2026-09-09 (first pass) | Mark's unmarked 6-iron session (7 swings), graded beside the taped corpus with the same engine (§5.1); results in `docs/research/data/markerless/unmarked_0909/`; the address probe re-pointed at the ball and its counterfeit removed on the way | partial — lock rates and direction graded; no hand truth yet, so θ vs truth and the §5.2 coverage gates remain open |
 | **P6 — flip** | `shaft.seg.enabled` default 1; docs updated (`shaft_tracker_impl.md`, protocol docs, best-practices ladder row) | gate report attached |
 
 Two deliverables, named up front: **this document** and **the engine + wiring through P4**.

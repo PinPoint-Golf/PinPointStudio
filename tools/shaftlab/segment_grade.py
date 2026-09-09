@@ -49,6 +49,8 @@ def load(run_root):
                              band_n=r.get("band_n")))
     return rows
 
+RUN_ROOT = [""]
+
 def grade(rows, out_md):
     L = []
     runs = sorted({r["run"] for r in rows})
@@ -195,6 +197,19 @@ def grade(rows, out_md):
     names = {0: "not probed", 1: "no run", 2: "support", 3: "off-frame", 4: "no distal landmark", 5: "distal edge", 6: "no onset, no prior", 7: "s/r0 gate", 8: "length gate"}
     L.append("- unlocked frames by furthest stage reached: " + ", ".join(f"{names.get(k,k)} {v}" for k, v in sorted(st.items())))
 
+    # ── E. lengths per swing from result.json: the fused club length against the
+    #      ball's address measurement, and which ladder rung fed the projection ──
+    L.append("\n### E. Club length per swing (result.json `analysis.club.lengths`)\n")
+    L.append("| run | ball px | band px | fused px | fused / ball | ladder rung | estimators |\n|---|---|---|---|---|---|---|")
+    for run in runs:
+        rp = os.path.join(RUN_ROOT[0], run, "result.json")
+        if not os.path.exists(rp): continue
+        try: c = json.load(open(rp))["analysis"]["club"]; Ln = c.get("lengths", {})
+        except Exception: continue
+        ball, band, fused = Ln.get("ballPx", -1), Ln.get("bandPx", -1), Ln.get("fusedPx", -1)
+        ratio = f"{fused/ball:.3f}" if ball and ball > 0 and fused and fused > 0 else "—"
+        L.append(f"| {run} | {ball:.0f} | {band:.0f} | {fused:.0f} | {ratio} | {Ln.get('ladderRung','?')} | {Ln.get('nEstimators','?')} |")
+
     # ── D. per swing ───────────────────────────────────────────────────────
     L.append("\n### D. Per swing\n\n| run | frames | band | seg | both | θ err p50 (both) | θ >6° (both) | s err p50 |\n|---|---|---|---|---|---|---|---|")
     for run in runs:
@@ -212,6 +227,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs", required=True); ap.add_argument("--out-csv", required=True); ap.add_argument("--out-md", required=True)
     a = ap.parse_args()
+    RUN_ROOT[0] = a.runs
     rows = load(a.runs)
     with open(a.out_csv, "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=list(rows[0].keys())); w.writeheader(); w.writerows(rows)

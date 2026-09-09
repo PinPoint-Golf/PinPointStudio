@@ -152,6 +152,8 @@ struct SegmentConfig {
     int   lookAheadPx  = 25;      // window after the terminus in which the hosel/head must appear
     float proxFrac     = 0.45f;   // onset must lie within this fraction of rmax
     float supportMin   = 0.60f;   // fraction of e > eOff over the run
+    float refineAddrDeg = 5.0f;   // … except on address frames, where grip→ball is a far-end anchor 3° off the shaft
+    float addrLenTol   = 0.15f;   // address is in-plane, so the ball length gates ±this (a crease at 60% dies)
     float refineDeg    = 1.0f;    // the probed direction is refined over ±this …
     float refineStep   = 0.5f;    // … in these steps; a 1° grid misses a 4 px line at 250 px
     float headBgFrac   = 0.5f;    // after the run, bg ≥ this × the run's on-level ⇒ a bright wide head follows (distal 2)
