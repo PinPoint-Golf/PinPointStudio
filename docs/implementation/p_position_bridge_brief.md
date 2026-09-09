@@ -112,7 +112,8 @@ p5(360) / p6(232) / p8(61) / p2(61) swing×measure rows.
   `serializeAnalysis` subtracts `clock.t0_us` exactly once at write. Do not
   convert anything. (Rounds one/two/three of the relative/absolute war:
   `swing_reanalyzer.cpp:570-586`, the extract_pose `+t0` bug — fixed 2026-08-09,
-  use `corpus/pose2/`, never `corpus/pose/`.)
+  use `corpus/pose2/` or its 68-swing superset `corpus/pose3/`, never
+  `corpus/pose/`.)
 - **Analysis is session-agnostic** (hard rule): gate on available data
   (positions present, ladder present), never on sessionType.
 - **Vision-ladder conf is flat 0.5**; position conf is real. Fine for insertion

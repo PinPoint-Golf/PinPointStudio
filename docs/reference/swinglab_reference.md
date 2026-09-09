@@ -154,6 +154,14 @@ contract). Purpose: CUDA ViTPose is nondeterministic run-to-run (~1e-9 keypoint 
 which breaks byte-identical parity gates — freeze one canonical pose pass and inject it
 on both sides of every diff. Also ~25 % faster per swing.
 
+Two pinned populations live on the share. `corpus/pose2/` is 61 files and is
+**frozen** — every published "byte-identical on the 61-swing population" result
+was measured against it, so it must not gain or lose a file. `corpus/pose3/` is
+68: those same 61 byte-for-byte, plus the seven 2026-09-09 untaped-6-iron swings
+pinned on 2026-09-09. Use `--pose-dir corpus/pose3` for new gates; reach for
+`pose2` only to reproduce a historical number. Never `corpus/pose/` — that is the
+pre-2026-08-09 broken-timebase set.
+
 **`reanalyze_corpus.py CORPUS_ROOT [--bin exe] [--only substr] [--session-type N]`**
 (In-repo.) Sequential `--write-back` sweep over every swing dir under the root — the
 headless "re-analyse all shown". Failures (LM-only, no media, no impact) are reported and

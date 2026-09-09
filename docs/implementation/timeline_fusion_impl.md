@@ -23,6 +23,9 @@ explicitly rather than inherited (`fusiongate/fusion_manifest.py`):
 
 - `pop-61` — the 61 swings frozen in the `corpus/pose2/` cache. That cache is
   what "the 61-swing corpus" has always operationally meant. All camera-only.
+  Frozen: results quoted against it stay comparable only while it does not move.
+- `pop-68` — `corpus/pose3/`: those 61 files verbatim plus the seven 2026-09-09
+  untaped-6-iron swings, pinned 2026-09-09. The forward population for new gates.
 - `pop-0818` — the eleven 2026-08-18 wG3 swings, the only both-witness
   population, all carrying a full P1–P10 markup.
 
