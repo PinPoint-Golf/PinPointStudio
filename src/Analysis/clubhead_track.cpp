@@ -114,6 +114,7 @@ ClubheadConfig ClubheadConfig::fromOverrides(const QVariantMap &ov)
     apply(ov, "shaft.head.localFrac",        c.localFrac);
     apply(ov, "shaft.head.supportMin",       c.supportMin);
     apply(ov, "shaft.head.projPrior",        c.projPrior);
+    apply(ov, "shaft.head.latStepPx",        c.latStepPx);
     apply(ov, "shaft.head.dumpFrame",        c.dumpFrame);
     apply(ov, "shaft.head.ridgeThr",         c.ridgeThr);
     apply(ov, "shaft.head.tauRidge",         c.tauRidge);
@@ -176,7 +177,8 @@ HeadSceneCtx makeHeadSceneCtx(const cv::Mat &sceneMed32, int W, int H, const Clu
         ctx.offsets = { 0.0 };
     } else {
         const int lm = int(cfg.latMaxPx);
-        for (int u = -lm; u <= lm; u += 4) ctx.offsets.push_back(double(u));
+        const int step = std::max(1, int(cfg.latStepPx));
+        for (int u = -lm; u <= lm; u += step) ctx.offsets.push_back(double(u));
     }
     return ctx;
 }

@@ -72,6 +72,14 @@ struct SnapConfig {
     double maxDeltaDeg    = 3.0;    // angular search half-range (deg)
     double minLineConf    = 0.25;   // accept-snap floor on the ridge support under the line
     int    corridorHalfPx = 2;      // lateral half-width integrated along the candidate line (px)
+    // Coarse-to-fine grid (cost): the full 1 px × 0.5° grid over ±45 px × ±10° is
+    // 3,731 line integrals per sample (707 ms per swing, 0909); a coarse pass at
+    // coarseStepPx × coarseStepDeg then the full grid within ±fineHalfPx × ±fineHalfDeg
+    // of the best coarse cell is ~580. 0 = full grid (byte-identical).
+    double coarseStepPx   = 0.0;    // shaft.snap.coarseStepPx (e.g. 3)
+    double coarseStepDeg  = 1.5;    // shaft.snap.coarseStepDeg
+    double fineHalfPx     = 6.0;    // shaft.snap.fineHalfPx
+    double fineHalfDeg    = 2.0;    // shaft.snap.fineHalfDeg
     bool   skipBlur       = false;  // (opt-in) no snap on Impact/Thru frames: the shaft is a fan there, and a
                                     // re-registration onto whatever ridge exists made the through-swing
                                     // agreement worse (6-iron 0909: 9.6° → 12.4°)

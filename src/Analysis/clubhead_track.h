@@ -87,6 +87,7 @@ struct ClubheadConfig {
     double edgeWidthBlade = 24.0;
     double ambigFloor     = 0.15;           // ambiguity conf floor: conf *= clamp(1−s2/s1, ambigFloor, 1)^0.5
     double latMaxPx       = 0.0;            // lateral band half-width (px); 0 = centre ray (real blurred footage)
+    double latStepPx      = 4.0;            // shaft.head.latStepPx — offset spacing across the band (cost ∝ 2·latMaxPx/latStepPx + 1)
     double bgAlpha        = 0.02;           // BG_ALPHA — running-background EMA rate (B3 owns the running bg)
 
     // ── B2 ball-length model (replaces the Python self-fit) ──────────────────

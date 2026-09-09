@@ -78,3 +78,36 @@ where the shaft meets the head, the tracker publishes the sole), seen frames, p5
 New stack = segment lock + snap widened (45 px / 10°) off the blur phases + projection
 prior + head lateral band 30 px. Cost: the shaft stage 0.7 → ~2.0 s per 5 s swing (the
 band multiplies the head pass's samples). Measured-head frames on the 6-iron 7 → 18 of 42.
+
+## Cost of the stack, and the snap tail (2026-09-09, late)
+
+Shaft-stage wall time per 5 s swing on the unmarked 6-iron (4 swings, M4 Mac mini),
+one component at a time:
+
+| configuration | ms / swing |
+|---|---|
+| tracker as shipped (everything off) | 734 |
+| + segment lock, span frames only | 757 |
+| + still frames outside the span | 757 (+0) |
+| + snap at defaults (15 px / 3°, 403 integrals per sample) | 893 |
+| + snap widened (45 px / 10°, 3,731 integrals) | 1,600 |
+| + head lateral band ±30 px, 8 px steps | 1,910 |
+| same, snap coarse-to-fine (2 px / 1.0°, then ±6 px / ±2° at full resolution) | **1,163** |
+
+Head band: ±30 px at 8 px steps (8 rays) scores 23 / 88 px against 29 / 86 at 4 px steps
+(15 rays) — cheaper and better. Snap coarse-to-fine at 2 px costs nothing measurable
+(6-iron 23 / 95 px, 2.2° / 4.9°; 7-iron unchanged at 27 / 138, 3.0° / 17.7°); at 3 px it
+costs 4 px on the head p50. The recommended markerless profile is therefore
+`shaft.seg.enabled 1; shaft.snap.enabled 1, maxOffsetPx 45, maxDeltaDeg 10, skipBlur 1,
+coarseStepPx 2, coarseStepDeg 1.0; shaft.head.projPrior 1, latMaxPx 30, latStepPx 8` at
++0.43 s per swing over the shipped tracker. Every key is opt-in; nothing has flipped.
+
+**Snap tail.** The widened snap's p90 cost exists only on the 3 July daylight session:
+15 of 60 seen marks worsen by > 3°, 7 improve. Every worsened case drawn is the LEAD ARM
+at the top of the backswing (and the leg at address) — a parallel bright ridge 30–40 px
+from the shaft with the same line confidence. Two guards tried and rejected: a
+confidence margin (improved and worsened moves gain the same 0.1–0.2) and a body-hull
+refusal with narrow fallback (the arm is not in the hull; p90 13.6° → 17.0°; reverted).
+The 6-iron (p90 4.5°) and the taped 18 August session (9.6°) show no tail. A working
+guard needs the elbow keypoint inside the tracker (only φ and the 8 body joints are
+passed) so a snapped line running along the forearm can be refused by distance.

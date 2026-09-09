@@ -794,6 +794,16 @@ approach, and the marked club itself moves to 17 / 55 with the same stack. The b
 costs the shaft stage about 1.3 s per swing. Details and the full table in
 `docs/research/data/markerless/hand_truth_scoring_20260909.md`.
 
+**Cost and the snap tail (2026-09-09, late).** The full stack costs +0.43 s per swing
+over the shipped tracker once the widened snap runs coarse-to-fine (2 px / 1.0°, then
+full resolution within ±6 px / ±2°) and the head band runs at 8 px steps; the segment
+lock itself, still frames included, is 23 ms. The widened snap's p90 cost exists only on
+the 3 July daylight session and is the lead arm at the top and the leg at address; a
+confidence margin and a body-hull refusal both fail to separate it (§ research note),
+and the guard that would work needs the elbow keypoint inside the tracker. Recommended
+markerless profile and the per-component timings:
+`docs/research/data/markerless/hand_truth_scoring_20260909.md`.
+
 **Scale, against the reference's own precision.** The band lock's scale changes by 1.6%
 between adjacent band frames at p50 and 6.8% at p90 (1,863 pairs) — that is the floor a
 per-frame scale can be graded against. The segment's 6.2% p50 is four times that floor;

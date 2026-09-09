@@ -240,16 +240,32 @@ SnapResult snapSearch(const cv::Mat& g32, double gx, double gy, double theta0Rad
     struct Cell { double d, dd, obj, sup; };
     std::vector<Cell> cells;
     double bestObj = -std::numeric_limits<double>::infinity();
-    for (double d = -sc.maxOffsetPx; d <= sc.maxOffsetPx + 1e-9; d += 1.0) {
+    const auto evalCell = [&](double d, double dd) {
         const double ax = gx + d * nx, ay = gy + d * ny;
-        for (double dd = -sc.maxDeltaDeg; dd <= sc.maxDeltaDeg + 1e-9; dd += 0.5) {
-            double sup = 0.0;
-            const double obj = ridgeLineIntegral(g32, ax, ay, theta0Rad + dd * kPi / 180.0,
-                                                 rLo, rEnd, rStep, sc.corridorHalfPx, rc, sup);
-            cells.push_back({d, dd, obj, sup});
-            bestObj = std::max(bestObj, obj);
+        double sup = 0.0;
+        const double obj = ridgeLineIntegral(g32, ax, ay, theta0Rad + dd * kPi / 180.0,
+                                             rLo, rEnd, rStep, sc.corridorHalfPx, rc, sup);
+        cells.push_back({d, dd, obj, sup});
+        bestObj = std::max(bestObj, obj);
+    };
+    double dLo = -sc.maxOffsetPx, dHi = sc.maxOffsetPx, ddLo = -sc.maxDeltaDeg, ddHi = sc.maxDeltaDeg;
+    if (sc.coarseStepPx > 0.0) {
+        // coarse pass over the whole box, then the fine grid around its best cell
+        double cBest = -std::numeric_limits<double>::infinity(), cD = 0.0, cDD = 0.0;
+        for (double d = -sc.maxOffsetPx; d <= sc.maxOffsetPx + 1e-9; d += sc.coarseStepPx) {
+            const double ax = gx + d * nx, ay = gy + d * ny;
+            for (double dd = -sc.maxDeltaDeg; dd <= sc.maxDeltaDeg + 1e-9; dd += sc.coarseStepDeg) {
+                double sup = 0.0;
+                const double obj = ridgeLineIntegral(g32, ax, ay, theta0Rad + dd * kPi / 180.0,
+                                                     rLo, rEnd, rStep, sc.corridorHalfPx, rc, sup);
+                if (obj > cBest) { cBest = obj; cD = d; cDD = dd; }
+            }
         }
+        dLo = std::max(-sc.maxOffsetPx, cD - sc.fineHalfPx);   dHi = std::min(sc.maxOffsetPx, cD + sc.fineHalfPx);
+        ddLo = std::max(-sc.maxDeltaDeg, cDD - sc.fineHalfDeg); ddHi = std::min(sc.maxDeltaDeg, cDD + sc.fineHalfDeg);
     }
+    for (double d = dLo; d <= dHi + 1e-9; d += 1.0)
+        for (double dd = ddLo; dd <= ddHi + 1e-9; dd += 0.5) evalCell(d, dd);
     const double eps = 0.5;                       // evidence units — plateau membership
     double sumD = 0.0, sumDd = 0.0; int cnt = 0;
     for (const Cell& c : cells)
@@ -416,6 +432,10 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.snap.minLineConf", c.snap.minLineConf);
     apply(ov, "shaft.snap.corridorHalfPx", c.snap.corridorHalfPx);
     apply(ov, "shaft.snap.skipBlur", c.snap.skipBlur);
+    apply(ov, "shaft.snap.coarseStepPx", c.snap.coarseStepPx);
+    apply(ov, "shaft.snap.coarseStepDeg", c.snap.coarseStepDeg);
+    apply(ov, "shaft.snap.fineHalfPx", c.snap.fineHalfPx);
+    apply(ov, "shaft.snap.fineHalfDeg", c.snap.fineHalfDeg);
     // Layer B P-position extraction: "positions.*" keys.
     apply(ov, "positions.enabled", c.positions.enabled);
     apply(ov, "positions.hysteresisDeg", c.positions.hysteresisDeg);
