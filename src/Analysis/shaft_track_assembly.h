@@ -72,6 +72,9 @@ struct SnapConfig {
     double maxDeltaDeg    = 3.0;    // angular search half-range (deg)
     double minLineConf    = 0.25;   // accept-snap floor on the ridge support under the line
     int    corridorHalfPx = 2;      // lateral half-width integrated along the candidate line (px)
+    bool   skipBlur       = false;  // (opt-in) no snap on Impact/Thru frames: the shaft is a fan there, and a
+                                    // re-registration onto whatever ridge exists made the through-swing
+                                    // agreement worse (6-iron 0909: 9.6° → 12.4°)
 };
 
 // Hand-axis θ prior (WB4, wholebody_pose_design.md §2.2). The grip's hand axis

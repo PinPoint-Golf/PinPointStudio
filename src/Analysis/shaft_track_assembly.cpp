@@ -369,6 +369,7 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.seg.ferruleTolMm", c.seg.ferruleTolMm);
     apply(ov, "shaft.seg.maxCand", c.seg.maxCand);
     apply(ov, "shaft.seg.probeStill", c.seg.probeStill);
+    apply(ov, "shaft.seg.placeHead", c.seg.placeHead);
     apply(ov, "shaft.seg.refineAddrDeg", c.seg.refineAddrDeg);
     apply(ov, "shaft.seg.addrLenTol", c.seg.addrLenTol);
     apply(ov, "shaft.seg.well", c.seg.well);
@@ -413,6 +414,7 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.snap.maxDeltaDeg", c.snap.maxDeltaDeg);
     apply(ov, "shaft.snap.minLineConf", c.snap.minLineConf);
     apply(ov, "shaft.snap.corridorHalfPx", c.snap.corridorHalfPx);
+    apply(ov, "shaft.snap.skipBlur", c.snap.skipBlur);
     // Layer B P-position extraction: "positions.*" keys.
     apply(ov, "positions.enabled", c.positions.enabled);
     apply(ov, "positions.hysteresisDeg", c.positions.hysteresisDeg);
@@ -2173,7 +2175,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         // head is rF plus the known millimetres from the terminus to the sole at
         // the lock's scale. A Stage-2 MEASURED head, when one exists, keeps
         // precedence (design §4.3: segment frames are eligible for override).
-        if (!placed && tier == SEG) {
+        if (!placed && tier == SEG && cfg.seg.placeHead) {
             const SegmentLock& L = seg[size_t(i)];
             const bool stage2Meas = !headResults.empty() && headResults[size_t(i)].tier == HeadTier::Meas
                                     && std::isfinite(headResults[size_t(i)].rOut);
@@ -2279,6 +2281,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
             const bool visionTier = (s.flags & ShaftMeasured) || (s.flags & ShaftWedge);
             if (!visionTier) continue;                          // coasted/pred keep lineConf = -1
             const int i = sampleFrame[k];
+            if (cfg.snap.skipBlur && (pm.phase[i] == SwingPhase::Impact || pm.phase[i] == SwingPhase::Thru)) continue;
             cv::Mat g8 = frameSrc(i);
             if (g8.empty()) continue;                           // undecodable — no measurement
             cv::Mat g32; g8.convertTo(g32, CV_32F);

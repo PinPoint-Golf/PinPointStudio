@@ -769,6 +769,20 @@ through-swing, and a third as many in the finish collar — and everywhere it lo
 sits 1.0° from the tracker's direction. Against the band lock it is ahead on every
 phase but the top and the held finish.
 
+**Hand truth (2026-09-09, Mark's markup of three 6-iron swings and the existing 3 July
+7-iron truth; `docs/research/data/markerless/hand_truth_scoring_20260909.md`).** Against a
+human mark the picture is not the band-vs-band one. The taped club with the existing
+approach is 4.5° / 9.7° (p50 / p90) from the mark on seen frames and its head 34 px off;
+the untaped 7-iron with the existing approach 4.0° / 15.0°, 48 px; the unmarked 6-iron
+with the segment lock 5.5° / 8.9°, 73 px. Two things followed. The terminus head
+placement of P3b was making the head worse and is off by default (73 → 58 px). And the
+dark Layer A **snap** pass, widened to 45 px / 10° because the pose anchor sits 39 px
+from the shaft axis, takes the 6-iron to 1.8° / 8.7° and the 7-iron to 2.9° — better
+than the marked club scores against a human — at the cost of the 7-iron's tail (p90
+15° → 18°) and of the through-swing when it runs there; `shaft.snap.skipBlur` restores
+the through-swing and keeps 2.6° / 7.9° on the 6-iron. Both are opt-in keys; the snap
+tail and head position are the open items.
+
 **Scale, against the reference's own precision.** The band lock's scale changes by 1.6%
 between adjacent band frames at p50 and 6.8% at p90 (1,863 pairs) — that is the floor a
 per-frame scale can be graded against. The segment's 6.2% p50 is four times that floor;
