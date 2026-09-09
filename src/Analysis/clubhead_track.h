@@ -125,6 +125,14 @@ struct ClubheadConfig {
     // phase where the metrics consume them. Tier/KF behaviour and the raw trace
     // are unchanged — only the sample field is capped.
     double streakConfCap     = 0.45;        // shaft.head.streakConfCap
+    // ── projection prior (markerless, design §4.9): on a bare club the terminus walk
+    // stops at the last lit steel, 60–80 px short of the head (hand truth 0909), and
+    // the still-only prior gives moving frames nothing to prefer the head's blob
+    // over the steel's end. The prior on EVERY frame becomes the in-plane length ×
+    // the lead arm's projected reach relative to its address reach — a per-frame
+    // foreshortening proxy the tracker already has — with the module's Gaussian σ.
+    bool   projPrior         = false;       // shaft.head.projPrior (opt-in; grading)
+    double projRatioMin      = 0.45;        // shaft.head.projRatioMin — clamp on reach/reachAddr
 
     // ── arm-length plausibility floor ────────────────────────────────────────
     double armFactor  = 1.05;               // ARM_FACTOR — club is always longer than the lead arm

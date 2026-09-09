@@ -52,12 +52,18 @@ def load_swing(run_dir, truth_path):
         th_trk = math.degrees(s["theta"]) % 360
         head_trk = (s["head"][0] * W, s["head"][1] * H)
         head_err = math.hypot(head_trk[0] - m["head"][0], head_trk[1] - m["head"][1])
+        # decompose along the TRUTH line: radial (+ = tracker head beyond the marked head) and lateral
+        ux, uy = math.cos(m["theta"]), math.sin(m["theta"])
+        dx, dy = head_trk[0] - m["head"][0], head_trk[1] - m["head"][1]
+        head_rad, head_lat = dx * ux + dy * uy, abs(-dx * uy + dy * ux)
+        len_trk = math.hypot(head_trk[0] - s["grip"][0] * W, head_trk[1] - s["grip"][1] * H)
+        head_kind = ("off" if int(s.get("flags", 0)) & 0x80 else "projected" if int(s.get("flags", 0)) & 0x10 else "measured")
         grip_off = math.hypot(s["grip"][0] * W - m["grip"][0], s["grip"][1] * H - m["grip"][1])
         out.append(dict(frame=i, p=p, group=("inferred" if (p or 0) >= 7 else "seen"), tier=tr.get("tier", "?"),
                         th_err=abs(wrap(th_trk - th_truth)),
                         seg=tr.get("seg_mode", 0) > 0,
                         seg_th_err=(abs(wrap(tr["seg_theta"] - th_truth)) if tr.get("seg_mode", 0) > 0 else None),
-                        head_err=head_err, head_measured=bool(int(s.get("flags", 0)) & 0x01) and not (int(s.get("flags", 0)) & 0x10),
+                        head_err=head_err, head_rad=head_rad, head_lat=head_lat, head_kind=head_kind, len_trk=len_trk, head_measured=bool(int(s.get("flags", 0)) & 0x01) and not (int(s.get("flags", 0)) & 0x10),
                         grip_off=grip_off, len_truth=m["len"]))
     return out
 
@@ -94,6 +100,16 @@ def main():
         R = [r for r in rows if r["group"] == "seen" and r["tier"] == t]
         if not R: continue
         L.append(f"| {t} | {len(R)} | {q([r['th_err'] for r in R],50):.1f}° / {q([r['th_err'] for r in R],90):.1f}° | {q([r['head_err'] for r in R],50):.0f} / {q([r['head_err'] for r in R],90):.0f} |")
+    L.append("\n| head, seen marks | marks | radial err p50 (signed, + = beyond the mark) | |radial| p50 / p90 | lateral p50 / p90 | tracker len / truth len p50 |\n|---|---|---|---|---|---|")
+    for kind in ("measured", "projected", "off", "all"):
+        R = [r for r in rows if r["group"] == "seen" and (kind == "all" or r["head_kind"] == kind)]
+        if not R: continue
+        L.append(f"| {kind} | {len(R)} | {q([r['head_rad'] for r in R],50):+.0f} px | {q([abs(r['head_rad']) for r in R],50):.0f} / {q([abs(r['head_rad']) for r in R],90):.0f} | {q([r['head_lat'] for r in R],50):.0f} / {q([r['head_lat'] for r in R],90):.0f} | {q([r['len_trk']/r['len_truth'] for r in R],50):.2f} |")
+    L.append("\n| P | head kind counts | radial p50 (signed) | lateral p50 |\n|---|---|---|---|")
+    for p in range(1, 7):
+        R = [r for r in rows if r["p"] == p]
+        if not R: continue
+        L.append(f"| P{p} | {dict(collections.Counter(r['head_kind'] for r in R))} | {q([r['head_rad'] for r in R],50):+.0f} | {q([r['head_lat'] for r in R],50):.0f} |")
     L.append(f"\nPose grip anchor vs Mark's grip mark: {q([r['grip_off'] for r in rows],50):.0f} px p50, {q([r['grip_off'] for r in rows],90):.0f} px p90 (the anchor is the hands' midpoint; the mark is where the shaft leaves the hands).")
     open(a.out_md, "w").write("\n".join(L) + "\n"); print("\n".join(L))
 

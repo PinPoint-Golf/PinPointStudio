@@ -112,6 +112,8 @@ ClubheadConfig ClubheadConfig::fromOverrides(const QVariantMap &ov)
     apply(ov, "shaft.head.localWin",         c.localWin);
     apply(ov, "shaft.head.localFrac",        c.localFrac);
     apply(ov, "shaft.head.supportMin",       c.supportMin);
+    apply(ov, "shaft.head.projPrior",        c.projPrior);
+    apply(ov, "shaft.head.projRatioMin",     c.projRatioMin);
     apply(ov, "shaft.head.startFrac",        c.startFrac);
     apply(ov, "shaft.head.tauP",             c.tauP);
     apply(ov, "shaft.head.tauM",             c.tauM);

@@ -2008,7 +2008,19 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                 const HeadBounds b = headBounds(rEdge, hin.lPx, projLenPx, armFloor, floorApplies, hctx,
                                                 floorFrac);
                 headRHi[size_t(i)] = b.rHi;   // A2b E-head pinned-at-bound guard
-                const double lPrior = headPrior(hin.lPx, quasiStill);
+                double lPrior = headPrior(hin.lPx, quasiStill);
+                if (cfg.head.projPrior) {
+                    // projection prior on every frame: in-plane length × arm-reach ratio
+                    const double Lin = hin.lPx > 0.0 ? hin.lPx : projLenPx;
+                    const double reachAddr = armFloorMedPx > 0.0 ? armFloorMedPx / 1.05 : 0.0;
+                    double ratio = 1.0;
+                    if (reachAddr > 0.0 && smoothed[i].size() >= 2) {
+                        const double sx = 0.5 * (smoothed[i][0].x + smoothed[i][1].x);
+                        const double sy = 0.5 * (smoothed[i][0].y + smoothed[i][1].y);
+                        ratio = std::clamp(std::hypot(gx[i] - sx, gy[i] - sy) / reachAddr, cfg.head.projRatioMin, 1.0);
+                    }
+                    if (Lin > 0.0) lPrior = Lin * ratio;
+                }
 
                 // ROI-bounded Sobel of the annulus grip+[rLo,rHi]·dir(θ), written
                 // into full-size zero Mats so measureHeadRadius's ray samples are
