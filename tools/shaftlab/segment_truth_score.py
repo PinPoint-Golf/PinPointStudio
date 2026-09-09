@@ -18,6 +18,7 @@ Usage: segment_truth_score.py --runs <run_root> --truth-root <session dir> --out
 import argparse, glob, json, math, os, collections
 import numpy as np
 
+SOLE = [0.0]
 def wrap(d): return (d + 180.0) % 360.0 - 180.0
 def q(v, p): return float(np.percentile(v, p)) if len(v) else float("nan")
 
@@ -50,10 +51,10 @@ def load_swing(run_dir, truth_path):
         s = samples[i]; tr = trace.get(i, {})
         th_truth = math.degrees(m["theta"]) % 360
         th_trk = math.degrees(s["theta"]) % 360
-        head_trk = (s["head"][0] * W, s["head"][1] * H)
+        ux, uy = math.cos(m["theta"]), math.sin(m["theta"])
+        head_trk = (s["head"][0] * W - SOLE[0] * ux, s["head"][1] * H - SOLE[0] * uy)   # back from the sole to the marked point
         head_err = math.hypot(head_trk[0] - m["head"][0], head_trk[1] - m["head"][1])
         # decompose along the TRUTH line: radial (+ = tracker head beyond the marked head) and lateral
-        ux, uy = math.cos(m["theta"]), math.sin(m["theta"])
         dx, dy = head_trk[0] - m["head"][0], head_trk[1] - m["head"][1]
         head_rad, head_lat = dx * ux + dy * uy, abs(-dx * uy + dy * ux)
         len_trk = math.hypot(head_trk[0] - s["grip"][0] * W, head_trk[1] - s["grip"][1] * H)
@@ -70,7 +71,9 @@ def load_swing(run_dir, truth_path):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs", required=True); ap.add_argument("--truth-root", required=True); ap.add_argument("--out-md", required=True)
+    ap.add_argument("--sole-offset", type=float, default=0.0, help="px along the truth line from the marked head (hosel junction) to the tracker's head (the sole); subtracted before scoring")
     a = ap.parse_args()
+    SOLE[0] = a.sole_offset
     rows = []
     for td in sorted(glob.glob(os.path.join(a.truth_root, "swing_*", "truth.json"))):
         sw = os.path.basename(os.path.dirname(td))

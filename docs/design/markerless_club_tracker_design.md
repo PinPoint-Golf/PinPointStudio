@@ -783,6 +783,17 @@ than the marked club scores against a human — at the cost of the 7-iron's tail
 the through-swing and keeps 2.6° / 7.9° on the 6-iron. Both are opt-in keys; the snap
 tail and head position are the open items.
 
+**Head position (2026-09-09 evening).** The head error on the bare club was radial and
+short: the head pass's terminus walk registered no support past the hands on a top-of-
+backswing frame because the ray from the off-axis pose anchor misses the club, and the
+walk's edge-pair and motion terms are both zero on a bloomed, momentarily still shaft.
+The module's lateral band (`shaft.head.latMaxPx`, default 0) at 30 px makes the same
+frame hit continuously and offer the head. With the sole-to-hosel convention removed the
+6-iron's head is 29 / 86 px (p50 / p90) against 26 / 106 for the marked club's existing
+approach, and the marked club itself moves to 17 / 55 with the same stack. The band
+costs the shaft stage about 1.3 s per swing. Details and the full table in
+`docs/research/data/markerless/hand_truth_scoring_20260909.md`.
+
 **Scale, against the reference's own precision.** The band lock's scale changes by 1.6%
 between adjacent band frames at p50 and 6.8% at p90 (1,863 pairs) — that is the floor a
 per-frame scale can be graded against. The segment's 6.2% p50 is four times that floor;

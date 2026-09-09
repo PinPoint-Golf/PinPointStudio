@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <memory>
 
 namespace pinpoint::analysis {
@@ -113,6 +114,9 @@ ClubheadConfig ClubheadConfig::fromOverrides(const QVariantMap &ov)
     apply(ov, "shaft.head.localFrac",        c.localFrac);
     apply(ov, "shaft.head.supportMin",       c.supportMin);
     apply(ov, "shaft.head.projPrior",        c.projPrior);
+    apply(ov, "shaft.head.dumpFrame",        c.dumpFrame);
+    apply(ov, "shaft.head.ridgeThr",         c.ridgeThr);
+    apply(ov, "shaft.head.tauRidge",         c.tauRidge);
     apply(ov, "shaft.head.projRatioMin",     c.projRatioMin);
     apply(ov, "shaft.head.startFrac",        c.startFrac);
     apply(ov, "shaft.head.tauP",             c.tauP);
@@ -248,6 +252,9 @@ double headPrior(double lPx, bool quasiStill)
 }
 
 // ── H1 per-frame terminus ────────────────────────────────────────────────────
+static thread_local bool g_headDump = false;
+void setHeadDumpNextCall(bool on) { g_headDump = on; }
+
 HeadMeasurement measureHeadRadius(const cv::Mat &gray32, const cv::Mat &prev32,
                                   const cv::Mat &bg32, const cv::Mat &gxs, const cv::Mat &gys,
                                   const HeadSceneCtx &ctx, double gx, double gy, double thetaDeg,
@@ -255,6 +262,8 @@ HeadMeasurement measureHeadRadius(const cv::Mat &gray32, const cv::Mat &prev32,
 {
     const ClubheadConfig &cfg = ctx.cfg;
     HeadMeasurement none;   // rPx NaN, conf 0
+    const bool dump = g_headDump; g_headDump = false;
+    if (dump) std::fprintf(stderr, "[headdump] theta=%.1f rLo=%.0f rHi=%.0f rFloor=%.0f lPrior=%.0f\n", thetaDeg, rLo, rHi, rFloor, lPrior);
 
     const int nr = int(rHi - rLo);
     if (nr < cfg.localWin + 4 || gray32.empty() || gxs.empty() || gys.empty()) return none;
@@ -293,6 +302,23 @@ HeadMeasurement measureHeadRadius(const cv::Mat &gray32, const cv::Mat &prev32,
             }
         }
         sampleShifted(gray32, X, Y, 0.f, 0.f, Iv);
+        // ridge term: on-ridge intensity over the lateral background at ±9/±12 px
+        // (E2's reduction), for bloomed bare steel with no edge pair and no motion
+        std::vector<float> rdU;
+        if (cfg.ridgeThr > 0.0) {
+            std::vector<float> b0, b1, b2, b3;
+            sampleShifted(gray32, X, Y, float(-12.0 * nx), float(-12.0 * ny), b0);
+            sampleShifted(gray32, X, Y, float(-9.0 * nx),  float(-9.0 * ny),  b1);
+            sampleShifted(gray32, X, Y, float(9.0 * nx),   float(9.0 * ny),   b2);
+            sampleShifted(gray32, X, Y, float(12.0 * nx),  float(12.0 * ny),  b3);
+            rdU.assign(nr, 0.f);
+            for (int k = 0; k < nr; ++k) {
+                float v[4] = { b0[k], b1[k], b2[k], b3[k] };
+                std::sort(v, v + 4);
+                const float bg = 0.5f * (v[1] + v[2]);
+                rdU[k] = float(clip01((Iv[k] - bg) / cfg.tauRidge));
+            }
+        }
         if (haveScene) sampleShifted(ctx.sceneMed, X, Y, 0.f, 0.f, sceneV);
         sampleShifted(bg32,   X, Y, 0.f, 0.f, bgV);
         sampleShifted(prev32, X, Y, 0.f, 0.f, prevV);
@@ -300,7 +326,8 @@ HeadMeasurement measureHeadRadius(const cv::Mat &gray32, const cv::Mat &prev32,
             chU[k] = haveScene ? float(clip01(std::abs(Iv[k] - sceneV[k]) / cfg.tauChg)) : 1.f;
             const double mo = std::min(std::abs(Iv[k] - bgV[k]), std::abs(Iv[k] - prevV[k]));
             moU[k] = float(clip01(mo / cfg.tauM));
-            const bool h = (std::max(epU[k], moU[k]) > cfg.hitThr)
+            const bool ridgeHit = cfg.ridgeThr > 0.0 && rdU[k] > cfg.ridgeThr;
+            const bool h = (std::max(epU[k], moU[k]) > cfg.hitThr || ridgeHit)
                         && (std::max(chU[k], moU[k]) > cfg.hitThr)
                         && (pmU[k] < cfg.permThr);
             if (h) hit[k] = 1;
@@ -341,6 +368,12 @@ HeadMeasurement measureHeadRadius(const cv::Mat &gray32, const cv::Mat &prev32,
     // candidate termini = ends of contiguous locally-sustained segments; score
     // each by tail evidence quality × length prior. The gap-tolerant "always the
     // LAST sample" over-ran into moving-shadow junk — score-and-pick instead.
+    if (dump) {
+        std::fprintf(stderr, "[headdump] k R hit local ep mot chg perm\n");
+        for (int k = 0; k < nr; k += 2)
+            std::fprintf(stderr, "[headdump] %d %.0f %d %d %.2f %.2f %.2f %.2f\n", k, rLo + k, int(hit[k]), int(local[k]),
+                         ep[k], eMot[k], eChg[k], epMed[k]);
+    }
     const int tailWin = int(kTailWinPx);
     double bestScore = -1.0, bestSupport = 0.0, bestTail = 0.0; int bestEi = -1;
     std::vector<double> scores;
@@ -351,11 +384,11 @@ HeadMeasurement measureHeadRadius(const cv::Mat &gray32, const cv::Mat &prev32,
         while (k < nr && local[k]) ++k;
         const int ei = k - 1;   // last locally-sustained index of this segment
 
-        if (rFloor >= 0.0 && (rLo + double(ei)) < rFloor) continue;      // club-longer-than-arm
-        if (double(first) > cfg.startFrac * double(ei)) continue;        // grip connection
+        if (rFloor >= 0.0 && (rLo + double(ei)) < rFloor) { if (dump) std::fprintf(stderr, "[headdump] reject R=%.0f below floor\n", rLo + ei); continue; }
+        if (double(first) > cfg.startFrac * double(ei)) { if (dump) std::fprintf(stderr, "[headdump] reject R=%.0f grip connection (first=%d)\n", rLo + ei, first); continue; }
         int cnt = 0; for (int q = first; q <= ei; ++q) cnt += hit[q];
         const double support = (ei >= first) ? double(cnt) / double(ei - first + 1) : 0.0;
-        if (support < cfg.supportMin) continue;
+        if (support < cfg.supportMin) { if (dump) std::fprintf(stderr, "[headdump] reject R=%.0f support %.2f\n", rLo + ei, support); continue; }
         const int t0 = std::max(s0, ei - tailWin);
         double tsum = 0.0; for (int q = t0; q <= ei; ++q) tsum += qec[q];
         const double tailQ = tsum / double(ei - t0 + 1);
@@ -366,6 +399,8 @@ HeadMeasurement measureHeadRadius(const cv::Mat &gray32, const cv::Mat &prev32,
             prior = std::exp(-0.5 * d * d);
         }
         const double score = (kScoreTailW * tailQ + (1.0 - kScoreTailW) * std::min(support / kSupportNorm, 1.0)) * prior;
+        if (dump) std::fprintf(stderr, "[headdump] candidate R=%.0f (seg %d..%d) support=%.2f tailQ=%.2f prior=%.2f score=%.3f\n",
+                               rLo + ei, s0, ei, support, tailQ, prior, score);
         scores.push_back(score);
         if (score > bestScore) { bestScore = score; bestEi = ei; bestSupport = support; bestTail = tailQ; }
     }

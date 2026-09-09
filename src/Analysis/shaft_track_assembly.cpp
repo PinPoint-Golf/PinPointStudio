@@ -35,6 +35,7 @@
 #include <opencv2/imgproc.hpp>
 
 #include <algorithm>
+#include <cstdio>
 #include <cmath>
 #include <limits>
 #include <numeric>
@@ -2042,6 +2043,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                     sgx.copyTo(gxs(roi)); sgy.copyTo(gys(roi));
                 }
 
+                if (cfg.head.dumpFrame == i) { setHeadDumpNextCall(true); std::fprintf(stderr, "[headdump] frame %d tier1=%d quasiStill=%d\n", i, int(tierOf[size_t(i)]), int(quasiStill)); }
                 const HeadMeasurement fwd = measureHeadRadius(g32, prevUse, bg32, gxs, gys, hctx,
                                                               gx[i], gy[i], th, b.rLo, b.rHi, b.rFloor, lPrior);
                 if (std::isfinite(fwd.rPx)) {

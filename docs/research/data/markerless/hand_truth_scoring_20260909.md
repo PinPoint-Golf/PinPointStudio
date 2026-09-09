@@ -51,3 +51,30 @@ published head sits at the end of the visible steel, ~70 px before the clubhead 
 top on both bare clubs. Mark marks the head where the shaft meets it; the tracker
 publishes the sole (40–60 mm further), so a correct tracker sits ~15–20 px BEYOND the mark.
 Next: make the far end a candidate in the head pass's terminus walk.
+
+## Evening: the head pass on a bare club sees nothing on the centre ray
+
+Diagnostic dump of the terminus walk (`shaft.head.dumpFrame`) on 6-iron swing 4, frame
+334 (P4, top): along the DP's ray the walk hits only 63–81 px (the hands) and NOTHING
+beyond — edge-pair 0, motion 0 (the club is momentarily still at the top), change ≈ 0.1
+— because the ray from the off-axis pose anchor (39 px from the shaft axis) does not
+pass through the club. With the module's own lateral band, `shaft.head.latMaxPx` 30
+(default 0 = centre ray, chosen for "real blurred footage"), the same frame hits
+continuously 61–291 px and offers a candidate at 293 px, where the mark's head sits.
+A ridge term for bloomed steel (`shaft.head.ridgeThr`, opt-in) was added on the way and
+was not needed for this result.
+
+Scored with the sole-to-hosel convention removed (20 px along the truth line: Mark marks
+where the shaft meets the head, the tracker publishes the sole), seen frames, p50 / p90:
+
+| | direction | head |
+|---|---|---|
+| taped 7-iron 08-18, existing approach | 4.5° / 9.7° | 26 / 106 px |
+| taped 7-iron 08-18, new stack + band | 2.3° / 9.6° | 17 / 55 px |
+| untaped 7-iron 07-03, existing approach | 4.0° / 15.0° | 43 / 129 px |
+| untaped 7-iron 07-03, new stack + band | 3.0° / 13.6° | 29 / 139 px |
+| unmarked 6-iron 09-09, new stack + band | 2.1° / 4.5° | 29 / 86 px |
+
+New stack = segment lock + snap widened (45 px / 10°) off the blur phases + projection
+prior + head lateral band 30 px. Cost: the shaft stage 0.7 → ~2.0 s per 5 s swing (the
+band multiplies the head pass's samples). Measured-head frames on the 6-iron 7 → 18 of 42.

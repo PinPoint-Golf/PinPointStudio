@@ -131,6 +131,13 @@ struct ClubheadConfig {
     // over the steel's end. The prior on EVERY frame becomes the in-plane length ×
     // the lead arm's projected reach relative to its address reach — a per-frame
     // foreshortening proxy the tracker already has — with the module's Gaussian σ.
+    int    dumpFrame         = -1;          // shaft.head.dumpFrame — diagnostic: print this frame's terminus walk to stderr
+    // Ridge term in the hit test (markerless): bloomed bare steel has no crisp edge
+    // pair and a still club at the top has no motion, so the walk saw nothing on the
+    // 6-iron at P4 (0909 frame 334). ridge = clip((on − lateral bg)/tauRidge): the
+    // same intensity evidence E2 credits. 0 = off (byte-identical).
+    double ridgeThr          = 0.0;         // shaft.head.ridgeThr — hit if ridge > this (e.g. 0.3)
+    double tauRidge          = 60.0;        // shaft.head.tauRidge — grey levels over the lateral background for ridge = 1
     bool   projPrior         = false;       // shaft.head.projPrior (opt-in; grading)
     double projRatioMin      = 0.45;        // shaft.head.projRatioMin — clamp on reach/reachAddr
 
@@ -253,6 +260,9 @@ struct HeadMeasurement {
 //                        only samples inside the annulus so BORDER_CONSTANT=0
 //                        outside the ROI is harmless)
 //   rFloor < 0         : no plausibility floor.   lPrior NaN : prior-free.
+// Diagnostic: the next measureHeadRadius call on this thread prints its per-sample
+// support arrays and candidate list to stderr (set by the wiring for cfg.dumpFrame).
+void setHeadDumpNextCall(bool on);
 HeadMeasurement measureHeadRadius(const cv::Mat &gray32, const cv::Mat &prev32,
                                   const cv::Mat &bg32, const cv::Mat &gxs, const cv::Mat &gys,
                                   const HeadSceneCtx &ctx, double gx, double gy, double thetaDeg,
