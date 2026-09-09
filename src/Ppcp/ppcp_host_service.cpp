@@ -1898,7 +1898,7 @@ void PpcpHostService::startDiscovery()
             // 3.7b/3.7d — a bootstrap instance exists only while its window is
             // open, so the record going away IS the window closing.
             if (m_guided.dropInstance(instanceName)) emit guidedChanged();
-            if (m_seenInstances.remove(inst) > 0) emit phonesChanged();
+            if (m_seenInstances.remove(inst)) emit phonesChanged();
         });
 
     if (!ok) { m_browser.reset(); return; }
