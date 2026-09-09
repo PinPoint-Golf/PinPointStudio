@@ -139,10 +139,19 @@ may ever be written into a swing dir.**
 
 A directory tree of swing dirs **outside the repo** (convention:
 `/mnt/swingdata/corpus-v1` ≡ Windows `C:\Users\developer\Data\PinPointStudio\corpus-v1`).
+The live corpus is `/mnt/swingdata/corpus/swings` ≡ `C:\PinPointStudio\corpus\swings`,
+with its supporting assets as siblings one level up (`../runs/corpm3-off`,
+`../pose2`, `../shaftlab`, `../harness`); see `/mnt/swingdata/corpus/README.md`.
 `lab.py ingest` scans it recursively for `swing.json` files and writes
 `corpus.json` — one entry per swing with quick facts (stream counts, raw
 availability, impact present, binding count, truth present) plus the capture
 provenance fields (§7).
+
+⚠ `corpus.json` and `CORPUS.md` live **inside** the corpus root, not beside it:
+`ingest` writes the manifest into the directory it scanned, and every consumer
+(`parity_run.py`, `steel_profile_probe.py`, `core.run`) reads
+`<corpus_root>/corpus.json` and rebases the manifest's recorded paths onto that
+same root. Lifting the manifest one level up silently breaks path resolution.
 
 **Blessing**: a corpus root must contain a `CORPUS.md` stating recording date
 and calibration provenance; only then does `ingest` mark the manifest
