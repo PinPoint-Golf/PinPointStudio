@@ -142,13 +142,13 @@ Click-UI for hand-labelling `truth.json` (every Nth frame, default 20).
 ## Companion scripts
 
 **`parity_run.py CORPUS_ROOT RUNS_ROOT --repo REPO [--params f] [--pose-dir d]`**
-(NAS-side, `stagegate/`.) Corpus driver that fixes two `lab.py run` limitations: run dirs
+(NAS-side, `corpus/harness/stagegate/`.) Corpus driver that fixes two `lab.py run` limitations: run dirs
 are session-disambiguated (`<session>__<swing>`), and manifest paths recorded on another
 host are rebased onto this host's corpus root. `--pose-dir` injects per-swing pose files
 named `<session>__<swing>.json`.
 
 **`extract_pose.py RUN_ROOT CORPUS_ROOT OUT_DIR`**
-(NAS-side, `stagegate/`.) Extracts `analysis.pose2d.frames` from each swing's
+(NAS-side, `corpus/harness/stagegate/`.) Extracts `analysis.pose2d.frames` from each swing's
 `result.json` into injectable pose files, **t_us copied verbatim** (see the timebase
 contract). Purpose: CUDA ViTPose is nondeterministic run-to-run (~1e-9 keypoint jitter),
 which breaks byte-identical parity gates — freeze one canonical pose pass and inject it
@@ -255,5 +255,5 @@ In-place corpus refresh after a pipeline change:
 
 ```powershell
 tar czf backup.tgz Mark-Liversedge/*/swing_*/swing.json     # first, always
-python tools\swinglab\reanalyze_corpus.py C:\PinPointStudio\Mark-Liversedge
+python tools\swinglab\reanalyze_corpus.py C:\PinPointStudio\corpus\swings
 ```

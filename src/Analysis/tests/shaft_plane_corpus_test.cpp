@@ -40,7 +40,7 @@
 using namespace pinpoint::analysis;
 
 #ifndef PP_PLANE_CORPUS_ROOT
-#define PP_PLANE_CORPUS_ROOT "/mnt/swingdata/stagegate/corpm3-off"
+#define PP_PLANE_CORPUS_ROOT "/mnt/swingdata/corpus/runs/corpm3-off"
 #endif
 #ifndef PP_PLANE_GOLDEN_CSV
 #define PP_PLANE_GOLDEN_CSV "transition_plane_corpus.csv"

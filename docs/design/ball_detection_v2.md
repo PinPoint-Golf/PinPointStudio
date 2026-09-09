@@ -18,7 +18,7 @@ implementation plan
 [`ball_detection_v2_impl_plan.md`](../implementation/ball_detection_v2_impl_plan.md).
 Prototype/validation harness: [`tools/balllab/`](../../tools/balllab/) (`ball_state_machine.py`,
 `acceptance.py`, `gen_parity_ref.py` — the regression oracle) — run against
-`/mnt/swingdata/Mark-Liversedge` (44 swings, 4 sessions, 3 distinct lighting regimes).
+`/mnt/swingdata/corpus/swings` (44 swings, 4 sessions, 3 distinct lighting regimes).
 
 ---
 

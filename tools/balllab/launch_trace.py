@@ -11,7 +11,7 @@ saturated 06-11 session (the §6 exposure-QA rationale)."""
 import cv2, json, os
 import numpy as np
 
-ROOT = "/mnt/swingdata/Mark-Liversedge"
+ROOT = "/mnt/swingdata/corpus/swings"
 picks = [
     ("2026-07-04_Mark-Liversedge_Wrist_01/swing_0012", (677, 994)),
     ("2026-07-05_Mark-Liversedge_Wrist_02/swing_0006", (667, 992)),

@@ -626,7 +626,7 @@ pp_add_test(shaft_plane_test SOURCES shaft_plane_test.cpp NO_QT)
 # no NO_QT. SKIPs (77) when the corpus share is not mounted.
 pp_add_test(shaft_plane_corpus_test
     SOURCES shaft_plane_corpus_test.cpp
-    COMPILE_OPTIONS -DPP_PLANE_CORPUS_ROOT="/mnt/swingdata/stagegate/corpm3-off"
+    COMPILE_OPTIONS -DPP_PLANE_CORPUS_ROOT="/mnt/swingdata/corpus/runs/corpm3-off"
                     -DPP_PLANE_GOLDEN_CSV="${PP_REPO_ROOT}/docs/research/data/wrist_cock_model/transition_plane_corpus.csv")
 set_tests_properties(shaft_plane_corpus_test PROPERTIES SKIP_RETURN_CODE 77)
 

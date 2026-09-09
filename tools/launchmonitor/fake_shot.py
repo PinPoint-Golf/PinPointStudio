@@ -33,7 +33,7 @@ import re
 import sys
 import time
 
-DEFAULT_EXEMPLAR = "/mnt/swingdata/LastShot.CSV"
+DEFAULT_EXEMPLAR = "/mnt/swingdata/corpus/assets/LastShot.CSV"
 
 # Used when the exemplar is not reachable — the real captured row, byte for byte.
 FALLBACK = (

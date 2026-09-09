@@ -26,7 +26,7 @@ the harness is `tools/swinglab/wrist_cock_fit.py`.*
 >    degrades to 3.51° in the downswing against the production pose's 1.79°.
 >    Production φ stays, and prior numbers are **not** φ-limited.
 > 3. **"`lenPx` runs 189→414 px, 2.2×" does not reproduce.** At
->    `stagegate/corpm3-off` the ratio is 1.58–2.08 (median 1.77), so "approaching
+>    `corpus/runs/corpm3-off` the ratio is 1.58–2.08 (median 1.77), so "approaching
 >    60°" survives but the figures do not. The absolute level also moves **36%
 >    between swings of one session with one club** — stage-2 drift no plane
 >    explains.

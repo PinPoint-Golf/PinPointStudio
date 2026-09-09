@@ -1345,7 +1345,7 @@ everything Action is visibly wrong to someone who has never heard of a standard 
 first measure opened in the finished editor rendered **11 Action out of 11**, and every one of the
 entries below is something that screen made obvious in a second and no test had caught.
 
-The library is 72 swings, one athlete, all Wrist sessions (`/mnt/swingdata/Mark-Liversedge`).
+The library is 72 swings, one athlete, all Wrist sessions (`/mnt/swingdata/corpus/swings`).
 
 **C18 — stance width is out by about 2x, and nothing could have caught it.** The shipped
 `full_swing` corridor is `mu 102, sigma 12` in **% shoulder width**; the eleven real readings that

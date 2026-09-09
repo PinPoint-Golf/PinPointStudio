@@ -587,7 +587,7 @@ arbitration. Status:
    facts (`videos`, `bindings`, `truth`) rather than on the manifest's membership.
    Gate populations below select explicitly — and note the rebuilt manifest now counts
    108, so "the corpus" is no longer a population by itself: gates 2–3 use the 61 swings
-   frozen in the stagegate `pose2/` cache (which is what "the 61-swing corpus" always
+   frozen in the `corpus/pose2/` cache (which is what "the 61-swing corpus" always
    operationally meant), gate 4 the eleven truth-marked 08-18 swings.
 
 **Gate ladder:**
@@ -659,8 +659,8 @@ In rough priority order:
 ## Appendix — reproducing the evidence from `swing.json`
 
 Everything in Part I is read from persisted analysis output; no rebuild is needed. The
-swings live at `/mnt/swingdata/Mark-Liversedge/2026-08-18_Mark-Liversedge_Wrist_0{1,2}/`
-(on GOLFSIMPC the same share is `C:\PinPointStudio\Mark-Liversedge`).
+swings live at `/mnt/swingdata/corpus/swings/2026-08-18_Mark-Liversedge_Wrist_0{1,2}/`
+(on GOLFSIMPC the same share is `C:\PinPointStudio\corpus\swings`).
 
 ```python
 j = json.load(open('<swing>/swing.json'))

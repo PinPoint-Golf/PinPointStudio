@@ -19,7 +19,7 @@ Gates (§9.1), reported per swing and in aggregate:
 
 Usage:
   python acceptance.py [--root DIR] [--limit N] [--session SUBSTR] [--verbose]
-  default root: $BALLLAB_ROOT, else /mnt/swingdata/Mark-Liversedge  (studio: C:\\PinPointStudio\\Mark-Liversedge)
+  default root: $BALLLAB_ROOT, else /mnt/swingdata/corpus/swings  (studio: C:\\PinPointStudio\\corpus\\swings)
 """
 import argparse, glob, json, os, sys
 import numpy as np
@@ -160,7 +160,7 @@ def process_swing(swing_dir, roi_norm=None):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--root", default=os.environ.get("BALLLAB_ROOT", "/mnt/swingdata/Mark-Liversedge"))
+    ap.add_argument("--root", default=os.environ.get("BALLLAB_ROOT", "/mnt/swingdata/corpus/swings"))
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--session", default="")
     ap.add_argument("--verbose", action="store_true")

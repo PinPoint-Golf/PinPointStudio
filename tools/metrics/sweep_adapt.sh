@@ -30,8 +30,8 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 [[ -r $SETTINGS ]] || { echo "sweep_adapt: unreadable: $SETTINGS" >&2; exit 2 }
 
 SESSIONS=(
-  /mnt/swingdata/Mark-Liversedge/2026-08-18_Mark-Liversedge_Wrist_01
-  /mnt/swingdata/Mark-Liversedge/2026-08-18_Mark-Liversedge_Wrist_02
+  /mnt/swingdata/corpus/swings/2026-08-18_Mark-Liversedge_Wrist_01
+  /mnt/swingdata/corpus/swings/2026-08-18_Mark-Liversedge_Wrist_02
 )
 
 mkdir -p $OUT

@@ -13,7 +13,7 @@ anything here — this script is the executable form of the §2 evidence table."
 import cv2, json, os, glob
 import numpy as np
 
-ROOT = "/mnt/swingdata/Mark-Liversedge"
+ROOT = "/mnt/swingdata/corpus/swings"
 
 def dog(gray32, r):
     s1 = max(1.0, r / 1.6)

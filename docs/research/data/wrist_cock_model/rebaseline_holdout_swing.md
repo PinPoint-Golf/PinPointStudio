@@ -1,6 +1,6 @@
 # Wrist-cock model fit
 
-- run root `/mnt/swingdata/stagegate/corpm3-off` · sha `c412703` · domain `to-impact`
+- run root `/mnt/swingdata/corpus/runs/corpm3-off` · sha `c412703` · domain `to-impact`
 - 59 swings, 23 with hand-placed shaft labels (805 labels)
 - every number leave-one-swing-out: the held-out swing never fits the table it is scored against
 

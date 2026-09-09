@@ -331,7 +331,7 @@ strong there), give the reversal a *window* (release lag).
 
 **GATE-0 — hand markup on s01, PASSED (2026-07-06, dev box).** Before touching the DP, the law was
 measured on real frames (governance §1: exemplar-first, prove it before you build it). Mark
-hand-marked the shaft of s01 → `/mnt/swingdata/Mark-Liversedge/2026-07-05_Mark-Liversedge_Wrist_02/
+hand-marked the shaft of s01 → `/mnt/swingdata/corpus/swings/2026-07-05_Mark-Liversedge_Wrist_02/
 swing_0001/truth.json` (121 grip+head+θ labels + P1–P10 events; honest blur gaps from f504). Analysis
 script stashed `…/tape_20260705/s01/psi_plot.py`; figure `…/s01/psi_markup.png` (committed
 `docs/research/figures/club_track_psi_s01.png`, Fig 2 of the research paper). ψ = θ_markup − φ vs the
@@ -416,8 +416,10 @@ recovery mechanism). On s01, the rail changes θ on **2 frames** (the impact blu
 before-fix per-swing outputs preserved at NAS `v32r1_beforefix/`.
 
 **Studio-run playbook (learned this session).** Corpus batch runs on GOLFSIMPC via `ssh studio`
-(PowerShell, venv `C:\PinPointStudio\shaftlab\.venv\Scripts\python.exe`, python 3.14/cv2 5.0/numpy 2.5).
-Stage tools to the shared NAS `/mnt/swingdata/shaftlab/v3run/` (≡ `C:\PinPointStudio\shaftlab\v3run\`).
+(PowerShell, venv `C:\PinPointStudio\corpus\shaftlab\.venv\Scripts\python.exe`,
+python 3.14/cv2 5.0/numpy 2.5 -- that venv was deleted in the 2026-09-09 share
+consolidation; recreate it before the first batch run).
+Stage tools to the shared NAS `/mnt/swingdata/corpus/shaftlab/v3run/` (≡ `C:\PinPointStudio\corpus\shaftlab\v3run\`).
 **Detach long jobs with `Invoke-CimMethod Win32_Process Create` running a `.ps1`** — `Start-Process
 -NoNewWindow` is killed when the ssh session closes. PowerShell `*>` writes **UTF-16LE** → read logs with
 `iconv -f UTF-16LE`. Use `python -u` for a live log. NEVER cross-host diff (studio cv2 5.0 ≠ dev 4.13).
@@ -609,7 +611,7 @@ new adjudication. Harnesses: `tools/shaftlab/` (exemplar) + `/swinglab` skill / 
 $PY tools/shaftlab/prep_swing.py /mnt/swingdata/.../tape_20260705/swing_0001 /tmp/s1   # raw→FFV1
 $PY tools/shaftlab/stripe_fusion.py --selftest                                          # extended Set S
 $PY tools/shaftlab/club_track_v3.py /tmp/s1/faceon_swing.avi --anchors /tmp/s1/anchors.csv \
-      --clubs /mnt/swingdata/shaftlab/clubs.json --fps-override <fps> --out-dir /tmp/s1/v3
+      --clubs /mnt/swingdata/corpus/shaftlab/clubs.json --fps-override <fps> --out-dir /tmp/s1/v3
 $PY tools/shaftlab/montage.py /tmp/s1/v3/overlay.mp4                                     # full-res eyeball
 $PY tools/shaftlab/score_truth.py /tmp/s1/v3/*_track.csv /tmp/s1/clipmeta.json          # per-tier/phase θ
 #   determinism: rerun on the studio PC, diff CSVs byte-for-byte

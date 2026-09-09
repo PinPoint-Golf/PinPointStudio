@@ -16,7 +16,7 @@ summary and aggregate the v3.1 gate across the corpus:
       [--determinism]
 
 On the Linux dev box the NAS copy of the Windows session dirs is reached with
-  --swingdir-remap C:/PinPointStudio/Mark-Liversedge=/mnt/swingdata/Mark-Liversedge
+  --swingdir-remap C:/PinPointStudio/Mark-Liversedge=/mnt/swingdata/corpus/swings
 """
 import argparse, csv, json, os, re, subprocess, sys
 import numpy as np

@@ -13,7 +13,7 @@ across the corpus and checks zero-flip / determinism.
 Each sNN needs: faceon_swing.avi, anchors.csv, skeleton.csv, clipmeta.json.
 Impact comes from swing.json capture.impactUs (resolved via clipmeta.swingDir);
 v2 truth from <swingDir>/truth.json. On the Linux dev box pass e.g.
-  --swingdir-remap C:/PinPointStudio/Mark-Liversedge=/mnt/swingdata/Mark-Liversedge
+  --swingdir-remap C:/PinPointStudio/Mark-Liversedge=/mnt/swingdata/corpus/swings
 to reach the NAS copy of the Windows session dirs.
 """
 import argparse, csv, json, math, os, subprocess, sys

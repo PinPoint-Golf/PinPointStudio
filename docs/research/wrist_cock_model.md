@@ -188,11 +188,12 @@ at 0.6% bad against dense truth. The decision rests on labels that owe the
 tracker nothing. Every number is leave-one-swing-out.
 
 **Name the run root.** Numbers downstream of a run root are not portable between
-roots, so every figure here is quoted against `stagegate/corpm3-off` (59/61
+roots, so every figure here is quoted against `corpus/runs/corpm3-off` (59/61
 swings usable) and any comparison must name its own. Some roots are unusable
 rather than merely different: `stagegate/final1` carries no `club` block, and
 `corpoff-live`, `off1`, `off2`, `on1` are missing the takeaway phase and lose all
-61 swings.
+61 swings. (Those trees were deleted in the 2026-09-09 share consolidation --
+the finding stands, the roots are gone; only `corpus/runs/corpm3-off` survives.)
 
 ### Label provenance
 
@@ -1061,13 +1062,13 @@ Supporting data is in [`data/wrist_cock_model/`](data/wrist_cock_model/).
 
 ```
 python3 tools/swinglab/fusion_truth.py --audit \
-    --lab-root /mnt/swingdata/shaftlab/lab/tape_20260705 \
-    --run-root /mnt/swingdata/stagegate/corpm3-off \
-    --corpus   /mnt/swingdata/Mark-Liversedge --out <dir>     # §5 provenance, phi
+    --lab-root /mnt/swingdata/corpus/shaftlab/lab/tape_20260705 \
+    --run-root /mnt/swingdata/corpus/runs/corpm3-off \
+    --corpus   /mnt/swingdata/corpus/swings --out <dir>     # §5 provenance, phi
 
-python3 tools/swinglab/wrist_cock_fit.py /mnt/swingdata/stagegate/corpm3-off \
-    --corpus /mnt/swingdata/Mark-Liversedge --out <dir> --knots 15 \
-    [--lab-root /mnt/swingdata/shaftlab/lab/tape_20260705] [--holdout session]
+python3 tools/swinglab/wrist_cock_fit.py /mnt/swingdata/corpus/runs/corpm3-off \
+    --corpus /mnt/swingdata/corpus/swings --out <dir> --knots 15 \
+    [--lab-root /mnt/swingdata/corpus/shaftlab/lab/tape_20260705] [--holdout session]
 
 python3 tools/shaftlab/plane_probe.py census --out <dir>      # §9 foreshortening
 python3 tools/shaftlab/plane_probe.py planes --out <dir>      # §9 the plane
@@ -1083,15 +1084,15 @@ python3 tools/shaftlab/plane_probe.py corpus \
 cmake --build build/analyzer-tests --target shaft_plane_corpus_test
 ctest --test-dir build/analyzer-tests -R shaft_plane_corpus --output-on-failure
 
-python3 tools/swinglab/wrist_cock_fit.py /mnt/swingdata/stagegate/corpm3-off \
-    --corpus /mnt/swingdata/Mark-Liversedge \
-    --lab-root /mnt/swingdata/shaftlab/lab/tape_20260705 --knots 15 \
+python3 tools/swinglab/wrist_cock_fit.py /mnt/swingdata/corpus/runs/corpm3-off \
+    --corpus /mnt/swingdata/corpus/swings \
+    --lab-root /mnt/swingdata/corpus/shaftlab/lab/tape_20260705 --knots 15 \
     --out docs/research/data/wrist_cock_model/per_swing \
     --per-swing --per-swing-boot 100 --per-swing-boot-p7 100  # §13 per-swing
 
-python3 tools/swinglab/wrist_cock_fit.py /mnt/swingdata/stagegate/corpm3-off \
-    --corpus /mnt/swingdata/Mark-Liversedge \
-    --lab-root /mnt/swingdata/shaftlab/lab/tape_20260705 --knots 15 \
+python3 tools/swinglab/wrist_cock_fit.py /mnt/swingdata/corpus/runs/corpm3-off \
+    --corpus /mnt/swingdata/corpus/swings \
+    --lab-root /mnt/swingdata/corpus/shaftlab/lab/tape_20260705 --knots 15 \
     --out docs/research/data/wrist_cock_model/per_swing \
     --p1 --p1-boot 100                                        # §13 the coda
 ```

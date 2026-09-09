@@ -15,7 +15,7 @@ deleted. Six commits on `origin/main`: `ff1e53d` (V1 core+parity) · `9d71027` (
 today's age-from-now estimate). Per-phase detail below; every "uncommitted" note in the V1–V3 bodies is
 now committed + pushed per the commit list above.
 
-Corpus: `/mnt/swingdata/Mark-Liversedge` — 44 swings, 4 non-empty sessions (06-11, 07-03, 07-04,
+Corpus: `/mnt/swingdata/corpus/swings` — 44 swings, 4 non-empty sessions (06-11, 07-03, 07-04,
 07-05_Wrist_02), 3 lighting regimes. `capture.impactUs` present in every swing.json (independent launch
 truth). Python env: `/home/markl/venv/pinpoint/bin/python3` (cv2 4.13, numpy 2.4). Run OpenCV corpus jobs
 **one at a time** (16 GB box — see the standing rule).

@@ -723,7 +723,7 @@ spent collecting data rather than discovering that the session wizard refuses to
 > ## ✅ DONE — 2026-08-18, two studio sessions, and the second one is the one that worked
 >
 > **Captures kept** (Phase F's fixture, so F needs no trip of its own):
-> `/mnt/swingdata/Mark-Liversedge/2026-08-18_Mark-Liversedge_Wrist_01` — 5 swings, 7-iron, the
+> `/mnt/swingdata/corpus/swings/2026-08-18_Mark-Liversedge_Wrist_01` — 5 swings, 7-iron, the
 > session where **every pull refused**; and `..._Wrist_02` — 6 swings, same club, after the fix.
 > Keeping both is deliberate: the pair is the before/after, and 01 is the only recording of what
 > the live lane gives you alone.

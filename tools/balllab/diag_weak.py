@@ -7,7 +7,7 @@ import numpy as np, cv2
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from ball_state_machine import dog, robust_noise, is_blob, _at_spot, K_APPEAR
 
-ROOT = os.environ.get("BALLLAB_ROOT", "/mnt/swingdata/Mark-Liversedge")
+ROOT = os.environ.get("BALLLAB_ROOT", "/mnt/swingdata/corpus/swings")
 PICKS = ["2026-07-03_Mark-Liversedge_Wrist_01/swing_0002",
          "2026-07-04_Mark-Liversedge_Wrist_01/swing_0001"]   # weak vs healthy control
 

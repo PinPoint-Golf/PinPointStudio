@@ -197,7 +197,7 @@ seed, and the between-golfer test. Any composed weight stays in 0..1.
    short/degenerate arc → no emission; an anisotropic-normalisation
    regression pin (the 40° failure mode must stay dead).
 2. **Golden cross-check**: run the producer over the corpus at
-   `stagegate/corpm3-off` and match `transition_plane_corpus.csv` on the
+   `corpus/runs/corpm3-off` and match `transition_plane_corpus.csv` on the
    measured channel — same 33 swings, ι and delta within 0.1°, same 28
    falling back for the same reasons. One run, at the end.
 3. **The mirror stat, recorded not gated**: on swings where both channels
@@ -232,7 +232,7 @@ the research note's §13 updated if the corpus yield or numbers move.
 ## 10. What shipped, and what the corpus run reported
 
 **The port is exact.** `shaft_plane_corpus_test` reads the 61 existing
-`result.json` files at `stagegate/corpm3-off` — no pipeline re-run, nothing
+`result.json` files at `corpus/runs/corpm3-off` — no pipeline re-run, nothing
 written under the corpus root — and reproduces the reference on every column:
 the same fitted **set** bar three named exclusions (§12), worst ι/δ/node error **0.0049°** against the
 0.1° tolerance, sample counts exactly equal, residuals inside the file's 4-dp

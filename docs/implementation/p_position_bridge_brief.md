@@ -112,7 +112,7 @@ p5(360) / p6(232) / p8(61) / p2(61) swing×measure rows.
   `serializeAnalysis` subtracts `clock.t0_us` exactly once at write. Do not
   convert anything. (Rounds one/two/three of the relative/absolute war:
   `swing_reanalyzer.cpp:570-586`, the extract_pose `+t0` bug — fixed 2026-08-09,
-  use `stagegate/pose2/`, never `stagegate/pose/`.)
+  use `corpus/pose2/`, never `corpus/pose/`.)
 - **Analysis is session-agnostic** (hard rule): gate on available data
   (positions present, ladder present), never on sessionType.
 - **Vision-ladder conf is flat 0.5**; position conf is real. Fine for insertion
@@ -129,10 +129,10 @@ p5(360) / p6(232) / p8(61) / p2(61) swing×measure rows.
    (`tools/swinglab/parity_diff.py`, excludes only `analysis.timings`).
 3. **Corpus A/B on GOLFSIMPC** (`ssh developer@GOLFSIMPC.local`; swinglab exes
    MUST be colocated with the DLL set + `models/` or pose silently no-ops):
-   corpus `C:\PinPointStudio\Mark-Liversedge`, prior runs at
+   corpus `C:\PinPointStudio\corpus\swings`, prior runs at
    `C:\PinPointStudio\p5p8gate\{base2,cand2}` for baselines. Run
-   `parity_run.py` from the NAS `stagegate/` with the key ON; injected-pose runs
-   use `--pose-dir stagegate/pose2`.
+   `parity_run.py` from the NAS `corpus/harness/stagegate/` with the key ON; injected-pose runs
+   use `--pose-dir corpus/pose2`.
 4. **Coverage delta**: `lab.py coverage <run> --pack core.json` before/after;
    expect p2/p6/p8 blocking rows to drop by roughly the detection rates
    (P2 20/20, P8 17/20, P6 8/20), p5 to follow P6, and record the

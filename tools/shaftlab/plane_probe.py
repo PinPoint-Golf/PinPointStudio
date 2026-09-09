@@ -71,7 +71,7 @@ from theta_psi_model import (  # noqa: E402
     arm_series, decide_lead_side, wrap180, git_sha,
 )
 
-CLUB_LEN_MM_DEFAULT = 940.0            # 7 IRON, /mnt/swingdata/shaftlab/clubs.json
+CLUB_LEN_MM_DEFAULT = 940.0            # 7 IRON, /mnt/swingdata/corpus/shaftlab/clubs.json
 F_MEASURED = 0x01
 F_SYNTH = 0x100                        # ShaftSynthesized -- never a measurement
 
@@ -951,8 +951,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("mode", choices=("census", "planes", "corpus"))
-    ap.add_argument("--run-root", default="/mnt/swingdata/stagegate/corpm3-off")
-    ap.add_argument("--lab-root", default="/mnt/swingdata/shaftlab/lab/tape_20260705")
+    ap.add_argument("--run-root", default="/mnt/swingdata/corpus/runs/corpm3-off")
+    ap.add_argument("--lab-root", default="/mnt/swingdata/corpus/shaftlab/lab/tape_20260705")
     ap.add_argument("--club-mm", type=float, default=CLUB_LEN_MM_DEFAULT)
     ap.add_argument("--out", default=None)
     ap.add_argument("--fig", default=None,

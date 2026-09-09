@@ -10,7 +10,9 @@
 ## 0. Status, 1 September 2026, 21:43 — A CLIP IS ON DISK
 
 ```
-/System/Volumes/Data/mnt/swingdata/Mark-Liversedge/2026-09-01_Mark-Liversedge_Wrist_14/swing_0001/wide-cf05c062.mp4
+/System/Volumes/Data/mnt/swingdata/corpus/swings/2026-09-01_Mark-Liversedge_Wrist_14/swing_0001/wide-cf05c062.mp4
+(that session was deleted before the 2026-09-09 share consolidation;
+ the record stands, the clip is gone)
 21,930,314 bytes, HEVC 1920x1080, 718 frames; swing.json names it with frames.t_us 0…2,993,875;
 ppcp-ledger.json holds cap:98aa0927… with a swingRef.   make integration-device: PROBE RESULT PASS
 ```
@@ -173,7 +175,7 @@ Exit 0 only. It passes when a clip is on disk, `swing.json` names it with `frame
 ledger holds the capture with a `swingRef`. Then confirm by hand, because the point is the file:
 
 ```sh
-find /System/Volumes/Data/mnt/swingdata/Mark-Liversedge -name '*.mov' -newermt today
+find /System/Volumes/Data/mnt/swingdata/corpus/swings -name '*.mov' -newermt today
 python3 -c "import json;print(len(json.load(open('/System/Volumes/Data/mnt/swingdata/ppcp-ledger.json'))['captures']))"
 ```
 

@@ -61,7 +61,7 @@ Item {
     }
 
     readonly property string swingDir: probe._arg("--probe-swing",
-        "/mnt/swingdata/Mark-Liversedge/2026-08-18_Mark-Liversedge_Wrist_01/swing_0001")
+        "/mnt/swingdata/corpus/swings/2026-08-18_Mark-Liversedge_Wrist_01/swing_0001")
     // The session dir is the swing dir's parent — loadSession() takes it verbatim.
     readonly property string sessionDir: probe.swingDir.substring(0, probe.swingDir.lastIndexOf("/"))
     readonly property string presetName: probe._arg("--probe-preset", "Plumb Bob")

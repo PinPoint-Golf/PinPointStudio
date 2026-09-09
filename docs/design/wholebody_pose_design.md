@@ -3,7 +3,7 @@
 **Status:** Proposal (2026-07-13). **Built same day (WB0–WB3, uncommitted):** 133-kp
 offline contract + swing.json widening (byte-parity gated), swing-level person crop +
 DARK decode (corpus mean 69.8→72.7 on the 16-swing raw subset; one shaft-assembly
-validity interaction escalated — /mnt/swingdata/runs-wb1gate/{TRIAGE,ESCALATION}.md),
+validity interaction escalated — /mnt/swingdata/corpus/harness/runs-wb1gate/{TRIAGE,ESCALATION}.md),
 head tracking (headSway/headLift/headTilt series), feet consumers (stance corridor v2,
 stanceWidth/flare/toe-line/leadHeelLift, overlay foot edges). Low tier removed (Q2).
 **WB4 built DARK** (defaults-off, byte-parity verified): `pose.gripFromSmoothedHands`,

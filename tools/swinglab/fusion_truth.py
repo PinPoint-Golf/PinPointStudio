@@ -53,7 +53,7 @@ from theta_psi_model import (  # noqa: E402  - the conventions live there, once
     arm_series, decide_lead_side, smooth_angle, wrap180, git_sha,
 )
 
-LAB_ROOT_DEFAULT = "/mnt/swingdata/shaftlab/lab/tape_20260705"
+LAB_ROOT_DEFAULT = "/mnt/swingdata/corpus/shaftlab/lab/tape_20260705"
 
 # COCO-WholeBody hand blocks (src/Analysis/swing_analysis.h:249-250) and the
 # hand-axis endpoint (src/Analysis/hand_axis.h:43). Used ONLY for the accuracy
@@ -558,8 +558,8 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--audit", action="store_true", help="run gates A1/A2/A3")
     ap.add_argument("--lab-root", default=LAB_ROOT_DEFAULT)
-    ap.add_argument("--run-root", default="/mnt/swingdata/stagegate/corpm3-off")
-    ap.add_argument("--corpus", default="/mnt/swingdata/Mark-Liversedge")
+    ap.add_argument("--run-root", default="/mnt/swingdata/corpus/runs/corpm3-off")
+    ap.add_argument("--corpus", default="/mnt/swingdata/corpus/swings")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
     if not a.audit:

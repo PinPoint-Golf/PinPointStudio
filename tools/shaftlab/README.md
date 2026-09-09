@@ -39,6 +39,23 @@ video ─► prep_swing.py ─► clip + anchors.csv + skeleton.csv + clipmeta.j
 | `montage.py` | tile annotated frames for visual triage (zoom full-res before concluding anything) |
 | `render_combined.py` | stage-1 line + stage-2 head marker in one review video |
 
+## The lab clips
+
+The hand-marked lab lives at `/mnt/swingdata/corpus/shaftlab/lab/tape_20260705/sNN/`
+(10 clips, all from `corpus/swings/2026-07-05_Mark-Liversedge_Wrist_02/swing_00NN`).
+The truth files -- `clipmeta.json`, `anchors.csv`, `skeleton.csv` -- are kept there.
+The FFV1 expansion `faceon_swing.avi` is **not**: 12 GB of it was deleted in the
+2026-09-09 share consolidation because nothing reads it except the corpus runners.
+Regenerate a clip before running `run_v3_corpus.py`, `run_v31_corpus.py`,
+`run_v32r1_corpus.py` or `montage_shaft_track.py`:
+
+```bash
+$P prep_swing.py /mnt/swingdata/corpus/swings/2026-07-05_Mark-Liversedge_Wrist_02/swing_0001 \
+    /mnt/swingdata/corpus/shaftlab/lab/tape_20260705/s01     # rewrites faceon_swing.avi
+```
+
+(each `sNN/clipmeta.json` records its own source `swingDir` and `src: raw`.)
+
 ## Workflow
 
 ```bash

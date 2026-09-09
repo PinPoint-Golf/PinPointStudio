@@ -24,7 +24,7 @@ Outputs one CSV row per frame, and (--summary) markdown tables per
 condition × phase × background regime.
 
 Usage:
-  steel_profile_probe.py --root /mnt/swingdata/Mark-Liversedge --out probe.csv
+  steel_profile_probe.py --root /mnt/swingdata/corpus/swings --out probe.csv
   steel_profile_probe.py --csv probe.csv --summary probe_summary.md
 """
 import argparse, bisect, collections, csv, glob, json, os, sys

@@ -11,7 +11,7 @@ mkdir -p $OUT
 for sc in $SCALES; do
   root=$OUT/scale_$sc; mkdir -p $root
   echo "{\"poseSmooth.legsJerkScale\": $sc}" > $root/params.json
-  for sess in /mnt/swingdata/Mark-Liversedge/2026-08-18_Mark-Liversedge_Wrist_01 /mnt/swingdata/Mark-Liversedge/2026-08-18_Mark-Liversedge_Wrist_02; do
+  for sess in /mnt/swingdata/corpus/swings/2026-08-18_Mark-Liversedge_Wrist_01 /mnt/swingdata/corpus/swings/2026-08-18_Mark-Liversedge_Wrist_02; do
     for sw in $sess/swing_*; do
       o=$root/$(basename $sess)/$(basename $sw); mkdir -p $o
       $BIN $sw --out $o --params $root/params.json > $o/run.log 2>&1 || echo "FAIL $sc $(basename $sess)/$(basename $sw)"

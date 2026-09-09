@@ -81,7 +81,8 @@ lab needs it.
 Measure after taping, to the millimetre, **from the butt end of the grip** to
 the CENTRE of each band. Without this record the tape is only "easier to
 see"; with it, every swing is auto-labelable truth. One file per corpus root
-(e.g. `/mnt/swingdata/clubs.json`); the `id` must match what markup writes in
+(e.g. `/mnt/swingdata/corpus/shaftlab/clubs.json`); the `id` must match what
+markup writes in
 `truth.json meta.club`.
 
 ```json

@@ -30,7 +30,7 @@ Runs ~20 s (6 steps × 2500 ms + teardown), then `Qt.quit()`s itself.
 
 | flag | default |
 |---|---|
-| `--probe-swing <abs swing dir>` | `/mnt/swingdata/Mark-Liversedge/2026-08-18_Mark-Liversedge_Wrist_01/swing_0001` |
+| `--probe-swing <abs swing dir>` | `/mnt/swingdata/corpus/swings/2026-08-18_Mark-Liversedge_Wrist_01/swing_0001` |
 | `--probe-preset <name>` | `Plumb Bob` |
 | `--probe-session-type <n>` | `1` (Wrist → screen index 2) |
 | `--probe-step-ms <n>` | `2500` |

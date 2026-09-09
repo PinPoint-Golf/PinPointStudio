@@ -178,7 +178,7 @@ def gen_swing(swing_dir, roi_norm, out_dir, tag):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--root", default=os.environ.get("BALLLAB_ROOT", "/mnt/swingdata/Mark-Liversedge"))
+    ap.add_argument("--root", default=os.environ.get("BALLLAB_ROOT", "/mnt/swingdata/corpus/swings"))
     ap.add_argument("--out", default="/tmp/ball_parity")
     ap.add_argument("--swings", nargs="*", default=DEFAULT_SWINGS,
                     help="session_dir/swing_xxxx relative names (default: 3 golden swings)")

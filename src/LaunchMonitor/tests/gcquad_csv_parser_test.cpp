@@ -1,7 +1,7 @@
 // LastShot.CSV → LaunchMonitorReading.
 //
 // The reference row is the real sample captured from FSX2020 (see
-// /mnt/swingdata/LastShot.CSV), reproduced verbatim including its trailing comma.
+// /mnt/swingdata/corpus/assets/LastShot.CSV), reproduced verbatim including its trailing comma.
 // Expected values are the catalogue-unit conversions of that row, computed by hand
 // so the test fails if the conversion constants are ever "tidied".
 //

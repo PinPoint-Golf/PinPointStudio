@@ -557,7 +557,7 @@ Two levers/examples worth knowing by name:
 
 - **Deterministic gates.** Live-CUDA ViTPose is run-to-run nondeterministic
   at ~1e-9 — enough to fail a byte-identical diff on every swing. Freeze one
-  canonical pose pass per swing (`stagegate/extract_pose.py` pulls
+  canonical pose pass per swing (`corpus/harness/stagegate/extract_pose.py` pulls
   `analysis.pose2d` out of a prior run) and inject it into both sides of the
   diff. Always run an OFF-vs-OFF determinism baseline first so you know the
   residual is the change under test, not the environment.
@@ -656,8 +656,8 @@ The suite is 52 tests as of the EventRefine landing — run it whole; it is
 fast (~7 s).
 
 Corpus-scale gating lives outside ctest: the stagegate harness
-(`parity_run.py` + `extract_pose.py` on the studio share,
-`tools/swinglab/parity_diff.py` locally) runs the blessed corpus through
+(`parity_run.py` + `extract_pose.py` at `corpus/harness/stagegate/` on the
+studio share, `tools/swinglab/parity_diff.py` locally) runs the blessed corpus through
 `swinglab_run` and diffs serialized results. The discipline that shipped the
 refactor — determinism baseline first, pose injected, timings stripped, zero
 diffs required — is the template for every future stage gate. SwingLab
@@ -678,7 +678,8 @@ Segmentation-affecting work gates through two live-pose instruments instead:
   rather than bytes. Run the OFF-vs-OFF pair first: its event-movement noise
   floor is **zero** (CUDA pose jitter does not move event times), so any
   OFF-vs-ON movement is the change under test.
-- **`fidget_eval.py` (stagegate share) — the 17-swing truth harness.** Runs
+- **`fidget_eval.py` (`corpus/harness/stagegate/` on the share) — the 17-swing
+  truth harness.** Runs
   `swinglab_run` over every swing carrying a `truth.json` `events.p1_s`
   annotation and reports per-swing Address (and Takeaway, when present)
   error vs truth, resumable, with an optional params file for the A/B side.

@@ -15,7 +15,7 @@ the C++ tracker is the development reference (`shaft_parity_test` deleted).
 
 Originally proposed 2026-07-09, camera-only Wrist swings, from the
 investigation on the six fresh captures in
-`/mnt/swingdata/Mark-Liversedge/2026-07-09_Mark-Liversedge_Wrist_01`
+`/mnt/swingdata/corpus/swings/2026-07-09_Mark-Liversedge_Wrist_01`
 (ball data, taped 7-iron, band centres recorded).
 
 ## 1. Problem

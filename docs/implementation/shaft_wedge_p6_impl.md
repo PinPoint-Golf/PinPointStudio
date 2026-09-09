@@ -357,7 +357,7 @@ coverage` re-run for the corrected P6/P5 blocking rows.
 - **Session-agnostic:** gate on data (ω̂, positions, ladder), never sessionType.
 - **Corpus jitter:** live-pose runs can NEVER byte-match (CUDA jitter at the
   9th decimal, events can move 40 ms). Byte-identity claims require pose2-pinned
-  runs (`--pose-dir C:\PinPointStudio\stagegate\pose2`). Baselines:
+  runs (`--pose-dir C:\PinPointStudio\corpus\pose2`). Baselines:
   `C:\PinPointStudio\p2bridge\{dark,on,dark2}`; studio protocol in
   [[golfsimpc-studio-build]] (build via `build_swinglab.cmd` pattern into
   `build\Release-Installer`, run `parity_run.py` via the venv python).

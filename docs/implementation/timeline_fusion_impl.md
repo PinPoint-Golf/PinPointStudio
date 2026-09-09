@@ -15,13 +15,13 @@ below is what the default flip should cite.
 | Build | Release, `build/Release-Installer` (VS 18 / jom, `PINPOINT_BUILD_TOOLS=ON`), DLL set + `models/vitpose-b-wholebody.onnx` colocated with the exe |
 | Baseline binary | `7e62369` — the last pre-fusion commit, kept as `swinglab_run_base.exe` |
 | Fusion binary | `ff27b06` — `swinglab_run.exe` |
-| Driver | `stagegate/parity_run.py` (session-disambiguated run dirs; `lab.py run` flattens by swing name and collides across sessions) |
+| Driver | `corpus/harness/stagegate/parity_run.py` (session-disambiguated run dirs; `lab.py run` flattens by swing name and collides across sessions) |
 | Workspace | `C:\PinPointStudio\fusiongate` |
 
 **Populations.** The rebuilt manifest counts 108, so membership is selected
 explicitly rather than inherited (`fusiongate/fusion_manifest.py`):
 
-- `pop-61` — the 61 swings frozen in the `stagegate/pose2/` cache. That cache is
+- `pop-61` — the 61 swings frozen in the `corpus/pose2/` cache. That cache is
   what "the 61-swing corpus" has always operationally meant. All camera-only.
 - `pop-0818` — the eleven 2026-08-18 wG3 swings, the only both-witness
   population, all carrying a full P1–P10 markup.

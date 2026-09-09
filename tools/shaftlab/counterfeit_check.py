@@ -39,7 +39,7 @@ def load_v3(v3out, s):
 
 def s01_truth(session_root):
     # s01 clipmeta swingDir -> truth.json
-    cm = json.load(open("/mnt/swingdata/shaftlab/lab/tape_20260705/s01/clipmeta.json"))
+    cm = json.load(open("/mnt/swingdata/corpus/shaftlab/lab/tape_20260705/s01/clipmeta.json"))
     sd = cm["swingDir"]
     if session_root:
         a, b = session_root.split("=", 1)
